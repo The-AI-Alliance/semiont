@@ -2,17 +2,19 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { AssessmentEntry } from './AssessmentEntry';
 import { AssistSection } from './AssistSection';
 import { PanelHeader } from './PanelHeader';
 import './AssessmentPanel.css';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
+type JobProgress = components['schemas']['JobProgress'];
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -41,11 +43,10 @@ interface AssessmentPanelProps {
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
   isAssisting?: boolean;
-  progress?: {
-    status: string;
-    percentage?: number;
-    message?: string;
-  } | null;
+  progress?: JobProgress | null;
+  locale?: string;
+  /** BCP-47 tag of the resource being analyzed — forwarded to the assist call. */
+  sourceLanguage?: string;
   annotateMode?: boolean;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
@@ -64,13 +65,15 @@ export function AssessmentPanel({
   pendingAnnotation,
   isAssisting = false,
   progress,
+  locale,
+  sourceLanguage,
   annotateMode = true,
   scrollToAnnotationId,
   onScrollCompleted,
   hoveredAnnotationId,
 }: AssessmentPanelProps) {
   const t = useTranslations('AssessmentPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const [newAssessmentText, setNewAssessmentText] = useState('');
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -137,14 +140,20 @@ export function AssessmentPanel({
 
   const handleSaveNewAssessment = () => {
     if (pendingAnnotation) {
-      const body: components['schemas']['AnnotationBody'][] = newAssessmentText.trim()
-        ? [{ type: 'TextualBody' as const, value: newAssessmentText, purpose: 'assessing' as const }]
-        : [];
+      // Body is optional for assessments. When the user typed text,
+      // emit a single TextualBody (matching the worker's output and
+      // the majority of historical persisted assessments). When they
+      // didn't, omit body entirely — motivation:'assessing' on a
+      // target is a valid empty-content assessment.
+      const trimmed = newAssessmentText.trim();
+      const body: components['schemas']['AnnotationBody'] | undefined = trimmed
+        ? { type: 'TextualBody', value: trimmed, purpose: 'assessing' }
+        : undefined;
 
-      eventBus.get('mark:submit').next({
+      session?.client.mark.submit({
         motivation: 'assessing',
         selector: pendingAnnotation.selector,
-        body,
+        ...(body !== undefined ? { body } : {}),
       });
       setNewAssessmentText('');
     }
@@ -156,14 +165,14 @@ export function AssessmentPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('mark:cancel-pending').next(undefined);
+        session?.client.mark.cancelPending();
         setNewAssessmentText('');
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation]);
+  }, [pendingAnnotation, session]);
 
   // Event handler for annotation clicks (extracted to avoid inline arrow function)
   const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
@@ -209,7 +218,7 @@ export function AssessmentPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.get('mark:cancel-pending').next(undefined);
+                  session?.client.mark.cancelPending();
                   setNewAssessmentText('');
                 }}
                 className="semiont-button semiont-button--secondary"
@@ -236,6 +245,8 @@ export function AssessmentPanel({
           <AssistSection
             annotationType="assessment"
             isAssisting={isAssisting}
+            locale={locale}
+            sourceLanguage={sourceLanguage}
             progress={progress}
           />
         )}

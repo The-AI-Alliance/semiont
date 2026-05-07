@@ -111,6 +111,7 @@ describe('OAuth Service', () => {
       expect(result).toEqual({
         user: mockUser,
         token: 'mock-jwt-token',
+        refreshToken: 'mock-jwt-token',
         isNewUser: true
       });
 
@@ -274,21 +275,27 @@ describe('OAuth Service', () => {
 
       await OAuthService.createOrUpdateUser(userWithoutName);
 
-      // JWT payload should NOT have name field when user.name is falsy
+      // JWT payload should NOT have name field when user.name is falsy.
+      // generateToken is called twice now (access + refresh) — both calls
+      // must use the same name-less payload.
       expect(JWTService.generateToken).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: expect.any(String),
           email: userWithoutName.email,
-          // name field should be omitted when falsy, not set to undefined
           domain: 'example.com',
           provider: 'google',
           isAdmin: false,
-        })
+        }),
+        expect.any(String),
       );
-      
-      // Verify name field is not present when user.name is falsy
-      const generateTokenCall = vi.mocked(JWTService.generateToken).mock.calls[0]?.[0];
-      expect(generateTokenCall && 'name' in generateTokenCall).toBe(false);
+      expect(JWTService.generateToken).toHaveBeenCalledTimes(2);
+
+      // Verify name field is not present in either call's payload
+      const calls = vi.mocked(JWTService.generateToken).mock.calls;
+      for (const call of calls) {
+        const payload = call[0];
+        expect(payload && 'name' in payload).toBe(false);
+      }
     });
   });
 

@@ -2,399 +2,209 @@
 
 ## Overview
 
-The Semiont frontend implements a comprehensive authentication system built on NextAuth.js with JWT tokens from a custom backend. The architecture emphasizes:
+A user is always authenticated **against a specific Knowledge Base
+(KB)** — never globally. Switching KBs means switching sessions
+atomically. The frontend stores one JWT pair per KB in
+`localStorage` and validates on session construction via the backend's
+`GET /api/users/me` endpoint.
 
-- **No global mutable state** - All authentication state managed through React hooks
-- **Per-request authentication** - Each API call reads fresh token from session
-- **Fail-fast philosophy** - Missing authentication throws errors immediately
-- **React Query integration** - All API calls use authenticated React Query hooks
+There is no NextAuth, no httpOnly cookie, no global session. Session
+state is owned by a single `SemiontBrowser` singleton that lives in
+`@semiont/api-client` and is exposed to React via the
+`SemiontProvider` + `useSemiont()` pair in `@semiont/react-ui`.
 
-## Core Components
+For the class-level story (observables, lifetimes, invariants), see
+[SESSION.md in `@semiont/react-ui`](../../../packages/react-ui/docs/SESSION.md).
+This doc covers the **frontend-app** concerns: where providers mount,
+how route protection is expressed, how sign-in / sign-out flow, and
+how out-of-tree code signals the provider.
 
-### 1. NextAuth.js Configuration (`src/app/api/auth/[...nextauth]/route.ts`)
+## Core pieces
 
-- OAuth providers: Google, GitHub, GitLab
-- JWT strategy for stateless authentication
-- Custom session callbacks to include backend JWT token
-- Secure token generation and validation
+### `SemiontBrowser` (singleton)
 
-**Session Structure:**
-```typescript
-session: {
-  user: { email, name, image },
-  backendToken: string,  // JWT from backend
-  expires: string
+App-level container owning the KB list, active selection, session,
+open-resources tab state, identity token, and two event buses. Lives
+in `@semiont/api-client` so CLI / MCP / workers can use it too.
+
+Key observables the UI reads:
+
+- `kbs$` — configured KB list
+- `activeKbId$` — currently selected KB (set, even when signed out)
+- `activeSession$` — live `SemiontSession | null`
+- `sessionActivating$` — true while `setActiveKb` / `signIn` is in
+  flight awaiting `session.ready`. **The only valid loading
+  indicator.** UIs that want a spinner during session construction
+  must AND-gate on this, otherwise they stick on the spinner
+  forever after sign-out (see [Sign-out semantics](#sign-out-semantics)).
+- `openResources$`, `identityToken$`, `error$`
+
+### `SemiontProvider` + `useSemiont()` (React surface)
+
+The only React export that touches session state. Mount once at the
+app root — not only inside protected routes. The provider is cheap;
+zero-KB and signed-out are first-class states, not pre-app states.
+
+```tsx
+import { SemiontProvider } from '@semiont/react-ui';
+
+export default function AppLayout({ children }) {
+  return <SemiontProvider>{children}</SemiontProvider>;
 }
 ```
 
-### 2. Session Management
+Inside components:
 
-#### SessionProvider (NextAuth)
-- Top-level provider wrapping entire app
-- Manages NextAuth session state
-- Provides `useSession()` hook throughout app
+```tsx
+import { useSemiont, useObservable } from '@semiont/react-ui';
 
-#### Custom SessionContext (`src/contexts/SessionContext.tsx`)
-- Lightweight wrapper around NextAuth
-- Provides `isFullyAuthenticated` helper
-- Checks both NextAuth session AND backend token presence
+function Whatever() {
+  const semiont = useSemiont();
+  const session = useObservable(semiont.activeSession$);
+  const user = useObservable(session?.user$);
 
-```typescript
-const { isFullyAuthenticated } = useCustomSession();
-// true only if: status === 'authenticated' AND backendToken exists
+  if (!user) return <SignInPrompt />;
+  return <div>Hello, {user.name}</div>;
+}
 ```
 
-### 3. Authentication Hooks
+`useSemiont()` throws if no `SemiontProvider` is mounted. There is no
+fallback — auth misuse must fail loudly.
 
-#### useSession() (NextAuth)
-**Primary authentication hook** - Use this everywhere!
+### `KnowledgeBasePanel` (UI)
 
-```typescript
-const { data: session, status } = useSession();
+User-facing UI for adding / switching / signing out of KBs. Calls
+`browser.addKb(input)`, `browser.signIn(id, access, refresh)`, and
+`browser.signOut(id)`. Never writes to `localStorage` directly — all
+persistence goes through `SemiontBrowser`'s `SessionStorage` adapter
+(the frontend injects `WebBrowserStorage`).
 
-// status: 'loading' | 'authenticated' | 'unauthenticated'
-// session.backendToken: JWT for backend API calls
+## Route protection pattern
+
+A protected layout reads three observables and branches on three
+states. The order matters:
+
+```tsx
+function KnowledgeLayoutBody() {
+  const semiont = useSemiont();
+  const activeKbId = useObservable(semiont.activeKbId$);
+  const session = useObservable(semiont.activeSession$);
+  const sessionActivating = useObservable(semiont.sessionActivating$);
+  const token = useObservable(session?.token$);
+  const activeKnowledgeBase = session?.kb ?? null;
+
+  // 1. Session under construction — brief, shown only during active activation.
+  const isLoading = activeKbId != null && session == null && sessionActivating;
+  if (isLoading) return <LoadingSpinner />;
+
+  // 2. Unauth — active KB exists but no session (signed out, or no credentials).
+  if (!activeKnowledgeBase || !token) return <UnauthenticatedKnowledgeLayout />;
+
+  // 3. Authed.
+  return <AuthenticatedKnowledgeLayout />;
+}
 ```
 
-#### useAuthenticatedAPI() (`src/hooks/useAuthenticatedAPI.ts`)
-**Wraps fetch with automatic Bearer token authentication**
+The AND-gate on `sessionActivating` is load-bearing. Without it,
+every `signOut` leaves the layout stuck on the spinner forever —
+`activeKbId` is still set, `session` is null, and there's nothing to
+arrive.
 
-```typescript
-const { fetchAPI, isAuthenticated } = useAuthenticatedAPI();
+## Sign-out semantics
 
-// Automatically includes Authorization: Bearer <token>
-const data = await fetchAPI('/api/endpoint');
+Calling `browser.signOut(id)` does **two things, not three**:
 
-// Throws error if no token available (fail-fast)
+1. Clears stored tokens for that KB from storage.
+2. If the KB is active: disposes the `SemiontSession` and emits
+   `null` on `activeSession$`.
+
+It deliberately does **not** clear `activeKbId$`. Per the app's
+design: "all KB entries are shown, one is active, regardless of
+whether the auth is current." Sign-out is a credentials concept, not
+a selection concept.
+
+The resulting state (active KB set, session null, `sessionActivating`
+false) is how the layout knows to render the unauth view with a
+"signed out, click the KB to re-auth" affordance.
+
+## Authentication flow
+
+```
+1. User adds a KB via KnowledgeBasePanel
+   └── Frontend POSTs credentials directly to that KB's backend
+       └── Backend returns access + refresh JWTs
+           └── Panel calls browser.addKb({...kb}) and browser.signIn(id, access, refresh)
+               └── Browser stores tokens, activates the KB, constructs a SemiontSession
+
+2. Page mount with existing stored tokens (reload, new tab)
+   └── SemiontBrowser constructor reads activeKbId from storage
+       └── Kicks off setActiveKb(id), sessionActivating$ → true
+           └── SemiontSession constructs, validates token via /api/users/me
+               ├── 200 → activeSession$.next(session), sessionActivating$ → false
+               └── 401 → session disposes itself, activeSession$ stays null,
+                         session fires sessionExpiredAt$ on the dead session (see below)
+
+3. Out-of-band 401/403 from any HTTP / bus call
+   └── QueryCache.onError (or similar) → notifySessionExpired() / notifyPermissionDenied()
+       └── Module-level notify calls into the active session's modal flags
+           └── Modal reads the flag via useObservable and surfaces
+
+4. Sign out
+   └── User clicks per-KB sign-out in KnowledgeBasePanel
+       └── browser.signOut(id) — clears tokens, disposes session
+           └── activeKbId$ stays set; layout drops into UnauthenticatedKnowledgeLayout
 ```
 
-**Features:**
-- Reads token synchronously from `useSession()` (no async/await)
-- Adds `Authorization: Bearer <token>` header automatically
-- Throws `APIError` with status code on failures
-- Used internally by all React Query hooks
+## OAuth flow
 
-### 4. React Query Integration
+OAuth providers can be configured per KB on the backend. The flow:
 
-All API calls use React Query hooks that internally use `useAuthenticatedAPI`:
+1. User picks a KB and an OAuth provider in the connect form.
+2. Browser redirects to the backend's OAuth endpoint for that KB.
+3. Backend handles the OAuth dance, issues a JWT, redirects back with
+   the token in the URL fragment.
+4. Frontend parses the fragment, calls `browser.signIn(id, ...)` with
+   the returned tokens.
 
-```typescript
-// Query (read)
-const { data, isLoading, error } = api.documents.get.useQuery(documentId);
+## Cross-tree session signaling
 
-// Mutation (write)
-const updateMutation = api.documents.update.useMutation();
-await updateMutation.mutateAsync({ id, title, content });
-```
-
-**Query Hooks Automatically:**
-- Include Bearer token via `useAuthenticatedAPI`
-- Wait for authentication before running (via `enabled` flag)
-- Handle 401/403 errors through global error handlers
-- Retry non-auth errors (but not 401/403)
-
-### 5. Error Handling
-
-#### Global Error Handlers (`src/app/providers.tsx`)
-
-React Query caches have global error handlers:
+Code outside the React tree (React Query `QueryCache.onError`,
+`MutationCache.onError`, etc.) cannot call hooks. It signals the
+active session via module-scoped notify functions registered at
+provider mount:
 
 ```typescript
-queryCache: new QueryCache({
+import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
+
+new QueryCache({
   onError: (error) => {
     if (error instanceof APIError) {
-      if (error.status === 401) {
-        dispatch401Error('Session expired');
-      } else if (error.status === 403) {
-        dispatch403Error('Permission denied');
-      }
+      if (error.status === 401) notifySessionExpired('Your session has expired.');
+      if (error.status === 403) notifyPermissionDenied('Access denied.');
     }
-  }
-})
-```
-
-#### Auth Events (`src/lib/auth-events.ts`)
-
-Custom event system for auth errors:
-- `dispatch401Error()` - Triggers session expired modal
-- `dispatch403Error()` - Triggers permission denied notification
-- Type-safe event handling with cleanup
-
-#### AuthErrorBoundary (`src/components/AuthErrorBoundary.tsx`)
-
-Error boundary that catches auth-related errors:
-- Provides recovery UI with sign-in option
-- Development mode error details
-- Graceful fallback for auth failures
-
-### 6. SSE Authentication
-
-Server-Sent Events hooks use `useSession()` directly:
-
-```typescript
-const { data: session } = useSession();
-
-useEffect(() => {
-  if (!session?.backendToken) return;
-
-  const eventSource = new EventSource(url, {
-    headers: {
-      'Authorization': `Bearer ${session.backendToken}`
-    }
-  });
-  // ...
-}, [session?.backendToken]);
-```
-
-**Hooks:**
-- `useResourceEvents` - Real-time document change notifications
-- `useGenerationFlow` - AI generation (manages SSE and progress state)
-- `useDetectionFlow` - Entity detection (manages SSE and progress state)
-
-## Authentication Flow
-
-```mermaid
-sequenceDiagram
-    participant Browser
-    participant FrontendServer as Frontend Server<br/>(NextAuth)
-    participant OAuth as OAuth Provider<br/>(Google)
-    participant Backend
-
-    Browser->>FrontendServer: Click Sign In
-    FrontendServer->>OAuth: Redirect for auth
-    OAuth->>Browser: Consent page
-    Browser->>OAuth: Approve
-    OAuth->>FrontendServer: Return with OAuth token
-    FrontendServer->>Backend: Exchange OAuth token
-    Backend->>FrontendServer: Return JWT
-    FrontendServer->>Browser: Session cookie with JWT
-    Browser->>Browser: Authenticated UI loads
-```
-
-**Note**: Frontend server only involved in OAuth callback. All subsequent API calls go directly from browser to backend.
-
-## API Request Flow (Client-Side in Browser)
-
-```mermaid
-sequenceDiagram
-    participant Component as React Component<br/>(in Browser)
-    participant useQuery
-    participant useAuthenticatedAPI
-    participant useSession
-    participant Backend
-
-    Component->>useQuery: api.documents.get.useQuery(id)
-    useQuery->>useAuthenticatedAPI: fetchAPI('/api/documents/123')
-    useAuthenticatedAPI->>useSession: Read session cookie
-    useSession->>useAuthenticatedAPI: session.backendToken
-    useAuthenticatedAPI->>Backend: GET /api/documents/123<br/>Authorization: Bearer <token>
-    Backend->>useAuthenticatedAPI: Response data
-    useAuthenticatedAPI->>useQuery: Parsed data
-    useQuery->>Component: { data, isLoading, error }
-```
-
-**Note**: This entire flow happens in the browser, not on the frontend server. The browser reads the JWT from the session cookie and calls the backend API directly.
-
-## Security Features
-
-### Token Management
-- JWT tokens stored in secure HTTP-only cookies (via NextAuth)
-- Never exposed to client JavaScript directly
-- Automatic token reading via `useSession()`
-- No global mutable state
-- CSRF protection via NextAuth
-
-### API Security
-- All API requests include Bearer token automatically
-- 401/403 errors trigger global handlers
-- Request validation and rate limiting
-- Secure headers on all requests
-
-### Per-Request Authentication
-**No global token storage!** Each request reads fresh token:
-
-```typescript
-// ❌ OLD WAY (removed)
-apiClient.setAuthToken(token);  // Global mutable state
-const data = await apiClient.get('/api/endpoint');
-
-// ✅ NEW WAY
-const { fetchAPI } = useAuthenticatedAPI();  // Per-request
-const data = await fetchAPI('/api/endpoint');
-```
-
-## 401 Error Handling
-
-### Multi-Layer Detection
-
-401 errors are caught at multiple levels:
-
-1. **API Client Level** (`src/lib/api-client.ts`)
-   - Throws typed `APIError` with status code
-   - Enables precise error handling
-
-2. **React Query Level** (`src/app/providers.tsx`)
-   - Global `QueryCache` and `MutationCache` error handlers
-   - Catches 401s from ALL queries and mutations
-   - Dispatches `auth-401` events
-
-3. **Component Level**
-   - Individual queries can handle 401s specifically
-   - Shows appropriate UI feedback
-
-### User Experience
-
-When a 401 error occurs:
-1. React Query cache is cleared (fresh start)
-2. `auth-401` event triggers SessionExpiredModal
-3. Modal provides recovery options:
-   - **Sign In Again** - Re-authenticate and return to current page
-   - **Go to Home** - Navigate to home page
-
-## Best Practices
-
-### 1. Always Use useSession()
-
-```typescript
-// ✅ Good - use NextAuth hook
-const { data: session, status } = useSession();
-if (status === 'authenticated' && session?.backendToken) {
-  // User is fully authenticated
-}
-
-// ❌ Bad - don't store token in component state
-const [token, setToken] = useState();
-```
-
-### 2. Use React Query Hooks for API Calls
-
-```typescript
-// ✅ Good - React Query handles auth automatically
-const { data } = api.documents.get.useQuery(id);
-
-// ❌ Bad - manual fetch (not authenticated)
-const data = await fetch('/api/documents/123').then(r => r.json());
-```
-
-### 3. Handle Loading States
-
-```typescript
-const { status } = useSession();
-
-if (status === 'loading') {
-  return <LoadingSkeleton />;
-}
-
-if (status === 'unauthenticated') {
-  return <SignInPrompt />;
-}
-
-// Render authenticated content
-```
-
-### 4. Don't Set Default Values
-
-```typescript
-// ❌ Bad - hides missing auth
-const token = session?.backendToken || 'default-token';
-
-// ✅ Good - fails loudly
-if (!session?.backendToken) {
-  throw new Error('Authentication required');
-}
-```
-
-### 5. Use Enabled Flag for Conditional Queries
-
-```typescript
-// Wait for authentication before running query
-const { data } = api.documents.get.useQuery(id, {
-  enabled: isFullyAuthenticated && !!id
+  },
 });
 ```
 
-## Configuration
+When no `SemiontProvider` is mounted (e.g. on the landing page),
+these calls are no-ops — the `SemiontBrowser`'s notify-handler
+registration happens in the provider's effect, so absent provider,
+no handler is registered.
 
-### Environment Variables
+## Testing
 
-```env
-# NextAuth
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-secret-here
+See [tests/e2e/specs/07-sign-out-sign-in.spec.ts](../../../tests/e2e/specs/07-sign-out-sign-in.spec.ts)
+for the end-to-end regression guard: sign out, sign back in, confirm
+the new session's bus/SSE/client round-trip. The test gates on the
+password form disappearing rather than URL matching, because
+`toHaveURL(/know/)` passes immediately post-sign-out (the URL already
+matches), and a subsequent `page.goto` would abort the in-flight
+sign-in POST.
 
-# OAuth Providers
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-GITHUB_CLIENT_ID=your-github-client-id
-GITHUB_CLIENT_SECRET=your-github-client-secret
-GITLAB_CLIENT_ID=your-gitlab-client-id
-GITLAB_CLIENT_SECRET=your-gitlab-client-secret
+## Related
 
-# Backend API
-SERVER_API_URL=http://localhost:4000
-```
-
-### Session Configuration
-
-```typescript
-session: {
-  strategy: 'jwt',
-  maxAge: 24 * 60 * 60, // 24 hours
-}
-```
-
-## Troubleshooting
-
-### Session Not Persisting
-- Check `NEXTAUTH_SECRET` is set
-- Verify cookie settings in browser
-- Check `NEXTAUTH_URL` matches deployment URL
-
-### 401 Errors
-- Token may be expired (check backend logs)
-- Verify backend token validation
-- Check if session exists: `console.log(session?.backendToken)`
-
-### OAuth Redirect Issues
-- Verify `NEXTAUTH_URL` matches deployment
-- Check OAuth app callback URLs match
-- Ensure HTTPS in production
-
-### Queries Not Running
-- Check `isFullyAuthenticated` is true
-- Verify `enabled` flag on query
-- Check session status: `console.log(status)`
-
-## Migration Notes
-
-**Major refactoring completed (Phases 0-8):**
-
-### Removed (Old Architecture)
-- ❌ `apiClient.setAuthToken()` - Global mutable state
-- ❌ `apiClient.clearAuthToken()` - Global mutable state
-- ❌ `apiClient.getAuthToken()` - Global mutable state
-- ❌ `useApiWithAuth` - Replaced by React Query hooks
-- ❌ `useSecureAPI` - Replaced by `useAuthenticatedAPI`
-- ❌ Direct `apiService.*` calls - Replaced by `api.*` hooks
-
-### Added (New Architecture)
-- ✅ `useAuthenticatedAPI()` - Per-request auth hook
-- ✅ `api.*` React Query hooks - Type-safe API client
-- ✅ Global error handlers in QueryClient
-- ✅ `useCustomSession()` - isFullyAuthenticated helper
-- ✅ SSE hooks use `useSession()` directly
-
-### Benefits
-- ✅ No global mutable state
-- ✅ No race conditions on page load
-- ✅ All requests authenticated per-request
-- ✅ 100% test coverage (802/802 tests passing)
-- ✅ Type-safe API client
-- ✅ Automatic caching and refetching
-
-## Related Documentation
-
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall frontend architecture
-- [AUTHORIZATION.md](./AUTHORIZATION.md) - Permissions and 403 handling
-- [NextAuth.js Documentation](https://next-auth.js.org/)
-- [React Query Documentation](https://tanstack.com/query)
+- [SESSION.md (`@semiont/react-ui`)](../../../packages/react-ui/docs/SESSION.md)
+  — class model, observables, invariants.
+- [EVENTS.md (`@semiont/react-ui`)](../../../packages/react-ui/docs/EVENTS.md)
+  — bus architecture, channel routing.
+- [AUTHORIZATION.md](./AUTHORIZATION.md) — permission model.

@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "description": "Bus command to add a new entity type to the KB's vocabulary. Carried on the `frame:add-entity-type` channel — Frame is the schema-layer flow that owns vocabulary writes.",
+  "properties": {
+    "tag": {
+      "type": "string"
+    },
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    }
+  },
+  "required": ["tag"]
+}

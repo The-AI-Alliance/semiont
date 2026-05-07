@@ -20,7 +20,7 @@ import { importLinkedData, Stower, createKnowledgeBase } from '@semiont/make-mea
 import type { GraphDatabase } from '@semiont/graph';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 
@@ -81,7 +81,7 @@ function createNoopGraphDatabase(): GraphDatabase {
 // SCHEMA
 // =====================================================================
 
-export const ImportOptionsSchema = BaseOptionsSchema.extend({
+export const ImportOptionsSchema = OpsOptionsSchema.extend({
   file: z.string().min(1, 'Input file path is required'),
   userId: z.string().optional(),
 });
@@ -117,13 +117,13 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
   // Bootstrap EventBus + Stower for import
   const eventBus = new EventBus();
   const eventStore = createEventStore(project, eventBus, logger);
-  const kb = createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
+  const kb = await createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), eventBus, logger);
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
 
   try {
     const input = fs.createReadStream(filePath);
-    const result = await importLinkedData(input, { eventBus, userId, logger });
+    const result = await importLinkedData(input, { eventBus, contentStore: kb.content, userId, logger });
 
     if (!options.quiet) {
       printSuccess(
@@ -172,21 +172,18 @@ export const importCmd = new CommandBuilder()
     'semiont import --file export.tar.gz',
     'semiont import --file export.tar.gz --user-id did:web:example.com:users:alice',
   )
-  .args({
-    args: {
-      '--file': {
-        type: 'string',
-        description: 'Input file path (required)',
-      },
-      '--user-id': {
-        type: 'string',
-        description: 'User identity for imported resources (default: current user)',
-      },
+  .args(withOpsArgs({
+    '--file': {
+      type: 'string',
+      description: 'Input file path (required)',
     },
-    aliases: {
-      '-f': '--file',
+    '--user-id': {
+      type: 'string',
+      description: 'User identity for imported resources (default: current user)',
     },
-  })
+  }, {
+    '-f': '--file',
+  }))
   .schema(ImportOptionsSchema)
   .handler(runImport)
   .build();

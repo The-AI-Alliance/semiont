@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * DevOps Page - Thin Next.js wrapper
  *
@@ -7,7 +5,7 @@
  * and delegates rendering to the pure React AdminDevOpsPage component.
  */
 
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useCallback } from 'react';
 import {
   ChartBarIcon,
@@ -16,27 +14,32 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusDisplay, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useEventSubscriptions, useSemiont } from '@semiont/react-ui';
 import { AdminDevOpsPage } from '@semiont/react-ui';
-import { useAuth } from '@/hooks/useAuth';
 
-// Wrapper component that provides auth props to StatusDisplay
+// Wrapper component that provides auth props to StatusDisplay.
+// The three booleans collapse to the same value (is the user authenticated?)
+// now that token and user are both session-owned.
 function StatusDisplayWithAuth() {
-  const { isFullyAuthenticated, isAuthenticated, hasValidBackendToken } = useAuth();
+  const session = useObservable(useSemiont().activeSession$);
+  const user = useObservable(session?.user$);
+  const authed = !!user;
   return (
     <StatusDisplay
-      isFullyAuthenticated={isFullyAuthenticated}
-      isAuthenticated={isAuthenticated}
-      hasValidBackendToken={hasValidBackendToken}
+      isFullyAuthenticated={authed}
+      isAuthenticated={authed}
+      hasValidBackendToken={authed}
     />
   );
 }
 
 export default function DevOpsPage() {
-  const t = useTranslations('AdminDevOps');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`AdminDevOps.${k}`, p as any) as string;
 
   // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const browseStateUnit = useShellStateUnit();
+  const activePanel = useObservable(browseStateUnit.activePanel$) ?? null;
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 

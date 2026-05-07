@@ -13,7 +13,7 @@
     "administer": "Yönetim"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Tüm hakları saklıdır.",
+    "copyright": "© {{year}} The AI Alliance. Tüm hakları saklıdır.",
     "about": "Hakkında",
     "privacyPolicy": "Gizlilik Politikası",
     "cookiePreferences": "Çerez Tercihleri",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "anlam üret",
-    "description": "İnsanların ve akıllı ajanların ortak bilgiyi birlikte oluşturmasını sağlayan, sizin tarafınızdan yönetilen ve kalıcı olmak üzere inşa edilen açık kaynaklı, geleceğe hazır çerçeve.",
-    "continueToKnowledgeBase": "Bilgi Tabanına Devam Et",
-    "learnMore": "Daha Fazla Bilgi",
-    "signUp": "Kayıt Ol",
-    "signIn": "Giriş Yap",
-    "loading": "Yükleniyor..."
+    "begin": "Başla"
   },
   "About": {
     "pageTitle": "Semiont Hakkında",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "Deneyiminizi geliştirmek, kullanımı analiz etmek ve kişiselleştirilmiş içerik sunmak için çerezler ve benzer teknolojiler kullanıyoruz.",
     "cookieCategoriesTitle": "Çerez Kategorileri",
     "necessaryCookiesTitle": "Zorunlu Çerezler",
-    "necessaryCookies": "Kimlik doğrulama ve güvenlik özellikleri dahil olmak üzere web sitesi işlevselliği için gereklidir.\n\nÖrnekler: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Kimlik doğrulama ve güvenlik özellikleri dahil olmak üzere web sitesi işlevselliği için gereklidir.\n\nÖrnekler: semiont-token",
     "analyticsCookiesTitle": "Analitik Çerezler",
     "analyticsCookies": "Kullanıcı deneyimini iyileştirmek için ziyaretçilerin web sitemizle nasıl etkileşimde bulunduğunu anlamamıza yardımcı olur.\n\nÖrnekler: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Pazarlama Çerezleri",
@@ -94,7 +89,7 @@
     "contactAddress": "Adres:",
     "updatesTitle": "Bu Politikadaki Güncellemeler",
     "updates": "Bu Gizlilik Politikasını zaman zaman güncelleyebiliriz. Önemli değişiklikleri, yeni Gizlilik Politikasını bu sayfada yayınlayarak ve yürürlük tarihini güncelleyerek size bildireceğiz.",
-    "lastUpdated": "Son güncelleme: {date}"
+    "lastUpdated": "Son güncelleme: {{date}}"
   },
   "Terms": {
     "pageTitle": "Hizmet Şartları",
@@ -124,7 +119,7 @@
     "changes": "Bu şartları periyodik olarak güncelleyebiliriz. Önemli değişiklikler kullanıcılara bildirilecek olup platformun sürekli kullanımı güncellenmiş şartların kabulü anlamına gelir.",
     "contactTitle": "İletişim",
     "contact": "Bu şartlar hakkında sorularınız varsa veya ihlalleri bildirmeniz gerekiyorsa, lütfen platform üzerinden veya Gizlilik Politikamızda sağlanan iletişim bilgileri aracılığıyla destek ekibimizle iletişime geçin.",
-    "lastUpdated": "Son güncelleme: {date}",
+    "lastUpdated": "Son güncelleme: {{date}}",
     "aup": "Semiont'u kullanarak, platformumuzu sorumlu bir şekilde ve bu şartlara uygun olarak kullanmayı kabul edersiniz. Tüm kullanıcılar için güvenli, saygılı ve üretken bir ortam sağlamaya kararlıyız."
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "Hesap oluşturulamadı. Lütfen destek ile iletişime geçin.",
     "errorGeneric": "Bir kimlik doğrulama hatası oluştu. Lütfen tekrar deneyin.",
     "errorGoogleSignIn": "Google girişi başlatılamadı. Lütfen tekrar deneyin.",
+    "backendUrlLabel": "Backend URL",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "Lütfen backend URL'sini girin",
+    "errorBackendUrlInvalid": "Lütfen geçerli bir URL girin (örn. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Bu URL'ye ulaşılamıyor — backend çalışıyor mu?",
     "errorEmailRequired": "Lütfen e-posta adresinizi girin",
     "errorPasswordRequired": "Lütfen şifrenizi girin",
     "errorSignInFailed": "Giriş yapılamadı. Lütfen tekrar deneyin.",
@@ -185,7 +185,7 @@
     "loading": "Yükleniyor...",
     "welcomeTitle": "Semiont'a Hoş Geldiniz!",
     "thanksForAccepting": "Şartlarımızı kabul ettiğiniz için teşekkürler. Uygulamaya yönlendiriliyorsunuz...",
-    "welcomeUser": "Semiont'a Hoş Geldiniz, {firstName}!",
+    "welcomeUser": "Semiont'a Hoş Geldiniz, {{firstName}}!",
     "reviewTermsPrompt": "Semiont'u kullanmaya başlamadan önce lütfen hizmet şartlarımızı inceleyin ve kabul edin",
     "termsSummaryTitle": "Hizmet Şartları Özeti",
     "termsSummaryIntro": "Semiont'u kullanarak şunları kabul edersiniz:",
@@ -246,9 +246,9 @@
     "archived": "Arşivlenmiş",
     "created": "Oluşturulmuş",
     "recentResources": "Son Kaynaklar",
-    "searchResults": "Arama Sonuçları ({count})",
-    "resourcesTaggedWith": "«{entityType}» ile etiketlenen kaynaklar",
-    "noResultsFound": "«{query}» için sonuç bulunamadı. Bunun yerine son kaynaklar gösteriliyor.",
+    "searchResults": "Arama Sonuçları ({{count}})",
+    "resourcesTaggedWith": "«{{entityType}}» ile etiketlenen kaynaklar",
+    "noResultsFound": "«{{query}}» için sonuç bulunamadı. Bunun yerine son kaynaklar gösteriliyor.",
     "noResourcesAvailable": "Kullanılabilir kaynak yok. Başlamak için ilk belgenizi oluşturun.",
     "composeFirstResource": "İlk Kaynağı Oluştur",
     "loadingKnowledgeBase": "Bilgi tabanı yükleniyor..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Kaynak adını girin...",
     "entityTypes": "Varlık Türü Etiketleri",
     "entityTypesHint": "Kaynağınızı varlık türleri ile etiketleyin",
-    "noEntityTypesAvailable": "Kullanılabilir varlık türü yok",
     "contentSource": "İçerik Kaynağı",
     "uploadFile": "Dosya Yükle",
     "uploadFileDescription": "Resimler, belgeler, metin dosyaları",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "Hesap",
     "user": "Kullanıcı",
-    "profileAlt": "{name} profili",
+    "profileAlt": "{{name}} profili",
     "session": "Oturum",
-    "expiresIn": "Süre: {time}",
+    "expiresIn": "Süre: {{time}}",
     "privileges": "Yetkiler",
     "administrator": "🛡️ Yönetici",
     "moderator": "⚖️ Moderatör",
@@ -433,7 +432,7 @@
     "configManagementDescription": "OAuth ayarları ortam değişkenleri aracılığıyla yönetilir. Bu ayarları değiştirmek için:",
     "configLocalDev": "Yerel geliştirme için: .env dosyalarınızı güncelleyin",
     "configCloudDeploy": "Bulut dağıtımları için:",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "komutunu kullanarak yapılandırma dosyalarındaki değişiklikleri uygulayın",
     "configAWS": "AWS için: Ayarlar AWS Secrets Manager ve ECS görev tanımlarında saklanır"
   },
@@ -510,11 +509,11 @@
     "title": "Çerez Tercihleri",
     "description": "Çerez tercihlerinizi ve gizlilik ayarlarınızı yönetin. Değişiklikler hemen geçerli olacaktır.",
     "currentSettings": "Mevcut Ayarlar",
-    "lastUpdated": "Son güncelleme: {date}",
-    "version": "Sürüm: {version}",
+    "lastUpdated": "Son güncelleme: {{date}}",
+    "version": "Sürüm: {{version}}",
     "cookieCategories": "Çerez Kategorileri",
     "required": "(Zorunlu)",
-    "viewCookies": "Çerezleri görüntüle ({count})",
+    "viewCookies": "Çerezleri görüntüle ({{count}})",
     "dataManagement": "Veri Yönetimi",
     "exportMyData": "Verilerimi Dışa Aktar",
     "deleteAllData": "Tüm Verileri Sil",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Bilgi Tabanları",
+    "connectTitle": "Bilgi Tabanına Bağlan",
+    "connect": "Bağlan",
+    "connecting": "Bağlanıyor...",
+    "signIn": "Giriş Yap",
+    "signingIn": "Giriş yapılıyor...",
+    "cancel": "İptal",
+    "addKnowledgeBase": "Bilgi tabanı ekle",
+    "removeConfirm": "{{label}} kaldırılsın mı?",
+    "remove": "Kaldır",
+    "signOut": "Çıkış Yap",
+    "statusConnected": "Bağlı",
+    "statusExpired": "Oturum süresi doldu",
+    "statusSignedOut": "Çıkış yapıldı",
+    "statusUnreachable": "Erişilemiyor",
+    "invalidHost": "Geçersiz ana bilgisayar adı"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Bilgi tabanı yok",
+    "noKnowledgeBasesHint": "Kaynakları keşfetmeye, not eklemeye ve bağlamaya başlamak için sağdaki paneli kullanarak bir bilgi tabanı ekleyin.",
+    "sessionExpired": "Oturumunuzun süresi doldu.",
+    "signedOut": "Çıkış yaptınız.",
+    "signInHint": "Kaynakları görüntülemek için Bilgi Tabanı panelini kullanarak giriş yapın.",
+    "findKnowledgeBases": "Bilgi tabanlarını bul",
+    "createNew": "Yeni oluştur"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Hesabınızı görüntülemek için bir bilgi tabanında oturum açın."
   }
 }

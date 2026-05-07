@@ -7,7 +7,7 @@ export const COOKIE_CATEGORIES: CookieCategory[] = [
     name: 'Strictly Necessary',
     description: 'These cookies are essential for the website to function properly. They enable core functionality such as security, network management, and accessibility.',
     required: true,
-    cookies: ['next-auth.session-token', 'next-auth.csrf-token', 'consent-preferences']
+    cookies: ['semiont-token', 'consent-preferences']
   },
   {
     id: 'analytics',

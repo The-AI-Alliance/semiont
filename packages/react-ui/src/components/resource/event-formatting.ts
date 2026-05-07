@@ -5,13 +5,42 @@
  * No React dependencies - safe to use in any JavaScript environment.
  */
 
-import type { StoredEvent, ResourceEventType } from '@semiont/core';
-import type { components } from '@semiont/core';
-import { getExactText, getTargetSelector } from '@semiont/api-client';
+import type { StoredEventLike, PersistedEventType } from '@semiont/core';
+import { getExactText, getTargetSelector } from '@semiont/core';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
+
+// =============================================================================
+// USER ID DISPLAY
+// =============================================================================
+
+/**
+ * Format a DID or user ID for display.
+ *
+ * did:web:example.com:users:admin%40example.com → admin@example.com
+ * did:web:system:smelter → Smelter
+ * plain-string → plain-string
+ */
+export function formatUserId(userId: string): string {
+  if (!userId.startsWith('did:')) return userId;
+
+  // System actors: did:web:system:smelter → Smelter
+  const systemMatch = userId.match(/^did:web:system:(.+)$/);
+  if (systemMatch) {
+    const name = systemMatch[1];
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  // User DIDs: did:web:example.com:users:admin%40example.com → admin@example.com
+  const userMatch = userId.match(/^did:web:[^:]+:users:(.+)$/);
+  if (userMatch) {
+    return decodeURIComponent(userMatch[1]);
+  }
+
+  return userId;
+}
 
 // =============================================================================
 // EVENT FORMATTING AND DISPLAY
@@ -20,44 +49,44 @@ type TranslateFn = (key: string, params?: Record<string, string | number>) => st
 /**
  * Format event type for display with i18n support
  */
-export function formatEventType(type: ResourceEventType, t: TranslateFn, payload?: any): string {
+export function formatEventType(type: PersistedEventType, t: TranslateFn, payload?: any): string {
   switch (type) {
-    case 'resource.created':
+    case 'yield:created':
       return t('resourceCreated');
-    case 'resource.cloned':
+    case 'yield:cloned':
       return t('resourceCloned');
-    case 'resource.archived':
+    case 'mark:archived':
       return t('resourceArchived');
-    case 'resource.unarchived':
+    case 'mark:unarchived':
       return t('resourceUnarchived');
 
-    case 'annotation.added': {
+    case 'mark:added': {
       const motivation = payload?.annotation?.motivation;
       if (motivation === 'highlighting') return t('highlightAdded');
       if (motivation === 'linking') return t('referenceCreated');
       if (motivation === 'assessing') return t('assessmentAdded');
       return t('annotationAdded');
     }
-    case 'annotation.removed': {
+    case 'mark:removed': {
       return t('annotationRemoved');
     }
-    case 'annotation.body.updated': {
+    case 'mark:body-updated': {
       return t('annotationBodyUpdated');
     }
 
-    case 'entitytag.added':
+    case 'mark:entity-tag-added':
       return t('entitytagAdded');
-    case 'entitytag.removed':
+    case 'mark:entity-tag-removed':
       return t('entitytagRemoved');
 
-    case 'job.completed':
-    case 'job.started':
-    case 'job.progress':
-    case 'job.failed':
+    case 'job:completed':
+    case 'job:started':
+    case 'job:progress':
+    case 'job:failed':
       return t('jobEvent');
 
-    case 'representation.added':
-    case 'representation.removed':
+    case 'yield:representation-added':
+    case 'yield:representation-removed':
       return t('representationEvent');
 
     default:
@@ -69,15 +98,15 @@ export function formatEventType(type: ResourceEventType, t: TranslateFn, payload
  * Get emoji for event type
  * For unified annotation events, pass the payload to determine motivation
  */
-export function getEventEmoji(type: ResourceEventType, payload?: any): string {
+export function getEventEmoji(type: PersistedEventType, payload?: any): string {
   switch (type) {
-    case 'resource.created':
-    case 'resource.cloned':
-    case 'resource.archived':
-    case 'resource.unarchived':
+    case 'yield:created':
+    case 'yield:cloned':
+    case 'mark:archived':
+    case 'mark:unarchived':
       return '📄';
 
-    case 'annotation.added': {
+    case 'mark:added': {
       const motivation = payload?.annotation?.motivation;
       // Use annotation registry as single source of truth for emojis
       if (motivation === 'highlighting') return ANNOTATORS.highlight.iconEmoji || '📝';
@@ -85,27 +114,27 @@ export function getEventEmoji(type: ResourceEventType, payload?: any): string {
       if (motivation === 'assessing') return ANNOTATORS.assessment.iconEmoji || '📝';
       return '📝';
     }
-    case 'annotation.removed': {
+    case 'mark:removed': {
       return '🗑️';
     }
-    case 'annotation.body.updated': {
+    case 'mark:body-updated': {
       return '✏️';
     }
 
-    case 'entitytag.added':
-    case 'entitytag.removed':
+    case 'mark:entity-tag-added':
+    case 'mark:entity-tag-removed':
       return '🏷️';
 
-    case 'job.completed':
+    case 'job:completed':
       return '🔗';  // Link emoji for linked document creation
-    case 'job.started':
-    case 'job.progress':
+    case 'job:started':
+    case 'job:progress':
       return '⚙️';  // Gear for job processing
-    case 'job.failed':
+    case 'job:failed':
       return '❌';  // X mark for failed jobs
 
-    case 'representation.added':
-    case 'representation.removed':
+    case 'yield:representation-added':
+    case 'yield:representation-removed':
       return '📄';
 
     default:
@@ -144,25 +173,26 @@ function truncateText(text: string, maxLength = 50): string {
  * Get display content from event payload - complete implementation
  */
 export function getEventDisplayContent(
-  event: StoredEvent,
+  event: StoredEventLike,
   annotations: Annotation[], // Unified annotations array (all types)
-  allEvents: StoredEvent[]
+  allEvents: StoredEventLike[]
 ): { exact: string; isQuoted: boolean; isTag: boolean } | null {
-  const eventData = event.event;
+  const eventData = event;
+  const payload = eventData.payload as any;
 
   // Use type discriminators for proper narrowing
   switch (eventData.type) {
-    case 'resource.created':
-    case 'resource.cloned': {
-      return { exact: eventData.payload.name, isQuoted: false, isTag: false };
+    case 'yield:created':
+    case 'yield:cloned': {
+      return { exact: payload.name, isQuoted: false, isTag: false };
     }
 
     // Unified annotation events
-    case 'annotation.body.updated': {
+    case 'mark:body-updated': {
       // Find current annotation to get its text
       // payload.annotationId is just the UUID, but annotation.id is the full URI
       const annotation = annotations.find(a =>
-        a.id.endsWith(`/annotations/${eventData.payload.annotationId}`)
+        a.id.endsWith(`/annotations/${payload.annotationId}`)
       );
 
       if (annotation?.target) {
@@ -179,16 +209,16 @@ export function getEventDisplayContent(
       return null;
     }
 
-    case 'annotation.removed': {
+    case 'mark:removed': {
       // Find the original annotation.added event to get the text
       // payload.annotationId is just the UUID, but annotation.id in the added event is the full URI
       const addedEvent = allEvents.find(e =>
-        e.event.type === 'annotation.added' &&
-        e.event.payload.annotation.id.endsWith(`/annotations/${eventData.payload.annotationId}`)
+        e.type === 'mark:added' &&
+        (e.payload as any).annotation.id.endsWith(`/annotations/${payload.annotationId}`)
       );
-      if (addedEvent && addedEvent.event.type === 'annotation.added') {
+      if (addedEvent && addedEvent.type === 'mark:added') {
         try {
-          const target = addedEvent.event.payload.annotation.target;
+          const target = (addedEvent.payload as any).annotation.target;
           if (typeof target !== 'string' && target.selector) {
             const exact = getExactText(target.selector);
             if (exact) {
@@ -202,10 +232,10 @@ export function getEventDisplayContent(
       return null;
     }
 
-    case 'annotation.added': {
+    case 'mark:added': {
       // New unified event structure - annotation is in payload
       try {
-        const target = eventData.payload.annotation.target;
+        const target = payload.annotation.target;
         if (typeof target !== 'string' && target.selector) {
           const exact = getExactText(target.selector);
           if (exact) {
@@ -218,16 +248,16 @@ export function getEventDisplayContent(
       return null;
     }
 
-    case 'entitytag.added':
-    case 'entitytag.removed': {
-      return { exact: eventData.payload.entityType, isQuoted: false, isTag: true };
+    case 'mark:entity-tag-added':
+    case 'mark:entity-tag-removed': {
+      return { exact: payload.entityType, isQuoted: false, isTag: true };
     }
 
-    case 'job.completed': {
+    case 'job:completed': {
       // Find the annotation that was used to generate the resource
-      if (eventData.payload.annotationUri) {
+      if (payload.annotationUri) {
         const annotation = annotations.find(a =>
-          a.id === eventData.payload.annotationUri
+          a.id === payload.annotationUri
         );
 
         if (annotation?.target) {
@@ -245,11 +275,11 @@ export function getEventDisplayContent(
       return null;
     }
 
-    case 'job.started':
-    case 'job.progress':
-    case 'job.failed':
-    case 'representation.added':
-    case 'representation.removed':
+    case 'job:started':
+    case 'job:progress':
+    case 'job:failed':
+    case 'yield:representation-added':
+    case 'yield:representation-removed':
       return null;
 
     default:
@@ -260,12 +290,13 @@ export function getEventDisplayContent(
 /**
  * Get entity types from event payload
  */
-export function getEventEntityTypes(event: StoredEvent): string[] {
-  const eventData = event.event;
+export function getEventEntityTypes(event: StoredEventLike): string[] {
+  const eventData = event;
+  const payload = eventData.payload as any;
 
-  if (eventData.type === 'annotation.added') {
-    const motivation = eventData.payload.annotation.motivation;
-    const body = eventData.payload.annotation.body;
+  if (eventData.type === 'mark:added') {
+    const motivation = payload.annotation.motivation;
+    const body = payload.annotation.body;
     if (motivation === 'linking' && body && 'entityTypes' in body) {
       return (body as any).entityTypes ?? [];
     }
@@ -289,25 +320,26 @@ export interface ResourceCreationDetails {
 /**
  * Get resource creation details from event
  */
-export function getResourceCreationDetails(event: StoredEvent): ResourceCreationDetails | null {
-  const eventData = event.event;
+export function getResourceCreationDetails(event: StoredEventLike): ResourceCreationDetails | null {
+  const eventData = event;
+  const payload = eventData.payload as any;
 
-  if (eventData.type === 'resource.created') {
+  if (eventData.type === 'yield:created') {
     return {
       type: 'created',
-      method: eventData.payload.creationMethod || 'unknown',
+      method: payload.creationMethod || 'unknown',
       userId: eventData.userId,
       metadata: undefined,
     };
   }
 
-  if (eventData.type === 'resource.cloned') {
+  if (eventData.type === 'yield:cloned') {
     return {
       type: 'cloned',
-      method: eventData.payload.creationMethod || 'clone',
+      method: payload.creationMethod || 'clone',
       userId: eventData.userId,
-      sourceDocId: eventData.payload.parentResourceId,
-      parentResourceId: eventData.payload.parentResourceId,
+      sourceDocId: payload.parentResourceId,
+      parentResourceId: payload.parentResourceId,
       metadata: undefined,
     };
   }

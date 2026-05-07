@@ -47,7 +47,7 @@ const startRDSInstance = async (context: AWSStartHandlerContext): Promise<StartH
       endpoint,
       resources,
       metadata: {
-        serviceType: 'rds',
+        serviceType: 'database',
         region,
         instanceId,
         message: 'RDS instance starting... this may take several minutes'
@@ -58,7 +58,7 @@ const startRDSInstance = async (context: AWSStartHandlerContext): Promise<StartH
       success: false,
       error: `Failed to start RDS instance: ${error}`,
       metadata: {
-        serviceType: 'rds',
+        serviceType: 'database',
         region,
         instanceId
       }
@@ -76,7 +76,7 @@ const preflightRdsStart = async (_context: AWSStartHandlerContext): Promise<Pref
 export const rdsStartDescriptor: HandlerDescriptor<AWSStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'aws',
-  serviceType: 'rds',
+  serviceType: 'database',
   handler: startRDSInstance,
   preflight: preflightRdsStart,
   requiresDiscovery: false

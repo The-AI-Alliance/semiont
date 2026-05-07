@@ -13,7 +13,7 @@
     "administer": "Administration"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Tous droits réservés.",
+    "copyright": "© {{year}} The AI Alliance. Tous droits réservés.",
     "about": "À propos",
     "privacyPolicy": "Politique de confidentialité",
     "cookiePreferences": "Préférences de cookies",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "créer du sens",
-    "description": "Le cadre open source et pérenne qui permet aux humains et aux agents intelligents de co-créer des connaissances partagées — gouverné par vous et conçu pour durer.",
-    "continueToKnowledgeBase": "Continuer vers la base de connaissances",
-    "learnMore": "En savoir plus",
-    "signUp": "S'inscrire",
-    "signIn": "Se connecter",
-    "loading": "Chargement..."
+    "begin": "Commencer"
   },
   "About": {
     "pageTitle": "À propos de Semiont",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "Nous utilisons des cookies et des technologies similaires pour améliorer votre expérience, analyser l'utilisation et fournir du contenu personnalisé.",
     "cookieCategoriesTitle": "Catégories de cookies",
     "necessaryCookiesTitle": "Cookies strictement nécessaires",
-    "necessaryCookies": "Essentiels au fonctionnement du site web, y compris les fonctionnalités d'authentification et de sécurité.\n\nExemples : next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Essentiels au fonctionnement du site web, y compris les fonctionnalités d'authentification et de sécurité.\n\nExemples : semiont-token",
     "analyticsCookiesTitle": "Cookies analytiques",
     "analyticsCookies": "Nous aident à comprendre comment les visiteurs interagissent avec notre site web afin d'améliorer l'expérience utilisateur.\n\nExemples : _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Cookies marketing",
@@ -94,7 +89,7 @@
     "contactAddress": "Adresse :",
     "updatesTitle": "Mises à jour de cette politique",
     "updates": "Nous pouvons mettre à jour cette politique de confidentialité de temps à autre. Nous vous informerons de tout changement substantiel en publiant la nouvelle politique de confidentialité sur cette page et en mettant à jour la date d'entrée en vigueur.",
-    "lastUpdated": "Dernière mise à jour : {date}"
+    "lastUpdated": "Dernière mise à jour : {{date}}"
   },
   "Terms": {
     "pageTitle": "Conditions d'utilisation",
@@ -124,7 +119,7 @@
     "changes": "Nous pouvons mettre à jour ces conditions périodiquement. Les utilisateurs seront informés des changements significatifs, et l'utilisation continue de la plateforme constitue l'acceptation des conditions mises à jour.",
     "contactTitle": "Contact",
     "contact": "Si vous avez des questions concernant ces conditions ou si vous devez signaler des violations, veuillez contacter notre équipe d'assistance via la plateforme ou aux coordonnées fournies dans notre politique de confidentialité.",
-    "lastUpdated": "Dernière mise à jour : {date}",
+    "lastUpdated": "Dernière mise à jour : {{date}}",
     "aup": "En utilisant Semiont, vous acceptez d'utiliser notre plateforme de manière responsable et conformément à ces conditions. Nous nous engageons à maintenir un environnement sûr, respectueux et productif pour tous les utilisateurs."
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "Impossible de créer le compte. Veuillez contacter le support.",
     "errorGeneric": "Une erreur d'authentification s'est produite. Veuillez réessayer.",
     "errorGoogleSignIn": "Impossible de lancer la connexion Google. Veuillez réessayer.",
+    "backendUrlLabel": "URL du backend",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "Veuillez saisir l'URL du backend",
+    "errorBackendUrlInvalid": "Veuillez saisir une URL valide (ex. : http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Impossible d'atteindre cette URL — le backend est-il en cours d'exécution ?",
     "errorEmailRequired": "Veuillez saisir votre adresse e-mail",
     "errorPasswordRequired": "Veuillez saisir votre mot de passe",
     "errorSignInFailed": "La connexion a échoué. Veuillez réessayer.",
@@ -185,7 +185,7 @@
     "loading": "Chargement...",
     "welcomeTitle": "Bienvenue sur Semiont !",
     "thanksForAccepting": "Merci d'avoir accepté nos conditions. Redirection vers l'application...",
-    "welcomeUser": "Bienvenue sur Semiont, {firstName} !",
+    "welcomeUser": "Bienvenue sur Semiont, {{firstName}} !",
     "reviewTermsPrompt": "Avant de pouvoir utiliser Semiont, veuillez consulter et accepter nos conditions d'utilisation",
     "termsSummaryTitle": "Résumé des conditions d'utilisation",
     "termsSummaryIntro": "En utilisant Semiont, vous acceptez de :",
@@ -246,9 +246,9 @@
     "archived": "Archivé",
     "created": "Créé",
     "recentResources": "Ressources récentes",
-    "searchResults": "Résultats de recherche ({count})",
-    "resourcesTaggedWith": "Ressources étiquetées « {entityType} »",
-    "noResultsFound": "Aucun résultat trouvé pour « {query} ». Affichage des ressources récentes à la place.",
+    "searchResults": "Résultats de recherche ({{count}})",
+    "resourcesTaggedWith": "Ressources étiquetées « {{entityType}} »",
+    "noResultsFound": "Aucun résultat trouvé pour « {{query}} ». Affichage des ressources récentes à la place.",
     "noResourcesAvailable": "Aucune ressource disponible. Créez votre premier document pour commencer.",
     "composeFirstResource": "Rédiger la première ressource",
     "loadingKnowledgeBase": "Chargement de la base de connaissances..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Saisissez le nom de la ressource...",
     "entityTypes": "Étiquettes de type d'entité",
     "entityTypesHint": "Étiquetez votre ressource avec des types d'entité",
-    "noEntityTypesAvailable": "Aucun type d'entité disponible",
     "contentSource": "Source du contenu",
     "uploadFile": "Téléverser un fichier",
     "uploadFileDescription": "Images, documents, fichiers texte",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "Compte",
     "user": "Utilisateur",
-    "profileAlt": "Profil de {name}",
+    "profileAlt": "Profil de {{name}}",
     "session": "Session",
-    "expiresIn": "Expire dans : {time}",
+    "expiresIn": "Expire dans : {{time}}",
     "privileges": "Privilèges",
     "administrator": "🛡️ Administrateur",
     "moderator": "⚖️ Modérateur",
@@ -433,7 +432,7 @@
     "configManagementDescription": "Les paramètres OAuth sont gérés via des variables d'environnement. Pour modifier ces paramètres :",
     "configLocalDev": "Pour le développement local : mettez à jour vos fichiers .env",
     "configCloudDeploy": "Pour les déploiements cloud : utilisez",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "pour appliquer les modifications depuis les fichiers de configuration",
     "configAWS": "Pour AWS : les paramètres sont stockés dans AWS Secrets Manager et les définitions de tâches ECS"
   },
@@ -510,11 +509,11 @@
     "title": "Préférences de cookies",
     "description": "Gérez vos préférences de cookies et vos paramètres de confidentialité. Les modifications prendront effet immédiatement.",
     "currentSettings": "Paramètres actuels",
-    "lastUpdated": "Dernière mise à jour : {date}",
-    "version": "Version : {version}",
+    "lastUpdated": "Dernière mise à jour : {{date}}",
+    "version": "Version : {{version}}",
     "cookieCategories": "Catégories de cookies",
     "required": "(Requis)",
-    "viewCookies": "Voir les cookies ({count})",
+    "viewCookies": "Voir les cookies ({{count}})",
     "dataManagement": "Gestion des données",
     "exportMyData": "Exporter mes données",
     "deleteAllData": "Supprimer toutes les données",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Bases de connaissances",
+    "connectTitle": "Connexion à la base de connaissances",
+    "connect": "Connecter",
+    "connecting": "Connexion en cours...",
+    "signIn": "Se connecter",
+    "signingIn": "Connexion en cours...",
+    "cancel": "Annuler",
+    "addKnowledgeBase": "Ajouter une base de connaissances",
+    "removeConfirm": "Supprimer {{label}} ?",
+    "remove": "Supprimer",
+    "signOut": "Se déconnecter",
+    "statusConnected": "Connecté",
+    "statusExpired": "Session expirée",
+    "statusSignedOut": "Déconnecté",
+    "statusUnreachable": "Inaccessible",
+    "invalidHost": "Nom d'hôte invalide"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Aucune base de connaissances",
+    "noKnowledgeBasesHint": "Ajoutez une base de connaissances à l'aide du panneau de droite pour commencer à découvrir, annoter et lier des ressources.",
+    "sessionExpired": "Votre session a expiré.",
+    "signedOut": "Vous êtes déconnecté.",
+    "signInHint": "Connectez-vous via le panneau Base de connaissances pour parcourir les ressources.",
+    "findKnowledgeBases": "Trouver des bases de connaissances",
+    "createNew": "En créer une nouvelle"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Connectez-vous à une base de connaissances pour afficher votre compte."
   }
 }

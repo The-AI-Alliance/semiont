@@ -1,17 +1,13 @@
-import { webCheckDescriptor } from './web-check.js';
+import { webCheckDescriptor, webFrontendCheckDescriptor } from './web-check.js';
 import { databaseCheckDescriptor } from './database-check.js';
 import { graphCheckDescriptor } from './graph-check.js';
-import { webStartDescriptor } from './web-start.js';
+import { webStartDescriptor, webFrontendStartDescriptor } from './web-start.js';
 import { databaseStartDescriptor } from './database-start.js';
 import { graphStartDescriptor } from './graph-start.js';
 import { databaseProvisionDescriptor } from './database-provision.js';
 import { graphProvisionDescriptor } from './graph-provision.js';
 import { graphStopDescriptor } from './graph-stop.js';
 import { databaseStopDescriptor } from './database-stop.js';
-import { proxyProvisionDescriptor } from './proxy-provision.js';
-import { proxyStartDescriptor } from './proxy-start.js';
-import { proxyStopDescriptor } from './proxy-stop.js';
-import { proxyCheckDescriptor } from './proxy-check.js';
 import { inferenceCheckDescriptor } from './inference-check.js';
 import { inferenceStartDescriptor } from './inference-start.js';
 import { inferenceStopDescriptor } from './inference-stop.js';
@@ -25,26 +21,24 @@ import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.
 // Platform-specific handlers with typed contexts
 const containerHandlers: Array<HandlerDescriptor<any, any>> = [
   // Check handlers
-  webCheckDescriptor,
+  webCheckDescriptor,           // backend
+  webFrontendCheckDescriptor,   // frontend
   databaseCheckDescriptor,
   graphCheckDescriptor,
-  proxyCheckDescriptor,
   inferenceCheckDescriptor,
   // Start handlers
-  webStartDescriptor,
+  webStartDescriptor,           // backend
+  webFrontendStartDescriptor,   // frontend
   databaseStartDescriptor,
   graphStartDescriptor,
-  proxyStartDescriptor,
   inferenceStartDescriptor,
   // Stop handlers
   graphStopDescriptor,
   databaseStopDescriptor,
-  proxyStopDescriptor,
   inferenceStopDescriptor,
   // Provision handlers
   databaseProvisionDescriptor,
   graphProvisionDescriptor,
-  proxyProvisionDescriptor,
   inferenceProvisionDescriptor
 ];
 

@@ -15,7 +15,7 @@ function TestConsumer() {
       <button
         data-testid="create-btn"
         onClick={() =>
-          manager.createAnnotation({
+          manager.markAnnotation({
             rUri: resourceId('test-123'),
             motivation: 'highlighting',
             selector: { type: 'TextQuoteSelector', exact: 'test' }
@@ -43,7 +43,7 @@ describe('AnnotationContext', () => {
   describe('AnnotationProvider', () => {
     it('should provide annotation manager to child components', () => {
       const mockManager: AnnotationManager = {
-        createAnnotation: vi.fn().mockResolvedValue({ id: 'ann-123' }),
+        markAnnotation: vi.fn().mockResolvedValue({ id: 'ann-123' }),
         deleteAnnotation: vi.fn().mockResolvedValue(undefined)
       };
 
@@ -56,10 +56,10 @@ describe('AnnotationContext', () => {
       expect(screen.getByTestId('has-manager')).toHaveTextContent('yes');
     });
 
-    it('should allow calling createAnnotation through manager', async () => {
+    it('should allow calling markAnnotation through manager', async () => {
       const mockCreate = vi.fn().mockResolvedValue({ id: 'ann-123' });
       const mockManager: AnnotationManager = {
-        createAnnotation: mockCreate,
+        markAnnotation: mockCreate,
         deleteAnnotation: vi.fn()
       };
 
@@ -84,7 +84,7 @@ describe('AnnotationContext', () => {
     it('should allow calling deleteAnnotation through manager', async () => {
       const mockDelete = vi.fn().mockResolvedValue(undefined);
       const mockManager: AnnotationManager = {
-        createAnnotation: vi.fn(),
+        markAnnotation: vi.fn(),
         deleteAnnotation: mockDelete
       };
 
@@ -107,7 +107,7 @@ describe('AnnotationContext', () => {
 
     it('should render children', () => {
       const mockManager: AnnotationManager = {
-        createAnnotation: vi.fn(),
+        markAnnotation: vi.fn(),
         deleteAnnotation: vi.fn()
       };
 
@@ -123,7 +123,7 @@ describe('AnnotationContext', () => {
     it('should update when manager changes', async () => {
       const mockCreate1 = vi.fn().mockResolvedValue({ id: 'ann-1' });
       const mockManager1: AnnotationManager = {
-        createAnnotation: mockCreate1,
+        markAnnotation: mockCreate1,
         deleteAnnotation: vi.fn()
       };
 
@@ -142,7 +142,7 @@ describe('AnnotationContext', () => {
 
       const mockCreate2 = vi.fn().mockResolvedValue({ id: 'ann-2' });
       const mockManager2: AnnotationManager = {
-        createAnnotation: mockCreate2,
+        markAnnotation: mockCreate2,
         deleteAnnotation: vi.fn()
       };
 
@@ -176,7 +176,7 @@ describe('AnnotationContext', () => {
 
     it('should return manager from context', () => {
       const mockManager: AnnotationManager = {
-        createAnnotation: vi.fn(),
+        markAnnotation: vi.fn(),
         deleteAnnotation: vi.fn()
       };
 
@@ -195,7 +195,7 @@ describe('AnnotationContext', () => {
     it('should accept any AnnotationManager implementation', async () => {
       // Custom implementation (e.g., with localStorage instead of API)
       class CustomAnnotationManager implements AnnotationManager {
-        async createAnnotation(params: CreateAnnotationParams) {
+        async markAnnotation(params: CreateAnnotationParams) {
           return { id: `custom-${params.motivation}`, motivation: params.motivation };
         }
 
@@ -205,7 +205,7 @@ describe('AnnotationContext', () => {
       }
 
       const customManager = new CustomAnnotationManager();
-      const createSpy = vi.spyOn(customManager, 'createAnnotation');
+      const createSpy = vi.spyOn(customManager, 'markAnnotation');
 
       render(
         <AnnotationProvider annotationManager={customManager}>
@@ -223,12 +223,12 @@ describe('AnnotationContext', () => {
 
     it('should work with nested providers', () => {
       const outerManager: AnnotationManager = {
-        createAnnotation: vi.fn().mockResolvedValue({ id: 'outer-ann' }),
+        markAnnotation: vi.fn().mockResolvedValue({ id: 'outer-ann' }),
         deleteAnnotation: vi.fn()
       };
 
       const innerManager: AnnotationManager = {
-        createAnnotation: vi.fn().mockResolvedValue({ id: 'inner-ann' }),
+        markAnnotation: vi.fn().mockResolvedValue({ id: 'inner-ann' }),
         deleteAnnotation: vi.fn()
       };
 
@@ -262,13 +262,13 @@ describe('AnnotationContext', () => {
     it('should use innermost provider when nested', async () => {
       const outerCreate = vi.fn().mockResolvedValue({ id: 'outer-ann' });
       const outerManager: AnnotationManager = {
-        createAnnotation: outerCreate,
+        markAnnotation: outerCreate,
         deleteAnnotation: vi.fn()
       };
 
       const innerCreate = vi.fn().mockResolvedValue({ id: 'inner-ann' });
       const innerManager: AnnotationManager = {
-        createAnnotation: innerCreate,
+        markAnnotation: innerCreate,
         deleteAnnotation: vi.fn()
       };
 
@@ -278,7 +278,7 @@ describe('AnnotationContext', () => {
           <button
             data-testid="nested-create"
             onClick={() =>
-              manager.createAnnotation({
+              manager.markAnnotation({
                 rUri: resourceId('test'),
                 motivation: 'highlighting',
                 selector: { type: 'TextQuoteSelector', exact: 'test' }
@@ -312,7 +312,7 @@ describe('AnnotationContext', () => {
     it('should handle multiple components using same manager', async () => {
       const mockCreate = vi.fn().mockResolvedValue({ id: 'shared-ann' });
       const mockManager: AnnotationManager = {
-        createAnnotation: mockCreate,
+        markAnnotation: mockCreate,
         deleteAnnotation: vi.fn()
       };
 
@@ -322,7 +322,7 @@ describe('AnnotationContext', () => {
           <button
             data-testid="consumer1-create"
             onClick={() =>
-              manager.createAnnotation({
+              manager.markAnnotation({
                 rUri: resourceId('test'),
                 motivation: 'highlighting',
                 selector: { type: 'TextQuoteSelector', exact: 'test1' }
@@ -340,7 +340,7 @@ describe('AnnotationContext', () => {
           <button
             data-testid="consumer2-create"
             onClick={() =>
-              manager.createAnnotation({
+              manager.markAnnotation({
                 rUri: resourceId('test'),
                 motivation: 'commenting',
                 selector: { type: 'TextQuoteSelector', exact: 'test2' }
@@ -367,10 +367,10 @@ describe('AnnotationContext', () => {
       });
     });
 
-    it('should handle errors from createAnnotation', async () => {
+    it('should handle errors from markAnnotation', async () => {
       const mockCreate = vi.fn().mockRejectedValue(new Error('Create failed'));
       const mockManager: AnnotationManager = {
-        createAnnotation: mockCreate,
+        markAnnotation: mockCreate,
         deleteAnnotation: vi.fn()
       };
 
@@ -384,7 +384,7 @@ describe('AnnotationContext', () => {
               data-testid="create-with-error"
               onClick={async () => {
                 try {
-                  await manager.createAnnotation({
+                  await manager.markAnnotation({
                     rUri: resourceId('test'),
                     motivation: 'highlighting',
                     selector: { type: 'TextQuoteSelector', exact: 'test' }
@@ -417,7 +417,7 @@ describe('AnnotationContext', () => {
     it('should handle errors from deleteAnnotation', async () => {
       const mockDelete = vi.fn().mockRejectedValue(new Error('Delete failed'));
       const mockManager: AnnotationManager = {
-        createAnnotation: vi.fn(),
+        markAnnotation: vi.fn(),
         deleteAnnotation: mockDelete
       };
 

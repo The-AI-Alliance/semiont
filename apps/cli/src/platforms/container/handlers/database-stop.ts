@@ -11,7 +11,7 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
  */
 const stopDatabaseContainer = async (context: ContainerStopHandlerContext): Promise<StopHandlerResult> => {
   const { service, runtime, containerName } = context;
-  const { force, timeout = 30 } = context.options;
+  const { force, timeout } = context.options;
 
   if (!service.quiet) {
     printInfo(`Stopping database container: ${containerName}`);

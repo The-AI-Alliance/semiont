@@ -1,18 +1,34 @@
-'use client';
-
 import React, { useState } from 'react';
-import { signOut } from 'next-auth/react';
-import Image from 'next/image';
-import { useTranslations } from 'next-intl';
-import { sanitizeImageURL, useSessionExpiry, formatTime } from '@semiont/react-ui';
-import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from 'react-i18next';
+import {
+  sanitizeImageURL,
+  useSessionExpiry,
+  formatTime,
+  useSemiont,
+  useObservable,
+  createSessionStateUnit,
+  useStateUnit,
+} from '@semiont/react-ui';
+import { useRouter } from '@/i18n/routing';
 
 // Fallback avatar when image fails to load or is invalid
 const FALLBACK_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM2QjcyODAiLz4KPHBhdGggZD0iTTE2IDE2QzE4LjIwOTEgMTYgMjAgMTQuMjA5MSAyMCAxMkMyMCA5Ljc5MDg2IDE4LjIwOTEgOCAxNiA4QzEzLjc5MDkgOCAxMiA5Ljc5MDg2IDEyIDEyQzEyIDE0LjIwOTEgMTMuNzkwOSAxNiAxNiAxNloiIGZpbGw9IiNFNUU3RUIiLz4KPHBhdGggZD0iTTI0IDI1QzI0IDIxLjY4NjMgMjAuNDE4MyAxOSAxNiAxOUMxMS41ODE3IDE5IDggMjEuNjg2MyA4IDI1IiBzdHJva2U9IiNFNUU3RUIiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+Cjwvc3ZnPg==';
 
 export function UserPanel() {
-  const t = useTranslations('UserPanel');
-  const { displayName, avatarUrl, userDomain, isAdmin, isModerator } = useAuth();
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`UserPanel.${k}`, p as any) as string;
+  const semiont = useSemiont();
+  const session = useObservable(semiont.activeSession$);
+  const user = useObservable(session?.user$) ?? null;
+  const activeKnowledgeBase = session?.kb ?? null;
+  const displayName = user?.name ?? user?.email?.split('@')[0] ?? 'User';
+  const avatarUrl = user?.image ?? null;
+  const userDomain = user?.domain || user?.email?.split('@')[1];
+  const isAdmin = user?.isAdmin ?? false;
+  const isModerator = user?.isModerator ?? false;
+  const apiClient = session?.client;
+  const sessionStateUnit = useStateUnit(() => createSessionStateUnit(apiClient!));
+  const router = useRouter();
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();
   const sessionTimeFormatted = formatTime(timeRemaining) ?? 'Unknown';
@@ -33,7 +49,11 @@ export function UserPanel() {
   })();
 
   const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/' });
+    await sessionStateUnit.logout();
+    if (activeKnowledgeBase) {
+      await semiont.signOut(activeKnowledgeBase.id);
+    }
+    router.push('/');
   };
 
   return (
@@ -42,19 +62,22 @@ export function UserPanel() {
         {t('account')}
       </h3>
 
+      {activeKnowledgeBase && (
+        <div style={{ padding: '0 0.75rem 0.5rem', fontSize: '0.8rem', color: 'var(--semiont-color-neutral-400)' }}>
+          {activeKnowledgeBase.label}
+        </div>
+      )}
+
       <div className="space-y-4">
         {/* User Profile */}
         <div className="flex items-center gap-3">
-          <Image
+          <img
             src={profileImageUrl}
             alt={t('profileAlt', { name: displayName || t('user') })}
             width={48}
             height={48}
             className="w-12 h-12 rounded-full object-cover"
             onError={() => setImageError(true)}
-            unoptimized={profileImageUrl === FALLBACK_AVATAR}
-            sizes="48px"
-            quality={85}
           />
           <div className="flex-1 min-w-0">
             <div className="semiont-panel-text">

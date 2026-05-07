@@ -187,7 +187,7 @@ const preflightNeptuneCheck = async (_context: AWSCheckHandlerContext): Promise<
 export const neptuneCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
-  serviceType: 'neptune',
+  serviceType: 'graph',
   handler: checkNeptune,
   preflight: preflightNeptuneCheck
 };

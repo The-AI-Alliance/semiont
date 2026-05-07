@@ -6,167 +6,67 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
 [![License](https://img.shields.io/npm/l/@semiont/api-client.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) - a knowledge management system for semantic annotations, AI-powered annotation detection, and collaborative document analysis.
+HTTP-specific transport adapters for the Semiont SDK. This is the wire-side
+implementation of the `ITransport` and `IContentTransport` contracts defined
+in [`@semiont/core`](../core/), consumed by [`@semiont/sdk`](../sdk/).
 
-This package provides two clients, SSE streams, and utilities for working with Semiont:
+Most application code does **not** import this package directly. The sdk
+re-exports the HTTP adapters for convenience, so a typical consumer writes:
 
-- **`SemiontApiClient`** — HTTP client for the Semiont REST API
-- **`EventBusClient`** — Direct EventBus client (no HTTP needed)
+```ts
+import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk';
+import { baseUrl } from '@semiont/core';
 
-OpenAPI types are re-exported from [`@semiont/core`](../core/README.md) (the source of truth).
-
-## What is Semiont?
-
-Semiont lets you:
-
-- **Store and manage documents** (text, markdown, images, PDFs)
-- **Create semantic annotations** using W3C Web Annotation standard
-- **Link and reference** between documents
-- **Track provenance** with event sourcing
-- **Collaborate in real-time** via SSE streams
-- **Detect annotations** using AI for text formats (highlights, assessments, comments, tags, entity references)
-- **Retrieve context** for LLMs via graph traversal
-- **Generate new documents** from annotations with AI
-
-## Installation
-
-Install the latest stable release from npm:
-
-```bash
-npm install @semiont/api-client
+const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/') });
+const client = new SemiontClient(transport, new HttpContentTransport(transport));
 ```
 
-Or install the latest development build:
+Direct imports from `@semiont/api-client` are appropriate when constructing
+the transport stack by hand — e.g. CLI factories, MCP entrypoints, or worker
+pools that wire bespoke `tokenRefresher` / `BehaviorSubject` token sources.
 
-```bash
-npm install @semiont/api-client@dev
+## Public surface
+
+```ts
+import {
+  HttpTransport,
+  HttpContentTransport,
+  type HttpTransportConfig,
+  type TokenRefresher,
+  APIError,
+  // SSE-actor machinery used by SDK adapters; not application code:
+  createActorStateUnit,
+  type ActorStateUnit,
+  type BusEvent,
+  type ActorStateUnitOptions,
+  DEGRADED_THRESHOLD_MS,
+} from '@semiont/api-client';
 ```
 
-**Prerequisites**: Semiont backend running. See [Running the Backend](../../apps/backend/README.md#quick-start) for setup.
+That's the entire surface. Everything else moved out:
 
-## Quick Start
+- **`ITransport`, `IContentTransport`, `BRIDGED_CHANNELS`, `ConnectionState`,
+  response/progress types** live in [`@semiont/core`](../core/).
+- **`SemiontClient`, namespaces, `SemiontSession`, `SemiontBrowser`,
+  state units, `bus-request`, `cache`** live in [`@semiont/sdk`](../sdk/).
 
-```typescript
-import { SemiontApiClient, baseUrl, email, resourceUri } from '@semiont/api-client';
+## Behavioral contract
 
-const client = new SemiontApiClient({
-  baseUrl: baseUrl('http://localhost:4000'),
-});
+The guarantees every `ITransport` implementation must honor — including
+`HttpTransport` — are documented in
+[`docs/protocol/TRANSPORT-CONTRACT.md`](../../docs/protocol/TRANSPORT-CONTRACT.md).
+HTTP-specific guarantees (the `/bus/emit` gateway, SSE reconnect, `Last-Event-ID`
+replay, etc.) live in
+[`docs/protocol/TRANSPORT-HTTP.md`](../../docs/protocol/TRANSPORT-HTTP.md).
 
-// Authenticate (local development mode)
-await client.authenticateLocal(email('user@example.com'));
+## Writing a new transport
 
-// Create a text document
-const { resource } = await client.createResource({
-  name: 'My Document',
-  file: Buffer.from('The quick brown fox jumps over the lazy dog.'),
-  format: 'text/plain',
-  entityTypes: ['example']
-});
-
-console.log('Created resource:', resource['@id']);
-
-// Detect annotations with AI (text/markdown formats only)
-const stream = client.sse.detectAnnotations(resourceUri(resource['@id']), {
-  entityTypes: ['Animal', 'Color']
-});
-
-stream.onProgress((p) => console.log(`Scanning: ${p.currentEntityType}`));
-stream.onComplete((result) => console.log(`Found ${result.foundCount} annotations`));
-
-// Get annotations
-const annotations = await client.getResourceAnnotations(resourceUri(resource['@id']));
-console.log('Annotations:', annotations.annotations.length);
-```
-
-## EventBus Client (No HTTP)
-
-The `EventBusClient` communicates directly via the RxJS EventBus — no HTTP server needed. It covers all knowledge-domain operations (resource reads, annotations, entity types, search, LLM context, clone tokens, job status).
-
-```typescript
-import { EventBusClient } from '@semiont/api-client';
-import { EventBus, resourceId } from '@semiont/core';
-import { startMakeMeaning } from '@semiont/make-meaning';
-
-// Start the knowledge system
-const eventBus = new EventBus();
-const makeMeaning = await startMakeMeaning(config, eventBus, logger);
-
-// Use EventBusClient instead of SemiontApiClient
-const client = new EventBusClient(eventBus);
-
-// Same operations, no HTTP
-const resources = await client.listResources({ limit: 10 });
-const resource = await client.getResource(resourceId('doc-123'));
-const annotations = await client.getAnnotations(resourceId('doc-123'));
-const entityTypes = await client.listEntityTypes();
-const results = await client.searchResources('quantum computing');
-```
-
-**What's covered**: All browse, bind, mark, gather, yield (clone), and job operations.
-
-**What's NOT covered** (HTTP-only): Auth, admin, health/status, binary content upload/download, SSE streaming.
-
-## Logging
-
-Enable logging to debug requests and monitor API usage:
-
-```typescript
-import { SemiontApiClient, Logger, baseUrl } from '@semiont/api-client';
-import winston from 'winston';
-
-const logger = winston.createLogger({
-  level: 'debug',
-  format: winston.format.json(),
-  transports: [new winston.transports.Console()]
-});
-
-const client = new SemiontApiClient({
-  baseUrl: baseUrl('http://localhost:4000'),
-  logger
-});
-
-// Now all HTTP requests and SSE streams will be logged
-```
-
-**What gets logged**: HTTP requests/responses, SSE stream lifecycle, individual events, and errors
-
-**Security**: Authorization headers are never logged to prevent token leaks
-
-📘 **[Complete Logging Guide](./docs/LOGGING.md)** - Logger setup, integration examples, structured metadata, troubleshooting
-
-## Documentation
-
-📚 **[Usage Guide](./docs/Usage.md)** - Authentication, resources, annotations, SSE streaming
-
-📖 **[API Reference](./docs/API-Reference.md)** - Complete method documentation
-
-🛠️ **[Utilities Guide](./docs/Utilities.md)** - Text encoding, fuzzy anchoring, SVG utilities
-
-## Key Features
-
-- **Two clients** - HTTP (`SemiontApiClient`) and EventBus (`EventBusClient`) for the same operations
-- **Type-safe** - Re-exports OpenAPI types from `@semiont/core` with branded types
-- **W3C compliant** - Web Annotation standard with fuzzy text matching
-- **Real-time** - SSE streaming for long operations
-- **Framework-agnostic** - Pure TypeScript utilities work everywhere
-- **Character encoding** - Proper UTF-8, ISO-8859-1, Windows-1252 support
-
-**Note**: OpenAPI types are generated in `@semiont/core` (source of truth) and re-exported here for convenience.
-
-## Use Cases
-
-**SemiontApiClient (HTTP)**:
-- MCP servers and AI integrations
-- Frontend applications (wrap with React hooks)
-- CLI tools and automation scripts
-- Third-party integrations
-
-**EventBusClient (direct)**:
-- Scripts that run alongside make-meaning (no HTTP server)
-- Testing without HTTP overhead
-- Embedded scenarios where EventBus is available directly
+If you need to add a non-HTTP transport (gRPC, WebSocket, IPC, …), implement
+`ITransport` + `IContentTransport` from `@semiont/core` and consume the
+contract from there. There's no inheritance from `HttpTransport`. For an
+in-process example, see `LocalTransport` in
+[`@semiont/make-meaning`](../make-meaning/).
 
 ## License
 
-Apache-2.0
+Apache-2.0 — see [LICENSE](./LICENSE).

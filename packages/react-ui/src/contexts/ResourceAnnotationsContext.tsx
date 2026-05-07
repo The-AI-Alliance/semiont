@@ -1,11 +1,10 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import { useAnnotations } from '../lib/api-hooks';
-import type { components, AnnotationId, ResourceId, Selector } from '@semiont/core';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from '../hooks/useObservable';
+import type { Annotation, AnnotationId, ResourceId, Selector } from '@semiont/core';
 import { useLiveRegion } from '../components/LiveRegion';
-
-type Annotation = components['schemas']['Annotation'];
 // Create annotation request type - narrow target to only the object form (not string)
 type CreateAnnotationRequest = Omit<Annotation, 'id' | 'created' | 'modified' | 'creator' | '@context' | 'type' | 'target'> & {
   target: {
@@ -19,7 +18,7 @@ interface ResourceAnnotationsContextType {
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
 
   // Generic annotation creation (supports both text and image annotations)
-  createAnnotation: (
+  markAnnotation: (
     rUri: ResourceId,
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
@@ -40,19 +39,15 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   // Live region announcements
   const { announce } = useLiveRegion();
 
-  // API hooks
-  const annotations = useAnnotations();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
 
-  // Set up mutation hooks
-  const createAnnotationMutation = annotations.create.useMutation();
-
-  // Generic annotation creation function (supports both text and image annotations)
-  const createAnnotation = useCallback(async (
+  const markAnnotation = useCallback(async (
     rUri: ResourceId,
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
     body: any[] = []
   ): Promise<string | undefined> => {
+    if (!semiont) throw new Error('Not authenticated');
     try {
       const createData: CreateAnnotationRequest = {
         motivation,
@@ -63,10 +58,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
         body,
       };
 
-      const result = await createAnnotationMutation.mutateAsync({
-        resourceId: rUri,
-        data: createData
-      });
+      const result = await semiont.mark.annotation(createData);
 
       // Track this as a new annotation for sparkle animation
       if (result.annotationId) {
@@ -91,7 +83,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       announce('Failed to create annotation', 'assertive');
       throw err;
     }
-  }, [createAnnotationMutation, announce]);
+  }, [semiont, announce]);
 
   const clearNewAnnotationId = useCallback((id: AnnotationId) => {
     setNewAnnotationIds(prev => {
@@ -117,11 +109,11 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const contextValue = useMemo(
     () => ({
       newAnnotationIds,
-      createAnnotation,
+      markAnnotation,
       clearNewAnnotationId,
       triggerSparkleAnimation,
     }),
-    [newAnnotationIds, createAnnotation, clearNewAnnotationId, triggerSparkleAnimation]
+    [newAnnotationIds, markAnnotation, clearNewAnnotationId, triggerSparkleAnimation]
   );
 
   return (

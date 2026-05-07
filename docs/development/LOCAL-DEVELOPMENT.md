@@ -6,7 +6,7 @@ This guide explains how to run Semiont locally for development.
 
 - **Node.js** v20 or higher
 - **npm** (comes with Node.js)
-- **Docker or Podman** (for PostgreSQL and Envoy containers)
+- **Container runtime** — Apple Container, Docker, or Podman (for PostgreSQL containers)
 - **Git**
 
 ## Setup
@@ -177,15 +177,15 @@ semiont provision --service backend   # Updates backend configuration
 
 ## Additional Documentation
 
-- **[AUTHENTICATION.md](../administration/AUTHENTICATION.md)** - Authentication setup, OAuth configuration, admin users
-- **[CONFIGURATION.md](../administration/CONFIGURATION.md)** - Environment variables, service configuration
+- **[AUTHENTICATION.md](../system/administration/AUTHENTICATION.md)** - Authentication setup, OAuth configuration, admin users
+- **[CONFIGURATION.md](../system/administration/CONFIGURATION.md)** - Environment variables, service configuration
 - **[TESTING.md](./TESTING.md)** - Running tests, test commands
-- **[TROUBLESHOOTING.md](../administration/TROUBLESHOOTING.md)** - Common issues, port conflicts, database problems
-- **[ARCHITECTURE.md](../ARCHITECTURE.md)** - System architecture, component overview
-- **[DEPLOYMENT.md](../administration/DEPLOYMENT.md)** - Production deployment
+- **[TROUBLESHOOTING.md](../system/administration/TROUBLESHOOTING.md)** - Common issues, port conflicts, database problems
+- **[System Documentation](../system/README.md)** - System architecture, component overview
+- **[DEPLOYMENT.md](../system/administration/DEPLOYMENT.md)** - Production deployment
 
 ## Getting Help
 
-1. Check [TROUBLESHOOTING.md](../administration/TROUBLESHOOTING.md)
+1. Check [TROUBLESHOOTING.md](../system/administration/TROUBLESHOOTING.md)
 2. Search [GitHub Issues](https://github.com/The-AI-Alliance/semiont/issues)
 3. Create a new issue with reproduction steps and error messages

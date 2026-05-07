@@ -1,6 +1,4 @@
-import type { components, ResourceId, Selector } from '@semiont/core';
-
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation, ResourceId, Selector } from '@semiont/core';
 
 /**
  * Parameters for creating an annotation
@@ -26,19 +24,16 @@ export interface DeleteAnnotationParams {
  * Framework-agnostic interface for annotation mutations.
  * Apps provide implementations via AnnotationProvider.
  *
- * Example implementation (React Query):
+ * Example implementation:
  * ```typescript
- * function useAnnotationManager(): AnnotationManager {
- *   const createMutation = useAnnotations().create.useMutation();
- *   const deleteMutation = useAnnotations().delete.useMutation();
- *
+ * function useAnnotationManager(client: SemiontClient): AnnotationManager {
  *   return {
- *     createAnnotation: async (params) => {
- *       const result = await createMutation.mutateAsync({...});
+ *     markAnnotation: async (params) => {
+ *       const result = await client.mark.annotation({ target: { source: params.rUri, ... }, ... });
  *       return result.annotation;
  *     },
  *     deleteAnnotation: async (params) => {
- *       await deleteMutation.mutateAsync({...});
+ *       await client.mark.delete(params.rUri, params.annotationId);
  *     }
  *   };
  * }
@@ -50,7 +45,7 @@ export interface AnnotationManager {
    * @param params - Creation parameters (rUri, motivation, selector, body)
    * @returns Promise resolving to the created annotation, or undefined if creation fails
    */
-  createAnnotation: (params: CreateAnnotationParams) => Promise<Annotation | undefined>;
+  markAnnotation: (params: CreateAnnotationParams) => Promise<Annotation | undefined>;
 
   /**
    * Delete an annotation

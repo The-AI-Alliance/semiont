@@ -4,12 +4,7 @@
  * Tests the service initialization and lifecycle:
  * - Configuration validation
  * - Job queue initialization
- * - EventStore creation
- * - Entity types bootstrapping
- * - RepresentationStore creation
- * - InferenceClient creation
- * - GraphDB connection
- * - GraphDBConsumer initialization
+ * - KnowledgeSystem creation
  * - Worker instantiation and startup
  * - Service handle return
  * - Cleanup and stop
@@ -87,51 +82,39 @@ describe('Make-Meaning Service', () => {
 
     it('should create event store', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
-      expect(service.eventStore).toBeDefined();
-      expect(typeof service.eventStore.appendEvent).toBe('function');
-      expect(service.eventStore.log).toBeDefined();
-      expect(service.eventStore.bus).toBeDefined();
-      expect(service.eventStore.views).toBeDefined();
+      expect(kb.eventStore).toBeDefined();
+      expect(typeof kb.eventStore.appendEvent).toBe('function');
+      expect(kb.eventStore.log).toBeDefined();
+      expect(kb.eventStore.coreEventBus).toBeDefined();
+      expect(kb.eventStore.views).toBeDefined();
     });
 
     it('should create knowledge base with content store', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
-      expect(service.kb).toBeDefined();
-      expect(service.kb.content).toBeDefined();
-      expect(typeof service.kb.content.store).toBe('function');
-      expect(typeof service.kb.content.retrieve).toBe('function');
+      expect(kb).toBeDefined();
+      expect(kb.content).toBeDefined();
+      expect(typeof kb.content.store).toBe('function');
+      expect(typeof kb.content.retrieve).toBe('function');
     });
 
     it('should connect to graph database', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
-      expect(service.graphDb).toBeDefined();
-      expect(typeof service.graphDb.disconnect).toBe('function');
+      expect(kb.graph).toBeDefined();
+      expect(typeof kb.graph.disconnect).toBe('function');
     });
 
     it('should initialize graph consumer', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
-      expect(service.graphConsumer).toBeDefined();
-      expect(typeof service.graphConsumer.stop).toBe('function');
-    });
-
-    it('should instantiate all workers', async () => {
-      service = await startMakeMeaning(project, config, eventBus, mockLogger);
-
-      expect(service.workers).toBeDefined();
-      expect(service.workers.detection).toBeDefined();
-      expect(service.workers.generation).toBeDefined();
-      expect(service.workers.highlight).toBeDefined();
-      expect(service.workers.assessment).toBeDefined();
-      expect(service.workers.comment).toBeDefined();
-      expect(service.workers.tag).toBeDefined();
-
-      // Verify workers have start/stop methods
-      expect(typeof service.workers.detection.start).toBe('function');
-      expect(typeof service.workers.detection.stop).toBe('function');
+      expect(kb.graphConsumer).toBeDefined();
+      expect(typeof kb.graphConsumer.stop).toBe('function');
     });
 
     it('should return service handle with stop method', async () => {
@@ -159,33 +142,11 @@ describe('Make-Meaning Service', () => {
       service = null;
     });
 
-    it('should stop all workers on service stop', async () => {
-      service = await startMakeMeaning(project, config, eventBus, mockLogger);
-
-      // Spy on worker stop methods
-      const detectionStopSpy = vi.spyOn(service.workers.detection, 'stop');
-      const generationStopSpy = vi.spyOn(service.workers.generation, 'stop');
-      const highlightStopSpy = vi.spyOn(service.workers.highlight, 'stop');
-      const assessmentStopSpy = vi.spyOn(service.workers.assessment, 'stop');
-      const commentStopSpy = vi.spyOn(service.workers.comment, 'stop');
-      const tagStopSpy = vi.spyOn(service.workers.tag, 'stop');
-
-      await service.stop();
-
-      expect(detectionStopSpy).toHaveBeenCalled();
-      expect(generationStopSpy).toHaveBeenCalled();
-      expect(highlightStopSpy).toHaveBeenCalled();
-      expect(assessmentStopSpy).toHaveBeenCalled();
-      expect(commentStopSpy).toHaveBeenCalled();
-      expect(tagStopSpy).toHaveBeenCalled();
-
-      service = null;
-    });
-
     it('should stop graph consumer on service stop', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
-      const consumerStopSpy = vi.spyOn(service.graphConsumer, 'stop');
+      const consumerStopSpy = vi.spyOn(kb.graphConsumer, 'stop');
 
       await service.stop();
 
@@ -196,8 +157,9 @@ describe('Make-Meaning Service', () => {
 
     it('should disconnect graph database on service stop', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
-      const dbDisconnectSpy = vi.spyOn(service.graphDb, 'disconnect');
+      const dbDisconnectSpy = vi.spyOn(kb.graph, 'disconnect');
 
       await service.stop();
 
@@ -211,12 +173,13 @@ describe('Make-Meaning Service', () => {
     it('should complete initialization without errors', async () => {
       // Service initialization includes bootstrap step
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
       // If we got here, bootstrap completed successfully
       expect(service).toBeDefined();
-      expect(service.eventStore).toBeDefined();
-      expect(service.graphDb).toBeDefined();
-      expect(service.graphConsumer).toBeDefined();
+      expect(kb.eventStore).toBeDefined();
+      expect(kb.graph).toBeDefined();
+      expect(kb.graphConsumer).toBeDefined();
     });
 
     it('should allow multiple service instances with different directories', async () => {
@@ -243,24 +206,5 @@ describe('Make-Meaning Service', () => {
       service = null;
     });
 
-    it('should share event bus and inference client across workers', async () => {
-      service = await startMakeMeaning(project, config, eventBus, mockLogger);
-
-      // All workers should share the same eventBus instance
-      const eventBusRefs = [
-        service.workers.detection,
-        service.workers.generation,
-        service.workers.highlight,
-        service.workers.assessment,
-        service.workers.comment,
-        service.workers.tag,
-      ].map(w => (w as any).eventBus);
-
-      // All should be the same instance (compare to the eventBus passed into startMakeMeaning)
-      eventBusRefs.forEach(ref => {
-        expect(ref).toBe(eventBus);
-      });
-
-    });
   });
 });

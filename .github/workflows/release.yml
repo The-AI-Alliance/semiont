@@ -1,0 +1,104 @@
+name: Release
+
+run-name: "Release (${{ inputs.dry_run == true && 'dry run' || 'live' }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (tag only, do not publish)'
+        required: false
+        type: boolean
+        default: false
+      desktop:
+        description: 'Build and publish desktop apps'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(jq -r .version version.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Verify version sync
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ERRORS=0
+          for pkg in packages/*/package.json apps/*/package.json; do
+            PKG_VERSION=$(jq -r .version "$pkg")
+            if [ "$PKG_VERSION" != "$VERSION" ]; then
+              echo "::error::Version mismatch in $pkg: expected $VERSION, got $PKG_VERSION"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::$ERRORS package(s) have mismatched versions"
+            exit 1
+          fi
+          echo "All packages at version $VERSION"
+
+      - name: Create and push tag
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::warning::Tag $TAG already exists locally — skipping creation"
+          else
+            git tag "$TAG"
+            echo "Created tag $TAG"
+          fi
+          if git ls-remote --tags origin "$TAG" | grep -q .; then
+            echo "::warning::Tag $TAG already exists on remote — skipping push"
+          else
+            git push origin "$TAG"
+            echo "Pushed tag $TAG"
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::warning::Release $TAG already exists — skipping"
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes
+            echo "Created release $TAG"
+          fi
+
+  trigger-npm:
+    name: Trigger npm publish (runs separately)
+    needs: tag
+    if: inputs.dry_run != true
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Trigger npm publish workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run publish-npm-packages.yml --field stable_release=true
+          echo "Triggered publish-npm-packages.yml (stable release)"
+
+  desktop:
+    needs: tag
+    if: inputs.dry_run != true && inputs.desktop == true
+    uses: ./.github/workflows/publish-desktop.yml
+    secrets: inherit

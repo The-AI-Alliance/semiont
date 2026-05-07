@@ -1,18 +1,16 @@
-'use client';
-
 import React, { useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import {
-  useOpenResources,
+  useSemiont,
+  useObservable,
   useEventSubscriptions,
   CollapsibleResourceNavigation,
   type NavigationItem,
-  type OpenResource
 } from '@semiont/react-ui';
-
+import type { OpenResource } from '@semiont/sdk';
 // Custom telescope icon component
 const TelescopeIcon = ({ className }: { className?: string }) => (
   <span className={className} style={{ fontSize: '1.25rem', lineHeight: '1' }}>🔭</span>
@@ -24,11 +22,20 @@ interface KnowledgeNavigationProps {
   navigationMenu?: (onClose: () => void) => React.ReactNode;
 }
 
+// Adapter: CollapsibleResourceNavigation passes href, but our Link uses `to`
+function HrefLink({ href, to: _to, ...props }: React.ComponentProps<typeof Link> & { href?: string }) {
+  return <Link to={(href ?? '') as string} {...props} />;
+}
+
 export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMenu }: KnowledgeNavigationProps) {
-  const t = useTranslations('Sidebar');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Sidebar.${k}`, p as any) as string;
   const pathname = usePathname();
   const router = useRouter();
-  const { openResources, removeResource, reorderResources } = useOpenResources();
+  const semiont = useSemiont();
+  const openResources = useObservable(semiont.openResources$) ?? [];
+  const removeResource = semiont.removeOpenResource.bind(semiont);
+  const reorderResources = semiont.reorderOpenResources.bind(semiont);
 
   const fixedNavigation: NavigationItem[] = [
     {
@@ -67,9 +74,9 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
 
   // Subscribe to navigation events
   useEventSubscriptions({
-    'browse:sidebar-toggle': handleSidebarToggle,
-    'browse:resource-close': handleResourceClose,
-    'browse:resource-reorder': handleResourceReorder,
+    'shell:sidebar-toggle': handleSidebarToggle,
+    'tabs:close': handleResourceClose,
+    'tabs:reorder': handleResourceReorder,
   });
 
   // Handle navigation
@@ -83,24 +90,28 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
   };
 
   return (
-    <CollapsibleResourceNavigation
-      fixedItems={fixedNavigation}
-      resources={openResources as OpenResource[]}
-      isCollapsed={isCollapsed}
-      currentPath={pathname}
-      LinkComponent={Link as any}
-      onNavigate={handleNavigate}
-      getResourceHref={getResourceHref}
-      className="knowledge-navigation"
-      translations={{
-        title: t('title')
-      }}
-      icons={{
-        chevronLeft: ChevronLeftIcon,
-        bars: Bars3Icon,
-        close: XMarkIcon
-      }}
-      navigationMenu={navigationMenu}
-    />
+    <div className="flex flex-col h-full">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <CollapsibleResourceNavigation
+          fixedItems={fixedNavigation}
+          resources={openResources as OpenResource[]}
+          isCollapsed={isCollapsed}
+          currentPath={pathname}
+          LinkComponent={HrefLink as any}
+          onNavigate={handleNavigate}
+          getResourceHref={getResourceHref}
+          className="knowledge-navigation"
+          translations={{
+            title: t('title')
+          }}
+          icons={{
+            chevronLeft: ChevronLeftIcon,
+            bars: Bars3Icon,
+            close: XMarkIcon
+          }}
+          navigationMenu={navigationMenu}
+        />
+      </div>
+    </div>
   );
 }

@@ -10,7 +10,7 @@ import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
 import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { Platform } from '../platform.js';
 import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
@@ -19,8 +19,9 @@ import { HandlerResult } from '../handlers/types.js';
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const StartOptionsSchema = BaseOptionsSchema.extend({
+const StartOptionsSchema = OpsOptionsSchema.extend({
   service: z.string().optional(),
+  skipRebuild: z.boolean().optional(),
 });
 
 export type StartOptions = z.output<typeof StartOptionsSchema>;
@@ -29,21 +30,37 @@ export type StartOptions = z.output<typeof StartOptionsSchema>;
 // COMMAND DESCRIPTOR
 // =====================================================================
 
+// Services must start in this order to satisfy dependencies.
+// database before backend (migrations), graph before backend (graph db connection).
+// Services not listed here start after all listed services, in their original order.
+export const START_ORDER = ['database', 'graph', 'inference', 'backend', 'frontend'];
+
 const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor({
   name: 'start',
-  
+
+  preExecute: async (services) => {
+    return [...services].sort((a, b) => {
+      const ai = START_ORDER.indexOf(a.name);
+      const bi = START_ORDER.indexOf(b.name);
+      const aRank = ai === -1 ? START_ORDER.length : ai;
+      const bRank = bi === -1 ? START_ORDER.length : bi;
+      return aRank - bRank;
+    });
+  },
+
   buildServiceConfig: (_options, serviceInfo) => ({
     ...serviceInfo.config,
     platform: serviceInfo.platform,
   }),
-  
+
   extractHandlerOptions: (options) => ({
     service: options.service,
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
+    skipRebuild: options.skipRebuild,
   }),
-  
+
   buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {
     // Type guard for start-specific results
     const startResult = handlerResult as any; // StartHandlerResult
@@ -108,22 +125,24 @@ export const startCommand = new CommandBuilder()
     'semiont start --service backend --verbose',
     'semiont start --all'
   )
-  .args({
-    args: {
-      '--service': {
-        type: 'string',
-        description: 'Service to start (or "all" for all services)',
-      },
-      '--all': {
-        type: 'boolean',
-        description: 'Start all services',
-        default: false,
-      },
+  .args(withOpsArgs({
+    '--service': {
+      type: 'string',
+      description: 'Service to start (or "all" for all services)',
     },
-    aliases: {
-      '-s': '--service',
+    '--all': {
+      type: 'boolean',
+      description: 'Start all services',
+      default: false,
     },
-  })
+    '--skip-rebuild': {
+      type: 'boolean',
+      description: 'Skip graph and vector store rebuild at startup',
+      default: false,
+    },
+  }, {
+    '-s': '--service',
+  }))
   .schema(StartOptionsSchema)
   .handler(start)
   .build();

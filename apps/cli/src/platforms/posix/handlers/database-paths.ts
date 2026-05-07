@@ -14,7 +14,7 @@ export interface DatabasePaths {
  * Get all database paths for POSIX platform
  */
 export function getDatabasePaths<T>(context: BaseHandlerContext<T>): DatabasePaths {
-  const projectRoot = context.service.projectRoot;
+  const projectRoot = context.service.projectRoot!;
   const project = new SemiontProject(projectRoot);
   const config = context.service.config as { dataDir?: string };
   const dataDir = config.dataDir

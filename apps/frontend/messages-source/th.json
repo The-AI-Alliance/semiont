@@ -13,7 +13,7 @@
     "administer": "การบริหารจัดการ"
   },
   "Footer": {
-    "copyright": "© {year} Semiont สงวนลิขสิทธิ์",
+    "copyright": "© {{year}} The AI Alliance สงวนลิขสิทธิ์",
     "about": "เกี่ยวกับ",
     "privacyPolicy": "นโยบายความเป็นส่วนตัว",
     "cookiePreferences": "การตั้งค่าคุกกี้",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "สร้างความหมาย",
-    "description": "เฟรมเวิร์กโอเพนซอร์สที่พร้อมรับอนาคต ช่วยให้มนุษย์และตัวแทนอัจฉริยะร่วมกันสร้างองค์ความรู้ที่ใช้ร่วมกัน — ควบคุมโดยคุณและสร้างขึ้นเพื่อความยั่งยืน",
-    "continueToKnowledgeBase": "ไปยังฐานความรู้",
-    "learnMore": "เรียนรู้เพิ่มเติม",
-    "signUp": "สมัครสมาชิก",
-    "signIn": "เข้าสู่ระบบ",
-    "loading": "กำลังโหลด..."
+    "begin": "เริ่มต้น"
   },
   "About": {
     "pageTitle": "เกี่ยวกับ Semiont",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "เราใช้คุกกี้และเทคโนโลยีที่คล้ายคลึงกันเพื่อปรับปรุงประสบการณ์ของคุณ วิเคราะห์การใช้งาน และให้เนื้อหาที่เป็นส่วนตัว",
     "cookieCategoriesTitle": "ประเภทของคุกกี้",
     "necessaryCookiesTitle": "คุกกี้ที่จำเป็นอย่างยิ่ง",
-    "necessaryCookies": "จำเป็นสำหรับการทำงานของเว็บไซต์ รวมถึงฟีเจอร์การยืนยันตัวตนและความปลอดภัย\n\nตัวอย่าง: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "จำเป็นสำหรับการทำงานของเว็บไซต์ รวมถึงฟีเจอร์การยืนยันตัวตนและความปลอดภัย\n\nตัวอย่าง: semiont-token",
     "analyticsCookiesTitle": "คุกกี้วิเคราะห์",
     "analyticsCookies": "ช่วยให้เราเข้าใจว่าผู้เยี่ยมชมโต้ตอบกับเว็บไซต์ของเราอย่างไร เพื่อปรับปรุงประสบการณ์ผู้ใช้\n\nตัวอย่าง: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "คุกกี้การตลาด",
@@ -94,7 +89,7 @@
     "contactAddress": "ที่อยู่:",
     "updatesTitle": "การอัปเดตนโยบายนี้",
     "updates": "เราอาจอัปเดตนโยบายความเป็นส่วนตัวนี้เป็นครั้งคราว เราจะแจ้งให้คุณทราบถึงการเปลี่ยนแปลงที่สำคัญโดยการโพสต์นโยบายความเป็นส่วนตัวฉบับใหม่บนหน้านี้และอัปเดตวันที่มีผลบังคับใช้",
-    "lastUpdated": "อัปเดตล่าสุด: {date}"
+    "lastUpdated": "อัปเดตล่าสุด: {{date}}"
   },
   "Terms": {
     "pageTitle": "ข้อกำหนดการให้บริการ",
@@ -124,7 +119,7 @@
     "changes": "เราอาจอัปเดตข้อกำหนดเหล่านี้เป็นครั้งคราว ผู้ใช้จะได้รับแจ้งเกี่ยวกับการเปลี่ยนแปลงที่สำคัญ และการใช้งานแพลตฟอร์มต่อไปถือว่ายอมรับข้อกำหนดที่อัปเดตแล้ว",
     "contactTitle": "ติดต่อ",
     "contact": "หากคุณมีคำถามเกี่ยวกับข้อกำหนดเหล่านี้หรือต้องการรายงานการละเมิด กรุณาติดต่อทีมสนับสนุนของเราผ่านแพลตฟอร์มหรือที่ข้อมูลการติดต่อที่ระบุไว้ในนโยบายความเป็นส่วนตัวของเรา",
-    "lastUpdated": "อัปเดตล่าสุด: {date}",
+    "lastUpdated": "อัปเดตล่าสุด: {{date}}",
     "aup": "การใช้งาน Semiont แสดงว่าคุณตกลงที่จะใช้แพลตฟอร์มของเราอย่างรับผิดชอบและเป็นไปตามข้อกำหนดเหล่านี้ เรามุ่งมั่นที่จะรักษาสภาพแวดล้อมที่ปลอดภัย เคารพซึ่งกันและกัน และมีประสิทธิผลสำหรับผู้ใช้ทุกคน"
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "ไม่สามารถสร้างบัญชีได้ กรุณาติดต่อฝ่ายสนับสนุน",
     "errorGeneric": "เกิดข้อผิดพลาดในการยืนยันตัวตน กรุณาลองอีกครั้ง",
     "errorGoogleSignIn": "ไม่สามารถเริ่มการเข้าสู่ระบบด้วย Google ได้ กรุณาลองอีกครั้ง",
+    "backendUrlLabel": "URL แบ็กเอนด์",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "กรุณาป้อน URL แบ็กเอนด์",
+    "errorBackendUrlInvalid": "กรุณาระบุ URL ที่ถูกต้อง (เช่น http://localhost:4000)",
+    "errorBackendUrlUnreachable": "ไม่สามารถเข้าถึง URL นั้นได้ — แบ็กเอนด์กำลังทำงานอยู่หรือไม่?",
     "errorEmailRequired": "กรุณากรอกที่อยู่อีเมลของคุณ",
     "errorPasswordRequired": "กรุณากรอกรหัสผ่านของคุณ",
     "errorSignInFailed": "การเข้าสู่ระบบล้มเหลว กรุณาลองอีกครั้ง",
@@ -185,7 +185,7 @@
     "loading": "กำลังโหลด...",
     "welcomeTitle": "ยินดีต้อนรับสู่ Semiont!",
     "thanksForAccepting": "ขอบคุณที่ยอมรับข้อกำหนดของเรา กำลังนำคุณไปยังแอป...",
-    "welcomeUser": "ยินดีต้อนรับสู่ Semiont คุณ{firstName}!",
+    "welcomeUser": "ยินดีต้อนรับสู่ Semiont คุณ{{firstName}}!",
     "reviewTermsPrompt": "ก่อนที่คุณจะเริ่มใช้งาน Semiont กรุณาตรวจสอบและยอมรับข้อกำหนดการให้บริการของเรา",
     "termsSummaryTitle": "สรุปข้อกำหนดการให้บริการ",
     "termsSummaryIntro": "การใช้งาน Semiont แสดงว่าคุณตกลง:",
@@ -246,9 +246,9 @@
     "archived": "จัดเก็บแล้ว",
     "created": "สร้างแล้ว",
     "recentResources": "ทรัพยากรล่าสุด",
-    "searchResults": "ผลการค้นหา ({count})",
-    "resourcesTaggedWith": "ทรัพยากรที่ติดแท็ก '{entityType}'",
-    "noResultsFound": "ไม่พบผลลัพธ์สำหรับ '{query}' แสดงทรัพยากรล่าสุดแทน",
+    "searchResults": "ผลการค้นหา ({{count}})",
+    "resourcesTaggedWith": "ทรัพยากรที่ติดแท็ก '{{entityType}}'",
+    "noResultsFound": "ไม่พบผลลัพธ์สำหรับ '{{query}}' แสดงทรัพยากรล่าสุดแทน",
     "noResourcesAvailable": "ไม่มีทรัพยากรที่พร้อมใช้งาน สร้างเอกสารแรกของคุณเพื่อเริ่มต้น",
     "composeFirstResource": "เขียนทรัพยากรแรก",
     "loadingKnowledgeBase": "กำลังโหลดฐานความรู้..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "กรอกชื่อทรัพยากร...",
     "entityTypes": "แท็กประเภทเอนทิตี",
     "entityTypesHint": "ติดแท็กทรัพยากรของคุณด้วยประเภทเอนทิตี",
-    "noEntityTypesAvailable": "ไม่มีประเภทเอนทิตีที่พร้อมใช้งาน",
     "contentSource": "แหล่งเนื้อหา",
     "uploadFile": "อัปโหลดไฟล์",
     "uploadFileDescription": "รูปภาพ เอกสาร ไฟล์ข้อความ",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "บัญชี",
     "user": "ผู้ใช้",
-    "profileAlt": "โปรไฟล์ {name}",
+    "profileAlt": "โปรไฟล์ {{name}}",
     "session": "เซสชัน",
-    "expiresIn": "หมดอายุใน: {time}",
+    "expiresIn": "หมดอายุใน: {{time}}",
     "privileges": "สิทธิ์",
     "administrator": "🛡️ ผู้ดูแลระบบ",
     "moderator": "⚖️ ผู้กลั่นกรอง",
@@ -433,7 +432,7 @@
     "configManagementDescription": "การตั้งค่า OAuth จัดการผ่านตัวแปรสภาพแวดล้อม หากต้องการแก้ไขการตั้งค่าเหล่านี้:",
     "configLocalDev": "สำหรับการพัฒนาในเครื่อง: อัปเดตไฟล์ .env ของคุณ",
     "configCloudDeploy": "สำหรับการปรับใช้บนคลาวด์: ใช้",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "เพื่อใช้การเปลี่ยนแปลงจากไฟล์กำหนดค่า",
     "configAWS": "สำหรับ AWS: การตั้งค่าถูกจัดเก็บใน AWS Secrets Manager และ ECS task definitions"
   },
@@ -510,11 +509,11 @@
     "title": "การตั้งค่าคุกกี้",
     "description": "จัดการการตั้งค่าคุกกี้และการตั้งค่าความเป็นส่วนตัวของคุณ การเปลี่ยนแปลงจะมีผลทันที",
     "currentSettings": "การตั้งค่าปัจจุบัน",
-    "lastUpdated": "อัปเดตล่าสุด: {date}",
-    "version": "เวอร์ชัน: {version}",
+    "lastUpdated": "อัปเดตล่าสุด: {{date}}",
+    "version": "เวอร์ชัน: {{version}}",
     "cookieCategories": "ประเภทของคุกกี้",
     "required": "(จำเป็น)",
-    "viewCookies": "ดูคุกกี้ ({count})",
+    "viewCookies": "ดูคุกกี้ ({{count}})",
     "dataManagement": "การจัดการข้อมูล",
     "exportMyData": "ส่งออกข้อมูลของฉัน",
     "deleteAllData": "ลบข้อมูลทั้งหมด",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "ฐานความรู้",
+    "connectTitle": "เชื่อมต่อกับฐานความรู้",
+    "connect": "เชื่อมต่อ",
+    "connecting": "กำลังเชื่อมต่อ...",
+    "signIn": "เข้าสู่ระบบ",
+    "signingIn": "กำลังเข้าสู่ระบบ...",
+    "cancel": "ยกเลิก",
+    "addKnowledgeBase": "เพิ่มฐานความรู้",
+    "removeConfirm": "ลบ {{label}}?",
+    "remove": "ลบ",
+    "signOut": "ออกจากระบบ",
+    "statusConnected": "เชื่อมต่อแล้ว",
+    "statusExpired": "เซสชันหมดอายุ",
+    "statusSignedOut": "ออกจากระบบแล้ว",
+    "statusUnreachable": "เข้าถึงไม่ได้",
+    "invalidHost": "ชื่อโฮสต์ไม่ถูกต้อง"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "ไม่มีฐานความรู้",
+    "noKnowledgeBasesHint": "เพิ่มฐานความรู้โดยใช้แผงด้านขวาเพื่อเริ่มค้นหา ใส่คำอธิบาย และเชื่อมโยงทรัพยากร",
+    "sessionExpired": "เซสชันของคุณหมดอายุแล้ว",
+    "signedOut": "คุณออกจากระบบแล้ว",
+    "signInHint": "เข้าสู่ระบบโดยใช้แผงฐานความรู้เพื่อเรียกดูทรัพยากร",
+    "findKnowledgeBases": "ค้นหาฐานความรู้",
+    "createNew": "สร้างใหม่"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "เข้าสู่ระบบฐานความรู้เพื่อดูบัญชีของคุณ"
   }
 }

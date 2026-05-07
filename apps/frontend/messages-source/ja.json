@@ -13,7 +13,7 @@
     "administer": "管理"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. All rights reserved.",
+    "copyright": "© {{year}} The AI Alliance. All rights reserved.",
     "about": "概要",
     "privacyPolicy": "プライバシーポリシー",
     "cookiePreferences": "Cookie設定",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "意味を創る",
-    "description": "人間とインテリジェントエージェントが共有知識を共創できる、オープンソースで将来にも対応したフレームワーク。あなたが管理し、長く使えるように設計されています。",
-    "continueToKnowledgeBase": "ナレッジベースへ進む",
-    "learnMore": "詳しく見る",
-    "signUp": "サインアップ",
-    "signIn": "サインイン",
-    "loading": "読み込み中..."
+    "begin": "始める"
   },
   "About": {
     "pageTitle": "Semiontについて",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "私たちは、エクスペリエンスの向上、利用状況の分析、パーソナライズされたコンテンツの提供のために、Cookieおよび類似技術を使用しています。",
     "cookieCategoriesTitle": "Cookieカテゴリ",
     "necessaryCookiesTitle": "必須Cookie",
-    "necessaryCookies": "認証やセキュリティ機能を含む、ウェブサイトの機能に不可欠です。\n\n例: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "認証やセキュリティ機能を含む、ウェブサイトの機能に不可欠です。\n\n例: semiont-token",
     "analyticsCookiesTitle": "分析Cookie",
     "analyticsCookies": "訪問者がウェブサイトとどのように対話しているかを理解し、ユーザーエクスペリエンスを改善するのに役立ちます。\n\n例: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "マーケティングCookie",
@@ -94,7 +89,7 @@
     "contactAddress": "住所：",
     "updatesTitle": "本ポリシーの更新",
     "updates": "本プライバシーポリシーは随時更新される場合があります。重大な変更がある場合は、このページに新しいプライバシーポリシーを掲載し、発効日を更新することでお知らせします。",
-    "lastUpdated": "最終更新日: {date}"
+    "lastUpdated": "最終更新日: {{date}}"
   },
   "Terms": {
     "pageTitle": "利用規約",
@@ -124,7 +119,7 @@
     "changes": "これらの規約は定期的に更新される場合があります。重要な変更についてはユーザーに通知され、プラットフォームの継続的な使用は、更新された規約の承諾を構成します。",
     "contactTitle": "お問い合わせ",
     "contact": "これらの規約についてご質問がある場合、または違反を報告する必要がある場合は、プラットフォームを通じて、またはプライバシーポリシーに記載の連絡先情報からサポートチームにお問い合わせください。",
-    "lastUpdated": "最終更新日: {date}",
+    "lastUpdated": "最終更新日: {{date}}",
     "aup": "Semiontを使用することにより、これらの規約に従い、責任を持ってプラットフォームを使用することに同意するものとします。私たちは、すべてのユーザーにとって安全で、敬意ある、生産的な環境を維持することに取り組んでいます。"
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "アカウントの作成に失敗しました。サポートにお問い合わせください。",
     "errorGeneric": "認証エラーが発生しました。もう一度お試しください。",
     "errorGoogleSignIn": "Googleサインインの開始に失敗しました。もう一度お試しください。",
+    "backendUrlLabel": "バックエンドURL",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "バックエンドURLを入力してください",
+    "errorBackendUrlInvalid": "有効なURLを入力してください（例：http://localhost:4000）",
+    "errorBackendUrlUnreachable": "そのURLに接続できません——バックエンドは起動していますか？",
     "errorEmailRequired": "メールアドレスを入力してください",
     "errorPasswordRequired": "パスワードを入力してください",
     "errorSignInFailed": "サインインに失敗しました。もう一度お試しください。",
@@ -185,7 +185,7 @@
     "loading": "読み込み中...",
     "welcomeTitle": "Semiontへようこそ！",
     "thanksForAccepting": "規約に同意いただきありがとうございます。アプリにリダイレクトしています...",
-    "welcomeUser": "Semiontへようこそ、{firstName}さん！",
+    "welcomeUser": "Semiontへようこそ、{{firstName}}さん！",
     "reviewTermsPrompt": "Semiontの使用を開始する前に、利用規約を確認して同意してください",
     "termsSummaryTitle": "利用規約の概要",
     "termsSummaryIntro": "Semiontを使用することにより、以下に同意するものとします：",
@@ -246,9 +246,9 @@
     "archived": "アーカイブ済み",
     "created": "作成日",
     "recentResources": "最近のリソース",
-    "searchResults": "検索結果（{count}件）",
-    "resourcesTaggedWith": "「{entityType}」でタグ付けされたリソース",
-    "noResultsFound": "「{query}」の検索結果が見つかりません。代わりに最近のリソースを表示しています。",
+    "searchResults": "検索結果（{{count}}件）",
+    "resourcesTaggedWith": "「{{entityType}}」でタグ付けされたリソース",
+    "noResultsFound": "「{{query}}」の検索結果が見つかりません。代わりに最近のリソースを表示しています。",
     "noResourcesAvailable": "利用可能なリソースがありません。最初のドキュメントを作成して始めましょう。",
     "composeFirstResource": "最初のリソースを作成",
     "loadingKnowledgeBase": "ナレッジベースを読み込み中..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "リソース名を入力...",
     "entityTypes": "エンティティタイプタグ",
     "entityTypesHint": "リソースにエンティティタイプをタグ付け",
-    "noEntityTypesAvailable": "利用可能なエンティティタイプがありません",
     "contentSource": "コンテンツソース",
     "uploadFile": "ファイルをアップロード",
     "uploadFileDescription": "画像、ドキュメント、テキストファイル",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "アカウント",
     "user": "ユーザー",
-    "profileAlt": "{name}のプロフィール",
+    "profileAlt": "{{name}}のプロフィール",
     "session": "セッション",
-    "expiresIn": "有効期限: {time}",
+    "expiresIn": "有効期限: {{time}}",
     "privileges": "権限",
     "administrator": "🛡️ 管理者",
     "moderator": "⚖️ モデレーター",
@@ -433,7 +432,7 @@
     "configManagementDescription": "OAuth設定は環境変数で管理されています。これらの設定を変更するには：",
     "configLocalDev": "ローカル開発の場合：.envファイルを更新してください",
     "configCloudDeploy": "クラウドデプロイの場合：",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "を使用して設定ファイルから変更を適用",
     "configAWS": "AWSの場合：設定はAWS Secrets ManagerとECSタスク定義に保存されています"
   },
@@ -510,11 +509,11 @@
     "title": "Cookie設定",
     "description": "Cookieの設定とプライバシー設定を管理します。変更はすぐに反映されます。",
     "currentSettings": "現在の設定",
-    "lastUpdated": "最終更新日: {date}",
-    "version": "バージョン: {version}",
+    "lastUpdated": "最終更新日: {{date}}",
+    "version": "バージョン: {{version}}",
     "cookieCategories": "Cookieカテゴリ",
     "required": "（必須）",
-    "viewCookies": "Cookieを表示（{count}件）",
+    "viewCookies": "Cookieを表示（{{count}}件）",
     "dataManagement": "データ管理",
     "exportMyData": "データをエクスポート",
     "deleteAllData": "すべてのデータを削除",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "ナレッジベース",
+    "connectTitle": "ナレッジベースに接続",
+    "connect": "接続",
+    "connecting": "接続中...",
+    "signIn": "サインイン",
+    "signingIn": "サインイン中...",
+    "cancel": "キャンセル",
+    "addKnowledgeBase": "ナレッジベースを追加",
+    "removeConfirm": "{{label}} を削除しますか？",
+    "remove": "削除",
+    "signOut": "サインアウト",
+    "statusConnected": "接続済み",
+    "statusExpired": "セッション期限切れ",
+    "statusSignedOut": "サインアウト済み",
+    "statusUnreachable": "到達不能",
+    "invalidHost": "無効なホスト名"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "ナレッジベースがありません",
+    "noKnowledgeBasesHint": "右側のパネルを使用してナレッジベースを追加し、リソースの探索、注釈付け、リンクを開始してください。",
+    "sessionExpired": "セッションが期限切れになりました。",
+    "signedOut": "サインアウトしています。",
+    "signInHint": "ナレッジベースパネルを使用してサインインし、リソースを閲覧してください。",
+    "findKnowledgeBases": "ナレッジベースを探す",
+    "createNew": "新規作成"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "アカウントを表示するには、ナレッジベースにサインインしてください。"
   }
 }

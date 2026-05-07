@@ -41,11 +41,14 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Partial
 
 function resolveEnvVars(obj: unknown, env: Record<string, string | undefined>): unknown {
   if (typeof obj === 'string') {
-    return obj.replace(/\$\{([^}]+)\}/g, (match, varName) => {
-      if (env[varName] === undefined) {
-        throw new Error(`Environment variable ${varName} is not set (referenced in config as ${match})`);
-      }
-      return env[varName] as string;
+    return obj.replace(/\$\{([^}]+)\}/g, (match, expr: string) => {
+      const sepIdx = expr.indexOf(':-');
+      const varName = sepIdx >= 0 ? expr.slice(0, sepIdx) : expr;
+      const defaultValue = sepIdx >= 0 ? expr.slice(sepIdx + 2) : undefined;
+      const value = env[varName];
+      if (value !== undefined) return value;
+      if (defaultValue !== undefined) return defaultValue;
+      throw new Error(`Environment variable ${varName} is not set (referenced in config as ${match})`);
     });
   }
   if (Array.isArray(obj)) {
@@ -140,12 +143,6 @@ interface EnvironmentSection {
     port?: number;
     publicURL?: string;
   };
-  proxy?: {
-    platform?: string;
-    port?: number;
-    adminPort?: number;
-    publicURL?: string;
-  };
   site?: {
     domain?: string;
     siteName?: string;
@@ -163,6 +160,34 @@ interface EnvironmentSection {
     password?: string;
   };
   graph?: GraphSection;
+  vectors?: {
+    type?: 'qdrant' | 'memory';
+    host?: string;
+    port?: number;
+    // Legacy: embedding nested under vectors (migrated to top-level)
+    embedding?: {
+      type?: 'voyage' | 'ollama';
+      model?: string;
+      apiKey?: string;
+      baseURL?: string;
+      endpoint?: string;
+    };
+    chunking?: {
+      chunkSize?: number;
+      overlap?: number;
+    };
+  };
+  embedding?: {
+    type?: 'voyage' | 'ollama';
+    model?: string;
+    apiKey?: string;
+    baseURL?: string;
+    endpoint?: string;
+    chunking?: {
+      chunkSize?: number;
+      overlap?: number;
+    };
+  };
   inference?: InferenceFlatSection;
   'make-meaning'?: {
     graph?: Record<string, unknown>;
@@ -202,24 +227,26 @@ function requirePlatform(value: string | undefined, serviceName: string): Platfo
  * @param env - Environment variables for ${VAR} resolution
  */
 export function loadTomlConfig(
-  projectRoot: string,
+  projectRoot: string | null,
   environment: string,
   globalConfigPath: string,
   reader: TomlFileReader,
   env: Record<string, string | undefined>
 ): EnvironmentConfig {
-  // 1. Read project config from .semiont/config
-  const projectConfigContent = reader.readIfExists(`${projectRoot}/.semiont/config`);
+  // 1. Read project config from .semiont/config (skipped when no project root)
+  const projectConfigContent = projectRoot ? reader.readIfExists(`${projectRoot}/.semiont/config`) : null;
   let projectName = 'semiont-project';
+  let projectVersion: string | undefined;
   let projectSite: EnvironmentSection['site'] | undefined;
   let projectEnvSection: EnvironmentSection = {};
   if (projectConfigContent) {
     const projectConfig = parseToml(projectConfigContent) as {
-      project?: { name?: string };
+      project?: { name?: string; version?: string };
       site?: EnvironmentSection['site'];
       environments?: Record<string, EnvironmentSection>;
     };
     projectName = projectConfig.project?.name ?? projectName;
+    projectVersion = projectConfig.project?.version;
     projectSite = projectConfig.site;
     projectEnvSection = projectConfig.environments?.[environment] ?? {};
   }
@@ -386,46 +413,78 @@ export function loadTomlConfig(
   }
 
   const frontend = resolved.frontend;
-  const proxy = resolved.proxy;
+
+  const services: EnvironmentConfig['services'] = {};
+
+  if (backend) {
+    services.backend = {
+      platform: { type: requirePlatform(backend.platform, 'backend') },
+      port: backend.port ?? 4000,
+      publicURL: backend.publicURL ?? `http://localhost:${backend.port ?? 4000}`,
+      corsOrigin: backend.corsOrigin ?? backend.frontendURL ?? 'http://localhost:3000',
+    };
+  }
+
+  if (frontend) {
+    services.frontend = {
+      platform: { type: requirePlatform(frontend.platform, 'frontend') },
+      port: frontend.port ?? 3000,
+      siteName: site?.siteName ?? 'Semiont',
+      publicURL: frontend.publicURL,
+    };
+  }
+
+  if (resolved.graph) {
+    services.graph = {
+      ...resolved.graph,
+      platform: { type: requirePlatform(resolved.graph.platform as string | undefined, 'graph') },
+      type: (resolved.graph.type ?? 'neo4j') as import('./config.types').GraphDatabaseType,
+    } as EnvironmentConfig['services']['graph'];
+  } else if (makeMeaningSection?.graph) {
+    services.graph = makeMeaningSection.graph as EnvironmentConfig['services']['graph'];
+  }
+
+  if (resolved.database) {
+    services.database = {
+      platform: { type: requirePlatform(resolved.database.platform, 'database') },
+      type: 'postgres',
+      image: resolved.database.image,
+      host: resolved.database.host ?? 'localhost',
+      port: resolved.database.port ?? 5432,
+      name: resolved.database.name,
+      user: resolved.database.user,
+      password: resolved.database.password,
+    } as EnvironmentConfig['services']['database'];
+  }
+
+  if (resolved.vectors) {
+    services.vectors = {
+      platform: { type: 'external' as PlatformType },
+      type: (resolved.vectors.type ?? 'qdrant') as 'qdrant' | 'memory',
+      host: resolved.vectors.host,
+      port: resolved.vectors.port ?? 6333,
+    } as EnvironmentConfig['services']['vectors'];
+  }
+
+  // Embedding: top-level takes precedence, fall back to legacy vectors.embedding
+  const embeddingSource = resolved.embedding ?? resolved.vectors?.embedding;
+  if (embeddingSource) {
+    services.embedding = {
+      platform: { type: 'external' as PlatformType },
+      type: embeddingSource.type!,
+      model: embeddingSource.model!,
+      apiKey: embeddingSource.apiKey,
+      baseURL: embeddingSource.baseURL,
+      endpoint: embeddingSource.endpoint,
+      chunking: (resolved.embedding?.chunking ?? resolved.vectors?.chunking) ? {
+        chunkSize: (resolved.embedding?.chunking ?? resolved.vectors?.chunking)?.chunkSize ?? 512,
+        overlap: (resolved.embedding?.chunking ?? resolved.vectors?.chunking)?.overlap ?? 64,
+      } : undefined,
+    } as EnvironmentConfig['services']['embedding'];
+  }
 
   const config: EnvironmentConfig = {
-    services: {
-      backend: backend ? {
-        platform: { type: requirePlatform(backend.platform, 'backend') },
-        port: backend.port ?? 4000,
-        publicURL: backend.publicURL ?? `http://localhost:${backend.port ?? 4000}`,
-        corsOrigin: backend.corsOrigin ?? backend.frontendURL ?? 'http://localhost:3000',
-      } : undefined,
-      frontend: frontend ? {
-        platform: { type: requirePlatform(frontend.platform, 'frontend') },
-        port: frontend.port ?? 3000,
-        siteName: site?.siteName ?? 'Semiont',
-        publicURL: frontend.publicURL,
-      } : undefined,
-      proxy: proxy ? {
-        platform: { type: requirePlatform(proxy.platform, 'proxy') },
-        type: 'envoy',
-        port: proxy.port ?? 8080,
-        adminPort: proxy.adminPort ?? 9901,
-        backendPort: backend?.port ?? 4000,
-        frontendPort: frontend?.port ?? 3000,
-      } : undefined,
-      graph: resolved.graph ? {
-        ...resolved.graph,
-        platform: { type: requirePlatform(resolved.graph.platform as string | undefined, 'graph') },
-        type: (resolved.graph.type ?? 'neo4j') as import('./config.types').GraphDatabaseType,
-      } as EnvironmentConfig['services']['graph'] : (makeMeaningSection?.graph as EnvironmentConfig['services']['graph']),
-      database: resolved.database ? {
-        platform: { type: requirePlatform(resolved.database.platform, 'database') },
-        type: 'postgres',
-        image: resolved.database.image,
-        host: resolved.database.host ?? 'localhost',
-        port: resolved.database.port ?? 5432,
-        name: resolved.database.name,
-        user: resolved.database.user,
-        password: resolved.database.password,
-      } as EnvironmentConfig['services']['database'] : undefined,
-    },
+    services,
     ...(inferenceProviders ? { inference: inferenceProviders } : {}),
     ...(Object.keys(topLevelWorkers).length > 0 ? { workers: topLevelWorkers } : {}),
     ...(Object.keys(topLevelActors).length > 0 ? { actors: topLevelActors } : {}),
@@ -440,6 +499,7 @@ export function loadTomlConfig(
       environment,
       projectRoot,
       projectName,
+      projectVersion,
       ...(Object.keys(actors).length > 0 ? { actors } : {}),
       ...(Object.keys(workers).length > 0 ? { workers } : {}),
     },
@@ -458,7 +518,7 @@ export function createTomlConfigLoader(
   globalConfigPath: string,
   env: Record<string, string | undefined>
 ) {
-  return (projectRoot: string, environment: string): EnvironmentConfig => {
+  return (projectRoot: string | null, environment: string): EnvironmentConfig => {
     return loadTomlConfig(projectRoot, environment, globalConfigPath, reader, env);
   };
 }

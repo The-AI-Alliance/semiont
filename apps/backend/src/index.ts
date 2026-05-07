@@ -62,6 +62,26 @@ import { initializeLogger, getLogger } from './logger';
 initializeLogger(config.logLevel);
 const logger = getLogger();
 
+// Event-loop lag monitor.
+// Samples loop delay every 20ms and emits a summary every 30s. If P99 > 100ms,
+// incoming HTTP requests are sitting in the TCP backlog instead of being
+// handled promptly — that's what surfaces as client-side "Request timed out"
+// on otherwise-fast POSTs. Low overhead (<1% CPU).
+{
+  const { monitorEventLoopDelay } = await import('node:perf_hooks');
+  const h = monitorEventLoopDelay({ resolution: 20 });
+  h.enable();
+  const monitorLogger = logger.child({ component: 'event-loop-monitor' });
+  setInterval(() => {
+    const maxMs = Number((h.max / 1e6).toFixed(1));
+    const p99Ms = Number((h.percentile(99) / 1e6).toFixed(1));
+    const meanMs = Number((h.mean / 1e6).toFixed(1));
+    const level = p99Ms > 100 ? 'warn' : 'info';
+    monitorLogger.log(level, 'event-loop delay', { meanMs, p99Ms, maxMs });
+    h.reset();
+  }, 30_000).unref();
+}
+
 // Log database configuration after logger is initialized
 if (databaseUrlConstructed) {
   logger.info('DATABASE_URL constructed from environment components', {
@@ -75,20 +95,23 @@ if (databaseUrlConstructed) {
 // Create global EventBus for real-time events
 const eventBus = new EventBus();
 
-// Initialize make-meaning service (job queue, workers, graph consumer)
+// Initialize make-meaning service (job queue, workers, graph consumer).
+// startMakeMeaning registers all bus command handlers (annotation-assembly,
+// annotation-lookups, bind-update-body, job-commands) on the EventBus —
+// previously those were registered here in the backend. Moved into
+// make-meaning so LocalTransport and any future transport get the same
+// translation layer for free.
 const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
 
 // Import route definitions
+import { rootRouter } from './routes/root';
 import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
 import { exchangeRouter } from './routes/exchange';
 import { createResourcesRouter } from './routes/resources/index';
-import { annotationsRouter } from './routes/annotations/index';
-import { entityTypesRouter } from './routes/entity-types';
-import { globalEventsRouter } from './routes/global-events-stream';
-import { createJobsRouter } from './routes/jobs/index';
+import { createBusRouter } from './routes/bus';
 import { authMiddleware } from './middleware/auth';
 
 // Import for static OpenAPI spec
@@ -141,18 +164,16 @@ app.use('*', async (c, next) => {
 });
 
 // Mount route routers
+app.route('/', rootRouter);
 app.route('/', healthRouter);
 app.route('/', authRouter);
 app.route('/', statusRouter);
 app.route('/', adminRouter);
 app.route('/', exchangeRouter);
-const resourcesRouter = createResourcesRouter(makeMeaning.jobQueue);
+const resourcesRouter = createResourcesRouter();
 app.route('/', resourcesRouter);
-app.route('/', annotationsRouter);
-app.route('/', entityTypesRouter);
-app.route('/', globalEventsRouter);
-const jobsRouter = createJobsRouter(makeMeaning.jobQueue, authMiddleware);
-app.route('/', jobsRouter);
+const busRouter = createBusRouter(authMiddleware);
+app.route('/', busRouter);
 
 // API Resourceation root - redirect to appropriate format
 app.get('/api', (c) => {
@@ -174,8 +195,9 @@ app.get('/api', (c) => {
 
 // Serve OpenAPI JSON specification - now automatically generated
 app.get('/api/openapi.json', (c) => {
-  // Serve the static OpenAPI spec from the specs directory
-  const openApiPath = path.join(__dirname, '../../../specs/openapi.json');
+  // Serve the static OpenAPI spec — dist/openapi.json (prod) or specs/openapi.json (dev/test)
+  const distPath = path.join(__dirname, 'openapi.json');
+  const openApiPath = fs.existsSync(distPath) ? distPath : path.join(__dirname, '../../../specs/openapi.json');
   const openApiContent = fs.readFileSync(openApiPath, 'utf-8');
   const openApiSpec = JSON.parse(openApiContent);
 
@@ -236,6 +258,12 @@ const port = backendService.port || 4000;
 
 // Only start server if not in test environment
 if (config.env?.NODE_ENV !== 'test') {
+  // Tier 2 observability — no-op when no OTEL_EXPORTER_OTLP_ENDPOINT set
+  // (or `OTEL_SDK_DISABLED=true`). Init before serve() so any spans
+  // created during request handling are captured.
+  const { initObservabilityNode } = await import('@semiont/observability/node');
+  initObservabilityNode({ serviceName: 'semiont-backend' });
+
   serve({
     fetch: app.fetch,
     port: port,
@@ -259,7 +287,7 @@ if (config.env?.NODE_ENV !== 'test') {
 
     // Pre-load entity types from graph database for performance
     try {
-      const entityTypes = await makeMeaning.graphDb.getEntityTypes();
+      const entityTypes = await makeMeaning.knowledgeSystem.kb.graph.getEntityTypes();
       logger.info('Loaded entity types from graph database', {
         count: entityTypes.length
       });

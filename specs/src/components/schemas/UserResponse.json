@@ -24,6 +24,9 @@
     "isAdmin": {
       "type": "boolean"
     },
+    "isModerator": {
+      "type": "boolean"
+    },
     "isActive": {
       "type": "boolean"
     },
@@ -37,6 +40,10 @@
     },
     "created": {
       "type": "string"
+    },
+    "token": {
+      "type": "string",
+      "description": "The validated JWT token string for the current session"
     }
   },
   "required": [
@@ -47,9 +54,11 @@
     "domain",
     "provider",
     "isAdmin",
+    "isModerator",
     "isActive",
     "termsAcceptedAt",
     "lastLogin",
-    "created"
+    "created",
+    "token"
   ]
 }

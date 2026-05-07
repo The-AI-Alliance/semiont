@@ -10,7 +10,7 @@ export interface InferencePaths {
 }
 
 export function getInferencePaths<T>(context: BaseHandlerContext<T>): InferencePaths {
-  const projectRoot = context.service.projectRoot;
+  const projectRoot = context.service.projectRoot!;
   const project = new SemiontProject(projectRoot);
   const logsDir = path.join(project.stateDir, 'inference');
 

@@ -9,6 +9,7 @@
  */
 
 import { Hono } from 'hono';
+import { setCookie, deleteCookie } from 'hono/cookie';
 import { validateRequestBody } from '../middleware/validate-openapi';
 import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
@@ -36,7 +37,7 @@ type AcceptTermsResponse = components['schemas']['AcceptTermsResponse'];
 type MCPGenerateResponse = components['schemas']['MCPGenerateResponse'];
 
 // Create auth router with plain Hono
-export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unknown } }>();
+export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unknown; token: string } }>();
 
 /**
  * POST /api/tokens/password
@@ -115,7 +116,7 @@ authRouter.post('/api/tokens/password',
 
       getRouteLogger().debug('Password auth successful', { email });
 
-      // Generate JWT token
+      // Generate access (1h) and refresh (30d) tokens
       const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
         userId: makeUserId(user.id),
         email: makeEmail(user.email),
@@ -125,12 +126,21 @@ authRouter.post('/api/tokens/password',
         isAdmin: user.isAdmin,
       };
 
-      const token = JWTService.generateToken(jwtPayload);
+      const token = JWTService.generateToken(jwtPayload, '1h');
+      const refreshToken = JWTService.generateToken(jwtPayload, '30d');
 
       // Update last login
       await prisma.user.update({
         where: { id: user.id },
         data: { lastLogin: new Date() }
+      });
+
+      setCookie(c, 'semiont-token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Lax',
+        path: '/',
+        maxAge: 60 * 60, // 1 hour, matching access token lifetime
       });
 
       const response: AuthResponse = {
@@ -144,6 +154,7 @@ authRouter.post('/api/tokens/password',
           isAdmin: user.isAdmin,
         },
         token,
+        refreshToken,
         isNewUser: false,
       };
 
@@ -185,8 +196,16 @@ authRouter.post('/api/tokens/google',
       // Verify Google token and get user info
       const googleUser = await OAuthService.verifyGoogleToken(googleCredential(access_token));
 
-      // Create or update user
-      const { user, token, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
+      // Create or update user (returns access + refresh tokens)
+      const { user, token, refreshToken, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
+
+      setCookie(c, 'semiont-token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Lax',
+        path: '/',
+        maxAge: 60 * 60, // 1 hour, matching access token lifetime
+      });
 
       const response: AuthResponse = {
         success: true,
@@ -199,6 +218,7 @@ authRouter.post('/api/tokens/google',
           isAdmin: user.isAdmin,
         },
         token,
+        refreshToken,
         isNewUser,
       };
 
@@ -302,6 +322,7 @@ authRouter.post('/api/tokens/refresh',
  */
 authRouter.get('/api/users/me', authMiddleware, async (c) => {
   const user = c.get('user');
+  const token = c.get('token');
 
   const response: UserResponse = {
     id: user.id,
@@ -311,13 +332,63 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
     domain: user.domain,
     provider: user.provider,
     isAdmin: user.isAdmin,
+    isModerator: user.isModerator,
     isActive: user.isActive,
     termsAcceptedAt: user.termsAcceptedAt?.toISOString() || null,
     lastLogin: user.lastLogin?.toISOString() || null,
     created: user.createdAt.toISOString(),
+    token,
   };
 
   return c.json(response, 200);
+});
+
+/**
+ * GET /api/tokens/mcp-setup?callback=...
+ *
+ * MCP CLI Token Setup - Browser-initiated flow that reads the httpOnly semiont-token
+ * cookie, generates a long-lived MCP refresh token, and redirects to the CLI callback URL.
+ * Requires authentication (cookie or Bearer).
+ */
+authRouter.get('/api/tokens/mcp-setup', authMiddleware, async (c) => {
+  const callback = c.req.query('callback');
+
+  if (!callback) {
+    return c.json({ error: 'Callback URL required' }, 400);
+  }
+
+  // Allow only localhost callbacks (following Google OAuth pattern for CLI auth)
+  const allowedCallbackPatterns = [
+    /^http:\/\/localhost:\d+\/.*$/,
+    /^http:\/\/127\.0\.0\.1:\d+\/.*$/,
+    /^http:\/\/\[::1\]:\d+\/.*$/,
+  ];
+
+  if (!allowedCallbackPatterns.some(p => p.test(callback))) {
+    return c.json({ error: 'Invalid callback URL. Must be a localhost URL for CLI authentication.' }, 400);
+  }
+
+  const user = c.get('user');
+
+  try {
+    const tokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
+      userId: makeUserId(user.id),
+      email: makeEmail(user.email),
+      domain: user.domain,
+      provider: user.provider,
+      isAdmin: user.isAdmin,
+      ...(user.name && { name: user.name })
+    };
+    const refreshToken = JWTService.generateToken(tokenPayload, '30d');
+
+    return c.redirect(`${callback}?token=${refreshToken}`, 302);
+  } catch (error) {
+    getRouteLogger().error('MCP setup error', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return c.json({ error: 'Failed to generate refresh token' }, 500);
+  }
 });
 
 /**
@@ -357,6 +428,77 @@ authRouter.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
 });
 
 /**
+ * POST /api/tokens/worker
+ *
+ * Worker Token Exchange
+ * Exchange a shared secret for a bearer JWT. Used by workers and actors
+ * connecting to the EventBus. The shared secret is set via the
+ * SEMIONT_WORKER_SECRET environment variable on both the backend and
+ * the worker/actor containers.
+ *
+ * Public endpoint (no authentication required — this IS the auth step).
+ */
+authRouter.post('/api/tokens/worker', async (c) => {
+  const workerSecret = process.env.SEMIONT_WORKER_SECRET;
+  if (!workerSecret) {
+    return c.json({ error: 'Worker authentication not configured' }, 503);
+  }
+
+  let body: { secret?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid request body' }, 400);
+  }
+
+  if (body.secret !== workerSecret) {
+    return c.json({ error: 'Invalid worker secret' }, 401);
+  }
+
+  const prisma = DatabaseConnection.getClient();
+  const workerUser = await prisma.user.findUnique({
+    where: { email: 'worker@semiont.local' },
+  });
+
+  if (!workerUser) {
+    return c.json({ error: 'Worker user not found — run: semiont useradd --email worker@semiont.local --generate-password --upsert' }, 503);
+  }
+
+  const token = JWTService.generateToken({
+    userId: makeUserId(workerUser.id),
+    email: makeEmail(workerUser.email),
+    name: workerUser.name ?? 'Worker Pool',
+    domain: workerUser.domain,
+    provider: workerUser.provider,
+    isAdmin: false,
+  }, '24h');
+
+  return c.json({ token }, 200);
+});
+
+/**
+ * POST /api/tokens/media
+ *
+ * Generate a short-lived, resource-scoped media token.
+ * Used by the frontend to authenticate binary resource fetches (images, PDFs)
+ * via ?token= query parameter without exposing the session JWT in URLs.
+ */
+authRouter.post('/api/tokens/media', authMiddleware, async (c) => {
+  const user = c.get('user');
+  let body: { resourceId: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid request body' }, 400);
+  }
+  if (!body.resourceId || typeof body.resourceId !== 'string') {
+    return c.json({ error: 'resourceId is required' }, 400);
+  }
+  const token = JWTService.generateMediaToken(body.resourceId, user.id);
+  return c.json({ token }, 200);
+});
+
+/**
  * POST /api/users/accept-terms
  *
  * Accept Terms - Mark terms as accepted for the current user
@@ -386,8 +528,97 @@ authRouter.post('/api/users/accept-terms', authMiddleware, async (c) => {
  * This endpoint exists for consistency and future session management
  */
 authRouter.post('/api/users/logout', authMiddleware, async (c) => {
+  deleteCookie(c, 'semiont-token', { path: '/' });
   return c.json({
     success: true,
     message: 'Logged out successfully',
   }, 200);
+});
+
+/**
+ * GET /api/cookies/consent
+ *
+ * Get current user's cookie consent preferences.
+ * Requires authentication.
+ */
+authRouter.get('/api/cookies/consent', authMiddleware, async (c) => {
+  return c.json({
+    success: true,
+    consent: {
+      necessary: true,
+      analytics: false,
+      marketing: false,
+      preferences: false,
+      timestamp: new Date().toISOString(),
+      version: '1.0'
+    }
+  });
+});
+
+/**
+ * POST /api/cookies/consent
+ *
+ * Update user's cookie consent preferences.
+ * Requires authentication.
+ */
+authRouter.post('/api/cookies/consent', authMiddleware, async (c) => {
+  let body: Record<string, unknown>;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ success: false, error: 'Invalid JSON' }, 400);
+  }
+
+  if (typeof body.necessary !== 'boolean' ||
+      typeof body.analytics !== 'boolean' ||
+      typeof body.marketing !== 'boolean' ||
+      typeof body.preferences !== 'boolean') {
+    return c.json({ success: false, error: 'Invalid consent data' }, 400);
+  }
+
+  if (!body.necessary) {
+    return c.json({ success: false, error: 'Necessary cookies cannot be disabled' }, 400);
+  }
+
+  return c.json({
+    success: true,
+    consent: {
+      necessary: body.necessary,
+      analytics: body.analytics,
+      marketing: body.marketing,
+      preferences: body.preferences,
+      timestamp: new Date().toISOString(),
+      version: '1.0'
+    }
+  });
+});
+
+/**
+ * GET /api/cookies/export
+ *
+ * Export user's cookie data for GDPR compliance.
+ * Requires authentication.
+ */
+authRouter.get('/api/cookies/export', authMiddleware, async (c) => {
+  const user = c.get('user');
+
+  const exportData = {
+    user: {
+      id: user.id,
+      email: user.email,
+    },
+    consent: {
+      necessary: true,
+      analytics: false,
+      marketing: false,
+      preferences: false,
+      timestamp: new Date().toISOString(),
+      version: '1.0'
+    },
+    exportDate: new Date().toISOString(),
+    dataRetentionPolicy: 'Cookie consent data is retained for 2 years from last update or until explicitly withdrawn.'
+  };
+
+  c.header('Content-Disposition', `attachment; filename="cookie-data-export-${Date.now()}.json"`);
+  return c.json(exportData);
 });

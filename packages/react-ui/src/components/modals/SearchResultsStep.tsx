@@ -1,10 +1,8 @@
 'use client';
 
-import type { components, GatheredContext } from '@semiont/core';
+import type { GatheredContext, ResourceDescriptor } from '@semiont/core';
 import { ContextSummary } from './ContextSummary';
 import type { ContextSummaryTranslations } from './ContextSummary';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export type ScoredResult = ResourceDescriptor & {
   score?: number;

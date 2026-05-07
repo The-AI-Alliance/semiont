@@ -21,7 +21,6 @@ vi.mock('readline', () => ({
 // Helper to create complete InitOptions with defaults
 function createInitOptions(partial: Partial<InitOptions> = {}): InitOptions {
   return {
-    environment: 'none',
     verbose: false,
     dryRun: false,
     quiet: false,
@@ -133,6 +132,13 @@ describe('init command', () => {
     });
 
     it('should handle filesystem errors gracefully', async () => {
+      // Running as root (e.g. in the default container test environment)
+      // bypasses chmod-based read-only restrictions, so this test cannot
+      // exercise its intended path there. Skip when root.
+      if (typeof process.getuid === 'function' && process.getuid() === 0) {
+        return;
+      }
+
       const readOnlyDir = path.join(testDir, 'readonly');
       fs.mkdirSync(readOnlyDir);
       try {

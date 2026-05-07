@@ -5,6 +5,9 @@ import { defineConfig } from 'vitest/config';
  * These tests should not have setup-env.ts which creates real files.
  */
 export default defineConfig({
+  define: {
+    __SEMIONT_VERSION__: JSON.stringify('test'),
+  },
   test: {
     name: 'unit',
     environment: 'node',

@@ -23,7 +23,7 @@ const checkInference = async (context: PosixCheckHandlerContext): Promise<CheckH
 
   // Check saved state for PID
   const savedState = await StateManager.load(
-    service.projectRoot,
+    service.projectRoot!,
     service.environment,
     service.name
   );
@@ -69,9 +69,12 @@ const checkInference = async (context: PosixCheckHandlerContext): Promise<CheckH
     }
   }
 
+  const allModelsAvailable = models.length > 0 && Object.values(modelAvailability).every(Boolean);
+
   return {
     success: true,
     status,
+    provisioned: allModelsAvailable,
     platformResources,
     health: {
       healthy: status === 'running',

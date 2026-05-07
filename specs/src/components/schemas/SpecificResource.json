@@ -10,7 +10,7 @@
       "description": "IRI of the target resource"
     },
     "purpose": {
-      "$ref": "./Motivation.json",
+      "$ref": "./BodyPurpose.json",
       "description": "Why this body is included"
     }
   },

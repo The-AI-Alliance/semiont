@@ -1,11 +1,11 @@
-'use client';
-
 import React from 'react';
-import Link from 'next/link';
-import { useTranslations, useLocale } from 'next-intl';
+import { Link } from '@/i18n/routing';
+import { useTranslation } from 'react-i18next';
+import { useLocale } from '@/i18n/routing';
 
 export default function NotFound() {
-  const t = useTranslations('NotFound');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`NotFound.${k}`, p as any) as string;
   const locale = useLocale();
 
   return (
@@ -19,7 +19,7 @@ export default function NotFound() {
           {t('message')}
         </p>
         <Link
-          href={`/${locale}`}
+          to={`/${locale}`}
           className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           {t('goHome')}

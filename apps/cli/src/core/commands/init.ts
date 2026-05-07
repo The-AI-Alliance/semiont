@@ -29,7 +29,7 @@ import { SemiontProject } from '@semiont/core/node';
 import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { BaseOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { checkGitAvailable } from '../handlers/preflight-utils.js';
 
 
@@ -45,7 +45,6 @@ export const InitOptionsSchema = BaseOptionsSchema.extend({
   environments: z.array(z.string()).default(['local', 'test', 'staging', 'production']),
 }).transform((data) => ({
   ...data,
-  environment: data.environment || '_init_', // Dummy value - init doesn't use environment
   output: data.output === 'table' ? 'summary' : data.output, // Init doesn't support table output
 }));
 
@@ -78,7 +77,7 @@ version = "0.1.0"
 sync = ${gitSync}
 
 [site]
-domain = "localhost:8080"
+domain = "localhost:3000"
 siteName = "${projectName}"
 adminEmail = ""
 oauthAllowedDomains = ["example.com"]
@@ -99,17 +98,12 @@ environment = "local"
 [environments.local.backend]
 platform = "posix"
 port = 4000
-publicURL = "http://localhost:8080"
+publicURL = "http://localhost:4000"
 
 [environments.local.frontend]
 platform = "posix"
 port = 3000
-publicURL = "http://localhost:8080"
-
-[environments.local.proxy]
-platform = "container"
-port = 8080
-publicURL = "http://localhost:8080"
+publicURL = "http://localhost:3000"
 
 [environments.local.graph]
 platform = "external"
@@ -177,7 +171,7 @@ password = "\${POSTGRES_PASSWORD}"
  * - If it already exists: do nothing, return false.
  * - If it does not exist: prompt for name/email, write template, return true.
  */
-async function ensureGlobalConfig(quiet: boolean): Promise<boolean> {
+export async function ensureGlobalConfig(quiet: boolean): Promise<boolean> {
   const configPath = path.join(os.homedir(), '.semiontconfig');
   if (fs.existsSync(configPath)) {
     if (!quiet) {
@@ -269,7 +263,7 @@ async function init(
         console.log(`${colors.yellow}ℹ --no-git: git init will be skipped${colors.reset}`);
         console.log(`${colors.yellow}ℹ --no-git: git.sync will be set to false in .semiont/config${colors.reset}`);
         console.log(`${colors.yellow}ℹ --no-git: .semiont/config will NOT be staged (git add skipped)${colors.reset}`);
-        console.log(`${colors.yellow}ℹ --no-git: semiont yield/mv/archive will not stage files in the git index${colors.reset}`);
+        console.log(`${colors.yellow}ℹ --no-git: semiont yield/mv will not stage files in the git index${colors.reset}`);
       }
 
       // Write .semiont/config with project identity and site skeleton
@@ -351,7 +345,7 @@ export const initCommand = new CommandBuilder()
   .name('init')
   .description('Initialize a new Semiont project')
   .schema(InitOptionsSchema) // Schema types are compatible but TS can't infer it
-  .args(withBaseArgs({
+  .args(withOpsArgs({
     '--name': {
       type: 'string',
       description: 'Project name',

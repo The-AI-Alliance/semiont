@@ -5,14 +5,14 @@ import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../../test-utils';
 import type { components } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Stable mock functions defined outside vi.mock to avoid re-render loops
 const mockIsBodyResolved = vi.fn();
 const mockGetEntityTypes = vi.fn();
 
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     isBodyResolved: (...args: unknown[]) => mockIsBodyResolved(...args),

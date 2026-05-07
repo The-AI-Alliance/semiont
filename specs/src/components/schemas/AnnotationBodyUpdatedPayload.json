@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "Payload for mark:body-updated domain event",
+  "properties": {
+    "annotationId": { "type": "string" },
+    "operations": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "$ref": "BodyOperationAdd.json" },
+          { "$ref": "BodyOperationRemove.json" },
+          { "$ref": "BodyOperationReplace.json" }
+        ]
+      }
+    }
+  },
+  "required": ["annotationId", "operations"]
+}

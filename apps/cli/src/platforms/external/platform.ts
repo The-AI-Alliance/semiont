@@ -42,7 +42,7 @@ export class ExternalPlatform extends Platform {
     registry.registerHandlers('external', handlers);
   }
   
-  getPlatformName(): string {
+  getPlatformName(): 'external' {
     return 'external';
   }
 

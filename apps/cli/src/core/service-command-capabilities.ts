@@ -1,9 +1,11 @@
 /**
  * Service Command Capability System
- * 
+ *
  * Defines which commands a service can support through declarative annotations.
  * Services declare their capabilities, rather than commands deciding what works.
  */
+
+import type { CommandName } from './handlers/types.js';
 
 /**
  * Well-known annotation keys for command capabilities
@@ -86,7 +88,7 @@ export function extractCommandCapabilities(
  */
 export function serviceSupportsCommand(
   annotations: Record<string, string> | undefined,
-  command: string
+  command: CommandName
 ): boolean {
   const capabilities = extractCommandCapabilities(annotations);
   return capabilities.has(command);

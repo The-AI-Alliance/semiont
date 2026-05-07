@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components, Selector, MarkProgress } from '@semiont/core';
+import type { components, Selector } from '@semiont/core';
+type JobProgress = components['schemas']['JobProgress'];
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { Annotator } from '../../../lib/annotation-registry';
 import { StatisticsPanel } from './StatisticsPanel';
@@ -13,7 +14,7 @@ import { CommentsPanel } from './CommentsPanel';
 import { TaggingPanel } from './TaggingPanel';
 import './UnifiedAnnotationsPanel.css';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
 type TabKey = 'statistics' | 'reference' | 'highlight' | 'assessment' | 'comment' | 'tag';
 
@@ -47,7 +48,7 @@ interface UnifiedAnnotationsPanelProps {
 
   // Annotation assistance state (per motivation)
   assistingMotivation?: Motivation | null;
-  progress?: MarkProgress | null;
+  progress?: JobProgress | null;
 
   // Unified pending annotation (for creating new annotations)
   pendingAnnotation: PendingAnnotation | null;
@@ -69,6 +70,16 @@ interface UnifiedAnnotationsPanelProps {
 
   // Hover coordination (for bidirectional hover highlighting)
   hoveredAnnotationId?: string | null;
+
+  // Locale for AI-generated text language (annotation body locale)
+  locale?: string;
+
+  /**
+   * BCP-47 tag of the resource being analyzed (source-resource locale).
+   * Independent from `locale` — a German user can analyze a French source
+   * and get German bodies back. Fed into detection prompts.
+   */
+  sourceLanguage?: string;
 
   // Routing
   Link: React.ComponentType<LinkComponentProps>;
@@ -238,6 +249,8 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             isAssisting,
             progress,
             annotateMode: props.annotateMode,
+            locale: props.locale,
+            sourceLanguage: props.sourceLanguage,
             scrollToAnnotationId: props.scrollToAnnotationId,
             onScrollCompleted: props.onScrollCompleted,
             hoveredAnnotationId: props.hoveredAnnotationId
@@ -263,6 +276,8 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 scrollToAnnotationId={commonProps.scrollToAnnotationId}
                 onScrollCompleted={commonProps.onScrollCompleted}
                 hoveredAnnotationId={commonProps.hoveredAnnotationId}
+                locale={commonProps.locale}
+                sourceLanguage={commonProps.sourceLanguage}
                 allEntityTypes={props.allEntityTypes || []}
                 generatingReferenceId={props.generatingReferenceId}
                 referencedBy={props.referencedBy}

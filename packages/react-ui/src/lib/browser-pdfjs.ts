@@ -35,7 +35,7 @@ export interface PDFRenderTask {
 }
 
 export interface PDFLib {
-  getDocument(params: { data: ArrayBuffer } | { url: string }): PDFLoadingTask;
+  getDocument(params: { url: string }): PDFLoadingTask;
   GlobalWorkerOptions: {
     workerSrc: string;
   };
@@ -103,36 +103,15 @@ export async function ensurePdfJs(): Promise<PDFLib> {
 }
 
 /**
- * Load PDF document from URL or ArrayBuffer
+ * Load PDF document from a URL.
  *
- * When given a URL string, fetches the PDF as ArrayBuffer with credentials
- * to ensure authentication cookies are included in the request.
+ * The URL must include authentication (e.g. ?token=<media-token>).
+ * PDF.js streams the document directly — no ArrayBuffer buffering in JS.
  */
-export async function loadPdfDocument(
-  source: string | ArrayBuffer
-): Promise<PDFDocumentProxy> {
+export async function loadPdfDocument(url: string): Promise<PDFDocumentProxy> {
   const pdfjsLib = await ensurePdfJs();
-
-  if (typeof source === 'string') {
-    // Fetch as ArrayBuffer first to include authentication cookies
-    const response = await fetch(source, {
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/pdf',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch PDF: ${response.status} ${response.statusText}`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-    return loadingTask.promise;
-  } else {
-    const loadingTask = pdfjsLib.getDocument({ data: source });
-    return loadingTask.promise;
-  }
+  const loadingTask = pdfjsLib.getDocument({ url });
+  return loadingTask.promise;
 }
 
 /**

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
 
 /**
  * Represents a Semiont project rooted at a given directory.
@@ -16,17 +17,18 @@ import * as path from 'path';
  *   configDir      — $XDG_CONFIG_HOME/semiont/{name}/  (generated config for managed processes)
  *   dataHome       — $XDG_DATA_HOME/semiont/{name}/   (persistent user data, e.g. database files)
  *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
+ *   embeddingsDir   — stateDir/embeddings/
  *   projectionsDir  — stateDir/projections/
  *   jobsDir         — stateDir/jobs/
  *   backendLogsDir      — stateDir/backend/
  *   backendAppLogFile   — backendLogsDir/app.log
  *   backendErrorLogFile — backendLogsDir/error.log
- *   frontendLogsDir     — stateDir/frontend/
- *   frontendAppLogFile  — frontendLogsDir/app.log
- *   frontendErrorLogFile — frontendLogsDir/error.log
  *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
  *   backendPidFile  — runtimeDir/backend.pid
- *   frontendPidFile — runtimeDir/frontend.pid
+ *
+ * Note: frontend paths are NOT project-scoped. The frontend service is bundled
+ * with the CLI and uses fixed XDG paths keyed by "frontend", not project name.
+ * See apps/cli/src/platforms/posix/handlers/frontend-paths.ts.
  */
 export class SemiontProject {
   readonly root: string;
@@ -48,19 +50,16 @@ export class SemiontProject {
 
   // Ephemeral — state
   readonly stateDir: string;
+  readonly embeddingsDir: string;
   readonly projectionsDir: string;
   readonly jobsDir: string;
   readonly backendLogsDir: string;
   readonly backendAppLogFile: string;
   readonly backendErrorLogFile: string;
-  readonly frontendLogsDir: string;
-  readonly frontendAppLogFile: string;
-  readonly frontendErrorLogFile: string;
 
   // Ephemeral — runtime
   readonly runtimeDir: string;
   readonly backendPidFile: string;
-  readonly frontendPidFile: string;
 
   constructor(projectRoot: string, name?: string) {
     this.root = projectRoot;
@@ -85,20 +84,33 @@ export class SemiontProject {
 
     const xdgState = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
     this.stateDir = path.join(xdgState, 'semiont', this.name);
+    this.embeddingsDir = path.join(this.stateDir, 'embeddings');
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
     this.backendLogsDir = path.join(this.stateDir, 'backend');
     this.backendAppLogFile = path.join(this.backendLogsDir, 'app.log');
     this.backendErrorLogFile = path.join(this.backendLogsDir, 'error.log');
-    this.frontendLogsDir = path.join(this.stateDir, 'frontend');
-    this.frontendAppLogFile = path.join(this.frontendLogsDir, 'app.log');
-    this.frontendErrorLogFile = path.join(this.frontendLogsDir, 'error.log');
 
     const xdgRuntime = process.env.XDG_RUNTIME_DIR;
     const runtimeBase = xdgRuntime ?? process.env.TMPDIR ?? '/tmp';
     this.runtimeDir = path.join(runtimeBase, 'semiont', this.name);
     this.backendPidFile = path.join(this.runtimeDir, 'backend.pid');
-    this.frontendPidFile = path.join(this.runtimeDir, 'frontend.pid');
+  }
+
+  /**
+   * Read the current git branch for the project root.
+   * Returns null if the project is not a git repo or git is not available.
+   */
+  gitBranch(): string | null {
+    try {
+      return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: this.root,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim() || null;
+    } catch {
+      return null;
+    }
   }
 
   /**

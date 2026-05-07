@@ -17,25 +17,25 @@ This document describes the high-level architecture of the Semiont frontend appl
 
 ## Overview
 
-The Semiont frontend is a Next.js 14 application using the App Router with React Server Components and Client Components. The architecture emphasizes:
+The Semiont frontend is a Vite + React Router v7 SPA. The architecture emphasizes:
 
 - **Type Safety**: TypeScript throughout with strict mode enabled
 - **Server State Management**: React Query for all API interactions
-- **Authentication**: NextAuth.js for session management with custom JWT backend
+- **Authentication**: JWT cookie managed entirely by the backend — no frontend auth server
 - **No Global Mutable State**: All state is managed through React hooks and contexts
 - **Fail-Fast Philosophy**: No default values - explicit configuration required
 
 ## Technology Stack
 
 ### Core Framework
-- **Next.js 14** (App Router) - React framework with server/client components
+- **Vite** + **React Router v7** - SPA build tooling and client-side routing
 - **React 18** - UI library with concurrent features
 - **TypeScript 5** - Type safety and developer experience
 
 ### State Management
 - **React Query (TanStack Query)** - Server state, caching, and data synchronization
 - **React Context** - UI state and cross-cutting concerns (keyboard shortcuts, toast notifications)
-- **NextAuth.js** - Authentication session management
+- **i18next + react-i18next** - Internationalization
 
 ### UI & Styling
 
@@ -78,21 +78,30 @@ The frontend leverages **@semiont/react-ui**, a comprehensive framework-agnostic
 #### Hooks & Utilities
 - **API Hooks**: React Query wrappers for all Semiont API operations
 - **UI Hooks**: useTheme, useKeyboardShortcuts, useToast, useDebounce
-- **Resource Hooks**: useResourceEvents, useDetectionFlow, useGenerationFlow
+- **Resource Hooks**: useResourceContent, useMediaToken
 - **Form Hooks**: useFormValidation with built-in validation rules
 
 #### Provider Pattern
-@semiont/react-ui uses a provider pattern for framework independence:
+@semiont/react-ui uses a provider pattern with two layers — global (every page) and protected (only routes that require auth):
 
-```typescript
-// Frontend provides Next.js-specific implementations
-<SessionProvider sessionManager={nextAuthSessionManager}>
-  <TranslationProvider translationManager={nextIntlManager}>
-    <ApiClientProvider apiClientManager={apiClientManager}>
-      {/* App components can now use react-ui hooks */}
+```tsx
+// Global layer — auth-independent
+<TranslationProvider translationManager={i18nextManager}>
+  <QueryClientProvider client={queryClient}>
+    <ApiClientProvider baseUrl={apiBaseUrl}>
+      {/* App components can now use translation/query/api hooks */}
+
+      {/* Protected layer — only inside layouts that require auth */}
+      <KnowledgeBaseSessionProvider>
+        <ProtectedErrorBoundary>
+          <SessionExpiredModal />
+          <PermissionDeniedModal />
+          {/* Auth-aware components live here */}
+        </ProtectedErrorBoundary>
+      </KnowledgeBaseSessionProvider>
     </ApiClientProvider>
-  </TranslationProvider>
-</SessionProvider>
+  </QueryClientProvider>
+</TranslationProvider>
 ```
 
 This architecture enables:
@@ -111,100 +120,82 @@ See [Component Library Integration Guide](./COMPONENT-LIBRARY.md) for detailed u
 
 ### Request Routing
 
-The application handles three types of requests with path-based routing:
+The SPA serves static files. All routing is client-side (React Router v7):
 
-```mermaid
-sequenceDiagram
-    participant Browser
-    participant CDN
-    participant LoadBalancer
-    participant FrontendServer as Frontend Server<br/>(NextAuth Only)
-    participant Backend
-
-    Browser->>CDN: HTTPS Request
-    CDN->>LoadBalancer: Forward Request
-
-    alt OAuth Flow (/auth/*)
-        LoadBalancer->>FrontendServer: Route to NextAuth
-        FrontendServer->>Backend: Exchange OAuth Token
-        Backend-->>FrontendServer: JWT
-        FrontendServer->>Browser: Session Cookie with JWT
-    else API Call (/api/* from browser)
-        LoadBalancer->>Backend: Route to Backend API
-        Backend-->>LoadBalancer: JSON Response
-        LoadBalancer-->>CDN: Response
-        CDN-->>Browser: Response
-    else UI Request (/*)
-        LoadBalancer->>FrontendServer: Route to Next.js
-        FrontendServer-->>LoadBalancer: HTML/React
-        LoadBalancer-->>CDN: Response
-        CDN-->>Browser: HTML/React (browser then calls /api/*)
-    end
+```
+Browser → http://localhost/
+  ↓
+Static file server (Envoy/nginx serves index.html for all non-asset paths)
+  ↓
+React Router v7 handles /:locale/* routes client-side
+  ↓
+API calls go directly to backend (/api/*)
 ```
 
 **Path-Based Routing:**
-
-- **`/auth/*`** → Frontend Server (NextAuth.js OAuth flows, server-side only)
-  - OAuth login/callback handling
-  - Token exchange with backend
-  - Session cookie management
 
 - **`/api/*`** → Backend API (called directly from browser)
   - All REST API endpoints
   - WebSocket connections
   - SSE streams
-  - Browser includes JWT from session cookie
+  - Browser sends `Authorization: Bearer <jwt>` based on the active KB's stored token
 
-- **`/*`** → Frontend Server (Next.js SSR/SSG)
-  - Server-side rendering
-  - Static pages
-  - Delivers React app to browser
-  - Browser then makes `/api/*` calls directly to backend
+- **`/*`** → Static frontend SPA (served by Envoy/nginx)
+  - Vite-built static files
+  - index.html for all non-asset paths (SPA routing)
 
 **Key Architecture Points:**
-- Frontend server handles OAuth callback ONLY
-- Browser calls backend API directly (not proxied by frontend)
-- JWT stored in session cookie, included in browser API requests
+- No frontend Node.js server process at runtime
+- Backend handles all OAuth callbacks and token issuance, returning JWTs the frontend stores per KB
+- Each KB has its own JWT in `localStorage` keyed by KB id; the frontend includes the active KB's token on outgoing API calls
 
 ## Authentication Architecture
 
-See [AUTHENTICATION.md](./AUTHENTICATION.md) for detailed authentication flow.
+See [AUTHENTICATION.md](./AUTHENTICATION.md) for the full authentication flow.
 
 ### Key Components
 
 **Session Management:**
 ```
-NextAuth SessionProvider
-    └── Custom SessionContext (isFullyAuthenticated helper)
+KnowledgeBaseSessionProvider (mounted by AuthShell, library-side)
+    ├── owns: KB list, active KB id, per-KB JWTs in localStorage
+    ├── owns: validated session for active KB (token + user)
+    ├── owns: sessionExpiredAt / permissionDeniedAt modal flags
+    └── useKnowledgeBaseSession() hook (throws if outside provider)
         └── Application Components
 ```
 
 **Authentication Flow:**
-1. User authenticates via NextAuth (local or OAuth)
-2. Backend returns JWT token stored in NextAuth session
-3. `useSession()` hook provides token to components
-4. `useAuthenticatedAPI()` hook wraps fetch with Bearer token
-5. All API calls automatically include authentication
+1. User adds a KB and submits credentials → frontend POSTs to that KB's backend → backend returns a JWT
+2. Provider stores token in `localStorage` and sets the new KB active
+3. On mount/switch the provider validates the stored token via `getMe`
+4. 401 from validation OR from any React Query call → provider sets `sessionExpiredAt` → `SessionExpiredModal` surfaces
 
 **Token Management:**
-- Token stored in NextAuth session (`session.backendToken`)
-- Read synchronously via `useSession()` hook (no async/await needed)
-- Automatically included in all API requests via `useAuthenticatedAPI`
-- No global mutable state - each request reads fresh token from session
+- One JWT per KB in `localStorage` (`semiont.token.<kbId>`)
+- The provider exposes mutations (`addKnowledgeBase`, `signIn`, `signOut`) so consumers never touch storage directly
+- `useKnowledgeBaseSession()` exposes coarse derived auth fields (`isAuthenticated`, `isAdmin`, `displayName`, etc.) memoized off `session.user`
 
 ### Authentication Hooks
 
 ```typescript
-// Get session and authentication status
-const { data: session, status } = useSession();
-const isAuthenticated = status === 'authenticated' && !!session?.backendToken;
+import { useKnowledgeBaseSession } from '@semiont/react-ui';
 
-// Make authenticated API requests
-const { fetchAPI, isAuthenticated } = useAuthenticatedAPI();
-const data = await fetchAPI('/api/endpoint');
+// Get authentication state and mutations
+const {
+  isAuthenticated,
+  isAdmin,
+  isModerator,
+  displayName,
+  token,
+  activeKnowledgeBase,
+  signOut,
+} = useKnowledgeBaseSession();
 
-// Check full authentication (session + backend token)
-const { isFullyAuthenticated } = useCustomSession();
+// API calls use @semiont/api-client; the AuthTokenProvider in protected
+// layouts wires the active KB's token into outgoing requests automatically.
+const apiClient = useApiClient();
+const data = await apiClient.getDocument(id);
 ```
 
 ## State Management
@@ -234,6 +225,55 @@ await updateMutation.mutateAsync({ id, title, content });
 - Error handling with retry logic
 - No manual state management needed
 
+### Observable Stores (RxJS BehaviorSubject)
+
+High-churn entity data and browser-persistent application state are managed as observable stores — `BehaviorSubject`-backed classes with no React dependency. Components subscribe via `useObservable(store.observable$)`.
+
+**Verb namespace Observables** (live in `@semiont/api-client`, owned by `SemiontApiClient`):
+
+| Namespace | Access | What it caches |
+|---|---|---|
+| Browse | `semiont.browse.resource(id)` | Resource descriptors, lazily fetched, invalidated by EventBus domain events |
+| Browse | `semiont.browse.annotations(id)` | Annotation lists per resource, updated in-place by enriched SSE events |
+| Browse | `semiont.browse.entityTypes()` | Entity types, updated via `frame:entity-type-added` bus channel |
+
+These update automatically when backend domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual `invalidateQueries` calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/api-client` README](../../../packages/api-client/README.md) for the full verb namespace API.
+
+**Application state stores** (live in `apps/frontend/src/stores/`, browser-coupled):
+
+| Store | What it holds |
+|---|---|
+| `OpenResourcesStore` | Open document tabs; persisted to `localStorage`, synced across browser tabs via `StorageEvent` |
+| `SessionStore` | Session expiry state derived from the JWT; drives the "expiring soon" warning |
+
+These stores depend on browser APIs (`localStorage`, `window`) and so cannot live in the framework-agnostic `api-client` package.
+
+**React integration**: `AuthTokenProvider` holds the current token in a `BehaviorSubject`, and `ApiClientProvider` passes that subject to `SemiontApiClient` as `token$`. The client reads the observable's current value on every request; token changes propagate automatically without any React-specific wiring.
+
+### Binary Content (Media Tokens)
+
+Binary resources (images, PDFs) cannot carry `Authorization` headers through browser-native fetch paths (`<img src>`, PDF.js URL streaming). Buffering entire files into `ArrayBuffer` in the JS heap is unacceptable for large files.
+
+The solution is **media tokens** — short-lived JWTs scoped to a single resource, passed as `?token=<media-token>` on the resource URL:
+
+```
+ResourceViewerPage
+  → useMediaToken(resourceId)       # React Query, staleTime: 4 min
+      → POST /api/tokens/media
+      → { token }
+  → resourceUrl = `${baseUrl}/api/resources/${id}?token=${token}`
+  → <img src={resourceUrl}> or pdfjsLib.getDocument({ url: resourceUrl })
+      → browser/PDF.js fetches directly, streams
+```
+
+`ResourceViewerPage` branches on `getMimeCategory(resource)`:
+- `'text'` → `useResourceContent` (fetch + decode to string) → text viewer
+- `'image'` (includes `application/pdf`) → `useMediaToken` → URL passed to image/PDF viewer
+
+Callers of `ResourceViewerPage` do not manage media tokens; the component handles it internally. The `useMediaToken` hook is available from `@semiont/react-ui` for any component that needs a token-authenticated URL independently.
+
+See [`@semiont/api-client/docs/MEDIA-TOKENS.md`](../../../packages/api-client/docs/MEDIA-TOKENS.md) for the full specification including the JWT format and `POST /api/tokens/media` endpoint.
+
 ### UI State (React Context)
 
 UI-only state and framework-agnostic providers:
@@ -244,17 +284,17 @@ UI-only state and framework-agnostic providers:
 - `AnnotationUIProvider` - UI-only state for sparkle animations (`newAnnotationIds`)
 - `TranslationProvider` - Injects `TranslationManager` for i18n
 - `ApiClientProvider` - Injects `ApiClientManager` for API access
-- `SessionProvider` - Injects `SessionManager` for session state
+- `KnowledgeBaseSessionProvider` - Owns KB list, active KB, validated session (mounted only inside the protected layout boundary)
 - `OpenResourcesProvider` - Injects `OpenResourcesManager` for routing
 
 These providers are framework-independent and can work with Next.js, Vite, or any React framework. The app provides framework-specific manager implementations.
 
-**Next.js-Specific Contexts:**
+**App-Specific Contexts:**
 - `KeyboardShortcutsProvider` - Keyboard shortcut registration and handling
 - `ToastProvider` - Toast notification queue
 - `LiveRegionProvider` - ARIA live region for screen reader announcements
 
-See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for complete Provider Pattern documentation.
+See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for complete Provider Pattern documentation.
 
 ## API Integration
 
@@ -370,18 +410,22 @@ queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(docume
 **Global Error Handlers:**
 ```typescript
 // In QueryClient configuration
+import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
+
 queryCache: new QueryCache({
   onError: (error) => {
     if (error instanceof APIError) {
       if (error.status === 401) {
-        dispatch401Error('Session expired');
+        notifySessionExpired('Session expired');
       } else if (error.status === 403) {
-        dispatch403Error('Permission denied');
+        notifyPermissionDenied('Permission denied');
       }
     }
   }
 })
 ```
+
+`notifySessionExpired` / `notifyPermissionDenied` are module-scoped functions that route into whichever `KnowledgeBaseSessionProvider` is currently mounted (inside `AuthShell`). When no provider is mounted (e.g. on the landing page), these calls are no-ops.
 
 **Component-Level:**
 ```typescript
@@ -419,74 +463,96 @@ User action (e.g., click save)
                     └── UI updates with fresh data
 ```
 
-### Real-Time Updates (SSE)
+### Real-Time Updates (Bus Gateway)
 
 ```
-Component mounts
-    └── useResourceEvents hook connects to SSE
-        └── EventSource with Bearer token auth
-            └── Backend sends events
-                └── Event handler refetches queries
-                    └── UI updates automatically
+SemiontApiClient creates one ActorStateUnit (single SSE to /bus/subscribe)
+    └── ResourceViewerPage mounts
+        └── client.subscribeToResource(id) adds scoped channels
+            └── Backend emits domain events on scoped bus
+                └── ActorStateUnit bridges events into local EventBus
+                    └── BrowseNamespace invalidates caches
+                        └── Live query Observables re-emit
+                            └── UI updates automatically
 ```
 
 ## Provider Hierarchy
 
-The app is wrapped in multiple providers in this order (outer to inner):
+The provider tree has two distinct layers:
+
+1. **Root providers** mounted in `[locale]/layout.tsx` — auth-independent. Available on every page including the landing page, the OAuth flow, and static pages.
+2. **Auth shell** mounted only in protected layouts (`know/`, `admin/`, `moderate/`) and around `<WelcomePage />` in the route tree. Bundles authentication, the active KB, and the auth-failure modals. Pre-app routes intentionally do not mount the auth shell — surfacing a "session expired" modal on the landing page would be confusing because the user has not yet entered the app.
+
+### Root layer (always present)
 
 ```tsx
-<NextAuthSessionProvider>              // NextAuth.js session
-  <AuthErrorBoundary>                 // Catch auth errors
-    <QueryClientProvider>             // React Query state
-      <SessionProvider>               // @semiont/react-ui - Session management
-        <ApiClientProvider>           // @semiont/react-ui - API client injection
-          <TranslationProvider>       // @semiont/react-ui - i18n
-            <CacheProvider>           // @semiont/react-ui - Cache invalidation
-              <AnnotationProvider>    // @semiont/react-ui - Annotation mutations
-                <AnnotationUIProvider>  // @semiont/react-ui - UI state (sparkles)
-                  <OpenResourcesProvider>  // @semiont/react-ui - Routing
-                    <ToastProvider>   // App-specific - Toast notifications
-                      <LiveRegionProvider>  // App-specific - Screen reader
-                        <KeyboardShortcutsProvider>  // App-specific - Keyboard
-                          {children}  // App content
+// apps/frontend/src/app/providers.tsx
+<TranslationProvider>          // @semiont/react-ui — i18n
+  <QueryClientProvider>        // React Query (with auth-event dispatching in onError)
+    <ToastProvider>            // @semiont/react-ui — toast notifications
+      <LiveRegionProvider>     // @semiont/react-ui — screen reader announcements
+        <KeyboardShortcutsProvider>  // app-specific
+          <ThemeProvider>      // @semiont/react-ui — theme
+            <EventBusProvider> // @semiont/react-ui — RxJS event bus
+              <NavigationHandler />
+              {children}        // landing, about, privacy, terms, /auth/connect, /auth/error, /auth/signup, or any of the AuthShell-wrapped subtrees below
 ```
 
-**Why This Order:**
-1. NextAuthSessionProvider must be outermost (provides auth to all)
-2. AuthErrorBoundary catches auth failures
-3. QueryClientProvider needed for all data fetching
-4. Provider Pattern providers (Session, ApiClient, Translation, Cache, Annotation, etc.) from `@semiont/react-ui`
-5. App-specific utilities (Toast, LiveRegion, KeyboardShortcuts)
+### Auth shell (mounted in protected layouts only)
 
-See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for details on the Provider Pattern architecture.
+```tsx
+// apps/frontend/src/contexts/AuthShell.tsx
+<KnowledgeBaseSessionProvider>      // owns KB list, active KB, validated session, modal flags
+  <ProtectedErrorBoundary>          // catches render-time crashes inside the protected tree
+    <SessionExpiredModal />         // reads sessionExpiredAt from context
+    <PermissionDeniedModal />       // reads permissionDeniedAt from context
+    {children}                      // protected layout body
+```
+
+### Where the auth shell mounts
+
+| Route            | Mounted in                                          |
+|------------------|-----------------------------------------------------|
+| `/know/*`        | `apps/frontend/src/app/[locale]/know/layout.tsx`    |
+| `/admin/*`       | `apps/frontend/src/app/[locale]/admin/layout.tsx`   |
+| `/moderate/*`    | `apps/frontend/src/app/[locale]/moderate/layout.tsx`|
+| `/auth/welcome`  | `apps/frontend/src/App.tsx` (route element)         |
+
+### Why the split
+
+- **Pre-app surfaces** (landing page, OAuth flow, static pages) do not need to validate JWTs and should not surface auth-failure modals.
+- **Protected layouts** validate the active KB's JWT on mount via `getMe`. A 401 from that call sets `sessionExpiredAt` on the context, which `SessionExpiredModal` reads and surfaces.
+- **`KnowledgeBaseSessionProvider` re-validates internally when the active KB changes** so switching KBs forces a fresh validation against the new backend — no external bridge component needed.
+- **Protected layouts mount their own `ApiClientProvider`** pointing at the active KB's backend URL — they read the URL from `useKnowledgeBaseSession().activeKnowledgeBase`.
+
+See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for details on the Provider Pattern architecture.
 
 ## Directory Structure
 
 ```
 apps/frontend/src/
-├── app/                    # Next.js App Router pages
-│   ├── (auth)/            # Auth-related pages (login, signup)
-│   ├── know/              # Main knowledge management UI
-│   │   ├── discover/      # Document discovery
-│   │   ├── document/[id]/ # Document viewer/editor with Toolbar
-│   │   └── compose/       # Document composition
-│   ├── api/               # API route handlers (NextAuth, etc.)
-│   ├── layout.tsx         # Root layout
-│   └── providers.tsx      # Provider setup (wraps @semiont/react-ui providers)
+├── App.tsx                # React Router v7 route tree
+├── main.tsx               # Entry point
+├── app/[locale]/          # Locale-prefixed page components
+│   ├── auth/             # Auth pages (signin, signup, etc.)
+│   ├── know/             # Knowledge management pages
+│   ├── moderate/         # Moderation pages
+│   └── admin/            # Admin pages
 ├── components/            # App-specific UI components
 │   ├── modals/            # Modal dialogs
 │   └── ...                # Other app-specific components
 ├── contexts/              # App-specific React Context providers
+│   ├── AuthShell.tsx      # Wraps protected layouts with the library session provider, boundary, and modals
 │   ├── KeyboardShortcutsContext.tsx
 │   └── ...
 ├── hooks/                 # App-specific custom hooks
-│   ├── useAuthenticatedAPI.ts
-│   ├── useResourceEvents.ts
 │   └── ...
+├── i18n/                  # i18next config and routing wrappers
+│   ├── config.ts          # i18next initialisation
+│   └── routing.tsx        # Link, useRouter, usePathname, useLocale
 ├── lib/                   # App-specific utility libraries
 │   ├── api-client.ts      # API client setup with React Query
 │   ├── query-helpers.ts   # React Query utilities
-│   ├── auth-events.ts     # Auth error event bus
 │   └── cacheManager.ts    # CacheManager implementation for @semiont/react-ui
 └── types/                 # TypeScript type definitions
 
@@ -515,7 +581,7 @@ packages/react-ui/src/      # Reusable React components library
 │   ├── CacheContext.tsx
 │   ├── ApiClientContext.tsx
 │   ├── TranslationContext.tsx
-│   └── SessionContext.tsx
+│   └── KnowledgeBaseSessionContext.tsx
 ├── hooks/                 # Reusable React hooks
 │   ├── useResourceAnnotations.ts
 │   └── ...
@@ -530,10 +596,10 @@ packages/react-ui/src/      # Reusable React components library
 ```
 
 **Key Separation:**
-- `apps/frontend/src` - Next.js-specific pages and implementations
+- `apps/frontend/src` - Vite SPA pages and app-specific implementations
 - `packages/react-ui/src` - Framework-agnostic components and interfaces
 
-**Note**: Authentication components (SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage) are framework-agnostic and live in `packages/react-ui/src/features/auth/`. The frontend provides Next.js-specific wrappers that handle routing, translations, and authentication callbacks.
+**Note**: Authentication components (SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage) are framework-agnostic and live in `packages/react-ui/src/features/auth/`. The frontend provides React Router-specific wrappers that handle routing, translations, and auth state.
 
 See [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) for documentation on the reusable component library.
 
@@ -593,7 +659,7 @@ const cacheManager: CacheManager = {
 - ✅ Easy to test with mock implementations
 - ✅ Clear separation of concerns
 
-See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for complete documentation.
+See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for complete documentation.
 
 ### 2. No Default Values
 
@@ -726,7 +792,7 @@ Annotation overlays and panel entries synchronize via hover events for all media
 ## Related Documentation
 
 ### React UI Library
-- [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) - Provider Pattern architecture
+- [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) - Provider Pattern architecture
 - [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) - Annotation system documentation
 - [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) - Complete library documentation
 
@@ -738,21 +804,22 @@ Annotation overlays and panel entries synchronize via hover events for all media
 - [CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - AnnotateView rendering with CodeMirror
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
 - [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
-- [KEYBOARD-NAV.md](./KEYBOARD-NAV.md) - Keyboard shortcuts
+- [KEYBOARD-NAV.md](./KEYBOARD-NAV.md) - Keyboard navigation implementation
 - [PERFORMANCE.md](./PERFORMANCE.md) - Performance optimization
 
 ## Migration Notes
 
-This architecture represents a major refactoring completed in phases 0-8 (see `/CLEAN-FRONTEND.md` in project root):
+Two major refactors are complete:
 
-**Before:** Global mutable state, race conditions, `apiClient.setAuthToken()`
-**After:** React Query, no global state, `useAuthenticatedAPI` hook
+**MERGED-KB-SESSION** (Track 2 of AUTH-CLEANUP): Merged the previously-separate `KnowledgeBaseProvider`, `AuthProvider`, and `SessionProvider` into one library-side `KnowledgeBaseSessionProvider` in `@semiont/react-ui`.
+- Frontend `AuthContext.tsx`, `KnowledgeBaseContext.tsx`, `useAuth.ts`, `useSessionManager.ts` are gone
+- Library `SessionContext.tsx`, `auth-events.ts`, and `dispatch401Error`/`dispatch403Error` are gone
+- Auth state via `useKnowledgeBaseSession()` from `@semiont/react-ui`
+- Cross-tree 401/403 signaling via `notifySessionExpired` / `notifyPermissionDenied`
 
-**Key Changes:**
-- Removed all `apiClient.setAuthToken()` / `clearAuthToken()` / `getAuthToken()` methods
-- All API calls now use React Query hooks
-- Authentication handled per-request via `useAuthenticatedAPI`
-- No more `apiService.*` direct calls in components
-- SSE hooks use `useSession()` for auth instead of `getAuthToken()`
-
-All 802 tests passing with 100% coverage of authentication code.
+**NO-NEXTJS** (see `/NO-NEXTJS.md`): Replaced Next.js with Vite + React Router v7 + i18next.
+- `next build` → `vite build` (output: static files)
+- `next dev` → `vite --host`
+- `next-intl` → `i18next` + `react-i18next`
+- `[locale]/layout.tsx` → React Router layout routes with `<Outlet />`
+- No Node.js server process at runtime

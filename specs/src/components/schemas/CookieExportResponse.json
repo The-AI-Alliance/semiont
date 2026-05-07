@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "GDPR data export of a user's cookie-related data. The response is returned as a file download (Content-Disposition: attachment).",
+  "properties": {
+    "user": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["id", "email"]
+    },
+    "consent": { "$ref": "./CookieConsent.json" },
+    "exportDate": { "type": "string", "format": "date-time" },
+    "dataRetentionPolicy": { "type": "string" }
+  },
+  "required": ["user", "consent", "exportDate", "dataRetentionPolicy"]
+}

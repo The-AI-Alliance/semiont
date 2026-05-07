@@ -47,13 +47,19 @@ const checkMockService = async (context: MockCheckHandlerContext): Promise<Check
   };
 };
 
-/**
- * Descriptor for mock default check handler
- */
-export const defaultCheckDescriptor: HandlerDescriptor<MockCheckHandlerContext, CheckHandlerResult> = {
-  command: 'check',
-  platform: 'mock',
-  serviceType: 'default',
+const baseCheckDescriptor = {
+  command: 'check' as const,
+  platform: 'mock' as const,
   handler: checkMockService,
   preflight: async () => passingPreflight(),
 };
+
+export const defaultCheckDescriptor: HandlerDescriptor<MockCheckHandlerContext, CheckHandlerResult> = { ...baseCheckDescriptor, serviceType: 'backend' };
+export const frontendCheckDescriptor: HandlerDescriptor<MockCheckHandlerContext, CheckHandlerResult> = { ...baseCheckDescriptor, serviceType: 'frontend' };
+export const databaseCheckDescriptor: HandlerDescriptor<MockCheckHandlerContext, CheckHandlerResult> = { ...baseCheckDescriptor, serviceType: 'database' };
+export const graphCheckDescriptor: HandlerDescriptor<MockCheckHandlerContext, CheckHandlerResult> = { ...baseCheckDescriptor, serviceType: 'graph' };
+export const workerCheckDescriptor: HandlerDescriptor<MockCheckHandlerContext, CheckHandlerResult> = { ...baseCheckDescriptor, serviceType: 'worker' };
+export const inferenceCheckDescriptor: HandlerDescriptor<MockCheckHandlerContext, CheckHandlerResult> = { ...baseCheckDescriptor, serviceType: 'inference' };
+export const mcpCheckDescriptor: HandlerDescriptor<MockCheckHandlerContext, CheckHandlerResult> = { ...baseCheckDescriptor, serviceType: 'mcp' };
+export const stackCheckDescriptor: HandlerDescriptor<MockCheckHandlerContext, CheckHandlerResult> = { ...baseCheckDescriptor, serviceType: 'stack' };
+export const filesystemCheckDescriptor: HandlerDescriptor<MockCheckHandlerContext, CheckHandlerResult> = { ...baseCheckDescriptor, serviceType: 'filesystem' };

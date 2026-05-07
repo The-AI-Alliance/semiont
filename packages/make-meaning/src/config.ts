@@ -1,4 +1,4 @@
-import type { GraphServiceConfig } from '@semiont/core';
+import type { GraphServiceConfig, VectorsServiceConfig, EmbeddingServiceConfig } from '@semiont/core';
 
 /**
  * Inference configuration for a single actor or worker.
@@ -39,6 +39,8 @@ export interface WorkerInferenceConfig {
 export interface MakeMeaningConfig {
   services: {
     graph?: GraphServiceConfig;
+    vectors?: VectorsServiceConfig;
+    embedding?: EmbeddingServiceConfig;
   };
   /** Per-actor inference config */
   actors?: ActorInferenceConfig;

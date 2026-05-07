@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "description": "Bus command to replace the entity types on a resource.",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    },
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
+    "currentEntityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "updatedEntityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": ["resourceId", "currentEntityTypes", "updatedEntityTypes"]
+}

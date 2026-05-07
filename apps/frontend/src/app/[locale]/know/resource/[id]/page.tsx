@@ -7,10 +7,10 @@
  * All other concerns (data loading, events, UI state) are handled by ResourceViewerPage.
  */
 
-import { useEffect } from 'react';
-import { useParams } from 'next/navigation';
-import { useLocale } from 'next-intl';
-import { useResources } from '@semiont/react-ui';
+import { useEffect, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
+import { useLocale } from '@/i18n/routing';
+import { useSemiont, useObservable, useStateUnit, createResourceLoaderStateUnit } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
 
@@ -20,54 +20,49 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import type { SemiontResource } from '@semiont/react-ui';
 
 /**
- * Main page component - handles only routing and initial resource load
+ * Main page component - handles only routing and initial resource load.
+ *
+ * The inner component is keyed on `rId` so that navigation between
+ * resources (URL-param change without component unmount) forces a full
+ * remount. Without this, `useStateUnit`'s factory closes over the
+ * initial `rId` and never re-runs, and the URL changes but the content
+ * stays on the first-loaded resource.
  */
 export default function KnowledgeResourcePage() {
   const params = useParams();
+  const rId = resourceId(params?.id as string);
+  return <KnowledgeResourcePageInner key={rId} rId={rId} />;
+}
+
+function KnowledgeResourcePageInner({ rId }: { rId: ReturnType<typeof resourceId> }) {
   const locale = useLocale();
 
-  // The URL param is the bare resource ID
-  const rId = resourceId(params?.id as string);
+  const session = useObservable(useSemiont().activeSession$);
+  const streamStatus = useObservable(session?.streamState$) ?? 'initial';
+  const activeKnowledgeBase = session?.kb ?? null;
 
-  // Load only the resource descriptor - everything else is loaded by ResourceViewerPage
-  const resources = useResources();
-  const {
-    data: docData,
-    isLoading,
-    isError,
-    error,
-    refetch: refetchDocument
-  } = resources.get.useQuery(rId) as {
-    data: { resource: SemiontResource } | undefined;
-    isLoading: boolean;
-    isError: boolean;
-    error: unknown;
-    refetch: () => Promise<unknown>;
-  };
+  const semiont = session?.client;
+  const loader = useStateUnit(() => createResourceLoaderStateUnit(semiont!, rId));
+  const resourceData = useObservable(loader.resource$);
+  const isLoading = useObservable(loader.isLoading$) ?? true;
 
   // Log error for debugging
   useEffect(() => {
-    if (isError && !isLoading) {
-      console.error(`[Document] Failed to load resource ${rId}:`, error);
+    if (!isLoading && !resourceData) {
+      console.error(`[Document] Resource ${rId} not found`);
     }
-  }, [isError, isLoading, rId, error]);
+  }, [isLoading, rId, resourceData]);
+
+  const refetchDocument = useCallback(async () => {
+    loader.invalidate();
+  }, [loader]);
 
   // Early return: Loading state
-  if (isLoading || !docData) {
+  if (isLoading || !resourceData) {
     return <ResourceLoadingState />;
   }
 
-  // Early return: Error state
-  if (isError) {
-    return <ResourceErrorState error={error} onRetry={() => refetchDocument()} />;
-  }
-
-  // Early return: ResourceDescriptor not found
-  if (!docData.resource) {
-    return <ResourceErrorState error={new Error('Resource not found')} onRetry={() => refetchDocument()} />;
-  }
-
-  const resource = docData.resource;
+  const resource = resourceData as SemiontResource;
   // resource['@id'] is now a bare ID
   const canonicalId = resourceId(resource['@id']);
 
@@ -81,6 +76,8 @@ export default function KnowledgeResourcePage() {
       routes={routes}
       ToolbarPanels={ToolbarPanels}
       refetchDocument={refetchDocument}
+      streamStatus={streamStatus}
+      knowledgeBaseName={activeKnowledgeBase?.label}
     />
   );
 }

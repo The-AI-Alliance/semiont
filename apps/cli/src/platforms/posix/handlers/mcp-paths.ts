@@ -18,7 +18,7 @@ export interface MCPPaths {
  */
 export function getMCPPaths<T>(context: BaseHandlerContext<T>): MCPPaths {
   const service = context.service;
-  const project = new SemiontProject(service.projectRoot);
+  const project = new SemiontProject(service.projectRoot!);
 
   const configDir = path.join(
     process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'),

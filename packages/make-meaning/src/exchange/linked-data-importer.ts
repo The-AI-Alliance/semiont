@@ -14,8 +14,10 @@ import type { Readable } from 'node:stream';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { Logger, ResourceId, UserId, CreationMethod } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, annotationId as annotationIdFactory, resourceId as makeResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
+import type { WorkingTreeStore } from '@semiont/content';
+import { deriveStorageUri } from '@semiont/content';
 import { readTarGz } from './tar';
 import {
   LINKED_DATA_FORMAT,
@@ -25,10 +27,11 @@ import {
 } from './manifest';
 
 type ContentFormat = components['schemas']['ContentFormat'];
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 export interface LinkedDataImporterOptions {
   eventBus: EventBus;
+  contentStore: WorkingTreeStore;
   userId: UserId;
   logger?: Logger;
 }
@@ -62,7 +65,7 @@ function dehydrateAnnotation(annotation: Annotation): Annotation {
 
   // annotation.id
   if (dehydrated.id) {
-    dehydrated.id = stripUriToId(dehydrated.id);
+    dehydrated.id = annotationIdFactory(stripUriToId(dehydrated.id));
   }
 
   // annotation.target
@@ -128,7 +131,7 @@ function buildBlobResolver(entries: Map<string, Buffer>): (checksum: string) => 
  *   1. Stream and decompress tar.gz entries
  *   2. Parse .semiont/manifest.jsonld → validate format
  *   3. Build blob resolver over root-level content entries
- *   4. Add entity types from manifest via mark:add-entity-type
+ *   4. Add entity types from manifest via frame:add-entity-type
  *   5. For each .semiont/resources/{id}.jsonld:
  *      a. Parse JSON-LD document
  *      b. Resolve content blob by checksum from representations
@@ -139,7 +142,7 @@ export async function importLinkedData(
   archive: Readable,
   options: LinkedDataImporterOptions,
 ): Promise<LinkedDataImportResult> {
-  const { eventBus, userId, logger } = options;
+  const { eventBus, contentStore, userId, logger } = options;
 
   // Stream and decompress archive entries
   const entries = new Map<string, Buffer>();
@@ -189,7 +192,7 @@ export async function importLinkedData(
   for (const entryName of resourceEntries) {
     const resourceDoc = JSON.parse(entries.get(entryName)!.toString('utf8'));
 
-    const result = await importResource(resourceDoc, userId, eventBus, resolveBlob, logger);
+    const result = await importResource(resourceDoc, userId, eventBus, contentStore, resolveBlob, logger);
     resourcesCreated++;
     annotationsCreated += result.annotationsCreated;
   }
@@ -217,14 +220,14 @@ async function addEntityType(
   logger?: Logger,
 ): Promise<void> {
   const result$ = race(
-    eventBus.get('mark:entity-type-added').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:entity-type-add-failed').pipe(map((e) => { throw e.error; })),
-    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:entity-type-added'); })),
+    eventBus.get('frame:entity-type-added').pipe(map(() => 'ok' as const)),
+    eventBus.get('frame:entity-type-add-failed').pipe(map((e) => { throw new Error(e.message); })),
+    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for frame:entity-type-added'); })),
   );
 
-  eventBus.get('mark:add-entity-type').next({
+  eventBus.get('frame:add-entity-type').next({
     tag: entityType,
-    userId,
+    _userId: userId,
   });
 
   await firstValueFrom(result$);
@@ -235,6 +238,7 @@ async function importResource(
   doc: Record<string, unknown>,
   userId: UserId,
   eventBus: EventBus,
+  contentStore: WorkingTreeStore,
   resolveBlob: (checksum: string) => Buffer | undefined,
   logger?: Logger,
 ): Promise<{ annotationsCreated: number }> {
@@ -267,25 +271,31 @@ async function importResource(
     throw new Error(`Missing content blob for checksum ${contentChecksum} (resource "${name}")`);
   }
 
+  // Write content to disk before emitting on bus (no Buffer on bus)
+  const resolvedUri = deriveStorageUri(name, format);
+  const stored = await contentStore.store(blob, resolvedUri);
+
   // Create resource via EventBus
   const createResult$ = race(
-    eventBus.get('yield:created').pipe(map((r) => r)),
-    eventBus.get('yield:create-failed').pipe(map((e) => { throw e.error; })),
-    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:created'); })),
+    eventBus.get('yield:create-ok').pipe(map((r) => r)),
+    eventBus.get('yield:create-failed').pipe(map((e) => { throw new Error(e.message); })),
+    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:create-ok'); })),
   );
 
   eventBus.get('yield:create').next({
     name,
-    content: blob,
+    storageUri: resolvedUri,
+    contentChecksum: stored.checksum,
+    byteSize: stored.byteSize,
     format,
-    userId,
+    _userId: userId,
     language,
     entityTypes: entityTypes ?? [],
     creationMethod: creationMethod as CreationMethod | undefined,
   });
 
   const created = await firstValueFrom(createResult$);
-  const resourceId = created.resourceId;
+  const resourceId = makeResourceId(created.resourceId);
 
   logger?.debug('Created resource from JSON-LD', { name, resourceId });
 
@@ -309,14 +319,14 @@ async function createAnnotation(
   logger?: Logger,
 ): Promise<void> {
   const result$ = race(
-    eventBus.get('mark:created').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:create-failed').pipe(map((e) => { throw e.error; })),
-    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:created'); })),
+    eventBus.get('mark:create-ok').pipe(map(() => 'ok' as const)),
+    eventBus.get('mark:create-failed').pipe(map((e) => { throw new Error(e.message); })),
+    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:create-ok'); })),
   );
 
   eventBus.get('mark:create').next({
     annotation: dehydrateAnnotation(annotation),
-    userId,
+    _userId: userId,
     resourceId,
   });
 

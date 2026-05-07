@@ -31,13 +31,13 @@ import { SemiontProject } from '@semiont/core/node';
 import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 
 // =====================================================================
 // SCHEMA
 // =====================================================================
 
-export const CleanOptionsSchema = BaseOptionsSchema.extend({
+export const CleanOptionsSchema = OpsOptionsSchema.extend({
   force: z.boolean().default(false),
   logs: z.boolean().default(false),
   pids: z.boolean().default(false),
@@ -96,7 +96,10 @@ function listDir(dir: string): string[] {
 }
 
 function containerRuntime(): string | null {
-  for (const rt of ['docker', 'podman']) {
+  if (process.env.CONTAINER_RUNTIME) {
+    return process.env.CONTAINER_RUNTIME.toLowerCase();
+  }
+  for (const rt of ['container', 'docker', 'podman']) {
     try {
       execFileSync(rt, ['info'], { stdio: 'ignore' });
       return rt;
@@ -156,7 +159,7 @@ export async function clean(options: CleanOptions): Promise<CommandResults> {
   // ── Logs ─────────────────────────────────────────────────────────────
   if (cleanLogs) {
     const logFiles: string[] = [];
-    for (const svc of ['backend', 'frontend', 'proxy', 'graph', 'inference', 'database', 'mcp']) {
+    for (const svc of ['backend', 'frontend', 'graph', 'inference', 'database', 'mcp']) {
       logFiles.push(...listDir(`${project.stateDir}/${svc}`));
     }
     if (logFiles.length > 0) {
@@ -172,7 +175,7 @@ export async function clean(options: CleanOptions): Promise<CommandResults> {
   // ── PID files ─────────────────────────────────────────────────────────
   if (cleanPids) {
     const pidFiles: string[] = [];
-    for (const svc of ['backend', 'frontend', 'proxy', 'graph', 'inference', 'database', 'mcp']) {
+    for (const svc of ['backend', 'frontend', 'graph', 'inference', 'database', 'mcp']) {
       const p = `${project.runtimeDir}/${svc}.pid`;
       if (fs.existsSync(p)) pidFiles.push(p);
     }
@@ -187,7 +190,7 @@ export async function clean(options: CleanOptions): Promise<CommandResults> {
   // ── Generated config ──────────────────────────────────────────────────
   if (cleanConfig) {
     const configFiles: string[] = [];
-    for (const svc of ['proxy', 'graph', 'inference', 'mcp']) {
+    for (const svc of ['graph', 'inference', 'mcp']) {
       configFiles.push(...listDir(`${project.configDir}/${svc}`));
     }
     if (configFiles.length > 0) {
@@ -232,7 +235,7 @@ export async function clean(options: CleanOptions): Promise<CommandResults> {
     });
   } else if (cleanVolumes && !runtime) {
     if (!options.quiet) {
-      console.log(`${colors.yellow}⚠️  No container runtime found (docker/podman) — skipping volumes${colors.reset}`);
+      console.log(`${colors.yellow}⚠️  No container runtime found — skipping volumes${colors.reset}`);
     }
   }
 
@@ -333,7 +336,7 @@ export const cleanCommand = new CommandBuilder()
   .name('clean')
   .description('Remove ephemeral files (logs, PID files, generated config, Docker volumes)')
   .schema(CleanOptionsSchema)
-  .args(withBaseArgs({
+  .args(withOpsArgs({
     '--force': {
       type: 'boolean',
       description: 'Skip confirmation prompts',

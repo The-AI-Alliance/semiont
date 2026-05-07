@@ -37,7 +37,7 @@ async function rebuildGraph(rId?: string, environment?: string) {
 
   // Start make-meaning to get eventStore and graphConsumer
   const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
-  const { graphConsumer: consumer } = makeMeaning;
+  const { knowledgeSystem: { kb: { graphConsumer: consumer } } } = makeMeaning;
 
   if (rId) {
     // Rebuild single resource

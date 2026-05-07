@@ -1,108 +1,72 @@
-'use client';
-
-/**
- * Linked Data Client - Thin Next.js wrapper
- *
- * Handles Next.js-specific concerns (translations, API calls, hooks)
- * and delegates rendering to the pure React LinkedDataPage component.
- */
-
-import React, { useState, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
-import { useModeration, Toolbar } from '@semiont/react-ui';
+import { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  Toolbar,
+  useTheme,
+  useShellStateUnit,
+  useObservable,
+  useLineNumbers,
+  useEventSubscriptions,
+  useSemiont,
+  useStateUnit,
+  LinkedDataPage,
+} from '@semiont/react-ui';
+import { createExchangeStateUnit } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
-import { LinkedDataPage } from '@semiont/react-ui';
-import type { ImportPreview } from '@semiont/react-ui';
 
 export default function LinkedDataClient() {
-  const t = useTranslations('ModerationLinkedData');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`ModerationLinkedData.${k}`, p as any) as string;
+  const client = useObservable(useSemiont().activeSession$)?.client;
 
-  // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() => createExchangeStateUnit(
+    browseStateUnit,
+    (params) => client!.admin!.exportKnowledgeBase(params),
+    (file) => client!.admin!.importKnowledgeBase(file),
+  ));
+
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const selectedFile = useObservable(stateUnit.selectedFile$) ?? null;
+  const preview = useObservable(stateUnit.preview$) ?? null;
+  const isExporting = useObservable(stateUnit.isExporting$) ?? false;
+  const isImporting = useObservable(stateUnit.isImporting$) ?? false;
+  const importPhase = useObservable(stateUnit.importPhase$) ?? null;
+  const importMessage = useObservable(stateUnit.importMessage$);
+  const importResult = useObservable(stateUnit.importResult$);
+
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
-    setTheme(theme);
-  }, [setTheme]);
-
-  const handleLineNumbersToggled = useCallback(() => {
-    toggleLineNumbers();
-  }, [toggleLineNumbers]);
-
   useEventSubscriptions({
-    'settings:theme-changed': handleThemeChanged,
-    'settings:line-numbers-toggled': handleLineNumbersToggled,
+    'settings:theme-changed': useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme), [setTheme]),
+    'settings:line-numbers-toggled': useCallback(() => toggleLineNumbers(), [toggleLineNumbers]),
   });
 
-  // API hooks
-  const moderationAPI = useModeration();
-  const exportMutation = moderationAPI.exchange.export.useMutation();
-  const importMutation = moderationAPI.exchange.import.useMutation();
+  const handleExport = useCallback(async () => {
+    const { blob, filename } = await stateUnit.doExport();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [stateUnit]);
 
-  // Local state
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<ImportPreview | null>(null);
-  const [importPhase, setImportPhase] = useState<string | null>(null);
-  const [importMessage, setImportMessage] = useState<string | undefined>();
-  const [importResult, setImportResult] = useState<Record<string, unknown> | undefined>();
-
-  const handleExport = useCallback(() => {
-    exportMutation.mutate({});
-  }, [exportMutation]);
-
-  const handleFileSelected = useCallback(async (file: File) => {
-    setSelectedFile(file);
-    setImportPhase(null);
-    setImportMessage(undefined);
-    setImportResult(undefined);
-
-    setPreview({
-      format: file.name.endsWith('.tar.gz') || file.name.endsWith('.gz') ? 'semiont-linked-data' : 'unknown',
-      version: 1,
-      sourceUrl: '',
-      stats: {},
-    });
-  }, []);
-
-  const handleImport = useCallback(() => {
-    if (!selectedFile) return;
-
-    setImportPhase('started');
-    setImportMessage(undefined);
-    setImportResult(undefined);
-
-    importMutation.mutate({
-      file: selectedFile,
-      onProgress: (event) => {
-        setImportPhase(event.phase);
-        setImportMessage(event.message);
-        if (event.result) {
-          setImportResult(event.result);
-        }
-      },
-    });
-  }, [selectedFile, importMutation]);
-
-  const handleCancelImport = useCallback(() => {
-    setSelectedFile(null);
-    setPreview(null);
-    setImportPhase(null);
-    setImportMessage(undefined);
-    setImportResult(undefined);
-  }, []);
+  const handleImport = useCallback(async () => {
+    await stateUnit.doImport();
+  }, [stateUnit]);
 
   return (
     <LinkedDataPage
       onExport={handleExport}
-      isExporting={exportMutation.isPending}
-      onFileSelected={handleFileSelected}
+      isExporting={isExporting}
+      onFileSelected={stateUnit.selectFile}
       onImport={handleImport}
-      onCancelImport={handleCancelImport}
+      onCancelImport={stateUnit.cancelImport}
       selectedFile={selectedFile}
       preview={preview}
-      isImporting={importMutation.isPending}
+      isImporting={isImporting}
       importPhase={importPhase}
       importMessage={importMessage}
       importResult={importResult}

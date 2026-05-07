@@ -15,9 +15,10 @@ import { DatabaseService } from './database-service.js';
 import { GraphService } from './graph-service.js';
 import { MCPService } from './mcp-service.js';
 import { InferenceService } from './inference-service.js';
-import { ProxyService } from './proxy-service.js';
+import { EmbeddingService } from './embedding-service.js';
+import { VectorsService } from './vectors-service.js';
 
-const SUPPORTED_SERVICES = ['backend', 'frontend', 'database', 'graph', 'mcp', 'inference', 'proxy'] as const;
+const SUPPORTED_SERVICES = ['backend', 'frontend', 'database', 'graph', 'mcp', 'inference', 'embedding', 'vectors'] as const;
 
 type InferenceProviderConfig = OllamaProviderConfig | AnthropicProviderConfig;
 
@@ -55,8 +56,11 @@ export class ServiceFactory {
       case 'mcp':
         return new MCPService(name, platform, envConfig, serviceConfig, runtimeFlags);
 
-      case 'proxy':
-        return new ProxyService('proxy', platform, envConfig, serviceConfig, runtimeFlags);
+      case 'vectors':
+        return new VectorsService(name, platform, envConfig, serviceConfig as import('@semiont/core').VectorsServiceConfig, runtimeFlags);
+
+      case 'embedding':
+        return new EmbeddingService('embedding', platform, envConfig, serviceConfig as unknown as import('./embedding-service').EmbeddingConfig, runtimeFlags);
 
       case 'inference':
       default: {
@@ -103,4 +107,5 @@ export class ServiceFactory {
       )
     );
   }
+
 }

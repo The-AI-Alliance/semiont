@@ -31,6 +31,14 @@
     },
     "authenticatedAs": {
       "type": "string"
+    },
+    "projectName": {
+      "type": "string",
+      "description": "Name of the knowledge base project"
+    },
+    "gitBranch": {
+      "type": "string",
+      "description": "Current git branch of the knowledge base repository"
     }
   },
   "required": [

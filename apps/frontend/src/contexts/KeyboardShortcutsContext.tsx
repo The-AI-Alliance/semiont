@@ -1,5 +1,3 @@
-'use client';
-
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useKeyboardShortcuts, useDoubleKeyPress, KeyboardShortcutsHelpModal } from '@semiont/react-ui';

@@ -1,43 +1,37 @@
-# Single-stage: install pre-built @semiont/frontend from npm
-FROM node:22-alpine
+# Stage 1: install (npm runs here, then is discarded).
+FROM node:25-alpine AS installer
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ARG SEMIONT_FRONTEND_VERSION=latest
+WORKDIR /app
+RUN npm config set registry $NPM_REGISTRY && \
+    npm init -y && \
+    npm install @semiont/frontend@${SEMIONT_FRONTEND_VERSION} && \
+    npm cache clean --force
 
-ARG SEMIONT_VERSION=latest
-ARG BUILD_VERSION
-ARG BUILD_SHA
+# Stage 2: minimal runtime — node only, no npm. The runtime entrypoint is
+# `node server.js`, so npm is build-only baggage. Removing it also drops
+# the picomatch / glob / etc. CVE surface that ships inside npm's bundled
+# node_modules.
+FROM node:25-alpine
+RUN rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/bin/npm \
+           /usr/local/bin/npx
 
-# Build-time environment variables embedded in the Next.js bundle
-ARG NEXT_PUBLIC_SITE_NAME=Semiont
-ARG NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=example.com
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 semiont
 
 WORKDIR /app
+RUN chown semiont:nodejs /app
+USER semiont
 
-# Install the pre-built frontend package from npm
-RUN npm init -y && \
-    npm install @semiont/frontend@${SEMIONT_VERSION}
-
-# Install runtime dependencies
-RUN apk add --no-cache openssl curl
-
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
-
-# Set ownership
-RUN chown -R nextjs:nodejs /app
-
-USER nextjs
-
-EXPOSE 3000
+COPY --from=installer --chown=semiont:nodejs /app /app
+COPY LICENSE apps/frontend/NOTICE /app/
 
 ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
-ENV HOSTNAME=0.0.0.0
+EXPOSE 3000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+  CMD node -e "require('http').get('http://localhost:3000/', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-# Run the standalone server from the installed package
-# Next.js standalone output preserves monorepo directory structure
-CMD ["node", "node_modules/@semiont/frontend/standalone/apps/frontend/server.js"]
+CMD ["node", "node_modules/@semiont/frontend/server.js"]

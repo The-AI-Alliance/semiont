@@ -2,14 +2,9 @@
 // This replaces the mock in-memory implementation
 
 import { GraphDatabase } from '../interface';
-import type { components, Logger } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
-import {
-  getBodySource,
-  getPrimaryRepresentation,
-  getResourceId,
-  getExactText,
-} from '@semiont/api-client';
+import type { Logger } from '@semiont/core';
+import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
+import { getBodySource, getPrimaryRepresentation, getResourceId, getExactText } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import type {
   AnnotationCategory,
@@ -24,8 +19,8 @@ import type {
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-type Annotation = components['schemas']['Annotation'];
+import type { ResourceDescriptor } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 
 export class JanusGraphDatabase implements GraphDatabase {
   private connected: boolean = false;
@@ -138,9 +133,11 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     const sourceAnnotationId = this.getPropertyValue(props, 'sourceAnnotationId');
     const sourceResourceId = this.getPropertyValue(props, 'sourceResourceId');
+    const storageUri = this.getPropertyValue(props, 'storageUri');
 
     if (sourceAnnotationId) resource.sourceAnnotationId = sourceAnnotationId;
     if (sourceResourceId) resource.sourceResourceId = sourceResourceId;
+    if (storageUri) resource.storageUri = storageUri;
 
     return resource;
   }
@@ -270,6 +267,9 @@ export class JanusGraphDatabase implements GraphDatabase {
     if (resource.sourceResourceId) {
       vertex.property('sourceResourceId', resource.sourceResourceId);
     }
+    if (resource.storageUri) {
+      vertex.property('storageUri', resource.storageUri);
+    }
 
     await vertex.next();
 
@@ -322,20 +322,22 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
   
   async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
-    let traversalQuery = this.g!.V().hasLabel('Resource');
-
-    // Apply filters
-    if (filter.search) {
-      // Note: This is a simple text search. In production, you'd use
-      // JanusGraph's full-text search capabilities with Elasticsearch
-      const { process: gremlinProcess } = await import('gremlin');
-      traversalQuery = traversalQuery.has('name', gremlinProcess.TextP.containing(filter.search));
-    }
-
-    const docs = await traversalQuery.toList();
+    // Note: filtering is done client-side after retrieval. In production,
+    // JanusGraph supports server-side text predicates via Elasticsearch,
+    // but composing OR across multiple text properties requires the
+    // anonymous-traversal API; for a backend that's not the production
+    // target today, JS post-filtering is simpler and adequate at our scale.
+    const docs = await this.g!.V().hasLabel('Resource').toList();
     let resources = docs.map((v: any) => this.vertexToResource(v));
 
-    // Apply entity type filtering after retrieval since JanusGraph stores as JSON
+    if (filter.search) {
+      const needle = filter.search.toLowerCase();
+      resources = resources.filter((doc: ResourceDescriptor) =>
+        (doc.name?.toLowerCase().includes(needle) ?? false) ||
+        (doc.storageUri?.toLowerCase().includes(needle) ?? false)
+      );
+    }
+
     if (filter.entityTypes && filter.entityTypes.length > 0) {
       resources = resources.filter((doc: ResourceDescriptor) =>
         filter.entityTypes!.some((type: string) => doc.entityTypes?.includes(type))
@@ -366,7 +368,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     const annotation: Annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
-      id,
+      id: makeAnnotationId(id),
       motivation,
       target: input.target,
       body: input.body,
@@ -377,7 +379,15 @@ export class JanusGraphDatabase implements GraphDatabase {
     // Extract source from body using helper
     const bodySource = getBodySource(input.body);
     const entityTypes = getEntityTypes(input);
-    const bodyType = Array.isArray(input.body) ? 'SpecificResource' : input.body.type;
+    // Body is optional per the Annotation schema (highlighting
+    // annotations carry none). When absent we record 'None' in the
+    // graph vertex so queries can distinguish "highlight" from
+    // "reference without resolved link" cleanly.
+    const bodyType = input.body === undefined
+      ? 'None'
+      : Array.isArray(input.body)
+        ? 'SpecificResource'
+        : input.body.type;
 
     // Extract target source and selector
     const targetSource = typeof input.target === 'string' ? input.target : input.target.source;
@@ -666,7 +676,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .has('source', resourceId)
       .toList();
 
-    return await this.fetchAnnotationsWithEntityTypes(vertices);
+    return this.fetchAnnotationsWithEntityTypes(vertices);
   }
   
   async getResourceConnections(resourceId: ResourceId): Promise<GraphConnection[]> {

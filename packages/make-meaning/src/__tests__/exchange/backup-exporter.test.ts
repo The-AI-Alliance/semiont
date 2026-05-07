@@ -43,23 +43,18 @@ function collectWritable(): { writable: Writable; promise: Promise<Buffer> } {
   return { writable, promise };
 }
 
-function makeStoredEvent(type: string, payload: Record<string, unknown>, checksum: string): StoredEvent {
+function makeStoredEvent(type: string, payload: Record<string, unknown>): StoredEvent {
   return {
-    event: {
-      id: 'evt-1',
-      type,
-      resourceId: 'resource-1' as ResourceId,
-      userId: 'did:web:localhost:users:test' as UserId,
-      timestamp: '2026-03-12T00:00:00Z',
-      version: 1,
-      payload,
-    },
+    id: 'evt-1',
+    type,
+    resourceId: 'resource-1' as ResourceId,
+    userId: 'did:web:localhost:users:test' as UserId,
+    timestamp: '2026-03-12T00:00:00Z',
+    version: 1,
+    payload,
     metadata: {
       sequenceNumber: 1,
       streamPosition: 0,
-      timestamp: '2026-03-12T00:00:00Z',
-      checksum,
-      prevEventHash: undefined,
     },
   } as StoredEvent;
 }
@@ -123,19 +118,19 @@ describe('backup-exporter', () => {
 
   it('exports system events and resource events', async () => {
     const systemEvents = [
-      makeStoredEvent('entitytype.added', { entityType: 'Person' }, 'sys-check-1'),
+      makeStoredEvent('frame:entity-type-added', { entityType: 'Person' }),
     ];
     const resourceId = 'res-abc' as ResourceId;
     const resourceEvents = new Map<string, StoredEvent[]>();
     resourceEvents.set(resourceId, [
-      makeStoredEvent('resource.created', {
+      makeStoredEvent('yield:created', {
         name: 'Test Doc',
         storageUri: 'sha-content',
         format: 'text/markdown',
         language: 'en',
         entityTypes: ['Person'],
         creationMethod: 'api',
-      }, 'res-check-1'),
+      }),
     ]);
 
     const contentBlobs = new Map([
@@ -187,43 +182,11 @@ describe('backup-exporter', () => {
     const systemData = entryDataMap.get('.semiont/events/__system__.jsonl')!.toString('utf8');
     const parsedSysEvents = systemData.trim().split('\n').map((l) => JSON.parse(l));
     expect(parsedSysEvents).toHaveLength(1);
-    expect(parsedSysEvents[0].event.type).toBe('entitytype.added');
+    expect(parsedSysEvents[0].type).toBe('frame:entity-type-added');
 
     // Verify content blob
     const contentData = entryDataMap.get('sha-content.md')!;
     expect(contentData.toString('utf8')).toBe('# Test Content\n');
-  });
-
-  it('includes correct stream summaries with checksums', async () => {
-    const systemEvents = [
-      makeStoredEvent('entitytype.added', { entityType: 'A' }, 'first-sys'),
-      makeStoredEvent('entitytype.added', { entityType: 'B' }, 'last-sys'),
-    ];
-
-    const eventStore = createMockEventStore({ systemEvents });
-    const contentStore = createMockContentStore(new Map());
-    const { writable, promise } = collectWritable();
-
-    await exportBackup(
-      { eventStore, content: contentStore, sourceUrl: 'http://test' },
-      writable,
-    );
-
-    const archive = await promise;
-    let manifestData = '';
-    for await (const entry of readTarGz(bufferToReadable(archive))) {
-      if (entry.name === '.semiont/manifest.jsonl') {
-        manifestData = entry.data.toString('utf8');
-      }
-    }
-
-    const lines = manifestData.trim().split('\n');
-    const streamSummary = JSON.parse(lines[1]);
-
-    expect(streamSummary.stream).toBe('__system__');
-    expect(streamSummary.eventCount).toBe(2);
-    expect(streamSummary.firstChecksum).toBe('first-sys');
-    expect(streamSummary.lastChecksum).toBe('last-sys');
   });
 
   it('sets sourceUrl and exportedAt in manifest', async () => {

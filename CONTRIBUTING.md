@@ -8,7 +8,7 @@ Thank you for your interest in contributing to Semiont! This document provides g
 
 - **AWS** - Production deployment on Amazon Web Services
 - **POSIX** - Local development on Linux/macOS
-- **Container** - Docker/Podman containerized environments
+- **Container** - Apple Container/Docker/Podman containerized environments
 - **External** - Integration with external services
 - **Mock** - Testing platform
 
@@ -54,7 +54,7 @@ This project is part of [The AI Alliance](https://thealliance.ai/) and follows t
 
 - Node.js 18+ with npm
 - Git
-- Docker or Podman (for container development)
+- Apple Container, Docker, or Podman (for container development)
 - TypeScript knowledge
 
 ### Initial Setup
@@ -215,7 +215,7 @@ Platform contributions enable Semiont to run on new cloud providers and deployme
 2. **Implement the Platform interface** for your target platform
 3. **Add platform-specific resources** and deployment logic
 4. **Write tests** for platform operations
-5. **Document the platform** in `docs/platforms/YOUR_PLATFORM.md`
+5. **Document the platform** in `docs/system/platforms/YOUR_PLATFORM.md`
 
 Follow the [Adding Platforms guide](apps/cli/docs/ADDING_PLATFORMS.md) for step-by-step instructions.
 
@@ -226,8 +226,8 @@ When submitting a new platform:
 - [ ] Platform implements complete `Platform` interface
 - [ ] Unit tests for platform implementation (>80% coverage)
 - [ ] Integration tests for deployment workflow
-- [ ] Documentation in `docs/platforms/PLATFORM.md`
-- [ ] Updated main [ARCHITECTURE.md](docs/ARCHITECTURE.md) with platform option
+- [ ] Documentation in `docs/system/platforms/PLATFORM.md`
+- [ ] Updated [docs/system/CONTAINER-TOPOLOGY.md](docs/system/CONTAINER-TOPOLOGY.md) with the new platform option
 - [ ] Example environment configuration
 - [ ] Cost estimation guidance
 - [ ] Migration guide from existing platforms
@@ -237,7 +237,7 @@ When submitting a new platform:
 Study existing platforms as reference:
 
 - **[AWS](apps/cli/src/platforms/aws/)** - Most complete implementation (ECS, RDS, ALB, CloudFront)
-- **[Container](apps/cli/src/platforms/container/)** - Docker/Podman abstraction
+- **[Container](apps/cli/src/platforms/container/)** - Container runtime abstraction
 - **[POSIX](apps/cli/src/platforms/posix/)** - Local development platform
 
 ## 🔄 Pull Request Process
@@ -379,7 +379,7 @@ Update docs when you:
 - **Backend**: `apps/backend/docs/` - Backend-specific guides
 - **Frontend**: `apps/frontend/docs/` - Frontend-specific guides
 - **CLI**: `apps/cli/README.md` - CLI usage
-- **Platforms**: `docs/platforms/` - Platform-specific deployment
+- **Platforms**: `docs/system/platforms/` - Platform-specific deployment
 
 ### Documentation Style
 

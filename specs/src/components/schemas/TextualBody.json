@@ -10,7 +10,7 @@
       "description": "The text content (e.g., entity type name)"
     },
     "purpose": {
-      "$ref": "./Motivation.json",
+      "$ref": "./BodyPurpose.json",
       "description": "Why this body is included"
     },
     "format": {

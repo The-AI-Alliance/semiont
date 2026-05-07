@@ -10,6 +10,7 @@ export const CREATION_METHODS = {
   UPLOAD: 'upload',
   UI: 'ui',
   REFERENCE: 'reference',
+  CLI: 'cli',
   CLONE: 'clone',
   GENERATED: 'generated',
 } as const;

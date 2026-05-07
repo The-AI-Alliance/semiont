@@ -1,15 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders, resetEventBusForTesting } from '../../../test-utils';
+import { renderWithProviders } from '../../../test-utils';
 import { ObservableLink } from '../ObservableLink';
 
 describe('ObservableLink', () => {
-  beforeEach(() => {
-    resetEventBusForTesting();
-  });
-
   it('renders anchor with href', () => {
     renderWithProviders(
       <ObservableLink href="/discover">Discover</ObservableLink>
@@ -30,17 +26,17 @@ describe('ObservableLink', () => {
     expect(screen.getByText('Click me')).toBeInTheDocument();
   });
 
-  it('emits browse:link-clicked with href and label on click', () => {
+  it('emits nav:link-clicked with href and label on click', () => {
     const handler = vi.fn();
 
-    const { eventBus } = renderWithProviders(
+    const { shellBus } = renderWithProviders(
       <ObservableLink href="/discover" label="Discover">
         Discover Resources
       </ObservableLink>,
-      { returnEventBus: true }
+      { returnShellBus: true }
     );
 
-    const subscription = eventBus!.get('browse:link-clicked').subscribe(handler);
+    const subscription = shellBus!.get('nav:link-clicked').subscribe(handler);
 
     const link = screen.getByRole('link');
     fireEvent.click(link);

@@ -13,7 +13,7 @@
     "administer": "مدیریت"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. تمامی حقوق محفوظ است.",
+    "copyright": "© {{year}} The AI Alliance. تمامی حقوق محفوظ است.",
     "about": "درباره ما",
     "privacyPolicy": "سیاست حفظ حریم خصوصی",
     "cookiePreferences": "تنظیمات کوکی",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "معنا بسازید",
-    "description": "چارچوب متن‌باز و آینده‌نگر که به انسان‌ها و عوامل هوشمند امکان می‌دهد دانش مشترک را هم‌آفرینی کنند — تحت حاکمیت شما و ساخته‌شده برای ماندگاری.",
-    "continueToKnowledgeBase": "ادامه به پایگاه دانش",
-    "learnMore": "اطلاعات بیشتر",
-    "signUp": "ثبت‌نام",
-    "signIn": "ورود",
-    "loading": "در حال بارگذاری..."
+    "begin": "شروع"
   },
   "About": {
     "pageTitle": "درباره Semiont",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "ما از کوکی‌ها و فناوری‌های مشابه برای بهبود تجربه شما، تحلیل استفاده و ارائه محتوای شخصی‌سازی‌شده استفاده می‌کنیم.",
     "cookieCategoriesTitle": "دسته‌بندی‌های کوکی",
     "necessaryCookiesTitle": "کوکی‌های ضروری",
-    "necessaryCookies": "ضروری برای عملکرد وب‌سایت، از جمله ویژگی‌های احراز هویت و امنیت.\n\nمثال‌ها: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "ضروری برای عملکرد وب‌سایت، از جمله ویژگی‌های احراز هویت و امنیت.\n\nمثال‌ها: semiont-token",
     "analyticsCookiesTitle": "کوکی‌های تحلیلی",
     "analyticsCookies": "به ما کمک می‌کنند بفهمیم بازدیدکنندگان چگونه با وب‌سایت ما تعامل دارند تا تجربه کاربری را بهبود دهیم.\n\nمثال‌ها: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "کوکی‌های بازاریابی",
@@ -94,7 +89,7 @@
     "contactAddress": "آدرس:",
     "updatesTitle": "به‌روزرسانی‌های این سیاست",
     "updates": "ما ممکن است این سیاست حفظ حریم خصوصی را هر از گاهی به‌روزرسانی کنیم. در صورت تغییرات اساسی، با انتشار سیاست حفظ حریم خصوصی جدید در این صفحه و به‌روزرسانی تاریخ اجرا، شما را مطلع خواهیم کرد.",
-    "lastUpdated": "آخرین به‌روزرسانی: {date}"
+    "lastUpdated": "آخرین به‌روزرسانی: {{date}}"
   },
   "Terms": {
     "pageTitle": "شرایط خدمات",
@@ -124,7 +119,7 @@
     "changes": "ما ممکن است این شرایط را به‌صورت دوره‌ای به‌روزرسانی کنیم. کاربران از تغییرات قابل توجه مطلع خواهند شد و ادامه استفاده از پلتفرم به منزله پذیرش شرایط به‌روزرسانی‌شده تلقی می‌شود.",
     "contactTitle": "تماس",
     "contact": "اگر سؤالی درباره این شرایط دارید یا نیاز به گزارش تخلفات دارید، لطفاً از طریق پلتفرم یا اطلاعات تماس ارائه‌شده در سیاست حفظ حریم خصوصی ما با تیم پشتیبانی تماس بگیرید.",
-    "lastUpdated": "آخرین به‌روزرسانی: {date}",
+    "lastUpdated": "آخرین به‌روزرسانی: {{date}}",
     "aup": "با استفاده از Semiont، شما موافقت می‌کنید که از پلتفرم ما به‌صورت مسئولانه و مطابق با این شرایط استفاده کنید. ما متعهد به حفظ محیطی امن، محترمانه و سازنده برای تمامی کاربران هستیم."
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "ایجاد حساب ناموفق بود. لطفاً با پشتیبانی تماس بگیرید.",
     "errorGeneric": "خطایی در احراز هویت رخ داد. لطفاً دوباره تلاش کنید.",
     "errorGoogleSignIn": "شروع ورود با Google ناموفق بود. لطفاً دوباره تلاش کنید.",
+    "backendUrlLabel": "آدرس URL بک‌اند",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "لطفاً آدرس URL بک‌اند را وارد کنید",
+    "errorBackendUrlInvalid": "لطفاً یک URL معتبر وارد کنید (مثال: http://localhost:4000)",
+    "errorBackendUrlUnreachable": "این URL در دسترس نیست — آیا سرور پشتیبان در حال اجرا است؟",
     "errorEmailRequired": "لطفاً آدرس ایمیل خود را وارد کنید",
     "errorPasswordRequired": "لطفاً رمز عبور خود را وارد کنید",
     "errorSignInFailed": "ورود ناموفق بود. لطفاً دوباره تلاش کنید.",
@@ -185,7 +185,7 @@
     "loading": "در حال بارگذاری...",
     "welcomeTitle": "به Semiont خوش آمدید!",
     "thanksForAccepting": "از پذیرش شرایط ما سپاسگزاریم. در حال هدایت شما به برنامه...",
-    "welcomeUser": "به Semiont خوش آمدید، {firstName}!",
+    "welcomeUser": "به Semiont خوش آمدید، {{firstName}}!",
     "reviewTermsPrompt": "پیش از شروع استفاده از Semiont، لطفاً شرایط خدمات ما را بررسی و بپذیرید",
     "termsSummaryTitle": "خلاصه شرایط خدمات",
     "termsSummaryIntro": "با استفاده از Semiont، شما موافقت می‌کنید که:",
@@ -246,9 +246,9 @@
     "archived": "بایگانی‌شده",
     "created": "ایجادشده",
     "recentResources": "منابع اخیر",
-    "searchResults": "نتایج جستجو ({count})",
-    "resourcesTaggedWith": "منابع برچسب‌گذاری‌شده با «{entityType}»",
-    "noResultsFound": "نتیجه‌ای برای «{query}» یافت نشد. در عوض منابع اخیر نمایش داده می‌شوند.",
+    "searchResults": "نتایج جستجو ({{count}})",
+    "resourcesTaggedWith": "منابع برچسب‌گذاری‌شده با «{{entityType}}»",
+    "noResultsFound": "نتیجه‌ای برای «{{query}}» یافت نشد. در عوض منابع اخیر نمایش داده می‌شوند.",
     "noResourcesAvailable": "منبعی موجود نیست. اولین سند خود را ایجاد کنید تا شروع کنید.",
     "composeFirstResource": "ایجاد اولین منبع",
     "loadingKnowledgeBase": "در حال بارگذاری پایگاه دانش..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "نام منبع را وارد کنید...",
     "entityTypes": "برچسب‌های نوع موجودیت",
     "entityTypesHint": "منبع خود را با انواع موجودیت برچسب‌گذاری کنید",
-    "noEntityTypesAvailable": "نوع موجودیتی موجود نیست",
     "contentSource": "منبع محتوا",
     "uploadFile": "بارگذاری فایل",
     "uploadFileDescription": "تصاویر، اسناد، فایل‌های متنی",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "حساب کاربری",
     "user": "کاربر",
-    "profileAlt": "نمایه {name}",
+    "profileAlt": "نمایه {{name}}",
     "session": "نشست",
-    "expiresIn": "انقضا در: {time}",
+    "expiresIn": "انقضا در: {{time}}",
     "privileges": "دسترسی‌ها",
     "administrator": "🛡️ مدیر",
     "moderator": "⚖️ ناظر",
@@ -433,7 +432,7 @@
     "configManagementDescription": "تنظیمات OAuth از طریق متغیرهای محیطی مدیریت می‌شوند. برای تغییر این تنظیمات:",
     "configLocalDev": "برای توسعه محلی: فایل‌های .env خود را به‌روزرسانی کنید",
     "configCloudDeploy": "برای استقرار ابری: از",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "برای اعمال تغییرات از فایل‌های پیکربندی استفاده کنید",
     "configAWS": "برای AWS: تنظیمات در AWS Secrets Manager و تعاریف وظایف ECS ذخیره می‌شوند"
   },
@@ -510,11 +509,11 @@
     "title": "تنظیمات کوکی",
     "description": "تنظیمات کوکی و حریم خصوصی خود را مدیریت کنید. تغییرات بلافاصله اعمال خواهند شد.",
     "currentSettings": "تنظیمات فعلی",
-    "lastUpdated": "آخرین به‌روزرسانی: {date}",
-    "version": "نسخه: {version}",
+    "lastUpdated": "آخرین به‌روزرسانی: {{date}}",
+    "version": "نسخه: {{version}}",
     "cookieCategories": "دسته‌بندی‌های کوکی",
     "required": "(الزامی)",
-    "viewCookies": "مشاهده کوکی‌ها ({count})",
+    "viewCookies": "مشاهده کوکی‌ها ({{count}})",
     "dataManagement": "مدیریت داده‌ها",
     "exportMyData": "خروجی داده‌های من",
     "deleteAllData": "حذف تمام داده‌ها",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "پایگاه‌های دانش",
+    "connectTitle": "اتصال به پایگاه دانش",
+    "connect": "اتصال",
+    "connecting": "در حال اتصال...",
+    "signIn": "ورود",
+    "signingIn": "در حال ورود...",
+    "cancel": "لغو",
+    "addKnowledgeBase": "افزودن پایگاه دانش",
+    "removeConfirm": "آیا {{label}} حذف شود؟",
+    "remove": "حذف",
+    "signOut": "خروج",
+    "statusConnected": "متصل",
+    "statusExpired": "نشست منقضی شده",
+    "statusSignedOut": "خارج شده",
+    "statusUnreachable": "غیرقابل دسترس",
+    "invalidHost": "نام هاست نامعتبر"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "هیچ پایگاه دانشی وجود ندارد",
+    "noKnowledgeBasesHint": "برای شروع کشف، حاشیه‌نویسی و پیوند منابع، یک پایگاه دانش با استفاده از پنل سمت راست اضافه کنید.",
+    "sessionExpired": "نشست شما منقضی شده است.",
+    "signedOut": "شما خارج شده‌اید.",
+    "signInHint": "برای مرور منابع با استفاده از پنل پایگاه دانش وارد شوید.",
+    "findKnowledgeBases": "یافتن پایگاه‌های دانش",
+    "createNew": "ایجاد یکی جدید"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "برای مشاهده حساب خود، وارد یک پایگاه دانش شوید."
   }
 }

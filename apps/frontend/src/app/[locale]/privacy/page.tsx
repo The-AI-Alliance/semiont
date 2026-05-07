@@ -1,17 +1,19 @@
-'use client';
-
 import React, { useContext } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { PageLayout } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link as RoutingLink, routes } from '@/lib/routing';
 
 export default function PrivacyPolicyPage() {
-  const t = useTranslations('Privacy');
-  const tFooter = useTranslations('Footer');
-  const tNav = useTranslations('Navigation');
-  const tHome = useTranslations('Home');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Privacy.${k}`, p as any) as string;
+  const { t: _tFooter } = useTranslation();
+  const tFooter = (k: string, p?: Record<string, unknown>) => _tFooter(`Footer.${k}`, p as any) as string;
+  const { t: _tNav } = useTranslation();
+  const tNav = (k: string, p?: Record<string, unknown>) => _tNav(`Navigation.${k}`, p as any) as string;
+  const { t: _tHome } = useTranslation();
+  const tHome = (k: string, p?: Record<string, unknown>) => _tHome(`Home.${k}`, p as any) as string;
   const keyboardContext = useContext(KeyboardShortcutsContext);
 
   return (

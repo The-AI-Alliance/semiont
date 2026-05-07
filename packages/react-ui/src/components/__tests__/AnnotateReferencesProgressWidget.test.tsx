@@ -1,16 +1,14 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders, resetEventBusForTesting } from '../../test-utils';
+import { renderWithProviders } from '../../test-utils';
 import { AnnotateReferencesProgressWidget } from '../AnnotateReferencesProgressWidget';
-import type { MarkProgress } from '@semiont/core';
+import type { components } from '@semiont/core';
+
+type JobProgress = components['schemas']['JobProgress'];
 
 describe('AnnotateReferencesProgressWidget', () => {
-  beforeEach(() => {
-    resetEventBusForTesting();
-  });
-
   it('returns null when progress is null', () => {
     const { container } = renderWithProviders(
       <AnnotateReferencesProgressWidget progress={null} />
@@ -19,9 +17,10 @@ describe('AnnotateReferencesProgressWidget', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders progress with status message', () => {
-    const progress: MarkProgress = {
-      status: 'in-progress',
+  it('renders progress with stage message', () => {
+    const progress: JobProgress = {
+      stage: 'in-progress',
+      percentage: 50,
       message: 'Processing entities...',
     };
 
@@ -33,8 +32,9 @@ describe('AnnotateReferencesProgressWidget', () => {
   });
 
   it('shows cancel button when not complete', () => {
-    const progress: MarkProgress = {
-      status: 'in-progress',
+    const progress: JobProgress = {
+      stage: 'in-progress',
+      percentage: 30,
       message: 'Working...',
     };
 
@@ -47,8 +47,10 @@ describe('AnnotateReferencesProgressWidget', () => {
   });
 
   it('hides cancel button when complete', () => {
-    const progress: MarkProgress = {
-      status: 'complete',
+    const progress: JobProgress = {
+      stage: 'complete',
+      percentage: 100,
+      message: '',
     };
 
     renderWithProviders(
@@ -60,8 +62,9 @@ describe('AnnotateReferencesProgressWidget', () => {
 
   it('emits job:cancel-requested on cancel click', () => {
     const handler = vi.fn();
-    const progress: MarkProgress = {
-      status: 'in-progress',
+    const progress: JobProgress = {
+      stage: 'in-progress',
+      percentage: 40,
       message: 'Working...',
     };
 
@@ -81,8 +84,10 @@ describe('AnnotateReferencesProgressWidget', () => {
   });
 
   it('renders completed entity types', () => {
-    const progress: MarkProgress = {
-      status: 'in-progress',
+    const progress: JobProgress = {
+      stage: 'in-progress',
+      percentage: 60,
+      message: '',
       completedEntityTypes: [
         { entityType: 'Person', foundCount: 5 },
         { entityType: 'Organization', foundCount: 3 },
@@ -100,9 +105,11 @@ describe('AnnotateReferencesProgressWidget', () => {
     expect(foundLabels).toHaveLength(2);
   });
 
-  it('shows complete icon for complete status', () => {
-    const progress: MarkProgress = {
-      status: 'complete',
+  it('shows complete icon for complete stage', () => {
+    const progress: JobProgress = {
+      stage: 'complete',
+      percentage: 100,
+      message: '',
     };
 
     const { container } = renderWithProviders(
@@ -113,9 +120,10 @@ describe('AnnotateReferencesProgressWidget', () => {
     expect(screen.getByText('ReferencesPanel.complete')).toBeInTheDocument();
   });
 
-  it('shows error message for error status', () => {
-    const progress: MarkProgress = {
-      status: 'error',
+  it('shows error message for error stage', () => {
+    const progress: JobProgress = {
+      stage: 'error',
+      percentage: 0,
       message: 'Something went wrong',
     };
 
@@ -128,8 +136,10 @@ describe('AnnotateReferencesProgressWidget', () => {
   });
 
   it('shows current entity type processing details', () => {
-    const progress: MarkProgress = {
-      status: 'in-progress',
+    const progress: JobProgress = {
+      stage: 'in-progress',
+      percentage: 50,
+      message: '',
       currentEntityType: 'Location',
     };
 

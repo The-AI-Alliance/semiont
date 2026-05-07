@@ -78,7 +78,7 @@ eventBus.get('job:complete').next({ jobId, resourceId, userId, jobType, result }
 eventBus.get('job:fail').next({ jobId, resourceId, userId, jobType, error });
 ```
 
-The Stower translates these into domain events (`job.started`, `job.progress`, `job.completed`, `job.failed`) on the EventStore.
+The Stower translates these into domain events (`job:started`, `job:progress`, `job:completed`, `job:failed`) on the EventStore.
 
 ## Instantiation
 

@@ -1,4 +1,6 @@
-import { HandlerResult, BaseHandlerContext, HandlerDescriptor } from './types.js';
+import { HandlerResult, BaseHandlerContext, HandlerDescriptor, CommandName } from './types.js';
+import type { PlatformType } from '../platform.js';
+import type { ServiceType } from '../service-types.js';
 
 /**
  * Handler Registry
@@ -46,13 +48,13 @@ export class HandlerRegistry {
    * @param descriptors - Array of handler descriptors
    */
   registerHandlers(
-    platform: string,
+    platform: PlatformType,
     descriptors: HandlerDescriptor<any, BaseHandlerContext<any>, HandlerResult>[]
   ): void {
     for (const descriptor of descriptors) {
       // Use descriptor's platform if available, otherwise use provided platform
-      const descriptorWithPlatform = descriptor.platform 
-        ? descriptor 
+      const descriptorWithPlatform = descriptor.platform
+        ? descriptor
         : { ...descriptor, platform };
       this.registerHandler(descriptorWithPlatform);
     }
@@ -60,16 +62,16 @@ export class HandlerRegistry {
 
   /**
    * Get a handler for a specific command, platform, and service type
-   * 
+   *
    * @param command - Command name (e.g., 'start', 'update')
    * @param platform - Platform name (e.g., 'aws', 'posix')
    * @param serviceType - Service type (e.g., 'ecs', 'lambda')
    * @returns Handler descriptor or undefined if not found
    */
   getHandlerForCommand<TPlatform, TContext extends BaseHandlerContext<TPlatform>, TResult extends HandlerResult>(
-    command: string,
-    platform: string,
-    serviceType: string
+    command: CommandName,
+    platform: PlatformType,
+    serviceType: ServiceType
   ): HandlerDescriptor<TPlatform, TContext, TResult> | undefined {
     const key = `${command}:${serviceType}`;
     return this.handlers.get(platform)?.get(key) as HandlerDescriptor<TPlatform, TContext, TResult> | undefined;

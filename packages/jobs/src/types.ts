@@ -12,9 +12,7 @@
  */
 
 import type { Readable } from 'stream';
-import type { JobId, EntityType, ResourceId, UserId, AnnotationId, GatheredContext, components } from '@semiont/core';
-
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation, JobId, EntityType, ResourceId, UserId, AnnotationId, GatheredContext, TagSchema } from '@semiont/core';
 
 /**
  * Content fetcher - turns a ResourceId into a readable stream.
@@ -47,12 +45,37 @@ export interface JobMetadata {
 }
 
 /**
+ * Locale conventions for detection/generation params.
+ *
+ * Two independent locales flow through these jobs:
+ *
+ *   - `language` — *annotation body* locale. The BCP-47 tag the LLM should
+ *     write generated body text in (comment text, assessment text, generated
+ *     resource content, tag category label). Sourced from the user's UI
+ *     locale. Stamped onto the W3C `TextualBody.language` field.
+ *
+ *   - `sourceLanguage` — *source resource* locale. The BCP-47 tag of the
+ *     content being analyzed. Sourced from `ResourceDescriptor` (carried as
+ *     `Representation.language` on the primary representation). Used in
+ *     prompts so the LLM analyzes non-English source correctly even when
+ *     the user's UI locale differs.
+ *
+ * Examples: a German user analyzing an English document → `language='de'`,
+ * `sourceLanguage='en'`. An English user detecting entities in a French
+ * document → `language='en'` (unused for entity references), `sourceLanguage='fr'`.
+ */
+
+/**
  * Detection job parameters
  */
 export interface DetectionParams {
   resourceId: ResourceId;
   entityTypes: EntityType[];
   includeDescriptiveReferences?: boolean;
+  /** Annotation body locale — see locale conventions above. */
+  language?: string;
+  /** Source-resource locale — see locale conventions above. */
+  sourceLanguage?: string;
 }
 
 /**
@@ -66,7 +89,14 @@ export interface GenerationParams {
   prompt?: string;
   title?: string;
   entityTypes?: EntityType[];
+  /** Annotation body locale — language the *generated resource* is written in. */
   language?: string;
+  /**
+   * Source-resource locale — language of the resource being referenced.
+   * Used in the prompt so the LLM understands the embedded source-context
+   * snippet correctly when source ≠ target language.
+   */
+  sourceLanguage?: string;
   context?: GatheredContext;
   temperature?: number;
   maxTokens?: number;
@@ -80,6 +110,8 @@ export interface HighlightDetectionParams {
   resourceId: ResourceId;
   instructions?: string;
   density?: number;
+  /** Source-resource locale — see locale conventions above. */
+  sourceLanguage?: string;
 }
 
 /**
@@ -90,6 +122,10 @@ export interface AssessmentDetectionParams {
   instructions?: string;
   tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';
   density?: number;
+  /** Annotation body locale — see locale conventions above. */
+  language?: string;
+  /** Source-resource locale — see locale conventions above. */
+  sourceLanguage?: string;
 }
 
 /**
@@ -100,15 +136,28 @@ export interface CommentDetectionParams {
   instructions?: string;
   tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
   density?: number;
+  /** Annotation body locale — see locale conventions above. */
+  language?: string;
+  /** Source-resource locale — see locale conventions above. */
+  sourceLanguage?: string;
 }
 
 /**
- * Tag detection job parameters
+ * Tag detection job parameters.
+ *
+ * Carries the *full* `TagSchema` (not just an id). The dispatcher resolves
+ * the caller-supplied `schemaId` against the per-KB tag-schema projection
+ * at job-creation time and embeds the resolved schema here, keeping the
+ * worker independent of the registry.
  */
 export interface TagDetectionParams {
   resourceId: ResourceId;
-  schemaId: string;
+  schema: TagSchema;
   categories: string[];
+  /** Annotation body locale — see locale conventions above. */
+  language?: string;
+  /** Source-resource locale — see locale conventions above. */
+  sourceLanguage?: string;
 }
 
 // ============================================================================

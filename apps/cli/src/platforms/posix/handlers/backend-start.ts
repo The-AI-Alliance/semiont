@@ -1,12 +1,12 @@
-import { spawn } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import type { BackendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
-import { isPortInUse } from '../../../core/io/network-utils.js';
+import { isPortInUse, isHostReachable } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { resolveBackendNpmPackage } from './backend-paths.js';
+import { resolveBackendNpmPackage, resolveBackendEntryPoint } from './backend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
 import { checkPortFree, checkCommandAvailable, checkConfigPort, checkConfigField, checkFileExists, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
@@ -21,8 +21,10 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   const { service } = context;
   const config = service.config as BackendServiceConfig;
 
-  const projectRoot = service.projectRoot;
-  const npmDir = resolveBackendNpmPackage(projectRoot);
+  const projectRoot = service.projectRoot!;
+  const project = new SemiontProject(projectRoot);
+  const installPrefix = project.dataHome;
+  const npmDir = resolveBackendNpmPackage(installPrefix);
   if (!npmDir) {
     return {
       success: false,
@@ -30,8 +32,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
       metadata: { serviceType: 'backend' }
     };
   }
-  const entryPoint = path.join(npmDir, 'dist', 'index.js');
-  const project = new SemiontProject(projectRoot);
+  const entryPoint = resolveBackendEntryPoint(installPrefix) ?? path.join(npmDir, 'dist', 'index.js');
   const pidFile = project.backendPidFile;
   const logsDir = project.backendLogsDir;
 
@@ -62,10 +63,12 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     try {
       // Check if process is actually running
       process.kill(pid, 0);
+      if (!service.quiet) {
+        printInfo(`Backend is already running with PID ${pid}`);
+      }
       return {
-        success: false,
-        error: `Backend is already running with PID ${pid}`,
-        metadata: { serviceType: 'backend', pid }
+        success: true,
+        metadata: { serviceType: 'backend', pid, alreadyRunning: true }
       };
     } catch {
       // Process not running, remove stale pid file
@@ -103,7 +106,6 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
   const nodeEnv = envConfig.env?.NODE_ENV ?? 'development';
   const enableLocalAuth = envConfig.app?.security?.enableLocalAuth ?? (nodeEnv === 'development');
-  const frontendUrl = envConfig.services!.frontend!.publicURL!;
   const backendUrl = config.publicURL!;
   const siteDomain = envConfig.site!.domain!;
   const allowedDomains = envConfig.site!.oauthAllowedDomains!.join(',');
@@ -115,14 +117,14 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     HOST: '0.0.0.0',
     DATABASE_URL: databaseUrl,
     LOG_DIR: logsDir,
-    FRONTEND_URL: frontendUrl,
     BACKEND_URL: backendUrl,
     ENABLE_LOCAL_AUTH: enableLocalAuth.toString(),
     SITE_DOMAIN: siteDomain,
     OAUTH_ALLOWED_DOMAINS: allowedDomains,
     JWT_SECRET: jwtSecret,
-    SEMIONT_ROOT: service.projectRoot,
+    SEMIONT_ROOT: service.projectRoot!,
     SEMIONT_ENV: service.environment,
+    ...(context.options.skipRebuild ? { SEMIONT_SKIP_REBUILD: 'true' } : {}),
   };
   
   // Ensure logs and pid directories exist
@@ -142,6 +144,53 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   appLogStream.write(startupMessage);
   errorLogStream.write(startupMessage);
   
+  // Wait for database to accept connections before running migrations
+  const packageDir = path.dirname(path.dirname(entryPoint));
+  const prismaSchemaPath = path.join(packageDir, 'prisma', 'schema.prisma');
+  if (fs.existsSync(prismaSchemaPath)) {
+    if (!service.quiet) {
+      printInfo('Waiting for database to be ready...');
+    }
+    const maxWaitMs = 30_000;
+    const pollMs = 500;
+    const deadline = Date.now() + maxWaitMs;
+    let dbReady = false;
+    while (Date.now() < deadline) {
+      if (await isHostReachable(dbHost, dbPort, 1000)) {
+        dbReady = true;
+        break;
+      }
+      await new Promise(r => setTimeout(r, pollMs));
+    }
+    if (!dbReady) {
+      return {
+        success: false,
+        error: `Database did not become ready within ${maxWaitMs / 1000}s at ${dbHost}:${dbPort}`,
+        metadata: { serviceType: 'backend' }
+      };
+    }
+
+    if (!service.quiet) {
+      printInfo('Running database migrations...');
+    }
+    try {
+      execFileSync('npx', ['prisma', 'migrate', 'deploy', `--schema=${prismaSchemaPath}`], {
+        cwd: packageDir,
+        env: { ...process.env, DATABASE_URL: databaseUrl },
+        stdio: service.verbose ? 'inherit' : 'pipe'
+      });
+      if (!service.quiet) {
+        printInfo('Database migrations completed');
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to run database migrations: ${error}`,
+        metadata: { serviceType: 'backend' }
+      };
+    }
+  }
+
   if (!service.quiet) {
     printInfo(`Starting backend service ${service.name}...`);
     printInfo(`Entry point: ${entryPoint}`);
@@ -158,7 +207,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
     // Spawn the backend process
     const proc = spawn(command, args, {
-      cwd: path.dirname(entryPoint),
+      cwd: projectRoot,
       env,
       detached: true,
       stdio: ['ignore', appLogFd, errorLogFd]  // Redirect stdout/stderr directly to files
@@ -219,7 +268,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     const endpoint = `http://localhost:${port}`;
     
     if (!service.quiet) {
-      printSuccess(`✅ Backend service ${service.name} started successfully`);
+      printSuccess(`Backend service ${service.name} started successfully`);
       printInfo('');
       printInfo('Backend details:');
       printInfo(`  PID: ${proc.pid}`);
@@ -267,16 +316,17 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
 const preflightBackendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as BackendServiceConfig;
-  const projectRoot = context.service.projectRoot;
-  const npmDir = resolveBackendNpmPackage(projectRoot);
+  const projectRoot = context.service.projectRoot!;
   const project = new SemiontProject(projectRoot);
+  const installPrefix = project.dataHome;
+  const npmDir = resolveBackendNpmPackage(installPrefix);
   const checks = [checkCommandAvailable('node')];
   checks.push(checkConfigPort(config.port, 'backend.port'));
   if (config.port) {
     checks.push(await checkPortFree(config.port));
   }
   if (npmDir) {
-    checks.push(checkFileExists(path.join(npmDir, 'dist', 'index.js'), 'backend dist/index.js'));
+    checks.push(checkFileExists(resolveBackendEntryPoint(installPrefix) ?? path.join(npmDir, 'dist', 'index.js'), 'backend dist/index.js'));
   } else {
     checks.push({ name: 'backend-npm-package', pass: false, message: '@semiont/backend not installed — run: semiont provision' });
   }

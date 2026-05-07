@@ -17,9 +17,8 @@ import { screen } from '@testing-library/react';
 import { renderWithProviders } from '../../../../test-utils';
 import { HighlightPanel } from '../HighlightPanel';
 import type { components } from '@semiont/core';
-import { resetEventBusForTesting } from '../../../../contexts/EventBusContext';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Mock translations - simulates useTranslations('HighlightPanel')
 // The mock receives keys like 'title', 'noHighlights', etc. and returns translated strings
@@ -53,13 +52,11 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting();
 
     mockAnnotations = [
       {
         id: 'highlight-1',
         motivation: 'highlighting',
-        body: [],
         target: {
           source: 'resource-1',
           selector: {

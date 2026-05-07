@@ -1,54 +1,41 @@
 /**
  * @semiont/api-client
  *
- * HTTP client and utilities for the Semiont API
+ * HTTP-specific transport adapters for the Semiont SDK. The dev-facing
+ * surface (`SemiontClient`, namespaces, session, state units, helpers)
+ * lives in `@semiont/sdk`. The shared transport contract
+ * (`ITransport`, `IContentTransport`, `BRIDGED_CHANNELS`,
+ * `ConnectionState`, response types) lives in `@semiont/core`.
  *
- * This package provides:
- * - A SemiontApiClient class for making API requests
- * - SSE streaming client
- * - Utilities for working with annotations and text
+ * Most consumers do not import from this package directly — `@semiont/sdk`
+ * re-exports the HTTP adapters so a typical app does:
  *
- * For OpenAPI types and branded types, import from @semiont/core:
- * ```typescript
- * import type { components } from '@semiont/core';
- * import { resourceUri, accessToken } from '@semiont/core';
- * import { SemiontApiClient } from '@semiont/api-client';
- *
- * const client = new SemiontApiClient({ baseUrl: baseUrl('http://localhost:4000') });
- * const token = accessToken('your-token');
- * const rUri = resourceUri('http://localhost:4000/resources/doc-123');
+ * ```ts
+ * import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk';
  * ```
+ *
+ * Direct imports are appropriate when constructing the transport stack
+ * by hand (CLI factories, MCP entrypoints, worker pools).
  */
 
-// Export clients
-export * from './client';
-export { EventBusClient } from './event-bus-client';
-
-// Logger interface for observability (re-export from core)
-export type { Logger } from '@semiont/core';
-
-// SSE streaming types and client
-export type {
-  ReferenceDetectionProgress,
-  YieldProgress,
-  SSEStream
-} from './sse/types';
-export { SSEClient, SSE_STREAM_CONNECTED } from './sse/index';
-export type {
-  AnnotateReferencesStreamRequest,
-  BindSearchStreamRequest,
-  YieldResourceStreamRequest,
-  SSEClientConfig,
-  SSEStreamConnected
-} from './sse/index';
-
-// Handwritten utilities
-export * from './utils/index';
 export {
-  getExtensionForMimeType,
-  isImageMimeType,
-  isTextMimeType,
-  isPdfMimeType,
-  getMimeCategory,
-  type MimeCategory
-} from './mime-utils';
+  HttpTransport,
+  type HttpTransportConfig,
+  type TokenRefresher,
+  APIError,
+} from './transport/http-transport';
+
+export { HttpContentTransport } from './transport/http-content-transport';
+
+// `actor-state-unit` is HttpTransport's SSE machinery. Exposed for domain-side
+// worker adapters (`createJobClaimAdapter` in `@semiont/jobs`,
+// `createSmelterActorStateUnit` in `@semiont/make-meaning`) that build
+// worker-flavored variants on top of it. Application code should not
+// import these directly.
+export {
+  createActorStateUnit,
+  type ActorStateUnit,
+  type BusEvent,
+  type ActorStateUnitOptions,
+  DEGRADED_THRESHOLD_MS,
+} from './transport/actor-state-unit';

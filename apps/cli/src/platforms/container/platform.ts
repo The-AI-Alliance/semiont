@@ -1,11 +1,12 @@
 /**
  * Container Platform Strategy
  * 
- * Runs services in isolated containers using Docker or Podman. This platform provides
- * consistent environments across development, testing, and production deployments.
- * 
+ * Runs services in isolated containers using Apple Container, Docker, or Podman.
+ * This platform provides consistent environments across development, testing, and
+ * production deployments.
+ *
  * Capabilities:
- * - Auto-detects and uses available container runtime (Docker or Podman)
+ * - Auto-detects available container runtime (Apple Container > Docker > Podman)
  * - Creates containers with resource limits based on service requirements
  * - Manages container lifecycle (start, stop, restart, update)
  * - Supports volume mounts for persistent storage
@@ -25,11 +26,12 @@ import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
 import { Service } from '../../core/service-interface.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
+import type { ContainerRuntime } from './handlers/types.js';
 import { StateManager } from '../../core/state-manager.js';
 
 export class ContainerPlatform extends Platform {
 
-  private runtime: 'docker' | 'podman';
+  private runtime: ContainerRuntime;
   
   constructor() {
     super();
@@ -42,7 +44,7 @@ export class ContainerPlatform extends Platform {
     registry.registerHandlers('container', handlers);
   }
   
-  getPlatformName(): string {
+  getPlatformName(): 'container' {
     return 'container';
   }
 
@@ -50,18 +52,21 @@ export class ContainerPlatform extends Platform {
   /**
    * Helper method to detect container runtime
    */
-  private detectContainerRuntime(): 'docker' | 'podman' {
-    try {
-      execFileSync('docker', ['--version'], { stdio: 'ignore' });
-      return 'docker';
-    } catch {
+  private detectContainerRuntime(): ContainerRuntime {
+    const candidates: ContainerRuntime[] = ['container', 'docker', 'podman'];
+    if (process.env.CONTAINER_RUNTIME) {
+      const env = process.env.CONTAINER_RUNTIME.toLowerCase() as ContainerRuntime;
+      if (candidates.includes(env)) return env;
+    }
+    for (const runtime of candidates) {
       try {
-        execFileSync('podman', ['--version'], { stdio: 'ignore' });
-        return 'podman';
+        execFileSync(runtime, ['--version'], { stdio: 'ignore' });
+        return runtime;
       } catch {
-        throw new Error('No container runtime (Docker or Podman) found');
+        // try next
       }
     }
+    throw new Error('No container runtime found. Install Apple Container, Docker, or Podman.');
   }
   
   /**
@@ -100,28 +105,20 @@ export class ContainerPlatform extends Platform {
   }
   
   /**
-   * Map service types to container handler types
+   * Map service types to container handler keys.
+   * Logical type IS the handler key — no translation needed.
    */
-  protected override mapServiceType(declaredType: string): string {
-    // Container uses 'web' handler for frontend/backend services
-    if (declaredType === 'frontend' || declaredType === 'backend') {
-      return 'web';
+  protected override mapServiceType(declaredType: import('../../core/service-types.js').ServiceType): import('../../core/service-types.js').ServiceType {
+    switch (declaredType) {
+      case 'frontend':
+      case 'backend':
+      case 'database':
+      case 'graph':
+      case 'inference':
+        return declaredType;
+      default:
+        throw new Error(`Unsupported service type for container platform: ${declaredType}. Supported types: frontend, backend, database, graph, inference`);
     }
-
-    // Database gets special handler
-    if (declaredType === 'database') return 'database';
-
-    // Graph databases get graph handler
-    if (declaredType === 'graph') return 'graph';
-
-    // Proxy services (envoy, nginx, haproxy) get proxy handler
-    if (declaredType === 'proxy') return 'proxy';
-
-    // Inference services (Ollama) get inference handler
-    if (declaredType === 'inference') return 'inference';
-
-    // No generic handler - all service types must be explicitly supported
-    throw new Error(`Unsupported service type for container platform: ${declaredType}. Supported types: frontend, backend, database, graph, proxy, inference`);
   }
   
   /**
@@ -138,12 +135,12 @@ export class ContainerPlatform extends Platform {
   
   /**
    * Collect logs for a container service
-   * Uses docker/podman logs command
+   * Uses container runtime logs command
    */
   async collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined> {
     const serviceType = this.determineServiceType(service);
     const state = await StateManager.load(
-      service.projectRoot,
+      service.projectRoot!,
       service.environment,
       service.name
     );
@@ -174,7 +171,7 @@ export class ContainerPlatform extends Platform {
     const logs: LogEntry[] = [];
     
     try {
-      // Build docker/podman logs command args
+      // Build container logs command args
       const args = ['logs', containerIdOrName, '--tail', String(tail), '--timestamps'];
 
       // Add since option if provided
@@ -217,7 +214,7 @@ export class ContainerPlatform extends Platform {
   
   /**
    * Parse a container log line
-   * Docker/Podman format with --timestamps: 2024-01-01T12:00:00.000000000Z message
+   * Container log format with --timestamps: 2024-01-01T12:00:00.000000000Z message
    */
   private parseContainerLogLine(line: string, serviceType: string): LogEntry {
     // Try to parse timestamp from beginning of line

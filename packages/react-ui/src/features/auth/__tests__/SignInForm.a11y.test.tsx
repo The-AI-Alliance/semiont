@@ -29,6 +29,8 @@ const mockTranslations = {
   welcomeBack: 'Welcome back to Semiont',
   signInPrompt: 'Sign in to your knowledge workspace',
   continueWithGoogle: 'Continue with Google',
+  backendUrlLabel: 'Backend URL',
+  backendUrlPlaceholder: 'http://localhost:4000',
   emailLabel: 'Email',
   emailPlaceholder: 'your@email.com',
   passwordLabel: 'Password',
@@ -42,6 +44,7 @@ const mockTranslations = {
   signUpInstead: 'Sign Up Instead',
   errorEmailRequired: 'Email is required',
   errorPasswordRequired: 'Password is required',
+  errorBackendUrlRequired: 'Backend URL is required',
   tagline: 'make meaning',
 };
 
@@ -53,6 +56,7 @@ describe('SignInForm - Accessibility', () => {
       const { container } = render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
@@ -200,6 +204,7 @@ describe('SignInForm - Accessibility', () => {
       render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
@@ -208,26 +213,6 @@ describe('SignInForm - Accessibility', () => {
       const button = screen.getByRole('button', { name: /Continue with Google/i });
       expect(button).toBeInTheDocument();
       expect(button).not.toHaveAttribute('disabled');
-    });
-
-    it('should have keyboard-accessible navigation links', () => {
-      const onGoogleSignIn = vi.fn();
-
-      render(
-        <SignInForm
-          onGoogleSignIn={onGoogleSignIn}
-          Link={MockLink}
-          translations={mockTranslations}
-        />
-      );
-
-      const homeLink = screen.getByRole('link', { name: 'Back to Home' });
-      const learnMoreLink = screen.getByRole('link', { name: 'Learn More' });
-      const signUpLink = screen.getByRole('link', { name: 'Sign Up Instead' });
-
-      expect(homeLink).toHaveAttribute('href', '/');
-      expect(learnMoreLink).toHaveAttribute('href', '/about');
-      expect(signUpLink).toHaveAttribute('href', '/auth/signup');
     });
 
     it('should have keyboard-accessible credentials submit button', () => {
@@ -257,6 +242,7 @@ describe('SignInForm - Accessibility', () => {
       render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
@@ -267,22 +253,21 @@ describe('SignInForm - Accessibility', () => {
       expect(button).toHaveAccessibleName(/Continue with Google/i);
     });
 
-    it('should have accessible link names', () => {
+    it('should have accessible button names', () => {
       const onGoogleSignIn = vi.fn();
 
       render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
       );
 
-      const links = screen.getAllByRole('link');
-
-      // All links should have accessible names
-      links.forEach(link => {
-        expect(link).toHaveAccessibleName();
+      const buttons = screen.getAllByRole('button');
+      buttons.forEach(button => {
+        expect(button).toHaveAccessibleName();
       });
     });
   });
@@ -374,6 +359,7 @@ describe('SignInForm - Accessibility', () => {
       render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
@@ -391,6 +377,7 @@ describe('SignInForm - Accessibility', () => {
       const { container } = render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
@@ -402,23 +389,23 @@ describe('SignInForm - Accessibility', () => {
       expect(button?.className).toBeTruthy();
     });
 
-    it('should have visible focus indicators on links', () => {
+    it('should have visible focus indicators on buttons', () => {
       const onGoogleSignIn = vi.fn();
 
       const { container } = render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
       );
 
-      const links = container.querySelectorAll('a');
+      const buttons = container.querySelectorAll('button');
 
-      // At least one link should exist and have focus styling
-      expect(links.length).toBeGreaterThan(0);
-      links.forEach(link => {
-        expect(link.className).toBeTruthy();
+      expect(buttons.length).toBeGreaterThan(0);
+      buttons.forEach(button => {
+        expect(button.className).toBeTruthy();
       });
     });
   });

@@ -1,6 +1,5 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
-import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import type { PreflightCheck, PreflightResult } from './types.js';
@@ -44,24 +43,22 @@ function findPortOwner(port: number): string | null {
 }
 
 export async function checkPortFree(port: number): Promise<PreflightCheck> {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE') {
-        const owner = findPortOwner(port);
-        const hint = owner ? ` (${owner})` : '';
-        resolve({ name: `port-${port}`, pass: false, message: `Port ${port} is in use${hint}` });
-      } else {
-        resolve({ name: `port-${port}`, pass: false, message: `Cannot check port ${port}: ${err.message}` });
-      }
-    });
-    server.once('listening', () => {
-      server.close(() => {
-        resolve({ name: `port-${port}`, pass: true, message: `Port ${port} is available` });
-      });
-    });
-    server.listen(port, '127.0.0.1');
-  });
+  // Use lsof to check listeners without attempting to bind.
+  // lsof exits 0 with output when the port is in use; exits non-zero when free.
+  try {
+    const out = execFileSync('lsof', ['-i', `:${port}`, '-sTCP:LISTEN', '-n', '-P'], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }) as string;
+    if (out.trim()) {
+      const owner = findPortOwner(port);
+      const hint = owner ? ` (${owner})` : '';
+      return { name: `port-${port}`, pass: false, message: `Port ${port} is in use${hint}` };
+    }
+  } catch {
+    // lsof exits non-zero when no matches — port is free
+  }
+  return { name: `port-${port}`, pass: true, message: `Port ${port} is available` };
 }
 
 export function checkEnvVarResolved(value: string | undefined, varDescription: string): PreflightCheck {

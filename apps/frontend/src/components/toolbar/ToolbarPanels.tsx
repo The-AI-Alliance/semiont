@@ -1,9 +1,17 @@
-'use client';
-
-import React, { useTransition, useEffect, useCallback } from 'react';
-import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
+import React, { useTransition, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  SettingsPanel,
+  ResizeHandle,
+  usePanelWidth,
+  useEventSubscriptions,
+  useSemiont,
+  useObservable,
+  useHoverDelay,
+} from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
-import { useLocale } from 'next-intl';
+import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
+import { useLocale } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { COMMON_PANELS } from '@semiont/react-ui';
 import type { ToolbarPanelType } from '@semiont/react-ui';
@@ -14,8 +22,6 @@ interface ToolbarPanelsProps {
   theme: 'light' | 'dark' | 'system';
   /** Line numbers setting */
   showLineNumbers: boolean;
-  /** Hover delay setting */
-  hoverDelayMs: number;
   /** Custom panel content for context-specific panels */
   children?: React.ReactNode;
 }
@@ -52,9 +58,19 @@ export function ToolbarPanels({
   activePanel,
   theme,
   showLineNumbers,
-  hoverDelayMs,
   children
 }: ToolbarPanelsProps) {
+  // Source hover-delay from the shared hook so every page that mounts
+  // ToolbarPanels gets the live value without prop-drilling. Previously
+  // each page passed `hoverDelayMs` through as a prop; pages that forgot
+  // (Discover, Admin, Moderation) rendered the Settings panel with
+  // `undefined`, which surfaced as `{undefined}ms delay` after the
+  // translation interpolation ran.
+  const { hoverDelayMs } = useHoverDelay();
+  const { t: _t } = useTranslation();
+  const session = useObservable(useSemiont().activeSession$);
+  const user = useObservable(session?.user$);
+  const isAuthenticated = !!user;
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
@@ -104,9 +120,29 @@ export function ToolbarPanels({
       <div className="semiont-toolbar-panels__content">
         {children}
 
-        {/* User Panel - common to all contexts */}
+        {/* Knowledge Base Panel - common to all contexts */}
+        {activePanel === 'knowledge-base' && (
+          <KnowledgeBasePanel />
+        )}
+
+        {/* User Panel - requires authentication */}
         {activePanel === 'user' && (
-          <UserPanel />
+          isAuthenticated ? (
+            <UserPanel />
+          ) : (
+            <div className="semiont-panel">
+              <div className="semiont-panel-header">
+                <h2 className="semiont-panel-header__title">
+                  <span className="semiont-panel-header__text">{_t('UserPanel.account')}</span>
+                </h2>
+              </div>
+              <div className="semiont-panel__content" style={{ padding: '1rem', textAlign: 'center' }}>
+                <p style={{ color: 'var(--semiont-color-neutral-400)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                  {_t('AccountPanel.notAuthenticated')}
+                </p>
+              </div>
+            </div>
+          )
         )}
 
         {/* Settings Panel - common to all contexts */}

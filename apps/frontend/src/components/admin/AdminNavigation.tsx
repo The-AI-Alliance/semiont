@@ -1,7 +1,5 @@
-'use client';
-
 import React, { useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
 import { usePathname } from '@/i18n/routing';
 import { SimpleNavigation, useEventSubscriptions } from '@semiont/react-ui';
@@ -21,9 +19,16 @@ interface AdminNavigationProps {
   navigationMenu?: (onClose: () => void) => React.ReactNode;
 }
 
+// Adapter: SimpleNavigation passes href, but our Link uses `to`
+function HrefLink({ href, to: _to, ...props }: React.ComponentProps<typeof Link> & { href?: string }) {
+  return <Link to={(href ?? '') as string} {...props} />;
+}
+
 export function AdminNavigation({ isCollapsed, toggleCollapsed, navigationMenu }: AdminNavigationProps) {
-  const t = useTranslations('Administration');
-  const tSidebar = useTranslations('Sidebar');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Administration.${k}`, p as any) as string;
+  const { t: _tSidebar } = useTranslation();
+  const tSidebar = (k: string, p?: Record<string, unknown>) => _tSidebar(`Sidebar.${k}`, p as any) as string;
   const pathname = usePathname();
 
   // Handle sidebar toggle events
@@ -33,7 +38,7 @@ export function AdminNavigation({ isCollapsed, toggleCollapsed, navigationMenu }
 
   // Subscribe to sidebar toggle events
   useEventSubscriptions({
-    'browse:sidebar-toggle': handleSidebarToggle,
+    'shell:sidebar-toggle': handleSidebarToggle,
   });
 
   const navigation: SimpleNavigationItem[] = [
@@ -68,7 +73,7 @@ export function AdminNavigation({ isCollapsed, toggleCollapsed, navigationMenu }
       title={t('title')}
       items={navigation}
       currentPath={pathname}
-      LinkComponent={Link as any}
+      LinkComponent={HrefLink as any}
       {...(navigationMenu && { dropdownContent: navigationMenu })}
       isCollapsed={isCollapsed}
       icons={{

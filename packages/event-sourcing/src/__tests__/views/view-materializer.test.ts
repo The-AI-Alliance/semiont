@@ -3,12 +3,12 @@
  * Tests for complex view materialization logic
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ViewMaterializer } from '../../views/view-materializer';
 import { FilesystemViewStorage } from '../../storage/view-storage';
 import { SemiontProject } from '@semiont/core/node';
 import { resourceId, userId, annotationId } from '@semiont/core';
-import type { StoredEvent, EventMetadata, Motivation } from '@semiont/core';
+import type { EventMetadata, Motivation } from '@semiont/core';
 
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -16,14 +16,14 @@ import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 // Helper to create minimal EventMetadata for tests
-function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMetadata {
+function createEventMetadata(sequenceNumber: number): EventMetadata {
   return {
     sequenceNumber,
     streamPosition: sequenceNumber * 100,
-    timestamp: new Date().toISOString(),
-    prevEventHash: prevHash,
   };
 }
+
+/** Create a flat StoredEvent from event fields and metadata */
 
 describe('ViewMaterializer', () => {
   let materializer: ViewMaterializer;
@@ -50,11 +50,11 @@ describe('ViewMaterializer', () => {
   describe('materialize() - Full rebuild from events', () => {
     it('should rebuild view from resource.created event', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -65,7 +65,7 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
       ];
@@ -82,11 +82,11 @@ describe('ViewMaterializer', () => {
 
     it('should handle multiple representation.added events', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -97,13 +97,13 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -118,8 +118,8 @@ describe('ViewMaterializer', () => {
                 rel: 'derived' as const,
               },
             },
-          },
-          metadata: createEventMetadata(2, 'hash1'),
+
+          metadata: createEventMetadata(2),
         },
       ];
 
@@ -140,11 +140,11 @@ describe('ViewMaterializer', () => {
 
     it('should handle representation.added event', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -155,13 +155,13 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -175,8 +175,8 @@ describe('ViewMaterializer', () => {
                 created: new Date().toISOString(),
               },
             },
-          },
-          metadata: createEventMetadata(2, 'hash1'),
+
+          metadata: createEventMetadata(2),
         },
       ];
 
@@ -189,11 +189,11 @@ describe('ViewMaterializer', () => {
 
     it('should handle representation.removed event', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -204,13 +204,13 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -224,13 +224,13 @@ describe('ViewMaterializer', () => {
                 created: new Date().toISOString(),
               },
             },
-          },
-          metadata: createEventMetadata(2, 'hash1'),
+
+          metadata: createEventMetadata(2),
         },
         {
-          event: {
+
             id: 'event3',
-            type: 'representation.removed',
+            type: 'yield:representation-removed',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -238,8 +238,8 @@ describe('ViewMaterializer', () => {
             payload: {
               checksum: 'checksum1',
             },
-          },
-          metadata: createEventMetadata(3, 'hash2'),
+
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -250,11 +250,11 @@ describe('ViewMaterializer', () => {
 
     it('should handle annotation.added event', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -265,13 +265,13 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
-            type: 'annotation.added',
+            type: 'mark:added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -282,12 +282,11 @@ describe('ViewMaterializer', () => {
                 id: 'anno1',
                 type: 'Annotation' as const,
                 motivation: 'commenting' satisfies Motivation,
-                body: [],
                 target: 'doc1',
               },
             },
-          },
-          metadata: createEventMetadata(2, 'hash1'),
+
+          metadata: createEventMetadata(2),
         },
       ];
 
@@ -298,11 +297,11 @@ describe('ViewMaterializer', () => {
 
     it('should handle annotation.body.updated event', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -313,13 +312,13 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
-            type: 'annotation.added',
+            type: 'mark:added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -330,17 +329,16 @@ describe('ViewMaterializer', () => {
                 id: 'anno1',
                 type: 'Annotation' as const,
                 motivation: 'commenting' satisfies Motivation,
-                body: [],
                 target: 'doc1',
               },
             },
-          },
-          metadata: createEventMetadata(2, 'hash1'),
+
+          metadata: createEventMetadata(2),
         },
         {
-          event: {
+
             id: 'event3',
-            type: 'annotation.body.updated',
+            type: 'mark:body-updated',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -358,8 +356,8 @@ describe('ViewMaterializer', () => {
                 },
               ],
             },
-          },
-          metadata: createEventMetadata(3, 'hash2'),
+
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -369,13 +367,194 @@ describe('ViewMaterializer', () => {
       expect(view?.annotations.annotations[0].body).toHaveLength(1);
     });
 
+    it('replays add + remove (with purpose) to produce empty body', async () => {
+      // Regression guard: strict-purpose matching is the canonical case
+      // where the caller knows which body they're removing.
+      const rid = resourceId('doc1');
+      const events: any[] = [
+        {
+          id: 'event1',
+          type: 'yield:created',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 1,
+          payload: {
+            name: 'Test Document',
+            format: 'text/plain' as const,
+            contentChecksum: 'checksum1',
+            creationMethod: 'api' as const,
+          },
+          metadata: createEventMetadata(1),
+        },
+        {
+          id: 'event2',
+          type: 'mark:added',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 2,
+          payload: {
+            annotation: {
+              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+              id: 'anno1',
+              type: 'Annotation' as const,
+              motivation: 'linking' satisfies Motivation,
+              target: 'doc1',
+            },
+          },
+          metadata: createEventMetadata(2),
+        },
+        {
+          id: 'event3',
+          type: 'mark:body-updated',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 3,
+          payload: {
+            annotationId: annotationId('anno1'),
+            operations: [
+              {
+                op: 'add' as const,
+                item: {
+                  type: 'SpecificResource' as const,
+                  source: 'target-doc',
+                  purpose: 'linking' as const,
+                },
+              },
+            ],
+          },
+          metadata: createEventMetadata(3),
+        },
+        {
+          id: 'event4',
+          type: 'mark:body-updated',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 4,
+          payload: {
+            annotationId: annotationId('anno1'),
+            operations: [
+              {
+                op: 'remove' as const,
+                item: {
+                  type: 'SpecificResource' as const,
+                  source: 'target-doc',
+                  purpose: 'linking' as const,
+                },
+              },
+            ],
+          },
+          metadata: createEventMetadata(4),
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+      expect(view?.annotations.annotations).toHaveLength(1);
+      expect(view?.annotations.annotations[0].body).toEqual([]);
+    });
+
+    it('replays add + remove (without purpose) to produce empty body', async () => {
+      // The regression this fix was written for. Event 7 in the user's KB
+      // had a remove op with no `purpose` field; strict-purpose matching
+      // in findBodyItem silently failed, leaving the link in place forever.
+      // After the fix, purpose-less removes match by identity alone.
+      const rid = resourceId('doc1');
+      const events: any[] = [
+        {
+          id: 'event1',
+          type: 'yield:created',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 1,
+          payload: {
+            name: 'Test Document',
+            format: 'text/plain' as const,
+            contentChecksum: 'checksum1',
+            creationMethod: 'api' as const,
+          },
+          metadata: createEventMetadata(1),
+        },
+        {
+          id: 'event2',
+          type: 'mark:added',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 2,
+          payload: {
+            annotation: {
+              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+              id: 'anno1',
+              type: 'Annotation' as const,
+              motivation: 'linking' satisfies Motivation,
+              target: 'doc1',
+            },
+          },
+          metadata: createEventMetadata(2),
+        },
+        {
+          id: 'event3',
+          type: 'mark:body-updated',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 3,
+          payload: {
+            annotationId: annotationId('anno1'),
+            operations: [
+              {
+                op: 'add' as const,
+                item: {
+                  type: 'SpecificResource' as const,
+                  source: 'target-doc',
+                  purpose: 'linking' as const,
+                },
+              },
+            ],
+          },
+          metadata: createEventMetadata(3),
+        },
+        {
+          id: 'event4',
+          type: 'mark:body-updated',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 4,
+          payload: {
+            annotationId: annotationId('anno1'),
+            operations: [
+              {
+                op: 'remove' as const,
+                // Note: no `purpose` on the remove item — this is the
+                // historical shape event-sourcing replay must handle.
+                item: {
+                  type: 'SpecificResource' as const,
+                  source: 'target-doc',
+                },
+              },
+            ],
+          },
+          metadata: createEventMetadata(4),
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+      expect(view?.annotations.annotations).toHaveLength(1);
+      expect(view?.annotations.annotations[0].body).toEqual([]);
+    });
+
     it('should handle annotation.removed event', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -386,13 +565,13 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
-            type: 'annotation.added',
+            type: 'mark:added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -403,17 +582,16 @@ describe('ViewMaterializer', () => {
                 id: 'anno1',
                 type: 'Annotation' as const,
                 motivation: 'commenting' satisfies Motivation,
-                body: [],
                 target: 'doc1',
               },
             },
-          },
-          metadata: createEventMetadata(2, 'hash1'),
+
+          metadata: createEventMetadata(2),
         },
         {
-          event: {
+
             id: 'event3',
-            type: 'annotation.removed',
+            type: 'mark:removed',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -421,8 +599,8 @@ describe('ViewMaterializer', () => {
             payload: {
               annotationId: annotationId('anno1'),
             },
-          },
-          metadata: createEventMetadata(3, 'hash2'),
+
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -446,7 +624,7 @@ describe('ViewMaterializer', () => {
       // Create initial view
       const createEvent = {
         id: 'event1',
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
@@ -460,16 +638,13 @@ describe('ViewMaterializer', () => {
       };
 
       await materializer.materializeIncremental(rid, createEvent, async () => [
-        {
-          event: createEvent,
-          metadata: createEventMetadata(1),
-        },
-      ]);
+        { ...createEvent, metadata: createEventMetadata(1) },
+      ] as any);
 
       // Add representation incrementally
       const addRepEvent = {
         id: 'event2',
-        type: 'representation.added' as const,
+        type: 'yield:representation-added' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
@@ -487,15 +662,9 @@ describe('ViewMaterializer', () => {
       };
 
       await materializer.materializeIncremental(rid, addRepEvent, async () => [
-        {
-          event: createEvent,
-          metadata: createEventMetadata(1),
-        },
-        {
-          event: addRepEvent,
-          metadata: createEventMetadata(2, 'hash1'),
-        },
-      ]);
+        { ...createEvent, metadata: createEventMetadata(1) },
+        { ...addRepEvent, metadata: createEventMetadata(2) },
+      ] as any);
 
       const view = await viewStorage.get(rid);
       expect(view?.resource.name).toBe('Test Document');
@@ -512,7 +681,7 @@ describe('ViewMaterializer', () => {
 
       const event = {
         id: 'event1',
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
@@ -526,11 +695,8 @@ describe('ViewMaterializer', () => {
       };
 
       await materializer.materializeIncremental(rid, event, async () => [
-        {
-          event,
-          metadata: createEventMetadata(1),
-        },
-      ]);
+        { ...event, metadata: createEventMetadata(1) },
+      ] as any);
 
       const view = await viewStorage.get(rid);
       expect(view?.resource.name).toBe('Test Document');
@@ -584,14 +750,118 @@ describe('ViewMaterializer', () => {
     });
   });
 
+  describe('materializeTagSchemas() - System views', () => {
+    // The schema registry is more structured than entity types (which
+    // are just opaque strings). The materializer needs to:
+    //  - create the file on first registration
+    //  - replace by id on re-registration with differing content (with a warning)
+    //  - silently no-op on re-registration with identical content
+    //  - keep the file sorted by id for stable output
+    //
+    // These tests pin each of those — the conflict semantics are the
+    // load-bearing decision from .plans/TAG-SCHEMAS-GAP.md (Q2).
+    const schemaA = (override: Record<string, unknown> = {}) => ({
+      id: 'schema-a',
+      name: 'Schema A',
+      description: 'A test schema',
+      domain: 'test',
+      tags: [
+        { name: 'X', description: 'cat X', examples: [] },
+        { name: 'Y', description: 'cat Y', examples: [] },
+      ],
+      ...override,
+    });
+
+    const schemaB = () => ({
+      id: 'schema-b',
+      name: 'Schema B',
+      description: 'Another test schema',
+      domain: 'test',
+      tags: [{ name: 'Z', description: 'cat Z', examples: [] }],
+    });
+
+    async function readProjection(): Promise<{ tagSchemas: any[] }> {
+      const path = join(testDir, 'projections', '__system__', 'tagschemas.json');
+      const content = await fs.readFile(path, 'utf-8');
+      return JSON.parse(content);
+    }
+
+    it('creates the projection on first registration', async () => {
+      await materializer.materializeTagSchemas(schemaA() as any);
+      const view = await readProjection();
+      expect(view.tagSchemas).toHaveLength(1);
+      expect(view.tagSchemas[0].id).toBe('schema-a');
+    });
+
+    it('appends a second schema with a different id', async () => {
+      await materializer.materializeTagSchemas(schemaA() as any);
+      await materializer.materializeTagSchemas(schemaB() as any);
+      const view = await readProjection();
+      expect(view.tagSchemas).toHaveLength(2);
+      expect(view.tagSchemas.map((s) => s.id).sort()).toEqual(['schema-a', 'schema-b']);
+    });
+
+    it('sorts the projection by schema id for stable output', async () => {
+      // Register out of alphabetical order; the file must come back sorted.
+      await materializer.materializeTagSchemas(schemaB() as any);
+      await materializer.materializeTagSchemas(schemaA() as any);
+      const view = await readProjection();
+      expect(view.tagSchemas.map((s) => s.id)).toEqual(['schema-a', 'schema-b']);
+    });
+
+    it('is silently idempotent when re-registering with identical content', async () => {
+      // The "deep-equal idempotence" path. No warning should be logged.
+      const warn = vi.fn();
+      const loggingMaterializer = new ViewMaterializer(
+        viewStorage,
+        { basePath: testDir },
+        { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), child: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() })) } as any,
+      );
+
+      await loggingMaterializer.materializeTagSchemas(schemaA() as any);
+      await loggingMaterializer.materializeTagSchemas(schemaA() as any);
+
+      const view = await readProjection();
+      expect(view.tagSchemas).toHaveLength(1);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('replaces by id and logs a warning when re-registering with differing content', async () => {
+      // Most-recent-wins. The plan's Q2 decision: log a warning so
+      // operators see the overwrite.
+      const warn = vi.fn();
+      const loggingMaterializer = new ViewMaterializer(
+        viewStorage,
+        { basePath: testDir },
+        { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), child: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() })) } as any,
+      );
+
+      await loggingMaterializer.materializeTagSchemas(schemaA() as any);
+      await loggingMaterializer.materializeTagSchemas(
+        schemaA({ description: 'CHANGED description' }) as any,
+      );
+
+      const view = await readProjection();
+      expect(view.tagSchemas).toHaveLength(1);
+      expect(view.tagSchemas[0].description).toBe('CHANGED description');
+      expect(warn).toHaveBeenCalledTimes(1);
+      // Warning carries the schema id so operators can see which schema
+      // changed without scrolling through dumps.
+      const warnArgs = warn.mock.calls[0];
+      const meta = warnArgs[1] as { schemaId?: string; message?: string };
+      expect(meta.schemaId).toBe('schema-a');
+      expect(meta.message).toMatch(/overwritten/);
+    });
+  });
+
   describe('Edge cases', () => {
     it('should handle multiple representations', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -602,13 +872,13 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -622,13 +892,13 @@ describe('ViewMaterializer', () => {
                 created: new Date().toISOString(),
               },
             },
-          },
-          metadata: createEventMetadata(2, 'hash1'),
+
+          metadata: createEventMetadata(2),
         },
         {
-          event: {
+
             id: 'event3',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -642,8 +912,8 @@ describe('ViewMaterializer', () => {
                 created: new Date().toISOString(),
               },
             },
-          },
-          metadata: createEventMetadata(3, 'hash2'),
+
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -654,11 +924,11 @@ describe('ViewMaterializer', () => {
 
     it('should prevent duplicate representations', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -669,13 +939,13 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -689,13 +959,13 @@ describe('ViewMaterializer', () => {
                 created: new Date().toISOString(),
               },
             },
-          },
-          metadata: createEventMetadata(2, 'hash1'),
+
+          metadata: createEventMetadata(2),
         },
         {
-          event: {
+
             id: 'event3',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -709,8 +979,8 @@ describe('ViewMaterializer', () => {
                 created: new Date().toISOString(),
               },
             },
-          },
-          metadata: createEventMetadata(3, 'hash2'),
+
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -722,11 +992,11 @@ describe('ViewMaterializer', () => {
 
     it('should handle removing non-existent representation gracefully', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -737,13 +1007,13 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
-            type: 'representation.removed',
+            type: 'yield:representation-removed',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -751,8 +1021,8 @@ describe('ViewMaterializer', () => {
             payload: {
               checksum: 'nonexistent',
             },
-          },
-          metadata: createEventMetadata(2, 'hash1'),
+
+          metadata: createEventMetadata(2),
         },
       ];
 
@@ -767,11 +1037,11 @@ describe('ViewMaterializer', () => {
 
     it('should handle deleting non-existent annotation gracefully', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -782,13 +1052,13 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
-            type: 'annotation.removed',
+            type: 'mark:removed',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -796,14 +1066,174 @@ describe('ViewMaterializer', () => {
             payload: {
               annotationId: annotationId('nonexistent'),
             },
-          },
-          metadata: createEventMetadata(2, 'hash1'),
+
+          metadata: createEventMetadata(2),
         },
       ];
 
       const view = await materializer.materialize(events, rid);
 
       expect(view?.annotations.annotations).toHaveLength(0);
+    });
+  });
+
+  describe('rebuildAll() - full startup rebuild', () => {
+    /**
+     * Build a fake RebuildEventSource (mirrors the EventLog interface that
+     * rebuildAll consumes) backed by an in-memory map. We don't construct a
+     * real EventLog here because the test is about the materializer's batching
+     * behavior, not the storage layer's iteration semantics.
+     */
+    function fakeEventSource(streams: Record<string, any[]>) {
+      return {
+        async getEvents(rid: any) {
+          return streams[rid as string] ?? [];
+        },
+        async getAllResourceIds() {
+          return Object.keys(streams) as any[];
+        },
+      };
+    }
+
+    function createdEvent(rid: any, name: string, seq: number) {
+      return {
+        id: `evt-${rid}-${seq}`,
+        type: 'yield:created',
+        timestamp: new Date().toISOString(),
+        userId: userId('user1'),
+        resourceId: rid,
+        version: 1,
+        payload: {
+          name,
+          format: 'text/plain' as const,
+          contentChecksum: `chk-${rid}`,
+          creationMethod: 'api' as const,
+        },
+        metadata: createEventMetadata(seq),
+      };
+    }
+
+    function entityTypeAddedEvent(entityType: string, seq: number) {
+      return {
+        id: `sys-evt-${seq}`,
+        type: 'frame:entity-type-added',
+        timestamp: new Date().toISOString(),
+        userId: userId('user1'),
+        version: 1,
+        payload: { entityType },
+        metadata: createEventMetadata(seq),
+      };
+    }
+
+    it('rebuilds resource views and entity-types projection from a populated event log into an empty stateDir', async () => {
+      const r1 = resourceId('doc1');
+      const r2 = resourceId('doc2');
+
+      const source = fakeEventSource({
+        __system__: [
+          entityTypeAddedEvent('Person', 1),
+          entityTypeAddedEvent('Organization', 2),
+          entityTypeAddedEvent('Location', 3),
+        ],
+        [r1 as string]: [createdEvent(r1, 'Doc One', 1)],
+        [r2 as string]: [createdEvent(r2, 'Doc Two', 1)],
+      });
+
+      await materializer.rebuildAll(source);
+
+      // Both resource views materialized
+      const view1 = await viewStorage.get(r1);
+      const view2 = await viewStorage.get(r2);
+      expect(view1?.resource.name).toBe('Doc One');
+      expect(view2?.resource.name).toBe('Doc Two');
+
+      // Entity-types projection materialized
+      const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const projection = JSON.parse(await fs.readFile(entityTypesPath, 'utf-8'));
+      expect(projection.entityTypes).toEqual(['Location', 'Organization', 'Person']);
+    });
+
+    it('is idempotent: running twice produces the same state', async () => {
+      const r1 = resourceId('doc1');
+      const source = fakeEventSource({
+        __system__: [entityTypeAddedEvent('Person', 1)],
+        [r1 as string]: [createdEvent(r1, 'Doc One', 1)],
+      });
+
+      await materializer.rebuildAll(source);
+      await materializer.rebuildAll(source);
+
+      const view = await viewStorage.get(r1);
+      expect(view?.resource.name).toBe('Doc One');
+
+      const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const projection = JSON.parse(await fs.readFile(entityTypesPath, 'utf-8'));
+      expect(projection.entityTypes).toEqual(['Person']);
+    });
+
+    it('overwrites stale resource views from a prior state', async () => {
+      const r1 = resourceId('doc1');
+
+      // Seed a stale view directly (simulates an earlier rebuild that no
+      // longer matches the current event log)
+      await viewStorage.save(r1, {
+        resource: {
+          '@context': 'https://schema.org/',
+          '@id': r1,
+          name: 'Stale Name',
+          representations: [],
+          archived: false,
+          entityTypes: [],
+          creationMethod: 'api',
+        },
+        annotations: {
+          resourceId: r1,
+          annotations: [],
+          version: 0,
+          updatedAt: '',
+        },
+      });
+
+      const source = fakeEventSource({
+        [r1 as string]: [createdEvent(r1, 'Fresh Name', 1)],
+      });
+
+      await materializer.rebuildAll(source);
+
+      const view = await viewStorage.get(r1);
+      expect(view?.resource.name).toBe('Fresh Name');
+    });
+
+    it('handles a system-events-only log (no resource views to write)', async () => {
+      const source = fakeEventSource({
+        __system__: [entityTypeAddedEvent('Person', 1)],
+      });
+
+      await materializer.rebuildAll(source);
+
+      const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const projection = JSON.parse(await fs.readFile(entityTypesPath, 'utf-8'));
+      expect(projection.entityTypes).toEqual(['Person']);
+    });
+
+    it('handles a resource-events-only log (no entity-types projection written)', async () => {
+      const r1 = resourceId('doc1');
+      const source = fakeEventSource({
+        [r1 as string]: [createdEvent(r1, 'Doc One', 1)],
+      });
+
+      await materializer.rebuildAll(source);
+
+      const view = await viewStorage.get(r1);
+      expect(view?.resource.name).toBe('Doc One');
+
+      const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      await expect(fs.access(entityTypesPath)).rejects.toThrow();
+    });
+
+    it('handles an empty event log without crashing', async () => {
+      const source = fakeEventSource({});
+      await expect(materializer.rebuildAll(source)).resolves.toBeUndefined();
     });
   });
 });

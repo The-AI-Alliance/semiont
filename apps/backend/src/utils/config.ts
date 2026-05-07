@@ -20,6 +20,8 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
   return {
     services: {
       graph: config.services?.graph,
+      vectors: config.services?.vectors,
+      embedding: config.services?.embedding,
     },
     actors: meta?.actors,
     workers: meta?.workers,

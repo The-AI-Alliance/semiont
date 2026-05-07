@@ -1,8 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import { resourceId as toResourceId } from '@semiont/core';
-import { getMimeCategory, isPdfMimeType } from '@semiont/api-client';
+import { getMimeCategory, isPdfMimeType } from '@semiont/core';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { segmentTextWithAnnotations } from '../../lib/text-segmentation';
 import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';
@@ -15,7 +14,8 @@ const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCa
 
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import type { EditorView } from '@codemirror/view';
-import { useEventBus } from '../../contexts/EventBusContext';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 
 // Type augmentation for custom DOM properties
@@ -37,7 +37,7 @@ interface Props {
   onUIStateChange?: (state: Partial<AnnotationUIState>) => void;
   editable?: boolean;
   enableWidgets?: boolean;
-  getTargetDocumentName?: (documentId: string) => string | undefined;
+  getTargetResourceName?: (resourceId: string) => string | undefined;
   generatingReferenceId?: string | null;
   showLineNumbers?: boolean;
   hoverDelayMs?: number;
@@ -61,7 +61,7 @@ export function AnnotateView({
   uiState,
   onUIStateChange,
   enableWidgets = false,
-  getTargetDocumentName,
+  getTargetResourceName,
   generatingReferenceId,
   showLineNumbers = false,
   hoverDelayMs = 150,
@@ -69,7 +69,7 @@ export function AnnotateView({
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   const category = getMimeCategory(mimeType);
 
@@ -176,10 +176,7 @@ export function AnnotateView({
         const selectors = buildTextSelectors(content, text, start, end);
         if (!selectors) return;
 
-        eventBus.get('mark:requested').next({
-          selector: selectors,
-          motivation: selectedMotivation
-        });
+        session?.client.mark.request(selectors, selectedMotivation);
 
         // Clear selection after creating annotation
         selection.removeAllRanges();
@@ -219,8 +216,8 @@ export function AnnotateView({
             showLineNumbers={showLineNumbers}
             hoverDelayMs={hoverDelayMs}
             enableWidgets={enableWidgets}
-            eventBus={eventBus}
-            {...(getTargetDocumentName && { getTargetDocumentName })}
+            session={session}
+            {...(getTargetResourceName && { getTargetResourceName })}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
           />
 
@@ -244,14 +241,14 @@ export function AnnotateView({
               annotators={ANNOTATORS}
             />
             <div className="semiont-annotate-view__content">
-              {resourceUri && (
+              {content && (
                 <Suspense fallback={<div className="semiont-annotate-view__loading">Loading PDF viewer...</div>}>
                   <PdfAnnotationCanvas
-                    resourceUri={toResourceId(resourceUri)}
+                    pdfUrl={content}
                     existingAnnotations={allAnnotations}
                     drawingMode={selectedMotivation ? selectedShape : null}
                     selectedMotivation={selectedMotivation}
-                    eventBus={eventBus}
+                    session={session}
                     hoveredAnnotationId={hoveredAnnotationId || null}
                     hoverDelayMs={hoverDelayMs}
                   />
@@ -275,13 +272,13 @@ export function AnnotateView({
             annotators={ANNOTATORS}
           />
           <div className="semiont-annotate-view__content">
-            {resourceUri && (
+            {content && (
               <SvgDrawingCanvas
-                resourceUri={toResourceId(resourceUri)}
+                imageUrl={content}
                 existingAnnotations={allAnnotations}
                 drawingMode={selectedMotivation ? selectedShape : null}
                 selectedMotivation={selectedMotivation}
-                eventBus={eventBus}
+                session={session}
                 hoveredAnnotationId={hoveredAnnotationId || null}
                 hoverDelayMs={hoverDelayMs}
               />

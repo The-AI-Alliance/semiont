@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
-import { resolveFrontendNpmPackage } from './frontend-paths.js';
-import { SemiontProject } from '@semiont/core/node';
+import { resolveFrontendNpmPackage, resolveFrontendServerScript, frontendXdgPaths } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
 import { checkConfigPort, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
@@ -17,16 +17,11 @@ import { checkConfigPort, preflightFromChecks } from '../../../core/handlers/pre
 const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, savedState } = context;
 
-  // Type narrowing for frontend service config
   const config = service.config as FrontendServiceConfig;
 
-  const projectRoot = service.projectRoot;
-  const npmDir = resolveFrontendNpmPackage(projectRoot);
-  const serverScript = npmDir ? path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js') : null;
-  const project = new SemiontProject(projectRoot);
-  const pidFile = project.frontendPidFile;
-  const appLogPath = project.frontendAppLogFile;
-  const errorLogPath = project.frontendErrorLogFile;
+  const npmDir = resolveFrontendNpmPackage();
+  const serverScript = npmDir ? (resolveFrontendServerScript() ?? path.join(npmDir, 'server.js')) : null;
+  const { pidFile, appLogFile, errorLogFile } = frontendXdgPaths();
 
   let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
@@ -36,13 +31,13 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
     port: config.port,
     source: 'npm package',
     pidFile,
-    appLog: appLogPath,
-    errorLog: errorLogPath,
+    appLog: appLogFile,
+    errorLog: errorLogFile,
   };
 
   // Check if frontend server script exists (i.e. package is installed)
   if (!serverScript || !fs.existsSync(serverScript)) {
-    details.message = 'Frontend not provisioned';
+    details.message = 'Frontend package not found — reinstall @semiont/cli';
     return {
       success: true,
       status: 'stopped',
@@ -50,23 +45,21 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
       metadata: { serviceType: 'frontend' }
     };
   }
-  
+
   // Check for PID file
   if (fs.existsSync(pidFile)) {
     try {
       pid = parseInt(fs.readFileSync(pidFile, 'utf-8'));
-      
+
       // Check if process is running
       process.kill(pid, 0);
-      status = 'running';
+      status = 'unhealthy';  // Upgraded to 'running' only after HTTP health check passes
       details.pid = pid;
-      
+
       // Get process info
       try {
-        const psOutput = require('child_process')
-          .execFileSync('ps', ['-p', String(pid), '-o', 'comm=,rss=,pcpu='], { encoding: 'utf-8' })
-          .trim();
-        
+        const psOutput = execFileSync('ps', ['-p', String(pid), '-o', 'comm=,rss=,pcpu='], { encoding: 'utf-8' }).trim();
+
         if (psOutput) {
           const [command, rss, cpu] = psOutput.split(/\s+/);
           details.process = {
@@ -82,14 +75,12 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
       // Process not running, stale PID file
       status = 'stopped';
       details.message = 'Stale PID file found (process not running)';
-      
-      // Clean up stale PID file
       fs.unlinkSync(pidFile);
     }
   } else {
     // Check if process is running from saved state
-    if (savedState?.resources?.platform === 'posix' && 
-        savedState.resources.data.pid && 
+    if (savedState?.resources?.platform === 'posix' &&
+        savedState.resources.data.pid &&
         StateManager.isProcessRunning(savedState.resources.data.pid)) {
       pid = savedState.resources.data.pid;
       status = 'running';
@@ -105,83 +96,59 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
     }
   }
 
-  // If running, check health endpoint (frontend serves at root /)
-  // Use localhost for POSIX platform (config.url may require external auth in environments like Codespaces)
-  if (status === 'running' || status === 'unknown') {
+  // If running, check health endpoint
+  if (status === 'unhealthy' || status === 'unknown') {
     const healthUrl = `http://localhost:${config.port}`;
 
     try {
       const response = await fetch(healthUrl, {
-        redirect: 'follow',  // Follow redirects automatically (e.g., / -> /en)
+        redirect: 'follow',
         signal: AbortSignal.timeout(5000)
       });
 
       if (response.ok) {
         healthy = true;
+        status = 'running';
         details.message = 'Frontend is running and healthy';
         details.statusCode = response.status;
 
-        // Check if Next.js is responding
         const contentType = response.headers.get('content-type');
         if (contentType?.includes('text/html')) {
-          details.framework = 'Next.js';
           details.htmlAvailable = true;
         }
-
-        // Try to check frontend's API route (if it exists)
-        try {
-          const apiResponse = await fetch(`${healthUrl}/api/health`, {
-            redirect: 'follow',
-            signal: AbortSignal.timeout(2000)
-          });
-          if (apiResponse.ok) {
-            details.apiRouteAvailable = true;
-          }
-        } catch {
-          // API route might not exist
-        }
       } else {
-        status = 'unhealthy';
         details.message = `Health check failed with status ${response.status}`;
         details.healthStatus = response.status;
       }
     } catch (error) {
-      if (status === 'running') {
-        status = 'unhealthy';
-        details.message = 'Process is running but health check failed';
-        details.healthError = (error as Error).toString();
-      }
+      details.message = 'Process is running but health check failed';
+      details.healthError = (error as Error).toString();
     }
   }
-  
+
   // Collect recent logs
   let logs: { recent: string[]; errors: string[] } | undefined;
-  if (fs.existsSync(appLogPath)) {
+  if (fs.existsSync(appLogFile)) {
     try {
-      const { execFileSync } = require('child_process');
-
-      // Get last 10 lines of app log
-      const recentLogs = execFileSync('tail', ['-10', appLogPath], { encoding: 'utf-8' })
+      const recentLogs = execFileSync('tail', ['-10', appLogFile], { encoding: 'utf-8' })
         .split('\n')
         .filter((line: string) => line.trim());
 
-      // Get last 5 error lines
       let errorLogs: string[] = [];
-      if (fs.existsSync(errorLogPath)) {
-        errorLogs = execFileSync('tail', ['-5', errorLogPath], { encoding: 'utf-8' })
+      if (fs.existsSync(errorLogFile)) {
+        errorLogs = execFileSync('tail', ['-5', errorLogFile], { encoding: 'utf-8' })
           .split('\n')
           .filter((line: string) => line.trim());
       }
-      
+
       logs = {
         recent: recentLogs,
         errors: errorLogs
       };
-      
-      // Get log file sizes
-      const appLogStats = fs.statSync(appLogPath);
-      const errorLogStats = fs.existsSync(errorLogPath) ? fs.statSync(errorLogPath) : null;
-      
+
+      const appLogStats = fs.statSync(appLogFile);
+      const errorLogStats = fs.existsSync(errorLogFile) ? fs.statSync(errorLogFile) : null;
+
       details.logs = {
         appLogSize: `${Math.round(appLogStats.size / 1024)} KB`,
         errorLogSize: errorLogStats ? `${Math.round(errorLogStats.size / 1024)} KB` : '0 KB',
@@ -191,7 +158,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
       // Log collection is best-effort
     }
   }
-  
+
   // Build platform resources
   const platformResources = pid ? {
     platform: 'posix' as const,
@@ -200,7 +167,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
       port: config.port,
       path: serverScript ?? undefined,
       workingDirectory: serverScript ?? undefined,
-      logFile: appLogPath
+      logFile: appLogFile
     }
   } : undefined;
 

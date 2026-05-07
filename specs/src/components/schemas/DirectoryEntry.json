@@ -1,0 +1,6 @@
+{
+  "oneOf": [
+    { "$ref": "./FileEntry.json" },
+    { "$ref": "./DirEntry.json" }
+  ]
+}

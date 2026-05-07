@@ -13,7 +13,7 @@
     "administer": "ניהול מערכת"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. כל הזכויות שמורות.",
+    "copyright": "© {{year}} The AI Alliance. כל הזכויות שמורות.",
     "about": "אודות",
     "privacyPolicy": "מדיניות פרטיות",
     "cookiePreferences": "העדפות עוגיות",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "ליצור משמעות",
-    "description": "המסגרת בקוד פתוח והעמידה לעתיד, המאפשרת לבני אדם ולסוכנים חכמים ליצור ידע משותף — בשליטתכם ובנויה להתמיד.",
-    "continueToKnowledgeBase": "המשך למאגר הידע",
-    "learnMore": "למידע נוסף",
-    "signUp": "הרשמה",
-    "signIn": "התחברות",
-    "loading": "טוען..."
+    "begin": "התחל"
   },
   "About": {
     "pageTitle": "אודות Semiont",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "אנו משתמשים בעוגיות וטכנולוגיות דומות כדי לשפר את החוויה שלכם, לנתח שימוש ולספק תוכן מותאם אישית.",
     "cookieCategoriesTitle": "קטגוריות עוגיות",
     "necessaryCookiesTitle": "עוגיות הכרחיות",
-    "necessaryCookies": "חיוניות לתפקוד האתר, כולל אימות ותכונות אבטחה.\n\nדוגמאות: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "חיוניות לתפקוד האתר, כולל אימות ותכונות אבטחה.\n\nדוגמאות: semiont-token",
     "analyticsCookiesTitle": "עוגיות אנליטיקה",
     "analyticsCookies": "עוזרות לנו להבין כיצד מבקרים מקיימים אינטראקציה עם האתר שלנו כדי לשפר את חוויית המשתמש.\n\nדוגמאות: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "עוגיות שיווק",
@@ -94,7 +89,7 @@
     "contactAddress": "כתובת:",
     "updatesTitle": "עדכונים למדיניות זו",
     "updates": "אנו עשויים לעדכן מדיניות פרטיות זו מעת לעת. נודיע לכם על שינויים מהותיים על ידי פרסום מדיניות הפרטיות החדשה בדף זה ועדכון תאריך התחילה.",
-    "lastUpdated": "עודכן לאחרונה: {date}"
+    "lastUpdated": "עודכן לאחרונה: {{date}}"
   },
   "Terms": {
     "pageTitle": "תנאי שימוש",
@@ -124,7 +119,7 @@
     "changes": "אנו עשויים לעדכן תנאים אלו מעת לעת. המשתמשים יקבלו הודעה על שינויים משמעותיים, והמשך השימוש בפלטפורמה מהווה קבלת התנאים המעודכנים.",
     "contactTitle": "יצירת קשר",
     "contact": "אם יש לכם שאלות אודות תנאים אלו או שאתם צריכים לדווח על הפרות, אנא פנו לצוות התמיכה שלנו דרך הפלטפורמה או בפרטי ההתקשרות המופיעים במדיניות הפרטיות שלנו.",
-    "lastUpdated": "עודכן לאחרונה: {date}",
+    "lastUpdated": "עודכן לאחרונה: {{date}}",
     "aup": "באמצעות שימוש ב-Semiont, אתם מסכימים להשתמש בפלטפורמה שלנו באחריות ובהתאם לתנאים אלו. אנו מחויבים לשמור על סביבה בטוחה, מכבדת ופרודוקטיבית לכל המשתמשים."
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "יצירת החשבון נכשלה. אנא פנו לתמיכה.",
     "errorGeneric": "אירעה שגיאת אימות. אנא נסו שוב.",
     "errorGoogleSignIn": "ההתחברות דרך Google נכשלה. אנא נסו שוב.",
+    "backendUrlLabel": "כתובת URL של השרת",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "אנא הזן את כתובת ה-URL של השרת",
+    "errorBackendUrlInvalid": "נא להזין כתובת URL תקינה (לדוגמה: http://localhost:4000)",
+    "errorBackendUrlUnreachable": "לא ניתן להגיע לכתובת URL זו — האם ה-backend פועל?",
     "errorEmailRequired": "אנא הזינו את כתובת הדוא\"ל שלכם",
     "errorPasswordRequired": "אנא הזינו את הסיסמה שלכם",
     "errorSignInFailed": "ההתחברות נכשלה. אנא נסו שוב.",
@@ -185,7 +185,7 @@
     "loading": "טוען...",
     "welcomeTitle": "ברוכים הבאים ל-Semiont!",
     "thanksForAccepting": "תודה שקיבלתם את התנאים. מפנים אתכם לאפליקציה...",
-    "welcomeUser": "ברוכים הבאים ל-Semiont, {firstName}!",
+    "welcomeUser": "ברוכים הבאים ל-Semiont, {{firstName}}!",
     "reviewTermsPrompt": "לפני שתוכלו להתחיל להשתמש ב-Semiont, אנא עיינו בתנאי השימוש שלנו וקבלו אותם",
     "termsSummaryTitle": "סיכום תנאי השימוש",
     "termsSummaryIntro": "באמצעות שימוש ב-Semiont, אתם מסכימים ל:",
@@ -246,9 +246,9 @@
     "archived": "בארכיון",
     "created": "נוצרו",
     "recentResources": "משאבים אחרונים",
-    "searchResults": "תוצאות חיפוש ({count})",
-    "resourcesTaggedWith": "משאבים מתויגים עם «{entityType}»",
-    "noResultsFound": "לא נמצאו תוצאות עבור «{query}». מציג משאבים אחרונים במקום.",
+    "searchResults": "תוצאות חיפוש ({{count}})",
+    "resourcesTaggedWith": "משאבים מתויגים עם «{{entityType}}»",
+    "noResultsFound": "לא נמצאו תוצאות עבור «{{query}}». מציג משאבים אחרונים במקום.",
     "noResourcesAvailable": "אין משאבים זמינים. צרו את המסמך הראשון שלכם כדי להתחיל.",
     "composeFirstResource": "חיבור משאב ראשון",
     "loadingKnowledgeBase": "טוען מאגר ידע..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "הזינו שם משאב...",
     "entityTypes": "תגיות סוג ישות",
     "entityTypesHint": "תייגו את המשאב שלכם עם סוגי ישויות",
-    "noEntityTypesAvailable": "אין סוגי ישויות זמינים",
     "contentSource": "מקור תוכן",
     "uploadFile": "העלאת קובץ",
     "uploadFileDescription": "תמונות, מסמכים, קבצי טקסט",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "חשבון",
     "user": "משתמש",
-    "profileAlt": "פרופיל {name}",
+    "profileAlt": "פרופיל {{name}}",
     "session": "סשן",
-    "expiresIn": "פג תוקף בעוד: {time}",
+    "expiresIn": "פג תוקף בעוד: {{time}}",
     "privileges": "הרשאות",
     "administrator": "🛡️ מנהל מערכת",
     "moderator": "⚖️ מנהל תוכן",
@@ -433,7 +432,7 @@
     "configManagementDescription": "הגדרות OAuth מנוהלות באמצעות משתני סביבה. כדי לשנות הגדרות אלו:",
     "configLocalDev": "לפיתוח מקומי: עדכנו את קבצי ה-.env שלכם",
     "configCloudDeploy": "לפריסה בענן: השתמשו ב-",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "להחלת שינויים מקבצי הגדרות",
     "configAWS": "עבור AWS: ההגדרות מאוחסנות ב-AWS Secrets Manager והגדרות משימות ECS"
   },
@@ -510,11 +509,11 @@
     "title": "העדפות עוגיות",
     "description": "נהלו את העדפות העוגיות והגדרות הפרטיות שלכם. השינויים ייכנסו לתוקף מיידית.",
     "currentSettings": "הגדרות נוכחיות",
-    "lastUpdated": "עודכן לאחרונה: {date}",
-    "version": "גרסה: {version}",
+    "lastUpdated": "עודכן לאחרונה: {{date}}",
+    "version": "גרסה: {{version}}",
     "cookieCategories": "קטגוריות עוגיות",
     "required": "(נדרש)",
-    "viewCookies": "צפייה בעוגיות ({count})",
+    "viewCookies": "צפייה בעוגיות ({{count}})",
     "dataManagement": "ניהול נתונים",
     "exportMyData": "ייצוא הנתונים שלי",
     "deleteAllData": "מחיקת כל הנתונים",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "בסיסי ידע",
+    "connectTitle": "התחבר לבסיס ידע",
+    "connect": "התחבר",
+    "connecting": "מתחבר...",
+    "signIn": "התחברות",
+    "signingIn": "מתחבר...",
+    "cancel": "ביטול",
+    "addKnowledgeBase": "הוסף בסיס ידע",
+    "removeConfirm": "הסיר את {{label}}?",
+    "remove": "הסר",
+    "signOut": "התנתקות",
+    "statusConnected": "מחובר",
+    "statusExpired": "הפגישה פגה",
+    "statusSignedOut": "מנותק",
+    "statusUnreachable": "לא ניתן להגיע",
+    "invalidHost": "שם מארח לא חוקי"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "אין בסיסי ידע",
+    "noKnowledgeBasesHint": "הוסף בסיס ידע באמצעות הלוח מימין כדי להתחיל לגלות, להוסיף הערות ולקשר משאבים.",
+    "sessionExpired": "הפגישה שלך פגה.",
+    "signedOut": "אינך מחובר.",
+    "signInHint": "התחבר באמצעות לוח בסיס הידע כדי לעיין במשאבים.",
+    "findKnowledgeBases": "מצא מאגרי ידע",
+    "createNew": "צור חדש"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "התחבר לבסיס ידע כדי לצפות בחשבונך."
   }
 }

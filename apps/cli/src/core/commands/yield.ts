@@ -1,64 +1,34 @@
 /**
  * Yield Command
  *
- * Registers one or more existing files as semiont resources, or records
- * a content update for already-tracked files.
+ * Two modes, selected by a required mode flag:
  *
- * Usage:
- *   semiont yield docs/overview.md
- *   semiont yield docs/**\/*.md
- *   semiont yield docs/new-file.md --name "Overview Document"
+ * UPLOAD mode — register a local file as a semiont resource:
+ *   semiont yield --upload docs/overview.md [--name "Title"]
+ *   semiont yield --upload docs/a.md --upload docs/b.md
+ *
+ * DELEGATE mode — generate a new resource from an annotation's gathered context:
+ *   semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md
+ *   semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md \
+ *     --title "Paris" --prompt "Write a brief encyclopedia entry" --language en
+ *
+ * Exactly one of --upload or --delegate must be present.
  */
 
 import * as path from 'path';
 import { promises as nodeFs } from 'fs';
-import { createHash } from 'crypto';
 import { z } from 'zod';
-import { SemiontProject } from '@semiont/core/node';
-import { EventBus, resourceId as toResourceId, type Logger, type UserId } from '@semiont/core';
-import { createEventStore } from '@semiont/event-sourcing';
-import { resolveStorageUri, ResourceNotFoundError } from '@semiont/event-sourcing';
-import { Stower, createKnowledgeBase } from '@semiont/make-meaning';
-import type { GraphDatabase } from '@semiont/graph';
+import { lastValueFrom } from 'rxjs';
+import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
+import type { GatheredContext } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 import { printSuccess, printWarning } from '../io/cli-logger.js';
+
 import { findProjectRoot } from '../config-loader.js';
-import { checkGitAvailable } from '../handlers/preflight-utils.js';
-
-function createCliLogger(verbose: boolean): Logger {
-  return {
-    debug: (msg, meta) => { if (verbose) console.log(`[debug] ${msg}`, meta ?? ''); },
-    info: (msg, meta) => console.log(`[info] ${msg}`, meta ?? ''),
-    warn: (msg, meta) => console.warn(`[warn] ${msg}`, meta ?? ''),
-    error: (msg, meta) => console.error(`[error] ${msg}`, meta ?? ''),
-    child: () => createCliLogger(verbose),
-  };
-}
-
-function createNoopGraphDatabase(): GraphDatabase {
-  const noop = async (): Promise<never> => { throw new Error('Graph not available during yield'); };
-  return {
-    connect: async () => {},
-    disconnect: async () => {},
-    isConnected: () => false,
-    createResource: noop, getResource: noop, updateResource: noop, deleteResource: noop,
-    listResources: noop, searchResources: noop, createAnnotation: noop, getAnnotation: noop,
-    updateAnnotation: noop, deleteAnnotation: noop, listAnnotations: noop, getHighlights: noop,
-    resolveReference: noop, getReferences: noop, getEntityReferences: noop,
-    getResourceAnnotations: noop, getResourceReferencedBy: noop, getResourceConnections: noop,
-    findPath: noop, getEntityTypeStats: noop, getStats: noop, batchCreateResources: noop,
-    createAnnotations: noop, resolveReferences: noop, detectAnnotations: noop,
-    getEntityTypes: noop, addEntityType: noop, addEntityTypes: noop,
-    generateId: () => 'noop', clearDatabase: noop,
-  };
-}
-
-async function checksumFile(absPath: string): Promise<string> {
-  const buf = await nodeFs.readFile(absPath);
-  return createHash('sha256').update(buf).digest('hex');
-}
+import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
+import type { SemiontClient } from '@semiont/sdk';
 
 function guessFormat(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
@@ -81,13 +51,96 @@ function guessFormat(filePath: string): string {
 // SCHEMA
 // =====================================================================
 
-export const YieldOptionsSchema = BaseOptionsSchema.extend({
-  files: z.array(z.string()).min(1, 'At least one file path is required'),
+export const YieldOptionsSchema = ApiOptionsSchema.extend({
+  // Mode flags
+  upload: z.array(z.string()).default([]),
+  delegate: z.boolean().default(false),
+  // Upload mode options
   name: z.string().optional(),
-  noGit: z.boolean().default(false),
+  // Delegate mode required
+  resource: z.string().optional(),
+  annotation: z.string().optional(),
+  storageUri: z.string().optional(),
+  // Delegate mode optional
+  title: z.string().optional(),
+  prompt: z.string().optional(),
+  /** BCP-47 tag — language the *generated resource* is written in. */
+  language: z.string().optional(),
+  /**
+   * BCP-47 tag — language of the *source resource* the annotation lives on.
+   * Goes into the prompt so the LLM understands embedded source-context
+   * snippets correctly when source ≠ target language.
+   */
+  sourceLanguage: z.string().optional(),
+  temperature: z.coerce.number().min(0).max(1).optional(),
+  maxTokens: z.coerce.number().int().min(100).max(4000).optional(),
+  contextWindow: z.coerce.number().int().min(100).max(5000).default(1000),
+}).superRefine((val, ctx) => {
+  const hasUpload = val.upload.length > 0;
+  const hasDelegate = val.delegate;
+
+  if (!hasUpload && !hasDelegate) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'One of --upload <file> or --delegate is required' });
+  }
+  if (hasUpload && hasDelegate) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--upload and --delegate are mutually exclusive' });
+  }
+  if (hasUpload && val.name && val.upload.length > 1) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--name can only be used when uploading a single file' });
+  }
+  if (hasDelegate) {
+    if (!val.resource) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--resource <resourceId> is required with --delegate' });
+    if (!val.annotation) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--annotation <annotationId> is required with --delegate' });
+    if (!val.storageUri) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--storage-uri is required with --delegate' });
+  }
 });
 
 export type YieldOptions = z.output<typeof YieldOptionsSchema>;
+
+// =====================================================================
+// DELEGATE MODE HELPERS
+// =====================================================================
+
+async function runDelegate(
+  semiont: SemiontClient,
+  options: YieldOptions,
+): Promise<{ resourceId?: string; resourceName?: string }> {
+  const rawResourceId = options.resource!;
+  const rawAnnotationId = options.annotation!;
+  const rId = toResourceId(rawResourceId);
+  const aId = toAnnotationId(rawAnnotationId);
+
+  // Step 1: gather context
+  const context = await lastValueFrom(
+    semiont.gather.annotation(rId, aId, { contextWindow: options.contextWindow }),
+  ) as GatheredContext;
+
+  if (!options.quiet) process.stderr.write(`Generating from annotation ${rawAnnotationId}...\n`);
+
+  // Step 2: generate — yield.fromAnnotation Observable yields progress
+  // events, then a final `complete` event carrying the JobCompleteCommand
+  // (with `result.resourceId` / `result.resourceName`).
+  // The gathered context's metadata.language is populated by the backend's
+  // gather flow from the source resource's primary representation. Use it as
+  // a default for --source-language so callers don't have to specify it
+  // unless they want to override.
+  const ctxSourceLanguage = (context as { metadata?: { language?: string } } | undefined)?.metadata?.language;
+
+  const final = await lastValueFrom(
+    semiont.yield.fromAnnotation(rId, aId, {
+      title: options.title ?? rawAnnotationId,
+      storageUri: options.storageUri!,
+      context,
+      prompt: options.prompt,
+      language: options.language,
+      sourceLanguage: options.sourceLanguage ?? ctxSourceLanguage,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+    }),
+  );
+  const r = ((final.kind === 'complete' ? final.data.result : undefined) ?? {}) as { resourceId?: string; resourceName?: string };
+  return { resourceId: r.resourceId, resourceName: r.resourceName };
+}
 
 // =====================================================================
 // IMPLEMENTATION
@@ -95,111 +148,72 @@ export type YieldOptions = z.output<typeof YieldOptionsSchema>;
 
 export async function runYield(options: YieldOptions): Promise<CommandResults> {
   const startTime = Date.now();
+  
+
+  const rawBusUrl = resolveBusUrl(options.bus);
+  const { semiont } = loadCachedClient(rawBusUrl);
   const projectRoot = findProjectRoot();
-  const environment = options.environment!;
-  const logger = createCliLogger(options.verbose ?? false);
-  const userId = `did:web:localhost:users:${process.env.USER ?? 'cli'}` as UserId;
 
-  if (options.name && options.files.length > 1) {
-    throw new Error('--name can only be used when yielding a single file');
+  // ── Delegate mode ──────────────────────────────────────────────────
+  if (options.delegate) {
+    const { resourceId, resourceName } = await runDelegate(semiont, options);
+    const label = resourceName ?? resourceId ?? options.storageUri!;
+    if (!options.quiet) printSuccess(`Yielded: ${options.storageUri} → ${resourceId ?? '(pending)'}`);
+    process.stdout.write(JSON.stringify({ resourceId, resourceName, storageUri: options.storageUri }));
+    if (!options.quiet) process.stdout.write('\n');
+    return {
+      command: 'yield',
+      environment: rawBusUrl,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },
+      executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
+      results: [{ entity: label, platform: 'posix', success: true, metadata: { resourceId, storageUri: options.storageUri }, duration: Date.now() - startTime }],
+    };
   }
 
-  const project = new SemiontProject(projectRoot);
-
-  if (project.gitSync && !options.noGit) {
-    const gitCheck = checkGitAvailable();
-    if (!gitCheck.pass) throw new Error(gitCheck.message);
-  }
-
-  const eventBus = new EventBus();
-  const eventStore = createEventStore(project, eventBus, logger);
-  const kb = createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
-  const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
-  await stower.initialize();
-
+  // ── Upload mode ────────────────────────────────────────────────────
   let succeeded = 0;
   let failed = 0;
   const results: CommandResults['results'] = [];
 
-  try {
-    for (const filePath of options.files) {
-      const absPath = path.isAbsolute(filePath)
-        ? filePath
-        : path.resolve(projectRoot, filePath);
+  for (const filePath of options.upload) {
+    const absPath = path.isAbsolute(filePath)
+      ? filePath
+      : path.resolve(projectRoot, filePath);
 
-      // Verify file exists
-      try {
-        await nodeFs.access(absPath);
-      } catch {
-        if (!options.quiet) printWarning(`File not found: ${filePath}`);
-        results.push({ entity: filePath, platform: 'posix', success: false, metadata: { error: 'File not found' }, duration: 0 });
-        failed++;
-        continue;
-      }
+    const fileStart = Date.now();
 
-      // Compute relative path from project root → storageUri
-      const relPath = path.relative(projectRoot, absPath).replace(/\\/g, '/');
-      const storageUri = `file://${relPath}`;
-
-      // Check if already tracked
-      let isTracked = false;
-      let existingResourceId: string | undefined;
-      try {
-        existingResourceId = await resolveStorageUri(kb.projectionsDir, storageUri);
-        isTracked = true;
-      } catch (e) {
-        if (!(e instanceof ResourceNotFoundError)) throw e;
-      }
-
-      const format = guessFormat(filePath);
-      const contentChecksum = await checksumFile(absPath);
-      const fileStart = Date.now();
-
-      if (!isTracked) {
-        // New file — emit yield:create (CLI path: no content, file already on disk)
-        const name = options.name ?? path.basename(filePath, path.extname(filePath));
-        const created = await new Promise<string>((resolve, reject) => {
-          const sub = eventBus.get('yield:created').subscribe(e => { sub.unsubscribe(); resolve(e.resourceId); });
-          eventBus.get('yield:create-failed').subscribe(e => reject(e.error));
-          eventBus.get('yield:create').next({ name, storageUri, contentChecksum, format, userId, noGit: options.noGit });
-        });
-
-        if (!options.quiet) printSuccess(`Yielded: ${filePath} → ${created}`);
-        results.push({ entity: filePath, platform: 'posix', success: true, metadata: { resourceId: created, storageUri }, duration: Date.now() - fileStart });
-        succeeded++;
-      } else {
-        // Already tracked — check for content change
-        // Get current checksum from view (read resource view)
-        // Emit yield:update (no content — file already changed on disk)
-        const updated = await new Promise<void>((resolve, reject) => {
-          const sub = eventBus.get('yield:updated').subscribe(() => { sub.unsubscribe(); resolve(); });
-          eventBus.get('yield:update-failed').subscribe(e => reject(e.error));
-          eventBus.get('yield:update').next({
-            resourceId: toResourceId(existingResourceId!),
-            storageUri,
-            contentChecksum,
-            userId,
-            noGit: options.noGit,
-          });
-        });
-        void updated;
-        if (!options.quiet) printSuccess(`Updated: ${filePath} (${existingResourceId})`);
-        results.push({ entity: filePath, platform: 'posix', success: true, metadata: { resourceId: existingResourceId, storageUri }, duration: Date.now() - fileStart });
-        succeeded++;
-      }
+    let content: Buffer;
+    try {
+      content = await nodeFs.readFile(absPath);
+    } catch {
+      if (!options.quiet) printWarning(`File not found: ${filePath}`);
+      results.push({ entity: filePath, platform: 'posix', success: false, metadata: { error: 'File not found' }, duration: 0 });
+      failed++;
+      continue;
     }
-  } finally {
-    await stower.stop();
-    eventBus.destroy();
+
+    const relPath = path.relative(projectRoot, absPath).replace(/\\/g, '/');
+    const storageUri = `file://${relPath}`;
+    const name = options.name ?? path.basename(filePath, path.extname(filePath));
+    const format = guessFormat(filePath);
+
+    const { resourceId } = await semiont.yield.resource(
+      { name, file: content, format, storageUri },
+    );
+
+    if (!options.quiet) printSuccess(`Yielded: ${filePath} → ${resourceId}`);
+    results.push({ entity: filePath, platform: 'posix', success: true, metadata: { resourceId, storageUri }, duration: Date.now() - fileStart });
+    succeeded++;
   }
 
-  const duration = Date.now() - startTime;
   return {
     command: 'yield',
-    environment,
+    environment: rawBusUrl,
     timestamp: new Date(),
-    duration,
-    summary: { succeeded, failed, total: options.files.length, warnings: 0 },
+    duration: Date.now() - startTime,
+    summary: { succeeded, failed, total: options.upload.length, warnings: 0 },
     executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
     results,
   };
@@ -211,29 +225,76 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
 
 export const yieldCmd = new CommandBuilder()
   .name('yield')
-  .description('Register existing files as semiont resources, or record content updates for tracked files')
+  .description(
+    'Upload a local file as a resource (--upload), or generate a new resource from an annotation\'s gathered context (--delegate). ' +
+    'Delegate mode outputs JSON { resourceId, resourceName, storageUri } to stdout.'
+  )
   .requiresEnvironment(true)
-  .requiresServices(false)
+  .requiresServices(true)
   .examples(
-    'semiont yield docs/overview.md',
-    'semiont yield docs/new.md --name "Overview Document"',
+    'semiont yield --upload docs/overview.md',
+    'semiont yield --upload docs/overview.md --name "Overview Document"',
+    'semiont yield --upload docs/a.md --upload docs/b.md --upload docs/c.md',
+    'semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md',
+    'semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md --title "Paris" --language en',
+    'semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md --prompt "Write a brief encyclopedia entry" --temperature 0.3',
+    'NEW_ID=$(semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md --quiet | jq -r \'.resourceId\') && semiont bind <resourceId> <annotationId> "$NEW_ID"',
   )
   .args({
-    args: {
-      '--name': {
-        type: 'string',
-        description: 'Resource name (only valid for a single new file)',
+    ...withApiArgs({
+      '--upload': {
+        type: 'array',
+        description: 'Upload mode: one or more local file paths to register as resources (repeatable)',
       },
-      '--no-git': {
+      '--delegate': {
         type: 'boolean',
-        description: 'Skip git add even when gitSync is configured',
+        description: 'Delegate mode: generate a new resource from an annotation\'s gathered context',
         default: false,
       },
-    },
-    aliases: {
+      '--name': {
+        type: 'string',
+        description: 'Upload mode: resource name (single file only)',
+      },
+      '--resource': {
+        type: 'string',
+        description: 'Delegate mode: source resourceId',
+      },
+      '--annotation': {
+        type: 'string',
+        description: 'Delegate mode: source annotationId',
+      },
+      '--storage-uri': {
+        type: 'string',
+        description: 'Delegate mode: file://-relative URI where the generated resource will be saved',
+      },
+      '--title': {
+        type: 'string',
+        description: 'Delegate mode: custom title for the generated resource',
+      },
+      '--prompt': {
+        type: 'string',
+        description: 'Delegate mode: custom prompt to guide content generation',
+      },
+      '--language': {
+        type: 'string',
+        description: 'Delegate mode: BCP 47 language tag for generated content (e.g. en, fr, ja)',
+      },
+      '--temperature': {
+        type: 'string',
+        description: 'Delegate mode: inference temperature 0.0–1.0 (0 = focused, 1 = creative)',
+      },
+      '--max-tokens': {
+        type: 'string',
+        description: 'Delegate mode: maximum tokens to generate (100–4000)',
+      },
+      '--context-window': {
+        type: 'string',
+        description: 'Delegate mode: characters of annotation context to gather (100–5000, default: 1000)',
+      },
+    }, {
       '-n': '--name',
-    },
-    restAs: 'files',
+    }),
+    aliases: {},
   })
   .schema(YieldOptionsSchema)
   .handler(runYield)

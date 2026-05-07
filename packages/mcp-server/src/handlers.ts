@@ -1,318 +1,198 @@
 /**
- * Tool execution handlers using @semiont/api-client
+ * MCP Tool Handlers — verb-oriented namespace API
+ *
+ * Each handler receives the client (auth is internal) and raw args.
+ * Returns MCP-shaped { content: [{ type: 'text', text }] }.
  */
 
-import { SemiontApiClient, getExactText, getBodySource, type ReferenceDetectionProgress, type YieldProgress } from '@semiont/api-client';
-import { EventBus, resourceId, annotationId, entityType, type AccessToken } from '@semiont/core';
+import { lastValueFrom } from 'rxjs';
+import { tap } from 'rxjs/operators';
+import { getExactText, getBodySource } from '@semiont/core';
+import { SemiontClient } from '@semiont/sdk';
+import { resourceId, annotationId, type GatheredContext } from '@semiont/core';
 
-export async function handleCreateResource(client: SemiontApiClient, auth: AccessToken, args: any) {
-  // Create File from content string for multipart/form-data upload
-  const format = args?.contentType || 'text/plain';
-  const content = args?.content || '';
-  const blob = new Blob([content], { type: format });
-  const file = new File([blob], args?.name + '.txt', { type: format });
+type McpResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
-  const data = await client.createResource({
-    name: args?.name,
-    file: file,
-    format: format,
-    entityTypes: args?.entityTypes || [],
-    storageUri: args?.storageUri,
-  }, { auth });
+// ── Browse ──────────────────────────────────────────────────────────────────
 
+export async function browseResource(semiont: SemiontClient, args: any): Promise<McpResult> {
+  const data = await semiont.browse.resource(resourceId(args?.id));
+  return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+}
+
+export async function browseResources(semiont: SemiontClient, args: any): Promise<McpResult> {
+  const filters: { limit?: number; archived?: boolean } = {};
+  if (args?.limit !== undefined) filters.limit = args.limit;
+  filters.archived = args?.archived ?? false;
+  const resources = await semiont.browse.resources(filters);
   return {
     content: [{
-      type: 'text' as const,
-      text: `Resource created:\nID: ${data.resourceId}`,
+      type: 'text',
+      text: `Found ${resources.length} resources:\n${resources.map((d: any) => `- ${d.name} (${d['@id'] ?? d.id}) — ${d.entityTypes?.join(', ') || 'no types'}`).join('\n')}`,
     }],
   };
 }
 
-export async function handleGetResource(client: SemiontApiClient, auth: AccessToken, id: string) {
-  const data = await client.getResource(resourceId(id), { auth });
-
+export async function browseHighlights(semiont: SemiontClient, args: any): Promise<McpResult> {
+  const annotations = await semiont.browse.annotations(resourceId(args?.resourceId));
+  const highlights = annotations.filter(a => a.motivation === 'highlighting');
   return {
     content: [{
-      type: 'text' as const,
-      text: JSON.stringify(data, null, 2),
-    }],
-  };
-}
-
-export async function handleListResources(client: SemiontApiClient, auth: AccessToken, args: any) {
-  const data = await client.listResources(
-    args?.limit,
-    args?.archived ?? false,
-    undefined, // query parameter
-    { auth }
-  );
-
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Found ${data.total} resources:\n${data.resources.map((d: any) => `- ${d.name} (${d.id}) - ${d.entityTypes?.join(', ') || 'No types'}`).join('\n')}`,
-    }],
-  };
-}
-
-export async function handleDetectAnnotations(client: SemiontApiClient, auth: AccessToken, args: any) {
-  const rUri = resourceId(args?.resourceId);
-  const entityTypes = args?.entityTypes || [];
-
-  return new Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }>((resolve) => {
-    const mappedEntityTypes = (entityTypes as string[]).map(t => entityType(t));
-    const eventBus = new EventBus();
-    const progressMessages: string[] = [];
-
-    // Subscribe to detection events
-    eventBus.get('mark:progress').subscribe((progress) => {
-      // Cast to ReferenceDetectionProgress for entity-type-specific fields
-      const refProgress = progress as unknown as ReferenceDetectionProgress;
-      const msg = progress.status === 'scanning' && refProgress.currentEntityType
-        ? `Scanning for ${refProgress.currentEntityType}... (${refProgress.processedEntityTypes}/${refProgress.totalEntityTypes})`
-        : `Status: ${progress.status}`;
-      progressMessages.push(msg);
-      console.error(msg); // Send to stderr for MCP progress
-    });
-
-    eventBus.get('mark:assist-finished').subscribe((result) => {
-      const progress = result.progress as ReferenceDetectionProgress | undefined;
-      eventBus.destroy();
-      resolve({
-        content: [{
-          type: 'text' as const,
-          text: `Entity detection complete!\nFound ${progress?.foundCount || 0} entities\n\nProgress:\n${progressMessages.join('\n')}`,
-        }],
-      });
-    });
-
-    eventBus.get('mark:assist-failed').subscribe(() => {
-      eventBus.destroy();
-      resolve({
-        content: [{
-          type: 'text' as const,
-          text: `Entity detection failed`,
-        }],
-        isError: true,
-      });
-    });
-
-    // Start detection - events auto-emit to EventBus
-    client.sse.annotateReferences(rUri, { entityTypes: mappedEntityTypes }, { auth, eventBus });
-  });
-}
-
-export async function handleCreateAnnotation(client: SemiontApiClient, auth: AccessToken, args: any) {
-  const selectionData = args?.selectionData || {};
-  const entityTypes = args?.entityTypes || [];
-
-  // Convert entityTypes to W3C TextualBody items
-  const body = entityTypes.map((value: string) => ({
-    type: 'TextualBody' as const,
-    value,
-    purpose: 'tagging' as const,
-  }));
-
-  const rUri = resourceId(args?.resourceId);
-  const data = await client.createAnnotation(rUri, {
-    motivation: 'highlighting',
-    target: {
-      source: args?.resourceId,
-      selector: [
-        {
-          type: 'TextPositionSelector',
-          start: selectionData.offset || 0,
-          end: (selectionData.offset || 0) + (selectionData.length || 0),
-        },
-        {
-          type: 'TextQuoteSelector',
-          exact: selectionData.text || '',
-        },
-      ],
-    },
-    body,
-  }, { auth });
-
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Annotation created:\nID: ${data.annotationId}`,
-    }],
-  };
-}
-
-export async function handleSaveAnnotation(_client: SemiontApiClient, _auth: AccessToken, _args: any) {
-  // NOTE: The /save endpoint was removed from the API
-  // This functionality may have been merged into the main annotation creation
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Error: The save annotation endpoint is no longer available. Annotations are automatically persisted when created.`,
-    }],
-    isError: true,
-  };
-}
-
-export async function handleResolveAnnotation(client: SemiontApiClient, auth: AccessToken, args: any) {
-  await client.updateAnnotationBody(
-    resourceId(args?.sourceResourceId),
-    annotationId(args?.selectionId),
-    {
-      resourceId: args?.sourceResourceId,
-      operations: [{
-        op: 'add',
-        item: {
-          type: 'SpecificResource',
-          source: args?.resourceId,
-          purpose: 'linking',
-        },
-      }],
-    },
-    { auth }
-  );
-
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Annotation linked to resource:\nAnnotation ID: ${args?.selectionId}\nLinked to: ${args?.resourceId || 'null'}`,
-    }],
-  };
-}
-
-export async function handleGenerateResourceFromAnnotation(client: SemiontApiClient, auth: AccessToken, args: any) {
-  const rId = resourceId(args?.resourceId);
-  const aId = annotationId(args?.annotationId);
-
-  // Fetch context before generation
-  const contextData = await client.getAnnotationLLMContext(rId, aId, { contextWindow: 2000, auth });
-
-  if (!contextData?.context) {
-    throw new Error('Failed to fetch generation context');
-  }
-
-  const request = {
-    title: args?.title,
-    prompt: args?.prompt,
-    language: args?.language,
-    context: contextData.context,
-    storageUri: args?.storageUri,
-  };
-
-  return new Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }>((resolve) => {
-    const eventBus = new EventBus();
-    const progressMessages: string[] = [];
-
-    // Subscribe to generation events
-    eventBus.get('yield:progress').subscribe((progress: YieldProgress) => {
-      const msg = `${progress.status}: ${progress.percentage}% - ${progress.message || ''}`;
-      progressMessages.push(msg);
-      console.error(msg); // Send to stderr for MCP progress
-    });
-
-    eventBus.get('yield:finished').subscribe((progress: YieldProgress) => {
-      eventBus.destroy();
-      resolve({
-        content: [{
-          type: 'text' as const,
-          text: `Resource generation complete!\nResource ID: ${progress.resourceId || 'unknown'}\nResource Name: ${progress.resourceName || 'unknown'}\n\nProgress:\n${progressMessages.join('\n')}`,
-        }],
-      });
-    });
-
-    eventBus.get('yield:failed').subscribe(() => {
-      eventBus.destroy();
-      resolve({
-        content: [{
-          type: 'text' as const,
-          text: `Resource generation failed`,
-        }],
-        isError: true,
-      });
-    });
-
-    // Start generation - events auto-emit to EventBus
-    client.sse.yieldResourceFromAnnotation(rId, aId, request, { auth, eventBus });
-  });
-}
-
-export async function handleGetContextualSummary(_client: SemiontApiClient, _auth: AccessToken, _args: any) {
-  // NOTE: /contextual-summary endpoint was removed or renamed
-  // Use /api/annotations/{id}/summary or /api/annotations/{id}/context instead
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Error: The contextual-summary endpoint is no longer available. Use /summary or /context endpoints instead.`,
-    }],
-    isError: true,
-  };
-}
-
-export async function handleGetSchemaDescription(_client: SemiontApiClient, _auth: AccessToken) {
-  // NOTE: /schema-description endpoint was removed
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Error: The schema-description endpoint is no longer available.`,
-    }],
-    isError: true,
-  };
-}
-
-export async function handleGetLLMContext(_client: SemiontApiClient, _auth: AccessToken, _args: any) {
-  // NOTE: Endpoint path may have changed - need to verify correct path
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Error: The llm-context endpoint path needs to be updated.`,
-    }],
-    isError: true,
-  };
-}
-
-export async function handleGetResourceAnnotations(_client: SemiontApiClient, _auth: AccessToken, _args: any) {
-  // NOTE: Use /api/resources/{id}/annotations instead
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Error: This endpoint needs to be updated to use /api/resources/{id}/annotations.`,
-    }],
-    isError: true,
-  };
-}
-
-export async function handleGetResourceHighlights(client: SemiontApiClient, auth: AccessToken, args: Record<string, unknown>) {
-  const data = await client.getResourceAnnotations(resourceId(args?.resourceId as string), { auth });
-  const highlights = data.annotations.filter(a => a.motivation === 'highlighting');
-
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Found ${highlights.length} highlights in resource:\n${highlights.map(h => {
-        // Safely get exact text from TextQuoteSelector
-        const targetSelector = typeof h.target === 'string' ? undefined : h.target.selector;
-        const selectors = Array.isArray(targetSelector) ? targetSelector : [targetSelector];
-        const textQuoteSelector = selectors.find(s => s?.type === 'TextQuoteSelector');
-        const text = textQuoteSelector && 'exact' in textQuoteSelector ? textQuoteSelector.exact : h.id;
-        return `- ${text}${h.creator ? ` (creator: ${h.creator.name})` : ''}`;
+      type: 'text',
+      text: `Found ${highlights.length} highlights:\n${highlights.map(h => {
+        const sel = typeof h.target === 'string' ? undefined : h.target.selector;
+        const selectors = Array.isArray(sel) ? sel : [sel];
+        const tq = selectors.find(s => s?.type === 'TextQuoteSelector');
+        const text = tq && 'exact' in tq ? tq.exact : h.id;
+        return `- ${text}`;
       }).join('\n')}`,
     }],
   };
 }
 
-export async function handleGetResourceReferences(client: SemiontApiClient, auth: AccessToken, args: Record<string, unknown>) {
-  const data = await client.getResourceAnnotations(resourceId(args?.resourceId as string), { auth });
-  const references = data.annotations.filter(a => a.motivation === 'linking');
-
+export async function browseReferences(semiont: SemiontClient, args: any): Promise<McpResult> {
+  const annotations = await semiont.browse.annotations(resourceId(args?.resourceId));
+  const references = annotations.filter(a => a.motivation === 'linking');
   return {
     content: [{
-      type: 'text' as const,
-      text: `Found ${references.length} references in resource:\n${references.map(r => {
-        // Use SDK utilities to extract text and source
-        const targetSelector = typeof r.target === 'string' ? undefined : r.target.selector;
-        const text = getExactText(targetSelector) || r.id;
+      type: 'text',
+      text: `Found ${references.length} references:\n${references.map(r => {
+        const sel = typeof r.target === 'string' ? undefined : r.target.selector;
+        const text = getExactText(sel) || r.id;
         const source = getBodySource(r.body);
         return `- ${text} → ${source || 'stub (no link)'}`;
       }).join('\n')}`,
     }],
   };
+}
+
+// ── Mark ────────────────────────────────────────────────────────────────────
+
+export async function markAnnotation(semiont: SemiontClient, args: any): Promise<McpResult> {
+  const selectionData = args?.selectionData || {};
+  const entityTypes = args?.entityTypes || [];
+
+  const body = entityTypes.map((value: string) => ({
+    type: 'TextualBody' as const, value, purpose: 'tagging' as const,
+  }));
+
+  const data = await semiont.mark.annotation({
+    motivation: 'highlighting',
+    target: {
+      source: args?.resourceId,
+      selector: [
+        { type: 'TextPositionSelector', start: selectionData.offset || 0, end: (selectionData.offset || 0) + (selectionData.length || 0) },
+        { type: 'TextQuoteSelector', exact: selectionData.text || '' },
+      ],
+    },
+    body,
+  });
+
+  return { content: [{ type: 'text', text: `Annotation created: ${data.annotationId}` }] };
+}
+
+export async function markAssist(semiont: SemiontClient, args: any): Promise<McpResult> {
+  const rId = resourceId(args?.resourceId);
+  const progressMessages: string[] = [];
+
+  try {
+    const final = await lastValueFrom(
+      semiont.mark.assist(rId, 'linking', {
+        entityTypes: args?.entityTypes || [],
+        includeDescriptiveReferences: false,
+        // Annotation body locale (stamped on the unresolved-reference
+        // body's `language` field) and source-resource locale (fed into
+        // the prompt). Both optional — caller specifies BCP-47 tags.
+        language: args?.language,
+        sourceLanguage: args?.sourceLanguage,
+      }).pipe(
+        tap((e) => {
+          if (e.kind === 'progress') progressMessages.push(`${e.data.stage}: ${e.data.percentage ?? 0}%`);
+        }),
+      ),
+    );
+    const r = (final.kind === 'complete' ? final.data.result : undefined) as
+      | { entitiesFound?: number; highlightsFound?: number; commentsFound?: number; assessmentsFound?: number; tagsFound?: number; totalFound?: number }
+      | undefined;
+    const count =
+      r?.totalFound ?? r?.highlightsFound ?? r?.commentsFound ??
+      r?.assessmentsFound ?? r?.tagsFound ?? 0;
+    return { content: [{ type: 'text', text: `Detection complete. Found ${count} entities.\n${progressMessages.join('\n')}` }] };
+  } catch (err) {
+    return { content: [{ type: 'text', text: `Detection failed: ${(err as Error).message}` }], isError: true };
+  }
+}
+
+// ── Bind ────────────────────────────────────────────────────────────────────
+
+export async function bindBody(semiont: SemiontClient, args: any): Promise<McpResult> {
+  await semiont.bind.body(
+    resourceId(args?.sourceResourceId),
+    annotationId(args?.annotationId),
+    [{ op: 'add', item: { type: 'SpecificResource', source: args?.targetResourceId, purpose: 'linking' } }],
+  );
+  return { content: [{ type: 'text', text: `Linked ${args?.annotationId} → ${args?.targetResourceId}` }] };
+}
+
+// ── Gather ──────────────────────────────────────────────────────────────────
+
+export async function gatherAnnotation(semiont: SemiontClient, args: any): Promise<McpResult> {
+  const rId = resourceId(args?.resourceId);
+  const aId = annotationId(args?.annotationId);
+
+  const context = await semiont.gather.annotation(rId, aId, { contextWindow: args?.contextWindow ?? 2000 });
+
+  return { content: [{ type: 'text', text: JSON.stringify(context, null, 2) }] };
+}
+
+// ── Yield ───────────────────────────────────────────────────────────────────
+
+export async function yieldResource(semiont: SemiontClient, args: any): Promise<McpResult> {
+  const format = args?.contentType || 'text/plain';
+  const content = args?.content || '';
+  const blob = new Blob([content], { type: format });
+  const file = new File([blob], args?.name + '.txt', { type: format });
+
+  const data = await semiont.yield.resource({
+    name: args?.name, file, format, storageUri: args?.storageUri,
+    entityTypes: args?.entityTypes || [],
+  });
+
+  return { content: [{ type: 'text', text: `Resource created: ${data.resourceId}` }] };
+}
+
+export async function yieldFromAnnotation(semiont: SemiontClient, args: any): Promise<McpResult> {
+  const rId = resourceId(args?.resourceId);
+  const aId = annotationId(args?.annotationId);
+
+  // Step 1: gather context
+  const ctx = (await semiont.gather.annotation(rId, aId, { contextWindow: 2000 })) as GatheredContext;
+
+  // Step 2: generate. yield.fromAnnotation streams progress, then ends with
+  // a `complete` event carrying the JobCompleteCommand (with `result`).
+  const progressMessages: string[] = [];
+  try {
+    // Default sourceLanguage from the gathered context's metadata, which the
+    // backend populates from the primary representation. Caller can still
+    // override via args.sourceLanguage.
+    const ctxSourceLanguage = (ctx as { metadata?: { language?: string } } | undefined)?.metadata?.language;
+
+    await lastValueFrom(
+      semiont.yield.fromAnnotation(rId, aId, {
+        title: args?.title ?? 'Generated',
+        storageUri: args?.storageUri,
+        context: ctx,
+        prompt: args?.prompt,
+        language: args?.language,
+        sourceLanguage: args?.sourceLanguage ?? ctxSourceLanguage,
+      }).pipe(
+        tap((e) => {
+          if (e.kind === 'progress') progressMessages.push(`${e.data.stage}: ${e.data.percentage}%`);
+        }),
+      ),
+    );
+    return { content: [{ type: 'text', text: `Generation complete.\n${progressMessages.join('\n')}` }] };
+  } catch (err) {
+    return { content: [{ type: 'text', text: `Generation failed: ${(err as Error).message}` }], isError: true };
+  }
 }

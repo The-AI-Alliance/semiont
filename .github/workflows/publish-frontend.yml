@@ -1,32 +1,46 @@
 name: Publish Frontend Container Image
 
-run-name: "Frontend: ${{ github.event.inputs.stable_release == 'true' && 'stable' || 'dev' }} v${{ github.run_number }} (manual)"
+run-name: "Frontend Image: @semiont/frontend@${{ inputs.version }}"
 
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: '@semiont/frontend version (e.g. 0.4.15, 0.4.15-build.42, latest)'
+        required: true
+        type: string
       dry_run:
         description: 'Dry run (build but do not push)'
         required: false
         type: boolean
         default: false
-      stable_release:
-        description: 'Stable release (publish without -build.N suffix)'
+      tag_latest:
+        description: 'Also tag as :latest'
         required: false
         type: boolean
         default: false
 
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Verify package exists on npm
+        run: |
+          npm view "@semiont/frontend@${{ inputs.version }}" version || {
+            echo "❌ @semiont/frontend@${{ inputs.version }} not found on npm"
+            exit 1
+          }
+          echo "✅ @semiont/frontend@${{ inputs.version }} exists"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -38,72 +52,105 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Determine version
-        id: version
+      - name: Determine tags
+        id: tags
         run: |
-          BASE_VERSION=$(node -p "require('./apps/frontend/package.json').version")
           COMMIT_SHA=$(git rev-parse --short HEAD)
-          if [ "${{ github.event.inputs.stable_release }}" = "true" ]; then
-            PUBLISH_VERSION="$BASE_VERSION"
-            DIST_TAG="latest"
-          else
-            PUBLISH_VERSION="${BASE_VERSION}-build.${{ github.run_number }}"
-            DIST_TAG="dev"
+          TAGS="ghcr.io/the-ai-alliance/semiont-frontend:${{ inputs.version }}"
+          TAGS="$TAGS,ghcr.io/the-ai-alliance/semiont-frontend:sha-$COMMIT_SHA"
+          if [ "${{ inputs.tag_latest }}" = "true" ]; then
+            TAGS="$TAGS,ghcr.io/the-ai-alliance/semiont-frontend:latest"
           fi
-          echo "base=$BASE_VERSION" >> $GITHUB_OUTPUT
-          echo "publish=$PUBLISH_VERSION" >> $GITHUB_OUTPUT
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
           echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
-          echo "tag=$DIST_TAG" >> $GITHUB_OUTPUT
-          echo "Publishing version: $PUBLISH_VERSION (base: $BASE_VERSION, tag: $DIST_TAG)"
 
-      - name: Wait for @semiont/frontend npm package
-        run: |
-          VERSION="${{ steps.version.outputs.publish }}"
-          echo "Waiting for @semiont/frontend@$VERSION to be available on npm..."
-          for i in $(seq 1 30); do
-            if npm view "@semiont/frontend@$VERSION" version 2>/dev/null; then
-              echo "✅ @semiont/frontend@$VERSION is available"
-              exit 0
-            fi
-            echo "  Attempt $i/30 - not yet available, waiting 30s..."
-            sleep 30
-          done
-          echo "❌ Timed out waiting for @semiont/frontend@$VERSION"
-          exit 1
+      # Single-platform build for scanning. amd64 OS-package CVEs cover
+      # arm64 too since base layers share package versions, so one scan
+      # is sufficient. Both builds share the GHA cache; the multi-arch
+      # rebuild below is a near-instant cache hit on amd64.
+      - name: Build image (amd64, for Trivy scan)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./apps/frontend/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: semiont-frontend:scan
+          build-args: |
+            SEMIONT_FRONTEND_VERSION=${{ inputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: semiont-frontend:scan
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
 
       - name: Build and push Docker image
+        id: build-push
         uses: docker/build-push-action@v7
         with:
           context: .
           file: ./apps/frontend/Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event.inputs.dry_run != 'true' }}
-          tags: |
-            ghcr.io/the-ai-alliance/semiont-frontend:${{ steps.version.outputs.tag }}
-            ghcr.io/the-ai-alliance/semiont-frontend:${{ steps.version.outputs.publish }}
-            ghcr.io/the-ai-alliance/semiont-frontend:sha-${{ steps.version.outputs.sha }}
+          push: ${{ inputs.dry_run != 'true' }}
+          tags: ${{ steps.tags.outputs.tags }}
           build-args: |
-            BUILD_VERSION=${{ steps.version.outputs.publish }}
-            BUILD_SHA=${{ steps.version.outputs.sha }}
-            SEMIONT_VERSION=${{ steps.version.outputs.publish }}
-          # NOTE: Only build-time variables (NEXT_PUBLIC_*) should be in build-args
-          # Runtime variables like SERVER_API_URL, NEXTAUTH_SECRET, etc. are set
-          # via -e flag when running the container (see apps/frontend/docs/CONTAINER.md)
-          # API routing is handled by reverse proxy at runtime - no build-time API URL needed
-          # SEMIONT_VERSION installs @semiont/api-client and @semiont/react-ui from npm
+            SEMIONT_FRONTEND_VERSION=${{ inputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Generate SBOM from the same amd64 image we already scanned. OS
+      # packages and language libraries are platform-independent, so the
+      # amd64 SBOM accurately describes the multi-arch image's contents.
+      - name: Generate SBOM with Trivy
+        if: ${{ !inputs.dry_run }}
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: semiont-frontend:scan
+          format: spdx-json
+          output: sbom.spdx.json
+
+      # SLSA build provenance via GitHub's OIDC + Sigstore. Stored as an
+      # OCI attestation alongside the image in GHCR. Verify with:
+      #   gh attestation verify oci://ghcr.io/the-ai-alliance/semiont-frontend:VERSION \
+      #     --owner The-AI-Alliance
+      - name: Attest build provenance
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ghcr.io/the-ai-alliance/semiont-frontend
+          subject-digest: ${{ steps.build-push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest SBOM
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest-sbom@v4
+        with:
+          subject-name: ghcr.io/the-ai-alliance/semiont-frontend
+          subject-digest: ${{ steps.build-push.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true
+
       - name: Summary
         run: |
-          echo "## Published Frontend Container Image" >> $GITHUB_STEP_SUMMARY
+          echo "## Frontend Container Image" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Base version:** ${{ steps.version.outputs.base }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Published version:** ${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit SHA:** ${{ steps.version.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**@semiont/frontend version:** ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ steps.tags.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Dry run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Pull with:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/the-ai-alliance/semiont-frontend:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/the-ai-alliance/semiont-frontend:${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Verify supply-chain attestations:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "gh attestation verify oci://ghcr.io/the-ai-alliance/semiont-frontend:${{ inputs.version }} \\" >> $GITHUB_STEP_SUMMARY
+          echo "  --owner The-AI-Alliance" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

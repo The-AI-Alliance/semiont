@@ -57,9 +57,9 @@ const provisionDatabaseContainer = async (context: ContainerProvisionHandlerCont
   }
 
   // Check if initialization scripts exist
-  const initScriptsPath = path.join(service.projectRoot, 'db', 'init');
-  const migrationsPath = path.join(service.projectRoot, 'db', 'migrations');
-  const seedDataPath = path.join(service.projectRoot, 'db', 'seed');
+  const initScriptsPath = path.join(service.projectRoot!, 'db', 'init');
+  const migrationsPath = path.join(service.projectRoot!, 'db', 'migrations');
+  const seedDataPath = path.join(service.projectRoot!, 'db', 'seed');
 
   const hasInitScripts = fs.existsSync(initScriptsPath);
   const hasMigrations = fs.existsSync(migrationsPath);

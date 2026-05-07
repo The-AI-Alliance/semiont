@@ -250,8 +250,9 @@ const preflightAwsCheck = async (_context: AWSCheckHandlerContext): Promise<Pref
 export const ecsCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
-  serviceType: 'ecs-fargate',
+  serviceType: 'backend',
   handler: ecsCheckHandler,
   preflight: preflightAwsCheck,
   requiresDiscovery: true
 };
+

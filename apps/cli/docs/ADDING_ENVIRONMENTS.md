@@ -68,7 +68,7 @@ Each environment can include:
 | `[environments.<env>.workers.<name>.inference]` | Per-worker inference override |
 | `[environments.<env>.ollama]` | Ollama server settings (when using local LLM) |
 
-See [Configuration Guide](../../../docs/administration/CONFIGURATION.md) for the complete schema and all options.
+See [Configuration Guide](../../../docs/system/administration/CONFIGURATION.md) for the complete schema and all options.
 
 ## Setting a Default Environment
 

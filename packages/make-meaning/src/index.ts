@@ -5,8 +5,26 @@
 export { startMakeMeaning } from './service';
 export type { MakeMeaningService, MakeMeaningConfig } from './service';
 
+// Knowledge System
+export type { KnowledgeSystem } from './knowledge-system';
+export { stopKnowledgeSystem } from './knowledge-system';
+
+// Local transport (in-process ITransport / IContentTransport for the SemiontClient)
+export { LocalTransport, type LocalTransportConfig } from './local-transport';
+export { LocalContentTransport } from './local-content-transport';
+
+// Bus command handlers — registered automatically by `startMakeMeaning`;
+// also exported individually for callers that bring their own bootstrap.
+export {
+  registerBusHandlers,
+  registerAnnotationAssemblyHandler,
+  registerAnnotationLookupHandlers,
+  registerBindUpdateBodyHandler,
+  registerJobCommandHandlers,
+} from './handlers';
+
 // Bootstrap
-export { bootstrapEntityTypes, resetBootstrap } from './bootstrap/entity-types';
+export { bootstrapEntityTypes } from './bootstrap/entity-types';
 
 // Views
 export { readEntityTypesProjection } from './views/entity-types-reader';
@@ -20,17 +38,25 @@ export { Gatherer } from './gatherer';
 export { Matcher } from './matcher';
 export { Stower } from './stower';
 export type { CreateResourceResult } from './stower';
+export { Browser } from './browser';
 export { CloneTokenManager } from './clone-token-manager';
 
-// Graph Consumer
-export { GraphDBConsumer } from './graph/consumer';
+// Smelter — domain-event fan-in state unit (consumed by `smelter-main`'s standalone
+// container entry point; also importable directly for callers that want to
+// wire their own smelter pipeline on top of an existing `WorkerBus`).
+export {
+  createSmelterActorStateUnit,
+  type SmelterActorStateUnit,
+  type SmelterActorStateUnitOptions,
+  type SmelterEvent,
+} from './smelter-actor-state-unit';
 
 // Exchange (import/export)
 export * from './exchange';
 
 // Resource operations
 export { ResourceOperations } from './resource-operations';
-export type { UpdateResourceInput, CreateResourceInput } from './resource-operations';
+export type { CreateResourceInput } from './resource-operations';
 
 // Annotation assembly (pure functions)
 export { assembleAnnotation, applyBodyOperations } from './annotation-assembly';

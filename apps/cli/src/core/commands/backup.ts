@@ -12,13 +12,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
 import { SemiontProject } from '@semiont/core/node';
-import type { Logger } from '@semiont/core';
+import { EventBus, type Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore } from '@semiont/content';
 import { exportBackup } from '@semiont/make-meaning';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
 
@@ -36,7 +36,7 @@ function createCliLogger(verbose: boolean): Logger {
 // SCHEMA
 // =====================================================================
 
-export const BackupOptionsSchema = BaseOptionsSchema.extend({
+export const BackupOptionsSchema = OpsOptionsSchema.extend({
   out: z.string().min(1, 'Output path is required'),
 });
 
@@ -62,7 +62,7 @@ export async function runBackup(options: BackupOptions): Promise<CommandResults>
   const logger = createCliLogger(options.verbose ?? false);
 
   // Bootstrap read-only stores
-  const eventStore = createEventStore(project, undefined, logger);
+  const eventStore = createEventStore(project, new EventBus(), logger);
   const contentStore = new WorkingTreeStore(
     project,
     logger.child({ component: 'content-store' }),
@@ -117,15 +117,12 @@ export const backupCmd = new CommandBuilder()
   .examples(
     'semiont backup --out backup.tar.gz',
   )
-  .args({
-    args: {
-      '--out': {
-        type: 'string',
-        description: 'Output file path (required)',
-      },
+  .args(withOpsArgs({
+    '--out': {
+      type: 'string',
+      description: 'Output file path (required)',
     },
-    aliases: {},
-  })
+  }))
   .schema(BackupOptionsSchema)
   .handler(runBackup)
   .build();

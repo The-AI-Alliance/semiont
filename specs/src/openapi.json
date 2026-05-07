@@ -12,18 +12,6 @@
     }
   ],
   "paths": {
-    "/resources/{id}": {
-      "$ref": "paths/resources_{id}.json"
-    },
-    "/annotations/{id}": {
-      "$ref": "paths/annotations_{id}.json"
-    },
-    "/api/annotations/{id}/context": {
-      "$ref": "paths/api_annotations_{id}_context.json"
-    },
-    "/api/annotations/{id}/summary": {
-      "$ref": "paths/api_annotations_{id}_summary.json"
-    },
     "/api/health": {
       "$ref": "paths/api_health.json"
     },
@@ -38,6 +26,12 @@
     },
     "/api/tokens/mcp-generate": {
       "$ref": "paths/api_tokens_mcp-generate.json"
+    },
+    "/api/tokens/media": {
+      "$ref": "paths/api_tokens_media.json"
+    },
+    "/api/tokens/worker": {
+      "$ref": "paths/api_tokens_worker.json"
     },
     "/api/users/me": {
       "$ref": "paths/api_users_me.json"
@@ -69,89 +63,41 @@
     "/api/admin/exchange/restore": {
       "$ref": "paths/api_admin_exchange_restore.json"
     },
-    "/api/admin/exchange/export": {
-      "$ref": "paths/api_admin_exchange_export.json"
+    "/api/moderate/exchange/export": {
+      "$ref": "paths/api_moderate_exchange_export.json"
     },
-    "/api/admin/exchange/import": {
-      "$ref": "paths/api_admin_exchange_import.json"
+    "/api/moderate/exchange/import": {
+      "$ref": "paths/api_moderate_exchange_import.json"
+    },
+    "/api/cookies/consent": {
+      "$ref": "paths/api_cookies_consent.json"
+    },
+    "/api/cookies/export": {
+      "$ref": "paths/api_cookies_export.json"
+    },
+    "/api/tokens/mcp-setup": {
+      "$ref": "paths/api_tokens_mcp-setup.json"
+    },
+    "/bus/subscribe": {
+      "$ref": "paths/bus_subscribe.json"
+    },
+    "/bus/emit": {
+      "$ref": "paths/bus_emit.json"
     },
     "/resources": {
       "$ref": "paths/resources.json"
     },
-    "/resources/{id}/annotate-references-stream": {
-      "$ref": "paths/resources_{id}_annotate-references-stream.json"
+    "/resources/{id}": {
+      "$ref": "paths/resources_{id}.json"
     },
-    "/resources/{id}/annotate-highlights-stream": {
-      "$ref": "paths/resources_{id}_annotate-highlights-stream.json"
+    "/api/resources/{id}": {
+      "$ref": "paths/api_resources_{id}.json"
     },
-    "/resources/{id}/annotate-assessments-stream": {
-      "$ref": "paths/resources_{id}_annotate-assessments-stream.json"
-    },
-    "/resources/{id}/annotate-comments-stream": {
-      "$ref": "paths/resources_{id}_annotate-comments-stream.json"
-    },
-    "/resources/{id}/annotate-tags-stream": {
-      "$ref": "paths/resources_{id}_annotate-tags-stream.json"
-    },
-    "/resources/{id}/llm-context": {
-      "$ref": "paths/resources_{id}_llm-context.json"
-    },
-    "/resources/{resourceId}/annotations/{annotationId}/llm-context": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_llm-context.json"
-    },
-    "/resources/{id}/referenced-by": {
-      "$ref": "paths/resources_{id}_referenced-by.json"
-    },
-    "/api/clone-tokens/{token}": {
-      "$ref": "paths/api_clone-tokens_{token}.json"
-    },
-    "/api/clone-tokens/create-resource": {
-      "$ref": "paths/api_clone-tokens_create-resource.json"
-    },
-    "/resources/{id}/clone-with-token": {
-      "$ref": "paths/resources_{id}_clone-with-token.json"
-    },
-    "/resources/{id}/annotations": {
-      "$ref": "paths/resources_{id}_annotations.json"
-    },
-    "/resources/{id}/events": {
-      "$ref": "paths/resources_{id}_events.json"
-    },
-    "/resources/{id}/events/stream": {
-      "$ref": "paths/resources_{id}_events_stream.json"
-    },
-    "/resources/{resourceId}/annotations/{annotationId}": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}.json"
-    },
-    "/resources/{resourceId}/annotations/{annotationId}/body": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_body.json"
-    },
-    "/resources/{resourceId}/annotations/{annotationId}/yield-resource-stream": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_yield-resource-stream.json"
-    },
-    "/resources/{resourceId}/annotations/{annotationId}/history": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_history.json"
-    },
-    "/api/entity-types": {
-      "$ref": "paths/api_entity-types.json"
-    },
-    "/api/entity-types/bulk": {
-      "$ref": "paths/api_entity-types_bulk.json"
-    },
-    "/api/events/stream": {
-      "$ref": "paths/api_events_stream.json"
-    },
-    "/api/jobs/{id}": {
-      "$ref": "paths/api_jobs_{id}.json"
-    }
   },
   "components": {
     "schemas": {
       "AcceptTermsResponse": {
         "$ref": "components/schemas/AcceptTermsResponse.json"
-      },
-      "AddEntityTypeRequest": {
-        "$ref": "components/schemas/AddEntityTypeRequest.json"
       },
       "AdminUpdateUserResponse": {
         "$ref": "components/schemas/AdminUpdateUserResponse.json"
@@ -180,11 +126,35 @@
       "AnnotationTarget": {
         "$ref": "components/schemas/AnnotationTarget.json"
       },
-      "AsyncJobResponse": {
-        "$ref": "components/schemas/AsyncJobResponse.json"
-      },
       "AuthResponse": {
         "$ref": "components/schemas/AuthResponse.json"
+      },
+      "BrowseFilesResponse": {
+        "$ref": "components/schemas/BrowseFilesResponse.json"
+      },
+      "BusEmitRequest": {
+        "$ref": "components/schemas/BusEmitRequest.json"
+      },
+      "CookieConsent": {
+        "$ref": "components/schemas/CookieConsent.json"
+      },
+      "CookieConsentRequest": {
+        "$ref": "components/schemas/CookieConsentRequest.json"
+      },
+      "CookieConsentResponse": {
+        "$ref": "components/schemas/CookieConsentResponse.json"
+      },
+      "CookieExportResponse": {
+        "$ref": "components/schemas/CookieExportResponse.json"
+      },
+      "DirectoryEntry": {
+        "$ref": "components/schemas/DirectoryEntry.json"
+      },
+      "FileEntry": {
+        "$ref": "components/schemas/FileEntry.json"
+      },
+      "DirEntry": {
+        "$ref": "components/schemas/DirEntry.json"
       },
       "BodyOperationAdd": {
         "$ref": "components/schemas/BodyOperationAdd.json"
@@ -195,14 +165,11 @@
       "BodyOperationReplace": {
         "$ref": "components/schemas/BodyOperationReplace.json"
       },
-      "BodyType": {
-        "$ref": "components/schemas/BodyType.json"
-      },
-      "BulkAddEntityTypesRequest": {
-        "$ref": "components/schemas/BulkAddEntityTypesRequest.json"
-      },
       "CloneResourceWithTokenResponse": {
         "$ref": "components/schemas/CloneResourceWithTokenResponse.json"
+      },
+      "CommandError": {
+        "$ref": "components/schemas/CommandError.json"
       },
       "ContentFormat": {
         "$ref": "components/schemas/ContentFormat.json"
@@ -213,71 +180,101 @@
       "CreateAnnotationRequest": {
         "$ref": "components/schemas/CreateAnnotationRequest.json"
       },
-      "CreateFromAnnotationRequest": {
-        "$ref": "components/schemas/CreateFromAnnotationRequest.json"
-      },
-      "CreateFromAnnotationResponse": {
-        "$ref": "components/schemas/CreateFromAnnotationResponse.json"
-      },
-      "CreateJobResponse": {
-        "$ref": "components/schemas/CreateJobResponse.json"
-      },
-      "CreateResourceFromAnnotationResponse": {
-        "$ref": "components/schemas/CreateResourceFromAnnotationResponse.json"
-      },
-      "CreateResourceFromSelectionRequest": {
-        "$ref": "components/schemas/CreateResourceFromSelectionRequest.json"
-      },
-      "CreateResourceFromSelectionResponse": {
-        "$ref": "components/schemas/CreateResourceFromSelectionResponse.json"
-      },
-      "CreateResourceFromTokenRequest": {
-        "$ref": "components/schemas/CreateResourceFromTokenRequest.json"
-      },
-      "CreateResourceRequest": {
-        "$ref": "components/schemas/CreateResourceRequest.json"
-      },
       "CreateResourceResponse": {
         "$ref": "components/schemas/CreateResourceResponse.json"
-      },
-      "DeleteAnnotationRequest": {
-        "$ref": "components/schemas/DeleteAnnotationRequest.json"
       },
       "DeleteUserResponse": {
         "$ref": "components/schemas/DeleteUserResponse.json"
       },
-      "AnnotateReferencesStreamRequest": {
-        "$ref": "components/schemas/AnnotateReferencesStreamRequest.json"
+      "GatherProgress": {
+        "$ref": "components/schemas/GatherProgress.json"
       },
-      "AnnotateHighlightsStreamRequest": {
-        "$ref": "components/schemas/AnnotateHighlightsStreamRequest.json"
+      "GatherAnnotationFinished": {
+        "$ref": "components/schemas/GatherAnnotationFinished.json"
       },
-      "AnnotateAssessmentsStreamRequest": {
-        "$ref": "components/schemas/AnnotateAssessmentsStreamRequest.json"
+      "GatherFinished": {
+        "$ref": "components/schemas/GatherFinished.json"
       },
-      "AnnotateCommentsStreamRequest": {
-        "$ref": "components/schemas/AnnotateCommentsStreamRequest.json"
+      "MatchSearchResult": {
+        "$ref": "components/schemas/MatchSearchResult.json"
       },
-      "AnnotateTagsStreamRequest": {
-        "$ref": "components/schemas/AnnotateTagsStreamRequest.json"
+      "MatchSearchFailed": {
+        "$ref": "components/schemas/MatchSearchFailed.json"
+      },
+      "EventMetadata": {
+        "$ref": "components/schemas/EventMetadata.json"
+      },
+      "SelectionData": {
+        "$ref": "components/schemas/SelectionData.json"
+      },
+      "StoredEventResponse": {
+        "$ref": "components/schemas/StoredEventResponse.json"
+      },
+      "EnrichedResourceEvent": {
+        "$ref": "components/schemas/EnrichedResourceEvent.json"
+      },
+      "ResourceCreatedPayload": {
+        "$ref": "components/schemas/ResourceCreatedPayload.json"
+      },
+      "ResourceClonedPayload": {
+        "$ref": "components/schemas/ResourceClonedPayload.json"
+      },
+      "ResourceUpdatedPayload": {
+        "$ref": "components/schemas/ResourceUpdatedPayload.json"
+      },
+      "ResourceMovedPayload": {
+        "$ref": "components/schemas/ResourceMovedPayload.json"
+      },
+      "ResourceArchivedPayload": {
+        "$ref": "components/schemas/ResourceArchivedPayload.json"
+      },
+      "ResourceUnarchivedPayload": {
+        "$ref": "components/schemas/ResourceUnarchivedPayload.json"
+      },
+      "RepresentationAddedPayload": {
+        "$ref": "components/schemas/RepresentationAddedPayload.json"
+      },
+      "RepresentationRemovedPayload": {
+        "$ref": "components/schemas/RepresentationRemovedPayload.json"
+      },
+      "AnnotationAddedPayload": {
+        "$ref": "components/schemas/AnnotationAddedPayload.json"
+      },
+      "AnnotationRemovedPayload": {
+        "$ref": "components/schemas/AnnotationRemovedPayload.json"
+      },
+      "AnnotationBodyUpdatedPayload": {
+        "$ref": "components/schemas/AnnotationBodyUpdatedPayload.json"
+      },
+      "EntityTypeAddedPayload": {
+        "$ref": "components/schemas/EntityTypeAddedPayload.json"
+      },
+      "TagSchemaAddedPayload": {
+        "$ref": "components/schemas/TagSchemaAddedPayload.json"
+      },
+      "EntityTagChangedPayload": {
+        "$ref": "components/schemas/EntityTagChangedPayload.json"
+      },
+      "JobType": {
+        "$ref": "components/schemas/JobType.json"
+      },
+      "JobStartedPayload": {
+        "$ref": "components/schemas/JobStartedPayload.json"
+      },
+      "JobProgressPayload": {
+        "$ref": "components/schemas/JobProgressPayload.json"
+      },
+      "JobCompletedPayload": {
+        "$ref": "components/schemas/JobCompletedPayload.json"
+      },
+      "JobFailedPayload": {
+        "$ref": "components/schemas/JobFailedPayload.json"
       },
       "ErrorResponse": {
         "$ref": "components/schemas/ErrorResponse.json"
       },
       "EventStreamResponse": {
         "$ref": "components/schemas/EventStreamResponse.json"
-      },
-      "YieldResourceFromAnnotationRequest": {
-        "$ref": "components/schemas/YieldResourceFromAnnotationRequest.json"
-      },
-      "YieldResourceFromAnnotationResponse": {
-        "$ref": "components/schemas/YieldResourceFromAnnotationResponse.json"
-      },
-      "YieldResourceRequest": {
-        "$ref": "components/schemas/YieldResourceRequest.json"
-      },
-      "YieldResourceStreamRequest": {
-        "$ref": "components/schemas/YieldResourceStreamRequest.json"
       },
       "GetAnnotationHistoryResponse": {
         "$ref": "components/schemas/GetAnnotationHistoryResponse.json"
@@ -303,6 +300,9 @@
       "GetResourceResponse": {
         "$ref": "components/schemas/GetResourceResponse.json"
       },
+      "GetTagSchemasResponse": {
+        "$ref": "components/schemas/GetTagSchemasResponse.json"
+      },
       "GoogleAuthRequest": {
         "$ref": "components/schemas/GoogleAuthRequest.json"
       },
@@ -311,9 +311,6 @@
       },
       "JobStatusResponse": {
         "$ref": "components/schemas/JobStatusResponse.json"
-      },
-      "ListAnnotationsResponse": {
-        "$ref": "components/schemas/ListAnnotationsResponse.json"
       },
       "ListResourcesResponse": {
         "$ref": "components/schemas/ListResourcesResponse.json"
@@ -333,14 +330,11 @@
       "Representation": {
         "$ref": "components/schemas/Representation.json"
       },
-      "BindAnnotationRequest": {
-        "$ref": "components/schemas/BindAnnotationRequest.json"
-      },
-      "BindAnnotationResponse": {
-        "$ref": "components/schemas/BindAnnotationResponse.json"
-      },
       "ResourceDescriptor": {
         "$ref": "components/schemas/ResourceDescriptor.json"
+      },
+      "SemanticMatch": {
+        "$ref": "components/schemas/SemanticMatch.json"
       },
       "ResourceLLMContextResponse": {
         "$ref": "components/schemas/ResourceLLMContextResponse.json"
@@ -369,9 +363,6 @@
       "UpdateAnnotationBodyRequest": {
         "$ref": "components/schemas/UpdateAnnotationBodyRequest.json"
       },
-      "UpdateResourceRequest": {
-        "$ref": "components/schemas/UpdateResourceRequest.json"
-      },
       "UpdateUserRequest": {
         "$ref": "components/schemas/UpdateUserRequest.json"
       },
@@ -380,7 +371,107 @@
       },
       "UserResponse": {
         "$ref": "components/schemas/UserResponse.json"
-      }
+      },
+      "BeckonFocusEvent": { "$ref": "components/schemas/BeckonFocusEvent.json" },
+      "BeckonHoverEvent": { "$ref": "components/schemas/BeckonHoverEvent.json" },
+      "BeckonSparkleEvent": { "$ref": "components/schemas/BeckonSparkleEvent.json" },
+      "BindBodyUpdated": { "$ref": "components/schemas/BindBodyUpdated.json" },
+      "BindInitiateCommand": { "$ref": "components/schemas/BindInitiateCommand.json" },
+      "BindUpdateBodyCommand": { "$ref": "components/schemas/BindUpdateBodyCommand.json" },
+      "BodyPurpose": { "$ref": "components/schemas/BodyPurpose.json" },
+      "BrowseAnnotationHistoryRequest": { "$ref": "components/schemas/BrowseAnnotationHistoryRequest.json" },
+      "BrowseAnnotationHistoryResult": { "$ref": "components/schemas/BrowseAnnotationHistoryResult.json" },
+      "BrowseAnnotationRequest": { "$ref": "components/schemas/BrowseAnnotationRequest.json" },
+      "BrowseAnnotationResult": { "$ref": "components/schemas/BrowseAnnotationResult.json" },
+      "BrowseAnnotationContextRequest": { "$ref": "components/schemas/BrowseAnnotationContextRequest.json" },
+      "BrowseAnnotationsRequest": { "$ref": "components/schemas/BrowseAnnotationsRequest.json" },
+      "BrowseAnnotationsResult": { "$ref": "components/schemas/BrowseAnnotationsResult.json" },
+      "BrowseClickEvent": { "$ref": "components/schemas/BrowseClickEvent.json" },
+      "BrowseDirectoryRequest": { "$ref": "components/schemas/BrowseDirectoryRequest.json" },
+      "BrowseDirectoryResult": { "$ref": "components/schemas/BrowseDirectoryResult.json" },
+      "BrowseEntityTypeClickedEvent": { "$ref": "components/schemas/BrowseEntityTypeClickedEvent.json" },
+      "BrowseEntityTypesRequest": { "$ref": "components/schemas/BrowseEntityTypesRequest.json" },
+      "BrowseEntityTypesResult": { "$ref": "components/schemas/BrowseEntityTypesResult.json" },
+      "BrowseEventsRequest": { "$ref": "components/schemas/BrowseEventsRequest.json" },
+      "BrowseEventsResult": { "$ref": "components/schemas/BrowseEventsResult.json" },
+      "BrowseExternalNavigateEvent": { "$ref": "components/schemas/BrowseExternalNavigateEvent.json" },
+      "BrowseLinkClickedEvent": { "$ref": "components/schemas/BrowseLinkClickedEvent.json" },
+      "BrowsePanelOpenEvent": { "$ref": "components/schemas/BrowsePanelOpenEvent.json" },
+      "BrowsePanelToggleEvent": { "$ref": "components/schemas/BrowsePanelToggleEvent.json" },
+      "BrowseReferencedByRequest": { "$ref": "components/schemas/BrowseReferencedByRequest.json" },
+      "BrowseReferencedByResult": { "$ref": "components/schemas/BrowseReferencedByResult.json" },
+      "BrowseReferenceNavigateEvent": { "$ref": "components/schemas/BrowseReferenceNavigateEvent.json" },
+      "BrowseResourceCloseEvent": { "$ref": "components/schemas/BrowseResourceCloseEvent.json" },
+      "BrowseResourceReorderEvent": { "$ref": "components/schemas/BrowseResourceReorderEvent.json" },
+      "BrowseResourceRequest": { "$ref": "components/schemas/BrowseResourceRequest.json" },
+      "BrowseResourceResult": { "$ref": "components/schemas/BrowseResourceResult.json" },
+      "BrowseResourcesRequest": { "$ref": "components/schemas/BrowseResourcesRequest.json" },
+      "BrowseResourcesResult": { "$ref": "components/schemas/BrowseResourcesResult.json" },
+      "BrowseRouterPushEvent": { "$ref": "components/schemas/BrowseRouterPushEvent.json" },
+      "BrowseTagSchemasRequest": { "$ref": "components/schemas/BrowseTagSchemasRequest.json" },
+      "BrowseTagSchemasResult": { "$ref": "components/schemas/BrowseTagSchemasResult.json" },
+      "FragmentSelector": { "$ref": "components/schemas/FragmentSelector.json" },
+      "GatherAnnotationComplete": { "$ref": "components/schemas/GatherAnnotationComplete.json" },
+      "GatherAnnotationRequest": { "$ref": "components/schemas/GatherAnnotationRequest.json" },
+      "GatheredContext": { "$ref": "components/schemas/GatheredContext.json" },
+      "GatherResourceComplete": { "$ref": "components/schemas/GatherResourceComplete.json" },
+      "GatherResourceRequest": { "$ref": "components/schemas/GatherResourceRequest.json" },
+      "GatherSummaryRequest": { "$ref": "components/schemas/GatherSummaryRequest.json" },
+      "JobAssessmentAnnotationResult": { "$ref": "components/schemas/JobAssessmentAnnotationResult.json" },
+      "JobCancelRequest": { "$ref": "components/schemas/JobCancelRequest.json" },
+      "JobClaimCommand": { "$ref": "components/schemas/JobClaimCommand.json" },
+      "JobCreateCommand": { "$ref": "components/schemas/JobCreateCommand.json" },
+      "JobCreatedResult": { "$ref": "components/schemas/JobCreatedResult.json" },
+      "JobCommentAnnotationResult": { "$ref": "components/schemas/JobCommentAnnotationResult.json" },
+      "JobCompleteCommand": { "$ref": "components/schemas/JobCompleteCommand.json" },
+      "JobFailCommand": { "$ref": "components/schemas/JobFailCommand.json" },
+      "JobGenerationResult": { "$ref": "components/schemas/JobGenerationResult.json" },
+      "JobHighlightAnnotationResult": { "$ref": "components/schemas/JobHighlightAnnotationResult.json" },
+      "JobProgress": { "$ref": "components/schemas/JobProgress.json" },
+      "JobQueuedEvent": { "$ref": "components/schemas/JobQueuedEvent.json" },
+      "JobReferenceAnnotationResult": { "$ref": "components/schemas/JobReferenceAnnotationResult.json" },
+      "JobReportProgressCommand": { "$ref": "components/schemas/JobReportProgressCommand.json" },
+      "JobResult": { "$ref": "components/schemas/JobResult.json" },
+      "JobStartCommand": { "$ref": "components/schemas/JobStartCommand.json" },
+      "JobStatusRequest": { "$ref": "components/schemas/JobStatusRequest.json" },
+      "JobStatusResult": { "$ref": "components/schemas/JobStatusResult.json" },
+      "JobTagAnnotationResult": { "$ref": "components/schemas/JobTagAnnotationResult.json" },
+      "FrameAddEntityTypeCommand": { "$ref": "components/schemas/FrameAddEntityTypeCommand.json" },
+      "FrameAddTagSchemaCommand": { "$ref": "components/schemas/FrameAddTagSchemaCommand.json" },
+      "MarkArchiveCommand": { "$ref": "components/schemas/MarkArchiveCommand.json" },
+      "MarkAssistRequestEvent": { "$ref": "components/schemas/MarkAssistRequestEvent.json" },
+      "MarkClickChangedEvent": { "$ref": "components/schemas/MarkClickChangedEvent.json" },
+      "MarkCreateCommand": { "$ref": "components/schemas/MarkCreateCommand.json" },
+      "MarkCreateOk": { "$ref": "components/schemas/MarkCreateOk.json" },
+      "MarkCreateRequest": { "$ref": "components/schemas/MarkCreateRequest.json" },
+      "MarkDeleteCommand": { "$ref": "components/schemas/MarkDeleteCommand.json" },
+      "MarkDeleteOk": { "$ref": "components/schemas/MarkDeleteOk.json" },
+      "MarkRequestedEvent": { "$ref": "components/schemas/MarkRequestedEvent.json" },
+      "MarkSelectionChangedEvent": { "$ref": "components/schemas/MarkSelectionChangedEvent.json" },
+      "MarkShapeChangedEvent": { "$ref": "components/schemas/MarkShapeChangedEvent.json" },
+      "MarkSubmitEvent": { "$ref": "components/schemas/MarkSubmitEvent.json" },
+      "MarkUnarchiveCommand": { "$ref": "components/schemas/MarkUnarchiveCommand.json" },
+      "MarkUpdateBodyCommand": { "$ref": "components/schemas/MarkUpdateBodyCommand.json" },
+      "MarkUpdateEntityTypesCommand": { "$ref": "components/schemas/MarkUpdateEntityTypesCommand.json" },
+      "MatchSearchRequest": { "$ref": "components/schemas/MatchSearchRequest.json" },
+      "MediaTokenRequest": { "$ref": "components/schemas/MediaTokenRequest.json" },
+      "MediaTokenResponse": { "$ref": "components/schemas/MediaTokenResponse.json" },
+      "SettingsHoverDelayChangedEvent": { "$ref": "components/schemas/SettingsHoverDelayChangedEvent.json" },
+      "SettingsLocaleChangedEvent": { "$ref": "components/schemas/SettingsLocaleChangedEvent.json" },
+      "SettingsThemeChangedEvent": { "$ref": "components/schemas/SettingsThemeChangedEvent.json" },
+      "SvgSelector": { "$ref": "components/schemas/SvgSelector.json" },
+      "TagCategory": { "$ref": "components/schemas/TagCategory.json" },
+      "TagSchema": { "$ref": "components/schemas/TagSchema.json" },
+      "YieldCloneCreateCommand": { "$ref": "components/schemas/YieldCloneCreateCommand.json" },
+      "YieldCloneCreated": { "$ref": "components/schemas/YieldCloneCreated.json" },
+      "YieldCloneResourceRequest": { "$ref": "components/schemas/YieldCloneResourceRequest.json" },
+      "YieldCloneTokenRequest": { "$ref": "components/schemas/YieldCloneTokenRequest.json" },
+      "YieldCreateCommand": { "$ref": "components/schemas/YieldCreateCommand.json" },
+      "YieldCreateOk": { "$ref": "components/schemas/YieldCreateOk.json" },
+      "YieldMoveOk": { "$ref": "components/schemas/YieldMoveOk.json" },
+      "YieldMvCommand": { "$ref": "components/schemas/YieldMvCommand.json" },
+      "YieldUpdateCommand": { "$ref": "components/schemas/YieldUpdateCommand.json" },
+      "YieldUpdateOk": { "$ref": "components/schemas/YieldUpdateOk.json" }
     }
   }
 }

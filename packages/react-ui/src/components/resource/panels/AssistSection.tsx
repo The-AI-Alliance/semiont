@@ -2,19 +2,21 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
-import type { Motivation } from '@semiont/core';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
+import type { Motivation, components } from '@semiont/core';
 import './AssistSection.css';
+
+type JobProgress = components['schemas']['JobProgress'];
 
 interface AssistSectionProps {
   annotationType: 'highlight' | 'assessment' | 'comment';
   isAssisting: boolean;
-  progress?: {
-    status: string;
-    percentage?: number;
-    message?: string;
-    requestParams?: Array<{ label: string; value: string }>;
-  } | null | undefined;
+  /** User UI locale — written into the annotation body's `language` field for comment/assessment. */
+  locale?: string;
+  /** BCP-47 tag of the resource being analyzed. Forwarded to the prompt so the LLM analyzes non-English source correctly. */
+  sourceLanguage?: string;
+  progress?: JobProgress | null | undefined;
 }
 
 // Color schemes are now handled via CSS data attributes
@@ -34,6 +36,8 @@ interface AssistSectionProps {
 export function AssistSection({
   annotationType,
   isAssisting,
+  locale,
+  sourceLanguage,
   progress,
 }: AssistSectionProps) {
 
@@ -41,7 +45,7 @@ export function AssistSection({
                      annotationType === 'assessment' ? 'AssessmentPanel' :
                      'CommentsPanel';
   const t = useTranslations(panelName);
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const [instructions, setInstructions] = useState('');
   type ToneValue = 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive' | '';
   const [tone, setTone] = useState<ToneValue>('');
@@ -70,24 +74,26 @@ export function AssistSection({
       annotationType === 'assessment' ? 'assessing' :
       'commenting';
 
-    // Emit mark:assist-request event with options
-    eventBus.get('mark:assist-request').next({
-      motivation,
-      options: {
-        instructions: instructions.trim() || undefined,
-        tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone : undefined,
-        density: (annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && useDensity ? density : undefined,
-      },
+    session?.client.mark.requestAssist(motivation, {
+      instructions: instructions.trim() || undefined,
+      tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone : undefined,
+      density: (annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && useDensity ? density : undefined,
+      // Body locale only applies where the LLM writes natural-language text:
+      // comment/assessment have a body, highlight does not.
+      language: (annotationType === 'comment' || annotationType === 'assessment') ? locale : undefined,
+      // Source locale applies to all three — affects analysis quality on
+      // non-English source, regardless of whether a body is produced.
+      sourceLanguage,
     });
 
     setInstructions('');
     setTone('');
     // Don't reset density/useDensity - persist across assists
-  }, [annotationType, instructions, tone, useDensity, density]); // eventBus is stable singleton - never in deps
+  }, [annotationType, instructions, tone, useDensity, density, locale, sourceLanguage, session]);
 
   const handleDismissProgress = useCallback(() => {
-    eventBus.get('mark:progress-dismiss').next(undefined);
-  }, []); // eventBus is stable singleton - never in deps
+    session?.client.mark.dismissProgress();
+  }, [session]);
 
   return (
     <div className="semiont-panel__section">

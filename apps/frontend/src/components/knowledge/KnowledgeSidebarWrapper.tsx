@@ -1,16 +1,19 @@
-'use client';
-
 import React from 'react';
-import { useTranslations } from 'next-intl';
-import { LeftSidebar } from '@semiont/react-ui';
+import { useTranslation } from 'react-i18next';
+import { LeftSidebar, useSemiont, useObservable } from '@semiont/react-ui';
 import { KnowledgeNavigation } from './KnowledgeNavigation';
 import { Link, routes } from '@/lib/routing';
-import { useAuth } from '@/hooks/useAuth';
 
 export function KnowledgeSidebarWrapper() {
-  const t = useTranslations('Navigation');
-  const tHome = useTranslations('Home');
-  const { isAuthenticated, isAdmin, isModerator } = useAuth();
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Navigation.${k}`, p as any) as string;
+  const { t: _tHome } = useTranslation();
+  const tHome = (k: string, p?: Record<string, unknown>) => _tHome(`Home.${k}`, p as any) as string;
+  const session = useObservable(useSemiont().activeSession$);
+  const user = useObservable(session?.user$);
+  const isAuthenticated = !!user;
+  const isAdmin = user?.isAdmin ?? false;
+  const isModerator = user?.isModerator ?? false;
 
   return (
     <LeftSidebar

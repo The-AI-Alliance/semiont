@@ -5,7 +5,7 @@ import { ResourceTagsInline } from '../ResourceTagsInline';
 describe('ResourceTagsInline', () => {
   const mockOnUpdate = vi.fn();
   const defaultProps = {
-    documentId: 'doc-123',
+    resourceId: 'doc-123',
     tags: ['tag1', 'tag2', 'tag3'],
     isEditing: false,
     onUpdate: mockOnUpdate,
@@ -74,12 +74,12 @@ describe('ResourceTagsInline', () => {
       expect(screen.getByText('tag1')).toBeInTheDocument();
     });
 
-    it('should work with different documentId values', () => {
+    it('should work with different resourceId values', () => {
       const { rerender } = render(<ResourceTagsInline {...defaultProps} />);
 
       expect(screen.getByText('tag1')).toBeInTheDocument();
 
-      rerender(<ResourceTagsInline {...defaultProps} documentId="doc-456" />);
+      rerender(<ResourceTagsInline {...defaultProps} resourceId="doc-456" />);
 
       expect(screen.getByText('tag1')).toBeInTheDocument();
     });

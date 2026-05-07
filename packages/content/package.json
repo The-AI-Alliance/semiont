@@ -1,6 +1,6 @@
 {
   "name": "@semiont/content",
-  "version": "0.4.1",
+  "version": "0.5.4",
   "type": "module",
   "description": "Content-addressed storage for resource representations",
   "main": "./dist/index.js",
@@ -24,14 +24,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/core": "*",
-    "@vitest/ui": "4.0.18"
+    "@semiont/core": "*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
     "tsup": "^8.0.1",
-    "typescript": "^5.6.3",
-    "vitest": "^4.0.18"
+    "typescript": "^5.6.3"
   },
   "keywords": [
     "content",

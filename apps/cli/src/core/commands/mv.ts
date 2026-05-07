@@ -16,7 +16,7 @@ import { Stower, createKnowledgeBase } from '@semiont/make-meaning';
 import type { GraphDatabase } from '@semiont/graph';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 import { checkGitAvailable } from '../handlers/preflight-utils.js';
@@ -74,7 +74,7 @@ function createNoopGraphDatabase(): GraphDatabase {
 // SCHEMA
 // =====================================================================
 
-export const MvOptionsSchema = BaseOptionsSchema.extend({
+export const MvOptionsSchema = OpsOptionsSchema.extend({
   from: z.string().min(1, 'Source path is required'),
   to: z.string().min(1, 'Destination path is required'),
   noGit: z.boolean().default(false),
@@ -114,7 +114,7 @@ export async function runMv(options: MvOptions): Promise<CommandResults> {
 
   const eventBus = new EventBus();
   const eventStore = createEventStore(project, eventBus, logger);
-  const kb = createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
+  const kb = await createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), eventBus, logger);
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
 
@@ -122,11 +122,11 @@ export async function runMv(options: MvOptions): Promise<CommandResults> {
     // Emit yield:mv — Stower resolves resourceId via storage-uri-index, moves file, appends resource.moved
     const movedPromise = new Promise<void>((resolve, reject) => {
       const sub = eventBus.get('yield:moved').subscribe(() => { sub.unsubscribe(); resolve(); });
-      eventBus.get('yield:move-failed').subscribe((e) => { reject(new Error(e.error?.message ?? 'Move failed')); });
+      eventBus.get('yield:move-failed').subscribe((e) => { reject(new Error(e.message ?? 'Move failed')); });
     });
 
     const userId = `did:web:localhost:users:${process.env.USER ?? 'cli'}` as UserId;
-    eventBus.get('yield:mv').next({ fromUri, toUri, userId, noGit: options.noGit });
+    eventBus.get('yield:mv').next({ fromUri, toUri, _userId: userId, noGit: options.noGit });
     await movedPromise;
 
     if (!options.quiet) {
@@ -168,23 +168,20 @@ export const mvCmd = new CommandBuilder()
     'semiont mv docs/old-name.md docs/new-name.md',
     'semiont mv file://docs/old.md file://docs/new.md',
   )
-  .args({
-    args: {
-      '--from': {
-        type: 'string',
-        description: 'Source path or file:// URI',
-      },
-      '--to': {
-        type: 'string',
-        description: 'Destination path or file:// URI',
-      },
-      '--no-git': {
-        type: 'boolean',
-        description: 'Skip git mv even when inside a git repository',
-      },
+  .args(withOpsArgs({
+    '--from': {
+      type: 'string',
+      description: 'Source path or file:// URI',
     },
-    aliases: {},
-  })
+    '--to': {
+      type: 'string',
+      description: 'Destination path or file:// URI',
+    },
+    '--no-git': {
+      type: 'boolean',
+      description: 'Skip git mv even when inside a git repository',
+    },
+  }))
   .schema(MvOptionsSchema)
   .handler(runMv)
   .build();

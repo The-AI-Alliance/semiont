@@ -13,7 +13,7 @@
     "administer": "Administrare"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Toate drepturile rezervate.",
+    "copyright": "© {{year}} The AI Alliance. Toate drepturile rezervate.",
     "about": "Despre",
     "privacyPolicy": "Politica de confidențialitate",
     "cookiePreferences": "Preferințe cookie-uri",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "creează sens",
-    "description": "Cadrul open-source, pregătit pentru viitor, care permite oamenilor și agenților inteligenți să co-creeze cunoștințe partajate — guvernat de tine și construit să dureze.",
-    "continueToKnowledgeBase": "Continuă la baza de cunoștințe",
-    "learnMore": "Află mai multe",
-    "signUp": "Înregistrare",
-    "signIn": "Autentificare",
-    "loading": "Se încarcă..."
+    "begin": "Începe"
   },
   "About": {
     "pageTitle": "Despre Semiont",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "Utilizăm cookie-uri și tehnologii similare pentru a vă îmbunătăți experiența, a analiza utilizarea și a furniza conținut personalizat.",
     "cookieCategoriesTitle": "Categorii de cookie-uri",
     "necessaryCookiesTitle": "Cookie-uri strict necesare",
-    "necessaryCookies": "Esențiale pentru funcționalitatea site-ului web, inclusiv funcțiile de autentificare și securitate.\n\nExemple: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Esențiale pentru funcționalitatea site-ului web, inclusiv funcțiile de autentificare și securitate.\n\nExemple: semiont-token",
     "analyticsCookiesTitle": "Cookie-uri de analiză",
     "analyticsCookies": "Ne ajută să înțelegem cum interacționează vizitatorii cu site-ul nostru web pentru a îmbunătăți experiența utilizatorului.\n\nExemple: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Cookie-uri de marketing",
@@ -94,7 +89,7 @@
     "contactAddress": "Adresă:",
     "updatesTitle": "Actualizări ale acestei politici",
     "updates": "Este posibil să actualizăm această politică de confidențialitate din când în când. Vă vom notifica despre orice modificări semnificative prin publicarea noii politici de confidențialitate pe această pagină și actualizarea datei efective.",
-    "lastUpdated": "Ultima actualizare: {date}"
+    "lastUpdated": "Ultima actualizare: {{date}}"
   },
   "Terms": {
     "pageTitle": "Termeni și condiții",
@@ -124,7 +119,7 @@
     "changes": "Este posibil să actualizăm periodic acești termeni. Utilizatorii vor fi notificați cu privire la modificările semnificative, iar utilizarea continuă a platformei constituie acceptarea termenilor actualizați.",
     "contactTitle": "Contact",
     "contact": "Dacă aveți întrebări despre acești termeni sau trebuie să raportați încălcări, vă rugăm să contactați echipa noastră de asistență prin intermediul platformei sau la informațiile de contact furnizate în politica noastră de confidențialitate.",
-    "lastUpdated": "Ultima actualizare: {date}",
+    "lastUpdated": "Ultima actualizare: {{date}}",
     "aup": "Prin utilizarea Semiont, sunteți de acord să utilizați platforma noastră în mod responsabil și în conformitate cu acești termeni. Ne angajăm să menținem un mediu sigur, respectuos și productiv pentru toți utilizatorii."
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "Crearea contului a eșuat. Vă rugăm să contactați asistența.",
     "errorGeneric": "A apărut o eroare de autentificare. Vă rugăm să încercați din nou.",
     "errorGoogleSignIn": "Nu s-a putut iniția autentificarea cu Google. Vă rugăm să încercați din nou.",
+    "backendUrlLabel": "URL backend",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "Vă rugăm să introduceți URL-ul backend",
+    "errorBackendUrlInvalid": "Introduceți un URL valid (ex. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Acel URL nu este accesibil — rulează backend-ul?",
     "errorEmailRequired": "Vă rugăm să introduceți adresa de e-mail",
     "errorPasswordRequired": "Vă rugăm să introduceți parola",
     "errorSignInFailed": "Autentificarea a eșuat. Vă rugăm să încercați din nou.",
@@ -185,7 +185,7 @@
     "loading": "Se încarcă...",
     "welcomeTitle": "Bun venit la Semiont!",
     "thanksForAccepting": "Mulțumim pentru acceptarea termenilor noștri. Te redirecționăm către aplicație...",
-    "welcomeUser": "Bun venit la Semiont, {firstName}!",
+    "welcomeUser": "Bun venit la Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Înainte de a putea începe să utilizezi Semiont, te rugăm să revizuiești și să accepți termenii și condițiile noastre",
     "termsSummaryTitle": "Rezumatul termenilor și condițiilor",
     "termsSummaryIntro": "Prin utilizarea Semiont, ești de acord cu:",
@@ -246,9 +246,9 @@
     "archived": "Arhivate",
     "created": "Create",
     "recentResources": "Resurse recente",
-    "searchResults": "Rezultate căutare ({count})",
-    "resourcesTaggedWith": "Resurse etichetate cu «{entityType}»",
-    "noResultsFound": "Niciun rezultat găsit pentru «{query}». Se afișează resursele recente în schimb.",
+    "searchResults": "Rezultate căutare ({{count}})",
+    "resourcesTaggedWith": "Resurse etichetate cu «{{entityType}}»",
+    "noResultsFound": "Niciun rezultat găsit pentru «{{query}}». Se afișează resursele recente în schimb.",
     "noResourcesAvailable": "Nu sunt resurse disponibile. Creează primul tău document pentru a începe.",
     "composeFirstResource": "Compune prima resursă",
     "loadingKnowledgeBase": "Se încarcă baza de cunoștințe..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Introduceți numele resursei...",
     "entityTypes": "Etichete de tip entitate",
     "entityTypesHint": "Etichetează resursa cu tipuri de entitate",
-    "noEntityTypesAvailable": "Nu sunt disponibile tipuri de entitate",
     "contentSource": "Sursa conținutului",
     "uploadFile": "Încarcă fișier",
     "uploadFileDescription": "Imagini, documente, fișiere text",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "Cont",
     "user": "Utilizator",
-    "profileAlt": "Profil {name}",
+    "profileAlt": "Profil {{name}}",
     "session": "Sesiune",
-    "expiresIn": "Expiră în: {time}",
+    "expiresIn": "Expiră în: {{time}}",
     "privileges": "Privilegii",
     "administrator": "🛡️ Administrator",
     "moderator": "⚖️ Moderator",
@@ -433,7 +432,7 @@
     "configManagementDescription": "Setările OAuth sunt gestionate prin variabile de mediu. Pentru a modifica aceste setări:",
     "configLocalDev": "Pentru dezvoltare locală: Actualizați fișierele .env",
     "configCloudDeploy": "Pentru implementări cloud: Utilizați",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "pentru a aplica modificările din fișierele de configurare",
     "configAWS": "Pentru AWS: Setările sunt stocate în AWS Secrets Manager și definițiile sarcinilor ECS"
   },
@@ -510,11 +509,11 @@
     "title": "Preferințe cookie-uri",
     "description": "Gestionați preferințele dvs. de cookie-uri și setările de confidențialitate. Modificările vor intra în vigoare imediat.",
     "currentSettings": "Setări curente",
-    "lastUpdated": "Ultima actualizare: {date}",
-    "version": "Versiune: {version}",
+    "lastUpdated": "Ultima actualizare: {{date}}",
+    "version": "Versiune: {{version}}",
     "cookieCategories": "Categorii de cookie-uri",
     "required": "(Obligatoriu)",
-    "viewCookies": "Vizualizează cookie-urile ({count})",
+    "viewCookies": "Vizualizează cookie-urile ({{count}})",
     "dataManagement": "Gestionarea datelor",
     "exportMyData": "Exportă datele mele",
     "deleteAllData": "Șterge toate datele",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Baze de cunoștințe",
+    "connectTitle": "Conectare la baza de cunoștințe",
+    "connect": "Conectare",
+    "connecting": "Se conectează...",
+    "signIn": "Conectați-vă",
+    "signingIn": "Se conectează...",
+    "cancel": "Anulare",
+    "addKnowledgeBase": "Adăugați baza de cunoștințe",
+    "removeConfirm": "Eliminați {{label}}?",
+    "remove": "Eliminare",
+    "signOut": "Deconectare",
+    "statusConnected": "Conectat",
+    "statusExpired": "Sesiune expirată",
+    "statusSignedOut": "Deconectat",
+    "statusUnreachable": "Inaccesibil",
+    "invalidHost": "Nume de gazdă invalid"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Nicio bază de cunoștințe",
+    "noKnowledgeBasesHint": "Adăugați o bază de cunoștințe folosind panoul din dreapta pentru a începe să descoperiți, să adnotați și să conectați resurse.",
+    "sessionExpired": "Sesiunea dvs. a expirat.",
+    "signedOut": "Ați fost deconectat.",
+    "signInHint": "Conectați-vă prin panoul Baza de cunoștințe pentru a naviga prin resurse.",
+    "findKnowledgeBases": "Găsește baze de cunoștințe",
+    "createNew": "Creează una nouă"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Conectați-vă la o bază de cunoștințe pentru a vă vizualiza contul."
   }
 }

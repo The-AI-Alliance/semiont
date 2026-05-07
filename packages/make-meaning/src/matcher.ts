@@ -1,34 +1,25 @@
 /**
  * Matcher Actor
  *
- * Bridge between the event bus and the knowledge base for entity resolution.
- * Subscribes to bind search events and referenced-by queries, queries KB stores
- * (graph, views), and emits results back to the bus.
- *
- * From ARCHITECTURE.md:
- * "When an Analyst or Linker Agent emits a bind event, the Matcher receives it
- * from the bus, searches the KB stores for matching resources, and resolves
- * references — linking a mention to its referent."
+ * Candidate search for the bind flow. Subscribes to match:search-requested,
+ * queries the KB graph for matching resources, scores them, and emits results.
  *
  * Handles:
- * - bind:search-requested — search for binding candidates
- * - bind:referenced-by-requested — find annotations that reference a resource
+ * - match:search-requested — multi-source retrieval + composite scoring
  *
- * The Matcher handles only the read side (searching for candidates).
- * The write side (annotation.body.updated) stays in the route where
- * userId is available from auth context. That domain event still flows
- * through the bus via EventStore auto-publish.
+ * The write side (annotation.body.updated) stays in the route where userId
+ * is available from auth context.
  */
 
 import { Subscription, from } from 'rxjs';
-import { concatMap, mergeMap } from 'rxjs/operators';
-import type { EventMap, GatheredContext, Logger, components } from '@semiont/core';
-import { type EventBus, resourceId } from '@semiont/core';
-import { getExactText, getResourceId, getResourceEntityTypes, getTargetSource, getTargetSelector } from '@semiont/api-client';
+import { concatMap } from 'rxjs/operators';
+import type { EventMap, GatheredContext, Logger, ResourceDescriptor } from '@semiont/core';
+import { type EventBus, resourceId, errField } from '@semiont/core';
+import { getResourceId, getResourceEntityTypes } from '@semiont/core';
+import { withActorSpan } from '@semiont/observability';
 import type { InferenceClient } from '@semiont/inference';
+import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class Matcher {
   private subscriptions: Subscription[] = [];
@@ -38,7 +29,8 @@ export class Matcher {
     private kb: KnowledgeBase,
     private eventBus: EventBus,
     logger: Logger,
-    private inferenceClient?: InferenceClient,
+    private inferenceClient: InferenceClient,
+    private embeddingProvider?: EmbeddingProvider,
   ) {
     this.logger = logger;
   }
@@ -48,22 +40,18 @@ export class Matcher {
 
     const errorHandler = (err: unknown) => this.logger.error('Matcher pipeline error', { error: err });
 
-    const search$ = this.eventBus.get('bind:search-requested').pipe(
-      concatMap((event) => from(this.handleSearch(event))),
-    );
-
-    // mergeMap: referenced-by queries are independent reads — safe to run concurrently
-    const referencedBy$ = this.eventBus.get('bind:referenced-by-requested').pipe(
-      mergeMap((event) => from(this.handleReferencedBy(event))),
+    const search$ = this.eventBus.get('match:search-requested').pipe(
+      concatMap((event) =>
+        from(withActorSpan('matcher', 'match:search-requested', () => this.handleSearch(event))),
+      ),
     );
 
     this.subscriptions.push(
       search$.subscribe({ error: errorHandler }),
-      referencedBy$.subscribe({ error: errorHandler }),
     );
   }
 
-  private async handleSearch(event: EventMap['bind:search-requested']): Promise<void> {
+  private async handleSearch(event: EventMap['match:search-requested']): Promise<void> {
     try {
       const context = event.context;
       const selectedText = context.sourceContext?.selected ?? '';
@@ -85,20 +73,20 @@ export class Matcher {
 
       const limited = event.limit ? scored.slice(0, event.limit) : scored;
 
-      this.eventBus.get('bind:search-results').next({
-        referenceId: event.referenceId,
-        results: limited,
+      this.eventBus.get('match:search-results').next({
         correlationId: event.correlationId,
+        referenceId: event.referenceId,
+        response: limited,
       });
     } catch (error) {
       this.logger.error('Bind search failed', {
         referenceId: event.referenceId,
-        error,
+        error: errField(error),
       });
-      this.eventBus.get('bind:search-failed').next({
-        referenceId: event.referenceId,
-        error: error instanceof Error ? error : new Error(String(error)),
+      this.eventBus.get('match:search-failed').next({
         correlationId: event.correlationId,
+        referenceId: event.referenceId,
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -127,12 +115,14 @@ export class Matcher {
     const connections = context.graphContext?.connections ?? [];
 
     // 1. Multi-source candidate retrieval (parallel)
-    const [nameMatches, entityTypeMatches] = await Promise.all([
+    const [nameMatches, entityTypeMatches, semanticMatches] = await Promise.all([
       this.kb.graph.searchResources(searchTerm),
       annotationEntityTypes.length > 0
         ? this.kb.graph.listResources({ entityTypes: annotationEntityTypes, limit: 50 })
             .then(r => r.resources)
         : Promise.resolve([]),
+      // 4. Semantic match — vector similarity search (if vectors configured)
+      this.searchVectors(searchTerm, annotationEntityTypes),
     ]);
 
     // 3. Graph neighborhood candidates — fetch full resources for connection IDs
@@ -165,10 +155,19 @@ export class Matcher {
       if (r) addCandidate(r, 'neighborhood');
     }
 
+    // Semantic matches need to be resolved to full resources from the graph
+    const semanticScores = new Map<string, number>();
+    for (const sm of semanticMatches) {
+      semanticScores.set(sm.resourceId, sm.score);
+      const resource = await this.kb.graph.getResource(resourceId(sm.resourceId)).catch(() => null);
+      if (resource) addCandidate(resource, 'semantic');
+    }
+
     this.logger.debug('Candidate retrieval', {
       nameMatches: nameMatches.length,
       entityTypeMatches: entityTypeMatches.length,
       neighborResources: neighborResources.filter(Boolean).length,
+      semanticMatches: semanticMatches.length,
       totalCandidates: candidateMap.size,
     });
 
@@ -241,6 +240,13 @@ export class Matcher {
         score += Math.max(0, 5 * (1 - ageDays / 30));
       }
 
+      // Semantic similarity (vector search score, weighted by 25)
+      const semanticScore = semanticScores.get(id);
+      if (semanticScore !== undefined) {
+        score += semanticScore * 25;
+        reasons.push('semantic similarity');
+      }
+
       // Multi-source bonus (found by multiple retrieval strategies)
       if (sources.size > 1) {
         score += sources.size * 3;
@@ -255,7 +261,7 @@ export class Matcher {
     });
 
     // Inference-based semantic scoring (when available, enabled, and there are candidates)
-    if (this.inferenceClient && scored.length > 0 && useSemanticScoring !== false) {
+    if (scored.length > 0 && useSemanticScoring !== false) {
       try {
         const inferenceScores = await this.inferenceSemanticScore(
           searchTerm,
@@ -305,8 +311,6 @@ export class Matcher {
     context: GatheredContext,
     candidates: Array<ResourceDescriptor & { score: number }>,
   ): Promise<Map<string, number>> {
-    if (!this.inferenceClient) return new Map();
-
     const passage = [context.sourceContext?.selected, context.userHint]
       .filter(Boolean).join(' — ') || searchTerm;
     const entityTypes = context.metadata?.entityTypes ?? [];
@@ -350,10 +354,9 @@ ${contextParts.length > 0 ? contextParts.join('\n') : ''}
 Candidates:
 ${candidateLines}
 
-For each candidate, output ONLY a line with the number and score, like:
+For each candidate, output a line with the number and score, like:
 1. 0.8
-2. 0.3
-No explanations.`;
+2. 0.3`;
 
     const response = await this.inferenceClient.generateText(prompt, 200, 0.1);
 
@@ -380,57 +383,31 @@ No explanations.`;
     return scores;
   }
 
-  private async handleReferencedBy(event: EventMap['bind:referenced-by-requested']): Promise<void> {
+  /**
+   * Search vectors for semantically similar resources.
+   * Returns empty array if vectors or embedding provider are not configured.
+   */
+  private async searchVectors(
+    searchTerm: string,
+    entityTypes: string[],
+  ): Promise<Array<{ resourceId: string; score: number }>> {
+    if (!this.kb.vectors || !this.embeddingProvider || !searchTerm.trim()) return [];
+
     try {
-      this.logger.debug('Looking for annotations referencing resource', {
-        resourceId: event.resourceId,
-        motivation: event.motivation || 'all',
+      const embedding = await this.embeddingProvider.embed(searchTerm);
+      const results = await this.kb.vectors.searchResources(embedding, {
+        limit: 20,
+        scoreThreshold: 0.4,
+        filter: entityTypes.length > 0 ? { entityTypes } : undefined,
       });
 
-      const references = await this.kb.graph.getResourceReferencedBy(event.resourceId, event.motivation);
-
-      // Get unique source resource IDs from annotation targets
-      const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-      const resources = await Promise.all(sourceIds.map(id => this.kb.graph.getResource(resourceId(id))));
-
-      // Build resource map for lookup — warn about any that couldn't be found
-      for (let i = 0; i < sourceIds.length; i++) {
-        if (resources[i] === null) {
-          this.logger.warn('Referenced resource not found in graph', { resourceId: sourceIds[i] });
-        }
-      }
-      const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc['@id'], doc]));
-
-      // Transform into ReferencedBy structure
-      const referencedBy = references.map(ref => {
-        const targetSource = getTargetSource(ref.target);
-        const targetSelector = getTargetSelector(ref.target);
-        const doc = docMap.get(targetSource);
-        return {
-          id: ref.id,
-          resourceName: doc?.name || 'Untitled Resource',
-          target: {
-            source: targetSource,
-            selector: {
-              exact: targetSelector ? getExactText(targetSelector) : '',
-            },
-          },
-        };
-      });
-
-      this.eventBus.get('bind:referenced-by-result').next({
-        correlationId: event.correlationId,
-        response: { referencedBy },
-      });
+      return results.map((r: VectorSearchResult) => ({
+        resourceId: String(r.resourceId),
+        score: r.score,
+      }));
     } catch (error) {
-      this.logger.error('Referenced-by query failed', {
-        resourceId: event.resourceId,
-        error,
-      });
-      this.eventBus.get('bind:referenced-by-failed').next({
-        correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
-      });
+      this.logger.warn('Vector search failed, falling back to structural search', { error });
+      return [];
     }
   }
 

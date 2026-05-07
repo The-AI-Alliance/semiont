@@ -1,6 +1,6 @@
 {
   "name": "@semiont/graph",
-  "version": "0.4.1",
+  "version": "0.5.4",
   "type": "module",
   "description": "Graph database abstraction with Neo4j, Neptune, JanusGraph, and in-memory implementations",
   "main": "./dist/index.js",
@@ -27,7 +27,6 @@
     "@semiont/api-client": "*",
     "@semiont/core": "*",
     "@semiont/ontology": "*",
-    "@vitest/ui": "4.0.18",
     "uuid": "^10.0.0"
   },
   "peerDependencies": {
@@ -51,8 +50,7 @@
     "@types/uuid": "^10.0.0",
     "@vitest/coverage-v8": "^4.1.0",
     "tsup": "^8.0.1",
-    "typescript": "^5.6.3",
-    "vitest": "^4.0.18"
+    "typescript": "^5.6.3"
   },
   "publishConfig": {
     "access": "public"

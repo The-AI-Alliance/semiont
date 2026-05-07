@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
-import { renderWithProviders, resetEventBusForTesting } from '../../../../test-utils';
+import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CommentEntry } from '../CommentEntry';
 import type { components } from '@semiont/core';
 import type { EventBus } from "@semiont/core"
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -24,8 +24,8 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 }));
 
 // Mock @semiont/api-client utilities
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     getCommentText: vi.fn(),
@@ -33,7 +33,7 @@ vi.mock('@semiont/api-client', async () => {
   };
 });
 
-import { getCommentText, getAnnotationExactText } from '@semiont/api-client';
+import { getCommentText, getAnnotationExactText } from '@semiont/core';
 import type { MockedFunction } from 'vitest';
 
 const mockGetCommentText = getCommentText as MockedFunction<typeof getCommentText>;
@@ -105,7 +105,6 @@ describe('CommentEntry Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting(); // Reset event bus between tests
     mockGetCommentText.mockReturnValue('This is a test comment');
     mockGetAnnotationExactText.mockReturnValue('This is th');
 

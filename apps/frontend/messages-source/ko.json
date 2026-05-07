@@ -13,7 +13,7 @@
     "administer": "관리"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. 모든 권리 보유.",
+    "copyright": "© {{year}} The AI Alliance. 모든 권리 보유.",
     "about": "소개",
     "privacyPolicy": "개인정보 처리방침",
     "cookiePreferences": "쿠키 설정",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "의미를 만들다",
-    "description": "인간과 지능형 에이전트가 공유 지식을 함께 창조할 수 있게 해주는 오픈소스 미래지향적 프레임워크 — 당신이 관리하고, 오래 지속되도록 구축되었습니다.",
-    "continueToKnowledgeBase": "지식 베이스로 이동",
-    "learnMore": "더 알아보기",
-    "signUp": "회원가입",
-    "signIn": "로그인",
-    "loading": "로딩 중..."
+    "begin": "시작"
   },
   "About": {
     "pageTitle": "Semiont 소개",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "우리는 귀하의 경험을 향상시키고, 사용량을 분석하며, 맞춤 콘텐츠를 제공하기 위해 쿠키 및 유사 기술을 사용합니다.",
     "cookieCategoriesTitle": "쿠키 카테고리",
     "necessaryCookiesTitle": "필수 쿠키",
-    "necessaryCookies": "인증 및 보안 기능을 포함한 웹사이트 기능에 필수적입니다.\n\n예시: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "인증 및 보안 기능을 포함한 웹사이트 기능에 필수적입니다.\n\n예시: semiont-token",
     "analyticsCookiesTitle": "분석 쿠키",
     "analyticsCookies": "방문자가 웹사이트와 어떻게 상호작용하는지 이해하여 사용자 경험을 개선하는 데 도움을 줍니다.\n\n예시: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "마케팅 쿠키",
@@ -94,7 +89,7 @@
     "contactAddress": "주소:",
     "updatesTitle": "정책 업데이트",
     "updates": "우리는 수시로 본 개인정보 처리방침을 업데이트할 수 있습니다. 중요한 변경사항이 있을 경우 이 페이지에 새로운 개인정보 처리방침을 게시하고 시행일을 업데이트하여 알려드리겠습니다.",
-    "lastUpdated": "최종 업데이트: {date}"
+    "lastUpdated": "최종 업데이트: {{date}}"
   },
   "Terms": {
     "pageTitle": "서비스 이용약관",
@@ -124,7 +119,7 @@
     "changes": "우리는 주기적으로 본 약관을 업데이트할 수 있습니다. 중요한 변경사항이 있을 경우 사용자에게 통지하며, 플랫폼의 계속 사용은 업데이트된 약관에 대한 동의로 간주됩니다.",
     "contactTitle": "연락처",
     "contact": "본 약관에 대한 질문이 있거나 위반 사항을 신고해야 하는 경우, 플랫폼을 통해 또는 개인정보 처리방침에 제공된 연락처 정보를 통해 지원팀에 문의하십시오.",
-    "lastUpdated": "최종 업데이트: {date}",
+    "lastUpdated": "최종 업데이트: {{date}}",
     "aup": "Semiont를 사용함으로써 귀하는 본 약관에 따라 책임감 있게 플랫폼을 사용하는 데 동의합니다. 우리는 모든 사용자를 위해 안전하고 존중하며 생산적인 환경을 유지하는 데 최선을 다하고 있습니다."
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "계정 생성에 실패했습니다. 지원팀에 문의해 주세요.",
     "errorGeneric": "인증 오류가 발생했습니다. 다시 시도해 주세요.",
     "errorGoogleSignIn": "Google 로그인을 시작하지 못했습니다. 다시 시도해 주세요.",
+    "backendUrlLabel": "백엔드 URL",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "백엔드 URL을 입력해 주세요",
+    "errorBackendUrlInvalid": "유효한 URL을 입력하세요 (예: http://localhost:4000)",
+    "errorBackendUrlUnreachable": "해당 URL에 연결할 수 없습니다 — 백엔드가 실행 중인가요?",
     "errorEmailRequired": "이메일 주소를 입력해 주세요",
     "errorPasswordRequired": "비밀번호를 입력해 주세요",
     "errorSignInFailed": "로그인에 실패했습니다. 다시 시도해 주세요.",
@@ -185,7 +185,7 @@
     "loading": "로딩 중...",
     "welcomeTitle": "Semiont에 오신 것을 환영합니다!",
     "thanksForAccepting": "약관에 동의해 주셔서 감사합니다. 앱으로 이동합니다...",
-    "welcomeUser": "Semiont에 오신 것을 환영합니다, {firstName}님!",
+    "welcomeUser": "Semiont에 오신 것을 환영합니다, {{firstName}}님!",
     "reviewTermsPrompt": "Semiont를 사용하기 전에 서비스 이용약관을 검토하고 동의해 주세요",
     "termsSummaryTitle": "서비스 이용약관 요약",
     "termsSummaryIntro": "Semiont를 사용함으로써 다음에 동의합니다:",
@@ -246,9 +246,9 @@
     "archived": "보관됨",
     "created": "생성됨",
     "recentResources": "최근 리소스",
-    "searchResults": "검색 결과 ({count})",
-    "resourcesTaggedWith": "\"{entityType}\"(으)로 태그된 리소스",
-    "noResultsFound": "\"{query}\"에 대한 결과가 없습니다. 대신 최근 리소스를 표시합니다.",
+    "searchResults": "검색 결과 ({{count}})",
+    "resourcesTaggedWith": "\"{{entityType}}\"(으)로 태그된 리소스",
+    "noResultsFound": "\"{{query}}\"에 대한 결과가 없습니다. 대신 최근 리소스를 표시합니다.",
     "noResourcesAvailable": "사용 가능한 리소스가 없습니다. 첫 번째 문서를 만들어 시작하세요.",
     "composeFirstResource": "첫 번째 리소스 작성",
     "loadingKnowledgeBase": "지식 베이스 로딩 중..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "리소스 이름 입력...",
     "entityTypes": "개체 유형 태그",
     "entityTypesHint": "리소스에 개체 유형 태그 지정",
-    "noEntityTypesAvailable": "사용 가능한 개체 유형이 없습니다",
     "contentSource": "콘텐츠 소스",
     "uploadFile": "파일 업로드",
     "uploadFileDescription": "이미지, 문서, 텍스트 파일",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "계정",
     "user": "사용자",
-    "profileAlt": "{name} 프로필",
+    "profileAlt": "{{name}} 프로필",
     "session": "세션",
-    "expiresIn": "만료: {time}",
+    "expiresIn": "만료: {{time}}",
     "privileges": "권한",
     "administrator": "🛡️ 관리자",
     "moderator": "⚖️ 중재자",
@@ -433,7 +432,7 @@
     "configManagementDescription": "OAuth 설정은 환경 변수를 통해 관리됩니다. 이 설정을 수정하려면:",
     "configLocalDev": "로컬 개발: .env 파일을 업데이트하세요",
     "configCloudDeploy": "클라우드 배포: 다음을 사용하세요",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "구성 파일의 변경사항을 적용",
     "configAWS": "AWS: 설정은 AWS Secrets Manager 및 ECS 작업 정의에 저장됩니다"
   },
@@ -510,11 +509,11 @@
     "title": "쿠키 설정",
     "description": "쿠키 설정 및 개인정보 설정을 관리합니다. 변경사항은 즉시 적용됩니다.",
     "currentSettings": "현재 설정",
-    "lastUpdated": "최종 업데이트: {date}",
-    "version": "버전: {version}",
+    "lastUpdated": "최종 업데이트: {{date}}",
+    "version": "버전: {{version}}",
     "cookieCategories": "쿠키 카테고리",
     "required": "(필수)",
-    "viewCookies": "쿠키 보기 ({count})",
+    "viewCookies": "쿠키 보기 ({{count}})",
     "dataManagement": "데이터 관리",
     "exportMyData": "내 데이터 내보내기",
     "deleteAllData": "모든 데이터 삭제",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "지식 베이스",
+    "connectTitle": "지식 베이스에 연결",
+    "connect": "연결",
+    "connecting": "연결 중...",
+    "signIn": "로그인",
+    "signingIn": "로그인 중...",
+    "cancel": "취소",
+    "addKnowledgeBase": "지식 베이스 추가",
+    "removeConfirm": "{{label}}을(를) 제거하시겠습니까?",
+    "remove": "제거",
+    "signOut": "로그아웃",
+    "statusConnected": "연결됨",
+    "statusExpired": "세션 만료",
+    "statusSignedOut": "로그아웃됨",
+    "statusUnreachable": "연결 불가",
+    "invalidHost": "잘못된 호스트 이름"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "지식 베이스 없음",
+    "noKnowledgeBasesHint": "오른쪽 패널을 사용하여 지식 베이스를 추가하고 리소스 검색, 주석 달기 및 연결을 시작하세요.",
+    "sessionExpired": "세션이 만료되었습니다.",
+    "signedOut": "로그아웃되었습니다.",
+    "signInHint": "지식 베이스 패널을 사용하여 로그인하고 리소스를 탐색하세요.",
+    "findKnowledgeBases": "지식 베이스 찾기",
+    "createNew": "새로 만들기"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "계정을 보려면 지식 베이스에 로그인하세요."
   }
 }

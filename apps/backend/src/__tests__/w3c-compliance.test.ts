@@ -11,22 +11,21 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { components } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
+import { annotationId } from '@semiont/core';
 import { getEntityTypes, getBodySource, isResolved } from './helpers/annotation-helpers';
-
-type Annotation = components['schemas']['Annotation'];
 
 // Test backend URL for W3C-compliant URIs
 const TEST_BACKEND_URL = 'http://localhost:4000';
 
 describe('W3C Web Annotation Compliance', () => {
   describe('Stub Reference Validation', () => {
-    it('should allow annotations with empty body array', () => {
-      // Stub references can have empty body array (no entity tags)
+    it('should allow annotations with no body (motivation alone is meaningful)', () => {
+      // W3C allows zero bodies; per our Option B schema, this means body is omitted entirely
       const stubAnnotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-stub-123',
+        id: annotationId('test-stub-123'),
         motivation: 'linking',
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-123`,
@@ -42,10 +41,9 @@ describe('W3C Web Annotation Compliance', () => {
             },
           ],
         },
-        body: [], // W3C allows zero bodies
         creator: {
           type: 'Person',
-          id: 'user-123',
+          id: annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -54,11 +52,7 @@ describe('W3C Web Annotation Compliance', () => {
       // Verify it's a valid annotation
       expect(stubAnnotation['@context']).toBe('http://www.w3.org/ns/anno.jsonld');
       expect(stubAnnotation.type).toBe('Annotation');
-      expect(stubAnnotation.body).toEqual([]);
-      expect(Array.isArray(stubAnnotation.body)).toBe(true);
-      if (Array.isArray(stubAnnotation.body)) {
-        expect(stubAnnotation.body.length).toBe(0);
-      }
+      expect(stubAnnotation.body).toBeUndefined();
 
       // Check entity types via helper
       expect(getEntityTypes(stubAnnotation)).toEqual([]);
@@ -70,7 +64,7 @@ describe('W3C Web Annotation Compliance', () => {
       const stubAnnotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-stub-456',
+        id: annotationId('test-stub-456'),
         motivation: 'linking',
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-456`,
@@ -88,7 +82,7 @@ describe('W3C Web Annotation Compliance', () => {
         ],
         creator: {
           type: 'Person',
-          id: 'user-456',
+          id: annotationId('user-456'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -123,7 +117,7 @@ describe('W3C Web Annotation Compliance', () => {
       const resolvedAnnotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-resolved-123',
+        id: annotationId('test-resolved-123'),
         motivation: 'linking',
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-source-123`,
@@ -153,7 +147,7 @@ describe('W3C Web Annotation Compliance', () => {
         ],
         creator: {
           type: 'Person',
-          id: 'user-789',
+          id: annotationId('user-789'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -195,7 +189,7 @@ describe('W3C Web Annotation Compliance', () => {
       const resolvedAnnotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-resolved-789',
+        id: annotationId('test-resolved-789'),
         motivation: 'linking',
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-abc`,
@@ -209,7 +203,7 @@ describe('W3C Web Annotation Compliance', () => {
         ],
         creator: {
           type: 'Person',
-          id: 'user-xyz',
+          id: annotationId('user-xyz'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -232,7 +226,7 @@ describe('W3C Web Annotation Compliance', () => {
       const resolvedAnnotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-purpose-123',
+        id: annotationId('test-purpose-123'),
         motivation: 'linking',
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-123`,
@@ -246,7 +240,7 @@ describe('W3C Web Annotation Compliance', () => {
         ],
         creator: {
           type: 'Person',
-          id: 'user-123',
+          id: annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -267,13 +261,12 @@ describe('W3C Web Annotation Compliance', () => {
       const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-simple-target',
+        id: annotationId('test-simple-target'),
         motivation: 'linking',
         target: 'http://example.org/resource-123', // Simple string IRI
-        body: [],
         creator: {
           type: 'Person',
-          id: 'user-123',
+          id: annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -288,15 +281,14 @@ describe('W3C Web Annotation Compliance', () => {
       const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-source-only-target',
+        id: annotationId('test-source-only-target'),
         motivation: 'linking',
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-456`, // Source without selector
         },
-        body: [],
         creator: {
           type: 'Person',
-          id: 'user-456',
+          id: annotationId('user-456'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -314,7 +306,7 @@ describe('W3C Web Annotation Compliance', () => {
       const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-full-target',
+        id: annotationId('test-full-target'),
         motivation: 'linking',
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-789`,
@@ -332,7 +324,7 @@ describe('W3C Web Annotation Compliance', () => {
         ],
         creator: {
           type: 'Person',
-          id: 'user-789',
+          id: annotationId('user-789'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -354,15 +346,14 @@ describe('W3C Web Annotation Compliance', () => {
       const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-motivation',
+        id: annotationId('test-motivation'),
         motivation: 'linking', // W3C motivation for references
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-123`,
         },
-        body: [],
         creator: {
           type: 'Person',
-          id: 'user-123',
+          id: annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -375,7 +366,7 @@ describe('W3C Web Annotation Compliance', () => {
       const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-highlight',
+        id: annotationId('test-highlight'),
         motivation: 'highlighting',
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-456`,
@@ -400,7 +391,7 @@ describe('W3C Web Annotation Compliance', () => {
         ],
         creator: {
           type: 'Person',
-          id: 'user-456',
+          id: annotationId('user-456'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -416,13 +407,12 @@ describe('W3C Web Annotation Compliance', () => {
       const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-context',
+        id: annotationId('test-context'),
         motivation: 'linking',
         target: 'doc-123',
-        body: [],
         creator: {
           type: 'Person',
-          id: 'user-123',
+          id: annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -435,13 +425,12 @@ describe('W3C Web Annotation Compliance', () => {
       const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-type',
+        id: annotationId('test-type'),
         motivation: 'linking',
         target: 'doc-456',
-        body: [],
         creator: {
           type: 'Person',
-          id: 'user-456',
+          id: annotationId('user-456'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -454,13 +443,12 @@ describe('W3C Web Annotation Compliance', () => {
       const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-required-target',
+        id: annotationId('test-required-target'),
         motivation: 'linking',
         target: 'doc-789', // Target is required
-        body: [],
         creator: {
           type: 'Person',
-          id: 'user-789',
+          id: annotationId('user-789'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -476,7 +464,7 @@ describe('W3C Web Annotation Compliance', () => {
       let annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-transition',
+        id: annotationId('test-transition'),
         motivation: 'linking',
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-source`,
@@ -494,7 +482,7 @@ describe('W3C Web Annotation Compliance', () => {
         ],
         creator: {
           type: 'Person',
-          id: 'user-123',
+          id: annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -535,7 +523,7 @@ describe('W3C Web Annotation Compliance', () => {
       let annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-unlink',
+        id: annotationId('test-unlink'),
         motivation: 'linking',
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-source`,
@@ -554,7 +542,7 @@ describe('W3C Web Annotation Compliance', () => {
         ],
         creator: {
           type: 'Person',
-          id: 'user-456',
+          id: annotationId('user-456'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -588,7 +576,7 @@ describe('W3C Web Annotation Compliance', () => {
       const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-textual-body',
+        id: annotationId('test-textual-body'),
         motivation: 'linking',
         target: 'doc-123',
         body: [
@@ -600,7 +588,7 @@ describe('W3C Web Annotation Compliance', () => {
         ],
         creator: {
           type: 'Person',
-          id: 'user-123',
+          id: annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -626,7 +614,7 @@ describe('W3C Web Annotation Compliance', () => {
       const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-multi-tags',
+        id: annotationId('test-multi-tags'),
         motivation: 'linking',
         target: 'doc-456',
         body: [
@@ -648,7 +636,7 @@ describe('W3C Web Annotation Compliance', () => {
         ],
         creator: {
           type: 'Person',
-          id: 'user-456',
+          id: annotationId('user-456'),
           name: 'test-user',
         },
         created: new Date().toISOString(),

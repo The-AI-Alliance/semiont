@@ -4,546 +4,199 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli)
 [![License](https://img.shields.io/npm/l/@semiont/cli.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The unified command-line interface for managing Semiont environments and services with platform-aware operations.
+The Semiont CLI provides four categories of commands:
 
-## Overview
+| Category | Commands | Auth model |
+|----------|----------|------------|
+| **Credential** | `login` | Writes a cached token |
+| **Knowledge Work** | `browse`, `gather`, `mark`, `match`, `bind`, `listen`, `yield`, `beckon` | Reads the cached token (`--bus`) |
+| **Knowledge Base** | `init`, `backup`, `restore`, `verify`, `export`, `import` | None / `--environment` |
+| **Infrastructure** | `local`, `provision`, `start`, `stop`, `check`, `mv`, `useradd`, `clean`, `watch` | `--environment` |
 
-The Semiont CLI provides a consistent interface for managing services across different environments and platforms through five core concepts:
-
-### Core Concepts
-
-1. **Environment** - The primary configuration context (dev, staging, production)
-2. **Service** - Business entities managed by the CLI (backend, frontend, database)
-3. **Service Type** - High-level service categories declared by services (frontend, backend, database, filesystem, worker, mcp, etc.)
-4. **Command** - Operations you can perform (start, stop, check, deploy)
-5. **Platform Type** - Infrastructure targets where services run (posix, container, aws, external, mock)
-
-### Key Capabilities
-
-- **Environment-Driven Configuration**: All operations require an environment context
-- **Service Management**: start, stop, restart, check services based on environment
-- **Infrastructure Operations**: provision, configure, backup across platforms
-- **Development Workflows**: publish, update, test with platform awareness
-- **Safety Features**: comprehensive `--dry-run` support for all operations
-
-## Quick Links
-
-- [**Architecture Overview**](./docs/ARCHITECTURE.md) - Understanding the CLI architecture and core concepts
-- [**Managing Environments**](./docs/ADDING_ENVIRONMENTS.md) - Guide for configuring and managing environments
-- [**Adding New Commands**](./docs/ADDING_COMMANDS.md) - Step-by-step guide for adding new CLI commands
-- [**Adding New Platforms**](./docs/ADDING_PLATFORMS.md) - Guide for implementing new platform strategies
-- [**Adding New Services**](./docs/ADDING_SERVICES.md) - Guide for adding new service implementations
-- [**Adding New Service Types**](./docs/ADDING_SERVICE_TYPES.md) - Guide for adding new service type categories
+---
 
 ## Installation
 
-Install globally from npm:
-
 ```bash
-# Latest stable release
 npm install -g @semiont/cli
-
-# Or latest development build
-npm install -g @semiont/cli@dev
-
-# After installation, the 'semiont' command is available globally
 semiont --help
 ```
 
-Or install from source:
+Or from source:
 
 ```bash
-# From the CLI directory
-cd apps/cli
-npm run build               # Build the CLI
-npm link                    # Install globally
+cd apps/cli && npm run build && npm link
 ```
+
+---
 
 ## Common Options
 
-All commands support these common options:
+All commands support:
 
-- **Environment** (required): `--environment <env>` or via `SEMIONT_ENV` - Target environment
-- **Service Selection**: `-s, --service <service>` - Target specific service(s) (default: "all")
-- **Safety**: `--dry-run` - Preview changes without applying (comprehensive support)
-- **Output**: `-v, --verbose` - Show detailed output and debug information
-- **Help**: `-h, --help` - Show help for the command
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--dry-run` | | Preview changes without applying |
+| `--verbose` | `-v` | Show detailed output |
+| `--quiet` | `-q` | Suppress progress output |
+| `--output <format>` | `-o` | `summary` \| `table` \| `json` \| `yaml` |
 
-### Environment Configuration (Required)
+---
 
-Every command requires an environment to be specified:
-
-```bash
-# Via command-line flag (highest priority)
-semiont start backend --environment production
-
-# Via environment variable
-export SEMIONT_ENV=staging
-semiont start backend
-
-# Error if neither is provided
-semiont start backend
-# Error: Environment is required. Specify --environment flag or set SEMIONT_ENV
-```
-
-### Dry-Run Support
-
-All commands have comprehensive `--dry-run` support with two levels:
-
-1. **Overview Level**: Shows which services would be affected
-2. **Detail Level**: Shows specific actions that would be taken for each service
+## Quick Start
 
 ```bash
-# Example dry-run output
-$ semiont start production --dry-run
-ℹ️  Starting services in production environment
-ℹ️  [DRY RUN] Would start the following services:
-  - frontend (aws)
-  - backend (aws)  
-  - database (aws)
-  - filesystem (aws)
+# 1. Log in (once — token cached for 24 hours)
+semiont login --bus http://localhost:4000 --user alice@example.com
+
+# 2. Browse the knowledge base
+semiont browse resources
+
+# 3. Gather LLM context for a resource
+semiont gather resource <resourceId>
+
+# 4. Create an annotation
+semiont mark <resourceId> --motivation highlighting --quote "key phrase"
 ```
 
-### Service Selection
+---
 
-Flexible service targeting:
-- `all` - All services in the environment (default)
-- `frontend` - Frontend web application
-- `backend` - Backend API service
-- `database` - PostgreSQL database
-- `graph` - Graph database (Neo4j/Neptune)
-- `event-store` - Event Store (immutable event log)
-- `projection` - Projection Store (materialized views)
-- `filesystem` - File storage service
-- `inference` - AI/ML inference service
-- `mcp` - Model Context Protocol server
-- Service combinations and patterns (future extension)
+## Command Categories
 
-### Environment-Driven Architecture
+### Credential — `login`
 
-Environments are the foundation of configuration:
-- **Define which services exist** in each deployment context
-- **Specify platform assignments** for each service (posix, container, aws)
-- **Configure service settings** (ports, environment variables, resources)
-- **No special environment names** - all environments are treated equally
-- **Required for all operations** via `--environment` or `SEMIONT_ENV`
-
-## Architecture
-
-The CLI follows a unified architecture built on five core concepts:
-
-```
-Environment (configuration context)
-    ↓ defines
-Services (what exists)
-    ↓ declare their
-Service Type (what they are: frontend, backend, database, etc.)
-    ↓ deployed to
-Platform (where they run: aws, container, posix, etc.)
-    ↓ operated via
-Commands (what you can do)
-```
-
-See [Architecture Overview](./docs/ARCHITECTURE.md) for detailed information.
-
-### Directory Structure
-
-```
-environments/                 # Environment configurations (primary config)
-├── dev.json                 # Development environment
-├── staging.json             # Staging environment
-└── production.json          # Production environment
-
-src/
-├── cli.ts                    # CLI entry point
-├── core/                     # Core execution engine
-│   ├── multi-service-executor.ts # Multi-service command execution
-│   ├── command-descriptor.ts # Command configuration
-│   ├── command-result.ts    # Unified result type
-│   ├── platform.ts          # Abstract Platform class
-│   ├── service-interface.ts # Service contracts
-│   ├── service-types.ts     # Service type definitions
-│   ├── service-cli-behaviors.ts # CLI behavior capabilities
-│   ├── service-command-capabilities.ts # Command support declarations
-│   └── handlers/            # Handler management
-│       ├── registry.ts      # Handler registration
-│       └── types.ts         # Handler types
-├── commands/                 # Command implementations
-│   ├── start.ts             # Start services
-│   ├── stop.ts              # Stop services
-│   ├── check.ts             # Health checks
-│   └── ...                  # Other commands
-├── services/                 # Service implementations
-│   ├── base-service.ts      # Base service class
-│   └── ...                  # Service implementations
-├── platforms/                # Platform implementations
-│   ├── posix/handlers/      # POSIX system handlers
-│   ├── container/handlers/  # Docker/Podman handlers
-│   ├── aws/handlers/        # AWS service handlers
-│   └── ...                  # Other platforms
-├── lib/                      # Shared utilities
-└── docs/                     # Documentation
-    ├── ARCHITECTURE.md       # Architecture & concepts
-    ├── ADDING_ENVIRONMENTS.md # Environment guide
-    ├── ADDING_COMMANDS.md    # Commands guide
-    ├── ADDING_PLATFORMS.md   # Platforms guide
-    ├── ADDING_SERVICES.md    # Services guide
-    └── ADDING_SERVICE_TYPES.md # Service types guide
-```
-
-### Environment Configuration
-
-Environments are JSON files that define:
-- Which services exist
-- Platform assignments for each service
-- Service-specific configuration
-- Platform settings (AWS regions, Docker registries, etc.)
-
-#### Example Environment File (environments/staging.json)
-
-```json
-{
-  "platform": {
-    "default": "container"
-  },
-  "services": {
-    "backend": {
-      "platform": "container",
-      "image": "myorg/backend:staging",
-      "port": 3000,
-      "env": {
-        "NODE_ENV": "staging"
-      }
-    },
-    "database": {
-      "platform": "aws",
-      "instanceClass": "db.t3.medium"
-    }
-  }
-}
-```
-
-#### Environment Resolution
-
-The CLI determines the environment using:
-
-1. **Command-line flag** (`--environment`) - highest priority
-2. **Environment variable** (`SEMIONT_ENV`) - fallback
-3. **Error** - if neither is provided
+Authenticates against a Semiont backend and caches a token. Run this once before using any API command.
 
 ```bash
-# Via flag
-semiont start backend --environment production
-
-# Via environment variable
-export SEMIONT_ENV=staging
-semiont start backend
-
-# Error if neither
-semiont start backend
-# Error: Environment is required
+semiont login --bus http://localhost:4000 --user alice@example.com
+semiont login --bus https://api.acme.com   # prompts for password interactively
+semiont login --refresh --bus https://api.acme.com
 ```
 
-## Service Types and Capabilities
+Token is cached at `$XDG_STATE_HOME/semiont/auth/<bus-slug>.json` and is valid for 24 hours. Multiple backends can be logged into simultaneously.
 
-Services declare their type and capabilities through annotations in their requirements:
+See [Knowledge Work Commands](./docs/KNOWLEDGE-WORK.md) for the full credential resolution order.
 
-### Service Types
-Each service declares what it is (not where it runs):
-- **frontend** - User-facing web applications
-- **backend** - API servers and application logic
-- **database** - Data persistence layers
-- **filesystem** - File storage and management
-- **worker** - Background job processors
-- **mcp** - Model Context Protocol services
-- **inference** - AI/ML model serving
-- **generic** - General-purpose services
+---
 
-### Service Capabilities
-Services can declare special behaviors and command support:
-- **CLI behaviors** - Output suppression, process lifecycle, interactive mode
-- **Command support** - Which commands the service supports (publish, update, backup, etc.)
+### Knowledge Work Commands
 
-## Platform Support
+These commands call the Semiont backend. They require a cached token from `semiont login`.
 
-Platforms determine where services run, configured per environment:
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--bus <url>` | `-b` | Backend URL. Fallback: `$SEMIONT_BUS` |
 
-- **POSIX** (`posix`): Services running as local OS processes
-- **Container** (`container`): Services in Docker/Podman containers  
-- **AWS** (`aws`): Services on AWS infrastructure
-  - Maps service types to AWS services (frontend → S3+CloudFront, backend → ECS, database → RDS)
-- **External** (`external`): Third-party or existing services
-- **Mock** (`mock`): Simulated services for testing
+For full details see [Knowledge Work Commands](./docs/KNOWLEDGE-WORK.md).
 
-Each service's platform is specified in the environment configuration file.
+**browse** — inspect resources, annotations, references, events
 
-## Key Design Principles
-
-1. **Environment-First Configuration** - All configuration flows from environment files
-2. **Unified Execution Pattern** - All commands use MultiServiceExecutor for consistency
-3. **Handler-Based Architecture** - Platform-specific logic in self-contained handlers
-4. **Service Requirements Pattern** - Services declare needs, platforms provide resources
-5. **Comprehensive Dry-Run Support** - All commands support `--dry-run` with detailed previews
-6. **Type Safety** - Full TypeScript and Zod validation throughout
-7. **No Special Environment Names** - All environments treated equally
-8. **Extensible Architecture** - Easy to add new services, platforms, handlers, and commands
-
-## Command Overview
-
-All commands follow a consistent pattern and support common options like `--dry-run`, `--verbose`, and service selection. Commands automatically adapt their behavior based on the platform configuration of each service.
-
-For detailed instructions on adding new commands, see the [Adding Commands Guide](./docs/ADDING_COMMANDS.md).
-
-### Available Commands
-
-**Service Management**
-- `start` - Start services
-- `stop` - Stop services  
-- `restart` - Restart services
-- `check` - Health check services
-- `watch` - Monitor services with live dashboard
-
-**Infrastructure & Configuration**
-- `provision` - Provision infrastructure resources (auto-installs `@semiont/backend` and `@semiont/frontend` from npm when `SEMIONT_REPO` is not set)
-- `configure` - Manage configuration and secrets
-- `backup` - Create service backups
-- `restore` - Restore from backups
-
-**Knowledge Base Backup/Restore**
-- `backup` - Create a lossless backup of the knowledge base
-- `restore` - Restore a knowledge base from a backup archive
-- `verify` - Verify a backup archive's integrity without restoring
-
-**Development & Deployment**
-- `publish` - Build and publish artifacts (creates new versions, does not deploy)
-- `update` - Deploy new versions to running services (deploys what publish created)
-- `test` - Run test suites
-- `exec` - Execute commands in service context
-- `init` - Initialize new Semiont project
-
-Each command automatically detects the platform for each service and executes the appropriate implementation. See the documentation links above for detailed guides on extending the CLI.
-
-### Publish and Update Workflow
-
-The `publish` and `update` commands work together to deploy new versions:
-
-**Publish** - Prepares artifacts for deployment:
-- Builds applications and Docker images
-- Pushes images to registries (ECR, Docker Hub, etc.)
-- Creates new task definitions (for ECS) or deployment manifests
-- Does NOT deploy to running services
-- Respects `imageTagStrategy` configuration (mutable vs immutable tags)
-
-**Update** - Deploys prepared artifacts:
-- Checks for newer versions created by `publish`
-- Updates running services to use new versions
-- For mutable tags (`:latest`), can force redeployment to pull updated images
-- Monitors deployment progress and reports success/failure
-
-**Typical workflow:**
 ```bash
-# 1. Build and publish new version
-semiont publish --service frontend --environment production
-
-# 2. Deploy the new version
-semiont update --service frontend --environment production
+semiont browse resources
+semiont browse resource <resourceId> --annotations
+semiont browse annotation <resourceId> <annotationId>
+semiont browse entity-types
 ```
 
-For services using immutable tags (e.g., git hashes), `update` will only deploy if a newer version exists. For mutable tags (e.g., `:latest`), `update` can force a redeployment even without version changes.
-
-### Knowledge Base Backup, Restore, and Verify
-
-The `backup`, `restore`, and `verify` commands provide lossless whole-KB backup and restore:
-
-- Streams a tar.gz archive containing `.semiont/manifest.jsonl`, per-resource event streams (`.semiont/events/*.jsonl`), and content blobs at the archive root (`{checksum}.{ext}`)
-- Preserves full event history, hash chains, and all metadata
-- On restore, events replay through the EventBus and Stower actor so materialized views and graph rebuild naturally
-
-#### Backup
+**gather** — fetch LLM-optimised context
 
 ```bash
-semiont backup --environment production --out backup.tar.gz
+semiont gather resource <resourceId>
+semiont gather annotation <resourceId> <annotationId>
 ```
 
-Options:
-- `--out <path>`, `-o <path>` — Output file path (required)
-
-#### Restore
+**mark** — create W3C annotations (manual or AI-delegate)
 
 ```bash
-semiont restore --environment production --file backup.tar.gz
+semiont mark <resourceId> --motivation highlighting --quote "key phrase"
+semiont mark <resourceId> --motivation linking --delegate --entity-type Person
 ```
 
-Options:
-- `--file <path>`, `-f <path>` — Input file path (required)
-
-Restore bootstraps a full EventBus + Stower pipeline so events flow through the normal actor system. Materialized views and graph rebuild naturally from the replayed events.
-
-#### Verify
+**match / bind** — find and resolve linking annotations
 
 ```bash
-# Verify a backup archive without importing
+semiont match <resourceId> <annotationId>
+semiont bind <resourceId> <annotationId> <targetResourceId>
+```
+
+**listen** — stream domain events as NDJSON
+
+```bash
+semiont listen
+semiont listen resource <resourceId>
+```
+
+**yield** — upload or AI-generate a resource
+
+```bash
+semiont yield --upload ./paper.pdf
+semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://out.md
+```
+
+**beckon** — direct a participant's attention
+
+```bash
+semiont beckon <resourceId>
+```
+
+---
+
+### Knowledge Base Commands
+
+These commands manage the knowledge base itself. `init` needs no flags; the others take `--environment`.
+
+For full details see [Knowledge Base Commands](./docs/KNOWLEDGE-BASE.md).
+
+```bash
+semiont init
+semiont backup -e production --out backup.tar.gz
+semiont restore -e production --file backup.tar.gz
 semiont verify --file backup.tar.gz
+semiont export -e local --out export.json
+semiont import -e local --file export.json
 ```
 
-Options:
-- `--file <path>`, `-f <path>` — Backup file to verify (required)
+---
 
-Verify checks:
-- Manifest format and version
-- Hash chain integrity per event stream
-- First/last checksum match against stream summaries
-- Event count match per stream
-- Content blob count match
+### Infrastructure Commands
 
-Does not require an environment — reads the archive standalone.
+These commands manage service lifecycle and deployment. They require `--environment` (or a default set in `~/.semiontconfig`).
 
-## MCP (Model Context Protocol) Server
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--environment <env>` | `-e` | Target environment. Fallback: `$SEMIONT_ENV` → `defaults.environment` in `~/.semiontconfig` |
 
-The Semiont CLI includes built-in support for MCP, allowing AI assistants to interact with Semiont APIs.
-
-### MCP Setup
-
-MCP requires one-time OAuth provisioning per environment:
+For full details see [Infrastructure Commands](./docs/INFRASTRUCTURE.md).
 
 ```bash
-# Provision MCP for production environment
-semiont provision --service mcp --environment production
+# Service lifecycle
+semiont provision -e local
+semiont start -e local
+semiont check -e local
+semiont stop -e local
+semiont watch -e local
 
-# This will:
-# 1. Open your browser for OAuth authentication
-# 2. Store refresh token in ~/.config/semiont/mcp-auth-production.json
-# 3. Display AI application configuration
+# Administration
+semiont useradd -e local --email user@example.com
+semiont clean -e local
 ```
 
-### Starting MCP Server
+---
 
-After provisioning, the MCP server can be started:
+## Further Reading
 
-```bash
-# Start MCP server for production
-semiont start --service mcp --environment production
+- [Knowledge Work Commands](./docs/KNOWLEDGE-WORK.md) — login, browse, gather, mark, match, bind, listen, yield, beckon
+- [Knowledge Base Commands](./docs/KNOWLEDGE-BASE.md) — init, backup, restore, verify, export, import
+- [Infrastructure Commands](./docs/INFRASTRUCTURE.md) — service lifecycle, deployment, administration
+- [Architecture Overview](./docs/ARCHITECTURE.md)
+- [Managing Environments](./docs/ADDING_ENVIRONMENTS.md)
+- [Adding Commands](./docs/ADDING_COMMANDS.md)
+- [Adding Platforms](./docs/ADDING_PLATFORMS.md)
+- [Adding Services](./docs/ADDING_SERVICES.md)
+- [Adding Service Types](./docs/ADDING_SERVICE_TYPES.md)
 
-# Or with environment variable
-SEMIONT_ENV=production semiont start --service mcp
-```
-
-### AI Application Configuration
-
-After provisioning, add this configuration to your AI application:
-
-```json
-{
-  "semiont": {
-    "command": "semiont",
-    "args": ["start", "--service", "mcp"],
-    "env": {
-      "SEMIONT_ROOT": "/path/to/semiont",
-      "SEMIONT_ENV": "production"
-    }
-  }
-}
-```
-
-### Available MCP Tools
-
-The MCP server currently provides:
-- `semiont_hello` - Get a personalized greeting from Semiont API
-
-Future capabilities will include graph retrieval for GraphRAG-like systems.
-
-### Authentication Flow
-
-1. **Initial Setup**: Browser-based OAuth during `provision` command
-2. **Refresh Tokens**: Stored locally, valid for 30 days
-3. **Access Tokens**: Automatically refreshed on startup, valid for 1 hour
-4. **Unattended Operation**: No user interaction required after initial setup
-
-### Troubleshooting MCP
-
-- **Authentication Failed**: Re-run `semiont provision --service mcp --environment <env>`
-- **Token Expired**: Refresh tokens expire after 30 days, re-provision if needed
-- **Server Won't Start**: Check that the environment was provisioned first
-
-## Development
-
-### Building
-
-```bash
-npm run build        # Build the CLI
-npm run watch        # Watch mode for development
-npm test            # Run tests
-```
-
-### Testing
-
-The CLI has comprehensive test coverage:
-
-```bash
-npm test                    # Run all tests
-npm run test:unit          # Unit tests only
-npm run test:integration   # Integration tests
-npm run test:coverage      # Generate coverage report
-```
-
-### Code Style
-
-The project uses ESLint and Prettier:
-
-```bash
-npm run lint        # Check code style
-npm run lint:fix    # Auto-fix issues
-npm run format      # Format code with Prettier
-```
-
-## Troubleshooting
-
-### Common Issues
-
-**Service won't start**
-- Check if port is already in use: `lsof -i :PORT`
-- Verify environment configuration exists
-- Check service logs with `semiont watch`
-
-**AWS commands fail**
-- Ensure AWS credentials are configured: `aws configure`
-- Check AWS region matches environment config
-- Verify IAM permissions for ECS/RDS operations
-
-**Container commands fail**
-- Verify Docker/Podman is installed and running
-- Check container runtime detection: `docker version` or `podman version`
-- Ensure user has permissions for container operations
-
-**MCP server issues**
-- Re-provision if authentication fails
-- Check refresh token hasn't expired (30 days)
-- Verify environment was provisioned before starting
-
-## Contributing
-
-We welcome contributions! Please see our contributing guidelines for:
-
-- Code style and standards
-- Testing requirements
-- Documentation updates
-- Pull request process
-
-### Adding New Features
-
-1. **Environments**: See [Managing Environments Guide](./docs/ADDING_ENVIRONMENTS.md)
-2. **Commands**: See [Adding Commands Guide](./docs/ADDING_COMMANDS.md)
-3. **Services**: See [Adding Services Guide](./docs/ADDING_SERVICES.md)
-4. **Platforms**: See [Adding Platforms Guide](./docs/ADDING_PLATFORMS.md)
-
-### Development Workflow
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes with tests
-4. Update documentation
-5. Submit a pull request
+---
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the LICENSE file for details.
+Apache License 2.0 — see the LICENSE file for details.

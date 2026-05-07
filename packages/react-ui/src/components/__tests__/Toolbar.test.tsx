@@ -1,15 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders, resetEventBusForTesting } from '../../test-utils';
+import { renderWithProviders } from '../../test-utils';
 import { Toolbar } from '../Toolbar';
 
 describe('Toolbar', () => {
-  beforeEach(() => {
-    resetEventBusForTesting();
-  });
-
   describe('document context', () => {
     it('renders all document context buttons when not archived', () => {
       renderWithProviders(
@@ -70,15 +66,15 @@ describe('Toolbar', () => {
   });
 
   describe('event emission', () => {
-    it('emits browse:panel-toggle with panel name on click', () => {
+    it('emits panel:toggle with panel name on click', () => {
       const handler = vi.fn();
 
-      const { eventBus } = renderWithProviders(
+      const { shellBus } = renderWithProviders(
         <Toolbar context="document" activePanel={null} />,
-        { returnEventBus: true }
+        { returnShellBus: true }
       );
 
-      const subscription = eventBus!.get('browse:panel-toggle').subscribe(handler);
+      const subscription = shellBus!.get('panel:toggle').subscribe(handler);
 
       fireEvent.click(screen.getByLabelText('Toolbar.resourceInfo'));
       expect(handler).toHaveBeenCalledWith({ panel: 'info' });

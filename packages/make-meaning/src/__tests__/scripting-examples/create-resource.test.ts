@@ -18,6 +18,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, userId } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, type MakeMeaningConfig } from '../..';
+import { deriveStorageUri } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -31,12 +32,28 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
+let fileCounter = 0;
+
 describe('Scripting Example: Create Resource', () => {
   let testDir: string;
   let project: SemiontProject;
   let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
+
+  async function create(
+    opts: { name: string; content: Buffer; format: string; language?: string },
+    uid: ReturnType<typeof userId>,
+  ) {
+    const kb = makeMeaning.knowledgeSystem.kb;
+    const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
+    const stored = await kb.content.store(opts.content, uri);
+    return ResourceOperations.createResource(
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format as any, language: opts.language },
+      uid,
+      eventBus,
+    );
+  }
 
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-scripting-test-${uuidv4()}`);
@@ -80,7 +97,7 @@ describe('Scripting Example: Create Resource', () => {
 
   it('creates a resource and monitors events', async () => {
     // Create resource directly using ResourceOperations
-    const result = await ResourceOperations.createResource(
+    const result = await create(
       {
         name: 'Test Document',
         content: Buffer.from('Hello, world!'),
@@ -88,26 +105,25 @@ describe('Scripting Example: Create Resource', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
 
     // Verify resource was created — result is now a ResourceId directly
     expect(result).toBeDefined();
 
     // Verify via event store
-    const events = await makeMeaning.eventStore.log.getEvents(result);
-    const createdEvent = events.find(e => e.event.type === 'resource.created');
+    const events = await makeMeaning.knowledgeSystem.kb.eventStore.log.getEvents(result);
+    const createdEvent = events.find(e => e.type === 'yield:created');
     expect(createdEvent).toBeDefined();
-    expect(createdEvent!.event.type === 'resource.created' && createdEvent!.event.payload.name).toBe('Test Document');
-    expect(createdEvent!.event.type === 'resource.created' && createdEvent!.event.payload.format).toBe('text/plain');
+    expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.name).toBe('Test Document');
+    expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.format).toBe('text/plain');
 
     // Verify content was stored (retrieve by storageUri from event payload)
-    const storageUri = createdEvent!.event.type === 'resource.created'
-      ? createdEvent!.event.payload.storageUri
+    const storageUri = createdEvent!.type === 'yield:created'
+      ? createdEvent!.payload.storageUri
       : undefined;
     expect(storageUri).toBeDefined();
 
-    const storedRep = await makeMeaning.kb.content.retrieve(storageUri!);
+    const storedRep = await makeMeaning.knowledgeSystem.kb.content.retrieve(storageUri!);
     expect(storedRep).toBeDefined();
     expect(storedRep.toString()).toBe('Hello, world!');
   });
@@ -117,7 +133,7 @@ describe('Scripting Example: Create Resource', () => {
     const domainEvents: any[] = [];
 
     // Create resource first to get its ID
-    const result = await ResourceOperations.createResource(
+    const result = await create(
       {
         name: 'Event Test Document',
         content: Buffer.from('Testing event flow'),
@@ -125,38 +141,32 @@ describe('Scripting Example: Create Resource', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
 
     // Subscribe to resource-scoped EventBus for domain events
     // result is already a ResourceId
     const resourceBus = eventBus.scope(result);
 
-    // Subscribe to the generic domain event channel BEFORE creating the update event
-    const sub = resourceBus.get('make-meaning:event').subscribe(event => {
-      domainEvents.push(event);
-    });
+    // Subscribe to typed domain event channels BEFORE creating the update event
+    const subs = (['yield:updated', 'mark:archived', 'mark:unarchived'] as const).map(type =>
+      resourceBus.get(type).subscribe(event => { domainEvents.push(event); })
+    );
 
     // Now create another event (like archiving the resource)
-    await ResourceOperations.updateResource(
-      {
-        resourceId: result,
-        userId: userId('test-script'),
-        currentArchived: false,
-        updatedArchived: true,
-      },
-      eventBus,
-    );
+    eventBus.get('mark:archive').next({
+      _userId: 'test-script',
+      resourceId: result,
+    });
 
     // Give events time to propagate
     await new Promise(resolve => setTimeout(resolve, 100));
 
     // Verify we received the archive event
     expect(domainEvents.length).toBeGreaterThan(0);
-    const archiveEvent = domainEvents.find(e => e.type === 'resource.archived');
+    const archiveEvent = domainEvents.find(e => e.type === 'mark:archived');
     expect(archiveEvent).toBeDefined();
 
-    sub.unsubscribe();
+    subs.forEach(s => s.unsubscribe());
   });
 
   it('demonstrates typical script pattern', async () => {
@@ -171,7 +181,7 @@ describe('Scripting Example: Create Resource', () => {
     const created: string[] = [];
 
     for (const doc of resources) {
-      const result = await ResourceOperations.createResource(
+      const result = await create(
         {
           name: doc.name,
           content: Buffer.from(doc.content),
@@ -179,7 +189,6 @@ describe('Scripting Example: Create Resource', () => {
           language: 'en'
         },
         userId('batch-script'),
-        eventBus,
       );
 
       // result is already a ResourceId

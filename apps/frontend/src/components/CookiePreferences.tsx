@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import {
   getCookieConsent,
   setCookieConsent,
@@ -25,7 +25,8 @@ interface CookiePreferencesProps {
 }
 
 export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
-  const t = useTranslations('CookiePreferences');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`CookiePreferences.${k}`, p as any) as string;
   const [consent, setConsent] = useState<CookieConsent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);

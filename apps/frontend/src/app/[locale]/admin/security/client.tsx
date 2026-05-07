@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Admin Security Client - Thin Next.js wrapper
  *
@@ -7,32 +5,36 @@
  * and delegates rendering to the pure React AdminSecurityPage component.
  */
 
-import React, { useEffect, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
-import { useAdmin, Toolbar } from '@semiont/react-ui';
-import type { paths } from '@semiont/core';
+import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Toolbar, useSemiont } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminSecurityPage } from '@semiont/react-ui';
 import type { OAuthProvider } from '@semiont/react-ui';
-
-type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
-type OAuthConfigResponse = ResponseContent<paths['/api/admin/oauth/config']['get']>;
+import { createAdminSecurityStateUnit } from '@semiont/react-ui';
+import { useStateUnit } from '@semiont/react-ui';
 
 export default function AdminSecurity() {
-  const t = useTranslations('AdminSecurity');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`AdminSecurity.${k}`, p as any) as string;
 
-  // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() => createAdminSecurityStateUnit(semiont!, browseStateUnit));
+
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const providers = useObservable(stateUnit.providers$) ?? [];
+  const allowedDomains = useObservable(stateUnit.allowedDomains$) ?? [];
+  const isLoading = useObservable(stateUnit.isLoading$) ?? true;
+
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  // Handle theme change events
   const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
     setTheme(theme);
   }, [setTheme]);
 
-  // Handle line numbers toggle events
   const handleLineNumbersToggled = useCallback(() => {
     toggleLineNumbers();
   }, [toggleLineNumbers]);
@@ -42,18 +44,11 @@ export default function AdminSecurity() {
     'settings:line-numbers-toggled': handleLineNumbersToggled,
   });
 
-  // Get OAuth configuration from API
-  const adminAPI = useAdmin();
-  const { data: oauthConfig, isLoading: oauthLoading } = adminAPI.oauth.config.useQuery();
-
-  const allowedDomains = (oauthConfig as OAuthConfigResponse | undefined)?.allowedDomains ?? [];
-  const providers = (oauthConfig as OAuthConfigResponse | undefined)?.providers ?? [];
-
   return (
     <AdminSecurityPage
       providers={providers as OAuthProvider[]}
       allowedDomains={allowedDomains}
-      isLoading={oauthLoading}
+      isLoading={isLoading}
       theme={theme}
       showLineNumbers={showLineNumbers}
       activePanel={activePanel}

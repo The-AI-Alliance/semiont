@@ -10,19 +10,20 @@ import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
 import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { Platform } from '../platform.js';
 import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
+import { START_ORDER } from './start.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const StopOptionsSchema = BaseOptionsSchema.extend({
+const StopOptionsSchema = OpsOptionsSchema.extend({
   service: z.string().optional(),
   force: z.boolean().default(false).describe('Force stop without graceful shutdown'),
-  timeout: z.number().default(30).describe('Timeout for graceful shutdown in seconds'),
+  timeout: z.number().default(3).describe('Timeout for graceful shutdown in seconds'),
 });
 
 export type StopOptions = z.output<typeof StopOptionsSchema>;
@@ -33,7 +34,17 @@ export type StopOptions = z.output<typeof StopOptionsSchema>;
 
 const stopDescriptor: CommandDescriptor<StopOptions> = createCommandDescriptor({
   name: 'stop',
-  
+
+  preExecute: async (services) => {
+    return [...services].sort((a, b) => {
+      const ai = START_ORDER.indexOf(a.name);
+      const bi = START_ORDER.indexOf(b.name);
+      const aRank = ai === -1 ? START_ORDER.length : ai;
+      const bRank = bi === -1 ? START_ORDER.length : bi;
+      return bRank - aRank; // reverse of start order
+    });
+  },
+
   buildServiceConfig: (_options, serviceInfo) => ({
     ...serviceInfo.config,
     platform: serviceInfo.platform,
@@ -110,34 +121,31 @@ export const stopCommand = new CommandBuilder()
     'semiont stop --service backend --force',
     'semiont stop --all'
   )
-  .args({
-    args: {
-      '--service': {
-        type: 'string',
-        description: 'Service to stop (or "all" for all services)',
-      },
-      '--all': {
-        type: 'boolean',
-        description: 'Stop all services',
-        default: false,
-      },
-      '--force': {
-        type: 'boolean',
-        description: 'Force stop without graceful shutdown',
-        default: false,
-      },
-      '--timeout': {
-        type: 'number',
-        description: 'Timeout for graceful shutdown in seconds',
-        default: 30,
-      },
+  .args(withOpsArgs({
+    '--service': {
+      type: 'string',
+      description: 'Service to stop (or "all" for all services)',
     },
-    aliases: {
-      '-s': '--service',
-      '-f': '--force',
-      '-t': '--timeout',
+    '--all': {
+      type: 'boolean',
+      description: 'Stop all services',
+      default: false,
     },
-  })
+    '--force': {
+      type: 'boolean',
+      description: 'Force stop without graceful shutdown',
+      default: false,
+    },
+    '--timeout': {
+      type: 'number',
+      description: 'Timeout for graceful shutdown in seconds',
+      default: 3,
+    },
+  }, {
+    '-s': '--service',
+    '-f': '--force',
+    '-t': '--timeout',
+  }))
   .schema(StopOptionsSchema)
   .handler(stop)
   .build();

@@ -39,40 +39,39 @@ export class PosixPlatform extends Platform {
     registry.registerHandlers('posix', handlers);
   }
   
-  getPlatformName(): string {
+  getPlatformName(): 'posix' {
     return 'posix';
   }
   
   /**
-   * Map service types to POSIX handler types
+   * Map service types to POSIX handler keys.
+   * Logical type IS the handler key — no translation needed.
    */
-  protected override mapServiceType(declaredType: string): string {
-    if (declaredType === 'frontend') return 'frontend';
-    if (declaredType === 'backend') return 'backend';
-    if (declaredType === 'database') return 'database';
-    if (declaredType === 'graph') return 'graph';
-    if (declaredType === 'mcp') return 'mcp';
-    if (declaredType === 'proxy') return 'proxy';
-    if (declaredType === 'inference') return 'inference';
-    if (declaredType === 'web') return 'web';
-
-    throw new Error(
-      `Unsupported service type for posix platform: '${declaredType}'. ` +
-      `Supported types: frontend, backend, database, graph, mcp, proxy, inference`
-    );
+  protected override mapServiceType(declaredType: import('../../core/service-types.js').ServiceType): import('../../core/service-types.js').ServiceType {
+    switch (declaredType) {
+      case 'frontend':
+      case 'backend':
+      case 'database':
+      case 'graph':
+      case 'mcp':
+      case 'inference':
+        return declaredType;
+      default:
+        throw new Error(
+          `Unsupported service type for posix platform: '${declaredType}'. ` +
+          `Supported types: frontend, backend, database, graph, mcp, inference`
+        );
+    }
   }
   
   /**
    * Build platform-specific context extensions for handlers
    */
   async buildHandlerContextExtensions(service: Service, _requiresDiscovery: boolean): Promise<Record<string, any>> {
-    // Load saved state for posix handlers
-    const savedState = await StateManager.load(
-      service.projectRoot,
-      service.environment,
-      service.name
-    );
-    
+    const savedState = service.projectRoot!
+      ? await StateManager.load(service.projectRoot!, service.environment, service.name)
+      : null;
+
     return {
       savedState
     };
@@ -85,14 +84,13 @@ export class PosixPlatform extends Platform {
   async collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined> {
     const serviceType = this.determineServiceType(service);
     const state = await StateManager.load(
-      service.projectRoot,
+      service.projectRoot!,
       service.environment,
       service.name
     );
     
     // Route to appropriate implementation
     switch (serviceType) {
-      case 'web':
       case 'worker':
       case 'backend':
       case 'frontend':
@@ -187,8 +185,10 @@ export class PosixPlatform extends Platform {
       if (logs.length === 0) {
         const logPaths = [
           path.join('/var/log', service.name, '*.log'),
-          path.join(service.projectRoot, 'logs', '*.log'),
-          path.join(service.projectRoot, '.logs', '*.log')
+          ...(service.projectRoot! ? [
+            path.join(service.projectRoot!, 'logs', '*.log'),
+            path.join(service.projectRoot!, '.logs', '*.log'),
+          ] : []),
         ];
         
         for (const pattern of logPaths) {
@@ -244,7 +244,7 @@ export class PosixPlatform extends Platform {
       '/var/log/postgresql/*.log',
       '/var/log/mysql/*.log',
       '/var/log/mongodb/*.log',
-      path.join(service.projectRoot, 'data', 'logs', '*.log')
+      ...(service.projectRoot! ? [path.join(service.projectRoot!, 'data', 'logs', '*.log')] : []),
     ];
     
     for (const pattern of logPaths) {

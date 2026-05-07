@@ -1,14 +1,12 @@
 'use client';
 
-import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import type { components, ResourceId } from '@semiont/core';
-import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point } from '@semiont/api-client';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import type { Annotation } from '@semiont/core';
+import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point } from '@semiont/core';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
-import type { EventBus } from "@semiont/core"
+import type { SemiontSession } from '@semiont/sdk';
 import { useHoverDelay } from '../../hooks/useHoverDelay';
-
-type Annotation = components['schemas']['Annotation'];
 
 export type DrawingMode = 'rectangle' | 'polygon' | 'circle' | 'freeform' | null;
 
@@ -36,11 +34,11 @@ function getMotivationColor(motivation: SelectionMotivation | null): { stroke: s
 }
 
 interface SvgDrawingCanvasProps {
-  resourceUri: ResourceId;
+  imageUrl: string;
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
-  eventBus?: EventBus;
+  session?: SemiontSession | null | undefined;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
   hoverDelayMs?: number;
@@ -53,18 +51,15 @@ interface SvgDrawingCanvasProps {
  * @emits mark:requested - New annotation drawn on canvas. Payload: { selector: SvgSelector, motivation: SelectionMotivation }
  */
 export function SvgDrawingCanvas({
-  resourceUri,
+  imageUrl,
   existingAnnotations = [],
   drawingMode,
   selectedMotivation,
-  eventBus,
+  session,
   hoveredAnnotationId,
   selectedAnnotationId
 }: SvgDrawingCanvasProps) {
   const { hoverDelayMs } = useHoverDelay();
-  const imageUrl = useMemo(() => {
-    return `/api/resources/${resourceUri}`;
-  }, [resourceUri]);
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -215,7 +210,7 @@ export function SvgDrawingCanvas({
         });
 
         if (clickedAnnotation) {
-          eventBus?.get('browse:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          session?.client.browse.click(clickedAnnotation.id, clickedAnnotation.motivation);
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);
@@ -277,14 +272,11 @@ export function SvgDrawingCanvas({
     );
 
     // Emit annotation:requested event with SvgSelector
-    if (eventBus && selectedMotivation) {
-      eventBus.get('mark:requested').next({
-        selector: {
-          type: 'SvgSelector',
-          value: nativeSvg
-        },
-        motivation: selectedMotivation
-      });
+    if (session && selectedMotivation) {
+      session.client.mark.request(
+        { type: 'SvgSelector', value: nativeSvg },
+        selectedMotivation,
+      );
     }
 
     // Reset drawing state
@@ -341,7 +333,7 @@ export function SvgDrawingCanvas({
               displayWidth={displayDimensions.width}
               displayHeight={displayDimensions.height}
               hoverDelayMs={hoverDelayMs}
-              {...(eventBus && { eventBus })}
+              {...(session && { session })}
               {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
               {...(selectedAnnotationId !== undefined && { selectedAnnotationId })}
             />

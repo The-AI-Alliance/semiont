@@ -55,6 +55,18 @@ export function findProjectRoot(): string {
 }
 
 /**
+ * Like findProjectRoot() but returns null instead of throwing when no project is found.
+ * Use for commands that can operate without a project (e.g. frontend-only operations).
+ */
+export function findProjectRootOrNull(): string | null {
+  try {
+    return findProjectRoot();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Node.js file reader for TOML config loading
  */
 const nodeTomlFileReader: TomlFileReader = {
@@ -69,7 +81,7 @@ const nodeTomlFileReader: TomlFileReader = {
 /**
  * Load environment configuration from ~/.semiontconfig (TOML)
  */
-export function loadEnvironmentConfig(projectRoot: string, environment: string) {
+export function loadEnvironmentConfig(projectRoot: string | null, environment: string) {
   const configPath = path.join(os.homedir(), '.semiontconfig');
   return createTomlConfigLoader(nodeTomlFileReader, configPath, process.env)(projectRoot, environment);
 }

@@ -49,6 +49,7 @@ function createMockKb(): KnowledgeBase {
     content: {} as any,
     graph: {} as any,
     projectionsDir: '',
+      graphConsumer: {} as any,
   };
 }
 
@@ -102,6 +103,7 @@ describe('Gatherer', () => {
       const resultPromise = eventBus.get('gather:complete').pipe(take(1)).toPromise();
 
       eventBus.get('gather:requested').next({
+        correlationId: 'test-corr-id',
         annotationId: annotationId('ann-1'),
         resourceId: resourceId('res-1'),
       });
@@ -117,6 +119,7 @@ describe('Gatherer', () => {
         {},
         mockInferenceClient,
         mockLogger,
+        undefined,
       );
     });
 
@@ -126,13 +129,14 @@ describe('Gatherer', () => {
       const resultPromise = eventBus.get('gather:failed').pipe(take(1)).toPromise();
 
       eventBus.get('gather:requested').next({
+        correlationId: 'test-corr-id',
         annotationId: annotationId('ann-2'),
         resourceId: resourceId('res-1'),
       });
 
       const result = await resultPromise;
       expect(result!.annotationId).toBe('ann-2');
-      expect(result!.error.message).toBe('Annotation not found');
+      expect(result!.message).toBe('Annotation not found');
     });
   });
 
@@ -150,13 +154,14 @@ describe('Gatherer', () => {
       const resultPromise = eventBus.get('gather:resource-complete').pipe(take(1)).toPromise();
 
       eventBus.get('gather:resource-requested').next({
+        correlationId: 'test-corr-id',
         resourceId: resourceId('res-1'),
         options: { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
       });
 
       const result = await resultPromise;
       expect(result!.resourceId).toBe('res-1');
-      expect(result!.context).toEqual(mockResponse);
+      expect(result!.response).toEqual(mockResponse);
 
       expect(LLMContext.getResourceContext).toHaveBeenCalledWith(
         'res-1',
@@ -172,13 +177,14 @@ describe('Gatherer', () => {
       const resultPromise = eventBus.get('gather:resource-failed').pipe(take(1)).toPromise();
 
       eventBus.get('gather:resource-requested').next({
+        correlationId: 'test-corr-id',
         resourceId: resourceId('res-2'),
         options: { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
       });
 
       const result = await resultPromise;
       expect(result!.resourceId).toBe('res-2');
-      expect(result!.error.message).toBe('Resource not found');
+      expect(result!.message).toBe('Resource not found');
     });
   });
 
@@ -194,6 +200,7 @@ describe('Gatherer', () => {
       vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValue({} as any);
 
       eventBus.get('gather:requested').next({
+        correlationId: 'test-corr-id',
         annotationId: annotationId('ann-3'),
         resourceId: resourceId('res-1'),
       });

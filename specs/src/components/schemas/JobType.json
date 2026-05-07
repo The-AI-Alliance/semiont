@@ -1,0 +1,5 @@
+{
+  "type": "string",
+  "description": "Type of background job",
+  "enum": ["reference-annotation", "generation", "highlight-annotation", "assessment-annotation", "comment-annotation", "tag-annotation"]
+}

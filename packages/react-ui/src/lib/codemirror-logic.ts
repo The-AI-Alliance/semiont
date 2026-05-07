@@ -6,10 +6,8 @@
  */
 
 import { ANNOTATORS } from './annotation-registry';
-import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
-import type { components } from '@semiont/core';
-
-type Annotation = components['schemas']['Annotation'];
+import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 
 export interface TextSegment {
   exact: string;
@@ -169,7 +167,7 @@ export interface ReferenceWidgetMeta {
 export function computeWidgetDecorations(
   segments: TextSegment[],
   generatingReferenceId: string | null | undefined,
-  getTargetDocumentName?: (documentId: string) => string | undefined
+  getTargetResourceName?: (resourceId: string) => string | undefined
 ): ReferenceWidgetMeta[] {
   return segments
     .filter(s => s.annotation && isReference(s.annotation))
@@ -177,7 +175,7 @@ export function computeWidgetDecorations(
     .map(segment => {
       const annotation = segment.annotation!;
       const bodySource = getBodySource(annotation.body);
-      const targetName = bodySource ? getTargetDocumentName?.(bodySource) : undefined;
+      const targetName = bodySource ? getTargetResourceName?.(bodySource) : undefined;
       const isGenerating = generatingReferenceId ? annotation.id === generatingReferenceId : false;
 
       return {

@@ -13,7 +13,7 @@
     "administer": "Administrasjon"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Alle rettigheter forbeholdt.",
+    "copyright": "© {{year}} The AI Alliance. Alle rettigheter forbeholdt.",
     "about": "Om oss",
     "privacyPolicy": "Personvernerklæring",
     "cookiePreferences": "Informasjonskapselinnstillinger",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "skap mening",
-    "description": "Det åpne, fremtidssikre rammeverket som gjør det mulig for mennesker og intelligente agenter å samskape delt kunnskap — styrt av deg og bygget for å vare.",
-    "continueToKnowledgeBase": "Gå til kunnskapsbasen",
-    "learnMore": "Les mer",
-    "signUp": "Registrer deg",
-    "signIn": "Logg inn",
-    "loading": "Laster..."
+    "begin": "Begynn"
   },
   "About": {
     "pageTitle": "Om Semiont",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "Vi bruker informasjonskapsler og lignende teknologier for å forbedre opplevelsen din, analysere bruk og tilby tilpasset innhold.",
     "cookieCategoriesTitle": "Kategorier for informasjonskapsler",
     "necessaryCookiesTitle": "Strengt nødvendige informasjonskapsler",
-    "necessaryCookies": "Essensielle for nettstedets funksjonalitet, inkludert autentisering og sikkerhetsfunksjoner.\n\nEksempler: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Essensielle for nettstedets funksjonalitet, inkludert autentisering og sikkerhetsfunksjoner.\n\nEksempler: semiont-token",
     "analyticsCookiesTitle": "Analyseinformasjonskapsler",
     "analyticsCookies": "Hjelper oss å forstå hvordan besøkende samhandler med nettstedet vårt for å forbedre brukeropplevelsen.\n\nEksempler: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Markedsføringsinformasjonskapsler",
@@ -94,7 +89,7 @@
     "contactAddress": "Adresse:",
     "updatesTitle": "Oppdateringer av denne erklæringen",
     "updates": "Vi kan oppdatere denne personvernerklæringen fra tid til annen. Vi vil varsle deg om vesentlige endringer ved å publisere den nye personvernerklæringen på denne siden og oppdatere ikrafttredelsesdatoen.",
-    "lastUpdated": "Sist oppdatert: {date}"
+    "lastUpdated": "Sist oppdatert: {{date}}"
   },
   "Terms": {
     "pageTitle": "Tjenestevilkår",
@@ -124,7 +119,7 @@
     "changes": "Vi kan oppdatere disse vilkårene periodisk. Brukere vil bli varslet om vesentlige endringer, og fortsatt bruk av plattformen innebærer aksept av oppdaterte vilkår.",
     "contactTitle": "Kontakt",
     "contact": "Har du spørsmål om disse vilkårene eller trenger å rapportere brudd, vennligst kontakt supportteamet vårt gjennom plattformen eller via kontaktinformasjonen i vår personvernerklæring.",
-    "lastUpdated": "Sist oppdatert: {date}",
+    "lastUpdated": "Sist oppdatert: {{date}}",
     "aup": "Ved å bruke Semiont godtar du å bruke plattformen vår ansvarlig og i samsvar med disse vilkårene. Vi er forpliktet til å opprettholde et trygt, respektfullt og produktivt miljø for alle brukere."
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "Kunne ikke opprette konto. Vennligst kontakt brukersstøtte.",
     "errorGeneric": "Det oppstod en autentiseringsfeil. Vennligst prøv igjen.",
     "errorGoogleSignIn": "Kunne ikke starte Google-innlogging. Vennligst prøv igjen.",
+    "backendUrlLabel": "Backend URL",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "Vennligst skriv inn backend URL",
+    "errorBackendUrlInvalid": "Skriv inn en gyldig URL (f.eks. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Den URL-en er ikke tilgjengelig — kjører backend?",
     "errorEmailRequired": "Vennligst skriv inn e-postadressen din",
     "errorPasswordRequired": "Vennligst skriv inn passordet ditt",
     "errorSignInFailed": "Innlogging mislyktes. Vennligst prøv igjen.",
@@ -185,7 +185,7 @@
     "loading": "Laster...",
     "welcomeTitle": "Velkommen til Semiont!",
     "thanksForAccepting": "Takk for at du godtok vilkårene våre. Omdirigerer deg til appen...",
-    "welcomeUser": "Velkommen til Semiont, {firstName}!",
+    "welcomeUser": "Velkommen til Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Før du kan begynne å bruke Semiont, vennligst gjennomgå og godta tjenestevilkårene våre",
     "termsSummaryTitle": "Sammendrag av tjenestevilkår",
     "termsSummaryIntro": "Ved å bruke Semiont godtar du å:",
@@ -246,9 +246,9 @@
     "archived": "Arkivert",
     "created": "Opprettet",
     "recentResources": "Nylige ressurser",
-    "searchResults": "Søkeresultater ({count})",
-    "resourcesTaggedWith": "Ressurser merket med «{entityType}»",
-    "noResultsFound": "Ingen resultater funnet for «{query}». Viser nylige ressurser i stedet.",
+    "searchResults": "Søkeresultater ({{count}})",
+    "resourcesTaggedWith": "Ressurser merket med «{{entityType}}»",
+    "noResultsFound": "Ingen resultater funnet for «{{query}}». Viser nylige ressurser i stedet.",
     "noResourcesAvailable": "Ingen ressurser tilgjengelig. Opprett ditt første dokument for å komme i gang.",
     "composeFirstResource": "Opprett første ressurs",
     "loadingKnowledgeBase": "Laster kunnskapsbasen..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Skriv inn ressursnavn...",
     "entityTypes": "Entitetstypemerker",
     "entityTypesHint": "Merk ressursen din med entitetstyper",
-    "noEntityTypesAvailable": "Ingen entitetstyper tilgjengelig",
     "contentSource": "Innholdskilde",
     "uploadFile": "Last opp fil",
     "uploadFileDescription": "Bilder, dokumenter, tekstfiler",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "Konto",
     "user": "Bruker",
-    "profileAlt": "{name} profil",
+    "profileAlt": "{{name}} profil",
     "session": "Økt",
-    "expiresIn": "Utløper om: {time}",
+    "expiresIn": "Utløper om: {{time}}",
     "privileges": "Rettigheter",
     "administrator": "🛡️ Administrator",
     "moderator": "⚖️ Moderator",
@@ -433,7 +432,7 @@
     "configManagementDescription": "OAuth-innstillinger administreres gjennom miljøvariabler. For å endre disse innstillingene:",
     "configLocalDev": "For lokal utvikling: Oppdater .env-filene dine",
     "configCloudDeploy": "For skydistribusjon: Bruk",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "for å bruke endringer fra konfigurasjonsfiler",
     "configAWS": "For AWS: Innstillinger lagres i AWS Secrets Manager og ECS-oppgavedefinisjoner"
   },
@@ -510,11 +509,11 @@
     "title": "Informasjonskapselinnstillinger",
     "description": "Administrer informasjonskapselinnstillingene og personverninnstillingene dine. Endringer trer i kraft umiddelbart.",
     "currentSettings": "Gjeldende innstillinger",
-    "lastUpdated": "Sist oppdatert: {date}",
-    "version": "Versjon: {version}",
+    "lastUpdated": "Sist oppdatert: {{date}}",
+    "version": "Versjon: {{version}}",
     "cookieCategories": "Kategorier for informasjonskapsler",
     "required": "(Påkrevd)",
-    "viewCookies": "Se informasjonskapsler ({count})",
+    "viewCookies": "Se informasjonskapsler ({{count}})",
     "dataManagement": "Dataadministrasjon",
     "exportMyData": "Eksporter mine data",
     "deleteAllData": "Slett alle data",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Kunnskapsbaser",
+    "connectTitle": "Koble til kunnskapsbase",
+    "connect": "Koble til",
+    "connecting": "Kobler til...",
+    "signIn": "Logg inn",
+    "signingIn": "Logger inn...",
+    "cancel": "Avbryt",
+    "addKnowledgeBase": "Legg til kunnskapsbase",
+    "removeConfirm": "Fjern {{label}}?",
+    "remove": "Fjern",
+    "signOut": "Logg ut",
+    "statusConnected": "Tilkoblet",
+    "statusExpired": "Økt utløpt",
+    "statusSignedOut": "Logget ut",
+    "statusUnreachable": "Ikke tilgjengelig",
+    "invalidHost": "Ugyldig vertsnavn"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Ingen kunnskapsbaser",
+    "noKnowledgeBasesHint": "Legg til en kunnskapsbase ved hjelp av panelet til høyre for å begynne å oppdage, annotere og koble ressurser.",
+    "sessionExpired": "Økten din har utløpt.",
+    "signedOut": "Du er logget ut.",
+    "signInHint": "Logg inn via kunnskapsbase-panelet for å bla gjennom ressurser.",
+    "findKnowledgeBases": "Finn kunnskapsbaser",
+    "createNew": "Opprett en ny"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Logg inn på en kunnskapsbase for å se kontoen din."
   }
 }

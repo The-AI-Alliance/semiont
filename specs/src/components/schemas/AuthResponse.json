@@ -38,7 +38,12 @@
       ]
     },
     "token": {
-      "type": "string"
+      "type": "string",
+      "description": "Short-lived access token (1 hour). Use as Authorization: Bearer header on API calls."
+    },
+    "refreshToken": {
+      "type": "string",
+      "description": "Long-lived refresh token (30 days). Exchange via POST /api/tokens/refresh for a fresh access token."
     },
     "isNewUser": {
       "type": "boolean"
@@ -48,6 +53,7 @@
     "success",
     "user",
     "token",
+    "refreshToken",
     "isNewUser"
   ]
 }

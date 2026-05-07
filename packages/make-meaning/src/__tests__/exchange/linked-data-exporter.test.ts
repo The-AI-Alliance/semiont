@@ -9,13 +9,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Readable, Writable } from 'node:stream';
 import type { Logger } from '@semiont/core';
-import type { components } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import { exportLinkedData } from '../../exchange/linked-data-exporter';
 import { readTarGz } from '../../exchange/tar';
 import { LINKED_DATA_FORMAT, FORMAT_VERSION } from '../../exchange/manifest';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-type Annotation = components['schemas']['Annotation'];
+import type { ResourceDescriptor } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 
 function bufferToReadable(buf: Buffer): Readable {
   const stream = new Readable({ read() {} });
@@ -50,7 +50,7 @@ function collectWritable(): { writable: Writable; promise: Promise<Buffer> } {
 function makeResource(overrides: Partial<ResourceDescriptor> = {}): ResourceDescriptor {
   return {
     '@context': 'https://schema.org',
-    '@id': 'res-abc',
+    '@id': resourceId('res-abc'),
     name: 'Test Document',
     storageUri: 'deadbeef1234',
     representations: [{
@@ -216,8 +216,8 @@ describe('linked-data-exporter', () => {
   });
 
   it('filters out archived resources by default', async () => {
-    const active = makeResource({ '@id': 'active', archived: false });
-    const archived = makeResource({ '@id': 'archived', archived: true });
+    const active = makeResource({ '@id': resourceId('active'), archived: false });
+    const archived = makeResource({ '@id': resourceId('archived'), archived: true });
     const views = createMockViews([
       { resource: active, annotations: [] },
       { resource: archived, annotations: [] },
@@ -245,7 +245,7 @@ describe('linked-data-exporter', () => {
   });
 
   it('includes archived resources when includeArchived is true', async () => {
-    const archived = makeResource({ '@id': 'archived', archived: true });
+    const archived = makeResource({ '@id': resourceId('archived'), archived: true });
     const views = createMockViews([{ resource: archived, annotations: [] }]);
     const content = createMockContent(new Map([
       ['deadbeef1234', Buffer.from('content')],

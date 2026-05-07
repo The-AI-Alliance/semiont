@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Welcome Page - Thin Next.js wrapper
  *
@@ -8,63 +6,63 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import { useRouter } from '@/i18n/routing';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
-import { PageLayout, useToast, useAuthApi } from '@semiont/react-ui';
+import { PageLayout, useToast, useSemiont, useObservable } from '@semiont/react-ui';
 import { WelcomePage } from '@semiont/react-ui';
+import { createWelcomeStateUnit } from '@semiont/react-ui';
+import { useStateUnit } from '@semiont/react-ui';
 
 export default function Welcome() {
-  const t = useTranslations('AuthWelcome');
-  const { data: session, status } = useSession();
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`AuthWelcome.${k}`, p as any) as string;
+  const semiont = useSemiont();
+  const activeKbId = useObservable(semiont.activeKbId$);
+  const session = useObservable(semiont.activeSession$);
+  const user = useObservable(session?.user$) ?? null;
+  const activeKnowledgeBase = session?.kb ?? null;
+  const isAuthenticated = !!user;
+  // "Loading" = KB is selected but session not yet constructed.
+  const isLoading = activeKbId != null && session == null;
+  const signOut = (id: string) => { void semiont.signOut(id); };
   const router = useRouter();
   const [termsAccepted, setTermsAccepted] = useState(false);
   const toast = useToast();
 
-  // API hooks
-  const authAPI = useAuthApi();
+  const client = session?.client;
+  const stateUnit = useStateUnit(() => createWelcomeStateUnit(client!));
 
-  // Query user data to check if terms already accepted
-  const { data: userData } = authAPI.me.useQuery();
-
-  // Mutation for accepting terms
-  const acceptTermsMutation = authAPI.acceptTerms.useMutation();
+  const userData = useObservable(stateUnit.userData$);
+  const isProcessing = useObservable(stateUnit.isProcessing$) ?? false;
 
   // Redirect if not authenticated or if terms already accepted
   useEffect(() => {
-    if (status === 'loading') return; // Still loading
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
+    if (isLoading) return;
+    if (!isAuthenticated) {
+      router.push('/auth/connect');
       return;
     }
 
-    // Check if user has accepted terms
     if (userData?.termsAcceptedAt) {
       router.push('/');
       return;
     }
-
-    // If not a new user, redirect to main app (existing users don't need to accept terms again)
-    if (session && !session.isNewUser) {
-      router.push('/');
-      return;
-    }
-  }, [status, session, router, userData]);
+  }, [isLoading, isAuthenticated, router, userData]);
 
   const handleTermsAcceptance = async (accepted: boolean) => {
     if (!accepted) {
-      // User declined terms - sign them out and redirect to home
-      const { signOut } = await import('next-auth/react');
-      await signOut({ callbackUrl: '/' });
+      if (activeKnowledgeBase) {
+        signOut(activeKnowledgeBase.id);
+      }
+      router.push('/');
       return;
     }
 
     try {
-      await acceptTermsMutation.mutateAsync();
+      await stateUnit.acceptTerms();
       setTermsAccepted(true);
 
-      // Small delay to show the acceptance state
       setTimeout(() => {
         router.push('/');
       }, 1000);
@@ -74,23 +72,23 @@ export default function Welcome() {
     }
   };
 
-  // Determine status
-  const pageStatus = status === 'loading' ? 'loading' : termsAccepted ? 'accepted' : 'form';
+  const pageStatus = isLoading ? 'loading' : termsAccepted ? 'accepted' : 'form';
+  const firstName = user?.name?.split(' ')[0] ?? '';
 
   return (
     <WelcomePage
-      userName={session?.user?.name?.split(' ')[0] ?? ''}
+      userName={firstName}
       termsAcceptedAt={userData?.termsAcceptedAt ?? null}
-      isNewUser={session?.isNewUser ?? false}
+      isNewUser={!userData?.termsAcceptedAt}
       status={pageStatus}
-      isProcessing={acceptTermsMutation.isPending}
+      isProcessing={isProcessing}
       onAccept={() => handleTermsAcceptance(true)}
       onDecline={() => handleTermsAcceptance(false)}
       translations={{
         loading: t('loading'),
         welcomeTitle: t('welcomeTitle'),
         thanksForAccepting: t('thanksForAccepting'),
-        welcomeUser: t('welcomeUser', { firstName: session?.user?.name?.split(' ')[0] ?? '' }),
+        welcomeUser: t('welcomeUser', { firstName }),
         reviewTermsPrompt: t('reviewTermsPrompt'),
         termsSummaryTitle: t('termsSummaryTitle'),
         termsSummaryIntro: t('termsSummaryIntro'),

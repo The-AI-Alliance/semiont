@@ -1,11 +1,10 @@
-'use client';
-
 import { useEffect, useState } from 'react';
 import { useRouter } from '@/i18n/routing';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 
 export default function KnowledgePage() {
-  const t = useTranslations('Sidebar');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Sidebar.${k}`, p as any) as string;
   const router = useRouter();
   const [checking, setChecking] = useState(true);
 

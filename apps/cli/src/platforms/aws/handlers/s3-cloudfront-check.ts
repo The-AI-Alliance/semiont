@@ -123,7 +123,7 @@ const preflightS3CloudFrontCheck = async (_context: AWSCheckHandlerContext): Pro
 export const s3CloudFrontCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
-  serviceType: 's3-cloudfront',
+  serviceType: 'frontend',
   handler: s3CloudFrontCheckHandler,
   preflight: preflightS3CloudFrontCheck
 };

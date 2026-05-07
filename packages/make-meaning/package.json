@@ -1,6 +1,6 @@
 {
   "name": "@semiont/make-meaning",
-  "version": "0.4.1",
+  "version": "0.5.4",
   "type": "module",
   "description": "Making meaning from resources through context assembly, pattern detection, and relationship reasoning",
   "main": "./dist/index.js",
@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./smelter-main": {
+      "types": "./dist/smelter-main.d.ts",
+      "import": "./dist/smelter-main.js"
     }
   },
   "files": [
@@ -31,14 +35,16 @@
     "@semiont/graph": "*",
     "@semiont/inference": "*",
     "@semiont/jobs": "*",
+    "@semiont/observability": "*",
     "@semiont/ontology": "*",
-    "@vitest/ui": "4.0.18"
+    "@semiont/sdk": "*",
+    "@semiont/vectors": "*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
+    "fast-check": "^4.3.0",
     "tsup": "^8.0.1",
-    "typescript": "^5.6.3",
-    "vitest": "^4.0.18"
+    "typescript": "^5.6.3"
   },
   "keywords": [
     "semantic-annotation",

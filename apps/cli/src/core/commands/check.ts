@@ -11,7 +11,7 @@ import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
 import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { Platform } from '../platform.js';
 import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
@@ -20,7 +20,7 @@ import { HandlerResult } from '../handlers/types.js';
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const CheckOptionsSchema = BaseOptionsSchema.extend({
+const CheckOptionsSchema = OpsOptionsSchema.extend({
   service: z.string().optional(),
   all: z.boolean().default(false),
   deep: z.boolean().default(true),  // Deep checking on by default
@@ -62,10 +62,12 @@ const checkDescriptor: CommandDescriptor<CheckOptions> = createCommandDescriptor
     // Type guard for check-specific results
     const checkResult = handlerResult as any; // CheckHandlerResult
     
+    // A check "succeeds" only if the service is actually healthy, not just that the check ran
+    const isHealthy = handlerResult.success && checkResult.health?.healthy === true;
     return createCommandResult({
       entity: service.name,
       platform: platform.getPlatformName() as any,
-      success: handlerResult.success,
+      success: isHealthy,
       error: handlerResult.error,
       metadata: {
         ...handlerResult.metadata,
@@ -75,6 +77,7 @@ const checkDescriptor: CommandDescriptor<CheckOptions> = createCommandDescriptor
       }
     }, {
       status: checkResult.status || 'unknown',
+      provisioned: checkResult.provisioned,
       health: checkResult.health,
       logs: checkResult.logs,
       resources: checkResult.platformResources,
@@ -124,37 +127,34 @@ export const checkCommand = new CommandBuilder()
     'semiont check --all',
     'semiont check --deep --wait'
   )
-  .args({
-    args: {
-      '--service': {
-        type: 'string',
-        description: 'Service to check (or "all" for all services)',
-      },
-      '--all': {
-        type: 'boolean',
-        description: 'Check all services',
-        default: false,
-      },
-      '--deep': {
-        type: 'boolean',
-        description: 'Run deep health checks',
-        default: false,
-      },
-      '--wait': {
-        type: 'boolean',
-        description: 'Wait for services to become healthy',
-        default: false,
-      },
-      '--timeout': {
-        type: 'number',
-        description: 'Timeout in seconds when using --wait',
-        default: 60,
-      },
+  .args(withOpsArgs({
+    '--service': {
+      type: 'string',
+      description: 'Service to check (or "all" for all services)',
     },
-    aliases: {
-      '-s': '--service',
+    '--all': {
+      type: 'boolean',
+      description: 'Check all services',
+      default: false,
     },
-  })
+    '--deep': {
+      type: 'boolean',
+      description: 'Run deep health checks',
+      default: false,
+    },
+    '--wait': {
+      type: 'boolean',
+      description: 'Wait for services to become healthy',
+      default: false,
+    },
+    '--timeout': {
+      type: 'number',
+      description: 'Timeout in seconds when using --wait',
+      default: 60,
+    },
+  }, {
+    '-s': '--service',
+  }))
   .schema(CheckOptionsSchema)
   .handler(check)
   .build();

@@ -1,10 +1,7 @@
-import { redirect } from '@/i18n/routing';
-import { getLocale } from 'next-intl/server';
+import { Navigate } from 'react-router-dom';
+import { useLocale } from '@/i18n/routing';
 
-export default async function AdminPage() {
-  // Middleware has already verified admin access
-  const locale = await getLocale();
-
-  // Redirect to the default admin page
-  redirect({ href: '/admin/users', locale });
+export default function AdminPage() {
+  const locale = useLocale();
+  return <Navigate to={`/${locale}/admin/users`} replace />;
 }

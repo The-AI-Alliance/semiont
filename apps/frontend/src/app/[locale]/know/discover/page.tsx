@@ -1,70 +1,46 @@
 "use client";
 
-/**
- * Resource Discovery Page - Thin Next.js wrapper
- *
- * This page handles Next.js-specific concerns (routing, data loading, hooks)
- * and delegates rendering to the pure React ResourceDiscoveryPage component.
- */
-
-import React, { useEffect, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/i18n/routing';
-import { useResources, useEntityTypes, useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import {
+  useTheme,
+  useLineNumbers,
+  useEventSubscriptions,
+  useObservable,
+  useSemiont,
+  useStateUnit,
+  ResourceDiscoveryPage,
+} from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { ResourceDiscoveryPage } from '@semiont/react-ui';
-
-/**
- * Main page component - handles Next.js hooks and data loading
- */
+import { useShellStateUnit } from '@semiont/react-ui';
+import { createDiscoverStateUnit } from '@semiont/react-ui';
 export default function DiscoverPage() {
-  const t = useTranslations('Discover');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Discover.${k}`, p as any) as string;
   const router = useRouter();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
 
-  // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() => createDiscoverStateUnit(semiont!, browseStateUnit));
+
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const recentDocuments = useObservable(stateUnit.recentResources$) ?? [];
+  const entityTypes = useObservable(stateUnit.entityTypes$) ?? [];
+  const isLoadingRecent = useObservable(stateUnit.isLoadingRecent$) ?? true;
+  const searchQuery = useObservable(stateUnit.search.query$) ?? '';
+  const searchState = useObservable(stateUnit.search.state$);
+  const searchDocuments = searchState?.results ?? [];
+  const isSearching = searchState?.isSearching ?? false;
+
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  // Handle theme change events
-  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
-    setTheme(theme);
-  }, [setTheme]);
-
-  // Handle line numbers toggle events
-  const handleLineNumbersToggled = useCallback(() => {
-    toggleLineNumbers();
-  }, [toggleLineNumbers]);
-
   useEventSubscriptions({
-    'settings:theme-changed': handleThemeChanged,
-    'settings:line-numbers-toggled': handleLineNumbersToggled,
+    'settings:theme-changed': useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme), [setTheme]),
+    'settings:line-numbers-toggled': useCallback(() => toggleLineNumbers(), [toggleLineNumbers]),
   });
 
-  // API hooks
-  const resources = useResources();
-  const entityTypesAPI = useEntityTypes();
-
-  // Load recent documents using React Query
-  const { data: recentDocsData, isLoading: isLoadingRecent } = resources.list.useQuery(
-    { limit: 10, archived: false }
-  );
-
-  // Load entity types using React Query
-  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
-
-  // Search documents using React Query (only when there's a search query)
-  const { data: searchData, isFetching: isSearching } = resources.search.useQuery(
-    '',  // Empty search query initially - component will trigger search
-    20
-  );
-
-  // Extract data from React Query responses
-  const recentDocuments = recentDocsData?.resources || [];
-  const searchDocuments = searchData?.resources || [];
-  const entityTypes = entityTypesData?.entityTypes || [];
-
-  // Render the pure component with all props
   return (
     <ResourceDiscoveryPage
       recentDocuments={recentDocuments}
@@ -72,15 +48,13 @@ export default function DiscoverPage() {
       entityTypes={entityTypes}
       isLoadingRecent={isLoadingRecent}
       isSearching={isSearching}
+      searchQuery={searchQuery}
+      onSearchQueryChange={stateUnit.search.setQuery}
       theme={resolvedTheme}
       showLineNumbers={showLineNumbers}
       activePanel={activePanel}
-      onNavigateToResource={(resourceId) => {
-        router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
-      }}
-      onNavigateToCompose={() => {
-        router.push('/know/compose');
-      }}
+      onNavigateToResource={(resourceId) => router.push(`/know/resource/${encodeURIComponent(resourceId)}`)}
+      onNavigateToCompose={() => router.push('/know/compose')}
       translations={{
         title: t('title'),
         subtitle: t('subtitle'),

@@ -5,7 +5,7 @@ import { execFileSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
-import { resolveBackendNpmPackage } from './backend-paths.js';
+import { resolveBackendNpmPackage, resolveBackendEntryPoint } from './backend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
 import { checkCommandAvailable, checkEnvVarsInConfig, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
@@ -19,41 +19,20 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
 const provisionBackendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, options } = context;
 
-  const projectRoot = service.projectRoot;
+  const projectRoot = service.projectRoot!;
+  const project = new SemiontProject(projectRoot);
+  const installPrefix = project.dataHome;
 
-  // Install @semiont/backend npm package if not already available
-  if (!resolveBackendNpmPackage(projectRoot)) {
-    if (!service.quiet) {
-      printInfo('Installing @semiont/backend...');
-    }
-    try {
-      execFileSync('npm', ['install', '@semiont/backend'], {
-        cwd: projectRoot,
-        stdio: service.verbose ? 'inherit' : 'pipe'
-      });
-      if (!service.quiet) {
-        printSuccess('Installed @semiont/backend');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: `Failed to install @semiont/backend: ${error}`,
-        metadata: { serviceType: 'backend' }
-      };
-    }
-  }
-
-  const npmDir = resolveBackendNpmPackage(projectRoot);
+  const npmDir = resolveBackendNpmPackage(installPrefix);
   if (!npmDir) {
     return {
       success: false,
-      error: 'Cannot find @semiont/backend after install',
+      error: `@semiont/backend not found in ${installPrefix}. Install it at image build time: npm install @semiont/backend --prefix ${installPrefix}`,
       metadata: { serviceType: 'backend' }
     };
   }
 
-  const entryPoint = path.join(npmDir, 'dist', 'index.js');
-  const project = new SemiontProject(projectRoot);
+  const entryPoint = resolveBackendEntryPoint(installPrefix) ?? path.join(npmDir, 'dist', 'index.js');
 
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
@@ -73,20 +52,13 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const envConfig = service.environmentConfig;
   const dbConfig = envConfig.services!.database!;
 
-  const dbUser = dbConfig.user!;
-  const dbPassword = dbConfig.password!;
-  const dbName = dbConfig.name!;
-  const dbPort = dbConfig.port!;
-
-  // Use database host from config if available, fallback to localhost
-  const dbHost = dbConfig.host || 'localhost';
-  const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
-
   if (!service.quiet) {
+    const dbName = dbConfig.name!;
+    const dbHost = dbConfig.host || 'localhost';
+    const dbPort = dbConfig.port!;
     printInfo(`Using database configuration for environment '${service.environment}':`);
-
     printInfo(`  Database: ${dbName} on ${dbHost}:${dbPort}`);
-    printInfo(`  User: ${dbUser}`);
+    printInfo(`  User: ${dbConfig.user!}`);
   }
 
   let jwtSecret = options.rotateSecret ? undefined : readSecret('JWT_SECRET');
@@ -114,7 +86,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
     try {
       execFileSync('npx', ['prisma', 'generate', `--schema=${prismaSchemaPath}`], {
-        cwd: project.stateDir,
+        cwd: packageDir,
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
 
@@ -126,28 +98,6 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     }
   }
 
-  // Check if we should run migrations
-  if (options.migrate !== false && fs.existsSync(prismaSchemaPath)) {
-    if (!service.quiet) {
-      printInfo('Running database migrations...');
-    }
-
-    try {
-      execFileSync('npx', ['prisma', 'migrate', 'deploy', `--schema=${prismaSchemaPath}`], {
-        cwd: project.stateDir,
-        env: { ...process.env, DATABASE_URL: databaseUrl },
-        stdio: service.verbose ? 'inherit' : 'pipe'
-      });
-
-      if (!service.quiet) {
-        printSuccess('Database migrations completed');
-      }
-    } catch (error) {
-      printWarning(`Failed to run migrations: ${error}`);
-      printInfo('You may need to run migrations manually: npx prisma migrate deploy');
-    }
-  }
-
   const metadata = {
     serviceType: 'backend',
     entryPoint,
@@ -156,7 +106,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   };
 
   if (!service.quiet) {
-    printSuccess(`✅ Backend service ${service.name} provisioned successfully`);
+    printSuccess(`Backend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Backend details:');
     printInfo(`  Entry point: ${entryPoint}`);

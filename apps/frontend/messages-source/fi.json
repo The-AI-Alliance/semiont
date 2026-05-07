@@ -13,7 +13,7 @@
     "administer": "Hallinta"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Kaikki oikeudet pidätetään.",
+    "copyright": "© {{year}} The AI Alliance. Kaikki oikeudet pidätetään.",
     "about": "Tietoja",
     "privacyPolicy": "Tietosuojakäytäntö",
     "cookiePreferences": "Evästeasetukset",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "luo merkitystä",
-    "description": "Avoimen lähdekoodin, tulevaisuudenvarma kehys, joka mahdollistaa ihmisten ja älykkäiden agenttien yhteistyön jaetun tiedon luomisessa — sinun hallitsemana ja kestäväksi rakennettu.",
-    "continueToKnowledgeBase": "Jatka tietokantaan",
-    "learnMore": "Lue lisää",
-    "signUp": "Rekisteröidy",
-    "signIn": "Kirjaudu sisään",
-    "loading": "Ladataan..."
+    "begin": "Aloita"
   },
   "About": {
     "pageTitle": "Tietoja Semiontista",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "Käytämme evästeitä ja vastaavia teknologioita parantaaksemme kokemustasi, analysoidaksemme käyttöä ja tarjotaksemme yksilöllistä sisältöä.",
     "cookieCategoriesTitle": "Evästekategoriat",
     "necessaryCookiesTitle": "Välttämättömät evästeet",
-    "necessaryCookies": "Välttämättömiä verkkosivuston toiminnalle, mukaan lukien todennus- ja turvaominaisuudet.\n\nEsimerkkejä: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Välttämättömiä verkkosivuston toiminnalle, mukaan lukien todennus- ja turvaominaisuudet.\n\nEsimerkkejä: semiont-token",
     "analyticsCookiesTitle": "Analytiikkaevästeet",
     "analyticsCookies": "Auttavat meitä ymmärtämään, miten vierailijat käyttävät verkkosivustoamme käyttökokemuksen parantamiseksi.\n\nEsimerkkejä: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Markkinointievästeet",
@@ -94,7 +89,7 @@
     "contactAddress": "Osoite:",
     "updatesTitle": "Käytännön päivitykset",
     "updates": "Saatamme päivittää tätä tietosuojakäytäntöä ajoittain. Ilmoitamme sinulle kaikista olennaisista muutoksista julkaisemalla uuden tietosuojakäytännön tällä sivulla ja päivittämällä voimaantulopäivän.",
-    "lastUpdated": "Päivitetty viimeksi: {date}"
+    "lastUpdated": "Päivitetty viimeksi: {{date}}"
   },
   "Terms": {
     "pageTitle": "Käyttöehdot",
@@ -124,7 +119,7 @@
     "changes": "Saatamme päivittää näitä ehtoja ajoittain. Käyttäjille ilmoitetaan merkittävistä muutoksista, ja alustan jatkuva käyttö merkitsee päivitettyjen ehtojen hyväksymistä.",
     "contactTitle": "Yhteystiedot",
     "contact": "Jos sinulla on kysyttävää näistä ehdoista tai sinun tarvitsee ilmoittaa rikkomuksista, ota yhteyttä tukitiimiimme alustan kautta tai tietosuojakäytännössämme annettujen yhteystietojen avulla.",
-    "lastUpdated": "Päivitetty viimeksi: {date}",
+    "lastUpdated": "Päivitetty viimeksi: {{date}}",
     "aup": "Käyttämällä Semiontia sitoudut käyttämään alustaamme vastuullisesti ja näiden ehtojen mukaisesti. Olemme sitoutuneet ylläpitämään turvallista, kunnioittavaa ja tuottavaa ympäristöä kaikille käyttäjille."
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "Tilin luominen epäonnistui. Ota yhteyttä tukeen.",
     "errorGeneric": "Tunnistautumisvirhe tapahtui. Yritä uudelleen.",
     "errorGoogleSignIn": "Google-kirjautumisen aloittaminen epäonnistui. Yritä uudelleen.",
+    "backendUrlLabel": "Backend-URL",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "Anna backend-URL",
+    "errorBackendUrlInvalid": "Anna kelvollinen URL-osoite (esim. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Tähän URL-osoitteeseen ei saada yhteyttä — onko taustajärjestelmä käynnissä?",
     "errorEmailRequired": "Syötä sähköpostiosoitteesi",
     "errorPasswordRequired": "Syötä salasanasi",
     "errorSignInFailed": "Kirjautuminen epäonnistui. Yritä uudelleen.",
@@ -185,7 +185,7 @@
     "loading": "Ladataan...",
     "welcomeTitle": "Tervetuloa Semiontiin!",
     "thanksForAccepting": "Kiitos ehtojen hyväksymisestä. Ohjataan sinut sovellukseen...",
-    "welcomeUser": "Tervetuloa Semiontiin, {firstName}!",
+    "welcomeUser": "Tervetuloa Semiontiin, {{firstName}}!",
     "reviewTermsPrompt": "Ennen kuin voit aloittaa Semiontin käytön, tarkista ja hyväksy käyttöehtomme",
     "termsSummaryTitle": "Käyttöehtojen yhteenveto",
     "termsSummaryIntro": "Käyttämällä Semiontia sitoudut:",
@@ -246,9 +246,9 @@
     "archived": "Arkistoidut",
     "created": "Luodut",
     "recentResources": "Viimeisimmät resurssit",
-    "searchResults": "Hakutulokset ({count})",
-    "resourcesTaggedWith": "Resurssit tunnisteella \"{entityType}\"",
-    "noResultsFound": "Tuloksia ei löytynyt haulle \"{query}\". Näytetään viimeisimmät resurssit.",
+    "searchResults": "Hakutulokset ({{count}})",
+    "resourcesTaggedWith": "Resurssit tunnisteella \"{{entityType}}\"",
+    "noResultsFound": "Tuloksia ei löytynyt haulle \"{{query}}\". Näytetään viimeisimmät resurssit.",
     "noResourcesAvailable": "Resursseja ei ole saatavilla. Luo ensimmäinen asiakirjasi aloittaaksesi.",
     "composeFirstResource": "Luo ensimmäinen resurssi",
     "loadingKnowledgeBase": "Ladataan tietokantaa..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Syötä resurssin nimi...",
     "entityTypes": "Entiteettityyppitunnisteet",
     "entityTypesHint": "Merkitse resurssisi entiteettityypeillä",
-    "noEntityTypesAvailable": "Entiteettityyppejä ei ole saatavilla",
     "contentSource": "Sisällön lähde",
     "uploadFile": "Lataa tiedosto",
     "uploadFileDescription": "Kuvat, asiakirjat, tekstitiedostot",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "Tili",
     "user": "Käyttäjä",
-    "profileAlt": "{name} profiili",
+    "profileAlt": "{{name}} profiili",
     "session": "Istunto",
-    "expiresIn": "Vanhenee: {time}",
+    "expiresIn": "Vanhenee: {{time}}",
     "privileges": "Oikeudet",
     "administrator": "🛡️ Ylläpitäjä",
     "moderator": "⚖️ Moderaattori",
@@ -433,7 +432,7 @@
     "configManagementDescription": "OAuth-asetuksia hallitaan ympäristömuuttujien kautta. Näiden asetusten muuttamiseksi:",
     "configLocalDev": "Paikalliseen kehitykseen: Päivitä .env-tiedostosi",
     "configCloudDeploy": "Pilvikäyttöönottoon: Käytä",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "ottaaksesi muutokset käyttöön asetustiedostoista",
     "configAWS": "AWS:lle: Asetukset tallennetaan AWS Secrets Manageriin ja ECS-tehtävämäärityksiin"
   },
@@ -510,11 +509,11 @@
     "title": "Evästeasetukset",
     "description": "Hallitse evästeasetuksiasi ja yksityisyysasetuksiasi. Muutokset tulevat voimaan välittömästi.",
     "currentSettings": "Nykyiset asetukset",
-    "lastUpdated": "Päivitetty viimeksi: {date}",
-    "version": "Versio: {version}",
+    "lastUpdated": "Päivitetty viimeksi: {{date}}",
+    "version": "Versio: {{version}}",
     "cookieCategories": "Evästekategoriat",
     "required": "(Pakollinen)",
-    "viewCookies": "Näytä evästeet ({count})",
+    "viewCookies": "Näytä evästeet ({{count}})",
     "dataManagement": "Tietojen hallinta",
     "exportMyData": "Vie omat tiedot",
     "deleteAllData": "Poista kaikki tiedot",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Tietopankit",
+    "connectTitle": "Yhdistä tietopankkiin",
+    "connect": "Yhdistä",
+    "connecting": "Yhdistetään...",
+    "signIn": "Kirjaudu sisään",
+    "signingIn": "Kirjaudutaan...",
+    "cancel": "Peruuta",
+    "addKnowledgeBase": "Lisää tietopankki",
+    "removeConfirm": "Poistetaanko {{label}}?",
+    "remove": "Poista",
+    "signOut": "Kirjaudu ulos",
+    "statusConnected": "Yhdistetty",
+    "statusExpired": "Istunto vanhentunut",
+    "statusSignedOut": "Kirjautunut ulos",
+    "statusUnreachable": "Ei tavoitettavissa",
+    "invalidHost": "Virheellinen isäntänimi"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Ei tietopankkeja",
+    "noKnowledgeBasesHint": "Lisää tietopankki oikeanpuoleisen paneelin avulla aloittaaksesi resurssien löytämisen, merkitsemisen ja linkittämisen.",
+    "sessionExpired": "Istuntosi on vanhentunut.",
+    "signedOut": "Olet kirjautunut ulos.",
+    "signInHint": "Kirjaudu sisään Tietopankki-paneelin avulla selataksesi resursseja.",
+    "findKnowledgeBases": "Etsi tietokantoja",
+    "createNew": "Luo uusi"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Kirjaudu tietopankkiin nähdäksesi tilisi."
   }
 }

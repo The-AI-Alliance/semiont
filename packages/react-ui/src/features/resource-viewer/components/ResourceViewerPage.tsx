@@ -5,11 +5,12 @@
  * Only requires minimal props from the framework layer (routing, modals).
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import type { components, ResourceId, ResourceEvent, GatheredContext } from '@semiont/core';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { components, ResourceDescriptor, ResourceId, GatheredContext, EventMap } from '@semiont/core';
+import type { ConnectionState } from '@semiont/core';
 import { annotationId } from '@semiont/core';
-import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/api-client';
+import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/core';
+import { getMimeCategory } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
 import { AnnotationHistory } from '@semiont/react-ui';
@@ -20,33 +21,24 @@ import { JsonLdPanel } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
-import { QUERY_KEYS } from '../../../lib/query-keys';
-import { useResources, useEntityTypes } from '../../../lib/api-hooks';
+import { useObservable } from '@semiont/react-ui';
 import { useResourceContent } from '../../../hooks/useResourceContent';
+import { useMediaToken } from '../../../hooks/useMediaToken';
 import { useToast } from '../../../components/Toast';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import { useHoverDelay } from '../../../hooks/useHoverDelay';
-import { useResourceEvents } from '../../../hooks/useResourceEvents';
-import { useDebouncedCallback } from '../../../hooks/useDebounce';
-import { useOpenResources } from '../../../contexts/OpenResourcesContext';
-// Import EventBus hooks directly from context to avoid mocking issues in tests
-import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
-import { useApiClient } from '../../../contexts/ApiClientContext';
-import { useBindFlow } from '../../../hooks/useBindFlow';
-import { useMarkFlow } from '../../../hooks/useMarkFlow';
-import { useBeckonFlow } from '../../../hooks/useBeckonFlow';
-import { usePanelBrowse } from '../../../hooks/usePanelBrowse';
-import { useYieldFlow } from '../../../hooks/useYieldFlow';
-import { useContextGatherFlow } from '../../../hooks/useContextGatherFlow';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { createResourceViewerPageStateUnit } from '../state/resource-viewer-page-state-unit';
+import { useStateUnit } from '../../../hooks/useStateUnit';
+import { useShellStateUnit } from '../../../hooks/useShellStateUnit';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
 
-type SemiontResource = components['schemas']['ResourceDescriptor'];
-type Annotation = components['schemas']['Annotation'];
+type SemiontResource = ResourceDescriptor;
 
 export interface ResourceViewerPageProps {
   /**
@@ -83,6 +75,18 @@ export interface ResourceViewerPageProps {
    * Callback to refetch document from parent
    */
   refetchDocument: () => Promise<unknown>;
+
+  /**
+   * Bus connection state for the active workspace. Six-valued state
+   * machine from `actor.state$`; CollaborationPanel maps it to the
+   * "Live" / "Disconnected" visual.
+   */
+  streamStatus: ConnectionState;
+
+  /**
+   * Name of the active knowledge base (for display in panels)
+   */
+  knowledgeBaseName?: string | undefined;
 }
 
 /**
@@ -90,7 +94,7 @@ export interface ResourceViewerPageProps {
  *
  * Uses hooks directly (NO containers, NO render props, NO ResourceViewerPageContent wrapper)
  *
- * @emits browse:router-push - Navigate to a resource or filtered view
+ * @emits nav:push - Navigate to a resource or filtered view
  * @emits beckon:sparkle - Trigger sparkle animation on an annotation
  * @emits bind:update-body - Update annotation body content
  * @subscribes mark:archive - Archive the current resource
@@ -120,105 +124,102 @@ export function ResourceViewerPage({
   routes,
   ToolbarPanels,
   refetchDocument,
+  streamStatus,
+  knowledgeBaseName,
 }: ResourceViewerPageProps) {
   // Translations
   const tw = useTranslations('ReferenceWizard');
 
-  // Get unified event bus for subscribing to UI events
-  const eventBus = useEventBus();
-  const client = useApiClient();
-  const queryClient = useQueryClient();
+  const browser = useSemiont();
+  const session = useObservable(browser.activeSession$);
+  const semiont = session?.client;
 
   // UI state hooks
-  const { showError, showSuccess } = useToast();
+  const { showError, showSuccess, showInfo } = useToast();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();
-  const { addResource } = useOpenResources();
   const { triggerSparkleAnimation, clearNewAnnotationId } = useResourceAnnotations();
 
-  // API hooks
-  const resources = useResources();
-  const entityTypesAPI = useEntityTypes();
+  // Determine MIME category to choose content path
+  const resourceMediaType = getPrimaryMediaType(resource) || 'text/plain';
+  const isBinary = getMimeCategory(resourceMediaType) === 'image';
 
-  // Load all data
-  const { content, loading: contentLoading } = useResourceContent(rUri, resource);
+  // Text path: fetch and decode representation (disabled for binary — mediaToken path handles those)
+  const { content: textContent, loading: textLoading } = useResourceContent(rUri, resource, !isBinary);
 
-  const { data: annotationsData } = resources.annotations.useQuery(rUri);
-  const annotations = useMemo(
-    () => annotationsData?.annotations || [],
-    [annotationsData?.annotations]
-  );
+  // Binary path: fetch short-lived media token, construct URL
+  const { token: mediaToken, loading: mediaTokenLoading } = useMediaToken(rUri);
+  const binaryContent = (isBinary && mediaToken && semiont)
+    ? `${semiont.baseUrl}/api/resources/${rUri}?token=${mediaToken}`
+    : '';
 
-  const { data: referencedByData, isLoading: referencedByLoading } = resources.referencedBy.useQuery(rUri);
-  const referencedBy = referencedByData?.referencedBy || [];
+  const content = isBinary ? binaryContent : textContent;
+  const contentLoading = isBinary ? mediaTokenLoading : textLoading;
 
-  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
-  const allEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
+  // Composite state unit — owns all flow VMs, wizard state, annotations, entity types
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() => createResourceViewerPageStateUnit(semiont!, rUri, locale, browseStateUnit));
 
-  // Flow state hooks (NO CONTAINERS)
-  const { hoveredAnnotationId } = useBeckonFlow();
-  const { assistingMotivation, progress, pendingAnnotation } = useMarkFlow(rUri);
-  const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelBrowse();
-  useBindFlow(rUri);
-  const {
-    generationProgress,
-    onGenerateDocument,
-  } = useYieldFlow(locale, rUri, clearNewAnnotationId);
-  const { gatherContext, gatherLoading, gatherError } = useContextGatherFlow(eventBus, { client, resourceId: rUri });
-
-  // Wizard state — driven by bind:initiate from ReferenceEntry
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [wizardAnnotationId, setWizardAnnotationId] = useState<string | null>(null);
-  const [wizardResourceId, setWizardResourceId] = useState<string | null>(null);
-  const [wizardDefaultTitle, setWizardDefaultTitle] = useState('');
-  const [wizardEntityTypes, setWizardEntityTypes] = useState<string[]>([]);
-
-  useEffect(() => {
-    const subscription = eventBus.get('bind:initiate').subscribe((event) => {
-      setWizardAnnotationId(event.annotationId);
-      setWizardResourceId(event.resourceId);
-      setWizardDefaultTitle(event.defaultTitle);
-      setWizardEntityTypes(event.entityTypes);
-      setWizardOpen(true);
-
-      // Trigger context gathering
-      eventBus.get('gather:requested').next({ annotationId: event.annotationId, resourceId: event.resourceId });
-    });
-    return () => subscription.unsubscribe();
-  }, [eventBus]);
+  const annotations = useObservable(stateUnit.annotations$) ?? [];
+  const groups = useObservable(stateUnit.annotationGroups$);
+  const allEntityTypes = useObservable(stateUnit.entityTypes$) ?? [];
+  const referencedByRaw = useObservable(stateUnit.referencedBy$);
+  const referencedBy = referencedByRaw ?? [];
+  const referencedByLoading = referencedByRaw === undefined;
+  const hoveredAnnotationId = useObservable(stateUnit.beckon.hoveredAnnotationId$) ?? null;
+  const pendingAnnotation = useObservable(stateUnit.mark.pendingAnnotation$) ?? null;
+  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
+  const progress = useObservable(stateUnit.mark.progress$) ?? null;
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const scrollToAnnotationId = useObservable(stateUnit.browse.scrollToAnnotationId$) ?? null;
+  const panelInitialTab = useObservable(stateUnit.browse.panelInitialTab$) ?? null;
+  const onScrollCompleted = stateUnit.browse.onScrollCompleted;
+  const generationProgress = useObservable(stateUnit.yield.progress$) ?? null;
+  const gatherContext = useObservable(stateUnit.gather.context$) ?? null;
+  const gatherLoading = useObservable(stateUnit.gather.loading$) ?? false;
+  const gatherError = useObservable(stateUnit.gather.error$) ?? null;
+  const wizardState = useObservable(stateUnit.wizard$);
+  const wizardOpen = wizardState?.open ?? false;
+  const wizardAnnotationId = wizardState?.annotationId ?? null;
+  const wizardResourceId = wizardState?.resourceId ?? null;
+  const wizardDefaultTitle = wizardState?.defaultTitle ?? '';
+  const wizardEntityTypes = wizardState?.entityTypes ?? [];
 
   const handleWizardClose = useCallback(() => {
-    setWizardOpen(false);
-  }, []);
+    stateUnit.closeWizard();
+  }, [stateUnit]);
 
   const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
-    onGenerateDocument(referenceId, {
+    clearNewAnnotationId(annotationId(referenceId));
+    stateUnit.yield.generate(referenceId, {
       title: config.title,
       storageUri: config.storagePath,
       prompt: config.prompt,
       language: config.language,
+      // The source resource is the one the user is viewing — fed into the
+      // prompt so the LLM understands the embedded context (selected
+      // passage, surrounding text) regardless of UI/target language.
+      sourceLanguage: getLanguage(resource),
       temperature: config.temperature,
       maxTokens: config.maxTokens,
       context: config.context,
     });
-  }, [onGenerateDocument]);
+  }, [stateUnit, clearNewAnnotationId, resource]);
 
-  const handleWizardLinkResource = useCallback((referenceId: string, targetResourceId: string) => {
-    eventBus.get('bind:update-body').next({
-      annotationId: annotationId(referenceId),
-      resourceId: rUri,
-      operations: [{
-        op: 'add',
-        item: {
-          type: 'SpecificResource' as const,
-          source: targetResourceId,
-          purpose: 'linking' as const,
-        },
-      }],
-    });
-    showSuccess('Reference linked successfully');
-  }, [rUri, showSuccess]); // eventBus is stable singleton
+  const handleWizardLinkResource = useCallback(async (referenceId: string, targetResourceId: string) => {
+    if (!semiont) return;
+    try {
+      await semiont.bind.body(
+        rUri,
+        annotationId(referenceId),
+        [{ op: 'add', item: { type: 'SpecificResource' as const, source: targetResourceId, purpose: 'linking' as const } }],
+      );
+      showSuccess('Reference linked successfully');
+    } catch (error) {
+      showError(`Failed to link reference: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, [rUri, semiont, showSuccess, showError]);
 
   const handleWizardComposeNavigate = useCallback((
     context: GatheredContext,
@@ -235,199 +236,132 @@ export function ResourceViewerPage({
       name: title,
       entityTypes: entTypes.join(','),
     });
-    eventBus.get('browse:router-push').next({
+    browser.emit('nav:push', {
       path: `/know/compose?${params.toString()}`,
       reason: 'compose-from-wizard',
     });
-  }, []); // eventBus is stable singleton
-
-  // Debounced invalidation for real-time events
-  const debouncedInvalidateAnnotations = useDebouncedCallback(
-    () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-    },
-    500
-  );
+  }, [session]);
 
   // Add resource to open tabs when it loads
   useEffect(() => {
     if (resource && rUri) {
       const mediaType = getPrimaryMediaType(resource);
-      addResource(rUri, resource.name, mediaType || undefined, resource.storageUri);
+      browser.addOpenResource(rUri, resource.name, mediaType || undefined, resource.storageUri);
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('lastViewedDocumentId', rUri);
       }
     }
-  }, [resource, rUri, addResource]);
+  }, [resource, rUri, browser]);
 
-  // Real-time document events (SSE)
-  useResourceEvents({
-    rUri,
-    autoConnect: true,
+  // Bridge: when the mark state unit produces a pending annotation, open the
+  // annotations panel. The mark state unit (session-scoped) can't emit `panel:open`
+  // (app-scoped) directly — the React tree is the natural seam between
+  // the two buses.
+  useEffect(() => {
+    if (pendingAnnotation) {
+      browser.emit('panel:open', { panel: 'annotations' });
+    }
+  }, [pendingAnnotation, browser]);
 
-    // Annotation events - use debounced invalidation to batch rapid updates
-    onAnnotationAdded: useCallback((_event: any) => {
-      debouncedInvalidateAnnotations();
-    }, [debouncedInvalidateAnnotations]),
+  // Domain events flow through the bus gateway (ActorStateUnit → local EventBus).
+  // BrowseNamespace cache invalidation handles annotation/resource updates.
+  // The resource-viewer-page-state-unit calls client.subscribeToResource(resourceId)
+  // which bridges scoped domain events into the local EventBus.
 
-    onAnnotationRemoved: useCallback((_event: any) => {
-      debouncedInvalidateAnnotations();
-    }, [debouncedInvalidateAnnotations]),
-
-    onAnnotationBodyUpdated: useCallback((event: any) => {
-      // Optimistically update annotations cache with body operations
-      queryClient.setQueryData(QUERY_KEYS.resources.annotations(rUri), (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          annotations: old.annotations.map((annotation: any) => {
-            if (annotation.id === event.payload.annotationId) {
-              let bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];
-
-              for (const op of event.payload.operations || []) {
-                if (op.op === 'add') {
-                  bodyArray.push(op.item);
-                } else if (op.op === 'remove') {
-                  bodyArray = bodyArray.filter((item: any) =>
-                    JSON.stringify(item) !== JSON.stringify(op.item)
-                  );
-                } else if (op.op === 'replace') {
-                  const index = bodyArray.findIndex((item: any) =>
-                    JSON.stringify(item) === JSON.stringify(op.oldItem)
-                  );
-                  if (index !== -1) {
-                    bodyArray[index] = op.newItem;
-                  }
-                }
-              }
-
-              return {
-                ...annotation,
-                body: bodyArray,
-              };
-            }
-            return annotation;
-          }),
-        };
-      });
-
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-    }, [queryClient, rUri]),
-
-    // Document status events
-    onDocumentArchived: useCallback((_event: any) => {
-      refetchDocument();
-      showSuccess('This document has been archived');
-      debouncedInvalidateAnnotations();
-    }, [refetchDocument, showSuccess, debouncedInvalidateAnnotations]),
-
-    onDocumentUnarchived: useCallback((_event: any) => {
-      refetchDocument();
-      showSuccess('This document has been unarchived');
-      debouncedInvalidateAnnotations();
-    }, [refetchDocument, showSuccess, debouncedInvalidateAnnotations]),
-
-    // Entity tag events
-    onEntityTagAdded: useCallback((_event: any) => {
-      refetchDocument();
-      debouncedInvalidateAnnotations();
-    }, [refetchDocument, debouncedInvalidateAnnotations]),
-
-    onEntityTagRemoved: useCallback((_event: any) => {
-      refetchDocument();
-      debouncedInvalidateAnnotations();
-    }, [refetchDocument, debouncedInvalidateAnnotations]),
-
-    onError: useCallback((error: any) => {
-      console.error('[RealTime] Event stream error:', error);
-    }, []),
-  });
-
-  // Mutations hoisted to top level — hooks must not be called inside callbacks
-  const updateMutation = resources.update.useMutation();
-  const generateCloneTokenMutation = resources.generateCloneToken.useMutation();
-
-  // Event handlers extracted to useCallback (tenet: no inline handlers in useEventSubscriptions)
   const handleResourceArchive = useCallback(async () => {
+    if (!semiont) return;
     try {
-      await updateMutation.mutateAsync({ id: rUri, data: { archived: true } });
+      await semiont.mark.archive(rUri);
       await refetchDocument();
     } catch (err) {
       console.error('Failed to archive document:', err);
       showError('Failed to archive document');
     }
-  }, [updateMutation, rUri, refetchDocument, showError]);
+  }, [semiont, rUri, refetchDocument, showError]);
 
   const handleResourceUnarchive = useCallback(async () => {
+    if (!semiont) return;
     try {
-      await updateMutation.mutateAsync({ id: rUri, data: { archived: false } });
+      await semiont.mark.unarchive(rUri);
       await refetchDocument();
     } catch (err) {
       console.error('Failed to unarchive document:', err);
       showError('Failed to unarchive document');
     }
-  }, [updateMutation, rUri, refetchDocument, showError]);
+  }, [semiont, rUri, refetchDocument, showError]);
 
   const handleResourceClone = useCallback(async () => {
+    if (!semiont) return;
     try {
-      const result = await generateCloneTokenMutation.mutateAsync(rUri);
+      const result = await semiont.yield.cloneToken(rUri);
       const token = result.token;
-      eventBus.get('browse:router-push').next({ path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
+      browser.emit('nav:push', { path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
     } catch (err) {
       console.error('Failed to generate clone token:', err);
       showError('Failed to generate clone link');
     }
-  }, [generateCloneTokenMutation, rUri, showError]);
+  }, [semiont, rUri, showError, session]);
 
   const handleAnnotationSparkle = useCallback(({ annotationId }: { annotationId: string }) => {
     triggerSparkleAnimation(annotationId);
   }, [triggerSparkleAnimation]);
 
-  const handleAnnotationAdded = useCallback((event: Extract<ResourceEvent, { type: 'annotation.added' }>) => {
-    triggerSparkleAnimation(event.payload.annotation.id);
-    debouncedInvalidateAnnotations();
-  }, [triggerSparkleAnimation, debouncedInvalidateAnnotations]);
+  const handleAnnotationAdded = useCallback((stored: EventMap['mark:added']) => {
+    triggerSparkleAnimation(stored.payload.annotation.id);
+  }, [triggerSparkleAnimation]);
 
-  const handleAnnotationCreateFailed = useCallback(() => showError('Failed to create annotation'), [showError]);
-  const handleAnnotationDeleteFailed = useCallback(() => showError('Failed to delete annotation'), [showError]);
+  const handleAnnotationCreateFailed = useCallback(({ message }: { message?: string }) =>
+    showError(`Failed to create annotation: ${message || 'unknown error'}`), [showError]);
+  const handleAnnotationDeleteFailed = useCallback(({ message }: { message?: string }) =>
+    showError(`Failed to delete annotation: ${message || 'unknown error'}`), [showError]);
   const handleAnnotateBodyUpdated = useCallback(() => {
-    // Success - optimistic update already applied via useResourceEvents
+    // Success - optimistic update already applied via EventBus
   }, []);
-  const handleAnnotateBodyUpdateFailed = useCallback(() => showError('Failed to update annotation'), [showError]);
+  const handleAnnotateBodyUpdateFailed = useCallback(({ message }: { message: string }) =>
+    showError(`Failed to update reference: ${message}`), [showError]);
 
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
 
-  const handleDetectionComplete = useCallback(() => {
-    // Toast notification is handled by useMarkFlow
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-  }, [queryClient, rUri]);
-  const handleDetectionFailed = useCallback(() => {
-    // Error notification is handled by useMarkFlow
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-  }, [queryClient, rUri]);
-  const handleGenerationComplete = useCallback(() => {
-    // Toast notification is handled by useYieldFlow
-  }, []);
-  const handleGenerationFailed = useCallback(() => {
-    // Error notification is handled by useYieldFlow
-  }, []);
-
-  const handleReferenceNavigate = useCallback(({ documentId }: { documentId: string }) => {
-    if (routes.resource) {
-      const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
-      eventBus.get('browse:router-push').next({ path, reason: 'reference-link' });
+  // Unified job lifecycle handlers. `job:complete` / `job:fail` fire
+  // for every job type (annotation + generation); we dispatch on
+  // jobType and filter to this resource. `annotationId` is present on
+  // jobs attached to a specific annotation (today: generation from a
+  // reference); it's what UI consumers lower down in the tree use to
+  // attach per-annotation visual feedback.
+  const handleJobComplete = useCallback((event: components['schemas']['JobCompleteCommand']) => {
+    if (event.resourceId !== (resource.id as string)) return;
+    if (event.jobType === 'generation') {
+      const result = event.result as components['schemas']['JobGenerationResult'] | undefined;
+      const name = result?.resourceName;
+      showSuccess(name
+        ? `Resource "${name}" created successfully!`
+        : 'Resource created successfully!');
+    } else {
+      showSuccess('Annotation complete');
     }
-  }, [routes.resource]); // eventBus is stable singleton - never in deps
+  }, [resource.id, showSuccess]);
+  const handleJobFailed = useCallback((event: components['schemas']['JobFailCommand']) => {
+    if (event.resourceId !== (resource.id as string)) return;
+    if (event.jobType === 'generation') {
+      showError(`Resource generation failed: ${event.error}`);
+    } else {
+      showError(event.error || 'Annotation failed');
+    }
+  }, [resource.id, showError]);
+
+  const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
+    if (routes.resourceDetail) {
+      const path = routes.resourceDetail(resourceId);
+      browser.emit('nav:push', { path, reason: 'reference-link' });
+    }
+  }, [routes.resourceDetail, session]);
 
   const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
     if (routes.know) {
       const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
-      eventBus.get('browse:router-push').next({ path, reason: 'entity-type-filter' });
+      browser.emit('nav:push', { path, reason: 'entity-type-filter' });
     }
-  }, [routes.know]); // eventBus is stable singleton - never in deps
+  }, [routes.know, session]);
 
   const handleModeToggled = useCallback(() => {
     setAnnotateMode(prev => !prev);
@@ -441,17 +375,15 @@ export function ResourceViewerPage({
     'yield:clone': handleResourceClone,
     'beckon:sparkle': handleAnnotationSparkle,
     'mark:added': handleAnnotationAdded,
-    'mark:removed': debouncedInvalidateAnnotations,
     'mark:create-failed': handleAnnotationCreateFailed,
     'mark:delete-failed': handleAnnotationDeleteFailed,
     'mark:body-updated': handleAnnotateBodyUpdated,
     'bind:body-update-failed': handleAnnotateBodyUpdateFailed,
     'settings:theme-changed': handleSettingsThemeChanged,
     'settings:line-numbers-toggled': toggleLineNumbers,
-    'mark:assist-finished': handleDetectionComplete,
-    'mark:assist-failed': handleDetectionFailed,
-    'yield:finished': handleGenerationComplete,
-    'yield:failed': handleGenerationFailed,
+    'job:complete': handleJobComplete,
+    'job:fail': handleJobFailed,
+    'mark:assist-cancelled': () => showInfo('Annotation cancelled'),
     'browse:reference-navigate': handleReferenceNavigate,
     'browse:entity-type-clicked': handleEntityTypeClicked,
   });
@@ -487,38 +419,16 @@ export function ResourceViewerPage({
     return false;
   });
 
-  // Group annotations by type using static ANNOTATORS (memoized to avoid re-grouping on unrelated re-renders)
-  const groups = useMemo(() => {
-    const result = {
-      highlights: [] as Annotation[],
-      references: [] as Annotation[],
-      assessments: [] as Annotation[],
-      comments: [] as Annotation[],
-      tags: [] as Annotation[]
-    };
-
-    for (const ann of annotations) {
-      const annotator = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(ann));
-      if (annotator) {
-        const key = annotator.internalType + 's'; // highlight -> highlights
-        if (result[key as keyof typeof result]) {
-          result[key as keyof typeof result].push(ann);
-        }
-      }
-    }
-
-    return result;
-  }, [annotations]);
 
   // Combine resource with content
   const resourceWithContent = { ...resource, content };
 
   // Handlers for AnnotationHistory (legacy event-based interaction)
-  const handleEventHover = useCallback((annotationId: string | null) => {
-    if (annotationId) {
-      eventBus.get('beckon:sparkle').next({ annotationId });
+  const handleEventHover = useCallback((id: string | null) => {
+    if (id) {
+      session?.client.beckon.sparkle(annotationId(id));
     }
-  }, []); // eventBus is stable singleton - never in deps
+  }, [session]);
 
   const handleEventClick = useCallback((_annotationId: string | null) => {
     // ResourceViewer now manages scroll state internally
@@ -566,8 +476,8 @@ export function ResourceViewerPage({
               ) : (
                 <ResourceViewer
                   resource={resourceWithContent}
-                  annotations={groups}
-                  generatingReferenceId={generationProgress?.referenceId ?? null}
+                  annotations={groups ?? { highlights: [], comments: [], assessments: [], references: [], tags: [] }}
+                  generatingReferenceId={generationProgress?.annotationId ?? null}
                   showLineNumbers={showLineNumbers}
                   hoverDelayMs={hoverDelayMs}
                   hoveredAnnotationId={hoveredAnnotationId}
@@ -609,10 +519,12 @@ export function ResourceViewerPage({
                 progress={progress}
                 pendingAnnotation={pendingAnnotation}
                 allEntityTypes={allEntityTypes}
-                generatingReferenceId={generationProgress?.referenceId ?? null}
+                generatingReferenceId={generationProgress?.annotationId ?? null}
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 resourceId={rUri}
+                locale={locale}
+                sourceLanguage={getLanguage(resource)}
                 scrollToAnnotationId={scrollToAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
                 onScrollCompleted={onScrollCompleted}
@@ -638,19 +550,28 @@ export function ResourceViewerPage({
             {/* Document Info Panel */}
             {activePanel === 'info' && (
               <ResourceInfoPanel
+                resourceId={rUri}
                 documentEntityTypes={documentEntityTypes}
                 documentLocale={getLanguage(resource)}
                 primaryMediaType={primaryMediaType}
                 primaryByteSize={primaryByteSize}
+                storageUri={resource.storageUri}
                 isArchived={resource.archived ?? false}
+                dateCreated={resource.dateCreated}
+                dateModified={resource.dateModified}
+                creationMethod={resource.creationMethod}
+                wasAttributedTo={resource.wasAttributedTo}
+                wasDerivedFrom={resource.wasDerivedFrom}
+                generator={resource.generator as components['schemas']['Agent'] | components['schemas']['Agent'][] | undefined}
               />
             )}
 
             {/* Collaboration Panel */}
             {activePanel === 'collaboration' && (
               <CollaborationPanel
-                isConnected={false}
+                state={streamStatus}
                 eventCount={0}
+                knowledgeBaseName={knowledgeBaseName}
               />
             )}
 
@@ -681,7 +602,6 @@ export function ResourceViewerPage({
         context={gatherContext}
         contextLoading={gatherLoading}
         contextError={gatherError}
-        eventBus={eventBus}
         onGenerateSubmit={handleWizardGenerateSubmit}
         onLinkResource={handleWizardLinkResource}
         onComposeNavigate={handleWizardComposeNavigate}
@@ -690,15 +610,9 @@ export function ResourceViewerPage({
           configureGenerationTitle: tw('configureGenerationTitle'),
           configureSearchTitle: tw('configureSearchTitle'),
           searchResultsTitle: tw('searchResultsTitle'),
-          annotationLabel: tw('annotationLabel'),
-          sourceResourceLabel: tw('sourceResourceLabel'),
-          motivationLabel: tw('motivationLabel'),
           sourceContextLabel: tw('sourceContextLabel'),
-          entityTypesLabel: tw('entityTypesLabel'),
-          graphContextLabel: tw('graphContextLabel'),
           connectionsLabel: tw('connectionsLabel'),
           citedByLabel: tw('citedByLabel'),
-          siblingTypesLabel: tw('siblingTypesLabel'),
           userHintLabel: tw('userHintLabel'),
           userHintPlaceholder: tw('userHintPlaceholder'),
           loadingContext: tw('loadingContext'),
@@ -708,6 +622,7 @@ export function ResourceViewerPage({
           searching: tw('searching'),
           generate: tw('generate'),
           compose: tw('compose'),
+          resolutionStrategyLabel: tw('resolutionStrategyLabel'),
           back: tw('back'),
           link: tw('link'),
           score: tw('score'),

@@ -2,22 +2,22 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
 import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders, resetEventBusForTesting } from '../../../../test-utils';
+import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import type { components } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Mock @semiont/api-client
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     getAnnotationExactText: vi.fn(),
   };
 });
 
-import { getAnnotationExactText } from '@semiont/api-client';
+import { getAnnotationExactText } from '@semiont/core';
 import type { MockedFunction } from 'vitest';
 import { AssessmentEntry } from '../AssessmentEntry';
 
@@ -56,7 +56,6 @@ describe('AssessmentEntry', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting();
     mockGetAnnotationExactText.mockReturnValue('Selected passage text');
   });
 

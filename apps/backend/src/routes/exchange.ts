@@ -92,8 +92,8 @@ exchangeRouter.post('/api/admin/exchange/backup', async (c) => {
     try {
       await exportBackup(
         {
-          eventStore: mm.kb.eventStore,
-          content: mm.kb.content,
+          eventStore: mm.knowledgeSystem.kb.eventStore,
+          content: mm.knowledgeSystem.kb.content,
           sourceUrl,
         },
         nodeWritable,
@@ -145,12 +145,12 @@ exchangeRouter.post('/api/admin/exchange/restore', async (c) => {
         input.push(null);
 
         send({ phase: 'started', message: 'Restoring backup...' });
-        const result = await importBackup(input, { eventBus });
+        const { knowledgeSystem: { kb: backupKb } } = c.get('makeMeaning');
+        const result = await importBackup(input, { eventBus, contentStore: backupKb.content });
         send({
           phase: 'complete',
           result: {
             stats: result.stats,
-            hashChainValid: result.hashChainValid,
           },
         });
       } catch (err) {
@@ -182,7 +182,7 @@ exchangeRouter.post('/api/moderate/exchange/export', async (c) => {
   const sourceUrl = config.services?.backend?.publicURL ?? 'http://localhost:4000';
   const includeArchived = c.req.query('includeArchived') === 'true';
 
-  const entityTypes = await readEntityTypesProjection(new SemiontProject(config._metadata!.projectRoot));
+  const entityTypes = await readEntityTypesProjection(new SemiontProject(config._metadata!.projectRoot!));
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const filename = `semiont-export-${timestamp}.tar.gz`;
@@ -209,8 +209,8 @@ exchangeRouter.post('/api/moderate/exchange/export', async (c) => {
     try {
       await exportLinkedData(
         {
-          views: mm.kb.views,
-          content: mm.kb.content,
+          views: mm.knowledgeSystem.kb.views,
+          content: mm.knowledgeSystem.kb.content,
           sourceUrl,
           entityTypes,
           includeArchived,
@@ -265,8 +265,10 @@ exchangeRouter.post('/api/moderate/exchange/import', async (c) => {
         input.push(null);
 
         send({ phase: 'started', message: 'Importing linked data...' });
+        const { knowledgeSystem: { kb } } = c.get('makeMeaning');
         const result = await importLinkedData(input, {
           eventBus,
+          contentStore: kb.content,
           userId: makeUserId(user.id),
         });
         send({

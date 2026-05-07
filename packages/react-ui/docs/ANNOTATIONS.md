@@ -48,7 +48,7 @@ const annotationManager = useAnnotationManager(); // App-specific
 const cacheManager = useCacheManager(); // App-specific
 ```
 
-See [PROVIDERS.md](PROVIDERS.md) for detailed Provider Pattern documentation.
+See [SESSION.md](SESSION.md) for detailed Provider Pattern documentation.
 
 ---
 
@@ -683,7 +683,7 @@ See [EVENTS.md](EVENTS.md) for complete real-time collaboration architecture.
 ## See Also
 
 - [EVENTS.md](EVENTS.md) - Event-driven architecture and event bus
-- [PROVIDERS.md](PROVIDERS.md) - Provider Pattern architecture
+- [SESSION.md](SESSION.md) - Provider Pattern architecture
 - [API-INTEGRATION.md](API-INTEGRATION.md) - API client integration
 - [TESTING.md](TESTING.md) - Testing strategies
 - [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/)

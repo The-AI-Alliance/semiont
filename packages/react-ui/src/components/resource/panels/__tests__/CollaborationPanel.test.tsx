@@ -36,7 +36,10 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 
 describe('CollaborationPanel Component', () => {
   const defaultProps = {
-    isConnected: false,
+    // `degraded` is the "sustained disconnect" state — matches the
+    // pre-state-machine `isConnected: false` default, which was always
+    // used in tests to mean "the UI should show Disconnected."
+    state: 'degraded' as const,
     eventCount: 0,
   };
 
@@ -72,19 +75,19 @@ describe('CollaborationPanel Component', () => {
 
   describe('Connection Status', () => {
     it('should show disconnected status when not connected', () => {
-      render(<CollaborationPanel {...defaultProps} isConnected={false} />);
+      render(<CollaborationPanel {...defaultProps} state="degraded" />);
 
       expect(screen.getByText('Disconnected')).toBeInTheDocument();
     });
 
     it('should show live status when connected', () => {
-      render(<CollaborationPanel {...defaultProps} isConnected={true} />);
+      render(<CollaborationPanel {...defaultProps} state="open" />);
 
       expect(screen.getByText('Live')).toBeInTheDocument();
     });
 
     it('should show indicator when disconnected', () => {
-      const { container } = render(<CollaborationPanel {...defaultProps} isConnected={false} />);
+      const { container } = render(<CollaborationPanel {...defaultProps} state="degraded" />);
 
       const indicator = container.querySelector('.semiont-collaboration-panel__dot');
       expect(indicator).toBeInTheDocument();
@@ -92,7 +95,7 @@ describe('CollaborationPanel Component', () => {
     });
 
     it('should show indicator when connected', () => {
-      const { container } = render(<CollaborationPanel {...defaultProps} isConnected={true} />);
+      const { container } = render(<CollaborationPanel {...defaultProps} state="open" />);
 
       const indicator = container.querySelector('.semiont-collaboration-panel__dot');
       expect(indicator).toBeInTheDocument();
@@ -100,7 +103,7 @@ describe('CollaborationPanel Component', () => {
     });
 
     it('should use appropriate status text for disconnected state', () => {
-      render(<CollaborationPanel {...defaultProps} isConnected={false} />);
+      render(<CollaborationPanel {...defaultProps} state="degraded" />);
 
       const statusText = screen.getByText('Disconnected');
       expect(statusText).toHaveClass('semiont-collaboration-panel__status-text');
@@ -108,35 +111,63 @@ describe('CollaborationPanel Component', () => {
     });
 
     it('should use appropriate status text for connected state', () => {
-      render(<CollaborationPanel {...defaultProps} isConnected={true} />);
+      render(<CollaborationPanel {...defaultProps} state="open" />);
 
       const statusText = screen.getByText('Live');
       expect(statusText).toHaveClass('semiont-collaboration-panel__status-text');
       expect(statusText).toHaveAttribute('data-connected', 'true');
     });
+
+    // ── State-machine aware cases (post-CONNECTION-STATE) ─────────────
+    // These exercise the core reason CONNECTION-STATE exists: brief
+    // reconnect/connect cycles must NOT flash "Disconnected", or
+    // Strict-Mode mount churn makes the UI lie.
+
+    it('shows Live during brief `reconnecting` (does not alarm on churn)', () => {
+      render(<CollaborationPanel {...defaultProps} state="reconnecting" />);
+      expect(screen.getByText('Live')).toBeInTheDocument();
+      expect(screen.queryByText('Disconnected')).not.toBeInTheDocument();
+    });
+
+    it('shows Live during `connecting` and `initial`', () => {
+      const { rerender } = render(<CollaborationPanel {...defaultProps} state="connecting" />);
+      expect(screen.getByText('Live')).toBeInTheDocument();
+      rerender(<CollaborationPanel {...defaultProps} state="initial" />);
+      expect(screen.getByText('Live')).toBeInTheDocument();
+    });
+
+    it('shows Disconnected on `degraded` (sustained disconnect)', () => {
+      render(<CollaborationPanel {...defaultProps} state="degraded" />);
+      expect(screen.getByText('Disconnected')).toBeInTheDocument();
+    });
+
+    it('shows Disconnected on `closed` (terminal)', () => {
+      render(<CollaborationPanel {...defaultProps} state="closed" />);
+      expect(screen.getByText('Disconnected')).toBeInTheDocument();
+    });
   });
 
   describe('Event Count', () => {
     it('should not show event count when zero', () => {
-      render(<CollaborationPanel {...defaultProps} isConnected={true} eventCount={0} />);
+      render(<CollaborationPanel {...defaultProps} state="open" eventCount={0} />);
 
       expect(screen.queryByText(/event/i)).not.toBeInTheDocument();
     });
 
     it('should show event count when connected and greater than zero', () => {
-      render(<CollaborationPanel {...defaultProps} isConnected={true} eventCount={5} />);
+      render(<CollaborationPanel {...defaultProps} state="open" eventCount={5} />);
 
       expect(screen.getByText(/event/i)).toBeInTheDocument();
     });
 
     it('should not show event count when disconnected', () => {
-      render(<CollaborationPanel {...defaultProps} isConnected={false} eventCount={5} />);
+      render(<CollaborationPanel {...defaultProps} state="degraded" eventCount={5} />);
 
       expect(screen.queryByText(/event/i)).not.toBeInTheDocument();
     });
 
     it('should display correct event count', () => {
-      render(<CollaborationPanel {...defaultProps} isConnected={true} eventCount={42} />);
+      render(<CollaborationPanel {...defaultProps} state="open" eventCount={42} />);
 
       // The translation will have ${count} in it
       expect(screen.getByText(/event/i)).toBeInTheDocument();
@@ -267,13 +298,13 @@ describe('CollaborationPanel Component', () => {
 
   describe('Real-time Status Messages', () => {
     it('should show "real-time active" when connected', () => {
-      render(<CollaborationPanel {...defaultProps} isConnected={true} />);
+      render(<CollaborationPanel {...defaultProps} state="open" />);
 
       expect(screen.getByText('Real-time synchronization active')).toBeInTheDocument();
     });
 
     it('should show "reconnecting" when disconnected', () => {
-      render(<CollaborationPanel {...defaultProps} isConnected={false} />);
+      render(<CollaborationPanel {...defaultProps} state="degraded" />);
 
       expect(screen.getByText('Reconnecting...')).toBeInTheDocument();
     });
@@ -281,11 +312,11 @@ describe('CollaborationPanel Component', () => {
 
   describe('Dynamic Updates', () => {
     it('should update when connection status changes', () => {
-      const { rerender } = render(<CollaborationPanel {...defaultProps} isConnected={false} />);
+      const { rerender } = render(<CollaborationPanel {...defaultProps} state="degraded" />);
 
       expect(screen.getByText('Disconnected')).toBeInTheDocument();
 
-      rerender(<CollaborationPanel {...defaultProps} isConnected={true} />);
+      rerender(<CollaborationPanel {...defaultProps} state="open" />);
 
       expect(screen.getByText('Live')).toBeInTheDocument();
       expect(screen.queryByText('Disconnected')).not.toBeInTheDocument();
@@ -293,12 +324,12 @@ describe('CollaborationPanel Component', () => {
 
     it('should update when event count changes', () => {
       const { rerender } = render(
-        <CollaborationPanel {...defaultProps} isConnected={true} eventCount={5} />
+        <CollaborationPanel {...defaultProps} state="open" eventCount={5} />
       );
 
       expect(screen.getByText(/event/i)).toBeInTheDocument();
 
-      rerender(<CollaborationPanel {...defaultProps} isConnected={true} eventCount={10} />);
+      rerender(<CollaborationPanel {...defaultProps} state="open" eventCount={10} />);
 
       expect(screen.getByText(/event/i)).toBeInTheDocument();
     });
@@ -371,7 +402,7 @@ describe('CollaborationPanel Component', () => {
     it('should handle very large event counts', () => {
       expect(() => {
         render(
-          <CollaborationPanel {...defaultProps} isConnected={true} eventCount={999999} />
+          <CollaborationPanel {...defaultProps} state="open" eventCount={999999} />
         );
       }).not.toThrow();
     });
@@ -379,7 +410,7 @@ describe('CollaborationPanel Component', () => {
     it('should handle negative event counts', () => {
       expect(() => {
         render(
-          <CollaborationPanel {...defaultProps} isConnected={true} eventCount={-5} />
+          <CollaborationPanel {...defaultProps} state="open" eventCount={-5} />
         );
       }).not.toThrow();
     });
@@ -432,7 +463,7 @@ describe('CollaborationPanel Component', () => {
     });
 
     it('should have visible status indicators', () => {
-      const { container } = render(<CollaborationPanel {...defaultProps} isConnected={true} />);
+      const { container } = render(<CollaborationPanel {...defaultProps} state="open" />);
 
       // Should have a visible status dot
       const indicator = container.querySelector('.semiont-collaboration-panel__dot');

@@ -13,14 +13,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
 import { SemiontProject } from '@semiont/core/node';
-import type { Logger } from '@semiont/core';
+import { EventBus, type Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore } from '@semiont/content';
 import { exportLinkedData } from '@semiont/make-meaning';
 import { readEntityTypesProjection } from '@semiont/make-meaning';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
 
@@ -38,7 +38,7 @@ function createCliLogger(verbose: boolean): Logger {
 // SCHEMA
 // =====================================================================
 
-export const ExportOptionsSchema = BaseOptionsSchema.extend({
+export const ExportOptionsSchema = OpsOptionsSchema.extend({
   out: z.string().min(1, 'Output path is required'),
   includeArchived: z.boolean().optional().default(false),
 });
@@ -65,7 +65,7 @@ export async function runExport(options: ExportOptions): Promise<CommandResults>
   const logger = createCliLogger(options.verbose ?? false);
 
   // Bootstrap read-only stores
-  const eventStore = createEventStore(project, undefined, logger);
+  const eventStore = createEventStore(project, new EventBus(), logger);
   const contentStore = new WorkingTreeStore(
     project,
     logger.child({ component: 'content-store' }),
@@ -133,19 +133,16 @@ export const exportCmd = new CommandBuilder()
     'semiont export --out export.tar.gz',
     'semiont export --include-archived --out full-export.tar.gz',
   )
-  .args({
-    args: {
-      '--out': {
-        type: 'string',
-        description: 'Output file path (required)',
-      },
-      '--include-archived': {
-        type: 'boolean',
-        description: 'Include archived resources in export',
-      },
+  .args(withOpsArgs({
+    '--out': {
+      type: 'string',
+      description: 'Output file path (required)',
     },
-    aliases: {},
-  })
+    '--include-archived': {
+      type: 'boolean',
+      description: 'Include archived resources in export',
+    },
+  }))
   .schema(ExportOptionsSchema)
   .handler(runExport)
   .build();

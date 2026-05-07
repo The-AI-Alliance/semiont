@@ -1,11 +1,10 @@
-'use client';
-
 import { useEffect } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/i18n/routing';
 
 export default function ModeratePage() {
-  const t = useTranslations('Moderation');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Moderation.${k}`, p as any) as string;
   const router = useRouter();
 
   useEffect(() => {

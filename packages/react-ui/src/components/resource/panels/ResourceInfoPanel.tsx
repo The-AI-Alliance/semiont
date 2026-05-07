@@ -1,34 +1,54 @@
 'use client';
 
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
-import { formatLocaleDisplay } from '@semiont/api-client';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
+import { formatLocaleDisplay } from '@semiont/core';
+import { resourceId as makeResourceId, type components } from '@semiont/core';
 import './ResourceInfoPanel.css';
 
+type Agent = components['schemas']['Agent'];
+
 interface Props {
+  resourceId: string;
   documentEntityTypes: string[];
   documentLocale?: string | undefined;
   primaryMediaType?: string | undefined;
   primaryByteSize?: number | undefined;
+  storageUri?: string | undefined;
   isArchived?: boolean;
+  dateCreated?: string | undefined;
+  dateModified?: string | undefined;
+  creationMethod?: string | undefined;
+  wasAttributedTo?: Agent | Agent[] | undefined;
+  wasDerivedFrom?: string | string[] | undefined;
+  generator?: Agent | Agent[] | undefined;
 }
 
 /**
  * Panel for displaying resource metadata and management actions
  *
- * @emits yield:clone - Clone this resource. Payload: undefined
- * @emits mark:unarchive - Unarchive this resource. Payload: undefined
- * @emits mark:archive - Archive this resource. Payload: undefined
+ * @emits yield:clone - Clone this resource
+ * @emits mark:unarchive - Unarchive this resource
+ * @emits mark:archive - Archive this resource
  */
 export function ResourceInfoPanel({
+  resourceId,
   documentEntityTypes,
   documentLocale,
   primaryMediaType,
   primaryByteSize,
+  storageUri,
   isArchived = false,
+  dateCreated,
+  dateModified,
+  creationMethod,
+  wasAttributedTo,
+  wasDerivedFrom,
+  generator,
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   return (
     <div className="semiont-resource-info-panel">
@@ -72,6 +92,81 @@ export function ResourceInfoPanel({
                 </span>
               </div>
             )}
+            {storageUri && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('storageUri')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {storageUri}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Provenance Section */}
+      {(dateCreated || dateModified || creationMethod || wasAttributedTo || wasDerivedFrom || generator) && (
+        <div className="semiont-resource-info-panel__section">
+          <h3 className="semiont-resource-info-panel__heading">{t('provenance')}</h3>
+          <div className="semiont-resource-info-panel__field-group">
+            {dateCreated && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('createdAt')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {new Date(dateCreated).toLocaleString()}
+                </span>
+              </div>
+            )}
+            {dateModified && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('modifiedAt')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {new Date(dateModified).toLocaleString()}
+                </span>
+              </div>
+            )}
+            {creationMethod && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('creationMethod')}</span>
+                <span className="semiont-resource-info-panel__value">{creationMethod}</span>
+              </div>
+            )}
+            {wasAttributedTo && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('attributedTo')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {(Array.isArray(wasAttributedTo) ? wasAttributedTo : [wasAttributedTo])
+                    .map(a => a.name)
+                    .join(', ')}
+                </span>
+              </div>
+            )}
+            {wasDerivedFrom && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('derivedFrom')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {(Array.isArray(wasDerivedFrom) ? wasDerivedFrom : [wasDerivedFrom]).map((id, i) => (
+                    <button
+                      key={id}
+                      className="semiont-resource-info-panel__link"
+                      onClick={() => session?.client.browse.navigateReference(makeResourceId(id))}
+                    >
+                      {i > 0 && ', '}{id}
+                    </button>
+                  ))}
+                </span>
+              </div>
+            )}
+            {generator && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('generatedBy')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {(Array.isArray(generator) ? generator : [generator])
+                    .map(a => a.name)
+                    .join(', ')}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -97,7 +192,7 @@ export function ResourceInfoPanel({
       {/* Clone Action */}
       <div className="semiont-resource-info-panel__action-section">
         <button
-          onClick={() => eventBus.get('yield:clone').next(undefined)}
+          onClick={() => session?.client.yield.clone()}
           className="semiont-resource-button semiont-resource-button--secondary"
         >
           🔗 {t('clone')}
@@ -112,7 +207,7 @@ export function ResourceInfoPanel({
         {isArchived ? (
           <>
             <button
-              onClick={() => eventBus.get('mark:unarchive').next(undefined)}
+              onClick={() => session?.client.mark.unarchive(makeResourceId(resourceId))}
               className="semiont-resource-button semiont-resource-button--secondary"
             >
               📤 {t('unarchive')}
@@ -124,7 +219,7 @@ export function ResourceInfoPanel({
         ) : (
           <>
             <button
-              onClick={() => eventBus.get('mark:archive').next(undefined)}
+              onClick={() => session?.client.mark.archive(makeResourceId(resourceId))}
               className="semiont-resource-button semiont-resource-button--archive"
             >
               📦 {t('archive')}

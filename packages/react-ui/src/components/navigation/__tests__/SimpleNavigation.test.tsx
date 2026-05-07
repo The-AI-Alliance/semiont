@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders, resetEventBusForTesting } from '../../../test-utils';
+import { renderWithProviders } from '../../../test-utils';
 import { SimpleNavigation } from '../SimpleNavigation';
 import type { SimpleNavigationItem } from '../SimpleNavigation';
 
@@ -36,10 +36,6 @@ const defaultProps = {
 };
 
 describe('SimpleNavigation', () => {
-  beforeEach(() => {
-    resetEventBusForTesting();
-  });
-
   describe('title visibility', () => {
     it('renders title when not collapsed', () => {
       renderWithProviders(<SimpleNavigation {...defaultProps} />);
@@ -97,15 +93,15 @@ describe('SimpleNavigation', () => {
   });
 
   describe('sidebar toggle', () => {
-    it('emits browse:sidebar-toggle on collapse button click', () => {
+    it('emits shell:sidebar-toggle on collapse button click', () => {
       const handler = vi.fn();
 
-      const { eventBus } = renderWithProviders(
+      const { shellBus } = renderWithProviders(
         <SimpleNavigation {...defaultProps} />,
-        { returnEventBus: true }
+        { returnShellBus: true }
       );
 
-      const subscription = eventBus!.get('browse:sidebar-toggle').subscribe(handler);
+      const subscription = shellBus!.get('shell:sidebar-toggle').subscribe(handler);
 
       const collapseButton = screen.getByLabelText('Collapse sidebar');
       fireEvent.click(collapseButton);

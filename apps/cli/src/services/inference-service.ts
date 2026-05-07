@@ -8,7 +8,7 @@
  * Platform Adaptations:
  * - external: Direct API calls to inference providers (no lifecycle management)
  * - posix: Ollama runs as a local process via `ollama serve`
- * - container: Ollama runs in Docker/Podman with persistent model volume
+ * - container: Ollama runs in a container with persistent model volume
  */
 
 import { BaseService } from '../core/base-service.js';
@@ -84,6 +84,7 @@ export class InferenceService extends BaseService {
   /**
    * Returns the union of all models referenced by workers and actors
    * configured to use this inference provider type.
+   * Embedding models are handled by EmbeddingService, not here.
    */
   getModels(): string[] {
     const models = new Set<string>();

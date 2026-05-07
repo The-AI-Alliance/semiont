@@ -22,10 +22,15 @@ import {
 import type { ContainerPlatform } from '../platform.js';
 
 /**
+ * Supported container runtimes
+ */
+export type ContainerRuntime = 'container' | 'docker' | 'podman';
+
+/**
  * Container-specific check handler context
  */
 export interface ContainerCheckHandlerContext extends CoreCheckHandlerContext<ContainerPlatform> {
-  runtime: 'docker' | 'podman';
+  runtime: ContainerRuntime;
   containerName: string;
 }
 
@@ -33,7 +38,7 @@ export interface ContainerCheckHandlerContext extends CoreCheckHandlerContext<Co
  * Container-specific start handler context
  */
 export interface ContainerStartHandlerContext extends CoreStartHandlerContext<ContainerPlatform> {
-  runtime: 'docker' | 'podman';
+  runtime: ContainerRuntime;
   containerName: string;
 }
 
@@ -41,7 +46,7 @@ export interface ContainerStartHandlerContext extends CoreStartHandlerContext<Co
  * Container-specific provision handler context
  */
 export interface ContainerProvisionHandlerContext extends CoreProvisionHandlerContext<ContainerPlatform> {
-  runtime: 'docker' | 'podman';
+  runtime: ContainerRuntime;
   containerName: string;
 }
 
@@ -49,7 +54,7 @@ export interface ContainerProvisionHandlerContext extends CoreProvisionHandlerCo
  * Container-specific publish handler context
  */
 export interface ContainerPublishHandlerContext extends CorePublishHandlerContext<ContainerPlatform> {
-  runtime: 'docker' | 'podman';
+  runtime: ContainerRuntime;
   containerName: string;
 }
 
@@ -57,7 +62,7 @@ export interface ContainerPublishHandlerContext extends CorePublishHandlerContex
  * Container-specific update handler context
  */
 export interface ContainerUpdateHandlerContext extends CoreUpdateHandlerContext<ContainerPlatform> {
-  runtime: 'docker' | 'podman';
+  runtime: ContainerRuntime;
   containerName: string;
 }
 
@@ -65,7 +70,7 @@ export interface ContainerUpdateHandlerContext extends CoreUpdateHandlerContext<
  * Container-specific stop handler context
  */
 export interface ContainerStopHandlerContext extends CoreStopHandlerContext<ContainerPlatform> {
-  runtime: 'docker' | 'podman';
+  runtime: ContainerRuntime;
   containerName: string;
 }
 

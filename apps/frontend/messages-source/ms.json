@@ -13,7 +13,7 @@
     "administer": "Pentadbiran"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Hak cipta terpelihara.",
+    "copyright": "© {{year}} The AI Alliance. Hak cipta terpelihara.",
     "about": "Perihal",
     "privacyPolicy": "Dasar Privasi",
     "cookiePreferences": "Keutamaan Kuki",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "bina makna",
-    "description": "Rangka kerja sumber terbuka dan kalis masa depan yang membolehkan manusia dan ejen pintar mencipta pengetahuan bersama — ditadbir oleh anda dan dibina untuk berkekalan.",
-    "continueToKnowledgeBase": "Teruskan ke Pangkalan Pengetahuan",
-    "learnMore": "Ketahui Lebih Lanjut",
-    "signUp": "Daftar",
-    "signIn": "Log Masuk",
-    "loading": "Memuatkan..."
+    "begin": "Mula"
   },
   "About": {
     "pageTitle": "Perihal Semiont",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "Kami menggunakan kuki dan teknologi serupa untuk meningkatkan pengalaman anda, menganalisis penggunaan dan menyediakan kandungan yang diperibadikan.",
     "cookieCategoriesTitle": "Kategori Kuki",
     "necessaryCookiesTitle": "Kuki yang Sangat Diperlukan",
-    "necessaryCookies": "Penting untuk fungsi laman web, termasuk ciri pengesahan dan keselamatan.\n\nContoh: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Penting untuk fungsi laman web, termasuk ciri pengesahan dan keselamatan.\n\nContoh: semiont-token",
     "analyticsCookiesTitle": "Kuki Analitik",
     "analyticsCookies": "Membantu kami memahami cara pelawat berinteraksi dengan laman web kami untuk meningkatkan pengalaman pengguna.\n\nContoh: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Kuki Pemasaran",
@@ -94,7 +89,7 @@
     "contactAddress": "Alamat:",
     "updatesTitle": "Kemas Kini Dasar Ini",
     "updates": "Kami mungkin mengemas kini Dasar Privasi ini dari semasa ke semasa. Kami akan memberitahu anda tentang sebarang perubahan material dengan menyiarkan Dasar Privasi baharu di halaman ini dan mengemas kini tarikh kuat kuasa.",
-    "lastUpdated": "Kemas kini terakhir: {date}"
+    "lastUpdated": "Kemas kini terakhir: {{date}}"
   },
   "Terms": {
     "pageTitle": "Terma Perkhidmatan",
@@ -124,7 +119,7 @@
     "changes": "Kami mungkin mengemas kini terma ini secara berkala. Pengguna akan dimaklumkan tentang perubahan yang ketara, dan penggunaan platform yang berterusan merupakan penerimaan terma yang dikemas kini.",
     "contactTitle": "Hubungi",
     "contact": "Jika anda mempunyai pertanyaan mengenai terma ini atau perlu melaporkan pelanggaran, sila hubungi pasukan sokongan kami melalui platform atau di maklumat hubungan yang disediakan dalam Dasar Privasi kami.",
-    "lastUpdated": "Kemas kini terakhir: {date}",
+    "lastUpdated": "Kemas kini terakhir: {{date}}",
     "aup": "Dengan menggunakan Semiont, anda bersetuju untuk menggunakan platform kami secara bertanggungjawab dan menurut terma ini. Kami komited untuk mengekalkan persekitaran yang selamat, hormat dan produktif untuk semua pengguna."
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "Gagal mencipta akaun. Sila hubungi sokongan.",
     "errorGeneric": "Ralat pengesahan telah berlaku. Sila cuba lagi.",
     "errorGoogleSignIn": "Gagal memulakan log masuk Google. Sila cuba lagi.",
+    "backendUrlLabel": "URL Backend",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "Sila masukkan URL backend",
+    "errorBackendUrlInvalid": "Sila masukkan URL yang sah (cth. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "URL tersebut tidak dapat dicapai — adakah backend sedang berjalan?",
     "errorEmailRequired": "Sila masukkan alamat e-mel anda",
     "errorPasswordRequired": "Sila masukkan kata laluan anda",
     "errorSignInFailed": "Gagal log masuk. Sila cuba lagi.",
@@ -185,7 +185,7 @@
     "loading": "Memuatkan...",
     "welcomeTitle": "Selamat Datang ke Semiont!",
     "thanksForAccepting": "Terima kasih kerana menerima terma kami. Mengalihkan anda ke aplikasi...",
-    "welcomeUser": "Selamat datang ke Semiont, {firstName}!",
+    "welcomeUser": "Selamat datang ke Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Sebelum anda boleh mula menggunakan Semiont, sila semak dan terima terma perkhidmatan kami",
     "termsSummaryTitle": "Ringkasan Terma Perkhidmatan",
     "termsSummaryIntro": "Dengan menggunakan Semiont, anda bersetuju untuk:",
@@ -246,9 +246,9 @@
     "archived": "Diarkibkan",
     "created": "Dicipta",
     "recentResources": "Sumber Terkini",
-    "searchResults": "Hasil Carian ({count})",
-    "resourcesTaggedWith": "Sumber yang ditandai dengan '{entityType}'",
-    "noResultsFound": "Tiada hasil ditemui untuk '{query}'. Menunjukkan sumber terkini sebaliknya.",
+    "searchResults": "Hasil Carian ({{count}})",
+    "resourcesTaggedWith": "Sumber yang ditandai dengan '{{entityType}}'",
+    "noResultsFound": "Tiada hasil ditemui untuk '{{query}}'. Menunjukkan sumber terkini sebaliknya.",
     "noResourcesAvailable": "Tiada sumber tersedia. Cipta dokumen pertama anda untuk bermula.",
     "composeFirstResource": "Karang Sumber Pertama",
     "loadingKnowledgeBase": "Memuatkan pangkalan pengetahuan..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Masukkan nama sumber...",
     "entityTypes": "Tag Jenis Entiti",
     "entityTypesHint": "Tandai sumber anda dengan jenis entiti",
-    "noEntityTypesAvailable": "Tiada jenis entiti tersedia",
     "contentSource": "Sumber Kandungan",
     "uploadFile": "Muat Naik Fail",
     "uploadFileDescription": "Imej, dokumen, fail teks",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "Akaun",
     "user": "Pengguna",
-    "profileAlt": "Profil {name}",
+    "profileAlt": "Profil {{name}}",
     "session": "Sesi",
-    "expiresIn": "Tamat tempoh dalam: {time}",
+    "expiresIn": "Tamat tempoh dalam: {{time}}",
     "privileges": "Keistimewaan",
     "administrator": "🛡️ Pentadbir",
     "moderator": "⚖️ Penyederhana",
@@ -433,7 +432,7 @@
     "configManagementDescription": "Tetapan OAuth diurus melalui pemboleh ubah persekitaran. Untuk mengubah suai tetapan ini:",
     "configLocalDev": "Untuk pembangunan tempatan: Kemas kini fail .env anda",
     "configCloudDeploy": "Untuk penggunaan awan: Gunakan",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "untuk menerapkan perubahan daripada fail konfigurasi",
     "configAWS": "Untuk AWS: Tetapan disimpan dalam AWS Secrets Manager dan definisi tugas ECS"
   },
@@ -510,11 +509,11 @@
     "title": "Keutamaan Kuki",
     "description": "Urus keutamaan kuki dan tetapan privasi anda. Perubahan akan berkuat kuasa serta-merta.",
     "currentSettings": "Tetapan Semasa",
-    "lastUpdated": "Kemas kini terakhir: {date}",
-    "version": "Versi: {version}",
+    "lastUpdated": "Kemas kini terakhir: {{date}}",
+    "version": "Versi: {{version}}",
     "cookieCategories": "Kategori Kuki",
     "required": "(Diperlukan)",
-    "viewCookies": "Lihat kuki ({count})",
+    "viewCookies": "Lihat kuki ({{count}})",
     "dataManagement": "Pengurusan Data",
     "exportMyData": "Eksport Data Saya",
     "deleteAllData": "Padam Semua Data",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Pangkalan Pengetahuan",
+    "connectTitle": "Sambung ke Pangkalan Pengetahuan",
+    "connect": "Sambung",
+    "connecting": "Menyambung...",
+    "signIn": "Log masuk",
+    "signingIn": "Sedang log masuk...",
+    "cancel": "Batal",
+    "addKnowledgeBase": "Tambah pangkalan pengetahuan",
+    "removeConfirm": "Buang {{label}}?",
+    "remove": "Buang",
+    "signOut": "Log keluar",
+    "statusConnected": "Disambungkan",
+    "statusExpired": "Sesi tamat",
+    "statusSignedOut": "Log keluar",
+    "statusUnreachable": "Tidak dapat dicapai",
+    "invalidHost": "Nama hos tidak sah"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Tiada pangkalan pengetahuan",
+    "noKnowledgeBasesHint": "Tambah pangkalan pengetahuan menggunakan panel di sebelah kanan untuk mula menemui, membuat anotasi, dan memaut sumber.",
+    "sessionExpired": "Sesi anda telah tamat.",
+    "signedOut": "Anda telah log keluar.",
+    "signInHint": "Log masuk menggunakan panel Pangkalan Pengetahuan untuk melayari sumber.",
+    "findKnowledgeBases": "Cari pangkalan pengetahuan",
+    "createNew": "Cipta yang baharu"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Log masuk ke pangkalan pengetahuan untuk melihat akaun anda."
   }
 }

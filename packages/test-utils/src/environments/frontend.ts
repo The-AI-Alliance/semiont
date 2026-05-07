@@ -16,46 +16,29 @@ export class FrontendTestEnvironment {
   };
 
   /**
-   * Setup Next.js navigation mocks
+   * Setup React Router navigation mocks.
+   * NOTE: The frontend's vitest.setup.ts already globally mocks react-router-dom
+   * and @/i18n/routing. Call this only when you need custom per-test overrides.
    */
   static setupNavigation() {
-    vi.mock('next/navigation', () => ({
-      useRouter: () => FrontendTestEnvironment.routerMock,
-      useSearchParams: () => ({
-        get: vi.fn(),
-      }),
-      usePathname: () => '/',
-      redirect: vi.fn(),
-      notFound: vi.fn(),
-    }));
-  }
-
-  /**
-   * Setup NextAuth mocks
-   */
-  static setupAuth() {
-    vi.mock('next-auth', () => ({
-      getServerSession: vi.fn(),
-    }));
-
-    vi.mock('next-auth/react', () => ({
-      useSession: vi.fn(() => ({
-        data: null,
-        status: 'unauthenticated',
-      })),
-      signIn: vi.fn(),
-      signOut: vi.fn(),
-      SessionProvider: ({ children }: any) => children,
-    }));
+    vi.mock('react-router-dom', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('react-router-dom')>();
+      return {
+        ...actual,
+        useNavigate: () => FrontendTestEnvironment.routerMock.push,
+        useLocation: () => ({ pathname: '/', search: '', hash: '', state: null }),
+        useParams: () => ({}),
+        useSearchParams: () => [new URLSearchParams(), vi.fn()],
+      };
+    });
   }
 
   /**
    * Setup environment variables
    */
   static setupEnvironment() {
-    process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
-    process.env.SERVER_API_URL = 'http://localhost:3001';
-    process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
+    process.env.SEMIONT_SITE_NAME = 'Test Semiont';
+    process.env.SEMIONT_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
   }
 
   /**

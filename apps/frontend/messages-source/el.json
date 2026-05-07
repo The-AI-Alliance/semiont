@@ -13,7 +13,7 @@
     "administer": "Διαχείριση"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Με επιφύλαξη παντός δικαιώματος.",
+    "copyright": "© {{year}} The AI Alliance. Με επιφύλαξη παντός δικαιώματος.",
     "about": "Σχετικά",
     "privacyPolicy": "Πολιτική Απορρήτου",
     "cookiePreferences": "Προτιμήσεις Cookies",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "δημιούργησε νόημα",
-    "description": "Το πλαίσιο ανοικτού κώδικα, ανθεκτικό στο μέλλον, που επιτρέπει σε ανθρώπους και ευφυείς πράκτορες να συνδημιουργούν κοινή γνώση — υπό τη δική σας διακυβέρνηση και κατασκευασμένο για να αντέξει.",
-    "continueToKnowledgeBase": "Συνέχεια στη Βάση Γνώσης",
-    "learnMore": "Μάθετε Περισσότερα",
-    "signUp": "Εγγραφή",
-    "signIn": "Σύνδεση",
-    "loading": "Φόρτωση..."
+    "begin": "Έναρξη"
   },
   "About": {
     "pageTitle": "Σχετικά με το Semiont",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "Χρησιμοποιούμε cookies και παρόμοιες τεχνολογίες για να βελτιώσουμε την εμπειρία σας, να αναλύσουμε τη χρήση και να παρέχουμε εξατομικευμένο περιεχόμενο.",
     "cookieCategoriesTitle": "Κατηγορίες Cookies",
     "necessaryCookiesTitle": "Απολύτως Απαραίτητα Cookies",
-    "necessaryCookies": "Απαραίτητα για τη λειτουργικότητα του ιστότοπου, συμπεριλαμβανομένων των λειτουργιών ελέγχου ταυτότητας και ασφάλειας.\n\nΠαραδείγματα: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Απαραίτητα για τη λειτουργικότητα του ιστότοπου, συμπεριλαμβανομένων των λειτουργιών ελέγχου ταυτότητας και ασφάλειας.\n\nΠαραδείγματα: semiont-token",
     "analyticsCookiesTitle": "Cookies Ανάλυσης",
     "analyticsCookies": "Μας βοηθούν να κατανοήσουμε πώς οι επισκέπτες αλληλεπιδρούν με τον ιστότοπό μας για τη βελτίωση της εμπειρίας χρήστη.\n\nΠαραδείγματα: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Cookies Μάρκετινγκ",
@@ -94,7 +89,7 @@
     "contactAddress": "Διεύθυνση:",
     "updatesTitle": "Ενημερώσεις Αυτής της Πολιτικής",
     "updates": "Ενδέχεται να ενημερώνουμε αυτήν την Πολιτική Απορρήτου κατά καιρούς. Θα σας ειδοποιήσουμε για τυχόν ουσιαστικές αλλαγές δημοσιεύοντας τη νέα Πολιτική Απορρήτου σε αυτήν τη σελίδα και ενημερώνοντας την ημερομηνία ισχύος.",
-    "lastUpdated": "Τελευταία ενημέρωση: {date}"
+    "lastUpdated": "Τελευταία ενημέρωση: {{date}}"
   },
   "Terms": {
     "pageTitle": "Όροι Χρήσης",
@@ -124,7 +119,7 @@
     "changes": "Ενδέχεται να ενημερώνουμε αυτούς τους όρους περιοδικά. Οι χρήστες θα ειδοποιούνται για σημαντικές αλλαγές και η συνεχής χρήση της πλατφόρμας αποτελεί αποδοχή των ενημερωμένων όρων.",
     "contactTitle": "Επικοινωνία",
     "contact": "Αν έχετε ερωτήσεις σχετικά με αυτούς τους όρους ή χρειάζεται να αναφέρετε παραβιάσεις, παρακαλούμε επικοινωνήστε με την ομάδα υποστήριξής μας μέσω της πλατφόρμας ή στα στοιχεία επικοινωνίας που αναφέρονται στην Πολιτική Απορρήτου μας.",
-    "lastUpdated": "Τελευταία ενημέρωση: {date}",
+    "lastUpdated": "Τελευταία ενημέρωση: {{date}}",
     "aup": "Χρησιμοποιώντας το Semiont, συμφωνείτε να χρησιμοποιείτε την πλατφόρμα μας υπεύθυνα και σύμφωνα με αυτούς τους όρους. Δεσμευόμαστε να διατηρούμε ένα ασφαλές, σεβαστό και παραγωγικό περιβάλλον για όλους τους χρήστες."
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "Αποτυχία δημιουργίας λογαριασμού. Παρακαλώ επικοινωνήστε με την υποστήριξη.",
     "errorGeneric": "Παρουσιάστηκε σφάλμα ελέγχου ταυτότητας. Παρακαλώ δοκιμάστε ξανά.",
     "errorGoogleSignIn": "Αποτυχία εκκίνησης σύνδεσης Google. Παρακαλώ δοκιμάστε ξανά.",
+    "backendUrlLabel": "URL backend",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "Εισαγάγετε τη διεύθυνση URL backend",
+    "errorBackendUrlInvalid": "Εισάγετε μια έγκυρη διεύθυνση URL (π.χ. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Δεν είναι δυνατή η πρόσβαση σε αυτήν τη διεύθυνση URL — λειτουργεί το backend;",
     "errorEmailRequired": "Παρακαλώ εισαγάγετε τη διεύθυνση email σας",
     "errorPasswordRequired": "Παρακαλώ εισαγάγετε τον κωδικό πρόσβασής σας",
     "errorSignInFailed": "Αποτυχία σύνδεσης. Παρακαλώ δοκιμάστε ξανά.",
@@ -185,7 +185,7 @@
     "loading": "Φόρτωση...",
     "welcomeTitle": "Καλώς ήρθατε στο Semiont!",
     "thanksForAccepting": "Ευχαριστούμε που αποδεχτήκατε τους όρους μας. Ανακατεύθυνση στην εφαρμογή...",
-    "welcomeUser": "Καλώς ήρθατε στο Semiont, {firstName}!",
+    "welcomeUser": "Καλώς ήρθατε στο Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Πριν αρχίσετε να χρησιμοποιείτε το Semiont, παρακαλώ ελέγξτε και αποδεχτείτε τους όρους χρήσης μας",
     "termsSummaryTitle": "Περίληψη Όρων Χρήσης",
     "termsSummaryIntro": "Χρησιμοποιώντας το Semiont, συμφωνείτε να:",
@@ -246,9 +246,9 @@
     "archived": "Αρχειοθετημένα",
     "created": "Δημιουργημένα",
     "recentResources": "Πρόσφατοι Πόροι",
-    "searchResults": "Αποτελέσματα Αναζήτησης ({count})",
-    "resourcesTaggedWith": "Πόροι με ετικέτα «{entityType}»",
-    "noResultsFound": "Δεν βρέθηκαν αποτελέσματα για «{query}». Εμφανίζονται πρόσφατοι πόροι.",
+    "searchResults": "Αποτελέσματα Αναζήτησης ({{count}})",
+    "resourcesTaggedWith": "Πόροι με ετικέτα «{{entityType}}»",
+    "noResultsFound": "Δεν βρέθηκαν αποτελέσματα για «{{query}}». Εμφανίζονται πρόσφατοι πόροι.",
     "noResourcesAvailable": "Δεν υπάρχουν διαθέσιμοι πόροι. Δημιουργήστε το πρώτο σας έγγραφο για να ξεκινήσετε.",
     "composeFirstResource": "Σύνθεση Πρώτου Πόρου",
     "loadingKnowledgeBase": "Φόρτωση βάσης γνώσης..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Εισαγάγετε όνομα πόρου...",
     "entityTypes": "Ετικέτες Τύπου Οντότητας",
     "entityTypesHint": "Προσθέστε ετικέτες τύπου οντότητας στον πόρο σας",
-    "noEntityTypesAvailable": "Δεν υπάρχουν διαθέσιμοι τύποι οντοτήτων",
     "contentSource": "Πηγή Περιεχομένου",
     "uploadFile": "Μεταφόρτωση Αρχείου",
     "uploadFileDescription": "Εικόνες, έγγραφα, αρχεία κειμένου",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "Λογαριασμός",
     "user": "Χρήστης",
-    "profileAlt": "Προφίλ {name}",
+    "profileAlt": "Προφίλ {{name}}",
     "session": "Συνεδρία",
-    "expiresIn": "Λήγει σε: {time}",
+    "expiresIn": "Λήγει σε: {{time}}",
     "privileges": "Δικαιώματα",
     "administrator": "🛡️ Διαχειριστής",
     "moderator": "⚖️ Συντονιστής",
@@ -433,7 +432,7 @@
     "configManagementDescription": "Οι ρυθμίσεις OAuth διαχειρίζονται μέσω μεταβλητών περιβάλλοντος. Για να τροποποιήσετε αυτές τις ρυθμίσεις:",
     "configLocalDev": "Για τοπική ανάπτυξη: Ενημερώστε τα αρχεία .env σας",
     "configCloudDeploy": "Για εγκαταστάσεις cloud: Χρησιμοποιήστε",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "για εφαρμογή αλλαγών από αρχεία διαμόρφωσης",
     "configAWS": "Για AWS: Οι ρυθμίσεις αποθηκεύονται στο AWS Secrets Manager και στους ορισμούς εργασιών ECS"
   },
@@ -510,11 +509,11 @@
     "title": "Προτιμήσεις Cookies",
     "description": "Διαχειριστείτε τις προτιμήσεις cookies και τις ρυθμίσεις απορρήτου σας. Οι αλλαγές θα τεθούν σε ισχύ αμέσως.",
     "currentSettings": "Τρέχουσες Ρυθμίσεις",
-    "lastUpdated": "Τελευταία ενημέρωση: {date}",
-    "version": "Έκδοση: {version}",
+    "lastUpdated": "Τελευταία ενημέρωση: {{date}}",
+    "version": "Έκδοση: {{version}}",
     "cookieCategories": "Κατηγορίες Cookies",
     "required": "(Απαιτείται)",
-    "viewCookies": "Προβολή cookies ({count})",
+    "viewCookies": "Προβολή cookies ({{count}})",
     "dataManagement": "Διαχείριση Δεδομένων",
     "exportMyData": "Εξαγωγή Δεδομένων μου",
     "deleteAllData": "Διαγραφή Όλων των Δεδομένων",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Βάσεις Γνώσης",
+    "connectTitle": "Σύνδεση με Βάση Γνώσης",
+    "connect": "Σύνδεση",
+    "connecting": "Σύνδεση...",
+    "signIn": "Σύνδεση",
+    "signingIn": "Σύνδεση σε εξέλιξη...",
+    "cancel": "Ακύρωση",
+    "addKnowledgeBase": "Προσθήκη βάσης γνώσης",
+    "removeConfirm": "Αφαίρεση {{label}};",
+    "remove": "Αφαίρεση",
+    "signOut": "Αποσύνδεση",
+    "statusConnected": "Συνδεδεμένο",
+    "statusExpired": "Η συνεδρία έληξε",
+    "statusSignedOut": "Αποσυνδεδεμένο",
+    "statusUnreachable": "Μη προσβάσιμο",
+    "invalidHost": "Μη έγκυρο όνομα κεντρικού υπολογιστή"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Δεν υπάρχουν βάσεις γνώσης",
+    "noKnowledgeBasesHint": "Προσθέστε μια βάση γνώσης χρησιμοποιώντας τον πίνακα στα δεξιά για να ξεκινήσετε την ανακάλυψη, την επισήμανση και τη σύνδεση πόρων.",
+    "sessionExpired": "Η συνεδρία σας έληξε.",
+    "signedOut": "Είστε αποσυνδεδεμένοι.",
+    "signInHint": "Συνδεθείτε χρησιμοποιώντας τον πίνακα Βάσης Γνώσης για να περιηγηθείτε στους πόρους.",
+    "findKnowledgeBases": "Εύρεση βάσεων γνώσεων",
+    "createNew": "Δημιουργία νέας"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Συνδεθείτε σε μια βάση γνώσης για να δείτε τον λογαριασμό σας."
   }
 }

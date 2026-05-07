@@ -17,7 +17,7 @@ import { CommandResult, createCommandResult } from './command-result.js';
 import { CommandResults } from './command-types.js';
 import { HandlerRegistry } from './handlers/registry.js';
 import { HandlerContextBuilder } from './handlers/context.js';
-import { HandlerResult, PreflightResult } from './handlers/types.js';
+import { HandlerResult, PreflightResult, CommandName } from './handlers/types.js';
 import { Config, ServiceConfig } from './cli-config.js';
 import { parseEnvironment } from '@semiont/core';
 import { printError, printInfo, printWarning, printSuccess } from './io/cli-logger.js';
@@ -59,15 +59,9 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
   ): Promise<CommandResults<CommandResult>> {
     const startTime = Date.now();
 
-    // Environment and projectRoot are guaranteed to be in envConfig._metadata
     const environment = envConfig._metadata?.environment;
     if (!environment) {
       throw new Error('Environment is required in envConfig._metadata');
-    }
-
-    const projectRoot = envConfig._metadata?.projectRoot;
-    if (!projectRoot) {
-      throw new Error('Project root is required in config metadata');
     }
 
     // Apply defaults and validate
@@ -128,7 +122,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
         const result = await this.executeService(serviceInfo, finalOptions, envConfig);
         results.push(result);
 
-        if (!isStructuredOutput && !finalOptions.quiet && !result.success) {
+        if (!isStructuredOutput && !finalOptions.quiet && !result.success && result.error) {
           printError(`Failed to ${this.descriptor.name} ${serviceInfo.name}: ${result.error}`);
         }
       } catch (error) {
@@ -202,17 +196,14 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
   ): Promise<CommandResult> {
     // 1. Get platform strategy
     const { PlatformFactory } = await import('../platforms/index.js');
-    const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+    const platform = await PlatformFactory.getPlatform(serviceInfo.platform);
 
     // 2. Create config object (environment and projectRoot from envConfig._metadata)
     const environment = envConfig._metadata?.environment;
     if (!environment) {
       throw new Error('Environment is required in envConfig._metadata');
     }
-    const projectRoot = envConfig._metadata?.projectRoot;
-    if (!projectRoot) {
-      throw new Error('Project root is required in envConfig._metadata');
-    }
+    const projectRoot = envConfig._metadata?.projectRoot ?? null;
 
     // Get available environments for validation
     const { getAvailableEnvironments } = await import('../core/config-loader.js');
@@ -331,8 +322,8 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
     envConfig: EnvironmentConfig
   ): Promise<CommandResult[]> {
     const environment = envConfig._metadata?.environment;
-    const projectRoot = envConfig._metadata?.projectRoot;
-    if (!environment || !projectRoot) return [];
+    if (!environment) return [];
+    const projectRoot = envConfig._metadata?.projectRoot ?? null;
 
     const { PlatformFactory } = await import('../platforms/index.js');
     const { getAvailableEnvironments } = await import('../core/config-loader.js');
@@ -344,7 +335,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
 
     for (const serviceInfo of serviceDeployments) {
       try {
-        const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+        const platform = await PlatformFactory.getPlatform(serviceInfo.platform);
         const config: Config = {
           projectRoot,
           environment: parseEnvironment(environment, availableEnvironments),
@@ -455,14 +446,14 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
    * Called after the current command completes to validate preconditions for the next command.
    */
   async runPreflightsForCommand(
-    nextCommand: string,
+    nextCommand: CommandName,
     serviceDeployments: ServicePlatformInfo[],
     options: TOptions,
     envConfig: EnvironmentConfig
   ): Promise<void> {
     const environment = envConfig._metadata?.environment;
-    const projectRoot = envConfig._metadata?.projectRoot;
-    if (!environment || !projectRoot) return;
+    if (!environment) return;
+    const projectRoot = envConfig._metadata?.projectRoot ?? null;
 
     const quiet = options.quiet || false;
     const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
@@ -477,7 +468,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
 
     for (const serviceInfo of serviceDeployments) {
       try {
-        const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+        const platform = await PlatformFactory.getPlatform(serviceInfo.platform);
         const config: Config = {
           projectRoot,
           environment: parseEnvironment(environment, availableEnvironments),
@@ -555,7 +546,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
    * Create a simple executor for commands without special requirements
    */
   static createSimple<TOptions extends BaseOptions>(
-    commandName: string,
+    commandName: CommandName,
     resultBuilder: (result: HandlerResult, service: Service, platform: Platform) => CommandResult
   ): MultiServiceExecutor<TOptions> {
     return new MultiServiceExecutor<TOptions>({

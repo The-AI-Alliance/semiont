@@ -1,41 +1,41 @@
-# Frontend Accessibility Documentation
+# Accessibility — Implementation
 
-The Semiont frontend implements [WCAG 2.1 Level AA](https://www.w3.org/WAI/WCAG21/quickref/) accessibility standards.
+How the Semiont frontend implements [WCAG 2.1 Level AA](https://www.w3.org/WAI/WCAG21/quickref/) — patterns, primitives, and how to keep new code conformant.
 
-## Table of Contents
+For the user-facing capability claim (what users see, how to verify it), see **[../../../docs/browser/ACCESSIBILITY.md](../../../docs/browser/ACCESSIBILITY.md)**. For the keyboard navigation architecture, see **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)**.
 
-1. [Next.js Implementation](#nextjs-implementation)
-2. [Keyboard Navigation](#keyboard-navigation)
-3. [Testing](#testing)
-4. [Guidelines](#guidelines)
+## Compliance baseline
 
-## Next.js Implementation
+The frontend meets WCAG 2.1 AA via:
 
-### HTML Language Attribute
+- **Keyboard Accessible (2.1.1):** all interactive elements reachable and operable via keyboard.
+- **No Keyboard Trap (2.1.2):** standard navigation keys move in and out of every component (modals included).
+- **Focus Visible (2.4.7):** focus rings on all interactive elements.
+- **Focus Order (2.4.3):** logical tab order matching visual layout.
+- **Bypass Blocks (2.4.1):** skip-link to main content, navigation, and search.
+- **Page Titled (2.4.2):** descriptive page titles and heading hierarchy.
+- **Name, Role, Value (4.1.2):** semantic HTML + ARIA where semantic HTML doesn't suffice.
 
-Set per [WCAG 3.1.1](https://www.w3.org/WAI/WCAG21/Understanding/language-of-page.html):
+## Patterns
+
+### Language attribute
+
+Per [WCAG 3.1.1 Language of Page](https://www.w3.org/WAI/WCAG21/Understanding/language-of-page.html), the document's `<html>` element carries the active locale:
 
 ```tsx
-// app/[locale]/layout.tsx
-export default function RootLayout({
-  params: { locale }
-}: {
-  params: { locale: string }
-}) {
-  return (
-    <html lang={locale}>
-      <body>
-        <SkipLinks />
-        {children}
-      </body>
-    </html>
-  );
-}
+<html lang={locale}>
+  <body>
+    <SkipLinks />
+    {children}
+  </body>
+</html>
 ```
 
-### Focus Management
+The locale comes from the i18n provider (see [INTERNATIONALIZATION.md](INTERNATIONALIZATION.md)). `SkipLinks` is the visually-hidden-until-focused bypass-blocks component from `@semiont/react-ui`.
 
-Route changes restore focus to main content:
+### Focus management on route change
+
+When the route changes (resource navigation, modal close, panel transitions), focus restores to the main content region:
 
 ```tsx
 useEffect(() => {
@@ -44,9 +44,11 @@ useEffect(() => {
 }, [pathname]);
 ```
 
-### Forms
+For modals, [Headless UI's `Dialog`](https://headlessui.com/react/dialog) handles focus trap on open and restoration on close — use it for every overlay rather than hand-rolling focus management.
 
-Implement [WCAG 3.3 Input Assistance](https://www.w3.org/WAI/WCAG21/Understanding/input-assistance):
+### Form input assistance
+
+Per [WCAG 3.3 Input Assistance](https://www.w3.org/WAI/WCAG21/Understanding/input-assistance), errors are announced via `aria-invalid` + `role="alert"`, and required fields are marked `aria-required`:
 
 ```tsx
 <input
@@ -61,45 +63,62 @@ Implement [WCAG 3.3 Input Assistance](https://www.w3.org/WAI/WCAG21/Understandin
 )}
 ```
 
-## Keyboard Navigation
+### Live regions for dynamic content
 
-### Global Shortcuts
+`@semiont/react-ui` ships a `LiveRegion` provider and `useLiveRegion()` hook. Use it for any UI update that should be announced to screen readers:
 
-| Shortcut | Action | Context |
-|----------|--------|---------|
-| `Cmd/Ctrl + K` | Open search | Global |
-| `Cmd/Ctrl + N` | New document | Authenticated |
-| `/` | Focus search | Not in input |
-| `?` | Show help | Global |
-| `Esc` | Close modal | Modal open |
-| `Esc Esc` | Close all | Global |
-
-### Implementation
-
-Using `@semiont/react-ui` hooks:
+- search result counts
+- form validation outcomes
+- success confirmations
+- async-job progress and completion
 
 ```tsx
-import { useKeyboardShortcuts } from '@semiont/react-ui';
-
-useKeyboardShortcuts([
-  {
-    key: 'k',
-    ctrlOrCmd: true,
-    handler: () => openSearch(),
-    description: 'Open search'
-  }
-]);
+const { announce } = useLiveRegion();
+announce('5 results found', 'polite');
 ```
+
+`'polite'` for non-urgent updates; `'assertive'` only when the user truly needs to interrupt their current task.
+
+### Focus indicators
+
+All interactive components use the standard ring utility classes:
+
+```tsx
+<button className="focus:outline-none focus:ring-2 focus:ring-cyan-500">
+```
+
+The `focus:outline-none` + `focus:ring-2` pattern preserves the focus indicator while letting the design system control its appearance. **Never** drop the ring without providing an alternative visible indicator — that fails 2.4.7.
+
+### Reduced motion
+
+Animation classes are gated through Tailwind's `motion-reduce` variant:
+
+```tsx
+<div className="transition-all motion-reduce:transition-none">
+```
+
+For JS-driven animations, check `window.matchMedia('(prefers-reduced-motion: reduce)')` and disable.
+
+## Component requirements checklist
+
+When building or reviewing a UI component:
+
+- [ ] Uses semantic HTML elements where possible (`<button>`, `<a>`, `<nav>`, `<main>`, `<section>` with headings).
+- [ ] ARIA labels on icon-only buttons, including state (`aria-expanded`, `aria-pressed`, `aria-selected`).
+- [ ] Keyboard handlers for non-button click targets (Enter + Space minimum).
+- [ ] Visible focus indicator (don't strip without replacing).
+- [ ] Live-region announcement for any change the user can't otherwise perceive.
+- [ ] Loading and error states reachable to screen readers.
+- [ ] No hover-only interactions; everything works on focus + keyboard.
 
 ## Testing
 
-### Automated Tests
+### Automated
 
-Using [jest-axe](https://github.com/nickcolley/jest-axe):
+[`jest-axe`](https://github.com/nickcolley/jest-axe) for component-level accessibility assertions. Add to any test that renders interactive UI:
 
 ```tsx
 import { axe, toHaveNoViolations } from 'jest-axe';
-
 expect.extend(toHaveNoViolations);
 
 it('has no WCAG violations', async () => {
@@ -109,57 +128,24 @@ it('has no WCAG violations', async () => {
 });
 ```
 
-### CI/CD Pipeline
+The CI pipeline runs accessibility tests on every PR via `.github/workflows/accessibility-tests.yml` — see [docs/development/TESTING.md](../../../docs/development/TESTING.md) for the testing-overview.
 
-```yaml
-# .github/workflows/accessibility-tests.yml
-jobs:
-  test-frontend-accessibility:
-    steps:
-      - name: Run accessibility tests
-        run: npm test -- --grep "accessibility"
+### Manual
 
-```
+- **Keyboard-only:** unplug the mouse, complete a representative flow (sign in, open a resource, create an annotation, sign out).
+- **Screen reader:** at minimum, run NVDA (Windows) or VoiceOver (macOS) on the same flow.
+- **Zoom:** browser zoom to 200%, verify no content lost or horizontal scroll.
+- **High contrast:** OS-level high-contrast mode and verify text + UI remain readable.
 
-### Manual Testing
+### Tooling
 
-1. **Keyboard**: Tab through all elements, test shortcuts
-2. **Screen Readers**: NVDA (Windows), VoiceOver (macOS)
-3. **Visual**: 200% zoom, high contrast mode
+- [axe DevTools](https://www.deque.com/axe/devtools/) — browser extension, surfaces violations in DevTools.
+- [WAVE](https://wave.webaim.org/) — visual accessibility evaluation, useful for spot-checking heading order and ARIA roles.
 
-## Guidelines
+## See also
 
-### Component Requirements
-
-- Semantic HTML elements
-- ARIA labels for icons/buttons
-- Keyboard navigation support
-- Focus indicators (ring-2 ring-cyan-500)
-- Live region announcements
-- Loading/error states
-
-### Tailwind Utilities
-
-```css
-/* Screen reader only */
-.sr-only
-
-/* Visible on focus */
-.sr-only.focus:not-sr-only
-
-/* Focus states */
-.focus:ring-2 .focus:ring-cyan-500
-
-/* High contrast */
-.contrast-more:border-2
-
-/* Reduced motion */
-.motion-reduce:transition-none
-```
-
-## References
-
-- [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
-- [Next.js Accessibility](https://nextjs.org/docs/architecture/accessibility)
-- [Headless UI](https://headlessui.com/)
-- [Testing Library](https://testing-library.com/docs/queries/byrole)
+- **[../../../docs/browser/ACCESSIBILITY.md](../../../docs/browser/ACCESSIBILITY.md)** — user-facing capability claim.
+- **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)** — keyboard navigation architecture, custom hooks, and shortcut implementation.
+- [WCAG 2.1 Quick Reference](https://www.w3.org/WAI/WCAG21/quickref/)
+- [ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/)
+- [Headless UI documentation](https://headlessui.com/)

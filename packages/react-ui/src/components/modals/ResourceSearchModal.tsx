@@ -1,9 +1,37 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { useResources } from '../../lib/api-hooks';
+import { map } from 'rxjs/operators';
+import { getResourceId, getPrimaryRepresentation } from '@semiont/core';
+import { createSearchPipeline } from '@semiont/sdk';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
+
+import type { ResourceDescriptor } from '@semiont/core';
+
+type SearchResult = {
+  id: string;
+  name: string;
+  content?: string;
+  mediaType?: string;
+};
+
+const SEARCH_DEBOUNCE_MS = 300;
+const SEARCH_LIMIT = 50;
+
+function toSearchResult(resource: ResourceDescriptor & { content?: string }): SearchResult | null {
+  const id = getResourceId(resource);
+  if (!id) return null;
+  const primary = getPrimaryRepresentation(resource);
+  return {
+    id,
+    name: resource.name,
+    content: resource.content,
+    mediaType: primary?.mediaType,
+  };
+}
 
 interface ResourceSearchModalProps {
   isOpen: boolean;
@@ -27,8 +55,12 @@ export function ResourceSearchModal({
   translations = {}
 }: ResourceSearchModalProps) {
   const { announceSearchResults, announceSearching, announceNavigation } = useSearchAnnouncements();
-  const [search, setSearch] = useState(searchTerm);
-  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  // Pipeline factory captures `semiont` once via useState; if semiont is
+  // still loading at first render the captured value would be undefined.
+  // Route through a ref so the fetch closure reads the latest client.
+  const semiontRef = useRef(semiont);
+  semiontRef.current = semiont;
 
   const t = {
     title: translations.title || 'Search Resources',
@@ -38,63 +70,47 @@ export function ResourceSearchModal({
     close: translations.close || '✕',
   };
 
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  // Use React Query for search
-  const resources = useResources();
-  const { data: searchData, isFetching: loading } = resources.search.useQuery(
-    debouncedSearch,
-    50 // Limit to 50 results
+  // ── Search pipeline ─────────────────────────────────────────────────────
+  const [pipeline] = useState(() =>
+    createSearchPipeline<SearchResult>(
+      (q) =>
+        semiontRef.current!.browse.resources({ search: q, limit: SEARCH_LIMIT }).pipe(
+          map((resources) => {
+            if (resources === undefined) return undefined;
+            return resources
+              .map(toSearchResult)
+              .filter((r): r is SearchResult => r !== null);
+          }),
+        ),
+      { debounceMs: SEARCH_DEBOUNCE_MS, initialQuery: searchTerm },
+    ),
   );
+  useEffect(() => () => pipeline.dispose(), [pipeline]);
 
-  // Extract results from search data
-  const results = searchData?.resources?.map((resource: any) => {
-    // Get mediaType from primary representation
-    const reps = resource.representations;
-    const mediaType = Array.isArray(reps) && reps.length > 0 && reps[0]
-      ? reps[0].mediaType
-      : undefined;
+  const search = useObservable(pipeline.query$) ?? '';
+  const searchState = useObservable(pipeline.state$);
+  const results = searchState?.results ?? [];
+  const loading = searchState?.isSearching ?? false;
 
-    return {
-      id: resource['@id'],
-      name: resource.name,
-      content: resource.content,
-      mediaType
-    };
-  }) || [];
-
-  // Announce search results
-  useEffect(() => {
-    if (!loading && debouncedSearch) {
-      announceSearchResults(results.length, debouncedSearch);
-    }
-  }, [loading, results.length, debouncedSearch]);
-
-  // Announce when searching
-  useEffect(() => {
-    if (loading && debouncedSearch) {
-      announceSearching();
-    }
-  }, [loading, debouncedSearch]);
-
-  // Update search term when modal opens
+  // Re-seed when modal re-opens with a different searchTerm prop. The
+  // initialQuery option only applies to the first construction; subsequent
+  // prop changes need an explicit setQuery.
   useEffect(() => {
     if (isOpen && searchTerm) {
-      setSearch(searchTerm);
-      setDebouncedSearch(searchTerm);
+      pipeline.setQuery(searchTerm);
     }
-  }, [isOpen, searchTerm]);
+  }, [isOpen, searchTerm, pipeline]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Search is handled by React Query hook
-  };
+  // Accessibility announcements for search lifecycle.
+  useEffect(() => {
+    if (!search.trim()) return;
+    if (loading) {
+      announceSearching();
+    } else {
+      announceSearchResults(results.length, search);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, results.length]);
 
   const handleSelect = (resourceId: string, resourceName: string) => {
     announceNavigation(resourceName, 'resource');
@@ -142,16 +158,16 @@ export function ResourceSearchModal({
                   </button>
                 </div>
 
-                <form onSubmit={handleSearch} className="semiont-search-modal__search-form">
+                <div className="semiont-search-modal__search-form">
                   <input
                     type="text"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => pipeline.setQuery(e.target.value)}
                     placeholder={t.placeholder}
                     className="semiont-search-modal__search-input"
                     autoFocus
                   />
-                </form>
+                </div>
 
                 <div className="semiont-search-modal__results">
                   {loading && (
@@ -168,7 +184,7 @@ export function ResourceSearchModal({
 
                   {!loading && results.length > 0 && (
                     <div className="semiont-search-modal__resource-list">
-                      {results.map((resource: any) => {
+                      {results.map((resource) => {
                         const isImage = resource.mediaType?.startsWith('image/');
 
                         return (

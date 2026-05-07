@@ -4,7 +4,7 @@ import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from '.
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { killProcessGroupAndRelated } from '../utils/process-manager.js';
 import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
-import { resolveBackendNpmPackage } from './backend-paths.js';
+import { resolveBackendNpmPackage, resolveBackendEntryPoint } from './backend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
 
 /**
@@ -16,10 +16,11 @@ import { SemiontProject } from '@semiont/core/node';
 const stopBackendService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
 
-  const projectRoot = service.projectRoot;
-  const npmDir = resolveBackendNpmPackage(projectRoot);
-  const entryPoint = npmDir ? path.join(npmDir, 'dist', 'index.js') : null;
+  const projectRoot = service.projectRoot!;
   const project = new SemiontProject(projectRoot);
+  const installPrefix = project.dataHome;
+  const npmDir = resolveBackendNpmPackage(installPrefix);
+  const entryPoint = npmDir ? (resolveBackendEntryPoint(installPrefix) ?? path.join(npmDir, 'dist', 'index.js')) : null;
   const pidFile = project.backendPidFile;
   const appLogPath = project.backendAppLogFile;
   const errorLogPath = project.backendErrorLogFile;
@@ -57,7 +58,7 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
         await killProcessGroupAndRelated(pid, 'backend', service.verbose);
         
         if (!service.quiet) {
-          printSuccess(`✅ Backend service ${service.name} stopped successfully`);
+          printSuccess(`Backend service ${service.name} stopped successfully`);
         }
         
         return {
@@ -158,7 +159,7 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
     }
     
     if (!service.quiet) {
-      printSuccess(`✅ Backend service ${service.name} stopped successfully`);
+      printSuccess(`Backend service ${service.name} stopped successfully`);
       printInfo(`  App log: ${appLogPath}`);
       printInfo(`  Error log: ${errorLogPath}`);
     }

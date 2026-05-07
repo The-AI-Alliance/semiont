@@ -252,3 +252,35 @@
 /* Note: Basic form controls (.semiont-textarea, .semiont-select, .semiont-checkbox)
    are now defined in /styles/core/ as they are fundamental UI elements.
    See: core/textareas.css, core/selects.css, core/checkboxes.css */
+
+/* Scrollable form body — keeps form within viewport height */
+.semiont-form--scrollable {
+  overflow-y: auto;
+  max-height: 70vh;
+  padding-right: 0.25rem;
+}
+
+/* Inline row — lays out multiple fields side by side */
+.semiont-form__inline-row {
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+/* Inline field variant — participates in an inline row */
+.semiont-form__field--inline {
+  flex-shrink: 0;
+}
+
+/* Grow modifier — field takes remaining space */
+.semiont-form__field--grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Narrow modifier — fixed compact width for short numeric inputs */
+.semiont-form__field--narrow {
+  width: 5.5rem;
+  flex-shrink: 0;
+}

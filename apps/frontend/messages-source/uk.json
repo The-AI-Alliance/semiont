@@ -13,7 +13,7 @@
     "administer": "Адміністрування"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Усі права захищено.",
+    "copyright": "© {{year}} The AI Alliance. Усі права захищено.",
     "about": "Про нас",
     "privacyPolicy": "Політика конфіденційності",
     "cookiePreferences": "Налаштування файлів cookie",
@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "створюй значення",
-    "description": "Відкрита, перспективна платформа, яка дозволяє людям та інтелектуальним агентам спільно створювати знання — під вашим управлінням та на довгострокову перспективу.",
-    "continueToKnowledgeBase": "Перейти до бази знань",
-    "learnMore": "Дізнатися більше",
-    "signUp": "Реєстрація",
-    "signIn": "Увійти",
-    "loading": "Завантаження..."
+    "begin": "Почати"
   },
   "About": {
     "pageTitle": "Про Semiont",
@@ -70,7 +65,7 @@
     "cookiePolicyIntro": "Ми використовуємо файли cookie та подібні технології для покращення вашого досвіду, аналізу використання та надання персоналізованого контенту.",
     "cookieCategoriesTitle": "Категорії файлів cookie",
     "necessaryCookiesTitle": "Обов'язкові файли cookie",
-    "necessaryCookies": "Необхідні для функціонування вебсайту, включаючи автентифікацію та функції безпеки.\n\nПриклади: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Необхідні для функціонування вебсайту, включаючи автентифікацію та функції безпеки.\n\nПриклади: semiont-token",
     "analyticsCookiesTitle": "Аналітичні файли cookie",
     "analyticsCookies": "Допомагають нам зрозуміти, як відвідувачі взаємодіють з нашим вебсайтом, для покращення користувацького досвіду.\n\nПриклади: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Маркетингові файли cookie",
@@ -94,7 +89,7 @@
     "contactAddress": "Адреса:",
     "updatesTitle": "Оновлення цієї політики",
     "updates": "Ми можемо час від часу оновлювати цю Політику конфіденційності. Ми повідомимо вас про будь-які суттєві зміни, опублікувавши нову Політику конфіденційності на цій сторінці та оновивши дату набрання чинності.",
-    "lastUpdated": "Останнє оновлення: {date}"
+    "lastUpdated": "Останнє оновлення: {{date}}"
   },
   "Terms": {
     "pageTitle": "Умови використання",
@@ -124,7 +119,7 @@
     "changes": "Ми можемо періодично оновлювати ці умови. Користувачі будуть повідомлені про суттєві зміни, а продовження використання платформи означає прийняття оновлених умов.",
     "contactTitle": "Контакти",
     "contact": "Якщо у вас є питання щодо цих умов або вам потрібно повідомити про порушення, будь ласка, зв'яжіться з нашою службою підтримки через платформу або за контактною інформацією, вказаною в нашій Політиці конфіденційності.",
-    "lastUpdated": "Останнє оновлення: {date}",
+    "lastUpdated": "Останнє оновлення: {{date}}",
     "aup": "Використовуючи Semiont, ви погоджуєтесь використовувати нашу платформу відповідально та відповідно до цих умов. Ми прагнемо підтримувати безпечне, шанобливе та продуктивне середовище для всіх користувачів."
   },
   "NotFound": {
@@ -156,6 +151,11 @@
     "errorCreateAccount": "Не вдалося створити обліковий запис. Будь ласка, зверніться до служби підтримки.",
     "errorGeneric": "Виникла помилка автентифікації. Будь ласка, спробуйте ще раз.",
     "errorGoogleSignIn": "Не вдалося розпочати вхід через Google. Будь ласка, спробуйте ще раз.",
+    "backendUrlLabel": "URL бекенду",
+    "backendUrlPlaceholder": "http://localhost:4000",
+    "errorBackendUrlRequired": "Будь ласка, введіть URL бекенду",
+    "errorBackendUrlInvalid": "Введіть дійсну URL-адресу (наприклад: http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Не вдається досягти цієї URL-адреси — чи запущено бекенд?",
     "errorEmailRequired": "Будь ласка, введіть вашу адресу електронної пошти",
     "errorPasswordRequired": "Будь ласка, введіть ваш пароль",
     "errorSignInFailed": "Не вдалося увійти. Будь ласка, спробуйте ще раз.",
@@ -185,7 +185,7 @@
     "loading": "Завантаження...",
     "welcomeTitle": "Ласкаво просимо до Semiont!",
     "thanksForAccepting": "Дякуємо за прийняття наших умов. Перенаправляємо вас до застосунку...",
-    "welcomeUser": "Ласкаво просимо до Semiont, {firstName}!",
+    "welcomeUser": "Ласкаво просимо до Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Перш ніж ви зможете почати використовувати Semiont, будь ласка, перегляньте та прийміть наші умови використання",
     "termsSummaryTitle": "Короткий виклад умов використання",
     "termsSummaryIntro": "Використовуючи Semiont, ви погоджуєтесь:",
@@ -246,9 +246,9 @@
     "archived": "Архівовані",
     "created": "Створені",
     "recentResources": "Нещодавні ресурси",
-    "searchResults": "Результати пошуку ({count})",
-    "resourcesTaggedWith": "Ресурси з тегом «{entityType}»",
-    "noResultsFound": "За запитом «{query}» нічого не знайдено. Показуємо нещодавні ресурси натомість.",
+    "searchResults": "Результати пошуку ({{count}})",
+    "resourcesTaggedWith": "Ресурси з тегом «{{entityType}}»",
+    "noResultsFound": "За запитом «{{query}}» нічого не знайдено. Показуємо нещодавні ресурси натомість.",
     "noResourcesAvailable": "Ресурси відсутні. Створіть свій перший документ, щоб почати.",
     "composeFirstResource": "Створити перший ресурс",
     "loadingKnowledgeBase": "Завантаження бази знань..."
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Введіть назву ресурсу...",
     "entityTypes": "Теги типів сутностей",
     "entityTypesHint": "Позначте ваш ресурс тегами типів сутностей",
-    "noEntityTypesAvailable": "Типи сутностей відсутні",
     "contentSource": "Джерело контенту",
     "uploadFile": "Завантажити файл",
     "uploadFileDescription": "Зображення, документи, текстові файли",
@@ -295,9 +294,9 @@
   "UserPanel": {
     "account": "Обліковий запис",
     "user": "Користувач",
-    "profileAlt": "Профіль {name}",
+    "profileAlt": "Профіль {{name}}",
     "session": "Сесія",
-    "expiresIn": "Закінчується через: {time}",
+    "expiresIn": "Закінчується через: {{time}}",
     "privileges": "Привілеї",
     "administrator": "🛡️ Адміністратор",
     "moderator": "⚖️ Модератор",
@@ -433,7 +432,7 @@
     "configManagementDescription": "Налаштування OAuth керуються через змінні середовища. Щоб змінити ці налаштування:",
     "configLocalDev": "Для локальної розробки: Оновіть ваші файли .env",
     "configCloudDeploy": "Для хмарних розгортань: Використовуйте",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "для застосування змін з файлів конфігурації",
     "configAWS": "Для AWS: Налаштування зберігаються в AWS Secrets Manager та визначеннях завдань ECS"
   },
@@ -510,11 +509,11 @@
     "title": "Налаштування файлів cookie",
     "description": "Керуйте вашими налаштуваннями файлів cookie та параметрами конфіденційності. Зміни набудуть чинності негайно.",
     "currentSettings": "Поточні налаштування",
-    "lastUpdated": "Останнє оновлення: {date}",
-    "version": "Версія: {version}",
+    "lastUpdated": "Останнє оновлення: {{date}}",
+    "version": "Версія: {{version}}",
     "cookieCategories": "Категорії файлів cookie",
     "required": "(Обов'язкові)",
-    "viewCookies": "Переглянути файли cookie ({count})",
+    "viewCookies": "Переглянути файли cookie ({{count}})",
     "dataManagement": "Управління даними",
     "exportMyData": "Експортувати мої дані",
     "deleteAllData": "Видалити всі дані",
@@ -575,5 +574,35 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Бази знань",
+    "connectTitle": "Підключитися до бази знань",
+    "connect": "Підключити",
+    "connecting": "Підключення...",
+    "signIn": "Увійти",
+    "signingIn": "Вхід...",
+    "cancel": "Скасувати",
+    "addKnowledgeBase": "Додати базу знань",
+    "removeConfirm": "Видалити {{label}}?",
+    "remove": "Видалити",
+    "signOut": "Вийти",
+    "statusConnected": "Підключено",
+    "statusExpired": "Сеанс завершено",
+    "statusSignedOut": "Вийшли",
+    "statusUnreachable": "Недоступно",
+    "invalidHost": "Недійсне ім'я хоста"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Немає баз знань",
+    "noKnowledgeBasesHint": "Додайте базу знань за допомогою панелі праворуч, щоб почати виявляти, анотувати та пов'язувати ресурси.",
+    "sessionExpired": "Ваш сеанс завершено.",
+    "signedOut": "Ви вийшли з системи.",
+    "signInHint": "Увійдіть за допомогою панелі «База знань», щоб переглядати ресурси.",
+    "findKnowledgeBases": "Знайти бази знань",
+    "createNew": "Створити нову"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Увійдіть до бази знань, щоб переглянути свій обліковий запис."
   }
 }

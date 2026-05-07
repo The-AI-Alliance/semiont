@@ -443,7 +443,7 @@
       ],
       "additionalProperties": false
     },
-    "ProxyServiceConfig": {
+    "VectorsServiceConfig": {
       "type": "object",
       "properties": {
         "platform": {
@@ -451,68 +451,57 @@
         },
         "type": {
           "type": "string",
-          "enum": ["envoy", "nginx", "haproxy"],
-          "default": "envoy"
+          "enum": ["qdrant", "memory"],
+          "default": "qdrant"
+        },
+        "host": {
+          "type": "string"
         },
         "port": {
           "type": "integer",
-          "default": 8080
+          "default": 6333
+        }
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "EmbeddingServiceConfig": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "$ref": "#/definitions/ServicePlatformConfig"
         },
-        "adminPort": {
-          "type": "integer",
-          "default": 9901
-        },
-        "backendPort": {
-          "type": "integer",
-          "default": 4000
-        },
-        "frontendPort": {
-          "type": "integer",
-          "default": 3000
-        },
-        "image": {
+        "type": {
           "type": "string",
-          "default": "envoyproxy/envoy:v1.28-latest"
+          "enum": ["voyage", "ollama"]
         },
-        "configPath": {
+        "model": {
           "type": "string"
         },
-        "timeout": {
-          "type": "integer"
-        },
-        "wait": {
-          "type": "integer"
-        },
-        "logsEndpoint": {
+        "apiKey": {
           "type": "string"
         },
-        "tag": {
+        "baseURL": {
           "type": "string"
         },
-        "resources": {
-          "$ref": "#/definitions/ResourceRequirements"
+        "endpoint": {
+          "type": "string"
         },
-        "security": {
-          "$ref": "#/definitions/SecurityRequirements"
-        },
-        "environment": {
+        "chunking": {
           "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "env": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
+          "properties": {
+            "chunkSize": {
+              "type": "integer",
+              "default": 512
+            },
+            "overlap": {
+              "type": "integer",
+              "default": 64
+            }
           }
         }
       },
-      "required": [
-        "platform",
-        "type",
-        "port"
-      ],
+      "required": ["type", "model"],
       "additionalProperties": false
     },
     "DatabaseServiceConfig": {
@@ -1121,8 +1110,11 @@
         "mcp": {
           "$ref": "#/definitions/McpServiceConfig"
         },
-        "proxy": {
-          "$ref": "#/definitions/ProxyServiceConfig"
+        "vectors": {
+          "$ref": "#/definitions/VectorsServiceConfig"
+        },
+        "embedding": {
+          "$ref": "#/definitions/EmbeddingServiceConfig"
         }
       },
       "additionalProperties": true
@@ -1249,7 +1241,7 @@
               "type": "string"
             },
             "projectRoot": {
-              "type": "string"
+              "type": ["string", "null"]
             }
           },
           "required": [
