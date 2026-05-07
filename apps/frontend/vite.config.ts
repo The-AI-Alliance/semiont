@@ -23,9 +23,12 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          i18n: ['i18next', 'react-i18next'],
+        manualChunks: (id) => {
+          const m = id.match(/node_modules\/(?:\.pnpm\/)?([^/]+)/);
+          if (!m) return;
+          const pkg = m[1];
+          if (pkg === 'react' || pkg === 'react-dom' || pkg === 'react-router-dom') return 'vendor';
+          if (pkg === 'i18next' || pkg === 'react-i18next') return 'i18n';
         },
       },
     },
