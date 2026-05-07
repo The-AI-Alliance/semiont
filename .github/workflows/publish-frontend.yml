@@ -121,7 +121,7 @@ jobs:
       #     --owner The-AI-Alliance
       - name: Attest build provenance
         if: ${{ !inputs.dry_run }}
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ghcr.io/the-ai-alliance/semiont-frontend
           subject-digest: ${{ steps.build-push.outputs.digest }}
@@ -129,7 +129,7 @@ jobs:
 
       - name: Attest SBOM
         if: ${{ !inputs.dry_run }}
-        uses: actions/attest-sbom@v2
+        uses: actions/attest-sbom@v4
         with:
           subject-name: ghcr.io/the-ai-alliance/semiont-frontend
           subject-digest: ${{ steps.build-push.outputs.digest }}
