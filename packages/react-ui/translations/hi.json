@@ -25,10 +25,8 @@
     "provenance": "उत्पत्ति",
     "createdAt": "बनाया गया",
     "modifiedAt": "संशोधित",
-    "creationMethod": "निर्माण विधि",
     "attributedTo": "श्रेय दिया गया",
     "derivedFrom": "से व्युत्पन्न",
-    "generatedBy": "द्वारा उत्पन्न",
     "storageUri": "भंडारण"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "इतिहास",
     "loading": "लोड हो रहा है...",
     "user": "उपयोगकर्ता",
-    "method": "विधि",
     "viewOriginal": "मूल देखें",
     "viewAnnotation": "एनोटेशन देखें: {{content}}",
     "resourceCreated": "संसाधन बनाया गया",

@@ -25,10 +25,8 @@
     "provenance": "Ursprung",
     "createdAt": "Skapad",
     "modifiedAt": "Ändrad",
-    "creationMethod": "Skapandesätt",
     "attributedTo": "Tillskriven",
     "derivedFrom": "Härledd från",
-    "generatedBy": "Genererad av",
     "storageUri": "Lagring"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Historik",
     "loading": "Laddar...",
     "user": "Användare",
-    "method": "Metod",
     "viewOriginal": "Visa original",
     "viewAnnotation": "Visa anteckning: {{content}}",
     "resourceCreated": "Resurs skapad",

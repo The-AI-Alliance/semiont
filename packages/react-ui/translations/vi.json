@@ -25,10 +25,8 @@
     "provenance": "Xuất xứ",
     "createdAt": "Ngày tạo",
     "modifiedAt": "Ngày sửa đổi",
-    "creationMethod": "Cách tạo",
     "attributedTo": "Được gán cho",
     "derivedFrom": "Bắt nguồn từ",
-    "generatedBy": "Được tạo bởi",
     "storageUri": "Lưu trữ"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Lịch sử",
     "loading": "Đang tải...",
     "user": "Người dùng",
-    "method": "Phương thức",
     "viewOriginal": "Xem bản gốc",
     "viewAnnotation": "Xem chú thích: {{content}}",
     "resourceCreated": "Đã tạo tài nguyên",

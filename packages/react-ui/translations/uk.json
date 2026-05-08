@@ -25,10 +25,8 @@
     "provenance": "Походження",
     "createdAt": "Створено",
     "modifiedAt": "Змінено",
-    "creationMethod": "Спосіб створення",
     "attributedTo": "Авторство",
     "derivedFrom": "Походить від",
-    "generatedBy": "Створено за допомогою",
     "storageUri": "Сховище"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Історія",
     "loading": "Завантаження...",
     "user": "Користувач",
-    "method": "Метод",
     "viewOriginal": "Переглянути оригінал",
     "viewAnnotation": "Переглянути анотацію: {{content}}",
     "resourceCreated": "Ресурс створено",

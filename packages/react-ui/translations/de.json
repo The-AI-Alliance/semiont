@@ -25,10 +25,8 @@
     "provenance": "Herkunft",
     "createdAt": "Erstellt",
     "modifiedAt": "Geändert",
-    "creationMethod": "Erstellungsmethode",
     "attributedTo": "Zugeschrieben",
     "derivedFrom": "Abgeleitet von",
-    "generatedBy": "Erstellt von",
     "storageUri": "Speicher"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Verlauf",
     "loading": "Wird geladen...",
     "user": "Benutzer",
-    "method": "Methode",
     "viewOriginal": "Original ansehen",
     "viewAnnotation": "Annotation ansehen: {{content}}",
     "resourceCreated": "Ressource erstellt",

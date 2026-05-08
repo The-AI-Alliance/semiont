@@ -25,10 +25,8 @@
     "provenance": "Προέλευση",
     "createdAt": "Δημιουργήθηκε",
     "modifiedAt": "Τροποποιήθηκε",
-    "creationMethod": "Μέθοδος δημιουργίας",
     "attributedTo": "Αποδίδεται σε",
     "derivedFrom": "Παράγεται από",
-    "generatedBy": "Δημιουργήθηκε από",
     "storageUri": "Αποθήκευση"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Ιστορικό",
     "loading": "Φόρτωση...",
     "user": "Χρήστης",
-    "method": "Μέθοδος",
     "viewOriginal": "Προβολή πρωτοτύπου",
     "viewAnnotation": "Προβολή σχολιασμού: {{content}}",
     "resourceCreated": "Δημιουργία Πόρου",

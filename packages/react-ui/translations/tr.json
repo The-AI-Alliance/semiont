@@ -25,10 +25,8 @@
     "provenance": "Köken",
     "createdAt": "Oluşturulma",
     "modifiedAt": "Değiştirilme",
-    "creationMethod": "Oluşturma yöntemi",
     "attributedTo": "Atfedilen",
     "derivedFrom": "Kaynağı",
-    "generatedBy": "Oluşturan",
     "storageUri": "Depolama"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Geçmiş",
     "loading": "Yükleniyor...",
     "user": "Kullanıcı",
-    "method": "Yöntem",
     "viewOriginal": "Orijinali görüntüle",
     "viewAnnotation": "Açıklamayı görüntüle: {{content}}",
     "resourceCreated": "Kaynak Oluşturuldu",

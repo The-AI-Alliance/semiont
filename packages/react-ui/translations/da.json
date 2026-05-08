@@ -25,10 +25,8 @@
     "provenance": "Oprindelse",
     "createdAt": "Oprettet",
     "modifiedAt": "Ændret",
-    "creationMethod": "Oprettelsesmetode",
     "attributedTo": "Tilskrevet",
     "derivedFrom": "Afledt af",
-    "generatedBy": "Genereret af",
     "storageUri": "Lagring"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Historik",
     "loading": "Indlæser...",
     "user": "Bruger",
-    "method": "Metode",
     "viewOriginal": "Se original",
     "viewAnnotation": "Se annotering: {{content}}",
     "resourceCreated": "Ressource oprettet",
