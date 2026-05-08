@@ -597,9 +597,9 @@ describe('API Endpoints Integration Tests', () => {
       const { OAuthService } = await import('../../auth/oauth');
       vi.mocked(OAuthService.getPrincipalFromToken).mockImplementation(async (token) => {
         if (token === 'admin-jwt-token') {
-          return mockAdminUser as User;
+          return { user: mockAdminUser as User };
         } else if (token === 'regular-jwt-token') {
-          return mockRegularUser as User;
+          return { user: mockRegularUser as User };
         }
         throw new Error('Invalid token');
       });
