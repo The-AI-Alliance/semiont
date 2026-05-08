@@ -25,10 +25,8 @@
     "provenance": "Provenance",
     "createdAt": "Créé le",
     "modifiedAt": "Modifié le",
-    "creationMethod": "Mode de création",
     "attributedTo": "Attribué à",
     "derivedFrom": "Dérivé de",
-    "generatedBy": "Généré par",
     "storageUri": "Stockage"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Historique",
     "loading": "Chargement...",
     "user": "Utilisateur",
-    "method": "Méthode",
     "viewOriginal": "Voir l'original",
     "viewAnnotation": "Voir l'annotation : {{content}}",
     "resourceCreated": "Ressource créée",

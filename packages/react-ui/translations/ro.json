@@ -25,10 +25,8 @@
     "provenance": "Proveniență",
     "createdAt": "Creat",
     "modifiedAt": "Modificat",
-    "creationMethod": "Metodă de creare",
     "attributedTo": "Atribuit",
     "derivedFrom": "Derivat din",
-    "generatedBy": "Generat de",
     "storageUri": "Stocare"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Istoric",
     "loading": "Se încarcă...",
     "user": "Utilizator",
-    "method": "Metodă",
     "viewOriginal": "Vezi originalul",
     "viewAnnotation": "Vezi adnotarea: {{content}}",
     "resourceCreated": "Resursă creată",

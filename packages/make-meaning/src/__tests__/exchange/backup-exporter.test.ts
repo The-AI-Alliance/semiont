@@ -129,7 +129,6 @@ describe('backup-exporter', () => {
         format: 'text/markdown',
         language: 'en',
         entityTypes: ['Person'],
-        creationMethod: 'api',
       }),
     ]);
 

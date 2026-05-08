@@ -7,6 +7,7 @@ import { getAnnotationExactText, getCommentText } from '@semiont/core';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
+import { renderAgentLabel } from './agent-label';
 
 interface CommentEntryProps {
   comment: Annotation;
@@ -140,7 +141,9 @@ export function CommentEntry({
           </div>
           {comment.generator && (
             <div className="semiont-annotation-entry__metadata">
-              Via {typeof comment.generator === 'string' ? comment.generator : comment.generator.name}
+              Via {Array.isArray(comment.generator)
+                ? comment.generator.map(renderAgentLabel).join(', ')
+                : renderAgentLabel(comment.generator)}
             </div>
           )}
           {annotateMode && (

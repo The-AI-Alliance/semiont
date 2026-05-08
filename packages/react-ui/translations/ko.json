@@ -25,10 +25,8 @@
     "provenance": "출처",
     "createdAt": "생성일",
     "modifiedAt": "수정일",
-    "creationMethod": "생성 방법",
     "attributedTo": "귀속 대상",
     "derivedFrom": "파생 출처",
-    "generatedBy": "생성 도구",
     "storageUri": "저장소"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "기록",
     "loading": "로딩 중...",
     "user": "사용자",
-    "method": "방법",
     "viewOriginal": "원본 보기",
     "viewAnnotation": "주석 보기: {{content}}",
     "resourceCreated": "리소스 생성됨",

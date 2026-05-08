@@ -3,11 +3,19 @@ import { getCookie } from 'hono/cookie';
 import { OAuthService } from '../auth/oauth';
 import { JWTService } from '../auth/jwt';
 import { User } from '@prisma/client';
-import { accessToken } from '@semiont/core';
+import { accessToken, userToDid } from '@semiont/core';
 
 interface Variables {
   user: User;
   token: string;
+  /**
+   * The DID identifying the authenticated principal — either a Person
+   * (computed from the User) or a Software peer (from the JWT's
+   * `agentDid` field). Used as `_userId` on bus emits and as the
+   * `creator` on resource creation, so callers don't have to know
+   * whether the principal is a human or an agent.
+   */
+  principalDid: string;
 }
 
 export interface AuthContext extends Context {
@@ -64,11 +72,12 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
   }
 
   try {
-    const user = await OAuthService.getUserFromToken(accessToken(tokenStr));
+    const { user, agentDid } = await OAuthService.getPrincipalFromToken(accessToken(tokenStr));
 
     // Add user and token to context
     c.set('user', user);
     c.set('token', tokenStr);
+    c.set('principalDid', agentDid ?? userToDid(user));
 
     logger.debug('Authentication successful', {
       type: 'auth_success',
@@ -99,8 +108,9 @@ export const optionalAuthMiddleware = async (c: Context, next: Next) => {
     const tokenStr = authHeader.substring(7);
 
     try {
-      const user = await OAuthService.getUserFromToken(accessToken(tokenStr));
+      const { user, agentDid } = await OAuthService.getPrincipalFromToken(accessToken(tokenStr));
       c.set('user', user);
+      c.set('principalDid', agentDid ?? userToDid(user));
     } catch (error) {
       // Ignore auth errors for optional auth
     }

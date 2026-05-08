@@ -6,11 +6,11 @@ import type { EventBus } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
 
 // Shared router type
-export type ResourcesRouterType = Hono<{ Variables: { user: User; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>;
+export type ResourcesRouterType = Hono<{ Variables: { user: User; principalDid: string; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>;
 
 // Create a router with auth middleware pre-applied
 export function createResourceRouter(): ResourcesRouterType {
-  const router = new Hono<{ Variables: { user: User; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
+  const router = new Hono<{ Variables: { user: User; principalDid: string; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
   router.use('/api/resources/*', authMiddleware);
   router.use('/api/clone-tokens/*', authMiddleware);
   router.use('/resources/*', authMiddleware); // W3C URI endpoints also require auth

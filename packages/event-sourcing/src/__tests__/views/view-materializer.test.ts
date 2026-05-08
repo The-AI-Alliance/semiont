@@ -63,7 +63,6 @@ describe('ViewMaterializer', () => {
               name: 'Test Document',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
 
           metadata: createEventMetadata(1),
@@ -95,7 +94,6 @@ describe('ViewMaterializer', () => {
               name: 'Test Document',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
 
           metadata: createEventMetadata(1),
@@ -153,7 +151,6 @@ describe('ViewMaterializer', () => {
               name: 'Test Document',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
 
           metadata: createEventMetadata(1),
@@ -202,7 +199,6 @@ describe('ViewMaterializer', () => {
               name: 'Test Document',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
 
           metadata: createEventMetadata(1),
@@ -263,7 +259,6 @@ describe('ViewMaterializer', () => {
               name: 'Test Document',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
 
           metadata: createEventMetadata(1),
@@ -310,7 +305,6 @@ describe('ViewMaterializer', () => {
               name: 'Test Document',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
 
           metadata: createEventMetadata(1),
@@ -383,7 +377,6 @@ describe('ViewMaterializer', () => {
             name: 'Test Document',
             format: 'text/plain' as const,
             contentChecksum: 'checksum1',
-            creationMethod: 'api' as const,
           },
           metadata: createEventMetadata(1),
         },
@@ -474,7 +467,6 @@ describe('ViewMaterializer', () => {
             name: 'Test Document',
             format: 'text/plain' as const,
             contentChecksum: 'checksum1',
-            creationMethod: 'api' as const,
           },
           metadata: createEventMetadata(1),
         },
@@ -563,7 +555,6 @@ describe('ViewMaterializer', () => {
               name: 'Test Document',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
 
           metadata: createEventMetadata(1),
@@ -633,7 +624,6 @@ describe('ViewMaterializer', () => {
           name: 'Test Document',
           format: 'text/plain' as const,
           contentChecksum: 'checksum1',
-          creationMethod: 'api' as const,
         },
       };
 
@@ -690,7 +680,6 @@ describe('ViewMaterializer', () => {
           name: 'Test Document',
           format: 'text/plain' as const,
           contentChecksum: 'checksum1',
-          creationMethod: 'api' as const,
         },
       };
 
@@ -870,7 +859,6 @@ describe('ViewMaterializer', () => {
               name: 'Test Document',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
 
           metadata: createEventMetadata(1),
@@ -937,7 +925,6 @@ describe('ViewMaterializer', () => {
               name: 'Test Document',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
 
           metadata: createEventMetadata(1),
@@ -1005,7 +992,6 @@ describe('ViewMaterializer', () => {
               name: 'Test Document',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
 
           metadata: createEventMetadata(1),
@@ -1050,7 +1036,6 @@ describe('ViewMaterializer', () => {
               name: 'Test Document',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
 
           metadata: createEventMetadata(1),
@@ -1107,7 +1092,6 @@ describe('ViewMaterializer', () => {
           name,
           format: 'text/plain' as const,
           contentChecksum: `chk-${rid}`,
-          creationMethod: 'api' as const,
         },
         metadata: createEventMetadata(seq),
       };
@@ -1184,7 +1168,6 @@ describe('ViewMaterializer', () => {
           representations: [],
           archived: false,
           entityTypes: [],
-          creationMethod: 'api',
         },
         annotations: {
           resourceId: r1,

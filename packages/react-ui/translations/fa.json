@@ -25,10 +25,8 @@
     "provenance": "منشأ",
     "createdAt": "ایجاد شده",
     "modifiedAt": "ویرایش شده",
-    "creationMethod": "روش ایجاد",
     "attributedTo": "منتسب به",
     "derivedFrom": "مشتق از",
-    "generatedBy": "تولیدشده توسط",
     "storageUri": "ذخیره‌سازی"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "تاریخچه",
     "loading": "در حال بارگذاری...",
     "user": "کاربر",
-    "method": "روش",
     "viewOriginal": "مشاهده اصلی",
     "viewAnnotation": "مشاهده حاشیه‌نویسی: {{content}}",
     "resourceCreated": "منبع ایجاد شد",

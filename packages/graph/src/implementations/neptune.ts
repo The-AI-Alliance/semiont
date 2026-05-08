@@ -90,7 +90,6 @@ function vertexToResource(vertex: any): ResourceDescriptor {
     archived: archived === 'true' || archived === true,
     dateCreated,
     wasAttributedTo: typeof creatorRaw === 'string' ? JSON.parse(creatorRaw) : creatorRaw,
-    creationMethod: getValue('creationMethod', true),
   };
 
   const sourceResourceId = getValue('sourceResourceId');
@@ -366,7 +365,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('archived', resource.archived || false)
         .property('dateCreated', resource.dateCreated)
         .property('creator', JSON.stringify(resource.wasAttributedTo))
-        .property('creationMethod', resource.creationMethod)
         .property('checksum', primaryRep.checksum)
         .property('entityTypes', JSON.stringify(resource.entityTypes));
 

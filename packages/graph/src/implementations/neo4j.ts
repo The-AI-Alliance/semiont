@@ -204,7 +204,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              d.archived = $archived,
              d.created = datetime($created),
              d.creator = $creator,
-             d.creationMethod = $creationMethod,
              d.contentChecksum = $contentChecksum,
              d.sourceAnnotationId = $sourceAnnotationId,
              d.sourceResourceId = $sourceResourceId,
@@ -219,7 +218,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           archived: resource.archived || false,
           created: resource.dateCreated,
           creator: JSON.stringify(resource.wasAttributedTo),
-          creationMethod: resource.creationMethod,
           contentChecksum: primaryRep.checksum,
           sourceAnnotationId: resource.sourceAnnotationId ?? null,
           sourceResourceId: resource.sourceResourceId ?? null,
@@ -1007,7 +1005,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           archived: resource.archived || false,
           created: resource.dateCreated,
           creator: JSON.stringify(resource.wasAttributedTo),
-          creationMethod: resource.creationMethod,
           contentChecksum: primaryRep.checksum,
           sourceAnnotationId: resource.sourceAnnotationId ?? null,
           sourceResourceId: resource.sourceResourceId ?? null,
@@ -1024,7 +1021,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              d.archived = r.archived,
              d.created = datetime(r.created),
              d.creator = r.creator,
-             d.creationMethod = r.creationMethod,
              d.contentChecksum = r.contentChecksum,
              d.sourceAnnotationId = r.sourceAnnotationId,
              d.sourceResourceId = r.sourceResourceId,
@@ -1157,7 +1153,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (props.archived === undefined || props.archived === null) throw new Error(`Resource ${props.id} missing required field: archived`);
     if (!props.created) throw new Error(`Resource ${props.id} missing required field: created`);
     if (!props.creator) throw new Error(`Resource ${props.id} missing required field: creator`);
-    if (!props.creationMethod) throw new Error(`Resource ${props.id} missing required field: creationMethod`);
     if (!props.contentChecksum) throw new Error(`Resource ${props.id} missing required field: contentChecksum`);
 
     const resource: ResourceDescriptor = {
@@ -1173,7 +1168,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       archived: props.archived,
       dateCreated: props.created.toString(),
       wasAttributedTo: typeof props.creator === 'string' ? JSON.parse(props.creator) : props.creator,
-      creationMethod: props.creationMethod,
     };
 
     if (props.sourceResourceId) resource.sourceResourceId = props.sourceResourceId;

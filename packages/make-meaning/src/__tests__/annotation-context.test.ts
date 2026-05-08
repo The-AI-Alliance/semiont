@@ -103,7 +103,6 @@ describe('AnnotationContext', () => {
         format: 'text/plain',
         contentChecksum: checksum,
         storageUri,
-        creationMethod: 'api'
       }
     });
 

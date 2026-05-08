@@ -74,7 +74,6 @@ function resourceCreatedEvent(name: string, contentChecksum: string): string {
       format: 'text/markdown',
       language: 'en',
       entityTypes: [],
-      creationMethod: 'api',
     },
   });
 }

@@ -25,10 +25,8 @@
     "provenance": "المصدر والسلسلة",
     "createdAt": "تاريخ الإنشاء",
     "modifiedAt": "تاريخ التعديل",
-    "creationMethod": "طريقة الإنشاء",
     "attributedTo": "منسوب إلى",
     "derivedFrom": "مشتق من",
-    "generatedBy": "أُنشئ بواسطة",
     "storageUri": "التخزين"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "السجل",
     "loading": "جارٍ التحميل...",
     "user": "المستخدم",
-    "method": "الطريقة",
     "viewOriginal": "عرض الأصل",
     "viewAnnotation": "عرض التعليق التوضيحي: {{content}}",
     "resourceCreated": "تم إنشاء المورد",

@@ -6,6 +6,7 @@ import { getAnnotationExactText } from '@semiont/core';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
+import { renderAgentLabel } from './agent-label';
 
 // W3C Annotation TextualBody type
 interface TextualBody {
@@ -110,7 +111,9 @@ export function AssessmentEntry({
       </div>
       {assessment.generator && (
         <div className="semiont-annotation-entry__metadata">
-          Via {typeof assessment.generator === 'string' ? assessment.generator : assessment.generator.name}
+          Via {Array.isArray(assessment.generator)
+            ? assessment.generator.map(renderAgentLabel).join(', ')
+            : renderAgentLabel(assessment.generator)}
         </div>
       )}
     </div>

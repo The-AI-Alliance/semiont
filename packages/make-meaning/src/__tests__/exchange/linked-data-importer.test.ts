@@ -106,7 +106,6 @@ function makeResourceDoc(opts: {
     dateCreated: '2026-03-12T00:00:00Z',
     inLanguage: 'en',
     encodingFormat: opts.mediaType ?? 'text/markdown',
-    creationMethod: 'ui',
     entityTypes: opts.entityTypes ?? [],
     representations: [{
       '@type': 'schema:MediaObject',

@@ -25,10 +25,8 @@
     "provenance": "Herkomst",
     "createdAt": "Aangemaakt",
     "modifiedAt": "Gewijzigd",
-    "creationMethod": "Aanmaakmethode",
     "attributedTo": "Toegeschreven aan",
     "derivedFrom": "Afgeleid van",
-    "generatedBy": "Gegenereerd door",
     "storageUri": "Opslag"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Geschiedenis",
     "loading": "Laden...",
     "user": "Gebruiker",
-    "method": "Methode",
     "viewOriginal": "Origineel bekijken",
     "viewAnnotation": "Annotatie bekijken: {{content}}",
     "resourceCreated": "Bron aangemaakt",

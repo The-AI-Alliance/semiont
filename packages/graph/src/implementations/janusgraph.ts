@@ -104,12 +104,10 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     // Validate required fields
     const creatorRaw = this.getPropertyValue(props, 'creator');
-    const creationMethod = this.getPropertyValue(props, 'creationMethod');
     const contentChecksum = this.getPropertyValue(props, 'contentChecksum');
     const mediaType = this.getPropertyValue(props, 'contentType');
 
     if (!creatorRaw) throw new Error(`Resource ${id} missing required field: creator`);
-    if (!creationMethod) throw new Error(`Resource ${id} missing required field: creationMethod`);
     if (!contentChecksum) throw new Error(`Resource ${id} missing required field: contentChecksum`);
     if (!mediaType) throw new Error(`Resource ${id} missing required field: contentType`);
 
@@ -128,7 +126,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       archived: this.getPropertyValue(props, 'archived') === 'true',
       dateCreated: this.getPropertyValue(props, 'created'),
       wasAttributedTo: creator,
-      creationMethod,
     };
 
     const sourceAnnotationId = this.getPropertyValue(props, 'sourceAnnotationId');
@@ -258,7 +255,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('archived', resource.archived || false)
       .property('created', resource.dateCreated)
       .property('creator', JSON.stringify(resource.wasAttributedTo))
-      .property('creationMethod', resource.creationMethod)
       .property('contentChecksum', primaryRep.checksum);
 
     if (resource.sourceAnnotationId) {

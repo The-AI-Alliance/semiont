@@ -161,7 +161,6 @@ export function createComposePageStateUnit(
         format,
         entityTypes: saveParams.entityTypes || [],
         language: saveParams.language,
-        creationMethod: 'ui',
         storageUri: saveParams.storageUri,
       }).subscribe({
         next: (event) => {

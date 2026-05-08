@@ -127,7 +127,7 @@ vi.mock('../../auth/oauth', () => ({
   OAuthService: {
     verifyGoogleToken: vi.fn(),
     createOrUpdateUser: vi.fn(),
-    getUserFromToken: vi.fn(),
+    getPrincipalFromToken: vi.fn(),
     acceptTerms: vi.fn(),
   },
 }));
@@ -224,9 +224,9 @@ describe('API Endpoints Integration Tests', () => {
     
     // Mock OAuthService to return test user for the test token
     const { OAuthService } = await import('../../auth/oauth');
-    vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
+    vi.mocked(OAuthService.getPrincipalFromToken).mockImplementation(async (token) => {
       if (token === testToken || token === 'valid-jwt-token') {
-        return testUser as User;
+        return { user: testUser as User };
       }
       throw new Error('Invalid token');
     });
@@ -473,9 +473,9 @@ describe('API Endpoints Integration Tests', () => {
     beforeEach(async () => {
       // Mock successful token verification for protected routes
       const { OAuthService } = await import('../../auth/oauth');
-      vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
+      vi.mocked(OAuthService.getPrincipalFromToken).mockImplementation(async (token) => {
         if (token === 'valid-jwt-token') {
-          return mockUser as User;
+          return { user: mockUser as User };
         }
         throw new Error('Invalid token');
       });
@@ -507,7 +507,7 @@ describe('API Endpoints Integration Tests', () => {
 
     it('GET /api/users/me should fail with invalid token', async () => {
       const { OAuthService } = await import('../../auth/oauth');
-      vi.mocked(OAuthService.getUserFromToken).mockRejectedValue(new Error('Invalid token'));
+      vi.mocked(OAuthService.getPrincipalFromToken).mockRejectedValue(new Error('Invalid token'));
 
       const res = await app.request('/api/users/me', {
         headers: {
@@ -595,11 +595,11 @@ describe('API Endpoints Integration Tests', () => {
 
       // Re-setup the OAuth mock for each test
       const { OAuthService } = await import('../../auth/oauth');
-      vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
+      vi.mocked(OAuthService.getPrincipalFromToken).mockImplementation(async (token) => {
         if (token === 'admin-jwt-token') {
-          return mockAdminUser as User;
+          return { user: mockAdminUser as User };
         } else if (token === 'regular-jwt-token') {
-          return mockRegularUser as User;
+          return { user: mockRegularUser as User };
         }
         throw new Error('Invalid token');
       });

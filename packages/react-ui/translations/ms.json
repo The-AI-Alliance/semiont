@@ -25,10 +25,8 @@
     "provenance": "Asal-usul",
     "createdAt": "Dicipta",
     "modifiedAt": "Diubah suai",
-    "creationMethod": "Cara penciptaan",
     "attributedTo": "Dikaitkan dengan",
     "derivedFrom": "Diperoleh daripada",
-    "generatedBy": "Dijana oleh",
     "storageUri": "Storan"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Sejarah",
     "loading": "Memuatkan...",
     "user": "Pengguna",
-    "method": "Kaedah",
     "viewOriginal": "Lihat asal",
     "viewAnnotation": "Lihat anotasi: {{content}}",
     "resourceCreated": "Sumber Dicipta",

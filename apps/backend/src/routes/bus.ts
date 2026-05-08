@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { EventBus, EventMap, StoredEvent } from '@semiont/core';
-import { CHANNEL_SCHEMAS, busLog, userToDid, resourceId as makeResourceId } from '@semiont/core';
+import { CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
 import {
   SpanKind,
   injectTraceparent,
@@ -67,7 +67,7 @@ function extractSequence(payload: unknown): number | null {
 }
 
 export function createBusRouter(authMiddleware: AuthMiddleware) {
-  const busRouter = new Hono<{ Variables: { user: User; eventBus: EventBus; makeMeaning: MakeMeaning } }>();
+  const busRouter = new Hono<{ Variables: { user: User; principalDid: string; eventBus: EventBus; makeMeaning: MakeMeaning } }>();
 
   busRouter.use('/bus/*', authMiddleware);
 
@@ -300,9 +300,9 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       }
     }
 
-    const user = c.get('user') as User | undefined;
-    if (user) {
-      payload._userId = userToDid(user);
+    const principalDid = c.get('principalDid') as string | undefined;
+    if (principalDid) {
+      payload._userId = principalDid;
     }
 
     // Tier 2: parent span comes from the W3C traceparent on the request.

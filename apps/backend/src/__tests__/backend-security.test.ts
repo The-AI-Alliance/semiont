@@ -95,7 +95,7 @@ describe('Backend API Security', () => {
     it('should verify token validation is server-side only', () => {
       const tokenValidationFlow = {
         step1: 'Extract token from Authorization: Bearer <token>',
-        step2: 'Call OAuthService.getUserFromToken(token)',
+        step2: 'Call OAuthService.getPrincipalFromToken(token)',
         step3: 'Verify token signature and expiration',
         step4: 'Lookup user in database',
         step5: 'Check user.isAdmin property from database',

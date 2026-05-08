@@ -99,28 +99,17 @@ function makeFakeSessionAndAdapter() {
 }
 
 function makeConfig(session: SemiontSession): WorkerProcessConfig {
-  const engine = {
-    inferenceClient: {} as never,
-    generator: {
-      '@type': 'SoftwareAgent',
-      name: 'test-worker',
-      worker: 'worker-pool',
-      inferenceProvider: 'ollama',
-      model: 'test',
-    } as never,
-  };
-  const engines: WorkerProcessConfig['engines'] = {
-    'highlight-annotation': engine,
-    'comment-annotation': engine,
-    'assessment-annotation': engine,
-    'reference-annotation': engine,
-    'tag-annotation': engine,
-    'generation': engine,
-  };
   return {
     session,
-    jobTypes: Object.keys(engines),
-    engines,
+    jobTypes: ['highlight-annotation', 'comment-annotation', 'assessment-annotation', 'reference-annotation', 'tag-annotation', 'generation'],
+    inferenceClient: {} as never,
+    generator: {
+      '@type': 'Software',
+      '@id': 'did:web:example.com:agents:ollama:test',
+      name: 'ollama test',
+      provider: 'ollama',
+      model: 'test',
+    } as never,
     logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(function(this: any){ return this; }) } as never,
   };
 }
@@ -246,7 +235,6 @@ describe('handleJob orchestration', () => {
       const uploaded = h.yieldResourceCalls[0]!;
       expect(uploaded.name).toBe('New Resource');
       expect(uploaded.format).toBe('text/markdown');
-      expect(uploaded.creationMethod).toBe('generated');
       expect(uploaded.sourceResourceId).toBe(RID);
       expect(uploaded.sourceAnnotationId).toBe('ref-1');
       expect(uploaded.generationPrompt).toBe('Write about X');
@@ -336,7 +324,7 @@ describe('handleJob orchestration', () => {
       const fail = h.adapterCalls.find(c => c.method === 'failJob');
       expect(fail).toBeDefined();
       expect(fail!.args[0]).toBe(JID);
-      expect(String(fail!.args[1])).toMatch(/No inference engine configured for job type: weird-thing/);
+      expect(String(fail!.args[1])).toMatch(/Worker not configured for job type: weird-thing/);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(0);
     });
   });

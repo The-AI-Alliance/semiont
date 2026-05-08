@@ -25,10 +25,8 @@
     "provenance": "ที่มา",
     "createdAt": "วันที่สร้าง",
     "modifiedAt": "วันที่แก้ไข",
-    "creationMethod": "วิธีการสร้าง",
     "attributedTo": "อ้างอิงถึง",
     "derivedFrom": "ได้มาจาก",
-    "generatedBy": "สร้างโดย",
     "storageUri": "ที่จัดเก็บ"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "ประวัติ",
     "loading": "กำลังโหลด...",
     "user": "ผู้ใช้",
-    "method": "วิธีการ",
     "viewOriginal": "ดูต้นฉบับ",
     "viewAnnotation": "ดูคำอธิบายประกอบ: {{content}}",
     "resourceCreated": "สร้างทรัพยากรแล้ว",

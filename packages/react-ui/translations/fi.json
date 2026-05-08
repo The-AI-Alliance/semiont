@@ -25,10 +25,8 @@
     "provenance": "Alkuperä",
     "createdAt": "Luotu",
     "modifiedAt": "Muokattu",
-    "creationMethod": "Luontitapa",
     "attributedTo": "Tekijä",
     "derivedFrom": "Johdettu",
-    "generatedBy": "Luonut",
     "storageUri": "Tallennuspaikka"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Historia",
     "loading": "Ladataan...",
     "user": "Käyttäjä",
-    "method": "Menetelmä",
     "viewOriginal": "Näytä alkuperäinen",
     "viewAnnotation": "Näytä merkintä: {{content}}",
     "resourceCreated": "Resurssi luotu",

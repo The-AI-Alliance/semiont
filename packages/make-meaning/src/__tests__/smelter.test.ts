@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } from 'vitest';
 import { EventStore, FilesystemViewStorage, type ViewStorage } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
-import { EventBus, resourceId, userId, CREATION_METHODS } from '@semiont/core';
+import { EventBus, resourceId, userId } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
@@ -163,7 +163,6 @@ describe('Smelter', () => {
         name: 'Lincoln',
         format: 'text/plain',
         contentChecksum: 'abc123',
-        creationMethod: CREATION_METHODS.UPLOAD,
         storageUri: uri,
       },
     });
@@ -188,7 +187,6 @@ describe('Smelter', () => {
         name: 'Embed Test',
         format: 'text/plain',
         contentChecksum: 'def456',
-        creationMethod: CREATION_METHODS.UPLOAD,
         storageUri: uri,
       },
     });
@@ -216,7 +214,6 @@ describe('Smelter', () => {
         name: 'Fox',
         format: 'text/plain',
         contentChecksum: 'fox123',
-        creationMethod: CREATION_METHODS.UPLOAD,
         storageUri: uri,
       },
     });
@@ -234,7 +231,7 @@ describe('Smelter', () => {
       resourceId: resourceId('res-1'),
       userId: userId('user-1'),
       version: 1,
-      payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+      payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
     });
     await tick();
 
@@ -292,7 +289,6 @@ describe('Smelter', () => {
         name: 'Archive Me',
         format: 'text/plain',
         contentChecksum: 'arch1',
-        creationMethod: CREATION_METHODS.UPLOAD,
         storageUri: uri,
       },
     });
@@ -412,7 +408,6 @@ describe('Smelter', () => {
         name: 'Update Test',
         format: 'text/plain',
         contentChecksum: 'init-cs',
-        creationMethod: CREATION_METHODS.UPLOAD,
         storageUri: uri,
       },
     });
@@ -455,7 +450,6 @@ describe('Smelter', () => {
         name: 'Repr Test',
         format: 'text/plain',
         contentChecksum: 'repr-cs',
-        creationMethod: CREATION_METHODS.UPLOAD,
         storageUri: uri,
       },
     });

@@ -40,17 +40,20 @@ describe('extractEntities', () => {
     const result = await extractEntities(text, ['Person', 'Location'], mockInferenceClient);
 
     expect(result).toHaveLength(2);
+    // The function translates the LLM's `startOffset`/`endOffset` wire
+    // format to the W3C-canonical `start`/`end` shape for the rest of
+    // the pipeline. Assertions are on the shape consumers see.
     expect(result[0]).toMatchObject({
       exact: 'Alice',
       entityType: 'Person',
-      startOffset: 0,
-      endOffset: 5
+      start: 0,
+      end: 5
     });
     expect(result[1]).toMatchObject({
       exact: 'Paris',
       entityType: 'Location',
-      startOffset: 14,
-      endOffset: 19
+      start: 14,
+      end: 19
     });
   });
 
@@ -92,8 +95,8 @@ describe('extractEntities', () => {
     expect(result[0]).toMatchObject({
       exact: 'Alice',
       entityType: 'Person',
-      startOffset: 21,
-      endOffset: 26
+      start: 21,
+      end: 26
     });
     // Verify the offset is actually correct
     expect(text.substring(21, 26)).toBe('Alice');

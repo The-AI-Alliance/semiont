@@ -299,8 +299,8 @@ describe('OAuth Service', () => {
     });
   });
 
-  describe('getUserFromToken', () => {
-    it('should get user from valid JWT token', async () => {
+  describe('getPrincipalFromToken', () => {
+    it('returns the User row for a valid JWT token', async () => {
       const mockPayload: any = {
         userId: mockUser.id,
         email: mockUser.email,
@@ -313,26 +313,45 @@ describe('OAuth Service', () => {
       vi.mocked(JWTService.verifyToken).mockReturnValue(mockPayload);
       mockPrismaUser.findUnique.mockResolvedValue(mockUser);
 
-      const result = await OAuthService.getUserFromToken(accessToken('valid-jwt-token'));
+      const result = await OAuthService.getPrincipalFromToken(accessToken('valid-jwt-token'));
 
-      expect(result).toEqual(mockUser);
+      expect(result.user).toEqual(mockUser);
+      expect(result.agentDid).toBeUndefined();
       expect(JWTService.verifyToken).toHaveBeenCalledWith('valid-jwt-token');
       expect(mockPrismaUser.findUnique).toHaveBeenCalledWith({
         where: { id: mockUser.id }
       });
     });
 
-    it('should throw error for invalid token', async () => {
+    it('surfaces agentDid for software-agent tokens', async () => {
+      const did = 'did:web:example.com:agents:ollama:gemma2%3A27b';
+      const mockPayload: any = {
+        userId: mockUser.id,
+        email: mockUser.email,
+        domain: mockUser.domain,
+        provider: 'agent',
+        isAdmin: false,
+        agentDid: did,
+      };
+      vi.mocked(JWTService.verifyToken).mockReturnValue(mockPayload);
+      mockPrismaUser.findUnique.mockResolvedValue(mockUser);
+
+      const result = await OAuthService.getPrincipalFromToken(accessToken('agent-jwt'));
+      expect(result.user).toEqual(mockUser);
+      expect(result.agentDid).toBe(did);
+    });
+
+    it('throws on invalid token', async () => {
       vi.mocked(JWTService.verifyToken).mockImplementation(() => {
         throw new Error('Invalid token');
       });
 
       await expect(
-        OAuthService.getUserFromToken(accessToken('invalid-token'))
+        OAuthService.getPrincipalFromToken(accessToken('invalid-token'))
       ).rejects.toThrow('Invalid token');
     });
 
-    it('should throw error if user not found', async () => {
+    it('throws if user not found', async () => {
       const mockPayload: any = {
         userId: 'non-existent-user',
         email: 'ghost@example.com',
@@ -342,11 +361,11 @@ describe('OAuth Service', () => {
       mockPrismaUser.findUnique.mockResolvedValue(null);
 
       await expect(
-        OAuthService.getUserFromToken(accessToken('valid-jwt-token'))
+        OAuthService.getPrincipalFromToken(accessToken('valid-jwt-token'))
       ).rejects.toThrow('User not found or inactive');
     });
 
-    it('should throw error if user is inactive', async () => {
+    it('throws if user is inactive', async () => {
       const inactiveUser = { ...mockUser, isActive: false };
       const mockPayload: any = {
         userId: inactiveUser.id,
@@ -357,7 +376,7 @@ describe('OAuth Service', () => {
       mockPrismaUser.findUnique.mockResolvedValue(inactiveUser);
 
       await expect(
-        OAuthService.getUserFromToken(accessToken('valid-jwt-token'))
+        OAuthService.getPrincipalFromToken(accessToken('valid-jwt-token'))
       ).rejects.toThrow('User not found or inactive');
     });
   });

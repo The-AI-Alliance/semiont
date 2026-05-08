@@ -194,7 +194,6 @@ function buildFormData(request: PutBinaryRequest): FormData {
     formData.append('entityTypes', JSON.stringify(request.entityTypes));
   }
   if (request.language) formData.append('language', request.language);
-  if (request.creationMethod) formData.append('creationMethod', String(request.creationMethod));
   if (request.sourceAnnotationId) formData.append('sourceAnnotationId', String(request.sourceAnnotationId));
   if (request.sourceResourceId) formData.append('sourceResourceId', String(request.sourceResourceId));
   if (request.generationPrompt) formData.append('generationPrompt', request.generationPrompt);

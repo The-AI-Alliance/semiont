@@ -25,10 +25,8 @@
     "provenance": "מקור",
     "createdAt": "נוצר",
     "modifiedAt": "עודכן",
-    "creationMethod": "אופן יצירה",
     "attributedTo": "מיוחס ל",
     "derivedFrom": "נגזר מ",
-    "generatedBy": "נוצר על ידי",
     "storageUri": "אחסון"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "היסטוריה",
     "loading": "טוען...",
     "user": "משתמש",
-    "method": "שיטה",
     "viewOriginal": "צפייה במקור",
     "viewAnnotation": "צפייה בהערה: {{content}}",
     "resourceCreated": "משאב נוצר",

@@ -25,10 +25,8 @@
     "provenance": "উৎস ও উদ্ভব",
     "createdAt": "তৈরির তারিখ",
     "modifiedAt": "পরিবর্তনের তারিখ",
-    "creationMethod": "তৈরির পদ্ধতি",
     "attributedTo": "সম্পাদককৃত",
     "derivedFrom": "থেকে উৎপন্ন",
-    "generatedBy": "তৈরিকারক",
     "storageUri": "সঞ্চয়স্থান"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "ইতিহাস",
     "loading": "লোড হচ্ছে...",
     "user": "ব্যবহারকারী",
-    "method": "পদ্ধতি",
     "viewOriginal": "মূল দেখুন",
     "viewAnnotation": "টীকা দেখুন: {{content}}",
     "resourceCreated": "সম্পদ তৈরি হয়েছে",

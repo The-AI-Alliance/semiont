@@ -8,7 +8,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { busLog, userId, userToDid, type CreationMethod } from '@semiont/core';
+import { busLog, userId } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
@@ -21,8 +21,9 @@ type Agent = components['schemas']['Agent'];
 export function registerCreateResource(router: ResourcesRouterType) {
   router.post('/resources', async (c) => {
     const user = c.get('user');
+    const principalDid = c.get('principalDid');
 
-    if (!user) {
+    if (!user || !principalDid) {
       throw new HTTPException(401, { message: 'Authentication required' });
     }
 
@@ -35,7 +36,6 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const formatRaw = formData.get('format') as string;
     const language = formData.get('language') as string | null;
     const entityTypesStr = formData.get('entityTypes') as string | null;
-    const creationMethod = formData.get('creationMethod') as string | null;
     const storageUri = formData.get('storageUri') as string | null;
     const sourceAnnotationId = formData.get('sourceAnnotationId') as string | null;
     const sourceResourceId = formData.get('sourceResourceId') as string | null;
@@ -104,13 +104,12 @@ export function registerCreateResource(router: ResourcesRouterType) {
               format,
               language: language || undefined,
               entityTypes,
-              creationMethod: (creationMethod || undefined) as CreationMethod | undefined,
               generatedFrom,
               generationPrompt: generationPrompt || undefined,
               generator,
               isDraft: isDraftStr ? isDraftStr === 'true' : undefined,
             },
-            userId(userToDid(user)),
+            userId(principalDid),
             eventBus,
           );
         },

@@ -448,10 +448,10 @@ describe('HttpTransport — HTTP wire shape', () => {
 
     test('appends the full set of generation-provenance fields', async () => {
       const agent = {
-        '@type': 'SoftwareAgent' as const,
-        name: 'worker-pool / ollama gemma4:26b',
-        worker: 'worker-pool',
-        inferenceProvider: 'ollama',
+        '@type': 'Software' as const,
+        '@id': 'did:web:example.com:agents:ollama:gemma4%3A26b',
+        name: 'ollama gemma4:26b',
+        provider: 'ollama',
         model: 'gemma4:26b',
       };
 
@@ -460,7 +460,6 @@ describe('HttpTransport — HTTP wire shape', () => {
         file: Buffer.from('# Summary\n'),
         format: 'text/markdown',
         storageUri: 'file://generated/summary.md',
-        creationMethod: 'generated',
         sourceResourceId: 'res-abc',
         sourceAnnotationId: 'ann-xyz',
         generationPrompt: 'Summarize the key points',
@@ -470,7 +469,6 @@ describe('HttpTransport — HTTP wire shape', () => {
       });
 
       const form = getPostedForm();
-      expect(form.get('creationMethod')).toBe('generated');
       expect(form.get('sourceResourceId')).toBe('res-abc');
       expect(form.get('sourceAnnotationId')).toBe('ann-xyz');
       expect(form.get('generationPrompt')).toBe('Summarize the key points');

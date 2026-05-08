@@ -39,7 +39,7 @@ async function createAnnotationAndAwait(
   uid: ReturnType<typeof userId>,
   eventBus: EventBus,
 ) {
-  const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
+  const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
   const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus);
   const expectedId = result.annotation.id;
   await firstValueFrom(eventBus.get('mark:added').pipe(
@@ -69,13 +69,13 @@ describe('AnnotationOperations', () => {
   let testResourceId: string;
 
   async function create(
-    opts: { name: string; content: Buffer; format: string; language?: string; entityTypes?: string[]; creationMethod?: any },
+    opts: { name: string; content: Buffer; format: string; language?: string; entityTypes?: string[] },
     uid: ReturnType<typeof userId>,
   ) {
     const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
     const stored = await kb.content.store(opts.content, uri);
     return ResourceOperations.createResource(
-      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format as any, language: opts.language, entityTypes: opts.entityTypes, creationMethod: opts.creationMethod },
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format as any, language: opts.language, entityTypes: opts.entityTypes },
       uid,
       eventBus,
     );
@@ -447,7 +447,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('should reject invalid motivation', async () => {
-      const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
+      const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
       await expect(
         AnnotationOperations.createAnnotation(
           {
@@ -476,7 +476,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('should reject missing text position selector', async () => {
-      const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
+      const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
       await expect(
         AnnotationOperations.createAnnotation(
           {

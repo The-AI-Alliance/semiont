@@ -69,7 +69,6 @@ describe('ViewManager', () => {
           name: 'Test Document',
           format: 'text/plain' as const,
           contentChecksum: 'checksum1',
-          creationMethod: 'api' as const,
         },
       };
 
@@ -116,7 +115,6 @@ describe('ViewManager', () => {
               name: 'Test',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
             metadata: createEventMetadata(1),
         },
@@ -186,7 +184,6 @@ describe('ViewManager', () => {
               name: 'Test',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
-              creationMethod: 'api' as const,
             },
             metadata: createEventMetadata(1),
         },
@@ -239,7 +236,6 @@ describe('ViewManager', () => {
           name: 'Test',
           format: 'text/plain' as const,
           contentChecksum: 'checksum1',
-          creationMethod: 'api' as const,
         },
       };
 
@@ -284,7 +280,6 @@ describe('ViewManager', () => {
         name: 'Test',
         format: 'text/plain' as const,
         contentChecksum: 'cs',
-        creationMethod: 'api' as const,
       },
     });
 

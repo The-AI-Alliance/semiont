@@ -68,13 +68,25 @@ function buildTextAnnotation(
   // processor that calls this makes the choice per-motivation.
   body?: Record<string, unknown> | Record<string, unknown>[],
 ) {
+  // `userId` here is the DID of the human who initiated the work. The
+  // worker process is acting on their behalf using `generator` to
+  // produce content. Per the protocol attribution model:
+  //   creator        = who initiated (the human)
+  //   generator      = what produced (the software peer)
+  //   wasAttributedTo = both parties (PROV-O)
+  // For autonomous-agent work creator and generator collapse to the
+  // same Software Agent; the same field assignments still hold.
+  const creator = didToAgent(userId);
+  const wasAttributedTo: Agent[] =
+    creator['@id'] === generator['@id'] ? [generator] : [creator, generator];
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
     'type': 'Annotation' as const,
     'id': generateAnnotationId(),
     motivation,
-    creator: didToAgent(userId),
+    creator,
     generator,
+    wasAttributedTo,
     created: new Date().toISOString(),
     target: {
       type: 'SpecificResource' as const,
@@ -256,7 +268,7 @@ export async function processReferenceJob(
 
     for (const entity of extractedEntities) {
       try {
-        const validated = validateAndCorrectOffsets(content, entity.startOffset, entity.endOffset, entity.exact);
+        const validated = validateAndCorrectOffsets(content, entity.start, entity.end, entity.exact);
         const ann = buildTextAnnotation(
           params.resourceId, userId, generator, 'linking', validated, unresolvedBody,
         );

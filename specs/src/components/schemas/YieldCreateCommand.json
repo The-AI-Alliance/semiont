@@ -30,9 +30,6 @@
         "type": "string"
       }
     },
-    "creationMethod": {
-      "type": "string"
-    },
     "isDraft": {
       "type": "boolean"
     },

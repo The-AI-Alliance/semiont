@@ -55,7 +55,6 @@ function fakeStoredYieldCreated(
     name: `fake-${rIdStr}`,
     format: 'text/plain' as components['schemas']['ContentFormat'],
     contentChecksum: 'sha256:stub',
-    creationMethod: 'api',
   };
   return {
     id: `evt-${seq}`,
@@ -70,7 +69,7 @@ function fakeStoredYieldCreated(
 }
 
 
-type Variables = { user: User; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; makeMeaning: unknown };
+type Variables = { user: User; principalDid: string; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; makeMeaning: unknown };
 
 beforeAll(() => {
   process.env.NODE_ENV = 'test';
@@ -108,14 +107,20 @@ function fakeMakeMeaning(queryEvents: QueryEventsStub = async () => []) {
   };
 }
 
-function buildApp(eventBus: EventBus, makeMeaning: unknown = fakeMakeMeaning()) {
+function buildApp(
+  eventBus: EventBus,
+  makeMeaning: unknown = fakeMakeMeaning(),
+  options: { principalDid?: string } = {},
+) {
   const passthrough = async (_c: unknown, next: () => Promise<void>) => next();
   const router = createBusRouter(passthrough as any);
   const app = new Hono<{ Variables: Variables }>();
 
   const logger = initializeLogger('error');
+  const principalDid = options.principalDid ?? 'did:web:test.local:users:test%40test.local';
   app.use('*', async (c, next) => {
     c.set('user', fakeUser());
+    c.set('principalDid', principalDid);
     c.set('eventBus', eventBus);
     c.set('logger', logger);
     c.set('makeMeaning', makeMeaning);
@@ -184,6 +189,49 @@ describe('bus routes', () => {
 
       expect(res.status).toBe(202);
       expect(received).toHaveLength(1);
+    });
+
+    // The bus reads `principalDid` off the request context (set by the
+    // auth middleware) and stamps it onto every emitted payload as
+    // `_userId`. The same code path applies whether the principal is a
+    // human or a software agent — the agent identity flows through with
+    // no special-casing. This is the load-bearing tenet for "humans and
+    // agents as architectural equivalents."
+    it('stamps `_userId` from the principal DID for a human caller', async () => {
+      const received: any[] = [];
+      eventBus.get('mark:added' as any).subscribe((v) => received.push(v));
+
+      const humanApp = buildApp(eventBus, fakeMakeMeaning(), {
+        principalDid: 'did:web:test.local:users:alice%40test.local',
+      });
+      const res = await humanApp.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: 'mark:added', payload: { annotationId: 'a-1' } }),
+      });
+
+      expect(res.status).toBe(202);
+      expect(received).toHaveLength(1);
+      expect(received[0]._userId).toBe('did:web:test.local:users:alice%40test.local');
+    });
+
+    it('stamps `_userId` from the principal DID for a software-agent caller', async () => {
+      const received: any[] = [];
+      eventBus.get('mark:added' as any).subscribe((v) => received.push(v));
+
+      const agentDid = 'did:web:test.local:agents:ollama:gemma2%3A27b';
+      const agentApp = buildApp(eventBus, fakeMakeMeaning(), { principalDid: agentDid });
+      const res = await agentApp.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: 'mark:added', payload: { annotationId: 'a-1' } }),
+      });
+
+      expect(res.status).toBe(202);
+      expect(received).toHaveLength(1);
+      // Agent attribution flows through the SAME slot as human attribution —
+      // no protocol-level distinction between the two at the bus seat.
+      expect(received[0]._userId).toBe(agentDid);
     });
 
     it('emits scoped events when scope is provided', async () => {

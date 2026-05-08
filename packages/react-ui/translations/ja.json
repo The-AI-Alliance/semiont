@@ -25,10 +25,8 @@
     "provenance": "出所",
     "createdAt": "作成日時",
     "modifiedAt": "更新日時",
-    "creationMethod": "作成方法",
     "attributedTo": "帰属先",
     "derivedFrom": "派生元",
-    "generatedBy": "生成ツール",
     "storageUri": "ストレージ"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "履歴",
     "loading": "読み込み中...",
     "user": "ユーザー",
-    "method": "メソッド",
     "viewOriginal": "元を表示",
     "viewAnnotation": "アノテーションを表示: {{content}}",
     "resourceCreated": "リソースを作成",

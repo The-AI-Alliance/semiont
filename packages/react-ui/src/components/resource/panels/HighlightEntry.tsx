@@ -6,6 +6,7 @@ import { getAnnotationExactText } from '@semiont/core';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
+import { renderAgentLabel } from './agent-label';
 
 interface HighlightEntryProps {
   highlight: Annotation;
@@ -66,7 +67,9 @@ export function HighlightEntry({
       </div>
       {highlight.generator && (
         <div className="semiont-annotation-entry__metadata">
-          Via {typeof highlight.generator === 'string' ? highlight.generator : highlight.generator.name}
+          Via {Array.isArray(highlight.generator)
+            ? highlight.generator.map(renderAgentLabel).join(', ')
+            : renderAgentLabel(highlight.generator)}
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
 import { formatLocaleDisplay } from '@semiont/core';
 import { resourceId as makeResourceId, type components } from '@semiont/core';
+import { renderAgentLabel } from './agent-label';
 import './ResourceInfoPanel.css';
 
 type Agent = components['schemas']['Agent'];
@@ -19,7 +20,6 @@ interface Props {
   isArchived?: boolean;
   dateCreated?: string | undefined;
   dateModified?: string | undefined;
-  creationMethod?: string | undefined;
   wasAttributedTo?: Agent | Agent[] | undefined;
   wasDerivedFrom?: string | string[] | undefined;
   generator?: Agent | Agent[] | undefined;
@@ -42,13 +42,19 @@ export function ResourceInfoPanel({
   isArchived = false,
   dateCreated,
   dateModified,
-  creationMethod,
   wasAttributedTo,
   wasDerivedFrom,
   generator,
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
   const session = useObservable(useSemiont().activeSession$);
+
+  // Single attribution surface. `wasAttributedTo` is the canonical list
+  // of responsible parties; if a producer set only `generator` we
+  // render that as the attribution chain.
+  const attribution: Agent[] = wasAttributedTo
+    ? (Array.isArray(wasAttributedTo) ? wasAttributedTo : [wasAttributedTo])
+    : (generator ? (Array.isArray(generator) ? generator : [generator]) : []);
 
   return (
     <div className="semiont-resource-info-panel">
@@ -105,7 +111,7 @@ export function ResourceInfoPanel({
       )}
 
       {/* Provenance Section */}
-      {(dateCreated || dateModified || creationMethod || wasAttributedTo || wasDerivedFrom || generator) && (
+      {(dateCreated || dateModified || attribution.length > 0 || wasDerivedFrom) && (
         <div className="semiont-resource-info-panel__section">
           <h3 className="semiont-resource-info-panel__heading">{t('provenance')}</h3>
           <div className="semiont-resource-info-panel__field-group">
@@ -125,19 +131,11 @@ export function ResourceInfoPanel({
                 </span>
               </div>
             )}
-            {creationMethod && (
-              <div>
-                <span className="semiont-resource-info-panel__label">{t('creationMethod')}</span>
-                <span className="semiont-resource-info-panel__value">{creationMethod}</span>
-              </div>
-            )}
-            {wasAttributedTo && (
+            {attribution.length > 0 && (
               <div>
                 <span className="semiont-resource-info-panel__label">{t('attributedTo')}</span>
                 <span className="semiont-resource-info-panel__value">
-                  {(Array.isArray(wasAttributedTo) ? wasAttributedTo : [wasAttributedTo])
-                    .map(a => a.name)
-                    .join(', ')}
+                  {attribution.map(renderAgentLabel).join(', ')}
                 </span>
               </div>
             )}
@@ -154,16 +152,6 @@ export function ResourceInfoPanel({
                       {i > 0 && ', '}{id}
                     </button>
                   ))}
-                </span>
-              </div>
-            )}
-            {generator && (
-              <div>
-                <span className="semiont-resource-info-panel__label">{t('generatedBy')}</span>
-                <span className="semiont-resource-info-panel__value">
-                  {(Array.isArray(generator) ? generator : [generator])
-                    .map(a => a.name)
-                    .join(', ')}
                 </span>
               </div>
             )}

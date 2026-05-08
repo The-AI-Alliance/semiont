@@ -82,7 +82,6 @@ export interface CreateResourceInput {
   format: string;
   entityTypes?: string[];
   language?: string;
-  creationMethod?: string;
   sourceAnnotationId?: string;
   sourceResourceId?: string;
   storageUri: string;

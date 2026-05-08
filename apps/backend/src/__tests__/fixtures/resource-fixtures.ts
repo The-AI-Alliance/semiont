@@ -33,7 +33,6 @@ export function createTestResource(overrides?: Partial<ResourceDescriptor & { id
     }],
     archived: false,
     entityTypes: [],
-    creationMethod: 'api',
     dateCreated: new Date().toISOString(),
     wasAttributedTo,
     ...rest,
@@ -57,6 +56,7 @@ export function createTestRepresentation(overrides?: Partial<Representation>): R
  */
 export function createTestAgent(overrides?: Partial<Agent>): Agent {
   return {
+    '@type': 'Person',
     name: 'Test User',
     ...overrides,
   };

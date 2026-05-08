@@ -6,7 +6,6 @@
     "format": { "$ref": "ContentFormat.json" },
     "contentChecksum": { "type": "string", "description": "SHA-256 of content" },
     "contentByteSize": { "type": "integer" },
-    "creationMethod": { "type": "string", "enum": ["api", "upload", "ui", "reference", "cli", "clone", "generated"] },
     "entityTypes": { "type": "array", "items": { "type": "string" } },
     "storageUri": { "type": "string", "description": "Working-tree URI (e.g. file://docs/overview.md)" },
     "language": { "type": "string" },
@@ -27,5 +26,5 @@
       ]
     }
   },
-  "required": ["name", "format", "contentChecksum", "creationMethod"]
+  "required": ["name", "format", "contentChecksum"]
 }

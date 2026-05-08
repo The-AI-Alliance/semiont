@@ -10,7 +10,6 @@
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map, take } from 'rxjs/operators';
 import type {
-  CreationMethod,
   UserId,
   ResourceId,
 } from '@semiont/core';
@@ -28,7 +27,6 @@ export interface CreateResourceInput {
   format: ContentFormat;
   language?: string;
   entityTypes?: string[];
-  creationMethod?: CreationMethod;
   /** Provenance for AI-generated resources: source resource + annotation. */
   generatedFrom?: { resourceId?: string; annotationId?: string };
   generationPrompt?: string;
@@ -71,7 +69,6 @@ export class ResourceOperations {
       _userId: userId,
       language: input.language,
       entityTypes: input.entityTypes,
-      creationMethod: input.creationMethod,
       generatedFrom: input.generatedFrom,
       generationPrompt: input.generationPrompt,
       generator: input.generator,

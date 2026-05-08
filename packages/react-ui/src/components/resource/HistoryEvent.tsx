@@ -158,9 +158,6 @@ export function HistoryEvent({
           <span className="semiont-history-event__detail">
             {t('user')}: <span className="semiont-history-event__detail-value">{creationDetails.userId ? formatUserId(creationDetails.userId) : ''}</span>
           </span>
-          <span className="semiont-history-event__detail">
-            {t('method')}: <span className="semiont-history-event__detail-value semiont-history-event__detail-value--uppercase">{creationDetails.method}</span>
-          </span>
           {creationDetails.type === 'cloned' && creationDetails.sourceDocId && (
             <Link
               href={routes.resourceDetail(creationDetails.sourceDocId)}

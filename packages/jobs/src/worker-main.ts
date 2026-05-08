@@ -1,25 +1,25 @@
 /**
  * Worker Pool Main — standalone entry point
  *
- * Reads configuration from ~/.semiontconfig (TOML) via the canonical
- * `createTomlConfigLoader` from @semiont/core. Authenticates with the
- * KS via shared secret. Starts the worker process on top of a
- * `SemiontSession` so every HTTP call and bus emit goes through the
- * api-client, not raw `fetch`.
+ * One worker host runs N parallel worker processes, one per distinct
+ * `(inferenceProvider, model)` configured in `~/.semiontconfig`. Each
+ * authenticates with the KS via `/api/tokens/agent` for *its* agent
+ * identity, and that JWT is what the bus stamps onto every event the
+ * process emits — so `_userId` on the bus and the `generator` on every
+ * annotation refer to the same software peer.
  *
- * One inference client is built per distinct `(type, model, apiKey,
- * endpoint)` combination declared in `[workers.<type>.inference]` /
- * `[workers.default.inference]`, and each job type dispatches to the
- * client configured for it.
+ * Multiple job types may share an inference engine; in that case they
+ * share a worker process (and an agent identity). Different engines
+ * mean different processes and different agents.
  *
  * Environment variables (only two):
- *   SEMIONT_WORKER_SECRET — shared secret for JWT auth with the KS
+ *   SEMIONT_WORKER_SECRET — shared secret for /api/tokens/agent auth
  *   ANTHROPIC_API_KEY     — only when using Anthropic inference
  *
  * Everything else comes from ~/.semiontconfig.
  */
 
-import { startWorkerProcess, type WorkerEngine } from './worker-process';
+import { startWorkerProcess } from './worker-process';
 import {
   createInferenceClient,
   type InferenceClient,
@@ -31,6 +31,7 @@ import { homedir, hostname } from 'os';
 import { join } from 'path';
 import {
   createTomlConfigLoader,
+  softwareToAgent,
   type components,
   type EnvironmentConfig,
 } from '@semiont/core';
@@ -47,10 +48,6 @@ const ALL_JOB_TYPES = [
 ];
 
 // Shape of each resolved worker inference entry under `_metadata.workers`.
-// The canonical TOML loader populates this by merging the per-worker
-// inference block with the flat `[inference.<type>]` provider section
-// (apiKey, endpoint/baseURL), so every entry here has everything a
-// client factory needs.
 type ResolvedInference = {
   type: 'anthropic' | 'ollama';
   model: string;
@@ -71,9 +68,6 @@ const envConfig = createTomlConfigLoader(
   process.env,
 )(null, 'local');
 
-// `_metadata.workers` is the resolver's output — a `WorkerInferenceConfig`
-// keyed by job type (plus `default`) with each entry fully merged with
-// the flat `[inference.<type>]` provider block.
 const workerInferenceMap = (envConfig._metadata as (EnvironmentConfig['_metadata'] & {
   workers?: Record<string, ResolvedInference>;
 }) | undefined)?.workers;
@@ -107,7 +101,11 @@ import { createProcessLogger } from '@semiont/observability/process-logger';
 
 const logger = createProcessLogger('worker');
 
-// ── Build engines map with per-(type,model,apiKey,endpoint) de-dup ────
+// ── Group job types by (provider, model) ──────────────────────────────
+//
+// Two job types that point at the same inference (provider, model)
+// share the same software-agent identity, so they share one process.
+// Different (provider, model) pairs mean different agents.
 
 function clientKey(w: ResolvedInference): string {
   return [w.type, w.model, w.apiKey ?? '', w.endpoint ?? '', w.baseURL ?? ''].join('|');
@@ -123,33 +121,29 @@ function toClientConfig(w: ResolvedInference): InferenceClientConfig {
   };
 }
 
-const clientCache = new Map<string, InferenceClient>();
-const engines: Record<string, WorkerEngine> = {};
-for (const jobType of ALL_JOB_TYPES) {
-  const w = resolveWorker(jobType);
-  const key = clientKey(w);
-  let client = clientCache.get(key);
-  if (!client) {
-    client = createInferenceClient(toClientConfig(w), logger);
-    clientCache.set(key, client);
-  }
-  const generator: Agent = {
-    '@type': 'SoftwareAgent',
-    name: `worker-pool / ${w.type} ${w.model}`,
-    worker: 'worker-pool',
-    inferenceProvider: w.type,
-    model: w.model,
-  };
-  engines[jobType] = { inferenceClient: client, generator };
+interface AgentGroup {
+  inference: ResolvedInference;
+  jobTypes: string[];
+  client: InferenceClient;
 }
 
-// ── Build a synthetic KB for the worker ──────────────────────────────
-//
-// SemiontSession is KB-scoped: every session is tied to one backend
-// instance identified by protocol/host/port. Workers aren't user-
-// scoped, but they are backend-scoped — they connect to exactly one
-// Semiont backend. Represent that as a synthetic KnowledgeBase whose
-// `email` carries the worker's service-principal identity.
+const groups = new Map<string, AgentGroup>();
+for (const jobType of ALL_JOB_TYPES) {
+  const inference = resolveWorker(jobType);
+  const key = clientKey(inference);
+  let group = groups.get(key);
+  if (!group) {
+    group = {
+      inference,
+      jobTypes: [],
+      client: createInferenceClient(toClientConfig(inference), logger),
+    };
+    groups.set(key, group);
+  }
+  group.jobTypes.push(jobType);
+}
+
+// ── KB shape used for sessions ────────────────────────────────────────
 
 function parseBackendUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
   const parsed = new URL(url);
@@ -161,48 +155,44 @@ function parseBackendUrl(url: string): { protocol: 'http' | 'https'; host: strin
   return { protocol, host, port };
 }
 
-// ── Authenticate: exchange shared secret for a JWT ────────────────────
+// ── Authenticate one agent identity ──────────────────────────────────
 
-async function authenticate(): Promise<string> {
+async function authenticateAgent(provider: string, model: string): Promise<{ token: string; did: string }> {
   if (!workerSecret) {
-    logger.warn('No SEMIONT_WORKER_SECRET set — using empty token');
-    return '';
+    throw new Error('SEMIONT_WORKER_SECRET is required to authenticate worker agents');
   }
 
-  const response = await fetch(`${backendBaseUrl}/api/tokens/worker`, {
+  const response = await fetch(`${backendBaseUrl}/api/tokens/agent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ secret: workerSecret }),
+    body: JSON.stringify({ secret: workerSecret, provider, model }),
   });
 
   if (!response.ok) {
-    throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
+    throw new Error(`Agent authentication failed for ${provider}:${model}: ${response.status} ${response.statusText}`);
   }
 
-  const { token } = await response.json() as { token: string };
-  return token;
+  return await response.json() as { token: string; did: string };
 }
 
-async function main() {
-  // Tier 2 observability — must come before any spanning code. No-op if
-  // no OTEL_EXPORTER_OTLP_ENDPOINT (or OTEL_SDK_DISABLED=true).
-  const { initObservabilityNode } = await import('@semiont/observability/node');
-  initObservabilityNode({ serviceName: 'semiont-worker' });
+async function startAgentWorker(group: AgentGroup): Promise<{ session: SemiontSession; dispose: () => Promise<void> }> {
+  const { inference } = group;
 
-  logger.info('Authenticating', { baseUrl: backendBaseUrl });
-  const initialToken = await authenticate();
-  logger.info('Authenticated');
-
-  // Construct a synthetic KB + pre-seed an in-memory storage with the
-  // initial token so SemiontSession starts with a ready-to-use token$.
-  // The `refresh` callback re-exchanges the shared secret on expiry.
   const { protocol, host, port } = parseBackendUrl(backendBaseUrl);
-  const kbId = `worker-${hostname()}`;
+  const { token: initialToken, did } = await authenticateAgent(inference.type, inference.model);
+
+  const generator: Agent = softwareToAgent({
+    domain: host,
+    provider: inference.type,
+    model: inference.model,
+  });
+
+  const kbId = `agent-${inference.type}-${inference.model}-${hostname()}`;
   const endpoint: HttpEndpoint = { kind: 'http', host, port, protocol };
   const kb: KnowledgeBase = {
     id: kbId,
-    label: `Worker pool @ ${host}`,
-    email: `worker-pool@${host}`,
+    label: `${inference.type} / ${inference.model} @ ${host}`,
+    email: `agent@${host}`,
     endpoint,
   };
   const storage = new InMemorySessionStorage();
@@ -224,40 +214,67 @@ async function main() {
     token$,
     refresh: async () => {
       try {
-        return await authenticate();
+        const { token } = await authenticateAgent(inference.type, inference.model);
+        return token;
       } catch (err) {
-        logger.error('Worker token refresh failed', {
+        logger.error('Agent token refresh failed', {
           error: err instanceof Error ? err.message : String(err),
+          agent: did,
         });
         return null;
       }
     },
-    // No validate callback — workers are service principals with no
-    // user record to fetch. `session.user$` stays null.
     onError: (err) => {
-      logger.error('Session error', { code: err.code, message: err.message });
+      logger.error('Session error', { code: err.code, message: err.message, agent: did });
     },
   });
   await session.ready;
 
-  const workerVm = startWorkerProcess({
+  const adapter = startWorkerProcess({
     session,
-    jobTypes: ALL_JOB_TYPES,
-    engines,
+    jobTypes: group.jobTypes,
+    inferenceClient: group.client,
+    generator,
     logger,
   });
 
-  logger.info('Connected', {
-    baseUrl: backendBaseUrl,
-    engines: Object.fromEntries(
-      Object.entries(engines).map(([jt, e]) => [jt, `${e.generator.inferenceProvider} / ${e.generator.model}`]),
-    ),
+  logger.info('Agent ready', {
+    did,
+    provider: inference.type,
+    model: inference.model,
+    jobTypes: group.jobTypes,
   });
+
+  return {
+    session,
+    dispose: async () => {
+      adapter.dispose();
+      await session.dispose();
+    },
+  };
+}
+
+async function main() {
+  // Tier 2 observability — must come before any spanning code. No-op if
+  // no OTEL_EXPORTER_OTLP_ENDPOINT (or OTEL_SDK_DISABLED=true).
+  const { initObservabilityNode } = await import('@semiont/observability/node');
+  initObservabilityNode({ serviceName: 'semiont-worker' });
+
+  logger.info('Starting agents', {
+    baseUrl: backendBaseUrl,
+    agents: Array.from(groups.values()).map((g) => ({
+      provider: g.inference.type,
+      model: g.inference.model,
+      jobTypes: g.jobTypes,
+    })),
+  });
+
+  const workers = await Promise.all(Array.from(groups.values()).map(startAgentWorker));
 
   const health = createServer((req, res) => {
     if (req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok' }));
+      res.end(JSON.stringify({ status: 'ok', agents: workers.length }));
     } else {
       res.writeHead(404);
       res.end();
@@ -269,8 +286,7 @@ async function main() {
 
   const shutdown = async () => {
     logger.info('Shutting down');
-    workerVm.dispose();
-    await session.dispose();
+    await Promise.all(workers.map((w) => w.dispose()));
     health.close();
     process.exit(0);
   };

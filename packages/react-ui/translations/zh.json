@@ -25,10 +25,8 @@
     "provenance": "来源",
     "createdAt": "创建时间",
     "modifiedAt": "修改时间",
-    "creationMethod": "创建方式",
     "attributedTo": "归属于",
     "derivedFrom": "派生自",
-    "generatedBy": "由…生成",
     "storageUri": "存储"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "历史",
     "loading": "加载中...",
     "user": "用户",
-    "method": "方法",
     "viewOriginal": "查看原文",
     "viewAnnotation": "查看注释：{{content}}",
     "resourceCreated": "已创建资源",

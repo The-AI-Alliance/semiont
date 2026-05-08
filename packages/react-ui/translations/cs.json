@@ -25,10 +25,8 @@
     "provenance": "Původ",
     "createdAt": "Vytvořeno",
     "modifiedAt": "Upraveno",
-    "creationMethod": "Způsob vytvoření",
     "attributedTo": "Připsáno",
     "derivedFrom": "Odvozeno z",
-    "generatedBy": "Vygenerováno pomocí",
     "storageUri": "Úložiště"
   },
   "CollaborationPanel": {
@@ -54,7 +52,6 @@
     "history": "Historie",
     "loading": "Načítání...",
     "user": "Uživatel",
-    "method": "Metoda",
     "viewOriginal": "Zobrazit originál",
     "viewAnnotation": "Zobrazit anotaci: {{content}}",
     "resourceCreated": "Zdroj vytvořen",

@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ResourceOperations } from '../resource-operations';
 import { type SemiontProject } from '@semiont/core/node';
-import { userId, EventBus, CREATION_METHODS, type Logger, type GraphServiceConfig } from '@semiont/core';
+import { userId, EventBus, type Logger, type GraphServiceConfig } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { Stower } from '../stower';
 import { createKnowledgeBase } from '../knowledge-base';
@@ -41,13 +41,13 @@ describe('ResourceOperations', () => {
 
   /** Write content to disk then create resource via EventBus. */
   async function create(
-    opts: { name: string; content: Buffer; format: 'text/plain' | 'text/markdown' | 'text/html'; language?: string; entityTypes?: string[]; creationMethod?: import('@semiont/core').CreationMethod },
+    opts: { name: string; content: Buffer; format: 'text/plain' | 'text/markdown' | 'text/html'; language?: string; entityTypes?: string[] },
     uid: import('@semiont/core').UserId,
   ) {
     const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
     const stored = await kb.content.store(opts.content, uri);
     return ResourceOperations.createResource(
-      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language, entityTypes: opts.entityTypes, creationMethod: opts.creationMethod },
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language, entityTypes: opts.entityTypes },
       uid,
       eventBus,
     );
@@ -130,7 +130,6 @@ describe('ResourceOperations', () => {
           name: 'Event Test Resource',
           format: 'text/plain',
           entityTypes: ['Person', 'Location'],
-          creationMethod: CREATION_METHODS.API,
           isDraft: false,
         }
       });
@@ -191,28 +190,6 @@ describe('ResourceOperations', () => {
       expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.entityTypes).toEqual([]);
     });
 
-    it('should default to API creation method when not specified', async () => {
-      const resId = await create(
-        { name: 'Default Method Resource', content: Buffer.from('Default creation method', 'utf-8'), format: 'text/plain' },
-        userId('user-1'),
-      );
-
-      const events = await testEventStore.log.getEvents(resId);
-      const createdEvent = events.find(e => e.type === 'yield:created');
-      expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.creationMethod).toBe(CREATION_METHODS.API);
-    });
-
-    it('should accept valid creation method', async () => {
-      const resId = await create(
-        { name: 'Generated Resource', content: Buffer.from('Generated content', 'utf-8'), format: 'text/plain', creationMethod: CREATION_METHODS.GENERATED },
-        userId('user-1'),
-      );
-
-      const events = await testEventStore.log.getEvents(resId);
-      const createdEvent = events.find(e => e.type === 'yield:created');
-      expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.creationMethod).toBe(CREATION_METHODS.GENERATED);
-    });
-
     it('should include timestamp in event', async () => {
       const resId = await create(
         { name: 'Timestamped Resource', content: Buffer.from('Timestamped content', 'utf-8'), format: 'text/plain' },
@@ -233,10 +210,10 @@ describe('ResourceOperations', () => {
       // here, downstream readers (graph materializer, PROV-O query) silently
       // lose provenance with no runtime error.
       const generator = {
-        '@type': 'SoftwareAgent' as const,
-        name: 'worker-pool / ollama gemma4:26b',
-        worker: 'worker-pool',
-        inferenceProvider: 'ollama',
+        '@type': 'Software' as const,
+        '@id': 'did:web:example.com:agents:ollama:gemma4%3A26b',
+        name: 'ollama gemma4:26b',
+        provider: 'ollama',
         model: 'gemma4:26b',
       };
       const uri = deriveStorageUri(`test-${++fileCounter}`, 'text/markdown');
@@ -248,7 +225,6 @@ describe('ResourceOperations', () => {
           contentChecksum: stored.checksum,
           byteSize: stored.byteSize,
           format: 'text/markdown',
-          creationMethod: CREATION_METHODS.GENERATED,
           generatedFrom: { resourceId: 'res-parent', annotationId: 'ann-origin' },
           generationPrompt: 'Summarize the key points',
           generator,
@@ -265,7 +241,6 @@ describe('ResourceOperations', () => {
         expect(createdEvent.payload).toMatchObject({
           name: 'Generated Doc',
           format: 'text/markdown',
-          creationMethod: CREATION_METHODS.GENERATED,
           generatedFrom: { resourceId: 'res-parent', annotationId: 'ann-origin' },
           generationPrompt: 'Summarize the key points',
           generator,

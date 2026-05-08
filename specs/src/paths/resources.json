@@ -38,10 +38,6 @@
                 "type": "string",
                 "description": "JSON-stringified array of entity type names"
               },
-              "creationMethod": {
-                "type": "string",
-                "description": "How this resource was created (api, ui, upload, reference, cli, clone, generated)"
-              },
               "sourceAnnotationId": {
                 "type": "string",
                 "description": "For AI-generated resources: the annotation that triggered generation. Nested into generatedFrom.annotationId on the persisted event."

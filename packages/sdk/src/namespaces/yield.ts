@@ -50,7 +50,6 @@ export class YieldNamespace implements IYieldNamespace {
           storageUri: data.storageUri,
           ...(data.entityTypes ? { entityTypes: data.entityTypes } : {}),
           ...(data.language ? { language: data.language } : {}),
-          ...(data.creationMethod ? { creationMethod: data.creationMethod } : {}),
           ...(data.sourceAnnotationId ? { sourceAnnotationId: data.sourceAnnotationId } : {}),
           ...(data.sourceResourceId ? { sourceResourceId: data.sourceResourceId } : {}),
           ...(data.generationPrompt ? { generationPrompt: data.generationPrompt } : {}),
