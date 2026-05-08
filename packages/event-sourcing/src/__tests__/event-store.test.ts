@@ -7,7 +7,7 @@ import { EventStore } from '../event-store';
 import { EventQuery } from '../query/event-query';
 import { FilesystemViewStorage } from '../storage/view-storage';
 import { SemiontProject } from '@semiont/core/node';
-import { annotationId, CREATION_METHODS, resourceId, userId, EventBus } from '@semiont/core';
+import { annotationId, resourceId, userId, EventBus } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -53,7 +53,6 @@ describe('Event Store', () => {
         name: 'Test',
         format: 'text/plain',
         contentChecksum: 'hash1',
-        creationMethod: CREATION_METHODS.API,
       },
     });
 
@@ -72,7 +71,7 @@ describe('Event Store', () => {
       resourceId: docId,
       userId: userId('user1'),
       version: 1,
-      payload: { name: 'Doc', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+      payload: { name: 'Doc', format: 'text/plain', contentChecksum: 'h1' },
     });
 
     await eventStore.appendEvent({
@@ -113,7 +112,6 @@ describe('Event Store', () => {
           name: 'Doc',
           format: 'text/plain',
           contentChecksum: 'sha:abc',
-          creationMethod: CREATION_METHODS.API,
         },
       },
       { correlationId: cid },
@@ -139,7 +137,6 @@ describe('Event Store', () => {
         name: 'Doc',
         format: 'text/plain',
         contentChecksum: 'sha:abc',
-        creationMethod: CREATION_METHODS.API,
       },
     });
 
@@ -169,7 +166,6 @@ describe('Event Store', () => {
         name: 'Ordering Test Doc',
         format: 'text/plain',
         contentChecksum: 'sha:ord',
-        creationMethod: CREATION_METHODS.API,
       },
     });
 

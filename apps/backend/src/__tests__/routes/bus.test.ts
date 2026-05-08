@@ -55,7 +55,6 @@ function fakeStoredYieldCreated(
     name: `fake-${rIdStr}`,
     format: 'text/plain' as components['schemas']['ContentFormat'],
     contentChecksum: 'sha256:stub',
-    creationMethod: 'api',
   };
   return {
     id: `evt-${seq}`,

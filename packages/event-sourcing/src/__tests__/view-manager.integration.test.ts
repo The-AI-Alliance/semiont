@@ -71,7 +71,6 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
         name: 'Test Resource',
         format: 'text/plain',
         contentChecksum: 'cs-init',
-        creationMethod: 'api',
       },
     } as PersistedEvent;
   }

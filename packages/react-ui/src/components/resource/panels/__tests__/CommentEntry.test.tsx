@@ -81,8 +81,8 @@ const mockCommentStates = {
   }),
   withCreatorObject: createMockComment({
     creator: {
-      id: 'user-123',
-      type: 'Person',
+      '@id': 'user-123',
+      '@type': 'Person',
       name: 'John Doe',
     },
   }),

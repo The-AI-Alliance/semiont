@@ -53,6 +53,19 @@ export class JWTService {
   }
 
   /**
+   * Get the deployment domain to use for issuing agent identities.
+   * Used by `/api/tokens/agent` to mint DIDs of the shape
+   * `did:web:<domain>:agents:<provider>:<model>`.
+   */
+  static getDomainForAgent(): string {
+    const config = this.getSiteConfig();
+    if (!config.domain) {
+      throw new Error('site.domain is required to issue agent tokens');
+    }
+    return config.domain;
+  }
+
+  /**
    * Override configuration for testing purposes
    * @param config The configuration to use
    */

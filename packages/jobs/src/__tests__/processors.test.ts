@@ -66,7 +66,13 @@ import {
 
 const RID = resourceId('res-test');
 const USER_DID = 'did:web:test.local:users:alice%40test.local';
-const GENERATOR: Agent = { type: 'SoftwareAgent', id: 'generator:test', name: 'test' };
+const GENERATOR: Agent = {
+  '@type': 'Software',
+  '@id': 'did:web:test.local:agents:test:test',
+  name: 'test test',
+  provider: 'test',
+  model: 'test',
+};
 
 function makeInferenceClient(): InferenceClient {
   return {

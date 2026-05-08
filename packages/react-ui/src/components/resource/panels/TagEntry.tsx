@@ -8,6 +8,7 @@ import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
+import { renderAgentLabel } from './agent-label';
 
 interface TagEntryProps {
   tag: Annotation;
@@ -70,7 +71,9 @@ export function TagEntry({
       </div>
       {tag.generator && (
         <div className="semiont-annotation-entry__metadata">
-          Via {typeof tag.generator === 'string' ? tag.generator : tag.generator.name}
+          Via {Array.isArray(tag.generator)
+            ? tag.generator.map(renderAgentLabel).join(', ')
+            : renderAgentLabel(tag.generator)}
         </div>
       )}
     </div>

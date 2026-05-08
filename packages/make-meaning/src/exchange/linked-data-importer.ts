@@ -13,7 +13,7 @@
 import type { Readable } from 'node:stream';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map } from 'rxjs/operators';
-import type { Logger, ResourceId, UserId, CreationMethod } from '@semiont/core';
+import type { Logger, ResourceId, UserId } from '@semiont/core';
 import { EventBus, annotationId as annotationIdFactory, resourceId as makeResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
@@ -247,7 +247,6 @@ async function importResource(
   const representations = doc['representations'] as Array<Record<string, unknown>> | undefined;
   const annotations = doc['annotations'] as Annotation[] | undefined;
   const entityTypes = doc['entityTypes'] as string[] | undefined;
-  const creationMethod = doc['creationMethod'] as string | undefined;
 
   // Get format and language from primary representation
   let format: ContentFormat = 'text/markdown';
@@ -291,7 +290,6 @@ async function importResource(
     _userId: userId,
     language,
     entityTypes: entityTypes ?? [],
-    creationMethod: creationMethod as CreationMethod | undefined,
   });
 
   const created = await firstValueFrom(createResult$);

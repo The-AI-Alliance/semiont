@@ -59,7 +59,6 @@ describe('EventLog', () => {
           name: 'Test Document',
           format: 'text/plain' as const,
           contentChecksum: 'checksum1',
-          creationMethod: 'api' as const,
         },
       };
 
@@ -110,7 +109,6 @@ describe('EventLog', () => {
           name: 'Test',
           format: 'text/plain' as const,
           contentChecksum: 'checksum1',
-          creationMethod: 'api' as const,
         },
       }, rid);
 
@@ -158,7 +156,6 @@ describe('EventLog', () => {
           name: 'Doc 1',
           format: 'text/plain' as const,
           contentChecksum: 'checksum1',
-          creationMethod: 'api' as const,
         },
       }, rid1);
 
@@ -171,7 +168,6 @@ describe('EventLog', () => {
           name: 'Doc 2',
           format: 'text/plain' as const,
           contentChecksum: 'checksum2',
-          creationMethod: 'api' as const,
         },
       }, rid2);
 
@@ -204,7 +200,6 @@ describe('EventLog', () => {
           name: 'Test',
           format: 'text/plain' as const,
           contentChecksum: 'checksum1',
-          creationMethod: 'api' as const,
         },
       }, rid);
 

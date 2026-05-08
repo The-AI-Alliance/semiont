@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
 import type { components, EventOfType, Logger } from '@semiont/core';
-import { resourceId, userId, annotationId, CREATION_METHODS, EventBus } from '@semiont/core';
+import { resourceId, userId, annotationId, EventBus } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 type AnnotationBody = components['schemas']['AnnotationBody'];
@@ -49,7 +49,6 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
         name: 'Test Resource for CRUD',
         format: 'text/plain',
         contentChecksum: 'test-checksum-1',
-        creationMethod: CREATION_METHODS.API,
       },
     };
 
@@ -62,7 +61,6 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
         name: 'Test Target Resource',
         format: 'text/plain',
         contentChecksum: 'test-checksum-2',
-        creationMethod: CREATION_METHODS.API,
       },
     };
 

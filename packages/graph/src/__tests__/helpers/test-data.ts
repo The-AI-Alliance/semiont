@@ -56,6 +56,7 @@ export function createTestHighlight(
       purpose: 'highlighting',
     },
     creator: {
+      '@type': 'Person' as const,
       name: `User ${uuidv4()}`,
     },
     ...overrides,
@@ -83,6 +84,7 @@ export function createTestReference(
     },
     body: [{ type: 'TextualBody', value: 'StubEntityType', purpose: 'tagging' }],
     creator: {
+      '@type': 'Person' as const,
       name: `User ${uuidv4()}`,
     },
     ...overrides,
@@ -117,6 +119,7 @@ export function createTestEntityReference(
       entityTypes,
     } as any,
     creator: {
+      '@type': 'Person' as const,
       name: `User ${uuidv4()}`,
     },
     ...overrides,

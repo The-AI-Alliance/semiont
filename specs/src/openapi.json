@@ -30,8 +30,8 @@
     "/api/tokens/media": {
       "$ref": "paths/api_tokens_media.json"
     },
-    "/api/tokens/worker": {
-      "$ref": "paths/api_tokens_worker.json"
+    "/api/tokens/agent": {
+      "$ref": "paths/api_tokens_agent.json"
     },
     "/api/users/me": {
       "$ref": "paths/api_users_me.json"

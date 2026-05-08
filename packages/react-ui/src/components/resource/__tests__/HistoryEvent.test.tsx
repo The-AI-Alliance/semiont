@@ -58,7 +58,7 @@ function makeStoredEvent(overrides: Record<string, any> = {}): any {
     resourceId: 'res-1',
     userId: 'user-1',
     version: 1,
-    payload: { name: 'Test', format: 'text/plain', contentChecksum: 'abc', creationMethod: 'upload' },
+    payload: { name: 'Test', format: 'text/plain', contentChecksum: 'abc' },
     ...overrides,
     metadata: {
       sequenceNumber: 1,
@@ -315,7 +315,6 @@ describe('HistoryEvent', () => {
     mockGetResourceCreationDetails.mockReturnValue({
       type: 'created',
       userId: 'alice',
-      method: 'upload',
     });
     const event = makeStoredEvent();
     renderWithProviders(
@@ -331,14 +330,12 @@ describe('HistoryEvent', () => {
     );
 
     expect(screen.getByText('alice')).toBeInTheDocument();
-    expect(screen.getByText('upload')).toBeInTheDocument();
   });
 
   it('renders "View Original" link for cloned resources', () => {
     mockGetResourceCreationDetails.mockReturnValue({
       type: 'cloned',
       userId: 'bob',
-      method: 'clone',
       sourceDocId: 'doc-source-123',
     });
     const event = makeStoredEvent();

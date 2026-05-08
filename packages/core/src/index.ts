@@ -52,10 +52,6 @@ export {
   resourceAnnotationUri,
 } from './branded-types';
 
-// Creation methods
-export { CREATION_METHODS } from './creation-methods';
-export type { CreationMethod } from './creation-methods';
-
 // Identifier types (only IDs - URIs are in @semiont/api-client)
 export type { ResourceId, AnnotationId, UserId } from './identifiers';
 export {

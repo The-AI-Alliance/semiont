@@ -49,7 +49,8 @@
       "description": "W3C Web Annotation body. Optional per the W3C spec — annotations whose motivation alone is meaningful (highlighting) legitimately omit it. Present values are either a single body or a non-empty array of bodies; the prior empty-array 'stub' branch has been removed (it was a naming lie shared between highlights and never-actually-emitted stub references, and the source of the #651 reference-annotation validator bug)."
     },
     "creator": {
-      "$ref": "./Agent.json"
+      "$ref": "./Agent.json",
+      "description": "Web Annotation creator — the entity that initiated the annotation. For human-driven work this is a Person; for autonomous-agent work this is a Software peer."
     },
     "created": {
       "type": "string"
@@ -58,7 +59,18 @@
       "type": "string"
     },
     "generator": {
-      "$ref": "./Agent.json"
+      "oneOf": [
+        { "$ref": "./Agent.json" },
+        { "type": "array", "items": { "$ref": "./Agent.json" }, "minItems": 1 }
+      ],
+      "description": "Web Annotation generator — the SoftwareAgent that produced the annotation, when software was involved. Absent for purely manual annotations. Single object is the common case; array supports pipelines that combine multiple software peers."
+    },
+    "wasAttributedTo": {
+      "oneOf": [
+        { "$ref": "./Agent.json" },
+        { "type": "array", "items": { "$ref": "./Agent.json" }, "minItems": 1 }
+      ],
+      "description": "PROV-O wasAttributedTo — all parties responsible for this annotation. For human-prompted AI work this combines `creator` (the Person) and `generator` (the Software). For purely manual annotations it equals `[creator]`; for autonomous-agent work it equals `[generator]` (and `creator` may be the same Software)."
     }
   },
   "required": [

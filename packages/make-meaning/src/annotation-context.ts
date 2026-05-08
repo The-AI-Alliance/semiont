@@ -543,7 +543,6 @@ Summary:`;
         entityTypes: resource.entityTypes,
         representations: resource.representations,
         archived: resource.archived,
-        creationMethod: resource.creationMethod,
         wasAttributedTo: resource.wasAttributedTo,
         dateCreated: resource.dateCreated,
       },

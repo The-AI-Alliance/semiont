@@ -306,11 +306,12 @@ export function getEventEntityTypes(event: StoredEventLike): string[] {
 }
 
 /**
- * Resource creation details
+ * Resource creation details derived from a yield:created or yield:cloned
+ * event. The creation kind (`type`) is read from the event channel —
+ * the redundant `creationMethod` payload field is gone.
  */
 export interface ResourceCreationDetails {
   type: 'created' | 'cloned';
-  method: string;
   userId?: string;
   sourceDocId?: string; // For cloned resources
   parentResourceId?: string;
@@ -327,7 +328,6 @@ export function getResourceCreationDetails(event: StoredEventLike): ResourceCrea
   if (eventData.type === 'yield:created') {
     return {
       type: 'created',
-      method: payload.creationMethod || 'unknown',
       userId: eventData.userId,
       metadata: undefined,
     };
@@ -336,7 +336,6 @@ export function getResourceCreationDetails(event: StoredEventLike): ResourceCrea
   if (eventData.type === 'yield:cloned') {
     return {
       type: 'cloned',
-      method: payload.creationMethod || 'clone',
       userId: eventData.userId,
       sourceDocId: payload.parentResourceId,
       parentResourceId: payload.parentResourceId,

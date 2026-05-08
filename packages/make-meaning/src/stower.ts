@@ -40,8 +40,8 @@ import { promises as fs } from 'fs';
 import { Subscription, from, merge } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
 import type { Annotation, EventMap, Logger, ResourceDescriptor } from '@semiont/core';
-import { EventBus, annotationId, errField, resourceId, userId as makeUserId, CREATION_METHODS, generateUuid } from '@semiont/core';
-import type { CreationMethod, ResourceId } from '@semiont/core';
+import { EventBus, annotationId, errField, resourceId, userId as makeUserId, generateUuid } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { resolveStorageUri } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from './knowledge-base';
@@ -111,11 +111,6 @@ export class Stower {
       const checksum = stored.checksum;
       const byteSize = event.byteSize;
 
-      const validCreationMethods = Object.values(CREATION_METHODS) as string[];
-      const validatedCreationMethod = event.creationMethod && validCreationMethods.includes(event.creationMethod)
-        ? (event.creationMethod as CreationMethod)
-        : CREATION_METHODS.API;
-
       // generatedFrom on the bus command has optional fields; the domain event requires both
       const generatedFrom = event.generatedFrom?.resourceId && event.generatedFrom?.annotationId
         ? {
@@ -135,7 +130,6 @@ export class Stower {
           contentChecksum: checksum,
           contentByteSize: byteSize,
           storageUri: event.storageUri,
-          creationMethod: validatedCreationMethod,
           entityTypes: event.entityTypes || [],
           language: event.language || undefined,
           isDraft: event.isDraft ?? false,
@@ -151,7 +145,6 @@ export class Stower {
         name: event.name,
         archived: false,
         entityTypes: event.entityTypes || [],
-        creationMethod: validatedCreationMethod,
         storageUri: event.storageUri,
         currentChecksum: checksum,
         dateCreated: new Date().toISOString(),

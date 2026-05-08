@@ -164,7 +164,6 @@ describe('backup-importer', () => {
       format: 'text/markdown',
       language: 'en',
       entityTypes: [],
-      creationMethod: 'api',
     }) + '\n';
 
     const archive = await buildArchive([

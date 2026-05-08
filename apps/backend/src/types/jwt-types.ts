@@ -10,6 +10,12 @@ export const JWTPayloadSchema = z.object({
   domain: z.string(),
   provider: z.string(),
   isAdmin: z.boolean(),
+  // For software-agent tokens: the agent's DID is asserted by the auth
+  // route (which knows the (inferenceProvider, model) the token is being
+  // issued for) and carried on the JWT. The bus uses this directly as
+  // `_userId` instead of recomputing `userToDid(user)`. Unset for human
+  // tokens.
+  agentDid: z.string().optional(),
   iat: z.number().optional(),
   exp: z.number().optional(),
 });

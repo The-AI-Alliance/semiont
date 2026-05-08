@@ -59,7 +59,6 @@ describe('ResourceContext', () => {
       name: 'Test Resource',
       archived: false,
       entityTypes: ['Document'],
-      creationMethod: 'api',
       dateCreated: '2024-01-01T00:00:00Z',
       representations: [
         {
@@ -108,7 +107,6 @@ describe('ResourceContext', () => {
       name: 'Resource 1',
       archived: false,
       entityTypes: ['Document'],
-      creationMethod: 'api',
       dateCreated: '2024-01-01T00:00:00Z',
       representations: [],
     };
@@ -119,7 +117,6 @@ describe('ResourceContext', () => {
       name: 'Resource 2',
       archived: false,
       entityTypes: ['Image'],
-      creationMethod: 'upload',
       dateCreated: '2024-01-02T00:00:00Z',
       representations: [],
     };
@@ -130,7 +127,6 @@ describe('ResourceContext', () => {
       name: 'Archived Resource',
       archived: true,
       entityTypes: ['Document'],
-      creationMethod: 'api',
       dateCreated: '2024-01-03T00:00:00Z',
       representations: [],
     };
@@ -253,7 +249,6 @@ describe('ResourceContext', () => {
         name: 'Archived Special',
         archived: true,
         entityTypes: ['Document'],
-        creationMethod: 'api',
         dateCreated: '2024-01-04T00:00:00Z',
         representations: [],
       };
@@ -332,7 +327,6 @@ describe('ResourceContext', () => {
         name: 'No Date Resource',
         archived: false,
         entityTypes: ['Document'],
-        creationMethod: 'api',
         representations: [],
       };
 
@@ -376,7 +370,6 @@ describe('ResourceContext', () => {
       name: 'Test Resource',
       archived: false,
       entityTypes: ['Document'],
-      creationMethod: 'api',
       dateCreated: '2024-01-01T00:00:00Z',
       storageUri: 'abc123',
       representations: [

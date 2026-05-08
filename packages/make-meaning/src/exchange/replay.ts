@@ -192,7 +192,6 @@ async function replayResourceCreated(
     _userId: event.userId,
     language: payload.language,
     entityTypes: payload.entityTypes,
-    creationMethod: payload.creationMethod,
     isDraft: payload.isDraft,
     generatedFrom: payload.generatedFrom,
     generationPrompt: payload.generationPrompt,

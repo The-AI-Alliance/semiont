@@ -204,14 +204,13 @@ describe('event-formatting', () => {
     it('returns created details for yield:created', () => {
       const event = {
         type: 'yield:created' as const,
-        payload: { name: 'Doc', creationMethod: 'upload' },
+        payload: { name: 'Doc' },
         userId: 'user-1',
         timestamp: '',
       } as any;
       const result = getResourceCreationDetails(event);
       expect(result).toEqual({
         type: 'created',
-        method: 'upload',
         userId: 'user-1',
         metadata: undefined,
       });
@@ -220,29 +219,18 @@ describe('event-formatting', () => {
     it('returns cloned details for yield:cloned', () => {
       const event = {
         type: 'yield:cloned' as const,
-        payload: { name: 'Clone', creationMethod: 'clone', parentResourceId: 'parent-1' },
+        payload: { name: 'Clone', parentResourceId: 'parent-1' },
         userId: 'user-2',
         timestamp: '',
       } as any;
       const result = getResourceCreationDetails(event);
       expect(result).toEqual({
         type: 'cloned',
-        method: 'clone',
         userId: 'user-2',
         sourceDocId: 'parent-1',
         parentResourceId: 'parent-1',
         metadata: undefined,
       });
-    });
-
-    it('uses fallback method when creationMethod missing', () => {
-      const event = {
-        type: 'yield:created' as const,
-        payload: { name: 'Doc' },
-        userId: 'u1',
-        timestamp: '',
-      } as any;
-      expect(getResourceCreationDetails(event)?.method).toBe('unknown');
     });
 
     it('returns null for non-creation events', () => {

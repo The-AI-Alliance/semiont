@@ -19,7 +19,7 @@ import * as argon2 from 'argon2';
 import type { User } from '@prisma/client';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
 import type { components } from '@semiont/core';
-import { userId as makeUserId, googleCredential, email as makeEmail } from '@semiont/core';
+import { userId as makeUserId, googleCredential, email as makeEmail, agentToDid } from '@semiont/core';
 import { getLogger } from '../logger';
 import { createSafeLogContext } from '../utils/log-sanitizer';
 
@@ -428,23 +428,28 @@ authRouter.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
 });
 
 /**
- * POST /api/tokens/worker
+ * POST /api/tokens/agent
  *
- * Worker Token Exchange
- * Exchange a shared secret for a bearer JWT. Used by workers and actors
- * connecting to the EventBus. The shared secret is set via the
- * SEMIONT_WORKER_SECRET environment variable on both the backend and
- * the worker/actor containers.
+ * Software-agent token exchange. A worker process presents the shared
+ * `SEMIONT_WORKER_SECRET` along with the inference (provider, model)
+ * the token is being issued for. The backend upserts a User row that
+ * backs the agent identity and returns a JWT carrying both the
+ * synthetic User and the agent's DID.
+ *
+ * The agent's DID has the shape `did:web:<host>:agents:<provider>:<model>`
+ * (see `agentToDid` in @semiont/core). It is what the bus stamps onto
+ * `_userId` on every event the worker emits — so events the agent
+ * produces attribute to the agent, not to a generic worker pool.
  *
  * Public endpoint (no authentication required — this IS the auth step).
  */
-authRouter.post('/api/tokens/worker', async (c) => {
+authRouter.post('/api/tokens/agent', async (c) => {
   const workerSecret = process.env.SEMIONT_WORKER_SECRET;
   if (!workerSecret) {
-    return c.json({ error: 'Worker authentication not configured' }, 503);
+    return c.json({ error: 'Agent authentication not configured' }, 503);
   }
 
-  let body: { secret?: string };
+  let body: { secret?: string; provider?: string; model?: string };
   try {
     body = await c.req.json();
   } catch {
@@ -452,28 +457,65 @@ authRouter.post('/api/tokens/worker', async (c) => {
   }
 
   if (body.secret !== workerSecret) {
-    return c.json({ error: 'Invalid worker secret' }, 401);
+    return c.json({ error: 'Invalid agent secret' }, 401);
   }
+  if (!body.provider || typeof body.provider !== 'string') {
+    return c.json({ error: 'provider is required' }, 400);
+  }
+  if (!body.model || typeof body.model !== 'string') {
+    return c.json({ error: 'model is required' }, 400);
+  }
+
+  const inferenceProvider = body.provider;
+  const model = body.model;
+
+  // The deployment domain is the issuer of the agent's DID. JWTService
+  // already validates `domain` is set in env config; reuse it here.
+  const siteDomain = JWTService.getDomainForAgent();
+
+  // Synthetic User row backing the agent identity. Keyed by
+  // (provider='agent', providerId='<provider>:<model>') so each
+  // (provider, model) pair gets a stable User row that's auto-upserted
+  // on first use. The email is a deterministic identifier in a
+  // dedicated `agents.<host>` namespace so it can't collide with real
+  // users on the deployment domain.
+  const providerId = `${inferenceProvider}:${model}`;
+  const slug = providerId.replace(/[^a-zA-Z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  const agentEmail = `${slug}@agents.${siteDomain}`;
+  const agentName = `${inferenceProvider} ${model}`;
 
   const prisma = DatabaseConnection.getClient();
-  const workerUser = await prisma.user.findUnique({
-    where: { email: 'worker@semiont.local' },
+  const agentUser = await prisma.user.upsert({
+    where: { provider_providerId: { provider: 'agent', providerId } },
+    update: {
+      name: agentName,
+      isActive: true,
+      lastLogin: new Date(),
+    },
+    create: {
+      email: agentEmail,
+      name: agentName,
+      provider: 'agent',
+      providerId,
+      domain: siteDomain,
+      isActive: true,
+      isAdmin: false,
+    },
   });
 
-  if (!workerUser) {
-    return c.json({ error: 'Worker user not found — run: semiont useradd --email worker@semiont.local --generate-password --upsert' }, 503);
-  }
+  const did = agentToDid({ domain: siteDomain, provider: inferenceProvider, model });
 
   const token = JWTService.generateToken({
-    userId: makeUserId(workerUser.id),
-    email: makeEmail(workerUser.email),
-    name: workerUser.name ?? 'Worker Pool',
-    domain: workerUser.domain,
-    provider: workerUser.provider,
+    userId: makeUserId(agentUser.id),
+    email: makeEmail(agentUser.email),
+    name: agentUser.name ?? agentName,
+    domain: agentUser.domain,
+    provider: agentUser.provider,
     isAdmin: false,
+    agentDid: did,
   }, '24h');
 
-  return c.json({ token }, 200);
+  return c.json({ token, did }, 200);
 });
 
 /**

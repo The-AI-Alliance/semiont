@@ -116,6 +116,18 @@ export class OAuthService {
   }
 
   static async getUserFromToken(token: AccessToken): Promise<User> {
+    return (await this.getPrincipalFromToken(token)).user;
+  }
+
+  /**
+   * Resolve a JWT to its authenticated principal — the User row plus the
+   * principal's DID when the token was issued for a software agent. The
+   * `agentDid` is set by `/api/tokens/agent` and is the read-side
+   * inverse of "who is this token *acting as*?" — bus middleware uses it
+   * directly so emits attribute to the agent rather than the synthetic
+   * service-account User backing the token.
+   */
+  static async getPrincipalFromToken(token: AccessToken): Promise<{ user: User; agentDid?: string }> {
     const payload = JWTService.verifyToken(token);
 
     if (!payload.userId) {
@@ -131,7 +143,7 @@ export class OAuthService {
       throw new Error('User not found or inactive');
     }
 
-    return user;
+    return payload.agentDid ? { user, agentDid: payload.agentDid } : { user };
   }
 
   static async acceptTerms(userId: UserId): Promise<User> {

@@ -270,7 +270,7 @@ describe('FilesystemViewStorage', () => {
               body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
               target: 'http://localhost:4000/resources/doc1',
               created: new Date().toISOString(),
-              creator: { id: 'http://localhost:4000/users/user1', type: 'Person' },
+              creator: { '@id': 'http://localhost:4000/users/user1', '@type': 'Person' as const, name: 'user1' },
             },
             {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -280,7 +280,7 @@ describe('FilesystemViewStorage', () => {
               body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
               target: 'http://localhost:4000/resources/doc1',
               created: new Date().toISOString(),
-              creator: { id: 'http://localhost:4000/users/user1', type: 'Person' },
+              creator: { '@id': 'http://localhost:4000/users/user1', '@type': 'Person' as const, name: 'user1' },
             },
           ],
         }),

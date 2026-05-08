@@ -103,15 +103,15 @@ describe('getStorageUri', () => {
 
 describe('getCreator', () => {
   test('returns single agent', () => {
-    const agent = { type: 'Person' as const, id: 'user:1', name: 'Alice' };
+    const agent = { '@type': 'Person' as const, '@id': 'user:1', name: 'Alice' };
     const r = makeResource({ wasAttributedTo: agent });
     expect(getCreator(r)).toEqual(agent);
   });
 
   test('returns first from array', () => {
     const agents = [
-      { type: 'Person' as const, id: 'user:1', name: 'Alice' },
-      { type: 'Software' as const, id: 'bot:1', name: 'Bot' },
+      { '@type': 'Person' as const, '@id': 'user:1', name: 'Alice' },
+      { '@type': 'Software' as const, '@id': 'bot:1', name: 'Bot' },
     ];
     const r = makeResource({ wasAttributedTo: agents });
     expect(getCreator(r)?.name).toBe('Alice');

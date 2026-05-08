@@ -170,7 +170,7 @@ describe('LLM Context', () => {
       // mark:added; this test emits mark:create directly, so we await the
       // persisted mark:added domain event instead.
       const created$ = firstValueFrom(eventBus.get('mark:added').pipe(take(1)));
-      const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
+      const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
       await AnnotationOperations.createAnnotation(
         {
           motivation: 'highlighting',

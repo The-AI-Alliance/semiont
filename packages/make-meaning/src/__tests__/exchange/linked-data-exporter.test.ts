@@ -61,7 +61,6 @@ function makeResource(overrides: Partial<ResourceDescriptor> = {}): ResourceDesc
     }],
     dateCreated: '2026-03-12T00:00:00Z',
     entityTypes: ['Person'],
-    creationMethod: 'ui',
     ...overrides,
   };
 }
@@ -174,7 +173,6 @@ describe('linked-data-exporter', () => {
     expect(resourceDoc['inLanguage']).toBe('en');
     expect(resourceDoc['encodingFormat']).toBe('text/markdown');
     expect(resourceDoc['entityTypes']).toEqual(['Person']);
-    expect(resourceDoc['creationMethod']).toBe('ui');
     expect(resourceDoc['annotations']).toHaveLength(1);
     expect(resourceDoc['annotations'][0]['id']).toBe('http://localhost:4000/annotations/ann-1');
 

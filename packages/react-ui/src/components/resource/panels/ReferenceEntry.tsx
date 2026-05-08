@@ -10,6 +10,7 @@ import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
+import { renderAgentLabel } from './agent-label';
 import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
@@ -171,7 +172,9 @@ export function ReferenceEntry({
       )}
       {reference.generator && (
         <div className="semiont-annotation-entry__metadata">
-          Via {typeof reference.generator === 'string' ? reference.generator : reference.generator.name}
+          Via {Array.isArray(reference.generator)
+            ? reference.generator.map(renderAgentLabel).join(', ')
+            : renderAgentLabel(reference.generator)}
         </div>
       )}
     </div>

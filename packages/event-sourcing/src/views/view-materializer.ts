@@ -147,7 +147,6 @@ export class ViewMaterializer {
       representations: [],
       archived: false,
       entityTypes: [],
-      creationMethod: 'api',
     };
 
     // Start with empty annotations
@@ -180,7 +179,6 @@ export class ViewMaterializer {
         resource.name = event.payload.name;
         resource.entityTypes = event.payload.entityTypes || [];
         resource.dateCreated = event.timestamp;
-        resource.creationMethod = event.payload.creationMethod || 'api';
         resource.wasAttributedTo = didToAgent(event.userId);
 
         // Create representation from format and checksum
@@ -211,7 +209,6 @@ export class ViewMaterializer {
         resource.name = event.payload.name;
         resource.entityTypes = event.payload.entityTypes || [];
         resource.dateCreated = event.timestamp;
-        resource.creationMethod = 'clone';
         resource.sourceResourceId = event.payload.parentResourceId;
         resource.wasAttributedTo = didToAgent(event.userId);
 

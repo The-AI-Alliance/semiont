@@ -40,7 +40,7 @@ describe('EventQuery', () => {
       userId: userId('user1'),
       resourceId: resourceId('doc1'),
       version: 1,
-      payload: { name: 'Doc1', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
+      payload: { name: 'Doc1', format: 'text/plain' as const, contentChecksum: 'checksum1' as const },
     }, resourceId('doc1'));
 
     await storage.appendEvent({
@@ -81,7 +81,7 @@ describe('EventQuery', () => {
       userId: userId('user1'),
       resourceId: resourceId('doc2'),
       version: 1,
-      payload: { name: 'Doc2', format: 'text/plain' as const, contentChecksum: 'checksum2', creationMethod: 'api' as const },
+      payload: { name: 'Doc2', format: 'text/plain' as const, contentChecksum: 'checksum2' as const },
     }, resourceId('doc2'));
   });
 

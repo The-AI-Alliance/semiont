@@ -34,7 +34,6 @@ import type {
   RefreshToken,
   UserDID,
 } from './branded-types';
-import type { CreationMethod } from './creation-methods';
 import type { AnnotationId, ResourceId } from './identifiers';
 import type { EventMap } from './bus-protocol';
 import type { EventBus } from './event-bus';
@@ -250,7 +249,6 @@ export interface PutBinaryRequest {
   storageUri: string;
   entityTypes?: string[];
   language?: string;
-  creationMethod?: CreationMethod | string;
   sourceAnnotationId?: AnnotationId | string;
   sourceResourceId?: ResourceId | string;
   generationPrompt?: string;

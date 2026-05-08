@@ -64,7 +64,6 @@ const SEMIONT_CONTEXT = [
   {
     'semiont': 'https://semiont.org/vocab/',
     'entityTypes': 'semiont:entityTypes',
-    'creationMethod': 'semiont:creationMethod',
     'archived': 'semiont:archived',
     'representations': { '@id': 'semiont:representations', '@container': '@set' },
     'annotations': { '@id': 'semiont:annotations', '@container': '@set' },
@@ -247,7 +246,6 @@ function buildResourceJsonLd(
   }
 
   // Application-specific fields via semiont: vocabulary
-  if (resource.creationMethod) doc['creationMethod'] = resource.creationMethod;
   if (resource.entityTypes && resource.entityTypes.length > 0) doc['entityTypes'] = resource.entityTypes;
   if (resource.archived) doc['archived'] = resource.archived;
 

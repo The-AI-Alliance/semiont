@@ -29,7 +29,6 @@ const testSourceResource: GatheredContext['sourceResource'] = {
   name: 'Test Resource',
   representations: [],
   archived: false,
-  creationMethod: 'ui',
   dateCreated: '2026-01-01T00:00:00Z',
 };
 

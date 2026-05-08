@@ -1,19 +1,14 @@
 /**
  * Worker Process Entry Point
  *
- * Standalone Node process that hangs a job-claim loop off a
- * `SemiontSession`'s transport. Receives job assignments, processes them
- * with an inference provider, and emits domain events through
- * `session.client.transport.emit`. All HTTP and SSE goes through the
- * api-client — no raw `fetch`, no hand-rolled multipart.
- *
- * Workers are inherently bound to HTTP transport (they connect to a
- * remote backend over the wire). The cast to `HttpTransport` to reach
- * the underlying `ActorStateUnit` for `JobClaimAdapter` reflects that — local
- * workers don't make sense.
- *
- * Usage:
- *   node worker-process.js
+ * One worker process serves a single software-agent identity — one
+ * `(inferenceProvider, model)` pair. The session it owns is
+ * authenticated *as that agent* (`/api/tokens/agent`), so every event
+ * the worker emits attributes to the agent at the bus seat. Multiple
+ * agents on the same host run as multiple worker processes side by
+ * side; their job-claim subscriptions don't interfere because each
+ * agent only subscribes to the job types its inference engine is
+ * configured to serve.
  *
  * `createJobClaimAdapter` handles the reactive contract (SSE
  * subscription, claim, completion tracking). This file wires the
@@ -40,29 +35,32 @@ import {
 
 type Agent = components['schemas']['Agent'];
 
-export interface WorkerEngine {
-  inferenceClient: InferenceClient;
-  generator: Agent;
-}
-
 export interface WorkerProcessConfig {
-  session: SemiontSession;
-  jobTypes: string[];
   /**
-   * Per-job-type inference client + generator metadata. Keyed by the
-   * job type the worker has subscribed to (`jobTypes`). Each entry lets
-   * that job type run on its own model, as configured in
-   * `[workers.<job-type>.inference]`.
+   * The session authenticated as this worker's software-agent identity.
+   * Bus emits through this session attribute to that agent.
    */
-  engines: Record<string, WorkerEngine>;
+  session: SemiontSession;
+  /**
+   * The job types this agent serves. Today every job type a worker
+   * subscribes to runs through the same inference engine — different
+   * inference engines mean different agents and therefore different
+   * worker processes.
+   */
+  jobTypes: string[];
+  inferenceClient: InferenceClient;
+  /**
+   * The agent (Software) record stamped onto annotations as `generator`
+   * and onto resources as `wasAttributedTo`. Same identity that the
+   * session is authenticated as.
+   */
+  generator: Agent;
   logger: Logger;
 }
 
 /**
  * Route `transport.emit` calls — choosing resource-scoped vs global based
- * on whether the event is a cross-subscriber broadcast. Extracted
- * from the deleted `WorkerStateUnit.emitEvent`; kept here as a module-level
- * helper because `handleJob` uses it a dozen times.
+ * on whether the event is a cross-subscriber broadcast.
  */
 async function emitEvent<K extends keyof EventMap>(
   session: SemiontSession,
@@ -147,7 +145,7 @@ async function handleJobInner(
   config: WorkerProcessConfig,
   job: ActiveJob,
 ): Promise<void> {
-  const { session } = config;
+  const { session, inferenceClient, generator } = config;
   const { resourceId, userId, jobId, type: jobType } = job;
 
   // Annotation-scoped jobs (today: generation, triggered from a
@@ -170,12 +168,10 @@ async function handleJobInner(
 
   await emitEvent(session, 'job:start', lifecycleBase);
 
-  const engine = config.engines[jobType];
-  if (!engine) {
-    adapter.failJob(jobId, `No inference engine configured for job type: ${jobType}`);
+  if (!config.jobTypes.includes(jobType)) {
+    adapter.failJob(jobId, `Worker not configured for job type: ${jobType}`);
     return;
   }
-  const { inferenceClient, generator } = engine;
 
   const onProgress: OnProgress = (percentage, message, stage, extra) => {
     emitEvent(session, 'job:report-progress', {
@@ -286,7 +282,6 @@ async function handleJobInner(
       file: Buffer.from(genResult.content),
       format: genResult.format,
       storageUri,
-      creationMethod: 'generated',
       sourceResourceId: resourceId as unknown as string,
       ...(genParams.referenceId ? { sourceAnnotationId: genParams.referenceId } : {}),
       ...(genParams.prompt ? { generationPrompt: genParams.prompt } : {}),

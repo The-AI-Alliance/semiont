@@ -70,7 +70,6 @@ describe('ViewMaterializer', () => {
             name: 'Test Resource',
             format: 'text/markdown',
             contentChecksum: 'hash123',
-            creationMethod: 'api',
             entityTypes: ['note'],
           },
         }, 1),
@@ -93,7 +92,7 @@ describe('ViewMaterializer', () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
         }, 1),
         createStoredEvent({
           type: 'mark:archived',
@@ -111,7 +110,7 @@ describe('ViewMaterializer', () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
         }, 1),
         createStoredEvent({
           type: 'mark:archived',
@@ -133,7 +132,7 @@ describe('ViewMaterializer', () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: [] },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', entityTypes: [] },
         }, 1),
         createStoredEvent({
           type: 'mark:entity-tag-added',
@@ -155,7 +154,7 @@ describe('ViewMaterializer', () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: ['Person', 'Organization'] },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', entityTypes: ['Person', 'Organization'] },
         }, 1),
         createStoredEvent({
           type: 'mark:entity-tag-removed',
@@ -175,7 +174,7 @@ describe('ViewMaterializer', () => {
         'type': 'Annotation' as const,
         id: annotationId('anno1'),
         motivation: 'highlighting' as const,
-        creator: { type: 'Person' as const, name: 'Test User' },
+        creator: { '@type': 'Person' as const, name: 'Test User' },
         created: new Date().toISOString(),
         target: {
           source: 'doc1',
@@ -197,7 +196,7 @@ describe('ViewMaterializer', () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
         }, 1),
         createStoredEvent({
           type: 'mark:added',
@@ -227,7 +226,7 @@ describe('ViewMaterializer', () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
         }, 1),
         createStoredEvent({
           type: 'mark:added',
@@ -258,7 +257,7 @@ describe('ViewMaterializer', () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
         }, 1),
         createStoredEvent({
           type: 'mark:added',
@@ -305,7 +304,7 @@ describe('ViewMaterializer', () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
         }, 1),
         createStoredEvent({
           type: 'mark:added',
@@ -349,7 +348,7 @@ describe('ViewMaterializer', () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
         }, 1),
         createStoredEvent({
           type: 'mark:added',
@@ -385,7 +384,7 @@ describe('ViewMaterializer', () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
         }, 1),
         createStoredEvent({
           type: 'mark:added',
@@ -432,7 +431,7 @@ describe('ViewMaterializer', () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
         }, 1),
       ];
 
@@ -454,7 +453,7 @@ describe('ViewMaterializer', () => {
       const initialEvents = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: [] },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', entityTypes: [] },
         }, 1),
       ];
 
@@ -481,7 +480,7 @@ describe('ViewMaterializer', () => {
       const initialEvents = [
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: [] },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', entityTypes: [] },
         }, 1),
       ];
 
@@ -564,7 +563,7 @@ describe('ViewMaterializer', () => {
         }, 2),
         createStoredEvent({
           type: 'yield:created',
-          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
         }, 1),
       ];
 

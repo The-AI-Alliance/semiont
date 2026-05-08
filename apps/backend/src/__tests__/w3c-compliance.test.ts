@@ -42,8 +42,8 @@ describe('W3C Web Annotation Compliance', () => {
           ],
         },
         creator: {
-          type: 'Person',
-          id: annotationId('user-123'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -81,8 +81,8 @@ describe('W3C Web Annotation Compliance', () => {
           },
         ],
         creator: {
-          type: 'Person',
-          id: annotationId('user-456'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-456'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -146,8 +146,8 @@ describe('W3C Web Annotation Compliance', () => {
           },
         ],
         creator: {
-          type: 'Person',
-          id: annotationId('user-789'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-789'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -202,8 +202,8 @@ describe('W3C Web Annotation Compliance', () => {
           },
         ],
         creator: {
-          type: 'Person',
-          id: annotationId('user-xyz'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-xyz'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -239,8 +239,8 @@ describe('W3C Web Annotation Compliance', () => {
           },
         ],
         creator: {
-          type: 'Person',
-          id: annotationId('user-123'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -265,8 +265,8 @@ describe('W3C Web Annotation Compliance', () => {
         motivation: 'linking',
         target: 'http://example.org/resource-123', // Simple string IRI
         creator: {
-          type: 'Person',
-          id: annotationId('user-123'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -287,8 +287,8 @@ describe('W3C Web Annotation Compliance', () => {
           source: `${TEST_BACKEND_URL}/resources/doc-456`, // Source without selector
         },
         creator: {
-          type: 'Person',
-          id: annotationId('user-456'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-456'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -323,8 +323,8 @@ describe('W3C Web Annotation Compliance', () => {
           },
         ],
         creator: {
-          type: 'Person',
-          id: annotationId('user-789'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-789'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -352,8 +352,8 @@ describe('W3C Web Annotation Compliance', () => {
           source: `${TEST_BACKEND_URL}/resources/doc-123`,
         },
         creator: {
-          type: 'Person',
-          id: annotationId('user-123'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -390,8 +390,8 @@ describe('W3C Web Annotation Compliance', () => {
           },
         ],
         creator: {
-          type: 'Person',
-          id: annotationId('user-456'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-456'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -411,8 +411,8 @@ describe('W3C Web Annotation Compliance', () => {
         motivation: 'linking',
         target: 'doc-123',
         creator: {
-          type: 'Person',
-          id: annotationId('user-123'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -429,8 +429,8 @@ describe('W3C Web Annotation Compliance', () => {
         motivation: 'linking',
         target: 'doc-456',
         creator: {
-          type: 'Person',
-          id: annotationId('user-456'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-456'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -447,8 +447,8 @@ describe('W3C Web Annotation Compliance', () => {
         motivation: 'linking',
         target: 'doc-789', // Target is required
         creator: {
-          type: 'Person',
-          id: annotationId('user-789'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-789'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -481,8 +481,8 @@ describe('W3C Web Annotation Compliance', () => {
           },
         ],
         creator: {
-          type: 'Person',
-          id: annotationId('user-123'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -541,8 +541,8 @@ describe('W3C Web Annotation Compliance', () => {
           },
         ],
         creator: {
-          type: 'Person',
-          id: annotationId('user-456'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-456'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -587,8 +587,8 @@ describe('W3C Web Annotation Compliance', () => {
           },
         ],
         creator: {
-          type: 'Person',
-          id: annotationId('user-123'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-123'),
           name: 'test-user',
         },
         created: new Date().toISOString(),
@@ -635,8 +635,8 @@ describe('W3C Web Annotation Compliance', () => {
           },
         ],
         creator: {
-          type: 'Person',
-          id: annotationId('user-456'),
+          '@type': 'Person' as const,
+          '@id': annotationId('user-456'),
           name: 'test-user',
         },
         created: new Date().toISOString(),

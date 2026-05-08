@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } 
 import { EventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
 import { GraphDBConsumer } from '../graph/consumer';
-import { resourceId, userId, annotationId, CREATION_METHODS, EventBus } from '@semiont/core';
+import { resourceId, userId, annotationId, EventBus } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import { promises as fs } from 'fs';
@@ -124,7 +124,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
 
       await tick();
@@ -141,7 +141,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
       await tick();
       vi.clearAllMocks();
@@ -172,7 +172,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
       await tick();
       vi.clearAllMocks();
@@ -201,7 +201,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'My Doc', format: 'text/plain', contentChecksum: 'abc', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'My Doc', format: 'text/plain', contentChecksum: 'abc' },
       });
 
       await tick();
@@ -220,7 +220,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
       await tick();
       vi.clearAllMocks();
@@ -249,7 +249,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
       await tick();
       vi.clearAllMocks();
@@ -278,7 +278,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
       await tick();
       vi.clearAllMocks();
@@ -322,7 +322,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
       await tick();
       vi.clearAllMocks();
@@ -351,7 +351,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
       await tick();
 
@@ -396,7 +396,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
       await tick();
 
@@ -436,7 +436,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
       await tick();
 
@@ -489,7 +489,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
       await tick();
 
@@ -538,7 +538,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
 
       await eventStore.appendEvent({
@@ -569,7 +569,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
       await tick();
       vi.clearAllMocks();
@@ -631,7 +631,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'Before Stop', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'Before Stop', format: 'text/plain', contentChecksum: 'h1' },
       });
       await tick();
       expect(localGraphDb.createResource).toHaveBeenCalledTimes(1);
@@ -647,7 +647,7 @@ describe('GraphDBConsumer', () => {
         resourceId: docId2,
         userId: userId('user1'),
         version: 1,
-        payload: { name: 'After Stop', format: 'text/plain', contentChecksum: 'h2', creationMethod: CREATION_METHODS.API },
+        payload: { name: 'After Stop', format: 'text/plain', contentChecksum: 'h2' },
       });
       await tick();
 

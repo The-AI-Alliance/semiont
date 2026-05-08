@@ -17,7 +17,6 @@ import {
   resourceId,
   userId,
   EventBus,
-  CREATION_METHODS,
   type Logger,
 } from '@semiont/core';
 import type { EventStore } from '@semiont/event-sourcing';
@@ -70,7 +69,6 @@ describe('Unified Stream Integration (Phase 8b)', () => {
         name: 'CorrelationTest',
         format: 'text/plain',
         contentChecksum: 'sha:test',
-        creationMethod: CREATION_METHODS.API,
       },
     });
 
@@ -143,7 +141,6 @@ describe('Unified Stream Integration (Phase 8b)', () => {
         name: 'TwoTabTest',
         format: 'text/plain',
         contentChecksum: 'sha:twotab',
-        creationMethod: CREATION_METHODS.API,
       },
     });
 
@@ -253,7 +250,6 @@ describe('Unified Stream Integration (Phase 8b)', () => {
         name: 'OrderingTest',
         format: 'text/plain',
         contentChecksum: 'sha:order',
-        creationMethod: CREATION_METHODS.API,
       },
     });
 
