@@ -268,7 +268,7 @@ export async function processReferenceJob(
 
     for (const entity of extractedEntities) {
       try {
-        const validated = validateAndCorrectOffsets(content, entity.startOffset, entity.endOffset, entity.exact);
+        const validated = validateAndCorrectOffsets(content, entity.start, entity.end, entity.exact);
         const ann = buildTextAnnotation(
           params.resourceId, userId, generator, 'linking', validated, unresolvedBody,
         );

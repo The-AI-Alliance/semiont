@@ -181,8 +181,8 @@ describe('processReferenceJob', () => {
 
   it('produces linking annotations and tracks per-entity-type progress', async () => {
     vi.mocked(extractEntities).mockResolvedValue([
-      { exact: 'Paris', startOffset: 0, endOffset: 5, entityType: 'Location' } as any,
-      { exact: 'Berlin', startOffset: 10, endOffset: 16, entityType: 'Location' } as any,
+      { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
+      { exact: 'Berlin', start: 10, end: 16, entityType: 'Location' } as any,
     ]);
 
     const progress = vi.fn();
@@ -210,8 +210,8 @@ describe('processReferenceJob', () => {
 
   it('counts errors when offset validation throws', async () => {
     vi.mocked(extractEntities).mockResolvedValue([
-      { exact: 'good', startOffset: 0, endOffset: 4, entityType: 'Thing' } as any,
-      { exact: 'bad', startOffset: 99, endOffset: 102, entityType: 'Thing' } as any,
+      { exact: 'good', start: 0, end: 4, entityType: 'Thing' } as any,
+      { exact: 'bad', start: 99, end: 102, entityType: 'Thing' } as any,
     ]);
     vi.mocked(validateAndCorrectOffsets)
       .mockImplementationOnce((_c, start, end, exact) => ({ start, end, exact, prefix: '', suffix: '', corrected: false }))
@@ -416,7 +416,7 @@ describe('annotation attribution composition', () => {
       { exact: 'x', start: 0, end: 1, assessment: 'a' },
     ]);
     vi.mocked(extractEntities).mockResolvedValue([
-      { exact: 'x', start: 0, end: 1, candidateNames: ['n'] },
+      { exact: 'x', start: 0, end: 1, entityType: 'Person' } as any,
     ]);
     vi.mocked(AnnotationDetection.detectTags).mockResolvedValue([
       { exact: 'x', start: 0, end: 1, category: 'c' },
@@ -425,7 +425,7 @@ describe('annotation attribution composition', () => {
     const sources = await Promise.all([
       processCommentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, USER_DID, GENERATOR, vi.fn()),
       processAssessmentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, USER_DID, GENERATOR, vi.fn()),
-      processReferenceJob('x', makeInferenceClient(), { resourceId: RID, entityTypes: ['Person'] }, USER_DID, GENERATOR, vi.fn()),
+      processReferenceJob('x', makeInferenceClient(), { resourceId: RID, entityTypes: [entityType('Person')] }, USER_DID, GENERATOR, vi.fn()),
       processTagJob('x', makeInferenceClient(), { resourceId: RID, schema: 'schema-1', categories: ['c'], sourceLanguage: 'en' } as never, USER_DID, GENERATOR, vi.fn()),
     ]);
 
@@ -497,7 +497,7 @@ describe('locale threading', () => {
 
     it('stamps params.language on the unresolved-reference TextualBody', async () => {
       vi.mocked(extractEntities).mockResolvedValue([
-        { exact: 'Paris', startOffset: 0, endOffset: 5, entityType: 'Location' } as any,
+        { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
       ]);
 
       const result = await processReferenceJob(
