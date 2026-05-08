@@ -3,7 +3,7 @@
 
 import type { Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { InferenceClient, InferenceResponse } from '../interface.js';
+import { InferenceClient, InferenceOptions, InferenceResponse } from '../interface.js';
 
 interface OllamaGenerateResponse {
   response: string;
@@ -27,37 +27,47 @@ export class OllamaInferenceClient implements InferenceClient {
     this.logger = logger;
   }
 
-  async generateText(prompt: string, maxTokens: number, temperature: number): Promise<string> {
-    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature);
+  async generateText(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<string> {
+    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature, options);
     return response.text;
   }
 
-  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse> {
+  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<InferenceResponse> {
     this.logger?.debug('Generating text with Ollama', {
       model: this.modelId,
       promptLength: prompt.length,
       maxTokens,
-      temperature
+      temperature,
+      format: options?.format,
     });
 
     const url = `${this.baseURL}/api/generate`;
     const start = performance.now();
+
+    // Ollama's `format: "json"` constrains generation to syntactically
+    // valid JSON via a grammar layer — eliminates the silent-parse-fail
+    // path on the consumer side. The prompt still carries the schema
+    // (which keys, what types); `format` is the syntax floor.
+    const body: Record<string, unknown> = {
+      model: this.modelId,
+      prompt,
+      stream: false,
+      think: false,
+      options: {
+        num_predict: maxTokens,
+        temperature,
+      },
+    };
+    if (options?.format === 'json') {
+      body['format'] = 'json';
+    }
 
     let res: Response;
     try {
       res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: this.modelId,
-          prompt,
-          stream: false,
-          think: false,
-          options: {
-            num_predict: maxTokens,
-            temperature,
-          },
-        }),
+        body: JSON.stringify(body),
       });
     } catch (err) {
       recordInferenceUsage({

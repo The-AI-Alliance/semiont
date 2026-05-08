@@ -58,7 +58,7 @@ export class AnnotationDetection {
     sourceLanguage?: string
   ): Promise<CommentMatch[]> {
     const prompt = MotivationPrompts.buildCommentPrompt(content, instructions, tone, density, language, sourceLanguage);
-    const response = await client.generateText(prompt, 3000, 0.4);
+    const response = await client.generateText(prompt, 3000, 0.4, { format: 'json' });
     return MotivationParsers.parseComments(response, content);
   }
 
@@ -77,7 +77,7 @@ export class AnnotationDetection {
     sourceLanguage?: string
   ): Promise<HighlightMatch[]> {
     const prompt = MotivationPrompts.buildHighlightPrompt(content, instructions, density, sourceLanguage);
-    const response = await client.generateText(prompt, 2000, 0.3);
+    const response = await client.generateText(prompt, 2000, 0.3, { format: 'json' });
     return MotivationParsers.parseHighlights(response, content);
   }
 
@@ -98,7 +98,7 @@ export class AnnotationDetection {
     sourceLanguage?: string
   ): Promise<AssessmentMatch[]> {
     const prompt = MotivationPrompts.buildAssessmentPrompt(content, instructions, tone, density, language, sourceLanguage);
-    const response = await client.generateText(prompt, 3000, 0.3);
+    const response = await client.generateText(prompt, 3000, 0.3, { format: 'json' });
     return MotivationParsers.parseAssessments(response, content);
   }
 
@@ -137,7 +137,7 @@ export class AnnotationDetection {
       sourceLanguage
     );
 
-    const response = await client.generateText(prompt, 4000, 0.2);
+    const response = await client.generateText(prompt, 4000, 0.2, { format: 'json' });
     const parsedTags = MotivationParsers.parseTags(response);
     return MotivationParsers.validateTagOffsets(parsedTags, content, category);
   }

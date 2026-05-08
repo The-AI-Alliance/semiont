@@ -118,7 +118,14 @@ Example output:
   const response = await client.generateTextWithMetadata(
     prompt,
     4000, // Increased to handle many entities without truncation
-    0.3   // Lower temperature for more consistent extraction
+    0.3,  // Lower temperature for more consistent extraction
+    // Force grammar-constrained JSON output. Without this, Ollama models
+    // periodically emit malformed JSON (truncated brackets, mid-token
+    // breaks at higher token counts) which silently parse-fails into
+    // [] downstream. The prompt's schema (which keys, what types) still
+    // governs *what* the JSON contains; `format: 'json'` governs that
+    // it's syntactically valid.
+    { format: 'json' },
   );
   logger.debug('Got entity extraction response', { responseLength: response.text.length });
 

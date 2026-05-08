@@ -5,7 +5,7 @@ export {
   type InferenceClientType,
 } from './factory';
 
-export { type InferenceClient, type InferenceResponse } from './interface';
+export { type InferenceClient, type InferenceOptions, type InferenceResponse } from './interface';
 export { AnthropicInferenceClient } from './implementations/anthropic';
 export { OllamaInferenceClient } from './implementations/ollama';
 export { MockInferenceClient } from './implementations/mock';

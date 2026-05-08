@@ -1,6 +1,6 @@
 // Mock implementation of InferenceClient for testing
 
-import { InferenceClient, InferenceResponse } from '../interface.js';
+import { InferenceClient, InferenceOptions, InferenceResponse } from '../interface.js';
 
 export class MockInferenceClient implements InferenceClient {
   readonly type = 'mock' as const;
@@ -8,20 +8,20 @@ export class MockInferenceClient implements InferenceClient {
   private responses: string[] = [];
   private responseIndex: number = 0;
   private stopReasons: string[] = [];
-  public calls: Array<{ prompt: string; maxTokens: number; temperature: number }> = [];
+  public calls: Array<{ prompt: string; maxTokens: number; temperature: number; options?: InferenceOptions }> = [];
 
   constructor(responses: string[] = ['Mock response'], stopReasons?: string[]) {
     this.responses = responses;
     this.stopReasons = stopReasons || responses.map(() => 'end_turn');
   }
 
-  async generateText(prompt: string, maxTokens: number, temperature: number): Promise<string> {
-    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature);
+  async generateText(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<string> {
+    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature, options);
     return response.text;
   }
 
-  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse> {
-    this.calls.push({ prompt, maxTokens, temperature });
+  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<InferenceResponse> {
+    this.calls.push({ prompt, maxTokens, temperature, ...(options ? { options } : {}) });
 
     const text = this.responses[this.responseIndex];
     const stopReason = this.stopReasons[this.responseIndex] || 'end_turn';
