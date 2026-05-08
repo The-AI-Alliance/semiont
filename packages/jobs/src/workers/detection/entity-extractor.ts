@@ -31,7 +31,9 @@ export interface ExtractedEntity {
  * @param entityTypes - Array of entity types to detect (optionally with examples)
  * @param client - Inference client for AI operations
  * @param includeDescriptiveReferences - Include anaphoric/cataphoric references (default: false)
- * @param logger - Optional logger for debugging entity extraction
+ * @param logger - Logger for entity-extraction diagnostics (parse failures,
+ *   anchor decisions, drops). Required so dropped/filtered entities never
+ *   disappear silently.
  * @param sourceLanguage - BCP-47 tag for the source content's language
  * @returns Array of extracted entities with their character offsets
  */
@@ -39,8 +41,8 @@ export async function extractEntities(
   exact: string,
   entityTypes: string[] | { type: string; examples?: string[] }[],
   client: InferenceClient,
-  includeDescriptiveReferences: boolean = false,
-  logger?: Logger,
+  includeDescriptiveReferences: boolean,
+  logger: Logger,
   sourceLanguage?: string
 ): Promise<ExtractedEntity[]> {
 
@@ -112,13 +114,20 @@ If no entities are found, respond with an empty array [].
 Example output:
 [{"exact":"Alice","entityType":"Person","startOffset":0,"endOffset":5,"prefix":"","suffix":" went to"},{"exact":"Paris","entityType":"Location","startOffset":20,"endOffset":25,"prefix":"went to ","suffix":" yesterday"}]`;
 
-  logger?.debug('Sending entity extraction request', { entityTypes: entityTypesDescription });
+  logger.debug('Sending entity extraction request', { entityTypes: entityTypesDescription });
   const response = await client.generateTextWithMetadata(
     prompt,
     4000, // Increased to handle many entities without truncation
-    0.3   // Lower temperature for more consistent extraction
+    0.3,  // Lower temperature for more consistent extraction
+    // Force grammar-constrained JSON output. Without this, Ollama models
+    // periodically emit malformed JSON (truncated brackets, mid-token
+    // breaks at higher token counts) which silently parse-fails into
+    // [] downstream. The prompt's schema (which keys, what types) still
+    // governs *what* the JSON contains; `format: 'json'` governs that
+    // it's syntactically valid.
+    { format: 'json' },
   );
-  logger?.debug('Got entity extraction response', { responseLength: response.text.length });
+  logger.debug('Got entity extraction response', { responseLength: response.text.length });
 
   try {
     // Clean up response if wrapped in markdown
@@ -128,12 +137,12 @@ Example output:
     }
 
     const entities = JSON.parse(jsonStr);
-    logger?.debug('Parsed entities from AI response', { count: entities.length });
+    logger.debug('Parsed entities from AI response', { count: entities.length });
 
     // Check if response was truncated - this is an ERROR condition
     if (response.stopReason === 'max_tokens') {
       const errorMsg = `AI response truncated: Found ${entities.length} entities but response hit max_tokens limit. Increase max_tokens or reduce resource size.`;
-      logger?.error(errorMsg);
+      logger.error(errorMsg);
       throw new Error(errorMsg);
     }
 
@@ -145,7 +154,7 @@ Example output:
       let start = entity.startOffset;
       let end = entity.endOffset;
 
-      logger?.debug('Processing entity', {
+      logger.debug('Processing entity', {
         index: idx + 1,
         total: entities.length,
         type: entity.entityType,
@@ -173,7 +182,7 @@ Example output:
 
       if (extractedText === entity.exact) {
         anchorMethod = 'llm-exact';
-        logger?.debug('Entity anchored', {
+        logger.debug('Entity anchored', {
           text: entity.exact,
           entityType: entity.entityType,
           anchorMethod,
@@ -181,7 +190,7 @@ Example output:
       } else {
         // LLM offsets are wrong — the text at [start, end] isn't what they said.
         // Try to recover via prefix/suffix context, then by unique/first occurrence.
-        logger?.debug('LLM offsets mismatch — attempting re-anchor', {
+        logger.debug('LLM offsets mismatch — attempting re-anchor', {
           expected: entity.exact,
           llmOffsets: `[${start}:${end}]`,
           foundAtLlmOffsets: extractedText,
@@ -200,7 +209,7 @@ Example output:
 
         if (occurrenceCount === 0) {
           anchorMethod = 'dropped';
-          logger?.error('Entity text not found in resource — dropping', {
+          logger.error('Entity text not found in resource — dropping', {
             text: entity.exact,
             entityType: entity.entityType,
             llmOffsets: `[${start}:${end}]`,
@@ -234,7 +243,7 @@ Example output:
           anchorMethod = 'context-recovered';
           start = recoveredOffset;
           end = recoveredOffset + entity.exact.length;
-          logger?.debug('Entity anchored', {
+          logger.debug('Entity anchored', {
             text: entity.exact,
             entityType: entity.entityType,
             anchorMethod,
@@ -244,7 +253,7 @@ Example output:
           anchorMethod = 'unique-match';
           start = firstOccurrence;
           end = firstOccurrence + entity.exact.length;
-          logger?.debug('Entity anchored', {
+          logger.debug('Entity anchored', {
             text: entity.exact,
             entityType: entity.entityType,
             anchorMethod,
@@ -256,7 +265,7 @@ Example output:
           anchorMethod = 'first-of-many';
           start = firstOccurrence;
           end = firstOccurrence + entity.exact.length;
-          logger?.warn('Entity anchored at first of multiple occurrences — may be wrong', {
+          logger.warn('Entity anchored at first of multiple occurrences — may be wrong', {
             text: entity.exact,
             entityType: entity.entityType,
             anchorMethod,
@@ -280,22 +289,22 @@ Example output:
     }).filter((entity: ExtractedEntity | null): entity is ExtractedEntity => {
       // Filter out nulls and ensure we have valid offsets
       if (entity === null) {
-        logger?.debug('Filtered entity: null');
+        logger.debug('Filtered entity: null');
         return false;
       }
       if (entity.start === undefined || entity.end === undefined) {
-        logger?.warn('Filtered entity: missing offsets', { text: entity.exact });
+        logger.warn('Filtered entity: missing offsets', { text: entity.exact });
         return false;
       }
       if (entity.start < 0) {
-        logger?.warn('Filtered entity: negative start', {
+        logger.warn('Filtered entity: negative start', {
           text: entity.exact,
           start: entity.start
         });
         return false;
       }
       if (entity.end > exact.length) {
-        logger?.warn('Filtered entity: end exceeds text length', {
+        logger.warn('Filtered entity: end exceeds text length', {
           text: entity.exact,
           end: entity.end,
           textLength: exact.length
@@ -306,7 +315,7 @@ Example output:
       // Verify the text at the offsets matches
       const extractedText = exact.substring(entity.start, entity.end);
       if (extractedText !== entity.exact) {
-        logger?.warn('Filtered entity: offset mismatch', {
+        logger.warn('Filtered entity: offset mismatch', {
           expected: entity.exact,
           got: extractedText,
           offsets: `[${entity.start}:${entity.end}]`
@@ -314,14 +323,14 @@ Example output:
         return false;
       }
 
-      logger?.debug('Accepted entity', {
+      logger.debug('Accepted entity', {
         text: entity.exact,
         offsets: `[${entity.start}:${entity.end}]`
       });
       return true;
     });
   } catch (error) {
-    logger?.error('Failed to parse entity extraction response', {
+    logger.error('Failed to parse entity extraction response', {
       error: error instanceof Error ? error.message : String(error)
     });
     return [];

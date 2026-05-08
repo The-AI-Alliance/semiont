@@ -3,7 +3,7 @@
 
 import type { Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { InferenceClient, InferenceResponse } from '../interface.js';
+import { InferenceClient, InferenceOptions, InferenceResponse } from '../interface.js';
 
 interface OllamaGenerateResponse {
   response: string;
@@ -27,37 +27,53 @@ export class OllamaInferenceClient implements InferenceClient {
     this.logger = logger;
   }
 
-  async generateText(prompt: string, maxTokens: number, temperature: number): Promise<string> {
-    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature);
+  async generateText(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<string> {
+    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature, options);
     return response.text;
   }
 
-  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse> {
+  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<InferenceResponse> {
     this.logger?.debug('Generating text with Ollama', {
       model: this.modelId,
       promptLength: prompt.length,
       maxTokens,
-      temperature
+      temperature,
+      format: options?.format,
     });
 
     const url = `${this.baseURL}/api/generate`;
     const start = performance.now();
+
+    // Ollama's `format` parameter accepts either the literal string
+    // `"json"` (any valid JSON, including objects, numbers, etc.) or a
+    // JSON schema (constrains the top-level shape). The contract on the
+    // inference side is "parseable JSON array," so we pass a minimal
+    // array schema rather than the bare `"json"` string — without it,
+    // the model can satisfy "valid JSON" by emitting `{"entities": [...]}`
+    // and break every consumer that expects to call `.map` on the
+    // top-level value. The schema's `items: {}` keeps element shape
+    // unconstrained — the prompt still carries the per-element schema;
+    // we only enforce the outer array.
+    const body: Record<string, unknown> = {
+      model: this.modelId,
+      prompt,
+      stream: false,
+      think: false,
+      options: {
+        num_predict: maxTokens,
+        temperature,
+      },
+    };
+    if (options?.format === 'json') {
+      body['format'] = { type: 'array', items: {} };
+    }
 
     let res: Response;
     try {
       res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: this.modelId,
-          prompt,
-          stream: false,
-          think: false,
-          options: {
-            num_predict: maxTokens,
-            temperature,
-          },
-        }),
+        body: JSON.stringify(body),
       });
     } catch (err) {
       recordInferenceUsage({

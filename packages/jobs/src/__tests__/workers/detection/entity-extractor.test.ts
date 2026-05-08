@@ -12,6 +12,11 @@ import { extractEntities } from '../../../workers/detection/entity-extractor';
 // Create mock client directly
 const mockInferenceClient = new MockInferenceClient(['[]']);
 
+const LOGGER = {
+  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
+  child: function (this: any) { return this; },
+} as unknown as import('@semiont/core').Logger;
+
 describe('extractEntities', () => {
 
   it('should extract entities with correct offsets', async () => {
@@ -37,7 +42,7 @@ describe('extractEntities', () => {
 
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities(text, ['Person', 'Location'], mockInferenceClient);
+    const result = await extractEntities(text, ['Person', 'Location'], mockInferenceClient, false, LOGGER);
 
     expect(result).toHaveLength(2);
     // The function translates the LLM's `startOffset`/`endOffset` wire
@@ -60,7 +65,7 @@ describe('extractEntities', () => {
   it('should handle empty text', async () => {
     mockInferenceClient.setResponses(['[]']);
 
-    const result = await extractEntities('', ['Person'], mockInferenceClient);
+    const result = await extractEntities('', ['Person'], mockInferenceClient, false, LOGGER);
 
     expect(result).toEqual([]);
   });
@@ -68,7 +73,7 @@ describe('extractEntities', () => {
   it('should handle no entities found', async () => {
     mockInferenceClient.setResponses(['[]']);
 
-    const result = await extractEntities('The sky is blue', ['Person'], mockInferenceClient);
+    const result = await extractEntities('The sky is blue', ['Person'], mockInferenceClient, false, LOGGER);
 
     expect(result).toEqual([]);
   });
@@ -89,7 +94,7 @@ describe('extractEntities', () => {
 
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities(text, ['Person'], mockInferenceClient);
+    const result = await extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
@@ -121,7 +126,7 @@ describe('extractEntities', () => {
 
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities(text, ['Person'], mockInferenceClient);
+    const result = await extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER);
 
     expect(result).toHaveLength(1);
     expect(result[0].exact).toBe('Alice');
@@ -140,7 +145,7 @@ describe('extractEntities', () => {
 
     mockInferenceClient.setResponses(['```json\n' + JSON.stringify(mockResponse) + '\n```']);
 
-    const result = await extractEntities(text, ['Person'], mockInferenceClient);
+    const result = await extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER);
 
     expect(result).toHaveLength(1);
     expect(result[0].exact).toBe('Alice');
@@ -164,7 +169,7 @@ describe('extractEntities', () => {
 
     // When truncated, extractEntities throws but catch block returns []
     try {
-      const result = await extractEntities(text, ['Person'], mockInferenceClient);
+      const result = await extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER);
       expect(result).toEqual([]);
     } catch (error) {
       // If it throws, that's also acceptable - the catch block should return []
@@ -189,7 +194,9 @@ describe('extractEntities', () => {
     const result = await extractEntities(
       text,
       [{ type: 'Organization', examples: ['Apple', 'Google', 'Microsoft'] }],
-      mockInferenceClient
+      mockInferenceClient,
+      false,
+      LOGGER,
     );
 
     expect(result).toHaveLength(1);
@@ -218,7 +225,7 @@ describe('extractEntities', () => {
 
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities(text, ['Person'], mockInferenceClient, true);
+    const result = await extractEntities(text, ['Person'], mockInferenceClient, true, LOGGER);
 
     expect(result).toHaveLength(2);
     expect(result[0].exact).toBe('Marie Curie');
@@ -228,7 +235,7 @@ describe('extractEntities', () => {
   it('should handle malformed JSON gracefully', async () => {
     mockInferenceClient.setResponses(['This is not JSON']);
 
-    const result = await extractEntities('Alice went to Paris.', ['Person'], mockInferenceClient);
+    const result = await extractEntities('Alice went to Paris.', ['Person'], mockInferenceClient, false, LOGGER);
 
     expect(result).toEqual([]);
   });
@@ -243,7 +250,7 @@ describe('extractEntities', () => {
       mockInferenceClient.reset();
       await extractEntities(
         'Marie Curie a découvert le radium.', ['Person'], mockInferenceClient,
-        false, undefined, 'fr',
+        false, LOGGER, 'fr',
       );
       const sentPrompt = mockInferenceClient.calls[0]?.prompt ?? '';
       expect(sentPrompt).toContain('Source text language: French');
@@ -252,7 +259,7 @@ describe('extractEntities', () => {
     it('omits source-language guidance when not provided', async () => {
       mockInferenceClient.setResponses(['[]']);
       mockInferenceClient.reset();
-      await extractEntities('Alice went to Paris.', ['Person'], mockInferenceClient);
+      await extractEntities('Alice went to Paris.', ['Person'], mockInferenceClient, false, LOGGER);
       const sentPrompt = mockInferenceClient.calls[0]?.prompt ?? '';
       expect(sentPrompt).not.toContain('Source text language:');
     });
@@ -262,7 +269,7 @@ describe('extractEntities', () => {
       mockInferenceClient.reset();
       await extractEntities(
         'Some text', ['Person'], mockInferenceClient,
-        false, undefined, 'xx',
+        false, LOGGER, 'xx',
       );
       const sentPrompt = mockInferenceClient.calls[0]?.prompt ?? '';
       expect(sentPrompt).toContain('Source text language: xx');

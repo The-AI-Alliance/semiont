@@ -154,6 +154,35 @@ describe('POST /api/tokens/agent', () => {
       expect(call.create.email.endsWith(`@agents.${SITE_DOMAIN}`)).toBe(true);
     });
 
+    it('strips the port from a host:port deployment domain when forming the synthetic email', async () => {
+      // The DID format keeps the port (DIDs accept colons), but the
+      // synthetic User email must match RFC-5321 host syntax — so a
+      // deployment served at `localhost:8080` produces an email of
+      // `slug@agents.localhost`, not `slug@agents.localhost:8080`.
+      // This test guards against the auth-fails-after-issue regression
+      // where the JWT's email field fails the email() validator on
+      // every subsequent /bus/subscribe call.
+      JWTService.setTestConfig('localhost:8080', ['localhost:8080']);
+      mockPrismaUser.upsert.mockResolvedValue(makeAgentUser());
+
+      await app.request('/api/tokens/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          secret: WORKER_SECRET,
+          provider: 'ollama',
+          model: 'gemma2:27b',
+        }),
+      });
+
+      const call = mockPrismaUser.upsert.mock.calls[0]![0] as { create: { email: string } };
+      expect(call.create.email).not.toContain(':');
+      expect(call.create.email.endsWith('@agents.localhost')).toBe(true);
+
+      // Restore the test domain for subsequent tests
+      JWTService.setTestConfig(SITE_DOMAIN, [SITE_DOMAIN]);
+    });
+
     it('URI-encodes models containing colons in the DID', async () => {
       mockPrismaUser.upsert.mockResolvedValue(makeAgentUser());
 

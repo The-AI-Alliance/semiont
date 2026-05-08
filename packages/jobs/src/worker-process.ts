@@ -234,7 +234,7 @@ async function handleJobInner(
   } else if (jobType === 'reference-annotation') {
     const content = await fetchContent();
     const { annotations, result } = await processReferenceJob(
-      content, inferenceClient, job.params as never, userId, generator, onProgress,
+      content, inferenceClient, job.params as never, userId, generator, onProgress, config.logger,
     );
     for (const ann of annotations) {
       await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
@@ -261,7 +261,7 @@ async function handleJobInner(
 
   } else if (jobType === 'generation') {
     const genResult = await processGenerationJob(
-      inferenceClient, job.params as never, onProgress,
+      inferenceClient, job.params as never, onProgress, config.logger,
     );
 
     // Content never travels on the bus. Upload via the api-client's

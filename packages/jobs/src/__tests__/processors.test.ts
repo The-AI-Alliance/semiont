@@ -80,6 +80,14 @@ function makeInferenceClient(): InferenceClient {
   } as unknown as InferenceClient;
 }
 
+const LOGGER = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(function (this: any) { return this; }),
+} as unknown as import('@semiont/core').Logger;
+
 describe('processHighlightJob', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -193,6 +201,7 @@ describe('processReferenceJob', () => {
       USER_DID,
       GENERATOR,
       progress,
+      LOGGER,
     );
 
     expect(result.annotations).toHaveLength(2);
@@ -224,6 +233,7 @@ describe('processReferenceJob', () => {
       USER_DID,
       GENERATOR,
       vi.fn(),
+      LOGGER,
     );
 
     expect(result.annotations).toHaveLength(1);
@@ -240,6 +250,7 @@ describe('processReferenceJob', () => {
       USER_DID,
       GENERATOR,
       vi.fn(),
+      LOGGER,
     );
 
     expect(result.annotations).toHaveLength(0);
@@ -311,6 +322,7 @@ describe('processGenerationJob', () => {
         annotation: {} as any,
       },
       progress,
+      LOGGER,
     );
 
     expect(result.content).toContain('Generated resource');
@@ -339,6 +351,7 @@ describe('processGenerationJob', () => {
         annotation: {} as any,
       },
       vi.fn(),
+      LOGGER,
     );
 
     expect(result.title).toBe('Fallback Title');
@@ -425,7 +438,7 @@ describe('annotation attribution composition', () => {
     const sources = await Promise.all([
       processCommentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, USER_DID, GENERATOR, vi.fn()),
       processAssessmentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, USER_DID, GENERATOR, vi.fn()),
-      processReferenceJob('x', makeInferenceClient(), { resourceId: RID, entityTypes: [entityType('Person')] }, USER_DID, GENERATOR, vi.fn()),
+      processReferenceJob('x', makeInferenceClient(), { resourceId: RID, entityTypes: [entityType('Person')] }, USER_DID, GENERATOR, vi.fn(), LOGGER),
       processTagJob('x', makeInferenceClient(), { resourceId: RID, schema: 'schema-1', categories: ['c'], sourceLanguage: 'en' } as never, USER_DID, GENERATOR, vi.fn()),
     ]);
 
@@ -507,6 +520,7 @@ describe('locale threading', () => {
         USER_DID,
         GENERATOR,
         vi.fn(),
+        LOGGER,
       );
 
       expect((result.annotations[0] as any).body).toEqual([
@@ -611,10 +625,11 @@ describe('locale threading', () => {
         'content', client,
         { resourceId: RID, entityTypes: [entityType('Location')], sourceLanguage: 'fr' },
         USER_DID, GENERATOR, vi.fn(),
+        LOGGER,
       );
 
       expect(extractEntities).toHaveBeenCalledWith(
-        'content', ['Location'], client, false, undefined, 'fr',
+        'content', ['Location'], client, false, LOGGER, 'fr',
       );
     });
 
@@ -668,13 +683,14 @@ describe('locale threading', () => {
           sourceLanguage: 'fr',
         },
         vi.fn(),
+        LOGGER,
       );
 
-      // Positional signature: topic, entityTypes, client, prompt, locale,
-      // context, temperature, maxTokens, logger, sourceLanguage.
+      // Positional signature: topic, entityTypes, client, logger, prompt,
+      // locale, context, temperature, maxTokens, sourceLanguage.
       expect(generateResourceFromTopic).toHaveBeenCalledWith(
-        'Topic', [], client, undefined, 'de', expect.any(Object),
-        undefined, undefined, undefined, 'fr',
+        'Topic', [], client, LOGGER, undefined, 'de', expect.any(Object),
+        undefined, undefined, 'fr',
       );
     });
   });
