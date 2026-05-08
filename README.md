@@ -24,14 +24,31 @@ For local-network access notes, supply-chain verification, the native [desktop a
 
 Clone a knowledge base and follow its README. Each KB repo contains configuration, container definitions, and startup scripts under `.semiont/`.
 
-| Knowledge Base | Description |
+#### Starting from scratch
+
+| Template | Description |
 |---|---|
 | **[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)** | Empty template — start here for a new project |
-| **[semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb)** | Public domain literature from Project Gutenberg |
+
+#### Demo KBs
+
+These ship a small corpus and a layered set of skills (ingest → mark → canonicalize → wire-edges → compose-aggregates) that demonstrate the SDK in a particular domain. The value is the *skills*, not the data — the skills are corpus-generic and work on any corpus dropped into the same directory layout.
+
+| Knowledge Base | Domain |
+|---|---|
+| **[semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb)** | Public-domain literature from Project Gutenberg |
 | **[semiont-arxiv-kb](https://github.com/The-AI-Alliance/semiont-arxiv-kb)** | Research papers from arXiv |
 | **[semiont-legal-kb](https://github.com/The-AI-Alliance/semiont-legal-kb)** | Synthetic legal documents — contracts, attorney correspondence, internal memos |
 | **[semiont-caselaw-kb](https://github.com/The-AI-Alliance/semiont-caselaw-kb)** | U.S. case law — Supreme Court opinions and state appellate cases |
-| **[synthetic-family](https://github.com/pingel-org/synthetic-family)** | Synthetic family dataset for testing and exploration |
+| **[semiont-clinical-evidence-kb](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb)** | Synthetic clinical evidence — trials, observational studies, treatment guidelines, drug-safety reports |
+| **[semiont-newsroom-kb](https://github.com/The-AI-Alliance/semiont-newsroom-kb)** | Synthetic investigative-journalism documents — interview transcripts, FOIA responses, public statements |
+| **[semiont-household-kb](https://github.com/The-AI-Alliance/semiont-household-kb)** | Synthetic home-property records — service receipts, contractor emails, manuals, mortgage / insurance, HOA notices |
+
+#### Community
+
+| Knowledge Base | Domain |
+|---|---|
+| **[synthetic-family](https://github.com/pingel-org/synthetic-family)** | Synthetic family history and genealogy |
 
 ### Connect browser to knowledge base
 
