@@ -41,8 +41,8 @@ export function userToAgent(user: {
   email: string;
 }): Agent {
   return {
-    type: 'Person' as const,
-    id: userToDid(user),
+    '@type': 'Person' as const,
+    '@id': userToDid(user),
     name: user.name || user.email,
   };
 }
@@ -59,15 +59,15 @@ export function userToAgent(user: {
  */
 export function didToAgent(did: string | undefined | null): Agent {
   if (!did) {
-    return { type: 'Person' as const, id: 'unknown', name: 'unknown' };
+    return { '@type': 'Person' as const, '@id': 'unknown', name: 'unknown' };
   }
   const parts = did.split(':');
   const encoded = parts[parts.length - 1] || 'unknown';
   const name = decodeURIComponent(encoded);
 
   return {
-    type: 'Person' as const,
-    id: did,
+    '@type': 'Person' as const,
+    '@id': did,
     name,
   };
 }

@@ -52,8 +52,8 @@ describe('@semiont/core - did-utils', () => {
       const agent = userToAgent(user);
 
       expect(agent).toEqual({
-        type: 'Person',
-        id: 'did:web:example.com:users:alice%40example.com',
+        '@type': 'Person',
+        '@id': 'did:web:example.com:users:alice%40example.com',
         name: 'Alice Smith',
       });
     });
@@ -69,8 +69,8 @@ describe('@semiont/core - did-utils', () => {
       const agent = userToAgent(user);
 
       expect(agent).toEqual({
-        type: 'Person',
-        id: 'did:web:example.com:users:bob%40example.com',
+        '@type': 'Person',
+        '@id': 'did:web:example.com:users:bob%40example.com',
         name: 'bob@example.com',
       });
     });
@@ -98,7 +98,7 @@ describe('@semiont/core - did-utils', () => {
 
       const agent = userToAgent(user);
 
-      expect(agent.type).toBe('Person');
+      expect(agent['@type']).toBe('Person');
     });
   });
 
@@ -109,8 +109,8 @@ describe('@semiont/core - did-utils', () => {
       const agent = didToAgent(did);
 
       expect(agent).toEqual({
-        type: 'Person',
-        id: 'did:web:example.com:users:alice%40example.com',
+        '@type': 'Person',
+        '@id': 'did:web:example.com:users:alice%40example.com',
         name: 'alice@example.com',
       });
     });
@@ -129,8 +129,8 @@ describe('@semiont/core - did-utils', () => {
       const agent = didToAgent(did);
 
       expect(agent).toEqual({
-        type: 'Person',
-        id: 'did:web:subdomain.example.com:8080:users:carol%40example.com',
+        '@type': 'Person',
+        '@id': 'did:web:subdomain.example.com:8080:users:carol%40example.com',
         name: 'carol@example.com',
       });
     });
@@ -140,8 +140,8 @@ describe('@semiont/core - did-utils', () => {
 
       const agent = didToAgent(did);
 
-      expect(agent.type).toBe('Person');
-      expect(agent.id).toBe('invalid-did-format');
+      expect(agent['@type']).toBe('Person');
+      expect(agent['@id']).toBe('invalid-did-format');
       expect(agent.name).toBe('invalid-did-format'); // Whole string since no ':' delimiter
     });
 
@@ -151,8 +151,8 @@ describe('@semiont/core - did-utils', () => {
       const agent = didToAgent(did);
 
       expect(agent).toEqual({
-        type: 'Person',
-        id: 'unknown',
+        '@type': 'Person',
+        '@id': 'unknown',
         name: 'unknown',
       });
     });
@@ -162,7 +162,7 @@ describe('@semiont/core - did-utils', () => {
 
       const agent = didToAgent(did);
 
-      expect(agent.id).toBe(did);
+      expect(agent['@id']).toBe(did);
     });
   });
 
@@ -180,8 +180,8 @@ describe('@semiont/core - did-utils', () => {
       const agentFromUser = userToAgent(user);
 
       // Both agents should have the same DID and decoded name
-      expect(agentFromDid.id).toBe(agentFromUser.id);
-      expect(agentFromDid.type).toBe(agentFromUser.type);
+      expect(agentFromDid['@id']).toBe(agentFromUser['@id']);
+      expect(agentFromDid['@type']).toBe(agentFromUser['@type']);
       expect(agentFromDid.name).toBe('alice@example.com');
     });
   });
