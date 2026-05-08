@@ -70,17 +70,14 @@ export function softwareToAgent(software: {
   model: string;
   parameters?: Record<string, unknown>;
 }): Agent {
-  const agent: Agent = {
+  return {
     '@type': 'Software',
     '@id': agentToDid(software),
     name: `${software.provider} ${software.model}`,
     provider: software.provider,
     model: software.model,
+    ...(software.parameters && { parameters: software.parameters }),
   };
-  if (software.parameters) {
-    (agent as { parameters?: Record<string, unknown> }).parameters = software.parameters;
-  }
-  return agent;
 }
 
 /**

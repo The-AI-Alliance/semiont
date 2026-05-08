@@ -59,6 +59,6 @@ export function createTestAgent(overrides?: Partial<Agent>): Agent {
     '@type': 'Person',
     name: 'Test User',
     ...overrides,
-  } as Agent;
+  };
 }
 

@@ -115,10 +115,6 @@ export class OAuthService {
     return { user, token, refreshToken, isNewUser };
   }
 
-  static async getUserFromToken(token: AccessToken): Promise<User> {
-    return (await this.getPrincipalFromToken(token)).user;
-  }
-
   /**
    * Resolve a JWT to its authenticated principal — the User row plus the
    * principal's DID when the token was issued for a software agent. The

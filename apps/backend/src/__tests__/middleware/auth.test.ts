@@ -18,7 +18,6 @@ import { User } from '@prisma/client';
 // Mock OAuthService
 vi.mock('../../auth/oauth', () => ({
   OAuthService: {
-    getUserFromToken: vi.fn(),
     getPrincipalFromToken: vi.fn(),
   }
 }));
