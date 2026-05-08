@@ -479,9 +479,14 @@ authRouter.post('/api/tokens/agent', async (c) => {
   // on first use. The email is a deterministic identifier in a
   // dedicated `agents.<host>` namespace so it can't collide with real
   // users on the deployment domain.
+  //
+  // The site domain may carry a port (e.g. `localhost:8080`) — that's
+  // fine in a DID, but the synthetic email has to satisfy RFC-5321
+  // host syntax (no colons), so strip it here.
+  const emailHost = siteDomain.split(':')[0]!;
   const providerId = `${inferenceProvider}:${model}`;
   const slug = providerId.replace(/[^a-zA-Z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-  const agentEmail = `${slug}@agents.${siteDomain}`;
+  const agentEmail = `${slug}@agents.${emailHost}`;
   const agentName = `${inferenceProvider} ${model}`;
 
   const prisma = DatabaseConnection.getClient();
