@@ -44,10 +44,16 @@ export class OllamaInferenceClient implements InferenceClient {
     const url = `${this.baseURL}/api/generate`;
     const start = performance.now();
 
-    // Ollama's `format: "json"` constrains generation to syntactically
-    // valid JSON via a grammar layer — eliminates the silent-parse-fail
-    // path on the consumer side. The prompt still carries the schema
-    // (which keys, what types); `format` is the syntax floor.
+    // Ollama's `format` parameter accepts either the literal string
+    // `"json"` (any valid JSON, including objects, numbers, etc.) or a
+    // JSON schema (constrains the top-level shape). The contract on the
+    // inference side is "parseable JSON array," so we pass a minimal
+    // array schema rather than the bare `"json"` string — without it,
+    // the model can satisfy "valid JSON" by emitting `{"entities": [...]}`
+    // and break every consumer that expects to call `.map` on the
+    // top-level value. The schema's `items: {}` keeps element shape
+    // unconstrained — the prompt still carries the per-element schema;
+    // we only enforce the outer array.
     const body: Record<string, unknown> = {
       model: this.modelId,
       prompt,
@@ -59,7 +65,7 @@ export class OllamaInferenceClient implements InferenceClient {
       },
     };
     if (options?.format === 'json') {
-      body['format'] = 'json';
+      body['format'] = { type: 'array', items: {} };
     }
 
     let res: Response;
