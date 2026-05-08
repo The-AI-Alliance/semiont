@@ -212,13 +212,39 @@ describe('Auth Middleware', () => {
       it('should set user context and call next for valid token', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer valid-token' });
         mockOAuthService.getPrincipalFromToken.mockResolvedValue({ user: mockUser });
-        
+
         await authMiddleware(context, mockNext);
-        
+
         expect(context.set).toHaveBeenCalledWith('user', mockUser);
         expect(mockNext).toHaveBeenCalled();
         expect(context.json).not.toHaveBeenCalled();
         expect(mockOAuthService.getPrincipalFromToken).toHaveBeenCalledWith('valid-token');
+      });
+
+      // Single-slot identity: bus and resource creation read `principalDid`
+      // off the request context, so they don't have to know whether the
+      // authenticated peer is a human or a software agent. The middleware
+      // is the seam where that abstraction is enforced.
+      it('sets `principalDid` from `userToDid(user)` for a human (no agentDid on JWT)', async () => {
+        const context = createMockContext({ 'Authorization': 'Bearer human-token' });
+        mockOAuthService.getPrincipalFromToken.mockResolvedValue({ user: mockUser });
+
+        await authMiddleware(context, mockNext);
+
+        expect(context.set).toHaveBeenCalledWith(
+          'principalDid',
+          'did:web:example.com:users:user%40example.com',
+        );
+      });
+
+      it('sets `principalDid` from the JWT `agentDid` for a software-agent token', async () => {
+        const context = createMockContext({ 'Authorization': 'Bearer agent-token' });
+        const agentDid = 'did:web:example.com:agents:ollama:gemma2%3A27b';
+        mockOAuthService.getPrincipalFromToken.mockResolvedValue({ user: mockUser, agentDid });
+
+        await authMiddleware(context, mockNext);
+
+        expect(context.set).toHaveBeenCalledWith('principalDid', agentDid);
       });
 
       it('should handle admin users correctly', async () => {

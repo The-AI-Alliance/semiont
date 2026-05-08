@@ -347,6 +347,98 @@ describe('processGenerationJob', () => {
 });
 
 // ============================================================================
+// Attribution composition (creator / generator / wasAttributedTo)
+// ============================================================================
+
+describe('annotation attribution composition', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('stamps both creator (Person) and generator (Software) on human-prompted AI work', async () => {
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'snippet', start: 0, end: 7 },
+    ]);
+
+    const result = await processHighlightJob(
+      'snippet',
+      makeInferenceClient(),
+      { resourceId: RID, density: 1 },
+      USER_DID, // human DID
+      GENERATOR, // Software agent
+      vi.fn(),
+    );
+
+    const ann = result.annotations[0] as Record<string, unknown>;
+    const creator = ann['creator'] as { '@type': string; '@id': string };
+    const generator = ann['generator'] as { '@type': string; '@id': string };
+    const wasAttributedTo = ann['wasAttributedTo'] as Array<{ '@id': string }>;
+
+    expect(creator['@type']).toBe('Person');
+    expect(creator['@id']).toBe(USER_DID);
+    expect(generator['@type']).toBe('Software');
+
+    // wasAttributedTo combines both responsible parties (PROV-O)
+    expect(Array.isArray(wasAttributedTo)).toBe(true);
+    expect(wasAttributedTo.map(a => a['@id'])).toEqual([
+      creator['@id'],
+      generator['@id'],
+    ]);
+  });
+
+  it('collapses wasAttributedTo to [generator] when an agent is acting on its own behalf', async () => {
+    // Autonomous-agent work: the worker's principal DID *is* the agent.
+    // creator and generator share an @id; wasAttributedTo collapses to one.
+    const autonomousDid = GENERATOR['@id'];
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'snippet', start: 0, end: 7 },
+    ]);
+
+    const result = await processHighlightJob(
+      'snippet',
+      makeInferenceClient(),
+      { resourceId: RID, density: 1 },
+      autonomousDid as never,
+      GENERATOR,
+      vi.fn(),
+    );
+
+    const ann = result.annotations[0] as Record<string, unknown>;
+    const wasAttributedTo = ann['wasAttributedTo'] as Array<{ '@id': string }>;
+
+    expect(wasAttributedTo).toHaveLength(1);
+    expect(wasAttributedTo[0]!['@id']).toBe(GENERATOR['@id']);
+  });
+
+  it('applies the same attribution shape across every motivation', async () => {
+    vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([
+      { exact: 'x', start: 0, end: 1, comment: 'c' },
+    ]);
+    vi.mocked(AnnotationDetection.detectAssessments).mockResolvedValue([
+      { exact: 'x', start: 0, end: 1, assessment: 'a' },
+    ]);
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'x', start: 0, end: 1, candidateNames: ['n'] },
+    ]);
+    vi.mocked(AnnotationDetection.detectTags).mockResolvedValue([
+      { exact: 'x', start: 0, end: 1, category: 'c' },
+    ]);
+
+    const sources = await Promise.all([
+      processCommentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, USER_DID, GENERATOR, vi.fn()),
+      processAssessmentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, USER_DID, GENERATOR, vi.fn()),
+      processReferenceJob('x', makeInferenceClient(), { resourceId: RID, entityTypes: ['Person'] }, USER_DID, GENERATOR, vi.fn()),
+      processTagJob('x', makeInferenceClient(), { resourceId: RID, schema: 'schema-1', categories: ['c'], sourceLanguage: 'en' } as never, USER_DID, GENERATOR, vi.fn()),
+    ]);
+
+    for (const result of sources) {
+      const ann = result.annotations[0] as Record<string, unknown>;
+      expect(ann['creator']).toBeDefined();
+      expect(ann['generator']).toBeDefined();
+      expect(Array.isArray(ann['wasAttributedTo'])).toBe(true);
+    }
+  });
+});
+
+// ============================================================================
 // Locale threading
 // ============================================================================
 //

@@ -19,6 +19,7 @@ const mockPrismaClient = {
     create: vi.fn(),
     count: vi.fn(),
     update: vi.fn(),
+    upsert: vi.fn(),
     delete: vi.fn(),
   },
   $queryRaw: vi.fn(),
