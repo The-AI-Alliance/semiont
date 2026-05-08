@@ -7,6 +7,12 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { generateResourceFromTopic } from '@semiont/jobs';
+import type { Logger } from '@semiont/core';
+
+const LOGGER: Logger = {
+  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
+  child: function (this: any) { return this; },
+} as any;
 import { MockInferenceClient } from '@semiont/inference';
 import type { GatheredContext } from '@semiont/core';
 
@@ -45,7 +51,7 @@ describe('generateResourceFromTopic', () => {
       '# Quantum Computing\n\nQuantum computing is a revolutionary technology. It uses quantum mechanics principles.\n\nQuantum computers process information differently than classical computers.'
     ]);
 
-    const result = await generateResourceFromTopic('Quantum Computing', [], mockInferenceClient);
+    const result = await generateResourceFromTopic('Quantum Computing', [], mockInferenceClient, LOGGER);
 
     expect(result).toHaveProperty('title');
     expect(result).toHaveProperty('content');
@@ -62,7 +68,7 @@ describe('generateResourceFromTopic', () => {
       '# Machine Learning Basics\n\nMachine learning is a subset of AI. It focuses on data-driven learning.\n\nML algorithms improve through experience.'
     ]);
 
-    const result = await generateResourceFromTopic('Machine Learning', [], mockInferenceClient);
+    const result = await generateResourceFromTopic('Machine Learning', [], mockInferenceClient, LOGGER);
 
     expect(result.title).toBe('Machine Learning Basics');
     expect(result.content).toContain('Machine learning is a subset of AI');
@@ -73,7 +79,7 @@ describe('generateResourceFromTopic', () => {
       '```markdown\n# Neural Networks\n\nNeural networks are computational models. They mimic biological neurons.\n\nThey excel at pattern recognition.\n```'
     ]);
 
-    const result = await generateResourceFromTopic('Neural Networks', [], mockInferenceClient);
+    const result = await generateResourceFromTopic('Neural Networks', [], mockInferenceClient, LOGGER);
 
     expect(result.title).toBe('Neural Networks');
     expect(result.content).toContain('Neural networks are computational models');
@@ -85,7 +91,7 @@ describe('generateResourceFromTopic', () => {
       '# AI Ethics\n\nAI ethics examines moral implications. It involves people and organizations.\n\nEthical frameworks guide AI development.'
     ]);
 
-    await generateResourceFromTopic('AI Ethics', ['Person', 'Organization'], mockInferenceClient);
+    await generateResourceFromTopic('AI Ethics', ['Person', 'Organization'], mockInferenceClient, LOGGER);
 
     const capturedPrompt = mockInferenceClient.calls[0].prompt;
     expect(capturedPrompt).toContain('Person');
@@ -101,6 +107,7 @@ describe('generateResourceFromTopic', () => {
       'Data Privacy',
       [],
       mockInferenceClient,
+      LOGGER,
       'Focus on GDPR compliance'
     );
 
@@ -117,6 +124,7 @@ describe('generateResourceFromTopic', () => {
       'Machine Learning',
       [],
       mockInferenceClient,
+      LOGGER,
       undefined,
       'fr'
     );
@@ -137,12 +145,12 @@ describe('generateResourceFromTopic', () => {
       'Machine Learning',
       [],
       mockInferenceClient,
+      LOGGER,
       undefined,
       'de',           // body locale
       undefined,      // context
       undefined,      // temperature
       undefined,      // maxTokens
-      undefined,      // logger
       'fr'            // source locale
     );
 
@@ -154,7 +162,7 @@ describe('generateResourceFromTopic', () => {
   it('should omit sourceLanguage guidance when not provided', async () => {
     mockInferenceClient.setResponses(['# Topic\n\nText.']);
 
-    await generateResourceFromTopic('Topic', [], mockInferenceClient);
+    await generateResourceFromTopic('Topic', [], mockInferenceClient, LOGGER);
 
     const capturedPrompt = mockInferenceClient.calls[0].prompt;
     expect(capturedPrompt).not.toContain('source resource and embedded context are in');
@@ -169,6 +177,7 @@ describe('generateResourceFromTopic', () => {
       'Deep Learning',
       [],
       mockInferenceClient,
+      LOGGER,
       undefined,
       undefined,
       {
@@ -197,6 +206,7 @@ describe('generateResourceFromTopic', () => {
       'Test Topic',
       [],
       mockInferenceClient,
+      LOGGER,
       undefined,
       undefined,
       undefined,
@@ -214,7 +224,7 @@ describe('generateResourceFromTopic', () => {
       '# Default Settings\n\nUsing default parameters.\n\nGeneration continues.'
     ]);
 
-    await generateResourceFromTopic('Default Test', [], mockInferenceClient);
+    await generateResourceFromTopic('Default Test', [], mockInferenceClient, LOGGER);
 
     const call = mockInferenceClient.calls[0];
     expect(call.temperature).toBe(0.7);
@@ -226,7 +236,7 @@ describe('generateResourceFromTopic', () => {
       'Just some plain text without a heading. This should still work.\n\nMore content follows.'
     ]);
 
-    const result = await generateResourceFromTopic('No Heading Topic', [], mockInferenceClient);
+    const result = await generateResourceFromTopic('No Heading Topic', [], mockInferenceClient, LOGGER);
 
     // Should use topic as title if no heading found
     expect(result.title).toBe('No Heading Topic');
@@ -238,7 +248,7 @@ describe('generateResourceFromTopic', () => {
       '```md\n# Short Syntax\n\nTesting the md variant.\n\nWorks the same way.\n```'
     ]);
 
-    const result = await generateResourceFromTopic('Markdown Variant', [], mockInferenceClient);
+    const result = await generateResourceFromTopic('Markdown Variant', [], mockInferenceClient, LOGGER);
 
     // Title comes from topic parameter
     expect(result.title).toBe('Markdown Variant');
@@ -252,7 +262,7 @@ describe('generateResourceFromTopic', () => {
       '\n\n  # Whitespace Test  \n\nContent with extra spaces.   \n\n  More content.  \n\n'
     ]);
 
-    const result = await generateResourceFromTopic('Whitespace', [], mockInferenceClient);
+    const result = await generateResourceFromTopic('Whitespace', [], mockInferenceClient, LOGGER);
 
     // Title comes from topic parameter
     expect(result.title).toBe('Whitespace');
@@ -270,6 +280,7 @@ describe('generateResourceFromTopic', () => {
         'Zeus',
         ['Person'],
         mockInferenceClient,
+        LOGGER,
         undefined,
         undefined,
         {
@@ -300,6 +311,7 @@ describe('generateResourceFromTopic', () => {
         'Prometheus',
         [],
         mockInferenceClient,
+        LOGGER,
         undefined,
         undefined,
         {
@@ -330,6 +342,7 @@ describe('generateResourceFromTopic', () => {
         'Icarus',
         [],
         mockInferenceClient,
+        LOGGER,
         undefined,
         undefined,
         {
@@ -356,6 +369,7 @@ describe('generateResourceFromTopic', () => {
         'Athens',
         ['Location'],
         mockInferenceClient,
+        LOGGER,
         undefined,
         undefined,
         {
@@ -385,6 +399,7 @@ describe('generateResourceFromTopic', () => {
         'Zeus',
         [],
         mockInferenceClient,
+        LOGGER,
         undefined,
         undefined,
         {
@@ -411,6 +426,7 @@ describe('generateResourceFromTopic', () => {
         'Orphan',
         [],
         mockInferenceClient,
+        LOGGER,
         undefined,
         undefined,
         {
@@ -435,6 +451,7 @@ describe('generateResourceFromTopic', () => {
         'NoGraph',
         [],
         mockInferenceClient,
+        LOGGER,
         undefined,
         undefined,
         {
@@ -455,6 +472,7 @@ describe('generateResourceFromTopic', () => {
         'Topic',
         [],
         mockInferenceClient,
+        LOGGER,
         undefined,
         undefined,
         {
