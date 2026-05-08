@@ -28,15 +28,15 @@ export async function generateResourceFromTopic(
   topic: string,
   entityTypes: string[],
   client: InferenceClient,
+  logger: Logger,
   userPrompt?: string,
   locale?: string,
   context?: GatheredContext,
   temperature?: number,
   maxTokens?: number,
-  logger?: Logger,
   sourceLanguage?: string
 ): Promise<{ title: string; content: string }> {
-  logger?.debug('Generating resource from topic', {
+  logger.debug('Generating resource from topic', {
     topicPreview: topic.substring(0, 100),
     entityTypes,
     hasUserPrompt: !!userPrompt,
@@ -171,16 +171,16 @@ Requirements:
     };
   };
 
-  logger?.debug('Sending prompt to inference', {
+  logger.debug('Sending prompt to inference', {
     promptLength: prompt.length,
     temperature: finalTemperature,
     maxTokens: finalMaxTokens
   });
   const response = await client.generateText(prompt, finalMaxTokens, finalTemperature);
-  logger?.debug('Got response from inference', { responseLength: response.length });
+  logger.debug('Got response from inference', { responseLength: response.length });
 
   const result = parseResponse(response);
-  logger?.debug('Parsed response', {
+  logger.debug('Parsed response', {
     hasTitle: !!result.title,
     titleLength: result.title?.length,
     hasContent: !!result.content,

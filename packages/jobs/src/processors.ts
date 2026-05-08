@@ -14,7 +14,7 @@ import { AnnotationDetection } from './workers/annotation-detection';
 import { extractEntities } from './workers/detection/entity-extractor';
 import { generateResourceFromTopic } from './workers/generation/resource-generation';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import { didToAgent, type ResourceId, type components } from '@semiont/core';
+import { didToAgent, type Logger, type ResourceId, type components } from '@semiont/core';
 import { validateAndCorrectOffsets } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type {
@@ -221,7 +221,7 @@ export async function processReferenceJob(
   userId: string,
   generator: Agent,
   onProgress: OnProgress,
-  logger?: import('@semiont/core').Logger,
+  logger: Logger,
 ): Promise<ProcessorResult<DetectionResult>> {
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'Entity types', value: entityTypeNames.join(', ') }];
@@ -338,6 +338,7 @@ export async function processGenerationJob(
   inferenceClient: InferenceClient,
   params: GenerationParams,
   onProgress: OnProgress,
+  logger: Logger,
 ): Promise<{ content: string; title: string; format: string; result: GenerationResult }> {
   onProgress(20, 'Fetching context...', 'fetching');
 
@@ -350,12 +351,12 @@ export async function processGenerationJob(
     title,
     entityTypes,
     inferenceClient,
+    logger,
     params.prompt,
     params.language,
     params.context,
     params.temperature,
     params.maxTokens,
-    undefined, // logger
     params.sourceLanguage,
   );
 
