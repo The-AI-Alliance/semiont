@@ -97,17 +97,26 @@ async function authenticate(): Promise<string> {
     return '';
   }
 
-  const response = await fetch(`${baseUrl}/api/tokens/worker`, {
+  // The smelter is a Software peer just like an inference agent — it
+  // authenticates with its (provider, model) so the bus stamps a typed
+  // agent DID onto every event it emits. Identity granularity follows
+  // the embedding config; two smelters with different embedding
+  // providers run as different agents.
+  const response = await fetch(`${baseUrl}/api/tokens/agent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ secret: workerSecret }),
+    body: JSON.stringify({
+      secret: workerSecret,
+      provider: embeddingType,
+      model: embeddingModel,
+    }),
   });
 
   if (!response.ok) {
     throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
   }
 
-  const { token } = await response.json() as { token: string };
+  const { token } = await response.json() as { token: string; did: string };
   return token;
 }
 
