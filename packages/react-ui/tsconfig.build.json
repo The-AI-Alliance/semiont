@@ -4,13 +4,14 @@
     "noEmit": false,
     "emitDeclarationOnly": true,
     "declaration": true,
-    "declarationMap": true,
-    "outDir": "./dist",
+    "declarationMap": false,
+    "outDir": "./dist-types",
     "rootDir": "./src"
   },
   "exclude": [
     "node_modules",
     "dist",
+    "dist-types",
     "scripts",
     "**/*.test.ts",
     "**/*.test.tsx",

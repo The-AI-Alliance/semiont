@@ -48,6 +48,10 @@ export class MatchNamespace implements IMatchNamespace {
         limit: options?.limit ?? 10,
         useSemanticScoring: options?.useSemanticScoring ?? true,
       }).catch((error) => {
+        // Don't propagate if a result or failure event already closed the
+        // subscriber, or if the consumer disposed mid-flight. Otherwise
+        // RxJS hosts the error as an uncaught exception.
+        if (subscriber.closed) return;
         subscriber.error(error);
       });
 
