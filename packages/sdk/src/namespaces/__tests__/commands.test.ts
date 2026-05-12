@@ -556,6 +556,165 @@ describe('YieldNamespace', () => {
   });
 });
 
+// ── Late-rejection guards (commit e328794f) ────────────────────────────────
+//
+// Four namespaces guard their `.catch` handlers against firing
+// `subscriber.error` on an already-closed subscriber:
+//
+//   gather.ts  — `transport.emit('gather:requested', …).catch(...)` checks
+//                `subscriber.closed`
+//   match.ts   — `transport.emit('match:search-requested', …).catch(...)`
+//                checks `subscriber.closed`
+//   mark.ts    — `dispatchAssist(...).catch(...)` checks the local `done`
+//                flag set by cleanup()
+//   yield.ts   — `busRequest('job:create', …).catch(...)` checks the local
+//                `done` flag set by cleanup()
+//
+// Without the guards, a rejection that arrived after consumer disposal
+// (e.g. `semiont.dispose()` completing the actor's `events$` Subject
+// while a fire-and-forget bus call is still pending) lands as an
+// uncaught exception via RxJS's host-error machinery. With the guards,
+// the rejection is silently dropped — the consumer is gone and there's
+// no one to receive the error.
+//
+// Each pair below: (1) guard fires → no error after unsubscribe;
+// (2) guard does NOT fire when the consumer is still subscribed → error
+// propagates as expected.
+
+function makeDeferred<T>(): { promise: Promise<T>; resolve: (v: T) => void; reject: (e: Error) => void } {
+  let resolve!: (v: T) => void;
+  let reject!: (e: Error) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+/** Build a transport whose `emit` always returns the supplied promise. */
+function makeDeferredEmitTransport(emitPromise: Promise<unknown>): { transport: ITransport; emitSpy: ReturnType<typeof vi.fn>; bus: EventBus } {
+  const bus = new EventBus();
+  const emitSpy = vi.fn().mockReturnValue(emitPromise);
+  const transport = {
+    emit: emitSpy,
+    on: vi.fn().mockReturnValue(() => {}),
+    stream: <K extends never>(channel: K) => bus.get(channel),
+    subscribeToResource: vi.fn().mockReturnValue(() => {}),
+    bridgeInto: vi.fn(),
+    authenticatePassword: vi.fn(),
+    authenticateGoogle: vi.fn(),
+    refreshAccessToken: vi.fn(),
+    logout: vi.fn(),
+    acceptTerms: vi.fn(),
+    getCurrentUser: vi.fn(),
+    generateMcpToken: vi.fn(),
+    getMediaToken: vi.fn(),
+    listUsers: vi.fn(),
+    getUserStats: vi.fn(),
+    updateUser: vi.fn(),
+    getOAuthConfig: vi.fn(),
+    backupKnowledgeBase: vi.fn(),
+    restoreKnowledgeBase: vi.fn(),
+    exportKnowledgeBase: vi.fn(),
+    importKnowledgeBase: vi.fn(),
+    healthCheck: vi.fn(),
+    getStatus: vi.fn(),
+    state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
+    dispose: vi.fn(),
+  } as unknown as ITransport;
+  return { transport, emitSpy, bus };
+}
+
+// Each test pins the late-rejection-after-unsubscribe path — the
+// guards added in e328794f. The converse (rejection while still
+// subscribed → error propagates) is already covered for gather/match
+// by the existing `gather:failed` / `match:search-failed` tests above;
+// mark/yield rely on the same promise-then-catch shape so a separate
+// positive test would be duplicative.
+
+describe('late-rejection guards', () => {
+  it('gather.annotation does NOT propagate a rejection after the consumer unsubscribes', async () => {
+    const { promise, reject } = makeDeferred<void>();
+    const { transport, bus } = makeDeferredEmitTransport(promise);
+    const gather = new GatherNamespace(transport, new EventBus());
+
+    const errors: Error[] = [];
+    const sub = gather.annotation(RID, AID).subscribe({
+      next: () => {},
+      error: (e: Error) => errors.push(e),
+    });
+
+    sub.unsubscribe();
+    reject(new Error('late failure'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(errors).toHaveLength(0);
+    bus.destroy();
+  });
+
+  it('match.search does NOT propagate a rejection after the consumer unsubscribes', async () => {
+    const { promise, reject } = makeDeferred<void>();
+    const { transport, bus } = makeDeferredEmitTransport(promise);
+    const match = new MatchNamespace(transport, new EventBus());
+
+    const errors: Error[] = [];
+    const sub = match.search(RID, annotationId('ref-1'), {} as never).subscribe({
+      next: () => {},
+      error: (e: Error) => errors.push(e),
+    });
+
+    sub.unsubscribe();
+    reject(new Error('late failure'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(errors).toHaveLength(0);
+    bus.destroy();
+  });
+
+  it('mark.assist does NOT propagate a late dispatchAssist rejection after the consumer unsubscribes', async () => {
+    // dispatchAssist round-trips on 'job:create' / 'job:created'. Make
+    // the underlying emit() pend indefinitely, then reject after the
+    // consumer has torn down — exercises the `done` guard set by
+    // cleanup() in the StreamObservable teardown.
+    const { promise, reject } = makeDeferred<void>();
+    const { transport, bus } = makeDeferredEmitTransport(promise);
+    const mark = new MarkNamespace(transport, new EventBus());
+
+    const errors: Error[] = [];
+    const sub = mark
+      .assist(RID, 'linking', { entityTypes: ['Person'] })
+      .subscribe({
+        next: () => {},
+        error: (e: Error) => errors.push(e),
+      });
+
+    sub.unsubscribe();
+    reject(new Error('bus disposed mid-flight'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(errors).toHaveLength(0);
+    bus.destroy();
+  });
+
+  it('yield.fromAnnotation does NOT propagate a late busRequest rejection after the consumer unsubscribes', async () => {
+    const { promise, reject } = makeDeferred<void>();
+    const { transport, bus } = makeDeferredEmitTransport(promise);
+    const yld = new YieldNamespace(transport, new EventBus(), makeMockContent());
+
+    const errors: Error[] = [];
+    const sub = yld
+      .fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as never })
+      .subscribe({
+        next: () => {},
+        error: (e: Error) => errors.push(e),
+      });
+
+    sub.unsubscribe();
+    reject(new Error('bus disposed mid-flight'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(errors).toHaveLength(0);
+    bus.destroy();
+  });
+});
+
 /**
  * Regression guard for the browser-upload bug surfaced at /know/compose:
  * `yield.resource()` referenced the Node global `Buffer` directly via

@@ -200,6 +200,47 @@ describe('busRequest', () => {
 
     expect(await promise).toEqual({ value: 1 });
   });
+
+  it("re-throws emit's rejection without leaving the result subscription as an unhandled rejection", async () => {
+    // Regression: busRequest's `firstValueFrom(result$)` subscribes
+    // BEFORE awaiting `bus.emit()`. If emit throws, control leaves
+    // busRequest without ever awaiting the result promise. Its
+    // subscription stays open until the underlying stream completes
+    // (in production: during `semiont.dispose()`), at which point
+    // firstValueFrom throws EmptyError with no consumer — surfacing
+    // as an uncaught rejection that bubbled out of the SDK into
+    // skill scripts as a cosmetic stack trace after `Done.`.
+    //
+    // Pin the behavior: emit rejects → busRequest rethrows; the
+    // resultSubject is then completed (mimicking bus disposal); no
+    // unhandled rejection escapes.
+
+    const unhandled: unknown[] = [];
+    const onUnhandled = (e: PromiseRejectionEvent | { reason: unknown }) =>
+      unhandled.push((e as { reason: unknown }).reason);
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const bus = makeBus(RESULT, FAILURE);
+      bus.emit = vi.fn(async () => { throw new Error('emit failed'); }) as BusRequestPrimitive['emit'];
+
+      await expect(
+        busRequest(bus, EMIT, {}, RESULT, FAILURE),
+      ).rejects.toThrow('emit failed');
+
+      // Now complete the result stream, as `semiont.dispose()` would —
+      // this is what previously fired the dangling EmptyError.
+      bus.resultSubject.complete();
+      bus.failureSubject.complete();
+
+      // Let any pending microtasks settle.
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(unhandled).toHaveLength(0);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
 });
 
 describe('BusRequestError', () => {
