@@ -216,8 +216,7 @@ describe('busRequest', () => {
     // unhandled rejection escapes.
 
     const unhandled: unknown[] = [];
-    const onUnhandled = (e: PromiseRejectionEvent | { reason: unknown }) =>
-      unhandled.push((e as { reason: unknown }).reason);
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
     process.on('unhandledRejection', onUnhandled);
 
     try {
