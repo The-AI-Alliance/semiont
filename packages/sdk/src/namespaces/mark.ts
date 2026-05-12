@@ -152,6 +152,12 @@ export class MarkNamespace implements IMarkNamespace {
           }
         })
         .catch((error) => {
+          // If the StreamObservable has already completed (e.g. job:complete
+          // arrived before dispatchAssist resolved, or the consumer disposed
+          // the client mid-flight), don't propagate the error — there is no
+          // live subscriber to receive it, and RxJS would host it as an
+          // uncaught exception.
+          if (done) return;
           cleanup();
           subscriber.error(error);
         });
@@ -227,7 +233,7 @@ export class MarkNamespace implements IMarkNamespace {
     if (motivation === 'tagging') {
       if (!options.schemaId || !options.categories?.length) throw new Error('Tag assist requires schemaId and categories');
     } else if (motivation === 'linking') {
-      if (!options.entityTypes?.length) throw new Error('Reference assist requires entityTypes');
+      if (!options.entityTypes?.length) throw new Error('mark.assist with motivation "linking" requires a non-empty entityTypes array');
     }
 
     const params: Record<string, unknown> = {};
