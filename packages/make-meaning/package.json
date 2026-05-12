@@ -20,9 +20,9 @@
     "README.md"
   ],
   "scripts": {
-    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json",
+    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist dist-types",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -43,6 +43,8 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
     "fast-check": "^4.3.0",
+    "rollup": "^4.60.3",
+    "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
     "typescript": "^6.0.2"
   },

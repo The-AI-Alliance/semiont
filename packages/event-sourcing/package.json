@@ -29,7 +29,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json",
+    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
     "watch": "tsup --watch",
     "clean": "rm -rf dist *.tsbuildinfo",
     "test": "vitest run",
@@ -51,6 +51,8 @@
     "@types/uuid": "^10.0.0",
     "@vitest/coverage-v8": "^4.1.0",
     "fast-check": "^4.3.0",
+    "rollup": "^4.60.3",
+    "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.2"
   },

@@ -31,9 +31,9 @@
   "scripts": {
     "pretypecheck": "npm run build --workspace=@semiont/core --if-present && npm run build --workspace=@semiont/api-client --if-present",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json",
+    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
     "watch": "tsup --watch",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist dist-types",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -45,6 +45,8 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
+    "rollup": "^4.60.3",
+    "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.2"
   },
