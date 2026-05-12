@@ -231,7 +231,12 @@ export class MarkNamespace implements IMarkNamespace {
     if (!jobType) throw new Error(`Unsupported motivation: ${motivation}`);
 
     if (motivation === 'tagging') {
-      if (!options.schemaId || !options.categories?.length) throw new Error('Tag assist requires schemaId and categories');
+      if (!options.schemaId) {
+        throw new Error('mark.assist with motivation "tagging" requires options.schemaId');
+      }
+      if (!options.categories?.length) {
+        throw new Error('mark.assist with motivation "tagging" requires a non-empty options.categories array');
+      }
     } else if (motivation === 'linking') {
       if (!options.entityTypes?.length) throw new Error('mark.assist with motivation "linking" requires a non-empty entityTypes array');
     }
