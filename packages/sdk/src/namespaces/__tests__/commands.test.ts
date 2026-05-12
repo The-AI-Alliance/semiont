@@ -212,6 +212,34 @@ describe('MarkNamespace', () => {
     bus.destroy();
     vi.useRealTimers();
   });
+
+  // Tagging validation: dispatchAssist throws synchronously when
+  // schemaId or categories are missing. The async-thrown error
+  // becomes a rejection of the dispatchAssist promise, which the
+  // .catch propagates to subscriber.error since the consumer is
+  // still subscribed (done=false). One test per missing option so
+  // each error message is pinned.
+  it('assist() with motivation "tagging" but no schemaId errors with a specific message', async () => {
+    const err = await new Promise<Error>((resolve) => {
+      mark.assist(RID, 'tagging', { categories: ['c'] }).subscribe({
+        error: (e: Error) => resolve(e),
+      });
+    });
+    expect(err.message).toBe(
+      'mark.assist with motivation "tagging" requires options.schemaId',
+    );
+  });
+
+  it('assist() with motivation "tagging" but empty categories errors with a specific message', async () => {
+    const err = await new Promise<Error>((resolve) => {
+      mark.assist(RID, 'tagging', { schemaId: 'schema-1', categories: [] }).subscribe({
+        error: (e: Error) => resolve(e),
+      });
+    });
+    expect(err.message).toBe(
+      'mark.assist with motivation "tagging" requires a non-empty options.categories array',
+    );
+  });
 });
 
 // ── Bind ────────────────────────────────────────────────────────────────────
