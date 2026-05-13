@@ -32,6 +32,7 @@ export default function DiscoverPage() {
   const searchState = useObservable(stateUnit.search.state$);
   const searchDocuments = searchState?.results ?? [];
   const isSearching = searchState?.isSearching ?? false;
+  const selectedEntityType = useObservable(stateUnit.selectedEntityType$) ?? '';
 
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
@@ -50,6 +51,8 @@ export default function DiscoverPage() {
       isSearching={isSearching}
       searchQuery={searchQuery}
       onSearchQueryChange={stateUnit.search.setQuery}
+      selectedEntityType={selectedEntityType}
+      onSelectedEntityTypeChange={stateUnit.setSelectedEntityType}
       theme={resolvedTheme}
       showLineNumbers={showLineNumbers}
       activePanel={activePanel}

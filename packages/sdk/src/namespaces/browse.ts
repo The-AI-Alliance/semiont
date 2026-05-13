@@ -27,7 +27,12 @@ type EnrichedResourceEvent = components['schemas']['EnrichedResourceEvent'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type AnnotationsListResponse = components['schemas']['GetAnnotationsResponse'];
 
-type ResourceListFilters = { limit?: number; archived?: boolean; search?: string };
+type ResourceListFilters = {
+  limit?: number;
+  archived?: boolean;
+  search?: string;
+  entityType?: string;
+};
 
 /** Sentinel key for the singleton entity-types cache. */
 const ENTITY_TYPES_KEY = '_';
@@ -98,7 +103,13 @@ export class BrowseNamespace implements IBrowseNamespace {
       const result = await busRequest<{ resources: ResourceDescriptor[] }>(
         this.transport,
         'browse:resources-requested',
-        { search, archived: filters.archived, limit: filters.limit ?? 100, offset: 0 },
+        {
+          search,
+          archived: filters.archived,
+          entityType: filters.entityType,
+          limit: filters.limit ?? 100,
+          offset: 0,
+        },
         'browse:resources-result',
         'browse:resources-failed',
       );

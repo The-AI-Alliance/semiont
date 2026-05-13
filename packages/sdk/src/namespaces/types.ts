@@ -189,7 +189,7 @@ export type YieldGenerationEvent =
 export interface BrowseNamespace {
   // Live queries (Observable — bus gateway driven, cached in BehaviorSubject)
   resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor>;
-  resources(filters?: { limit?: number; archived?: boolean; search?: string }): CacheObservable<ResourceDescriptor[]>;
+  resources(filters?: { limit?: number; archived?: boolean; search?: string; entityType?: string }): CacheObservable<ResourceDescriptor[]>;
   annotations(resourceId: ResourceId): CacheObservable<Annotation[]>;
   annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation>;
   entityTypes(): CacheObservable<string[]>;
