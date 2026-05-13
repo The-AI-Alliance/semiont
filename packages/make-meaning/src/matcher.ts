@@ -122,7 +122,7 @@ export class Matcher {
             .then(r => r.resources)
         : Promise.resolve([]),
       // 4. Semantic match — vector similarity search (if vectors configured)
-      this.searchVectors(searchTerm, annotationEntityTypes),
+      this.searchVectors(searchTerm),
     ]);
 
     // 3. Graph neighborhood candidates — fetch full resources for connection IDs
@@ -386,19 +386,22 @@ For each candidate, output a line with the number and score, like:
   /**
    * Search vectors for semantically similar resources.
    * Returns empty array if vectors or embedding provider are not configured.
+   *
+   * No entity-type filter: the annotation's entity types are a ranking signal
+   * (Jaccard + IDF in `contextDrivenSearch`), not an inclusion gate. Gating
+   * recall here would hide vector-similar but differently-tagged candidates
+   * from the scorer.
    */
   private async searchVectors(
     searchTerm: string,
-    entityTypes: string[],
   ): Promise<Array<{ resourceId: string; score: number }>> {
     if (!this.kb.vectors || !this.embeddingProvider || !searchTerm.trim()) return [];
 
     try {
       const embedding = await this.embeddingProvider.embed(searchTerm);
       const results = await this.kb.vectors.searchResources(embedding, {
-        limit: 20,
+        limit: 40,
         scoreThreshold: 0.4,
-        filter: entityTypes.length > 0 ? { entityTypes } : undefined,
       });
 
       return results.map((r: VectorSearchResult) => ({

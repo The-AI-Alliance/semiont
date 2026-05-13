@@ -31,6 +31,8 @@ const createMockProps = (overrides?: Partial<ResourceDiscoveryPageProps>): Resou
   isSearching: false,
   searchQuery: '',
   onSearchQueryChange: vi.fn(),
+  selectedEntityType: '',
+  onSelectedEntityTypeChange: vi.fn(),
   theme: 'light',
   showLineNumbers: false,
   activePanel: null,
@@ -254,64 +256,58 @@ describe('ResourceDiscoveryPage', () => {
       expect(screen.getByRole('button', { name: 'Report' })).toBeInTheDocument();
     });
 
-    it('filters documents by entity type', () => {
+    it('calls onSelectedEntityTypeChange when a filter chip is clicked', () => {
+      const onSelectedEntityTypeChange = vi.fn();
       const props = createMockProps({
-        recentDocuments: [
-          createMockResource('1', 'Doc 1', ['Document']),
-          createMockResource('2', 'Doc 2', ['Article']),
-          createMockResource('3', 'Doc 3', ['Document']),
-        ],
         entityTypes: ['Document', 'Article'],
+        onSelectedEntityTypeChange,
       });
       renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
-      // Initially all documents shown
-      expect(screen.getByText('Doc 1')).toBeInTheDocument();
-      expect(screen.getByText('Doc 2')).toBeInTheDocument();
-      expect(screen.getByText('Doc 3')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Document' }));
+      expect(onSelectedEntityTypeChange).toHaveBeenCalledWith('Document');
 
-      // Filter by Document
-      const documentButton = screen.getByRole('button', { name: 'Document' });
-      fireEvent.click(documentButton);
-
-      expect(screen.getByText('Doc 1')).toBeInTheDocument();
-      expect(screen.queryByText('Doc 2')).not.toBeInTheDocument();
-      expect(screen.getByText('Doc 3')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Article' }));
+      expect(onSelectedEntityTypeChange).toHaveBeenCalledWith('Article');
     });
 
-    it('shows filtered heading when entity type selected', () => {
+    it('shows filtered heading when selectedEntityType prop is set', () => {
       const props = createMockProps({
         recentDocuments: [createMockResource('1', 'Doc 1', ['Document'])],
         entityTypes: ['Document'],
+        selectedEntityType: 'Document',
       });
       renderWithProviders(<ResourceDiscoveryPage {...props} />);
-
-      const documentButton = screen.getByRole('button', { name: 'Document' });
-      fireEvent.click(documentButton);
 
       expect(screen.getByText('Documents tagged with Document')).toBeInTheDocument();
     });
 
-    it('resets filter when "All" button clicked', () => {
+    it('calls onSelectedEntityTypeChange with empty string when "All" is clicked', () => {
+      const onSelectedEntityTypeChange = vi.fn();
+      const props = createMockProps({
+        entityTypes: ['Document', 'Article'],
+        selectedEntityType: 'Document',
+        onSelectedEntityTypeChange,
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'All' }));
+      expect(onSelectedEntityTypeChange).toHaveBeenCalledWith('');
+    });
+
+    it('renders the recentDocuments prop as-is without applying any post-filter', () => {
+      // The component is now controlled — backend filtering means
+      // `recentDocuments` already contains only the resources matching the
+      // active `selectedEntityType`. The component must not re-filter.
       const props = createMockProps({
         recentDocuments: [
           createMockResource('1', 'Doc 1', ['Document']),
           createMockResource('2', 'Doc 2', ['Article']),
         ],
         entityTypes: ['Document', 'Article'],
+        selectedEntityType: 'Document',
       });
       renderWithProviders(<ResourceDiscoveryPage {...props} />);
-
-      // Filter by Document
-      const documentButton = screen.getByRole('button', { name: 'Document' });
-      fireEvent.click(documentButton);
-
-      expect(screen.getByText('Doc 1')).toBeInTheDocument();
-      expect(screen.queryByText('Doc 2')).not.toBeInTheDocument();
-
-      // Click All
-      const allButton = screen.getByRole('button', { name: 'All' });
-      fireEvent.click(allButton);
 
       expect(screen.getByText('Doc 1')).toBeInTheDocument();
       expect(screen.getByText('Doc 2')).toBeInTheDocument();
