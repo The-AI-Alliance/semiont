@@ -63,6 +63,17 @@ describe('createDiscoverStateUnit', () => {
     stateUnit.dispose();
   });
 
+  it('falls back to [] when entityTypes() emits undefined', async () => {
+    const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);
+    const { client } = mockClient({ entityTypes$ });
+    const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+
+    const types = await firstValueFrom(stateUnit.entityTypes$);
+    expect(types).toEqual([]);
+
+    stateUnit.dispose();
+  });
+
   it('reports loading when resources are undefined', async () => {
     const resources$ = new BehaviorSubject<unknown[] | undefined>(undefined);
     const { client } = mockClient({ resources$ });
