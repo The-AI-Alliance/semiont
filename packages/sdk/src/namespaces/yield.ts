@@ -214,6 +214,11 @@ export class YieldNamespace implements IYieldNamespace {
           resetPollTimer(jobId);
         }
       }).catch((error) => {
+        // If the StreamObservable has already completed (job:complete arrived
+        // before busRequest resolved, or the consumer disposed the client
+        // mid-flight), don't propagate — the subscriber is gone and RxJS
+        // would host the error as an uncaught exception.
+        if (done) return;
         cleanup();
         subscriber.error(error);
       });

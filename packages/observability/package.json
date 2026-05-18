@@ -1,6 +1,6 @@
 {
   "name": "@semiont/observability",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "description": "OpenTelemetry-based tracing for Semiont — Tier 2 of OBSERVABILITY.md. Process-init helpers (Node + Web), withSpan helper, W3C traceparent inject/extract for bus payloads. No-op when no exporter is configured.",
   "type": "module",
   "main": "dist/index.js",
@@ -46,7 +46,7 @@
   "scripts": {
     "pretypecheck": "npm run build --workspace=@semiont/core --if-present",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json",
+    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
     "watch": "tsup --watch",
     "clean": "rm -rf dist *.tsbuildinfo",
     "test": "vitest run",
@@ -55,6 +55,8 @@
   "author": "Semiont Team",
   "license": "Apache-2.0",
   "devDependencies": {
+    "rollup": "^4.60.3",
+    "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.2",
     "vitest": "^4.1.0"

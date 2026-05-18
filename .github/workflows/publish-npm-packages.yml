@@ -47,6 +47,15 @@ jobs:
         # is comfortably within memory.
         run: ./scripts/ci/build.sh
 
+      - name: Verify NodeNext resolution
+        # Pre-publish gate: every @semiont/* package's dist must
+        # resolve cleanly under `tsc --moduleResolution NodeNext` from
+        # an external consumer's perspective. Catches the asymmetric-
+        # dist regression class (bundled .js with per-file .d.ts
+        # shards) before it ships to npm. See `.plans/CLEANUP-SDK.md`
+        # item 1 for the failure mode that motivated this gate.
+        run: ./scripts/ci/verify-nodenext-resolution.sh
+
       - name: Determine version
         id: version
         run: |

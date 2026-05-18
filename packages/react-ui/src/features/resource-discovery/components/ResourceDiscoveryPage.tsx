@@ -5,7 +5,7 @@
  * All dependencies passed as props - no Next.js hooks!
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { getResourceId } from '@semiont/core';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
 import { useRovingTabIndex } from '../../../hooks/useRovingTabIndex';
@@ -25,6 +25,11 @@ export interface ResourceDiscoveryPageProps {
   // Controlled search state
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
+
+  // Controlled entity-type filter — owned by the state unit so filtering
+  // pushes to the backend rather than running as a post-fetch array filter.
+  selectedEntityType: string;
+  onSelectedEntityTypeChange: (entityType: string) => void;
 
   // UI state props
   theme: 'light' | 'dark';
@@ -67,6 +72,8 @@ export function ResourceDiscoveryPage({
   isSearching,
   searchQuery,
   onSearchQueryChange,
+  selectedEntityType,
+  onSelectedEntityTypeChange,
   theme,
   showLineNumbers,
   activePanel,
@@ -75,17 +82,11 @@ export function ResourceDiscoveryPage({
   translations: t,
   ToolbarPanels,
 }: ResourceDiscoveryPageProps) {
-  const [selectedEntityType, setSelectedEntityType] = useState<string>('');
-
   const hasSearchQuery = searchQuery.trim() !== '';
 
   // When searching, render search results; otherwise render recent.
-  const baseDocuments = hasSearchQuery ? searchDocuments : recentDocuments;
-  const filteredResources = !selectedEntityType
-    ? baseDocuments
-    : baseDocuments.filter((resource: ResourceDescriptor) =>
-        resource.entityTypes && resource.entityTypes.includes(selectedEntityType)
-      );
+  // Both already arrive entity-type-filtered from the backend — no post-filter here.
+  const filteredResources = hasSearchQuery ? searchDocuments : recentDocuments;
 
   // Roving tabindex for entity type filters
   const entityFilterRoving = useRovingTabIndex<HTMLDivElement>(
@@ -105,8 +106,8 @@ export function ResourceDiscoveryPage({
 
   // Memoized callbacks
   const handleEntityTypeFilter = useCallback((entityType: string) => {
-    setSelectedEntityType(entityType);
-  }, []);
+    onSelectedEntityTypeChange(entityType);
+  }, [onSelectedEntityTypeChange]);
 
   const openResource = useCallback((resource: ResourceDescriptor) => {
     const resourceId = getResourceId(resource);

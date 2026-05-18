@@ -74,9 +74,28 @@ export async function busRequest<TResult>(
     }),
   );
 
+  // Subscribe before emitting so we don't miss an instantaneous reply
+  // (which can happen with an in-process LocalTransport bus).
   const resultPromise = firstValueFrom(result$);
 
-  await bus.emit(emitChannel as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
+  try {
+    await bus.emit(emitChannel as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
+  } catch (err) {
+    // If emit threw, control is about to leave this function without
+    // anyone awaiting `resultPromise`. Its subscription stays open
+    // until the bus completes (e.g. during `semiont.dispose()`), at
+    // which point firstValueFrom throws EmptyError with no consumer —
+    // surfacing as an uncaught rejection in skill scripts as a
+    // cosmetic stack trace after `Done.`.
+    //
+    // Attach a no-op handler so the eventual rejection has somewhere
+    // to land. We can't actively cancel the firstValueFrom
+    // subscription (its Promise type exposes no handle), but
+    // suppressing its unhandled-rejection is enough; the bus's
+    // natural lifecycle tears the subscription down whenever it ends.
+    resultPromise.catch(() => {});
+    throw err;
+  }
 
   const result = await resultPromise;
   if (!result.ok) {

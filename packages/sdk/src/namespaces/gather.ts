@@ -54,6 +54,10 @@ export class GatherNamespace implements IGatherNamespace {
         resourceId,
         options: { contextWindow: options?.contextWindow ?? 2000 },
       }).catch((error) => {
+        // Don't propagate if a result or failure event already closed the
+        // subscriber, or if the consumer disposed mid-flight. Otherwise
+        // RxJS hosts the error as an uncaught exception.
+        if (subscriber.closed) return;
         subscriber.error(error);
       });
 

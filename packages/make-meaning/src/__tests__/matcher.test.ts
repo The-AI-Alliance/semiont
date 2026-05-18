@@ -278,6 +278,39 @@ describe('Matcher', () => {
       }
     });
 
+    it('should not gate the vector lane by annotation entity types', async () => {
+      // Entity-type overlap is a ranking signal (Jaccard + IDF further down),
+      // not an inclusion filter. The vector lane must be free to surface
+      // semantically-similar candidates that don't carry the annotation's
+      // entity types — the scorer ranks them, the gate would hide them.
+      const mockVectorSearch = vi.fn().mockResolvedValue([]);
+      (kb as any).vectors = { searchResources: mockVectorSearch };
+      const mockEmbed = vi.fn().mockResolvedValue([0.1, 0.2, 0.3]);
+      const embeddingProvider = { embed: mockEmbed, dimension: 3 } as any;
+
+      await matcher.stop();
+      matcher = new Matcher(kb, eventBus, mockLogger, noopInference, embeddingProvider);
+      await matcher.initialize();
+
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
+        correlationId: 'test-corr-id',
+        referenceId: 'ref-no-gate',
+        context: makeContext({
+          sourceContext: { before: '', selected: 'Lincoln', after: '' },
+          metadata: { entityTypes: ['Person'] },
+        }),
+      });
+
+      await resultPromise;
+
+      expect(mockVectorSearch).toHaveBeenCalledTimes(1);
+      const opts = mockVectorSearch.mock.calls[0][1];
+      expect(opts.filter?.entityTypes).toBeUndefined();
+    });
+
     it('should boost bidirectional connections', async () => {
       // RES_A found via name, RES_B found via name — both match
       // RES_B is also a bidirectional connection

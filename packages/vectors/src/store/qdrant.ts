@@ -157,9 +157,10 @@ export class QdrantVectorStore implements VectorStore {
     const must: any[] = [];
 
     if (filter.entityTypes && filter.entityTypes.length > 0) {
-      for (const et of filter.entityTypes) {
-        must.push({ key: 'entityTypes', match: { value: et } });
-      }
+      // any-of: match payloads whose `entityTypes` array contains at least one
+      // of the requested types. Matches the memory store's `some(t => ...)`
+      // semantics; pushing one `must` clause per type would mean all-of.
+      must.push({ key: 'entityTypes', match: { any: filter.entityTypes } });
     }
 
     if (filter.resourceId) {
