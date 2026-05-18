@@ -45,7 +45,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/orbitron": "^5.2.8",
-    "@headlessui/react": "^2.2.9",
+    "@headlessui/react": "^2.2.10",
     "@heroicons/react": "^2.2.0",
     "@semiont/api-client": "0.5.6",
     "@semiont/observability": "0.5.6",
