@@ -222,10 +222,24 @@ export {
   normalizeText,
   buildContentCache,
   findBestTextMatch,
-  findTextWithContext,
   verifyPosition,
 } from './fuzzy-anchor';
 export type { TextPosition, MatchQuality, ContentCache } from './fuzzy-anchor';
+
+// Render-time anchoring (combines position + quote selectors with scoring)
+export {
+  anchorAnnotation,
+  POSITION_WINDOW,
+  CONTEXT_FULL_WEIGHT,
+  CONTEXT_PARTIAL_WEIGHT,
+  POSITION_WEIGHT_MAX,
+} from './anchor-annotation';
+export type {
+  AnchorStrategy,
+  AnchorConfidence,
+  RenderedAnchor,
+  AnchorSelectors,
+} from './anchor-annotation';
 
 // Locale info table
 export {
@@ -250,8 +264,8 @@ export {
 export type { Point, BoundingBox } from './svg-utils';
 
 // Text context extraction (depends on fuzzy-anchor)
-export { extractContext, validateAndCorrectOffsets } from './text-context';
-export type { ValidatedAnnotation } from './text-context';
+export { extractContext, reconcileSelector } from './text-context';
+export type { ReconciledSelector, AnchorMethod, LlmSelectorInput } from './text-context';
 
 // Text encoding helpers
 export { extractCharset, decodeWithCharset } from './text-encoding';

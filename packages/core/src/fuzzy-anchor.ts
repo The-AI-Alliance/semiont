@@ -73,7 +73,7 @@ export interface ContentCache {
 
 /**
  * Build a ContentCache for a given content string.
- * Call once per content, pass to findBestTextMatch/findTextWithContext for all annotations.
+ * Call once per content, pass to findBestTextMatch/anchorAnnotation for all annotations.
  */
 export function buildContentCache(content: string): ContentCache {
   return {
@@ -85,7 +85,8 @@ export function buildContentCache(content: string): ContentCache {
 /**
  * Find best match for text in content using multi-strategy search
  *
- * Shared core logic used by both findTextWithContext and validateAndCorrectOffsets.
+ * Shared core logic used by both anchorAnnotation (render-time) and
+ * reconcileSelector (write-time).
  *
  * @param content - Full text content to search within
  * @param searchText - The text to find
@@ -178,114 +179,6 @@ export function findBestTextMatch(
   }
 
   return null;
-}
-
-/**
- * Find text using exact match with optional prefix/suffix context
- *
- * When the exact text appears multiple times in the content, prefix and suffix
- * are used to disambiguate and find the correct occurrence.
- *
- * If exact text is not found, uses multi-strategy fuzzy matching (normalization,
- * case-insensitive, Levenshtein distance) to locate changed text.
- *
- * @param content - Full text content to search within
- * @param exact - The exact text to find
- * @param prefix - Optional text that should appear immediately before the match
- * @param suffix - Optional text that should appear immediately after the match
- * @param positionHint - Optional position hint (from TextPositionSelector) for fuzzy search
- * @returns Position of the matched text, or null if not found
- *
- * @example
- * ```typescript
- * const content = "The cat sat. The cat ran.";
- * // Find second "The cat" occurrence
- * const pos = findTextWithContext(content, "The cat", "sat. ", " ran");
- * // Returns { start: 13, end: 20 }
- * ```
- */
-export function findTextWithContext(
-  content: string,
-  exact: string,
-  prefix: string | undefined,
-  suffix: string | undefined,
-  positionHint: number | undefined,
-  cache: ContentCache
-): TextPosition | null {
-  if (!exact) return null;
-
-  // Fast path: if positionHint points directly at the exact text, return immediately
-  if (positionHint !== undefined && positionHint >= 0 && positionHint + exact.length <= content.length) {
-    if (content.substring(positionHint, positionHint + exact.length) === exact) {
-      return { start: positionHint, end: positionHint + exact.length };
-    }
-  }
-
-  // Find all occurrences of exact text
-  const occurrences: number[] = [];
-  let index = content.indexOf(exact);
-  while (index !== -1) {
-    occurrences.push(index);
-    index = content.indexOf(exact, index + 1);
-  }
-
-  // No exact matches found - try fuzzy matching
-  if (occurrences.length === 0) {
-    const fuzzyMatch = findBestTextMatch(content, exact, positionHint, cache);
-
-    if (fuzzyMatch) {
-      return { start: fuzzyMatch.start, end: fuzzyMatch.end };
-    }
-
-    return null;
-  }
-
-  // Only one match - no need for prefix/suffix disambiguation
-  if (occurrences.length === 1) {
-    const pos = occurrences[0]!; // Safe: length === 1 means first element exists
-    return { start: pos, end: pos + exact.length };
-  }
-
-  // Multiple matches - use prefix/suffix to disambiguate
-  if (prefix || suffix) {
-    for (const pos of occurrences) {
-      // Extract actual prefix from content
-      const actualPrefixStart = Math.max(0, pos - (prefix?.length || 0));
-      const actualPrefix = content.substring(actualPrefixStart, pos);
-
-      // Extract actual suffix from content
-      const actualSuffixEnd = Math.min(content.length, pos + exact.length + (suffix?.length || 0));
-      const actualSuffix = content.substring(pos + exact.length, actualSuffixEnd);
-
-      // Check if prefix matches
-      const prefixMatch = !prefix || actualPrefix.endsWith(prefix);
-
-      // Check if suffix matches
-      const suffixMatch = !suffix || actualSuffix.startsWith(suffix);
-
-      if (prefixMatch && suffixMatch) {
-        return { start: pos, end: pos + exact.length };
-      }
-    }
-
-    // No match with exact prefix/suffix - try partial prefix/suffix match
-    for (const pos of occurrences) {
-      const actualPrefix = content.substring(Math.max(0, pos - (prefix?.length || 0)), pos);
-      const actualSuffix = content.substring(pos + exact.length, pos + exact.length + (suffix?.length || 0));
-
-      // Fuzzy match: check if prefix/suffix are substrings (handles whitespace variations)
-      const fuzzyPrefixMatch = !prefix || actualPrefix.includes(prefix.trim());
-      const fuzzySuffixMatch = !suffix || actualSuffix.includes(suffix.trim());
-
-      if (fuzzyPrefixMatch && fuzzySuffixMatch) {
-        return { start: pos, end: pos + exact.length };
-      }
-    }
-  }
-
-  // Fallback: return first occurrence if no prefix/suffix or no match
-  const pos = occurrences[0]!; // Safe: we checked length > 0 earlier
-  return { start: pos, end: pos + exact.length };
 }
 
 /**

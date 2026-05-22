@@ -19,25 +19,11 @@ const LOGGER = {
 
 describe('extractEntities', () => {
 
-  it('should extract entities with correct offsets', async () => {
+  it('should extract entities with exact text + prefix/suffix context', async () => {
     const text = 'Alice went to Paris yesterday.';
     const mockResponse = [
-      {
-        exact: 'Alice',
-        entityType: 'Person',
-        startOffset: 0,
-        endOffset: 5,
-        prefix: '',
-        suffix: ' went to'
-      },
-      {
-        exact: 'Paris',
-        entityType: 'Location',
-        startOffset: 14,
-        endOffset: 19,
-        prefix: 'went to ',
-        suffix: ' yesterday'
-      }
+      { exact: 'Alice', entityType: 'Person', prefix: '', suffix: ' went to' },
+      { exact: 'Paris', entityType: 'Location', prefix: 'went to ', suffix: ' yesterday' },
     ];
 
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
@@ -45,20 +31,17 @@ describe('extractEntities', () => {
     const result = await extractEntities(text, ['Person', 'Location'], mockInferenceClient, false, LOGGER);
 
     expect(result).toHaveLength(2);
-    // The function translates the LLM's `startOffset`/`endOffset` wire
-    // format to the W3C-canonical `start`/`end` shape for the rest of
-    // the pipeline. Assertions are on the shape consumers see.
-    expect(result[0]).toMatchObject({
+    expect(result[0]).toEqual({
       exact: 'Alice',
       entityType: 'Person',
-      start: 0,
-      end: 5
+      prefix: '',
+      suffix: ' went to',
     });
-    expect(result[1]).toMatchObject({
+    expect(result[1]).toEqual({
       exact: 'Paris',
       entityType: 'Location',
-      start: 14,
-      end: 19
+      prefix: 'went to ',
+      suffix: ' yesterday',
     });
   });
 
@@ -78,58 +61,49 @@ describe('extractEntities', () => {
     expect(result).toEqual([]);
   });
 
-  it('should correct AI offset errors using context', async () => {
-    const text = 'Alice went to Paris. Alice loves Paris.';
-    // AI returns wrong offset for second Alice
+  it('preserves prefix/suffix context for downstream reconciliation', async () => {
+    // The extractor is offset-free; prefix/suffix carry locality context
+    // for the downstream reconcileSelector to disambiguate.
     const mockResponse = [
       {
         exact: 'Alice',
         entityType: 'Person',
-        startOffset: 21, // Correct
-        endOffset: 26,
         prefix: 'Paris. ',
-        suffix: ' loves'
-      }
+        suffix: ' loves',
+      },
     ];
 
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER);
+    const result = await extractEntities('Alice went to Paris. Alice loves Paris.', ['Person'], mockInferenceClient, false, LOGGER);
 
     expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
+    expect(result[0]).toEqual({
       exact: 'Alice',
       entityType: 'Person',
-      start: 21,
-      end: 26
+      prefix: 'Paris. ',
+      suffix: ' loves',
     });
-    // Verify the offset is actually correct
-    expect(text.substring(21, 26)).toBe('Alice');
   });
 
-  it('should filter out entities with invalid offsets', async () => {
+  it('passes LLM output through verbatim — downstream reconcileSelector decides which entities survive', async () => {
+    // `extractEntities` no longer filters and no longer carries offsets.
+    // It returns everything the LLM emitted with the required field
+    // types; the processor calls `reconcileSelector` per entity and
+    // drops the ones whose `exact` isn't in the source.
     const text = 'Alice went to Paris.';
     const mockResponse = [
-      {
-        exact: 'Alice',
-        entityType: 'Person',
-        startOffset: 0,
-        endOffset: 5
-      },
-      {
-        exact: 'Bob', // Doesn't exist in text
-        entityType: 'Person',
-        startOffset: 100,
-        endOffset: 103
-      }
+      { exact: 'Alice', entityType: 'Person' },
+      { exact: 'Bob', entityType: 'Person' }, // Not in text — processor will drop
     ];
 
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
     const result = await extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER);
 
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(2);
     expect(result[0].exact).toBe('Alice');
+    expect(result[1].exact).toBe('Bob');
   });
 
   it('should handle markdown-wrapped JSON response', async () => {

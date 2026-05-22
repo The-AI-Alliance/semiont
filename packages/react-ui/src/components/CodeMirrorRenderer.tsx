@@ -81,6 +81,8 @@ function buildAnnotationDecorations(
       attributes: {
         'data-annotation-id': meta.annotationId,
         'data-annotation-type': meta.annotationType,
+        ...(meta.strategy ? { 'data-anchor-strategy': meta.strategy } : {}),
+        ...(meta.confidence ? { 'data-anchor-confidence': meta.confidence } : {}),
         title: meta.tooltip,
       },
     });

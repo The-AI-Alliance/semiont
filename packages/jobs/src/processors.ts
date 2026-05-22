@@ -15,7 +15,7 @@ import { extractEntities } from './workers/detection/entity-extractor';
 import { generateResourceFromTopic } from './workers/generation/resource-generation';
 import { generateAnnotationId } from '@semiont/event-sourcing';
 import { didToAgent, type Logger, type ResourceId, type components } from '@semiont/core';
-import { validateAndCorrectOffsets } from '@semiont/core';
+import { reconcileSelector, type ReconciledSelector } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type {
   HighlightDetectionParams,
@@ -55,7 +55,23 @@ export interface ProcessorResult<R> {
   result: R;
 }
 
+/**
+ * Strip the audit-only fields (`anchorMethod`, `llmOffsets`, `matchQuality`)
+ * off a `ReconciledSelector` so the rest is shaped like a match input for
+ * `buildTextAnnotation`. The audit info belongs in logs, not in storage.
+ */
+function toMatch(r: ReconciledSelector): { exact: string; start: number; end: number; prefix?: string; suffix?: string } {
+  return {
+    exact: r.exact,
+    start: r.start,
+    end: r.end,
+    ...(r.prefix !== undefined ? { prefix: r.prefix } : {}),
+    ...(r.suffix !== undefined ? { suffix: r.suffix } : {}),
+  };
+}
+
 function buildTextAnnotation(
+  content: string,
   resourceId: ResourceId,
   userId: string,
   generator: Agent,
@@ -68,6 +84,35 @@ function buildTextAnnotation(
   // processor that calls this makes the choice per-motivation.
   body?: Record<string, unknown> | Record<string, unknown>[],
 ) {
+  // Write-time invariant. Every selector that reaches storage must be
+  // internally consistent with the source content. If a worker bypasses
+  // `reconcileSelector` or a future change re-introduces overlap, the
+  // throw fires loudly here instead of corrupting the KB.
+  if (content.substring(match.start, match.end) !== match.exact) {
+    throw new Error(
+      `buildTextAnnotation invariant: content.substring(${match.start}, ${match.end}) !== exact ` +
+        `for resource ${resourceId}, motivation ${motivation}`,
+    );
+  }
+  if (match.prefix !== undefined) {
+    const actualPrefix = content.substring(Math.max(0, match.start - match.prefix.length), match.start);
+    if (actualPrefix !== match.prefix) {
+      throw new Error(
+        `buildTextAnnotation invariant: content prefix-slice !== prefix ` +
+          `for resource ${resourceId}, motivation ${motivation}`,
+      );
+    }
+  }
+  if (match.suffix !== undefined) {
+    const actualSuffix = content.substring(match.end, Math.min(content.length, match.end + match.suffix.length));
+    if (actualSuffix !== match.suffix) {
+      throw new Error(
+        `buildTextAnnotation invariant: content suffix-slice !== suffix ` +
+          `for resource ${resourceId}, motivation ${motivation}`,
+      );
+    }
+  }
+
   // `userId` here is the DID of the human who initiated the work. The
   // worker process is acting on their behalf using `generator` to
   // produce content. Per the protocol attribution model:
@@ -125,7 +170,7 @@ export async function processHighlightJob(
   // Highlights carry no body — motivation:'highlighting' on a target
   // is a complete annotation per the W3C Web Annotation Model.
   const annotations = highlights.map((h) =>
-    buildTextAnnotation(params.resourceId, userId, generator, 'highlighting', h),
+    buildTextAnnotation(content, params.resourceId, userId, generator, 'highlighting', h),
   );
 
   onProgress(100, `Complete! Created ${annotations.length} highlights`, 'creating');
@@ -162,7 +207,7 @@ export async function processCommentJob(
     // Match the pre-#651 CommentAnnotationWorker: include format and
     // language on the body TextualBody. Optional in the schema, but
     // consumers that do language-aware rendering rely on them.
-    buildTextAnnotation(params.resourceId, userId, generator, 'commenting', c, [
+    buildTextAnnotation(content, params.resourceId, userId, generator, 'commenting', c, [
       { type: 'TextualBody', value: c.comment, purpose: 'commenting', format: 'text/plain', language: bodyLanguage },
     ]),
   );
@@ -201,7 +246,7 @@ export async function processAssessmentJob(
     // purpose='describing' — that loses the "this is an assessment, not
     // a description" signal and breaks existing readers that access
     // `body.value` directly on the object.
-    buildTextAnnotation(params.resourceId, userId, generator, 'assessing', a, {
+    buildTextAnnotation(content, params.resourceId, userId, generator, 'assessing', a, {
       type: 'TextualBody', value: a.assessment, purpose: 'assessing', format: 'text/plain', language: bodyLanguage,
     }),
   );
@@ -267,16 +312,31 @@ export async function processReferenceJob(
     ];
 
     for (const entity of extractedEntities) {
-      try {
-        const validated = validateAndCorrectOffsets(content, entity.start, entity.end, entity.exact);
-        const ann = buildTextAnnotation(
-          params.resourceId, userId, generator, 'linking', validated, unresolvedBody,
-        );
-        allAnnotations.push(ann);
-        totalEmitted++;
-      } catch {
+      const reconciled = reconcileSelector(content, {
+        exact: entity.exact,
+        ...(entity.prefix !== undefined ? { prefix: entity.prefix } : {}),
+        ...(entity.suffix !== undefined ? { suffix: entity.suffix } : {}),
+      });
+      if (!reconciled) {
+        logger.error('Entity dropped — text not found in source', {
+          text: entity.exact,
+          entityType: entity.entityType,
+        });
         errors++;
+        continue;
       }
+      if (reconciled.anchorMethod === 'first-of-many' || reconciled.anchorMethod === 'fuzzy-match') {
+        logger.warn('Entity anchored via degraded method', {
+          text: entity.exact,
+          entityType: entity.entityType,
+          anchorMethod: reconciled.anchorMethod,
+        });
+      }
+      const ann = buildTextAnnotation(
+        content, params.resourceId, userId, generator, 'linking', toMatch(reconciled), unresolvedBody,
+      );
+      allAnnotations.push(ann);
+      totalEmitted++;
     }
   }
 
@@ -320,7 +380,7 @@ export async function processTagJob(
     // plus the tagging-schema id as a classifying TextualBody. The
     // classifying body is the only trace of schema provenance in the
     // event log — do not drop it.
-    return buildTextAnnotation(params.resourceId, userId, generator, 'tagging', t, [
+    return buildTextAnnotation(content, params.resourceId, userId, generator, 'tagging', t, [
       { type: 'TextualBody', value: category,         purpose: 'tagging',     format: 'text/plain', language: bodyLanguage },
       { type: 'TextualBody', value: params.schema.id, purpose: 'classifying', format: 'text/plain' },
     ]);

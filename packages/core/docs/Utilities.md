@@ -107,113 +107,93 @@ const { prefix, suffix } = extractContext(content, start, end);
 - Extends to word boundaries (avoids cutting words)
 - Returns `undefined` for prefix/suffix at document boundaries
 
-### Validate and Correct AI Offsets
+### Reconcile LLM-Emitted Selectors
 
-Validate AI-provided annotation offsets with fuzzy matching tolerance:
+LLM-produced text offsets are guides, not authoritative. `reconcileSelector` takes LLM input and produces a selector whose offsets are provably consistent with the source content:
 
 ```typescript
-import { validateAndCorrectOffsets } from '@semiont/api-client';
+import { reconcileSelector } from '@semiont/core';
 
 const content = "The quick brown fox jumps over the lazy dog.";
 
-// AI said start=0, end=9, exact="The quick"
-const result = validateAndCorrectOffsets(content, 0, 9, "The quick");
+const result = reconcileSelector(content, {
+  start: 0,
+  end: 9,
+  exact: "The quick",
+});
 
-if (result.corrected) {
-  console.log(`AI offset was wrong. Corrected to ${result.start}-${result.end}`);
-  console.log(`Match quality: ${result.matchQuality}`); // 'exact' | 'case-insensitive' | 'fuzzy'
+if (!result) {
+  // The LLM emitted text that doesn't appear in the source.
+  // Caller filters; the helper doesn't decide.
 }
 
 console.log({
   start: result.start,
   end: result.end,
-  exact: result.exact,
-  prefix: result.prefix,
-  suffix: result.suffix
+  exact: result.exact,        // always a substring of source
+  prefix: result.prefix,      // extracted from source, never carried from LLM
+  suffix: result.suffix,      // extracted from source, never carried from LLM
+  anchorMethod: result.anchorMethod, // 'llm-exact' | 'unique-match' | 'context-recovered' | 'fuzzy-match' | 'first-of-many'
 });
 ```
 
-**Multi-Strategy Matching:**
-1. Check if AI's offsets are exactly correct
-2. Try exact case-sensitive search
-3. Try case-insensitive search
-4. Try fuzzy matching with Levenshtein distance (5% tolerance)
+**Anchor methods:**
+- `llm-exact` — LLM offsets verified; happy path.
+- `unique-match` — Exact appears once; re-anchored unambiguously.
+- `context-recovered` — Multiple occurrences; LLM-emitted prefix/suffix picked one.
+- `fuzzy-match` — Exact not found verbatim; recovered via case/whitespace/Levenshtein.
+- `first-of-many` — Multiple occurrences, no usable context; risky fallback flagged for audit.
 
-**Use Case:** AI models sometimes return offsets that don't match the actual text position, or provide text with minor variations (case differences, whitespace, typos). This function ensures maximum tolerance while maintaining annotation quality.
+Returns `null` only when the LLM emitted text that doesn't appear in source at all.
 
-## Fuzzy Anchoring
+**Use Case:** Worker-side annotation construction. The selector returned by `reconcileSelector` is the only shape that passes the no-overlap invariant in `buildTextAnnotation` at write time.
 
-W3C Web Annotation TextQuoteSelector implementation with fuzzy matching. Uses prefix/suffix context to disambiguate when the same text appears multiple times.
+## Render-Time Anchoring
 
-### Find Text with Context
-
-Find text in content using exact match with optional prefix/suffix:
-
-```typescript
-import { findTextWithContext } from '@semiont/api-client';
-
-const content = "The cat sat. The cat ran. The cat slept.";
-
-// Find first occurrence (no context needed)
-const pos1 = findTextWithContext(content, "The cat");
-// Returns: { start: 0, end: 7 }
-
-// Find second occurrence using prefix context
-const pos2 = findTextWithContext(content, "The cat", "sat. ", null);
-// Returns: { start: 13, end: 20 }
-
-// Find third occurrence using both prefix and suffix
-const pos3 = findTextWithContext(content, "The cat", "ran. ", " slept");
-// Returns: { start: 26, end: 33 }
-```
-
-**How It Works:**
-
-1. **Find all occurrences** of exact text
-2. **If only one match** → Return immediately (no disambiguation needed)
-3. **If multiple matches** → Use prefix/suffix to find the correct one:
-   - First try **exact** prefix/suffix match
-   - Then try **fuzzy** match (handles whitespace variations)
-   - Finally **fallback** to first occurrence (with warning)
-
-**Fuzzy Matching:**
-
-When exact prefix/suffix don't match, fuzzy matching handles whitespace variations:
+`anchorAnnotation` is the renderer's counterpart to `reconcileSelector`. It combines `TextPositionSelector` and `TextQuoteSelector` into one best-effort position, recording which strategy resolved it. No single selector is authoritative — every selector is a signal, and position is the always-available locality signal used to break ties when context isn't unique.
 
 ```typescript
-const content = "Hello  World"; // Two spaces
+import { anchorAnnotation } from '@semiont/core';
 
-// Exact match would fail due to whitespace difference
-findTextWithContext(content, "World", "Hello ", null);
-// Uses fuzzy match, returns: { start: 7, end: 12 }
+const content = "Section A: the parties agree. Section B: the parties agree.";
+
+const anchor = anchorAnnotation(content, {
+  position: { start: 11, end: 28 },
+  quote: {
+    exact: "the parties agree",
+    prefix: "Section B: ",
+  },
+});
+
+console.log(anchor);
+// {
+//   start: 41, end: 58,
+//   strategy: 'context-disambiguated',
+//   confidence: 'high',
+// }
 ```
 
-**Error Handling:**
+**Strategies:**
+- `fast-path` — position hint pointed exactly at exact text.
+- `unique-occurrence` — exact appears once in content.
+- `context-disambiguated` — multiple occurrences; prefix+suffix uniquely identified one.
+- `position-tiebreaker` — multiple candidates, position chose closest.
+- `fuzzy-text` — exact not found verbatim; near-match recovered.
+- `position-fallback` — nothing else worked; raw position used (low confidence).
 
-```typescript
-// Text not found
-const pos = findTextWithContext(content, "nonexistent");
-// Returns: null
-// Console warning: "[FuzzyAnchor] Text not found: ..."
-
-// Multiple matches but no context match
-const pos = findTextWithContext(content, "the", "wrong prefix", null);
-// Returns: first occurrence (fallback)
-// Console warning: "[FuzzyAnchor] Multiple matches but no context match..."
-```
+**Use Case:** Renderer-side anchoring. The returned `strategy` and `confidence` let the UI flag low-confidence anchors with a visual affordance.
 
 ### Verify Position
 
 Validate that a position correctly points to expected text:
 
 ```typescript
-import { verifyPosition, findTextWithContext } from '@semiont/api-client';
+import { verifyPosition } from '@semiont/core';
 
 const content = "Hello World";
-const position = findTextWithContext(content, "World");
 
-// Verify position is correct
-const isValid = verifyPosition(content, position, "World");
+// Verify a known position
+const isValid = verifyPosition(content, { start: 6, end: 11 }, "World");
 // Returns: true
 
 // Check for corruption
