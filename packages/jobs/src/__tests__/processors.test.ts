@@ -934,3 +934,102 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
     expect(content.substring(posSel.start, posSel.end)).toBe('foo');
   });
 });
+
+// ─── De-dupe: the collapse must not produce duplicate events ────────────
+//
+// Multiple LLM entries for a repeated phrase, reconciled independently,
+// can all land on the same span via reconcileSelector's first-of-many
+// fallback. dedupeAnnotations (applied identically in every processor)
+// collapses identical events (same motivation + span + body) to one,
+// while keeping same-span/different-body annotations distinct.
+
+describe('annotation de-duplication', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('reference: three entries collapsing onto the same span yield one annotation', async () => {
+    // 'Paris' appears once; three LLM entries with non-distinctive context
+    // all reconcile (first-of-many) to that single occurrence.
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Paris', entityType: 'Location' },
+      { exact: 'Paris', entityType: 'Location' },
+      { exact: 'Paris', entityType: 'Location' },
+    ] as any);
+
+    const result = await processReferenceJob(
+      'A trip to Paris.',
+      makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+      LOGGER,
+    );
+
+    expect(result.annotations).toHaveLength(1);
+    expect(result.result.totalEmitted).toBe(1);
+    expect(result.result.totalFound).toBe(3);
+  });
+
+  it('reference: same span but different entity types are kept (not duplicates)', async () => {
+    // 'Mercury' tagged as both a Planet and an Element on the same span —
+    // different bodies, so both survive.
+    vi.mocked(extractEntities)
+      .mockResolvedValueOnce([{ exact: 'Mercury', entityType: 'Planet' }] as any)
+      .mockResolvedValueOnce([{ exact: 'Mercury', entityType: 'Element' }] as any);
+
+    const result = await processReferenceJob(
+      'The metal Mercury is dense.',
+      makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Planet'), entityType('Element')] },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+      LOGGER,
+    );
+
+    expect(result.annotations).toHaveLength(2);
+    expect(result.result.totalEmitted).toBe(2);
+  });
+
+  it('highlight: duplicate identical highlights collapse to one', async () => {
+    const content = 'Only one phrase here to highlight.';
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'one phrase', start: 5, end: 15 },
+      { exact: 'one phrase', start: 5, end: 15 },
+    ]);
+
+    const result = await processHighlightJob(
+      content,
+      makeInferenceClient(),
+      { resourceId: RID, density: 5 },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+    );
+
+    expect(result.annotations).toHaveLength(1);
+    expect(result.result.highlightsCreated).toBe(1);
+    expect(result.result.highlightsFound).toBe(2);
+  });
+
+  it('tag: identical tags collapse and byCategory reflects the deduped count', async () => {
+    const content = 'Issue: the duty of care.';
+    vi.mocked(AnnotationDetection.detectTags).mockResolvedValue([
+      { exact: 'duty of care', start: 11, end: 23, category: 'Issue' },
+      { exact: 'duty of care', start: 11, end: 23, category: 'Issue' },
+    ]);
+
+    const result = await processTagJob(
+      content,
+      makeInferenceClient(),
+      { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'] },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+    );
+
+    expect(result.annotations).toHaveLength(1);
+    expect(result.result.tagsCreated).toBe(1);
+    expect(result.result.byCategory).toEqual({ Issue: 1 });
+  });
+});

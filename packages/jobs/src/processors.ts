@@ -70,6 +70,51 @@ function toMatch(r: ReconciledSelector): { exact: string; start: number; end: nu
   };
 }
 
+/**
+ * Identity key for a built annotation: motivation + anchored span + body.
+ * Two annotations with the same key are the same event written twice.
+ */
+function annotationDedupeKey(ann: Record<string, unknown>): string {
+  const target = ann.target as { selector?: Array<{ type: string; start?: number; end?: number }> } | undefined;
+  const selectors = Array.isArray(target?.selector) ? target.selector : [];
+  const pos = selectors.find((s) => s.type === 'TextPositionSelector');
+  return [
+    ann.motivation as string,
+    pos?.start ?? '?',
+    pos?.end ?? '?',
+    JSON.stringify(ann.body ?? null),
+  ].join('|');
+}
+
+/**
+ * Drop annotations that are identical in the fields that define an
+ * annotation's meaning: motivation, anchored span, and body.
+ *
+ * Why this is needed: each LLM-emitted span is reconciled independently
+ * (no cross-entry coordination), and `reconcileSelector`'s `first-of-many`
+ * fallback anchors every undisambiguated entry at the *same* first
+ * occurrence. So a phrase repeated in non-distinctive context can produce
+ * several entries that all collapse onto one span — identical events. This
+ * collapses them back to one.
+ *
+ * What it does NOT drop: same span, *different* body (e.g. the same text
+ * tagged as two entity types, or two distinct comments on one passage).
+ * Those are legitimately distinct annotations.
+ *
+ * Applied identically by every processor below.
+ */
+function dedupeAnnotations(annotations: Record<string, unknown>[]): Record<string, unknown>[] {
+  const seen = new Set<string>();
+  const out: Record<string, unknown>[] = [];
+  for (const ann of annotations) {
+    const key = annotationDedupeKey(ann);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(ann);
+  }
+  return out;
+}
+
 function buildTextAnnotation(
   content: string,
   resourceId: ResourceId,
@@ -169,9 +214,9 @@ export async function processHighlightJob(
 
   // Highlights carry no body — motivation:'highlighting' on a target
   // is a complete annotation per the W3C Web Annotation Model.
-  const annotations = highlights.map((h) =>
+  const annotations = dedupeAnnotations(highlights.map((h) =>
     buildTextAnnotation(content, params.resourceId, userId, generator, 'highlighting', h),
-  );
+  ));
 
   onProgress(100, `Complete! Created ${annotations.length} highlights`, 'creating');
 
@@ -203,14 +248,14 @@ export async function processCommentJob(
   // (`params.language` — the user's UI locale). Defaults to 'en' when the
   // caller didn't specify, matching what the LLM produces by default.
   const bodyLanguage = params.language ?? 'en';
-  const annotations = comments.map((c) =>
+  const annotations = dedupeAnnotations(comments.map((c) =>
     // Match the pre-#651 CommentAnnotationWorker: include format and
     // language on the body TextualBody. Optional in the schema, but
     // consumers that do language-aware rendering rely on them.
     buildTextAnnotation(content, params.resourceId, userId, generator, 'commenting', c, [
       { type: 'TextualBody', value: c.comment, purpose: 'commenting', format: 'text/plain', language: bodyLanguage },
     ]),
-  );
+  ));
 
   onProgress(100, `Complete! Created ${annotations.length} comments`, 'creating');
 
@@ -239,7 +284,7 @@ export async function processAssessmentJob(
   onProgress(60, `Creating ${assessments.length} annotations...`, 'creating');
 
   const bodyLanguage = params.language ?? 'en';
-  const annotations = assessments.map((a) =>
+  const annotations = dedupeAnnotations(assessments.map((a) =>
     // Single-object body with purpose aligned to motivation, matching the
     // pre-#651 AssessmentAnnotationWorker's shape and the majority of
     // persisted assessments. Do not switch to an array or to
@@ -249,7 +294,7 @@ export async function processAssessmentJob(
     buildTextAnnotation(content, params.resourceId, userId, generator, 'assessing', a, {
       type: 'TextualBody', value: a.assessment, purpose: 'assessing', format: 'text/plain', language: bodyLanguage,
     }),
-  );
+  ));
 
   onProgress(100, `Complete! Created ${annotations.length} assessments`, 'creating');
 
@@ -340,11 +385,17 @@ export async function processReferenceJob(
     }
   }
 
-  onProgress(100, `Complete! Created ${totalEmitted} references`, 'creating');
+  // De-dupe identical events before reporting. `totalEmitted` was the
+  // running per-push count used for mid-loop progress; the stored/reported
+  // count is the deduped length — repeated entities that collapsed onto
+  // the same span (same entity type) become a single annotation.
+  const annotations = dedupeAnnotations(allAnnotations);
+
+  onProgress(100, `Complete! Created ${annotations.length} references`, 'creating');
 
   return {
-    annotations: allAnnotations,
-    result: { totalFound, totalEmitted, errors },
+    annotations,
+    result: { totalFound, totalEmitted: annotations.length, errors },
   };
 }
 
@@ -371,10 +422,8 @@ export async function processTagJob(
   onProgress(60, `Creating ${tags.length} tag annotations...`, 'creating');
 
   const bodyLanguage = params.language ?? 'en';
-  const byCategory: Record<string, number> = {};
-  const annotations = tags.map((t) => {
+  const annotations = dedupeAnnotations(tags.map((t) => {
     const category = t.category ?? 'unknown';
-    byCategory[category] = (byCategory[category] ?? 0) + 1;
     // Two-body shape matches the pre-#651 TagAnnotationWorker and every
     // persisted tag annotation: the category as a tagging TextualBody,
     // plus the tagging-schema id as a classifying TextualBody. The
@@ -384,7 +433,17 @@ export async function processTagJob(
       { type: 'TextualBody', value: category,         purpose: 'tagging',     format: 'text/plain', language: bodyLanguage },
       { type: 'TextualBody', value: params.schema.id, purpose: 'classifying', format: 'text/plain' },
     ]);
-  });
+  }));
+
+  // byCategory is computed from the *deduped* set so the per-category
+  // counts match what's actually stored. The category is the first
+  // (tagging) TextualBody's value.
+  const byCategory: Record<string, number> = {};
+  for (const ann of annotations) {
+    const body = (ann as { body?: Array<{ value?: unknown }> }).body;
+    const category = Array.isArray(body) && typeof body[0]?.value === 'string' ? body[0].value : 'unknown';
+    byCategory[category] = (byCategory[category] ?? 0) + 1;
+  }
 
   onProgress(100, `Complete! Created ${annotations.length} tags`, 'creating');
 
