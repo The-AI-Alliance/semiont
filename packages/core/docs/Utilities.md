@@ -65,12 +65,12 @@ When creating annotations, the backend calculates TextPositionSelector offsets i
 ```typescript
 // ❌ WRONG - Uses UTF-8 for ISO-8859-1 document
 const wrongText = new TextDecoder('utf-8').decode(buffer);
-const position = findTextWithContext(wrongText, 'café', ...);
+const sel = reconcileSelector(wrongText, { exact: 'café' });
 // Offsets will be INCORRECT because character positions don't match backend
 
 // ✅ RIGHT - Uses charset from mediaType
 const rightText = decodeWithCharset(buffer, mediaType);
-const position = findTextWithContext(rightText, 'café', ...);
+const sel = reconcileSelector(rightText, { exact: 'café' });
 // Offsets will be CORRECT
 ```
 
@@ -109,7 +109,7 @@ const { prefix, suffix } = extractContext(content, start, end);
 
 ### Reconcile LLM-Emitted Selectors
 
-LLM-produced text offsets are guides, not authoritative. `reconcileSelector` takes LLM input and produces a selector whose offsets are provably consistent with the source content:
+The LLM does not supply offsets — it supplies `exact` (a verbatim substring) plus optional prefix/suffix context. `reconcileSelector` computes `start`/`end` by searching the source, producing a selector whose offsets are provably consistent with the source content:
 
 ```typescript
 import { reconcileSelector } from '@semiont/core';
@@ -117,8 +117,6 @@ import { reconcileSelector } from '@semiont/core';
 const content = "The quick brown fox jumps over the lazy dog.";
 
 const result = reconcileSelector(content, {
-  start: 0,
-  end: 9,
   exact: "The quick",
 });
 
@@ -133,12 +131,11 @@ console.log({
   exact: result.exact,        // always a substring of source
   prefix: result.prefix,      // extracted from source, never carried from LLM
   suffix: result.suffix,      // extracted from source, never carried from LLM
-  anchorMethod: result.anchorMethod, // 'llm-exact' | 'unique-match' | 'context-recovered' | 'fuzzy-match' | 'first-of-many'
+  anchorMethod: result.anchorMethod, // 'unique-match' | 'context-recovered' | 'fuzzy-match' | 'first-of-many'
 });
 ```
 
 **Anchor methods:**
-- `llm-exact` — LLM offsets verified; happy path.
 - `unique-match` — Exact appears once; re-anchored unambiguously.
 - `context-recovered` — Multiple occurrences; LLM-emitted prefix/suffix picked one.
 - `fuzzy-match` — Exact not found verbatim; recovered via case/whitespace/Levenshtein.
@@ -150,15 +147,17 @@ Returns `null` only when the LLM emitted text that doesn't appear in source at a
 
 ## Render-Time Anchoring
 
-`anchorAnnotation` is the renderer's counterpart to `reconcileSelector`. It combines `TextPositionSelector` and `TextQuoteSelector` into one best-effort position, recording which strategy resolved it. No single selector is authoritative — every selector is a signal, and position is the always-available locality signal used to break ties when context isn't unique.
+`anchorAnnotation` is the renderer's counterpart to `reconcileSelector`. It is **verbatim-only**: it re-anchors on an exact `TextQuoteSelector` match and otherwise renders at the stored offset, flagged — it never fuzzy-matches at render time. The stored selectors are written to agree, so the only legitimate render-time discrepancy is *positional drift* (content shifted above the span). Position is a locality signal used to break ties among verbatim occurrences when context isn't unique.
 
 ```typescript
 import { anchorAnnotation } from '@semiont/core';
 
 const content = "Section A: the parties agree. Section B: the parties agree.";
 
+// The stored offset is stale (off by one); the verbatim quote + prefix
+// still resolve the intended occurrence.
 const anchor = anchorAnnotation(content, {
-  position: { start: 11, end: 28 },
+  position: { start: 40, end: 57 },
   quote: {
     exact: "the parties agree",
     prefix: "Section B: ",
@@ -174,14 +173,13 @@ console.log(anchor);
 ```
 
 **Strategies:**
-- `fast-path` — position hint pointed exactly at exact text.
-- `unique-occurrence` — exact appears once in content.
-- `context-disambiguated` — multiple occurrences; prefix+suffix uniquely identified one.
-- `position-tiebreaker` — multiple candidates, position chose closest.
-- `fuzzy-text` — exact not found verbatim; near-match recovered.
-- `position-fallback` — nothing else worked; raw position used (low confidence).
+- `fast-path` — stored offset already lands on the exact text (high confidence).
+- `unique-occurrence` — exact appears once verbatim in content (high).
+- `context-disambiguated` — multiple verbatim occurrences; prefix/suffix identified one.
+- `position-tiebreaker` — multiple verbatim candidates; position chose closest.
+- `position-fallback` — exact not found verbatim (or no quote); raw stored offset used, flagged low-confidence for upstream correction.
 
-**Use Case:** Renderer-side anchoring. The returned `strategy` and `confidence` let the UI flag low-confidence anchors with a visual affordance.
+**Use Case:** Renderer-side anchoring. The returned `strategy` and `confidence` let the UI flag low-confidence anchors with a visual affordance. Fuzzy/normalized recovery is deliberately *not* here — it lives at write time in `reconcileSelector`.
 
 ### Verify Position
 
