@@ -9,7 +9,7 @@
  * Console statements kept for debugging - consider adding logger parameter in future.
  */
 
-import { validateAndCorrectOffsets } from '@semiont/core';
+import { reconcileSelector, type AnchorMethod } from '@semiont/core';
 /**
  * Best-effort extractor that pulls a JSON array of objects out of a raw
  * LLM response. Tolerates:
@@ -143,36 +143,35 @@ export class MotivationParsers {
     try {
       const parsed = extractObjectsFromArray(response);
 
-      // Validate and filter
-      const valid = parsed.filter((c): c is CommentMatch =>
+      const valid = parsed.filter((c): c is { exact: string; prefix?: string; suffix?: string; comment: string } =>
         !!c && typeof c === 'object' &&
         typeof (c as any).exact === 'string' &&
-        typeof (c as any).start === 'number' &&
-        typeof (c as any).end === 'number' &&
         typeof (c as any).comment === 'string' &&
         (c as any).comment.trim().length > 0
       );
 
       console.log(`[MotivationParsers] Parsed ${valid.length} valid comments from ${parsed.length} total`);
 
-      // Validate and correct AI's offsets, then extract proper context
-      // AI sometimes returns offsets that don't match the actual text position
       const validatedComments: CommentMatch[] = [];
-
       for (const comment of valid) {
-        try {
-          const validated = validateAndCorrectOffsets(content, comment.start, comment.end, comment.exact);
-          validatedComments.push({
-            ...comment,
-            start: validated.start,
-            end: validated.end,
-            prefix: validated.prefix,
-            suffix: validated.suffix
-          });
-        } catch (error) {
-          console.warn(`[MotivationParsers] Skipping invalid comment "${comment.exact}":`, error);
-          // Skip this comment - AI hallucinated text that doesn't exist
+        const reconciled = reconcileSelector(content, {
+          exact: comment.exact,
+          ...(typeof comment.prefix === 'string' ? { prefix: comment.prefix } : {}),
+          ...(typeof comment.suffix === 'string' ? { suffix: comment.suffix } : {}),
+        });
+        if (!reconciled) {
+          console.warn(`[MotivationParsers] Dropped hallucinated comment "${comment.exact}"`);
+          continue;
         }
+        logAnchorMethod('comment', comment.exact, reconciled.anchorMethod);
+        validatedComments.push({
+          comment: comment.comment,
+          exact: reconciled.exact,
+          start: reconciled.start,
+          end: reconciled.end,
+          ...(reconciled.prefix !== undefined ? { prefix: reconciled.prefix } : {}),
+          ...(reconciled.suffix !== undefined ? { suffix: reconciled.suffix } : {}),
+        });
       }
 
       return validatedComments;
@@ -193,32 +192,30 @@ export class MotivationParsers {
     try {
       const parsed = extractObjectsFromArray(response);
 
-      // Validate and filter results
-      const highlights = parsed.filter((h): h is HighlightMatch =>
+      const highlights = parsed.filter((h): h is { exact: string; prefix?: string; suffix?: string } =>
         !!h && typeof h === 'object' &&
-        typeof (h as any).exact === 'string' &&
-        typeof (h as any).start === 'number' &&
-        typeof (h as any).end === 'number'
+        typeof (h as any).exact === 'string'
       );
 
-      // Validate and correct AI's offsets, then extract proper context
-      // AI sometimes returns offsets that don't match the actual text position
       const validatedHighlights: HighlightMatch[] = [];
-
       for (const highlight of highlights) {
-        try {
-          const validated = validateAndCorrectOffsets(content, highlight.start, highlight.end, highlight.exact);
-          validatedHighlights.push({
-            ...highlight,
-            start: validated.start,
-            end: validated.end,
-            prefix: validated.prefix,
-            suffix: validated.suffix
-          });
-        } catch (error) {
-          console.warn(`[MotivationParsers] Skipping invalid highlight "${highlight.exact}":`, error);
-          // Skip this highlight - AI hallucinated text that doesn't exist
+        const reconciled = reconcileSelector(content, {
+          exact: highlight.exact,
+          ...(typeof highlight.prefix === 'string' ? { prefix: highlight.prefix } : {}),
+          ...(typeof highlight.suffix === 'string' ? { suffix: highlight.suffix } : {}),
+        });
+        if (!reconciled) {
+          console.warn(`[MotivationParsers] Dropped hallucinated highlight "${highlight.exact}"`);
+          continue;
         }
+        logAnchorMethod('highlight', highlight.exact, reconciled.anchorMethod);
+        validatedHighlights.push({
+          exact: reconciled.exact,
+          start: reconciled.start,
+          end: reconciled.end,
+          ...(reconciled.prefix !== undefined ? { prefix: reconciled.prefix } : {}),
+          ...(reconciled.suffix !== undefined ? { suffix: reconciled.suffix } : {}),
+        });
       }
 
       return validatedHighlights;
@@ -240,33 +237,32 @@ export class MotivationParsers {
     try {
       const parsed = extractObjectsFromArray(response);
 
-      // Validate and filter results
-      const assessments = parsed.filter((a): a is AssessmentMatch =>
+      const assessments = parsed.filter((a): a is { exact: string; prefix?: string; suffix?: string; assessment: string } =>
         !!a && typeof a === 'object' &&
         typeof (a as any).exact === 'string' &&
-        typeof (a as any).start === 'number' &&
-        typeof (a as any).end === 'number' &&
         typeof (a as any).assessment === 'string'
       );
 
-      // Validate and correct AI's offsets, then extract proper context
-      // AI sometimes returns offsets that don't match the actual text position
       const validatedAssessments: AssessmentMatch[] = [];
-
       for (const assessment of assessments) {
-        try {
-          const validated = validateAndCorrectOffsets(content, assessment.start, assessment.end, assessment.exact);
-          validatedAssessments.push({
-            ...assessment,
-            start: validated.start,
-            end: validated.end,
-            prefix: validated.prefix,
-            suffix: validated.suffix
-          });
-        } catch (error) {
-          console.warn(`[MotivationParsers] Skipping invalid assessment "${assessment.exact}":`, error);
-          // Skip this assessment - AI hallucinated text that doesn't exist
+        const reconciled = reconcileSelector(content, {
+          exact: assessment.exact,
+          ...(typeof assessment.prefix === 'string' ? { prefix: assessment.prefix } : {}),
+          ...(typeof assessment.suffix === 'string' ? { suffix: assessment.suffix } : {}),
+        });
+        if (!reconciled) {
+          console.warn(`[MotivationParsers] Dropped hallucinated assessment "${assessment.exact}"`);
+          continue;
         }
+        logAnchorMethod('assessment', assessment.exact, reconciled.anchorMethod);
+        validatedAssessments.push({
+          assessment: assessment.assessment,
+          exact: reconciled.exact,
+          start: reconciled.start,
+          end: reconciled.end,
+          ...(reconciled.prefix !== undefined ? { prefix: reconciled.prefix } : {}),
+          ...(reconciled.suffix !== undefined ? { suffix: reconciled.suffix } : {}),
+        });
       }
 
       return validatedAssessments;
@@ -278,22 +274,17 @@ export class MotivationParsers {
   }
 
   /**
-   * Parse and validate AI response for tag detection
-   * Note: Does NOT validate offsets - caller must do that with content
-   *
-   * @param response - Raw AI response string (may include markdown code fences)
-   * @returns Array of tag matches (offsets not yet validated)
+   * Parse the LLM's tag response into raw, pre-reconciliation tag inputs.
+   * Reconciliation happens in `validateTagOffsets`, which adds `start`/`end`
+   * by anchoring `exact` against the source content.
    */
-  static parseTags(response: string): Omit<TagMatch, 'category'>[] {
+  static parseTags(response: string): RawTagInput[] {
     try {
       const parsed = extractObjectsFromArray(response);
 
-      // Validate and filter
-      const valid = parsed.filter((t): t is Omit<TagMatch, 'category'> =>
+      const valid = parsed.filter((t): t is RawTagInput =>
         !!t && typeof t === 'object' &&
         typeof (t as any).exact === 'string' &&
-        typeof (t as any).start === 'number' &&
-        typeof (t as any).end === 'number' &&
         (t as any).exact.trim().length > 0
       );
 
@@ -307,38 +298,54 @@ export class MotivationParsers {
   }
 
   /**
-   * Validate tag offsets against content and add category
-   * Helper for tag detection after initial parsing
-   *
-   * @param tags - Parsed tags without validated offsets
-   * @param content - Original content to validate against
-   * @param category - Category to assign to validated tags
-   * @returns Array of validated tag matches
+   * Anchor raw tag inputs against source content and add category.
    */
   static validateTagOffsets(
-    tags: Omit<TagMatch, 'category'>[],
+    tags: RawTagInput[],
     content: string,
     category: string
   ): TagMatch[] {
     const validatedTags: TagMatch[] = [];
-
     for (const tag of tags) {
-      try {
-        const validated = validateAndCorrectOffsets(content, tag.start, tag.end, tag.exact);
-        validatedTags.push({
-          ...tag,
-          category,
-          start: validated.start,
-          end: validated.end,
-          prefix: validated.prefix,
-          suffix: validated.suffix
-        });
-      } catch (error) {
-        console.warn(`[MotivationParsers] Skipping invalid tag for category "${category}":`, error);
-        // Skip this tag - AI hallucinated text that doesn't exist
+      const reconciled = reconcileSelector(content, {
+        exact: tag.exact,
+        ...(typeof tag.prefix === 'string' ? { prefix: tag.prefix } : {}),
+        ...(typeof tag.suffix === 'string' ? { suffix: tag.suffix } : {}),
+      });
+      if (!reconciled) {
+        console.warn(`[MotivationParsers] Dropped hallucinated tag "${tag.exact}" for category "${category}"`);
+        continue;
       }
+      logAnchorMethod('tag', tag.exact, reconciled.anchorMethod);
+      validatedTags.push({
+        category,
+        exact: reconciled.exact,
+        start: reconciled.start,
+        end: reconciled.end,
+        ...(reconciled.prefix !== undefined ? { prefix: reconciled.prefix } : {}),
+        ...(reconciled.suffix !== undefined ? { suffix: reconciled.suffix } : {}),
+      });
     }
-
     return validatedTags;
+  }
+}
+
+/** Raw LLM-emitted tag, pre-reconciliation. */
+export interface RawTagInput {
+  exact: string;
+  prefix?: string;
+  suffix?: string;
+}
+
+/**
+ * Single audit log for any anchor-method classification a parser produces.
+ * `llm-exact` and `unique-match` are silent (the common path). The risky
+ * cases — `first-of-many` (multiple occurrences with no usable context)
+ * and `fuzzy-match` (recovered via case/whitespace/Levenshtein) — log
+ * `warn` so corpus owners can audit them in worker output.
+ */
+function logAnchorMethod(motivation: string, exact: string, anchorMethod: AnchorMethod): void {
+  if (anchorMethod === 'first-of-many' || anchorMethod === 'fuzzy-match') {
+    console.warn(`[MotivationParsers] ${motivation} anchored via ${anchorMethod}: "${exact}"`);
   }
 }

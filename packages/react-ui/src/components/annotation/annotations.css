@@ -36,6 +36,20 @@
   position: relative;
 }
 
+/* Low-confidence anchor affordance.
+ *
+ * Annotations whose anchor was resolved by something other than a clean
+ * fast-path or unique-occurrence match (i.e. `confidence !== 'high'`)
+ * get a dotted underline so operators can see at a glance which
+ * highlights were rescued by score-resolved tiebreaking, fuzzy matching,
+ * or a position-fallback. The hover tooltip (added by
+ * `getAnnotationDecorationMeta`) names the strategy. */
+.annotation-low-confidence {
+  text-decoration: underline dotted var(--semiont-color-warning-500, #d97706);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
 /* Print styles */
 @media print {
   .annotation-highlight,
