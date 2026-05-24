@@ -241,11 +241,11 @@ describe('getAnnotationDecorationMeta — strategy/confidence pass through', () 
 
   it('adds the low-confidence class when confidence is low', () => {
     const meta = getAnnotationDecorationMeta(ann, false, {
-      strategy: 'fuzzy-text',
+      strategy: 'position-fallback',
       confidence: 'low',
     });
     expect(meta.className).toContain('annotation-low-confidence');
-    expect(meta.tooltip).toContain('fuzzy-text');
+    expect(meta.tooltip).toContain('position-fallback');
   });
 });
 
@@ -265,13 +265,13 @@ describe('computeAnnotationDecorations — strategy/confidence reach the decorat
         start: 0,
         end: 5,
         annotation: ann,
-        strategy: 'fuzzy-text' as const,
+        strategy: 'position-fallback' as const,
         confidence: 'low' as const,
       },
     ];
     const entries = computeAnnotationDecorations(segments, undefined);
     expect(entries).toHaveLength(1);
-    expect(entries[0]!.meta.strategy).toBe('fuzzy-text');
+    expect(entries[0]!.meta.strategy).toBe('position-fallback');
     expect(entries[0]!.meta.confidence).toBe('low');
     expect(entries[0]!.meta.className).toContain('annotation-low-confidence');
   });

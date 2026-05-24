@@ -150,40 +150,45 @@ describe('anchorAnnotation — position-tiebreaker', () => {
   });
 });
 
-describe('anchorAnnotation — fuzzy-text', () => {
-  it('recovers a near-match when exact differs from source by a single character', () => {
-    // 'helo' (one-char drop from 'hello'). Levenshtein distance 1, within
-    // tolerance; the sliding window finds the closest 10-char span.
+describe('anchorAnnotation — no fuzzy recovery at render time', () => {
+  it('does NOT fuzzy-match a near-miss; falls back to stored offset, flagged', () => {
+    // 'helo world' isn't verbatim in the content. The renderer must not
+    // guess — it renders at the stored offset and flags low-confidence.
+    // (The write-side reconcileSelector is where fuzzy recovery belongs.)
     const content = 'The quick hello world appears here.';
     const result = anchorAnnotation(content, {
+      position: { start: 4, end: 14 },
       quote: { exact: 'helo world' },
     });
-    expect(result?.strategy).toBe('fuzzy-text');
-    // The match overlaps the real 'hello world' region (the 10-char window
-    // closest to 'helo world' starts at 'h' of 'hello').
-    expect(content.substring(result!.start, result!.end)).toContain('hello');
+    expect(result?.strategy).toBe('position-fallback');
+    expect(result?.confidence).toBe('low');
+    expect(result?.start).toBe(4);
+    expect(result?.end).toBe(14);
   });
 
-  it('gives medium confidence to case-insensitive fuzzy matches', () => {
-    // Case-only difference — findBestTextMatch returns 'case-insensitive'
-    // match quality, which the algorithm classifies as medium.
+  it('does NOT case-fold a quote that differs only by case', () => {
     const content = 'The Quick Hello World appears here.';
     const result = anchorAnnotation(content, {
+      position: { start: 10, end: 21 },
       quote: { exact: 'hello world' },
     });
-    expect(result?.strategy).toBe('fuzzy-text');
-    expect(result?.confidence).toBe('medium');
+    expect(result?.strategy).toBe('position-fallback');
+    expect(result?.confidence).toBe('low');
   });
 
-  it('gives low confidence to Levenshtein fuzzy matches', () => {
-    // Character-substitution drift — falls through to Levenshtein search,
-    // returns 'fuzzy' match quality → low confidence.
-    const content = 'The quick hello world appears here.';
+  it('does NOT smart-quote-fold; the legacy bug renders at stored offset, flagged', () => {
+    // The legal-KB case: content has a smart quote, stored exact has a
+    // straight quote. No verbatim match. The renderer keeps the stored
+    // offset (it's the system of record) and flags it — correction is an
+    // upstream concern (re-emit a corrected annotation event).
+    const content = 'Kenison, C.J.\nThe question to “any person” today.';
     const result = anchorAnnotation(content, {
-      quote: { exact: 'helo world' },
+      position: { start: 16, end: 40 },
+      quote: { exact: 'The question to "any person"' },
     });
-    expect(result?.strategy).toBe('fuzzy-text');
+    expect(result?.strategy).toBe('position-fallback');
     expect(result?.confidence).toBe('low');
+    expect(result?.start).toBe(16);
   });
 });
 
@@ -211,27 +216,34 @@ describe('anchorAnnotation — position-fallback', () => {
     expect(anchorAnnotation('hi', { position: { start: 0, end: 0 } })).toBeNull();
   });
 
-  it('falls back to raw position when exact is not found anywhere', () => {
+  it('returns null when exact is not found verbatim and the stored offset is out of range', () => {
+    const content = 'short';
+    const result = anchorAnnotation(content, {
+      position: { start: 50, end: 60 },
+      quote: { exact: 'ZZZNEVERAPPEARSZZZ' },
+    });
+    expect(result).toBeNull();
+  });
+
+  it('falls back to raw position when exact is not found but offset is valid', () => {
     const content = 'this content has nothing matching the request';
     const result = anchorAnnotation(content, {
       position: { start: 5, end: 12 },
       quote: { exact: 'ZZZNEVERAPPEARSZZZ' },
     });
-    // findBestTextMatch may still find a fuzzy nearby; if so, that's the
-    // chosen strategy. If nothing matches at all, position-fallback at low.
-    // Either way, confidence must be low.
+    expect(result?.strategy).toBe('position-fallback');
     expect(result?.confidence).toBe('low');
+    expect(result?.start).toBe(5);
   });
 });
 
 // ─── Layer 1: cross-cutting + the motivating bug ────────────────────────
 
 describe('anchorAnnotation — cross-cutting', () => {
-  it('the motivating bug: stored start=16, exact starts at position 14', () => {
-    // Content has "Kenison, C.J.\n" (14 chars) followed immediately by
-    // "The question for decision...". Stored annotation has start=16 (off
-    // by two — the worker's view of the content was different). The
-    // renderer must align to position 14.
+  it('positional drift: stale offset 16, exact is verbatim-unique at 14', () => {
+    // Stored offset is stale (16) but `exact` still exists verbatim and
+    // unique in the content, at position 14. This is the safe render-time
+    // recovery case: re-anchor to the verbatim match, high confidence.
     const exact = 'The question for decision';
     const content = `Kenison, C.J.\n${exact} by this appeal`;
     const result = anchorAnnotation(content, {

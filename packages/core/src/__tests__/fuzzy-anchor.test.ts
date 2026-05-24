@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { verifyPosition, normalizeText, findBestTextMatch, buildContentCache } from '../fuzzy-anchor';
+import { verifyPosition, normalizeText, normalizeTextWithMap, findBestTextMatch, buildContentCache } from '../fuzzy-anchor';
 
 describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
   beforeEach(() => {
@@ -31,6 +31,82 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
       const input = '  "hello  world" — test  ';
       const expected = '"hello world" -- test';
       expect(normalizeText(input)).toBe(expected);
+    });
+  });
+
+  describe('normalizeTextWithMap', () => {
+    // The produced normalized string must always equal normalizeText —
+    // they can't be allowed to drift, since findBestTextMatch's normalized
+    // search uses one and its position mapping uses the other.
+    const cases = [
+      'hello world',
+      'hello  world',
+      'hello\n\nworld',
+      '  leading and trailing  ',
+      'Kenison, C.J.\nThe question for decision',
+      'He said “hello world” yesterday',
+      'an em — dash and an en – dash',
+      'tabs\tand\nnewlines   collapsed',
+      '',
+      '   ',
+    ];
+
+    for (const input of cases) {
+      it(`normalized output equals normalizeText for ${JSON.stringify(input)}`, () => {
+        expect(normalizeTextWithMap(input).normalized).toBe(normalizeText(input));
+      });
+    }
+
+    it('maps each normalized position back to a correct original index', () => {
+      const input = 'Kenison, C.J.\nThe question';
+      const { normalized, map } = normalizeTextWithMap(input);
+      // For every normalized char that is not the collapsed space, the
+      // original char at the mapped index normalizes to the same char.
+      for (let i = 0; i < normalized.length; i++) {
+        const origIdx = map[i]!;
+        const origChar = input[origIdx]!;
+        const normChar = normalized[i]!;
+        if (normChar === ' ') {
+          // collapsed-space positions map to a whitespace original char
+          expect(/\s/.test(origChar)).toBe(true);
+        } else {
+          expect(normalizeText(origChar)).toBe(normChar);
+        }
+      }
+    });
+
+    it('map has length normalized.length + 1 with a content-length sentinel', () => {
+      const input = 'abc def';
+      const { normalized, map } = normalizeTextWithMap(input);
+      expect(map).toHaveLength(normalized.length + 1);
+      expect(map[normalized.length]).toBe(input.length);
+    });
+  });
+
+  describe('findBestTextMatch — normalized branch position mapping', () => {
+    it('recovers the correct original offset despite whitespace before the match', () => {
+      // The motivating bug: content has "Kenison, C.J.\nThe question…" where
+      // "The question" starts at original index 14. The stored exact uses a
+      // straight quote where the source has a smart quote, so verbatim fails
+      // and we go through the normalized branch. The recovered offset must
+      // be 14 — not 16 (the old char-walk overshot by the 2 whitespace runs
+      // before the match: the space after the comma and the newline).
+      const content = 'Kenison, C.J.\nThe question for decision “foo” end';
+      const search = 'The question for decision "foo"'; // straight quotes
+      const result = findBestTextMatch(content, search, undefined, buildContentCache(content));
+      expect(result).not.toBeNull();
+      expect(result!.matchQuality).toBe('normalized');
+      expect(result!.start).toBe(14);
+      // The recovered span, normalized, equals the normalized search.
+      expect(normalizeText(content.substring(result!.start, result!.end))).toBe(normalizeText(search));
+    });
+
+    it('recovers correct offset when content has smart quotes and search has straight', () => {
+      const content = 'Intro. He said “hello world” to everyone.';
+      const search = '"hello world"';
+      const result = findBestTextMatch(content, search, undefined, buildContentCache(content));
+      expect(result).not.toBeNull();
+      expect(content.substring(result!.start, result!.end)).toBe('“hello world”');
     });
   });
 

@@ -121,6 +121,24 @@ describe('reconcileSelector — fuzzy-match', () => {
     // case-different version.
     expect(result?.exact).toBe('United States');
   });
+
+  it('the real bug: LLM straight-quotes vs source smart-quotes anchors at the correct offset', () => {
+    // This is the legal-KB failure, write-side. Source has a smart quote;
+    // the LLM echoed `exact` with a straight quote. Verbatim indexOf fails,
+    // the fuzzy/normalized branch recovers it — and must land at the true
+    // offset (14), storing the SOURCE's text (smart quotes), not the LLM's.
+    // Before the findBestTextMatch map fix this returned offset 16.
+    const exact = 'The question for decision to "any person" today';
+    const content = `Kenison, C.J.\nThe question for decision to “any person” today and more.`;
+    const result = reconcileSelector(content, { exact });
+    expect(result).not.toBeNull();
+    expect(result!.start).toBe(14);
+    expect(result!.anchorMethod).toBe('fuzzy-match');
+    // Stored exact is the source's real text (smart quotes), verifiable
+    // against the stored offset.
+    expect(content.substring(result!.start, result!.end)).toBe(result!.exact);
+    expect(result!.exact).toContain('“any person”');
+  });
 });
 
 describe('reconcileSelector — dropped (null)', () => {
