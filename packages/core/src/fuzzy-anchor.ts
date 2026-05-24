@@ -65,10 +65,78 @@ function levenshteinDistance(str1: string, str2: string): number {
  * Pre-computed content strings for batch fuzzy matching.
  * Avoids recomputing normalizeText(content) and content.toLowerCase()
  * for every annotation when processing many annotations against the same content.
+ *
+ * `normalizedMap[i]` is the original-content index that normalized
+ * character `i` came from. It has length `normalizedContent.length + 1`;
+ * the final entry is `content.length` so a match that ends at the end of
+ * the normalized string maps back to the end of the original. This map is
+ * how `findBestTextMatch` recovers the *original* offset of a normalized
+ * match — counting char-by-char with `normalizeText(singleChar)` is
+ * wrong, because a lone whitespace char trims to `''` (contributing 0)
+ * while in a full-string normalize it collapses to a single space
+ * (contributing 1). That discrepancy shifted recovered offsets by the
+ * number of whitespace runs before the match.
  */
 export interface ContentCache {
   normalizedContent: string;
+  normalizedMap: number[];
   lowerContent: string;
+}
+
+/**
+ * Normalize text and, in the same pass, build a map from each normalized
+ * character position back to the original-content index it came from.
+ * The produced `normalized` string is identical to `normalizeText(input)`
+ * — a test pins this equivalence so the two can't drift.
+ */
+export function normalizeTextWithMap(input: string): { normalized: string; map: number[] } {
+  let normalized = '';
+  const map: number[] = [];
+
+  // First pass mirrors normalizeText exactly, char by char, recording the
+  // origin index for every emitted normalized character.
+  let pendingWhitespaceStart = -1; // origin index of an open whitespace run, or -1
+
+  const flushWhitespace = () => {
+    if (pendingWhitespaceStart !== -1) {
+      // A whitespace run collapses to a single space, mapped to the run's
+      // first char — but a *leading* run (nothing emitted yet) is dropped,
+      // matching normalizeText's trailing `.trim()`.
+      if (normalized.length > 0) {
+        normalized += ' ';
+        map.push(pendingWhitespaceStart);
+      }
+      pendingWhitespaceStart = -1;
+    }
+  };
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]!;
+    if (/\s/.test(ch)) {
+      if (pendingWhitespaceStart === -1) pendingWhitespaceStart = i;
+      continue;
+    }
+    flushWhitespace();
+    if (ch === '‘' || ch === '’') {
+      normalized += "'"; map.push(i);
+    } else if (ch === '“' || ch === '”') {
+      normalized += '"'; map.push(i);
+    } else if (ch === '—') {
+      normalized += '--'; map.push(i); map.push(i);
+    } else if (ch === '–') {
+      normalized += '-'; map.push(i);
+    } else {
+      normalized += ch; map.push(i);
+    }
+  }
+  // A trailing whitespace run is dropped by trim — do not flush it.
+
+  // `normalizeText` applies `.trim()` last. Our run logic already drops a
+  // trailing whitespace run; a leading run is dropped because flushWhitespace
+  // only runs before a non-space char, so a run at the very start is never
+  // emitted. Both ends match trim().
+  map.push(input.length); // sentinel: one past the last normalized char
+  return { normalized, map };
 }
 
 /**
@@ -76,8 +144,10 @@ export interface ContentCache {
  * Call once per content, pass to findBestTextMatch/anchorAnnotation for all annotations.
  */
 export function buildContentCache(content: string): ContentCache {
+  const { normalized, map } = normalizeTextWithMap(content);
   return {
-    normalizedContent: normalizeText(content),
+    normalizedContent: normalized,
+    normalizedMap: map,
     lowerContent: content.toLowerCase()
   };
 }
@@ -112,24 +182,20 @@ export function findBestTextMatch(
     };
   }
 
-  // Strategy 2: Normalized match (handles whitespace/quote variations)
+  // Strategy 2: Normalized match (handles whitespace/quote variations).
+  // Map the normalized match position back to the original via the
+  // precomputed index map. The naive char-by-char re-normalize is wrong:
+  // a lone whitespace char trims to '' (0-width) but collapses to a single
+  // space (1-width) in a full normalize, so it under-counts by the number
+  // of whitespace runs before the match, shifting the recovered offset.
   const normalizedSearch = normalizeText(searchText);
   const normalizedIndex = cache.normalizedContent.indexOf(normalizedSearch);
   if (normalizedIndex !== -1) {
-    // Find actual position in original content by counting characters
-    let actualPos = 0;
-    let normalizedPos = 0;
-    while (normalizedPos < normalizedIndex && actualPos < content.length) {
-      const char = content[actualPos]!;
-      const normalizedChar = normalizeText(char);
-      if (normalizedChar) {
-        normalizedPos += normalizedChar.length;
-      }
-      actualPos++;
-    }
+    const start = cache.normalizedMap[normalizedIndex] ?? 0;
+    const end = cache.normalizedMap[normalizedIndex + normalizedSearch.length] ?? content.length;
     return {
-      start: actualPos,
-      end: actualPos + searchText.length,
+      start,
+      end,
       matchQuality: 'normalized'
     };
   }

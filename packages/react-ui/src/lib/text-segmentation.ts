@@ -9,7 +9,7 @@
  */
 
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector } from '@semiont/core';
-import { anchorAnnotation, buildContentCache, type AnchorStrategy, type AnchorConfidence } from '@semiont/core';
+import { anchorAnnotation, type AnchorStrategy, type AnchorConfidence } from '@semiont/core';
 import type { TextSegment } from './codemirror-logic';
 
 import type { Annotation } from '@semiont/core';
@@ -46,9 +46,6 @@ export function segmentTextWithAnnotations(content: string, annotations: Annotat
     return [{ exact: '', start: 0, end: 0 }];
   }
 
-  // Pre-compute normalized/lowered content once for all annotations
-  const cache = buildContentCache(content);
-
   const normalizedAnnotations = annotations
     .map(ann => {
       const targetSelector = getTargetSelector(ann.target);
@@ -69,7 +66,6 @@ export function segmentTextWithAnnotations(content: string, annotations: Annotat
               }
             : {}),
         },
-        cache,
       );
 
       if (anchor && anchor.confidence !== 'high') {

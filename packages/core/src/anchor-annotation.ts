@@ -1,32 +1,40 @@
 /**
  * Anchor a W3C Web Annotation to its rendered text.
  *
- * Combines `TextPositionSelector` (start/end hint) and `TextQuoteSelector`
- * (exact text + optional prefix/suffix context) into one best-effort
- * position, recording which strategy resolved it. No single selector is
- * authoritative — every selector is a signal, and position is the
- * always-available locality signal used to break ties when context isn't
- * unique.
+ * Render-time cleverness is deliberately limited to **verbatim** quote
+ * matching. The annotation's two selectors are written to agree (the
+ * write-side `reconcileSelector` + `buildTextAnnotation` invariant
+ * guarantee `content.substring(start, end) === exact`). At render time the
+ * only legitimate discrepancy is *positional drift*: the document grew or
+ * shrank above the span after the annotation was written, so the offset is
+ * stale but the exact text still exists, byte-identical, elsewhere. That is
+ * the W3C-intended role of `TextQuoteSelector`, and it is safe because it
+ * demands identical text — no normalization, no fuzzy matching, no
+ * judgment call.
+ *
+ * Anything that would require *fuzzy* recovery (smart-quote folding,
+ * whitespace collapse, Levenshtein) is out of scope here: a non-verbatim
+ * mismatch means the content representation diverged or the stored record
+ * is wrong, both of which are deterministic and belong upstream (canonical
+ * content, or a corrected annotation event). The renderer does not guess —
+ * it renders at the stored offset and flags the anchor low-confidence so
+ * the discrepancy surfaces for an upstream fix.
  *
  * Returns `null` only when nothing usable is present; otherwise always
- * returns a position with a `strategy` and `confidence` so the renderer
- * can show a degraded match instead of silently dropping.
+ * returns a position with a `strategy` and `confidence`.
  */
-
-import { findBestTextMatch, buildContentCache, type ContentCache } from './fuzzy-anchor';
 
 export type AnchorStrategy =
   /** Position hint pointed exactly at the exact text. Unambiguous. */
   | 'fast-path'
-  /** Exact text appears once in the content. No tiebreak needed. */
+  /** Exact text appears once verbatim in the content. No tiebreak needed. */
   | 'unique-occurrence'
-  /** Multiple occurrences; prefix+suffix uniquely identified one. */
+  /** Multiple verbatim occurrences; prefix+suffix uniquely identified one. */
   | 'context-disambiguated'
-  /** Multiple candidates; position closest to hint chosen. */
+  /** Multiple verbatim candidates; position closest to hint chosen. */
   | 'position-tiebreaker'
-  /** Exact text not found; near-match via normalize/case/Levenshtein. */
-  | 'fuzzy-text'
-  /** Nothing matched; raw position hint used as last resort. */
+  /** Exact text not found verbatim (or no quote); raw stored offset used,
+   *  flagged for upstream correction. */
   | 'position-fallback';
 
 export type AnchorConfidence = 'high' | 'medium' | 'low';
@@ -65,14 +73,11 @@ export const POSITION_WEIGHT_MAX = 5;
 
 /**
  * Locate the best-effort anchor for an annotation against the content the
- * renderer is about to display. `cache` is optional; pass it when
- * anchoring many annotations against the same content to skip repeated
- * `normalizeText(content)` work.
+ * renderer is about to display. Verbatim-only — see the module doc.
  */
 export function anchorAnnotation(
   content: string,
   selectors: AnchorSelectors,
-  cache?: ContentCache,
 ): RenderedAnchor | null {
   const { position, quote } = selectors;
 
@@ -130,29 +135,11 @@ export function anchorAnnotation(
     return winner;
   }
 
-  // No exact occurrences. Fall through to fuzzy match (Levenshtein etc.)
-  // with position bias built in.
-  const localCache = cache ?? buildContentCache(content);
-  const fuzzy = findBestTextMatch(content, exact, position?.start, localCache);
-  if (fuzzy) {
-    // 'normalized' and 'case-insensitive' matches are tight enough to be
-    // medium-confidence; 'fuzzy' (Levenshtein) is looser — drop to low if
-    // we landed far from the position hint and the hint was given.
-    let confidence: AnchorConfidence = fuzzy.matchQuality === 'fuzzy' ? 'low' : 'medium';
-    if (position && Math.abs(fuzzy.start - position.start) > POSITION_WINDOW) {
-      confidence = 'low';
-    }
-    return {
-      start: fuzzy.start,
-      end: fuzzy.end,
-      strategy: 'fuzzy-text',
-      confidence,
-    };
-  }
-
-  // Nothing matched at all. Fall back to raw position so the highlight
-  // still renders — the visual affordance for low-confidence anchors is
-  // what surfaces the breakage to the user.
+  // No verbatim occurrence. We do NOT fuzzy-match at render time — a
+  // non-verbatim mismatch means the content diverged or the record is
+  // wrong, which is an upstream concern. Render at the stored offset so the
+  // highlight still appears, flagged low-confidence so the discrepancy is
+  // visible and gets corrected at the source.
   if (position && position.start >= 0 && position.end <= content.length && position.start < position.end) {
     return {
       start: position.start,
