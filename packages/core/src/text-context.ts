@@ -62,7 +62,13 @@ export interface LlmSelectorInput {
 
 const CONTEXT_LENGTH = 64;
 const MAX_EXTENSION = 32;
-const DISAMBIGUATION_CONTEXT = 32;
+// Minimum window of source text compared against an LLM-emitted prefix/suffix
+// when disambiguating multiple occurrences. The actual window grows to the
+// length of the LLM's prefix/suffix when that's longer — the prompts invite
+// up to 64 chars, and a fixed 32-char window can't `endsWith`/`includes` a
+// 64-char string, which would silently defeat disambiguation for exactly the
+// long, distinctive contexts that disambiguate best.
+const DISAMBIGUATION_MIN_WINDOW = 32;
 
 /**
  * Extract prefix and suffix context for a `TextQuoteSelector` from
@@ -147,16 +153,18 @@ export function reconcileSelector(
   }
 
   if (occurrences.length > 1) {
-    // Disambiguate via LLM-emitted prefix/suffix when present. Use a small
-    // window adjacent to each candidate — wider than the surrounding-text
-    // window the LLM is asked to emit, so a prefix/suffix that's a few
-    // chars shorter than ours still matches.
+    // Disambiguate via LLM-emitted prefix/suffix when present. Size the
+    // comparison window to the LLM's prefix/suffix (with a floor), so a
+    // 64-char prefix is matched against ≥64 chars of source — a fixed
+    // smaller window can't `endsWith`/`includes` a longer LLM string.
     if (llmPrefix || llmSuffix) {
+      const prefixWindow = Math.max(DISAMBIGUATION_MIN_WINDOW, llmPrefix?.length ?? 0);
+      const suffixWindow = Math.max(DISAMBIGUATION_MIN_WINDOW, llmSuffix?.length ?? 0);
       for (const pos of occurrences) {
-        const candPrefix = content.substring(Math.max(0, pos - DISAMBIGUATION_CONTEXT), pos);
+        const candPrefix = content.substring(Math.max(0, pos - prefixWindow), pos);
         const candSuffix = content.substring(
           pos + exact.length,
-          Math.min(content.length, pos + exact.length + DISAMBIGUATION_CONTEXT),
+          Math.min(content.length, pos + exact.length + suffixWindow),
         );
         const prefixOk = !llmPrefix || candPrefix.endsWith(llmPrefix) || candPrefix.includes(llmPrefix.trim());
         const suffixOk = !llmSuffix || candSuffix.startsWith(llmSuffix) || candSuffix.includes(llmSuffix.trim());

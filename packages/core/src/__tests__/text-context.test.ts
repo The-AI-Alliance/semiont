@@ -85,6 +85,33 @@ describe('reconcileSelector — context-recovered', () => {
     expect(result?.start).toBe(expected);
     expect(result?.anchorMethod).toBe('context-recovered');
   });
+
+  it('disambiguates with a prefix longer than the 32-char minimum window', () => {
+    // Regression for the 32/64 mismatch: the prompts invite up to 64 chars
+    // of prefix, but the comparison window used to be a fixed 32 — so a long
+    // distinctive prefix silently failed to disambiguate and fell to
+    // first-of-many. The place name appears 3 times; only a >32-char prefix
+    // tells the occurrences apart.
+    const place = 'Paris';
+    const seg = (lead: string) => `${lead} the delegation arrived in ${place} and stayed.`;
+    // Three near-identical sentences; the distinguishing words sit >32 chars
+    // before "Paris", beyond the old window.
+    const content = [
+      seg('In the cold and rainy spring of the difficult year'),
+      seg('In the warm and pleasant summer of the prosperous year'),
+      seg('In the crisp and golden autumn of the uneventful year'),
+    ].join(' ');
+
+    // 64-char prefix that uniquely identifies the SECOND occurrence.
+    const before = 'In the warm and pleasant summer of the prosperous year the delegation arrived in ';
+    const llmPrefix = before.slice(-64);
+    expect(llmPrefix.length).toBe(64);
+
+    const result = reconcileSelector(content, { exact: place, prefix: llmPrefix });
+    const secondPos = content.indexOf(place, content.indexOf(place) + 1);
+    expect(result?.start).toBe(secondPos);
+    expect(result?.anchorMethod).toBe('context-recovered');
+  });
 });
 
 describe('reconcileSelector — first-of-many', () => {
