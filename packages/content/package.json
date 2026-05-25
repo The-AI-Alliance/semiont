@@ -24,7 +24,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/core": "*"
+    "@semiont/core": "*",
+    "pdfjs-dist": "^5.7.284"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
