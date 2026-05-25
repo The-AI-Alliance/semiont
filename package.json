@@ -83,7 +83,7 @@
   "optionalDependencies": {
     "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.9",
     "@rolldown/binding-linux-x64-musl": "1.0.0-rc.9",
-    "@rolldown/binding-linux-arm64-gnu": "1.0.0-rc.9",
+    "@rolldown/binding-linux-arm64-gnu": "1.0.2",
     "@rolldown/binding-linux-arm64-musl": "1.0.0-rc.9",
     "@rolldown/binding-darwin-arm64": "1.0.0-rc.13",
     "@rolldown/binding-darwin-x64": "1.0.0-rc.11",
