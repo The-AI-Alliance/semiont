@@ -1,0 +1,6 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`locate > documents known imperfect reading order for multi-column PDFs 1`] = `
+"left column line oneleft column line tworight column line oneright column line two 
+"
+`;

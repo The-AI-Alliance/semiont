@@ -51,7 +51,22 @@ fs.writeFileSync(
     await multiPageDoc.save()
 );
 
-console.log('PDF fixtures generated.');
+// Multi-column fixture
+const multiColumnDoc = await PDFDocument.create();
+const multiColumnFont = await multiColumnDoc.embedFont(StandardFonts.Helvetica);
+const multiColumnPage = multiColumnDoc.addPage([612, 792]);
+multiColumnPage.drawText(
+    'left column line one\nleft column line two',
+    { x: 72, y: 720, size: 12, font: multiColumnFont, lineHeight: 20 }
+);
+multiColumnPage.drawText(
+    'right column line one\nright column line two',
+    { x: 320, y: 720, size: 12, font: multiColumnFont, lineHeight: 20 }
+);
+fs.writeFileSync(
+    path.join(FIXTURES, 'multi-column.pdf'), 
+    await multiColumnDoc.save()
+);
 
 // Scanned fixture — empty page, no text layer
 const scannedDoc = await PDFDocument.create();
@@ -60,3 +75,5 @@ fs.writeFileSync(
   path.join(FIXTURES, 'scanned.pdf'),
   await scannedDoc.save()
 );
+
+console.log('PDF fixtures generated.');
