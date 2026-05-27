@@ -31,8 +31,8 @@ export async function extractPdfTextLayer (
 
         pages.push({
             pageNumber: pageNum,
-            widthPt: viewport.viewBox[2],
-            heightPt: viewport.viewBox[3],
+            widthPt: viewport.width,
+            heightPt: viewport.height,
         });
 
         for (const item of content.items) {
