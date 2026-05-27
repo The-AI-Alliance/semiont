@@ -19,15 +19,17 @@
     "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist dist-types",
-    "test": "vitest run",
+    "test": "tsx src/__tests__/generate-fixtures.ts && vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/core": "*"
+    "@semiont/core": "*",
+    "pdfjs-dist": "^5.7.284"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
+    "pdf-lib": "^1.17.1",
     "rollup": "^4.60.3",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
