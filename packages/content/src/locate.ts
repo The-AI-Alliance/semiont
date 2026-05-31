@@ -2,6 +2,13 @@ import type { PdfCoordinate } from '@semiont/core';
 import type { PdfTextLayer, PdfTextItem } from './pdf-text-layer';
 
 /**
+ * Items whose baseline Y is within this many PDF points are treated as being on
+ * the same line. Tuned for ~12pt body text; revisit for documents with large or
+ * variable font sizes (Phase 4 / #738).
+ */
+const SAME_LINE_THRESHOLD_PT = 2;
+
+/**
  * Locates bounding rectangles for a span of text in a PdfTextLayer
  * (single-line or multi-line).
  * 
@@ -26,7 +33,7 @@ export function locate(
 
     // for each page, group items into lines and compute one rectangle per line
     for (const [page, pageItems] of pages) {
-        const lines = groupItemsByLine(pageItems, 2);
+        const lines = groupItemsByLine(pageItems, SAME_LINE_THRESHOLD_PT);
         // Compute one bounding rectangle per line and add it to rects
         for (const lineItems of lines) {
             const x = Math.min(...lineItems.map(i => i.x));

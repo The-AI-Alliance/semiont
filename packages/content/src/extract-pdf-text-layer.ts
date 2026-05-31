@@ -1,18 +1,17 @@
 /**
  * PDF Text Layer Extraction
- * 
+ *
  * Extracts positioned text from native, non-scanned PDFs using pdfjs-dist.
- * Returns null for scanned/image-only PDFs.
- * 
- * Coordinates are in PDF point space, originating from bottom-left.
- * Y-flip to canvas pixel happens downstream.
- * 
-*/
+ * Returns null for scanned/image-only PDFs (no text items).
+ *
+ * Coordinates are in PDF point space, originating from the bottom-left.
+ * The Y-flip to canvas pixels happens downstream.
+ */
 
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PdfTextLayer, PdfPageInfo, PdfTextItem } from './pdf-text-layer';
 
-export async function extractPdfTextLayer (
+export async function extractPdfTextLayer(
     bytes: Uint8Array | Buffer
 ): Promise<PdfTextLayer | null> {
     const doc = await pdfjs.getDocument({
@@ -23,49 +22,60 @@ export async function extractPdfTextLayer (
         isEvalSupported: false,
     }).promise;
 
-    const pages: PdfPageInfo[] = [];
-    const items: PdfTextItem[] = [];
-    let text = '';
-    let hasAnyTextItems = false;
+    try {
+        const pages: PdfPageInfo[] = [];
+        const items: PdfTextItem[] = [];
+        let text = '';
+        let hasAnyTextItems = false;
 
-    for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
-        const page = await doc.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 1.0 });
-        const content = await page.getTextContent();  // fetch all text items on page
+        for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
+            const page = await doc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 1.0 });
+            const content = await page.getTextContent();  // all text items on the page
 
-        pages.push({
-            pageNumber: pageNum,
-            widthPt: viewport.width,
-            heightPt: viewport.height,
-        });
-
-        for (const item of content.items) {
-            if (!('str' in item) || !item.str.trim()) continue;
-
-            hasAnyTextItems = true;
-            const start = text.length;
-            text += item.str;
-
-            if (!item.hasEOL) text += ' ';  // add space between words
-            const end = text.length;  // offset
-
-            const [, , , , x, y] = item.transform as number[];
-
-            items.push({
-                start,
-                end,
-                page: pageNum,
-                x,
-                y,
-                width: item.width,
-                height: item.height,
+            pages.push({
+                pageNumber: pageNum,
+                widthPt: viewport.width,
+                heightPt: viewport.height,
             });
+
+            for (const item of content.items) {
+                if (!('str' in item)) continue;  // skip marked-content items (no text)
+
+                if (item.str.trim()) {
+                    hasAnyTextItems = true;
+                    const start = text.length;
+                    text += item.str;
+                    const end = text.length;  // range covers only this run's own chars
+
+                    const [, , , , x, y] = item.transform as number[];
+
+                    items.push({
+                        start,
+                        end,
+                        page: pageNum,
+                        x,
+                        y,
+                        width: item.width,
+                        height: item.height,
+                    });
+                }
+
+                // Append the separator AFTER recording the run so its [start, end)
+                // never includes it. pdf.js flags the last run on a line with
+                // hasEOL — emit a newline there, a space between words otherwise,
+                // so reading-order lines don't glue (e.g. "textsecond").
+                text += item.hasEOL ? '\n' : ' ';
+            }
+
+            text += '\n';  // page break
         }
 
-        text += '\n';
+        if (!hasAnyTextItems) return null;
+
+        return { pages, text, items };
+    } finally {
+        // Release the pdf.js document — Phase 2 runs this in a long-lived worker pool.
+        await doc.destroy();
     }
-
-    if (!hasAnyTextItems) return null;
-
-    return { pages, text, items };
 }

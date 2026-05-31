@@ -1,7 +1,7 @@
 /**
  * PDF Text Layer Types
  *
- * Represents the extracted text layer from a native PDF, including per-character
+ * Represents the extracted text layer from a native PDF, including per-run (word-level)
  * geometry in PDF point coordinates originating from the bottom-left of the page
  * (Y increases upward). The Y-flip to canvas pixels happens downstream in the
  * browser; the server has no canvas.
@@ -11,7 +11,7 @@
  */
 
 /**
- * A single text item from the PDF text layer.
+ * A single text item (one text run, roughly a word) from the PDF text layer.
  * Character offsets refer to positions in `PdfTextLayer.text`.
  */
 export interface PdfTextItem {
@@ -34,7 +34,7 @@ export interface PdfPageInfo {
 /**
  * The full extracted text layer for a PDF.
  * `text` is the reading-order concatenation across all pages.
- * `items` carry per-character ranges into `text` plus PDF-point geometry.
+ * Each `item` is one text run carrying its character range into `text` plus PDF-point geometry.
  */
 export interface PdfTextLayer {
     pages: PdfPageInfo[];

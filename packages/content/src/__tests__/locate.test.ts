@@ -91,10 +91,27 @@ describe('locate', () => {
     });
     
     it('documents known imperfect reading order for multi-column PDFs', async () => {
-        // Pins current behavior — does NOT assert correct column ordering.
-        // Multi-column reading order is a known limitation, deferred to Phase 4 (#738).
+        // Multi-column reading order is a known limitation (Phase 4 / #738): pdf.js
+        // yields one column fully before the other, so true row-wise reading order
+        // across columns is not preserved. Assert the (imperfect) current order
+        // explicitly rather than snapshotting an opaque blob.
         const layer = await extractPdfTextLayer(readFixture('multi-column.pdf'));
         if (!layer) throw new Error('expected layer, got null');
-        expect(layer.text).toMatchSnapshot();
+
+        const order = [
+            'left column line one',
+            'left column line two',
+            'right column line one',
+            'right column line two',
+        ];
+        const positions = order.map(s => layer.text.indexOf(s));
+        positions.forEach(p => expect(p).toBeGreaterThanOrEqual(0));
+        // Column-major: the entire left column precedes the entire right column.
+        for (let i = 1; i < positions.length; i++) {
+            expect(positions[i]).toBeGreaterThan(positions[i - 1]);
+        }
+        // ...and adjacent lines no longer glue across the seam (the #6 fix).
+        expect(layer.text).not.toContain('oneleft');
+        expect(layer.text).not.toContain('tworight');
     });
 });
