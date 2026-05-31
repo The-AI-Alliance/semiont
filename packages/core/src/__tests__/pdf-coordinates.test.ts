@@ -19,10 +19,10 @@ describe('PDF viewrect FragmentSelector codec', () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 1, max: 999 }),
-        fc.integer({ min: 0, max: 1000 }),
-        fc.integer({ min: 0, max: 1000 }),
-        fc.integer({ min: 0, max: 1000 }),
-        fc.integer({ min: 0, max: 1000 }),
+        fc.integer({ min: -1000, max: 1000 }),
+        fc.integer({ min: -1000, max: 1000 }),
+        fc.integer({ min: -1000, max: 1000 }),
+        fc.integer({ min: -1000, max: 1000 }),
         (page, x, y, width, height) => {
           const coord: PdfCoordinate = { page, x, y, width, height };
           const fragment = createFragmentSelector(coord);
@@ -34,6 +34,15 @@ describe('PDF viewrect FragmentSelector codec', () => {
       ),
       { numRuns: 100 }
     );
+  });
+
+  it('round-trips negative coordinates (rects that extend off-page)', () => {
+    const coord: PdfCoordinate = { page: 3, x: -5, y: -12, width: 40, height: 18 };
+    expect(parseFragmentSelector(createFragmentSelector(coord))).toEqual(coord);
+  });
+
+  it('returns null for malformed viewrect numbers', () => {
+    expect(parseFragmentSelector('page=1&viewrect=1.2.3,4,5,6')).toBeNull();
   });
 
   it('parseFragmentSelector returns null for invalid fragments', () => {
