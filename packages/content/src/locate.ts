@@ -1,4 +1,5 @@
-import type { PdfCoordinate, PdfTextLayer, PdfTextItem } from './pdf-text-layer';
+import type { PdfCoordinate } from '@semiont/core';
+import type { PdfTextLayer, PdfTextItem } from './pdf-text-layer';
 
 /**
  * Locates bounding rectangles for a span of text in a PdfTextLayer

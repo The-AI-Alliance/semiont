@@ -17,6 +17,10 @@ export async function extractPdfTextLayer (
 ): Promise<PdfTextLayer | null> {
     const doc = await pdfjs.getDocument({
         data: bytes,
+        // Never eval code derived from an untrusted PDF (CVE-2024-4367). Text
+        // extraction uses getTextContent only — no glyph rendering or PDF
+        // functions — so disabling pdf.js codegen costs nothing here.
+        isEvalSupported: false,
     }).promise;
 
     const pages: PdfPageInfo[] = [];

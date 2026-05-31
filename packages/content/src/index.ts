@@ -23,3 +23,12 @@ export {
   calculateChecksum,
   verifyChecksum
 } from './checksum';
+
+// PDF text-layer extraction
+export { extractPdfTextLayer } from './extract-pdf-text-layer';
+export { locate } from './locate';
+export type {
+  PdfTextLayer,
+  PdfTextItem,
+  PdfPageInfo,
+} from './pdf-text-layer';

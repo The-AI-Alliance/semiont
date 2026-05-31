@@ -4,6 +4,7 @@ import fs from 'fs';
 import { describe, it, expect } from 'vitest';
 import { locate } from '../locate';
 import { extractPdfTextLayer } from '../extract-pdf-text-layer';
+import { createFragmentSelector, parseFragmentSelector, getPageFromFragment } from '@semiont/core';
 
 const EXPECTED_CANVAS_X = 72;
 const EXPECTED_CANVAS_Y = 60;
@@ -18,22 +19,43 @@ const readFixture = (name: string): Uint8Array =>
   new Uint8Array(fs.readFileSync(path.join(FIXTURES, name)));
 
 describe('locate', () => {
-    it('converts PDF coordinates to canvas coordinates correctly', async () => {
+    // #734 gate — the coordinate round-trip spike. A known fixture word's
+    // PDF-point geometry, run through the canonical Y-flip, must land on the
+    // expected canvas pixels. The flip MUST mirror react-ui's
+    // pdfToCanvasCoordinates (canvasY = pageHeight - y - height); content must
+    // not depend on react-ui, so that function is guarded independently by
+    // axiom 4 in packages/react-ui/src/lib/__tests__/pdf-coordinates.test.ts.
+    // The two tests together pin the coordinate convention.
+    it('round-trip spike: fixture geometry survives the PDF→canvas Y-flip', async () => {
         const layer = await extractPdfTextLayer(readFixture('single-line.pdf'));
         if (!layer) throw new Error('expected layer, got null');
         const start = layer.text.indexOf(KNOWN_PHRASE);
         const rects = locate(layer, start, start + KNOWN_PHRASE.length);
         if (rects.length === 0) throw new Error('expected rects, got empty array');
 
-        const rect = rects[0]
+        const rect = rects[0];
         const pageDimensions = layer.pages[rect.page - 1];
 
-        // Apply Y-flip formula to convert PDF coords to canvas coords
         const canvasX = rect.x;
         const canvasY = pageDimensions.heightPt - rect.y - rect.height;
 
         expect(canvasX).toBeCloseTo(EXPECTED_CANVAS_X);
         expect(canvasY).toBeCloseTo(EXPECTED_CANVAS_Y);
+    });
+
+    // The content→core handoff that #736's buildPdfAnnotation depends on:
+    // locate() emits PDF-point geometry, the core viewrect codec serializes it to
+    // an RFC 3778 page=N&viewrect=... value and reads it back unchanged.
+    it('round-trips locate() geometry through the core viewrect codec', async () => {
+        const layer = await extractPdfTextLayer(readFixture('single-line.pdf'));
+        if (!layer) throw new Error('expected layer, got null');
+        const start = layer.text.indexOf(KNOWN_PHRASE);
+        const rects = locate(layer, start, start + KNOWN_PHRASE.length);
+        expect(rects).toHaveLength(1);
+
+        const fragment = createFragmentSelector(rects[0]);
+        expect(getPageFromFragment(fragment)).toBe(rects[0].page);
+        expect(parseFragmentSelector(fragment)).toEqual(rects[0]);
     });
 
     it('returns one PdfCoordinate for a single-line span', async () => {
