@@ -38,6 +38,11 @@ describe('extractPdfTextLayer', () => {
         expect(layer.text).toContain('third line of text');
         expect(layer.pages).toHaveLength(1);
         expect(layer.items.length).toBeGreaterThan(0);
+
+        // Line seams must carry a separator — words must not glue across lines
+        // (regression guard for the hasEOL-aware separator).
+        expect(layer.text).not.toContain('textsecond');
+        expect(layer.text).not.toContain('textthird');
     });
 
     it('captures correct page dimension metadata for single-page PDF', async () => {

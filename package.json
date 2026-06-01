@@ -57,7 +57,7 @@
     "podman:clean": "CONTAINER_RUNTIME=podman node scripts/container/container-utils.js clean"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=24.0.0",
     "npm": ">=9.0.0"
   },
   "overrides": {

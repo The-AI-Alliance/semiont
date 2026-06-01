@@ -1,6 +1,9 @@
 {
   "name": "semiont-frontend",
   "version": "0.5.6",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "private": true,
   "scripts": {
     "audit:compliance": "./scripts/generate-compliance-report.sh",

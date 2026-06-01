@@ -177,6 +177,14 @@ export type {
   FragmentSelector,
 } from './web-annotation-utils';
 
+// PDF viewrect FragmentSelector codec (peer of the W3C FragmentSelector wrapper)
+export {
+  createFragmentSelector,
+  parseFragmentSelector,
+  getPageFromFragment,
+} from './pdf-coordinates';
+export type { PdfCoordinate } from './pdf-coordinates';
+
 // ResourceDescriptor accessors
 export {
   getResourceId,
