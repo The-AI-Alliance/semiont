@@ -55,13 +55,17 @@ export async function extractPdfTextLayer(
                         width: item.width,
                         height: item.height,
                     });
-                }
 
-                // Append the separator AFTER recording the run so its [start, end)
-                // never includes it. pdf.js flags the last run on a line with
-                // hasEOL — emit a newline there, a space between words otherwise,
-                // so reading-order lines don't glue (e.g. "textsecond").
-                text += item.hasEOL ? '\n' : ' ';
+                    // Separator AFTER recording the run, so its [start, end) never
+                    // includes it. pdf.js flags the last run on a line with hasEOL —
+                    // newline there, space between words otherwise, so reading-order
+                    // lines don't glue (e.g. "textsecond").
+                    text += item.hasEOL ? '\n' : ' ';
+                } else if (item.hasEOL) {
+                    // Standalone end-of-line marker (empty/whitespace str): keep the
+                    // line break without letting whitespace-only runs add stray spaces.
+                    text += '\n';
+                }
             }
 
             text += '\n';  // page break
