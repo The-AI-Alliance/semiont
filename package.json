@@ -62,12 +62,12 @@
   },
   "overrides": {
     "@types/react": "^19",
-    "@opentelemetry/core": "^2.7.0",
-    "@opentelemetry/resources": "^2.7.0",
-    "@opentelemetry/sdk-metrics": "^2.7.0",
-    "@opentelemetry/sdk-trace-base": "^2.7.0",
-    "@opentelemetry/sdk-trace-web": "^2.7.0",
-    "@opentelemetry/semantic-conventions": "^1.40.0"
+    "@opentelemetry/core": "^2.7.1",
+    "@opentelemetry/resources": "^2.7.1",
+    "@opentelemetry/sdk-metrics": "^2.7.1",
+    "@opentelemetry/sdk-trace-base": "^2.7.1",
+    "@opentelemetry/sdk-trace-web": "^2.7.1",
+    "@opentelemetry/semantic-conventions": "^1.41.1"
   },
   "devDependencies": {
     "@redocly/cli": "^2.21.1",
