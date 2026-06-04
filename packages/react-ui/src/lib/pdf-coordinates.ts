@@ -1,23 +1,19 @@
 /**
- * PDF Coordinate Utilities
+ * PDF Canvas Coordinate Transforms
  *
- * Handles coordinate transformations between:
- * - Canvas space (pixels, top-left origin, Y increases downward)
- * - PDF space (points, bottom-left origin, Y increases upward)
+ * Converts between canvas space (pixels, top-left origin, Y increases downward)
+ * and PDF space (points, bottom-left origin, Y increases upward) — the Y-flip and
+ * scale. UI-only: the server has no canvas.
+ *
+ * `PdfCoordinate` and the viewrect FragmentSelector codec live in `@semiont/core`.
  *
  * Based on RFC 3778 PDF Fragment Identifiers:
  * https://tools.ietf.org/html/rfc3778
  */
 
-export interface Rectangle {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+import type { PdfCoordinate } from '@semiont/core';
 
-export interface PdfCoordinate {
-  page: number;
+export interface Rectangle {
   x: number;
   y: number;
   width: number;
@@ -99,51 +95,4 @@ export function pdfToCanvasCoordinates(
     width: canvasWidth,
     height: canvasHeight
   };
-}
-
-/**
- * Generate RFC 3778 FragmentSelector value
- *
- * Format: page=N&viewrect=left,top,width,height
- * All coordinates in PDF points
- */
-export function createFragmentSelector(coord: PdfCoordinate): string {
-  return `page=${coord.page}&viewrect=${coord.x},${coord.y},${coord.width},${coord.height}`;
-}
-
-/**
- * Parse RFC 3778 FragmentSelector value
- *
- * @param fragment - Fragment string like "page=5&viewrect=100,200,300,400"
- * @returns Parsed PDF coordinates or null if invalid
- */
-export function parseFragmentSelector(fragment: string): PdfCoordinate | null {
-  try {
-    // Parse page number
-    const pageMatch = fragment.match(/page=(\d+)/);
-    if (!pageMatch) return null;
-    const page = parseInt(pageMatch[1], 10);
-
-    // Parse viewrect coordinates
-    const viewrectMatch = fragment.match(/viewrect=([\d.]+),([\d.]+),([\d.]+),([\d.]+)/);
-    if (!viewrectMatch) return null;
-
-    return {
-      page,
-      x: parseFloat(viewrectMatch[1]),
-      y: parseFloat(viewrectMatch[2]),
-      width: parseFloat(viewrectMatch[3]),
-      height: parseFloat(viewrectMatch[4])
-    };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Extract page number from FragmentSelector
- */
-export function getPageFromFragment(fragment: string): number | null {
-  const match = fragment.match(/page=(\d+)/);
-  return match ? parseInt(match[1], 10) : null;
 }

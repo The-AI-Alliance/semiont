@@ -1,0 +1,43 @@
+/**
+ * PDF Text Layer Types
+ *
+ * Represents the extracted text layer from a native PDF, including per-run (word-level)
+ * geometry in PDF point coordinates originating from the bottom-left of the page
+ * (Y increases upward). The Y-flip to canvas pixels happens downstream in the
+ * browser; the server has no canvas.
+ *
+ * `PdfCoordinate` — the geometry `locate()` emits — lives in `@semiont/core`
+ * alongside the viewrect FragmentSelector codec.
+ */
+
+/**
+ * A single text item (one text run, roughly a word) from the PDF text layer.
+ * Character offsets refer to positions in `PdfTextLayer.text`.
+ */
+export interface PdfTextItem {
+    start: number;  // Char offset in `PdfTextLayer.text` (inclusive)
+    end: number;    // Char offset in `PdfTextLayer.text` (exclusive)
+    page: number;   // 1-indexed page number
+    x: number;      // X position in PDF points (origin: bottom-left of page)
+    y: number;      // Y position in PDF points (origin: bottom-left of page)
+    width: number;
+    height: number;
+}
+
+/** Page dimensions in PDF points */
+export interface PdfPageInfo {
+    pageNumber: number;
+    widthPt: number;
+    heightPt: number;
+}
+
+/**
+ * The full extracted text layer for a PDF.
+ * `text` is the reading-order concatenation across all pages.
+ * Each `item` is one text run carrying its character range into `text` plus PDF-point geometry.
+ */
+export interface PdfTextLayer {
+    pages: PdfPageInfo[];
+    text: string;
+    items: PdfTextItem[];
+}

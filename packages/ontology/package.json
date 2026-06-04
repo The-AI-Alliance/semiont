@@ -1,6 +1,9 @@
 {
   "name": "@semiont/ontology",
   "version": "0.5.6",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "type": "module",
   "description": "Entity types, tag schemas, and W3C annotation vocabularies",
   "main": "./dist/index.js",
