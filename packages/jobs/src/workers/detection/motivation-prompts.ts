@@ -69,17 +69,15 @@ ${content.substring(0, 8000)}
 
 Return a JSON array of comments. Each comment must have:
 - "exact": the exact text passage being commented on (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
 - "comment": your comment following the instructions above
 
 Respond with a valid JSON array.
 
 Example:
 [
-  {"exact": "the quarterly review meeting", "start": 142, "end": 169, "prefix": "We need to schedule ", "suffix": " for next month.", "comment": "Who will lead this? Should we invite the external auditors?"}
+  {"exact": "the quarterly review meeting", "prefix": "We need to schedule ", "suffix": " for next month.", "comment": "Who will lead this? Should we invite the external auditors?"}
 ]`;
     } else {
       // No specific instructions - fall back to explanatory/educational mode
@@ -107,17 +105,15 @@ ${content.substring(0, 8000)}
 
 Return a JSON array of comments. Each comment should have:
 - "exact": the exact text passage being commented on (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
 - "comment": your explanatory comment (1-3 sentences, provide context/background/clarification)
 
 Respond with a valid JSON array.
 
 Example format:
 [
-  {"exact": "Ouranos", "start": 52, "end": 59, "prefix": "In the beginning, ", "suffix": " ruled the universe", "comment": "Ouranos (also spelled Uranus) is the primordial Greek deity personifying the sky. In Hesiod's Theogony, he is the son and husband of Gaia (Earth) and father of the Titans."}
+  {"exact": "Ouranos", "prefix": "In the beginning, ", "suffix": " ruled the universe", "comment": "Ouranos (also spelled Uranus) is the primordial Greek deity personifying the sky. In Hesiod's Theogony, he is the son and husband of Gaia (Earth) and father of the Titans."}
 ]`;
     }
 
@@ -158,16 +154,14 @@ ${content.substring(0, 8000)}
 
 Return a JSON array of highlights. Each highlight must have:
 - "exact": the exact text passage to highlight (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
 
 Respond with a valid JSON array.
 
 Example:
 [
-  {"exact": "revenue grew 45% year-over-year", "start": 142, "end": 174, "prefix": "In Q3 2024, ", "suffix": ", exceeding all forecasts."}
+  {"exact": "revenue grew 45% year-over-year", "prefix": "In Q3 2024, ", "suffix": ", exceeding all forecasts."}
 ]`;
     } else {
       // No specific instructions - fall back to importance/salience mode
@@ -193,16 +187,14 @@ ${content.substring(0, 8000)}
 
 Return a JSON array of highlights. Each highlight should have:
 - "exact": the exact text passage to highlight (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
 
 Respond with a valid JSON array.
 
 Example format:
 [
-  {"exact": "we will discontinue support for legacy systems by March 2025", "start": 52, "end": 113, "prefix": "After careful consideration, ", "suffix": ". This decision affects"}
+  {"exact": "we will discontinue support for legacy systems by March 2025", "prefix": "After careful consideration, ", "suffix": ". This decision affects"}
 ]`;
     }
 
@@ -248,17 +240,15 @@ ${content.substring(0, 8000)}
 
 Return a JSON array of assessments. Each assessment must have:
 - "exact": the exact text passage being assessed (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
 - "assessment": your assessment following the instructions above
 
 Respond with a valid JSON array.
 
 Example:
 [
-  {"exact": "the quarterly revenue target", "start": 142, "end": 169, "prefix": "We established ", "suffix": " for Q4 2024.", "assessment": "This target seems ambitious given market conditions. Consider revising based on recent trends."}
+  {"exact": "the quarterly revenue target", "prefix": "We established ", "suffix": " for Q4 2024.", "assessment": "This target seems ambitious given market conditions. Consider revising based on recent trends."}
 ]`;
     } else {
       // No specific instructions - fall back to analytical/evaluation mode
@@ -286,17 +276,15 @@ ${content.substring(0, 8000)}
 
 Return a JSON array of assessments. Each assessment should have:
 - "exact": the exact text passage being assessed (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
 - "assessment": your analytical assessment (1-3 sentences, evaluate validity/strength/implications)
 
 Respond with a valid JSON array.
 
 Example format:
 [
-  {"exact": "AI will replace most jobs by 2030", "start": 52, "end": 89, "prefix": "Many experts predict that ", "suffix": ", fundamentally reshaping", "assessment": "This claim lacks nuance and supporting evidence. Employment patterns historically show job transformation rather than wholesale replacement. The timeline appears speculative without specific sector analysis."}
+  {"exact": "AI will replace most jobs by 2030", "prefix": "Many experts predict that ", "suffix": ", fundamentally reshaping", "assessment": "This claim lacks nuance and supporting evidence. Employment patterns historically show job transformation rather than wholesale replacement. The timeline appears speculative without specific sector analysis."}
 ]`;
     }
 
@@ -358,17 +346,15 @@ ${content}
 
 Return a JSON array of tags. Each tag should have:
 - "exact": the exact text passage (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
 
 Respond with a valid JSON array.
 
 Example format:
 [
-  {"exact": "What duty did the defendant owe?", "start": 142, "end": 175, "prefix": "The central question is: ", "suffix": " This question must be"},
-  {"exact": "In tort law, a duty of care is established when...", "start": 412, "end": 520, "prefix": "Legal framework:\\n", "suffix": "\\n\\nApplying this standard"}
+  {"exact": "What duty did the defendant owe?", "prefix": "The central question is: ", "suffix": " This question must be"},
+  {"exact": "In tort law, a duty of care is established when...", "prefix": "Legal framework:\\n", "suffix": "\\n\\nApplying this standard"}
 ]`;
 
     return prompt;

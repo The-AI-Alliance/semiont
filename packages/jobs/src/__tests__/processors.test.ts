@@ -41,20 +41,14 @@ vi.mock('@semiont/event-sourcing', () => ({
   generateAnnotationId: vi.fn(() => 'ann-test-123'),
 }));
 
-vi.mock('@semiont/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/core')>();
-  return {
-    ...actual,
-  validateAndCorrectOffsets: vi.fn((_content, start, end, exact) => ({
-    start, end, exact, prefix: '', suffix: '', corrected: false,
-  })),
-  };
-});
+// No `@semiont/core` mock — these tests exercise the real `reconcileSelector`
+// against synthetic content. The processor's `buildTextAnnotation` invariant
+// runs `content.substring(start, end) === exact`, so the test content has
+// to actually contain the entities we feed in.
 
 import { AnnotationDetection } from '../workers/annotation-detection';
 import { extractEntities } from '../workers/detection/entity-extractor';
 import { generateResourceFromTopic } from '../workers/generation/resource-generation';
-import { validateAndCorrectOffsets } from '@semiont/core';
 import {
   processHighlightJob,
   processCommentJob,
@@ -94,14 +88,17 @@ describe('processHighlightJob', () => {
   });
 
   it('produces highlighting annotations and reports progress', async () => {
+    // Content must actually contain the highlighted substrings — the
+    // buildTextAnnotation invariant verifies content[start, end] === exact.
+    const content = 'important text and the critical part is here.';
     vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
       { exact: 'important', start: 0, end: 9 },
-      { exact: 'critical', start: 20, end: 28 },
+      { exact: 'critical', start: content.indexOf('critical'), end: content.indexOf('critical') + 'critical'.length },
     ]);
 
     const progress = vi.fn();
     const result = await processHighlightJob(
-      'text content',
+      content,
       makeInferenceClient(),
       { resourceId: RID, density: 5 },
       USER_DID,
@@ -217,14 +214,13 @@ describe('processReferenceJob', () => {
     expect(result.result).toEqual({ totalFound: 2, totalEmitted: 2, errors: 0 });
   });
 
-  it('counts errors when offset validation throws', async () => {
+  it('counts errors when reconciliation drops an entity (text not in source)', async () => {
+    // 'good' is in the content; 'BADTEXT' is not — reconcileSelector drops
+    // the second entity, the processor counts an error.
     vi.mocked(extractEntities).mockResolvedValue([
       { exact: 'good', start: 0, end: 4, entityType: 'Thing' } as any,
-      { exact: 'bad', start: 99, end: 102, entityType: 'Thing' } as any,
+      { exact: 'BADTEXT', start: 99, end: 106, entityType: 'Thing' } as any,
     ]);
-    vi.mocked(validateAndCorrectOffsets)
-      .mockImplementationOnce((_c, start, end, exact) => ({ start, end, exact, prefix: '', suffix: '', corrected: false }))
-      .mockImplementationOnce(() => { throw new Error('offset out of range'); });
 
     const result = await processReferenceJob(
       'good stuff',
@@ -693,5 +689,347 @@ describe('locale threading', () => {
         undefined, undefined, 'fr',
       );
     });
+  });
+});
+
+// ─── Layer 3: write-time invariant in buildTextAnnotation ───────────────
+//
+// The detection mocks here bypass the per-motivation parsers (which run
+// `reconcileSelector` internally) and feed Match objects straight to the
+// processor. That's exactly the path a bug or a future refactor that
+// dropped reconciliation would create — the invariant in
+// `buildTextAnnotation` must fail loudly in that case.
+
+describe('buildTextAnnotation invariant', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('throws when content.substring(start, end) !== exact', async () => {
+    // Highlight at offsets 0-9 but content there is "the quick" — mismatch.
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'important', start: 0, end: 9 },
+    ]);
+
+    await expect(
+      processHighlightJob(
+        'the quick brown fox',
+        makeInferenceClient(),
+        { resourceId: RID, density: 5 },
+        USER_DID,
+        GENERATOR,
+        vi.fn(),
+      ),
+    ).rejects.toThrow(/buildTextAnnotation invariant: content\.substring/);
+  });
+
+  it('throws when prefix does not align with content adjacent to start', async () => {
+    // exact aligns, but prefix is bogus.
+    const content = 'alpha BETA gamma';
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'BETA', start: 6, end: 10, prefix: 'WRONG PREFIX' },
+    ]);
+
+    await expect(
+      processHighlightJob(
+        content,
+        makeInferenceClient(),
+        { resourceId: RID, density: 5 },
+        USER_DID,
+        GENERATOR,
+        vi.fn(),
+      ),
+    ).rejects.toThrow(/buildTextAnnotation invariant: content prefix-slice/);
+  });
+
+  it('throws when suffix does not align with content adjacent to end', async () => {
+    const content = 'alpha BETA gamma';
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'BETA', start: 6, end: 10, suffix: 'WRONG SUFFIX' },
+    ]);
+
+    await expect(
+      processHighlightJob(
+        content,
+        makeInferenceClient(),
+        { resourceId: RID, density: 5 },
+        USER_DID,
+        GENERATOR,
+        vi.fn(),
+      ),
+    ).rejects.toThrow(/buildTextAnnotation invariant: content suffix-slice/);
+  });
+
+  it('error message names the resource id and motivation', async () => {
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'never appears', start: 0, end: 13 },
+    ]);
+
+    await expect(
+      processHighlightJob(
+        'short',
+        makeInferenceClient(),
+        { resourceId: RID, density: 5 },
+        USER_DID,
+        GENERATOR,
+        vi.fn(),
+      ),
+    ).rejects.toThrow(new RegExp(`resource ${RID}, motivation highlighting`));
+  });
+});
+
+// ─── Layer 2: end-to-end through the real parsers ───────────────────────
+//
+// Per-motivation integration tests that feed synthetic LLM JSON responses
+// with deliberately-bad offsets through the real
+// `MotivationParsers` / `extractEntities` / `reconcileSelector` chain
+// and assert the stored annotations satisfy the no-overlap invariant.
+// These tests do NOT mock `@semiont/core`, so `reconcileSelector` runs
+// for real against the test content.
+
+describe('Layer 2: worker-parser integration via real reconcileSelector', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('highlight: no offsets in LLM response, reconciler anchors via unique-match', async () => {
+    const content = 'preamble important text and more.';
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(async (text) => {
+      const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
+      const fake = JSON.stringify([{ exact: 'important' }]);
+      return MotivationParsers.parseHighlights(fake, text);
+    });
+
+    const result = await processHighlightJob(
+      content,
+      makeInferenceClient(),
+      { resourceId: RID, density: 5 },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+    );
+
+    expect(result.annotations).toHaveLength(1);
+    const ann = result.annotations[0] as any;
+    const posSel = ann.target.selector.find((s: any) => s.type === 'TextPositionSelector');
+    const quoteSel = ann.target.selector.find((s: any) => s.type === 'TextQuoteSelector');
+    expect(content.substring(posSel.start, posSel.end)).toBe(quoteSel.exact);
+  });
+
+  it('tag: overlapping LLM prefix is replaced with a source-extracted prefix', async () => {
+    // The motivating bug pattern — LLM emits a prefix that overlaps the
+    // start of exact. Reconciler must repair: anchor `exact` in the
+    // source, extract a fresh prefix that no longer overlaps.
+    const exact = 'The question for decision';
+    const content = `Kenison, C.J.\n${exact} by this appeal.`;
+    vi.mocked(AnnotationDetection.detectTags).mockImplementation(async (text) => {
+      const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
+      const fake = JSON.stringify([
+        {
+          exact,
+          prefix: 'Kenison, C.J.\nTh', // overlapping with start of exact
+          suffix: ' by this appeal.',
+        },
+      ]);
+      const parsed = MotivationParsers.parseTags(fake);
+      return MotivationParsers.validateTagOffsets(parsed, text, 'Issue');
+    });
+
+    const result = await processTagJob(
+      content,
+      makeInferenceClient(),
+      { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'] },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+    );
+
+    expect(result.annotations).toHaveLength(1);
+    const ann = result.annotations[0] as any;
+    const posSel = ann.target.selector.find((s: any) => s.type === 'TextPositionSelector');
+    const quoteSel = ann.target.selector.find((s: any) => s.type === 'TextQuoteSelector');
+    // Invariant: substring matches exact.
+    expect(content.substring(posSel.start, posSel.end)).toBe(quoteSel.exact);
+    // Returned prefix does not contain the overlapping "Th".
+    expect(quoteSel.prefix).not.toContain('Th');
+    // Stored start is at 14 (the true position), not 16.
+    expect(posSel.start).toBe(14);
+  });
+
+  it('reference: hallucinated exact is dropped and counted as an error', async () => {
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Alice', start: 0, end: 5, entityType: 'Person' } as any,
+      { exact: 'NoSuchPerson', start: 99, end: 111, entityType: 'Person' } as any,
+    ]);
+
+    const result = await processReferenceJob(
+      'Alice went to Paris.',
+      makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Person')] },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+      LOGGER,
+    );
+
+    expect(result.result).toEqual({ totalFound: 2, totalEmitted: 1, errors: 1 });
+    expect(result.annotations).toHaveLength(1);
+    const ann = result.annotations[0] as any;
+    const posSel = ann.target.selector.find((s: any) => s.type === 'TextPositionSelector');
+    const quoteSel = ann.target.selector.find((s: any) => s.type === 'TextQuoteSelector');
+    expect((ann.target.source as string)).toBe(RID);
+    expect(quoteSel.exact).toBe('Alice');
+    expect(posSel.start).toBe(0);
+    expect(posSel.end).toBe(5);
+  });
+
+  it('comment: multi-occurrence ambiguity with non-matching context falls back to first occurrence', async () => {
+    // Content has three occurrences of 'foo'. Without offsets the LLM
+    // can no longer hint; prefix/suffix that don't match anywhere yields
+    // first-of-many, which is the first occurrence.
+    const content = 'X foo Y foo Z foo W'; // foo at 2, 8, 14
+    vi.mocked(AnnotationDetection.detectComments).mockImplementation(async (text) => {
+      const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
+      const fake = JSON.stringify([
+        { exact: 'foo', prefix: 'IRRELEVANT_PREFIX', suffix: 'IRRELEVANT_SUFFIX', comment: 'one of them' },
+      ]);
+      return MotivationParsers.parseComments(fake, text);
+    });
+
+    const result = await processCommentJob(
+      content,
+      makeInferenceClient(),
+      { resourceId: RID, density: 3 },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+    );
+
+    expect(result.annotations).toHaveLength(1);
+    const ann = result.annotations[0] as any;
+    const posSel = ann.target.selector.find((s: any) => s.type === 'TextPositionSelector');
+    expect(posSel.start).toBe(2); // first occurrence
+    expect(content.substring(posSel.start, posSel.end)).toBe('foo');
+  });
+
+  it('comment: matching prefix disambiguates to the right occurrence', async () => {
+    const content = 'X foo Y foo Z foo W';
+    vi.mocked(AnnotationDetection.detectComments).mockImplementation(async (text) => {
+      const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
+      const fake = JSON.stringify([
+        { exact: 'foo', prefix: 'Y ', suffix: ' Z', comment: 'middle one' },
+      ]);
+      return MotivationParsers.parseComments(fake, text);
+    });
+
+    const result = await processCommentJob(
+      content,
+      makeInferenceClient(),
+      { resourceId: RID, density: 3 },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+    );
+
+    expect(result.annotations).toHaveLength(1);
+    const ann = result.annotations[0] as any;
+    const posSel = ann.target.selector.find((s: any) => s.type === 'TextPositionSelector');
+    expect(posSel.start).toBe(8); // middle occurrence, picked by prefix/suffix
+    expect(content.substring(posSel.start, posSel.end)).toBe('foo');
+  });
+});
+
+// ─── De-dupe: the collapse must not produce duplicate events ────────────
+//
+// Multiple LLM entries for a repeated phrase, reconciled independently,
+// can all land on the same span via reconcileSelector's first-of-many
+// fallback. dedupeAnnotations (applied identically in every processor)
+// collapses identical events (same motivation + span + body) to one,
+// while keeping same-span/different-body annotations distinct.
+
+describe('annotation de-duplication', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('reference: three entries collapsing onto the same span yield one annotation', async () => {
+    // 'Paris' appears once; three LLM entries with non-distinctive context
+    // all reconcile (first-of-many) to that single occurrence.
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Paris', entityType: 'Location' },
+      { exact: 'Paris', entityType: 'Location' },
+      { exact: 'Paris', entityType: 'Location' },
+    ] as any);
+
+    const result = await processReferenceJob(
+      'A trip to Paris.',
+      makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+      LOGGER,
+    );
+
+    expect(result.annotations).toHaveLength(1);
+    expect(result.result.totalEmitted).toBe(1);
+    expect(result.result.totalFound).toBe(3);
+  });
+
+  it('reference: same span but different entity types are kept (not duplicates)', async () => {
+    // 'Mercury' tagged as both a Planet and an Element on the same span —
+    // different bodies, so both survive.
+    vi.mocked(extractEntities)
+      .mockResolvedValueOnce([{ exact: 'Mercury', entityType: 'Planet' }] as any)
+      .mockResolvedValueOnce([{ exact: 'Mercury', entityType: 'Element' }] as any);
+
+    const result = await processReferenceJob(
+      'The metal Mercury is dense.',
+      makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Planet'), entityType('Element')] },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+      LOGGER,
+    );
+
+    expect(result.annotations).toHaveLength(2);
+    expect(result.result.totalEmitted).toBe(2);
+  });
+
+  it('highlight: duplicate identical highlights collapse to one', async () => {
+    const content = 'Only one phrase here to highlight.';
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'one phrase', start: 5, end: 15 },
+      { exact: 'one phrase', start: 5, end: 15 },
+    ]);
+
+    const result = await processHighlightJob(
+      content,
+      makeInferenceClient(),
+      { resourceId: RID, density: 5 },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+    );
+
+    expect(result.annotations).toHaveLength(1);
+    expect(result.result.highlightsCreated).toBe(1);
+    expect(result.result.highlightsFound).toBe(2);
+  });
+
+  it('tag: identical tags collapse and byCategory reflects the deduped count', async () => {
+    const content = 'Issue: the duty of care.';
+    vi.mocked(AnnotationDetection.detectTags).mockResolvedValue([
+      { exact: 'duty of care', start: 11, end: 23, category: 'Issue' },
+      { exact: 'duty of care', start: 11, end: 23, category: 'Issue' },
+    ]);
+
+    const result = await processTagJob(
+      content,
+      makeInferenceClient(),
+      { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'] },
+      USER_DID,
+      GENERATOR,
+      vi.fn(),
+    );
+
+    expect(result.annotations).toHaveLength(1);
+    expect(result.result.tagsCreated).toBe(1);
+    expect(result.result.byCategory).toEqual({ Issue: 1 });
   });
 });

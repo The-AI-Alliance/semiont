@@ -6,7 +6,7 @@ This document defines the fundamental axioms and correctness properties that gov
 
 ## Fundamental Axioms
 
-The annotation rendering system is built on nine fundamental axioms, verified through property-based testing:
+The annotation rendering system is built on ten fundamental axioms, verified through property-based and unit testing:
 
 ### 1. POSITION PRESERVATION
 
@@ -120,6 +120,21 @@ Markdown elements must render as their semantic HTML equivalents with proper sty
 **Dual-Mode Rendering:**
 - **AnnotateView (CodeMirror):** Shows source with syntax highlighting - perfect position mapping
 - **BrowseView (ReactMarkdown):** Shows rendered HTML - optimal reading experience
+
+### 10. VERBATIM RENDER-TIME ANCHORING
+
+The renderer trusts the stored selector and re-anchors only on a verbatim quote match. It never fuzzy-matches at render time.
+
+**Rationale:** The event log is the system of record. An annotation's `TextPositionSelector` and `TextQuoteSelector` are written to agree — `reconcileSelector` plus the `buildTextAnnotation` no-overlap invariant guarantee `content.substring(start, end) === exact` at write time. The only legitimate render-time discrepancy is *positional drift*: content shifted above the span after the annotation was written, so the offset is stale but the exact text still exists byte-identical. Re-anchoring to that verbatim match is the W3C-intended use of `TextQuoteSelector`, and is safe because it demands identical text — no judgment call.
+
+**What the renderer does** (`anchorAnnotation` in `@semiont/core`):
+- `fast-path` — the stored offset already lands on `exact`.
+- `unique-occurrence` / `context-disambiguated` / `position-tiebreaker` — `exact` is found verbatim; prefix/suffix and (for repeated text) position pick the occurrence.
+- `position-fallback` — `exact` is not found verbatim; render at the stored offset and flag low-confidence.
+
+**What it does not do:** fuzzy / normalized / Levenshtein recovery. A non-verbatim mismatch means the content representation diverged or the record is wrong — both upstream concerns, fixed at the source (canonical content, or re-running detection), not papered over at render. Fuzzy matching lives only at write time in `reconcileSelector`.
+
+**Affordance:** every anchor carries a `strategy` and `confidence`. Anything below `confidence: 'high'` gets the `.annotation-low-confidence` class (dotted underline), a hover tooltip naming the strategy, and a one-shot `console.warn`, so corpus-wide anchor drift surfaces instead of staying invisible.
 
 ## Property-Based Testing
 

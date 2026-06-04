@@ -1,6 +1,9 @@
 {
   "name": "@semiont/jobs",
   "version": "0.5.6",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "type": "module",
   "description": "Filesystem-based job queue and worker infrastructure",
   "main": "./dist/index.js",

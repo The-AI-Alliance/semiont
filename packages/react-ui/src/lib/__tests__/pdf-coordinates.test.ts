@@ -1,8 +1,9 @@
 /**
- * PDF Coordinate Utilities Tests
+ * PDF Canvas Coordinate Transform Tests
  *
- * Property-based tests for coordinate transformations between canvas and PDF space,
- * FragmentSelector creation/parsing, and mathematical invariants.
+ * Property-based tests for the canvas↔PDF coordinate transforms (Y-flip + scale).
+ * The viewrect FragmentSelector codec moved to @semiont/core; its tests live in
+ * packages/core/src/__tests__/pdf-coordinates.test.ts.
  *
  * AXIOMS FOR PDF COORDINATE TRANSFORMATIONS:
  *
@@ -17,9 +18,6 @@
  *
  * 4. Y-AXIS FLIP CONSISTENCY: Canvas (top-left origin) to PDF (bottom-left origin)
  *    transformations must be consistent and reversible
- *
- * 5. FRAGMENT SELECTOR COMPLIANCE: FragmentSelectors must conform to RFC 3778
- *    and round-trip through parse/create operations
  */
 
 import { describe, it, expect } from 'vitest';
@@ -27,12 +25,9 @@ import * as fc from 'fast-check';
 import {
   canvasToPdfCoordinates,
   pdfToCanvasCoordinates,
-  createFragmentSelector,
-  parseFragmentSelector,
-  getPageFromFragment,
-  type CanvasRectangle,
-  type PdfCoordinate
+  type CanvasRectangle
 } from '../pdf-coordinates';
+import type { PdfCoordinate } from '@semiont/core';
 
 describe('PDF Coordinate Transformations', () => {
   // AXIOM 1: Round-Trip Preservation
@@ -179,75 +174,6 @@ describe('PDF Coordinate Transformations', () => {
           const expectedCanvasY = pageHeight - y - height;
           expect(canvas.y).toBe(expectedCanvasY);
 
-          return true;
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  // AXIOM 5: Fragment Selector RFC 3778 Compliance
-  it('createFragmentSelector and parseFragmentSelector round-trip correctly', () => {
-    fc.assert(
-      fc.property(
-        fc.integer({ min: 1, max: 999 }),
-        fc.integer({ min: 0, max: 1000 }),
-        fc.integer({ min: 0, max: 1000 }),
-        fc.integer({ min: 0, max: 1000 }),
-        fc.integer({ min: 0, max: 1000 }),
-        (page, x, y, width, height) => {
-          const coord: PdfCoordinate = { page, x, y, width, height };
-          const fragment = createFragmentSelector(coord);
-          const parsed = parseFragmentSelector(fragment);
-
-          expect(parsed).toEqual(coord);
-          return true;
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  it('parseFragmentSelector returns null for invalid fragments', () => {
-    fc.assert(
-      fc.property(
-        fc.string(),
-        (randomString) => {
-          // Most random strings should not be valid RFC 3778 fragments
-          const parsed = parseFragmentSelector(randomString);
-
-          // If it parses successfully, verify it has valid structure
-          if (parsed !== null) {
-            expect(parsed).toHaveProperty('page');
-            expect(parsed).toHaveProperty('x');
-            expect(parsed).toHaveProperty('y');
-            expect(parsed).toHaveProperty('width');
-            expect(parsed).toHaveProperty('height');
-            expect(typeof parsed.page).toBe('number');
-            expect(parsed.page).toBeGreaterThan(0);
-          }
-
-          return true;
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  it('getPageFromFragment extracts page number correctly', () => {
-    fc.assert(
-      fc.property(
-        fc.integer({ min: 1, max: 999 }),
-        fc.integer({ min: 0, max: 1000 }),
-        fc.integer({ min: 0, max: 1000 }),
-        fc.integer({ min: 0, max: 1000 }),
-        fc.integer({ min: 0, max: 1000 }),
-        (page, x, y, width, height) => {
-          const coord: PdfCoordinate = { page, x, y, width, height };
-          const fragment = createFragmentSelector(coord);
-          const extractedPage = getPageFromFragment(fragment);
-
-          expect(extractedPage).toBe(page);
           return true;
         }
       ),

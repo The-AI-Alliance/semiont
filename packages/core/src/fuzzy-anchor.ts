@@ -65,19 +65,89 @@ function levenshteinDistance(str1: string, str2: string): number {
  * Pre-computed content strings for batch fuzzy matching.
  * Avoids recomputing normalizeText(content) and content.toLowerCase()
  * for every annotation when processing many annotations against the same content.
+ *
+ * `normalizedMap[i]` is the original-content index that normalized
+ * character `i` came from. It has length `normalizedContent.length + 1`;
+ * the final entry is `content.length` so a match that ends at the end of
+ * the normalized string maps back to the end of the original. This map is
+ * how `findBestTextMatch` recovers the *original* offset of a normalized
+ * match — counting char-by-char with `normalizeText(singleChar)` is
+ * wrong, because a lone whitespace char trims to `''` (contributing 0)
+ * while in a full-string normalize it collapses to a single space
+ * (contributing 1). That discrepancy shifted recovered offsets by the
+ * number of whitespace runs before the match.
  */
 export interface ContentCache {
   normalizedContent: string;
+  normalizedMap: number[];
   lowerContent: string;
 }
 
 /**
+ * Normalize text and, in the same pass, build a map from each normalized
+ * character position back to the original-content index it came from.
+ * The produced `normalized` string is identical to `normalizeText(input)`
+ * — a test pins this equivalence so the two can't drift.
+ */
+export function normalizeTextWithMap(input: string): { normalized: string; map: number[] } {
+  let normalized = '';
+  const map: number[] = [];
+
+  // First pass mirrors normalizeText exactly, char by char, recording the
+  // origin index for every emitted normalized character.
+  let pendingWhitespaceStart = -1; // origin index of an open whitespace run, or -1
+
+  const flushWhitespace = () => {
+    if (pendingWhitespaceStart !== -1) {
+      // A whitespace run collapses to a single space, mapped to the run's
+      // first char — but a *leading* run (nothing emitted yet) is dropped,
+      // matching normalizeText's trailing `.trim()`.
+      if (normalized.length > 0) {
+        normalized += ' ';
+        map.push(pendingWhitespaceStart);
+      }
+      pendingWhitespaceStart = -1;
+    }
+  };
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]!;
+    if (/\s/.test(ch)) {
+      if (pendingWhitespaceStart === -1) pendingWhitespaceStart = i;
+      continue;
+    }
+    flushWhitespace();
+    if (ch === '‘' || ch === '’') {
+      normalized += "'"; map.push(i);
+    } else if (ch === '“' || ch === '”') {
+      normalized += '"'; map.push(i);
+    } else if (ch === '—') {
+      normalized += '--'; map.push(i); map.push(i);
+    } else if (ch === '–') {
+      normalized += '-'; map.push(i);
+    } else {
+      normalized += ch; map.push(i);
+    }
+  }
+  // A trailing whitespace run is dropped by trim — do not flush it.
+
+  // `normalizeText` applies `.trim()` last. Our run logic already drops a
+  // trailing whitespace run; a leading run is dropped because flushWhitespace
+  // only runs before a non-space char, so a run at the very start is never
+  // emitted. Both ends match trim().
+  map.push(input.length); // sentinel: one past the last normalized char
+  return { normalized, map };
+}
+
+/**
  * Build a ContentCache for a given content string.
- * Call once per content, pass to findBestTextMatch/findTextWithContext for all annotations.
+ * Call once per content, pass to findBestTextMatch/anchorAnnotation for all annotations.
  */
 export function buildContentCache(content: string): ContentCache {
+  const { normalized, map } = normalizeTextWithMap(content);
   return {
-    normalizedContent: normalizeText(content),
+    normalizedContent: normalized,
+    normalizedMap: map,
     lowerContent: content.toLowerCase()
   };
 }
@@ -85,7 +155,8 @@ export function buildContentCache(content: string): ContentCache {
 /**
  * Find best match for text in content using multi-strategy search
  *
- * Shared core logic used by both findTextWithContext and validateAndCorrectOffsets.
+ * Shared core logic used by both anchorAnnotation (render-time) and
+ * reconcileSelector (write-time).
  *
  * @param content - Full text content to search within
  * @param searchText - The text to find
@@ -111,24 +182,20 @@ export function findBestTextMatch(
     };
   }
 
-  // Strategy 2: Normalized match (handles whitespace/quote variations)
+  // Strategy 2: Normalized match (handles whitespace/quote variations).
+  // Map the normalized match position back to the original via the
+  // precomputed index map. The naive char-by-char re-normalize is wrong:
+  // a lone whitespace char trims to '' (0-width) but collapses to a single
+  // space (1-width) in a full normalize, so it under-counts by the number
+  // of whitespace runs before the match, shifting the recovered offset.
   const normalizedSearch = normalizeText(searchText);
   const normalizedIndex = cache.normalizedContent.indexOf(normalizedSearch);
   if (normalizedIndex !== -1) {
-    // Find actual position in original content by counting characters
-    let actualPos = 0;
-    let normalizedPos = 0;
-    while (normalizedPos < normalizedIndex && actualPos < content.length) {
-      const char = content[actualPos]!;
-      const normalizedChar = normalizeText(char);
-      if (normalizedChar) {
-        normalizedPos += normalizedChar.length;
-      }
-      actualPos++;
-    }
+    const start = cache.normalizedMap[normalizedIndex] ?? 0;
+    const end = cache.normalizedMap[normalizedIndex + normalizedSearch.length] ?? content.length;
     return {
-      start: actualPos,
-      end: actualPos + searchText.length,
+      start,
+      end,
       matchQuality: 'normalized'
     };
   }
@@ -178,114 +245,6 @@ export function findBestTextMatch(
   }
 
   return null;
-}
-
-/**
- * Find text using exact match with optional prefix/suffix context
- *
- * When the exact text appears multiple times in the content, prefix and suffix
- * are used to disambiguate and find the correct occurrence.
- *
- * If exact text is not found, uses multi-strategy fuzzy matching (normalization,
- * case-insensitive, Levenshtein distance) to locate changed text.
- *
- * @param content - Full text content to search within
- * @param exact - The exact text to find
- * @param prefix - Optional text that should appear immediately before the match
- * @param suffix - Optional text that should appear immediately after the match
- * @param positionHint - Optional position hint (from TextPositionSelector) for fuzzy search
- * @returns Position of the matched text, or null if not found
- *
- * @example
- * ```typescript
- * const content = "The cat sat. The cat ran.";
- * // Find second "The cat" occurrence
- * const pos = findTextWithContext(content, "The cat", "sat. ", " ran");
- * // Returns { start: 13, end: 20 }
- * ```
- */
-export function findTextWithContext(
-  content: string,
-  exact: string,
-  prefix: string | undefined,
-  suffix: string | undefined,
-  positionHint: number | undefined,
-  cache: ContentCache
-): TextPosition | null {
-  if (!exact) return null;
-
-  // Fast path: if positionHint points directly at the exact text, return immediately
-  if (positionHint !== undefined && positionHint >= 0 && positionHint + exact.length <= content.length) {
-    if (content.substring(positionHint, positionHint + exact.length) === exact) {
-      return { start: positionHint, end: positionHint + exact.length };
-    }
-  }
-
-  // Find all occurrences of exact text
-  const occurrences: number[] = [];
-  let index = content.indexOf(exact);
-  while (index !== -1) {
-    occurrences.push(index);
-    index = content.indexOf(exact, index + 1);
-  }
-
-  // No exact matches found - try fuzzy matching
-  if (occurrences.length === 0) {
-    const fuzzyMatch = findBestTextMatch(content, exact, positionHint, cache);
-
-    if (fuzzyMatch) {
-      return { start: fuzzyMatch.start, end: fuzzyMatch.end };
-    }
-
-    return null;
-  }
-
-  // Only one match - no need for prefix/suffix disambiguation
-  if (occurrences.length === 1) {
-    const pos = occurrences[0]!; // Safe: length === 1 means first element exists
-    return { start: pos, end: pos + exact.length };
-  }
-
-  // Multiple matches - use prefix/suffix to disambiguate
-  if (prefix || suffix) {
-    for (const pos of occurrences) {
-      // Extract actual prefix from content
-      const actualPrefixStart = Math.max(0, pos - (prefix?.length || 0));
-      const actualPrefix = content.substring(actualPrefixStart, pos);
-
-      // Extract actual suffix from content
-      const actualSuffixEnd = Math.min(content.length, pos + exact.length + (suffix?.length || 0));
-      const actualSuffix = content.substring(pos + exact.length, actualSuffixEnd);
-
-      // Check if prefix matches
-      const prefixMatch = !prefix || actualPrefix.endsWith(prefix);
-
-      // Check if suffix matches
-      const suffixMatch = !suffix || actualSuffix.startsWith(suffix);
-
-      if (prefixMatch && suffixMatch) {
-        return { start: pos, end: pos + exact.length };
-      }
-    }
-
-    // No match with exact prefix/suffix - try partial prefix/suffix match
-    for (const pos of occurrences) {
-      const actualPrefix = content.substring(Math.max(0, pos - (prefix?.length || 0)), pos);
-      const actualSuffix = content.substring(pos + exact.length, pos + exact.length + (suffix?.length || 0));
-
-      // Fuzzy match: check if prefix/suffix are substrings (handles whitespace variations)
-      const fuzzyPrefixMatch = !prefix || actualPrefix.includes(prefix.trim());
-      const fuzzySuffixMatch = !suffix || actualSuffix.includes(suffix.trim());
-
-      if (fuzzyPrefixMatch && fuzzySuffixMatch) {
-        return { start: pos, end: pos + exact.length };
-      }
-    }
-  }
-
-  // Fallback: return first occurrence if no prefix/suffix or no match
-  const pos = occurrences[0]!; // Safe: we checked length > 0 earlier
-  return { start: pos, end: pos + exact.length };
 }
 
 /**

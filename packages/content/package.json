@@ -1,6 +1,9 @@
 {
   "name": "@semiont/content",
   "version": "0.5.6",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "type": "module",
   "description": "Content-addressed storage for resource representations",
   "main": "./dist/index.js",
@@ -24,10 +27,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/core": "*"
+    "@semiont/core": "*",
+    "pdfjs-dist": "^5.7.284"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
+    "pdf-lib": "^1.17.1",
     "rollup": "^4.60.3",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",

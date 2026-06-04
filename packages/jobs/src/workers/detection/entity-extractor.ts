@@ -2,21 +2,18 @@ import type { InferenceClient } from '@semiont/inference';
 import { getLocaleEnglishName, type Logger } from '@semiont/core';
 
 /**
- * Entity reference extracted from text.
+ * Entity reference extracted from text — pre-reconciliation.
  *
- * `start` / `end` follow the W3C Web Annotation Data Model
- * `TextPositionSelector` shape. The LLM-prompt wire format separately
- * uses `startOffset` / `endOffset` (more self-documenting in prose);
- * the parse step in `extractEntities` translates between the two so
- * the rest of the pipeline never touches the LLM-shaped names.
+ * The LLM emits `exact` (verbatim text span), `entityType`, and optional
+ * `prefix` / `suffix` context for disambiguation. Offsets are not asked
+ * for — `reconcileSelector` computes them by anchoring `exact` against
+ * the source content in the calling processor.
  */
 export interface ExtractedEntity {
-  exact: string;       // The actual text span
-  entityType: string;  // The detected entity type
-  start: number;       // Character offset where entity starts (W3C TextPositionSelector)
-  end: number;         // Character offset where entity ends   (W3C TextPositionSelector)
-  prefix?: string;     // Text immediately before entity (for disambiguation)
-  suffix?: string;     // Text immediately after entity (for disambiguation)
+  exact: string;
+  entityType: string;
+  prefix?: string;
+  suffix?: string;
 }
 
 /**
@@ -89,11 +86,10 @@ Find direct mentions only (names, proper nouns). Do not include pronouns or desc
     ? `\nSource text language: ${getLocaleEnglishName(sourceLanguage) || sourceLanguage}.\n`
     : '';
 
-  // The wire format used in the prompt (`startOffset` / `endOffset`) is
-  // intentionally more self-documenting than the internal `start` / `end`
-  // shape — it reads more naturally in LLM prose. The parse step below
-  // translates from prompt-shape to W3C-shape; the rest of the pipeline
-  // sees only the W3C-shape.
+  // The LLM is asked for `exact`, `prefix`, and `suffix` — no character
+  // offsets. Offsets get computed by `reconcileSelector` against the
+  // source content. Asking the model for offsets wastes tokens and
+  // encourages it to fabricate where it shouldn't.
   const prompt = `Identify entity references in the following text. Look for mentions of: ${entityTypesDescription}.
 ${descriptiveReferenceGuidance}${sourceLangGuidance}
 Text to analyze:
@@ -102,17 +98,15 @@ ${exact}
 """
 
 Respond with a JSON array of entities found. Each entity should have:
-- exact: the exact text span from the input
+- exact: the exact text span from the input (quoted verbatim — character-for-character)
 - entityType: one of the provided entity types
-- startOffset: character position where the entity starts (0-indexed)
-- endOffset: character position where the entity ends
-- prefix: up to 32 characters of text immediately before the entity (helps identify correct occurrence)
-- suffix: up to 32 characters of text immediately after the entity (helps identify correct occurrence)
+- prefix: up to 64 characters of text immediately before the entity (used to disambiguate when the same text appears more than once)
+- suffix: up to 64 characters of text immediately after the entity (same purpose)
 
 If no entities are found, respond with an empty array [].
 
 Example output:
-[{"exact":"Alice","entityType":"Person","startOffset":0,"endOffset":5,"prefix":"","suffix":" went to"},{"exact":"Paris","entityType":"Location","startOffset":20,"endOffset":25,"prefix":"went to ","suffix":" yesterday"}]`;
+[{"exact":"Alice","entityType":"Person","prefix":"","suffix":" went to"},{"exact":"Paris","entityType":"Location","prefix":"went to ","suffix":" yesterday"}]`;
 
   logger.debug('Sending entity extraction request', { entityTypes: entityTypesDescription });
   const response = await client.generateTextWithMetadata(
@@ -146,189 +140,23 @@ Example output:
       throw new Error(errorMsg);
     }
 
-    // Validate and fix offsets. The LLM produced `startOffset`/`endOffset`
-    // per the prompt; we read those and emit `start`/`end` on the typed
-    // result. After this map+filter, no `startOffset`/`endOffset` names
-    // remain in flight.
-    return entities.map((entity: any, idx: number) => {
-      let start = entity.startOffset;
-      let end = entity.endOffset;
-
-      logger.debug('Processing entity', {
-        index: idx + 1,
-        total: entities.length,
-        type: entity.entityType,
-        text: entity.exact,
-        offsetsFromAI: `[${start}:${end}]`
-      });
-
-      // Verify the LLM-provided offsets point at the text the LLM says they do.
-      //
-      // Re-anchoring classification:
-      //   'llm-exact'       — LLM offsets match `exact` on the first try (happy path)
-      //   'context-recovered' — mismatch recovered via prefix/suffix disambiguation
-      //   'unique-match'    — mismatch recovered by first-occurrence, but `exact`
-      //                       appears exactly once so there's no ambiguity
-      //   'first-of-many'   — mismatch fell back to first-occurrence while `exact`
-      //                       appears multiple times — the annotation *may* be
-      //                       anchored at the wrong occurrence
-      //   'dropped'         — `exact` doesn't appear anywhere; entity skipped
-      //
-      // Log severity is tuned so that normal operation is silent at info/warn
-      // level. Only 'first-of-many' warns (it's genuinely risky) and 'dropped'
-      // errors (the LLM emitted something that isn't in the text).
-      const extractedText = exact.substring(start, end);
-      let anchorMethod: 'llm-exact' | 'context-recovered' | 'unique-match' | 'first-of-many' | 'dropped';
-
-      if (extractedText === entity.exact) {
-        anchorMethod = 'llm-exact';
-        logger.debug('Entity anchored', {
-          text: entity.exact,
-          entityType: entity.entityType,
-          anchorMethod,
-        });
-      } else {
-        // LLM offsets are wrong — the text at [start, end] isn't what they said.
-        // Try to recover via prefix/suffix context, then by unique/first occurrence.
-        logger.debug('LLM offsets mismatch — attempting re-anchor', {
-          expected: entity.exact,
-          llmOffsets: `[${start}:${end}]`,
-          foundAtLlmOffsets: extractedText,
-        });
-
-        // Count total occurrences up front — needed for the 'unique-match' vs
-        // 'first-of-many' distinction below.
-        let occurrenceCount = 0;
-        let firstOccurrence = -1;
-        let searchPos = 0;
-        while ((searchPos = exact.indexOf(entity.exact, searchPos)) !== -1) {
-          if (firstOccurrence === -1) firstOccurrence = searchPos;
-          occurrenceCount++;
-          searchPos++;
+    return entities
+      .filter((e: any) => {
+        const ok =
+          e && typeof e === 'object' &&
+          typeof e.exact === 'string' &&
+          typeof e.entityType === 'string';
+        if (!ok) {
+          logger.debug('Dropped malformed LLM entity', { entity: e });
         }
-
-        if (occurrenceCount === 0) {
-          anchorMethod = 'dropped';
-          logger.error('Entity text not found in resource — dropping', {
-            text: entity.exact,
-            entityType: entity.entityType,
-            llmOffsets: `[${start}:${end}]`,
-            anchorMethod,
-            resourceStart: exact.substring(0, 200),
-          });
-          return null;
-        }
-
-        // Try prefix/suffix-guided re-anchoring if context was provided.
-        let recoveredOffset = -1;
-        if (entity.prefix || entity.suffix) {
-          let p = 0;
-          while ((p = exact.indexOf(entity.exact, p)) !== -1) {
-            const candidatePrefix = exact.substring(Math.max(0, p - 32), p);
-            const candidateSuffix = exact.substring(
-              p + entity.exact.length,
-              Math.min(exact.length, p + entity.exact.length + 32),
-            );
-            const prefixMatch = !entity.prefix || candidatePrefix.endsWith(entity.prefix);
-            const suffixMatch = !entity.suffix || candidateSuffix.startsWith(entity.suffix);
-            if (prefixMatch && suffixMatch) {
-              recoveredOffset = p;
-              break;
-            }
-            p++;
-          }
-        }
-
-        if (recoveredOffset !== -1) {
-          anchorMethod = 'context-recovered';
-          start = recoveredOffset;
-          end = recoveredOffset + entity.exact.length;
-          logger.debug('Entity anchored', {
-            text: entity.exact,
-            entityType: entity.entityType,
-            anchorMethod,
-            offsetDiff: recoveredOffset - entity.startOffset,
-          });
-        } else if (occurrenceCount === 1) {
-          anchorMethod = 'unique-match';
-          start = firstOccurrence;
-          end = firstOccurrence + entity.exact.length;
-          logger.debug('Entity anchored', {
-            text: entity.exact,
-            entityType: entity.entityType,
-            anchorMethod,
-            offsetDiff: firstOccurrence - entity.startOffset,
-          });
-        } else {
-          // Multiple candidates, no context to disambiguate — risky fallback.
-          // We still emit the annotation but flag it so operators can review.
-          anchorMethod = 'first-of-many';
-          start = firstOccurrence;
-          end = firstOccurrence + entity.exact.length;
-          logger.warn('Entity anchored at first of multiple occurrences — may be wrong', {
-            text: entity.exact,
-            entityType: entity.entityType,
-            anchorMethod,
-            occurrenceCount,
-            chosenOffset: firstOccurrence,
-            llmOffsets: `[${entity.startOffset}:${entity.endOffset}]`,
-            hasPrefix: !!entity.prefix,
-            hasSuffix: !!entity.suffix,
-          });
-        }
-      }
-
-      return {
+        return ok;
+      })
+      .map((entity: any): ExtractedEntity => ({
         exact: entity.exact,
         entityType: entity.entityType,
-        start,
-        end,
-        prefix: entity.prefix,
-        suffix: entity.suffix
-      };
-    }).filter((entity: ExtractedEntity | null): entity is ExtractedEntity => {
-      // Filter out nulls and ensure we have valid offsets
-      if (entity === null) {
-        logger.debug('Filtered entity: null');
-        return false;
-      }
-      if (entity.start === undefined || entity.end === undefined) {
-        logger.warn('Filtered entity: missing offsets', { text: entity.exact });
-        return false;
-      }
-      if (entity.start < 0) {
-        logger.warn('Filtered entity: negative start', {
-          text: entity.exact,
-          start: entity.start
-        });
-        return false;
-      }
-      if (entity.end > exact.length) {
-        logger.warn('Filtered entity: end exceeds text length', {
-          text: entity.exact,
-          end: entity.end,
-          textLength: exact.length
-        });
-        return false;
-      }
-
-      // Verify the text at the offsets matches
-      const extractedText = exact.substring(entity.start, entity.end);
-      if (extractedText !== entity.exact) {
-        logger.warn('Filtered entity: offset mismatch', {
-          expected: entity.exact,
-          got: extractedText,
-          offsets: `[${entity.start}:${entity.end}]`
-        });
-        return false;
-      }
-
-      logger.debug('Accepted entity', {
-        text: entity.exact,
-        offsets: `[${entity.start}:${entity.end}]`
-      });
-      return true;
-    });
+        ...(typeof entity.prefix === 'string' ? { prefix: entity.prefix } : {}),
+        ...(typeof entity.suffix === 'string' ? { suffix: entity.suffix } : {}),
+      }));
   } catch (error) {
     logger.error('Failed to parse entity extraction response', {
       error: error instanceof Error ? error.message : String(error)

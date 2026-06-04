@@ -132,7 +132,17 @@ test.describe('generate from unresolved reference', () => {
     // The gather step renders three options: "🔍 Search…", "✨ Generate…",
     // "✍️ Compose". Match by substring — the emoji prefix and ellipsis
     // suffix vary per locale.
-    await wizard.getByRole('button', { name: /generate/i }).click();
+    //
+    // These options only render once the backend `gather` flow returns a
+    // GatheredContext (GatherContextStep gates all three on `context`).
+    // Gather makes an LLM call (the inferred-relationship summary), so on a
+    // slow inference provider it can take well over the default 10s action
+    // timeout. Wait for the button explicitly with a gather-appropriate
+    // budget before clicking — otherwise the click races a still-loading
+    // gather and times out at 10s with the button absent.
+    const generateOption = wizard.getByRole('button', { name: /generate/i });
+    await expect(generateOption).toBeVisible({ timeout: 60_000 });
+    await generateOption.click();
 
     // ── Configure-generation step: fill required fields, submit ────────
     //

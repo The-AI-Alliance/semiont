@@ -57,7 +57,7 @@
     "podman:clean": "CONTAINER_RUNTIME=podman node scripts/container/container-utils.js clean"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=24.0.0",
     "npm": ">=9.0.0"
   },
   "overrides": {
@@ -83,10 +83,17 @@
   "optionalDependencies": {
     "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.9",
     "@rolldown/binding-linux-x64-musl": "1.0.0-rc.9",
-    "@rolldown/binding-linux-arm64-gnu": "1.0.0-rc.9",
+    "@rolldown/binding-linux-arm64-gnu": "1.0.2",
     "@rolldown/binding-linux-arm64-musl": "1.0.0-rc.9",
     "@rolldown/binding-darwin-arm64": "1.0.0-rc.13",
     "@rolldown/binding-darwin-x64": "1.0.0-rc.11",
-    "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.9"
+    "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.9",
+    "lightningcss-linux-x64-gnu": "1.32.0",
+    "lightningcss-linux-x64-musl": "1.32.0",
+    "lightningcss-linux-arm64-gnu": "1.32.0",
+    "lightningcss-linux-arm64-musl": "1.32.0",
+    "lightningcss-darwin-arm64": "1.32.0",
+    "lightningcss-darwin-x64": "1.32.0",
+    "lightningcss-win32-x64-msvc": "1.32.0"
   }
 }

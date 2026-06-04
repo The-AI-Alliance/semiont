@@ -1,6 +1,9 @@
 {
   "name": "@semiont/graph",
   "version": "0.5.6",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "type": "module",
   "description": "Graph database abstraction with Neo4j, Neptune, JanusGraph, and in-memory implementations",
   "main": "./dist/index.js",

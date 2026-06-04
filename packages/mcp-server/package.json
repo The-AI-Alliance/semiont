@@ -1,6 +1,9 @@
 {
   "name": "@semiont/mcp-server",
   "version": "0.5.6",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "description": "MCP server for Semiont API",
   "type": "module",
   "main": "dist/index.js",

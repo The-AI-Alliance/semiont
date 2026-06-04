@@ -11,7 +11,7 @@ on:
     - cron: '0 6 * * *'
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
   # WCAG 2.1 AA compliance target
   LIGHTHOUSE_ACCESSIBILITY_THRESHOLD: 90
 
