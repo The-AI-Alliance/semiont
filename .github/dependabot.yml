@@ -42,6 +42,14 @@ updates:
           - "@tailwindcss/*"
           - "lightningcss"
           - "lightningcss-*"
+      # AWS SDK clients are released in lockstep on a single version line
+      aws-sdk:
+        patterns:
+          - "@aws-sdk/*"
+      # @opentelemetry packages share a version line and root package.json overrides
+      opentelemetry:
+        patterns:
+          - "@opentelemetry/*"
 
   # E2E test suite — tests/ is NOT in the root workspaces[], so "/" does not reach it;
   # it needs its own entry.

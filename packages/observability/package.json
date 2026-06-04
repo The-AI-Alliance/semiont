@@ -59,11 +59,10 @@
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.8"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "@semiont/core": "*",
     "@opentelemetry/context-async-hooks": "^2.7.0",
     "@opentelemetry/core": "^2.7.0",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.215.0",
@@ -73,6 +72,7 @@
     "@opentelemetry/sdk-trace-base": "^2.7.0",
     "@opentelemetry/sdk-trace-web": "^2.7.0",
     "@opentelemetry/semantic-conventions": "^1.40.0",
+    "@semiont/core": "*",
     "winston": "^3.17.0"
   }
 }
