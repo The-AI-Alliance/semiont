@@ -1,11 +1,21 @@
 /**
- * Text context extraction utilities for W3C Web Annotation TextQuoteSelector
+ * Selector reconciliation for write-time annotation construction.
  *
- * Provides robust prefix/suffix context extraction with word boundary detection
- * to ensure fuzzy anchoring works correctly when the same text appears multiple times.
+ * LLM-produced text offsets are guides, not authoritative anchors.
+ * `reconcileSelector` takes whatever the LLM emitted and produces a
+ * `TextQuoteSelector`-equivalent `start`/`end`/`exact`/`prefix`/`suffix`
+ * that is provably consistent with the source content:
  *
- * Also provides AI offset validation and correction for handling AI-generated annotations
- * where the model may return slightly incorrect character offsets.
+ *   - `content.substring(start, end) === exact`
+ *   - `content.substring(start - prefix.length, start) === prefix`
+ *   - `content.substring(end, end + suffix.length) === suffix`
+ *
+ * No caller spreads LLM-emitted prefix/suffix into the stored selector.
+ * The shared helper extracts both from source at the corrected position,
+ * so the no-overlap invariant holds by construction.
+ *
+ * Returns `null` when the LLM emitted text that doesn't appear in the
+ * source. Callers filter; the helper doesn't decide for them.
  *
  * @see https://www.w3.org/TR/annotation-model/#text-quote-selector
  */
@@ -13,175 +23,203 @@
 import { findBestTextMatch, buildContentCache, type MatchQuality } from './fuzzy-anchor';
 
 /**
- * Extract prefix and suffix context for TextQuoteSelector
+ * How the reconciliation arrived at the chosen offset. Carried into the
+ * worker log so operators can audit ambiguous matches; the
+ * `first-of-many` flag, in particular, is the signal that an annotation
+ * *may* be anchored at the wrong occurrence and warrants review.
+ */
+export type AnchorMethod =
+  /** Exact text appears once in the source — anchored unambiguously. */
+  | 'unique-match'
+  /** Multiple occurrences; LLM-emitted prefix/suffix picked one. */
+  | 'context-recovered'
+  /** Exact text not found verbatim; fuzzy match recovered it. */
+  | 'fuzzy-match'
+  /** Multiple occurrences, no context disambiguated — risky fallback. */
+  | 'first-of-many';
+
+export interface ReconciledSelector {
+  start: number;
+  end: number;
+  /** Always a substring of the source content — never the LLM's emission. */
+  exact: string;
+  /** Extracted from source via extractContext — never the LLM's emission. */
+  prefix?: string;
+  /** Extracted from source via extractContext — never the LLM's emission. */
+  suffix?: string;
+  anchorMethod: AnchorMethod;
+  /** Present when the fuzzy fallback recovered the match, naming how. */
+  matchQuality?: MatchQuality;
+}
+
+export interface LlmSelectorInput {
+  exact: string;
+  /** LLM-emitted context for disambiguation only — not for storage. */
+  prefix?: string;
+  /** LLM-emitted context for disambiguation only — not for storage. */
+  suffix?: string;
+}
+
+const CONTEXT_LENGTH = 64;
+const MAX_EXTENSION = 32;
+// Minimum window of source text compared against an LLM-emitted prefix/suffix
+// when disambiguating multiple occurrences. The actual window grows to the
+// length of the LLM's prefix/suffix when that's longer — the prompts invite
+// up to 64 chars, and a fixed 32-char window can't `endsWith`/`includes` a
+// 64-char string, which would silently defeat disambiguation for exactly the
+// long, distinctive contexts that disambiguate best.
+const DISAMBIGUATION_MIN_WINDOW = 32;
+
+/**
+ * Extract prefix and suffix context for a `TextQuoteSelector` from
+ * source content. Used internally by `reconcileSelector` after offsets
+ * are reconciled, and exported for callers (e.g. UI-side selection
+ * capture) that need the same extraction semantics.
  *
  * Extracts up to 64 characters before and after the selected text,
- * extending to word boundaries to avoid cutting words in half.
- * This ensures prefix/suffix are meaningful context for fuzzy anchoring.
- *
- * @param content - Full text content
- * @param start - Start offset of selection
- * @param end - End offset of selection
- * @returns Object with prefix and suffix (undefined if at boundaries)
- *
- * @example
- * ```typescript
- * const content = "The United States Congress...";
- * const context = extractContext(content, 4, 17); // "United States"
- * // Returns: { prefix: "The ", suffix: " Congress..." }
- * // NOT: { prefix: "nited ", suffix: "gress..." }
- * ```
+ * extending up to 32 additional chars to reach a word boundary so the
+ * prefix/suffix is meaningful context rather than mid-word fragments.
  */
 export function extractContext(
   content: string,
   start: number,
-  end: number
+  end: number,
 ): { prefix?: string; suffix?: string } {
-  const CONTEXT_LENGTH = 64;
-  const MAX_EXTENSION = 32; // Maximum additional chars to extend for word boundary
+  const result: { prefix?: string; suffix?: string } = {};
 
-  // Extract prefix (up to CONTEXT_LENGTH chars before start, extended to word boundary)
-  let prefix: string | undefined;
   if (start > 0) {
     let prefixStart = Math.max(0, start - CONTEXT_LENGTH);
-
-    // Extend backward to word boundary (whitespace or punctuation)
-    // Stop if we hit start of content or exceed MAX_EXTENSION
     let extensionCount = 0;
     while (prefixStart > 0 && extensionCount < MAX_EXTENSION) {
       const char = content[prefixStart - 1];
-      // Break on whitespace, punctuation, or common delimiters
-      if (!char || /[\s.,;:!?'"()\[\]{}<>\/\\]/.test(char)) {
-        break;
-      }
+      if (!char || /[\s.,;:!?'"()\[\]{}<>\/\\]/.test(char)) break;
       prefixStart--;
       extensionCount++;
     }
-
-    prefix = content.substring(prefixStart, start);
+    result.prefix = content.substring(prefixStart, start);
   }
 
-  // Extract suffix (up to CONTEXT_LENGTH chars after end, extended to word boundary)
-  let suffix: string | undefined;
   if (end < content.length) {
     let suffixEnd = Math.min(content.length, end + CONTEXT_LENGTH);
-
-    // Extend forward to word boundary (whitespace or punctuation)
-    // Stop if we hit end of content or exceed MAX_EXTENSION
     let extensionCount = 0;
     while (suffixEnd < content.length && extensionCount < MAX_EXTENSION) {
       const char = content[suffixEnd];
-      // Break on whitespace, punctuation, or common delimiters
-      if (!char || /[\s.,;:!?'"()\[\]{}<>\/\\]/.test(char)) {
-        break;
-      }
+      if (!char || /[\s.,;:!?'"()\[\]{}<>\/\\]/.test(char)) break;
       suffixEnd++;
       extensionCount++;
     }
-
-    suffix = content.substring(end, suffixEnd);
+    result.suffix = content.substring(end, suffixEnd);
   }
 
-  return { prefix, suffix };
+  return result;
 }
 
 /**
- * Result of validating and correcting AI-provided annotation offsets
+ * Reconcile LLM-emitted offsets against the source. Returns a selector
+ * whose `start`/`end` are verified to bracket `exact` in `content`, and
+ * whose `prefix`/`suffix` are extracted from source — never carried
+ * verbatim from the LLM.
+ *
+ * Returns `null` if `exact` cannot be found anywhere in the content,
+ * even via fuzzy match. Callers filter null and log the drop.
  */
-export interface ValidatedAnnotation {
-  start: number;
-  end: number;
-  exact: string;
-  prefix?: string;
-  suffix?: string;
-  corrected: boolean; // True if offsets were adjusted from AI's original values
-  fuzzyMatched?: boolean; // True if we had to use fuzzy matching (minor text differences)
-  matchQuality?: MatchQuality; // How we found the match
-}
-
-
-/**
- * Validate and correct AI-provided annotation offsets with fuzzy matching tolerance
- *
- * AI models sometimes return offsets that don't match the actual text position,
- * or provide text with minor variations (case differences, whitespace, typos).
- *
- * This function uses a multi-strategy approach:
- * 1. Check if AI's offsets are exactly correct
- * 2. Try exact case-sensitive search
- * 3. Try case-insensitive search
- * 4. Try fuzzy matching with Levenshtein distance (5% tolerance)
- *
- * This ensures we're maximally tolerant of AI errors while still maintaining
- * annotation quality and logging what corrections were made.
- *
- * @param content - Full text content
- * @param aiStart - Start offset from AI
- * @param aiEnd - End offset from AI
- * @param exact - The exact text that should be at this position (from AI)
- * @returns Validated annotation with corrected offsets and context
- * @throws Error if no acceptable match can be found
- *
- * @example
- * ```typescript
- * // AI said start=1143, but actual text is at 1161
- * const result = validateAndCorrectOffsets(
- *   content,
- *   1143,
- *   1289,
- *   "the question \"whether..."
- * );
- * // Returns: { start: 1161, end: 1303, exact: "...", corrected: true, matchQuality: 'exact', ... }
- * ```
- */
-export function validateAndCorrectOffsets(
+export function reconcileSelector(
   content: string,
-  aiStart: number,
-  aiEnd: number,
-  exact: string
-): ValidatedAnnotation {
-  // First, check if AI's offsets are correct
-  const textAtOffset = content.substring(aiStart, aiEnd);
+  llm: LlmSelectorInput,
+): ReconciledSelector | null {
+  const { exact, prefix: llmPrefix, suffix: llmSuffix } = llm;
+  if (!exact) return null;
 
-  if (textAtOffset === exact) {
-    // AI got it right! Just add proper context
-    const context = extractContext(content, aiStart, aiEnd);
+  // Find all verbatim occurrences.
+  const occurrences: number[] = [];
+  let i = content.indexOf(exact);
+  while (i !== -1) {
+    occurrences.push(i);
+    i = content.indexOf(exact, i + 1);
+  }
+
+  if (occurrences.length === 1) {
+    const start = occurrences[0]!;
+    const end = start + exact.length;
+    const ctx = extractContext(content, start, end);
     return {
-      start: aiStart,
-      end: aiEnd,
+      start,
+      end,
       exact,
-      prefix: context.prefix,
-      suffix: context.suffix,
-      corrected: false,
-      matchQuality: 'exact'
+      ...(ctx.prefix !== undefined ? { prefix: ctx.prefix } : {}),
+      ...(ctx.suffix !== undefined ? { suffix: ctx.suffix } : {}),
+      anchorMethod: 'unique-match',
     };
   }
 
-  // AI's offsets are wrong - try to find the text using multiple strategies
-  const cache = buildContentCache(content);
-  const match = findBestTextMatch(content, exact, aiStart, cache);
+  if (occurrences.length > 1) {
+    // Disambiguate via LLM-emitted prefix/suffix when present. Size the
+    // comparison window to the LLM's prefix/suffix (with a floor), so a
+    // 64-char prefix is matched against ≥64 chars of source — a fixed
+    // smaller window can't `endsWith`/`includes` a longer LLM string.
+    if (llmPrefix || llmSuffix) {
+      const prefixWindow = Math.max(DISAMBIGUATION_MIN_WINDOW, llmPrefix?.length ?? 0);
+      const suffixWindow = Math.max(DISAMBIGUATION_MIN_WINDOW, llmSuffix?.length ?? 0);
+      for (const pos of occurrences) {
+        const candPrefix = content.substring(Math.max(0, pos - prefixWindow), pos);
+        const candSuffix = content.substring(
+          pos + exact.length,
+          Math.min(content.length, pos + exact.length + suffixWindow),
+        );
+        const prefixOk = !llmPrefix || candPrefix.endsWith(llmPrefix) || candPrefix.includes(llmPrefix.trim());
+        const suffixOk = !llmSuffix || candSuffix.startsWith(llmSuffix) || candSuffix.includes(llmSuffix.trim());
+        if (prefixOk && suffixOk) {
+          const start = pos;
+          const end = start + exact.length;
+          const ctx = extractContext(content, start, end);
+          return {
+            start,
+            end,
+            exact,
+            ...(ctx.prefix !== undefined ? { prefix: ctx.prefix } : {}),
+            ...(ctx.suffix !== undefined ? { suffix: ctx.suffix } : {}),
+            anchorMethod: 'context-recovered',
+          };
+        }
+      }
+    }
 
-  if (!match) {
-    throw new Error(
-      'Cannot find acceptable match for text in content. ' +
-      'All search strategies failed. Text may be hallucinated.'
-    );
+    // No context match. Fall back to the first occurrence and flag for
+    // audit. Without an LLM-emitted locality hint there's no better
+    // signal at this stage; `first-of-many` callers should log loudly so
+    // operators can correct misanchored annotations.
+    const start = occurrences[0]!;
+    const end = start + exact.length;
+    const ctx = extractContext(content, start, end);
+    return {
+      start,
+      end,
+      exact,
+      ...(ctx.prefix !== undefined ? { prefix: ctx.prefix } : {}),
+      ...(ctx.suffix !== undefined ? { suffix: ctx.suffix } : {}),
+      anchorMethod: 'first-of-many',
+    };
   }
 
-  // Found a match! Extract the actual text from content
-  const actualText = content.substring(match.start, match.end);
+  // No verbatim occurrences. Try fuzzy match (case-insensitive,
+  // whitespace-normalized, Levenshtein with 5% tolerance). No position
+  // hint to bias the search — fuzzy match scans content globally.
+  const cache = buildContentCache(content);
+  const fuzzy = findBestTextMatch(content, exact, undefined, cache);
+  if (!fuzzy) return null;
 
-  // Extract context using corrected offsets
-  const context = extractContext(content, match.start, match.end);
-
+  const actual = content.substring(fuzzy.start, fuzzy.end);
+  const ctx = extractContext(content, fuzzy.start, fuzzy.end);
   return {
-    start: match.start,
-    end: match.end,
-    exact: actualText, // Use actual text from document, not AI's version
-    prefix: context.prefix,
-    suffix: context.suffix,
-    corrected: true,
-    fuzzyMatched: match.matchQuality !== 'exact',
-    matchQuality: match.matchQuality
+    start: fuzzy.start,
+    end: fuzzy.end,
+    // Use the actual source text, not the LLM's version — the LLM may
+    // have emitted slightly different characters (smart vs straight
+    // quotes, etc.) and we store what's verifiable.
+    exact: actual,
+    ...(ctx.prefix !== undefined ? { prefix: ctx.prefix } : {}),
+    ...(ctx.suffix !== undefined ? { suffix: ctx.suffix } : {}),
+    anchorMethod: 'fuzzy-match',
+    matchQuality: fuzzy.matchQuality,
   };
 }

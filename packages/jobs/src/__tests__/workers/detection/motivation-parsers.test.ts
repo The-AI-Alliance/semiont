@@ -5,31 +5,13 @@
  * for different annotation motivations.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { MotivationParsers, extractObjectsFromArray } from '../../../workers/detection/motivation-parsers';
 
-// Mock validateAndCorrectOffsets
-vi.mock('@semiont/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/core')>();
-  return {
-    ...actual,
-  validateAndCorrectOffsets: vi.fn((content: string, start: number, end: number, exact: string) => {
-    // Simple validation: check if the text at offsets matches exact
-    const extracted = content.substring(start, end);
-    if (extracted === exact) {
-      return {
-        start,
-        end,
-        exact,
-        prefix: content.substring(Math.max(0, start - 10), start),
-        suffix: content.substring(end, Math.min(content.length, end + 10))
-      };
-    }
-    // If mismatch, throw to simulate validation failure
-    throw new Error(`Text mismatch: expected "${exact}", got "${extracted}"`);
-  })
-  };
-});
+// No `@semiont/core` mock — the real `reconcileSelector` runs against the
+// synthetic test content. Tests that exercise hallucinated text (offsets
+// pointing at words that don't exist in `testContent`) rely on the real
+// reconciler dropping them.
 
 describe('MotivationParsers', () => {
   const testContent = 'Alice went to Paris. Bob stayed home.';
@@ -72,18 +54,17 @@ describe('MotivationParsers', () => {
       expect(result[0].exact).toBe('Paris');
     });
 
-    it('should filter out invalid comments', () => {
+    it('drops comments whose exact does not appear in the source', () => {
+      // testContent = 'Alice went to Paris. Bob stayed home.'
+      // The second item's exact has no plausible anchor — too dissimilar
+      // for fuzzy match — so reconcileSelector returns null.
       const response = JSON.stringify([
         {
           exact: 'Alice',
-          start: 0,
-          end: 5,
           comment: 'Valid comment'
         },
         {
-          exact: 'Invalid',
-          start: 999, // Invalid offset
-          end: 1005,
+          exact: 'XYZNOTPRESENTANYWHEREZYX',
           comment: 'This will be filtered'
         }
       ]);
@@ -91,7 +72,7 @@ describe('MotivationParsers', () => {
       const result = MotivationParsers.parseComments(response, testContent);
 
       expect(result).toHaveLength(1);
-      expect(result[0].exact).toBe('Alice');
+      expect(result[0]!.exact).toBe('Alice');
     });
 
     it('should filter out comments with empty comment text', () => {
@@ -161,22 +142,14 @@ describe('MotivationParsers', () => {
 
     it('should filter out invalid highlights', () => {
       const response = JSON.stringify([
-        {
-          exact: 'Alice',
-          start: 0,
-          end: 5
-        },
-        {
-          exact: 'Nonexistent',
-          start: 999,
-          end: 1010
-        }
+        { exact: 'Alice' },
+        { exact: 'XYZNOTPRESENTANYWHEREZYX' },
       ]);
 
       const result = MotivationParsers.parseHighlights(response, testContent);
 
       expect(result).toHaveLength(1);
-      expect(result[0].exact).toBe('Alice');
+      expect(result[0]!.exact).toBe('Alice');
     });
 
     it('should handle malformed JSON gracefully', () => {
@@ -224,26 +197,16 @@ describe('MotivationParsers', () => {
       expect(result[0].exact).toBe('Paris');
     });
 
-    it('should filter out invalid assessments', () => {
+    it('drops assessments whose exact does not appear in the source', () => {
       const response = JSON.stringify([
-        {
-          exact: 'Bob',
-          start: 21,
-          end: 24,
-          assessment: 'Valid'
-        },
-        {
-          exact: 'Invalid',
-          start: 999,
-          end: 1005,
-          assessment: 'Will be filtered'
-        }
+        { exact: 'Bob', assessment: 'Valid' },
+        { exact: 'XYZNOTPRESENTANYWHEREZYX', assessment: 'Will be filtered' },
       ]);
 
       const result = MotivationParsers.parseAssessments(response, testContent);
 
       expect(result).toHaveLength(1);
-      expect(result[0].exact).toBe('Bob');
+      expect(result[0]!.exact).toBe('Bob');
     });
 
     it('should handle malformed JSON gracefully', () => {
@@ -366,29 +329,24 @@ describe('MotivationParsers', () => {
         end: 5,
         category: 'Issue'
       });
-      expect(result[0]).toHaveProperty('prefix');
-      expect(result[0]).toHaveProperty('suffix');
+      // 'Alice' is at the start of content — no prefix is correct.
+      // Suffix is present and aligns with what follows.
+      expect(result[0]!.prefix).toBeUndefined();
+      expect(result[0]!.suffix).toBeDefined();
+      expect(testContent.substring(result[0]!.end, result[0]!.end + result[0]!.suffix!.length)).toBe(result[0]!.suffix);
     });
 
     it('should filter out tags with invalid offsets', () => {
       const tags = [
-        {
-          exact: 'Alice',
-          start: 0,
-          end: 5
-        },
-        {
-          exact: 'Invalid',
-          start: 999,
-          end: 1005
-        }
+        { exact: 'Alice' },
+        { exact: 'XYZNOTPRESENTANYWHEREZYX' },
       ];
 
       const result = MotivationParsers.validateTagOffsets(tags, testContent, 'Rule');
 
       expect(result).toHaveLength(1);
-      expect(result[0].exact).toBe('Alice');
-      expect(result[0].category).toBe('Rule');
+      expect(result[0]!.exact).toBe('Alice');
+      expect(result[0]!.category).toBe('Rule');
     });
 
     it('should handle empty tag array', () => {

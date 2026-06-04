@@ -7,13 +7,20 @@
 
 import { ANNOTATORS } from './annotation-registry';
 import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/core';
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnchorStrategy, AnchorConfidence } from '@semiont/core';
 
 export interface TextSegment {
   exact: string;
   annotation?: Annotation;
   start: number;
   end: number;
+  /** How `segmentTextWithAnnotations` resolved the anchor. Present only on
+   *  annotated segments — background text has no strategy. */
+  strategy?: AnchorStrategy;
+  /** Confidence of the anchor classification. `'high'` is the no-ambiguity
+   *  path; `'medium'` / `'low'` warrant the visual affordance and a one-
+   *  shot warning log. */
+  confidence?: AnchorConfidence;
 }
 
 /**
@@ -93,6 +100,10 @@ export interface AnnotationDecorationMeta {
   annotationType: string;
   annotationId: string;
   tooltip: string;
+  /** Carries through from the segment's anchor classification so the
+   *  rendered DOM can surface a low-confidence affordance. */
+  strategy?: AnchorStrategy;
+  confidence?: AnchorConfidence;
 }
 
 /**
@@ -101,10 +112,15 @@ export interface AnnotationDecorationMeta {
  */
 export function getAnnotationDecorationMeta(
   annotation: Annotation,
-  isNew: boolean
+  isNew: boolean,
+  segment?: { strategy?: AnchorStrategy; confidence?: AnchorConfidence }
 ): AnnotationDecorationMeta {
   const baseClassName = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation))?.className || 'annotation-highlight';
-  const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
+  // Mark low-confidence anchors with an extra class so CSS can render the
+  // dotted-underline / translucent affordance from the design plan.
+  const lowConfidenceClass =
+    segment?.confidence && segment.confidence !== 'high' ? ' annotation-low-confidence' : '';
+  const className = `${baseClassName}${isNew ? ' annotation-sparkle' : ''}${lowConfidenceClass}`;
 
   const isHighlightAnn = isHighlight(annotation);
   const isReferenceAnn = isReference(annotation);
@@ -119,11 +135,21 @@ export function getAnnotationDecorationMeta(
   else if (isTagAnn) annotationType = 'tag';
   else if (isHighlightAnn) annotationType = 'highlight';
 
+  const baseTooltip = getAnnotationTooltip(annotation);
+  // When the anchor is degraded, the tooltip names the strategy so an
+  // operator hovering can see why the highlight has the warning style.
+  const tooltip =
+    segment?.strategy && segment.strategy !== 'fast-path' && segment.strategy !== 'unique-occurrence'
+      ? `${baseTooltip} (anchored: ${segment.strategy})`
+      : baseTooltip;
+
   return {
     className,
     annotationType,
     annotationId: annotation.id,
-    tooltip: getAnnotationTooltip(annotation),
+    tooltip,
+    ...(segment?.strategy !== undefined ? { strategy: segment.strategy } : {}),
+    ...(segment?.confidence !== undefined ? { confidence: segment.confidence } : {}),
   };
 }
 
@@ -144,7 +170,10 @@ export function computeAnnotationDecorations(
       return {
         start: segment.start,
         end: segment.end,
-        meta: getAnnotationDecorationMeta(annotation, isNew),
+        meta: getAnnotationDecorationMeta(annotation, isNew, {
+          ...(segment.strategy !== undefined ? { strategy: segment.strategy } : {}),
+          ...(segment.confidence !== undefined ? { confidence: segment.confidence } : {}),
+        }),
       };
     });
 }

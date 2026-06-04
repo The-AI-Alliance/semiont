@@ -57,9 +57,9 @@ ResourceViewer
 - Manages text selection for annotation creation using CodeMirror's `posAtDOM()` API
 - Emits `mark:requested` events with dual selectors (`TextPositionSelector` + `TextQuoteSelector`)
 - Subscribes to toolbar events and hover events via `useEventSubscriptions`
-- Pre-computes text segments with fuzzy anchoring via `segmentTextWithAnnotations()`
+- Pre-computes text segments via `segmentTextWithAnnotations()` (render-time anchoring)
 
-**Fuzzy Anchoring**: Uses `findTextWithContext()` from `@semiont/api-client` with `ContentCache` for efficient batch processing. Falls back through: position hint → exact match → normalized match → case-insensitive → fuzzy.
+**Render-Time Anchoring**: `segmentTextWithAnnotations()` calls `anchorAnnotation()` from `@semiont/core`. Anchoring is **verbatim-only**: a `fast-path` when the stored offset already lands on the quote, otherwise an exact `indexOf(exact)` search disambiguated by prefix/suffix and (for repeated text) by position. When `exact` is not found verbatim, the renderer keeps the stored offset and flags the anchor low-confidence — it does **not** fuzzy-match. The fallback chain (normalized → case-insensitive → Levenshtein) lives at *write* time in `reconcileSelector`, which produces records whose two selectors already agree.
 
 ### BrowseView
 
@@ -104,7 +104,7 @@ Used by **AnnotateView only**. Renders source markdown with CodeMirror 6.
 
 ```text
 content + annotations
-→ segmentTextWithAnnotations() (fuzzy anchoring with ContentCache)
+→ segmentTextWithAnnotations() (verbatim render-time anchoring)
 → CodeMirrorRenderer
 → convertSegmentPositions() (CRLF → LF binary search)
 → StateField with incremental decoration updates
@@ -167,8 +167,7 @@ CodeMirror normalizes all line endings to LF. `convertSegmentPositions()` adjust
 ## Performance
 
 - **Incremental decorations**: View created once, decorations updated via transactions
-- **ContentCache**: `normalizeText()` and `toLowerCase()` computed once per document, shared across all annotations
-- **Position-hint fast path**: `findTextWithContext()` short-circuits in O(1) when `TextPositionSelector.start` points directly at the exact text
+- **Position-hint fast path**: `anchorAnnotation()` short-circuits when the stored `TextPositionSelector.start` already points at the exact quote text
 - **Binary search CRLF conversion**: O(log n) per segment instead of O(n)
 - **Annotation ID index**: O(1) click lookups via `Map<string, TextSegment>`
 - **Event delegation**: Container-level listeners instead of per-annotation/per-widget handlers
@@ -178,9 +177,11 @@ CodeMirror normalizes all line endings to LF. `convertSegmentPositions()` adjust
 
 - Property-based tests verifying rendering axioms (see [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md))
 - `CodeMirrorRenderer.test.tsx` — CRLF position conversion, segment building
+- `anchor-annotation.test.ts` — render-time anchoring strategies/confidence (verbatim-only)
+- `text-segmentation.test.ts` — strategy/confidence threading and the low-confidence affordance
 - `annotation-overlay.test.ts` — source→rendered mapping, overlay application, hover/click behavior
 - `BrowseView.test.tsx` — event delegation, annotation rendering, MIME routing
-- `fuzzy-anchor.test.ts` — text matching, position hints, normalization
+- `fuzzy-anchor.test.ts` — write-time fuzzy matching used by `reconcileSelector` (normalized/case-insensitive/Levenshtein)
 
 ## Related Documentation
 
