@@ -1,6 +1,9 @@
 {
   "name": "@semiont/react-ui",
   "version": "0.5.6",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "description": "React components and hooks for Semiont",
   "type": "module",
   "main": "./dist/index.js",
@@ -74,8 +77,8 @@
     "test:split:coverage": "npm run test:coverage"
   },
   "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.1.5",

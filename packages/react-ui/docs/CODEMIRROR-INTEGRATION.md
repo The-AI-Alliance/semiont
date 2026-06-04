@@ -73,6 +73,18 @@ const annotationDecorationsField = StateField.define<DecorationSet>({
 });
 ```
 
+### Anchor Strategy & Confidence
+
+`segmentTextWithAnnotations()` anchors each annotation via `anchorAnnotation` (from `@semiont/core`), and each segment carries the `strategy` and `confidence` that placed it (see [Utilities.md](../../core/docs/Utilities.md#render-time-anchoring)). Anchoring is **verbatim-only**: it re-anchors on an exact `TextQuoteSelector` match (recovering positional drift) and otherwise renders at the stored `TextPositionSelector` offset, flagged. It never fuzzy-matches at render time — fuzzy reconciliation happens once, at write time, in `reconcileSelector`.
+
+The decoration layer surfaces the classification:
+
+- `getAnnotationDecorationMeta` adds an `annotation-low-confidence` class whenever `confidence !== 'high'`, and appends the strategy to the hover tooltip (e.g. `… (anchored: position-tiebreaker)`).
+- `CodeMirrorRenderer` writes `data-anchor-strategy` and `data-anchor-confidence` onto the decoration's DOM attributes.
+- `.annotation-low-confidence` (in `annotation/annotations.css`) draws a dotted underline, so operators can see at a glance which highlights were resolved by a tiebreaker or fell back to the stored offset rather than a clean match.
+
+A clean `fast-path` / `unique-occurrence` anchor is silent; anything else is the visible signal of worker/renderer anchor drift.
+
 ### CRLF Position Conversion
 
 CodeMirror normalizes all line endings to LF. Annotations store positions in original content (which may have CRLF). `convertSegmentPositions()` adjusts using binary search:
@@ -135,7 +147,7 @@ When `hoveredAnnotationId` changes, the component:
 
 AnnotateView provides:
 
-- **Text segmentation**: `segmentTextWithAnnotations()` uses fuzzy anchoring (`findTextWithContext` from `@semiont/api-client`) with pre-computed `ContentCache` for batch efficiency
+- **Text segmentation**: `segmentTextWithAnnotations()` anchors each annotation via `anchorAnnotation` (from `@semiont/core`) — verbatim-only, carrying a `strategy`/`confidence` onto each segment
 - **Position calculation**: `CodeMirror.posAtDOM()` converts DOM selection to source positions
 - **Annotation creation**: Emits `mark:requested` with dual selectors (`TextPositionSelector` + `TextQuoteSelector` with prefix/suffix context)
 - **MIME routing**: Routes to `CodeMirrorRenderer` (text), `PdfAnnotationCanvas` (PDF), or `SvgDrawingCanvas` (image)
@@ -144,15 +156,15 @@ AnnotateView provides:
 
 - **Binary search CRLF conversion**: O(log n) per segment (was O(n) with `.filter()`)
 - **Annotation ID index**: `Map<string, TextSegment>` for O(1) click lookups (was O(n) with `.find()`)
-- **ContentCache**: Pre-compute `normalizeText()` and `toLowerCase()` once per document
-- **Position-hint fast path**: `findTextWithContext()` short-circuits when `TextPositionSelector.start` is exact
+- **Position-hint fast path**: `anchorAnnotation()` short-circuits when `content.substring(start, start + exact.length) === exact` — the stored offset already lands on the quote, so no occurrence search runs
 - **Event delegation**: Container-level listeners replace per-annotation and per-widget handlers
 - **Incremental decorations**: View created once, decorations updated via transactions (~10x improvement)
 
 ## Testing
 
 - `apps/frontend/src/components/__tests__/CodeMirrorRenderer.test.tsx` — CRLF position conversion, segment building
-- `packages/api-client/src/utils/__tests__/fuzzy-anchor.test.ts` — fuzzy anchoring, position hints, normalization
+- `packages/core/src/__tests__/anchor-annotation.test.ts` — render-time anchoring strategies and confidence (verbatim-only)
+- `packages/react-ui/src/lib/__tests__/text-segmentation.test.ts` — strategy/confidence threading, low-confidence class, once-per-annotation warning
 - `packages/react-ui/src/components/resource/__tests__/BrowseView.test.tsx` — event delegation integration
 
 ## Related Documentation

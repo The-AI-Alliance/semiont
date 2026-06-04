@@ -1,6 +1,9 @@
 {
   "name": "@semiont/test-utils",
   "version": "0.5.6",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "description": "Shared test utilities and mock factories for Semiont",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

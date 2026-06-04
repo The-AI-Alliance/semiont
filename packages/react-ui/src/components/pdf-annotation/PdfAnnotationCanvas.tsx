@@ -2,15 +2,17 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import type { Annotation } from '@semiont/core';
-import { getTargetSelector } from '@semiont/core';
+import {
+  getTargetSelector,
+  createFragmentSelector,
+  parseFragmentSelector,
+  getPageFromFragment,
+} from '@semiont/core';
 import { createHoverHandlers, type SemiontSession } from '@semiont/sdk';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import {
   canvasToPdfCoordinates,
   pdfToCanvasCoordinates,
-  createFragmentSelector,
-  parseFragmentSelector,
-  getPageFromFragment,
   type CanvasRectangle
 } from '../../lib/pdf-coordinates';
 import {
