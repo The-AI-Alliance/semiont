@@ -83,7 +83,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^16.1.0",
-    "@types/react": "^19",
+    "@types/react": "^19.2.16",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.0",
     "autoprefixer": "^10.4.23",
