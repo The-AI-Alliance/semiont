@@ -30,7 +30,7 @@ import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 
 export const BeckonOptionsSchema = ApiOptionsSchema.extend({
   participantArr: z.array(z.string()).min(1, 'participantId is required').max(1, 'Only one participant per beckon'),
-  resource: z.string({ required_error: '--resource <resourceId> is required' }),
+  resource: z.string({ error: '--resource <resourceId> is required' }),
   annotation: z.string().optional(),
   message: z.string().max(500).optional(),
 });
