@@ -77,8 +77,8 @@
     "test:split:coverage": "npm run test:coverage"
   },
   "peerDependencies": {
-    "react": "^19.2.6",
-    "react-dom": "^18.0.0 || ^19.0.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.1.5",
