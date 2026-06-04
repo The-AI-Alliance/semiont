@@ -1,76 +1,53 @@
 version: 2
 updates:
-  # Frontend dependencies
-  - package-ecosystem: "npm"
-    directory: "/apps/frontend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 10
-    reviewers:
-      - "The-AI-Alliance/maintainers"
-    labels:
-      - "dependencies"
-      - "frontend"
-    commit-message:
-      prefix: "frontend"
-      include: "scope"
-
-  # Backend dependencies  
-  - package-ecosystem: "npm"
-    directory: "/apps/backend"
-    schedule:
-      interval: "weekly"
-      day: "monday" 
-      time: "09:00"
-    open-pull-requests-limit: 10
-    reviewers:
-      - "The-AI-Alliance/maintainers"
-    labels:
-      - "dependencies"
-      - "backend"
-    commit-message:
-      prefix: "backend"
-      include: "scope"
-
-  # CDK dependencies
-  - package-ecosystem: "npm"
-    directory: "/cdk"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    reviewers:
-      - "The-AI-Alliance/maintainers"
-    labels:
-      - "dependencies"
-      - "infrastructure"
-    commit-message:
-      prefix: "cdk"
-      include: "scope"
-
-  # Scripts dependencies
-  - package-ecosystem: "npm"
-    directory: "/scripts"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    reviewers:
-      - "The-AI-Alliance/maintainers"
-    labels:
-      - "dependencies"
-      - "scripts"
-    commit-message:
-      prefix: "scripts"
-      include: "scope"
-
-  # Root dependencies
+  # All npm dependencies — root + every workspace (apps/*, packages/*) in one pass.
+  # A single "/" entry traverses all npm workspaces, so per-workspace entries are
+  # redundant. Groups below match by package name across every workspace.
   - package-ecosystem: "npm"
     directory: "/"
+    versioning-strategy: increase-if-necessary
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 20
+    reviewers:
+      - "The-AI-Alliance/maintainers"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      # react and react-dom must move in exact lockstep
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      # react-i18next peer-requires a matching i18next major
+      i18n:
+        patterns:
+          - "i18next"
+          - "i18next-*"
+          - "react-i18next"
+      # keep native platform binaries in lockstep with the tool that pins their version
+      bundler-binaries:
+        patterns:
+          - "vite"
+          - "rolldown"
+          - "@rolldown/binding-*"
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "lightningcss"
+          - "lightningcss-*"
+
+  # E2E test suite — tests/ is NOT in the root workspaces[], so "/" does not reach it;
+  # it needs its own entry.
+  - package-ecosystem: "npm"
+    directory: "/tests/e2e"
+    versioning-strategy: increase-if-necessary
     schedule:
       interval: "weekly"
       day: "monday"
@@ -80,9 +57,9 @@ updates:
       - "The-AI-Alliance/maintainers"
     labels:
       - "dependencies"
-      - "root"
+      - "tests"
     commit-message:
-      prefix: "root"
+      prefix: "tests"
       include: "scope"
 
   # GitHub Actions dependencies
@@ -102,7 +79,8 @@ updates:
       prefix: "actions"
       include: "scope"
 
-  # Frontend Docker base image (apps/frontend/Dockerfile)
+  # Frontend Docker base image (apps/frontend/Dockerfile) — docker is not
+  # workspace-aware, so each Dockerfile keeps its own entry.
   - package-ecosystem: "docker"
     directory: "/apps/frontend"
     schedule:
