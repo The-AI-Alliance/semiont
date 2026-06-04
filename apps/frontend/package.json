@@ -85,7 +85,7 @@
     "postcss": "^8",
     "tailwindcss": "^4.2.1",
     "typescript": "^6.0.2",
-    "vite": "^8.0.10"
+    "vite": "^8.0.16"
   },
   "msw": {
     "workerDirectory": [
