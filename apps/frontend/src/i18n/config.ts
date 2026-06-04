@@ -34,7 +34,7 @@ i18n
       escapeValue: false,
     },
     // Don't initialize until a locale is selected
-    initImmediate: false,
+    initAsync: false,
   });
 
 export default i18n;
