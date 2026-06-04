@@ -58,7 +58,7 @@
     "i18next-http-backend": "^4.0.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-i18next": "^15.7.4",
+    "react-i18next": "^17.0.8",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.2",
     "remark-gfm": "^4.0.1"
