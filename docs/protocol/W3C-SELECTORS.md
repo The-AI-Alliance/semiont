@@ -72,13 +72,21 @@ Specifies the exact text with optional context:
 - **TextQuoteSelector**: Recovery when document content shifts
 - **Prefix/Suffix**: Additional context for robust matching
 
-### Fuzzy Anchoring Implementation
+### Dual Selectors Are Written to Agree
 
-Semiont implements **fuzzy anchoring** as specified in the W3C Web Annotation Data Model to handle cases where the same text appears multiple times in a document or when content has been modified. When rendering annotations, the system uses the TextQuoteSelector's `prefix` and `suffix` fields to disambiguate between multiple occurrences of the `exact` text. If an exact match fails (due to whitespace variations or minor content changes), the implementation falls back to fuzzy matching that checks if the prefix/suffix are substrings of the surrounding context, allowing annotations to remain valid even when formatting changes slightly.
+The two selectors are not independent guesses — they are reconciled at write time so they describe the same span. The LLM does **not** supply offsets; it supplies `exact` (a verbatim substring) plus optional prefix/suffix context. Our code computes `start`/`end` by searching the source for `exact`, and a no-overlap invariant rejects any annotation whose selectors disagree:
 
-The fuzzy anchoring logic is implemented in `apps/frontend/src/lib/fuzzy-anchor.ts` and automatically activates when TextQuoteSelector context is available. The system first attempts exact matching using `endsWith()` for prefix and `startsWith()` for suffix. If no exact match is found, it performs fuzzy matching using `includes()` to handle whitespace variations. This three-tier fallback strategy (exact position → exact context → fuzzy context → first occurrence) ensures annotations remain functional across document edits while maintaining precision when possible.
+```
+content.substring(start, end) === exact
+content.substring(start - prefix.length, start) === prefix   // when prefix present
+content.substring(end, end + suffix.length) === suffix       // when suffix present
+```
 
-For AI-detected entity annotations, Semiont automatically extracts 32 characters of prefix and suffix context during the detection phase. This context is stored in the annotation and used by the frontend to correctly locate entity mentions even when the same entity name appears multiple times in a document. The fuzzy anchoring implementation includes comprehensive test coverage (23 tests) validating single occurrences, multiple occurrence disambiguation, fuzzy matching fallbacks, and edge cases including unicode characters and special characters.
+This write-time reconciliation (`reconcileSelector` in `@semiont/core`) is where fuzzy matching lives — verbatim, then deterministic normalization (smart quotes, whitespace), then Levenshtein within a 5% tolerance — because the source content is in hand and the output is the authoritative record. All five annotation-detection workers converge on it. When `exact` appears more than once, prefix/suffix disambiguate; an undisambiguated multi-occurrence match is flagged `first-of-many` for audit rather than silently anchored. See [@semiont/core Utilities](../../packages/core/docs/Utilities.md#reconcile-llm-emitted-selectors).
+
+### Render-Time Anchoring (Verbatim Only)
+
+Because the stored selectors already agree, the renderer trusts them and re-anchors only on a **verbatim** quote match. The one legitimate render-time discrepancy is *positional drift*: content shifted above the span after the annotation was written, so the `TextPositionSelector` is stale but `exact` still exists byte-identical. `anchorAnnotation` (`@semiont/core`) recovers it — uniquely, disambiguated by prefix/suffix, or (for repeated text) by closest-to-offset position — and flags anything it cannot resolve verbatim as low-confidence rather than fuzzy-matching at render time. This is the W3C-intended use of `TextQuoteSelector` for recovery; the fuzzy fallback chain stays on the write side.
 
 ## Image Selectors (Future)
 

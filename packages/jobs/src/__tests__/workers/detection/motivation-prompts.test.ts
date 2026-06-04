@@ -19,8 +19,11 @@ describe('MotivationPrompts', () => {
       expect(prompt).toContain(testContent);
       expect(prompt).toContain('JSON array');
       expect(prompt).toContain('exact');
-      expect(prompt).toContain('start');
-      expect(prompt).toContain('end');
+      // Offsets are no longer asked of the LLM.
+      expect(prompt).not.toContain('"start"');
+      expect(prompt).not.toContain('"end"');
+      expect(prompt).toContain('prefix');
+      expect(prompt).toContain('suffix');
     });
 
     it('should include custom instructions when provided', () => {

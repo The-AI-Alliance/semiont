@@ -1,6 +1,6 @@
 # Semiont
 
-**Semiont is an open source Human+AI knowledge platform. Use it as: a Wiki, Knowledge Base, Semantic Layer, Context Graph, or Agentic Memory.**
+**Semiont is an open, source-grounded semantic knowledge platform for building and maintaining trusted AI knowledge bases and context layers. It gives humans and AI agents a shared workspace and architecture to annotate, connect, enrich, and govern domain knowledge for accurate applications, agents, and workflows.**
 
 ![Semiont screenshot](website/assets/images/semiont-2026-03-10.png)
 
