@@ -52,8 +52,8 @@
     "@semiont/core": "0.5.6",
     "@semiont/event-sourcing": "0.5.6",
     "@semiont/graph": "0.5.6",
-    "@semiont/sdk": "0.5.6",
     "@semiont/make-meaning": "0.5.6",
+    "@semiont/sdk": "0.5.6",
     "arg": "^5.0.2",
     "argon2": "^0.44.0",
     "express": "^5.2.1",
@@ -89,7 +89,7 @@
     "@aws-sdk/client-route-53": "^3.864.0",
     "@aws-sdk/client-secrets-manager": "^3.600.0",
     "@aws-sdk/client-sts": "^3.1045.0",
-    "@aws-sdk/client-wafv2": "^3.859.0"
+    "@aws-sdk/client-wafv2": "^3.1061.0"
   },
   "overrides": {
     "esbuild": "0.27.2"
