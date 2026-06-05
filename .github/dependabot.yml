@@ -6,6 +6,14 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     versioning-strategy: increase-if-necessary
+    # Let a published version age before raising a PR — most malicious or broken
+    # releases are yanked within a day or two. Security fixes are exempt: they use
+    # Dependabot's security-update flow, which cooldown does not gate.
+    cooldown:
+      default-days: 5
+      semver-patch-days: 3
+      semver-minor-days: 5
+      semver-major-days: 14
     schedule:
       interval: "weekly"
       day: "monday"
@@ -56,6 +64,11 @@ updates:
   - package-ecosystem: "npm"
     directory: "/tests/e2e"
     versioning-strategy: increase-if-necessary
+    cooldown:
+      default-days: 5
+      semver-patch-days: 3
+      semver-minor-days: 5
+      semver-major-days: 14
     schedule:
       interval: "weekly"
       day: "monday"
