@@ -76,7 +76,7 @@
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.0",
     "@vitest/ui": "^4.1.8",
-    "axe-core": "^4.11.0",
+    "axe-core": "^4.11.4",
     "cross-env": "^10.1.0",
     "fast-check": "^4.8.0",
     "jest-axe": "^10.0.0",
