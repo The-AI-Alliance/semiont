@@ -111,6 +111,6 @@
     "@semiont/api-client": "*",
     "@semiont/core": "*",
     "@semiont/sdk": "*",
-    "react-error-boundary": "^4.1.2"
+    "react-error-boundary": "^6.1.2"
   }
 }
