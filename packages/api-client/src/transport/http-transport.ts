@@ -163,7 +163,7 @@ export class HttpTransport implements ITransport, IBackendOperations {
       credentials: 'include',
       hooks: {
         beforeRequest: [
-          (request) => {
+          ({ request }) => {
             if (this.logger) {
               this.logger.debug('HTTP Request', {
                 type: 'http_request',
@@ -193,7 +193,7 @@ export class HttpTransport implements ITransport, IBackendOperations {
             ]
           : [],
         afterResponse: [
-          (request, _options, response) => {
+          ({ request, response }) => {
             if (this.logger) {
               this.logger.debug('HTTP Response', {
                 type: 'http_response',
@@ -207,8 +207,8 @@ export class HttpTransport implements ITransport, IBackendOperations {
           },
         ],
         beforeError: [
-          async (error) => {
-            const { response, request } = error;
+          async ({ request, error }) => {
+            const response = error instanceof HTTPError ? error.response : undefined;
             if (response) {
               const body = await response.json().catch(() => ({})) as { message?: string };
               if (this.logger) {
