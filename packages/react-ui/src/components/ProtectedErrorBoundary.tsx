@@ -45,6 +45,10 @@ export function ProtectedErrorBoundary({
 }
 
 function ProtectedErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
+  // react-error-boundary v6 types `error` as `unknown` — a thrown value can be
+  // anything, so narrow before reading Error fields.
+  const message = error instanceof Error ? error.message : String(error);
+  const stack = error instanceof Error ? error.stack : undefined;
   return (
     <div className="min-h-[400px] flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
@@ -69,8 +73,8 @@ function ProtectedErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
               Error details (development only)
             </summary>
             <pre className="mt-2 text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded-sm overflow-auto">
-              {error.message}
-              {error.stack}
+              {message}
+              {stack}
             </pre>
           </details>
         )}
