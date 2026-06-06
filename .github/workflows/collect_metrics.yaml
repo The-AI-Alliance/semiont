@@ -16,7 +16,7 @@ jobs:
     if: github.repository == 'The-AI-Alliance/semiont'
     steps:  
       - name: Checkout code  
-        uses: actions/checkout@v6  
+        uses: actions/checkout@v6.0.2  
   
       - name: Set up Python  
         uses: actions/setup-python@v5  
