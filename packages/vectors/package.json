@@ -20,13 +20,15 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist dist-types",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@qdrant/js-client-rest": "^1.18.0",
     "@semiont/core": "*"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.8",
     "rollup": "^4.61.0",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
