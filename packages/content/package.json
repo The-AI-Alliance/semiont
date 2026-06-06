@@ -31,7 +31,7 @@
     "pdfjs-dist": "^5.7.284"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/coverage-v8": "^4.1.8",
     "pdf-lib": "^1.17.1",
     "rollup": "^4.61.0",
     "rollup-plugin-dts": "^6.4.1",
