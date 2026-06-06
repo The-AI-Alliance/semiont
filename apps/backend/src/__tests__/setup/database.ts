@@ -1,13 +1,7 @@
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { execFileSync } from 'child_process';
-import { createRequire } from 'module';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const require = createRequire(import.meta.url);
+import { applyTestSchema } from './apply-schema';
 
 export class DatabaseTestSetup {
   private static container: StartedPostgreSqlContainer;
@@ -50,20 +44,7 @@ export class DatabaseTestSetup {
     console.log('🔧 Applying database schema...');
     try {
       
-      // Run Prisma db push to create tables
-      const backendRoot = path.resolve(__dirname, '../../..');
-      const schemaPath = path.join(backendRoot, 'prisma/schema.prisma');
-      // Resolve the prisma CLI via Node module resolution — prisma may hoist to
-      // the workspace root rather than apps/backend/node_modules, so a hardcoded
-      // `node_modules/.bin/prisma` is unreliable. Run the resolved entry with node.
-      const prismaPkgPath = require.resolve('prisma/package.json');
-      const prismaPkg = require('prisma/package.json') as { bin: string | { prisma: string } };
-      const binRel = typeof prismaPkg.bin === 'string' ? prismaPkg.bin : prismaPkg.bin.prisma;
-      const prismaCli = path.join(path.dirname(prismaPkgPath), binRel);
-      execFileSync(process.execPath, [prismaCli, 'db', 'push', `--schema=${schemaPath}`, `--url=${this.connectionString}`, '--accept-data-loss'], {
-        stdio: 'pipe',
-        cwd: backendRoot,
-      });
+      applyTestSchema(this.connectionString);
       
       console.log('✅ Database schema applied successfully');
     } catch (error) {

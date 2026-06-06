@@ -2,11 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { execFileSync } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { applyTestSchema } from '../setup/apply-schema';
 
 describe('Simple Database Integration Test', () => {
   let container: StartedPostgreSqlContainer;
@@ -33,13 +29,7 @@ describe('Simple Database Integration Test', () => {
 
     // Apply schema
     console.log('🔧 Applying schema...');
-    const backendRoot = path.resolve(__dirname, '../../..');
-    const schemaPath = path.join(backendRoot, 'prisma/schema.prisma');
-    const prismaBin = path.join(backendRoot, 'node_modules/.bin/prisma');
-    execFileSync(prismaBin, ['db', 'push', `--schema=${schemaPath}`, `--url=${connectionString}`, '--accept-data-loss'], {
-      stdio: 'pipe',
-      cwd: backendRoot,
-    });
+    applyTestSchema(connectionString);
     
     await prisma.$connect();
     console.log('✅ Database ready');
