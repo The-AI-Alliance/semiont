@@ -59,7 +59,7 @@
   "dependencies": {
     "@semiont/api-client": "*",
     "@semiont/core": "*",
-    "nanoid": "^5.1.7",
+    "nanoid": "^5.1.11",
     "uuid": "^10.0.0"
   }
 }
