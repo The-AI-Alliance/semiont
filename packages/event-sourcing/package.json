@@ -48,7 +48,7 @@
   "author": "Semiont Team",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@types/uuid": "^10.0.0",
+    "@types/uuid": "^11.0.0",
     "@vitest/coverage-v8": "^4.1.0",
     "fast-check": "^4.8.0",
     "rollup": "^4.61.0",
