@@ -59,7 +59,7 @@
   "sideEffects": false,
   "license": "Apache-2.0",
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/coverage-v8": "^4.1.8",
     "fast-check": "^4.8.0",
     "json-schema-to-typescript": "^15.0.2",
     "openapi-typescript": "^7.10.1",
