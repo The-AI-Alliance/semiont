@@ -279,7 +279,7 @@ jobs:
             'baseURL = "http://localhost:11434"' \
             > ~/.semiontconfig
           cd apps/backend
-          ./node_modules/.bin/prisma db push --url "$DATABASE_URL"
+          npx prisma db push --url "$DATABASE_URL"
         env:
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
 
