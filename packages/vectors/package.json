@@ -27,7 +27,7 @@
     "@semiont/core": "*"
   },
   "devDependencies": {
-    "rollup": "^4.60.3",
+    "rollup": "^4.60.4",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.2"
