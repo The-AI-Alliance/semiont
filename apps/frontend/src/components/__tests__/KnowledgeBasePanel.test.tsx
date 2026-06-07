@@ -47,7 +47,7 @@ const kb2: KnowledgeBase = {
 
 // vi.hoisted: the mock factory below needs these in scope.
 const {
-  mockSetActiveKb, mockAddKb, mockRemoveKb, mockUpdateKb, mockSignIn, mockSignOut,
+  
   kbs$, activeSession$, mockBrowser,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports

@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ErrorBoundary, AsyncErrorBoundary } from '@semiont/react-ui';
@@ -198,7 +197,7 @@ describe('ErrorBoundary', () => {
     });
 
     it('should call reset function from custom fallback', () => {
-      const customFallback = (error: Error, reset: () => void) => (
+      const customFallback = (_error: Error, reset: () => void) => (
         <button onClick={reset}>Reset Error</button>
       );
       

@@ -1,4 +1,3 @@
-import React from 'react';
 import { ResourceSearchModal } from '@semiont/react-ui';
 import { useTranslation } from 'react-i18next';
 

@@ -15,7 +15,7 @@ import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
 
 // Feature components
-import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage } from '@semiont/react-ui';
+import { ResourceLoadingState, ResourceViewerPage } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import type { SemiontResource } from '@semiont/react-ui';
 

@@ -5,7 +5,7 @@
  * and delegates rendering to the pure React AdminUsersPage component.
  */
 
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buttonStyles, Toolbar, useSemiont } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';

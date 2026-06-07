@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import type { Mock } from 'vitest'
-import React from 'react';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
@@ -352,7 +350,7 @@ describe('Sign-Up Flow Integration Tests', () => {
       const mockOnAccept = vi.fn();
       const mockOnDecline = vi.fn();
 
-      const { unmount, rerender } = render(
+      const { unmount } = render(
         <WelcomePage
           userName="Consistent"
           termsAcceptedAt={null}

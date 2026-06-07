@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { Mock, MockedFunction } from 'vitest'
-import React from 'react';
+import type { Mock } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react';
 import { CookieBanner } from '../CookieBanner';
 import * as cookieLib from '@/lib/cookies';

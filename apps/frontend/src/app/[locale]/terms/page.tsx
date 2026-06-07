@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import { useContext } from 'react';
 import { Link } from '@/i18n/routing';
 import { useTranslation } from 'react-i18next';
 import { useLocale } from '@/i18n/routing';

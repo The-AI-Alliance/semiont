@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import React from 'react';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { CookiePreferences } from '../CookiePreferences';
 
@@ -389,7 +388,6 @@ describe('CookiePreferences - Comprehensive Tests', () => {
       render(<CookiePreferences isOpen={true} onClose={mockOnClose} />);
       
       // Click save to trigger loading state (though it's synchronous, the component may briefly show loading)
-      const saveButton = screen.getByText('Save Changes');
       const acceptAllButton = screen.getByText('Accept All');
       const rejectAllButton = screen.getByText('Reject All');
       

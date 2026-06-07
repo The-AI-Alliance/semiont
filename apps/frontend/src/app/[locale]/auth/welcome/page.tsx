@@ -5,7 +5,7 @@
  * and delegates rendering to the pure React WelcomePage component.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';

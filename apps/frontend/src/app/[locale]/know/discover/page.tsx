@@ -34,7 +34,7 @@ export default function DiscoverPage() {
   const isSearching = searchState?.isSearching ?? false;
   const selectedEntityType = useObservable(stateUnit.selectedEntityType$) ?? '';
 
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   useEventSubscriptions({
