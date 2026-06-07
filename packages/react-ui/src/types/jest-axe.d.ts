@@ -1,6 +1,8 @@
-// Ambient types for jest-axe (ships no declarations) plus the vitest matcher
-// augmentation. These tests run under vitest, so toHaveNoViolations must extend
-// vitest's Assertion — @types/jest-axe only augments jest, which wouldn't apply.
+// Ambient types for jest-axe (the package ships no declarations). This file is
+// intentionally a script (no top-level import/export) so `declare module` acts
+// as an ambient module declaration that provides types for the untyped package.
+// The vitest matcher augmentation lives in vitest-matchers.d.ts (a module file),
+// since augmenting an existing module requires module scope.
 declare module 'jest-axe' {
   export interface AxeResults {
     violations: unknown[];
@@ -19,13 +21,4 @@ declare module 'jest-axe' {
   export const toHaveNoViolations: {
     toHaveNoViolations(results: AxeResults): { pass: boolean; message(): string };
   };
-}
-
-declare module 'vitest' {
-  interface Assertion {
-    toHaveNoViolations(): void;
-  }
-  interface AsymmetricMatchersContaining {
-    toHaveNoViolations(): void;
-  }
 }
