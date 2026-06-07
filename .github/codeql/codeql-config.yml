@@ -24,8 +24,8 @@ paths:
   - packages/ontology/src
   - packages/react-ui/src
   - packages/mcp-server/src
-  - cdk/lib
-  - scripts/lib
+  - packages/observability/src
+  - packages/sdk/src
 
 paths-ignore:
   - apps/frontend/node_modules
