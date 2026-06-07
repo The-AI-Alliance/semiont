@@ -32,7 +32,7 @@ try {
     globalName: 'SemiontDashboard',
     outfile: join(dashboardDir, 'dashboard.js'),
     platform: 'browser',
-    target: ['chrome90', 'firefox88', 'safari14', 'edge90'],
+    target: ['chrome120', 'firefox120', 'safari17', 'edge120'],
     define: {
       'process.env.NODE_ENV': '"production"',
       'global': 'window'
