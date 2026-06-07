@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { AnnotationProvider, useAnnotationManager } from '../AnnotationContext';
-import type { AnnotationManager, CreateAnnotationParams, DeleteAnnotationParams } from '../../types/AnnotationManager';
+import type { AnnotationManager, CreateAnnotationParams } from '../../types/AnnotationManager';
 import { resourceId } from '@semiont/core';
 
 // Test component that uses the hook
@@ -199,7 +199,7 @@ describe('AnnotationContext', () => {
           return { id: `custom-${params.motivation}`, motivation: params.motivation };
         }
 
-        async deleteAnnotation(params: DeleteAnnotationParams) {
+        async deleteAnnotation() {
           // Custom deletion logic
         }
       }

@@ -4,7 +4,7 @@
  * Tests PDF.js loading and basic functionality
  */
 
-import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { describe, test, expect, beforeEach } from 'vitest';
 
 describe('browser-pdfjs', () => {
   beforeEach(() => {

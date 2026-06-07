@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { BehaviorSubject } from 'rxjs';
 import { ResourceViewer } from '../ResourceViewer';
 import { createTestSemiontWrapper } from '../../../test-utils';
@@ -84,7 +84,7 @@ const mockAnnotations = {
 };
 
 const mockTranslationManager = {
-  t: (namespace: string, key: string, params?: Record<string, any>) => {
+  t: (namespace: string, key: string) => {
     return `${namespace}.${key}`;
   },
 };

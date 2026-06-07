@@ -12,7 +12,6 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
 import { resourceId } from '@semiont/core';
-import type { components } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 

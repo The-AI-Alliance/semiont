@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { MockedFunction } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { AssessmentPanel } from '../AssessmentPanel';
-import type { components, EventBus } from '@semiont/core';
+import type { EventBus } from '@semiont/core';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
 import type { Annotation } from '@semiont/core';
@@ -69,7 +69,7 @@ vi.mock('@semiont/core', async () => {
 
 // Mock AssessmentEntry component to simplify testing
 vi.mock('../AssessmentEntry', () => ({
-  AssessmentEntry: ({ assessment, onAssessmentRef }: any) => (
+  AssessmentEntry: ({ assessment }: any) => (
     <div data-testid={`assessment-${assessment.id}`}>
       <div>{assessment.id}</div>
     </div>
@@ -78,7 +78,7 @@ vi.mock('../AssessmentEntry', () => ({
 
 // Mock AssistSection component — just render a simplified version.
 vi.mock('../AssistSection', () => ({
-  AssistSection: ({ annotationType, isAssisting }: any) => (
+  AssistSection: ({ isAssisting }: any) => (
     <div data-testid="detect-section">
       <button>Start Detection</button>
       {isAssisting && <div>Detecting...</div>}

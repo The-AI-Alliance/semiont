@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from 'vitest';
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { Footer } from '../Footer';
@@ -124,7 +123,7 @@ describe('Footer Component', () => {
     });
 
     it('should render Cookie Preferences button when provided', () => {
-      const MockCookiePrefs = ({ isOpen, onClose }: any) => null;
+      const MockCookiePrefs = ({  }: any) => null;
 
       render(
         <Footer
@@ -139,7 +138,7 @@ describe('Footer Component', () => {
     });
 
     it('should open Cookie Preferences modal when button clicked', () => {
-      const MockCookiePrefs = ({ isOpen, onClose }: any) => (
+      const MockCookiePrefs = ({ isOpen }: any) => (
         isOpen ? <div data-testid="cookie-modal">Cookie Preferences</div> : null
       );
 
@@ -161,9 +160,7 @@ describe('Footer Component', () => {
     });
 
     it('should close Cookie Preferences modal when onClose called', () => {
-      let closeHandler: (() => void) | null = null;
       const MockCookiePrefs = ({ isOpen, onClose }: any) => {
-        closeHandler = onClose;
         return isOpen ? (
           <div data-testid="cookie-modal">
             <button onClick={onClose}>Close</button>
@@ -387,7 +384,7 @@ describe('Footer Component', () => {
 
     it('should have proper button elements for interactive features', () => {
       const mockHandler = vi.fn();
-      const MockCookiePrefs = ({ isOpen, onClose }: any) => null;
+      const MockCookiePrefs = ({  }: any) => null;
 
       render(
         <Footer

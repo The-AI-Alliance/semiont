@@ -17,7 +17,6 @@ import { screen } from '@testing-library/react';
 import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import { AssistSection } from '../AssistSection';
-import type { EventBus } from "@semiont/core"
 
 // Mock translations
 const mockT = vi.fn((key: string) => {

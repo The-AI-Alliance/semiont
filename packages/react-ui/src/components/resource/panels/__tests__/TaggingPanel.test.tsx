@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { MockedFunction } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { of } from 'rxjs';
 import { CacheObservable } from '@semiont/sdk';
 import { TaggingPanel } from '../TaggingPanel';
-import type { components, EventBus, TagSchema } from '@semiont/core';
+import type { EventBus, TagSchema } from '@semiont/core';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
 import type { Annotation } from '@semiont/core';
@@ -124,7 +124,7 @@ vi.mock('@semiont/core', async () => {
 
 // Mock TagEntry component to simplify testing
 vi.mock('../TagEntry', () => ({
-  TagEntry: ({ tag, onTagRef }: any) => (
+  TagEntry: ({ tag }: any) => (
     <div data-testid={`tag-${tag.id}`}>
       <div>{tag.id}</div>
     </div>

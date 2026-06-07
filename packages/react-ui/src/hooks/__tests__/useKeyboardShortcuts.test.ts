@@ -667,7 +667,7 @@ describe('useIsTyping', () => {
     input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
 
     // useIsTyping uses a ref, so re-render to get updated value
-    const { result: result2 } = renderHook(() => useIsTyping());
+    renderHook(() => useIsTyping());
     // The ref is internal; just verify the hook doesn't throw
     expect(typeof result.current).toBe('boolean');
 

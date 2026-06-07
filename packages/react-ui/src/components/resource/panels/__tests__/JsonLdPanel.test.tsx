@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
@@ -12,7 +11,7 @@ type SemiontResource = components['schemas']['ResourceDescriptor'];
 vi.mock('@codemirror/view', () => {
   class MockEditorView {
     destroy = vi.fn();
-    constructor(config: any) {
+    constructor() {
       // Store config if needed for assertions
     }
     static editable = { of: vi.fn() };
@@ -55,7 +54,6 @@ vi.mock('../../../lib/codemirror-json-theme', () => ({
 // Mock useLineNumbers hook (must be before import)
 vi.mock('@/hooks/useLineNumbers');
 
-import { EditorView } from '@codemirror/view';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
 
 // Test data fixtures

@@ -197,13 +197,12 @@ describe('SignUpForm - Accessibility', () => {
     it('should have Google icon inside button', () => {
       const onSignUp = vi.fn();
 
-      const { container } = render(
-        <SignUpForm
-          onSignUp={onSignUp}
-          Link={MockLink}
-          translations={mockTranslations}
-        />
-      );
+      render(
+<SignUpForm
+onSignUp={onSignUp}
+Link={MockLink}
+translations={mockTranslations} />
+);
 
       const button = screen.getByRole('button');
       const svg = button.querySelector('svg');

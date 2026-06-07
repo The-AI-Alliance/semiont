@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { NavigationMenu } from '../NavigationMenu';
@@ -287,14 +286,13 @@ describe('NavigationMenu Component', () => {
     });
 
     it('should not show extra divider after admin link', () => {
-      const { container } = render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isAdmin={true}
-        />
-      );
+      render(
+<NavigationMenu
+Link={mockLink}
+routes={mockRoutes}
+t={mockTranslate}
+isAdmin={true} />
+);
 
       const adminLink = screen.getByText('Administer').closest('a');
       const nextSibling = adminLink?.nextElementSibling;

@@ -157,7 +157,6 @@ describe('Button Component', () => {
       const icon = <span data-testid="left-icon">←</span>;
       render(<Button leftIcon={icon}>Button</Button>);
 
-      const button = screen.getByRole('button');
       const leftIcon = screen.getByTestId('left-icon');
       const iconWrapper = leftIcon.parentElement;
 
@@ -169,7 +168,6 @@ describe('Button Component', () => {
       const icon = <span data-testid="right-icon">→</span>;
       render(<Button rightIcon={icon}>Button</Button>);
 
-      const button = screen.getByRole('button');
       const rightIcon = screen.getByTestId('right-icon');
       const iconWrapper = rightIcon.parentElement;
 

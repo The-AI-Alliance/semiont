@@ -122,14 +122,12 @@ describe('styled-components-theme', () => {
 
     it('calls styled.button.attrs', () => {
       let attrsArg: any;
-      let templateArg: any;
 
       const mockStyled = {
         button: {
           attrs: (arg: any) => {
             attrsArg = arg;
-            return (strings: TemplateStringsArray, ...exprs: any[]) => {
-              templateArg = { strings, exprs };
+            return (_strings: TemplateStringsArray) => {
               return 'MockComponent';
             };
           },

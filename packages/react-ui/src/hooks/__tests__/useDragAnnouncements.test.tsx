@@ -10,17 +10,14 @@
  * - Cannot move announcements
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { LiveRegionProvider } from '../../components/LiveRegion';
 import { useDragAnnouncements } from '../useDragAnnouncements';
-import React from 'react';
 
 describe('useDragAnnouncements', () => {
-  let mockAnnounce: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    mockAnnounce = vi.fn();
   });
 
   function renderWithProvider() {

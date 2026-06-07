@@ -1,12 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { of } from 'rxjs';
 import { CacheObservable } from '@semiont/sdk';
 import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
-import type { components, TagSchema } from '@semiont/core';
+import type { TagSchema } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 

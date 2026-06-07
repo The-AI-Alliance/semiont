@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import React from 'react';
 import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../../test-utils';
-import type { components } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 
@@ -126,7 +124,7 @@ describe('StatisticsPanel', () => {
     it('should render correct total reference count', () => {
       const refs = [createMockAnnotation({ id: 'r1' }), createMockAnnotation({ id: 'r2' })];
 
-      const { container } = renderWithProviders(<StatisticsPanel {...emptyProps} references={refs} />);
+      renderWithProviders(<StatisticsPanel {...emptyProps} references={refs} />);
 
       expect(screen.getByText('StatisticsPanel.references')).toBeInTheDocument();
       // The references item has the total count as its direct .semiont-statistics-panel__value child
@@ -145,7 +143,7 @@ describe('StatisticsPanel', () => {
       ];
 
       // r1 resolved, r2 and r3 are stubs
-      mockIsBodyResolved.mockImplementation((body: unknown) => {
+      mockIsBodyResolved.mockImplementation(() => {
         // We can distinguish by the call order
         return false;
       });

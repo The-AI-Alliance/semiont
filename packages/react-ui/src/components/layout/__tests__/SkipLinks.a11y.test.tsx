@@ -63,7 +63,7 @@ describe('SkipLinks - Accessibility', () => {
 
     it('should become visible on focus', async () => {
       const user = userEvent.setup();
-      const { container } = render(<SkipLinks />);
+      render(<SkipLinks />);
 
       const firstLink = screen.getAllByRole('link')[0];
 
@@ -76,12 +76,12 @@ describe('SkipLinks - Accessibility', () => {
 
     it('should hide when focus leaves', async () => {
       const user = userEvent.setup();
-      const { container } = render(
-        <div>
-          <SkipLinks />
-          <button>Next focusable element</button>
-        </div>
-      );
+      render(
+<div>
+<SkipLinks />
+<button>Next focusable element</button>
+</div>
+);
 
       // Tab to first skip link
       await user.tab();
@@ -239,7 +239,7 @@ describe('SkipLinks - Accessibility', () => {
 
     it('should maintain focus management with multiple links', async () => {
       const user = userEvent.setup();
-      const { container } = render(<SkipLinks />);
+      render(<SkipLinks />);
 
       // Tab to first link
       await user.tab();

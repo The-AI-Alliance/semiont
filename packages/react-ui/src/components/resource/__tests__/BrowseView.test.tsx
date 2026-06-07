@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowseView } from '../BrowseView';
-import type { components, EventBus } from '@semiont/core';
+import type { EventBus } from '@semiont/core';
 import { createTestSemiontWrapper } from '../../../test-utils';
 
 import type { Annotation } from '@semiont/core';

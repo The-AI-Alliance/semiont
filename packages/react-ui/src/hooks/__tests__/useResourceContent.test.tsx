@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import { BehaviorSubject } from 'rxjs';
 import '@testing-library/jest-dom';
 import { useResourceContent } from '../useResourceContent';

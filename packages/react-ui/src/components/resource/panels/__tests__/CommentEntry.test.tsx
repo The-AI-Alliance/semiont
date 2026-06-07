@@ -5,8 +5,6 @@ import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CommentEntry } from '../CommentEntry';
-import type { components } from '@semiont/core';
-import type { EventBus } from "@semiont/core"
 
 import type { Annotation } from '@semiont/core';
 

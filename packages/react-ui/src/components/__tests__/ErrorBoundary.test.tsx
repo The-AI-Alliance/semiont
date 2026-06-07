@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ErrorBoundary, AsyncErrorBoundary } from '../ErrorBoundary';
@@ -146,7 +145,7 @@ describe('ErrorBoundary Component', () => {
     });
 
     it('should not render default fallback when custom fallback is provided', () => {
-      const customFallback = (error: Error) => <div>Custom Fallback</div>;
+      const customFallback = () => <div>Custom Fallback</div>;
 
       render(
         <ErrorBoundary fallback={customFallback}>
@@ -223,7 +222,7 @@ describe('ErrorBoundary Component', () => {
 
     it('should call custom reset handler in custom fallback', () => {
       const resetHandler = vi.fn();
-      const customFallback = (error: Error, reset: () => void) => (
+      const customFallback = (_error: Error, reset: () => void) => (
         <div>
           <button onClick={() => { resetHandler(); reset(); }}>Reset</button>
         </div>
