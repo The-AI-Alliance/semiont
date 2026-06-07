@@ -57,9 +57,12 @@ function KnowledgeResourcePageInner({ rId }: { rId: ReturnType<typeof resourceId
     loader.invalidate();
   }, [loader]);
 
-  // Early return: Loading state
-  if (isLoading || !resourceData) {
+  // Early return: loading first, then error/not-found
+  if (isLoading) {
     return <ResourceLoadingState />;
+  }
+  if (!resourceData) {
+    return <ResourceErrorState error={new Error(`Resource ${rId} not found`)} onRetry={refetchDocument} />;
   }
 
   const resource = resourceData as SemiontResource;

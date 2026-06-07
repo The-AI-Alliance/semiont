@@ -26,6 +26,8 @@
     // Additional type checking
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "checkJs": false,
     "noImplicitAny": true,
     "noImplicitThis": true,

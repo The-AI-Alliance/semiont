@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PageLayout, buttonStyles } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';

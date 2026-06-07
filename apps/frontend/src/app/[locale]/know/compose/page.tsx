@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, Suspense } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocale } from '@/i18n/routing';
 import { useRouter } from '@/i18n/routing';
@@ -77,7 +77,7 @@ function ComposeResourceContent() {
   const availableEntityTypes = useObservable(stateUnit.entityTypes$) ?? [];
   const uploadProgress = useObservable(stateUnit.uploadProgress$) ?? null;
 
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();
 

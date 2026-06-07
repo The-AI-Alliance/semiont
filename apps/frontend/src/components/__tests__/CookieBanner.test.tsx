@@ -1,7 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { Mock, MockedFunction } from 'vitest'
-import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { MockedFunction } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CookieBanner } from '../CookieBanner';
@@ -64,16 +63,13 @@ import {
   shouldShowBanner,
   isGDPRApplicable,
   isCCPAApplicable,
-  setCookieConsent,
-  getCookieConsent
-} from '@/lib/cookies';
+  setCookieConsent} from '@/lib/cookies';
 
 // Type the mocked functions
 const mockShouldShowBanner = shouldShowBanner as MockedFunction<typeof shouldShowBanner>;
 const mockIsGDPRApplicable = isGDPRApplicable as MockedFunction<typeof isGDPRApplicable>;
 const mockIsCCPAApplicable = isCCPAApplicable as MockedFunction<typeof isCCPAApplicable>;
 const mockSetCookieConsent = setCookieConsent as MockedFunction<typeof setCookieConsent>;
-const mockGetCookieConsent = getCookieConsent as MockedFunction<typeof getCookieConsent>;
 
 // Test data fixtures
 const mockRegionStates = {

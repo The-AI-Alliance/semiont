@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { LeftSidebar, useSemiont, useObservable } from '@semiont/react-ui';
 import { KnowledgeNavigation } from './KnowledgeNavigation';

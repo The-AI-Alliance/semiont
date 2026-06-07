@@ -6,7 +6,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import {
   ChartBarIcon,
   ServerIcon,

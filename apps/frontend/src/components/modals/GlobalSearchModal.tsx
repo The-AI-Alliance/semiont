@@ -1,4 +1,3 @@
-import React from 'react';
 import { useRouter } from '@/i18n/routing';
 import { SearchModal } from '@semiont/react-ui';
 import { useTranslation } from 'react-i18next';

@@ -1,8 +1,6 @@
-import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { AdminNavigation } from '../AdminNavigation';
-import type { SimpleNavigationProps } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
 
 // Mock @/i18n/routing — usePathname is a spy so tests can control the return value
@@ -278,7 +276,7 @@ describe('AdminNavigation', () => {
     });
 
     it('should pass navigationMenu function with correct signature', () => {
-      const mockNavigationMenu = vi.fn((onClose: () => void) => <div>Mock Menu</div>);
+      const mockNavigationMenu = vi.fn(() => <div>Mock Menu</div>);
 
       render(<AdminNavigation {...defaultProps} navigationMenu={mockNavigationMenu} />);
 

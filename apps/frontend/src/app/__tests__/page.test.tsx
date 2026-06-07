@@ -1,13 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import React from 'react';
 import Home from '@/app/[locale]/page';
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
     ...actual,
-    SemiontBranding: ({ size, animated, className }: any) => (
+    SemiontBranding: ({ className }: any) => (
       <div data-testid="semiont-branding" className={className}>
         <h2>Semiont</h2>
       </div>
