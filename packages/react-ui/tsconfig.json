@@ -15,8 +15,6 @@
     "isolatedModules": true,
     "noEmit": true,
     "incremental": false,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
     "paths": {
       "@semiont/react-ui": ["./src/index.ts"],
       "@semiont/react-ui/*": ["./src/*"]
