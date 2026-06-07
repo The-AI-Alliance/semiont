@@ -42,7 +42,8 @@
     "rollup": "^4.61.0",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.8"
   },
   "publishConfig": {
     "access": "public"
