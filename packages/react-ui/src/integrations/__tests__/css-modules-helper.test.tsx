@@ -95,7 +95,7 @@ describe('css-modules-helper', () => {
 
   describe('mergeDataAttributes', () => {
     it('merges data attributes into props', () => {
-      const props = { id: 'btn', className: 'foo' };
+      const props: Record<string, string> = { id: 'btn', className: 'foo' };
       const dataAttrs = { 'data-variant': 'primary', 'data-size': 'md' };
       const merged = mergeDataAttributes(props, dataAttrs);
 
@@ -106,7 +106,7 @@ describe('css-modules-helper', () => {
     });
 
     it('skips undefined data attributes', () => {
-      const props = { id: 'btn' };
+      const props: Record<string, string> = { id: 'btn' };
       const dataAttrs = { 'data-variant': 'primary', 'data-size': undefined };
       const merged = mergeDataAttributes(props, dataAttrs);
 

@@ -8,7 +8,7 @@ import { AssessmentPanel } from '../AssessmentPanel';
 import type { EventBus } from '@semiont/core';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnnotationId } from '@semiont/core';
 
 // Composition-based event tracker
 interface TrackedEvent {
@@ -93,10 +93,11 @@ const mockGetTargetSelector = getTargetSelector as MockedFunction<typeof getTarg
 // Test data fixtures
 const createMockAssessment = (id: string, start: number, end: number): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
-  id,
+  id: id as AnnotationId,
   type: 'Annotation',
   motivation: 'assessing',
   creator: {
+    '@type': 'Person',
     name: `user${id}@example.com`,
   },
   created: `2024-01-0${id.slice(-1)}T10:00:00Z`,

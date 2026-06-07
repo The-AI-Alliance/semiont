@@ -12,7 +12,7 @@ import React, { type ReactNode } from 'react';
 import { BehaviorSubject } from 'rxjs';
 import { useSessionExpiry } from '../useSessionExpiry';
 import { SemiontProvider } from '../../session/SemiontProvider';
-import type { SemiontBrowser } from '../../session/semiont-browser';
+import type { SemiontBrowser } from '@semiont/sdk';
 
 interface FakeSession {
   expiresAt: Date | null;

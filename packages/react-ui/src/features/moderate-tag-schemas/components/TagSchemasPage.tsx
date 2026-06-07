@@ -13,6 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
 import type { TagSchema } from '@semiont/sdk';
+export type { TagSchema };
 
 export interface TagSchemasPageProps {
   // Data props

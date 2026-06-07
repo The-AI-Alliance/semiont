@@ -17,7 +17,7 @@ import { screen } from '@testing-library/react';
 import { renderWithProviders } from '../../../../test-utils';
 import { HighlightPanel } from '../HighlightPanel';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnnotationId } from '@semiont/core';
 
 // Mock translations - simulates useTranslations('HighlightPanel')
 // The mock receives keys like 'title', 'noHighlights', etc. and returns translated strings
@@ -54,7 +54,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
     mockAnnotations = [
       {
-        id: 'highlight-1',
+        id: 'highlight-1' as AnnotationId,
         motivation: 'highlighting',
         target: {
           source: 'resource-1',
@@ -77,7 +77,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
             percentage: 30,
             message: 'Analyzing text for highlights...',
           }}
@@ -128,7 +128,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={false}
           progress={{
-            status: 'complete',
+            stage: 'complete',
             percentage: 100,
             message: 'Complete! Created 14 highlights',
           }}
@@ -149,7 +149,8 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
+            percentage: 0,
             message: 'Analyzing...',
             requestParams: [
               { label: 'Instructions', value: 'Find important points' },
@@ -202,7 +203,8 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
+            percentage: 0,
             message: 'Analyzing...',
           }}
           annotateMode={true}
@@ -218,7 +220,8 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
+            percentage: 0,
             message: 'Analyzing...',
           }}
           annotateMode={false}
@@ -253,7 +256,8 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={false}
           progress={{
-            status: 'complete',
+            stage: 'complete',
+            percentage: 100,
             message: 'Done!',
           }}
           annotateMode={true}
@@ -273,7 +277,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            status: 'started',
+            stage: 'started',
             percentage: 0,
             message: 'Starting...',
           }}
@@ -290,7 +294,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
             percentage: 50,
             message: 'Analyzing...',
           }}
@@ -308,7 +312,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={false}
           progress={{
-            status: 'complete',
+            stage: 'complete',
             percentage: 100,
             message: 'Complete!',
           }}
@@ -329,7 +333,8 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
+            percentage: 0,
             message: 'Analyzing...',
           }}
           annotateMode={true}

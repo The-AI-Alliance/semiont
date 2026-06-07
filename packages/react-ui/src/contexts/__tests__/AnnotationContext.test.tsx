@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { AnnotationProvider, useAnnotationManager } from '../AnnotationContext';
 import type { AnnotationManager, CreateAnnotationParams } from '../../types/AnnotationManager';
+import type { Annotation, AnnotationId } from '@semiont/core';
 import { resourceId } from '@semiont/core';
 
 // Test component that uses the hook
@@ -195,8 +196,19 @@ describe('AnnotationContext', () => {
     it('should accept any AnnotationManager implementation', async () => {
       // Custom implementation (e.g., with localStorage instead of API)
       class CustomAnnotationManager implements AnnotationManager {
-        async markAnnotation(params: CreateAnnotationParams) {
-          return { id: `custom-${params.motivation}`, motivation: params.motivation };
+        async markAnnotation(params: CreateAnnotationParams): Promise<Annotation | undefined> {
+          return {
+            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            id: `custom-${params.motivation}` as AnnotationId,
+            type: 'Annotation',
+            motivation: params.motivation,
+            creator: { '@type': 'Person', name: 'user@example.com' },
+            created: '2024-01-01T10:00:00Z',
+            target: {
+              source: params.rUri,
+              selector: params.selector,
+            },
+          };
         }
 
         async deleteAnnotation() {

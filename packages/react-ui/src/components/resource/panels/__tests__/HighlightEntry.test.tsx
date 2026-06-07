@@ -4,7 +4,7 @@ import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnnotationId } from '@semiont/core';
 
 // Mock @semiont/api-client
 vi.mock('@semiont/core', async () => {
@@ -23,10 +23,11 @@ const mockGetAnnotationExactText = getAnnotationExactText as MockedFunction<type
 
 const createMockHighlight = (overrides?: Partial<Annotation>): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
-  id: 'highlight-1',
+  id: 'highlight-1' as AnnotationId,
   type: 'Annotation',
   motivation: 'highlighting',
   creator: {
+    '@type': 'Person',
     name: 'alice@example.com',
   },
   created: '2024-06-15T12:00:00Z',

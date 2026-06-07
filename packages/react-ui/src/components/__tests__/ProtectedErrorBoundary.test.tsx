@@ -186,7 +186,8 @@ describe('ProtectedErrorBoundary', () => {
         // Multiple console.error calls happen (React's own logs, plus ours).
         // Look for the boundary's prefix specifically.
         const ourCall = consoleErrorSpy.mock.calls.find(
-          call => typeof call[0] === 'string' && call[0].includes('ProtectedErrorBoundary caught:')
+          (call: Parameters<typeof console.error>) =>
+            typeof call[0] === 'string' && call[0].includes('ProtectedErrorBoundary caught:')
         );
         expect(ourCall).toBeDefined();
       } finally {

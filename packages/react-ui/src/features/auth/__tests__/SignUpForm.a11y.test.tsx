@@ -54,7 +54,7 @@ describe('SignUpForm - Accessibility', () => {
     });
 
     it('should have no accessibility violations during loading state', async () => {
-      const onSignUp = vi.fn(() => new Promise(() => {})); // Never resolves
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>(() => {})); // Never resolves
 
       const { container } = render(
         <SignUpForm
@@ -138,7 +138,7 @@ describe('SignUpForm - Accessibility', () => {
     });
 
     it('should disable button during loading state', async () => {
-      const onSignUp = vi.fn(() => new Promise(() => {}));
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>(() => {}));
 
       render(
         <SignUpForm
@@ -213,7 +213,7 @@ translations={mockTranslations} />
     });
 
     it('should show loading spinner during sign-up', async () => {
-      const onSignUp = vi.fn(() => new Promise(() => {}));
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>(() => {}));
 
       const { container } = render(
         <SignUpForm
@@ -348,7 +348,7 @@ translations={mockTranslations} />
 
   describe('Loading State Accessibility', () => {
     it('should announce loading state to screen readers', async () => {
-      const onSignUp = vi.fn(() => new Promise(() => {}));
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>(() => {}));
 
       render(
         <SignUpForm
@@ -367,7 +367,7 @@ translations={mockTranslations} />
     });
 
     it('should maintain button focus during loading', async () => {
-      const onSignUp = vi.fn(() => new Promise(() => {}));
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>(() => {}));
 
       render(
         <SignUpForm

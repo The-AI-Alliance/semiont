@@ -8,6 +8,7 @@ vi.mock('@/hooks/useUI', () => ({
   useDropdown: vi.fn(() => ({
     isOpen: false,
     toggle: vi.fn(),
+    open: vi.fn(),
     close: vi.fn(),
     dropdownRef: { current: null },
   })),
@@ -36,6 +37,7 @@ describe('UnifiedHeader Component', () => {
     vi.mocked(useDropdown).mockReturnValue({
       isOpen: false,
       toggle: vi.fn(),
+      open: vi.fn(),
       close: vi.fn(),
       dropdownRef: { current: null },
     });
@@ -215,6 +217,7 @@ describe('UnifiedHeader Component', () => {
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: false,
         toggle: mockToggle,
+        open: vi.fn(),
         close: vi.fn(),
         dropdownRef: { current: null },
       });
@@ -238,6 +241,7 @@ describe('UnifiedHeader Component', () => {
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
+        open: vi.fn(),
         close: vi.fn(),
         dropdownRef: { current: null },
       });
@@ -260,6 +264,7 @@ describe('UnifiedHeader Component', () => {
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
+        open: vi.fn(),
         close: vi.fn(),
         dropdownRef: { current: null },
       });
@@ -281,6 +286,7 @@ describe('UnifiedHeader Component', () => {
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: false,
         toggle: vi.fn(),
+        open: vi.fn(),
         close: vi.fn(),
         dropdownRef: { current: null },
       });
@@ -303,6 +309,7 @@ describe('UnifiedHeader Component', () => {
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
+        open: vi.fn(),
         close: mockClose,
         dropdownRef: { current: null },
       });
@@ -330,6 +337,7 @@ describe('UnifiedHeader Component', () => {
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: false,
         toggle: vi.fn(),
+        open: vi.fn(),
         close: vi.fn(),
         dropdownRef: { current: null },
       });
@@ -365,6 +373,7 @@ describe('UnifiedHeader Component', () => {
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
+        open: vi.fn(),
         close: vi.fn(),
         dropdownRef: { current: null },
       });
@@ -388,6 +397,7 @@ describe('UnifiedHeader Component', () => {
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
+        open: vi.fn(),
         close: vi.fn(),
         dropdownRef: { current: null },
       });
@@ -449,6 +459,7 @@ describe('UnifiedHeader Component', () => {
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
+        open: vi.fn(),
         close: vi.fn(),
         dropdownRef: { current: null },
       });
@@ -470,6 +481,7 @@ describe('UnifiedHeader Component', () => {
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
+        open: vi.fn(),
         close: vi.fn(),
         dropdownRef: { current: null },
       });

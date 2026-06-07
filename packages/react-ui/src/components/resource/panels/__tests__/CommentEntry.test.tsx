@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CommentEntry } from '../CommentEntry';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnnotationId } from '@semiont/core';
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -40,10 +40,11 @@ const mockGetAnnotationExactText = getAnnotationExactText as MockedFunction<type
 // Test data fixtures
 const createMockComment = (overrides?: Partial<Annotation>): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
-  id: 'comment-1',
+  id: 'comment-1' as AnnotationId,
   type: 'Annotation',
   motivation: 'commenting',
   creator: {
+    '@type': 'Person',
     name: 'user@example.com',
   },
   created: '2024-01-01T10:00:00Z',
@@ -96,9 +97,6 @@ describe('CommentEntry Component', () => {
   const defaultProps = {
     comment: mockCommentStates.standard,
     isFocused: false,
-    onClick: vi.fn(),
-    onCommentRef: vi.fn(),
-    onCommentHover: vi.fn(),
   };
 
   beforeEach(() => {
@@ -394,19 +392,26 @@ describe('CommentEntry Component', () => {
     });
 
     it('should stop event propagation when clicking textarea in edit mode', async () => {
-      const onClick = vi.fn();
-      renderWithProviders(<CommentEntry {...defaultProps} onClick={onClick} />);
+      const clickHandler = vi.fn();
+      const { eventBus } = renderWithProviders(
+        <CommentEntry {...defaultProps} />,
+        { returnEventBus: true }
+      );
+
+      const subscription = eventBus!.get('browse:click').subscribe(clickHandler);
 
       await userEvent.click(screen.getByText('Edit'));
 
-      // Clear the onClick calls that happened during entering edit mode
-      onClick.mockClear();
+      // Clear any browse:click emissions that happened during entering edit mode
+      clickHandler.mockClear();
 
       const textarea = screen.getByRole('textbox');
       await userEvent.click(textarea);
 
-      // onClick should not be called for textarea click due to stopPropagation
-      expect(onClick).not.toHaveBeenCalled();
+      // browse:click should not be emitted for textarea click due to stopPropagation
+      expect(clickHandler).not.toHaveBeenCalled();
+
+      subscription.unsubscribe();
     });
 
     it('should update text in textarea', async () => {
@@ -482,14 +487,24 @@ describe('CommentEntry Component', () => {
       expect(screen.getByText('This is a test comment')).toBeInTheDocument();
     });
 
-    it('should not call onUpdate when cancel is clicked', async () => {
-      const onUpdate = vi.fn();
-      renderWithProviders(<CommentEntry {...defaultProps} onUpdate={onUpdate} />);
+    it('should not emit any update when cancel is clicked', async () => {
+      const clickHandler = vi.fn();
+      const { eventBus } = renderWithProviders(
+        <CommentEntry {...defaultProps} />,
+        { returnEventBus: true }
+      );
+
+      const subscription = eventBus!.get('browse:click').subscribe(clickHandler);
 
       await userEvent.click(screen.getByText('Edit'));
+      clickHandler.mockClear();
+
       await userEvent.click(screen.getByText('Cancel'));
 
-      expect(onUpdate).not.toHaveBeenCalled();
+      // Cancel discards the edit without emitting any event
+      expect(clickHandler).not.toHaveBeenCalled();
+
+      subscription.unsubscribe();
     });
   });
 

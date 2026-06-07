@@ -3,7 +3,7 @@ import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../../test-utils';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnnotationId } from '@semiont/core';
 
 // Stable mock functions defined outside vi.mock to avoid re-render loops
 const mockIsBodyResolved = vi.fn();
@@ -25,7 +25,7 @@ import { StatisticsPanel } from '../StatisticsPanel';
 
 const createMockAnnotation = (overrides?: Partial<Annotation>): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
-  id: 'http://example.com/annotations/1',
+  id: 'http://example.com/annotations/1' as AnnotationId,
   type: 'Annotation',
   motivation: 'linking',
   created: '2024-06-15T12:00:00Z',
@@ -71,7 +71,7 @@ describe('StatisticsPanel', () => {
     it('should render correct highlight count', () => {
       const props = {
         ...emptyProps,
-        highlights: [createMockAnnotation({ id: 'h1' }), createMockAnnotation({ id: 'h2' }), createMockAnnotation({ id: 'h3' })],
+        highlights: [createMockAnnotation({ id: 'h1' as AnnotationId }), createMockAnnotation({ id: 'h2' as AnnotationId }), createMockAnnotation({ id: 'h3' as AnnotationId })],
       };
 
       renderWithProviders(<StatisticsPanel {...props} />);
@@ -83,7 +83,7 @@ describe('StatisticsPanel', () => {
     it('should render correct comment count', () => {
       const props = {
         ...emptyProps,
-        comments: [createMockAnnotation({ id: 'c1' }), createMockAnnotation({ id: 'c2' })],
+        comments: [createMockAnnotation({ id: 'c1' as AnnotationId }), createMockAnnotation({ id: 'c2' as AnnotationId })],
       };
 
       renderWithProviders(<StatisticsPanel {...props} />);
@@ -95,7 +95,7 @@ describe('StatisticsPanel', () => {
     it('should render correct assessment count', () => {
       const props = {
         ...emptyProps,
-        assessments: [createMockAnnotation({ id: 'a1' })],
+        assessments: [createMockAnnotation({ id: 'a1' as AnnotationId })],
       };
 
       renderWithProviders(<StatisticsPanel {...props} />);
@@ -108,10 +108,10 @@ describe('StatisticsPanel', () => {
       const props = {
         ...emptyProps,
         tags: [
-          createMockAnnotation({ id: 't1' }),
-          createMockAnnotation({ id: 't2' }),
-          createMockAnnotation({ id: 't3' }),
-          createMockAnnotation({ id: 't4' }),
+          createMockAnnotation({ id: 't1' as AnnotationId }),
+          createMockAnnotation({ id: 't2' as AnnotationId }),
+          createMockAnnotation({ id: 't3' as AnnotationId }),
+          createMockAnnotation({ id: 't4' as AnnotationId }),
         ],
       };
 
@@ -122,7 +122,7 @@ describe('StatisticsPanel', () => {
     });
 
     it('should render correct total reference count', () => {
-      const refs = [createMockAnnotation({ id: 'r1' }), createMockAnnotation({ id: 'r2' })];
+      const refs = [createMockAnnotation({ id: 'r1' as AnnotationId }), createMockAnnotation({ id: 'r2' as AnnotationId })];
 
       renderWithProviders(<StatisticsPanel {...emptyProps} references={refs} />);
 
@@ -137,9 +137,9 @@ describe('StatisticsPanel', () => {
   describe('Reference sub-categories', () => {
     it('should show stub and resolved counts', () => {
       const refs = [
-        createMockAnnotation({ id: 'r1' }),
-        createMockAnnotation({ id: 'r2' }),
-        createMockAnnotation({ id: 'r3' }),
+        createMockAnnotation({ id: 'r1' as AnnotationId }),
+        createMockAnnotation({ id: 'r2' as AnnotationId }),
+        createMockAnnotation({ id: 'r3' as AnnotationId }),
       ];
 
       // r1 resolved, r2 and r3 are stubs
@@ -165,8 +165,8 @@ describe('StatisticsPanel', () => {
 
     it('should count all as resolved when isBodyResolved returns true', () => {
       const refs = [
-        createMockAnnotation({ id: 'r1' }),
-        createMockAnnotation({ id: 'r2' }),
+        createMockAnnotation({ id: 'r1' as AnnotationId }),
+        createMockAnnotation({ id: 'r2' as AnnotationId }),
       ];
 
       mockIsBodyResolved.mockReturnValue(true);
@@ -180,8 +180,8 @@ describe('StatisticsPanel', () => {
 
     it('should count all as stubs when isBodyResolved returns false', () => {
       const refs = [
-        createMockAnnotation({ id: 'r1' }),
-        createMockAnnotation({ id: 'r2' }),
+        createMockAnnotation({ id: 'r1' as AnnotationId }),
+        createMockAnnotation({ id: 'r2' as AnnotationId }),
       ];
 
       mockIsBodyResolved.mockReturnValue(false);
@@ -204,9 +204,9 @@ describe('StatisticsPanel', () => {
 
     it('should render entity types with counts', () => {
       const refs = [
-        createMockAnnotation({ id: 'r1' }),
-        createMockAnnotation({ id: 'r2' }),
-        createMockAnnotation({ id: 'r3' }),
+        createMockAnnotation({ id: 'r1' as AnnotationId }),
+        createMockAnnotation({ id: 'r2' as AnnotationId }),
+        createMockAnnotation({ id: 'r3' as AnnotationId }),
       ];
 
       mockGetEntityTypes
@@ -224,9 +224,9 @@ describe('StatisticsPanel', () => {
 
     it('should sort entity types by count descending', () => {
       const refs = [
-        createMockAnnotation({ id: 'r1' }),
-        createMockAnnotation({ id: 'r2' }),
-        createMockAnnotation({ id: 'r3' }),
+        createMockAnnotation({ id: 'r1' as AnnotationId }),
+        createMockAnnotation({ id: 'r2' as AnnotationId }),
+        createMockAnnotation({ id: 'r3' as AnnotationId }),
       ];
 
       // Person appears 3 times, Location 1 time
@@ -249,11 +249,11 @@ describe('StatisticsPanel', () => {
   describe('Mixed annotation counts', () => {
     it('should render all categories with their respective counts simultaneously', () => {
       const props = {
-        highlights: [createMockAnnotation({ id: 'h1' })],
-        comments: [createMockAnnotation({ id: 'c1' }), createMockAnnotation({ id: 'c2' })],
-        assessments: [createMockAnnotation({ id: 'a1' }), createMockAnnotation({ id: 'a2' }), createMockAnnotation({ id: 'a3' })],
-        references: [createMockAnnotation({ id: 'r1' })],
-        tags: [createMockAnnotation({ id: 't1' }), createMockAnnotation({ id: 't2' })],
+        highlights: [createMockAnnotation({ id: 'h1' as AnnotationId })],
+        comments: [createMockAnnotation({ id: 'c1' as AnnotationId }), createMockAnnotation({ id: 'c2' as AnnotationId })],
+        assessments: [createMockAnnotation({ id: 'a1' as AnnotationId }), createMockAnnotation({ id: 'a2' as AnnotationId }), createMockAnnotation({ id: 'a3' as AnnotationId })],
+        references: [createMockAnnotation({ id: 'r1' as AnnotationId })],
+        tags: [createMockAnnotation({ id: 't1' as AnnotationId }), createMockAnnotation({ id: 't2' as AnnotationId })],
       };
 
       renderWithProviders(<StatisticsPanel {...props} />);

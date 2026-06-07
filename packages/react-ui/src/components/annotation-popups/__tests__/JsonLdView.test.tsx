@@ -3,7 +3,7 @@ import { screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnnotationId } from '@semiont/core';
 
 // Mock CodeMirror modules
 vi.mock('@codemirror/view', () => {
@@ -55,10 +55,10 @@ import { JsonLdView } from '../JsonLdView';
 
 const createMockAnnotation = (overrides?: Partial<Annotation>): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
-  id: 'anno-1',
+  id: 'anno-1' as AnnotationId,
   type: 'Annotation',
   motivation: 'highlighting',
-  creator: { name: 'user@example.com' },
+  creator: { '@type': 'Person', name: 'user@example.com' },
   created: '2024-01-01T10:00:00Z',
   target: {
     source: 'resource-1',

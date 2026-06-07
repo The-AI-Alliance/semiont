@@ -53,7 +53,7 @@ describe('SignUpForm', () => {
 
   describe('Sign-Up Interaction', () => {
     it('calls onSignUp when button is clicked', async () => {
-      const onSignUp = vi.fn<[], Promise<void>>().mockResolvedValue(undefined);
+      const onSignUp = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
       render(<SignUpForm onSignUp={onSignUp} Link={MockLink} translations={mockTranslations} />);
 
       const button = screen.getByRole('button', { name: /Continue with Google/i });
@@ -63,7 +63,7 @@ describe('SignUpForm', () => {
     });
 
     it('shows loading state while signing up', async () => {
-      const onSignUp = vi.fn<[], Promise<void>>(() => new Promise<void>((resolve) => setTimeout(resolve, 100)));
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>((resolve) => setTimeout(resolve, 100)));
       render(<SignUpForm onSignUp={onSignUp} Link={MockLink} translations={mockTranslations} />);
 
       const button = screen.getByRole('button');
@@ -83,7 +83,7 @@ describe('SignUpForm', () => {
     });
 
     it('disables button during loading', async () => {
-      const onSignUp = vi.fn<[], Promise<void>>(() => new Promise<void>((resolve) => setTimeout(resolve, 100)));
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>((resolve) => setTimeout(resolve, 100)));
       render(<SignUpForm onSignUp={onSignUp} Link={MockLink} translations={mockTranslations} />);
 
       const button = screen.getByRole('button');
