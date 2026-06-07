@@ -21,10 +21,6 @@ describe('NavigationMenu - Accessibility', () => {
   ));
 
   const mockRoutes = {
-    resourceDetail: vi.fn((id: string) => `/resource/${id}`),
-    userProfile: vi.fn((id: string) => `/user/${id}`),
-    search: vi.fn((query: string) => `/search?q=${query}`),
-    home: vi.fn(() => '/'),
     knowledge: vi.fn(() => '/knowledge'),
     moderate: vi.fn(() => '/moderate'),
     admin: vi.fn(() => '/admin'),
@@ -60,7 +56,7 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          activePath="/knowledge"
+          currentPath="/knowledge"
         />
       );
 

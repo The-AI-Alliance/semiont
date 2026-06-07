@@ -102,7 +102,7 @@ describe.skip('SearchModal Component - Visual States', () => {
       rerender(<SearchModal {...defaultProps} isOpen={false} />);
       rerender(<SearchModal {...defaultProps} isOpen={true} />);
 
-      const input = screen.getByPlaceholderText('Search resources, entities...');
+      const input = screen.getByPlaceholderText<HTMLInputElement>('Search resources, entities...');
       expect(input).toBeInTheDocument();
       expect(input.value).toBe('');
     });

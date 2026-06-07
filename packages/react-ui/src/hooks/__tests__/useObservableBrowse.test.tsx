@@ -62,7 +62,7 @@ describe('useObservableRouter', () => {
 
     const { result } = renderHook(() => useObservableRouter(baseRouter), { wrapper: Wrapper });
 
-    expect(result.current.replace).toBeUndefined();
+    expect((result.current as { replace?: () => void }).replace).toBeUndefined();
   });
 
   it('passes through other router properties', () => {

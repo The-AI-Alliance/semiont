@@ -477,7 +477,6 @@ describe('useKeyboardShortcuts', () => {
 
       renderHook(() => useKeyboardShortcuts(shortcuts));
 
-      // @ts-expect-error - Testing runtime behavior
       const event = new KeyboardEvent('keydown', {});
       window.dispatchEvent(event);
 

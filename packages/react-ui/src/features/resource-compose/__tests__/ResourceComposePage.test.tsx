@@ -63,6 +63,7 @@ const createMockProps = (overrides?: Partial<ResourceComposePageProps>): Resourc
   initialLocale: 'en',
   theme: 'light',
   showLineNumbers: false,
+  hoverDelayMs: 0,
   activePanel: null,
   onSaveResource: vi.fn().mockResolvedValue(undefined),
   onCancel: vi.fn(),

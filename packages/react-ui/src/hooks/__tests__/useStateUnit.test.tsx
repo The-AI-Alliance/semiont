@@ -15,7 +15,7 @@
  * and the page displayed stale content.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useStateUnit } from '../useStateUnit';
 
@@ -24,10 +24,10 @@ interface TestStateUnit {
   dispose(): void;
 }
 
-function makeStateUnit(id: string, disposeSpy?: ReturnType<typeof vi.fn>): TestStateUnit {
+function makeStateUnit(id: string, disposeSpy?: Mock<() => void>): TestStateUnit {
   return {
     id,
-    dispose: disposeSpy ?? vi.fn(),
+    dispose: disposeSpy ?? vi.fn<() => void>(),
   };
 }
 
@@ -70,7 +70,7 @@ describe('useStateUnit', () => {
   });
 
   it('disposes the state unit on unmount', () => {
-    const disposeSpy = vi.fn();
+    const disposeSpy = vi.fn<() => void>();
     const factory = vi.fn(() => makeStateUnit('vm-1', disposeSpy));
     const { unmount } = renderHook(() => useStateUnit(factory));
 
@@ -83,7 +83,7 @@ describe('useStateUnit', () => {
     // Simulate what React does on a key change: unmount the old hook
     // and mount a new one. (`renderHook` doesn't offer a direct key API,
     // so we do it explicitly.)
-    const disposeSpy = vi.fn();
+    const disposeSpy = vi.fn<() => void>();
     const factory = vi.fn((id: string) => makeStateUnit(id, disposeSpy));
 
     const first = renderHook(

@@ -8,7 +8,7 @@ type TranslateFn = (key: string, params?: Record<string, any>) => string;
 
 interface NavigationMenuProps {
   Link: React.ComponentType<LinkComponentProps>;
-  routes: RouteBuilder;
+  routes: Partial<RouteBuilder>;
   t: TranslateFn;
   isAdmin?: boolean;
   isModerator?: boolean;

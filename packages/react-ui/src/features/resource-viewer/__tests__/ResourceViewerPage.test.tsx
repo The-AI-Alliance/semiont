@@ -13,6 +13,7 @@ import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
 import { ToastProvider } from '../../../components/Toast';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
 import { createTestSemiontWrapper } from '../../../test-utils';
+import type { ResourceId } from '@semiont/core';
 
 // jsdom doesn't implement window.matchMedia — mock it for useTheme
 Object.defineProperty(window, 'matchMedia', {
@@ -131,7 +132,7 @@ vi.mock('@/components/toolbar/ToolbarPanels', () => ({
 const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): ResourceViewerPageProps => ({
   resource: {
     '@context': 'https://www.w3.org/ns/anno.jsonld',
-    '@id': 'test-123',
+    '@id': 'test-123' as ResourceId,
     '@type': 'schema:DigitalDocument',
     name: 'Test Resource',
     description: 'A test resource for unit testing',
@@ -147,7 +148,6 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
   },
   rUri: 'test-123' as any,
   locale: 'en',
-  cacheManager: {},
   Link: ({ children }: any) => <a>{children}</a>,
   routes: {},
   refetchDocument: vi.fn().mockResolvedValue(undefined),

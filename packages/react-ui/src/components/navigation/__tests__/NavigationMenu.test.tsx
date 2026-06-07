@@ -20,10 +20,6 @@ describe('NavigationMenu Component', () => {
   ));
 
   const mockRoutes = {
-    resourceDetail: vi.fn((id: string) => `/resource/${id}`),
-    userProfile: vi.fn((id: string) => `/user/${id}`),
-    search: vi.fn((query: string) => `/search?q=${query}`),
-    home: vi.fn(() => '/'),
     knowledge: vi.fn(() => '/knowledge'),
     moderate: vi.fn(() => '/moderate'),
     admin: vi.fn(() => '/admin'),
@@ -619,10 +615,6 @@ isAdmin={true} />
 
     it('should handle routes that return null', () => {
       const nullRoutes = {
-        resourceDetail: (id: string) => `/resource/${id}`,
-        userProfile: (id: string) => `/user/${id}`,
-        search: (query: string) => `/search?q=${query}`,
-        home: () => '/',
         knowledge: () => null as any,
         moderate: () => null as any,
         admin: () => null as any,

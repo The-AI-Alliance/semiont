@@ -54,6 +54,8 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
     mockAnnotations = [
       {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        type: 'Annotation',
         id: 'highlight-1' as AnnotationId,
         motivation: 'highlighting',
         target: {

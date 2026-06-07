@@ -17,9 +17,7 @@ import { ResourceViewer } from '../ResourceViewer';
 import { createTestSemiontWrapper } from '../../../test-utils';
 import { TranslationProvider } from '../../../contexts/TranslationContext';
 import { ResourceAnnotationsProvider } from '../../../contexts/ResourceAnnotationsContext';
-import type { components } from '@semiont/core';
-
-type SemiontResource = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
 
 // Mock dependencies
 vi.mock('../../../hooks/useObservableBrowse', () => ({
@@ -61,7 +59,7 @@ vi.mock('../../../session/SemiontProvider', async () => {
 
 const mockResource: SemiontResource & { content: string } = {
   '@context': 'https://www.w3.org/ns/activitystreams',
-  '@id': 'test-123',
+  '@id': 'test-123' as ResourceId,
   name: 'Test Document',
   created: '2024-01-01T00:00:00Z',
   entityTypes: [],

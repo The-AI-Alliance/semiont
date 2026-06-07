@@ -45,7 +45,7 @@ function buildBrowser(initialExpiresAt: Date | null): {
 
 function makeWrapper(browser: SemiontBrowser) {
   return ({ children }: { children: ReactNode }) =>
-    React.createElement(SemiontProvider, { browser }, children);
+    React.createElement(SemiontProvider, { browser, children });
 }
 
 describe('useSessionExpiry', () => {
