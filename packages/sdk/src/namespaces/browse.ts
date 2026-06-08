@@ -195,7 +195,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   // first non-undefined value.
 
   resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor> {
-    return CacheObservable.from(this.resourceCache.observe(resourceId));
+    return CacheObservable.from(this.resourceCache.observe(resourceId), this.resourceCache.errors(resourceId));
   }
 
   resources(filters?: ResourceListFilters): CacheObservable<ResourceDescriptor[]> {
@@ -203,7 +203,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     // Remember the filter blob so `invalidateResourceLists` can drive
     // per-key SWR refetches without the caller re-passing filters.
     this.resourceListFilters.set(key, filters ?? {});
-    return CacheObservable.from(this.resourceListCache.observe(key));
+    return CacheObservable.from(this.resourceListCache.observe(key), this.resourceListCache.errors(key));
   }
 
   annotations(resourceId: ResourceId): CacheObservable<Annotation[]> {
@@ -212,7 +212,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       obs = this.annotationListCache.observe(resourceId).pipe(map((r) => r?.annotations as Annotation[] | undefined));
       this.annotationListObs.set(resourceId, obs);
     }
-    return CacheObservable.from(obs);
+    return CacheObservable.from(obs, this.annotationListCache.errors(resourceId));
   }
 
   annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation> {
@@ -220,23 +220,23 @@ export class BrowseNamespace implements IBrowseNamespace {
     // the cache key, `annotationId`) can look up the resourceId it
     // needs for the bus request.
     this.annotationResources.set(annotationId, resourceId);
-    return CacheObservable.from(this.annotationDetailCache.observe(annotationId));
+    return CacheObservable.from(this.annotationDetailCache.observe(annotationId), this.annotationDetailCache.errors(annotationId));
   }
 
   entityTypes(): CacheObservable<string[]> {
-    return CacheObservable.from(this.entityTypesCache.observe(ENTITY_TYPES_KEY));
+    return CacheObservable.from(this.entityTypesCache.observe(ENTITY_TYPES_KEY), this.entityTypesCache.errors(ENTITY_TYPES_KEY));
   }
 
   tagSchemas(): CacheObservable<TagSchema[]> {
-    return CacheObservable.from(this.tagSchemasCache.observe(TAG_SCHEMAS_KEY));
+    return CacheObservable.from(this.tagSchemasCache.observe(TAG_SCHEMAS_KEY), this.tagSchemasCache.errors(TAG_SCHEMAS_KEY));
   }
 
   referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]> {
-    return CacheObservable.from(this.referencedByCache.observe(resourceId));
+    return CacheObservable.from(this.referencedByCache.observe(resourceId), this.referencedByCache.errors(resourceId));
   }
 
   events(resourceId: ResourceId): CacheObservable<StoredEventResponse[]> {
-    return CacheObservable.from(this.resourceEventsCache.observe(resourceId));
+    return CacheObservable.from(this.resourceEventsCache.observe(resourceId), this.resourceEventsCache.errors(resourceId));
   }
 
   // ── One-shot reads ──────────────────────────────────────────────────────

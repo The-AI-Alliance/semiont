@@ -26,12 +26,32 @@ export class JobNamespace implements IJobNamespace {
     return this.bus.get('job:report-progress');
   }
 
-  /** Live stream of `job:complete` events. */
+  /**
+   * Live stream of `job:complete` events.
+   *
+   * **Dual-delivery — consumers must be idempotent.** The worker emits
+   * `job:complete` both globally (so a dispatching caller receives it on the
+   * always-on global bridge, keyed by `jobId`) and resource-scoped (so
+   * viewers of the resource react too). A client subscribed to *both* a
+   * resource scope and the global bus therefore sees each completion
+   * **twice**. This stream is a raw passthrough and does NOT dedupe.
+   *
+   * Key on `jobId` and keep the reaction idempotent — prefer naturally
+   * idempotent side effects; for a single job use
+   * `complete$.pipe(filter(e => e.jobId === id), take(1))`. The single-job
+   * consumers (`mark.assist`, `yield.fromAnnotation`, `pollUntilComplete`)
+   * already collapse the doubled delivery to one observed completion.
+   */
   get complete$(): Observable<EventMap['job:complete']> {
     return this.bus.get('job:complete');
   }
 
-  /** Live stream of `job:fail` events. */
+  /**
+   * Live stream of `job:fail` events.
+   *
+   * Dual-delivered like {@link complete$} — see its note. Raw passthrough,
+   * not deduped; key on `jobId` and keep the reaction idempotent.
+   */
   get fail$(): Observable<EventMap['job:fail']> {
     return this.bus.get('job:fail');
   }

@@ -60,20 +60,21 @@ export class MarkNamespace implements IMarkNamespace {
       let pollTimer: ReturnType<typeof setTimeout> | null = null;
       let pollInterval: ReturnType<typeof setInterval> | null = null;
 
-      // `job:complete` and `job:report-progress` are resource-scoped on
-      // the SSE wire — subscribe for the lifetime of the Observable so
-      // headless callers (a parallel SDK client, a worker harness, an
-      // e2e spec) receive them without having to remember to call
-      // `subscribeToResource` first. UI code is unaffected: the page's
-      // resource-tab subscriptions already cover this, so the extra
-      // subscribe is a no-op for the common path.
-      let unsubscribeResource: (() => void) | null = this.transport.subscribeToResource(resourceId);
+      // `job:report-progress`, `job:complete`, and `job:fail` all reach us
+      // on the always-on global bridge — the worker dual-emits the
+      // resource-broadcast ones (`job:complete`/`job:fail`) globally as well
+      // as scoped, so the dispatching caller gets them without a scoped
+      // subscription. We deliberately do NOT call
+      // `transport.subscribeToResource(resourceId)` here: that mutates the
+      // SSE channel set, which can only change by tearing down and
+      // re-opening the connection, so it forced a reconnect on every assist
+      // and dropped in-flight `browse.*` results in the reconnect gap. See
+      // Link 1 in .plans/SEMIONT-BUG-browse-annotations.md.
 
       const cleanup = () => {
         done = true;
         if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
         if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-        if (unsubscribeResource) { unsubscribeResource(); unsubscribeResource = null; }
       };
 
       const resetPollTimer = (jobId: string) => {

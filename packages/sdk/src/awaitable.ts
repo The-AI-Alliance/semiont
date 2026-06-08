@@ -18,8 +18,8 @@
  * RxJS land; `lastValueFrom` from `rxjs` is the right bridge there.
  */
 
-import { Observable, firstValueFrom, lastValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { Observable, firstValueFrom, lastValueFrom, merge } from 'rxjs';
+import { filter, map } from 'rxjs/operators';
 import type { ResourceId } from '@semiont/core';
 
 /**
@@ -61,16 +61,43 @@ export class StreamObservable<T> extends Observable<T> implements PromiseLike<T>
  * `.pipe` in the natural way.
  */
 export class CacheObservable<T> extends Observable<T | undefined> implements PromiseLike<T> {
+  /**
+   * Optional per-key fetch-failure stream. Consulted only by `then()` (the
+   * await path). `.subscribe(...)` never touches it — live-query subscribers
+   * keep the stale-while-revalidate contract (a failed fetch leaves them at
+   * their last value / loading state, never errored). See cache.ts B6.
+   */
+  private errors$?: Observable<unknown>;
+
   then<R1 = T, R2 = never>(
     onfulfilled?: ((v: T) => R1 | PromiseLike<R1>) | null,
     onrejected?: ((e: unknown) => R2 | PromiseLike<R2>) | null,
   ): PromiseLike<R1 | R2> {
-    return firstValueFrom(this.pipe(filter((v): v is T => v !== undefined)))
+    const value$ = this.pipe(
+      filter((v): v is T => v !== undefined),
+      map((value): { ok: true; value: T } => ({ ok: true, value })),
+    );
+    // Race first-defined-value against first-fetch-error. firstValueFrom
+    // takes the first emission and unsubscribes from both, so a later
+    // error (e.g. a subsequent failed refetch) can't produce a dangling
+    // rejection after the value already won.
+    const settled$ = this.errors$
+      ? merge(value$, this.errors$.pipe(map((error): { ok: false; error: unknown } => ({ ok: false, error }))))
+      : value$;
+    return firstValueFrom(settled$)
+      .then((r) => {
+        if (r.ok) return r.value;
+        throw r.error;
+      })
       .then(onfulfilled, onrejected);
   }
 
   /**
    * Wrap an existing Observable's subscribe behavior in a `CacheObservable`.
+   *
+   * `errors$`, when supplied, is the cache's per-key fetch-failure stream:
+   * it lets `await` reject on a lost/failed fetch instead of hanging
+   * forever, without erroring `.subscribe(...)` consumers (B6).
    *
    * Memoizes on source identity: passing the same `source` returns the same
    * wrapper instance. The Browse cache primitive already returns a stable
@@ -81,10 +108,11 @@ export class CacheObservable<T> extends Observable<T | undefined> implements Pro
    *
    * Backed by a `WeakMap`, so wrappers are GC'd when their source is.
    */
-  static from<T>(source: Observable<T | undefined>): CacheObservable<T> {
+  static from<T>(source: Observable<T | undefined>, errors$?: Observable<unknown>): CacheObservable<T> {
     let wrapper = wrapperCache.get(source) as CacheObservable<T> | undefined;
     if (!wrapper) {
       wrapper = new CacheObservable<T>((subscriber) => source.subscribe(subscriber));
+      wrapper.errors$ = errors$;
       wrapperCache.set(source, wrapper);
     }
     return wrapper;

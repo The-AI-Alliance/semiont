@@ -51,7 +51,9 @@ Channels every viewer of a specific resource wants to see, regardless of who tri
 
 The authoritative list is `RESOURCE_BROADCAST_TYPES` in [`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts):
 
-- `yield:progress`, `yield:finished`, `yield:failed`
+- `job:complete`, `job:fail`
+
+**Dual-emit.** These two are emitted by the worker **both** resource-scoped (for viewers, above) **and** globally (so the caller that dispatched the job receives them on the always-on global bridge, keyed by `jobId`, without holding a resource-scoped subscription — see `emitEvent` in [`packages/jobs/src/worker-process.ts`](../../packages/jobs/src/worker-process.ts)). A client subscribed to both delivery paths sees each event **twice**; raw `job.complete$`/`job.fail$` consumers must key on `jobId` and stay idempotent. The reason for the global path: a resource-scoped subscription mutates the SSE channel set, which forces a reconnect that drops in-flight correlation results — the Link 1 root cause in [`.plans/SEMIONT-BUG-browse-annotations.md`](../../.plans/SEMIONT-BUG-browse-annotations.md).
 
 ## Bridged channels (HTTP transport fan-in)
 
