@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from 'vitest';
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { PageLayout } from '../PageLayout';
@@ -247,7 +246,6 @@ describe('PageLayout Component', () => {
       );
 
       // Real Footer renders copyright with dynamic year
-      const currentYear = new Date().getFullYear();
       expect(screen.getByText(`translated.copyright`)).toBeInTheDocument();
     });
   });
@@ -270,7 +268,7 @@ describe('PageLayout Component', () => {
     });
 
     it('should render with CookiePreferences component', () => {
-      const MockCookiePreferences = ({ isOpen, onClose }: any) => (
+      const MockCookiePreferences = ({  }: any) => (
         <div data-testid="cookie-prefs">Cookie Preferences</div>
       );
 

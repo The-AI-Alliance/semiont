@@ -21,6 +21,10 @@ describe('Footer - Accessibility', () => {
   ));
 
   const mockRoutes = {
+    resourceDetail: vi.fn((id: string) => `/resource/${id}`),
+    userProfile: vi.fn((id: string) => `/user/${id}`),
+    search: vi.fn((query: string) => `/search?q=${query}`),
+    home: vi.fn(() => '/'),
     about: vi.fn(() => '/about'),
     privacy: vi.fn(() => '/privacy'),
     terms: vi.fn(() => '/terms'),

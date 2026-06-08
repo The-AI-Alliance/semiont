@@ -8,7 +8,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ResourceComposePage } from '../components/ResourceComposePage';
-import type { ResourceComposePageProps, SaveResourceParams } from '../components/ResourceComposePage';
+import type { ResourceComposePageProps } from '../components/ResourceComposePage';
 import { createTestSemiontWrapper } from '../../../test-utils';
 
 // Mock CodeMirrorRenderer to avoid CodeMirror dependencies
@@ -63,6 +63,7 @@ const createMockProps = (overrides?: Partial<ResourceComposePageProps>): Resourc
   initialLocale: 'en',
   theme: 'light',
   showLineNumbers: false,
+  hoverDelayMs: 0,
   activePanel: null,
   onSaveResource: vi.fn().mockResolvedValue(undefined),
   onCancel: vi.fn(),

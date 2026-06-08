@@ -6,7 +6,7 @@ import { createTestSemiontWrapper } from '../../test-utils';
 import type { ReactNode } from 'react';
 
 function makeWrapper(): {
-  wrapper: (props: { children: ReactNode }) => JSX.Element;
+  wrapper: (props: { children: ReactNode }) => ReactNode;
   eventBus: EventBus;
 } {
   const { SemiontWrapper, eventBus } = createTestSemiontWrapper();

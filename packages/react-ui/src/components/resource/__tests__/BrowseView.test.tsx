@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowseView } from '../BrowseView';
-import type { components, EventBus } from '@semiont/core';
+import type { EventBus } from '@semiont/core';
 import { createTestSemiontWrapper } from '../../../test-utils';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnnotationId } from '@semiont/core';
 
 // Mock ResourceAnnotationsContext - keep this simple
 let mockNewAnnotationIds = new Set<string>();
@@ -151,12 +151,12 @@ const renderWithEventTracking = (
 };
 
 // Test data fixtures
-const createMockAnnotation = (motivation: string, id: string): Annotation => ({
+const createMockAnnotation = (motivation: Annotation['motivation'], id: string): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
-  id,
+  id: id as AnnotationId,
   type: 'Annotation',
   motivation,
-  creator: { name: 'user@example.com' },
+  creator: { '@type': 'Person', name: 'user@example.com' },
   created: '2024-01-01T10:00:00Z',
   target: {
     source: 'resource-1',
@@ -197,7 +197,9 @@ describe('BrowseView Component', () => {
     // Mock querySelector and querySelectorAll
     if (typeof document !== 'undefined') {
       document.querySelector = vi.fn();
-      document.querySelectorAll = vi.fn(() => []);
+      // Return a real (empty) NodeList so the mock matches the DOM signature.
+      const emptyNodeList = document.createDocumentFragment().querySelectorAll('*');
+      document.querySelectorAll = vi.fn(() => emptyNodeList);
     }
   });
 

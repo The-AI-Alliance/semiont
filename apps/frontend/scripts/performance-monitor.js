@@ -62,7 +62,6 @@ class PerformanceMonitor {
 
   analyzeBuildOutput(buildPath) {
     // Analyze the Next.js build output
-    const buildManifest = path.join(buildPath, 'BUILD_ID');
     const staticPath = path.join(buildPath, 'static');
     
     if (!fs.existsSync(staticPath)) {

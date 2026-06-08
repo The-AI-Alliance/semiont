@@ -1,14 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import React from 'react';
 import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
-import type { components } from '@semiont/core';
 import { BindNamespace } from '@semiont/sdk';
 import type { RouteBuilder } from '../../../../contexts/RoutingContext';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnnotationId } from '@semiont/core';
 
 // Stable mock functions defined outside vi.mock to avoid re-render loops
 const mockGetAnnotationExactText = vi.fn();
@@ -54,7 +52,7 @@ import { ReferenceEntry } from '../ReferenceEntry';
 
 const createMockReference = (overrides?: Partial<Annotation>): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
-  id: 'ref-1',
+  id: 'ref-1' as AnnotationId,
   type: 'Annotation',
   motivation: 'linking',
   created: '2024-06-15T12:00:00Z',
@@ -75,7 +73,9 @@ const createMockReference = (overrides?: Partial<Annotation>): Annotation => ({
 
 const mockRoutes: RouteBuilder = {
   resourceDetail: vi.fn((id: string) => `/resources/${id}`),
-  resourceList: vi.fn(() => '/resources'),
+  userProfile: vi.fn((id: string) => `/users/${id}`),
+  search: vi.fn((query: string) => `/search?q=${query}`),
+  home: vi.fn(() => '/'),
 };
 
 describe('ReferenceEntry', () => {

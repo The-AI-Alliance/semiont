@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
 import { screen, fireEvent, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { HistoryEvent } from '../HistoryEvent';
 import { renderWithProviders } from '../../../test-utils';
-import type { StoredEvent } from '@semiont/core';
 
 // Mock @semiont/core - must use importOriginal to preserve EventBus etc.
 vi.mock('@semiont/core', async (importOriginal) => {
@@ -37,8 +35,6 @@ vi.mock('../event-formatting', () => ({
 import { getAnnotationUriFromEvent } from '@semiont/core';
 import {
   formatEventType,
-  getEventEmoji,
-  formatRelativeTime,
   getEventDisplayContent,
   getEventEntityTypes,
   getResourceCreationDetails,

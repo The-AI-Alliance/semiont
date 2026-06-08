@@ -52,11 +52,6 @@ describe.skip('SearchModal Component - Keyboard Navigation', () => {
     });
 
     it('should handle Arrow Down key to navigate results', async () => {
-      const mockResults = [
-        { type: 'resource' as const, id: '1', name: 'Resource 1', content: 'Content 1' },
-        { type: 'resource' as const, id: '2', name: 'Resource 2', content: 'Content 2' },
-        { type: 'entity' as const, id: '3', name: 'Entity 1', entityType: 'Person' }
-      ];
 
       // TODO: Mock search results when API is integrated
       render(<SearchModal {...defaultProps} />);

@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import React from 'react';
 import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
-import type { components } from '@semiont/core';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnnotationId } from '@semiont/core';
 
 // Mock @semiont/api-client
 vi.mock('@semiont/core', async () => {
@@ -25,10 +23,11 @@ const mockGetAnnotationExactText = getAnnotationExactText as MockedFunction<type
 
 const createMockAssessment = (overrides?: Partial<Annotation>): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
-  id: 'assessment-1',
+  id: 'assessment-1' as AnnotationId,
   type: 'Annotation',
   motivation: 'assessing',
   creator: {
+    '@type': 'Person',
     name: 'reviewer@example.com',
   },
   created: '2024-06-15T12:00:00Z',

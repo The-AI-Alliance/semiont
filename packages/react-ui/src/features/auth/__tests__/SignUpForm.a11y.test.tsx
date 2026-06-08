@@ -54,7 +54,7 @@ describe('SignUpForm - Accessibility', () => {
     });
 
     it('should have no accessibility violations during loading state', async () => {
-      const onSignUp = vi.fn(() => new Promise(() => {})); // Never resolves
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>(() => {})); // Never resolves
 
       const { container } = render(
         <SignUpForm
@@ -138,7 +138,7 @@ describe('SignUpForm - Accessibility', () => {
     });
 
     it('should disable button during loading state', async () => {
-      const onSignUp = vi.fn(() => new Promise(() => {}));
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>(() => {}));
 
       render(
         <SignUpForm
@@ -197,13 +197,12 @@ describe('SignUpForm - Accessibility', () => {
     it('should have Google icon inside button', () => {
       const onSignUp = vi.fn();
 
-      const { container } = render(
-        <SignUpForm
-          onSignUp={onSignUp}
-          Link={MockLink}
-          translations={mockTranslations}
-        />
-      );
+      render(
+<SignUpForm
+onSignUp={onSignUp}
+Link={MockLink}
+translations={mockTranslations} />
+);
 
       const button = screen.getByRole('button');
       const svg = button.querySelector('svg');
@@ -214,7 +213,7 @@ describe('SignUpForm - Accessibility', () => {
     });
 
     it('should show loading spinner during sign-up', async () => {
-      const onSignUp = vi.fn(() => new Promise(() => {}));
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>(() => {}));
 
       const { container } = render(
         <SignUpForm
@@ -349,7 +348,7 @@ describe('SignUpForm - Accessibility', () => {
 
   describe('Loading State Accessibility', () => {
     it('should announce loading state to screen readers', async () => {
-      const onSignUp = vi.fn(() => new Promise(() => {}));
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>(() => {}));
 
       render(
         <SignUpForm
@@ -368,7 +367,7 @@ describe('SignUpForm - Accessibility', () => {
     });
 
     it('should maintain button focus during loading', async () => {
-      const onSignUp = vi.fn(() => new Promise(() => {}));
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>(() => {}));
 
       render(
         <SignUpForm

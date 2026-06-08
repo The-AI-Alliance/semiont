@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from 'vitest';
-import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../test-utils';
@@ -143,7 +142,7 @@ describe('SimpleNavigation', () => {
     });
 
     it('closes dropdown on outside click', () => {
-      const dropdownContent = (onClose: () => void) => (
+      const dropdownContent = () => (
         <div data-testid="dropdown-content">Dropdown</div>
       );
 

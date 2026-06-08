@@ -24,7 +24,7 @@ describe('favicons index exports', () => {
       // Verify the object is effectively immutable (const assertion)
       expect(() => {
         // This would be a TypeScript error, but we can test runtime behavior
-        const mutablePaths = { ...faviconPaths };
+        const mutablePaths: Record<string, string> = { ...faviconPaths };
         mutablePaths.ico = '/modified/path';
         // Original should remain unchanged
         expect(faviconPaths.ico).toBe('/favicons/favicon.ico');

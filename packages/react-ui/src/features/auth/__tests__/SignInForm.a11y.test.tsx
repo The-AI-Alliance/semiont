@@ -45,6 +45,8 @@ const mockTranslations = {
   errorEmailRequired: 'Email is required',
   errorPasswordRequired: 'Password is required',
   errorBackendUrlRequired: 'Backend URL is required',
+  errorBackendUrlInvalid: 'Backend URL is not valid',
+  errorBackendUrlUnreachable: 'Backend URL is unreachable',
   tagline: 'make meaning',
 };
 

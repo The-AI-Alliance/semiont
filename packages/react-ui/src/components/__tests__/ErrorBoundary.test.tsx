@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import React from 'react';
+import type { ReactNode } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ErrorBoundary, AsyncErrorBoundary } from '../ErrorBoundary';
@@ -146,7 +146,7 @@ describe('ErrorBoundary Component', () => {
     });
 
     it('should not render default fallback when custom fallback is provided', () => {
-      const customFallback = (error: Error) => <div>Custom Fallback</div>;
+      const customFallback = () => <div>Custom Fallback</div>;
 
       render(
         <ErrorBoundary fallback={customFallback}>
@@ -223,7 +223,7 @@ describe('ErrorBoundary Component', () => {
 
     it('should call custom reset handler in custom fallback', () => {
       const resetHandler = vi.fn();
-      const customFallback = (error: Error, reset: () => void) => (
+      const customFallback = (_error: Error, reset: () => void) => (
         <div>
           <button onClick={() => { resetHandler(); reset(); }}>Reset</button>
         </div>
@@ -242,9 +242,9 @@ describe('ErrorBoundary Component', () => {
     });
 
     it('should clear error state when reset is called', () => {
-      let resetFn: (() => void) | null = null;
+      const resetRef: { current: (() => void) | null } = { current: null };
       const customFallback = (error: Error, reset: () => void) => {
-        resetFn = reset;
+        resetRef.current = reset;
         return <div>Error: {error.message}</div>;
       };
 
@@ -255,11 +255,11 @@ describe('ErrorBoundary Component', () => {
       );
 
       expect(screen.getByText('Error: Initial error')).toBeInTheDocument();
-      expect(resetFn).not.toBeNull();
+      expect(resetRef.current).not.toBeNull();
 
       // Call reset
-      if (resetFn) {
-        resetFn();
+      if (resetRef.current) {
+        resetRef.current();
       }
 
       // Rerender with non-throwing component after reset
@@ -286,8 +286,11 @@ describe('ErrorBoundary Component', () => {
 
     it('should navigate to home when Go Home button clicked', () => {
       const originalLocation = window.location;
-      delete (window as any).location;
-      window.location = { href: '' } as any;
+      Object.defineProperty(window, 'location', {
+        value: { href: '' },
+        writable: true,
+        configurable: true,
+      });
 
       render(
         <ErrorBoundary>
@@ -300,7 +303,11 @@ describe('ErrorBoundary Component', () => {
 
       expect(window.location.href).toBe('/');
 
-      window.location = originalLocation;
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
     });
   });
 
@@ -336,7 +343,7 @@ describe('ErrorBoundary Component', () => {
 
   describe('Edge Cases', () => {
     it('should handle error with no message', () => {
-      function ThrowEmptyError() {
+      function ThrowEmptyError(): ReactNode {
         throw new Error();
       }
 
@@ -433,7 +440,7 @@ describe('AsyncErrorBoundary Component', () => {
     });
 
     it('should handle error with no message', () => {
-      function ThrowEmptyError() {
+      function ThrowEmptyError(): ReactNode {
         throw new Error();
       }
 

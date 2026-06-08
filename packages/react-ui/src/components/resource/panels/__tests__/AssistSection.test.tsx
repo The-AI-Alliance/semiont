@@ -17,7 +17,6 @@ import { screen } from '@testing-library/react';
 import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import { AssistSection } from '../AssistSection';
-import type { EventBus } from "@semiont/core"
 
 // Mock translations
 const mockT = vi.fn((key: string) => {
@@ -68,7 +67,7 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
             percentage: 30,
             message: 'Analyzing text for highlights...',
           }}
@@ -84,7 +83,8 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
+            percentage: 0,
             message: 'Processing...',
           }}
         />
@@ -102,7 +102,8 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
+            percentage: 0,
             message: 'Analyzing...',
             requestParams: [
               { label: 'Instructions', value: 'Find important points' },
@@ -125,7 +126,8 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
+            percentage: 0,
             message: 'Analyzing...',
           }}
         />
@@ -170,7 +172,7 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={false}
           progress={{
-            status: 'complete',
+            stage: 'complete',
             percentage: 100,
             message: 'Complete! Created 14 highlights',
           }}
@@ -433,7 +435,8 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
+            percentage: 0,
             message: '',
           }}
         />
@@ -450,9 +453,9 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
+            percentage: 0,
             message: 'Processing...',
-            // no percentage
           }}
         />
       );
@@ -466,7 +469,8 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            status: 'analyzing',
+            stage: 'analyzing',
+            percentage: 0,
             message: 'Processing...',
             requestParams: [],
           }}

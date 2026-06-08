@@ -7,7 +7,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ResourceCard } from '../components/ResourceCard';
-import type { ResourceCardProps } from '../components/ResourceCard';
 
 const createMockResource = (overrides?: any) => ({
   '@context': 'https://www.w3.org/ns/anno.jsonld',

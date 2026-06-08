@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import { BehaviorSubject } from 'rxjs';
 import '@testing-library/jest-dom';

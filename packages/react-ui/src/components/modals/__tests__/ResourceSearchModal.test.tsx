@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { BehaviorSubject } from 'rxjs';
 import { renderWithProviders } from '../../../test-utils';

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { LeftSidebar } from '../LeftSidebar';
@@ -159,7 +158,7 @@ describe('LeftSidebar Component', () => {
     });
 
     it('should save collapsed state to localStorage', () => {
-      const mockChildren = vi.fn((isCollapsed, toggleCollapsed) => (
+      const mockChildren = vi.fn((_isCollapsed, toggleCollapsed) => (
         <button onClick={toggleCollapsed} data-testid="toggle-btn">Toggle</button>
       ));
 
@@ -183,7 +182,7 @@ describe('LeftSidebar Component', () => {
     });
 
     it('should not collapse when collapsible is false', () => {
-      const mockChildren = vi.fn((isCollapsed, toggleCollapsed) => (
+      const mockChildren = vi.fn((_isCollapsed, toggleCollapsed) => (
         <button onClick={toggleCollapsed} data-testid="toggle-btn">Toggle</button>
       ));
 
@@ -208,7 +207,7 @@ describe('LeftSidebar Component', () => {
     });
 
     it('should use default storage key', () => {
-      const mockChildren = vi.fn((isCollapsed, toggleCollapsed) => (
+      const mockChildren = vi.fn((_isCollapsed, toggleCollapsed) => (
         <button onClick={toggleCollapsed} data-testid="toggle-btn">Toggle</button>
       ));
 
@@ -233,7 +232,7 @@ describe('LeftSidebar Component', () => {
 
   describe('Navigation Menu Helper', () => {
     it('should provide navigationMenu helper to function children', () => {
-      const mockChildren = vi.fn((isCollapsed, toggleCollapsed, navigationMenu) => {
+      const mockChildren = vi.fn((_isCollapsed, _toggleCollapsed, navigationMenu) => {
         // Test that navigationMenu helper returns NavigationMenu component
         const menuElement = navigationMenu(() => {});
         return <div data-testid="children-content">{menuElement}</div>;
@@ -259,7 +258,7 @@ describe('LeftSidebar Component', () => {
 
     it('should pass onClose callback to NavigationMenu', () => {
       const mockOnClose = vi.fn();
-      const mockChildren = vi.fn((isCollapsed, toggleCollapsed, navigationMenu) => {
+      const mockChildren = vi.fn((_isCollapsed, _toggleCollapsed, navigationMenu) => {
         const menuElement = navigationMenu(mockOnClose);
         return <div>{menuElement}</div>;
       });

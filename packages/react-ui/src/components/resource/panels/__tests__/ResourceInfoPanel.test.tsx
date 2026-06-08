@@ -295,7 +295,7 @@ describe('ResourceInfoPanel Component', () => {
       renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
-          wasAttributedTo={{ name: 'Alice', '@id': 'https://example.org/alice' }}
+          wasAttributedTo={{ '@type': 'Person', name: 'Alice', '@id': 'https://example.org/alice' }}
         />
       );
       expect(screen.getByText('Attributed to')).toBeInTheDocument();
@@ -307,8 +307,8 @@ describe('ResourceInfoPanel Component', () => {
         <ResourceInfoPanel
           {...defaultProps}
           wasAttributedTo={[
-            { name: 'Alice' },
-            { name: 'Bob' },
+            { '@type': 'Person', name: 'Alice' },
+            { '@type': 'Person', name: 'Bob' },
           ]}
         />
       );

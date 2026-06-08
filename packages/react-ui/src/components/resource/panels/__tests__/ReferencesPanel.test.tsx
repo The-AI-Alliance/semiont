@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ReferencesPanel } from '../ReferencesPanel';
@@ -316,7 +316,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...defaultProps}
           isAssisting={true}
-          progress={{ completedEntityTypes: [] }}
+          progress={{ stage: 'analyzing', percentage: 0, message: 'Detecting references...', completedEntityTypes: [] }}
         />
       );
 
@@ -326,6 +326,9 @@ describe('ReferencesPanel Component', () => {
           {...defaultProps}
           isAssisting={false}
           progress={{
+            stage: 'complete',
+            percentage: 100,
+            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -366,7 +369,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...defaultProps}
           isAssisting={true}
-          progress={{ completedEntityTypes: [] }}
+          progress={{ stage: 'analyzing', percentage: 0, message: 'Detecting references...', completedEntityTypes: [] }}
         />
       );
 
@@ -375,6 +378,9 @@ describe('ReferencesPanel Component', () => {
 
     it('should pass progress data to widget', () => {
       const progress = {
+        stage: 'complete',
+        percentage: 100,
+        message: 'Annotation complete',
         completedEntityTypes: [
           { entityType: 'Person', foundCount: 5 },
           { entityType: 'Organization', foundCount: 3 },
@@ -399,7 +405,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...defaultProps}
           isAssisting={true}
-          progress={{ completedEntityTypes: [] }}
+          progress={{ stage: 'analyzing', percentage: 0, message: 'Detecting references...', completedEntityTypes: [] }}
         />
       );
 
@@ -412,7 +418,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...defaultProps}
           isAssisting={true}
-          progress={{ completedEntityTypes: [] }}
+          progress={{ stage: 'analyzing', percentage: 0, message: 'Detecting references...', completedEntityTypes: [] }}
         />
       );
 
@@ -428,6 +434,9 @@ describe('ReferencesPanel Component', () => {
           {...defaultProps}
           isAssisting={false}
           progress={{
+            stage: 'complete',
+            percentage: 100,
+            message: 'Annotation complete',
             completedEntityTypes: [
               { entityType: 'Person', foundCount: 5 },
               { entityType: 'Organization', foundCount: 3 },
@@ -455,6 +464,9 @@ describe('ReferencesPanel Component', () => {
           {...defaultProps}
           isAssisting={false}
           progress={{
+            stage: 'complete',
+            percentage: 100,
+            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -472,6 +484,9 @@ describe('ReferencesPanel Component', () => {
           {...defaultProps}
           isAssisting={false}
           progress={{
+            stage: 'complete',
+            percentage: 100,
+            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -489,6 +504,9 @@ describe('ReferencesPanel Component', () => {
           {...defaultProps}
           isAssisting={false}
           progress={{
+            stage: 'complete',
+            percentage: 100,
+            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -509,6 +527,9 @@ describe('ReferencesPanel Component', () => {
           {...defaultProps}
           isAssisting={false}
           progress={{
+            stage: 'complete',
+            percentage: 100,
+            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -529,6 +550,9 @@ describe('ReferencesPanel Component', () => {
           {...defaultProps}
           isAssisting={false}
           progress={{
+            stage: 'complete',
+            percentage: 100,
+            message: 'Annotation complete',
             completedEntityTypes: [],
           }}
         />
@@ -552,7 +576,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...defaultProps}
           isAssisting={true}
-          progress={{ completedEntityTypes: [] }}
+          progress={{ stage: 'analyzing', percentage: 0, message: 'Detecting references...', completedEntityTypes: [] }}
         />
       );
 
@@ -566,7 +590,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...defaultProps}
           isAssisting={true}
-          progress={{ completedEntityTypes: [] }}
+          progress={{ stage: 'analyzing', percentage: 0, message: 'Detecting references...', completedEntityTypes: [] }}
         />
       );
 
@@ -579,6 +603,9 @@ describe('ReferencesPanel Component', () => {
           {...defaultProps}
           isAssisting={false}
           progress={{
+            stage: 'complete',
+            percentage: 100,
+            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -601,6 +628,9 @@ describe('ReferencesPanel Component', () => {
           {...defaultProps}
           isAssisting={false}
           progress={{
+            stage: 'complete',
+            percentage: 100,
+            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -692,6 +722,9 @@ describe('ReferencesPanel Component', () => {
           {...defaultProps}
           isAssisting={false}
           progress={{
+            stage: 'complete',
+            percentage: 100,
+            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 0 }],
           }}
         />

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { SemiontBranding } from '../SemiontBranding';
@@ -305,7 +304,7 @@ describe('SemiontBranding Component', () => {
 
   describe('Edge Cases', () => {
     it('should handle missing translation gracefully', () => {
-      const emptyTranslate = vi.fn((key: string) => '');
+      const emptyTranslate = vi.fn(() => '');
 
       render(<SemiontBranding t={emptyTranslate} />);
 

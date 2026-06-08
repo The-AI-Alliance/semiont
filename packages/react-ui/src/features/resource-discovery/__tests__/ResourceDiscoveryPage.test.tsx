@@ -10,10 +10,12 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { ResourceDiscoveryPage } from '../components/ResourceDiscoveryPage';
 import type { ResourceDiscoveryPageProps } from '../components/ResourceDiscoveryPage';
 import { createTestSemiontWrapper } from '../../../test-utils';
+import { resourceId } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
 
-const createMockResource = (id: string, name: string, entityTypes: string[] = []) => ({
+const createMockResource = (id: string, name: string, entityTypes: string[] = []): ResourceDescriptor => ({
   '@context': 'https://www.w3.org/ns/anno.jsonld',
-  '@id': id,
+  '@id': resourceId(id),
   '@type': 'schema:DigitalDocument',
   name,
   description: `Description for ${name}`,

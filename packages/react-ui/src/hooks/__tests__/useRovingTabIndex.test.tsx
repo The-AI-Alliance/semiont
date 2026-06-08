@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { render } from '@testing-library/react';
 import { useRovingTabIndex } from '../useRovingTabIndex';
 import { KeyboardEvent as ReactKeyboardEvent } from 'react';
 

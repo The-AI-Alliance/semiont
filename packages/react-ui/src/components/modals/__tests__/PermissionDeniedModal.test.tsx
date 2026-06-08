@@ -6,8 +6,7 @@
  * `acknowledgePermissionDenied()` and navigate the window or history.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import React from 'react';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {
@@ -27,7 +26,7 @@ vi.mock('@headlessui/react', () => ({
 const originalLocation = window.location;
 const originalHistoryBack = window.history.back;
 let mockLocation: { href: string; pathname: string };
-let mockHistoryBack: ReturnType<typeof vi.fn>;
+let mockHistoryBack: Mock<() => void>;
 
 beforeEach(() => {
   mockLocation = { href: '', pathname: '/admin/users' };
@@ -36,7 +35,7 @@ beforeEach(() => {
     writable: true,
     configurable: true,
   });
-  mockHistoryBack = vi.fn();
+  mockHistoryBack = vi.fn<() => void>();
   window.history.back = mockHistoryBack;
 });
 

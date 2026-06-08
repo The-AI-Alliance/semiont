@@ -1,14 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { of } from 'rxjs';
 import { CacheObservable } from '@semiont/sdk';
 import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
-import type { components, TagSchema } from '@semiont/core';
+import type { TagSchema } from '@semiont/core';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnnotationId } from '@semiont/core';
 
 // Mock @semiont/api-client
 vi.mock('@semiont/core', async () => {
@@ -37,10 +36,11 @@ const mockGetTagSchemaId = getTagSchemaId as MockedFunction<typeof getTagSchemaI
 
 const createMockTag = (overrides?: Partial<Annotation>): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
-  id: 'tag-1',
+  id: 'tag-1' as AnnotationId,
   type: 'Annotation',
   motivation: 'tagging',
   creator: {
+    '@type': 'Person',
     name: 'tagger@example.com',
   },
   created: '2024-06-15T12:00:00Z',
@@ -71,7 +71,7 @@ describe('TagEntry', () => {
     vi.clearAllMocks();
     mockGetAnnotationExactText.mockReturnValue('Tagged text content');
     mockGetTagCategory.mockReturnValue('Entity');
-    mockGetTagSchemaId.mockReturnValue(null);
+    mockGetTagSchemaId.mockReturnValue(undefined);
   });
 
   describe('Rendering', () => {

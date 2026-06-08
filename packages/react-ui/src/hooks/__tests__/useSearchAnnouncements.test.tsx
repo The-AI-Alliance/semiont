@@ -8,11 +8,10 @@
  * - Navigation announcements
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { LiveRegionProvider } from '../../components/LiveRegion';
 import { useSearchAnnouncements } from '../useSearchAnnouncements';
-import React from 'react';
 
 describe('useSearchAnnouncements', () => {
   function renderWithProvider() {

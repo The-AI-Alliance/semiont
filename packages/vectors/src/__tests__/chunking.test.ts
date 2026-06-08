@@ -20,13 +20,6 @@ describe('chunkText', () => {
     const sentences = Array.from({ length: 20 }, (_, i) => `Sentence number ${i}. `).join('');
     const chunks = chunkText(sentences, { chunkSize: 30, overlap: 10 });
     expect(chunks.length).toBeGreaterThan(1);
-
-    // Check that consecutive chunks share some text
-    for (let i = 1; i < chunks.length; i++) {
-      const prevEnd = chunks[i - 1].slice(-20);
-      const currStart = chunks[i].slice(0, 20);
-      // At least some overlap should exist (not necessarily exact match due to boundary splitting)
-    }
   });
 
   it('respects paragraph boundaries when possible', () => {

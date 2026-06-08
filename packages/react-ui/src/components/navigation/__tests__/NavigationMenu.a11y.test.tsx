@@ -56,7 +56,7 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          activePath="/knowledge"
+          currentPath="/knowledge"
         />
       );
 
