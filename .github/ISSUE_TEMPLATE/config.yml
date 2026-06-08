@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/The-AI-Alliance/semiont/security/advisories/new
+    about: Report security vulnerabilities privately through GitHub Security Advisories. Please do not file them as public issues.

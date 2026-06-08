@@ -2,20 +2,37 @@
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Security fixes are provided for the `0.5.x` release line. We recommend
+running **0.5.6 or later**, which is the current release in good standing.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| 0.5.x   | :white_check_mark: |
+| < 0.5.x | :x:                |
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+Please **do not** open a public GitHub issue for security problems.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Report vulnerabilities privately through GitHub Security Advisories:
+
+- Go to <https://github.com/The-AI-Alliance/semiont/security/advisories/new>
+  (the "Report a vulnerability" button on the repository's Security tab).
+
+Please include:
+
+- A description of the vulnerability and its potential impact
+- Steps to reproduce
+- Affected version(s)
+- Suggested fixes, if any
+
+Maintainers will acknowledge your report and respond as soon as possible.
+Please allow reasonable time for a fix before any public disclosure.
+
+## Security Documentation
+
+- [Security model & operational hardening](docs/system/administration/SECURITY.md)
+- [Authentication architecture (OAuth + JWT)](docs/system/administration/AUTHENTICATION.md)
+- [Roles & access control (RBAC)](docs/protocol/RBAC.md)
+- [Secrets management](docs/system/services/SECRETS.md)
+- [Container image supply-chain (scanning, SBOM, signing)](docs/system/administration/IMAGES.md)

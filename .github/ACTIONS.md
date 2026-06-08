@@ -72,14 +72,6 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 - **API Security**: Backend endpoint protection verification
 - **Reviewer Guidelines**: Security review requirements
 
-### Security Issue Template (`ISSUE_TEMPLATE/security_vulnerability.yml`)
-**Structured security vulnerability reporting**:
-- Severity classification (Low → Critical)
-- Component identification (Frontend, Backend, Auth, etc.)
-- Detailed impact assessment
-- Reproduction steps and evidence
-- Security test integration
-
 ## 🚀 Workflow Triggers
 
 ### Security Tests

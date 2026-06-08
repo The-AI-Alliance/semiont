@@ -195,13 +195,18 @@ The following security features are **not yet implemented** and are planned for 
 If you discover a security vulnerability in Semiont:
 
 1. **Do not** create a public GitHub issue
-2. Email security details to the maintainers at [security contact to be added]
+2. Report it privately through GitHub Security Advisories at
+   <https://github.com/The-AI-Alliance/semiont/security/advisories/new>
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce
    - Potential impact
+   - Affected version(s)
    - Suggested fixes (if any)
 4. Allow reasonable time for response before public disclosure
+
+See the repository's [SECURITY.md](../../../SECURITY.md) for the canonical
+reporting policy and supported versions.
 
 ## Development Security
 
