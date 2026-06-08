@@ -166,7 +166,7 @@ class SymbolDiscoverer {
     const lineNumber = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
 
     // Categorize based on naming convention
-    let type: DiscoveredSymbol['type'] = declaredType;
+    let type: DiscoveredSymbol['type'];
 
     if (declaredType === 'function') {
       if (name.startsWith('use')) {

@@ -15,7 +15,7 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
   try {
     const startTime = Date.now();
     let responsePreview: string | undefined;
-    let status: 'running' | 'stopped' | 'unhealthy' | 'unknown' = 'unknown';
+    let status: 'running' | 'stopped' | 'unhealthy' | 'unknown';
     let endpoint: string;
     let model: string;
 

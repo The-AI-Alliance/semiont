@@ -53,7 +53,6 @@ test.beforeAll(async () => {
       file: Buffer.from(CONTENT, 'utf-8'),
       format: 'text/plain',
       language: 'en',
-      creationMethod: 'api',
     });
     resourceId = rid as string;
 

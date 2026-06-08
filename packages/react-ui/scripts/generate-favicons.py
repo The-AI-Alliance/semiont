@@ -4,7 +4,6 @@ Generate favicon files in multiple formats from SVG source.
 Requires: pip install cairosvg pillow
 """
 
-import os
 import sys
 from pathlib import Path
 

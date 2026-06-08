@@ -63,7 +63,7 @@ const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise
     }
 
     // Perform health check
-    let health = { healthy: true, details: {} };
+    let health: { healthy: boolean; details: {} };
 
     // Determine if this is a backend service (has publicURL)
     const isBackend = 'publicURL' in config;

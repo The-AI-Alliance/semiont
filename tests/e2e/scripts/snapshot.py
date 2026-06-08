@@ -37,7 +37,6 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
 

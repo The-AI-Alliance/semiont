@@ -236,7 +236,7 @@ export function ReferencesPanel({
     }
 
     // When annotation is complete and we haven't saved yet, save the log
-    if (!isAssisting && !hasSavedLogRef.current && progress?.completedEntityTypes) {
+    if (!hasSavedLogRef.current && progress?.completedEntityTypes) {
       hasSavedLogRef.current = true;
       setLastDetectionLog(progress.completedEntityTypes);
       setSelectedEntityTypes([]);
