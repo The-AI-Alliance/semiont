@@ -54,7 +54,6 @@ test.describe('sign out and sign back in', () => {
     // form (Password field) to become reachable via a click.
     // Actually simpler: the password field appears once we click the KB
     // to reauth.
-    const kbRow = page.getByRole('button', { name: /kb a$/i }).first();
     // Click the KB to trigger re-auth flow. If the row name differs
     // across fixtures, fall back to the first non-sign-out button in
     // the panel list.

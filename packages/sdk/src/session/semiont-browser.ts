@@ -369,6 +369,9 @@ export class SemiontBrowser {
     try {
       await activation;
     } finally {
+      // Reference-identity guard: clear only if no newer activate() superseded
+      // us. Do NOT await `activation` here (it resolves to void) — awaiting would
+      // make this always-false and leak the activating state. (CodeQL FP.)
       if (this.activating === activation) {
         this.activating = null;
         this.sessionActivating$.next(false);

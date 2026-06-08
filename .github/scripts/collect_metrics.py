@@ -1,7 +1,7 @@
 import os  
 import sys  
 import pandas as pd  
-from github import Github, GithubException, UnknownObjectException # Added UnknownObjectException  
+from github import Github, GithubException  
 from datetime import datetime, timedelta, timezone # Added timezone  
 import time  
 import requests
@@ -349,7 +349,7 @@ issues_comments_count = 0
 try:  
     # Issues opened: Use 'since' which filters by creation time  
     opened_issues = repo.get_issues(state='all', sort='created', since=cutoff_datetime_aware)  
-    for issue in opened_issues:  
+    for _ in opened_issues:  
         # Double check creation time (though 'since' should handle it)  
         # Note: get_issues() returns PRs as well. We need to filter later if needed.  
         # For now, count all items returned by get_issues as potential "issues" opened.  

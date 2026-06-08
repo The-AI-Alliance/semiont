@@ -60,62 +60,62 @@ const provisionGraphService = async (context: PosixProvisionHandlerContext): Pro
       };
     }
       
-      // Create data directory
-      await fs.mkdir(dataDir, { recursive: true });
+    // Create data directory
+    await fs.mkdir(dataDir, { recursive: true });
 
-      // Download JanusGraph if not present
-      const janusgraphVersion = serviceConfig.janusgraphVersion;
-      const downloadUrl = `https://github.com/JanusGraph/janusgraph/releases/download/v${janusgraphVersion}/janusgraph-${janusgraphVersion}.zip`;
+    // Download JanusGraph if not present
+    const janusgraphVersion = serviceConfig.janusgraphVersion;
+    const downloadUrl = `https://github.com/JanusGraph/janusgraph/releases/download/v${janusgraphVersion}/janusgraph-${janusgraphVersion}.zip`;
 
-      if (!await fileExists(janusgraphDir)) {
-        console.log(`Downloading JanusGraph ${janusgraphVersion}...`);
+    if (!await fileExists(janusgraphDir)) {
+      console.log(`Downloading JanusGraph ${janusgraphVersion}...`);
         
-        // Download the zip file
-        execFileSync('curl', ['-L', '-o', zipPath, downloadUrl], { stdio: 'inherit' });
+      // Download the zip file
+      execFileSync('curl', ['-L', '-o', zipPath, downloadUrl], { stdio: 'inherit' });
 
-        // Extract the zip file
-        console.log('Extracting JanusGraph...');
-        execFileSync('unzip', ['-q', zipPath, '-d', dataDir], { stdio: 'inherit' });
+      // Extract the zip file
+      console.log('Extracting JanusGraph...');
+      execFileSync('unzip', ['-q', zipPath, '-d', dataDir], { stdio: 'inherit' });
         
-        // Clean up zip file
-        await fs.unlink(zipPath);
-      }
+      // Clean up zip file
+      await fs.unlink(zipPath);
+    }
       
-      // Create graph configuration
-      let graphProperties = `
+    // Create graph configuration
+    let graphProperties = `
 # JanusGraph configuration
 gremlin.graph=org.janusgraph.core.JanusGraphFactory
       `.trim();
       
-      if (withCassandra) {
-        graphProperties += `
+    if (withCassandra) {
+      graphProperties += `
 # Cassandra storage backend
 storage.backend=cql
 storage.hostname=localhost
 storage.cql.keyspace=janusgraph
 `;
-      } else {
-        // Default to BerkeleyDB for simplicity
-        graphProperties += `
+    } else {
+      // Default to BerkeleyDB for simplicity
+      graphProperties += `
 # BerkeleyDB storage backend (embedded)
 storage.backend=berkeleyje
 storage.directory=${dataStorageDir}
 `;
-      }
+    }
       
-      if (withElasticsearch) {
-        graphProperties += `
+    if (withElasticsearch) {
+      graphProperties += `
 # Elasticsearch index backend
 index.search.backend=elasticsearch
 index.search.hostname=localhost
 index.search.elasticsearch.client-only=true
 `;
-      }
+    }
       
-      await fs.writeFile(graphConfig, graphProperties);
+    await fs.writeFile(graphConfig, graphProperties);
       
-      // Create server configuration
-      const serverConfig = `
+    // Create server configuration
+    const serverConfig = `
 host: 0.0.0.0
 port: 8182
 evaluationTimeout: 30000
@@ -158,7 +158,7 @@ ssl: {
 }
 `;
       
-      await fs.writeFile(configPath, serverConfig);
+    await fs.writeFile(configPath, serverConfig);
       
     if (!service.quiet) {
       printSuccess('✅ JanusGraph provisioned successfully!');

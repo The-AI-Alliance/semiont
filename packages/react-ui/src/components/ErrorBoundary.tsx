@@ -11,7 +11,6 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
-  errorInfo: ErrorInfo | null;
 }
 
 /**
@@ -24,7 +23,6 @@ export class ErrorBoundary extends Component<Props, State> {
     this.state = {
       hasError: false,
       error: null,
-      errorInfo: null,
     };
   }
 
@@ -33,7 +31,6 @@ export class ErrorBoundary extends Component<Props, State> {
     return {
       hasError: true,
       error,
-      errorInfo: null,
     };
   }
 
@@ -48,11 +45,6 @@ export class ErrorBoundary extends Component<Props, State> {
       this.props.onError(error, errorInfo);
     }
 
-    // Update state with error info
-    this.setState({
-      errorInfo,
-    });
-
     // In production, you might want to log to an error reporting service
     // Example: logErrorToService(error, errorInfo);
   }
@@ -61,7 +53,6 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({
       hasError: false,
       error: null,
-      errorInfo: null,
     });
   };
 

@@ -136,7 +136,6 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
           file: Buffer.from(spec.content, 'utf-8'),
           format: spec.format,
           language: spec.language,
-          creationMethod: 'api',
         });
         log(`[seed] ✓ created  ${spec.storageUri}  → ${result.resourceId}`);
         created++;

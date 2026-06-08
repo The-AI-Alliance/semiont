@@ -151,11 +151,7 @@ export class OutputFormatter {
       const previousVersion = result.extensions?.previousVersion || (result as any).previousVersion;
       const newVersion = result.extensions?.newVersion || (result as any).newVersion;
       if (previousVersion && newVersion && !options.quiet) {
-        if (previousVersion && newVersion) {
-          output += `   ${c.dim}revision: ${previousVersion} → ${newVersion}${c.reset}\n`;
-        } else if (newVersion) {
-          output += `   ${c.dim}revision: ${newVersion}${c.reset}\n`;
-        }
+        output += `   ${c.dim}revision: ${previousVersion} → ${newVersion}${c.reset}\n`;
       }
       
       // Show resource ID and console URL
