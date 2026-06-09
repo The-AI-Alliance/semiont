@@ -150,7 +150,7 @@ SSE connection to `/bus/subscribe` + HTTP POST to `/bus/emit`:
 
 - **Request-response queries** — `busRequest` generates a correlationId, subscribes to the result channel, and emits the request. The client filters incoming events by correlationId.
 - **Fire-and-forget commands** — `actor.emit(channel, payload)` POSTs to `/bus/emit`; results arrive as separate events.
-- **Live domain events** — `mark:added`, `yield:create-ok`, etc. flow on resource-scoped channels. `SemiontApiClient.subscribeToResource(id)` adds those channels to the bus actor's subscription when a resource page mounts.
+- **Live domain events** — `mark:added`, `yield:create-ok`, etc. flow on resource-scoped channels. Subscribing to a resource's `browse.*(id)` live queries adds those channels to the bus actor's subscription — freshness follows observation, with the SDK driving the transport's internal `subscribeToResource` (#847) — and drops them when the last subscriber unsubscribes.
 - **Gap detection** — on reconnect after a disconnect, `BrowseNamespace` invalidates all active caches and refetches. No server-side replay.
 
 See [`docs/protocol/EVENT-BUS.md`](../../../docs/protocol/EVENT-BUS.md) and

@@ -467,8 +467,8 @@ User action (e.g., click save)
 
 ```
 SemiontApiClient creates one ActorStateUnit (single SSE to /bus/subscribe)
-    └── ResourceViewerPage mounts
-        └── client.subscribeToResource(id) adds scoped channels
+    └── ResourceViewerPage mounts and subscribes to browse.*(id) live queries
+        └── observing them acquires the resource scope (adds scoped channels; #847)
             └── Backend emits domain events on scoped bus
                 └── ActorStateUnit bridges events into local EventBus
                     └── BrowseNamespace invalidates caches
