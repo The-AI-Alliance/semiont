@@ -184,7 +184,6 @@ export default function App({ children }) {
 **📖 Complete Documentation:**
 - **[SERVICE-HOOK-COMPONENT.md](SERVICE-HOOK-COMPONENT.md)** - Three-layer architecture guide
 - **[EVENTS.md](EVENTS.md)** - Event bus usage and patterns
-- **[RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md](../../../RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md)** - Architectural invariants
 
 ---
 
@@ -822,4 +821,4 @@ See [STYLES.md](STYLES.md) for comprehensive CSS architecture and conventions.
 - [API-INTEGRATION.md](API-INTEGRATION.md) - API architecture
 - [TESTING.md](TESTING.md) - Testing architecture
 - [STYLES.md](STYLES.md) - CSS architecture and conventions
-- [CLAUDE.md](../../CLAUDE.md) - Project-wide code standards
+- [CONTRIBUTING.md](../../../CONTRIBUTING.md) - Project-wide code standards

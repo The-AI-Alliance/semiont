@@ -128,9 +128,9 @@ system can be built on.
 
 ## Implementation
 
-- **StateUnit**: [packages/api-client/src/state units/flows/beckon-state-unit.ts](../../../packages/api-client/src/state units/flows/beckon-state-unit.ts)
-- **Namespace**: [packages/api-client/src/namespaces/beckon.ts](../../../packages/api-client/src/namespaces/beckon.ts)
+- **StateUnit**: [packages/sdk/src/state/flows/beckon-state-unit.ts](../../../packages/sdk/src/state/flows/beckon-state-unit.ts)
+- **Namespace**: [packages/sdk/src/namespaces/beckon.ts](../../../packages/sdk/src/namespaces/beckon.ts)
 - **Event definitions**: [packages/core/src/bus-protocol.ts](../../../packages/core/src/bus-protocol.ts) — `BECKON FLOW` section
-- **Bus bridge (client)**: [packages/api-client/src/client.ts](../../../packages/api-client/src/client.ts) — `ACTOR_TO_LOCAL_BRIDGES`
+- **Bus bridge (client)**: [packages/sdk/src/client.ts](../../../packages/sdk/src/client.ts) — `ACTOR_TO_LOCAL_BRIDGES`
 - **CLI command**: [apps/cli/src/core/commands/beckon.ts](../../../apps/cli/src/core/commands/beckon.ts)
 - **Bus gateway**: [apps/backend/src/routes/bus.ts](../../../apps/backend/src/routes/bus.ts)

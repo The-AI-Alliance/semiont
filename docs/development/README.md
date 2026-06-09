@@ -19,8 +19,6 @@ Where the code lives, how it builds, and how to start working on Semiont itself.
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
 
-See [.devcontainer/README.md](../../.devcontainer/README.md) for what the prebuilt environment ships with.
-
 **Local checkout** — clone the repo and follow [LOCAL-DEVELOPMENT.md](LOCAL-DEVELOPMENT.md) Path B (Building from Source). Path A in the same doc is for running an external KB project against published packages; Path B is the contributor workflow.
 
 ## Repository layout
@@ -55,11 +53,11 @@ semiont/
 │   ├── mcp-server/             # Model Context Protocol server
 │   ├── observability/          # OpenTelemetry helpers (withSpan, traceparent, init)
 │   └── test-utils/             # Testing utilities and mock factories
-├── docs/                       # System documentation
+├── docs/                       # Documentation, organized by persona
+│   ├── browser/                # End-user: the browser app, features, accessibility, keyboard nav
 │   ├── development/            # Contributor-facing (this file, LOCAL-DEVELOPMENT, RELEASE, TESTING)
-│   ├── administration/         # Operator-facing (deployment, security, observability, etc.)
-│   ├── flows/                  # The seven collaborative flows (yield, mark, match, …)
-│   └── skills/                 # Agent skill definitions for Claude Code and similar tools
+│   ├── protocol/               # The eight flows, event-bus protocol, API reference, W3C compliance, agent skills
+│   └── system/                 # Architecture + operations (administration/, platforms/, services/)
 └── scripts/                    # Build and utility scripts
 ```
 

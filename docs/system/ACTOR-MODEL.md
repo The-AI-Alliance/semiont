@@ -85,7 +85,7 @@ Content sources:
 
 ## Flows
 
-Seven composable flows define how actors interact with the knowledge base: **Mark**, **Browse**, **Beckon**, **Match**, **Bind**, **Gather**, and **Yield**. See **[../protocol/flows/README.md](../protocol/flows/README.md)** for the full table, relationships, and individual flow documentation.
+Eight composable flows define how actors interact with the knowledge base: **Frame**, **Yield**, **Mark**, **Match**, **Bind**, **Gather**, **Browse**, and **Beckon**. See **[../protocol/flows/README.md](../protocol/flows/README.md)** for the full table, relationships, and individual flow documentation.
 
 For the wire-level definition (channel naming, `correlationId` / `_userId` conventions, `_trace` carrier), see **[../protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md)**.
 

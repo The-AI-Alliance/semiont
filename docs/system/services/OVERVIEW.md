@@ -17,7 +17,7 @@ This document provides a deployment-focused overview of Semiont services. For AP
 | Service | Type | Package | API Docs |
 |---------|------|---------|----------|
 | **Content Store** | Filesystem | `@semiont/content` | [API](../../../packages/content/docs/API.md) |
-| **Event Store** | Filesystem | `@semiont/event-sourcing` | [API](../../../packages/event-sourcing/docs/API.md), [Architecture](../../../packages/event-sourcing/docs/ARCHITECTURE.md) |
+| **Event Store** | Filesystem | `@semiont/event-sourcing` | [README](../../../packages/event-sourcing/README.md), [Storage Layout](../../../packages/event-sourcing/docs/STORAGE-LAYOUT.md) |
 | **Graph Database** | Multiple Providers | `@semiont/graph` | [API](../../../packages/graph/docs/API.md), [Architecture](../../../packages/graph/docs/ARCHITECTURE.md) |
 | **Vector Store** | Qdrant / Memory | `@semiont/vectors` | [Package](../../../packages/vectors/) |
 | **PostgreSQL** | User Auth Only | Backend Implementation | [Database Guide](../administration/DATABASE.md) |
@@ -230,7 +230,6 @@ semiont rollback --environment production
 ### CLI Integration
 - [CLI README](../../../apps/cli/README.md) - Complete CLI documentation
 - [Adding Services](../../../apps/cli/docs/ADDING_SERVICES.md) - Extend service types
-- [Service Management](../../../apps/cli/docs/SERVICE_MANAGEMENT.md) - Advanced patterns
 
 ## Troubleshooting
 

@@ -25,7 +25,6 @@ Both support text, image (SVG), and PDF content via MIME-type routing.
 - **Renderer**: ReactMarkdown with remark-gfm, annotations applied as DOM Range overlays after paint
 - **Styling**: Variable-width font, prose reading experience
 - **Features**: Click-to-navigate, hover highlighting, annotation overlay via `annotation-overlay.ts`
-- **See**: [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md)
 
 ## Component Hierarchy
 
@@ -72,8 +71,6 @@ ResourceViewer
 - Builds source→rendered position map, text node index, resolves annotation ranges, and applies highlights
 - Handles hover via delegated `createHoverHandlers` with configurable delay
 - Emits `browse:click` and `beckon:hover` events
-
-**See**: [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) for detailed implementation.
 
 ### CodeMirrorRenderer
 
@@ -189,6 +186,5 @@ CodeMirror normalizes all line endings to LF. `convertSegmentPositions()` adjust
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering implementation
 - [CODEMIRROR-WIDGETS.md](./CODEMIRROR-WIDGETS.md) - Inline widget system
-- [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) - BrowseView DOM overlay rendering
 - [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall react-ui architecture

@@ -568,7 +568,7 @@ For distributed systems, ship logs to aggregation service:
 - **CloudWatch**: AWS-native logging
 - **Elasticsearch**: Self-hosted ELK stack
 
-**Future Enhancement**: Custom Winston transports for remote logging (see BACKEND-LOGGING.md Phase 3)
+**Future Enhancement**: Custom Winston transports for remote logging
 
 ### Log Retention
 
@@ -609,10 +609,9 @@ For distributed systems, ship logs to aggregation service:
 
 ## Related Documentation
 
-- **[BACKEND-LOGGING.md](../../../BACKEND-LOGGING.md)** - Full implementation plan with future phases
 - **[Development Guide](./DEVELOPMENT.md)** - Local development setup
 - **[Testing Guide](./TESTING.md)** - Testing patterns and best practices
-- **[Deployment Guide](./DEPLOYMENT.md)** - Production deployment procedures
+- **[Deployment Guide](../../../docs/system/administration/DEPLOYMENT.md)** - Production deployment procedures
 
 ## Implementation Notes
 
@@ -623,7 +622,7 @@ For distributed systems, ship logs to aggregation service:
 - Enhanced auth logging with failure reasons
 - Error logging with stack traces
 
-**Future Enhancements** (see BACKEND-LOGGING.md):
+**Future Enhancements**:
 - Phase 2: Domain-specific logging (storage, services, routes)
 - Phase 3: Log rotation and remote transports
 - Phase 4: Metrics and distributed tracing

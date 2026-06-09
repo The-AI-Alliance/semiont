@@ -684,7 +684,7 @@ Planned improvements for higher test coverage:
 ### Development Guides
 - [Development Guide](./DEVELOPMENT.md) - Local development workflows
 - [Frontend Architecture](./ARCHITECTURE.md) - High-level system design
-- [Contributing Guide](../../../docs/CONTRIBUTING.md) - Contribution guidelines
+- [Contributing Guide](../../../CONTRIBUTING.md) - Contribution guidelines
 
 ### External Resources
 - [Vitest Documentation](https://vitest.dev/)

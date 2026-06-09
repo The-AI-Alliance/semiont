@@ -10,7 +10,7 @@
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Position accuracy and CRLF handling
 - [@semiont/make-meaning](../../../packages/make-meaning/README.md) - Detection API and job workers
 - [Make-Meaning Job Workers](../../../packages/make-meaning/docs/job-workers.md) - Worker implementation details
-- [Make-Meaning API Reference](../../../packages/make-meaning/docs/api-reference.md) - AnnotationDetection methods
+- [AnnotationDetection](../../../packages/jobs/src/workers/annotation-detection.ts) - AI detection methods (highlights, assessments, comments, tags, entity extraction)
 
 ## Overview
 
@@ -186,11 +186,8 @@ Every detected annotation follows the [W3C Web Annotation Data Model](https://ww
 ```
 
 **Implementation**:
-- Highlights: [packages/jobs/src/workers/highlight-annotation-worker.ts](../../../packages/jobs/src/workers/highlight-annotation-worker.ts)
-- Assessments: [packages/jobs/src/workers/assessment-annotation-worker.ts](../../../packages/jobs/src/workers/assessment-annotation-worker.ts)
-- Comments: [packages/jobs/src/workers/comment-annotation-worker.ts](../../../packages/jobs/src/workers/comment-annotation-worker.ts)
-- References: [packages/jobs/src/workers/reference-annotation-worker.ts](../../../packages/jobs/src/workers/reference-annotation-worker.ts)
-- Tags: [packages/jobs/src/workers/tag-annotation-worker.ts](../../../packages/jobs/src/workers/tag-annotation-worker.ts)
+- Detection logic — [AnnotationDetection](../../../packages/jobs/src/workers/annotation-detection.ts): one class with a static method per motivation (`detectHighlights`, `detectAssessments`, `detectComments`, `detectTags`, plus `extractEntities` for references)
+- Job orchestration — [processors.ts](../../../packages/jobs/src/processors.ts): `processHighlightJob`, `processAssessmentJob`, `processCommentJob`, `processReferenceJob`, `processTagJob`
 
 See [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) for complete details on worker architecture and dependency injection.
 
@@ -224,7 +221,7 @@ Frontend uses fuzzy anchoring ([CODEMIRROR-INTEGRATION.md](../../../packages/rea
 - Line ending normalization (CRLF → LF)
 - Multiple occurrences of same text
 
-**Implementation**: [packages/api-client/src/utils/fuzzy-anchor.ts](../../../packages/api-client/src/utils/fuzzy-anchor.ts) with comprehensive tests.
+**Implementation**: [packages/core/src/fuzzy-anchor.ts](../../../packages/core/src/fuzzy-anchor.ts) with comprehensive tests.
 
 ---
 
@@ -234,27 +231,27 @@ Frontend uses fuzzy anchoring ([CODEMIRROR-INTEGRATION.md](../../../packages/rea
 
 Detection workers use structured prompts optimized for each annotation type:
 
-Detection workers use the `AnnotationDetection` class from [@semiont/make-meaning](../../../packages/make-meaning/docs/api-reference.md#annotationdetection) for all AI-powered detection logic. Workers handle job orchestration and progress tracking, while detection methods handle prompt construction and response parsing.
+Detection logic lives in the `AnnotationDetection` class from [@semiont/jobs](../../../packages/jobs/src/workers/annotation-detection.ts). The `process*Job` functions handle job orchestration and progress tracking, while the detection methods handle prompt construction and response parsing.
 
 **Highlight Detection**:
-- **Detection Method**: [AnnotationDetection.detectHighlights()](../../../packages/make-meaning/docs/api-reference.md#detecthighlights)
-- **Worker**: [HighlightAnnotationWorker](../../../packages/jobs/src/workers/highlight-annotation-worker.ts)
+- **Detection Method**: [AnnotationDetection.detectHighlights()](../../../packages/jobs/src/workers/annotation-detection.ts)
+- **Job processor**: [processHighlightJob](../../../packages/jobs/src/processors.ts)
 - **Task**: Identify important/noteworthy passages
 - **Input**: First 8000 characters + optional user instructions
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`
 - **Model params**: max_tokens=2000, temperature=0.3
 
 **Assessment Detection**:
-- **Detection Method**: [AnnotationDetection.detectAssessments()](../../../packages/make-meaning/docs/api-reference.md#detectassessments)
-- **Worker**: [AssessmentAnnotationWorker](../../../packages/jobs/src/workers/assessment-annotation-worker.ts)
+- **Detection Method**: [AnnotationDetection.detectAssessments()](../../../packages/jobs/src/workers/annotation-detection.ts)
+- **Job processor**: [processAssessmentJob](../../../packages/jobs/src/processors.ts)
 - **Task**: Assess and evaluate key passages
 - **Input**: First 8000 characters + optional user instructions
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `assessment`
 - **Model params**: max_tokens=2000, temperature=0.3
 
 **Comment Detection**:
-- **Detection Method**: [AnnotationDetection.detectComments()](../../../packages/make-meaning/docs/api-reference.md#detectcomments)
-- **Worker**: [CommentAnnotationWorker](../../../packages/jobs/src/workers/comment-annotation-worker.ts)
+- **Detection Method**: [AnnotationDetection.detectComments()](../../../packages/jobs/src/workers/annotation-detection.ts)
+- **Job processor**: [processCommentJob](../../../packages/jobs/src/processors.ts)
 - **Task**: Identify passages needing explanatory comments
 - **Input**: First 8000 characters + optional user instructions + optional tone (scholarly/explanatory/conversational/technical)
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `comment`
@@ -262,15 +259,16 @@ Detection workers use the `AnnotationDetection` class from [@semiont/make-meanin
 - **Guidelines**: Emphasis on selectivity (3-8 comments per 2000 words), value beyond restating text, focus on context/background/clarification
 
 **Tag Detection**:
-- **Detection Method**: [AnnotationDetection.detectTags()](../../../packages/make-meaning/docs/api-reference.md#detecttags)
-- **Worker**: [TagAnnotationWorker](../../../packages/jobs/src/workers/tag-annotation-worker.ts)
+- **Detection Method**: [AnnotationDetection.detectTags()](../../../packages/jobs/src/workers/annotation-detection.ts)
+- **Job processor**: [processTagJob](../../../packages/jobs/src/processors.ts)
 - **Task**: Detect and extract structured tags using ontology schemas
 - **Input**: Full document content + schema ID + category
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `category`
 - **Model params**: max_tokens=2000, temperature=0.3
 
 **Reference/Entity Detection**:
-- **Worker**: [ReferenceAnnotationWorker](../../../packages/jobs/src/workers/reference-annotation-worker.ts)
+- **Detection Method**: [AnnotationDetection.extractEntities()](../../../packages/jobs/src/workers/detection/entity-extractor.ts)
+- **Job processor**: [processReferenceJob](../../../packages/jobs/src/processors.ts)
 - **Task**: Identify entity references by type (Person, Location, Concept, etc.)
 - **Input**: Full document content + selected entity types (with optional examples)
 - **Output**: JSON array with `exact`, `entityType`, `startOffset`, `endOffset`, `prefix`, `suffix`
@@ -381,7 +379,7 @@ Controls the target number of annotations per 2000 words:
 
 All detection types use similar validation:
 
-**Implementation**: [packages/jobs/src/workers/highlight-annotation-worker.ts](../../../packages/jobs/src/workers/highlight-annotation-worker.ts)
+**Implementation**: [packages/jobs/src/workers/detection/motivation-parsers.ts](../../../packages/jobs/src/workers/detection/motivation-parsers.ts)
 
 ```typescript
 // Parse LLM response
@@ -467,34 +465,34 @@ All progress events flow on `mark:progress` scoped to the resource.
 
 ### Backend Workers (Job Processing)
 
-All annotation workers follow the same pattern, inheriting from `JobWorker` base class in [@semiont/jobs](../../../packages/jobs/). See [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) for complete architecture details.
+All annotation jobs run through the same processor pattern in [@semiont/jobs](../../../packages/jobs/): the worker process claims a queued job and dispatches by `jobType` to a `process*Job` function in [processors.ts](../../../packages/jobs/src/processors.ts), each of which calls the matching `AnnotationDetection` method. See [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) for complete architecture details.
 
-**Highlights Worker**: [HighlightAnnotationWorker](../../../packages/jobs/src/workers/highlight-annotation-worker.ts)
+**Highlights**: [processHighlightJob](../../../packages/jobs/src/processors.ts)
 
 **Processing Stages**:
 1. **Load Resource (10%)**: Fetch from Materialized Views → load content via Content Store → charset-aware decoding
 2. **AI Detection (30%)**: Call `AnnotationDetection.detectHighlights()` → parse validated matches
 3. **Create Annotations (60-100%)**: For each highlight → create W3C annotation → emit `mark:create` on EventBus
 
-**Assessments Worker**: [AssessmentAnnotationWorker](../../../packages/jobs/src/workers/assessment-annotation-worker.ts)
+**Assessments**: [processAssessmentJob](../../../packages/jobs/src/processors.ts)
 
 **Processing Stages**: Same as highlights, but calls `AnnotationDetection.detectAssessments()` and includes assessment text in body
 
-**Comments Worker**: [CommentAnnotationWorker](../../../packages/jobs/src/workers/comment-annotation-worker.ts)
+**Comments**: [processCommentJob](../../../packages/jobs/src/processors.ts)
 
 **Processing Stages**:
 1. **Load Resource (10%)**: Fetch from Materialized Views → load content via Content Store → charset-aware decoding
 2. **AI Detection (30%)**: Call `AnnotationDetection.detectComments()` with tone parameter → parse validated matches
 3. **Create Annotations (60-100%)**: For each comment → create W3C annotation with `purpose: "commenting"` → emit `mark:create` on EventBus
 
-**Tags Worker**: [TagAnnotationWorker](../../../packages/jobs/src/workers/tag-annotation-worker.ts)
+**Tags**: [processTagJob](../../../packages/jobs/src/processors.ts)
 
 **Processing Stages**:
 1. **Load Resource (10%)**: Fetch from Materialized Views → load full content
 2. **Per-Category Detection**: For each category → call `AnnotationDetection.detectTags()` → parse validated matches
 3. **Create Annotations (60-100%)**: For each tag → create W3C annotation with dual-body structure (category + schema ID) → emit `mark:create` on EventBus
 
-**References Worker**: [ReferenceAnnotationWorker](../../../packages/jobs/src/workers/reference-annotation-worker.ts)
+**References**: [processReferenceJob](../../../packages/jobs/src/processors.ts)
 
 **Processing Stages**:
 1. **Load Resource**: Fetch from Materialized Views → load full content (no truncation)
@@ -572,7 +570,7 @@ Neptune/In-Memory graph: (Document)-[:HAS_ANNOTATION]->(Annotation)
 
 ### Detection UI Components
 
-**DetectSection** (Highlights/Assessments/Comments): [apps/frontend/src/components/resource/panels/DetectSection.tsx](../../../apps/frontend/src/components/resource/panels/DetectSection.tsx)
+**AssistSection** (Highlights/Assessments/Comments): [packages/react-ui/src/components/resource/panels/AssistSection.tsx](../../../packages/react-ui/src/components/resource/panels/AssistSection.tsx)
 
 Shared component for HighlightPanel, AssessmentPanel, and CommentsPanel:
 - Optional instructions textarea (max 500 characters with counter)
@@ -585,7 +583,7 @@ Shared component for HighlightPanel, AssessmentPanel, and CommentsPanel:
 - Real-time progress display during detection
 - Color-coded by motivation (yellow/amber for highlights, red/pink for assessments, purple/indigo for comments)
 
-**ReferencesPanel**: [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx)
+**ReferencesPanel**: [packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx](../../../packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx)
 
 Entity type selection UI:
 - Checkbox list of available entity types
@@ -596,7 +594,7 @@ Entity type selection UI:
 
 ### Mark Namespace (Observable API)
 
-**File**: [packages/api-client/src/namespaces/mark.ts](../../../packages/api-client/src/namespaces/mark.ts)
+**File**: [packages/sdk/src/namespaces/mark.ts](../../../packages/sdk/src/namespaces/mark.ts)
 
 The `mark.assist()` Observable handles the full detection lifecycle —
 command emission, progress delivery, completion, and failure — over
@@ -676,7 +674,7 @@ After detection completes:
 4. Visual feedback (sparkle animation for new annotations)
 5. Annotations render at correct positions with appropriate styling
 
-**Styling** (from [Annotation Registry](../../../apps/frontend/src/lib/annotation-registry.ts)):
+**Styling** (from [Annotation Registry](../../../packages/react-ui/src/lib/annotation-registry.ts)):
 
 - Highlights: Yellow background with hover darkening
 - Assessments: Red underline with hover opacity change
@@ -720,32 +718,29 @@ After detection completes:
 
 ## Related Implementation Files
 
-### Detection Package (@semiont/make-meaning)
+### Detection (@semiont/jobs)
 
-- [AnnotationDetection API](../../../packages/make-meaning/docs/api-reference.md#annotationdetection) - Detection methods
-- [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) - Worker architecture and dependency injection
-- [HighlightAnnotationWorker](../../../packages/jobs/src/workers/highlight-annotation-worker.ts) - Highlight worker
-- [AssessmentAnnotationWorker](../../../packages/jobs/src/workers/assessment-annotation-worker.ts) - Assessment worker
-- [CommentAnnotationWorker](../../../packages/jobs/src/workers/comment-annotation-worker.ts) - Comment worker
-- [TagAnnotationWorker](../../../packages/jobs/src/workers/tag-annotation-worker.ts) - Tag worker
-- [ReferenceAnnotationWorker](../../../packages/jobs/src/workers/reference-annotation-worker.ts) - Reference/entity detection worker
+- [AnnotationDetection](../../../packages/jobs/src/workers/annotation-detection.ts) - Consolidated detection class (one static method per motivation)
+- [processors.ts](../../../packages/jobs/src/processors.ts) - Per-motivation job processors (`processHighlightJob`, `processAssessmentJob`, `processCommentJob`, `processReferenceJob`, `processTagJob`)
+- [detection/](../../../packages/jobs/src/workers/detection/) - Prompt builders, response parsers, entity extractor
+- [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) - Worker architecture
 - [Make-Meaning Examples](../../../packages/make-meaning/docs/examples.md) - Usage examples
 
-### Backend Routes
+### Job dispatch (bus, not REST)
 
-- [apps/backend/src/routes/resources/routes/detect-highlights-stream.ts](../../../apps/backend/src/routes/resources/routes/detect-highlights-stream.ts) - Highlight detection route
-- [apps/backend/src/routes/resources/routes/detect-assessments-stream.ts](../../../apps/backend/src/routes/resources/routes/detect-assessments-stream.ts) - Assessment detection route
-- [apps/backend/src/routes/resources/routes/detect-comments-stream.ts](../../../apps/backend/src/routes/resources/routes/detect-comments-stream.ts) - Comment detection route
-- [apps/backend/src/routes/resources/routes/detect-annotations-stream.ts](../../../apps/backend/src/routes/resources/routes/detect-annotations-stream.ts) - Reference detection route
+Detection has no dedicated REST endpoints. `mark.assist(...)` emits a `job:create` event; the bus/job path is:
+
+- [packages/sdk/src/namespaces/mark.ts](../../../packages/sdk/src/namespaces/mark.ts) - `assist()` maps motivation → `jobType` and emits `job:create`
+- [packages/make-meaning/src/handlers/job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts) - `job:create` / `job:claim` handlers
+- [apps/backend/src/routes/bus.ts](../../../apps/backend/src/routes/bus.ts) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
 
 ### Frontend
 
-- [apps/frontend/src/components/resource/panels/DetectSection.tsx](../../../apps/frontend/src/components/resource/panels/DetectSection.tsx) - Shared UI for highlights/assessments/comments (with tone selector)
-- [apps/frontend/src/components/resource/panels/CommentsPanel.tsx](../../../apps/frontend/src/components/resource/panels/CommentsPanel.tsx) - Comments panel with detection UI
-- [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx) - Reference detection UI
-- [packages/api-client/src/sse/index.ts](../../../packages/api-client/src/sse/index.ts) - SSE streaming client (detectComments method)
-- [apps/frontend/src/lib/fuzzy-anchor.ts](../../../apps/frontend/src/lib/fuzzy-anchor.ts) - Fuzzy anchoring implementation
-- [apps/frontend/src/lib/annotation-registry.ts](../../../apps/frontend/src/lib/annotation-registry.ts) - Annotation type metadata
+- [packages/react-ui/src/components/resource/panels/AssistSection.tsx](../../../packages/react-ui/src/components/resource/panels/AssistSection.tsx) - Shared assist UI for highlights/assessments/comments (with tone selector)
+- [packages/react-ui/src/components/resource/panels/CommentsPanel.tsx](../../../packages/react-ui/src/components/resource/panels/CommentsPanel.tsx) - Comments panel with detection UI
+- [packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx](../../../packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx) - Reference detection UI
+- [packages/core/src/fuzzy-anchor.ts](../../../packages/core/src/fuzzy-anchor.ts) - Fuzzy anchoring implementation
+- [packages/react-ui/src/lib/annotation-registry.ts](../../../packages/react-ui/src/lib/annotation-registry.ts) - Annotation type metadata
 
 ### Documentation
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C implementation

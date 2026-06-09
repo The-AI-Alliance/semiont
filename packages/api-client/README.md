@@ -69,4 +69,4 @@ in-process example, see `LocalTransport` in
 
 ## License
 
-Apache-2.0 — see [LICENSE](./LICENSE).
+Apache-2.0 — see [LICENSE](../../LICENSE).

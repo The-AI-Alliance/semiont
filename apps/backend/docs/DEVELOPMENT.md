@@ -4,9 +4,9 @@ Complete guide to local development for the Semiont backend service.
 
 **Related Documentation:**
 - [Main README](../README.md) - Backend overview
-- [API Documentation](./API.md) - API endpoints reference
+- [API Documentation](../../../docs/protocol/API.md) - API endpoints reference
 - [Testing Guide](./TESTING.md) - Running tests
-- [Deployment Guide](./DEPLOYMENT.md) - Deployment procedures
+- [Deployment Guide](../../../docs/system/administration/DEPLOYMENT.md) - Deployment procedures
 
 ## Quick Start
 
@@ -48,7 +48,7 @@ npm run build
 npm start
 ```
 
-**Note on Building**: For local development, use `npm run dev` for auto-restart. For production deployment, `semiont publish` handles building TypeScript locally before creating Docker images. See [DEPLOYMENT.md](./DEPLOYMENT.md) for details.
+**Note on Building**: For local development, use `npm run dev` for auto-restart. For production deployment, `semiont publish` handles building TypeScript locally before creating Docker images. See [DEPLOYMENT.md](../../../docs/system/administration/DEPLOYMENT.md) for details.
 
 ## Essential CLI Commands
 
@@ -502,11 +502,11 @@ semiont configure production get oauth/google
 
 ## Related Documentation
 
-- [API Documentation](./API.md) - API endpoints and request/response formats
+- [API Documentation](../../../docs/protocol/API.md) - API endpoints and request/response formats
 - [Authentication Guide](./AUTHENTICATION.md) - JWT, OAuth, and MCP authentication
 - [Testing Guide](./TESTING.md) - Running and writing tests
-- [Deployment Guide](./DEPLOYMENT.md) - Production deployment procedures
-- [Contributing Guide](./CONTRIBUTING.md) - Code style and development patterns
+- [Deployment Guide](../../../docs/system/administration/DEPLOYMENT.md) - Production deployment procedures
+- [Contributing Guide](../../../CONTRIBUTING.md) - Code style and development patterns
 
 ---
 

@@ -154,11 +154,13 @@ UI updates: ❓ → 🔗 in real-time (<50ms latency)
 
 ## Backend Implementation
 
-### Generation Route
+### Generation Dispatch
 
-**File**: [apps/backend/src/routes/resources/routes/generate-resource-from-annotation-stream.ts](../../../apps/backend/src/routes/resources/routes/generate-resource-from-annotation-stream.ts)
+Generation has no dedicated REST endpoint — it runs as a bus job. The SDK's `yield` namespace emits `job:create` with `jobType: 'generation'`; the worker synthesizes content and uploads it through the standard resource-create path.
 
-**Request Body**:
+**Dispatch**: [packages/sdk/src/namespaces/yield.ts](../../../packages/sdk/src/namespaces/yield.ts) → `job:create`, handled by [job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts)
+
+**Generation params** (carried on the `job:create` event):
 ```typescript
 {
   referenceId: string;      // Annotation ID to generate from
@@ -177,25 +179,19 @@ UI updates: ❓ → 🔗 in real-time (<50ms latency)
 }
 ```
 
-**Responsibilities**:
-1. Validate request body and authentication
-2. Verify source resource and reference annotation exist
-3. Create generation job and submit to queue
-4. Subscribe to EventBus for job events
-5. Forward progress events to client via SSE (<50ms latency)
-6. Handle client disconnection (job continues running)
+**Dispatch responsibilities** (SDK `yield` namespace + [job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts)):
+1. Validate params and authentication
+2. Create a generation job and submit it to the queue (`job:create` → `job:created`)
+3. Surface progress to the client over SSE via the unified job channels
 
-**SSE Event Types**:
-- `generation-started`: Job initiated
-- `generation-progress`: Status updates (generating content, creating resource, linking)
-- `generation-complete`: Generation finished with new resource ID
-- `generation-error`: Generation failed
+**Progress events**: generation reports on `job:report-progress` (ephemeral) and finishes with `job:complete` / `job:fail`, scoped to the resource. The job keeps running even if the client disconnects.
 
 ### Generation Worker
 
-The GenerationWorker is part of [@semiont/make-meaning](../../../packages/make-meaning/docs/job-workers.md#generationworker) and handles AI-powered resource generation.
+Generation runs as a job processor in [@semiont/jobs](../../../packages/jobs/) — `processGenerationJob` dispatches by `jobType` and calls `generateResourceFromTopic()` for the AI synthesis.
 
-**File**: [packages/jobs/src/workers/generation-worker.ts](../../../packages/jobs/src/workers/generation-worker.ts)
+**Processor**: [processGenerationJob](../../../packages/jobs/src/processors.ts)
+**Synthesis**: [resource-generation.ts](../../../packages/jobs/src/workers/generation/resource-generation.ts) — `generateResourceFromTopic()`
 
 **Processing Stages**:
 
@@ -225,7 +221,7 @@ The GenerationWorker is part of [@semiont/make-meaning](../../../packages/make-m
    - Frontend receives completion via generation progress SSE
    - Document viewer receives `mark:body-updated` via resource events SSE
 
-See [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md#generationworker) for complete implementation details including dependency injection and error handling.
+See [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) for complete implementation details and error handling.
 
 ### AI Generation Prompt
 
@@ -320,7 +316,7 @@ Both events flow through EventBus → Stower → Event Store → Materialized Vi
 
 ### Generation UI
 
-**Component**: [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx)
+**Component**: [packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx](../../../packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx)
 
 **UI Elements**:
 - Reference annotations display with ❓ icon for unresolved references
@@ -347,7 +343,7 @@ Both events flow through EventBus → Stower → Event Store → Materialized Vi
 
 ### Yield Namespace (Observable API)
 
-**File**: [packages/api-client/src/namespaces/yield.ts](../../../packages/api-client/src/namespaces/yield.ts)
+**File**: [packages/sdk/src/namespaces/yield.ts](../../../packages/sdk/src/namespaces/yield.ts)
 
 `yield.fromAnnotation()` returns an Observable of progress events,
 backed by the bus gateway. The namespace emits `job:create` (jobType:
@@ -467,22 +463,23 @@ See [EVENT-BUS.md](../EVENT-BUS.md) for the bus protocol.
 
 ## Related Files
 
-### Generation Package (@semiont/make-meaning)
+### Generation (@semiont/jobs)
 
-- [GenerationWorker](../../../packages/jobs/src/workers/generation-worker.ts) - Worker implementation
-- [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md#generationworker) - Architecture and flow
+- [processGenerationJob](../../../packages/jobs/src/processors.ts) - Generation job processor
+- [resource-generation.ts](../../../packages/jobs/src/workers/generation/resource-generation.ts) - `generateResourceFromTopic()` synthesis
+- [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) - Architecture and flow
 - [Make-Meaning Examples](../../../packages/make-meaning/docs/examples.md) - Usage patterns
 
 ### Backend
 
 - [apps/backend/src/routes/bus.ts](../../../apps/backend/src/routes/bus.ts) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
-- [apps/backend/src/handlers/job-commands.ts](../../../apps/backend/src/handlers/job-commands.ts) - `job:create`/`job:claim` handlers
+- [packages/make-meaning/src/handlers/job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts) - `job:create`/`job:claim` handlers
 
 ### Frontend
 
-- [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx) - Generation UI
-- [packages/api-client/src/state units/flows/yield-state-unit.ts](../../../packages/api-client/src/state units/flows/yield-state-unit.ts) - Generation flow state unit (bus commands + progress)
-- [packages/api-client/src/state units/domain/actor-state-unit.ts](../../../packages/api-client/src/state units/domain/actor-state-unit.ts) - Bus actor primitive
+- [packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx](../../../packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx) - Generation UI
+- [packages/sdk/src/state/flows/yield-state-unit.ts](../../../packages/sdk/src/state/flows/yield-state-unit.ts) - Generation flow state unit (bus commands + progress)
+- [packages/api-client/src/transport/actor-state-unit.ts](../../../packages/api-client/src/transport/actor-state-unit.ts) - Bus actor primitive
 
 ### Documentation
 

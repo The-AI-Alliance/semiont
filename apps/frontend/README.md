@@ -215,8 +215,7 @@ Some operations run asynchronously via background job workers:
 ### Specialized Topics
 - **[CodeMirror Integration](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md)** - Editor implementation details
 - **[CodeMirror Widgets](../../packages/react-ui/docs/CODEMIRROR-WIDGETS.md)** - Custom editor widgets
-- **[Annotation Overlay](../../ANNOTATION-OVERLAY.md)** - BrowseView annotation rendering (DOM Range overlay)
-- **[Annotation Rendering](./docs/ANNOTATION-RENDERING-PRINCIPLES.md)** - Annotation rendering principles
+- **[Annotation Rendering](../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md)** - Annotation rendering principles
 - **[Adding Languages](./docs/ADDING-LANGUAGE.md)** - Internationalization
 - **[Archive & Clone](./docs/ARCHIVE-CLONE.md)** - Document archiving and cloning
 - **[Future Implementations](./docs/FUTURE.md)** - Mobile apps, browser extensions, desktop apps, integrations

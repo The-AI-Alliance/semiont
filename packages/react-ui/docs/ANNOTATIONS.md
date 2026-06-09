@@ -536,8 +536,6 @@ describe('Annotation System', () => {
 
 See test files for comprehensive examples:
 - [AnnotationContext.test.tsx](../src/contexts/__tests__/AnnotationContext.test.tsx)
-- [AnnotationUIContext.test.tsx](../src/contexts/__tests__/AnnotationUIContext.test.tsx)
-- [CacheContext.test.tsx](../src/contexts/__tests__/CacheContext.test.tsx)
 
 ---
 
@@ -693,4 +691,4 @@ See [EVENTS.md](EVENTS.md) for complete real-time collaboration architecture.
 
 ## Contributing
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for contribution guidelines.
+See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for contribution guidelines.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-`@semiont/react-ui` uses CodeMirror 6 for **AnnotateView** (curation mode) to render markdown documents with annotations. BrowseView uses a completely different approach (ReactMarkdown + DOM overlay) documented in [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md).
+`@semiont/react-ui` uses CodeMirror 6 for **AnnotateView** (curation mode) to render markdown documents with annotations. BrowseView uses a completely different approach (ReactMarkdown + DOM overlay) documented in [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md).
 
 ## Why CodeMirror?
 
@@ -171,6 +171,5 @@ AnnotateView provides:
 
 - [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Dual rendering pipeline overview
 - [CODEMIRROR-WIDGETS.md](./CODEMIRROR-WIDGETS.md) - Reference resolution widgets
-- [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) - BrowseView rendering (not CodeMirror)
 - [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms
 - [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C annotation model

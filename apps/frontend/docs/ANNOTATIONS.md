@@ -651,7 +651,6 @@ The modular architecture ensures maintainability and extensibility, while the pr
 - [CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Document rendering and editor implementation
 - [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [RENDERING-ARCHITECTURE.md](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
-- [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) - BrowseView annotation rendering (DOM Range overlay)
 
 ### System Documentation
 - [System Documentation](../../../docs/system/README.md) - Overall system architecture

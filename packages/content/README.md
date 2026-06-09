@@ -64,14 +64,7 @@ console.log(duplicate.checksum === stored.checksum); // true
 ## Documentation
 
 - [API Reference](./docs/API.md) - Complete API documentation
-- [Architecture](./docs/ARCHITECTURE.md) - Design principles
-- [Patterns](./docs/PATTERNS.md) - Usage patterns and best practices
-
-## Examples
-
-- [Basic Example](./examples/basic.ts) - Storage and retrieval
-- [Deduplication](./examples/deduplication.ts) - Content addressing benefits
-- [Binary Content](./examples/binary.ts) - Images and documents
+- [Architecture](./docs/architecture.md) - Design principles
 
 ## Storage Architecture
 

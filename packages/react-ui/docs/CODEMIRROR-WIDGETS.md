@@ -2,7 +2,7 @@
 
 ## Overview
 
-Inline widgets enhance the **AnnotateView** curation experience by adding interactive visual indicators next to annotations. BrowseView does not use widgets — see [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md).
+Inline widgets enhance the **AnnotateView** curation experience by adding interactive visual indicators next to annotations. BrowseView does not use widgets — see [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md).
 
 The widget system currently provides one type:
 
@@ -115,5 +115,4 @@ All widget styles are inline — no external CSS dependencies:
 
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - CodeMirror integration and event delegation
 - [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Dual rendering architecture
-- [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) - BrowseView rendering (no widgets)
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows

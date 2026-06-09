@@ -600,5 +600,4 @@ const logger = {
 
 ## Related Documentation
 
-- [Usage Guide](./Usage.md) - General API client usage
 - [API Reference](./API-Reference.md) - Complete method documentation

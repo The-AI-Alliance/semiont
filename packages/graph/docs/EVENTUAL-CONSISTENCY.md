@@ -321,4 +321,3 @@ See `packages/react-ui/src/lib/api-hooks.ts` for implementation details.
 - [Neo4j MERGE Documentation](https://neo4j.com/docs/cypher-manual/current/clauses/merge/)
 - [Eventually Consistent Projections](https://www.eventstore.com/blog/what-is-a-projection)
 - [Graph Architecture](./ARCHITECTURE.md)
-- [ROBUST-GRAPH.md](../../../ROBUST-GRAPH.md) - Complete design document

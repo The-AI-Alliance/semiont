@@ -2,7 +2,7 @@
 
 This document describes the AWS-specific deployment architecture for Semiont, including infrastructure components, networking, security, and operational procedures.
 
-For the platform-agnostic application architecture, see [ARCHITECTURE.md](../ARCHITECTURE.md).
+For the platform-agnostic application architecture, see the [system architecture overview](../README.md).
 
 ## Overview
 
@@ -541,10 +541,10 @@ Set via ECS task definitions:
 
 ## Related Documentation
 
-- [Architecture Overview](../ARCHITECTURE.md) - Platform-agnostic application architecture
+- [Architecture Overview](../README.md) - Platform-agnostic application architecture
 - [Deployment Guide](../administration/DEPLOYMENT.md) - Step-by-step deployment instructions
 - [Configuration Guide](../administration/CONFIGURATION.md) - Environment and secret management
-- [Database Management](../services/DATABASE.md) - PostgreSQL management on RDS
+- [Database Management](../administration/DATABASE.md) - PostgreSQL management on RDS
 - [Troubleshooting](../administration/TROUBLESHOOTING.md) - Common issues and solutions
 
 ---

@@ -7,7 +7,7 @@ Comprehensive documentation for all Semiont services and their implementations.
 Semiont's architecture consists of multiple services that work together to provide a semantic knowledge platform. For detailed service documentation, see:
 
 - **Service Overview**: [OVERVIEW.md](./OVERVIEW.md) - Deployment-focused service catalog
-- **Architecture**: [../ARCHITECTURE.md](../ARCHITECTURE.md) - System architecture
+- **Architecture**: [System Documentation](../README.md) - System architecture index
 - **Package Documentation**: Individual packages in `packages/*/docs/`
 
 ## Service Categories
@@ -38,8 +38,8 @@ Semiont's architecture consists of multiple services that work together to provi
 
 **Event Store** - Immutable event log + materialized views
 - **Package**: [@semiont/event-sourcing](../../../packages/event-sourcing/)
-- **API Documentation**: [packages/event-sourcing/docs/API.md](../../../packages/event-sourcing/docs/API.md)
-- **Architecture**: [packages/event-sourcing/docs/ARCHITECTURE.md](../../../packages/event-sourcing/docs/ARCHITECTURE.md)
+- **Package**: [packages/event-sourcing/README.md](../../../packages/event-sourcing/README.md)
+- **Storage Layout**: [packages/event-sourcing/docs/STORAGE-LAYOUT.md](../../../packages/event-sourcing/docs/STORAGE-LAYOUT.md)
 
 **Graph Database** - Relationship traversal
 - **Package**: [@semiont/graph](../../../packages/graph/)
@@ -56,8 +56,7 @@ Semiont's architecture consists of multiple services that work together to provi
 
 **Filesystem** - File storage patterns
 - **Documentation**: [Filesystem](../FILESYSTEM.md)
-- **Implementation**: [apps/backend/src/storage/](../../../apps/backend/src/storage/)
-- **CLI Service**: [filesystem-service.ts](../../../apps/cli/src/services/filesystem-service.ts)
+- **Implementation**: [packages/event-sourcing/src/storage/](../../../packages/event-sourcing/src/storage/) (event + view storage), [@semiont/content](../../../packages/content/) (content-addressed store)
 - **Storage**: Local filesystem, AWS S3, AWS EFS
 
 **Inference** - AI/ML LLM service
@@ -131,7 +130,7 @@ The detailed service documentation has been reorganized to be package-centric:
 ## Related Documentation
 
 ### System Documentation
-- [Architecture Overview](../ARCHITECTURE.md) - Overall system architecture
+- [Architecture Overview](../README.md) - Overall system architecture
 - [Service Overview](./OVERVIEW.md) - Service management and deployment
 - [AWS Deployment](../platforms/AWS.md) - Production deployment guide
 - [Configuration Guide](../administration/CONFIGURATION.md) - Environment and service configuration

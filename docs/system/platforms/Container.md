@@ -46,7 +46,8 @@ Service-specific handlers:
 - [database-start.ts](../../../apps/cli/src/platforms/container/handlers/database-start.ts)
 - [database-stop.ts](../../../apps/cli/src/platforms/container/handlers/database-stop.ts)
 - [graph-start.ts](../../../apps/cli/src/platforms/container/handlers/graph-start.ts)
-- [generic-start.ts](../../../apps/cli/src/platforms/container/handlers/generic-start.ts)
+- [web-start.ts](../../../apps/cli/src/platforms/container/handlers/web-start.ts)
+- [inference-start.ts](../../../apps/cli/src/platforms/container/handlers/inference-start.ts)
 
 ## Container Runtime
 

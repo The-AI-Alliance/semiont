@@ -9,10 +9,11 @@ All examples assume the service is started:
 ```typescript
 import { startMakeMeaning, ResourceOperations, AnnotationOperations } from '@semiont/make-meaning';
 import { EventBus, userId } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 import { firstValueFrom, filter, timeout, race } from 'rxjs';
 
 const eventBus = new EventBus();
-const makeMeaning = await startMakeMeaning(config, eventBus, logger);
+const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), config, eventBus, logger);
 const { kb } = makeMeaning;
 ```
 
@@ -45,7 +46,7 @@ import { ResourceContext } from '@semiont/make-meaning';
 const resource = await ResourceContext.getResourceMetadata(resourceId, kb);
 if (resource) {
   console.log(`Resource: ${resource.name}`);
-  console.log(`Created: ${yield:created}`);
+  console.log(`Created: ${resource.dateCreated}`);
   console.log(`Format: ${resource.format}`);
 }
 ```
@@ -129,39 +130,32 @@ console.log(`Before: "${context.before}"`);
 console.log(`After: "${context.after}"`);
 ```
 
-## Using the API Client (Recommended)
+## Using the SDK (Recommended)
 
-The simplest way to interact with the knowledge system:
+The simplest way to interact with the knowledge system is the [`@semiont/sdk`](../../sdk/README.md) client:
 
 ```typescript
-import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, accessToken, EventBus, resourceId, type AccessToken } from '@semiont/core';
-import { firstValueFrom, BehaviorSubject } from 'rxjs';
+import { SemiontClient } from '@semiont/sdk';
+import { resourceId, annotationId } from '@semiont/core';
 
-const semiont = new SemiontApiClient({
-  baseUrl: baseUrl('http://localhost:4000'),
-  eventBus: new EventBus(),
-  token$: new BehaviorSubject<AccessToken | null>(accessToken(token)),
+const semiont = await SemiontClient.signInHttp({
+  baseUrl: 'http://localhost:4000',
+  email,
+  password,
 });
 
-// Browse reads (Observable — use firstValueFrom for one-shot)
-const resource = await firstValueFrom(semiont.browse.resource(resourceId('doc-123')));
-const annotations = await firstValueFrom(semiont.browse.annotations(resourceId('doc-123')));
-
-// One-shot reads (Promise)
+// The SDK is RxJS-native, but its return values are PromiseLike — `await` works directly.
+const resource = await semiont.browse.resource(resourceId('doc-123'));
+const annotations = await semiont.browse.annotations(resourceId('doc-123'));
 const content = await semiont.browse.resourceContent(resourceId('doc-123'));
 const events = await semiont.browse.resourceEvents(resourceId('doc-123'));
 
-// Gather LLM context (Observable)
-const context = await firstValueFrom(
-  semiont.gather.annotation(annotationId('ann-1'), resourceId('doc-123'))
-);
-
-// Match (Observable)
-const results = await firstValueFrom(
-  semiont.match.search(resourceId('doc-123'), 'ref-1', gatheredContext)
-);
+// Gather LLM context, then search for candidate matches
+const context = await semiont.gather.annotation(annotationId('ann-1'), resourceId('doc-123'));
+const results = await semiont.match.search(resourceId('doc-123'), annotationId('ref-1'), context);
 ```
+
+Reach for `.subscribe(...)` only when you want progress events or live updates.
 
 ## Gathering Context via EventBus (Low-Level)
 
@@ -211,22 +205,29 @@ const results = await GraphContext.searchResources('neural networks', kb, 10);
 const paths = await GraphContext.findPath(fromId, toId, kb, 3);
 ```
 
-## Entity Resolution via EventBus
+## Candidate Search via EventBus (Low-Level)
+
+The match flow finds candidate resources for a reference. Use `correlationId` to thread the response back:
 
 ```typescript
-// Search for matching resources
-eventBus.get('bind:search-requested').next({
+import { filter, take, timeout } from 'rxjs/operators';
+
+const correlationId = crypto.randomUUID();
+
+const results$ = eventBus.get('match:search-results').pipe(
+  filter(e => e.correlationId === correlationId),
+  take(1),
+  timeout(10_000),
+);
+
+eventBus.get('match:search-requested').next({
+  correlationId,
+  resourceId,
   referenceId: annotationId,
-  searchTerm: 'quantum computing',
+  context: gatheredContext,
 });
 
-// Await the Matcher's response
-const results = await firstValueFrom(
-  eventBus.get('bind:search-results').pipe(
-    filter(e => e.referenceId === annotationId),
-    timeout(10_000),
-  ),
-);
+const results = await firstValueFrom(results$);
 ```
 
 ## Cleanup

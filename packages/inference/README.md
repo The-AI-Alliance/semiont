@@ -295,10 +295,6 @@ npm run test:watch      # Watch mode
 npm run test:coverage   # Coverage report
 ```
 
-## Examples
-
-See [examples/basic.ts](examples/basic.ts) for usage examples.
-
 ## License
 
 Apache-2.0

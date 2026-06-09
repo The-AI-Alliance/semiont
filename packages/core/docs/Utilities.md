@@ -349,11 +349,11 @@ const all = await semiont.browse.tagSchemas();
 
 ## Annotation Utilities
 
-See [API-Reference.md](./API-Reference.md#annotation-utilities) for annotation manipulation functions.
+See the [core package README](../README.md) for annotation manipulation functions.
 
 ## Event Utilities
 
-See [API-Reference.md](./API-Reference.md#event-utilities) for event filtering and manipulation functions.
+See the [core package README](../README.md) for event filtering and manipulation functions.
 
 ## Resource Utilities
 
@@ -421,11 +421,11 @@ const content = decodeRepresentation(buffer, mediaType);
 // Handles UTF-8, ISO-8859-1, Windows-1252, etc.
 ```
 
-See also [API-Reference.md](./API-Reference.md#resource-utilities) for complete documentation.
+See also the [core package README](../README.md) for complete documentation.
 
 ## Validation Utilities
 
-See [API-Reference.md](./API-Reference.md#validation-utilities) for validation functions.
+See the [core package README](../README.md) for validation functions.
 
 ## Type Safety
 
@@ -467,6 +467,4 @@ All utilities are **pure TypeScript functions** with zero dependencies on React,
 
 ## See Also
 
-- [Usage Guide](./Usage.md) - API client usage examples
-- [API Reference](./API-Reference.md) - Complete method documentation
 - [README](../README.md) - Package overview

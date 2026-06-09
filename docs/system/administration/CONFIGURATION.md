@@ -380,7 +380,7 @@ If you see `No inference config found for actor 'gatherer'` or similar, add the 
 
 ## Related Documentation
 
-- [Architecture](../ARCHITECTURE.md) — System architecture and Git analogy
+- [Architecture](../README.md) — System architecture overview
 - [Authentication](./AUTHENTICATION.md) — OAuth, JWT, MCP token flows
 - [Services Overview](../services/OVERVIEW.md) — Service catalog
 - [CLI README](../../../apps/cli/README.md) — CLI command reference

@@ -1,115 +1,108 @@
 # Job Workers
 
-Annotation workers live in **[@semiont/jobs](../../jobs/README.md)**, not in this package. This document describes how they integrate with the make-meaning actor model.
+Annotation and generation workers live in **[@semiont/jobs](../../jobs/README.md)**, not in this package. This document describes how they integrate with the make-meaning actor model.
 
 ## Overview
 
-Workers poll the `JobQueue` for pending jobs and emit commands on the EventBus when they produce annotations or resources. The **Stower** actor handles all persistence — workers never call `eventStore.appendEvent()` directly.
+Workers run in a separate **worker process** (the worker pool — [worker-main.ts](../../jobs/src/worker-main.ts) → [startWorkerProcess](../../jobs/src/worker-process.ts)). The process claims pending jobs over the bus through a `JobClaimAdapter` (reactive, SSE-driven — not a local polling loop) and emits commands on the bus when it produces annotations or resources. Every emit goes through a `SemiontSession` (`session.client.transport.emit(...)`), so the worker is an ordinary bus participant authenticated as a software agent.
 
-Workers are **not** actors. They use a polling loop (from `JobWorker` base class in @semiont/jobs), not RxJS subscriptions. However, they emit the same EventBus commands as any other caller.
+Workers never persist directly — the **Stower** actor subscribes to the emitted commands and handles all persistence (`eventStore.appendEvent()`). On the backend side, [`startMakeMeaning()`](../src/service.ts) owns the `JobQueue` and registers the bus command handlers; it does **not** instantiate workers.
 
 ## Available Workers
 
-| Worker | Job Type | What it does |
-|--------|----------|-------------|
-| `ReferenceAnnotationWorker` | `reference-annotation` | Detects entity references using AI inference |
-| `GenerationWorker` | `generation` | Generates new resources from annotations |
-| `HighlightAnnotationWorker` | `highlight-annotation` | Identifies key passages for highlighting |
-| `AssessmentAnnotationWorker` | `assessment-annotation` | Generates evaluative assessments |
-| `CommentAnnotationWorker` | `comment-annotation` | Generates explanatory comments |
-| `TagAnnotationWorker` | `tag-annotation` | Detects structural role tags (IRAC, IMRAD, etc.) |
+Each job type is handled by a `process*Job` function in [packages/jobs/src/processors.ts](../../jobs/src/processors.ts). There are no per-type worker classes — the worker process dispatches by `jobType`.
 
-## Constructor Signature
+| Job Type | Processor | What it does |
+|----------|-----------|-------------|
+| `reference-annotation` | `processReferenceJob` | Detects entity references using AI inference |
+| `generation` | `processGenerationJob` | Generates new resources from a reference annotation |
+| `highlight-annotation` | `processHighlightJob` | Identifies key passages for highlighting |
+| `assessment-annotation` | `processAssessmentJob` | Generates evaluative assessments |
+| `comment-annotation` | `processCommentJob` | Generates explanatory comments |
+| `tag-annotation` | `processTagJob` | Detects structural role tags (IRAC, IMRAD, etc.) |
 
-All annotation workers follow the same pattern:
+The AI detection logic itself lives in the [`AnnotationDetection`](../../jobs/src/workers/annotation-detection.ts) class (one static method per motivation); generation synthesis lives in [`generateResourceFromTopic()`](../../jobs/src/workers/generation/resource-generation.ts). Processors orchestrate those calls and shape the results into W3C annotations.
+
+## Processor Signature
+
+The annotation processors share a signature:
 
 ```typescript
-constructor(
-  jobQueue: JobQueue,
+async function processHighlightJob(
+  content: string,
   inferenceClient: InferenceClient,
-  generator: Agent,              // Pre-built W3C SoftwareAgent for attribution
-  eventBus: EventBus,
-  contentFetcher: ContentFetcher,  // (not on GenerationWorker)
-  logger: Logger,
-)
+  params: HighlightDetectionParams,
+  userId: string,
+  generator: Agent,            // Pre-built W3C SoftwareAgent for attribution
+  onProgress: OnProgress,
+): Promise<ProcessorResult<HighlightDetectionResult>>  // { annotations, result }
 ```
 
-`GenerationWorker` does not take a `ContentFetcher` — it fetches content differently.
+`processReferenceJob` and `processTagJob` additionally take a `logger`. `processGenerationJob` differs — it returns synthesized content rather than annotations:
 
-The `generator` is a W3C `Agent` with `@type: "SoftwareAgent"` that identifies which worker and inference model produced the annotation. It is built once at startup by `inferenceConfigToGenerator()` in `service.ts` and injected into the worker — workers never receive or read `InferenceConfig` directly.
+```typescript
+async function processGenerationJob(
+  inferenceClient: InferenceClient,
+  params: GenerationParams,
+  onProgress: OnProgress,
+  logger: Logger,
+): Promise<{ content: string; title: string; format: string; result: GenerationResult }>
+```
+
+The `generator` is a W3C `Agent` with `@type: "SoftwareAgent"` that identifies which inference provider and model produced the annotation. It is built once at worker-process startup and carried on the [`WorkerProcessConfig`](../../jobs/src/worker-process.ts) — processors never receive or read `InferenceConfig` directly.
 
 ## EventBus Integration
 
-Workers emit commands on the EventBus. The Stower subscribes and handles persistence.
+The worker process emits commands on the bus through its session; the Stower subscribes and handles persistence.
 
 ### Annotation Creation
 
-Workers build a full W3C `Annotation` with `creator`, `generator`, and `created`, then emit `mark:create`:
+For each detected annotation, the processor returns a full W3C `Annotation` (with `creator`, `generator`, and `created`), and the worker process emits `mark:create`:
 
 ```typescript
-eventBus.get('mark:create').next({
-  motivation: 'highlighting',
-  selector: [...],
-  body: [...],
-  userId: job.metadata.userId,
-  resourceId: job.params.resourceId,
-  annotation,  // Full Annotation with creator/generator/created
-});
+await emitEvent(session, 'mark:create', { annotation, userId, resourceId });
+// emitEvent → session.client.transport.emit('mark:create', { ... })
 ```
 
-- **`creator`** — built from `JobMetadata` fields (`userName`, `userEmail`, `userDomain`) using `userToAgent()`. Identifies the agent that requested the job.
-- **`generator`** — the pre-built `SoftwareAgent` passed into the worker constructor. Identifies the software (worker type, inference provider, model) that produced the annotation. Conforms to W3C Web Annotation §3.2.1.
+- **`creator`** — built from `JobMetadata` fields (`userName`, `userEmail`, `userDomain`) via `userToAgent()`. Identifies the agent that requested the job.
+- **`generator`** — the pre-built `SoftwareAgent` from `WorkerProcessConfig.generator`. Identifies the software (inference provider, model) that produced the annotation. Conforms to W3C Web Annotation §3.2.1.
 
 ### Job Lifecycle
 
-Workers emit job lifecycle events via the EventBus:
+`job:start` / `job:report-progress` / `job:complete` / `job:fail` are the one unified lifecycle family:
 
 ```typescript
-// Job started
-eventBus.get('job:start').next({ jobId, resourceId, userId, jobType });
-
-// Progress update
-eventBus.get('job:report-progress').next({ jobId, resourceId, userId, jobType, progress });
-
-// Job completed
-eventBus.get('job:complete').next({ jobId, resourceId, userId, jobType, result });
-
-// Job failed
-eventBus.get('job:fail').next({ jobId, resourceId, userId, jobType, error });
+await emitEvent(session, 'job:start',  { jobId, resourceId, userId, jobType /*, annotationId? */ });
+   emitEvent(session, 'job:report-progress', { ...lifecycleBase, percentage, progress });  // ephemeral
+await emitEvent(session, 'job:complete', { jobId, resourceId, userId, jobType, result });
+await emitEvent(session, 'job:fail',     { jobId, resourceId, userId, jobType, error });
 ```
 
-The Stower translates these into domain events (`job:started`, `job:progress`, `job:completed`, `job:failed`) on the EventStore.
+Stower persists `start` / `complete` / `fail` as domain events (`job:started`, `job:completed`, `job:failed`); `job:report-progress` is ephemeral UI feedback and Stower ignores it. Annotation-scoped jobs (today: `generation`, triggered from a reference) carry the source `annotationId` through every lifecycle payload so the UI can attach visual feedback to that annotation.
 
 ## Instantiation
 
-Workers are created by `startMakeMeaning()` in [service.ts](../src/service.ts). For each worker, the service resolves the inference config, creates the client, builds the generator descriptor, and passes all three:
+Workers are launched by the worker pool, [worker-main.ts](../../jobs/src/worker-main.ts). For each `(inferenceProvider, model)` group it:
+
+1. Authenticates as a **software agent** (`authenticateAgent(...)` → agent DID + token, with refresh)
+2. Opens a [`SemiontSession`](../../sdk/docs/STATE-UNITS.md) on that identity (`await session.ready`)
+3. Builds the `generator` descriptor (the `SoftwareAgent` stamped on annotations)
+4. Calls `startWorkerProcess(...)`:
 
 ```typescript
-const highlightInferenceCfg = resolveWorkerInference(config, 'highlight-annotation');
-const highlightInferenceClient = createInferenceClient(highlightInferenceCfg, logger);
-const highlightGenerator = inferenceConfigToGenerator('Highlight Worker', highlightInferenceCfg);
-
-new HighlightAnnotationWorker(jobQueue, highlightInferenceClient, highlightGenerator, eventBus, contentFetcher, logger)
+const adapter = startWorkerProcess({
+  session,
+  jobTypes: group.jobTypes,
+  inferenceClient: group.client,
+  generator,
+  logger,
+});
 ```
 
-`inferenceConfigToGenerator()` lives in `packages/make-meaning/src/agent-utils.ts` and never leaks `InferenceConfig` into `@semiont/jobs`.
-
-The `ContentFetcher` is backed by the KB's ViewStorage and RepresentationStore:
-
-```typescript
-const contentFetcher: ContentFetcher = async (resourceId) => {
-  const view = await kb.views.get(resourceId);
-  if (!view) return null;
-  const primaryRep = getPrimaryRepresentation(view.resource);
-  if (!primaryRep?.checksum || !primaryRep?.mediaType) return null;
-  const buffer = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
-  if (!buffer) return null;
-  return Readable.from([buffer]);
-};
-```
+The worker process fetches resource content through its session — `session.client.browse.resourceContent(resourceId)` — before dispatching to the processor. It does not read KB storage directly.
 
 ## See Also
 
-- [@semiont/jobs README](../../jobs/README.md) — Job queue, worker base class, job types
+- [@semiont/jobs README](../../jobs/README.md) — Job queue, worker process, job types
 - [@semiont/jobs Workers Guide](../../jobs/docs/Workers.md) — Building custom workers
 - [Architecture](./architecture.md) — Actor model and data flow

@@ -173,4 +173,4 @@ See [Adding Platforms Guide](../../../apps/cli/docs/ADDING_PLATFORMS.md) for ins
 - [CLI README](../../../apps/cli/README.md) - Complete CLI reference
 - [Adding Platforms](../../../apps/cli/docs/ADDING_PLATFORMS.md) - Extend platform support
 - [Services](../services/README.md) - Service documentation
-- [Architecture](../ARCHITECTURE.md) - Overall system design
+- [Architecture](../README.md) - Overall system design

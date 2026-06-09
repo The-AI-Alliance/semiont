@@ -12,7 +12,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 - **[Event-Bus Protocol](../../docs/protocol/EVENT-BUS.md)** - SSE streaming, channels, scoping, correlation
 - **[Logging](./docs/LOGGING.md)** - Winston logging, log levels, debugging 401s
 - **[Testing Guide](./docs/TESTING.md)** - Running tests, writing tests, coverage
-- **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment, rollbacks, monitoring
+- **[Deployment Guide](../../docs/system/administration/DEPLOYMENT.md)** - Production deployment, rollbacks, monitoring
 
 ### 🔗 Related Resources
 - **[W3C Web Annotation Implementation](../../docs/protocol/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, materialized views, graph database)
@@ -90,7 +90,7 @@ All other configuration (database, secrets, AI keys) comes from JSON files in `S
 
 **Multi-platform Support:** linux/amd64, linux/arm64
 
-See [Container Documentation](./docs/CONTAINER.md) for advanced usage, Docker Compose, and Kubernetes deployment.
+See [Container Documentation](../../docs/system/CONTAINER-TOPOLOGY.md) for advanced usage, Docker Compose, and Kubernetes deployment.
 
 ## Technology Stack
 
@@ -163,7 +163,7 @@ Semiont implements the [W3C Web Annotation Data Model](https://www.w3.org/TR/ann
 - JSON-LD export for semantic web integration
 - Full audit trail via event sourcing
 
-For complete details, see [W3C Web Annotation Implementation](../../docs/W3C-WEB-ANNOTATION.md).
+For complete details, see [W3C Web Annotation Implementation](../../docs/protocol/W3C-WEB-ANNOTATION.md).
 
 ### Data Architecture
 
@@ -227,7 +227,7 @@ Clean separation of concerns:
 - **Frontend owns**: `/auth/*` - NextAuth.js OAuth flows
 - **No routing conflicts** - Simple ALB 3-rule pattern
 
-See [API Reference](./docs/API.md) for complete endpoint documentation.
+See [API Reference](../../docs/protocol/API.md) for complete endpoint documentation.
 
 ## Project Structure
 
@@ -414,7 +414,7 @@ semiont update --service backend --wait
 semiont watch logs --service backend
 ```
 
-See [Deployment Guide](./docs/DEPLOYMENT.md) for complete procedures.
+See [Deployment Guide](../../docs/system/administration/DEPLOYMENT.md) for complete procedures.
 
 ## Contributing
 
@@ -456,18 +456,18 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 ## Further Reading
 
 ### Backend Documentation
-- [Local Setup](./docs/LOCAL.md) - Run the backend locally (container or npm)
+- [Local Setup](../../docs/system/LOCAL-BACKEND.md) - Run the backend locally (container or npm)
 - [Architecture](./docs/ARCHITECTURE.md) - **Infrastructure management patterns (REQUIRED READING)**
 - [Development Guide](./docs/DEVELOPMENT.md) - Complete local development setup
 - [API Reference](../../docs/protocol/API.md) - All API endpoints and examples
 - [Authentication](./docs/AUTHENTICATION.md) - JWT, OAuth, MCP implementation
 - [Event-Bus Protocol](../../docs/protocol/EVENT-BUS.md) - SSE streaming, channels, scoping, correlation
-- [Database](./docs/DATABASE.md) - PostgreSQL setup for user authentication
-- [Filesystem](./docs/FILESYSTEM.md) - Storage patterns and providers
+- [Database](../../docs/system/administration/DATABASE.md) - PostgreSQL setup for user authentication
+- [Filesystem](../../docs/system/FILESYSTEM.md) - Storage patterns and providers
 - [Knowledge System](../../docs/system/KNOWLEDGE-SYSTEM.md) - Storage architecture across all layers
 - [Logging](./docs/LOGGING.md) - Winston logging, log levels, debugging
 - [Testing](./docs/TESTING.md) - Testing philosophy and patterns
-- [Deployment](./docs/DEPLOYMENT.md) - Production deployment guide
+- [Deployment](../../docs/system/administration/DEPLOYMENT.md) - Production deployment guide
 
 ### System Documentation
 - [System Documentation](../../docs/system/README.md) - Overall platform architecture

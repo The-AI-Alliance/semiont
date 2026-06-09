@@ -106,11 +106,11 @@ Panel types are defined as constants:
 
 ## Implementation
 
-- **Panel hook**: [packages/react-ui/src/hooks/usePanelNavigation.ts](../../../packages/react-ui/src/hooks/usePanelNavigation.ts)
+- **Panel state**: [packages/react-ui/src/state/shell-state-unit.ts](../../../packages/react-ui/src/state/shell-state-unit.ts) — `ShellStateUnit` (panel open/close/toggle), consumed via [useShellStateUnit](../../../packages/react-ui/src/hooks/useShellStateUnit.ts)
 - **Toolbar (emitter)**: [packages/react-ui/src/components/Toolbar.tsx](../../../packages/react-ui/src/components/Toolbar.tsx)
 - **Panel container**: [apps/frontend/src/components/toolbar/ToolbarPanels.tsx](../../../apps/frontend/src/components/toolbar/ToolbarPanels.tsx)
 - **Sidebar navigation**: [packages/react-ui/src/components/navigation/CollapsibleResourceNavigation.tsx](../../../packages/react-ui/src/components/navigation/CollapsibleResourceNavigation.tsx)
-- **Observable router**: [packages/react-ui/src/hooks/useObservableRouter.tsx](../../../packages/react-ui/src/hooks/useObservableRouter.tsx)
-- **Observable navigation**: [packages/react-ui/src/hooks/useObservableNavigation.tsx](../../../packages/react-ui/src/hooks/useObservableNavigation.tsx)
+- **Observable router**: [packages/react-ui/src/hooks/useObservableBrowse.tsx](../../../packages/react-ui/src/hooks/useObservableBrowse.tsx) — `useObservableRouter`
+- **Observable navigation**: [packages/react-ui/src/hooks/useObservableBrowse.tsx](../../../packages/react-ui/src/hooks/useObservableBrowse.tsx) — `useObservableExternalNavigation`
 - **Navigation handler (subscriber)**: [apps/frontend/src/components/knowledge/NavigationHandler.tsx](../../../apps/frontend/src/components/knowledge/NavigationHandler.tsx)
 - **Event definitions**: [packages/core/src/bus-protocol.ts](../../../packages/core/src/bus-protocol.ts) — `BROWSE FLOW` section

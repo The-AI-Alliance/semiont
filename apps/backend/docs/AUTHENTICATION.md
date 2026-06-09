@@ -5,7 +5,7 @@ Backend developer's guide to implementing and debugging authentication in the Se
 **Related Documentation:**
 - **[System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md)** - **Read this first!** Complete authentication flows, diagrams, NextAuth.js + backend integration, and MCP implementation
 - [Main README](../README.md) - Backend overview
-- [API Reference](./API.md) - API endpoints
+- [API Reference](../../../docs/protocol/API.md) - API endpoints
 - [Development Guide](./DEVELOPMENT.md) - Local setup
 
 **Scope**: This document is a practical guide for backend developers. For the complete authentication architecture, flow diagrams, and frontend integration, see the [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md).
@@ -275,7 +275,7 @@ The backend validates tokens through multiple layers:
 
 ### Security Test Coverage
 
-The backend includes comprehensive authentication testing via [route-auth-coverage.test.ts](../src/__tests__/route-auth-coverage.test.ts):
+The backend includes comprehensive route-level authentication test coverage:
 
 - **Dynamic route testing** - Tests ALL registered Hono routes automatically
 - **OpenAPI spec validation** - Uses OpenAPI as single source of truth for public routes
@@ -374,7 +374,7 @@ See [System Authentication Architecture](../../../docs/system/administration/AUT
 ## Related Documentation
 
 - **[System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md)** - Complete auth flows and implementation
-- [API Reference](./API.md) - Authentication endpoint details
+- [API Reference](../../../docs/protocol/API.md) - Authentication endpoint details
 - [Development Guide](./DEVELOPMENT.md) - Setting up OAuth credentials locally
 - [Testing Guide](./TESTING.md) - Testing authenticated endpoints
 
@@ -390,10 +390,8 @@ See [System Authentication Architecture](../../../docs/system/administration/AUT
 **Implementation Files**:
 - [src/middleware/auth.ts](../src/middleware/auth.ts) - JWT validation middleware
 - [src/routes/resources/shared.ts](../src/routes/resources/shared.ts) - Resources router with auth
-- [src/routes/entity-types.ts](../src/routes/entity-types.ts) - Entity types router with auth
 - [src/routes/admin.ts](../src/routes/admin.ts) - Admin router with layered auth
 - [src/routes/exchange.ts](../src/routes/exchange.ts) - Exchange routes with admin and moderator middleware
-- [src/__tests__/route-auth-coverage.test.ts](../src/__tests__/route-auth-coverage.test.ts) - Comprehensive security tests
 
 ---
 

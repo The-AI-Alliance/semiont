@@ -3,7 +3,7 @@
 Semiont implements a **router-level authentication** model using OAuth 2.0 and JWT tokens with special support for MCP (Model Context Protocol) clients.
 
 **Related Documentation:**
-- [Architecture Overview](../ARCHITECTURE.md) - Overall application architecture
+- [Architecture Overview](../README.md) - Overall application architecture
 - [AWS Deployment](../platforms/AWS.md) - AWS Secrets Manager configuration
 - [Configuration Guide](./CONFIGURATION.md) - Environment and secret management
 
@@ -486,10 +486,10 @@ See [Configuration Guide](./CONFIGURATION.md) for detailed secret management.
 
 ## Related Documentation
 
-- [Architecture Overview](../ARCHITECTURE.md) - Application architecture and service communication
+- [Architecture Overview](../README.md) - Application architecture and service communication
 - [AWS Deployment](../platforms/AWS.md) - AWS Secrets Manager and security groups
 - [Configuration Guide](./CONFIGURATION.md) - Environment variables and secret management
-- [Database Management](../services/DATABASE.md) - User table schema and Prisma setup
+- [Database Management](./DATABASE.md) - User table schema and Prisma setup
 
 ---
 

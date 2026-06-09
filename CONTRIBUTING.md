@@ -427,7 +427,3 @@ By contributing to Semiont, you agree that your contributions will be licensed u
 Thank you for contributing to Semiont! Your contributions help make knowledge management and semantic annotation accessible to everyone.
 
 **Questions?** Open a [Discussion](https://github.com/The-AI-Alliance/semiont/discussions) - we're here to help!
-
----
-
-**Maintainers**: Review [MAINTAINERS.md](MAINTAINERS.md) for merge and release processes (if applicable).

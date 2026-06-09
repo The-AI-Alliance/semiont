@@ -6,7 +6,7 @@ Backend testing guide focused on Vitest, HTTP contract testing, and backend-spec
 - **[System Testing Guide](../../../docs/development/TESTING.md)** - **Read this first!** Complete testing strategy including Vitest, MSW v2, frontend testing, and test orchestration
 - [Main README](../README.md) - Backend overview
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
-- [Contributing Guide](./CONTRIBUTING.md) - Code style and patterns
+- [Contributing Guide](../../../CONTRIBUTING.md) - Code style and patterns
 
 **Scope**: This document covers backend-specific testing using Vitest, HTTP contract testing, and API endpoint validation. For system-wide testing including frontend testing, see the [System Testing Guide](../../../docs/development/TESTING.md).
 
@@ -433,7 +433,7 @@ const handleArchive = useCallback(async () => {
 }, [resource, rId, updateDocMutation, refetchDocument, showSuccess, showError]);
 ```
 
-**Backend implementation**: [apps/backend/src/routes/resources/routes/update.ts:50-60](../routes/resources/routes/update.ts#L50-L60)
+**Backend implementation**: the resource update route handler.
 
 ```typescript
 if (body.archived !== undefined && body.archived !== doc.archived) {
@@ -569,10 +569,9 @@ npm run test:watch
 ## Related Documentation
 
 - **[System Testing Guide](../../../docs/development/TESTING.md)** - Complete testing strategy including frontend (Vitest, MSW v2, React Testing Library)
-- **[TEST-BACKEND.md](../../../TEST-BACKEND.md)** - Backend testing reorganization plan
 - [Development Guide](./DEVELOPMENT.md) - Setting up test environment
-- [Contributing Guide](./CONTRIBUTING.md) - Testing requirements for PRs
-- [API Reference](./API.md) - API endpoints to test
+- [Contributing Guide](../../../CONTRIBUTING.md) - Testing requirements for PRs
+- [API Reference](../../../docs/protocol/API.md) - API endpoints to test
 
 ---
 

@@ -153,7 +153,7 @@ For architecture details, see [Knowledge System](../system/KNOWLEDGE-SYSTEM.md).
 ## Quick Reference
 
 **For detailed endpoint specs:**
-- [OpenAPI Specification](../README.md) - Complete endpoint reference (source in [../src/](../src/))
+- [OpenAPI Specification](../../specs/README.md) - Complete endpoint reference (source in [../../specs/src/](../../specs/src/))
 - Interactive Explorer: http://localhost:3001/api (local development)
 
 **For implementation details:**

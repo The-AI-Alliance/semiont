@@ -1202,7 +1202,7 @@ jobs:
 - [gotchas.md](../../tests/e2e/docs/gotchas.md) - Known sharp edges
 
 ### Component Testing
-- [Annotation Rendering Principles](../../apps/frontend/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Property-based testing for annotation renderer
+- [Annotation Rendering Principles](../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Property-based testing for annotation renderer
 - [Frontend Architecture](../../apps/frontend/docs/ARCHITECTURE.md) - Component structure and testing strategy
 
 ### W3C Compliance Testing

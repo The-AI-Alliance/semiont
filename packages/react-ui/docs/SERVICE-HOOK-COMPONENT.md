@@ -506,8 +506,6 @@ Layer Separation Violations (❌)
 - Global eventBus imports: 0 (should use useEventBus() hook)
 ```
 
-See [RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md](../../../RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md) for the complete list of architectural invariants.
-
 ---
 
 ## Testing the Three Layers
@@ -648,7 +646,7 @@ The three-layer architecture is designed to support a future migration from mitt
 - Layer 2: Hooks subscribe to `Observable`s
 - Layer 3: Pure React (unchanged)
 
-The layer separation principles remain the same. See [RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md](../../../RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md) for details on the future RxJS architecture.
+The layer separation principles remain the same.
 
 ---
 
@@ -657,7 +655,6 @@ The layer separation principles remain the same. See [RXJS-SERVICE-HOOK-COMPONEN
 - [EVENTS.md](EVENTS.md) - Event bus usage and event types
 - [ARCHITECTURE.md](ARCHITECTURE.md) - Overall architecture principles
 - [TESTING.md](TESTING.md) - Testing strategies
-- [RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md](../../../RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md) - Architectural invariants
 
 ---
 
