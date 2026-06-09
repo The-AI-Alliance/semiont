@@ -146,6 +146,16 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    * consumers tolerate the rare double (a correlation reply is taken with
    * `take(1)`; cache invalidations and job-completion are idempotent/terminal).
    * Bounded FIFO (insertion-ordered Set) to cap memory.
+   *
+   * Cost note: this is *always-on* — every delivered event does a has/add here
+   * — yet a duplicate is only possible during a handoff overlap; in steady
+   * state there's a single connection and nothing can collide. So every
+   * consumer of this transport carries a small standing structure for a path
+   * that fires only on (now-rare) scope changes. It's left unconditional
+   * because the per-event cost is negligible next to the JSON.parse + trace
+   * span already on this path. If that ever stops being true, scope it to the
+   * overlap (build on handoff start, drop once the old read loop exits) or
+   * track a high-water `Map<scope, maxSeq>` instead of every id.
    */
   const seenEventIds = new Set<string>();
   const SEEN_EVENT_IDS_MAX = 512;
