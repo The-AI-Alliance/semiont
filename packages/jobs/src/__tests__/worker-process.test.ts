@@ -12,6 +12,13 @@
  *                                                 (generation only; creates the resource)
  *     → job:complete                            (at success exit)
  *
+ * `job:complete` and `job:fail` are resource broadcasts: `emitEvent` emits each
+ * BOTH globally (so the dispatching caller receives it on the always-on bridge)
+ * and resource-scoped (so viewers of the resource get the broadcast) — see #843
+ * / RESOURCE_BROADCAST_TYPES. Sequence assertions below filter on
+ * `scope === undefined` for the caller's lifecycle stream; the scoped copy is
+ * asserted separately under 'resource-broadcast scope routing'.
+ *
  * Post-WORKER-SESSIONS refactor, the worker runs on top of a
  * `SemiontSession`. Tests use a fake session whose `client.actor.emit`
  * captures bus emits, `client.browse.resourceContent` returns test
@@ -147,8 +154,13 @@ describe('handleJob orchestration', () => {
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
 
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'mark:create', 'job:complete']);
-      expect(h.busEmits[3]!.payload).toMatchObject({ jobType: 'highlight-annotation', result: { highlightsFound: 2 } });
+      // Global stream = the dispatching caller's lifecycle view. job:complete
+      // is dual-emitted (global + resource-scoped, #843); the scoped copy is
+      // asserted under 'resource-broadcast scope routing'.
+      expect(h.busEmits.filter(e => e.scope === undefined).map(e => e.channel))
+        .toEqual(['job:start', 'mark:create', 'mark:create', 'job:complete']);
+      expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload)
+        .toMatchObject({ jobType: 'highlight-annotation', result: { highlightsFound: 2 } });
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
   });
@@ -163,7 +175,8 @@ describe('handleJob orchestration', () => {
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('comment-annotation'));
 
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'job:complete']);
+      expect(h.busEmits.filter(e => e.scope === undefined).map(e => e.channel))
+        .toEqual(['job:start', 'mark:create', 'job:complete']);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
   });
@@ -178,7 +191,8 @@ describe('handleJob orchestration', () => {
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('assessment-annotation'));
 
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'job:complete']);
+      expect(h.busEmits.filter(e => e.scope === undefined).map(e => e.channel))
+        .toEqual(['job:start', 'mark:create', 'job:complete']);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
   });
@@ -193,7 +207,8 @@ describe('handleJob orchestration', () => {
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('reference-annotation'));
 
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'mark:create', 'mark:create', 'job:complete']);
+      expect(h.busEmits.filter(e => e.scope === undefined).map(e => e.channel))
+        .toEqual(['job:start', 'mark:create', 'mark:create', 'mark:create', 'job:complete']);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
   });
@@ -208,8 +223,9 @@ describe('handleJob orchestration', () => {
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('tag-annotation'));
 
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'job:complete']);
-      expect(h.busEmits[2]!.payload).toMatchObject({
+      expect(h.busEmits.filter(e => e.scope === undefined).map(e => e.channel))
+        .toEqual(['job:start', 'mark:create', 'job:complete']);
+      expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload).toMatchObject({
         jobType: 'tag-annotation',
         result: { tagsFound: 1, tagsCreated: 1 },
       });
@@ -242,8 +258,9 @@ describe('handleJob orchestration', () => {
       expect(uploaded.generator).toBeTruthy();
 
       // Bus emits: job:start then job:complete (no yield:create, no mark:create).
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'job:complete']);
-      expect(h.busEmits[1]!.payload).toMatchObject({
+      expect(h.busEmits.filter(e => e.scope === undefined).map(e => e.channel))
+        .toEqual(['job:start', 'job:complete']);
+      expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload).toMatchObject({
         jobType: 'generation',
         result: { resourceId: 'new-res-42', resourceName: 'New Resource' },
       });
@@ -357,7 +374,7 @@ describe('handleJob orchestration', () => {
 // ──────────────────────────────────────────────────────────────────────
 
 describe('handleJob — resource-broadcast scope routing', () => {
-  it('emits job:complete with scope=resourceId (resource broadcast)', async () => {
+  it('emits job:complete both globally and resource-scoped (dual-emit, #843)', async () => {
     vi.mocked(processHighlightJob).mockResolvedValue({
       annotations: [] as never,
       result: {} as never,
@@ -366,9 +383,11 @@ describe('handleJob — resource-broadcast scope routing', () => {
 
     await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
 
-    const completeEmit = h.busEmits.find(e => e.channel === 'job:complete');
-    expect(completeEmit).toBeDefined();
-    expect(completeEmit!.scope).toBe(RID);
+    const completes = h.busEmits.filter(e => e.channel === 'job:complete');
+    // Global copy: the dispatching caller receives it on the always-on bridge.
+    expect(completes.some(e => e.scope === undefined)).toBe(true);
+    // Scoped copy: every viewer of the resource receives the broadcast.
+    expect(completes.some(e => e.scope === RID)).toBe(true);
   });
 
   it('emits job:start globally (no scope — not a resource broadcast)', async () => {
@@ -504,7 +523,9 @@ describe('startWorkerProcess', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     // Outer handler emits job:fail on the bus and calls adapter.failJob.
-    const failEmit = h.busEmits.find((e) => e.channel === 'job:fail');
+    // job:fail is dual-emitted (global + resource-scoped, #843); assert the
+    // resource-scoped broadcast carries scope=resourceId.
+    const failEmit = h.busEmits.find((e) => e.channel === 'job:fail' && e.scope === RID);
     expect(failEmit).toBeDefined();
     expect(failEmit!.payload).toMatchObject({
       jobId: JID,
