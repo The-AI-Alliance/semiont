@@ -284,6 +284,41 @@ describe('Cache<K, V>', () => {
     });
   });
 
+  describe('fetch — one-shot fresh (#847)', () => {
+    it('always re-fetches (returns the fresh value, not the memo)', async () => {
+      let n = 0;
+      const fetchFn = vi.fn().mockImplementation(() => Promise.resolve(`v${++n}`));
+      const cache = createCache<string, string>(fetchFn);
+      expect(await cache.fetch('k')).toBe('v1');
+      expect(await cache.fetch('k')).toBe('v2'); // fresh, not memoized 'v1'
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    });
+
+    it('dedups concurrent fetches for the same key', async () => {
+      let resolveFetch!: (v: string) => void;
+      const fetchFn = vi.fn().mockImplementation(() => new Promise<string>((r) => { resolveFetch = r; }));
+      const cache = createCache<string, string>(fetchFn);
+      const a = cache.fetch('k');
+      const b = cache.fetch('k');
+      resolveFetch('v1');
+      expect(await a).toBe('v1');
+      expect(await b).toBe('v1');
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects on failure and leaves subscribers untouched (B6)', async () => {
+      const fetchFn = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValueOnce('v1');
+      const cache = createCache<string, string>(fetchFn);
+      const seen: Array<string | undefined> = [];
+      cache.observe('k').subscribe((v) => seen.push(v));
+      await expect(cache.fetch('k')).rejects.toThrow('boom');
+      expect(seen).toEqual([undefined]); // subscriber stays at loading state
+    });
+  });
+
   describe('dispose()', () => {
     it('completes the store and observers receive no further values', async () => {
       const cache = createCache<string, string>(vi.fn().mockResolvedValue('v'));
