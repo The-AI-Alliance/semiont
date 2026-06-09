@@ -9,6 +9,10 @@ function sseChunk(event: string, data: string): string {
   return `event: ${event}\ndata: ${data}\n\n`;
 }
 
+function sseChunkId(event: string, data: string, id: string): string {
+  return `event: ${event}\nid: ${id}\ndata: ${data}\n\n`;
+}
+
 function createSSEStream() {
   let controller!: ReadableStreamDefaultController<Uint8Array>;
   const encoder = new TextEncoder();
@@ -17,8 +21,12 @@ function createSSEStream() {
   });
   return {
     stream,
-    push: (text: string) => controller.enqueue(encoder.encode(text)),
-    close: () => controller.close(),
+    // Swallow enqueue/close after the stream has errored or closed. Aborting a
+    // connection errors its stream; a test may still try to push to the now-
+    // retired connection, and that should be a no-op rather than a throw.
+    push: (text: string) => { try { controller.enqueue(encoder.encode(text)); } catch { /* errored/closed */ } },
+    close: () => { try { controller.close(); } catch { /* already errored/closed */ } },
+    error: (e: unknown) => { try { controller.error(e); } catch { /* already errored/closed */ } },
   };
 }
 
@@ -31,6 +39,38 @@ function mockSSEResponse() {
   };
   mockFetch.mockResolvedValueOnce(response);
   return sse;
+}
+
+/**
+ * A signal-honoring, optionally-deferred SSE connection mock. Unlike
+ * `mockSSEResponse` (which ignores the abort signal), this errors its stream
+ * when the connection's `AbortController` fires — faithfully reproducing how a
+ * real `fetch(url, { signal })` cancels the response body. `defer: true` holds
+ * the fetch promise unresolved until `open()` is called, so a test can observe
+ * the window where a new connection is connecting-but-not-yet-open (the
+ * make-before-break handoff). `aborted` reflects the captured signal.
+ */
+function mockConn({ defer = false }: { defer?: boolean } = {}) {
+  const sse = createSSEStream();
+  let capturedSignal: AbortSignal | undefined;
+  let resolveFetch!: (r: unknown) => void;
+  const fetchPromise = new Promise((res) => { resolveFetch = res; });
+  const response = { ok: true, status: 200, body: sse.stream };
+  mockFetch.mockImplementationOnce((_url: string, opts: { signal?: AbortSignal }) => {
+    capturedSignal = opts.signal;
+    if (capturedSignal) {
+      capturedSignal.addEventListener('abort', () =>
+        sse.error(new DOMException('Aborted', 'AbortError')),
+      );
+    }
+    if (!defer) resolveFetch(response);
+    return fetchPromise;
+  });
+  return {
+    sse,
+    open: () => resolveFetch(response),
+    get aborted() { return capturedSignal?.aborted ?? false; },
+  };
 }
 
 describe('createActorStateUnit', () => {
@@ -572,40 +612,110 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('aborts previous in-flight fetch when a reconnect starts (orphan-stream fix)', async () => {
-    // Regression: prior versions kept a single `abortController` slot,
-    // so a rapid sequence of connect() calls could orphan earlier
-    // fetches — their signals were replaced before they could be
-    // aborted. Post-fix, every previous controller is aborted before a
-    // new connect starts. Diagnosed from the suite-flake investigation
-    // which captured 3 concurrent SSE subscribes in a single 8ms window.
-    mockSSEResponse();
+  // ── #847 Phase 3: make-before-break reconnect ─────────────────────────
 
+  it('retires the old connection only after the new one opens (make-before-break)', async () => {
+    // Pre-#847 a scope-change reconnect aborted the live connection up front
+    // (break-before-make), opening a gap in which an in-flight ephemeral
+    // result was dropped. Now the old connection stays live until the new
+    // fetch resolves, then is retired — and rapid connects still converge to
+    // a single live stream (the orphan-stream guarantee).
+    const c1 = mockConn();
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
       channels: ['test:event'],
     });
-
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
-    const firstSignal = (mockFetch.mock.calls[0][1] as { signal: AbortSignal }).signal;
-    expect(firstSignal.aborted).toBe(false);
-
-    mockSSEResponse();
-    stateUnit.addChannels(['other:one']);
-    await new Promise((r) => setTimeout(r, 150));
+    // Scope change → reconnect. The new connection is deferred: connecting,
+    // not yet open.
+    const c2 = mockConn({ defer: true });
+    stateUnit.addChannels(['mark:added'], 'res-1');
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
-    // First fetch's signal must now be aborted — the connect() that
-    // produced the second fetch is responsible for aborting all prior
-    // in-flight controllers.
-    expect(firstSignal.aborted).toBe(true);
+    // Make-before-break: while the new connection is still connecting, the
+    // old one MUST remain live.
+    expect(c1.aborted).toBe(false);
 
-    // And the second fetch's signal is still live.
-    const secondSignal = (mockFetch.mock.calls[1][1] as { signal: AbortSignal }).signal;
-    expect(secondSignal.aborted).toBe(false);
+    // Once the new connection opens, the old is retired.
+    c2.open();
+    await vi.waitFor(() => expect(c1.aborted).toBe(true));
+
+    stateUnit.dispose();
+  });
+
+  it('delivers an event arriving on the old connection during a scope change', async () => {
+    // The gap that hung browse.* (#842/#843): a result emitted while the
+    // connection was being swapped for a scope change was lost. With make-
+    // before-break the old connection is still live and delivers it.
+    const c1 = mockConn();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['browse:annotations-result'],
+    });
+    const received: unknown[] = [];
+    stateUnit.on$('browse:annotations-result').subscribe((p) => received.push(p));
+    stateUnit.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    const c2 = mockConn({ defer: true });
+    stateUnit.addChannels(['mark:added'], 'res-1');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    // New connection still connecting; the result arrives on the live old one.
+    c1.sse.push(sseChunk('bus-event', JSON.stringify({
+      channel: 'browse:annotations-result',
+      payload: { correlationId: 'x', annotations: [] },
+    })));
+
+    await vi.waitFor(() => expect(received).toHaveLength(1));
+    expect(received[0]).toEqual({ correlationId: 'x', annotations: [] });
+
+    // Let the handoff complete (old retired, new open) before teardown.
+    c2.open();
+    await vi.waitFor(() => expect(c1.aborted).toBe(true));
+    stateUnit.dispose();
+  });
+
+  it('dedupes a persisted event delivered by both connections during the overlap', async () => {
+    // During the handoff the same live persisted event can arrive on both
+    // connections — its `p-*` id is stable across connections — so it must be
+    // emitted to consumers exactly once.
+    const c1 = mockConn();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['mark:added'],
+    });
+    const received: unknown[] = [];
+    stateUnit.on$('mark:added').subscribe((p) => received.push(p));
+    stateUnit.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    const c2 = mockConn({ defer: true });
+    stateUnit.addChannels(['other:channel']);
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    const frame = sseChunkId(
+      'bus-event',
+      JSON.stringify({ channel: 'mark:added', payload: { seq: 1 } }),
+      'p-res-1-1',
+    );
+    // Old connection delivers it.
+    c1.sse.push(frame);
+    await vi.waitFor(() => expect(received).toHaveLength(1));
+
+    // New connection opens (old retired); it re-delivers the same id.
+    c2.open();
+    await vi.waitFor(() => expect(c1.aborted).toBe(true));
+    c2.sse.push(frame);
+
+    // Give the parser time to process the second frame; it must be deduped.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(received).toHaveLength(1);
 
     stateUnit.dispose();
   });

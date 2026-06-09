@@ -136,6 +136,27 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    */
   let lastEventId: string | null = null;
 
+  /**
+   * Recently-delivered event ids, to dedup the make-before-break overlap: the
+   * brief window where the old and new connection both deliver the same live
+   * event during a scope-change handoff. Persisted ids (`p-<scope>-<seq>`) are
+   * stable across connections, so this collapses such an overlap to a single
+   * emission. Ephemeral ids (`e-<connectionId>-<counter>`) are per-connection,
+   * so a cross-connection ephemeral duplicate is NOT caught here — its
+   * consumers tolerate the rare double (a correlation reply is taken with
+   * `take(1)`; cache invalidations and job-completion are idempotent/terminal).
+   * Bounded FIFO (insertion-ordered Set) to cap memory.
+   */
+  const seenEventIds = new Set<string>();
+  const SEEN_EVENT_IDS_MAX = 512;
+  const rememberEventId = (id: string): void => {
+    seenEventIds.add(id);
+    if (seenEventIds.size > SEEN_EVENT_IDS_MAX) {
+      const oldest = seenEventIds.values().next().value;
+      if (oldest !== undefined) seenEventIds.delete(oldest);
+    }
+  };
+
   const shared$ = events$.pipe(share());
 
   const disconnect = () => {
@@ -146,17 +167,27 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   };
 
-  const connect = async () => {
+  const connect = async (keepPrevious = false) => {
     // Transition to `connecting` from whichever reconnect-ish state
     // we're currently in (`initial`, `reconnecting`, `degraded`).
     transition('connecting');
 
-    // Abort every previous in-flight fetch before starting a new one.
-    // This closes the orphan-stream leak described above.
-    for (const c of inflightControllers) {
-      try { c.abort(); } catch { /* noop */ }
+    // Snapshot the connections this connect() supersedes.
+    //   - keepPrevious=false (initial connect / drop-recovery): there is no
+    //     live connection worth preserving, so abort up front — this closes
+    //     the orphan-stream leak described above.
+    //   - keepPrevious=true (scope-change reconnect): MAKE-BEFORE-BREAK. Keep
+    //     the previous connection(s) ALIVE until the new one is `open`, then
+    //     abort them (below, after the fetch resolves), so an in-flight
+    //     ephemeral result isn't dropped in a reconnect gap (#847). The brief
+    //     window where old and new both deliver is deduped by event id.
+    const previous = [...inflightControllers];
+    if (!keepPrevious) {
+      for (const c of previous) {
+        try { c.abort(); } catch { /* noop */ }
+      }
+      inflightControllers.clear();
     }
-    inflightControllers.clear();
 
     const params = new URLSearchParams();
     for (const ch of globalChannels) {
@@ -180,6 +211,26 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
       if (!response.ok || !response.body) {
         throw new Error(`SSE connect failed: ${response.status}`);
+      }
+
+      // Stopped/disposed while the fetch was in flight — don't proceed to open
+      // (and retire the old connection on) a stream we've been told to tear
+      // down. `stop()`/`dispose()` already aborted this controller.
+      if (!running) return;
+
+      // Make-before-break handoff: the new connection is established (the
+      // backend has subscribed it and any `Last-Event-ID` replay is flowing),
+      // so NOW retire the previous connection(s). Aborting only after the new
+      // fetch resolves is what closes the reconnect gap — an event in flight
+      // on the old connection during a scope change is delivered, not dropped
+      // (#847). A live event delivered by both during the overlap is deduped
+      // by id in the read loop below. Had the fetch failed, we'd have thrown
+      // above and never reached here, leaving the old connection live (no gap).
+      if (keepPrevious) {
+        for (const c of previous) {
+          try { c.abort(); } catch { /* noop */ }
+          inflightControllers.delete(c);
+        }
       }
 
       transition('open');
@@ -215,8 +266,16 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           } else if (line.startsWith('id: ')) {
             currentId = line.slice(4);
           } else if (line === '') {
-            if (currentEvent === 'bus-event' && currentData) {
-              if (currentId !== undefined) lastEventId = currentId;
+            // Skip an overlap duplicate — the same stable-id event delivered
+            // by both the old and new connection during a make-before-break
+            // handoff (#847). Ephemeral ids are unique per connection, so this
+            // never spuriously drops a distinct event.
+            const isDuplicate = currentId !== undefined && seenEventIds.has(currentId);
+            if (currentEvent === 'bus-event' && currentData && !isDuplicate) {
+              if (currentId !== undefined) {
+                lastEventId = currentId;
+                rememberEventId(currentId);
+              }
               const parsed = JSON.parse(currentData) as BusEvent;
               busLog('RECV', parsed.channel, parsed.payload, parsed.scope);
               // Tier 2: lift trace context off the SSE payload (the
@@ -276,8 +335,11 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     if (currentState === 'open' || currentState === 'connecting' || currentState === 'degraded') {
       transition('reconnecting');
     }
-    disconnect();
-    connect();
+    // Make-before-break: do NOT abort the live connection here. Cancel only a
+    // pending drop-recovery retry, then connect — `connect(keepPrevious=true)`
+    // retires the old connection after the new one is open (no gap).
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    connect(true);
   };
 
   // Debounce channel-set-change reconnects. React StrictMode in dev
