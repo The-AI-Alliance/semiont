@@ -449,6 +449,59 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
+  it('recovers (does not crash) when a channel-set change fires while degraded (#844)', { timeout: 12_000 }, async () => {
+    // Regression for #844: a channel-set change while `degraded` scheduled a
+    // reconnect whose `degraded → reconnecting` transition the state machine
+    // rejected — `transition()` threw from inside the reconnect timer, an
+    // uncaught exception that killed the host process. The connection must
+    // instead treat it as a legitimate recovery edge and head back to `open`.
+    const sse1 = mockSSEResponse();
+    mockSSEResponse(); // for the recovery reconnect
+
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+      // Long, so the retry timer doesn't fire during the wait — we want to
+      // sit in `reconnecting` long enough to cross the degraded threshold.
+      reconnectMs: 10_000,
+    });
+
+    const states: string[] = [];
+    stateUnit.state$.subscribe((s) => states.push(s));
+
+    // A listener keeps an uncaught throw from the buggy reconnect timer from
+    // tearing down the test worker, and lets us assert it didn't happen.
+    const uncaught: Error[] = [];
+    const onUncaught = (e: Error) => uncaught.push(e);
+    process.on('uncaughtException', onUncaught);
+
+    try {
+      stateUnit.start();
+      await vi.waitFor(() => expect(states).toContain('open'));
+
+      // Drop the stream → reconnecting, then wait past the degraded threshold.
+      sse1.close();
+      await vi.waitFor(() => expect(states).toContain('reconnecting'));
+      await new Promise((r) => setTimeout(r, 3_100));
+      expect(states).toContain('degraded');
+
+      const fetchesBefore = mockFetch.mock.calls.length;
+
+      // Channel-set change while degraded → schedules a reconnect.
+      stateUnit.addChannels(['mark:added'], 'res-1');
+
+      // Must attempt a reconnect (new fetch) and head back to `open` —
+      // not throw a fatal `degraded → reconnecting`.
+      await vi.waitFor(() => expect(states[states.length - 1]).toBe('open'), { timeout: 3_000 });
+      expect(mockFetch.mock.calls.length).toBeGreaterThan(fetchesBefore);
+      expect(uncaught.map((e) => e.message)).toEqual([]);
+    } finally {
+      process.off('uncaughtException', onUncaught);
+      stateUnit.dispose();
+    }
+  });
+
   it('invalid transition throws (e.g. stop() after stop() is a no-op, not a throw)', async () => {
     // The state machine is internal; the public API is stop()/dispose().
     // Assert that idempotent usage doesn't throw.
