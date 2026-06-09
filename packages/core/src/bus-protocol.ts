@@ -365,24 +365,15 @@ export type EventName = keyof EventMap;
  * participant. WorkerStateUnit uses this list to decide which emitted events to
  * scope to their resource.
  */
-/**
- * Audit note (SIMPLE-BUS Phase 3 close): `yield:progress` was
- * considered for inclusion but has only one consumer — the
- * yield-initiator's Observable in `packages/api-client/src/namespaces/yield.ts`.
- * No viewer of the resource other than the initiator subscribes to
- * progress. Scoping therefore serves no fan-out-narrowing purpose for
- * that channel, so it stays global (as a correlation-ID-shaped
- * response, filtered by `referenceId`). Only `yield:finished` and
- * `yield:failed` have a genuine multi-participant consumer (the
- * ResourceViewerPage toast on the source resource).
- */
 export const RESOURCE_BROADCAST_TYPES = [
-  // Post-unification: job:complete / job:fail carry the "job ended on
-  // this resource" signal that yield:finished / yield:failed used to.
-  // Scope them by resource so every viewer of the affected resource
-  // — not just the initiator — can react (toast, refresh, etc.).
-  'job:complete',
-  'job:fail',
+  // Currently empty. `job:complete` / `job:fail` were moved to GLOBAL,
+  // `jobId`-keyed correlation delivery (#847): the dispatching caller
+  // filters by `jobId`, and resource viewers filter the same global stream
+  // by `resourceId` — no resource-scoped copy, so a client that is both
+  // dispatcher and viewer no longer receives it twice. This set remains as
+  // the extension point for *genuine* resource-bound broadcasts — events
+  // every viewer of a resource should see and no single caller owns (e.g.
+  // resource-generation progress for multiple viewers).
 ] as const satisfies readonly EventName[];
 
 export type ResourceBroadcastType = typeof RESOURCE_BROADCAST_TYPES[number];
