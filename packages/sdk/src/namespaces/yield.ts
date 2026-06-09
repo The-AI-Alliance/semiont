@@ -103,19 +103,18 @@ export class YieldNamespace implements IYieldNamespace {
       let pollTimer: ReturnType<typeof setTimeout> | null = null;
       let pollInterval: ReturnType<typeof setInterval> | null = null;
 
-      // `job:complete` and `job:report-progress` are resource-scoped on
-      // the SSE wire — subscribe for the lifetime of the Observable so
-      // headless callers receive them without first calling
-      // `subscribeToResource`. UI code is unaffected: the page's
-      // resource-tab subscriptions already cover this. Symmetric with
-      // `mark.assist` — both StreamObservable callers need the scope.
-      let unsubscribeResource: (() => void) | null = this.transport.subscribeToResource(resourceId);
+      // `job:report-progress`, `job:complete`, and `job:fail` reach us on the
+      // always-on global bridge — the worker dual-emits the resource-broadcast
+      // ones globally as well as scoped. We deliberately do NOT call
+      // `transport.subscribeToResource(resourceId)`: mutating the SSE channel
+      // set forces a reconnect on every generation, which dropped in-flight
+      // `browse.*` results in the reconnect gap. Symmetric with `mark.assist`.
+      // See Link 1 in .plans/SEMIONT-BUG-browse-annotations.md.
 
       const cleanup = () => {
         done = true;
         if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
         if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-        if (unsubscribeResource) { unsubscribeResource(); unsubscribeResource = null; }
       };
 
       const resetPollTimer = (jid: string) => {

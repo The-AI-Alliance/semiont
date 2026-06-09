@@ -49,7 +49,11 @@ const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState
   connecting:   ['open', 'reconnecting', 'closed'],
   open:         ['reconnecting', 'closed'],
   reconnecting: ['connecting', 'degraded', 'closed'],
-  degraded:     ['connecting', 'closed'],
+  // `degraded → reconnecting` is a legitimate recovery edge: a channel-set
+  // change (`addChannels`/`removeChannels`) schedules a reconnect that can
+  // fire while the connection is degraded. Omitting it made `reconnect()`
+  // throw a fatal, uncaught exception from the reconnect timer (#844).
+  degraded:     ['connecting', 'reconnecting', 'closed'],
   closed:       [],
 };
 
@@ -67,11 +71,14 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   let degradedTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
-   * Move the state machine to `next`. Throws on invalid transitions.
-   * The throw is deliberate — a bad transition means a bug in the
-   * reconnect loop; silent correction would hide it. The reconnect
-   * timer logic is responsible for ensuring we only transition
-   * between valid states.
+   * Move the state machine to `next`. An unexpected edge is logged and
+   * ignored — NOT thrown. `transition()` runs inside timer callbacks (the
+   * reconnect and degraded timers), so a throw here is an uncaught exception
+   * that takes down the host process (#844). A bad edge means a bug in the
+   * reconnect loop, but degrading gracefully (keep the current state, warn)
+   * is strictly better than killing a long-running job. The permitted edges
+   * — including the `degraded → reconnecting` recovery edge — are in
+   * `ALLOWED_TRANSITIONS`.
    *
    * Side effect: manages the `degraded` timer. Enters on
    * `reconnecting`, cleared on exit.
@@ -80,7 +87,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     if (currentState === next) return;
     const allowed = ALLOWED_TRANSITIONS[currentState];
     if (!allowed.includes(next)) {
-      throw new Error(`Invalid connection state transition: ${currentState} → ${next}`);
+      console.warn(`[actor] ignoring invalid connection state transition: ${currentState} → ${next}`);
+      return;
     }
     const prev = currentState;
     currentState = next;

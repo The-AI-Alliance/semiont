@@ -32,11 +32,20 @@
  *     (B6); the caller drives retry via invalidate.
  */
 
-import { BehaviorSubject, Observable, distinctUntilChanged, map } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, distinctUntilChanged, filter, map } from 'rxjs';
 
 export interface Cache<K, V> {
   /** Observable stream of the value at `key`. Triggers a fetch if not cached. */
   observe(key: K): Observable<V | undefined>;
+
+  /**
+   * Per-key stream of fetch failures. Emits each time a fetch for `key`
+   * rejects. This is the await-path counterpart to B6: live-query
+   * *subscribers* of `observe(key)` never see these (they keep their
+   * stale value / loading state), but a one-shot awaiter can consume
+   * this to reject instead of hanging forever on a lost result.
+   */
+  errors(key: K): Observable<unknown>;
 
   /** Synchronous snapshot of the current value, without triggering a fetch. */
   get(key: K): V | undefined;
@@ -67,6 +76,9 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
   const store$ = new BehaviorSubject<Map<K, V>>(new Map());
   const inflight = new Set<K>();
   const obsCache = new Map<K, Observable<V | undefined>>();
+  const errCache = new Map<K, Observable<unknown>>();
+  /** Per-key fetch-failure channel. See `Cache.errors`. */
+  const fetchErrors$ = new Subject<{ key: K; error: unknown }>();
 
   const doFetch = async (key: K): Promise<void> => {
     // In-flight guard: concurrent first-observations deduplicate (B3).
@@ -81,10 +93,17 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
       const next = new Map(store$.value);
       next.set(key, value);
       store$.next(next);
-    } catch {
-      // B6: fetch failure leaves the previous state intact. Observer
-      // that was seeing `undefined` stays at `undefined`; observer
-      // that was seeing a stale value keeps the stale value.
+    } catch (error) {
+      // B6: fetch failure leaves the previous state intact for
+      // *subscribers* — an observer seeing `undefined` stays at
+      // `undefined`; one seeing a stale value keeps it. We do NOT error
+      // the store Subject (that would break every observer of every key).
+      //
+      // But surface the failure on the per-key error channel so a
+      // one-shot *awaiter* (CacheObservable.then) can reject instead of
+      // hanging forever on a lost result. Live-query subscribers never
+      // touch this stream.
+      fetchErrors$.next({ key, error });
     } finally {
       inflight.delete(key);
     }
@@ -103,6 +122,19 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
           distinctUntilChanged(),
         );
         obsCache.set(key, obs);
+      }
+      return obs;
+    },
+
+    errors(key: K): Observable<unknown> {
+      // Stable per-key error observable (mirrors B4 for the value path).
+      let obs = errCache.get(key);
+      if (!obs) {
+        obs = fetchErrors$.pipe(
+          filter((e) => e.key === key),
+          map((e) => e.error),
+        );
+        errCache.set(key, obs);
       }
       return obs;
     },
@@ -149,7 +181,9 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
 
     dispose(): void {
       store$.complete();
+      fetchErrors$.complete();
       obsCache.clear();
+      errCache.clear();
       inflight.clear();
     },
   };
