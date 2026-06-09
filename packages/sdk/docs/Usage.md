@@ -453,18 +453,26 @@ const final = await semiont.job.pollUntilComplete(jobId, {
 
 For HTTP transports, the client lazily opens a single SSE connection to `/bus/subscribe`. Result channels, global domain events, and resource-scoped fan-out all flow through it. For in-process transports, the bus is the in-memory `EventBus` from `@semiont/core`. Either way, the namespace methods hide the wire.
 
-To receive live updates for a specific resource:
+To receive live updates for a specific resource, subscribe to its
+`browse.*` live queries — **freshness follows observation** (#847).
+Subscribing acquires the resource's scope (resource-scoped events like
+`mark:added` flow in and invalidate the cache, so the Observable
+re-emits); the last unsubscribe releases it. There's no separate call to make.
 
 ```typescript
-// Adds resource-scoped channels to the transport's subscription set and
-// bridges them into the client's local EventBus so `semiont.browse.*`
-// Observables update in real-time. Call on mount; call the returned
-// cleanup function on unmount. Ref-counted across overlapping calls.
-const cleanup = semiont.subscribeToResource(resourceId);
+// Subscribing keeps the view live. The SDK acquires `resourceId`'s scope
+// for as long as it's observed (ref-counted across all
+// `browse.*(resourceId)` subscriptions) and releases it on teardown.
+const sub = semiont.browse.annotations(resourceId).subscribe((annotations) => {
+  render(annotations);
+});
 
-// ... later
-cleanup();
+// ... later, on unmount
+sub.unsubscribe();
 ```
+
+A one-shot read needs no subscription and acquires no scope —
+`await semiont.browse.annotations(resourceId)` fetches a fresh value and returns.
 
 For HTTP, the underlying connection auto-reconnects with exponential backoff. On reconnect, `BrowseNamespace` invalidates active caches and refetches — no `Last-Event-ID` replay needed.
 

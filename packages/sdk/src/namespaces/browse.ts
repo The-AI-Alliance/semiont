@@ -81,6 +81,14 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private readonly annotationListObs = new Map<ResourceId, Observable<Annotation[] | undefined>>();
 
+  /**
+   * Per-source memo for the scope-acquiring wrapper (#847 Phase 4), keyed by
+   * the underlying (stable, per-key) cache observable so the wrapped
+   * observable is itself stable per key — preserving B4/B11 referential
+   * identity through to `CacheObservable.from`'s own memo.
+   */
+  private readonly scopedSources = new WeakMap<Observable<unknown>, Observable<unknown>>();
+
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
@@ -188,6 +196,40 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.subscribeToEvents();
   }
 
+  /**
+   * Wrap a resource-scoped live query's source so that *subscribing* acquires
+   * the resource's scope (via the transport's ref-counted
+   * `subscribeToResource`) and the last unsubscribe releases it (#847 Phase 4).
+   * Freshness follows observation: a `.subscribe()` keeps `rId`'s scoped
+   * events flowing — so `mark:*` / entity-tag invalidations reach this cache —
+   * with no separate `subscribeToResource` call from the consumer.
+   *
+   * The one-shot `await` path does NOT go through here (it resolves via the
+   * cache's `fetch` — see `CacheObservable.from`'s `fetchFresh`), so a
+   * one-shot read acquires no scope.
+   *
+   * Memoized per source so the wrapped observable is stable per key (B4/B11).
+   * Each subscription calls `subscribeToResource(rId)`; the transport
+   * ref-counts concurrent subscriptions for the same resource onto a single
+   * SSE scope. Single-scope model unchanged — multi-scope is deferred (see
+   * `.plans/MULTI-RESOURCE-SCOPE.md`).
+   */
+  private withScope<T>(rId: ResourceId, source: Observable<T | undefined>): Observable<T | undefined> {
+    let scoped = this.scopedSources.get(source) as Observable<T | undefined> | undefined;
+    if (!scoped) {
+      scoped = new Observable<T | undefined>((subscriber) => {
+        const release = this.transport.subscribeToResource(rId);
+        const inner = source.subscribe(subscriber);
+        return () => {
+          inner.unsubscribe();
+          release();
+        };
+      });
+      this.scopedSources.set(source, scoped);
+    }
+    return scoped;
+  }
+
   // ── Live queries ────────────────────────────────────────────────────────
   //
   // These return `CacheObservable<T>`: subscribers see `T | undefined`
@@ -195,7 +237,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   // first non-undefined value.
 
   resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor> {
-    return CacheObservable.from(this.resourceCache.observe(resourceId), () => this.resourceCache.fetch(resourceId));
+    return CacheObservable.from(this.withScope(resourceId, this.resourceCache.observe(resourceId)), () => this.resourceCache.fetch(resourceId));
   }
 
   resources(filters?: ResourceListFilters): CacheObservable<ResourceDescriptor[]> {
@@ -212,7 +254,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       obs = this.annotationListCache.observe(resourceId).pipe(map((r) => r?.annotations as Annotation[] | undefined));
       this.annotationListObs.set(resourceId, obs);
     }
-    return CacheObservable.from(obs, () => this.annotationListCache.fetch(resourceId).then((r) => r.annotations as Annotation[]));
+    return CacheObservable.from(this.withScope(resourceId, obs), () => this.annotationListCache.fetch(resourceId).then((r) => r.annotations as Annotation[]));
   }
 
   annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation> {
@@ -220,7 +262,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     // the cache key, `annotationId`) can look up the resourceId it
     // needs for the bus request.
     this.annotationResources.set(annotationId, resourceId);
-    return CacheObservable.from(this.annotationDetailCache.observe(annotationId), () => this.annotationDetailCache.fetch(annotationId));
+    return CacheObservable.from(this.withScope(resourceId, this.annotationDetailCache.observe(annotationId)), () => this.annotationDetailCache.fetch(annotationId));
   }
 
   entityTypes(): CacheObservable<string[]> {
@@ -232,11 +274,11 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]> {
-    return CacheObservable.from(this.referencedByCache.observe(resourceId), () => this.referencedByCache.fetch(resourceId));
+    return CacheObservable.from(this.withScope(resourceId, this.referencedByCache.observe(resourceId)), () => this.referencedByCache.fetch(resourceId));
   }
 
   events(resourceId: ResourceId): CacheObservable<StoredEventResponse[]> {
-    return CacheObservable.from(this.resourceEventsCache.observe(resourceId), () => this.resourceEventsCache.fetch(resourceId));
+    return CacheObservable.from(this.withScope(resourceId, this.resourceEventsCache.observe(resourceId)), () => this.resourceEventsCache.fetch(resourceId));
   }
 
   // ── One-shot reads ──────────────────────────────────────────────────────

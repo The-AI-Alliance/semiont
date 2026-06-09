@@ -265,8 +265,9 @@ export function ResourceViewerPage({
 
   // Domain events flow through the bus gateway (ActorStateUnit → local EventBus).
   // BrowseNamespace cache invalidation handles annotation/resource updates.
-  // The resource-viewer-page-state-unit calls client.subscribeToResource(resourceId)
-  // which bridges scoped domain events into the local EventBus.
+  // Resource-scoped freshness follows observation (#847): subscribing to the
+  // resource's `browse.*` live queries acquires its scope (which bridges scoped
+  // domain events into the local EventBus) and releases it on teardown.
 
   const handleResourceArchive = useCallback(async () => {
     if (!semiont) return;

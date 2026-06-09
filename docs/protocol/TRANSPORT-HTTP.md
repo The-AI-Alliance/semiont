@@ -356,14 +356,15 @@ Genuine limitation for any multi-tenant deployment.
 ### Effects that subscribe MUST be idempotent across cleanup cycles
 
 React Strict Mode double-invokes effects (mount → cleanup → mount) to
-shake out cleanup bugs. Any code that interacts with the bus — calling
-`subscribeToResource`, registering an event handler, wiring a StateUnit
-— must survive this. Concretely:
+shake out cleanup bugs. Any code that interacts with the bus —
+subscribing to a resource's `browse.*` live queries, registering an
+event handler, wiring a StateUnit — must survive this. Concretely:
 
-- `subscribeToResource(X)` called twice in a row with the same `X` must
-  be a no-op on the second call (ref-counted today; first call adds,
-  second increments a count, both unsubscribes required before the
-  scope is actually removed).
+- Subscribing to `browse.*(X)` twice for the same resource `X` must
+  ref-count the scope: the SDK calls the transport's internal
+  `subscribeToResource(X)` per subscription; the first acquires the SSE
+  scope, the rest increment a count, and the scope is removed only after
+  every subscription is torn down (freshness follows observation; #847).
 - A StateUnit whose factory captures props must be keyed on those
   props (`<Inner key={rId} />`) so the factory reruns when they change.
   `useStateUnit`'s factory does NOT re-run across renders by design —

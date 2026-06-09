@@ -56,7 +56,6 @@ function clientWithNamespaces(overrides: {
     match: { search: vi.fn(() => new Observable(() => {})) },
     yield: { fromAnnotation: vi.fn(() => new Observable(() => {})) },
     bind: { body: vi.fn().mockResolvedValue(undefined) },
-    subscribeToResource: vi.fn().mockReturnValue(() => {}),
   });
 }
 

@@ -88,7 +88,11 @@ streaming concerns away from the typed-channel surface.
   fires.
 - **One distinct scope at a time.** Calling with a different
   resourceId while a subscription is live throws. Widening is deferred
-  until a product requirement forces it.
+  until a product requirement forces it (`.plans/MULTI-RESOURCE-SCOPE.md`).
+- **SDK-internal, not consumer-facing.** Application code does not call
+  this — the SDK's resource-scoped `browse.*` live queries drive it:
+  subscribing acquires the scope, the last unsubscribe releases it
+  (freshness follows observation; #847).
 
 ### `bridgeInto(bus)`
 

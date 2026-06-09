@@ -150,7 +150,7 @@ export const RESOURCE_BROADCAST_TYPES = [
 ] as const;
 ```
 
-Publishers emit these on a scoped bus (`eventBus.scope(resourceId)`); the HTTP transport carries the scope through SSE via a `scope=<resourceId>&scoped=<channel>` URL parameter. On the client, `client.subscribeToResource(resourceId)` attaches a ref-counted scope that auto-detaches when the last subscriber unsubscribes.
+Publishers emit these on a scoped bus (`eventBus.scope(resourceId)`); the HTTP transport carries the scope through SSE via a `scope=<resourceId>&scoped=<channel>` URL parameter. On the client, subscribing to a resource's `browse.*` live queries attaches a ref-counted scope (the SDK drives the transport's internal `subscribeToResource` on observation) that auto-detaches when the last subscriber unsubscribes (#847).
 
 Per-caller progress (AI-assist progress, search results) is *not* scoped — it's a correlation-ID-shaped response that publishes globally and the caller filters by `correlationId`. Resource scoping is for genuine multi-participant fan-out: events that *every* viewer of a resource should see.
 

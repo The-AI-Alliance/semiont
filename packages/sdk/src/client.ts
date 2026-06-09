@@ -13,7 +13,7 @@
  * `client.bus`.
  */
 
-import type { ResourceId, BaseUrl, AccessToken } from '@semiont/core';
+import type { BaseUrl, AccessToken } from '@semiont/core';
 import { EventBus, accessToken, baseUrl } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
 import { BrowseNamespace } from './namespaces/browse';
@@ -133,10 +133,6 @@ export class SemiontClient {
   /** Transport-level connection state. HTTP reflects SSE health; local is always 'connected'. */
   get state$() {
     return this.transport.state$;
-  }
-
-  subscribeToResource(resourceId: ResourceId): () => void {
-    return this.transport.subscribeToResource(resourceId);
   }
 
   dispose(): void {

@@ -2,7 +2,7 @@
  * SemiontClient lifecycle + namespace-routing tests.
  *
  * Covers the wiring on `client.ts` itself: bus bridge construction,
- * `state$` / `subscribeToResource` / `dispose` plumbing, and the few
+ * `state$` / `dispose` plumbing, and the few
  * namespace flows that resolve via the bridged `client.bus` rather than
  * `transport.stream` directly (match.search, gather.annotation).
  *
@@ -103,15 +103,6 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       (transport.state$ as BehaviorSubject<ConnectionState>).next('reconnecting');
       sub2.unsubscribe();
       expect(observed).toEqual(['open', 'reconnecting']);
-    });
-
-    test('subscribeToResource forwards the resource id', () => {
-      const id = resourceId('res-x');
-      const disposer = client.subscribeToResource(id);
-      expect(transport.subscribeToResource).toHaveBeenCalledWith(id);
-      // Returned disposer should not throw when called.
-      expect(disposer).toBeInstanceOf(Function);
-      disposer();
     });
 
     test('dispose disposes both transport and content', () => {

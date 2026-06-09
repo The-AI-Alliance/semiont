@@ -360,10 +360,11 @@ export type EventName = keyof EventMap;
  * for one caller) does NOT belong here. Those are per-caller correlation-ID
  * responses and publish globally — the caller filters by `correlationId`.
  *
- * The frontend's `subscribeToResource(id)` wires these channels via
- * `scope=id&scoped=<channel>` so the SSE route delivers them to that
- * participant. WorkerStateUnit uses this list to decide which emitted events to
- * scope to their resource.
+ * The SDK's resource-scoped `browse.*` live queries wire these channels —
+ * subscribing acquires the scope via the transport's `subscribeToResource`
+ * (`scope=id&scoped=<channel>`) so the SSE route delivers them to that
+ * participant (freshness follows observation; #847). WorkerStateUnit uses this
+ * list to decide which emitted events to scope to their resource.
  */
 export const RESOURCE_BROADCAST_TYPES = [
   // Currently empty. `job:complete` / `job:fail` were moved to GLOBAL,

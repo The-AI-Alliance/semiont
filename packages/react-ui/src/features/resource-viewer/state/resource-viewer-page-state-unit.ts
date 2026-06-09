@@ -133,8 +133,11 @@ export function createResourceViewerPageStateUnit(
 
   const wizard$ = new BehaviorSubject<WizardState>(WIZARD_CLOSED);
 
-  const unsubscribeResource = client.subscribeToResource(resourceId);
-  disposer.add(unsubscribeResource);
+  // Resource-scoped freshness follows observation (#847): subscribing to the
+  // `browse.*(resourceId)` live queries exposed by this state unit
+  // (annotations$, events$, referencedBy$) acquires the resource scope for as
+  // long as they're observed and releases it on teardown — so no manual
+  // `subscribeToResource` call is needed.
 
   const bindInitiateSub = client.bus.get('bind:initiate').subscribe((event) => {
     wizard$.next({
