@@ -449,67 +449,30 @@ const final = await semiont.job.pollUntilComplete(jobId, {
 });
 ```
 
-### `job:complete` / `job:fail` are dual-delivered — keep raw-stream consumers idempotent
-
-The worker emits `job:complete` and `job:fail` **twice**: once globally (so the
-caller that dispatched the job receives it on the always-on global bridge,
-filtered by `jobId`) and once resource-scoped (so viewers of the resource react
-too). A client subscribed to *both* a resource scope and the global bus — e.g. a
-frontend with that resource's tab open — therefore sees each event twice.
-
-The single-job consumers absorb this for you and emit **one** completion:
-
-```typescript
-// Terminal by design — one `complete`, no matter how many job:complete hit the bus.
-const result = await semiont.mark.assist(rId, 'linking', { entityTypes });
-await semiont.yield.fromAnnotation(rId, aId, { /* ... */ });
-await semiont.job.pollUntilComplete(jobId);
-```
-
-If you subscribe to the **raw** `job.complete$` / `job.fail$` streams, key on
-`jobId` and keep the reaction idempotent:
-
-```typescript
-import { filter, take } from 'rxjs/operators';
-import { firstValueFrom } from '@semiont/sdk';
-
-// One job: make it terminal.
-const done = await firstValueFrom(
-  semiont.job.complete$.pipe(filter((e) => e.jobId === jobId), take(1)),
-);
-
-// Many jobs over time: prefer an idempotent side effect…
-semiont.job.complete$.subscribe((e) => refetchResourceView(e.resourceId)); // refetch is idempotent
-
-// …or guard a non-idempotent reaction by jobId.
-const handled = new Set<string>();
-semiont.job.complete$.subscribe((e) => {
-  if (handled.has(e.jobId)) return;
-  handled.add(e.jobId);
-  toast(`Job ${e.jobId} finished`);
-});
-```
-
-A headless caller that never subscribes to a resource scope (the common SDK-script
-case) receives each event exactly once, so this only matters for clients that hold
-both subscriptions.
-
 ## Bus Connection
 
 For HTTP transports, the client lazily opens a single SSE connection to `/bus/subscribe`. Result channels, global domain events, and resource-scoped fan-out all flow through it. For in-process transports, the bus is the in-memory `EventBus` from `@semiont/core`. Either way, the namespace methods hide the wire.
 
-To receive live updates for a specific resource:
+To receive live updates for a specific resource, subscribe to its
+`browse.*` live queries — **freshness follows observation** (#847).
+Subscribing acquires the resource's scope (resource-scoped events like
+`mark:added` flow in and invalidate the cache, so the Observable
+re-emits); the last unsubscribe releases it. There's no separate call to make.
 
 ```typescript
-// Adds resource-scoped channels to the transport's subscription set and
-// bridges them into the client's local EventBus so `semiont.browse.*`
-// Observables update in real-time. Call on mount; call the returned
-// cleanup function on unmount. Ref-counted across overlapping calls.
-const cleanup = semiont.subscribeToResource(resourceId);
+// Subscribing keeps the view live. The SDK acquires `resourceId`'s scope
+// for as long as it's observed (ref-counted across all
+// `browse.*(resourceId)` subscriptions) and releases it on teardown.
+const sub = semiont.browse.annotations(resourceId).subscribe((annotations) => {
+  render(annotations);
+});
 
-// ... later
-cleanup();
+// ... later, on unmount
+sub.unsubscribe();
 ```
+
+A one-shot read needs no subscription and acquires no scope —
+`await semiont.browse.annotations(resourceId)` fetches a fresh value and returns.
 
 For HTTP, the underlying connection auto-reconnects with exponential backoff. On reconnect, `BrowseNamespace` invalidates active caches and refetches — no `Last-Event-ID` replay needed.
 

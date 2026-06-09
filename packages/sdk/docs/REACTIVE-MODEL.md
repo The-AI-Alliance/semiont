@@ -41,8 +41,8 @@ export class StreamObservable<T> extends Observable<T> implements PromiseLike<T>
 
 export class CacheObservable<T> extends Observable<T | undefined> implements PromiseLike<T> {
   then(onfulfilled, onrejected) {
-    return firstValueFrom(this.pipe(filter((v): v is T => v !== undefined)))
-      .then(onfulfilled, onrejected);
+    // Cache-backed: fetch fresh (a re-read reflects writes), reject on failure.
+    return this.fetchFresh!().then(onfulfilled, onrejected);
   }
 }
 ```
@@ -50,7 +50,7 @@ export class CacheObservable<T> extends Observable<T | undefined> implements Pro
 The asymmetric `then()` semantics are deliberate:
 
 - **`StreamObservable.then`** resolves to the **last** value on completion. Bounded progress streams have a final answer — the search result, the generated resource, the assembled context.
-- **`CacheObservable.then`** resolves to the **first non-undefined** value. Cache reads start in a "loading" state (`undefined`) and transition to the loaded value; `await` skips the loading state.
+- **`CacheObservable.then`** **fetches a fresh value** (and rejects on failure), so a one-shot `await` — e.g. a script's `read → write → read` — reflects the write rather than serving a stale memo (#847). `.subscribe(...)`, by contrast, is the stale-while-revalidate live view: it emits the cached value (after an initial `undefined`) and re-emits on invalidation. The split is the point — **`await` = "the value now"; `subscribe` = "the value, kept live."** (A `CacheObservable` with no fetch action — a non-cache wrapper — falls back to resolving on the first non-undefined emission.)
 
 The subclass name documents which semantics apply. `.subscribe(...)` works on both — yields the full sequence including loading states or progress events. `.pipe(...)` returns a plain `Observable<T>` and loses the thenable; once you compose with operators you've explicitly opted into RxJS, and `lastValueFrom` from `rxjs` is the right bridge.
 
@@ -128,7 +128,7 @@ Four idiomatic shapes, all on the same return value. The script-author who's nev
 
 - `yield.resource`
 
-**`CacheObservable<T>`** (multicast cache; `then` resolves on first non-undefined emission):
+**`CacheObservable<T>`** (multicast SWR cache for `.subscribe`; `await` fetches fresh and rejects on failure — #847):
 
 - `browse.resource`
 - `browse.resources`

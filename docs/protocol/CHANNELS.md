@@ -42,18 +42,15 @@ Non-persisted results matched back to the originating request by `correlationId`
 - `gather:summary-result` / `gather:summary-failed`
 - `mark:progress` / `mark:assist-finished` / `mark:assist-failed`
 - `job:created` / `job:create-failed` / `job:claimed` / `job:claim-failed`
+- `job:complete` / `job:fail` — global job-lifecycle signals; the dispatching caller filters by `jobId`, resource viewers filter the same global stream by `resourceId` (keyed by id, not `correlationId`)
 - `yield:clone-token-generated` / `yield:clone-token-failed`
 - `yield:clone-resource-result` / `yield:clone-resource-failed`
 
 ## Resource-bound broadcasts
 
-Channels every viewer of a specific resource wants to see, regardless of who triggered them. Published on `eventBus.scope(resourceId)`; received via `scope=rId&scoped=X` SSE subscription wired up by `client.subscribeToResource()`.
+Channels every viewer of a specific resource wants to see, regardless of who triggered them. Published on `eventBus.scope(resourceId)`; received via a `scope=rId&scoped=X` SSE subscription the SDK wires up automatically when a consumer subscribes to that resource's `browse.*` live queries (freshness follows observation; #847).
 
-The authoritative list is `RESOURCE_BROADCAST_TYPES` in [`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts):
-
-- `job:complete`, `job:fail`
-
-**Dual-emit.** These two are emitted by the worker **both** resource-scoped (for viewers, above) **and** globally (so the caller that dispatched the job receives them on the always-on global bridge, keyed by `jobId`, without holding a resource-scoped subscription — see `emitEvent` in [`packages/jobs/src/worker-process.ts`](../../packages/jobs/src/worker-process.ts)). A client subscribed to both delivery paths sees each event **twice**; raw `job.complete$`/`job.fail$` consumers must key on `jobId` and stay idempotent. The reason for the global path: a resource-scoped subscription mutates the SSE channel set, which forces a reconnect that drops in-flight correlation results — the Link 1 root cause in [`.plans/SEMIONT-BUG-browse-annotations.md`](../../.plans/SEMIONT-BUG-browse-annotations.md).
+The authoritative list is `RESOURCE_BROADCAST_TYPES` in [`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts) — **currently empty.** `job:complete` / `job:fail` used to live here but were moved to global, `jobId`-keyed delivery (see *Correlation-ID responses* above, and #847): the dispatcher filters by `jobId`, viewers filter the global stream by `resourceId`, so a client that is both no longer receives them twice. The set remains as the extension point for genuine multi-viewer resource broadcasts (e.g. generation progress).
 
 ## Bridged channels (HTTP transport fan-in)
 

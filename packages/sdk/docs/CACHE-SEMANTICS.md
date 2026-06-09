@@ -82,9 +82,24 @@ Consequences:
 3. **Empty is terminal only until an observer or invalidate acts.**
    A permanent fetch failure does not auto-retry.
 
+## Two consumption paths
+
+The cache has two read paths with different freshness semantics, and B1–B13
+below describe the **`observe` / subscribe** path (the stale-while-revalidate
+live view). The second path:
+
+- **`fetch(key)` — one-shot, always fresh.** Forces a fetch (bypassing the
+  memo), updates the store so subscribers see it too, and resolves with the
+  value — *rejecting* on failure. Concurrent calls for the same key dedup-join
+  one in-flight fetch. This backs the awaitable's `then` (`await browse.X(id)`),
+  so a `read → write → read` in one process reflects the write rather than
+  serving the memo (#847). A failed `fetch` still leaves the store untouched
+  for subscribers (B6); only the `fetch` caller sees the rejection.
+
 ## Core behaviors
 
-Each behavior is numbered for cross-reference from tests and code.
+Each behavior is numbered for cross-reference from tests and code. They govern
+the `observe` / subscribe path.
 
 ### B1 — First observation triggers a fetch
 

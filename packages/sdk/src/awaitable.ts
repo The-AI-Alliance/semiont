@@ -18,8 +18,8 @@
  * RxJS land; `lastValueFrom` from `rxjs` is the right bridge there.
  */
 
-import { Observable, firstValueFrom, lastValueFrom, merge } from 'rxjs';
-import { filter, map } from 'rxjs/operators';
+import { Observable, firstValueFrom, lastValueFrom } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import type { ResourceId } from '@semiont/core';
 
 /**
@@ -50,9 +50,12 @@ export class StreamObservable<T> extends Observable<T> implements PromiseLike<T>
  * cache entry. Used by Browse live-query methods (`browse.resource`,
  * `browse.annotations`, etc.).
  *
- * Awaiting resolves to the **first non-undefined** value (waits past the
- * loading state). Subscribing yields the full sequence including the
- * initial `undefined`, so reactive consumers can render a loading state.
+ * Awaiting (the one-shot path) fetches a **fresh** value via the optional
+ * `fetchFresh` action and rejects on failure — a re-read reflects writes
+ * (#847). Subscribing yields the SWR sequence: the initial `undefined`, the
+ * loaded value, and re-emits on invalidation. (Without a `fetchFresh` action
+ * — e.g. a non-cache wrapper — the await falls back to the first
+ * non-undefined emission.)
  *
  * The class is parameterized as `CacheObservable<T>` even though the
  * stream's element type is `T | undefined` — `T` is what the consumer
@@ -62,42 +65,33 @@ export class StreamObservable<T> extends Observable<T> implements PromiseLike<T>
  */
 export class CacheObservable<T> extends Observable<T | undefined> implements PromiseLike<T> {
   /**
-   * Optional per-key fetch-failure stream. Consulted only by `then()` (the
-   * await path). `.subscribe(...)` never touches it — live-query subscribers
-   * keep the stale-while-revalidate contract (a failed fetch leaves them at
-   * their last value / loading state, never errored). See cache.ts B6.
+   * Optional one-shot fresh-fetch action. When present, `then()` (the await
+   * path) resolves to a freshly fetched value and rejects on fetch failure —
+   * so a re-read reflects writes (#847). `.subscribe(...)` never uses it: it
+   * keeps the stale-while-revalidate cached view over `source`.
    */
-  private errors$?: Observable<unknown>;
+  private fetchFresh?: () => Promise<T>;
 
   then<R1 = T, R2 = never>(
     onfulfilled?: ((v: T) => R1 | PromiseLike<R1>) | null,
     onrejected?: ((e: unknown) => R2 | PromiseLike<R2>) | null,
   ): PromiseLike<R1 | R2> {
-    const value$ = this.pipe(
-      filter((v): v is T => v !== undefined),
-      map((value): { ok: true; value: T } => ({ ok: true, value })),
-    );
-    // Race first-defined-value against first-fetch-error. firstValueFrom
-    // takes the first emission and unsubscribes from both, so a later
-    // error (e.g. a subsequent failed refetch) can't produce a dangling
-    // rejection after the value already won.
-    const settled$ = this.errors$
-      ? merge(value$, this.errors$.pipe(map((error): { ok: false; error: unknown } => ({ ok: false, error }))))
-      : value$;
-    return firstValueFrom(settled$)
-      .then((r) => {
-        if (r.ok) return r.value;
-        throw r.error;
-      })
+    if (this.fetchFresh) {
+      // One-shot read: fetch fresh (rejects on failure), don't serve the memo.
+      return this.fetchFresh().then(onfulfilled, onrejected);
+    }
+    // Non-cache wrapper: resolve to the first non-undefined emission.
+    return firstValueFrom(this.pipe(filter((v): v is T => v !== undefined)))
       .then(onfulfilled, onrejected);
   }
 
   /**
    * Wrap an existing Observable's subscribe behavior in a `CacheObservable`.
    *
-   * `errors$`, when supplied, is the cache's per-key fetch-failure stream:
-   * it lets `await` reject on a lost/failed fetch instead of hanging
-   * forever, without erroring `.subscribe(...)` consumers (B6).
+   * `fetchFresh`, when supplied, backs the await path: `await` resolves to a
+   * freshly fetched value (rejecting on failure), so a one-shot read reflects
+   * writes without a scoped subscription (#847). `.subscribe(...)` consumers
+   * keep the SWR view over `source`.
    *
    * Memoizes on source identity: passing the same `source` returns the same
    * wrapper instance. The Browse cache primitive already returns a stable
@@ -108,11 +102,11 @@ export class CacheObservable<T> extends Observable<T | undefined> implements Pro
    *
    * Backed by a `WeakMap`, so wrappers are GC'd when their source is.
    */
-  static from<T>(source: Observable<T | undefined>, errors$?: Observable<unknown>): CacheObservable<T> {
+  static from<T>(source: Observable<T | undefined>, fetchFresh?: () => Promise<T>): CacheObservable<T> {
     let wrapper = wrapperCache.get(source) as CacheObservable<T> | undefined;
     if (!wrapper) {
       wrapper = new CacheObservable<T>((subscriber) => source.subscribe(subscriber));
-      wrapper.errors$ = errors$;
+      wrapper.fetchFresh = fetchFresh;
       wrapperCache.set(source, wrapper);
     }
     return wrapper;

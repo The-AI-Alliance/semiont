@@ -7,45 +7,52 @@
  * `BrowseNamespace` to back its per-key stores, but equally usable from
  * CLI, MCP, or worker code.
  *
+ * Two consumption paths with different freshness semantics:
+ *   - `observe(key)` (the subscribe path) is a stale-while-revalidate live
+ *     view: it triggers a fetch on first subscription for a missing key,
+ *     dedup-joins any concurrent fetch, then emits the stored value and
+ *     re-emits on invalidation.
+ *   - `fetch(key)` (the one-shot await path) forces a fresh fetch, so a
+ *     re-read reflects writes rather than serving the memo.
+ *
  * Shape:
- *   - `observe(key)`: returns an Observable<V | undefined> that triggers
- *     a fetch on first subscription for a missing key, dedup-joins any
- *     concurrent fetch, and emits the stored value thereafter.
- *   - `invalidate(key)`: stale-while-revalidate — keeps the current
- *     value visible to observers, clears the in-flight guard, starts a
- *     fresh fetch. If the previous fetch was orphaned (SSE torn down,
- *     response lost), this is how the cache recovers.
- *   - `remove(key)`: drops the cache entry entirely. Used for entity
- *     deletions (B13a). No refetch.
- *   - `set(key, value)`: writes through without a fetch. Used when a
- *     bus event carries the new value inline (B13b).
- *   - `invalidateAll()`: per-key SWR refetch of every currently-cached
- *     entry. Used by gap-detection paths.
+ *   - `observe(key)`: Observable<V | undefined> — subscribe path (SWR).
+ *   - `fetch(key)`: force a fresh fetch (bypassing the memo), update the
+ *     store (so subscribers see it too), and resolve with the value —
+ *     rejecting if the fetch fails. Concurrent calls for the same key share
+ *     one in-flight fetch. Backs the one-shot `await` path.
+ *   - `invalidate(key)`: stale-while-revalidate — keeps the current value
+ *     visible to observers, clears the in-flight guard, starts a fresh
+ *     fetch. Recovers an orphaned fetch (SSE torn down, response lost).
+ *   - `remove(key)`: drops the cache entry entirely (B13a). No refetch.
+ *   - `set(key, value)`: write-through without a fetch (B13b).
+ *   - `invalidateAll()`: per-key SWR refetch of every currently-cached entry.
  *   - `dispose()`: completes the store so observers unsubscribe.
  *
  * What's deliberately out:
- *   - No subscriber ref-counting / GC of unobserved keys. The per-key
- *     observable memo grows with the set of observed keys for the cache's
- *     lifetime (B11). Acceptable given cache lifetime == client lifetime.
+ *   - No subscriber ref-counting / GC of unobserved keys (B11). Acceptable
+ *     given cache lifetime == client lifetime.
  *   - No TTL / cacheTime. Entries are evicted only by explicit remove.
- *   - No retry / backoff. A failing fetch leaves the cache unchanged
- *     (B6); the caller drives retry via invalidate.
+ *   - No retry / backoff. A failing fetch leaves the cache unchanged for
+ *     *subscribers* (B6); the `fetch`/await path surfaces the rejection so
+ *     the caller can retry.
  */
 
-import { BehaviorSubject, Observable, Subject, distinctUntilChanged, filter, map } from 'rxjs';
+import { BehaviorSubject, Observable, distinctUntilChanged, map } from 'rxjs';
 
 export interface Cache<K, V> {
-  /** Observable stream of the value at `key`. Triggers a fetch if not cached. */
+  /** Observable stream of the value at `key` (SWR). Triggers a fetch if not cached. */
   observe(key: K): Observable<V | undefined>;
 
   /**
-   * Per-key stream of fetch failures. Emits each time a fetch for `key`
-   * rejects. This is the await-path counterpart to B6: live-query
-   * *subscribers* of `observe(key)` never see these (they keep their
-   * stale value / loading state), but a one-shot awaiter can consume
-   * this to reject instead of hanging forever on a lost result.
+   * Force a fresh fetch for `key`, update the store (so subscribers see it),
+   * and resolve with the fetched value — rejecting if the fetch fails.
+   * Concurrent calls for the same key share one in-flight fetch. Backs the
+   * one-shot `await` path: a re-read reflects writes rather than serving the
+   * memoized value. Live-query *subscribers* (`observe`) keep B6 — a failed
+   * fetch leaves their value untouched.
    */
-  errors(key: K): Observable<unknown>;
+  fetch(key: K): Promise<V>;
 
   /** Synchronous snapshot of the current value, without triggering a fetch. */
   get(key: K): V | undefined;
@@ -74,45 +81,48 @@ export interface Cache<K, V> {
 
 export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> {
   const store$ = new BehaviorSubject<Map<K, V>>(new Map());
-  const inflight = new Set<K>();
+  /** In-flight fetch promise per key — dedups concurrent fetches (B3). */
+  const inflight = new Map<K, Promise<V>>();
   const obsCache = new Map<K, Observable<V | undefined>>();
-  const errCache = new Map<K, Observable<unknown>>();
-  /** Per-key fetch-failure channel. See `Cache.errors`. */
-  const fetchErrors$ = new Subject<{ key: K; error: unknown }>();
 
-  const doFetch = async (key: K): Promise<void> => {
-    // In-flight guard: concurrent first-observations deduplicate (B3).
-    // `invalidate` clears the guard before calling doFetch, which is the
-    // orphan-recovery mechanism documented in B7 and B9.
-    if (inflight.has(key)) return;
-    inflight.add(key);
-    try {
-      const value = await fetchFn(key);
-      // Atomic update: one `.next` with a fresh Map reference so
-      // downstream `distinctUntilChanged` sees the transition (B5).
-      const next = new Map(store$.value);
-      next.set(key, value);
-      store$.next(next);
-    } catch (error) {
-      // B6: fetch failure leaves the previous state intact for
-      // *subscribers* — an observer seeing `undefined` stays at
-      // `undefined`; one seeing a stale value keeps it. We do NOT error
-      // the store Subject (that would break every observer of every key).
-      //
-      // But surface the failure on the per-key error channel so a
-      // one-shot *awaiter* (CacheObservable.then) can reject instead of
-      // hanging forever on a lost result. Live-query subscribers never
-      // touch this stream.
-      fetchErrors$.next({ key, error });
-    } finally {
-      inflight.delete(key);
-    }
+  /**
+   * Run (or join) a fetch for `key`. Resolves with the value and updates the
+   * store on success; rejects on failure WITHOUT touching the store (B6 —
+   * subscribers keep their prior value / loading state). Concurrent callers
+   * share the same promise.
+   */
+  const runFetch = (key: K): Promise<V> => {
+    const existing = inflight.get(key);
+    if (existing) return existing;
+
+    // Definite-assignment: `p` is assigned synchronously below, before the
+    // async `finally` (which references it) can run.
+    let p!: Promise<V>;
+    p = (async () => {
+      try {
+        const value = await fetchFn(key);
+        // Atomic update: one `.next` with a fresh Map reference so
+        // downstream `distinctUntilChanged` sees the transition (B5).
+        const next = new Map(store$.value);
+        next.set(key, value);
+        store$.next(next);
+        return value;
+      } finally {
+        // Only clear if we're still the in-flight entry — an `invalidate`
+        // may have replaced us with a newer fetch (B9 orphan recovery).
+        if (inflight.get(key) === p) inflight.delete(key);
+      }
+    })();
+    inflight.set(key, p);
+    return p;
   };
 
   return {
     observe(key: K): Observable<V | undefined> {
       if (!store$.value.has(key) && !inflight.has(key)) {
-        void doFetch(key);
+        // Subscribe path: fire-and-forget, swallow failures so a subscriber
+        // stays at its last value (B6). The awaiter's `fetch` surfaces them.
+        void runFetch(key).catch(() => {});
       }
       // B4: return a stable Observable per key.
       let obs = obsCache.get(key);
@@ -126,17 +136,8 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
       return obs;
     },
 
-    errors(key: K): Observable<unknown> {
-      // Stable per-key error observable (mirrors B4 for the value path).
-      let obs = errCache.get(key);
-      if (!obs) {
-        obs = fetchErrors$.pipe(
-          filter((e) => e.key === key),
-          map((e) => e.error),
-        );
-        errCache.set(key, obs);
-      }
-      return obs;
+    fetch(key: K): Promise<V> {
+      return runFetch(key);
     },
 
     get(key: K): V | undefined {
@@ -152,7 +153,7 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
       // and trigger a fresh fetch. Observers keep seeing the stale value
       // until the new value replaces it.
       inflight.delete(key);
-      void doFetch(key);
+      void runFetch(key).catch(() => {});
     },
 
     remove(key: K): void {
@@ -175,15 +176,13 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
       // keeps its stale value until its refetch resolves.
       for (const key of store$.value.keys()) {
         inflight.delete(key);
-        void doFetch(key);
+        void runFetch(key).catch(() => {});
       }
     },
 
     dispose(): void {
       store$.complete();
-      fetchErrors$.complete();
       obsCache.clear();
-      errCache.clear();
       inflight.clear();
     },
   };

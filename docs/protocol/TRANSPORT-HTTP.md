@@ -139,17 +139,23 @@ if no header were sent.
 
 Clients that never send `Last-Event-ID` get live-only behavior.
 
-### HTTP-specific quirk: response-lost during reconnect
+### HTTP-specific quirk: response-lost during a genuine disconnect
 
 The shared contract defines `busRequest` as at-most-once with a 30s
-timeout. Over HTTP, **if the SSE connection was torn down and replaced
-during the request window, the response was published to a dead
-subscriber and is lost.** The client sees only the 30s timeout. There
-is no retry.
+timeout. Over HTTP, if the SSE connection is lost during the request
+window, the response is published to a dead subscriber and lost — the
+client sees only the 30s timeout, and there is no retry.
 
-This is the load-bearing HTTP quirk. Consumers that must eventually
-complete must either (a) accept the timeout and retry, or (b) layer a
-cache that refetches on reconnect (`BrowseNamespace` does the latter).
+A **channel-set change no longer causes this** (#847): those reconnects
+are make-before-break (see "Reconnect discipline" below), so the old
+connection stays live to deliver the in-flight result while the new one
+takes over. The loss now applies only to a genuine **server/network
+disconnect**, where the old connection is already dead.
+
+This is the load-bearing HTTP quirk. Consumers that must survive a real
+disconnect either (a) accept the timeout and retry, or (b) layer a cache
+that refetches (`BrowseNamespace` does the latter; its one-shot `await`
+path also refetches fresh — #847).
 
 `LocalTransport` doesn't have this failure mode — in-process
 subscribers never disconnect during a call.
@@ -169,9 +175,11 @@ from construction. The HTTP state machine:
 | `degraded` | Has been in `reconnecting` for longer than `DEGRADED_THRESHOLD_MS` (3 s). UI banner threshold — distinguishes brief churn from real disconnection. |
 | `closed` | `stop()` or `dispose()` was called. Terminal. |
 
-Transitions are enforced by an internal helper that throws on invalid
-moves, so a buggy reconnect path surfaces in tests rather than
-stranding the observable at a lying value.
+Transitions are enforced by an internal helper. An invalid move is
+logged and ignored — never thrown: `transition()` runs inside timer
+callbacks (the reconnect and degraded timers), where a throw would be an
+uncaught exception that kills a long-running host process (#844). A bad
+edge is a bug, but degrading gracefully beats crashing a job.
 
 Allowed transitions:
 
@@ -180,9 +188,12 @@ initial      → connecting | closed
 connecting   → open | reconnecting | closed
 open         → reconnecting | closed
 reconnecting → connecting | degraded | closed
-degraded     → connecting | closed
+degraded     → connecting | reconnecting | closed
 closed       → (terminal)
 ```
+
+`degraded → reconnecting` is the #844 recovery edge: a channel-set
+change can schedule a reconnect while the connection is degraded.
 
 Gap detection is handled by the resumption protocol (see "Event id and
 resumption"), not by consumers interpreting state edges.
@@ -195,12 +206,15 @@ The client-side `ActorStateUnit` handles three reconnect triggers:
    transitions to `reconnecting`; `connect()` is retried after
    `reconnectMs` (default 5 s). If the retry takes longer than
    `DEGRADED_THRESHOLD_MS`, state enters `degraded`.
-2. **Channel-set change** (`addChannels` / `removeChannels`). The
-   current SSE is aborted and a new one is opened with the updated
-   query string. Reconnects are **debounced 100 ms** so React Strict
-   Mode's mount → cleanup → mount sequence collapses into one
-   reconnect. State cycles `open → reconnecting → connecting → open`
-   without reaching `degraded` (the round-trip is sub-second).
+2. **Channel-set change** (`addChannels` / `removeChannels`). A new SSE
+   is opened with the updated query string and, **only once it is
+   `open`, the old one is aborted** — make-before-break (#847), so an
+   ephemeral result in flight during the swap is delivered on the still-
+   live old connection instead of dropped in a gap. Reconnects are
+   **debounced 100 ms** so React Strict Mode's mount → cleanup → mount
+   sequence collapses into one reconnect. State cycles `open →
+   reconnecting → connecting → open` without reaching `degraded` (the
+   round-trip is sub-second).
 3. **Explicit `stop()` / `dispose()`.** State transitions to `closed`;
    the observable completes. No retry.
 
@@ -211,10 +225,21 @@ Consumers should NOT revalidate caches on the `reconnecting → open`
 transition — that work is driven by `bus:resume-gap`, which the server
 emits only when it genuinely can't cover the gap.
 
-**All in-flight fetches are aborted when a new connect starts.** The
-client tracks SSE fetch controllers as a set; every previous one is
-aborted before the new one begins. Prevents orphaned streams from
-accumulating when rapid channel-set changes race each other.
+**Connection handoff (make-before-break).** On a channel-set change the
+client keeps the previous connection(s) live and aborts them only after
+the new fetch resolves (#847) — closing the reconnect gap. A genuine
+disconnect or the initial connect has nothing live to preserve, so it
+aborts up front. Either way the client tracks SSE fetch controllers as a
+set and converges to a single live stream: when the newest connection
+opens it aborts every prior controller, so rapid channel-set changes
+racing each other can't accumulate orphaned streams.
+
+During the brief handoff overlap the same live event can arrive on both
+connections. Persisted ids (`p-<scope>-<seq>`) are stable across
+connections, so the client dedups them to a single emission; ephemeral
+ids (`e-<connectionId>-<counter>`) are per-connection and not deduped —
+their consumers tolerate a rare double (`busRequest` takes the first;
+cache invalidations and job-completion are idempotent/terminal).
 
 ## Wire framing and client parser obligations
 
@@ -331,14 +356,15 @@ Genuine limitation for any multi-tenant deployment.
 ### Effects that subscribe MUST be idempotent across cleanup cycles
 
 React Strict Mode double-invokes effects (mount → cleanup → mount) to
-shake out cleanup bugs. Any code that interacts with the bus — calling
-`subscribeToResource`, registering an event handler, wiring a StateUnit
-— must survive this. Concretely:
+shake out cleanup bugs. Any code that interacts with the bus —
+subscribing to a resource's `browse.*` live queries, registering an
+event handler, wiring a StateUnit — must survive this. Concretely:
 
-- `subscribeToResource(X)` called twice in a row with the same `X` must
-  be a no-op on the second call (ref-counted today; first call adds,
-  second increments a count, both unsubscribes required before the
-  scope is actually removed).
+- Subscribing to `browse.*(X)` twice for the same resource `X` must
+  ref-count the scope: the SDK calls the transport's internal
+  `subscribeToResource(X)` per subscription; the first acquires the SSE
+  scope, the rest increment a count, and the scope is removed only after
+  every subscription is torn down (freshness follows observation; #847).
 - A StateUnit whose factory captures props must be keyed on those
   props (`<Inner key={rId} />`) so the factory reruns when they change.
   `useStateUnit`'s factory does NOT re-run across renders by design —

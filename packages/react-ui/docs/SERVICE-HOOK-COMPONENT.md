@@ -28,26 +28,33 @@ This architecture leverages RxJS EventBus for event routing, eliminates callback
 - ❌ NO JSX rendering
 - ❌ NO manual event forwarding (the ActorStateUnit bridge is EventBus-native)
 
-**Implementation**: `SemiontApiClient.subscribeToResource(resourceId)`
+**Implementation**: subscribe to the resource's `browse.*(resourceId)` live queries.
 
-Called from the page state unit (`resource-viewer-page-state-unit`), not from
-a React hook. Returns a cleanup function that the state unit's disposer runs
-on unmount.
+The page state unit (`resource-viewer-page-state-unit`) builds its
+`annotations$`, `events$`, and `referencedBy$` observables from
+`client.browse.*(resourceId)`. **Freshness follows observation** (#847):
+subscribing to any of them acquires the resource's SSE scope (ref-counted
+across all of them), and the last unsubscribe releases it. There is no
+explicit `subscribeToResource` call.
 
 ```typescript
-// packages/api-client/src/state/pages/resource-viewer-page-state-unit.ts
-const unsubscribeResource = client.subscribeToResource(resourceId);
-disposer.add(unsubscribeResource);
+// packages/react-ui/src/features/resource-viewer/state/resource-viewer-page-state-unit.ts
+const annotations$ = client.browse.annotations(resourceId).pipe(map((a) => a ?? []));
+const events$ = client.browse.events(resourceId).pipe(map((e) => e ?? []));
+const referencedBy$ = client.browse.referencedBy(resourceId).pipe(map((r) => r ?? []));
+// Subscribing to any of these (from Layer 2 / Layer 3) keeps the resource
+// scope live; dropping the last subscriber releases it on teardown.
 ```
 
-Under the hood: `subscribeToResource` calls
-`actor.addChannels([...DOMAIN_CHANNELS], resourceId)` and sets up a
-bridge that forwards each bus event onto the same channel in the local
-EventBus.
+Under the hood: a `browse.*(resourceId)` subscription drives the transport's
+internal, SDK-only `subscribeToResource(rId)` — it adds the resource-scoped
+bus channels to the ActorStateUnit and bridges each event onto the same
+channel in the local EventBus. Application code never calls
+`subscribeToResource` itself; it just observes the live queries.
 
 **Key Architecture Points**:
 - One ActorStateUnit per client — one SSE connection to `/bus/subscribe`
-- Resource-scoped channels added/removed as pages mount/unmount
+- Resource-scoped channels added/removed automatically as the resource's `browse.*` live queries gain/lose subscribers
 - Events auto-bridge to the local EventBus for layer 2 consumption
 - No callbacks; pure pub/sub
 
@@ -149,8 +156,8 @@ export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPagePro
   const { detectingMotivation, detectionProgress } = useDetectionFlow(rId);
   const { activePanel, scrollToAnnotationId } = usePanelNavigation();
 
-  // Layer 1: bus subscription happens inside the page state unit
-  // (client.subscribeToResource(rId)) — no per-component hook needed
+  // Layer 1: the page state unit's browse.*(rId) live queries acquire the
+  // resource scope when observed — no explicit subscribe call, no per-component hook
 
   // Event emission (user interaction)
   const eventBus = useEventBus();
@@ -216,11 +223,11 @@ export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPagePro
                    │ auto-emits from SSE streams
                    ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Layer 1: Service (client.subscribeToResource)               │
+│ Layer 1: Service (browse.*(rId) live queries)               │
 │                                                              │
-│  - Adds scoped bus channels to the ActorStateUnit                  │
-│  - Passes eventBus to stream                                │
-│  - Stream auto-emits to EventBus                            │
+│  - Subscribing to browse.*(rId) acquires scope              │
+│  - SDK drives transport-internal subscribeToResource        │
+│  - Scoped bus events auto-bridge to the EventBus            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -233,8 +240,8 @@ export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPagePro
 ```typescript
 // In ResourceViewerPage.tsx
 export function ResourceViewerPage({ rId, ... }: ResourceViewerPageProps) {
-  // Layer 1: the page state unit calls client.subscribeToResource(rId)
-  // internally — no per-component hook needed.
+  // Layer 1: the page state unit's browse.*(rId) live queries acquire the
+  // resource scope when observed — no explicit subscribe call, no per-component hook.
 
   // ... rest of component
 }
@@ -348,8 +355,8 @@ function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPageProps) {
   const { activePanel, scrollToAnnotationId } = usePanelNavigation();
   const { generationModalOpen } = useGenerationFlow(locale, rId, ...);
 
-  // Layer 1: bus subscription happens inside the page state unit
-  // (client.subscribeToResource(rId)) — no per-component hook needed
+  // Layer 1: the page state unit's browse.*(rId) live queries acquire the
+  // resource scope when observed — no explicit subscribe call, no per-component hook
 
   // Layer 3: Render UI directly
   return (
@@ -475,7 +482,7 @@ These violations will cause the compliance audit to fail:
    - Detection: AST analysis finds `eventBus.off()` calls in component files
 
 3. **Components creating `new EventSource()`**
-   - Should use: `client.subscribeToResource(id)` via the page state unit
+   - Should use: the SDK's managed bus connection — resource freshness comes from subscribing to `client.browse.*(resourceId)` live queries
    - Detection: AST analysis finds `new EventSource()` in component files
 
 4. **Hooks returning JSX**
@@ -660,7 +667,7 @@ The layer separation principles remain the same. See [RXJS-SERVICE-HOOK-COMPONEN
 
 - **Components**: Call hooks, emit events, render JSX
 - **Hooks**: Use `useEventSubscriptions`, manage state with `useState`, return data objects
-- **Service**: Bus connection managed by `SemiontApiClient` (one ActorStateUnit per client; resource-scoped channels added via `client.subscribeToResource(id)`)
+- **Service**: Bus connection managed by `SemiontApiClient` (one ActorStateUnit per client; resource-scoped channels acquired by subscribing to `client.browse.*(resourceId)` live queries — freshness follows observation)
 
 ### ❌ DON'T
 
@@ -672,7 +679,7 @@ The layer separation principles remain the same. See [RXJS-SERVICE-HOOK-COMPONEN
 
 - `useEventBus()` - Access event bus (for emitting events)
 - `useEventSubscriptions()` - Subscribe to events (for receiving events)
-- `client.subscribeToResource(id)` - Adds resource-scoped bus channels (called by page state unit)
+- `client.browse.*(resourceId)` - Resource-scoped live queries; subscribing acquires the resource's bus scope (freshness follows observation), the last unsubscribe releases it
 - `useDetectionFlow()` - Detection state management (bus events, progress, annotation operations)
 - `useResolutionFlow()` - Annotation body update and reference linking
 - `useGenerationFlow()` - Generation state management (SSE, modal, progress)

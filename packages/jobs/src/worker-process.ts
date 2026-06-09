@@ -18,7 +18,7 @@
 import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob } from './job-claim-adapter';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/api-client';
-import { RESOURCE_BROADCAST_TYPES, resourceId as makeResourceId, type EventMap } from '@semiont/core';
+import { type EventMap } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { deriveStorageUri } from '@semiont/content';
@@ -67,27 +67,11 @@ async function emitEvent<K extends keyof EventMap>(
   channel: K,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const isBroadcast = (RESOURCE_BROADCAST_TYPES as readonly string[]).includes(channel as string);
-  const rawScope = isBroadcast ? ((payload as { resourceId?: string }).resourceId) : undefined;
-  const resourceScope = rawScope ? makeResourceId(rawScope) : undefined;
-
-  if (resourceScope) {
-    // Dual-emit a resource-broadcast event:
-    //  - globally, so the dispatching caller (`mark.assist` /
-    //    `yield.fromAnnotation`) receives it on the always-on global bridge
-    //    and filters by `jobId` — no resource-scoped subscription, hence no
-    //    SSE channel-set churn (the Link 1 root cause in
-    //    .plans/SEMIONT-BUG-browse-annotations.md);
-    //  - resource-scoped, so every viewer of the resource still gets the
-    //    broadcast without a global fan-out widening their interest set.
-    // A client subscribed to both sees it twice; SDK consumers key on
-    // `jobId`/`resourceId` and treat completion as terminal, so the doubled
-    // delivery collapses to a single observed completion.
-    await session.client.transport.emit(channel, payload as EventMap[K]);
-    await session.client.transport.emit(channel, payload as EventMap[K], resourceScope);
-  } else {
-    await session.client.transport.emit(channel, payload as EventMap[K]);
-  }
+  // All worker-emitted bus events are global. `job:complete` / `job:fail`
+  // are global, `jobId`-keyed correlation signals (#847): the dispatching
+  // caller filters by `jobId`, and resource viewers filter the same global
+  // stream by `resourceId`. No resource-scoped copy (see RESOURCE_BROADCAST_TYPES).
+  await session.client.transport.emit(channel, payload as EventMap[K]);
 }
 
 export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter {
