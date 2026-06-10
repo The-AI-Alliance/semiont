@@ -233,14 +233,15 @@ Modal components use BEM-style CSS classes:
 - **Announcements**: Search results announced to screen readers
 - **Semantic HTML**: Proper heading hierarchy and structure
 
-## Integration with Search Hooks
+## Integration with Search
 
-The modals integrate with the `useResources` hook for search functionality:
+The modals drive search through `semiont.browse.resources()` (wired up via
+`createSearchPipeline`):
 
 ```tsx
-import { ResourceSearchModal, useApiClient } from '@semiont/react-ui';
+import { ResourceSearchModal, useSemiont } from '@semiont/react-ui';
 
-// The modal uses the api-client's Observable surface internally:
+// The modal uses the SDK's Observable surface internally:
 // semiont.browse.resources({ search, limit }) — debounced via RxJS.
 // For custom search elsewhere, use the same approach: see API-INTEGRATION.md.
 ```

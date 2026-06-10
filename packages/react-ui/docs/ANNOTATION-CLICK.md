@@ -8,14 +8,14 @@ This document explains how user interactions with annotations flow through the S
 
 ## Three-Layer Architecture
 
-### Layer 1: Data Layer (`@semiont/api-client`)
+### Layer 1: Data Layer (`@semiont/core` + `@semiont/sdk`)
 
 **Responsibility**: Owns annotation data and provides TypeScript types from OpenAPI spec.
 
 **What it does**:
-- CRUD operations for annotations
-- TypeScript types generated from `specs/openapi.json`
-- Utility functions for annotation manipulation (e.g., `getAnnotationExactText`, `getBodySource`)
+- CRUD operations for annotations (via the SDK)
+- TypeScript types generated from `specs/openapi.json` (in `@semiont/core`)
+- Utility functions for annotation manipulation (e.g., `getAnnotationExactText`, `getBodySource`) (in `@semiont/sdk`)
 
 **What it does NOT do**:
 - NO knowledge of React, DOM, or UI state
@@ -24,14 +24,14 @@ This document explains how user interactions with annotations flow through the S
 
 **Key Types**:
 ```typescript
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
 // 'linking' | 'commenting' | 'highlighting' | 'tagging' | 'assessing'
 ```
 
-**Location**: `packages/api-client/`
+**Location**: types in `packages/core/`; annotation utilities in `packages/sdk/` (api-client is HTTP-transport-only)
 
 ### Layer 2: State Layer (React Components)
 
@@ -395,7 +395,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
     },
     ref
   ) {
-    const eventBus = useEventBus();
+    const session = useObservable(useSemiont().activeSession$);
 
     return (
       <div
@@ -405,18 +405,18 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
         data-focused={isFocused ? 'true' : 'false'}
         onClick={() => {
           // Click → Open panel
-          eventBus.emit('browse:click', {
+          session?.client.emit('browse:click', {
             annotationId: reference.id,
             motivation: reference.motivation
           });
         }}
         onMouseEnter={() => {
           // Hover entry → Highlight annotation on resource
-          eventBus.emit('beckon:hover', { annotationId: reference.id });
+          session?.client.emit('beckon:hover', { annotationId: reference.id });
         }}
         onMouseLeave={() => {
           // Unhover entry → Clear annotation highlight
-          eventBus.emit('beckon:hover', { annotationId: null });
+          session?.client.emit('beckon:hover', { annotationId: null });
         }}
       >
         {/* Entry content */}
@@ -607,7 +607,7 @@ const setEntryRef = useCallback((id: string, element: HTMLDivElement | null) => 
 These rules MUST be followed:
 
 1. **Data Layer has NO React knowledge**
-   - `@semiont/api-client` cannot import React, DOM types, or UI state
+   - `@semiont/core` (types) and `@semiont/sdk` (annotation utilities) cannot import React, DOM types, or UI state
    - Only TypeScript types and pure functions
 
 2. **Event Bus is for coordination ONLY**
@@ -635,5 +635,5 @@ These rules MUST be followed:
 
 - **OpenAPI Spec**: `specs/openapi.json` - Source of truth for annotation types
 - **Event Bus Context**: `packages/react-ui/src/contexts/EventBusContext.tsx` - Event type definitions
-- **Annotation Utilities**: `packages/api-client/src/` - Pure functions for annotation manipulation
+- **Annotation Utilities**: `packages/sdk/src/` - Pure functions for annotation manipulation
 - **Architecture Compliance**: `REMOVE-REF-UPDATE.md` - Migration plan and architectural rationale

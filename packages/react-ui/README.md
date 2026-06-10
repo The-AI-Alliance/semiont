@@ -18,8 +18,8 @@ Framework-agnostic React component library for building Semiont knowledge manage
 
 - **Framework Independence** - Zero dependencies on Next.js, next-auth, or next-intl
 - **Component Composition** - Components accept framework-specific implementations (Link, routing) as props
-- **Provider Pattern** - Consistent approach for session, translations, API client, and routing
-- **Type-Safe API Hooks** - React Query wrappers for all Semiont API operations
+- **Provider Pattern** - Consistent approach for session, translations, and routing
+- **SDK Live Queries** - Read data with `useObservable()` over the SDK's read-through cache; no bespoke fetching layer
 - **Authentication Components** - Sign-in, sign-up, and error display components
 - **Navigation Components** - Collapsible sidebar with drag & drop resource tabs
 - **Modal Components** - Global search and resource selection modals
@@ -33,17 +33,19 @@ Framework-agnostic React component library for building Semiont knowledge manage
 ## Installation
 
 ```bash
-npm install @semiont/react-ui @semiont/api-client @tanstack/react-query
+npm install @semiont/react-ui @semiont/sdk @semiont/core
 ```
+
+`@semiont/sdk` is the primary dependency — it provides the `SemiontBrowser`,
+`SemiontClient`, the read-through cache, and the state machinery that
+`@semiont/react-ui` renders. `@semiont/core` provides the shared API types.
 
 ### Peer Dependencies
 
 ```json
 {
-  "react": "^18.0.0",
-  "react-dom": "^18.0.0",
-  "@tanstack/react-query": "^5.0.0",
-  "@semiont/api-client": "*"
+  "react": "^19.0.0",
+  "react-dom": "^19.0.0"
 }
 ```
 
@@ -72,33 +74,28 @@ Import the styles in your app's main CSS file:
 
 ```tsx
 import {
+  SemiontProvider,
   TranslationProvider,
-  ApiClientProvider,
-  KnowledgeBaseSessionProvider,
   ProtectedErrorBoundary,
   SessionExpiredModal,
   PermissionDeniedModal,
 } from '@semiont/react-ui';
-import { QueryClientProvider } from '@tanstack/react-query';
 
 function App({ children }) {
   const translationManager = useTranslationManager(); // Your implementation
-  const queryClient = new QueryClient();
 
   return (
     <TranslationProvider translationManager={translationManager}>
-      <QueryClientProvider client={queryClient}>
-        <ApiClientProvider baseUrl="https://api.example.com">
-          {/* Mount KnowledgeBaseSessionProvider only on protected routes */}
-          <KnowledgeBaseSessionProvider>
-            <ProtectedErrorBoundary>
-              <SessionExpiredModal />
-              <PermissionDeniedModal />
-              {children}
-            </ProtectedErrorBoundary>
-          </KnowledgeBaseSessionProvider>
-        </ApiClientProvider>
-      </QueryClientProvider>
+      {/* SemiontProvider puts the SemiontBrowser singleton into context.
+          useSemiont() hands it back; the active SemiontSession (and its
+          SemiontClient) flow from there. */}
+      <SemiontProvider>
+        <ProtectedErrorBoundary>
+          <SessionExpiredModal />
+          <PermissionDeniedModal />
+          {children}
+        </ProtectedErrorBoundary>
+      </SemiontProvider>
     </TranslationProvider>
   );
 }
@@ -107,15 +104,16 @@ function App({ children }) {
 ### 2. Use Components
 
 ```tsx
-import { ResourceViewer, useResources } from '@semiont/react-ui';
+import { ResourceViewer, useSemiont, useObservable } from '@semiont/react-ui';
 
 function MyComponent() {
-  const resources = useResources();
-  const { data, isLoading } = resources.list.useQuery();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  // browse.resources() is an SDK live query backed by the read-through cache.
+  const resources = useObservable(semiont?.browse.resources({ limit: 20 }));
 
-  if (isLoading) return <div>Loading...</div>;
+  if (!resources) return <div>Loading...</div>;
 
-  return <ResourceViewer resource={data[0]} />;
+  return <ResourceViewer resource={resources[0]} />;
 }
 ```
 
@@ -191,12 +189,10 @@ See [docs/STYLES.md](docs/STYLES.md) for detailed CSS documentation.
 
 ### Providers
 
-All cross-cutting concerns use the Provider Pattern:
+Cross-cutting concerns use the Provider Pattern:
 
-- **KnowledgeBaseSessionProvider** - KB list, active KB, validated session, modal state — one merged provider that's the single source of truth for "which KB and what's the session against it"
+- **SemiontProvider** - The single React provider for session state. Puts the module-scoped `SemiontBrowser` singleton into context; `useSemiont()` returns it. The browser owns the KB list, active KB, and validated session lifecycle — it's the single source of truth for "which KB and what's the session against it." The active `SemiontSession` (and its `SemiontClient`) flow from `browser.activeSession$`.
 - **TranslationProvider** - Internationalization
-- **ApiClientProvider** - Authenticated API client
-- **OpenResourcesProvider** - Recently opened resources
 - **RoutingContext** - Framework-agnostic navigation
 
 See [docs/SESSION.md](docs/SESSION.md) for details.
@@ -216,18 +212,24 @@ Use them via `import { createComposePageStateUnit } from '@semiont/react-ui'`. U
 
 ### API Integration
 
-React Query hooks for all API operations:
+Data fetching and caching are an SDK concern. The SDK exposes an RxJS
+read-through cache (stale-while-revalidate); react-ui consumes it as live
+queries via `useObservable()`. Reads come from `client.browse.*(...)`
+observables; writes go through the typed namespaces (`client.mark.*`,
+`client.bind.*`, etc.).
 
 ```tsx
-import { useResources, useAnnotations, useEntityTypes } from '@semiont/react-ui';
+import { useSemiont, useObservable } from '@semiont/react-ui';
 
-// List resources
-const resources = useResources();
-const { data } = resources.list.useQuery({ limit: 10 });
+function Example() {
+  const client = useObservable(useSemiont().activeSession$)?.client;
 
-// Create annotation
-const annotations = useAnnotations();
-const { mutate } = annotations.create.useMutation();
+  // Read: live query over the read-through cache
+  const resources = useObservable(client?.browse.resources({ limit: 10 }));
+
+  // Write: typed namespace call (cache invalidation is handled by the SDK)
+  const archive = (rUri) => client?.mark.archive(rUri);
+}
 ```
 
 See [docs/API-INTEGRATION.md](docs/API-INTEGRATION.md) for details.
@@ -271,10 +273,8 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 // app/providers.tsx
 'use client';
 
-import { useSession } from 'next-auth/react';
 import { useLocale } from 'next-intl';
-import { SemiontApiClient } from '@semiont/api-client';
-import { TranslationProvider, ApiClientProvider } from '@semiont/react-ui';
+import { TranslationProvider, SemiontProvider } from '@semiont/react-ui';
 
 export function useTranslationManager() {
   const locale = useLocale();
@@ -285,17 +285,19 @@ export function useTranslationManager() {
   };
 }
 
-export function useApiClientManager() {
-  const { data: session } = useSession();
-  const [token$] = useState(() => new BehaviorSubject<AccessToken | null>(null));
+export function Providers({ children }) {
+  const translationManager = useTranslationManager();
 
-  useEffect(() => {
-    token$.next(session?.backendToken ? accessToken(session.backendToken) : null);
-  }, [session?.backendToken, token$]);
-
-  return {
-    client: new SemiontApiClient({ baseUrl, eventBus, token$ }),
-  };
+  // SemiontProvider defaults to the canonical web setup (WebBrowserStorage +
+  // an HTTP session factory). It reads the module-scoped SemiontBrowser
+  // singleton via getBrowser() — no client construction here. Sign-in flows
+  // adopt the OAuth session onto the browser; browser.activeSession$ then
+  // carries the live SemiontClient.
+  return (
+    <TranslationProvider translationManager={translationManager}>
+      <SemiontProvider>{children}</SemiontProvider>
+    </TranslationProvider>
+  );
 }
 ```
 
@@ -358,5 +360,7 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) in the repository root for full gui
 
 ## Related Packages
 
-- [@semiont/api-client](../api-client) - TypeScript client for Semiont API
+- [@semiont/sdk](../sdk) - `SemiontBrowser`, `SemiontClient`, the read-through cache, and the state machinery
+- [@semiont/core](../core) - Shared API types (`components`) generated from the OpenAPI spec
+- [@semiont/api-client](../api-client) - HTTP transport (`HttpTransport`, `HttpContentTransport`, `APIError`)
 - [semiont-frontend](../../apps/frontend) - Reference Next.js implementation

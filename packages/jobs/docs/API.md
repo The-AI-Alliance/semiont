@@ -1,20 +1,24 @@
 # Jobs API Reference
 
-## JobQueue
+## FsJobQueue
+
+`FsJobQueue` is the filesystem-backed implementation of the `JobQueue` interface. The interface contract (`initialize`, `destroy`, `createJob`, `getJob`, `updateJob`, `pollNextPendingJob`, `cancelJob`, `getStats`) is the same across backends; `listJobs` and `cleanupOldJobs` are `FsJobQueue`-specific methods not on the interface.
 
 ### Constructor
 
 ```typescript
-import { JobQueue, type JobQueueConfig } from '@semiont/jobs';
+import { FsJobQueue } from '@semiont/jobs';
 import { EventBus, type Logger } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 
 const eventBus = new EventBus();
-const queue = new JobQueue({ dataDir: './data' }, logger, eventBus);
+const project = new SemiontProject('/path/to/project');
+const queue = new FsJobQueue(project, logger, eventBus);
 await queue.initialize();
 ```
 
 **Parameters:**
-- `config: JobQueueConfig` — `{ dataDir: string }` base directory for job storage
+- `project: SemiontProject` — jobs are stored under `project.jobsDir`
 - `logger: Logger` — structured logger
 - `eventBus?: EventBus` — optional EventBus for emitting `job:queued` events
 
@@ -28,12 +32,11 @@ Closes the filesystem watcher and clears debounce timers.
 
 ### `createJob(job: AnyJob): Promise<void>`
 
-Persists a job to `{dataDir}/jobs/{status}/{id}.json`. If status is `pending`, pushes to the in-memory queue. If EventBus is provided and job params include `resourceId`, emits `job:queued`.
+Persists a job to `{project.jobsDir}/{status}/{id}.json`. If status is `pending`, pushes to the in-memory queue. If EventBus is provided and job params include `resourceId`, emits `job:queued`.
 
 ```typescript
 import type { PendingJob, GenerationParams } from '@semiont/jobs';
-import { jobId } from '@semiont/api-client';
-import { userId, resourceId, annotationId } from '@semiont/core';
+import { jobId, userId, resourceId, annotationId } from '@semiont/core';
 
 const job: PendingJob<GenerationParams> = {
   status: 'pending',
@@ -117,6 +120,8 @@ const genJob = await queue.pollNextPendingJob(
 
 ### `listJobs(filters?: JobQueryFilters): Promise<AnyJob[]>`
 
+> `FsJobQueue`-specific — not part of the `JobQueue` interface.
+
 Lists jobs with optional filters. Reads from filesystem, sorted by creation time (newest first), with pagination.
 
 ```typescript
@@ -147,6 +152,8 @@ const cancelled = await queue.cancelJob(jobId('job-abc123'));
 
 ### `cleanupOldJobs(retentionHours?: number): Promise<number>`
 
+> `FsJobQueue`-specific — not part of the `JobQueue` interface.
+
 Removes completed, failed, and cancelled jobs older than the retention period. Returns count of deleted jobs.
 
 ```typescript
@@ -166,85 +173,61 @@ const stats = await queue.getStats();
 console.log(`${stats.pending} pending, ${stats.running} running`);
 ```
 
-## Singleton
+## Worker Process
+
+Workers run as a separate process. `worker-main.ts` authenticates as a software agent, opens a `SemiontSession` (from `@semiont/sdk`), builds a `generator` (W3C SoftwareAgent), and calls `startWorkerProcess(...)`.
+
+### `startWorkerProcess(config): JobClaimAdapter`
 
 ```typescript
-import { initializeJobQueue, getJobQueue } from '@semiont/jobs';
+import { startWorkerProcess } from '@semiont/jobs/worker-main';
 
-// At startup
-await initializeJobQueue({ dataDir: './data' }, logger, eventBus);
-
-// Anywhere else
-const queue = getJobQueue(); // Throws if not initialized
+const adapter = startWorkerProcess({
+  session,          // SemiontSession authenticated as this worker's agent
+  jobTypes,         // string[] — job types this agent serves
+  inferenceClient,  // InferenceClient
+  generator,        // W3C SoftwareAgent stamped as annotation `generator`
+  logger,
+});
 ```
 
-## JobWorker
+`startWorkerProcess` claims jobs over the bus via a `JobClaimAdapter` — a reactive, SSE-driven `job:queued` subscription, not a poll-interval loop. When a job is claimed, it dispatches by `jobType` to the matching `process*Job` function in `src/processors.ts`:
 
-Abstract base class for job processing. Handles polling, state transitions, retries, and error recovery.
+| Job Type | Processor |
+|----------|-----------|
+| `reference-annotation` | `processReferenceJob` |
+| `generation` | `processGenerationJob` |
+| `highlight-annotation` | `processHighlightJob` |
+| `assessment-annotation` | `processAssessmentJob` |
+| `comment-annotation` | `processCommentJob` |
+| `tag-annotation` | `processTagJob` |
 
-### Constructor
+### Processors
 
-```typescript
-import { JobWorker } from '@semiont/jobs';
-
-class MyWorker extends JobWorker {
-  constructor(jobQueue: JobQueue, logger: Logger) {
-    super(
-      jobQueue,      // JobQueue instance
-      1000,          // pollIntervalMs
-      5000,          // errorBackoffMs
-      logger         // Logger
-    );
-  }
-
-  protected getWorkerName(): string { return 'MyWorker'; }
-  protected canProcessJob(job: AnyJob): boolean { return job.metadata.type === 'generation'; }
-  protected async executeJob(job: AnyJob): Promise<any> { /* processing logic */ }
-}
-```
-
-### Abstract Methods
-
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `getWorkerName()` | `(): string` | Worker name for logging |
-| `canProcessJob(job)` | `(job: AnyJob): boolean` | Filter which jobs this worker handles |
-| `executeJob(job)` | `(job: AnyJob): Promise<any>` | Job processing logic; return result object |
-
-### Lifecycle Methods
-
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `start()` | `(): Promise<void>` | Start polling loop (blocks until `stop()`) |
-| `stop()` | `(): Promise<void>` | Graceful shutdown (waits up to 60s for current job) |
-
-### Protected Helpers
-
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `updateJobProgress(job)` | `(job: AnyJob): Promise<void>` | Best-effort progress update (won't throw) |
-| `emitCompletionEvent(job, result)` | `(job, result): Promise<void>` | Override to emit events on completion |
-| `sleep(ms)` | `(ms: number): Promise<void>` | Async sleep utility |
+Each processor is transport-agnostic. Detection processors take `(content, inferenceClient, params, userId, generator, onProgress)` and return `{ annotations, result }`; `processGenerationJob` takes `(inferenceClient, params, onProgress, logger)` and returns the synthesized resource. Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`).
 
 ### Processing Flow
 
 ```
-Poll in-memory queue (via predicate from canProcessJob)
+SSE job:queued → JobClaimAdapter claims job atomically
   ↓
-Move job: pending → running
+emit job:start
   ↓
-Call executeJob(runningJob)
-  ↓ success
-Move job: running → complete (with returned result)
-  ↓ error
-If retryCount < maxRetries: running → pending (retry)
-If retryCount >= maxRetries: running → failed (permanent)
+session.client.browse.resourceContent(resourceId)   (detection job types)
+  ↓
+process*Job(...) → annotations + result
+  ↓
+emit mark:create per annotation; emit job:complete
+  ↓ on error
+emit job:fail; adapter.failJob(jobId, message)
 ```
+
+Lifecycle and `mark:create` events are emitted via `session.client.transport.emit(...)`. The Stower actor in @semiont/make-meaning persists them.
 
 ## Storage
 
 ```
-{dataDir}/jobs/
+{project.jobsDir}/
   pending/{jobId}.json
   running/{jobId}.json
   complete/{jobId}.json

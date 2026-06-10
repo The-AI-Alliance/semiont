@@ -563,18 +563,18 @@ function MyComponent() {
 }
 ```
 
-### With API Hooks
+### With API Data
 
-Components fetch data using API hooks:
+Components fetch data by observing the SDK's live queries:
 
 ```tsx
-import { useResources } from '@semiont/react-ui';
+import { useSemiont, useObservable } from '@semiont/react-ui';
 
 function MyComponent() {
-  const resources = useResources();
-  const { data, isLoading } = resources.list.useQuery();
+  const semiont = useSemiont();
+  const data = useObservable(semiont.browse.resources());
 
-  if (isLoading) return <Spinner />;
+  if (data === undefined) return <Spinner />;
 
   return <ResourceList items={data} />;
 }

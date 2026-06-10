@@ -23,7 +23,7 @@ Character set utilities for consistent text encoding across the system. Critical
 Extract charset parameter from media type string:
 
 ```typescript
-import { extractCharset } from '@semiont/api-client';
+import { extractCharset } from '@semiont/core';
 
 const charset1 = extractCharset('text/plain; charset=iso-8859-1');
 // Returns: 'iso-8859-1'
@@ -40,7 +40,7 @@ const charset3 = extractCharset('text/html; charset=UTF-8');
 Decode binary data using the charset from media type:
 
 ```typescript
-import { decodeWithCharset } from '@semiont/api-client';
+import { decodeWithCharset } from '@semiont/core';
 
 // UTF-8 document (default)
 const buffer1 = new Uint8Array([72, 101, 108, 108, 111]);
@@ -91,7 +91,7 @@ Utilities for extracting prefix/suffix context around text selections and valida
 Extract prefix and suffix context for W3C TextQuoteSelector:
 
 ```typescript
-import { extractContext } from '@semiont/api-client';
+import { extractContext } from '@semiont/core';
 
 const content = "The United States Congress passed the bill.";
 const start = 4;   // "United"
@@ -206,7 +206,7 @@ W3C-compliant SVG selector creation and parsing for image annotation.
 ### Create Rectangle SVG
 
 ```typescript
-import { createRectangleSvg } from '@semiont/api-client';
+import { createRectangleSvg } from '@semiont/core';
 
 const svg = createRectangleSvg(
   { x: 10, y: 20 },  // Top-left corner
@@ -220,7 +220,7 @@ console.log(svg);
 ### Create Polygon SVG
 
 ```typescript
-import { createPolygonSvg } from '@semiont/api-client';
+import { createPolygonSvg } from '@semiont/core';
 
 const svg = createPolygonSvg([
   { x: 0, y: 0 },
@@ -235,7 +235,7 @@ console.log(svg);
 ### Create Circle SVG
 
 ```typescript
-import { createCircleSvg } from '@semiont/api-client';
+import { createCircleSvg } from '@semiont/core';
 
 const svg = createCircleSvg(
   { x: 50, y: 50 },  // Center
@@ -251,7 +251,7 @@ console.log(svg);
 Extract shape type and data from SVG string:
 
 ```typescript
-import { parseSvgSelector } from '@semiont/api-client';
+import { parseSvgSelector } from '@semiont/core';
 
 const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect x="10" y="20" width="90" height="60"/></svg>';
 
@@ -265,7 +265,7 @@ console.log(parsed);
 Convert coordinates from display space to image native resolution:
 
 ```typescript
-import { normalizeCoordinates } from '@semiont/api-client';
+import { normalizeCoordinates } from '@semiont/core';
 
 // User clicked at (100, 200) on a 800x600 display
 // But the actual image is 3200x2400 pixels
@@ -284,7 +284,7 @@ console.log(nativePoint);
 Scale entire SVG selector from display dimensions to image native resolution:
 
 ```typescript
-import { scaleSvgToNative } from '@semiont/api-client';
+import { scaleSvgToNative } from '@semiont/core';
 
 // SVG created on 800x600 display
 const displaySvg = '<svg xmlns="http://www.w3.org/2000/svg"><rect x="10" y="20" width="90" height="60"/></svg>';
@@ -374,7 +374,7 @@ import {
   isArchived,
   getResourceEntityTypes,
   isDraft
-} from '@semiont/api-client';
+} from '@semiont/core';
 
 const resource: ResourceDescriptor = /* ... */;
 
@@ -408,7 +408,7 @@ const draft = isDraft(resource);
 Decode representation buffer using correct charset:
 
 ```typescript
-import { decodeRepresentation, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/api-client';
+import { decodeRepresentation, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/core';
 
 const resource: ResourceDescriptor = /* ... */;
 const buffer: Buffer = /* raw bytes from storage */;
@@ -432,7 +432,7 @@ See the [core package README](../README.md) for validation functions.
 All utilities use TypeScript interfaces for type safety:
 
 ```typescript
-import type { TextPosition, Point, BoundingBox } from '@semiont/api-client';
+import type { TextPosition, Point, BoundingBox } from '@semiont/core';
 
 // TextPosition interface
 interface TextPosition {

@@ -481,7 +481,7 @@ For HTTP, the underlying connection auto-reconnects with exponential backoff. On
 Worker-side adapters live with their domain and consume the transport-neutral `WorkerBus` interface that `@semiont/sdk` exports. `createJobClaimAdapter` and `createJobQueueStateUnit` are in `@semiont/jobs`; `createSmelterActorStateUnit` is in `@semiont/make-meaning`. `WorkerBus` is a small contract (`on$(channel)`, `emit(channel, payload)`, optional `addChannels(...)`). The HTTP `ActorStateUnit` from `@semiont/api-client` satisfies it structurally; an in-process worker can wrap an `EventBus` in a small shim. Workers today reach for the HTTP actor like this:
 
 ```typescript
-import type { HttpTransport } from '@semiont/api-client';
+import type { HttpTransport } from '@semiont/sdk';
 import { createJobClaimAdapter } from '@semiont/jobs';
 
 // session.client.transport is the bus-shaped ITransport. For HTTP-backed
@@ -521,7 +521,7 @@ When OpenTelemetry is initialized (Tier 2), every bus-log line gets a `trace=<8h
 **Runtime SSE health.** For a long-running worker or daemon, subscribe to the transport's connection-state observable to surface health in your status endpoint:
 
 ```typescript
-import { HttpTransport } from '@semiont/api-client';
+import { HttpTransport } from '@semiont/sdk';
 import type { ConnectionState } from '@semiont/core';
 
 const httpTransport = session.client.transport as HttpTransport;
@@ -608,7 +608,7 @@ if (error instanceof APIError) {
 `HttpTransport` accepts an optional `logger` (`winston`, `pino`, or any `Logger`-shaped object from `@semiont/core`). The transport emits structured request/response logs through it:
 
 ```typescript
-import { HttpTransport, HttpContentTransport } from '@semiont/api-client';
+import { HttpTransport, HttpContentTransport } from '@semiont/sdk';
 import { SemiontClient } from '@semiont/sdk';
 import { baseUrl } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';

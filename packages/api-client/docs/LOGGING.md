@@ -1,6 +1,6 @@
 # API Client Logging
 
-Complete guide to logging and observability in the Semiont API client.
+Complete guide to logging and observability in the Semiont API client transport.
 
 ## Table of Contents
 
@@ -16,28 +16,29 @@ Complete guide to logging and observability in the Semiont API client.
 
 ## Overview
 
-The Semiont API client provides optional logging support to help you:
+The `HttpTransport` in `@semiont/api-client` provides optional logging support to help you:
 
-- **Debug authentication issues** - See exactly what tokens are being sent
+- **Debug authentication issues** - See whether a token is being sent
 - **Monitor API usage** - Track all HTTP requests and responses
-- **Observe SSE streams** - Watch real-time events as they arrive
-- **Diagnose errors** - Get full context for failures with stack traces
+- **Diagnose errors** - Get full context for failures
 - **Integrate with monitoring** - Send logs to your observability platform
 
 **Key features**:
 
 - ✅ Framework-agnostic logger interface (winston, pino, bunyan, console)
-- ✅ Covers both HTTP requests (via ky) and SSE streams (via native fetch)
+- ✅ Covers HTTP requests made by the transport (via ky)
 - ✅ Structured metadata for easy parsing
 - ✅ Security-first (auth tokens never logged)
-- ✅ Optional and backward compatible
+- ✅ Optional — omit the `logger` and nothing is logged
 
 ## Quick Start
 
 ### Basic Setup
 
 ```typescript
-import { SemiontApiClient, Logger, baseUrl } from '@semiont/api-client';
+import { HttpTransport } from '@semiont/api-client';
+import type { Logger } from '@semiont/core';
+import { baseUrl } from '@semiont/core';
 import winston from 'winston';
 
 // Create your logger
@@ -47,32 +48,37 @@ const logger = winston.createLogger({
   transports: [new winston.transports.Console()]
 });
 
-// Pass it to the client
-const client = new SemiontApiClient({
+// Pass it to the transport
+const transport = new HttpTransport({
   baseUrl: baseUrl('http://localhost:4000'),
+  token$,
   logger
 });
 
-// Now all HTTP requests and SSE streams will be logged automatically
+// Now all HTTP requests made by the transport will be logged automatically
 ```
 
 ### Console-Only Logging (Development)
 
 ```typescript
-const client = new SemiontApiClient({
+const consoleLogger: Logger = {
+  debug: (msg, meta) => console.debug(msg, meta),
+  info: (msg, meta) => console.info(msg, meta),
+  warn: (msg, meta) => console.warn(msg, meta),
+  error: (msg, meta) => console.error(msg, meta),
+  child: () => consoleLogger
+};
+
+const transport = new HttpTransport({
   baseUrl: baseUrl('http://localhost:4000'),
-  logger: {
-    debug: (msg, meta) => console.debug(msg, meta),
-    info: (msg, meta) => console.info(msg, meta),
-    warn: (msg, meta) => console.warn(msg, meta),
-    error: (msg, meta) => console.error(msg, meta)
-  }
+  token$,
+  logger: consoleLogger
 });
 ```
 
 ## Logger Interface
 
-The client accepts any object implementing this interface:
+The transport accepts any object implementing the `Logger` interface from `@semiont/core`:
 
 ```typescript
 interface Logger {
@@ -80,6 +86,7 @@ interface Logger {
   info(message: string, meta?: any): void;
   warn(message: string, meta?: any): void;
   error(message: string, meta?: any): void;
+  child(meta: Record<string, any>): Logger;
 }
 ```
 
@@ -93,18 +100,14 @@ interface Logger {
 
 ## What Gets Logged
 
-The API client logs activity from **two different HTTP clients**:
-
-### 1. Regular HTTP Requests (via ky)
-
-All resource, annotation, and authentication operations:
+The transport logs activity from its **HTTP client (via ky)** — every request, response, and error that crosses the wire:
 
 ```typescript
-// Creating a resource triggers logging
-const { resource } = await client.createResource({
+// Uploading a resource through the SDK triggers transport logging
+const upload = client.yield.resource({
   name: 'My Document',
-  file: Buffer.from('Hello World'),
-  format: 'text/plain',
+  content: Buffer.from('Hello World'),
+  contentType: 'text/plain',
   entityTypes: ['example']
 });
 
@@ -113,38 +116,20 @@ const { resource } = await client.createResource({
 // DEBUG: HTTP Response { type: 'http_response', status: 201, ... }
 ```
 
-### 2. SSE Streams (via native fetch)
-
-All streaming operations for AI-powered detection and generation:
-
-```typescript
-const stream = client.sse.markReferences(resourceId(resource['@id']), {
-  entityTypes: ['Person', 'Organization']
-});
-
-stream.onProgress((p) => console.log(p.message));
-stream.onComplete((r) => console.log(`Found ${r.foundCount} entities`));
-
-// Logs:
-// DEBUG: SSE Stream Request { type: 'sse_request', url: '...', ... }
-// INFO:  SSE Stream Connected { type: 'sse_connected', status: 200, ... }
-// DEBUG: SSE Event Received { type: 'sse_event', event: 'detection-progress', ... }
-// DEBUG: SSE Event Received { type: 'sse_event', event: 'detection-complete', ... }
-// INFO:  SSE Stream Closed { type: 'sse_closed', reason: 'complete' }
-```
+Binary uploads through `HttpContentTransport.putBinary(...)` go through the same
+ky instance and are logged the same way.
 
 ## Log Levels
 
-The client uses four log levels with specific meanings:
+The transport uses the four standard log levels; only `debug` and `error` are emitted today:
 
 ### debug - Verbose Request/Response Details
 
-**What**: Every HTTP request, response, and SSE event
+**What**: Every HTTP request and response
 **When**: Development, troubleshooting specific issues
 **Volume**: High (can be very noisy)
 
 ```typescript
-// HTTP
 logger.debug('HTTP Request', {
   type: 'http_request',
   url: 'http://localhost:4000/api/resources',
@@ -160,51 +145,27 @@ logger.debug('HTTP Response', {
   status: 201,
   statusText: 'Created'
 });
-
-// SSE
-logger.debug('SSE Event Received', {
-  type: 'sse_event',
-  url: 'http://localhost:4000/resources/123/detect-annotations-stream',
-  event: 'detection-progress',
-  hasData: true
-});
 ```
 
 ### info - Significant Operations
 
-**What**: SSE stream lifecycle events, major operations
-**When**: Production monitoring, understanding application flow
-**Volume**: Medium
-
-```typescript
-logger.info('SSE Stream Connected', {
-  type: 'sse_connected',
-  url: 'http://localhost:4000/resources/123/detect-annotations-stream',
-  status: 200,
-  contentType: 'text/event-stream'
-});
-
-logger.info('SSE Stream Closed', {
-  type: 'sse_closed',
-  url: 'http://localhost:4000/resources/123/detect-annotations-stream',
-  reason: 'complete' // or 'abort'
-});
-```
+**What**: Reserved for significant operations
+**When**: Not currently emitted by the transport
+**Volume**: None today
 
 ### warn - Recoverable Issues
 
-**What**: Issues that don't prevent operation (not currently used by client)
+**What**: Issues that don't prevent operation (not currently used by the transport)
 **When**: Future use for retries, deprecation warnings
 **Volume**: Low
 
 ### error - Failures
 
-**What**: HTTP errors (4xx/5xx), SSE stream failures
+**What**: HTTP errors (4xx/5xx)
 **When**: Always (you want to know about these)
 **Volume**: Should be low in healthy systems
 
 ```typescript
-// HTTP error
 logger.error('HTTP Request Failed', {
   type: 'http_error',
   url: 'http://localhost:4000/api/resources/999',
@@ -212,14 +173,6 @@ logger.error('HTTP Request Failed', {
   status: 404,
   statusText: 'Not Found',
   error: 'Resource not found'
-});
-
-// SSE error
-logger.error('SSE Stream Error', {
-  type: 'sse_error',
-  url: 'http://localhost:4000/resources/123/detect-annotations-stream',
-  error: 'Connection refused',
-  phase: 'connect' // or 'stream' or 'parse'
 });
 ```
 
@@ -248,7 +201,7 @@ const logger = winston.createLogger({
   ]
 });
 
-const client = new SemiontApiClient({ baseUrl, logger });
+const transport = new HttpTransport({ baseUrl: baseUrl(url), token$, logger });
 ```
 
 ### Pino (High Performance)
@@ -266,7 +219,7 @@ const logger = pino({
   }
 });
 
-const client = new SemiontApiClient({ baseUrl, logger });
+const transport = new HttpTransport({ baseUrl: baseUrl(url), token$, logger });
 ```
 
 ### Environment-Based Levels
@@ -282,27 +235,28 @@ const logger = winston.createLogger({
   ]
 });
 
-const client = new SemiontApiClient({ baseUrl, logger });
+const transport = new HttpTransport({ baseUrl: baseUrl(url), token$, logger });
 ```
 
 ### Filtering by Type
 
-Only log errors and SSE lifecycle events:
+Only log errors and responses, dropping request noise:
 
 ```typescript
-const logger = {
-  debug: () => {}, // Ignore debug
-  info: (msg: string, meta: any) => {
-    // Only log SSE lifecycle
-    if (meta.type === 'sse_connected' || meta.type === 'sse_closed') {
-      console.info(msg, meta);
+const logger: Logger = {
+  debug: (msg: string, meta: any) => {
+    // Only log responses, not requests
+    if (meta.type === 'http_response') {
+      console.debug(msg, meta);
     }
   },
+  info: (msg: string, meta: any) => console.info(msg, meta),
   warn: (msg: string, meta: any) => console.warn(msg, meta),
-  error: (msg: string, meta: any) => console.error(msg, meta)
+  error: (msg: string, meta: any) => console.error(msg, meta),
+  child: () => logger
 };
 
-const client = new SemiontApiClient({ baseUrl, logger });
+const transport = new HttpTransport({ baseUrl: baseUrl(url), token$, logger });
 ```
 
 ### Integration with Observability Platforms
@@ -325,7 +279,7 @@ const logger = winston.createLogger({
   ]
 });
 
-const client = new SemiontApiClient({ baseUrl, logger });
+const transport = new HttpTransport({ baseUrl: baseUrl(url), token$, logger });
 ```
 
 #### Splunk
@@ -341,14 +295,15 @@ const splunkLogger = new SplunkStream({
   url: process.env.SPLUNK_URL
 });
 
-const logger = {
+const logger: Logger = {
   debug: (msg: string, meta: any) => splunkLogger.send({ message: msg, severity: 'debug', ...meta }),
   info: (msg: string, meta: any) => splunkLogger.send({ message: msg, severity: 'info', ...meta }),
   warn: (msg: string, meta: any) => splunkLogger.send({ message: msg, severity: 'warning', ...meta }),
-  error: (msg: string, meta: any) => splunkLogger.send({ message: msg, severity: 'error', ...meta })
+  error: (msg: string, meta: any) => splunkLogger.send({ message: msg, severity: 'error', ...meta }),
+  child: () => logger
 };
 
-const client = new SemiontApiClient({ baseUrl, logger });
+const transport = new HttpTransport({ baseUrl: baseUrl(url), token$, logger });
 ```
 
 ## Structured Metadata
@@ -362,16 +317,6 @@ All log entries include a `type` field for easy filtering and parsing:
 | `http_request` | debug | HTTP request initiated |
 | `http_response` | debug | HTTP response received |
 | `http_error` | error | HTTP request failed |
-
-### SSE Types
-
-| Type | Level | Description |
-|------|-------|-------------|
-| `sse_request` | debug | SSE stream request initiated |
-| `sse_connected` | info | SSE stream connected successfully |
-| `sse_event` | debug | SSE event received |
-| `sse_closed` | info | SSE stream closed (normal) |
-| `sse_error` | error | SSE stream error |
 
 ### Common Fields
 
@@ -409,51 +354,11 @@ All log entries include a `type` field for easy filtering and parsing:
 }
 ```
 
-**SSE Stream Connected**:
-```typescript
-{
-  type: 'sse_connected',
-  url: string,
-  status: number,
-  contentType: string       // 'text/event-stream'
-}
-```
-
-**SSE Event**:
-```typescript
-{
-  type: 'sse_event',
-  url: string,
-  event: string,            // Event type ('detection-progress', etc.)
-  hasData: boolean
-}
-```
-
-**SSE Stream Closed**:
-```typescript
-{
-  type: 'sse_closed',
-  url: string,
-  reason: 'complete' | 'abort'
-}
-```
-
-**SSE Error**:
-```typescript
-{
-  type: 'sse_error',
-  url: string,
-  error: string,
-  phase: 'connect' | 'stream' | 'parse',
-  status?: number           // Only present in connect phase
-}
-```
-
 ## Security
 
 ### Authorization Headers Are Never Logged
 
-The client **never** logs the value of `Authorization` headers to prevent token leakage:
+The transport **never** logs the value of `Authorization` headers to prevent token leakage:
 
 ```typescript
 // ✅ What gets logged
@@ -474,7 +379,7 @@ The client **never** logs the value of `Authorization` headers to prevent token 
 
 ### Request/Response Bodies Not Logged
 
-The client does not log request or response bodies, which may contain:
+The transport does not log request or response bodies, which may contain:
 
 - User credentials
 - Personally identifiable information (PII)
@@ -497,8 +402,9 @@ The default logging configuration is safe for production use:
 
 **Check logger is passed**:
 ```typescript
-const client = new SemiontApiClient({
-  baseUrl,
+const transport = new HttpTransport({
+  baseUrl: baseUrl(url),
+  token$,
   logger // ← Make sure this is present
 });
 ```
@@ -522,37 +428,23 @@ const logger = winston.createLogger({
 
 **Filter by type**:
 ```typescript
-const logger = {
-  debug: () => {}, // Ignore all debug logs
-  info: (msg: string, meta: any) => {
-    // Only log SSE lifecycle
-    if (meta.type?.startsWith('sse_')) {
-      console.info(msg, meta);
-    }
-  },
+const logger: Logger = {
+  debug: () => {}, // Ignore all debug logs (drops http_request/http_response)
+  info: console.info,
   warn: console.warn,
-  error: console.error
+  error: console.error,
+  child: () => logger
 };
-```
-
-### "SSE events not logging"
-
-SSE events are logged at `debug` level. Make sure your logger level is set to `debug`:
-
-```typescript
-const logger = winston.createLogger({
-  level: 'debug' // ← Required to see SSE events
-});
 ```
 
 ### "Want to see request/response timing"
 
-The client logs `timestamp` on requests. Calculate duration yourself:
+The transport logs `timestamp` on requests. Calculate duration yourself:
 
 ```typescript
 const timings = new Map<string, number>();
 
-const logger = {
+const logger: Logger = {
   debug: (msg: string, meta: any) => {
     if (meta.type === 'http_request') {
       timings.set(meta.url, meta.timestamp);
@@ -567,7 +459,8 @@ const logger = {
   },
   info: console.info,
   warn: console.warn,
-  error: console.error
+  error: console.error,
+  child: () => logger
 };
 ```
 
@@ -584,7 +477,7 @@ const logger = {
    - Keep error logs longer than info logs
 
 3. **Monitor error logs**
-   - Set up alerts for `http_error` and `sse_error` types
+   - Set up alerts for the `http_error` type
    - Track error rates over time
    - Investigate spikes in 4xx/5xx errors
 
@@ -600,4 +493,5 @@ const logger = {
 
 ## Related Documentation
 
-- [API Reference](./API-Reference.md) - Complete method documentation
+- [API Reference](./API-Reference.md) - Transport-level reference (`HttpTransport`, `HttpContentTransport`)
+- `@semiont/sdk` - Complete high-level method catalog (`SemiontClient` and its namespaces)

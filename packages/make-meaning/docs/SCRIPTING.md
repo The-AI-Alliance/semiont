@@ -169,34 +169,33 @@ for (const rId of resourceIds) {
 }
 ```
 
-## Using SemiontApiClient (Recommended)
+## Using the SDK (Recommended)
 
-For most scripting use cases, `SemiontApiClient` with verb namespaces is the simplest approach:
+For most scripting use cases, the `@semiont/sdk` `SemiontClient` with verb namespaces is the simplest approach:
 
 ```typescript
-import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, accessToken, EventBus, resourceId, type AccessToken } from '@semiont/core';
-import { firstValueFrom, BehaviorSubject } from 'rxjs';
+import { SemiontClient } from '@semiont/sdk';
+import { resourceId, annotationId } from '@semiont/core';
 
-const semiont = new SemiontApiClient({
-  baseUrl: baseUrl('http://localhost:4000'),
-  eventBus: new EventBus(),
-  token$: new BehaviorSubject<AccessToken | null>(accessToken(token)),
+const semiont = await SemiontClient.signInHttp({
+  baseUrl: 'http://localhost:4000',
+  email,
+  password,
 });
 
+// The SDK is RxJS-native, but its return values are PromiseLike — `await` works directly.
+
 // Browse resources
-const resource = await firstValueFrom(semiont.browse.resource(resourceId('doc-123')));
+const resource = await semiont.browse.resource(resourceId('doc-123'));
 const content = await semiont.browse.resourceContent(resourceId('doc-123'));
 const events = await semiont.browse.resourceEvents(resourceId('doc-123'));
 
-// Mark annotations
-await semiont.mark.annotation(resourceId('doc-123'), { motivation: 'highlighting', ... });
-await semiont.mark.entityType('Person');
+// Mark annotations / register entity types
+await semiont.mark.annotation({ /* CreateAnnotationInput: target, motivation, body */ });
+await semiont.frame.addEntityType('Person');
 
 // Gather LLM context
-const context = await firstValueFrom(
-  semiont.gather.annotation(annotationId('ann-1'), resourceId('doc-123'))
-);
+const context = await semiont.gather.annotation(annotationId('ann-1'), resourceId('doc-123'));
 
 // Bind references
 await semiont.bind.body(resourceId('doc-123'), annotationId('ann-1'), operations);
@@ -206,7 +205,7 @@ Use the context modules directly (`ResourceContext`, `AnnotationContext`, `Graph
 
 ## Differences from Direct Context Modules
 
-| Aspect | SemiontApiClient | Direct Context Modules |
+| Aspect | SemiontClient (SDK) | Direct Context Modules |
 |--------|------------------|----------------------|
 | **Transport** | HTTP REST + SSE | Direct function calls |
 | **Authentication** | JWT tokens via `getToken` | Not needed |

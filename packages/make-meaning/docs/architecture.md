@@ -10,7 +10,7 @@ The package owns the **Knowledge Base** and its actors that interface with it. A
 graph TB
     Routes["Backend Routes"] -->|commands| BUS["Event Bus"]
     Workers["Job Workers"] -->|commands| BUS
-    EBC["SemiontApiClient"] -->|commands| BUS
+    EBC["SemiontClient"] -->|commands| BUS
 
     BUS -->|"yield:create, mark:create,<br/>mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>frame:add-entity-type,<br/>mark:update-entity-types,<br/>job:start, job:complete, ..."| STOWER["Stower"]
     BUS -->|"browse:*,<br/>mark:entity-types-*"| BROWSER["Browser"]

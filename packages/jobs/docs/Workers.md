@@ -1,283 +1,339 @@
 # Workers Guide
 
-Workers are long-running processes that poll the job queue and execute jobs. The `JobWorker` abstract base class provides the polling loop, error handling, and lifecycle management — you implement the business logic.
+A worker is a standalone process that serves a single software-agent identity and turns queued jobs into Knowledge Base events. It opens an authenticated session, subscribes to a set of job types, and — whenever the bus announces a `job:queued` it is eligible to claim — fetches the resource, runs a **processor**, and emits the results.
 
-Workers are **not** actors. They use a polling loop, not RxJS subscriptions. But they emit the same EventBus commands as any other caller in the system. The **Stower** actor (in `@semiont/make-meaning`) handles all persistence to the Knowledge Base.
+Workers are **not** actors. They don't subscribe to a reducer; they claim jobs over the bus and dispatch by job type. But they emit the same EventBus commands as any other caller in the system. The **Stower** actor (in `@semiont/make-meaning`) handles all persistence to the Knowledge Base — a worker never writes to storage directly.
 
 **See also**: [Type System Guide](./TYPES.md) for job state architecture and type narrowing patterns.
 
-## Overview
+## The Processor Model
 
-The `JobWorker` base class handles:
+There is no per-job-type worker class. Adding support for a job type means writing a **pure function** — a processor — and wiring it into the worker process's dispatch. Everything that touches the bus, the session, or the queue lives in shared infrastructure; your code only takes content and parameters and returns annotations.
 
-- Polling the in-memory job queue at configurable intervals
-- Moving jobs from `pending` → `running` → `complete/failed`
-- Error recovery with configurable backoff
-- Graceful shutdown (finishes current job, up to 60s timeout)
-- Retry logic for failed jobs (`retryCount < maxRetries` → back to pending)
+The moving parts:
 
-You implement:
+| File | Role |
+|------|------|
+| `src/worker-main.ts` | Standalone entry point. Reads `~/.semiontconfig`, groups job types by `(provider, model)`, authenticates each agent, and starts one worker process per agent group. |
+| `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs via the `JobClaimAdapter`, then `handleJobInner` dispatches by `jobType` to the right processor and emits lifecycle + `mark:create` events. |
+| `src/processors.ts` | The `process*Job` functions. Pure: content + inference + params in, `{ annotations, result }` out. No bus, no queue, no I/O except calling inference. |
+| `src/workers/annotation-detection.ts` | `AnnotationDetection` — the LLM detection logic the annotation processors call (`detectHighlights`, `detectComments`, `detectAssessments`, `detectTags`). |
+| `src/fs-job-queue.ts` | `FsJobQueue` — the filesystem-backed queue jobs are claimed from. |
 
-- Worker identification (`getWorkerName()`)
-- Job filtering (`canProcessJob()`)
-- Business logic (`executeJob()`)
+## How a Worker Runs
 
-## JobWorker Base Constructor
+`worker-main.ts` is the host. For each distinct `(inferenceProvider, model)` configured under `[environments.<env>.workers]` in `~/.semiontconfig`, it:
+
+1. Authenticates that agent against `/api/tokens/agent` (using `SEMIONT_WORKER_SECRET`).
+2. Builds a `generator` — a W3C `Software` agent record — with `softwareToAgent({ domain, provider, model })`. This is stamped onto every annotation as `generator` and onto generated resources as `wasAttributedTo`.
+3. Opens a `SemiontSession` (`@semiont/sdk`) authenticated *as that agent*, so every event the worker emits attributes to the agent at the bus seat.
+4. Calls `startWorkerProcess`:
 
 ```typescript
-constructor(
-  jobQueue: JobQueue,
-  pollIntervalMs: number = 1000,
-  errorBackoffMs: number = 5000,
-  logger: Logger
-)
+const adapter = startWorkerProcess({
+  session,                 // SemiontSession, authenticated as this agent
+  jobTypes: group.jobTypes,// the job types this agent's engine serves
+  inferenceClient,         // the (provider, model) inference client
+  generator,               // the Software agent record
+  logger,
+});
 ```
 
-All built-in workers pass `undefined` for poll/backoff intervals to use defaults:
+`startWorkerProcess` creates a `JobClaimAdapter` over the session's transport actor. The adapter subscribes to the SSE `job:queued` stream, claims jobs whose `jobType` is in `jobTypes`, and surfaces each claimed job on `activeJob$`. For every claimed job, `startWorkerProcess` calls `handleJob → handleJobInner`, which does the actual fetch / process / emit.
+
+## Built-in Job Types
+
+`JobType` (in `src/types.ts`) enumerates the six types, each dispatched to one processor in `handleJobInner`:
+
+| `jobType` | Processor | Returns |
+|-----------|-----------|---------|
+| `highlight-annotation` | `processHighlightJob` | `{ annotations, result }` |
+| `comment-annotation` | `processCommentJob` | `{ annotations, result }` |
+| `assessment-annotation` | `processAssessmentJob` | `{ annotations, result }` |
+| `reference-annotation` | `processReferenceJob` | `{ annotations, result }` |
+| `tag-annotation` | `processTagJob` | `{ annotations, result }` |
+| `generation` | `processGenerationJob` | `{ content, title, format, result }` |
+
+The five annotation processors share the same signature shape:
 
 ```typescript
-super(jobQueue, undefined, undefined, logger);
+process<X>Job(
+  content: string,            // fetched by the worker process, not the processor
+  inferenceClient: InferenceClient,
+  params: <X>DetectionParams,
+  userId: string,             // DID of the human who initiated the work
+  generator: Agent,           // the agent stamped as `generator`
+  onProgress: OnProgress,
+  logger?: Logger,            // processReferenceJob takes this; others don't
+): Promise<ProcessorResult<<X>DetectionResult>>
 ```
 
-## Built-in Workers
+`ProcessorResult<R>` is `{ annotations: Record<string, unknown>[]; result: R }`. The annotations are W3C Web Annotation objects built by the processor's internal `buildTextAnnotation` helper, which enforces a write-time invariant (`content.substring(start, end) === exact`) so a mis-anchored selector throws loudly instead of corrupting the KB.
 
-Six workers ship with `@semiont/jobs`:
-
-| Worker | Job Type | Constructor |
-|--------|----------|-------------|
-| `ReferenceAnnotationWorker` | `reference-annotation` | `(jobQueue, config, inferenceClient, eventBus, contentFetcher, logger)` |
-| `GenerationWorker` | `generation` | `(jobQueue, config, inferenceClient, eventBus, logger)` |
-| `HighlightAnnotationWorker` | `highlight-annotation` | `(jobQueue, config, inferenceClient, eventBus, contentFetcher, logger)` |
-| `AssessmentAnnotationWorker` | `assessment-annotation` | `(jobQueue, config, inferenceClient, eventBus, contentFetcher, logger)` |
-| `CommentAnnotationWorker` | `comment-annotation` | `(jobQueue, config, inferenceClient, eventBus, contentFetcher, logger)` |
-| `TagAnnotationWorker` | `tag-annotation` | `(jobQueue, config, inferenceClient, eventBus, contentFetcher, logger)` |
-
-All annotation workers (except `GenerationWorker`) take a `ContentFetcher` — a function `(resourceId: ResourceId) => Promise<Readable | null>` — to access resource content on demand.
-
-Workers emit EventBus commands (`mark:create`, `job:start`, `job:report-progress`, `job:complete`) — the Stower actor in `@semiont/make-meaning` handles persistence.
-
-## Creating a Custom Worker
+Generation is the odd one out — it produces *content*, not annotations:
 
 ```typescript
-import { JobWorker, type AnyJob } from '@semiont/jobs';
-import type { JobQueue } from '@semiont/jobs';
-import type { Logger } from '@semiont/core';
+processGenerationJob(
+  inferenceClient: InferenceClient,
+  params: GenerationParams,
+  onProgress: OnProgress,
+  logger: Logger,
+): Promise<{ content: string; title: string; format: string; result: GenerationResult }>
+```
 
-class MyWorker extends JobWorker {
-  constructor(jobQueue: JobQueue, logger: Logger) {
-    super(jobQueue, 2000, 10000, logger);
-    //              ^^^^  ^^^^^
-    //              poll   error backoff
-  }
+## Where Content Comes From
 
-  protected getWorkerName(): string {
-    return 'MyWorker';
-  }
+Annotation processors receive `content` as their first argument — they never fetch it. The **worker process** fetches it, inside `handleJobInner`:
 
-  protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'generation';
-  }
+```typescript
+const fetchContent = async (): Promise<string> => {
+  return session.client.browse.resourceContent(resourceId);
+};
+```
 
-  protected async executeJob(job: AnyJob): Promise<any> {
-    // Your processing logic — return result object
-    return { processed: true };
-  }
+There is no `ContentFetcher` injected into a constructor anywhere. If you need the resource's text, the worker process hands it to you; if you need something else from the KB, reach for `session.client`.
+
+## How a Worker Emits
+
+Workers emit lifecycle and annotation commands directly on the session's transport. `handleJobInner` does this through a small `emitEvent` helper that wraps `session.client.transport.emit(...)`:
+
+- `job:start` — once, when the job is picked up.
+- `job:report-progress` — driven by the processor's `onProgress` callback (ephemeral; Stower ignores it, the UI renders it).
+- `mark:create` — one per produced annotation: `{ annotation, userId, resourceId }`.
+- `job:complete` — once, with the processor's `result`.
+- `job:fail` — on error, with the message.
+
+The processor itself emits nothing. It calls `onProgress(percentage, message, stage, extra?)`; the worker process turns each call into a `job:report-progress` event.
+
+## Adding a Custom Job Type
+
+Suppose you want a `summary-annotation` job. Three edits, no new classes:
+
+### 1. Add the `JobType`
+
+In `src/types.ts`, extend the union and add the params / result / progress shapes alongside the existing ones:
+
+```typescript
+export type JobType =
+  | 'reference-annotation' | 'generation' | 'highlight-annotation'
+  | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation'
+  | 'summary-annotation';
+
+export interface SummaryDetectionParams {
+  resourceId: ResourceId;
+  instructions?: string;
+  language?: string;
+}
+
+export interface SummaryDetectionResult {
+  summariesFound: number;
+  summariesCreated: number;
 }
 ```
 
-## Worker with Dependencies
+### 2. Write the processor
+
+In `src/processors.ts`, add a pure function that takes content + inference + params and returns `{ annotations, result }`. Lean on the existing helpers (`buildTextAnnotation`, `dedupeAnnotations`) and put detection logic in `AnnotationDetection`:
 
 ```typescript
-import { JobWorker, type AnyJob, type RunningJob, type GenerationParams, type YieldProgress, type GenerationResult } from '@semiont/jobs';
-import type { JobQueue } from '@semiont/jobs';
-import type { InferenceClient } from '@semiont/inference';
-import type { EventBus, Logger } from '@semiont/core';
+export async function processSummaryJob(
+  content: string,
+  inferenceClient: InferenceClient,
+  params: SummaryDetectionParams,
+  userId: string,
+  generator: Agent,
+  onProgress: OnProgress,
+): Promise<ProcessorResult<SummaryDetectionResult>> {
+  onProgress(10, 'Loading resource...', 'analyzing');
+  onProgress(30, 'Analyzing text...', 'analyzing');
 
-class MyGenerationWorker extends JobWorker {
-  constructor(
-    jobQueue: JobQueue,
-    private inferenceClient: InferenceClient,
-    private eventBus: EventBus,
-    logger: Logger,
-  ) {
-    super(jobQueue, undefined, undefined, logger);
-  }
+  const summaries = await AnnotationDetection.detectSummaries(
+    content, inferenceClient, params.instructions, params.language,
+  );
 
-  protected getWorkerName(): string {
-    return 'MyGenerationWorker';
-  }
+  onProgress(60, `Creating ${summaries.length} annotations...`, 'creating');
 
-  protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'generation';
-  }
+  const bodyLanguage = params.language ?? 'en';
+  const annotations = dedupeAnnotations(summaries.map((s) =>
+    buildTextAnnotation(content, params.resourceId, userId, generator, 'summarizing', s, [
+      { type: 'TextualBody', value: s.summary, purpose: 'summarizing', format: 'text/plain', language: bodyLanguage },
+    ]),
+  ));
 
-  protected async executeJob(job: AnyJob): Promise<GenerationResult> {
-    if (job.status !== 'running') throw new Error('Job must be running');
+  onProgress(100, `Complete! Created ${annotations.length} summaries`, 'creating');
 
-    const genJob = job as RunningJob<GenerationParams, YieldProgress>;
-
-    // Emit start event on EventBus
-    this.eventBus.get('job:start').next({
-      jobId: genJob.metadata.id,
-      jobType: genJob.metadata.type,
-    });
-
-    // Do work...
-    const content = await this.inferenceClient.generateText(/* ... */);
-
-    // Return result — base class handles transition to complete
-    return {
-      resourceId: resourceId('doc-new'),
-      resourceName: genJob.params.title ?? 'Untitled',
-    };
-  }
-}
-```
-
-## Worker Lifecycle
-
-### Starting
-
-```typescript
-const worker = new MyWorker(jobQueue, logger);
-
-// Non-blocking start (runs in background)
-worker.start();
-
-// Or blocking (waits until stop() is called)
-await worker.start();
-```
-
-`start()` enters a polling loop:
-1. Polls queue via `pollNextPendingJob(predicate)` using `canProcessJob` as filter
-2. If job found: transitions to running → calls `executeJob` → transitions to complete/failed
-3. If no job: sleeps `pollIntervalMs`
-4. On error: sleeps `errorBackoffMs`
-5. Repeats until `stop()` is called
-
-### Stopping
-
-```typescript
-await worker.stop();
-```
-
-Sets `running = false`, waits up to 60 seconds for the current job to finish. If the job takes longer, forces shutdown (job stays in `running` status for crash recovery).
-
-## Processing Flow
-
-```
-Poll in-memory queue (no filesystem I/O)
-  ↓
-canProcessJob(job) — filter by job type
-  ↓ (match found)
-Move job: pending → running (via updateJob)
-  ↓
-executeJob(runningJob) — YOUR LOGIC
-  ↓
-emitCompletionEvent(job, result) — optional hook
-  ↓ success
-Move job: running → complete (with returned result)
-
-  ↓ error (executeJob throws)
-If retryCount < maxRetries:
-  Move job: running → pending (increment retryCount)
-If retryCount >= maxRetries:
-  Move job: running → failed (permanent)
-```
-
-## Error Handling
-
-The base class catches all errors from `executeJob` and handles retry/failure automatically:
-
-```typescript
-protected async executeJob(job: AnyJob): Promise<GenerationResult> {
-  if (job.status !== 'running') throw new Error('Job must be running');
-  const genJob = job as RunningJob<GenerationParams, YieldProgress>;
-
-  try {
-    const content = await this.inferenceClient.generateText(/* ... */);
-    return { resourceId: resourceId('doc-new'), resourceName: genJob.params.title ?? '' };
-  } catch (error) {
-    // Add context, then re-throw for base class to handle
-    this.logger.error('Generation failed', { jobId: genJob.metadata.id, error });
-    throw error;
-  }
-}
-```
-
-## Progress Reporting
-
-Update progress by creating an immutable updated job and calling `updateJobProgress`:
-
-```typescript
-protected async executeJob(job: AnyJob): Promise<GenerationResult> {
-  if (job.status !== 'running') throw new Error('Job must be running');
-  const genJob = job as RunningJob<GenerationParams, YieldProgress>;
-
-  // Stage 1
-  let current: RunningJob<GenerationParams, YieldProgress> = {
-    ...genJob,
-    progress: { stage: 'fetching', percentage: 25, message: 'Fetching source...' },
+  return {
+    annotations,
+    result: { summariesFound: summaries.length, summariesCreated: annotations.length },
   };
-  await this.updateJobProgress(current); // best-effort, won't throw
-
-  // Stage 2
-  current = { ...current, progress: { stage: 'generating', percentage: 50, message: 'Generating...' } };
-  await this.updateJobProgress(current);
-
-  // Return result
-  return { resourceId: resourceId('doc-new'), resourceName: genJob.params.title ?? '' };
 }
 ```
 
-## Testing Workers
+Then export it from `src/index.ts` next to the other `process*Job` functions.
+
+### 3. Add a dispatch branch
+
+In `src/worker-process.ts`, add a branch to `handleJobInner`. The branch fetches content, calls the processor, emits one `mark:create` per annotation, then `job:complete`:
 
 ```typescript
-import { describe, it, expect, beforeEach } from 'vitest';
-import type { PendingJob, GenerationParams } from '@semiont/jobs';
-import { jobId } from '@semiont/api-client';
-import { userId, resourceId, annotationId } from '@semiont/core';
-
-describe('MyWorker', () => {
-  let queue: JobQueue;
-  let worker: MyWorker;
-
-  beforeEach(async () => {
-    queue = new JobQueue({ dataDir: './test-data' }, mockLogger);
-    await queue.initialize();
-    worker = new MyWorker(queue, mockLogger);
+} else if (jobType === 'summary-annotation') {
+  const content = await fetchContent();
+  const { annotations, result } = await processSummaryJob(
+    content, inferenceClient, job.params as never, userId, generator, onProgress,
+  );
+  for (const ann of annotations) {
+    await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
+  }
+  await emitEvent(session, 'job:complete', {
+    ...lifecycleBase,
+    result: result as never,
   });
+  adapter.completeJob();
 
-  it('should process generation jobs', async () => {
-    const job: PendingJob<GenerationParams> = {
-      status: 'pending',
-      metadata: {
-        id: jobId('test-1'),
-        type: 'generation',
-        userId: userId('user@test.com'),
-        userName: 'Test User',
-        userEmail: 'user@test.com',
-        userDomain: 'test.com',
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3,
-      },
-      params: {
-        referenceId: annotationId('ref-1'),
-        sourceResourceId: resourceId('doc-1'),
-        sourceResourceName: 'Test Doc',
-        annotation: { /* ... */ },
-        title: 'Test Article',
-        prompt: 'Test prompt',
-        language: 'en-US',
-      },
-    };
-    await queue.createJob(job);
+}
+```
 
-    // Process manually (not via start())
-    const retrieved = await queue.pollNextPendingJob();
-    expect(retrieved).toBeTruthy();
-    expect(worker['canProcessJob'](retrieved!)).toBe(true);
+Finally, add `'summary-annotation'` to `ALL_JOB_TYPES` in `src/worker-main.ts` so the host actually subscribes to it. That's the whole extension path — no base class, no lifecycle methods to override.
+
+> Generation jobs follow a different tail: instead of emitting `mark:create`, the branch uploads the generated content via `session.client.yield.resource(...)` and reports the new `resourceId` on `job:complete`. Mirror an annotation branch unless you're producing a new resource.
+
+## Lifecycle and Failure Handling
+
+You don't write a polling loop. `startWorkerProcess` owns it:
+
+```
+job:queued (SSE)  →  JobClaimAdapter claims a matching job
+  ↓
+activeJob$ emits  →  handleJob → handleJobInner
+  ↓
+emit job:start
+  ↓
+fetchContent()  (annotation jobs)
+  ↓
+process<X>Job(...)  — YOUR LOGIC, reports via onProgress
+  ↓ success
+emit mark:create (×N)  →  emit job:complete  →  adapter.completeJob()
+
+  ↓ error (anything throws)
+emit job:fail  →  adapter.failJob(jobId, message)
+```
+
+The subscription in `startWorkerProcess` wraps `handleJob` in a `.catch` that emits `job:fail` and calls `adapter.failJob`, so any throw from your processor surfaces as a clean failure. `handleJob` also records an OpenTelemetry span (`job:<type>`) and a job-outcome metric around each run — you get that for free by living inside `handleJobInner`.
+
+## Reporting Progress
+
+Progress is a callback, not a queue mutation. The worker process hands your processor an `onProgress`:
+
+```typescript
+export type OnProgress = (
+  percentage: number,
+  message: string,
+  stage: string,
+  extra?: Partial<JobProgress>,        // job-type-specific UI fields
+) => void;
+```
+
+Call it at meaningful stages — the worker process forwards each call as a `job:report-progress` event:
+
+```typescript
+onProgress(10, 'Loading resource...', 'analyzing');
+onProgress(60, `Creating ${count} annotations...`, 'creating');
+onProgress(100, `Complete! Created ${count} summaries`, 'creating');
+```
+
+The fourth argument carries extra fields the progress UI renders (e.g. `processReferenceJob` passes `currentEntityType`, `completedEntityTypes`, `requestParams`). Progress events are ephemeral — Stower ignores them.
+
+## Testing a Processor
+
+Because processors are pure, you test them with no bus, no session, and no queue. Mock `AnnotationDetection` (the LLM call), feed in content that actually contains your spans (the `buildTextAnnotation` invariant checks `content.substring(start, end) === exact`), and assert on the returned annotations and the `onProgress` calls:
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { resourceId } from '@semiont/core';
+import type { InferenceClient, components } from '@semiont/inference';
+
+type Agent = components['schemas']['Agent'];
+
+vi.mock('../workers/annotation-detection', () => ({
+  AnnotationDetection: { detectSummaries: vi.fn() },
+}));
+
+import { AnnotationDetection } from '../workers/annotation-detection';
+import { processSummaryJob } from '../processors';
+
+const RID = resourceId('res-test');
+const USER_DID = 'did:web:test.local:users:alice%40test.local';
+const GENERATOR: Agent = {
+  '@type': 'Software',
+  '@id': 'did:web:test.local:agents:test:test',
+  name: 'test test', provider: 'test', model: 'test',
+};
+const inferenceClient = { generateText: vi.fn() } as unknown as InferenceClient;
+
+describe('processSummaryJob', () => {
+  it('produces summarizing annotations and reports progress', async () => {
+    const content = 'an important passage worth summarizing.';
+    vi.mocked(AnnotationDetection.detectSummaries).mockResolvedValue([
+      { exact: 'important passage', start: 3, end: 20, summary: 'a key point' },
+    ]);
+
+    const progress = vi.fn();
+    const result = await processSummaryJob(
+      content, inferenceClient, { resourceId: RID }, USER_DID, GENERATOR, progress,
+    );
+
+    expect(result.annotations).toHaveLength(1);
+    expect(result.annotations[0]).toMatchObject({
+      motivation: 'summarizing',
+      target: expect.objectContaining({ source: RID }),
+    });
+    expect(result.result).toEqual({ summariesFound: 1, summariesCreated: 1 });
+    expect(progress).toHaveBeenLastCalledWith(100, expect.stringContaining('1 summaries'), 'creating');
   });
 });
 ```
+
+To exercise the claim → fetch → process → emit → complete orchestration end to end, test `handleJob` from `worker-process.ts` with a fake adapter and a fake session whose `transport.emit` is a spy — but that's the only place you need to mock the bus. The processor stays pure.
+
+## Testing the Queue
+
+`FsJobQueue` is filesystem-backed, so its tests build a throwaway `SemiontProject` over a temp directory. The constructor is `(project, logger, eventBus?)` — there is no `dataDir` option:
+
+```typescript
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { FsJobQueue } from '@semiont/jobs';
+import { SemiontProject } from '@semiont/core/node';
+import { EventBus } from '@semiont/core';
+
+const mockLogger = {
+  debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
+  child: vi.fn(() => mockLogger),
+};
+
+describe('FsJobQueue', () => {
+  let tempDir: string;
+  let project: SemiontProject;
+  let queue: FsJobQueue;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'job-queue-test-'));
+    project = new SemiontProject(tempDir);
+    queue = new FsJobQueue(project, mockLogger, new EventBus());
+    await queue.initialize();
+  });
+
+  afterEach(async () => {
+    queue.destroy();
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  it('claims a pending job', async () => {
+    // create a pending job, then poll it back out…
+  });
+});
+```
+
+`project.jobsDir` (under the project's XDG state dir) is where the queue lays out its `pending` / `running` / `complete` / `failed` / `cancelled` directories.

@@ -8,8 +8,8 @@ state-units-from-session refactors.
 ## Package layout
 
 ```
-@semiont/api-client
-├── client.ts                 ← SemiontApiClient (HTTP + private EventBus)
+@semiont/sdk
+├── client.ts                 ← SemiontClient (HTTP + private EventBus)
 ├── session/                  ← per-KB session, app-level browser, storage
 │   ├── session-storage.ts    ← SessionStorage interface + InMemorySessionStorage
 │   ├── semiont-session.ts    ← SemiontSession (per-KB)
@@ -38,7 +38,7 @@ exactly two exports: `SemiontProvider` / `useSemiont` (context) and
 
 ## Core classes
 
-### `SemiontApiClient`
+### `SemiontClient`
 
 Owns HTTP (via `ky`), an actor-shaped SSE connection, and a private
 `EventBus`. Workspace-scoped: one client per connected KB.
@@ -58,7 +58,7 @@ take `client` and route through `client.stream(...)` / `client.emit(...)`.
 
 Per-KB lifetime object. Owns:
 
-- `client: SemiontApiClient` — public `readonly`; components reach the bus
+- `client: SemiontClient` — public `readonly`; components reach the bus
   via `session.client.emit(...)` / `session.client.on(...)` /
   `session.client.stream(...)`.
 - `token$`, `user$` — observable auth state.
@@ -99,7 +99,7 @@ with a distinct scope and lifetime:
 
 | Bus | Owner | Lifetime | Channels |
 |---|---|---|---|
-| Session bus | `SemiontApiClient` (private) | Per-KB session (reborn every `signIn` / `setActiveKb`) | KB-content traffic: `browse:*` (reads), `mark:*`, `beckon:*`, `gather:*`, `match:*`, `bind:*`, `yield:*`, `job:*` |
+| Session bus | `SemiontClient` (private) | Per-KB session (reborn every `signIn` / `setActiveKb`) | KB-content traffic: `browse:*` (reads), `mark:*`, `beckon:*`, `gather:*`, `match:*`, `bind:*`, `yield:*`, `job:*` |
 | Shell bus | `SemiontBrowser` (private) | App lifetime (survives sign-out / KB swap) | UI shell traffic: `panel:*`, `shell:*`, `tabs:*`, `nav:*`, `settings:*` |
 
 Both buses expose the same `emit` / `on` / `stream` surface. The split
@@ -145,7 +145,7 @@ interface SessionStorage {
 
 Implementations:
 
-- `InMemorySessionStorage` (in `@semiont/api-client`) — for tests / in-memory.
+- `InMemorySessionStorage` (in `@semiont/sdk`) — for tests / in-memory.
 - `WebBrowserStorage` (in `@semiont/react-ui`) — wraps `localStorage` and
   the `window` `storage` event for cross-tab sync.
 - Future `FileSystemSessionStorage` for CLI persistence — not yet built.
@@ -230,7 +230,7 @@ Every state-unit factory takes exactly one bus-owner, matching the bus its
 channels live on:
 
 - **Session-scoped state units** (mark, beckon, gather, match, bind, yield,
-  browse) take `client: SemiontApiClient` and route through
+  browse) take `client: SemiontClient` and route through
   `client.emit` / `client.stream`. Their lifetime is tied to the
   session.
 - **Shell-scoped state units** (`ShellStateUnit` — toolbar panel state, sidebar
@@ -252,7 +252,7 @@ export function useShellStateUnit(): ShellStateUnit {
 }
 ```
 
-state-unit factories import only from `@semiont/api-client` and call
+state-unit factories import only from `@semiont/sdk` and call
 `.stream(channel).subscribe(...)` / `.emit(channel, payload)`. No
 factory touches a raw `EventBus`.
 
@@ -265,7 +265,7 @@ factory touches a raw `EventBus`.
 3. **Both `eventBus` fields are private.** All bus access is via
    `.emit` / `.on` / `.stream` on the owning object (client or
    browser). Enforced by TypeScript.
-4. **state-unit factories import only from `@semiont/api-client`.** No
+4. **state-unit factories import only from `@semiont/sdk`.** No
    `import { EventBus } from '@semiont/core'` in state unit files.
 5. **Every channel belongs to exactly one bus.** `EventMap` in
    `@semiont/core/bus-protocol.ts` is the source of truth. Don't
@@ -274,17 +274,17 @@ factory touches a raw `EventBus`.
    that want to show a spinner while the session is under
    construction must AND-gate on `sessionActivating$`; otherwise
    they get stuck spinning after `signOut`.
-5. **React layer is provider + hook only.** All session types live in
-   `@semiont/api-client`; the React package exports only `SemiontProvider`,
+7. **React layer is provider + hook only.** All session types live in
+   `@semiont/sdk`; the React package exports only `SemiontProvider`,
    `useSemiont`, and `WebBrowserStorage`.
 
 ## Non-React consumers
 
-Because session/browser now live in `@semiont/api-client`, CLI and MCP can
+Because session/browser now live in `@semiont/sdk`, CLI and MCP can
 use them directly:
 
 ```ts
-import { SemiontBrowser, InMemorySessionStorage } from '@semiont/api-client';
+import { SemiontBrowser, InMemorySessionStorage } from '@semiont/sdk';
 
 const browser = new SemiontBrowser({ storage: new InMemorySessionStorage() });
 // ...
@@ -299,11 +299,11 @@ wiring required.
 Tests use `InMemorySessionStorage` (or a simple subclass adding
 `subscribe()` for cross-context sync simulation) to drive session state
 without depending on jsdom's `localStorage`. See
-`packages/api-client/src/session/__tests__/test-storage-helpers.ts` for
+`packages/sdk/src/session/__tests__/test-storage-helpers.ts` for
 the test harness pattern.
 
 StateUnit factory tests use `makeTestClient()` from
-`packages/api-client/src/__tests__/test-client.ts`:
+`packages/sdk/src/__tests__/test-client.ts`:
 
 ```ts
 import { makeTestClient } from '../../../__tests__/test-client';

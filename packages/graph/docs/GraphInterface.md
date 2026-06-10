@@ -57,6 +57,7 @@ export interface GraphDatabase {
   }>;
 
   // Bulk operations
+  batchCreateResources(resources: ResourceDescriptor[]): Promise<ResourceDescriptor[]>;
   createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]>;
   resolveReferences(inputs: { annotationId: AnnotationId; source: ResourceId }[]): Promise<Annotation[]>;
 
@@ -76,7 +77,7 @@ export interface GraphDatabase {
 
 ## Type Definitions
 
-The interface uses types from `@semiont/api-client` and `@semiont/core`:
+The interface uses types from `@semiont/core`:
 
 - `ResourceDescriptor` - W3C Web Annotation Data Model resource
 - `Annotation` - W3C Web Annotation

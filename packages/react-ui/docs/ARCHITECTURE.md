@@ -79,7 +79,7 @@ export function list() { ... }
 - Every layer adds overhead
 
 **How:**
-- React Query hooks call `SemiontApiClient` directly
+- Components read SDK live queries (`client.browse.*`) directly via `useObservable`
 - No "service layer" or "repository pattern"
 - No unnecessary abstractions
 
@@ -93,18 +93,16 @@ class ResourceService {
   }
 }
 
-// ✅ CORRECT - Direct API call
-export function useResources() {
-  const client = useApiClient();
+// ✅ CORRECT - Subscribe to the SDK live query directly
+import { useObservable, useSemiont } from '@semiont/react-ui';
 
-  return {
-    list: {
-      useQuery: () => useQuery({
-        queryKey: ['resources'],
-        queryFn: () => client!.listResources() // Direct call
-      })
-    }
-  };
+function ResourceList() {
+  const browser = useSemiont();
+  const client = useObservable(browser.activeSession$); // SemiontClient | undefined
+  // `client.browse.resources(...)` returns an RxJS Observable backed by the
+  // SDK's read-through cache. `useObservable` turns it into React state.
+  const resources = useObservable(client?.browse.resources({})) ?? [];
+  return <ul>{resources.map((r) => <li key={r.id}>{r.name}</li>)}</ul>;
 }
 ```
 
@@ -140,22 +138,23 @@ function ResourceViewerPage({ rId }) {
   // ...
 }
 
-// Layer 2 (Hook): State management from events
-export function useDetectionFlow(rId: ResourceId) {
-  const [detecting, setDetecting] = useState(null);
+// Layer 2 (Hook): State management from events (the unified job channels)
+export function useAssistProgress() {
+  const [progress, setProgress] = useState(null);
 
   useEventSubscriptions({
-    'detection:start': ({ motivation }) => setDetecting(motivation),
-    'detection:complete': () => setDetecting(null),
+    'job:report-progress': ({ progress }) => setProgress(progress),
+    'job:complete': () => setProgress(null),
+    'job:fail': () => setProgress(null),
   });
 
-  return { detecting };
+  return { progress };
 }
 
 // Layer 3 (Component): UI rendering
 function ResourceViewerPage({ rId }) {
-  const { detecting } = useDetectionFlow(rId);
-  return <div>{detecting && <p>Detecting...</p>}</div>;
+  const { progress } = useAssistProgress();
+  return <div>{progress && <p>Detecting… {progress.message}</p>}</div>;
 }
 ```
 
@@ -170,16 +169,21 @@ function ResourceViewerPage({ rId }) {
 **Setup:**
 
 ```tsx
-import { EventBusProvider } from '@semiont/react-ui';
+import { SemiontProvider } from '@semiont/react-ui';
 
 export default function App({ children }) {
   return (
-    <EventBusProvider>
+    <SemiontProvider>
       {children}
-    </EventBusProvider>
+    </SemiontProvider>
   );
 }
 ```
+
+`SemiontProvider` puts the `SemiontBrowser` singleton into context. Both event
+buses (the app-scoped bus on `SemiontBrowser` and the per-session bus on the
+active `SemiontClient`) are reached through it, so `useEventSubscription` works
+without any separate event-bus provider.
 
 **📖 Complete Documentation:**
 - **[SERVICE-HOOK-COMPONENT.md](SERVICE-HOOK-COMPONENT.md)** - Three-layer architecture guide
@@ -316,14 +320,15 @@ See [SESSION.md](SESSION.md) for details.
 packages/react-ui/
 ├── src/
 │   ├── types/              # TypeScript interfaces
-│   │   ├── ApiClientManager.ts
 │   │   ├── TranslationManager.ts
 │   │   ├── knowledge-base.ts
 │   │   └── ...
+│   ├── session/            # Session provider + storage
+│   │   ├── SemiontProvider.tsx      # SemiontProvider + useSemiont()
+│   │   └── web-browser-storage.ts
 │   ├── contexts/           # React Context providers
-│   │   ├── ApiClientContext.tsx
 │   │   ├── TranslationContext.tsx
-│   │   ├── KnowledgeBaseSessionContext.tsx
+│   │   ├── useEventSubscription.ts  # Bus subscription hooks
 │   │   └── __tests__/     # Context tests
 │   ├── features/          # Feature-based components
 │   │   ├── auth/          # Authentication components
@@ -341,12 +346,10 @@ packages/react-ui/
 │   │   ├── modals/        # Dialogs
 │   │   └── __tests__/     # Component tests
 │   ├── hooks/             # React hooks
-│   │   ├── useApiClient.ts
+│   │   ├── useObservable.ts  # Subscribe to SDK live-query observables
 │   │   ├── useTheme.ts
 │   │   └── __tests__/     # Hook tests
 │   ├── lib/               # Utility libraries
-│   │   ├── api-hooks.ts   # React Query hooks
-│   │   ├── query-keys.ts  # Cache keys
 │   │   ├── validation.ts  # Form validation
 │   │   └── __tests__/     # Library tests
 │   ├── index.ts           # Main exports
@@ -374,13 +377,14 @@ Components that apps must provide:
 ```json
 {
   "peerDependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0",
-    "@tanstack/react-query": "^5.0.0",
-    "@semiont/api-client": "*"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }
 ```
+
+Data fetching is provided by the SDK, which ships as a regular dependency
+(`@semiont/sdk`) rather than a peer — apps don't supply it.
 
 **Why peer dependencies:**
 - Ensures single React instance
@@ -416,10 +420,14 @@ function Counter() {
 
 ### Server State
 
-Use React Query for server data:
+Subscribe to the SDK's live queries with `useObservable`. The SDK provides a
+read-through stale-while-revalidate cache, so server data flows as RxJS
+observables rather than imperative fetches:
 
 ```tsx
-const { data } = useResources().list.useQuery();
+const browser = useSemiont();
+const client = useObservable(browser.activeSession$);
+const resources = useObservable(client?.browse.resources({})) ?? [];
 ```
 
 ### Context State
@@ -427,7 +435,7 @@ const { data } = useResources().list.useQuery();
 Use React Context for cross-cutting concerns:
 
 ```tsx
-const { isAuthenticated } = useKnowledgeBaseSession();
+const browser = useSemiont(); // SemiontBrowser from <SemiontProvider>
 const t = useTranslations('Common');
 ```
 
@@ -450,35 +458,39 @@ const t = useTranslations('Common');
 ```tsx
 import { APIError } from '@semiont/api-client';
 
-const { data, error } = resources.list.useQuery();
-
-if (error instanceof APIError) {
-  if (error.status === 401) {
-    // Handle unauthorized
-  } else if (error.status === 404) {
-    // Handle not found
+try {
+  await client.mark.create(rId, motivation, selectors);
+} catch (error) {
+  if (error instanceof APIError) {
+    if (error.status === 401) {
+      // Handle unauthorized
+    } else if (error.status === 404) {
+      // Handle not found
+    }
   }
 }
 ```
 
 ### Global Error Handlers
 
+The SDK surfaces transport failures on the bus. `notifySessionExpired` and
+`notifyPermissionDenied` are module-scoped functions the active session
+registers itself with on mount, so a 401/403 anywhere in the SDK reaches the
+mounted UI:
+
 ```tsx
 import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
+import { APIError } from '@semiont/api-client';
 
-const queryClient = new QueryClient({
-  queryCache: new QueryCache({
-    onError: (error) => {
-      if (error instanceof APIError) {
-        if (error.status === 401) notifySessionExpired('Session expired');
-        if (error.status === 403) notifyPermissionDenied('Access denied');
-      }
-    }
-  })
-});
+function handleError(error: unknown) {
+  if (error instanceof APIError) {
+    if (error.status === 401) notifySessionExpired('Session expired');
+    if (error.status === 403) notifyPermissionDenied('Access denied');
+  }
+}
 ```
 
-`notifySessionExpired` and `notifyPermissionDenied` are module-scoped functions that the active `KnowledgeBaseSessionProvider` registers itself with on mount. When no provider is mounted (e.g. on the landing page), the calls are no-ops.
+When no session is mounted (e.g. on the landing page), the calls are no-ops.
 
 ### Error Boundaries
 
@@ -530,11 +542,16 @@ See [TESTING.md](TESTING.md) for details.
 
 ## Performance
 
-### React Query Caching
+### SDK Read-Through Cache
 
-- Default stale time: 5 minutes
-- Smart invalidation on mutations
-- Background refetching disabled by default
+- The SDK's `browse.*` live queries are backed by a read-through
+  stale-while-revalidate (SWR) cache (`@semiont/sdk`)
+- Stale entries are served to observers while a refetch is in flight; observers
+  see the new value when it returns
+- Invalidation is implicit — bus events drive cache refreshes, so there are no
+  manual invalidation calls in component code
+
+See [CACHE-SEMANTICS.md](../../sdk/docs/CACHE-SEMANTICS.md) for the full cache contract.
 
 ### Code Splitting
 
@@ -599,10 +616,10 @@ When making breaking changes:
 
 ```typescript
 // v1.0: Old API
-resources.all.useQuery();
+client.browse.all();
 
 // v2.0: New API (breaking change)
-resources.list.useQuery();
+client.browse.resources({});
 
 // Migration:
 // 1. Update ALL files using .all()

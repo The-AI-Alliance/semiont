@@ -113,7 +113,18 @@ const job: PendingJob<TagDetectionParams> = {
   },
   params: {
     resourceId: resourceId('doc_456'),
-    schemaId: 'irac',
+    schema: {
+      id: 'irac',
+      name: 'IRAC',
+      description: 'Legal analysis structure',
+      domain: 'legal',
+      tags: [
+        { name: 'issue', description: 'The legal question presented', examples: [] },
+        { name: 'rule', description: 'The governing legal rule', examples: [] },
+        { name: 'application', description: 'Application of rule to facts', examples: [] },
+        { name: 'conclusion', description: 'The resulting conclusion', examples: [] },
+      ],
+    },
     categories: ['issue', 'rule', 'application', 'conclusion'],
   },
 };
@@ -210,42 +221,57 @@ if (isRunningJob(job)) {
 
 ## Worker Implementation Pattern
 
-Workers use the template method pattern with result returns:
+There are no per-type worker classes. `startWorkerProcess` claims a job and dispatches on `jobType` to a plain `process*Job` function (in `processors.ts`). Each processor returns the annotations it built plus a typed result; the worker process emits each annotation as a `mark:create` command, then a final `job:complete`.
 
 ```typescript
-class TagAnnotationWorker extends JobWorker {
-  protected async executeJob(job: AnyJob): Promise<TagDetectionResult> {
-    if (job.metadata.type !== 'tag-annotation') {
-      throw new Error(`Invalid job type: ${job.metadata.type}`);
-    }
-    if (job.status !== 'running') {
-      throw new Error(`Job must be running, got: ${job.status}`);
-    }
-
-    const tagJob = job as RunningJob<TagDetectionParams, TagDetectionProgress>;
-
-    // Process and emit EventBus commands
-    const allTags = await detectTags(tagJob.params);
-
-    // Emit mark:create for each tag via EventBus
-    for (const tag of allTags) {
-      this.eventBus.get('mark:create').next({
-        annotation: tag,
-        userId: tagJob.metadata.userId,
-      });
-    }
-
-    // Return result — base class handles transition to CompleteJob
-    return {
-      tagsFound: allTags.length,
-      tagsCreated: allTags.length,
-      byCategory: countByCategory(allTags),
-    };
+// processors.ts — pure async function, no class, no JobWorker
+export async function processTagJob(
+  content: string,
+  inferenceClient: InferenceClient,
+  params: TagDetectionParams,
+  userId: string,
+  generator: Agent,
+  onProgress: OnProgress,
+): Promise<ProcessorResult<TagDetectionResult>> {
+  const allTags = [];
+  for (const category of params.categories) {
+    const categoryTags = await AnnotationDetection.detectTags(
+      content, inferenceClient, params.schema, category, params.sourceLanguage,
+    );
+    allTags.push(...categoryTags);
   }
+
+  const annotations = allTags.map((t) => buildTextAnnotation(/* ... */));
+
+  return {
+    annotations,
+    result: {
+      tagsFound: allTags.length,
+      tagsCreated: annotations.length,
+      byCategory: countByCategory(annotations),
+    },
+  };
 }
 ```
 
-Workers emit EventBus commands (`mark:create`, `job:start`, `job:complete`). The **Stower** actor in `@semiont/make-meaning` subscribes to these commands and handles all persistence to the Knowledge Base.
+`startWorkerProcess` (in `worker-process.ts`) wires the processor to the bus:
+
+```typescript
+} else if (jobType === 'tag-annotation') {
+  const content = await fetchContent();
+  const { annotations, result } = await processTagJob(
+    content, inferenceClient, job.params as never, userId, generator, onProgress,
+  );
+  for (const ann of annotations) {
+    // Underlying primitive is session.client.transport.emit('mark:create', ...)
+    await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
+  }
+  await emitEvent(session, 'job:complete', { ...lifecycleBase, result: result as never });
+  adapter.completeJob();
+}
+```
+
+Workers emit bus commands (`mark:create`, `job:complete`) via `session.client.transport.emit`. The **Stower** actor in `@semiont/make-meaning` subscribes to these commands and handles all persistence to the Knowledge Base.
 
 ## Exhaustive Checking
 

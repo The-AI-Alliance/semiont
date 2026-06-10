@@ -7,7 +7,7 @@
 Semiont uses a strict three-layer architecture to separate concerns and maintain clean, testable code:
 
 1. **Service Layer** - SSE stream management (EventBus-native)
-2. **Hook Layer** - Event orchestration + React state (`useEventSubscriptions` + `useState`)
+2. **Hook Layer** - Reads state-unit observables (`useObservable`) and subscribes to bus side effects (`useEventSubscriptions`)
 3. **Component Layer** - Pure React (hooks + JSX)
 
 This architecture leverages RxJS EventBus for event routing, eliminates callback prop drilling, ensures proper separation of concerns, and makes components highly testable.
@@ -65,71 +65,67 @@ channel in the local EventBus. Application code never calls
 **Responsibility**: Orchestrate operations and manage React state.
 
 **Rules**:
-- ✅ Subscribes to events using `useEventSubscriptions`
-- ✅ Manages state with `useState`
-- ✅ Triggers SSE streams via API client (passing `eventBus`)
+- ✅ Reads state-unit observables with `useObservable` (and subscribes to bus events with `useEventSubscriptions`)
 - ✅ Returns data/state objects
-- ❌ NO direct `eventBus.get().subscribe()` calls (use `useEventSubscriptions`)
+- ❌ NO direct `eventBus.get().subscribe()` calls (use `useObservable` / `useEventSubscriptions`)
 - ❌ NO JSX rendering
 - ❌ NO manual event forwarding
 
-**Example**: `useDetectionFlow` hook
+**Example**: reading the `mark` state unit's assist observables
+
+The page state unit (`resource-viewer-page-state-unit`) owns a session-scoped
+`MarkStateUnit` (`createMarkStateUnit`, in `@semiont/sdk`). When the user triggers
+AI assist, the SDK runs the job and the mark state unit drives three observables:
+
+- `mark.assistingMotivation$` — the in-progress motivation (or `null` when idle)
+- `mark.progress$` — the latest `JobProgress`
+- `mark.pendingAnnotation$` — a pending manual annotation awaiting a body
+
+The hook layer just reads those observables with `useObservable` — no `useState`,
+no SSE wiring, no manual subscription. The mark state unit already subscribes to
+the unified job channels (`job:report-progress` / `job:complete` / `job:fail`)
+internally; the hook is pure read-through.
 
 ```typescript
-// packages/react-ui/src/hooks/useDetectionFlow.ts
-export interface DetectionFlowState {
-  detectingMotivation: Motivation | null;
-  detectionProgress: DetectionProgress | null;
+// A thin hook that exposes the mark state unit's assist observables.
+// (In ResourceViewerPage these are read inline via useObservable; the same
+// values can be packaged into a hook.)
+export interface MarkAssistState {
+  assistingMotivation: Motivation | null;
+  progress: JobProgress | null;
 }
 
-export function useDetectionFlow(rId: ResourceId): DetectionFlowState {
-  const eventBus = useEventBus();
-  const client = useApiClient();
-  const token = useAuthToken();
-
-  // State management
-  const [detectingMotivation, setDetectingMotivation] = useState<Motivation | null>(null);
-  const [detectionProgress, setDetectionProgress] = useState<DetectionProgress | null>(null);
-
-  // API operations: Start SSE stream when 'detection:start' event is emitted
-  useEffect(() => {
-    const handleDetectionStart = async (event: { motivation: Motivation; options: any }) => {
-      setDetectingMotivation(event.motivation);
-      setDetectionProgress(null);
-
-      // Start SSE stream - events auto-emit to EventBus
-      client.sse.detectReferences(rId, event.options, {
-        auth: accessToken(token),
-        eventBus  // ← Stream auto-emits detection:progress, detection:complete, detection:failed
-      });
-    };
-
-    const sub = eventBus.get('detection:start').subscribe(handleDetectionStart);
-    return () => sub.unsubscribe();
-  }, [eventBus, rId, client, token]);
-
-  // State subscriptions (update state when SSE events arrive)
-  useEventSubscriptions({
-    'detection:progress': (chunk) => {
-      setDetectionProgress(chunk);
-    },
-    'detection:complete': ({ motivation }) => {
-      setDetectingMotivation(current => motivation === current ? null : current);
-    },
-    'detection:failed': () => {
-      setDetectingMotivation(null);
-      setDetectionProgress(null);
-    },
-  });
+export function useMarkAssist(stateUnit: ResourceViewerPageStateUnit): MarkAssistState {
+  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
+  const progress = useObservable(stateUnit.mark.progress$) ?? null;
 
   // Return data only (no JSX)
-  return { detectingMotivation, detectionProgress };
+  return { assistingMotivation, progress };
+}
+```
+
+If a hook needs to react to job lifecycle for side effects (toasts, scroll),
+it subscribes to the bridged job channels with `useEventSubscriptions` instead
+of touching SSE directly:
+
+```typescript
+export function useAssistToasts(resourceId: ResourceId) {
+  const { showSuccess, showError } = useToast();
+
+  useEventSubscriptions({
+    'job:complete': (event) => {
+      if (event.resourceId === resourceId) showSuccess('Annotation complete');
+    },
+    'job:fail': (event) => {
+      if (event.resourceId === resourceId) showError(event.error ?? 'Annotation failed');
+    },
+  });
 }
 ```
 
 **Key Points**:
-- Uses `useEventSubscriptions` for automatic cleanup
-- Starts SSE streams with `eventBus` parameter (EventBus-native)
+- Reads state-unit observables with `useObservable` (state lives in the state unit, not `useState`)
+- Uses `useEventSubscriptions` for bus side effects, with automatic cleanup
 - Returns plain data objects
 - No JSX rendering
 
@@ -140,33 +136,41 @@ export function useDetectionFlow(rId: ResourceId): DetectionFlowState {
 **Responsibility**: Render UI and handle user interactions.
 
 **Rules**:
-- ✅ Calls hooks to get data
-- ✅ Emits events for user actions (via `eventBus.get(...).next(...)`)
+- ✅ Reads state from hooks / state-unit observables
+- ✅ Triggers operations via `session.client.*` (e.g. `mark.requestAssist(...)`)
 - ✅ Renders JSX
 - ❌ NO direct `eventBus.get(...).subscribe()` (use hooks)
-- ❌ NO SSE stream creation (use hooks)
+- ❌ NO SSE stream creation (use the SDK)
 - ❌ NO SSE parsing
 
-**Example**: Component using hooks
+**Example**: Component reading the mark state unit and triggering assist
 
 ```typescript
 // packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx
-export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPageProps) {
-  // Layer 2: Get data from hooks
-  const { detectingMotivation, detectionProgress } = useDetectionFlow(rId);
-  const { activePanel, scrollToAnnotationId } = usePanelNavigation();
+export function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPageProps) {
+  const browser = useSemiont();
+  const session = useObservable(browser.activeSession$);
+  const semiont = session?.client;
 
-  // Layer 1: the page state unit's browse.*(rId) live queries acquire the
-  // resource scope when observed — no explicit subscribe call, no per-component hook
+  // Layer 1: the page state unit owns the mark/browse observables.
+  // `browse` is the app-scoped ShellStateUnit (panel state); the page
+  // state unit re-exposes it as stateUnit.browse.
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() =>
+    createResourceViewerPageStateUnit(semiont!, rUri, locale, browseStateUnit));
 
-  // Event emission (user interaction)
-  const eventBus = useEventBus();
+  // Layer 2: read state-unit observables with useObservable
+  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
+  const progress = useObservable(stateUnit.mark.progress$) ?? null;
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+
+  // Trigger detection (user interaction): emit the local assist-request via the
+  // SDK. The mark state unit picks it up and runs `client.mark.assist(...)`.
   const handleDetectClick = useCallback(() => {
-    eventBus.get('detection:start').next({
-      motivation: 'linking',
-      options: { entityTypes: ['Person', 'Organization'] }
+    semiont?.mark.requestAssist('linking', {
+      entityTypes: ['Person', 'Organization'],
     });
-  }, [eventBus]);
+  }, [semiont]);
 
   // Layer 3: Render JSX
   return (
@@ -174,12 +178,13 @@ export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPagePro
       <Toolbar onDetect={handleDetectClick} />
       <ResourceViewer
         content={content}
-        detectingMotivation={detectingMotivation}
-        detectionProgress={detectionProgress}
+        assistingMotivation={assistingMotivation}
+        progress={progress}
       />
-      <AnnotationPanel
+      <UnifiedAnnotationsPanel
         annotations={annotations}
-        pendingAnnotation={pendingAnnotation}
+        assistingMotivation={assistingMotivation}
+        progress={progress}
         activePanel={activePanel}
       />
     </div>
@@ -195,18 +200,18 @@ export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPagePro
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 3: Component (ResourceViewerPage)                     │
 │                                                              │
-│  - Calls hooks to get data                                  │
-│  - Emits events for user actions                            │
+│  - Reads state-unit observables via useObservable           │
+│  - Triggers operations (session.client.mark.requestAssist)  │
 │  - Renders JSX                                              │
 └──────────────────┬──────────────────────────────────────────┘
                    │
-                   │ uses hooks
+                   │ reads observables
                    ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Layer 2: Hooks (useDetectionFlow, usePanelNavigation)       │
+│ Layer 2: State units + hooks (mark, browse/ShellStateUnit)  │
 │                                                              │
-│  - useEventSubscriptions() → updates state                  │
-│  - useState() → manages state                               │
+│  - useObservable(mark.assistingMotivation$ / progress$)     │
+│  - useEventSubscriptions() → bus side effects               │
 │  - Returns data objects                                     │
 └──────────────────┬──────────────────────────────────────────┘
                    │
@@ -215,18 +220,18 @@ export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPagePro
 ┌─────────────────────────────────────────────────────────────┐
 │ Event Bus (RxJS)                                             │
 │                                                              │
-│  - Routes events between layers                             │
-│  - Type-safe event contracts                                │
-│  - Direct SSE integration (no manual forwarding)            │
+│  - Unified job channels (job:report-progress/complete/fail) │
+│  - browse.*(rId) live queries (annotations, events, etc.)   │
+│  - Type-safe event contracts (no manual forwarding)         │
 └──────────────────┬──────────────────────────────────────────┘
                    │
-                   │ auto-emits from SSE streams
+                   │ SDK drives jobs + auto-bridges scoped events
                    ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Layer 1: Service (browse.*(rId) live queries)               │
+│ Layer 1: SDK state units (MarkStateUnit) + browse queries   │
 │                                                              │
-│  - Subscribing to browse.*(rId) acquires scope              │
-│  - SDK drives transport-internal subscribeToResource        │
+│  - mark.assist() runs the job on the unified job channels   │
+│  - Subscribing to browse.*(rId) acquires the resource scope │
 │  - Scoped bus events auto-bridge to the EventBus            │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -249,27 +254,14 @@ export function ResourceViewerPage({ rId, ... }: ResourceViewerPageProps) {
 
 The service layer runs automatically once per resource page.
 
-### Layer 2: Hooks (State Management)
+### Layer 2: State unit + hooks (State Management)
 
 ```typescript
-// packages/react-ui/src/hooks/useDetectionFlow.ts
-export function useDetectionFlow(rId: ResourceId): DetectionFlowState {
-  const eventBus = useEventBus();
-  const [detecting, setDetecting] = useState<Motivation | null>(null);
-  const [progress, setProgress] = useState<DetectionProgress | null>(null);
-
-  // Subscribe to events and update state
-  useEventSubscriptions({
-    'detection:start': ({ motivation }) => setDetecting(motivation),
-    'detection:progress': (chunk) => setProgress(chunk),
-    'detection:complete': () => setDetecting(null),
-    'detection:failed': () => {
-      setDetecting(null);
-      setProgress(null);
-    },
-  });
-
-  return { detecting, progress };
+// State lives in the SDK MarkStateUnit; the hook reads it via useObservable.
+export function useMarkAssist(stateUnit: ResourceViewerPageStateUnit) {
+  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
+  const progress = useObservable(stateUnit.mark.progress$) ?? null;
+  return { assistingMotivation, progress };
 }
 ```
 
@@ -277,25 +269,24 @@ export function useDetectionFlow(rId: ResourceId): DetectionFlowState {
 
 ```typescript
 // packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx
-export function ResourceViewerPage({ rId, ... }: ResourceViewerPageProps) {
-  const eventBus = useEventBus();
+export function ResourceViewerPage({ rUri, ... }: ResourceViewerPageProps) {
+  const session = useObservable(useSemiont().activeSession$);
+  const semiont = session?.client;
 
-  // Use hooks to get state (Layer 2)
-  const { detecting, progress } = useDetectionFlow(rId);
+  // Read state from the mark state unit (Layer 2)
+  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
+  const progress = useObservable(stateUnit.mark.progress$) ?? null;
 
-  // Emit events for user actions
+  // Trigger assist via the SDK (the mark state unit runs the job)
   const handleDetect = useCallback(() => {
-    eventBus.emit('detection:start', {
-      motivation: 'linking',
-      options: { entityTypes: ['Person'] }
-    });
-  }, [eventBus]);
+    semiont?.mark.requestAssist('linking', { entityTypes: ['Person'] });
+  }, [semiont]);
 
   // Render UI
   return (
     <div>
-      <button onClick={handleDetect} disabled={!!detecting}>
-        {detecting ? 'Detecting...' : 'Detect Entities'}
+      <button onClick={handleDetect} disabled={!!assistingMotivation}>
+        {assistingMotivation ? 'Detecting...' : 'Detect Entities'}
       </button>
       {progress && <ProgressBar message={progress.message} />}
     </div>
@@ -348,26 +339,30 @@ function ResourceViewerPage({ rId, ... }) {
 ### After: Hook-Based Pattern (✅ GOOD)
 
 ```typescript
-// Direct hook calls = 0 indirection
-function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPageProps) {
-  // Layer 2: Get data from hooks
-  const { detectingMotivation, detectionProgress } = useDetectionFlow(rId);
-  const { activePanel, scrollToAnnotationId } = usePanelNavigation();
-  const { generationModalOpen } = useGenerationFlow(locale, rId, ...);
+// One composite state unit + direct useObservable reads = 0 indirection
+function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPageProps) {
+  // Layer 1: one state unit owns every flow (mark, browse, gather, yield) and
+  // the browse.*(rUri) live queries — created once with useStateUnit.
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() =>
+    createResourceViewerPageStateUnit(semiont!, rUri, locale, browseStateUnit));
 
-  // Layer 1: the page state unit's browse.*(rId) live queries acquire the
-  // resource scope when observed — no explicit subscribe call, no per-component hook
+  // Layer 2: read state-unit observables with useObservable
+  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
+  const progress = useObservable(stateUnit.mark.progress$) ?? null;
+  const pendingAnnotation = useObservable(stateUnit.mark.pendingAnnotation$) ?? null;
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
 
   // Layer 3: Render UI directly
   return (
     <div className="resource-viewer">
       <Toolbar {...} />
       <ResourceViewer
-        detectingMotivation={detectingMotivation}
-        detectionProgress={detectionProgress}
+        assistingMotivation={assistingMotivation}
+        progress={progress}
         {...}
       />
-      <AnnotationPanel
+      <UnifiedAnnotationsPanel
         pendingAnnotation={pendingAnnotation}
         activePanel={activePanel}
         {...}
@@ -378,7 +373,7 @@ function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPageProps) {
 ```
 
 **Results**:
-- 4 hooks (200 lines) replace 4 containers (636 lines)
+- One composite state unit replaces 4 containers (636 lines)
 - No nested render props
 - No wrapper components
 - Total: ~450 lines (67% reduction)
@@ -387,19 +382,19 @@ function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPageProps) {
 
 ## Common Patterns
 
-### Pattern 1: Event Emission (User Actions)
+### Pattern 1: Triggering Operations (User Actions)
 
-Components emit events instead of calling callbacks:
+Components trigger operations via the SDK on `session.client`, not callback props:
 
 ```typescript
-function Toolbar() {
-  const eventBus = useEventBus();
+function ReferencesPanel() {
+  const session = useObservable(useSemiont().activeSession$);
 
   const handleDetect = () => {
-    // Emit event instead of calling callback prop
-    eventBus.emit('detection:start', {
-      motivation: 'linking',
-      options: { entityTypes: ['Person', 'Organization'] }
+    // Trigger assist via the SDK. mark.requestAssist emits the local
+    // 'mark:assist-request' event; the mark state unit runs the job.
+    session?.client.mark.requestAssist('linking', {
+      entityTypes: ['Person', 'Organization'],
     });
   };
 
@@ -407,51 +402,47 @@ function Toolbar() {
 }
 ```
 
-### Pattern 2: Event Subscription (State Updates)
+### Pattern 2: Reading State (State Updates)
 
-Hooks subscribe to events using `useEventSubscriptions`:
+State lives in the state unit; hooks/components read it with `useObservable`:
 
 ```typescript
-export function useDetectionFlow(rId: ResourceId) {
-  const [detecting, setDetecting] = useState(null);
-
-  // ✅ CORRECT: Use useEventSubscriptions
-  useEventSubscriptions({
-    'detection:start': ({ motivation }) => setDetecting(motivation),
-    'detection:complete': () => setDetecting(null),
-  });
-
-  return { detecting };
+// ✅ CORRECT: read the mark state unit's observables
+export function useMarkAssist(stateUnit: ResourceViewerPageStateUnit) {
+  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
+  const progress = useObservable(stateUnit.mark.progress$) ?? null;
+  return { assistingMotivation, progress };
 }
 
-// ❌ WRONG: Manual eventBus.on() in hooks
-export function useDetectionFlow(rId: ResourceId) {
-  const eventBus = useEventBus();
-  const [detecting, setDetecting] = useState(null);
+// ❌ WRONG: re-deriving state from raw bus events with useState
+export function useMarkAssist(stateUnit: ResourceViewerPageStateUnit) {
+  const session = useObservable(useSemiont().activeSession$);
+  const [assisting, setAssisting] = useState(null);
 
   useEffect(() => {
-    // Don't do this - use useEventSubscriptions instead
-    eventBus.on('detection:start', ({ motivation }) => setDetecting(motivation));
-    return () => eventBus.off('detection:start', ...);
-  }, [eventBus]);
+    // Don't do this — the mark state unit already tracks this off the
+    // unified job channels; just read assistingMotivation$.
+    const sub = session?.client.bus.get('job:report-progress').subscribe(/* ... */);
+    return () => sub?.unsubscribe();
+  }, [session]);
 
-  return { detecting };
+  return { assisting };
 }
 ```
 
-### Pattern 3: Event Operations (API Triggers)
+### Pattern 3: Bus Side Effects (Reacting to Jobs)
 
-Use `useEventOperations` to trigger API calls when events are emitted:
+Use `useEventSubscriptions` to react to job lifecycle for UI side effects
+(toasts, scroll), without re-implementing state the mark state unit already owns:
 
 ```typescript
-export function useDetectionFlow(rId: ResourceId) {
-  const eventBus = useEventBus();
-  const client = useApiClient();
+export function useAssistToasts(resourceId: ResourceId) {
+  const { showSuccess, showError } = useToast();
 
-  // Triggers API calls when 'detection:start' event is emitted
-  useEventOperations(eventBus, { client, resourceId: rId });
-
-  // ... state management
+  useEventSubscriptions({
+    'job:complete': (e) => { if (e.resourceId === resourceId) showSuccess('Annotation complete'); },
+    'job:fail': (e) => { if (e.resourceId === resourceId) showError(e.error ?? 'Annotation failed'); },
+  });
 }
 ```
 
@@ -490,7 +481,7 @@ These violations will cause the compliance audit to fail:
    - Detection: AST analysis finds JSX return statements in hook files
 
 5. **Global eventBus imports**
-   - Should use: `useEventBus()` hook
+   - Should use: `useSemiont()` (emit via `session.client`)
    - Detection: AST analysis finds `import { eventBus }` statements
 
 ### Compliance Report
@@ -501,82 +492,82 @@ The automated compliance checker generates detailed reports:
 Layer Separation Violations (❌)
 - Components using eventBus.on(): 0 (should use useEventSubscriptions)
 - Components using eventBus.off(): 0 (useEventSubscriptions handles cleanup)
-- Components creating EventSource: 0 (bus connection managed by SemiontApiClient)
+- Components creating EventSource: 0 (bus connection managed by SemiontClient)
 - Hooks returning JSX: 0 (hooks should return data, not JSX)
-- Global eventBus imports: 0 (should use useEventBus() hook)
+- Global eventBus imports: 0 (should use useSemiont())
 ```
 
 ---
 
 ## Testing the Three Layers
 
-### Layer 1: Service Tests
+### Layer 1: State Unit Tests
 
-Test SSE connection and event emission:
+Test that the mark state unit drives its observables off the unified job channels:
 
 ```typescript
-it('should emit detection:progress events from bus', async () => {
-  const eventBus = createEventBus();
+it('should set assistingMotivation$ on assist-request and clear on job:complete', async () => {
+  const mark = createMarkStateUnit(client, testUri);
 
-  // The bus connection is managed internally by SemiontApiClient.
-  // In tests, emit directly onto the EventBus to simulate a bus event.
-
-  eventBus.get('detection:progress').next({
-    type: 'detection:progress',
-    payload: { message: 'Scanning...' }
-  } as any);
-
-  // Verify event was emitted
-  expect(eventBus).toHaveEmitted('detection:progress', {
-    message: 'Scanning...'
+  // Trigger assist (local request → mark state unit runs client.mark.assist)
+  client.bus.get('mark:assist-request').next({
+    motivation: 'linking',
+    options: { entityTypes: ['Person'] },
   });
+
+  expect(await firstValueFrom(mark.assistingMotivation$)).toBe('linking');
+
+  // Simulate the job finishing on the unified channel
+  client.bus.get('job:complete').next({ jobId, resourceId: testUri, jobType: 'reference-annotation' } as any);
+
+  // assistingMotivation$ returns to null
 });
 ```
 
 ### Layer 2: Hook Tests
 
-Test state management and event subscriptions:
+Test that the hook reads state-unit observables:
 
 ```typescript
-it('should update state when detection starts', () => {
-  const { result } = renderHook(() => useDetectionFlow(testUri), {
-    wrapper: EventBusProvider
+it('should expose assistingMotivation from the mark state unit', () => {
+  const { result } = renderHook(() => useMarkAssist(stateUnit), {
+    wrapper: SemiontProvider
   });
 
-  // Emit event
+  // Drive the state unit's observable
   act(() => {
-    eventBus.emit('detection:start', {
+    client.bus.get('mark:assist-request').next({
       motivation: 'linking',
-      options: { entityTypes: ['Person'] }
+      options: { entityTypes: ['Person'] },
     });
   });
 
-  // Verify state updated
-  expect(result.current.detectingMotivation).toBe('linking');
+  // Verify the hook reflects it
+  expect(result.current.assistingMotivation).toBe('linking');
 });
 ```
 
 ### Layer 3: Component Tests
 
-Test UI rendering and event emission:
+Test UI rendering and operation triggering:
 
 ```typescript
-it('should emit detection:start when button clicked', async () => {
-  const eventBus = createEventBus();
+it('should call mark.requestAssist when button clicked', async () => {
+  const requestAssist = vi.spyOn(session.client.mark, 'requestAssist');
 
   render(
-    <EventBusProvider value={eventBus}>
-      <ResourceViewerPage rId={testId} {...props} />
-    </EventBusProvider>
+    <SemiontProvider value={semiont}>
+      <ResourceViewerPage rUri={testId} {...props} />
+    </SemiontProvider>
   );
 
   // Click detect button
   fireEvent.click(screen.getByText('Detect Entities'));
 
-  // Verify event was emitted
-  expect(eventBus).toHaveEmitted('detection:start', {
-    motivation: 'linking'
-  });
+  // Verify the SDK was invoked
+  expect(requestAssist).toHaveBeenCalledWith('linking', expect.objectContaining({
+    entityTypes: ['Person', 'Organization'],
+  }));
 });
 ```
 
@@ -587,32 +578,26 @@ it('should emit detection:start when button clicked', async () => {
 ### From Render Props Containers to Hooks
 
 1. **Identify container logic**:
-   - Find `useState` calls
+   - Find `useState` calls that mirror state already owned by a state unit
    - Find `useEventSubscriptions` calls
    - Find what data is returned to children
 
-2. **Extract to hook**:
+2. **Move state into the state unit, read it via `useObservable`**:
    ```typescript
-   // Before: Container
+   // Before: Container re-deriving assist state from raw bus events
    function DetectionFlowContainer({ children }) {
      const [detecting, setDetecting] = useState(null);
      useEventSubscriptions({
-       'detection:start': ({ motivation }) => setDetecting(motivation),
+       'mark:assist-request': ({ motivation }) => setDetecting(motivation),
      });
      return <>{children({ detecting })}</>;
    }
 
-   // After: Hook
-   export function useDetectionFlow(rId: ResourceId) {
-     const [detecting, setDetecting] = useState(null);
-     useEventSubscriptions({
-       'detection:start': ({ motivation }) => setDetecting(motivation),
-     });
-     return { detecting };
-   }
+   // After: read the mark state unit's observable directly
+   const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
    ```
 
-3. **Update component to use hook**:
+3. **Update component to read the observable**:
    ```typescript
    // Before
    <DetectionFlowContainer>
@@ -620,8 +605,8 @@ it('should emit detection:start when button clicked', async () => {
    </DetectionFlowContainer>
 
    // After
-   const { detecting } = useDetectionFlow(rId);
-   return <div>{detecting}</div>;
+   const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
+   return <div>{assistingMotivation}</div>;
    ```
 
 4. **Delete container file**
@@ -630,23 +615,17 @@ it('should emit detection:start when button clicked', async () => {
 
 ---
 
-## Future: RxJS Migration
+## RxJS Foundation
 
-The three-layer architecture is designed to support a future migration from mitt to RxJS:
+The three-layer architecture runs on RxJS. The buses are RxJS `EventBus`
+instances (mitt is no longer used):
 
-### Current (Mitt-Based)
-
-- Layer 1: SSE → mitt events
-- Layer 2: `useEventSubscriptions` + `useState`
+- Layer 1: SSE → `Observable` streams (`client.browse.*(rId)` live queries)
+- Layer 2: Hooks subscribe via `useEventSubscriptions` / `useObservable`
 - Layer 3: Pure React
 
-### Future (RxJS-Based)
-
-- Layer 1: SSE → `Observable` streams
-- Layer 2: Hooks subscribe to `Observable`s
-- Layer 3: Pure React (unchanged)
-
-The layer separation principles remain the same.
+The layer separation principles are independent of the underlying
+event library.
 
 ---
 
@@ -664,7 +643,7 @@ The layer separation principles remain the same.
 
 - **Components**: Call hooks, emit events, render JSX
 - **Hooks**: Use `useEventSubscriptions`, manage state with `useState`, return data objects
-- **Service**: Bus connection managed by `SemiontApiClient` (one ActorStateUnit per client; resource-scoped channels acquired by subscribing to `client.browse.*(resourceId)` live queries — freshness follows observation)
+- **Service**: Bus connection managed by `SemiontClient` (one ActorStateUnit per client; resource-scoped channels acquired by subscribing to `client.browse.*(resourceId)` live queries — freshness follows observation)
 
 ### ❌ DON'T
 
@@ -674,11 +653,11 @@ The layer separation principles remain the same.
 
 ### Key Hooks
 
-- `useEventBus()` - Access event bus (for emitting events)
-- `useEventSubscriptions()` - Subscribe to events (for receiving events)
+- `useSemiont()` - Access the Semiont browser; `useObservable(browser.activeSession$)` → `session.client`
+- `useObservable()` - Read a state-unit observable into React state
+- `useEventSubscriptions()` - Subscribe to bus events (for side effects)
 - `client.browse.*(resourceId)` - Resource-scoped live queries; subscribing acquires the resource's bus scope (freshness follows observation), the last unsubscribe releases it
-- `useDetectionFlow()` - Detection state management (bus events, progress, annotation operations)
-- `useResolutionFlow()` - Annotation body update and reference linking
-- `useGenerationFlow()` - Generation state management (SSE, modal, progress)
-- `createGatherStateUnit()` - Context correlation for generation (in `@semiont/api-client`)
-- `usePanelNavigation()` - Panel state management
+- `createMarkStateUnit()` - Mark/assist state (`assistingMotivation$`, `progress$`, `pendingAnnotation$`); driven off the unified job channels (in `@semiont/sdk`)
+- `client.mark.requestAssist(motivation, options)` / `client.mark.assist(...)` - Trigger AI assist; the job streams on `job:report-progress` / `job:complete` / `job:fail`
+- `createGatherStateUnit()` - Context correlation for generation (in `@semiont/sdk`)
+- `useShellStateUnit()` - App-scoped panel state (`activePanel$`, `openPanel`/`closePanel`/`togglePanel`)

@@ -232,7 +232,7 @@ Property-based tests verify:
 
 ### Data Model & API
 - [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C annotation structure and full-stack implementation
-- See `@semiont/api-client` package - API client and utilities
+- See `@semiont/sdk` package - API client and utilities
 
 ### Testing
 - `src/lib/__tests__/annotation-rendering.test.tsx` - Property-based tests implementing these axioms

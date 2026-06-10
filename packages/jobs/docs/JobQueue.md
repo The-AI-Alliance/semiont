@@ -1,10 +1,10 @@
 # JobQueue API Guide
 
-The `JobQueue` class manages the lifecycle of jobs in a filesystem-based queue. Jobs are persisted as JSON files organized by status in separate directories.
+The `FsJobQueue` class manages the lifecycle of jobs in a filesystem-based queue. Jobs are persisted as JSON files organized by status in separate directories. (`JobQueue` is the interface it implements.)
 
 ## Overview
 
-The JobQueue uses a status-directory pattern where jobs are stored in directories named after their status:
+The FsJobQueue uses a status-directory pattern where jobs are stored in directories named after their status:
 
 ```
 data/jobs/
@@ -22,16 +22,17 @@ Jobs transition between statuses by moving between directories (atomic delete + 
 ### Constructor
 
 ```typescript
-import { JobQueue } from '@semiont/jobs';
+import { FsJobQueue } from '@semiont/jobs';
 import { EventBus, type Logger } from '@semiont/core';
+import type { SemiontProject } from '@semiont/core/node';
 
 const eventBus = new EventBus();
-const queue = new JobQueue({ dataDir: './data' }, logger, eventBus);
+const queue = new FsJobQueue(project, logger, eventBus);
 await queue.initialize();
 ```
 
 **Parameters:**
-- `config: JobQueueConfig` — `{ dataDir: string }` base directory for job storage (jobs will be in `{dataDir}/jobs/`)
+- `project: SemiontProject` — the project whose `project.jobsDir` is used as the base directory for job storage (status subdirectories live under it)
 - `logger: Logger` — structured logger instance
 - `eventBus?: EventBus` — optional EventBus for emitting `job:queued` events on job creation
 
@@ -41,20 +42,6 @@ await queue.initialize();
 - Starts `fs.watch` on the `pending/` directory to pick up external changes (debounced)
 - Idempotent (safe to call multiple times)
 
-### Singleton Helper
-
-For most applications, use the singleton pattern:
-
-```typescript
-import { initializeJobQueue, getJobQueue } from '@semiont/jobs';
-
-// Call once at application startup
-await initializeJobQueue({ dataDir: './data' }, logger, eventBus);
-
-// Get queue instance anywhere
-const queue = getJobQueue();
-```
-
 ## Creating Jobs
 
 ### `createJob(job: AnyJob): Promise<void>`
@@ -62,12 +49,9 @@ const queue = getJobQueue();
 Creates a new job and persists it to the queue.
 
 ```typescript
-import { getJobQueue } from '@semiont/jobs';
 import type { PendingJob, GenerationParams } from '@semiont/jobs';
 import { jobId } from '@semiont/api-client';
 import { userId, resourceId, annotationId } from '@semiont/core';
-
-const queue = getJobQueue();
 
 const job: PendingJob<GenerationParams> = {
   status: 'pending',

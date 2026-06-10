@@ -10,7 +10,7 @@ Job queue, worker infrastructure, and annotation workers for [Semiont](https://g
 
 ## Architecture Context
 
-Workers run in a separate separate process and connect to the Knowledge System (KS) over HTTP/SSE using `WorkerStateUnit` from `@semiont/api-client`. Workers receive job assignments via SSE push, claim jobs atomically, and emit domain events back to the KS via HTTP. The KS ingests these events onto its EventBus for SSE delivery to the frontend.
+Workers run in a separate process and connect to the Knowledge System (KS) over HTTP/SSE using a `SemiontSession` (from `@semiont/sdk`) driven by a `JobClaimAdapter`. Workers receive job assignments via an SSE `job:queued` subscription, claim jobs atomically, and emit domain events back to the KS via `session.client.transport.emit(...)`. The KS ingests these events onto its EventBus for SSE delivery to the frontend.
 
 ## Installation
 
@@ -19,20 +19,24 @@ npm install @semiont/jobs
 ```
 
 **Dependencies:**
-- `@semiont/core` — Core types, EventBus
-- `@semiont/api-client` — OpenAPI types
+- `@semiont/core` — Core types, `SemiontProject`, EventBus
+- `@semiont/sdk` — `SemiontSession`, `JobClaimAdapter` (worker process)
+- `@semiont/api-client` — HTTP transport, OpenAPI types
 - `@semiont/inference` — InferenceClient for AI operations
+- `@semiont/content` — Content storage URI derivation
+- `@semiont/observability` — Spans and job-outcome metrics
 
 ## Quick Start
 
 ```typescript
-import { JobQueue, type PendingJob, type GenerationParams } from '@semiont/jobs';
-import { EventBus, userId, resourceId, annotationId } from '@semiont/core';
-import { jobId } from '@semiont/api-client';
+import { FsJobQueue, type PendingJob, type GenerationParams } from '@semiont/jobs';
+import { EventBus, userId, resourceId, annotationId, jobId } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 
-// Initialize
+// Initialize — jobs are stored under project.jobsDir
 const eventBus = new EventBus();
-const jobQueue = new JobQueue({ dataDir: './data' }, logger, eventBus);
+const project = new SemiontProject('/path/to/project');
+const jobQueue = new FsJobQueue(project, logger, eventBus);
 await jobQueue.initialize();
 
 // Create a job
@@ -97,45 +101,30 @@ The `userName`, `userEmail`, and `userDomain` fields are used by workers to buil
 
 ## Annotation Workers
 
-Six workers process different annotation types:
+The worker process (`worker-main.ts` → `startWorkerProcess` in `worker-process.ts`) claims jobs over the bus via a `JobClaimAdapter` and dispatches by `jobType` to a processor function. There are no per-type worker classes; each job type maps to one `process*Job` function:
 
-| Worker | Job Type | Constructor |
-|--------|----------|------------|
-| `ReferenceAnnotationWorker` | `reference-annotation` | `(jobQueue, config, inferenceClient, eventBus, contentFetcher, logger)` |
-| `GenerationWorker` | `generation` | `(jobQueue, config, inferenceClient, eventBus, logger)` |
-| `HighlightAnnotationWorker` | `highlight-annotation` | `(jobQueue, config, inferenceClient, eventBus, contentFetcher, logger)` |
-| `AssessmentAnnotationWorker` | `assessment-annotation` | `(jobQueue, config, inferenceClient, eventBus, contentFetcher, logger)` |
-| `CommentAnnotationWorker` | `comment-annotation` | `(jobQueue, config, inferenceClient, eventBus, contentFetcher, logger)` |
-| `TagAnnotationWorker` | `tag-annotation` | `(jobQueue, config, inferenceClient, eventBus, contentFetcher, logger)` |
+| Job Type | Processor |
+|----------|-----------|
+| `reference-annotation` | `processReferenceJob` |
+| `generation` | `processGenerationJob` |
+| `highlight-annotation` | `processHighlightJob` |
+| `assessment-annotation` | `processAssessmentJob` |
+| `comment-annotation` | `processCommentJob` |
+| `tag-annotation` | `processTagJob` |
 
-Workers emit EventBus commands (`mark:create`, `job:start`, `job:complete`, etc.) — the Stower actor in @semiont/make-meaning handles persistence.
+Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`). Each processor fetches content via `session.client.browse.resourceContent(resourceId)`.
 
-## Custom Workers
+Workers emit bus events via `session.client.transport.emit('mark:create' | 'job:start' | 'job:report-progress' | 'job:complete' | 'job:fail', payload)` — the Stower actor in @semiont/make-meaning handles persistence.
 
-```typescript
-import { JobWorker, type AnyJob } from '@semiont/jobs';
-import type { Logger } from '@semiont/core';
+## Adding a Job Type
 
-class MyWorker extends JobWorker {
-  constructor(jobQueue: JobQueue, logger: Logger) {
-    super(jobQueue, 1000, 5000, logger);
-    //              ^^^^  ^^^^
-    //              poll   error backoff
-  }
+Workers are not subclassed. To add a job type:
 
-  protected getWorkerName(): string {
-    return 'MyWorker';
-  }
+1. Add the new `JobType` and its params/result/progress types in `src/types.ts`.
+2. Add a `process*Job` function in `src/processors.ts` that runs the inference and returns the annotations/result.
+3. Dispatch the new `jobType` to that processor in `handleJobInner()` in `src/worker-process.ts`.
 
-  protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'generation';
-  }
-
-  protected async executeJob(job: AnyJob): Promise<any> {
-    // Your processing logic — return result object
-  }
-}
-```
+Processors are transport-agnostic: they take content, an `InferenceClient`, the job params, the user id, the `generator` (W3C SoftwareAgent), and an `onProgress` callback, and return annotations plus a result. The worker process handles claiming, content fetching, and lifecycle event emission.
 
 ## Discriminated Unions
 
@@ -182,7 +171,8 @@ Apache-2.0
 
 ## Related Packages
 
-- [`@semiont/core`](../core/) — Domain types, EventBus
-- [`@semiont/api-client`](../api-client/) — OpenAPI types
+- [`@semiont/core`](../core/) — Domain types, `SemiontProject`, EventBus
+- [`@semiont/sdk`](../sdk/) — `SemiontSession`, `JobClaimAdapter`
+- [`@semiont/api-client`](../api-client/) — HTTP transport, OpenAPI types
 - [`@semiont/inference`](../inference/) — AI inference client
 - [`@semiont/make-meaning`](../make-meaning/) — Actor model, Knowledge Base, service orchestration

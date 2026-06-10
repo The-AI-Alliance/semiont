@@ -5,30 +5,29 @@ Setup and deployment options for `@semiont/jobs`.
 ## Basic Setup
 
 ```typescript
-import { JobQueue, initializeJobQueue } from '@semiont/jobs';
+import { FsJobQueue } from '@semiont/jobs';
 import { EventBus } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 
-// Direct construction
 const eventBus = new EventBus();
-const queue = new JobQueue({ dataDir: './data' }, logger, eventBus);
+const project = new SemiontProject('/path/to/project');
+const queue = new FsJobQueue(project, logger, eventBus);
 await queue.initialize();
-
-// Or singleton pattern
-await initializeJobQueue({ dataDir: './data' }, logger, eventBus);
 ```
 
-### JobQueueConfig
+### SemiontProject
+
+`FsJobQueue` takes a `SemiontProject` and stores jobs under `project.jobsDir` (`{stateDir}/jobs/`). The project computes all of its paths from the project root and XDG environment variables at construction time:
 
 ```typescript
-interface JobQueueConfig {
-  dataDir: string;  // Base directory — jobs stored in {dataDir}/jobs/
-}
+const project = new SemiontProject('/path/to/project');
+project.jobsDir; // → {XDG_STATE_HOME}/semiont/{name}/jobs/
 ```
 
 ## Directory Structure
 
 ```
-{dataDir}/jobs/
+{project.jobsDir}/
   pending/        # Jobs waiting to be processed
   running/        # Jobs currently being processed
   complete/       # Successfully completed jobs
@@ -40,64 +39,59 @@ Created automatically by `initialize()`.
 
 ## Worker Configuration
 
-### Poll Interval and Error Backoff
+### Job Claiming (SSE, not polling)
 
-Workers inherit from `JobWorker`, which takes poll/backoff parameters:
+Workers do not poll the queue. The worker process opens a `SemiontSession` and a `JobClaimAdapter` (from `@semiont/sdk`) subscribes to the bus `job:queued` channel over SSE. When a job is queued, the adapter is pushed the event, claims the job atomically, and dispatches it by `jobType`. There is no poll interval or error-backoff to tune.
+
+Each worker process serves the `jobTypes` it is configured for — driven by the per-`(provider, model)` worker entries in `~/.semiontconfig`. Multiple job types that share an inference engine share one worker process (and one software-agent identity); different engines run as separate processes.
 
 ```typescript
-import { JobWorker, type AnyJob } from '@semiont/jobs';
-import type { JobQueue } from '@semiont/jobs';
-import type { Logger } from '@semiont/core';
+import { startWorkerProcess } from '@semiont/jobs/worker-main';
 
-class MyWorker extends JobWorker {
-  constructor(jobQueue: JobQueue, logger: Logger) {
-    super(
-      jobQueue,
-      1000,   // pollIntervalMs: check queue every 1 second
-      5000,   // errorBackoffMs: wait 5 seconds after errors
-      logger,
-    );
-  }
-
-  protected getWorkerName(): string { return 'MyWorker'; }
-  protected canProcessJob(job: AnyJob): boolean { return job.metadata.type === 'generation'; }
-  protected async executeJob(job: AnyJob): Promise<any> { /* ... */ }
-}
+const adapter = startWorkerProcess({
+  session,          // SemiontSession authenticated as this worker's agent
+  jobTypes,         // string[] — job types this agent claims
+  inferenceClient,
+  generator,
+  logger,
+});
 ```
-
-**Recommendations:**
-- High-frequency queue (>10 jobs/min): 500ms–1000ms poll
-- Normal queue (1-10 jobs/min): 1000ms–2000ms poll
-- Low-frequency queue (<1 job/min): 5000ms–10000ms poll
-
-All built-in annotation workers use default intervals (`undefined` → 1000ms poll, 5000ms backoff).
 
 ## Production Setup
 
-### Worker Lifecycle
+### Service vs. Worker Process
 
-In production, workers are created by `startMakeMeaning()` in `@semiont/make-meaning`, which manages the full lifecycle:
+The job queue and the workers run in different processes:
+
+- `startMakeMeaning(project, config, eventBus, logger, options?)` in `@semiont/make-meaning` creates the `FsJobQueue` and registers the bus command handlers. It does **not** create or manage annotation workers.
+- Workers run as a **separate process**, started by `worker-main.ts` → `startWorkerProcess(...)`. That process authenticates as a software agent, claims jobs over the bus, and emits lifecycle events back.
 
 ```typescript
 import { startMakeMeaning } from '@semiont/make-meaning';
 import { EventBus } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 
 const eventBus = new EventBus();
-const service = await startMakeMeaning(config, eventBus, logger);
+const project = new SemiontProject('/path/to/project');
+const service = await startMakeMeaning(project, config, eventBus, logger);
 
-// Workers are running. To stop:
+// Queue + handlers are running. To stop:
 await service.stop();
 ```
 
 ### Graceful Shutdown
 
+The make-meaning service stops the knowledge system and its subscriptions:
+
 ```typescript
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, stopping...');
-  await service.stop(); // Stops all workers, actors, and stores
+  await service.stop();
   process.exit(0);
 });
 ```
+
+The worker process handles its own `SIGTERM`/`SIGINT` — disposing each agent's `JobClaimAdapter` and session, then closing the health server.
 
 ### Job Cleanup
 
@@ -117,32 +111,29 @@ setInterval(async () => {
 
 ### Health Checks
 
-```typescript
-async function healthCheck(): Promise<boolean> {
-  try {
-    const queue = getJobQueue();
-    await queue.getStats();
-    return true;
-  } catch {
-    return false;
-  }
-}
+The worker process exposes an HTTP `/health` endpoint (port `9090`) that reports the number of running agents:
+
+```bash
+curl -s http://localhost:9090/health
+# {"status":"ok","agents":2}
 ```
+
+For the queue itself, call `queue.getStats()` to report job counts by status.
 
 ## Troubleshooting
 
 ### Jobs Stuck in Running
 
-**Cause:** Worker crashed mid-processing or was killed without graceful shutdown.
+**Cause:** A worker process crashed mid-processing or was killed without graceful shutdown.
 
-**Solution:** On startup, move old running jobs back to pending:
+**Solution:** On startup, use `FsJobQueue`'s `listJobs` to find stale running jobs and move them back to pending:
 
 ```typescript
 const running = await queue.listJobs({ status: 'running' });
 const fiveMinutesAgo = Date.now() - 300000;
 
 for (const job of running) {
-  if (job.status === 'running' && new Date(job:startedAt).getTime() < fiveMinutesAgo) {
+  if (job.status === 'running' && new Date(job.startedAt).getTime() < fiveMinutesAgo) {
     logger.info(`Resetting stuck job: ${job.metadata.id}`);
     const pendingJob: PendingJob<any> = {
       status: 'pending',
@@ -157,9 +148,9 @@ for (const job of running) {
 ### Permission Errors
 
 ```bash
-# Check directory ownership
-ls -la data/jobs/
+# Check directory ownership (jobs live under project.jobsDir)
+ls -la "$XDG_STATE_HOME/semiont/<project-name>/jobs/"
 
 # Fix permissions
-chmod -R 755 data/jobs/
+chmod -R 755 "$XDG_STATE_HOME/semiont/<project-name>/jobs/"
 ```

@@ -166,10 +166,9 @@ it('should work with authenticated client', () => {
   renderWithProviders(<MyComponent />, {
     apiBaseUrl: 'https://api.test.com',
     translationManager: translations,
-    knowledgeBaseSession: createMockKnowledgeBaseSession({
-      isAuthenticated: true,
-      token: 'test-token',
-      expiresAt: new Date(Date.now() + 3600000),
+    browser: createMockKnowledgeBaseSession({
+      sessionExpiredAt: Date.now(),
+      sessionExpiredMessage: 'Token expired',
     }),
   });
 
@@ -202,51 +201,34 @@ renderWithProviders(<Toolbar />, { translationManager: translations });
 
 ### createMockKnowledgeBaseSession
 
-Creates a `KnowledgeBaseSessionContext` value with custom overrides. Tests pass it via `knowledgeBaseSession` to `renderWithProviders`:
+Builds a fake `SemiontBrowser` with the active `SessionSignals` observables
+pre-populated, so modal tests can control the modal-driving flags without
+driving a real session through its state machine. Tests pass it via the
+`browser` option to `renderWithProviders`. The only overrides are the
+modal flags and their acknowledgement callbacks:
 
 ```tsx
 import { createMockKnowledgeBaseSession } from '@semiont/react-ui/test-utils';
 
-const session = createMockKnowledgeBaseSession({
-  isAuthenticated: true,
-  isAdmin: true,
-  displayName: 'Alice',
-  expiresAt: new Date(Date.now() + 300000), // 5 minutes
-});
-
-renderWithProviders(<UserBadge />, { knowledgeBaseSession: session });
-```
-
-For modal tests, set the modal-driving flags directly:
-
-```tsx
-const session = createMockKnowledgeBaseSession({
+const browser = createMockKnowledgeBaseSession({
   sessionExpiredAt: Date.now(),
   sessionExpiredMessage: 'Token expired at 5pm',
   acknowledgeSessionExpired: vi.fn(),
 });
 
-renderWithProviders(<SessionExpiredModal />, { knowledgeBaseSession: session });
+renderWithProviders(<SessionExpiredModal />, { browser });
 ```
 
-### createMockOpenResourcesManager
-
-Creates an open resources manager:
+Permission-denied modal tests follow the same shape:
 
 ```tsx
-import { createMockOpenResourcesManager } from '@semiont/react-ui/test-utils';
-
-const resources = createMockOpenResourcesManager([
-  { id: 'doc-1', name: 'Document 1', openedAt: Date.now() },
-  { id: 'doc-2', name: 'Document 2', openedAt: Date.now() }
-]);
-
-renderWithProviders(<OpenDocumentsList />, {
-  openResourcesManager: resources
+const browser = createMockKnowledgeBaseSession({
+  permissionDeniedAt: Date.now(),
+  permissionDeniedMessage: 'Not allowed',
+  acknowledgePermissionDenied: vi.fn(),
 });
 
-// Verify mock functions were called
-expect(resources.addResource).toHaveBeenCalledWith('doc-3', 'New Doc');
+renderWithProviders(<PermissionDeniedModal />, { browser });
 ```
 
 ## Default Mocks
@@ -261,26 +243,12 @@ When you don't provide custom values, `renderWithProviders` uses these defaults:
 
   apiBaseUrl: 'http://localhost:4000', // default
 
-  knowledgeBaseSession: {
-    // Defaults from defaultMockKnowledgeBaseSession — all auth flags false,
-    // empty KB list, no active KB, no session, no modal flags raised.
-    isAuthenticated: false,
-    isAdmin: false,
-    isModerator: false,
-    activeKnowledgeBase: null,
-    session: null,
-    sessionExpiredAt: null,
-    permissionDeniedAt: null,
-    // ...mutations are vi.fn() stubs
-  },
-
-  openResourcesManager: {
-    openResources: [],
-    addResource: vi.fn(),
-    removeResource: vi.fn(),
-    updateResourceName: vi.fn(),
-    reorderResources: vi.fn()
-  }
+  // browser: when omitted, renderWithProviders builds a fake SemiontBrowser
+  // (createFakeBrowserForTests) seeded with a fake active session whose
+  // `client` is a real SemiontClient pointed at `apiBaseUrl`. All flags are
+  // unset: empty KB list, no active KB, no modal flags raised, mutations are
+  // vi.fn() stubs. The app-scoped (shell) bus is a real EventBus so
+  // `semiont.emit/on/stream` round-trip through a live subject.
 }
 ```
 
@@ -290,11 +258,11 @@ When you don't provide custom values, `renderWithProviders` uses these defaults:
 
 ```tsx
 import { vi } from 'vitest';
-import { SemiontApiClient } from '@semiont/api-client';
+import { SemiontClient, BrowseNamespace } from '@semiont/sdk';
 
 it('should fetch resources', async () => {
   // Spy on the namespace method that the component uses.
-  // The ApiClientProvider inside renderWithProviders constructs the client;
+  // The SemiontProvider inside renderWithProviders constructs the client;
   // spy on the prototype to intercept calls from any instance.
   vi.spyOn(BrowseNamespace.prototype, 'resources').mockReturnValue(
     of({ resources: [{ id: 'r1', name: 'Resource 1' }] } as any),
@@ -312,11 +280,11 @@ it('should fetch resources', async () => {
 
 For components that subscribe to `semiont.browse.*` Observables, mock
 the namespace methods on the prototype. The `renderWithProviders` helper
-creates a real `SemiontApiClient` internally; prototype spies intercept
+creates a real `SemiontClient` internally; prototype spies intercept
 calls from that instance.
 
 ```tsx
-import { BrowseNamespace } from '@semiont/api-client';
+import { BrowseNamespace } from '@semiont/sdk';
 import { of, throwError } from 'rxjs';
 
 it('should handle query errors', async () => {
@@ -365,51 +333,53 @@ it('should render with namespace.key format', () => {
 
 ## Testing Session State
 
+`createMockKnowledgeBaseSession` drives the modal flags on the active
+`SessionSignals`. Set `sessionExpiredAt` (or `permissionDeniedAt`) to
+raise the corresponding modal, and pass the result via the `browser` option:
+
 ```tsx
 import { renderWithProviders, createMockKnowledgeBaseSession } from '@semiont/react-ui/test-utils';
 
-describe('SessionExpiryBanner', () => {
-  it('should show warning when expiring soon', () => {
-    const session = createMockKnowledgeBaseSession({
-      isAuthenticated: true,
-      expiresAt: new Date(Date.now() + 60000), // 1 minute
+describe('SessionExpiredModal', () => {
+  it('should show when the session has expired', () => {
+    const browser = createMockKnowledgeBaseSession({
+      sessionExpiredAt: Date.now(),
+      sessionExpiredMessage: 'Token expired',
     });
 
-    renderWithProviders(<SessionExpiryBanner />, { knowledgeBaseSession: session });
+    renderWithProviders(<SessionExpiredModal />, { browser });
 
-    expect(screen.getByText(/expiring soon/i)).toBeInTheDocument();
+    expect(screen.getByText(/session expired/i)).toBeInTheDocument();
   });
 
-  it('should not show when not expiring soon', () => {
-    const session = createMockKnowledgeBaseSession({
-      isAuthenticated: true,
-      expiresAt: new Date(Date.now() + 3600000), // 1 hour
-    });
+  it('should not show when no expiry flag is raised', () => {
+    const browser = createMockKnowledgeBaseSession();
 
-    renderWithProviders(<SessionExpiryBanner />, { knowledgeBaseSession: session });
+    renderWithProviders(<SessionExpiredModal />, { browser });
 
-    expect(screen.queryByText(/expiring soon/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument();
   });
 });
 ```
 
 ## Testing User Interactions
 
+Open-resource mutations live on the `SemiontBrowser`. Inject a browser
+whose mutation is a `vi.fn()` via the `browser` option, then assert on it:
+
 ```tsx
-import { renderWithProviders, screen } from '@semiont/react-ui/test-utils';
+import { renderWithProviders, screen, createMockKnowledgeBaseSession } from '@semiont/react-ui/test-utils';
 import { userEvent } from '@testing-library/user-event';
 
-it('should call addResource when button clicked', async () => {
+it('should call addOpenResource when button clicked', async () => {
   const user = userEvent.setup();
-  const mockManager = createMockOpenResourcesManager();
+  const browser = createMockKnowledgeBaseSession();
 
-  renderWithProviders(<AddDocumentButton />, {
-    openResourcesManager: mockManager
-  });
+  renderWithProviders(<AddDocumentButton />, { browser });
 
   await user.click(screen.getByRole('button', { name: /add/i }));
 
-  expect(mockManager.addResource).toHaveBeenCalledWith(
+  expect(browser.addOpenResource).toHaveBeenCalledWith(
     'doc-123',
     'New Document',
     'text/plain'

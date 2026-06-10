@@ -26,16 +26,16 @@ Query-string credentials end up in proxy logs, browser history, and `Referer` he
 ## Client API
 
 ```typescript
-const { token } = await client.getMediaToken(resourceId, { auth: accessToken(myToken) });
+const { token } = await client.auth.mediaToken(resourceId);
 const url = `${client.baseUrl}/api/resources/${resourceId}?token=${token}`;
 // Pass url to <img src>, pdfjsLib.getDocument({ url }), etc.
 ```
 
-`getMediaToken` calls `POST /api/tokens/media` with the resource ID and returns `{ token: string }`.
+`auth.mediaToken` calls `POST /api/tokens/media` with the resource ID and returns `{ token: string }`.
 
 ## React hook
 
-`useMediaToken` from `@semiont/react-ui` is the React Query wrapper:
+`useMediaToken` from `@semiont/react-ui` is a `useState`/`useEffect` hook that refreshes on a 4-minute interval:
 
 ```typescript
 import { useMediaToken } from '@semiont/react-ui';
@@ -43,8 +43,8 @@ import { useMediaToken } from '@semiont/react-ui';
 const { token, loading } = useMediaToken(resourceId);
 ```
 
-- `staleTime`: 4 minutes — ensures the token is refreshed before the 5-minute expiry. The 1-minute margin absorbs clock skew and request latency so a fetch in flight when the token rolls over still completes against a valid token.
-- The hook is per-resource; each resource has its own React Query cache entry
+- The hook fetches a token on mount and then refreshes it every 4 minutes via `setInterval` — ahead of the 5-minute expiry. The 1-minute margin absorbs clock skew and request latency so a fetch in flight when the token rolls over still completes against a valid token.
+- The hook is per-resource
 - `token` is `undefined` while loading
 
 `ResourceViewerPage` in `@semiont/react-ui` calls this hook automatically for any resource whose `getMimeCategory` returns `'image'` (which includes `application/pdf`). Callers of `ResourceViewerPage` do not need to manage media tokens directly.
@@ -66,7 +66,7 @@ Text resources (`text/plain`, `text/markdown`) are fetched through `useResourceC
 
 ## Why not observable stores
 
-Media tokens are intentionally not in the browse namespace's Observable caches. They are short-lived, non-domain state — there is no EventBus event for token expiry, and storing them reactively would add complexity with no benefit. React Query's `staleTime`-based refresh is the right fit.
+Media tokens are intentionally not in the browse namespace's Observable caches. They are short-lived, non-domain state — there is no EventBus event for token expiry, and storing them reactively would add complexity with no benefit. An interval-based refresh in the hook is the right fit.
 
 ## OpenAPI spec
 

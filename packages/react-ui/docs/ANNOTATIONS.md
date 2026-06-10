@@ -38,15 +38,12 @@ interface AnnotationManager {
   deleteAnnotation: (params: DeleteAnnotationParams) => Promise<void>;
 }
 
-interface CacheManager {
-  invalidateAnnotations: (rId: ResourceId) => void | Promise<void>;
-  invalidateEvents: (rId: ResourceId) => void | Promise<void>;
-}
-
 // Apps provide implementations
 const annotationManager = useAnnotationManager(); // App-specific
-const cacheManager = useCacheManager(); // App-specific
 ```
+
+Cache freshness is **not** an app responsibility: the SDK's read-through cache
+refreshes itself off bus events, so there is no app-provided cache manager.
 
 See [SESSION.md](SESSION.md) for detailed Provider Pattern documentation.
 
@@ -231,8 +228,10 @@ import { withHandlers, ANNOTATORS } from '@semiont/react-ui';
 const annotators = withHandlers({
   highlight: {
     onClick: (annotation) => { /* ... */ },
-    onHover: (annotationId) => { /* ... */ },
-    onDetect: async () => { /* AI detection */ }
+    onHover: (annotationId) => { /* ... */ }
+    // AI assist is NOT a handler here — it runs through the mark state unit.
+    // Trigger it with `client.mark.requestAssist('highlighting', options)`
+    // (see "AI-Powered Detection" below).
   },
   comment: {
     onClick: (annotation) => { /* ... */ },
@@ -247,59 +246,79 @@ const annotators = withHandlers({
 
 ## AI-Powered Detection
 
-### Detection Context
+### The Mark State Unit
 
-The annotation registry supports AI-powered entity detection via SSE (Server-Sent Events). Detection events flow through the unified event bus:
+AI-assisted detection is driven by the session-scoped **mark state unit**
+(`createMarkStateUnit`, in `@semiont/sdk`). The resource-viewer page state unit
+owns one per resource and exposes it as `stateUnit.mark`. It tracks three
+observables that the UI reads via `useObservable`:
+
+- `mark.assistingMotivation$` — the in-progress motivation (or `null` when idle)
+- `mark.progress$` — the latest `JobProgress`
+- `mark.pendingAnnotation$` — a pending manual annotation awaiting a body
+
+To trigger detection, a panel calls the SDK directly — there is no handler to
+wire up and no detection context object:
 
 ```typescript
-import { createDetectionHandler, ANNOTATORS } from '@semiont/react-ui';
+import { useObservable, useSemiont } from '@semiont/react-ui';
 
-const detectionContext = {
-  client: apiClient,
-  rId,
-  setDetectingMotivation,
-  setMotivationDetectionProgress,
-  detectionStreamRef,
-  cacheManager, // ✅ Framework-agnostic
-  showSuccess,
-  showError
-};
+function ReferencesAssist({ stateUnit }: { stateUnit: ResourceViewerPageStateUnit }) {
+  const session = useObservable(useSemiont().activeSession$);
 
-const annotators = withHandlers({
-  highlight: {
-    onDetect: createDetectionHandler(ANNOTATORS.highlight!, detectionContext)
-  }
-});
+  // Read live assist state from the mark state unit
+  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
+  const progress = useObservable(stateUnit.mark.progress$) ?? null;
+
+  const handleDetect = () => {
+    // requestAssist emits the local 'mark:assist-request' event; the mark
+    // state unit picks it up and runs client.mark.assist(...) for the job.
+    session?.client.mark.requestAssist('linking', {
+      entityTypes: ['Person', 'Organization'],
+    });
+  };
+
+  return (
+    <button onClick={handleDetect} disabled={!!assistingMotivation}>
+      {assistingMotivation ? `Detecting… ${progress?.message ?? ''}` : 'Detect references'}
+    </button>
+  );
+}
 ```
 
-### Detection Lifecycle Events
+### Job Lifecycle (the unified job channels)
 
-Detection jobs emit events through the `MakeMeaningEventBusProvider`:
+`mark.assist(resourceId, motivation, options)` dispatches a `job:create` request
+and streams progress on the **unified job channels**:
 
-- `detection:started` - Detection job initiated
-- `detection:progress` - Progress updates during detection
-- `detection:entity-found` - New entity annotation detected
-- `detection:completed` - Detection job finished successfully
-- `detection:failed` - Detection job failed
+- `job:report-progress` - progress updates while the job runs
+- `job:complete` - the job finished successfully
+- `job:fail` - the job failed
 
-Components subscribe to these events for automatic cache invalidation:
+The mark state unit subscribes to these (filtered by its own `jobId`) and drives
+`assistingMotivation$` / `progress$` from them; the panel just reads those
+observables. The SDK's read-through cache refreshes itself off the resource's
+`browse.*` live queries when `job:complete` lands, so **no manual cache
+invalidation is needed** — newly created annotations appear automatically.
+
+For UI side effects (toasts, scroll), subscribe to the same job channels with
+`useEventSubscriptions`, scoping by `resourceId`:
 
 ```typescript
-import { useMakeMeaningEvents } from '@semiont/react-ui';
+import { useEventSubscriptions } from '@semiont/react-ui';
 
-function DetectionMonitor() {
-  const eventBus = useMakeMeaningEvents();
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    const handler = () => {
-      // Automatically invalidate cache when detection completes
-      queryClient.invalidateQueries(['annotations', rId]);
-    };
-
-    eventBus.on('detection:completed', handler);
-    return () => eventBus.off('detection:completed', handler);
-  }, [eventBus, queryClient, rId]);
+function AssistMonitor({ resourceId }: { resourceId: ResourceId }) {
+  useEventSubscriptions({
+    'job:complete': (e) => {
+      if (e.resourceId === resourceId) {
+        // The SDK cache refreshes off the same event — react here for
+        // UI side effects only (toasts, scroll, etc.).
+      }
+    },
+    'job:fail': (e) => {
+      if (e.resourceId === resourceId) { /* show error */ }
+    },
+  });
 }
 ```
 
@@ -307,7 +326,9 @@ See [EVENTS.md](EVENTS.md) for complete event documentation.
 
 ### Detection Configuration
 
-Each annotator can define detection capabilities:
+Each annotator can declare its assist capability via the `detection`
+(`DetectionConfig`) field in its registry metadata (`lib/annotation-registry.ts`).
+It carries display metadata used by the progress UI:
 
 ```typescript
 detection: {
@@ -543,42 +564,24 @@ See test files for comprehensive examples:
 
 ### Event-Based Cache Invalidation
 
-The annotation system uses **event-driven cache invalidation** instead of manual refetch calls. Backend events flow through the `MakeMeaningEventBusProvider` and trigger automatic cache updates:
+Annotation data flows through the SDK's read-through cache, so there are **no
+manual refetch or invalidation calls** in component code. Subscribing to a
+resource's `browse.*` live queries acquires its SSE scope; backend events on the
+session bus then drive the cache to refresh automatically. Components that just
+need the data read it via `useObservable`:
 
 ```typescript
-import { useMakeMeaningEvents } from '@semiont/react-ui';
-import { useQueryClient } from '@tanstack/react-query';
+import { useObservable, useSemiont } from '@semiont/react-ui';
 
-function AnnotationCacheManager({ rId }: { rId: ResourceId }) {
-  const eventBus = useMakeMeaningEvents();
-  const queryClient = useQueryClient();
+function AnnotationsList({ rId }: { rId: ResourceId }) {
+  const browser = useSemiont();
+  const client = useObservable(browser.activeSession$);
+  // Subscribing to this live query acquires the resource scope; the SDK cache
+  // keeps it fresh off `mark:added` / `mark:removed` / `mark:body-updated`
+  // bus events — no invalidation calls here.
+  const annotations = useObservable(client?.browse.annotations(rId)) ?? [];
 
-  useEffect(() => {
-    // Automatically invalidate cache when annotations change
-    const handleAnnotationAdded = () => {
-      queryClient.invalidateQueries(['annotations', rId]);
-    };
-
-    const handleAnnotationRemoved = () => {
-      queryClient.invalidateQueries(['annotations', rId]);
-    };
-
-    const handleAnnotationUpdated = () => {
-      queryClient.invalidateQueries(['annotations', rId]);
-    };
-
-    eventBus.on('mark:added', handleAnnotationAdded);
-    eventBus.on('mark:removed', handleAnnotationRemoved);
-    eventBus.on('mark:body-updated', handleAnnotationUpdated);
-
-    return () => {
-      eventBus.off('mark:added', handleAnnotationAdded);
-      eventBus.off('mark:removed', handleAnnotationRemoved);
-      eventBus.off('mark:body-updated', handleAnnotationUpdated);
-    };
-  }, [eventBus, queryClient, rId]);
-
-  return null;
+  return <AnnotationsPanel annotations={annotations} />;
 }
 ```
 
@@ -589,39 +592,20 @@ function AnnotationCacheManager({ rId }: { rId: ResourceId }) {
 - ✅ Real-time collaboration support
 - ✅ Consistent cache state across components
 
-### Legacy CacheManager (Deprecated)
-
-The `CacheManager` interface is deprecated in favor of event-based cache invalidation:
-
-```typescript
-// ❌ OLD: Manual cache invalidation via CacheManager
-const cacheManager: CacheManager = {
-  invalidateAnnotations: (rId) => {
-    queryClient.invalidateQueries({ queryKey: ['annotations', rId] });
-  },
-  invalidateEvents: (rId) => {
-    queryClient.invalidateQueries({ queryKey: ['resources', 'events', rId] });
-  }
-};
-
-// ✅ NEW: Event-based cache invalidation
-// Subscribe to events, no manual invalidation needed
-```
-
 ### Real-Time Collaboration
 
 The event bus architecture enables real-time collaboration by broadcasting UI events to peers:
 
 ```typescript
-import { useMakeMeaningEvents } from '@semiont/react-ui';
+import { useSemiont, useEventSubscription } from '@semiont/react-ui';
 
 // Local component emits selection event
 function TextSelector() {
-  const eventBus = useMakeMeaningEvents();
+  const semiont = useSemiont();
 
   const handleSelection = (selection) => {
-    // Emit locally
-    eventBus.emit('ui:mark:select-comment', selection);
+    // Emit on the bus
+    semiont.emit('ui:mark:select-comment', selection);
 
     // Future: Broadcast to peers for real-time collaboration
     // peerConnection.broadcast('ui:mark:select-comment', selection);
@@ -632,17 +616,10 @@ function TextSelector() {
 
 // Other components (local or remote) subscribe to the same event
 function CollaborativeAnnotationPanel() {
-  const eventBus = useMakeMeaningEvents();
-
-  useEffect(() => {
-    const handler = (selection) => {
-      // Show peer's selection/annotation in real-time
-      showPeerActivity(selection);
-    };
-
-    eventBus.on('ui:mark:select-comment', handler);
-    return () => eventBus.off('ui:mark:select-comment', handler);
-  }, [eventBus]);
+  useEventSubscription('ui:mark:select-comment', (selection) => {
+    // Show peer's selection/annotation in real-time
+    showPeerActivity(selection);
+  });
 }
 ```
 
@@ -656,7 +633,7 @@ See [EVENTS.md](EVENTS.md) for complete real-time collaboration architecture.
 
 - `useResourceAnnotations()` - Annotation mutations and UI state
 - `useAnnotationUI()` - UI-only state (sparkle animations)
-- `useAnnotations()` - Low-level API client hooks
+- `useObservable(client?.browse.annotations(rId))` - Read annotations from the SDK live query
 
 ### Utilities
 
@@ -665,13 +642,13 @@ See [EVENTS.md](EVENTS.md) for complete real-time collaboration architecture.
 - `getAnnotationInternalType(annotation)` - Get type string
 - `groupAnnotationsByType(annotations)` - Group by type
 - `withHandlers(handlers)` - Inject runtime handlers
-- `createDetectionHandler(annotator, context)` - Create AI detection handler
+- `client.mark.requestAssist(motivation, options)` - Trigger AI assist (mark state unit runs the job)
+- `useObservable(stateUnit.mark.assistingMotivation$)` - Read live assist state
 
 ### Types
 
 - `Annotation` - W3C Annotation type
 - `AnnotationManager` - Mutation interface
-- `CacheManager` - Cache invalidation interface
 - `Annotator` - Annotator metadata type
 - `CreateAnnotationParams` - Creation parameters
 - `DeleteAnnotationParams` - Deletion parameters

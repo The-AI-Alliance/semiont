@@ -3,7 +3,7 @@
 Guide to the event buses in `@semiont/react-ui` — how they're scoped,
 how to emit and subscribe, and how to debug wire-level problems.
 
-For the underlying class model (`SemiontBrowser`, `SemiontApiClient`,
+For the underlying class model (`SemiontBrowser`, `SemiontClient`,
 `SemiontSession`) see [SESSION.md](SESSION.md). For the canonical
 channel list, see `packages/core/src/bus-protocol.ts` —
 `EventMap` is the single source of truth.
@@ -14,7 +14,7 @@ The app has **two independent `EventBus` instances**:
 
 | Bus | Owner | Lifetime | Channels |
 |---|---|---|---|
-| **Session bus** | `SemiontApiClient` (private) | One per KB session — reborn on every `signIn` / `setActiveKb` | KB-content traffic: `browse:*`, `mark:*`, `beckon:*`, `gather:*`, `match:*`, `bind:*`, `yield:*`, `job:*` |
+| **Session bus** | `SemiontClient` (private) | One per KB session — reborn on every `signIn` / `setActiveKb` | KB-content traffic: `browse:*`, `mark:*`, `beckon:*`, `gather:*`, `match:*`, `bind:*`, `yield:*`, `job:*` |
 | **Shell bus** | `SemiontBrowser` (private) | App lifetime — survives sign-out, KB swap, and zero-KB state | UI shell traffic: `panel:*`, `shell:*`, `tabs:*`, `nav:*`, `settings:*` |
 
 The split exists because the shell must keep working when there is
@@ -132,8 +132,9 @@ with the same `correlationId`. The SSE subscription delivers it
 back to the client.
 
 Callers rarely write this loop by hand — `busRequest(client, ...)`
-in `@semiont/api-client` wraps it with a Promise. But the wire
-format is what every protocol-level assertion keys on.
+in `@semiont/sdk` (`packages/sdk/src/bus-request.ts`) wraps it with a
+Promise. But the wire format is what every protocol-level assertion
+keys on.
 
 ## Wire-level observability
 
@@ -176,7 +177,7 @@ detectable in seconds rather than hours, had it existed).
 
 ### State machines driven by events
 
-Most VMs in `packages/api-client/src/state/flows/` follow the
+Most VMs in `packages/sdk/src/state/flows/` follow the
 same shape: listen for `*-requested`/`*-ok`/`*-failed` triples on
 the session client, project the state machine into BehaviorSubjects,
 and expose them as `vm.state$`. Components read via
@@ -184,24 +185,26 @@ and expose them as `vm.state$`. Components read via
 `client.emit(...)`. No shared mutable state; correlationIds thread
 request and response.
 
-### Cache invalidation on broadcast
+### Cache freshness on broadcast
 
 Persisted domain events (`mark:added`, `mark:removed`,
 `yield:created`, ...) are broadcast to everyone viewing the
-resource. Subscribers typically invalidate the relevant React Query
-keys — the next render refetches.
+resource. There is no manual cache invalidation: the SDK's
+read-through cache is updated by the bus itself, so the live
+queries (`client.browse.*(rId)`) re-emit and any
+`useObservable(...)` subscriber re-renders with fresh data.
 
 ```tsx
-const queryClient = useQueryClient();
-useEventSubscription('mark:added', () => {
-  queryClient.invalidateQueries({ queryKey: ['annotations', rId] });
-});
+// No manual query-client invalidation — just observe the live query.
+const annotations = useObservable(client.browse.annotations(rId));
 ```
 
 The bridge between backend-broadcast events and resource-scoped
-subscriptions lives in `ResourceViewerPage` via
-`client.addChannels(..., rId)` — it extends the SSE subscription
-to include scoped channels for the open resource.
+subscriptions is implicit: subscribing to a `browse.*(rId)` live
+query acquires the resource's SSE scope (freshness follows
+observation), and the last unsubscribe releases it. The client
+exposes no explicit channel-extension call; SSE scope is acquired
+purely by observing the live queries.
 
 ## Gotchas learned the hard way
 

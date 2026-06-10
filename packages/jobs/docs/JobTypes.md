@@ -47,6 +47,8 @@ interface DetectionParams {
   resourceId: ResourceId;
   entityTypes: EntityType[];
   includeDescriptiveReferences?: boolean;
+  language?: string;        // Annotation body locale (BCP-47)
+  sourceLanguage?: string;  // Source resource locale (BCP-47)
 }
 ```
 
@@ -115,10 +117,12 @@ interface GenerationParams {
   prompt?: string;
   title?: string;
   entityTypes?: EntityType[];
-  language?: string;                // e.g., 'en-US'
+  language?: string;                // Annotation body locale, e.g., 'en-US'
+  sourceLanguage?: string;          // Source resource locale (BCP-47)
   context?: GatheredContext;
   temperature?: number;
   maxTokens?: number;
+  storageUri?: string;
 }
 ```
 
@@ -183,7 +187,8 @@ Key passage highlighting — identifies passages that should be highlighted for 
 interface HighlightDetectionParams {
   resourceId: ResourceId;
   instructions?: string;
-  density?: number;       // 1-15 highlights per 2000 words
+  density?: number;         // 1-15 highlights per 2000 words
+  sourceLanguage?: string;  // Source resource locale (BCP-47)
 }
 ```
 
@@ -241,7 +246,9 @@ interface AssessmentDetectionParams {
   resourceId: ResourceId;
   instructions?: string;
   tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';
-  density?: number;       // 1-10 assessments per 2000 words
+  density?: number;         // 1-10 assessments per 2000 words
+  language?: string;        // Annotation body locale (BCP-47)
+  sourceLanguage?: string;  // Source resource locale (BCP-47)
 }
 ```
 
@@ -275,7 +282,9 @@ interface CommentDetectionParams {
   resourceId: ResourceId;
   instructions?: string;
   tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
-  density?: number;       // 2-12 comments per 2000 words
+  density?: number;         // 2-12 comments per 2000 words
+  language?: string;        // Annotation body locale (BCP-47)
+  sourceLanguage?: string;  // Source resource locale (BCP-47)
 }
 ```
 
@@ -307,8 +316,10 @@ Structural role tagging — identifies passages that serve structural roles (int
 ```typescript
 interface TagDetectionParams {
   resourceId: ResourceId;
-  schemaId: string;       // e.g., 'legal-irac', 'scientific-imrad'
-  categories: string[];   // e.g., ['Issue', 'Rule', 'Application']
+  schema: TagSchema;        // Full schema object (e.g., legal-irac, scientific-imrad)
+  categories: string[];     // e.g., ['Issue', 'Rule', 'Application']
+  language?: string;        // Annotation body locale (BCP-47)
+  sourceLanguage?: string;  // Source resource locale (BCP-47)
 }
 ```
 
@@ -353,7 +364,18 @@ const job: PendingJob<TagDetectionParams> = {
   },
   params: {
     resourceId: resourceId('doc-888'),
-    schemaId: 'legal-irac',
+    schema: {
+      id: 'legal-irac',
+      name: 'IRAC',
+      description: 'Legal analysis structure',
+      domain: 'legal',
+      tags: [
+        { name: 'Issue', description: 'The legal question presented', examples: [] },
+        { name: 'Rule', description: 'The governing legal rule', examples: [] },
+        { name: 'Application', description: 'Application of rule to facts', examples: [] },
+        { name: 'Conclusion', description: 'The resulting conclusion', examples: [] },
+      ],
+    },
     categories: ['Issue', 'Rule', 'Application', 'Conclusion'],
   },
 };

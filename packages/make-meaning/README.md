@@ -93,7 +93,7 @@ All meaningful actions flow through the EventBus. The KB actors are reactive —
 graph TB
     Routes["Backend Routes"] -->|commands| BUS["Event Bus"]
     Workers["Job Workers"] -->|commands| BUS
-    EBC["SemiontApiClient"] -->|commands| BUS
+    EBC["SemiontClient"] -->|commands| BUS
 
     subgraph ks ["Knowledge System"]
         STOWER["Stower<br/>(write)"]

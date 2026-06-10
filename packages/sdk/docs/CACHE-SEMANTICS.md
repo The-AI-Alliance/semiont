@@ -1,13 +1,13 @@
 # Cache Semantics
 
 This document specifies the behavior of the read-through cache in
-`BrowseNamespace` (and, by extension, any future cache primitive in
-`api-client`). It is the behavioral contract that implementation must
+`BrowseNamespace` (and the `createCache` primitive in
+`@semiont/sdk`). It is the behavioral contract that implementation must
 satisfy and that tests must verify.
 
 ## Why write this down
 
-The cache is implemented by hand because `api-client` is
+The cache is implemented by hand because `@semiont/sdk` is
 framework-agnostic (React, CLI, MCP, worker all consume it), and no
 off-the-shelf library fits the RxJS + StateUnit idiom without
 wrapping. Every bug in the hand-rolled cache so far has been a race
@@ -388,7 +388,7 @@ once per `SemiontClient`.
 
 ## Test-parity
 
-A `CACHE-SEMANTICS.test.ts` in `packages/api-client/src/namespaces/__tests__/`
+A `cache-semantics.test.ts` in `packages/sdk/src/namespaces/__tests__/`
 asserts each of B1–B13 against the current implementation. Adding a
 new behavior here must be accompanied by a new test case referencing
 its number (`// B7 — invalidate preserves stale value`). Removing or

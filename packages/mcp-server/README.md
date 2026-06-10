@@ -14,33 +14,27 @@ Provides MCP tools for:
 
 ## Architecture
 
-The MCP server uses `@semiont/api-client` to communicate with the Semiont backend:
+The MCP server uses the `@semiont/sdk` `SemiontClient` (over `@semiont/api-client` HTTP transports) to communicate with the Semiont backend:
 
 ```typescript
-import { SemiontApiClient } from '@semiont/api-client';
-import { EventBus, accessToken, type AccessToken } from '@semiont/core';
+import { SemiontClient } from '@semiont/sdk';
+import { HttpTransport, HttpContentTransport } from '@semiont/api-client';
+import { baseUrl, accessToken, type AccessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
 
-// Create client with observable access token
-const apiClient = new SemiontApiClient({
-  baseUrl: SEMIONT_API_URL,
-  eventBus: new EventBus(),
-  token$: new BehaviorSubject<AccessToken | null>(accessToken(SEMIONT_ACCESS_TOKEN)),
-});
+// HTTP transports carry the observable access token
+const token$ = new BehaviorSubject<AccessToken | null>(accessToken(SEMIONT_ACCESS_TOKEN));
+const transport = new HttpTransport({ baseUrl: baseUrl(SEMIONT_API_URL), token$ });
+const semiont = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
-// All handlers receive the client instance
-async function handleCreateDocument(client: SemiontApiClient, args: any) {
-  const data = await client.createDocument({
-    name: args.name,
-    content: args.content,
-    format: args.contentType || 'text/plain',
-    entityTypes: args.entityTypes || [],
-  });
+// All handlers receive the client instance and call its verb namespaces
+async function browseResources(semiont: SemiontClient, args: any) {
+  const resources = await semiont.browse.resources({ limit: args.limit });
 
   return {
     content: [{
       type: 'text',
-      text: `Document created: ${data.document.id}`,
+      text: JSON.stringify(resources, null, 2),
     }],
   };
 }
