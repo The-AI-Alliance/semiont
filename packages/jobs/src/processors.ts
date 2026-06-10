@@ -1,13 +1,12 @@
 /**
- * Job Processors — extracted from JobWorker subclasses
+ * Job Processors
  *
  * Pure functions that take content + inference client + params,
  * report progress via callback, and return annotations + results.
  *
  * No EventBus, no JobQueue, no side effects except calling inference.
- * Two callers:
- *   1. In-process JobWorker subclasses (existing path)
- *   2. Remote WorkerStateUnit via worker-process.ts (new path)
+ * Driven by the remote worker process (worker-process.ts), which claims
+ * jobs over SSE and dispatches by jobType to these functions.
  */
 
 import { AnnotationDetection } from './workers/annotation-detection';
