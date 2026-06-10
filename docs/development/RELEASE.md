@@ -4,9 +4,15 @@ This document describes the release process for Semiont.
 
 ## Overview
 
-Semiont uses a two-step release process:
-1. **Release workflow** — Tags the version and publishes all npm packages
-2. **release:bump** — Bumps the version for the next development cycle
+Semiont publishes a release in these steps:
+1. **Release workflow** — tags the version, publishes all npm packages, and —
+   when the **Build and publish desktop apps** box is checked — builds and
+   publishes the desktop apps.
+2. **Publish Frontend Container Image** — a separate action that pushes the
+   `semiont-frontend` image to GHCR, run *after* the npm packages exist (it
+   verifies the version on npm first). See
+   [Step 1b](#step-1b-publish-the-frontend-container-image).
+3. **release:bump** — bumps the version for the next development cycle.
 
 ## Step 1: Publish a Stable Release
 
@@ -18,14 +24,20 @@ The **Release** workflow handles tagging and npm publishing.
    https://github.com/The-AI-Alliance/semiont/actions/workflows/release.yml
 2. Click **Run workflow**
 3. Optionally check **Dry run** to build without publishing
-4. Click the green **Run workflow** button
-5. Monitor the run — the tag and npm publish jobs appear as nested steps
+4. Optionally check **Build and publish desktop apps** to also build the
+   desktop apps for macOS (Intel + Apple Silicon) and Linux x64
+5. Click the green **Run workflow** button
+6. Monitor the run — the tag, npm publish, and (if checked) desktop jobs
+   appear as nested steps
 
 ### From the command line
 
 ```bash
 # Live release
 gh workflow run release.yml
+
+# Live release that also builds and publishes the desktop apps
+gh workflow run release.yml --field desktop=true
 
 # Dry run (builds but does not publish)
 gh workflow run release.yml --field dry_run=true
@@ -47,6 +59,38 @@ gh run watch <run-id> --exit-status
 2. **Creates and pushes a git tag** `v{version}` (skips if already exists)
 3. **Creates a GitHub Release** with auto-generated release notes from commits and merged PRs
 4. **Publishes npm packages** — all `@semiont/*` libraries, CLI, backend, and frontend
+5. **Builds and publishes the desktop apps** — only when the **Build and
+   publish desktop apps** box (`desktop=true`) is checked; chains the
+   `publish-desktop.yml` workflow for macOS (Intel + Apple Silicon) and
+   Linux x64
+
+
+## Step 1b: Publish the Frontend Container Image
+
+The npm release does **not** publish the frontend container image — that is a
+separate **Publish Frontend Container Image** action (`publish-frontend.yml`).
+Run it *after* the npm packages are live, because it verifies that
+`@semiont/frontend@<version>` exists on npm before building.
+
+### From the GitHub UI
+
+1. Go to **Actions** > **Publish Frontend Container Image**
+2. Click **Run workflow**
+3. Set **version** to the released version (e.g. `0.5.6`)
+4. Check **Also tag as :latest** to move the `:latest` tag to this build
+5. Click **Run workflow**
+
+### From the command line
+
+```bash
+# Publish the image for 0.5.6 and also tag it :latest
+gh workflow run publish-frontend.yml --field version=0.5.6 --field tag_latest=true
+```
+
+This pushes to GHCR:
+- `ghcr.io/the-ai-alliance/semiont-frontend:<version>`
+- `ghcr.io/the-ai-alliance/semiont-frontend:sha-<commit>`
+- `ghcr.io/the-ai-alliance/semiont-frontend:latest` (only when `tag_latest=true`)
 
 
 ## Step 2: Bump Version for Next Cycle
@@ -134,18 +178,22 @@ chasing it. (Speaking from experience.)
 git checkout main
 git pull
 
-# 2. Check current version and run tests
+# 2. Check version, run tests, and the e2e smoke suite
 npm run version:show
 npm test
+# e2e: containerized run against a local stack — see tests/e2e/README.md
 
-# 3. Publish stable release
+# 3. Publish stable release (add --field desktop=true to also ship desktop apps)
 gh workflow run release.yml
 
 # 4. Monitor until complete
 gh run list --workflow=release.yml --limit=1
 gh run watch <run-id> --exit-status
 
-# 5. Bump version for next development cycle
+# 5. After the npm packages are live, publish the frontend container image
+gh workflow run publish-frontend.yml --field version=<version> --field tag_latest=true
+
+# 6. Bump version for next development cycle
 ./scripts/release/version-bump.sh patch
 ```
 
@@ -183,6 +231,16 @@ npm install @semiont/frontend@dev
 
 **View all versions:**
 - https://www.npmjs.com/settings/semiont/packages
+
+### Container Images
+
+The frontend container image is published to GHCR by
+[Step 1b](#step-1b-publish-the-frontend-container-image):
+
+```bash
+docker pull ghcr.io/the-ai-alliance/semiont-frontend:0.5.6
+docker pull ghcr.io/the-ai-alliance/semiont-frontend:latest
+```
 
 
 ## Version Bump Guidelines
@@ -241,12 +299,17 @@ gh workflow run release.yml
 
 Before releasing:
 - [ ] All tests passing
-- [ ] No uncommitted changes
+- [ ] e2e smoke suite green against a local stack — see
+      [tests/e2e/README.md](../../tests/e2e/README.md) (note the host-gateway
+      CORS setup the containerized run requires)
+- [ ] No uncommitted changes — anything not on `origin/main` is **not** in the tag
 - [ ] On main branch with latest changes
 - [ ] Version in `version.json` is correct
 
 After releasing:
 - [ ] Verify npm packages published (including `@semiont/backend` and `@semiont/frontend`)
+- [ ] If desktop was checked, verify the desktop artifacts on the GitHub Release
+- [ ] Publish the frontend container image ([Step 1b](#step-1b-publish-the-frontend-container-image)) and confirm the `:<version>` and `:latest` tags on GHCR
 - [ ] Test installation: `npm install -g @semiont/cli@latest && semiont init && semiont provision`
 - [ ] Bump version for next cycle: `./scripts/release/version-bump.sh`
 

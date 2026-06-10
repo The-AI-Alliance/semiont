@@ -25,6 +25,69 @@ container run --rm \
   npx playwright test
 ```
 
+> If every test fails in the `signIn` fixture with *"Request failed due
+> to a network error"*, it's a CORS-origin mismatch — see
+> [Signing in: CORS origin](#signing-in-cors-origin-the-host-gateway-workaround).
+
+## Signing in: CORS origin (the host-gateway workaround)
+
+The browser the suite drives makes a *credentialed* auth POST to the
+backend (`POST /api/tokens/password`). The backend allows exactly **one**
+CORS origin — `services.backend.corsOrigin`, a single string baked into
+the backend image at build time. If the page's origin (`E2E_FRONTEND_URL`)
+isn't that exact origin, the browser blocks the response and **every test
+fails in the `signIn` fixture** with:
+
+```
+Request failed due to a network error: POST http://…:4000/api/tokens/password
+```
+
+`curl` to the same endpoint *succeeds* — curl doesn't enforce CORS, only
+the browser does. So a green `curl` is not proof the browser can sign in.
+
+The KB template defaults `corsOrigin` to `http://localhost:3000`, but a
+containerized Playwright browser **can't use `localhost`** — inside the
+container that resolves to the container itself, not the frontend. And
+pinning the frontend's bridge IP is fragile: container IPs change on every
+restart. The robust target is the **host bridge gateway**, `192.168.64.1`:
+it's reachable from inside containers, routes to the host's *published*
+ports (`:3000`→frontend, `:4000`→backend), and its address is **stable
+across restarts**.
+
+**Workaround — two parts:**
+
+1. In the KB's active semiontconfig (e.g.
+   `.semiont/containers/semiontconfig/anthropic.toml`), set the gateway
+   origin:
+
+   ```toml
+   [environments.local.backend]
+   corsOrigin = "http://192.168.64.1:3000"
+   ```
+
+   Then **rebuild** the backend image. `corsOrigin` is `COPY`-baked into
+   the image (`Dockerfile.backend`), so a plain restart won't pick up the
+   change — `start.sh` rebuilds on every run; use `--no-cache` to be sure.
+   (This is a local, machine-specific edit — don't commit it to the KB.)
+
+2. Run the suite against the gateway for **both** URLs, with the frontend
+   published on host port 3000 (`-p 3000:3000`; the backend already
+   publishes `4000`). No IP-grabbing needed — the gateway doesn't change
+   between runs:
+
+   ```sh
+   container run --rm \
+     -v "$(git rev-parse --show-toplevel):/workspace" \
+     -w /workspace/tests/e2e \
+     -e E2E_EMAIL=admin@example.com \
+     -e E2E_PASSWORD=password \
+     -e E2E_FRONTEND_URL=http://192.168.64.1:3000 \
+     -e E2E_BACKEND_URL=http://192.168.64.1:4000 \
+     -e CI=1 \
+     mcr.microsoft.com/playwright:v1.59.1-noble \
+     npx playwright test
+   ```
+
 ## Docs
 
 - [Running tests](docs/running.md) — invocation, single spec, headed,
