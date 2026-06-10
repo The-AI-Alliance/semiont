@@ -6,7 +6,6 @@
  * Provides:
  * - JobQueue interface: backing-store-agnostic contract
  * - FsJobQueue: Filesystem-backed implementation
- * - JobWorker: Abstract base class for job workers
  * - Job processors: Extracted functions for each job type
  * - Job types: All job type definitions
  */
@@ -14,9 +13,6 @@
 // Job Queue
 export type { JobQueue } from './job-queue-interface';
 export { FsJobQueue } from './fs-job-queue';
-
-// Job Worker
-export { JobWorker } from './job-worker';
 
 // Types
 export type {
