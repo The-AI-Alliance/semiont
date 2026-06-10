@@ -80,7 +80,7 @@ Package names for `--package`:
 
 | Libraries | Apps |
 |-----------|------|
-| api-client, ontology, core, content | cli |
+| http-transport, ontology, core, content | cli |
 | event-sourcing, graph, inference | backend |
 | jobs, make-meaning, react-ui | frontend |
 

@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+mcp-server%22)
 
-This Model Context Protocol (MCP) server provides AI applications with access to the Semiont API using the common `@semiont/api-client`.
+This Model Context Protocol (MCP) server provides AI applications with access to the Semiont API using the common `@semiont/http-transport`.
 
 ## Features
 
@@ -14,11 +14,11 @@ Provides MCP tools for:
 
 ## Architecture
 
-The MCP server uses the `@semiont/sdk` `SemiontClient` (over `@semiont/api-client` HTTP transports) to communicate with the Semiont backend:
+The MCP server uses the `@semiont/sdk` `SemiontClient` (over `@semiont/http-transport` HTTP transports) to communicate with the Semiont backend:
 
 ```typescript
 import { SemiontClient } from '@semiont/sdk';
-import { HttpTransport, HttpContentTransport } from '@semiont/api-client';
+import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
 import { baseUrl, accessToken, type AccessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
 

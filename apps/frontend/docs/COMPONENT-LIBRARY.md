@@ -60,7 +60,7 @@ composes the library.
 - `TranslationProvider` — pluggable i18n manager
 - `OpenResourcesProvider`, `ResourceAnnotationsProvider` — workspace state
 
-#### Flow state units (from `@semiont/api-client`, re-exported)
+#### Flow state units (from `@semiont/http-transport`, re-exported)
 - `createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBindStateUnit`, `createBeckonStateUnit`, `createShellStateUnit`
 - Resource-page composition: `createResourceViewerPageStateUnit`
 
@@ -240,12 +240,12 @@ would otherwise force a framework dependency.
 provider nesting in the layout. Auth-dependent providers must be
 inside `AuthShell`.
 
-**Type mismatches after schema changes**: rebuild the core + api-client
+**Type mismatches after schema changes**: rebuild the core + http-transport
 packages so the generated OpenAPI types propagate:
 
 ```bash
 npm run generate:openapi --workspace=@semiont/core
-npm run build --workspace=@semiont/core --workspace=@semiont/api-client
+npm run build --workspace=@semiont/core --workspace=@semiont/http-transport
 ```
 
 ## Best Practices

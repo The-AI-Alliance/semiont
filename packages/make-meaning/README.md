@@ -19,7 +19,7 @@ This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/
 
 All actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
 
-The EventBus is a **complete interface** for all knowledge-domain operations. HTTP routes in the backend are thin wrappers that delegate to EventBus actors. The `@semiont/api-client` exposes the same operations via verb-oriented namespaces (`semiont.browse`, `semiont.mark`, `semiont.gather`, etc.).
+The EventBus is a **complete interface** for all knowledge-domain operations. HTTP routes in the backend are thin wrappers that delegate to EventBus actors. The `@semiont/http-transport` exposes the same operations via verb-oriented namespaces (`semiont.browse`, `semiont.mark`, `semiont.gather`, etc.).
 
 ## Quick Start
 
@@ -237,7 +237,7 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 ## Dependencies
 
 - **[@semiont/core](../core/)** — Core types, EventBus, utilities
-- **[@semiont/api-client](../api-client/)** — OpenAPI-generated types
+- **[@semiont/http-transport](../http-transport/)** — OpenAPI-generated types
 - **[@semiont/event-sourcing](../event-sourcing/)** — Event store and view storage
 - **[@semiont/content](../content/)** — Content-addressed storage
 - **[@semiont/graph](../graph/)** — Graph database abstraction

@@ -13,7 +13,7 @@ The Semiont browser provides a rich annotation experience for building semantic 
 - Spatial annotations for images and PDFs
 - AI-powered annotation detection for text (asynchronous)
 - AI-powered document generation (asynchronous)
-- Type-safe API integration with `@semiont/api-client`
+- Type-safe API integration with `@semiont/http-transport`
 - Real-time progress tracking via Server-Sent Events (SSE)
 
 ## npm Package
@@ -291,7 +291,7 @@ We welcome contributions! Please read:
 ### Other Services
 - [Backend README](../backend/README.md) - Backend API server
 - [MCP Server README](../../packages/mcp-server/README.md) - AI integration via Model Context Protocol
-- [API Client README](../../packages/api-client/README.md) - Type-safe TypeScript client
+- [API Client README](../../packages/http-transport/README.md) - Type-safe TypeScript client
 - [CLI README](../cli/README.md) - Command-line interface
 
 ### External Resources

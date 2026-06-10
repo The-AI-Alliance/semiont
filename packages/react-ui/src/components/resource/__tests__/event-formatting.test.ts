@@ -8,7 +8,7 @@ import {
   getResourceCreationDetails,
 } from '../event-formatting';
 
-// Mock api-client functions
+// Mock http-transport functions
 vi.mock('@semiont/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/core')>();
   return {

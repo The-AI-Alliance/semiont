@@ -478,7 +478,7 @@ For HTTP, the underlying connection auto-reconnects with exponential backoff. On
 
 ### Worker / actor adapters
 
-Worker-side adapters live with their domain and consume the transport-neutral `WorkerBus` interface that `@semiont/sdk` exports. `createJobClaimAdapter` and `createJobQueueStateUnit` are in `@semiont/jobs`; `createSmelterActorStateUnit` is in `@semiont/make-meaning`. `WorkerBus` is a small contract (`on$(channel)`, `emit(channel, payload)`, optional `addChannels(...)`). The HTTP `ActorStateUnit` from `@semiont/api-client` satisfies it structurally; an in-process worker can wrap an `EventBus` in a small shim. Workers today reach for the HTTP actor like this:
+Worker-side adapters live with their domain and consume the transport-neutral `WorkerBus` interface that `@semiont/sdk` exports. `createJobClaimAdapter` and `createJobQueueStateUnit` are in `@semiont/jobs`; `createSmelterActorStateUnit` is in `@semiont/make-meaning`. `WorkerBus` is a small contract (`on$(channel)`, `emit(channel, payload)`, optional `addChannels(...)`). The HTTP `ActorStateUnit` from `@semiont/http-transport` satisfies it structurally; an in-process worker can wrap an `EventBus` in a small shim. Workers today reach for the HTTP actor like this:
 
 ```typescript
 import type { HttpTransport } from '@semiont/sdk';
@@ -556,11 +556,11 @@ Bus-layer and session-layer errors keep their own code namespaces:
 
 | Class | Codes | Thrown by |
 |---|---|---|
-| `APIError` (extends `SemiontError`) | `TransportErrorCode` (above) — plus `APIError.status` for the original HTTP status | HTTP transport (`@semiont/api-client`) |
+| `APIError` (extends `SemiontError`) | `TransportErrorCode` (above) — plus `APIError.status` for the original HTTP status | HTTP transport (`@semiont/http-transport`) |
 | `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.bad-payload`, `bus.unauthorized`, `bus.forbidden`, `bus.not-found` | bus-mediated commands inside namespaces |
 | `SemiontSessionError` | `session.auth-failed`, `session.refresh-exhausted`, `session.construct-failed` | the session layer — surfaced on `SemiontBrowser.error$`, not as a per-call rejection |
 
-Catch broadly on `SemiontError` and route on `code`; reach for `APIError` (imported from `@semiont/api-client`) only when a handler genuinely needs HTTP-specific fields like `status`.
+Catch broadly on `SemiontError` and route on `code`; reach for `APIError` (imported from `@semiont/http-transport`) only when a handler genuinely needs HTTP-specific fields like `status`.
 
 ```typescript
 import { SemiontError, BusRequestError } from '@semiont/sdk';
@@ -594,7 +594,7 @@ try {
 `APIError` is *not* re-exported from `@semiont/sdk` — it's transport-specific. Catch on `SemiontError` and route on the neutral code; reach for `APIError` directly only in HTTP-aware code that needs `error.status`:
 
 ```typescript
-import { APIError } from '@semiont/api-client';
+import { APIError } from '@semiont/http-transport';
 
 if (error instanceof APIError) {
   console.error(`HTTP ${error.status} (${error.code}): ${error.message}`);

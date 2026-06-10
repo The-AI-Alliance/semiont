@@ -285,7 +285,7 @@ From [package.json](package.json):
 
 Ollama uses native HTTP (`fetch`) with no SDK dependency.
 
-**Note:** No dependency on `@semiont/api-client` - primitives have minimal dependencies
+**Note:** No dependency on `@semiont/http-transport` - primitives have minimal dependencies
 
 ## Testing
 

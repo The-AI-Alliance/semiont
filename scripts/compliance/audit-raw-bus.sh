@@ -14,7 +14,7 @@ set -euo pipefail
 # The typed namespace methods (session.client.mark.assist etc.) are the
 # only public API surface. Direct bus access is reserved for the SDK
 # implementation (`@semiont/sdk`), the LocalTransport adapter
-# (`@semiont/make-meaning`), and HTTP adapters (`@semiont/api-client`).
+# (`@semiont/make-meaning`), and HTTP adapters (`@semiont/http-transport`).
 #
 # Generic-channel subscription (the case `useEventSubscription` needs —
 # channel name is a hook parameter, not known statically) goes through
@@ -25,7 +25,7 @@ set -euo pipefail
 # Allowlist:
 #   - packages/sdk/src/**               — SemiontClient, namespaces, flow VMs,
 #                                          session
-#   - packages/api-client/src/**        — HTTP adapters
+#   - packages/http-transport/src/**        — HTTP adapters
 #   - packages/jobs/src/**              — job-claim adapter and job-queue state unit
 #                                          (domain-owned worker adapters that
 #                                          subscribe to job:* bus events)
@@ -57,7 +57,7 @@ filter_allowlist() {
     | grep -v "__tests__/" \
     | grep -v "/test-utils\." \
     | grep -v "^packages/sdk/src/" \
-    | grep -v "^packages/api-client/src/" \
+    | grep -v "^packages/http-transport/src/" \
     | grep -v "^packages/jobs/src/" \
     | grep -v "^packages/make-meaning/src/local-transport\.ts:" \
     | grep -v "^packages/react-ui/src/state/" \

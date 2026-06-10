@@ -50,7 +50,7 @@
     "@fontsource/orbitron": "^5.2.8",
     "@headlessui/react": "^2.2.10",
     "@heroicons/react": "^2.2.0",
-    "@semiont/api-client": "0.5.7",
+    "@semiont/http-transport": "0.5.7",
     "@semiont/observability": "0.5.7",
     "@semiont/react-ui": "0.5.7",
     "@semiont/sdk": "0.5.7",

@@ -12,10 +12,10 @@
  * (e.g. `LocalTransport` from `@semiont/make-meaning`) are constructed
  * by the caller from their own package.
  *
- * Transport-specific error classes (`APIError` from `@semiont/api-client`)
+ * Transport-specific error classes (`APIError` from `@semiont/http-transport`)
  * are NOT re-exported. Catch on `SemiontError` (exported below) and route
  * on `err.code`; reach for the transport-specific class only when you're
- * already in HTTP-aware code and import it from `@semiont/api-client`
+ * already in HTTP-aware code and import it from `@semiont/http-transport`
  * directly.
  *
  * ```ts

@@ -12,7 +12,7 @@ type RawAnnotation = components['schemas']['Annotation'];
  * `components['schemas']['Annotation']`, but with a branded `AnnotationId`
  * for the `id` field. Use this import everywhere the codebase refers to
  * "an annotation"; the raw OpenAPI type is only used inside
- * `@semiont/api-client` at the HTTP boundary.
+ * `@semiont/http-transport` at the HTTP boundary.
  *
  * Implemented by intersection (not `Omit`) to be robust against generator
  * drift — if the OpenAPI schema gets `additionalProperties: true` added,

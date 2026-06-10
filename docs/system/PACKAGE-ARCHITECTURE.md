@@ -28,7 +28,7 @@ graph BT
     event["@semiont/event-sourcing<br/><i>Event store & materialized views</i>"]
 
     %% Layer 1: Wire + Storage Primitives
-    api["@semiont/api-client<br/><i>HttpTransport, HttpContentTransport</i>"]
+    api["@semiont/http-transport<br/><i>HttpTransport, HttpContentTransport</i>"]
     content["@semiont/content<br/><i>Content-addressed storage</i>"]
     vectors["@semiont/vectors<br/><i>Vector store & embeddings</i>"]
     ontology["@semiont/ontology<br/><i>Entity schemas & W3C vocab</i>"]
@@ -126,7 +126,7 @@ Edges in the graph reflect the actual `package.json` `dependencies` field for ea
 
 1. **Single Orchestration Point.** `@semiont/make-meaning`'s `startMakeMeaning()` is the **infrastructure owner** — it initializes and manages the lifecycle of every subsystem (EventStore, GraphDB, RepStore, InferenceClient, JobQueue, Workers, GraphConsumer).
 
-2. **Strict API Boundary.** `apps/frontend` never imports backend packages directly. Its only `@semiont/*` imports are `@semiont/sdk`, `@semiont/api-client`, `@semiont/react-ui`, and `@semiont/observability` — every interaction with the backend goes through the SDK over `HttpTransport`.
+2. **Strict API Boundary.** `apps/frontend` never imports backend packages directly. Its only `@semiont/*` imports are `@semiont/sdk`, `@semiont/http-transport`, `@semiont/react-ui`, and `@semiont/observability` — every interaction with the backend goes through the SDK over `HttpTransport`.
 
 3. **Layered Dependencies.** Packages can only depend on packages in lower layers. No circular dependencies.
 

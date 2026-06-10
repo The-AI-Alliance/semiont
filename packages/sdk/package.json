@@ -1,7 +1,7 @@
 {
   "name": "@semiont/sdk",
   "version": "0.5.7",
-  "description": "Semiont SDK — SemiontClient, namespaces, session/browser, state units, and the bus-request/cache helpers. Transport-agnostic; pair with @semiont/api-client (HttpTransport) or @semiont/make-meaning (LocalTransport) for the wire.",
+  "description": "Semiont SDK — SemiontClient, namespaces, session/browser, state units, and the bus-request/cache helpers. Transport-agnostic; pair with @semiont/http-transport (HttpTransport) or @semiont/make-meaning (LocalTransport) for the wire.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,7 +29,7 @@
     "directory": "packages/sdk"
   },
   "scripts": {
-    "pretypecheck": "npm run build --workspace=@semiont/core --if-present && npm run build --workspace=@semiont/api-client --if-present",
+    "pretypecheck": "npm run build --workspace=@semiont/core --if-present && npm run build --workspace=@semiont/http-transport --if-present",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
     "watch": "tsup --watch",
@@ -39,7 +39,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/api-client": "*",
+    "@semiont/http-transport": "*",
     "@semiont/core": "*",
     "rxjs": "^7.8.1"
   },

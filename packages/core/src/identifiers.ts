@@ -4,7 +4,7 @@
  * These types prevent mixing up resource IDs, annotation IDs, and user IDs
  * at compile time while having zero runtime overhead.
  *
- * URI types (ResourceUri, AnnotationUri) are in @semiont/api-client
+ * URI types (ResourceUri, AnnotationUri) are in @semiont/http-transport
  * since they deal with HTTP URIs returned by the API.
  */
 

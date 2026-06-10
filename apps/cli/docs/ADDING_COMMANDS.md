@@ -47,7 +47,7 @@ export type MyCommandOptions = z.output<typeof MyCommandOptionsSchema>;
 ```typescript
 import { CommandResults } from '../command-types.js';
 import { findProjectRoot } from '../config-loader.js';
-import { createAuthenticatedClient } from '../api-client-factory.js';
+import { createAuthenticatedClient } from '../client-factory.js';
 
 export async function runMyCommand(options: MyCommandOptions): Promise<CommandResults> {
   const startTime = Date.now();
@@ -174,7 +174,7 @@ else { /* bar */ }
 ### Long-lived bus subscriptions (listen-style)
 
 ```typescript
-import { createActorStateUnit } from '@semiont/api-client';
+import { createActorStateUnit } from '@semiont/http-transport';
 
 const actor = createActorStateUnit({
   baseUrl: rawBusUrl,

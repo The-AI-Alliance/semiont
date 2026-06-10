@@ -20,7 +20,7 @@ Brief description of the changes in this PR.
 - [ ] Frontend (`apps/frontend`)
 - [ ] Backend (`apps/backend`)
 - [ ] CLI (`apps/cli`)
-- [ ] API Client (`packages/api-client`)
+- [ ] HTTP Transport (`packages/http-transport`)
 - [ ] Core (`packages/core`)
 - [ ] MCP Server (`packages/mcp-server`)
 - [ ] Test Utils (`packages/test-utils`)

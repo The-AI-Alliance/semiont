@@ -11,8 +11,8 @@
       "version": "0.5.7",
       "publish": true
     },
-    "@semiont/api-client": {
-      "dir": "packages/api-client",
+    "@semiont/http-transport": {
+      "dir": "packages/http-transport",
       "version": "0.5.7",
       "publish": true
     },

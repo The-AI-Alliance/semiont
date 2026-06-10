@@ -88,8 +88,8 @@ vi.mock('@semiont/react-ui', async () => {
   };
 });
 
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
+vi.mock('@semiont/http-transport', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/http-transport')>('@semiont/http-transport');
   return {
     ...actual,
     SemiontClient: vi.fn(),

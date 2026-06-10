@@ -109,7 +109,7 @@
     "directory": "packages/react-ui"
   },
   "dependencies": {
-    "@semiont/api-client": "*",
+    "@semiont/http-transport": "*",
     "@semiont/core": "*",
     "@semiont/sdk": "*",
     "react-error-boundary": "^6.1.2"

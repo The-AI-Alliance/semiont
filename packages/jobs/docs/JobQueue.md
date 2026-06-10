@@ -50,7 +50,7 @@ Creates a new job and persists it to the queue.
 
 ```typescript
 import type { PendingJob, GenerationParams } from '@semiont/jobs';
-import { jobId } from '@semiont/api-client';
+import { jobId } from '@semiont/http-transport';
 import { userId, resourceId, annotationId } from '@semiont/core';
 
 const job: PendingJob<GenerationParams> = {

@@ -180,7 +180,7 @@ export default function Dashboard() {
 **2. Create component** in `src/components/`:
 ```typescript
 // src/components/DashboardContent.tsx
-import { api } from "@/lib/api-client";
+import { api } from "@/lib/http-transport";
 import { useKnowledgeBaseSession } from "@semiont/react-ui";
 
 export function DashboardContent() {
@@ -209,7 +209,7 @@ See [API Integration Guide](./API-INTEGRATION.md) for complete details.
 
 **Quick example**:
 ```typescript
-// 1. Define types in src/lib/api-client.ts
+// 1. Define types in src/lib/http-transport.ts
 interface DashboardDataResponse {
   metrics: {
     activeUsers: number;

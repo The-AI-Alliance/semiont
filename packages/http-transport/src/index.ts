@@ -1,5 +1,5 @@
 /**
- * @semiont/api-client
+ * @semiont/http-transport
  *
  * HTTP-specific transport adapters for the Semiont SDK. The dev-facing
  * surface (`SemiontClient`, namespaces, session, state units, helpers)

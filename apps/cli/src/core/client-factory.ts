@@ -1,5 +1,5 @@
 /**
- * API Client Factory
+ * Client Factory
  *
  * Two entry points:
  *

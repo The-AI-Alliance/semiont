@@ -8,7 +8,7 @@ This document describes the frontend UI patterns, component architecture, user w
 
 ## Supported Annotation Types
 
-The W3C Web Annotation Data Model defines 13 standard motivations (`assessing`, `bookmarking`, `classifying`, `commenting`, `describing`, `editing`, `highlighting`, `identifying`, `linking`, `moderating`, `questioning`, `replying`, `tagging`). The `@semiont/api-client` package provides the complete type as `components['schemas']['Motivation']`.
+The W3C Web Annotation Data Model defines 13 standard motivations (`assessing`, `bookmarking`, `classifying`, `commenting`, `describing`, `editing`, `highlighting`, `identifying`, `linking`, `moderating`, `questioning`, `replying`, `tagging`). The `@semiont/http-transport` package provides the complete type as `components['schemas']['Motivation']`.
 
 Currently, Semiont frontend **implements 4 of these motivations**:
 
@@ -105,7 +105,7 @@ Each annotation type is defined with comprehensive metadata:
 ```typescript
 export interface AnnotationTypeMetadata {
   // W3C specification
-  motivation: Motivation;           // W3C motivation from api-client
+  motivation: Motivation;           // W3C motivation from http-transport
   internalType: string;             // Internal identifier (e.g., 'comment')
 
   // Display
@@ -569,7 +569,7 @@ POST   /api/annotations/{id}/resolve
 Semiont uses the full [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/). All annotations follow the W3C specification:
 
 ```typescript
-// From @semiont/api-client
+// From @semiont/http-transport
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
 

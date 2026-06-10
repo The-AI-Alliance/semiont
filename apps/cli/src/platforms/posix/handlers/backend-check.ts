@@ -9,7 +9,7 @@ import { SemiontProject } from '@semiont/core/node';
 import type { BackendServiceConfig } from '@semiont/core';
 import { baseUrl } from '@semiont/core';
 import { SemiontClient } from '@semiont/sdk';
-import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
+import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { checkConfigPort, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 /**

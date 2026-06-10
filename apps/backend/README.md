@@ -16,7 +16,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 
 ### 🔗 Related Resources
 - **[W3C Web Annotation Implementation](../../docs/protocol/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, materialized views, graph database)
-- **[API Client Package](../../packages/api-client/)** - Type-safe TypeScript client for consuming the backend API
+- **[API Client Package](../../packages/http-transport/)** - Type-safe TypeScript client for consuming the backend API
 - **[Core Package](../../packages/core/)** - Shared types, utilities, and business logic
 - **[OpenAPI Specification](../../specs/README.md)** - Hand-written OpenAPI 3.0 schema (spec-first, source in [../../specs/src/](../../specs/src/))
 

@@ -39,7 +39,7 @@ semiont/
 │   └── cli/                    # Semiont management CLI
 ├── packages/                   # Shared workspace packages (see packages/README.md)
 │   ├── core/                   # OpenAPI types, branded IDs, event protocol
-│   ├── api-client/             # HTTP transport adapter (HttpTransport, HttpContentTransport)
+│   ├── http-transport/             # HTTP transport adapter (HttpTransport, HttpContentTransport)
 │   ├── sdk/                    # SemiontClient, namespaces, session, flow state machines, worker adapters
 │   ├── ontology/               # Entity types and tag schemas
 │   ├── content/                # Content-addressed storage

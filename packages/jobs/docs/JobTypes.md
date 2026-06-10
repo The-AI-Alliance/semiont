@@ -78,7 +78,7 @@ interface DetectionResult {
 
 ```typescript
 import type { PendingJob, DetectionParams } from '@semiont/jobs';
-import { jobId } from '@semiont/api-client';
+import { jobId } from '@semiont/http-transport';
 import { userId, resourceId } from '@semiont/core';
 
 const job: PendingJob<DetectionParams> = {

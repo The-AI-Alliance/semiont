@@ -1,7 +1,7 @@
 # API Integration Guide
 
 How the Semiont frontend integrates with the backend through the
-framework-agnostic `@semiont/react-ui` library and the `@semiont/api-client`
+framework-agnostic `@semiont/react-ui` library and the `@semiont/http-transport`
 package — including the provider pattern, bus gateway transport, and
 W3C annotation model.
 
@@ -33,7 +33,7 @@ that maintains framework independence:
               │ uses
               ▼
 ┌─────────────────────────────────────┐
-│    packages/api-client              │
+│    packages/http-transport              │
 │  (Type-safe API client)             │
 │                                     │
 │  • OpenAPI-generated types          │
@@ -140,8 +140,8 @@ Auth-aware components must always be inside the protected boundary.
 **Key points:**
 
 - **Per-KB sessions** — there is no global session; switching KBs switches sessions atomically.
-- **No manual token management** — the session provider handles storage; the api-client reads the token observably.
-- **Type-safe** — types flow from the OpenAPI spec through the api-client to components.
+- **No manual token management** — the session provider handles storage; the http-transport reads the token observably.
+- **Type-safe** — types flow from the OpenAPI spec through the http-transport to components.
 
 ## Bus Gateway Transport
 
@@ -261,10 +261,10 @@ Backend errors follow a consistent shape:
 
 ### In the Client
 
-HTTP errors from the api-client surface as `APIError`:
+HTTP errors from the http-transport surface as `APIError`:
 
 ```typescript
-import { APIError } from '@semiont/api-client';
+import { APIError } from '@semiont/http-transport';
 
 try {
   await semiont.mark.annotation(resourceId, input);
@@ -296,9 +296,9 @@ like `browse:resources-failed`), raised from the promise returned by
 
 ### API client
 
-- [`@semiont/api-client/README.md`](../../../packages/api-client/README.md) — API overview
+- [`@semiont/http-transport/README.md`](../../../packages/http-transport/README.md) — API overview
 - [`@semiont/sdk/docs/Usage.md`](../../../packages/sdk/docs/Usage.md) — setup, bus subscription, namespace reference
-- [`@semiont/api-client/docs/API-Reference.md`](../../../packages/api-client/docs/API-Reference.md) — HTTP transport reference (`HttpTransport`, `TokenRefresher`, `APIError`)
+- [`@semiont/http-transport/docs/API-Reference.md`](../../../packages/http-transport/docs/API-Reference.md) — HTTP transport reference (`HttpTransport`, `TokenRefresher`, `APIError`)
 
 ### Backend
 

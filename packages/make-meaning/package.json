@@ -31,7 +31,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/api-client": "*",
+    "@semiont/http-transport": "*",
     "@semiont/content": "*",
     "@semiont/core": "*",
     "@semiont/event-sourcing": "*",

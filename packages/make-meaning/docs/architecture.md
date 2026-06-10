@@ -125,7 +125,7 @@ Both actors can find resources by name; the question is what kind of question is
 
 The same primitive (`kb.graph.searchResources`) is used by both actors today. That's fine: the difference is what each actor *does with the result*. Browse returns it sorted by date. Match treats it as one of four candidate sources and runs it through structural + semantic scoring.
 
-The rule: **if the answer could be a single SQL/Cypher query against a single index, it's Browse. If it needs to fuse multiple sources or score against context, it's Match.** When discover-page search eventually wants fuzzy / semantic / context-boosted recall, that's the moment to route it through the Matcher instead of the Browser — and the api-client surface would shift from `browse.resources({ search })` to `match.search(...)` accordingly.
+The rule: **if the answer could be a single SQL/Cypher query against a single index, it's Browse. If it needs to fuse multiple sources or score against context, it's Match.** When discover-page search eventually wants fuzzy / semantic / context-boosted recall, that's the moment to route it through the Matcher instead of the Browser — and the http-transport surface would shift from `browse.resources({ search })` to `match.search(...)` accordingly.
 
 ### Gatherer (Context Assembly Actor)
 

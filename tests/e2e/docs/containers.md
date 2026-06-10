@@ -26,7 +26,7 @@ So the "full rebuild" flow depends on what changed:
 
 | Change in | Rebuild | Restart |
 |---|---|---|
-| `packages/react-ui`, `packages/api-client`, `packages/core` | `local-build.sh` | frontend |
+| `packages/react-ui`, `packages/http-transport`, `packages/core` | `local-build.sh` | frontend |
 | `apps/frontend` only | `local-build.sh` | frontend |
 | `packages/make-meaning`, `packages/event-sourcing`, etc. — anything the backend imports | `local-build.sh` (republishes) **and** KB `start.sh --no-cache` | backend (start.sh handles it) |
 | `apps/backend` | KB `start.sh --no-cache` | backend |
@@ -71,7 +71,7 @@ container ls | grep -E 'semiont-(frontend|backend)'    # do this EVERY time
 ```
 
 `--help` lists the full package set. The order is:
-`api-client, ontology, core, content, event-sourcing, graph,
+`http-transport, ontology, core, content, event-sourcing, graph,
 inference, jobs, make-meaning, react-ui, backend, frontend, cli`. The
 flag takes a comma-separated subset.
 

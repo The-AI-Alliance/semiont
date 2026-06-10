@@ -629,7 +629,7 @@ const button = screen.getByRole('button', { name: /submit/i })
 ### 3. Mock at the Network Level
 ```typescript
 // ❌ Bad - Mocking implementation
-vi.mock('./api-client', () => ({
+vi.mock('./http-transport', () => ({
   fetchData: vi.fn(() => Promise.resolve(mockData))
 }))
 
@@ -817,7 +817,7 @@ Anything inside `@semiont/*` is published to a local Verdaccio and consumed via 
 
 | Change in | Rebuild | Restart |
 |---|---|---|
-| `packages/react-ui`, `packages/api-client`, `packages/core`, `packages/sdk` | `./scripts/ci/local-build.sh` | frontend container |
+| `packages/react-ui`, `packages/http-transport`, `packages/core`, `packages/sdk` | `./scripts/ci/local-build.sh` | frontend container |
 | `apps/frontend` only | `./scripts/ci/local-build.sh` | frontend container |
 | `packages/make-meaning`, `event-sourcing`, anything backend-side | `./scripts/ci/local-build.sh` (republish) **and** KB `start.sh --no-cache` | backend (`start.sh` handles it) |
 | `apps/backend` | KB `start.sh --no-cache` | backend |

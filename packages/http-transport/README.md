@@ -1,10 +1,10 @@
-# @semiont/api-client
+# @semiont/http-transport
 
-[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+api-client%22)
-[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=api-client)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=api-client)
-[![npm version](https://img.shields.io/npm/v/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
-[![npm downloads](https://img.shields.io/npm/dm/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
-[![License](https://img.shields.io/npm/l/@semiont/api-client.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+http-transport%22)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=http-transport)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=http-transport)
+[![npm version](https://img.shields.io/npm/v/@semiont/http-transport.svg)](https://www.npmjs.com/package/@semiont/http-transport)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/http-transport.svg)](https://www.npmjs.com/package/@semiont/http-transport)
+[![License](https://img.shields.io/npm/l/@semiont/http-transport.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
 HTTP-specific transport adapters for the Semiont SDK. This is the wire-side
 implementation of the `ITransport` and `IContentTransport` contracts defined
@@ -18,10 +18,12 @@ import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk
 import { baseUrl } from '@semiont/core';
 
 const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/') });
-const client = new SemiontClient(transport, new HttpContentTransport(transport));
+// HttpTransport implements both ITransport and IBackendOperations; passing it
+// third enables the `auth` / `admin` namespaces.
+const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 ```
 
-Direct imports from `@semiont/api-client` are appropriate when constructing
+Direct imports from `@semiont/http-transport` are appropriate when constructing
 the transport stack by hand — e.g. CLI factories, MCP entrypoints, or worker
 pools that wire bespoke `tokenRefresher` / `BehaviorSubject` token sources.
 
@@ -40,7 +42,7 @@ import {
   type BusEvent,
   type ActorStateUnitOptions,
   DEGRADED_THRESHOLD_MS,
-} from '@semiont/api-client';
+} from '@semiont/http-transport';
 ```
 
 That's the entire surface. Everything else moved out:

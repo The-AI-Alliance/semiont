@@ -8,7 +8,7 @@ import {
   ListPromptsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { SemiontClient } from '@semiont/sdk';
-import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
+import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { baseUrl, accessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
 

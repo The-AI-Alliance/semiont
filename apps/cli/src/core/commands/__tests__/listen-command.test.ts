@@ -24,11 +24,11 @@ const { mockActor, mockCreateActorVM, mockLoadCachedClient } = vi.hoisted(() => 
   return { mockActor, mockCreateActorVM, mockLoadCachedClient };
 });
 
-vi.mock('@semiont/api-client', () => ({
+vi.mock('@semiont/http-transport', () => ({
   createActorStateUnit: mockCreateActorVM,
 }));
 
-vi.mock('../../api-client-factory.js', () => ({
+vi.mock('../../client-factory.js', () => ({
   resolveBusUrl: vi.fn(() => 'http://localhost:4000'),
   loadCachedClient: mockLoadCachedClient,
 }));

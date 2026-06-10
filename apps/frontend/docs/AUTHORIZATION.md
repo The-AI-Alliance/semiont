@@ -72,7 +72,7 @@ flowchart TD
 
 ### Error Detection Layers
 
-1. **API Client Level** (`@semiont/api-client`)
+1. **API Client Level** (`@semiont/http-transport`)
    - Throws `APIError` with status: 403
    - Preserves error context from backend
 
@@ -316,7 +316,7 @@ const permissions = {
    - Fine-grained per-resource permissions are pending backend support
 
 3. **403 errors not caught**
-   - Ensure using `APIError` class from api-client
+   - Ensure using `APIError` class from http-transport
    - Check error instanceof APIError
 
 ## Related Documentation

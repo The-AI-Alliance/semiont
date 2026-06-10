@@ -27,7 +27,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/api-client": "*",
+    "@semiont/http-transport": "*",
     "@semiont/core": "*",
     "@semiont/ontology": "*",
     "uuid": "^14.0.0"

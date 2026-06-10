@@ -1,5 +1,5 @@
 /**
- * Generic validation utilities for @semiont/api-client
+ * Generic validation utilities for @semiont/http-transport
  *
  * Pure TypeScript validation with no external dependencies.
  * Safe to use in any JavaScript environment (Node.js, browser, Deno, etc.)

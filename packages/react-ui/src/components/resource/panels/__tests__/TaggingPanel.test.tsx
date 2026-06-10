@@ -112,7 +112,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
   TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// Mock @semiont/api-client utilities
+// Mock @semiont/http-transport utilities
 vi.mock('@semiont/core', async () => {
   const actual = await vi.importActual('@semiont/core');
   return {

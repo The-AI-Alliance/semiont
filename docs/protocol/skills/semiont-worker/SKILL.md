@@ -1,6 +1,6 @@
 ---
 name: semiont-worker
-description: Build a job-claim worker daemon — claim jobs from the queue, process them, and emit lifecycle events. Cross-package wiring with @semiont/sdk + @semiont/jobs + @semiont/api-client + @semiont/observability.
+description: Build a job-claim worker daemon — claim jobs from the queue, process them, and emit lifecycle events. Cross-package wiring with @semiont/sdk + @semiont/jobs + @semiont/http-transport + @semiont/observability.
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
@@ -45,7 +45,7 @@ import {
   InMemorySessionStorage,
   type KnowledgeBase,
 } from '@semiont/sdk';
-import { HttpTransport } from '@semiont/api-client';
+import { HttpTransport } from '@semiont/http-transport';
 import { createJobClaimAdapter, type ActiveJob } from '@semiont/jobs';
 import { createProcessLogger } from '@semiont/observability/process-logger';
 

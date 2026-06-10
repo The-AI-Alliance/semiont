@@ -12,7 +12,7 @@ paths:
   - apps/frontend/src
   - apps/backend/src
   - apps/cli/src
-  - packages/api-client/src
+  - packages/http-transport/src
   - packages/core/src
   - packages/content/src
   - packages/event-sourcing/src

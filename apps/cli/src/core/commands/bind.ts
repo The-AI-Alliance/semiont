@@ -17,7 +17,7 @@ import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 import { printSuccess } from '../io/cli-logger.js';
 
-import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
+import { loadCachedClient, resolveBusUrl } from '../client-factory.js';
 
 // =====================================================================
 // SCHEMA

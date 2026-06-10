@@ -10,7 +10,7 @@ atomically. The frontend stores one JWT pair per KB in
 
 There is no NextAuth, no httpOnly cookie, no global session. Session
 state is owned by a single `SemiontBrowser` singleton that lives in
-`@semiont/api-client` and is exposed to React via the
+`@semiont/http-transport` and is exposed to React via the
 `SemiontProvider` + `useSemiont()` pair in `@semiont/react-ui`.
 
 For the class-level story (observables, lifetimes, invariants), see
@@ -25,7 +25,7 @@ how out-of-tree code signals the provider.
 
 App-level container owning the KB list, active selection, session,
 open-resources tab state, identity token, and two event buses. Lives
-in `@semiont/api-client` so CLI / MCP / workers can use it too.
+in `@semiont/http-transport` so CLI / MCP / workers can use it too.
 
 Key observables the UI reads:
 

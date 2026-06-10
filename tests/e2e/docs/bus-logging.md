@@ -34,7 +34,7 @@ over HTTP+SSE or stay in-process.
 
 | Op     | Site                                                         |
 |--------|--------------------------------------------------------------|
-| `EMIT` | `HttpTransport.emit()` (api-client)                          |
+| `EMIT` | `HttpTransport.emit()` (http-transport)                          |
 | `EMIT` | `LocalTransport.emit()` (make-meaning)                       |
 | `RECV` | HttpTransport's wire-parse (SSE-side fan-in inside actor-state-unit) |
 | `RECV` | `LocalTransport.bridgeInto` subscriber callback              |

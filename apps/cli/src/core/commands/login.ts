@@ -27,7 +27,7 @@ import { parse as parseToml } from 'smol-toml';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, BASE_ARGS, BASE_ALIASES } from '../base-options-schema.js';
-import { acquireToken, busSlug, resolveBusUrl } from '../api-client-factory.js';
+import { acquireToken, busSlug, resolveBusUrl } from '../client-factory.js';
 
 // =====================================================================
 // SCHEMA

@@ -479,7 +479,7 @@ See [EVENT-BUS.md](../EVENT-BUS.md) for the bus protocol.
 
 - [packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx](../../../packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx) - Generation UI
 - [packages/sdk/src/state/flows/yield-state-unit.ts](../../../packages/sdk/src/state/flows/yield-state-unit.ts) - Generation flow state unit (bus commands + progress)
-- [packages/api-client/src/transport/actor-state-unit.ts](../../../packages/api-client/src/transport/actor-state-unit.ts) - Bus actor primitive
+- [packages/http-transport/src/transport/actor-state-unit.ts](../../../packages/http-transport/src/transport/actor-state-unit.ts) - Bus actor primitive
 
 ### Documentation
 

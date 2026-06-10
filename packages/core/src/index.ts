@@ -52,7 +52,7 @@ export {
   resourceAnnotationUri,
 } from './branded-types';
 
-// Identifier types (only IDs - URIs are in @semiont/api-client)
+// Identifier types (only IDs - URIs are in @semiont/http-transport)
 export type { ResourceId, AnnotationId, UserId } from './identifiers';
 export {
   resourceId,

@@ -100,7 +100,7 @@ This is GraphRAG-style re-ranking: structural retrieval narrows the candidate se
 The Matcher also handles reverse-lookup: given a resource, which annotations reference it?
 
 ```typescript
-// Via api-client namespace
+// Via http-transport namespace
 const referencedBy = await firstValueFrom(semiont.browse.referencedBy(resourceId));
 
 // Or via the bus gateway directly

@@ -17,7 +17,7 @@
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { HttpTransport } from '@semiont/api-client';
+import { HttpTransport } from '@semiont/http-transport';
 
 import { SemiontSession } from '../semiont-session';
 import { TestStorage, storageKey } from './test-storage-helpers';

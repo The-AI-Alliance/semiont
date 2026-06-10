@@ -9,7 +9,7 @@ import type { TagSchema } from '@semiont/core';
 
 import type { Annotation, AnnotationId } from '@semiont/core';
 
-// Mock @semiont/api-client
+// Mock @semiont/http-transport
 vi.mock('@semiont/core', async () => {
   const actual = await vi.importActual('@semiont/core');
   return {

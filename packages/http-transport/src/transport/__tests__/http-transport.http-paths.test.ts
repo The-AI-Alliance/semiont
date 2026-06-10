@@ -5,7 +5,7 @@
  * backend's routes expect. Mocks `ky` at the module boundary; no
  * SemiontClient involvement.
  *
- * Migrated from the pre-SDK-split `client.test.ts` (api-client side):
+ * Migrated from the pre-SDK-split `client.test.ts` (http-transport side):
  *   - Auth / status / health endpoints
  *   - Binary content (`HttpContentTransport.getBinary` + stream)
  *   - Multipart upload (`HttpContentTransport.putBinary`)

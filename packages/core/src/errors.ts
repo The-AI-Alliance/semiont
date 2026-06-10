@@ -2,7 +2,7 @@
  * Common error classes — the unified Semiont error hierarchy.
  *
  * `SemiontError` is the base every other Semiont error class extends:
- * `APIError` (api-client), `BusRequestError` and `SemiontSessionError` (sdk),
+ * `APIError` (http-transport), `BusRequestError` and `SemiontSessionError` (sdk),
  * `ValidationError`, `ScriptError`, `NotFoundError`, `UnauthorizedError`,
  * `ConflictError` (here), and `AWSError` (cli). Subclasses tighten the
  * `code` field to a literal-union for discriminated handling.

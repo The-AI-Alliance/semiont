@@ -25,7 +25,7 @@ import { test, expect } from '../fixtures/auth';
  * Regression target: the UI's selected entity types failing to reach
  * the wire — e.g. the chip-selection state not being threaded into
  * `mark:assist-request` payload, or the state unit not forwarding to the
- * api-client. Protocol-level assertion on `job:create` catches
+ * http-transport. Protocol-level assertion on `job:create` catches
  * either break.
  *
  * Requires the seeded KB to have ≥1 entity type defined.

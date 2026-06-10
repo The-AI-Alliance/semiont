@@ -23,7 +23,7 @@ The Semiont platform is designed with frontend flexibility in mind. The backend 
 
 **Future Frontends**: Mobile apps, browser extensions, desktop apps, CLI tools, specialized integrations
 
-**Key Enabler**: `@semiont/api-client` package provides type-safe API access for any TypeScript/JavaScript client
+**Key Enabler**: `@semiont/http-transport` package provides type-safe API access for any TypeScript/JavaScript client
 
 ## Mobile Applications
 
@@ -56,7 +56,7 @@ The Semiont platform is designed with frontend flexibility in mind. The backend 
 
 **Starting Point**:
 ```swift
-// Use @semiont/api-client OpenAPI spec to generate Swift client
+// Use @semiont/http-transport OpenAPI spec to generate Swift client
 // openapi-generator generate -i openapi.json -g swift5 -o SemiontClient
 
 import SemiontClient
@@ -103,13 +103,13 @@ val documents = client.documentsApi.listDocuments()
 
 **Architecture**:
 - **Framework**: React Native + Expo
-- **API Client**: `@semiont/api-client` (reuse existing!)
+- **API Client**: `@semiont/http-transport` (reuse existing!)
 - **Storage**: AsyncStorage + SQLite
 - **Sync**: React Query with persistence
 - **Auth**: expo-auth-session for OAuth
 
 **Key Advantages**:
-- **Reuse `@semiont/api-client`** - no new client needed
+- **Reuse `@semiont/http-transport`** - no new client needed
 - Shared business logic with web frontend
 - TypeScript throughout
 - Faster development
@@ -117,7 +117,7 @@ val documents = client.documentsApi.listDocuments()
 **Starting Point**:
 ```typescript
 // apps/mobile-app
-import { api } from '@semiont/api-client';
+import { api } from '@semiont/http-transport';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 function DocumentList() {
@@ -149,7 +149,7 @@ function DocumentList() {
 - **Manifest**: V3 (Chrome) / V2 (Firefox)
 - **Content Script**: Inject annotation UI into web pages
 - **Background Service**: API calls to Semiont backend
-- **API Client**: `@semiont/api-client`
+- **API Client**: `@semiont/http-transport`
 - **Storage**: chrome.storage.sync for settings
 
 **Key Features**:
@@ -211,7 +211,7 @@ await api.annotations.create(annotation);
 }
 
 // content.js - inject annotation UI
-import { api } from '@semiont/api-client';
+import { api } from '@semiont/http-transport';
 
 document.addEventListener('mouseup', () => {
   const selection = window.getSelection();
@@ -228,7 +228,7 @@ document.addEventListener('mouseup', () => {
 **Architecture**:
 - **App Extension**: Safari App Extension (requires macOS app)
 - **Shared Code**: TypeScript compiled to Safari extension
-- **API Client**: `@semiont/api-client`
+- **API Client**: `@semiont/http-transport`
 
 **Challenges**:
 - Requires macOS app wrapper
@@ -249,7 +249,7 @@ document.addEventListener('mouseup', () => {
 - **Framework**: Electron + React
 - **Renderer**: Reuse Next.js frontend components
 - **Main Process**: Node.js backend access
-- **API Client**: `@semiont/api-client`
+- **API Client**: `@semiont/http-transport`
 - **Storage**: SQLite for local cache
 
 **Key Advantages**:
@@ -291,7 +291,7 @@ app.whenReady().then(createWindow);
 - **Framework**: Tauri + React
 - **Backend**: Rust (lightweight)
 - **Frontend**: Reuse Next.js components
-- **API Client**: `@semiont/api-client`
+- **API Client**: `@semiont/http-transport`
 
 **Key Advantages**:
 - Smaller bundle size than Electron (~10MB vs ~100MB)
@@ -315,7 +315,7 @@ app.whenReady().then(createWindow);
 **Architecture**:
 - **Extension API**: VS Code Extension API
 - **Language**: TypeScript
-- **API Client**: `@semiont/api-client`
+- **API Client**: `@semiont/http-transport`
 - **UI**: VS Code WebView for annotation panel
 
 **Key Features**:
@@ -349,7 +349,7 @@ const annotation = {
 
 ### API Client Package
 
-**Current**: `@semiont/api-client` (TypeScript)
+**Current**: `@semiont/http-transport` (TypeScript)
 
 **Future Clients**:
 - **Swift Client**: Generate from OpenAPI spec (`openapi-generator`)
@@ -503,7 +503,7 @@ Start simple, add features incrementally.
 ## Implementation Roadmap
 
 ### Phase 1: Mobile App (React Native)
-**Why First**: Fastest to market, reuses `@semiont/api-client`
+**Why First**: Fastest to market, reuses `@semiont/http-transport`
 **Timeline**: 2-3 months
 **Features**: Document reader, highlights, entity tags
 
@@ -539,7 +539,7 @@ Start simple, add features incrementally.
 - [Jobs Package](../../../packages/jobs/) - Async operations (for AI features)
 
 ### API Documentation
-- [API Client](../../../packages/api-client/README.md) - Type-safe TypeScript client
+- [API Client](../../../packages/http-transport/README.md) - Type-safe TypeScript client
 - [OpenAPI Spec](../../../specs/README.md) - API specification for client generation (source in [../../../specs/src/](../../../specs/src/))
 
 ### System Documentation

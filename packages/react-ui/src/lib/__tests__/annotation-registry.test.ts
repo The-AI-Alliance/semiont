@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ANNOTATORS } from '../annotation-registry';
 
-// Mock api-client type guards
+// Mock http-transport type guards
 vi.mock('@semiont/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/core')>();
   return {

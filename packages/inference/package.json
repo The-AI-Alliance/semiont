@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
-    "@semiont/api-client": "*",
+    "@semiont/http-transport": "*",
     "@semiont/core": "*",
     "@semiont/observability": "*"
   },

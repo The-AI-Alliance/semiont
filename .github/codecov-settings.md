@@ -65,6 +65,6 @@ https://app.codecov.io/gh/The-AI-Alliance/semiont
 The following are excluded from coverage:
 - Test files (`*.test.ts`, `*.spec.ts`)
 - Configuration files (`*.config.ts`)
-- Generated files (`types.ts` in api-client)
+- Generated files (`types.ts` in core)
 - Build artifacts (`dist/`, `build/`)
 - Examples and demos

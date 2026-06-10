@@ -93,7 +93,7 @@ while [[ $# -gt 0 ]]; do
       echo "  -h, --help         Show this help"
       echo ""
       echo "Build order:"
-      echo "  api-client, ontology, core, content, event-sourcing, graph, inference,"
+      echo "  http-transport, ontology, core, content, event-sourcing, graph, inference,"
       echo "  jobs, make-meaning, react-ui, backend, frontend, cli"
       exit 0
       ;;

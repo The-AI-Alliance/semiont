@@ -260,7 +260,7 @@ one line, followed by one terminating blank line.
 boundaries.** A single SSE event can exceed the first TCP segment (a
 full `browse:resource-result` carries the resource plus annotations,
 easily past the first-chunk size). The reference parser in
-`packages/api-client/src/state units/domain/actor-state-unit.ts` keeps
+`packages/http-transport/src/state units/domain/actor-state-unit.ts` keeps
 `currentEvent` / `currentData` / `currentId` outside its read loop;
 any replacement must do the same, or any event that chunks across
 reads is silently dropped — the `data:` header lands in one chunk and
@@ -268,7 +268,7 @@ the blank-line terminator in the next, and resetting state per-chunk
 breaks dispatch.
 
 This constraint is tested by
-`packages/api-client/src/state units/domain/__tests__/actor-state-unit.test.ts`
+`packages/http-transport/src/state units/domain/__tests__/actor-state-unit.test.ts`
 → "reassembles an event whose bytes span multiple reader.read()
 chunks". If you swap the parser, port the test.
 
@@ -320,7 +320,7 @@ reference them specifically instead of rediscovering them.
 
 ### Cache layer reimplements SWR / React Query
 
-`packages/api-client/src/namespaces/browse.ts` implements
+`packages/http-transport/src/namespaces/browse.ts` implements
 stale-while-revalidate, in-flight dedup, and event-driven invalidation
 by hand. See
 [`packages/sdk/docs/CACHE-SEMANTICS.md`](../../packages/sdk/docs/CACHE-SEMANTICS.md).
@@ -396,11 +396,11 @@ above is the decision tree.
   `/bus/subscribe` routes.
 - `packages/core/src/bus-protocol.ts` — `EventMap`, `CHANNEL_SCHEMAS`,
   `EmittableChannel`, `RESOURCE_BROADCAST_TYPES`.
-- `packages/api-client/src/transport/http-transport.ts` — the HTTP
+- `packages/http-transport/src/transport/http-transport.ts` — the HTTP
   implementation of `ITransport`.
-- `packages/api-client/src/state units/domain/actor-state-unit.ts` — the
+- `packages/http-transport/src/state units/domain/actor-state-unit.ts` — the
   client-side SSE reader, reconnect logic, channel-set management.
-- `packages/api-client/src/bus-request.ts` — correlation-ID matcher.
+- `packages/http-transport/src/bus-request.ts` — correlation-ID matcher.
 - `packages/event-sourcing/src/event-store.ts` — persisted-event
   dual-publish (global + scoped).
 
