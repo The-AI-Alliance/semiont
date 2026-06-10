@@ -4,7 +4,7 @@
  * Graph database abstraction with multiple implementations
  *
  * Provides:
- * - GraphDatabase interface with 28 methods
+ * - GraphDatabase interface
  * - Singleton factory pattern for runtime selection
  * - 4 implementations: Neo4j, Neptune, JanusGraph, MemoryGraph
  */

@@ -6,97 +6,101 @@ The `@semiont/graph` package provides a unified interface for graph databases wi
 
 ## GraphDatabase Interface
 
-All implementations conform to this interface:
+All implementations conform to the `GraphDatabase` interface defined in [src/interface.ts](../src/interface.ts). See [GraphInterface.md](./GraphInterface.md) for the full contract and type definitions.
+
+Method groups at a glance:
+
+- **Connection management** — `connect()`, `disconnect()`, `isConnected()`
+- **Resource operations** — `createResource()`, `getResource()`, `updateResource()`, `deleteResource()`, `listResources()`, `searchResources()`
+- **Annotation operations** — `createAnnotation()`, `getAnnotation()`, `updateAnnotation()`, `deleteAnnotation()`, `listAnnotations()`
+- **Highlights and references** — `getHighlights()`, `resolveReference()`, `getReferences()`, `getEntityReferences()`
+- **Relationship queries** — `getResourceAnnotations()`, `getResourceReferencedBy()`
+- **Graph traversal** — `getResourceConnections()`, `findPath()`
+- **Analytics** — `getEntityTypeStats()`, `getStats()`
+- **Bulk operations** — `batchCreateResources()`, `createAnnotations()`, `resolveReferences()`
+- **Tag collections** — `getEntityTypes()`, `addEntityType()`, `addEntityTypes()`
+- **Utility** — `generateId()`, `clearDatabase()`
+
+## Factory
+
+The usual entry point is the singleton factory, which takes the `services.graph` block of an environment config (`GraphServiceConfig` from `@semiont/core`), instantiates the right implementation, and connects:
 
 ```typescript
-interface GraphDatabase {
-  // Connection management
-  connect(): Promise<void>;
-  disconnect(): Promise<void>;
-  isConnected(): boolean;
+import { getGraphDatabase, closeGraphDatabase } from '@semiont/graph';
 
-  // Document operations
-  createDocument(document: Document): Promise<Document>;
-  getDocument(id: string): Promise<Document | null>;
-  updateDocument(id: string, updates: Partial<Document>): Promise<Document | null>;
-  deleteDocument(id: string): Promise<boolean>;
-  getAllDocuments(): Promise<Document[]>;
-
-  // Annotation operations
-  createAnnotation(annotation: Annotation): Promise<Annotation>;
-  getAnnotation(id: string): Promise<Annotation | null>;
-  updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation | null>;
-  deleteAnnotation(id: string): Promise<boolean>;
-  getAnnotationsForDocument(documentId: string): Promise<Annotation[]>;
-
-  // Tag collection operations
-  getEntityTypes(): Promise<string[]>;
-  getReferenceTypes(): Promise<string[]>;
-  addEntityType(type: string): Promise<void>;
-  addReferenceType(type: string): Promise<void>;
-
-  // Query operations
-  findDocumentsByEntityTypes(entityTypes: string[]): Promise<Document[]>;
-  findAnnotationsByTarget(targetId: string): Promise<Annotation[]>;
-
-  // Utility
-  clear(): Promise<void>;
-}
+const graph = await getGraphDatabase(graphConfig);
+// ... use graph ...
+await closeGraphDatabase();
 ```
 
+`createGraphDatabase(config)` is the non-singleton variant; it instantiates without connecting.
+
 ## Provider Implementations
+
+All implementations are exported from the package root. Drivers (`neo4j-driver`, `gremlin`) are optional peer dependencies, loaded dynamically on `connect()`.
 
 ### Neo4j
 
 Native graph database with Cypher query language.
 
 ```typescript
-import { Neo4jGraphDatabase } from '@semiont/graph/neo4j';
+import { Neo4jGraphDatabase } from '@semiont/graph';
 
 const graph = new Neo4jGraphDatabase({
-  uri: 'neo4j://localhost:7687',
+  uri: 'bolt://localhost:7687',
   username: 'neo4j',
-  password: 'password'
+  password: 'password',
+  database: 'neo4j'
 });
 
 await graph.connect();
 ```
+
+All four fields are required at connect time.
 
 ### AWS Neptune
 
 Managed graph database supporting Gremlin.
 
 ```typescript
-import { NeptuneGraphDatabase } from '@semiont/graph/neptune';
+import { NeptuneGraphDatabase } from '@semiont/graph';
 
 const graph = new NeptuneGraphDatabase({
   endpoint: 'wss://your-cluster.neptune.amazonaws.com:8182/gremlin',
+  port: 8182,
   region: 'us-east-1'
 });
 
 await graph.connect();
 ```
 
+If `endpoint` is omitted, the cluster endpoint is discovered at connect time via the AWS SDK (`@aws-sdk/client-neptune`) using `region`.
+
 ### JanusGraph
 
 Distributed graph database with pluggable backends.
 
 ```typescript
-import { JanusGraphDatabase } from '@semiont/graph/janusgraph';
+import { JanusGraphDatabase } from '@semiont/graph';
 
 const graph = new JanusGraphDatabase({
-  endpoint: 'ws://localhost:8182/gremlin'
+  host: 'localhost',
+  port: 8182,
+  storageBackend: 'cassandra',    // 'cassandra' | 'hbase' | 'berkeleydb'
+  indexBackend: 'elasticsearch'   // 'elasticsearch' | 'solr' | 'lucene'
 });
 
 await graph.connect();
 ```
+
+`host` and `port` are required at connect time.
 
 ### In-Memory
 
 JavaScript implementation for development and testing.
 
 ```typescript
-import { MemoryGraphDatabase } from '@semiont/graph/memory';
+import { MemoryGraphDatabase } from '@semiont/graph';
 
 const graph = new MemoryGraphDatabase();
 await graph.connect(); // No-op for memory
@@ -104,94 +108,65 @@ await graph.connect(); // No-op for memory
 
 ## Data Model
 
-### Document Vertex
+The graph stores W3C-compliant types from `@semiont/core`.
 
-Represents a document in the system.
+### Resource Vertex
 
-```typescript
-interface Document {
-  id: string;
-  name: string;
-  format: string;
-  entityTypes: string[];
-  archived: boolean;
-  createdAt: string;
-  updatedAt: string;
-  provenance?: {
-    clonedFrom?: string;
-    createdBy: string;
-    creationMethod: 'api' | 'generation' | 'clone';
-  };
-}
-```
+A `ResourceDescriptor` — JSON-LD metadata about a resource (`@context`, `@id`, `name`, `representations` required; plus `entityTypes`, `dateCreated`, `archived`, and other optional fields).
 
 ### Annotation Vertex
 
-Represents a W3C Web Annotation.
+A W3C Web Annotation (`Annotation` from `@semiont/core`): `id`, `motivation`, `target` (source resource plus optional selector), optional `body`, and `creator`. In Neo4j, annotations also get a label derived from their motivation (e.g. `:Annotation:Linking`) for fast filtering.
 
-```typescript
-interface Annotation {
-  id: string;
-  target: {
-    source: string;  // Document ID
-    selector?: Selector[];
-  };
-  body: AnnotationBody[];
-  creator: string;
-  created: string;
-  modified?: string;
-}
-```
+### Other Vertices
+
+- **EntityType** — one vertex per entity type tag, linked from annotations
+- **TagCollection** — append-only collections of known entity types
 
 ### Edges
 
-- **BELONGS_TO**: Links Annotation to its source Document
-- **REFERENCES**: Links Annotation to its target Document (if resolved)
+- **BELONGS_TO** — Annotation → Resource it annotates (target source)
+- **REFERENCES** — Annotation → Resource it links to (if resolved)
+- **TAGGED_AS** — Annotation → EntityType
 
 ## Query Patterns
 
 ### Finding Annotations
 
 ```typescript
-// Get all annotations for a document
-const annotations = await graph.getAnnotationsForDocument('doc-123');
+// All annotations on a resource
+const annotations = await graph.getResourceAnnotations(resourceId);
 
-// Find annotations targeting a document
-const references = await graph.findAnnotationsByTarget('doc-456');
+// Highlights only / references only
+const highlights = await graph.getHighlights(resourceId);
+const references = await graph.getReferences(resourceId);
+
+// Annotations on other resources that link TO this resource
+const referencedBy = await graph.getResourceReferencedBy(resourceId);
 ```
 
-### Finding Documents
+### Finding Resources
 
 ```typescript
-// Find documents by entity types
-const persons = await graph.findDocumentsByEntityTypes(['Person']);
+// Filter by entity types (with pagination)
+const { resources, total } = await graph.listResources({
+  entityTypes: ['Person'],
+  limit: 20,
+  offset: 0
+});
 
-// Find documents with multiple entity types
-const orgs = await graph.findDocumentsByEntityTypes(['Person', 'Organization']);
+// Full-text-ish name/content search
+const matches = await graph.searchResources('Ada Lovelace', 10);
 ```
 
 ### Graph Traversal
 
 ```typescript
-// Neo4j-specific Cypher query
-if (graph instanceof Neo4jGraphDatabase) {
-  const result = await graph.query(`
-    MATCH (d:Document {id: $id})<-[:BELONGS_TO]-(a:Annotation)
-    OPTIONAL MATCH (a)-[:REFERENCES]->(target:Document)
-    RETURN a, target
-  `, { id: 'doc-123' });
-}
+// Resources connected to this one through annotations
+const connections = await graph.getResourceConnections(resourceId);
 
-// Gremlin traversal (Neptune/JanusGraph)
-if (graph instanceof GremlinGraphDatabase) {
-  const result = await graph.g.V()
-    .hasLabel('Document')
-    .has('id', 'doc-123')
-    .inE('BELONGS_TO')
-    .outV()
-    .path()
-    .toList();
-}
+// Paths between two resources (up to maxDepth hops)
+const paths = await graph.findPath(fromResourceId, toResourceId, 3);
 ```
 
 ## Provider-Specific Features
@@ -207,28 +182,4 @@ Different databases handle arrays differently:
 | JanusGraph | JSON strings | Parse after retrieval |
 | Memory | JavaScript arrays | Direct access |
 
-### Transaction Support
-
-```typescript
-// Neo4j transactions
-const session = driver.session();
-const tx = session.beginTransaction();
-try {
-  await tx.run('CREATE (d:Document {id: $id})', { id });
-  await tx.commit();
-} catch (error) {
-  await tx.rollback();
-  throw error;
-} finally {
-  await session.close();
-}
-```
-
-### Performance Characteristics
-
-| Provider | Setup | Speed | Scalability | Persistence |
-|----------|-------|-------|-------------|-------------|
-| Neo4j | Medium | Fast | High | Yes |
-| Neptune | Complex | Medium | Very High | Yes |
-| JanusGraph | Complex | Medium | Very High | Yes |
-| Memory | None | Very Fast | Low | No |
+This is internal to each implementation — the `GraphDatabase` interface always returns parsed values.

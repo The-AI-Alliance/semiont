@@ -16,14 +16,14 @@ The graph database is an **eventually consistent read-only projection** of the E
 
 ### Fire-and-Forget Publication
 
-Events are published to consumers using a fire-and-forget pattern (`event-sourcing/src/subscriptions/event-subscriptions.ts:105`):
+After appending to the log, the event store publishes each event to the Core EventBus (`packages/event-sourcing/src/event-store.ts`):
 
 ```typescript
-Promise.resolve(callback(event))  // No await - non-blocking
+this.coreEventBus.getDomainEvent(publishEvent.type).next(publishEvent);
 ```
 
-This means:
-- Event processing is **non-blocking**
+The bus is an RxJS subject per event type — publication is fire-and-forget from the store's perspective. This means:
+- Event processing is **non-blocking** for the writer
 - Multiple events can process **in parallel**
 - There is **no guarantee of cross-resource ordering**
 
@@ -202,22 +202,22 @@ if (stubCount > 10) {
 
 ### File: `packages/graph/src/implementations/neo4j.ts`
 
-**createResource() - Lines ~185-227**:
+**createResource()**:
 ```typescript
-async createResource(resource: ResourceDescriptor): Promise<void> {
+async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
   // MERGE instead of CREATE - idempotent and enriches stub nodes
   await session.run(
-    `MERGE (r:Resource {id: $id})
-     SET r.name = $name,
-         r.stub = false
+    `MERGE (d:Resource {id: $id})
+     SET d.name = $name,
+         d.stub = false
          // ... other properties
-     RETURN r`,
+     RETURN d`,
     { id, name, /* ... */ }
   );
 }
 ```
 
-**updateAnnotation() - Lines ~544-568**:
+**updateAnnotation()**:
 ```typescript
 // Create REFERENCES edge with stub creation
 await session.run(
@@ -261,11 +261,11 @@ The graph can be rebuilt from events to fix any inconsistencies:
 
 ### Single Resource Rebuild
 
-```typescript
-import { getGraphConsumer } from '@semiont/graph';
+The `GraphDBConsumer` lives in `@semiont/make-meaning` (`packages/make-meaning/src/graph/consumer.ts`) and is created by `createKnowledgeBase`:
 
-const consumer = await getGraphConsumer(config);
-await consumer.rebuildResource('resource-id-123');
+```typescript
+const { graphConsumer } = await createKnowledgeBase(/* ... */);
+await graphConsumer.rebuildResource(resourceId('resource-id-123'));
 ```
 
 ### Full Graph Rebuild
@@ -296,15 +296,9 @@ All three are awaited inside `createKnowledgeBase` before the HTTP server begins
 
 See [`@semiont/event-sourcing`'s STORAGE-LAYOUT.md](../../event-sourcing/docs/STORAGE-LAYOUT.md#ephemerality-and-rebuild) for the views-layer ephemerality model.
 
-## Related Frontend Cache Issue
+## Frontend Consistency
 
-The backend eventual consistency fix solved the graph race condition, but revealed a **frontend caching issue**.
-
-**Problem**: React Query served stale `referencedBy` data because the cache wasn't invalidated when annotation bodies were updated.
-
-**Solution**: Invalidate target resource's `referencedBy` cache when links are created.
-
-See `packages/react-ui/src/lib/api-hooks.ts` for implementation details.
+The frontend does not cache graph query results. `referencedBy` data is consumed as a live RxJS observable (`client.browse.referencedBy(resourceId)` in `packages/react-ui/src/features/resource-viewer/state/resource-viewer-page-state-unit.ts`), so views reflect the graph projection as it converges — no manual cache invalidation is needed when links are created.
 
 ## Best Practices
 
