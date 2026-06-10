@@ -22,4 +22,5 @@ export { getEntityTypes } from './entity-extraction';
 // Tag extraction
 export { getTagCategory, getTagSchemaId } from './tag-extraction';
 
-// NOTE: Bootstrap service remains in backend to avoid circular dependency with @semiont/core
+// NOTE: The entity-types bootstrap lives in @semiont/make-meaning (src/bootstrap/entity-types.ts) —
+// it needs EventBus/EventStore, which don't belong in this package.
