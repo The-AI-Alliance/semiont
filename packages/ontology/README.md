@@ -59,9 +59,7 @@ Extract entity types from annotation bodies:
 
 ```typescript
 import { getEntityTypes } from '@semiont/ontology';
-import type { components } from '@semiont/http-transport';
-
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 const annotation: Annotation = {
   motivation: 'linking',
@@ -134,7 +132,7 @@ From [src/tag-collections.ts](src/tag-collections.ts): Interfaces for managing e
 
 ## Dependencies
 
-- `@semiont/http-transport`: For W3C annotation type definitions
+- `@semiont/core`: For the `Annotation` type
 
 ## Package Structure
 
@@ -154,8 +152,8 @@ packages/ontology/
 
 ## Notes
 
-- **Bootstrap service**: The entity types bootstrap logic remains in `apps/backend/src/bootstrap/entity-types-bootstrap.ts` to avoid circular dependency with `@semiont/core`.
-- **Annotation type guards**: Type guards like `isHighlight()`, `isReference()`, etc. remain in `@semiont/http-transport` as the OpenAPI spec is the source of truth for W3C motivations.
+- **Bootstrap service**: The entity types bootstrap logic lives in `packages/make-meaning/src/bootstrap/entity-types.ts` — it needs `EventBus`/`EventStore`, which don't belong in this package.
+- **Annotation type guards**: Type guards like `isHighlight()`, `isReference()`, etc. live in `@semiont/core` (`src/web-annotation-utils.ts`).
 
 ## License
 

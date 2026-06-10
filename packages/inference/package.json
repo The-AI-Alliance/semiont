@@ -5,7 +5,7 @@
     "node": ">=24.0.0"
   },
   "type": "module",
-  "description": "AI inference capabilities for entity extraction, text generation, and resource creation",
+  "description": "AI inference primitives: provider-agnostic text generation clients for Anthropic and Ollama",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -28,7 +28,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
-    "@semiont/http-transport": "*",
     "@semiont/core": "*",
     "@semiont/observability": "*"
   },
@@ -46,7 +45,6 @@
   "keywords": [
     "ai",
     "inference",
-    "entity-extraction",
     "llm",
     "anthropic",
     "ollama",

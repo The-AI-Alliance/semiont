@@ -6,21 +6,22 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/inference.svg)](https://www.npmjs.com/package/@semiont/inference)
 [![License](https://img.shields.io/npm/l/@semiont/inference.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-**AI primitives for text generation and client management.**
+**AI primitives for text generation: a provider-agnostic inference client.**
 
 This package provides the **core AI primitives** for the Semiont platform:
-- Inference client implementations (Anthropic, Ollama)
-- Simple text generation interface
-- Environment variable expansion for API keys
-- Provider abstraction via `InferenceClient` interface
+- The `InferenceClient` interface (provider abstraction)
+- Client implementations for Anthropic and Ollama, plus a scripted mock for tests
+- A `createInferenceClient()` factory that selects the implementation from config
+- Cross-provider JSON output mode (`format: 'json'`)
+- Usage metrics via `@semiont/observability`
 
-For **application-specific AI logic** (entity extraction, resource generation, motivation prompts/parsers), see [@semiont/make-meaning](../make-meaning/).
+For **application-specific AI logic** (semantic processing, prompt engineering, response parsing), see [@semiont/make-meaning](../make-meaning/).
 
 ## Architecture Context
 
-**Infrastructure Ownership**: In production applications, inference client instances are **created and managed by [@semiont/make-meaning](../make-meaning/)'s `startMakeMeaning()` function**, which serves as the single orchestration point for all infrastructure components (EventStore, GraphDB, RepStore, InferenceClient, JobQueue, Workers).
+**Infrastructure Ownership**: In production, inference clients are **created by [@semiont/make-meaning](../make-meaning/)'s `startMakeMeaning()`** (one client per knowledge-system actor — Gatherer, Matcher) and by [@semiont/jobs](../jobs/)' worker process (one client per job group). Both build an `InferenceClientConfig` from their own configuration and call `createInferenceClient()`.
 
-The API shown below can be used directly for **testing, CLI tools, or standalone scripts**. For backend integration, access the inference client through the `makeMeaning` context object.
+The API below can also be used directly for **testing, CLI tools, or standalone scripts**.
 
 ## Philosophy
 
@@ -37,217 +38,115 @@ npm install @semiont/inference
 ## Quick Start
 
 ```typescript
-import { generateText, getInferenceClient, getInferenceModel } from '@semiont/inference';
-import type { EnvironmentConfig } from '@semiont/core';
+import { createInferenceClient } from '@semiont/inference';
 
-// Anthropic
-const config: EnvironmentConfig = {
-  services: {
-    inference: {
-      type: 'anthropic',
-      model: 'claude-3-5-sonnet-20241022',
-      apiKey: '${ANTHROPIC_API_KEY}'  // Supports environment variable expansion
-    }
-  }
-};
+// Anthropic (apiKey required)
+const claude = createInferenceClient({
+  type: 'anthropic',
+  model: 'claude-sonnet-4-6',
+  apiKey: process.env['ANTHROPIC_API_KEY']!,
+});
 
-// Ollama (no API key required)
-const ollamaConfig: EnvironmentConfig = {
-  services: {
-    inference: {
-      type: 'ollama',
-      model: 'gemma2:9b',
-      endpoint: 'http://localhost:11434'
-    }
-  }
-};
+// Ollama (no API key; endpoint defaults to http://localhost:11434)
+const local = createInferenceClient({
+  type: 'ollama',
+  model: 'gemma2:9b',
+});
 
-// Generate text using the primitive
-const text = await generateText(
+const text = await claude.generateText(
   'Explain quantum computing in simple terms',
-  config,
   500,   // maxTokens
   0.7    // temperature
 );
-
 console.log(text);
 ```
 
 ## API Reference
 
-### Core Primitives
+See [docs/API.md](docs/API.md) for the full reference.
 
-**`generateText(prompt, config, maxTokens?, temperature?): Promise<string>`**
+### `createInferenceClient(config, logger?): InferenceClient`
 
-Simple text generation primitive.
-
-**Parameters:**
-- `prompt: string` - The prompt
-- `config: EnvironmentConfig` - Configuration
-- `maxTokens?: number` - Maximum tokens (default: 500)
-- `temperature?: number` - Sampling temperature (default: 0.7)
-
-**Returns:** `Promise<string>` - Generated text
-
-**Implementation** ([src/factory.ts](src/factory.ts)):
-- Routes to provider-specific client (Anthropic Messages API or Ollama `/api/generate`)
-- Extracts text content from response
-- Throws error if no text content in response
-
-**Example:**
-```typescript
-const result = await generateText(
-  'Write a haiku about programming',
-  config,
-  100,
-  0.8
-);
-```
-
-**`getInferenceClient(config): Promise<InferenceClient>`**
-
-Get an inference client instance based on configuration.
-
-**Parameters:**
-- `config: EnvironmentConfig` - Configuration
-
-**Returns:** `Promise<InferenceClient>` - Provider-specific client implementing the `InferenceClient` interface
-
-**Implementation** ([src/factory.ts](src/factory.ts)):
-- Creates `AnthropicInferenceClient` or `OllamaInferenceClient` based on `config.services.inference.type`
-- Supports environment variable expansion in API keys (e.g., `'${ANTHROPIC_API_KEY}'`)
-- Ollama defaults to `http://localhost:11434`, no API key required
-
-**Example:**
-```typescript
-const client = await getInferenceClient(config);
-const response = await client.generateTextWithMetadata(
-  'Hello',
-  100,
-  0.7
-);
-console.log(response.text);
-```
-
-**`getInferenceModel(config): string`**
-
-Get the configured model name.
-
-**Parameters:**
-- `config: EnvironmentConfig` - Configuration
-
-**Returns:** `string` - Model name (e.g., `'claude-3-5-sonnet-20241022'` or `'gemma2:9b'`)
-
-**Example:**
-```typescript
-const model = getInferenceModel(config);
-console.log(`Using model: ${model}`);
-```
-
-## Configuration
-
-From [src/factory.ts](src/factory.ts):
+Factory ([src/factory.ts](src/factory.ts)). Selects the implementation from `config.type`:
 
 ```typescript
-// Anthropic
-config.services.inference = {
-  type: 'anthropic',      // Provider type
-  model: string,          // Model name (e.g., 'claude-3-5-sonnet-20241022')
-  apiKey: string,         // API key or ${ENV_VAR} pattern
-  endpoint?: string,      // Custom endpoint (optional)
-  baseURL?: string        // Fallback endpoint (optional)
-}
-
-// Ollama
-config.services.inference = {
-  type: 'ollama',         // Provider type
-  model: string,          // Model name (e.g., 'gemma2:9b', 'llama3.1:8b', 'mistral')
-  endpoint?: string,      // Ollama server URL (default: http://localhost:11434)
+interface InferenceClientConfig {
+  type: 'anthropic' | 'ollama';
+  model: string;        // e.g. 'claude-sonnet-4-6', 'gemma2:9b'
+  apiKey?: string;      // required for 'anthropic' (throws if missing/empty)
+  endpoint?: string;    // provider URL; Ollama default: http://localhost:11434
+  baseURL?: string;     // fallback used when endpoint is not set
 }
 ```
 
-### Environment Variable Expansion
+The optional second argument is a `Logger` from `@semiont/core`.
 
-From [src/factory.ts:27-36](src/factory.ts#L27-L36):
+### `InferenceClient`
 
-API keys support ${VAR_NAME} syntax:
+The contract every implementation satisfies ([src/interface.ts](src/interface.ts)):
 
 ```typescript
-config.services.inference = {
-  apiKey: '${ANTHROPIC_API_KEY}'  // Expands to process.env.ANTHROPIC_API_KEY
+interface InferenceClient {
+  readonly type: string;     // 'anthropic' | 'ollama' | 'mock'
+  readonly modelId: string;  // configured model name
+
+  generateText(prompt, maxTokens, temperature, options?): Promise<string>;
+  generateTextWithMetadata(prompt, maxTokens, temperature, options?): Promise<InferenceResponse>;
+}
+
+interface InferenceResponse {
+  text: string;
+  stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
 }
 ```
 
-**Pattern:** starts with '${' and ends with '}'
-**Behavior:** Throws error if environment variable is not set
+### JSON output mode
 
-## Application-Specific AI Logic
+Pass `{ format: 'json' }` as `options` to constrain output to a **parseable top-level JSON array**, regardless of provider:
 
-This package provides **primitives only**. For application-specific features, use [@semiont/make-meaning](../make-meaning/):
-
-**Entity Extraction:**
 ```typescript
-import { extractEntities } from '@semiont/make-meaning';
-
-const entities = await extractEntities(
-  'Marie Curie worked at the University of Paris.',
-  ['Person', 'Organization'],
-  config
-);
+const json = await client.generateText(prompt, 1000, 0, { format: 'json' });
+const items = JSON.parse(json); // guaranteed to be an array
 ```
 
-**Resource Generation:**
-```typescript
-import { generateResourceFromTopic } from '@semiont/make-meaning';
+Each implementation honors the contract with its provider's mechanism:
+- **Ollama**: grammar-constrained sampling — the request's `format` field carries a minimal array schema.
+- **Anthropic**: assistant-turn prefill (`[`); the prefix is re-attached to the returned text so callers always see a complete JSON document.
 
-const { title, content } = await generateResourceFromTopic(
-  'Quantum Computing',
-  ['Technology', 'Physics'],
-  config
-);
+Current callers all expect arrays (entity extraction, motivation detection). If an object-emitting caller appears, the option grows a `root: 'array' | 'object'` field — see the notes in [src/interface.ts](src/interface.ts).
+
+### `MockInferenceClient`
+
+A scripted test double ([src/implementations/mock.ts](src/implementations/mock.ts)): construct it with a list of canned responses, then inspect `calls` (recorded prompt/maxTokens/temperature/options per invocation). `reset()` and `setResponses()` helpers included.
+
+```typescript
+import { MockInferenceClient } from '@semiont/inference';
+
+const mock = new MockInferenceClient(['first reply', 'second reply']);
+await mock.generateText('hi', 100, 0);
+expect(mock.calls[0].prompt).toBe('hi');
 ```
 
-**Motivation Prompts & Parsers:**
-```typescript
-import { MotivationPrompts, MotivationParsers } from '@semiont/make-meaning';
+## Observability
 
-// Build prompt for comment detection
-const prompt = MotivationPrompts.buildCommentPrompt(content, instructions);
-
-// Call generateText from @semiont/inference
-const response = await generateText(prompt, config);
-
-// Parse response
-const comments = MotivationParsers.parseComments(response, content);
-```
-
-**Orchestrated Detection:**
-```typescript
-import { AnnotationDetection } from '@semiont/make-meaning';
-
-const comments = await AnnotationDetection.detectComments(resourceId, config);
-const highlights = await AnnotationDetection.detectHighlights(resourceId, config);
-```
+Every generation records a usage metric through `@semiont/observability`'s `recordInferenceUsage`: provider, model, duration, outcome (`success`/`error`), and token counts when the provider reports them.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────┐
-│      @semiont/make-meaning                  │
-│  (Application-specific AI logic)            │
-│  - Entity extraction with validation        │
-│  - Resource generation with templates       │
-│  - Motivation prompts (comment/highlight)   │
-│  - Response parsers with offset correction  │
-│  - Orchestrated detection pipelines         │
+│  @semiont/make-meaning   @semiont/jobs      │
+│  (application logic)     (job workers)      │
+│  - builds InferenceClientConfig             │
+│  - calls createInferenceClient()            │
 └──────────────────┬──────────────────────────┘
                    │ uses
 ┌──────────────────▼──────────────────────────┐
 │      @semiont/inference                     │
 │  (AI primitives only)                       │
 │  - InferenceClient interface                │
-│  - getInferenceClient() factory             │
-│  - getInferenceModel()                      │
+│  - createInferenceClient() factory          │
+│  - cross-provider JSON output mode          │
 └──────────┬───────────────────┬──────────────┘
            │                   │
 ┌──────────▼──────────┐ ┌─────▼──────────────┐
@@ -258,15 +157,15 @@ const highlights = await AnnotationDetection.detectHighlights(resourceId, config
 ```
 
 **Key Principles:**
-- **@semiont/inference**: Provider abstraction, client management, core text generation
-- **@semiont/make-meaning**: Semantic processing, prompt engineering, response parsing
-- **Clean separation**: Adding a new provider only affects @semiont/inference
+- **@semiont/inference**: provider abstraction, text generation, output discipline
+- **@semiont/make-meaning**: semantic processing, prompt engineering, response parsing
+- **Clean separation**: adding a new provider only affects @semiont/inference
 
 ## Supported Providers
 
 | Provider | Type | API Key | Models |
 |----------|------|---------|--------|
-| Anthropic | `anthropic` | Required (`ANTHROPIC_API_KEY`) | Claude family |
+| Anthropic | `anthropic` | Required | Claude family |
 | Ollama | `ollama` | Not required | gemma2:9b, llama3.1:8b, mistral, etc. |
 
 ### Adding a New Provider
@@ -280,12 +179,11 @@ const highlights = await AnnotationDetection.detectHighlights(resourceId, config
 
 From [package.json](package.json):
 
-- `@anthropic-ai/sdk` ^0.63.0 - Anthropic API client
-- `@semiont/core` * - Environment configuration
+- `@anthropic-ai/sdk` - Anthropic API client
+- `@semiont/core` - `Logger` type
+- `@semiont/observability` - usage metrics
 
 Ollama uses native HTTP (`fetch`) with no SDK dependency.
-
-**Note:** No dependency on `@semiont/http-transport` - primitives have minimal dependencies
 
 ## Testing
 
