@@ -96,7 +96,7 @@ if (job.status === 'running') {
     status: 'complete',
     metadata: job.metadata,
     params: job.params,
-    startedAt: job:startedAt,
+    startedAt: job.startedAt,
     completedAt: new Date().toISOString(),
     result: { resourceId: resourceId('doc-new'), resourceName: 'Article' },
   };
@@ -179,9 +179,9 @@ Workers run as a separate process. `worker-main.ts` authenticates as a software 
 
 ### `startWorkerProcess(config): JobClaimAdapter`
 
-```typescript
-import { startWorkerProcess } from '@semiont/jobs/worker-main';
+`startWorkerProcess` lives in `src/worker-process.ts` and is internal to the package — the `worker-main.ts` entry point calls it once per agent group. It is not exported from the package root.
 
+```typescript
 const adapter = startWorkerProcess({
   session,          // SemiontSession authenticated as this worker's agent
   jobTypes,         // string[] — job types this agent serves

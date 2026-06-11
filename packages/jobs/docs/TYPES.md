@@ -130,7 +130,7 @@ const job: PendingJob<TagDetectionParams> = {
 };
 
 // job.params exists
-// job:progress does NOT exist (compile error)
+// job.progress does NOT exist (compile error)
 // job.result does NOT exist (compile error)
 ```
 
@@ -183,13 +183,13 @@ const completeJob: CompleteJob<TagDetectionParams, TagDetectionResult> = {
 ```typescript
 function handleJob(job: AnyJob) {
   if (job.status === 'running') {
-    console.log(job:progress.percentage);  // Available
+    console.log(job.progress.percentage);  // Available
     // console.log(job.result);            // Compile error
   }
 
   if (job.status === 'complete') {
     console.log(job.result);               // Available
-    // console.log(job:progress);          // Compile error
+    // console.log(job.progress);          // Compile error
   }
 }
 ```
@@ -205,7 +205,7 @@ function isRunningGenerationJob(
 
 if (isRunningGenerationJob(job)) {
   console.log(job.params.title);      // GenerationParams
-  console.log(job:progress.stage);    // YieldProgress
+  console.log(job.progress.stage);    // YieldProgress
 }
 ```
 
@@ -215,7 +215,7 @@ if (isRunningGenerationJob(job)) {
 import { isPendingJob, isRunningJob, isCompleteJob, isFailedJob, isCancelledJob } from '@semiont/jobs';
 
 if (isRunningJob(job)) {
-  console.log(job:progress);
+  console.log(job.progress);
 }
 ```
 
@@ -281,7 +281,7 @@ function getStatusMessage(job: AnyJob): string {
     case 'pending':
       return 'Waiting to start...';
     case 'running':
-      return `${job:progress.percentage}% complete`;
+      return `${job.progress.percentage}% complete`;
     case 'complete':
       return 'Finished successfully';
     case 'failed':

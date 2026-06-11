@@ -4,14 +4,16 @@ This guide walks you through adding a new service type to the Semiont CLI.
 
 ## Overview
 
-Services in Semiont represent different types of application components:
+Services in Semiont represent different types of application components. The supported services (see `SUPPORTED_SERVICES` in `src/services/service-factory.ts`) are:
+
 - **backend** - API servers and application logic
 - **frontend** - Web UI and static assets
 - **database** - Data storage services
-- **filesystem** - File storage services
+- **graph** - Graph databases (JanusGraph, Neptune, Neo4j)
 - **mcp** - Model Context Protocol servers
-- **inference** - AI/ML model serving
-- **proxy** - API gateways, reverse proxies
+- **inference** - AI/ML model serving (Anthropic, Ollama)
+- **embedding** - Embedding model providers
+- **vectors** - Vector databases (Qdrant, etc.)
 
 Services encapsulate business logic and requirements independent of deployment platform.
 
@@ -35,351 +37,113 @@ Create a new file in `src/services/`:
 touch src/services/my-service.ts
 ```
 
-### 2. Import Dependencies
+### 2. Implement the Service Class
+
+Services extend `BaseService` and do **not** define their own constructor — they inherit `BaseService`'s constructor `(name, platform, envConfig, serviceConfig, runtimeFlags)`, which `ServiceFactory` invokes. The one required override is `getRequirements()`:
 
 ```typescript
 /**
  * My Service - Custom service implementation
- * 
- * Handles [describe what your service does]
  */
 
 import { BaseService } from '../core/base-service.js';
-import { 
-  ServiceRequirements,
-  StorageRequirement,
-  NetworkRequirement,
-  ResourceRequirement,
-  SecurityRequirement,
-  BuildRequirement,
-  RequirementPresets
-} from '../core/service-requirements.js';
-import { SERVICE_TYPES } from '../core/service-types.js';
-import { SERVICE_TYPE_ANNOTATION } from '../core/service-types.js';
+import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
+import { SERVICE_TYPES, SERVICE_TYPE_ANNOTATION } from '../core/service-types.js';
 import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
 import { CLI_BEHAVIOR_ANNOTATIONS } from '../core/service-cli-behaviors.js';
-import { ServiceName } from '../core/service-discovery.js';
-import { Config, ServiceConfig } from '../core/cli-config.js';
-import { PlatformType } from '../core/platform-types.js';
-```
 
-### 3. Implement the Service Class
-
-```typescript
 export class MyService extends BaseService {
-  
-  constructor(
-    name: ServiceName,
-    platform: PlatformType,
-    systemConfig: Config,
-    serviceConfig: ServiceConfig
-  ) {
-    super(name, platform, systemConfig, serviceConfig);
-  }
-  
-  /**
-   * Define the service's infrastructure requirements
-   * These are used by platforms to provision appropriate resources
-   */
-  getRequirements(): ServiceRequirements {
-    const baseRequirements = super.getRequirements();
-    
-    // REQUIRED: Declare service type
-    const annotations = {
-      // Service type declaration (required)
-      [SERVICE_TYPE_ANNOTATION]: SERVICE_TYPES.BACKEND, // or FRONTEND, DATABASE, etc.
-      
-      // Command capability declarations (optional)
-      [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'true',
-      [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'true',
-      [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'true',
-      
-      // CLI behavior declarations (optional)
-      [CLI_BEHAVIOR_ANNOTATIONS.KEEP_ALIVE]: 'false',
-      [CLI_BEHAVIOR_ANNOTATIONS.SUPPRESS_OUTPUT]: 'false',
-    };
-    
-    // Define resource requirements
-    const resources: ResourceRequirement = {
-      memory: '1Gi',     // Kubernetes-style notation
-      cpu: '1000m',       // 1 CPU core (1000 millicores)
-      gpus: 0,
-    };
-    
-    // Define network requirements
-    const network: NetworkRequirement = {
-      ports: [this.serviceConfig.port || 8080],
-      protocol: 'tcp',
-      needsLoadBalancer: true,
-      customDomains: this.serviceConfig.domain ? [this.serviceConfig.domain] : undefined,
-      healthCheckPath: '/health',
-      healthCheckPort: this.serviceConfig.port || 8080,
-    };
-    
-    // Define storage requirements
-    const storage: StorageRequirement[] = [{
-      persistent: true,
-      size: '10Gi',
-      mountPath: '/data',
-      type: 'volume',
-      backupEnabled: true,
-    }];
-    
-    // Define security requirements
-    const security: SecurityRequirement = {
-      secrets: ['API_KEY', 'DATABASE_URL'],
-      readOnlyRootFilesystem: false,
-      allowPrivilegeEscalation: false,
-    };
-    
-    // Define build requirements (if applicable)
-    const build: BuildRequirement = {
-      dockerfile: './Dockerfile.my-service',
-      buildContext: '.',
-      buildArgs: {
-        NODE_VERSION: '18',
+
+  override getRequirements(): ServiceRequirements {
+    // Start from a preset and merge service-specific requirements
+    const baseRequirements = RequirementPresets.statelessApi();
+
+    const myRequirements: ServiceRequirements = {
+      network: {
+        ports: [this.getPort()],
+        protocol: 'tcp',
+        healthCheckPath: '/health',
+        healthCheckPort: this.getPort(),
       },
-      prebuilt: false,
-    };
-    
-    return {
-      ...baseRequirements,
-      annotations,  // Include annotations with service type
-      resources,
-      network,
-      storage,
-      security,
-      build,
-      
-      // Service dependencies
-      dependencies: {
-        services: ['database' as ServiceName],
+      resources: {
+        memory: '1Gi',     // Kubernetes-style notation
+        cpu: '1.0',
+        replicas: 1,
       },
-      
-      // Environment variables
-      environment: {
-        SERVICE_NAME: this.name,
-        PORT: String(this.serviceConfig.port || 8080),
-        NODE_ENV: this.systemConfig.environment,
-        ...this.serviceConfig.env,
+      storage: [{
+        persistent: true,
+        size: '10Gi',
+        mountPath: '/data',
+        type: 'volume',
+        backupEnabled: true,
+      }],
+      security: {
+        secrets: ['API_KEY'],
+        readOnlyRootFilesystem: false,
+        allowPrivilegeEscalation: false,
+      },
+      annotations: {
+        // Service type declaration (required)
+        [SERVICE_TYPE_ANNOTATION]: SERVICE_TYPES.BACKEND, // or FRONTEND, DATABASE, etc.
+
+        // Command capability declarations (optional)
+        [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'true',
+        [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'true',
+        [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'true',
+
+        // CLI behavior declarations (optional)
+        [CLI_BEHAVIOR_ANNOTATIONS.KEEP_ALIVE]: 'false',
+        [CLI_BEHAVIOR_ANNOTATIONS.SUPPRESS_OUTPUT]: 'false',
       },
     };
-  }
-  
-  /**
-   * Note: Service capabilities are now declared via annotations
-   * in the getRequirements() method above, not through a separate
-   * getCapabilities() method. This allows platforms to understand
-   * service capabilities at the requirements level.
-   */
-  
-  /**
-   * Get environment-specific configuration
-   */
-  getEnvironmentVariables(): Record<string, string> {
-    const baseVars = super.getEnvironmentVariables();
-    
-    return {
-      ...baseVars,
-      MY_SERVICE_CONFIG: JSON.stringify(this.serviceConfig),
-      FEATURE_FLAGS: this.getFeatureFlags(),
-    };
-  }
-  
-  /**
-   * Validate service configuration
-   */
-  validateConfig(): void {
-    super.validateConfig();
-    
-    // Add service-specific validation
-    if (this.serviceConfig.requiresAuth && !this.serviceConfig.authProvider) {
-      throw new Error('Auth provider must be configured when auth is required');
-    }
-    
-    if (this.serviceConfig.port) {
-      const port = Number(this.serviceConfig.port);
-      if (isNaN(port) || port < 1 || port > 65535) {
-        throw new Error('Invalid port number');
-      }
-    }
-  }
-  
-  /**
-   * Get the start command for this service
-   * Used by process and container platforms
-   */
-  getStartCommand(): string {
-    // Return the command to start your service
-    const script = this.serviceConfig.script || 'start';
-    return `npm run ${script}`;
-  }
-  
-  /**
-   * Get the Docker image for this service
-   * Used by container and AWS platforms
-   */
-  getDockerImage(): string {
-    // Return the Docker image name
-    const registry = this.serviceConfig.registry || 'docker.io';
-    const image = this.serviceConfig.image || `my-org/my-service`;
-    const tag = this.serviceConfig.tag || 'latest';
-    
-    return `${registry}/${image}:${tag}`;
-  }
-  
-  /**
-   * Get health check configuration
-   */
-  getHealthCheck(): {
-    enabled: boolean;
-    endpoint?: string;
-    interval?: number;
-    timeout?: number;
-  } {
-    return {
-      enabled: true,
-      endpoint: '/health',
-      interval: 30,
-      timeout: 5,
-    };
-  }
-  
-  /**
-   * Get backup configuration
-   */
-  getBackupConfig(): {
-    enabled: boolean;
-    schedule?: string;
-    retention?: number;
-    paths?: string[];
-  } {
-    return {
-      enabled: true,
-      schedule: '0 2 * * *',  // Daily at 2 AM
-      retention: 7,            // Keep 7 days of backups
-      paths: [
-        '/data',
-        '/config',
-      ],
-    };
-  }
-  
-  /**
-   * Get test configuration
-   */
-  getTestConfig(): {
-    suites: Record<string, string>;
-    coverage: boolean;
-    timeout: number;
-  } {
-    return {
-      suites: {
-        unit: 'npm run test:unit',
-        integration: 'npm run test:integration',
-        e2e: 'npm run test:e2e',
-      },
-      coverage: true,
-      timeout: 300,  // 5 minutes
-    };
-  }
-  
-  /**
-   * Service-specific helper methods
-   */
-  
-  private getFeatureFlags(): string {
-    // Return feature flags based on environment
-    const flags: Record<string, boolean> = {
-      newFeature: this.config.environment !== 'prod',
-      debugMode: this.config.verbose,
-      analytics: this.config.environment === 'prod',
-    };
-    
-    return JSON.stringify(flags);
-  }
-  
-  /**
-   * Hook called before service starts
-   */
-  async beforeStart(): Promise<void> {
-    // Perform any pre-start setup
-    console.log(`Preparing ${this.name} for startup...`);
-    
-    // Validate dependencies are running
-    const deps = this.getRequirements().dependencies?.services || [];
-    for (const dep of deps) {
-      // Check if dependency is available
-      // This is handled by the platform, but you can add extra checks
-    }
-  }
-  
-  /**
-   * Hook called after service starts
-   */
-  async afterStart(): Promise<void> {
-    // Perform any post-start setup
-    console.log(`${this.name} started successfully`);
-    
-    // Register with service discovery, send metrics, etc.
-  }
-  
-  /**
-   * Hook called before service stops
-   */
-  async beforeStop(): Promise<void> {
-    // Perform graceful shutdown tasks
-    console.log(`Preparing ${this.name} for shutdown...`);
-    
-    // Close connections, save state, etc.
-  }
-  
-  /**
-   * Hook called after service stops
-   */
-  async afterStop(): Promise<void> {
-    // Perform cleanup
-    console.log(`${this.name} stopped successfully`);
-    
-    // Deregister from service discovery, etc.
+
+    return mergeRequirements(baseRequirements, myRequirements);
   }
 }
 ```
 
-### 4. Register the Service
+`BaseService` provides config accessors (`getPort()`, `getHealthEndpoint()`, `getCommand()`, `getImage()`, `getEnvironmentVariables()`) and requirement helpers (`needsPersistentStorage()`, `getRequiredSecrets()`, etc.). Type-narrow `this.config` if your service has a specific config type — see `graph-service.ts` for the pattern.
 
-Add your service to the factory in `src/services/service-factory.ts`:
+### 3. Register the Service
+
+Add your service to `SUPPORTED_SERVICES` and the switch in `src/services/service-factory.ts`:
 
 ```typescript
 import { MyService } from './my-service.js';
+
+const SUPPORTED_SERVICES = ['backend', 'frontend', 'database', 'graph', 'mcp', 'inference', 'embedding', 'vectors', 'my-service'] as const;
 
 export class ServiceFactory {
   static create(
     name: ServiceName,
     platform: PlatformType,
-    systemConfig: Config,
+    config: Config,
+    envConfig: EnvironmentConfig,
     serviceConfig: ServiceConfig
   ): Service {
+    const runtimeFlags = {
+      verbose: config.verbose,
+      quiet: config.quiet,
+      dryRun: config.dryRun,
+      forceDiscovery: config.forceDiscovery
+    };
+
     switch (name) {
-      case 'backend':
-        return new BackendService(name, platform, systemConfig, serviceConfig);
-      case 'frontend':
-        return new FrontendService(name, platform, systemConfig, serviceConfig);
-      case 'graph':
-        // Note: Some services might have a fixed name
-        return new GraphService('graph', platform, systemConfig, serviceConfig);
+      // ... existing cases
       case 'my-service':
-        return new MyService(name, platform, systemConfig, serviceConfig);
+        return new MyService(name, platform, envConfig, serviceConfig, runtimeFlags);
       default:
         throw new Error(
-          `Unknown service type: '${name}'. Add a case to ServiceFactory.create().`
+          `Unknown service type: '${name}'. Supported services: ${SUPPORTED_SERVICES.join(', ')}`
         );
     }
   }
 }
 ```
 
-### 5. Important: Service Type Declaration
+`ServiceName` is just `string` (`src/core/service-discovery.ts`) — there is no union type to extend; the factory switch is the registry.
+
+### 4. Important: Service Type Declaration
 
 Every service MUST declare its type via the `service/type` annotation. This is how platforms determine which handlers to use:
 
@@ -390,68 +154,46 @@ const annotations = {
 };
 ```
 
-Available service types:
+Available service types (`src/core/service-types.ts`):
 - `SERVICE_TYPES.FRONTEND` - User-facing web applications
 - `SERVICE_TYPES.BACKEND` - API servers and application logic
 - `SERVICE_TYPES.DATABASE` - Data persistence layers
-- `SERVICE_TYPES.FILESYSTEM` - File storage services
 - `SERVICE_TYPES.GRAPH` - Graph databases and knowledge graphs (JanusGraph, Neptune, Neo4j)
 - `SERVICE_TYPES.WORKER` - Background job processors
-- `SERVICE_TYPES.MCP` - Model Context Protocol services
 - `SERVICE_TYPES.INFERENCE` - AI/ML model serving
-- `SERVICE_TYPES.PROXY` - API gateways, reverse proxies
+- `SERVICE_TYPES.MCP` - Model Context Protocol services
+- `SERVICE_TYPES.VECTORS` - Vector databases (Qdrant, etc.)
+- `SERVICE_TYPES.EMBEDDING` - Embedding model providers
+- `SERVICE_TYPES.STACK` - Infrastructure stacks (CloudFormation, Terraform)
+- `SERVICE_TYPES.FILESYSTEM` - Shared/persistent file storage (EFS, NFS, etc.)
 
-### 6. Configure Implementation Types
+### 5. Configure the Service
 
-For services that support multiple implementations (like graph databases), ensure your configuration includes the implementation type:
+Service configuration lives in `~/.semiontconfig` (TOML), under `[environments.<env>.<service>]`. The `platform` field is a plain string — the config loader normalizes it to `{ type }` internally:
 
-**IMPORTANT: Platform Configuration Structure**
-The `platform` field must ALWAYS be an object with a `type` property:
-- ✅ CORRECT: `"platform": { "type": "external" }`
-- ❌ WRONG: `"platform": "external"`
+```toml
+# JanusGraph on the container platform
+[environments.local.graph]
+platform = "container"
+type = "janusgraph"     # CRITICAL: implementation type
+port = 8182
+storage = "berkeleydb"
 
-```json
-// environments/local.json - JanusGraph example
-{
-  "services": {
-    "graph": {
-      "platform": { "type": "container" },  // Platform is an OBJECT
-      "type": "janusgraph",  // CRITICAL: Implementation type
-      "port": 8182,
-      "storage": "berkeleydb"
-    }
-  }
-}
+# Neptune on AWS
+[environments.production.graph]
+platform = "aws"
+type = "neptune"
+port = 8182
 
-// environments/production.json - Neptune example
-{
-  "aws": {
-    "region": "us-east-1"  // CRITICAL: Required for Neptune discovery
-  },
-  "services": {
-    "graph": {
-      "platform": { "type": "aws" },  // Platform is an OBJECT
-      "type": "neptune",  // CRITICAL: Implementation type
-      "port": 8182,
-      "comment": "Provisioned via CDK data stack (Amazon Neptune)"
-    }
-  }
-}
-
-// Example for external services (Anthropic, Ollama, etc.)
-{
-  "services": {
-    "inference": {
-      "platform": { "type": "external" },  // Platform is an OBJECT
-      "type": "anthropic",  // Implementation type: "anthropic" or "ollama"
-      "apiKey": "${ANTHROPIC_API_KEY}",
-      "model": "claude-3-haiku-20240307"
-    }
-  }
-}
+# External inference provider
+[environments.local.inference]
+platform = "external"
+type = "anthropic"
+apiKey = "${ANTHROPIC_API_KEY}"
+model = "claude-haiku-4-5-20251001"
 ```
 
-Your handlers should check this implementation type:
+Your handlers should check the implementation type:
 
 ```typescript
 const implementationType = service.config.type;
@@ -464,101 +206,42 @@ if (implementationType !== 'expected-type') {
 }
 ```
 
-**Important**: 
-- Never use fallbacks when reading implementation types. This ensures explicit configuration and clear error messages.
-- For AWS services like Neptune, ensure the AWS region is configured in the environment JSON file under `aws.region`, not as an environment variable.
+**Important**: Never use fallbacks when reading implementation types. This ensures explicit configuration and clear error messages.
 
-### 7. Update Service Registry
+### 6. Add Platform Handlers
 
-Add your service to the ServiceName type in `src/core/service-discovery.ts`:
+Commands execute against a service through platform handlers keyed by `(platform, command, serviceType)`. For each platform your service runs on, add handler files under `src/platforms/<platform>/handlers/` and register them in that platform's `handlers/index.ts`. See [ADDING_PLATFORMS.md](./ADDING_PLATFORMS.md) and the existing `graph-*.ts` handlers for examples.
 
-```typescript
-export type ServiceName = 
-  | 'backend' 
-  | 'frontend' 
-  | 'database' 
-  | 'filesystem' 
-  | 'mcp'
-  | 'my-service';
-```
+### 7. Add Tests
 
-### 6. Add Tests
-
-Create test file at `src/services/__tests__/my-service.test.ts`:
+Create a test file at `src/services/__tests__/my-service.test.ts`. Construct the service the way `ServiceFactory` does — five arguments, with a real `PlatformType` (`'aws' | 'container' | 'posix' | 'external' | 'mock'`):
 
 ```typescript
 import { describe, it, expect, beforeEach } from 'vitest';
 import { MyService } from '../my-service.js';
-import { Config } from '../../lib/cli-config.js';
 
 describe('MyService', () => {
   let service: MyService;
-  let config: Config;
-  
+
   beforeEach(() => {
-    config = {
-      projectRoot: '/test',
-      environment: 'test',
-      verbose: false,
-      quiet: false,
-    };
-    
     service = new MyService(
       'my-service',
-      'process',
-      config,
-      { port: 8080 }
+      'container',
+      { _metadata: { environment: 'test', projectRoot: '/test' } } as any,
+      { platform: { type: 'container' }, port: 8080 } as any,
+      { verbose: false, quiet: false }
     );
   });
-  
+
   describe('getRequirements', () => {
-    it('should define compute requirements', () => {
+    it('declares its service type', () => {
       const requirements = service.getRequirements();
-      
-      expect(requirements.compute).toEqual({
-        memory: 1024,
-        cpu: 1.0,
-        gpu: false,
-      });
+      expect(requirements.annotations?.['service/type']).toBe('backend');
     });
-    
-    it('should define network requirements', () => {
+
+    it('defines network requirements', () => {
       const requirements = service.getRequirements();
-      
-      expect(requirements.network?.ports).toContainEqual({
-        port: 8080,
-        protocol: 'tcp',
-        public: true,
-      });
-    });
-    
-    it('should include dependencies', () => {
-      const requirements = service.getRequirements();
-      
-      expect(requirements.dependencies).toContain('database');
-    });
-  });
-  
-  describe('getCapabilities', () => {
-    it('should support expected capabilities', () => {
-      const capabilities = service.getCapabilities();
-      
-      expect(capabilities).toContain('start');
-      expect(capabilities).toContain('stop');
-      expect(capabilities).toContain('backup');
-    });
-  });
-  
-  describe('validateConfig', () => {
-    it('should validate port numbers', () => {
-      const invalidService = new MyService(
-        'my-service',
-        'process',
-        config,
-        { port: 99999 }
-      );
-      
-      expect(() => invalidService.validateConfig()).toThrow('Invalid port');
+      expect(requirements.network?.ports).toContain(8080);
     });
   });
 });
@@ -566,154 +249,78 @@ describe('MyService', () => {
 
 ## Service Requirements
 
-Services declare requirements that platforms use to provision resources:
+Services declare requirements (`src/core/service-requirements.ts`) that platforms use to provision resources:
 
-### Compute Requirements
+### Resources
 ```typescript
-compute: {
-  memory: 512,     // Memory in MB
-  cpu: 0.5,        // CPU units (0.5 = half vCPU)
-  gpu: false,      // GPU required
-  spot: true,      // Can use spot/preemptible instances
+resources: {
+  memory: '1Gi',       // Kubernetes-style notation
+  cpu: '1.0',          // cores, or millicores like '100m'
+  replicas: 1,
+  gpus: 0,
+  ephemeralStorage: '5Gi',
 }
 ```
 
-### Network Requirements
+### Network
 ```typescript
 network: {
-  ports: [
-    { port: 3000, protocol: 'tcp', public: true },
-    { port: 9090, protocol: 'tcp', public: false }  // Internal only
-  ],
-  domains: ['api.example.com'],
-  loadBalancer: true,
-  healthCheck: {
-    path: '/health',
-    interval: 30,
-    timeout: 5,
-    retries: 3,
-  }
+  ports: [3000],
+  protocol: 'tcp',
+  needsLoadBalancer: true,
+  customDomains: ['api.example.com'],
+  healthCheckPath: '/health',
+  healthCheckPort: 3000,
+  healthCheckInterval: 30,
 }
 ```
 
-### Storage Requirements
+### Storage
 ```typescript
-storage: {
-  persistent: 10240,   // Persistent storage in MB
-  ephemeral: 5120,     // Temporary storage in MB
-  mountPath: '/data',  // Where to mount persistent storage
+storage: [{
+  persistent: true,
+  volumeName: 'my-data',
+  size: '10Gi',
+  mountPath: '/data',
+  type: 'volume',        // 'volume' | 'bind' | 'tmpfs'
   backupEnabled: true,
-  encryption: true,
-}
+}]
 ```
 
-### Security Requirements
+### Security
 ```typescript
 security: {
-  secrets: ['API_KEY', 'DATABASE_URL'],  // Required secrets
-  certificates: ['ssl-cert'],            // Required certificates
-  iamRole: 'service-role',              // IAM role name
-  allowedOrigins: ['https://example.com'],
+  secrets: ['API_KEY', 'DATABASE_URL'],
+  runAsUser: 1000,
+  readOnlyRootFilesystem: false,
+  allowPrivilegeEscalation: false,
 }
 ```
 
-### Build Requirements
+### Dependencies
 ```typescript
-build: {
-  dockerfile: './Dockerfile',
-  context: '.',
-  args: { VERSION: '1.0.0' },
-  target: 'production',
-  cache: true,
+dependencies: {
+  services: ['database'],          // Platform ensures these run first
+  startupOrder: ['database', 'my-service'],
 }
 ```
 
-## Service Capabilities
+Use `RequirementPresets` (`statefulDatabase`, `statelessApi`, …) as starting points and `mergeRequirements()` to compose them with service-specific requirements.
 
-Services declare their capabilities to inform commands what operations they support:
+## Command Capabilities
 
-```typescript
-type ServiceCapability = 
-  | 'start'     // Can be started
-  | 'stop'      // Can be stopped
-  | 'restart'   // Can be restarted
-  | 'check'     // Supports health checks
-  | 'backup'    // Supports backups
-  | 'restore'   // Supports restoration
-  | 'publish'   // Can be published/deployed
-  | 'update'    // Supports updates
-  | 'provision' // Requires provisioning
-  | 'test'      // Has tests
-  | 'exec'      // Supports command execution
-  | 'logs';     // Provides logs
-```
-
-Commands check capabilities before attempting operations:
+Services declare which commands they support via annotations, not methods. Lifecycle commands (`start`, `stop`, `restart`, `check`, `watch`, `provision`, `configure` — see `DEFAULT_SUPPORTED_COMMANDS`) are assumed supported unless explicitly disabled; everything else must be opted into:
 
 ```typescript
-if (!service.getCapabilities().includes('backup')) {
-  return {
-    success: false,
-    error: 'Service does not support backups'
-  };
+annotations: {
+  [SERVICE_TYPE_ANNOTATION]: SERVICE_TYPES.BACKEND,
+  [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'true',     // opt in
+  [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'true',
+  [COMMAND_CAPABILITY_ANNOTATIONS.START]: 'false',     // opt out of a default
 }
 ```
 
-## Service Lifecycle Hooks
-
-Services can implement lifecycle hooks:
-
-```typescript
-class MyService extends BaseService {
-  async beforeStart(): Promise<void> {
-    // Pre-start validation, setup
-  }
-  
-  async afterStart(): Promise<void> {
-    // Post-start registration, warming
-  }
-  
-  async beforeStop(): Promise<void> {
-    // Graceful shutdown preparation
-  }
-  
-  async afterStop(): Promise<void> {
-    // Cleanup, deregistration
-  }
-  
-  async beforeBackup(): Promise<void> {
-    // Prepare for backup (flush caches, etc.)
-  }
-  
-  async afterRestore(): Promise<void> {
-    // Post-restore validation, reindexing
-  }
-}
-```
-
-## Configuration Sources
-
-Services can get configuration from multiple sources:
-
-```typescript
-class MyService extends BaseService {
-  getConfig() {
-    return {
-      // From service-specific config
-      ...this.serviceConfig,
-      
-      // From environment config
-      ...this.getEnvironmentConfig(),
-      
-      // From secrets (platform-specific)
-      ...this.getSecrets(),
-      
-      // Defaults
-      ...this.getDefaults(),
-    };
-  }
-}
-```
+The command-service matcher (`src/core/command-service-matcher.ts`) reads these annotations to decide which services a command applies to.
 
 ## Best Practices
 
@@ -724,7 +331,7 @@ Services should not contain platform-specific code:
 ```typescript
 // ✅ Good - Service declares requirements
 getRequirements() {
-  return { compute: { memory: 512 } };
+  return { resources: { memory: '512Mi' } };
 }
 
 // ❌ Bad - Service contains AWS-specific code
@@ -742,8 +349,8 @@ Let platforms interpret requirements:
 // ✅ Good - Declare what you need
 getRequirements() {
   return {
-    compute: { memory: 1024, cpu: 1 },
-    network: { ports: [{ port: 3000 }] }
+    resources: { memory: '1Gi', cpu: '1' },
+    network: { ports: [3000] }
   };
 }
 
@@ -757,76 +364,21 @@ getDockerConfig() {
 }
 ```
 
-### 3. Validate Configuration
+### 3. Only Declare Capabilities You Support
 
-Validate configuration in the service:
-
-```typescript
-validateConfig() {
-  if (!this.serviceConfig.apiKey) {
-    throw new Error('API key is required');
-  }
-  
-  if (this.serviceConfig.timeout < 0) {
-    throw new Error('Timeout must be positive');
-  }
-}
-```
-
-### 4. Use Capabilities Correctly
-
-Only declare capabilities you actually support:
-
-```typescript
-getCapabilities() {
-  // Only include what's implemented
-  const capabilities: ServiceCapability[] = ['start', 'stop', 'check'];
-  
-  // Add conditional capabilities
-  if (this.hasTests()) {
-    capabilities.push('test');
-  }
-  
-  if (this.supportsBackup()) {
-    capabilities.push('backup', 'restore');
-  }
-  
-  return capabilities;
-}
-```
-
-### 5. Handle Dependencies
-
-Declare dependencies in requirements:
-
-```typescript
-getRequirements() {
-  return {
-    dependencies: ['database', 'cache'],
-    // Platform will ensure these are running first
-  };
-}
-```
-
-## Testing Your Service
-
-1. **Unit tests** - Test requirements, capabilities, configuration
-2. **Integration tests** - Test with different platforms
-3. **Lifecycle tests** - Test hooks are called correctly
-4. **Configuration tests** - Test various configurations
-5. **Validation tests** - Test config validation
+Capability annotations drive command routing — declaring `supports-backup` on a service with no backup handlers produces runtime errors, not graceful degradation.
 
 ## Checklist
 
-- [ ] Service class extends BaseService
-- [ ] getRequirements() returns appropriate requirements
-- [ ] getCapabilities() returns supported operations
-- [ ] validateConfig() validates configuration
-- [ ] Service registered in ServiceFactory
-- [ ] ServiceName type updated
-- [ ] Tests cover main functionality
-- [ ] Lifecycle hooks implemented (if needed)
-- [ ] Documentation updated
+- [ ] Service class extends `BaseService` (no custom constructor)
+- [ ] `getRequirements()` returns appropriate requirements
+- [ ] `service/type` annotation declared
+- [ ] Command capability annotations declared for non-default commands
+- [ ] Registered in `ServiceFactory.create()` and `SUPPORTED_SERVICES`
+- [ ] Platform handlers added and registered for each supported platform
+- [ ] TOML configuration documented for the service
+- [ ] Tests cover requirements and annotations
+- [ ] `npx tsc --noEmit` passes clean
 
 ## Examples
 
@@ -834,8 +386,8 @@ Look at existing services for examples:
 - `backend-service.ts` - API server with health checks
 - `frontend-service.ts` - Static web service
 - `database-service.ts` - Stateful service with backups
-- `filesystem-service.ts` - Storage service
-- `graph-service.ts` - Graph databases (JanusGraph, Neptune, Neo4j, ArangoDB)
+- `graph-service.ts` - Graph databases (JanusGraph, Neptune, Neo4j)
 - `mcp-service.ts` - Model Context Protocol server
 - `inference-service.ts` - AI/ML model serving
-- `proxy-service.ts` - API gateways and reverse proxies
+- `embedding-service.ts` - Embedding providers
+- `vectors-service.ts` - Vector databases

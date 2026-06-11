@@ -213,7 +213,7 @@ semiont mark <resourceId> --delegate --motivation tagging --schema-id science --
 
 | Flag | Description |
 |------|-------------|
-| `--motivation <m>` | Required. One of: `highlighting`, `commenting`, `linking`, `tagging`, `assessing`, `describing` |
+| `--motivation <m>` / `-m` | Required. One of: `highlighting`, `commenting`, `tagging`, `assessing`, `linking` |
 | `--delegate` | Delegate to a configured worker; mutually exclusive with `--quote` |
 | `--quote <text>` | TextQuoteSelector |
 | `--start <n>` / `--end <n>` | TextPositionSelector |
@@ -315,11 +315,12 @@ semiont yield --delegate \
 
 ## beckon — Direct attention
 
-Directs a participant's attention to a resource or annotation.
+Directs a participant's attention to a resource or annotation. The participant may be a human username or an agent identifier. Produces no persistent state — attention signal only.
 
 ```bash
-semiont beckon <resourceId>
-semiont beckon <resourceId> <annotationId>
+semiont beckon <participantId> --resource <resourceId>
+semiont beckon <participantId> --resource <resourceId> --annotation <annotationId>
+semiont beckon <participantId> --resource <resourceId> --annotation <annotationId> --message "Needs manual review"
 ```
 
 ---

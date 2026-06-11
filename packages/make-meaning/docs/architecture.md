@@ -12,11 +12,11 @@ graph TB
     Workers["Job Workers"] -->|commands| BUS
     EBC["SemiontClient"] -->|commands| BUS
 
-    BUS -->|"yield:create, mark:create,<br/>mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>frame:add-entity-type,<br/>mark:update-entity-types,<br/>job:start, job:complete, ..."| STOWER["Stower"]
-    BUS -->|"browse:*,<br/>mark:entity-types-*"| BROWSER["Browser"]
+    BUS -->|"yield:create, yield:update, yield:mv,<br/>mark:create, mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>frame:add-entity-type, frame:add-tag-schema,<br/>mark:update-entity-types,<br/>job:start, job:complete, job:fail"| STOWER["Stower"]
+    BUS -->|"browse:*"| BROWSER["Browser"]
     BUS -->|"gather:*"| GATHERER["Gatherer"]
-    BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| MATCHER["Matcher"]
-    BUS -->|"yield:created, mark:created,<br/>mark:body-updated"| SMELTER["Smelter"]
+    BUS -->|"match:search-requested"| MATCHER["Matcher"]
+    BUS -->|"domain events:<br/>yield:created, yield:updated,<br/>yield:representation-added,<br/>mark:added, mark:removed, mark:archived"| SMELTER["Smelter<br/>(standalone process)"]
     BUS -->|"yield:clone-*"| CTM["CloneTokenManager"]
 
     STOWER -->|append| EVENTLOG
@@ -25,7 +25,7 @@ graph TB
     subgraph kb ["Knowledge Base"]
         subgraph sor ["System of Record"]
             EVENTLOG["Event Log<br/>(immutable append-only)"]
-            CONTENT["Content Store<br/>(SHA-256 addressed)"]
+            CONTENT["Content Store<br/>(working-tree files, URI-addressed)"]
         end
         VIEWS["Materialized Views<br/>(fast single-doc queries)"]
         GRAPH["Graph<br/>(eventually consistent)"]
@@ -53,11 +53,11 @@ graph TB
     CTM -->|query| VIEWS
     CTM -->|read| CONTENT
 
-    STOWER -->|"yield:created,<br/>mark:created, ..."| BUS
-    BROWSER -->|"browse:*-result"| BUS
-    GATHERER -->|"gather:complete"| BUS
-    MATCHER -->|"bind:search-results,<br/>bind:referenced-by-result"| BUS
-    SMELTER -->|"embedding:compute,<br/>embedding:delete"| BUS
+    STOWER -->|"yield:create-ok, yield:update-ok,<br/>yield:move-ok, mark:delete-ok,<br/>*-failed replies"| BUS
+    EVENTLOG -->|"domain events republished:<br/>yield:created, mark:added, ..."| BUS
+    BROWSER -->|"browse:*-result / *-failed"| BUS
+    GATHERER -->|"gather:complete / gather:failed,<br/>gather:resource-complete / *-failed"| BUS
+    MATCHER -->|"match:search-results,<br/>match:search-failed"| BUS
     CTM -->|"yield:clone-token-generated,<br/>yield:clone-resource-result,<br/>yield:clone-created"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
@@ -79,22 +79,26 @@ graph TB
 
 The single write path to the Knowledge Base. No other code calls `eventStore.appendEvent()` or `repStore.store()`.
 
-**Subscriptions** (EventBus commands → domain events):
+**Subscriptions** (EventBus commands → domain events). Success is usually signalled by the domain event itself, which the EventStore republishes onto the bus; the explicit reply channels are listed where they exist:
 
-| Command | Domain Event | Result Event |
+| Command | Domain Event | Reply Event |
 |---------|-------------|-------------|
-| `yield:create` | `yield:created` + content store | `yield:created` / `yield:create-failed` |
-| `mark:create` | `mark:added` | `mark:created` / `mark:create-failed` |
-| `mark:delete` | `mark:removed` | `mark:deleted` / `mark:delete-failed` |
-| `mark:update-body` | `mark:body-updated` | `mark:body-updated` |
+| `yield:create` | `yield:created` (content registered in content store) | `yield:create-ok` / `yield:create-failed` |
+| `yield:update` | `yield:updated` | `yield:update-ok` / `yield:update-failed` |
+| `yield:mv` | `yield:moved` | `yield:move-ok` / `yield:move-failed` |
+| `mark:create` | `mark:added` | `mark:create-failed` on error |
+| `mark:delete` | `mark:removed` | `mark:delete-ok` / `mark:delete-failed` |
+| `mark:update-body` | `mark:body-updated` | `mark:body-update-failed` on error |
 | `mark:archive` | `mark:archived` | — |
 | `mark:unarchive` | `mark:unarchived` | — |
-| `frame:add-entity-type` | `frame:entity-type-added` | `frame:entity-type-added` |
+| `frame:add-entity-type` | `frame:entity-type-added` | `frame:entity-type-add-failed` on error |
+| `frame:add-tag-schema` | `frame:tag-schema-added` | `frame:tag-schema-add-failed` on error |
 | `mark:update-entity-types` | `mark:entity-tag-added` / `mark:entity-tag-removed` | — |
 | `job:start` | `job:started` | — |
-| `job:report-progress` | `job:progress` | — |
 | `job:complete` | `job:completed` | — |
 | `job:fail` | `job:failed` | — |
+
+`job:report-progress` is ephemeral UI feedback — the Stower does not subscribe to it and nothing is persisted.
 
 ### Browser (Read Actor)
 
@@ -112,8 +116,10 @@ The read actor for the Knowledge Base. Handles deterministic, fact-based queries
 | `browse:annotation-requested` | `AnnotationContext.getAnnotation()` + `ResourceContext.getResourceMetadata()` | `browse:annotation-result` / `browse:annotation-failed` |
 | `browse:events-requested` | `EventQuery.queryEvents()` | `browse:events-result` / `browse:events-failed` |
 | `browse:annotation-history-requested` | `EventQuery` + annotation event filtering | `browse:annotation-history-result` / `browse:annotation-history-failed` |
-| `browse:directory-requested` | Filesystem directory listing for storage browsing | `browse:directory-result` / `browse:directory-failed` |
-| `mark:entity-types-requested` | `readEntityTypesProjection()` | `mark:entity-types-result` / `mark:entity-types-failed` |
+| `browse:referenced-by-requested` | Graph referenced-by lookup + resource metadata | `browse:referenced-by-result` / `browse:referenced-by-failed` |
+| `browse:entity-types-requested` | `readEntityTypesProjection()` | `browse:entity-types-result` / `browse:entity-types-failed` |
+| `browse:tag-schemas-requested` | Tag-schema projection read | `browse:tag-schemas-result` / `browse:tag-schemas-failed` |
+| `browse:directory-requested` | Filesystem directory listing merged with KB metadata | `browse:directory-result` / `browse:directory-failed` |
 
 #### Browse vs Match — when search belongs here vs in the Matcher
 
@@ -144,27 +150,29 @@ Assembles `GatheredContext` for downstream actors (Matcher, generation workers).
 
 **Implementation**: [src/matcher.ts](../src/matcher.ts)
 
-Searches KB stores to resolve entity references and discover relationships. When `bind:search-requested` includes a `context` field (a `GatheredContext`), the Matcher runs context-driven search with multi-source candidate retrieval, composite structural scoring, and optional LLM-based semantic scoring.
+Searches KB stores to resolve entity references and discover relationships. `match:search-requested` carries a `context` field (a `GatheredContext`); the Matcher runs context-driven search with multi-source candidate retrieval, composite structural scoring, and optional LLM-based semantic scoring.
 
 | Request Event | Handler | Result Event |
 |--------------|---------|-------------|
-| `bind:search-requested` | Context-driven search (when `context` present) or `kb.graph.searchResources()` (plain) | `bind:search-results` / `bind:search-failed` |
-| `bind:referenced-by-requested` | `kb.graph.getResourceReferencedBy()` + resource lookups | `bind:referenced-by-result` / `bind:referenced-by-failed` |
+| `match:search-requested` | Context-driven search over four candidate sources | `match:search-results` / `match:search-failed` |
+
+Referenced-by lookups are a deterministic single-index query and live on the Browser (`browse:referenced-by-requested`), not the Matcher.
 
 **Context-driven search** retrieves candidates from four sources (name match, entity type filter, graph neighborhood, vector semantic search), scores them with structural signals (entity type overlap, bidirectionality, citation weight, name match, recency, vector similarity weighted at 25), and optionally blends LLM semantic relevance scores when an `InferenceClient` is available.
 
-### Smelter (Embedding Actor)
+### Smelter (Embedding Actor, standalone process)
 
-**Implementation**: [src/smelter.ts](../src/smelter.ts)
+**Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
 
-Subscribes to resource and annotation events, chunks text content, computes embeddings via `@semiont/vectors` (Voyage or Ollama), emits `embedding:compute` commands on the EventBus (persisted by Stower as `embedding:computed` domain events), and indexes vectors into the VectorStore (Qdrant or memory).
+The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`SmelterActorStateUnit`](../src/smelter-actor-state-unit.ts) fan-in. It chunks text content, computes embeddings via `@semiont/vectors` (Voyage or Ollama), persists them to the EmbeddingStore (`.semiont/embeddings/`), and indexes vectors into the VectorStore (Qdrant or memory). It does not emit bus commands.
 
-| Request Event | Handler | Command Emitted |
-|--------------|---------|----------------|
-| `yield:created` | Chunk resource text, embed, index into VectorStore | `embedding:compute` |
-| `mark:created` | Chunk annotation text, embed, index into VectorStore | `embedding:compute` |
-| `mark:body-updated` | Re-chunk and re-embed annotation text | `embedding:compute` |
-| `yield:moved` / resource deleted | Remove vectors from index | `embedding:delete` |
+| Domain Event | Handler |
+|--------------|---------|
+| `yield:created` / `yield:updated` / `yield:representation-added` | Chunk resource text, embed, persist, index into VectorStore |
+| `mark:added` | Chunk annotation text, embed, persist, index into VectorStore |
+| `mark:removed` / `mark:archived` | Remove vectors from index |
+
+`Smelter.rebuildAll()` reconstitutes the vector index from the EmbeddingStore without re-calling the embedding provider (unless the embedding model changed).
 
 ### CloneTokenManager (Clone Token Actor)
 
@@ -186,16 +194,17 @@ The Knowledge Base is not an intelligent actor. It has no goals, preferences, or
 
 ```typescript
 export interface KnowledgeBase {
-  eventStore: EventStore;        // Event Log (immutable append-only)
-  views: ViewStorage;            // Materialized Views (fast reads)
-  content: RepresentationStore;  // Content Store (SHA-256 addressed)
-  graph: GraphDatabase;          // Graph (eventually consistent)
-  vectors?: VectorStore;         // Vector index (Qdrant / memory) — optional
-  smelter?: Smelter;             // Embedding pipeline actor — optional
+  eventStore:     EventStore;       // Event Log (immutable append-only)
+  views:          ViewStorage;      // Materialized Views (fast reads)
+  content:        WorkingTreeStore; // Content Store (working-tree files, URI-addressed)
+  graph:          GraphDatabase;    // Graph (eventually consistent)
+  graphConsumer:  GraphDBConsumer;  // Event-to-graph projection pipeline
+  vectors?:       VectorStore;      // Vector index (Qdrant / memory) — optional
+  projectionsDir: string;
 }
 ```
 
-The `createKnowledgeBase()` factory instantiates `FilesystemViewStorage` and `FilesystemRepresentationStore` once. Context modules receive `KnowledgeBase` instead of instantiating stores per call.
+The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options?)` factory instantiates `FilesystemViewStorage` and `WorkingTreeStore` once, starts the `GraphDBConsumer`, and (unless `options.skipRebuild`) rebuilds the materialized views and graph from the event log. Context modules receive `KnowledgeBase` instead of instantiating stores per call.
 
 ## Operations
 
@@ -235,22 +244,20 @@ EventBus (callback, fire-and-forget)
 
 `startMakeMeaning()` initializes components in dependency order:
 
-1. JobQueue
-2. EventStore (with EventBus integration)
-3. InferenceClient
-4. GraphDatabase
-5. VectorStore *(optional — Qdrant or memory, from `@semiont/vectors`)*
-6. **KnowledgeBase** (groups stores, including optional vectors)
-7. GraphDBConsumer
-8. **Stower** (must start before reader actors — it handles writes they depend on)
-9. Entity type bootstrap (emits via EventBus, Stower persists)
-10. **Smelter** *(optional — subscribes to resource/annotation events, embeds and indexes)*
-11. **Browser** (browse reads, entity type listing)
-12. **Gatherer** (context assembly for downstream actors, vector semantic search)
-13. **Matcher** (candidate search, referenced-by, vector semantic search, composite scoring)
-14. **CloneTokenManager** (clone token lifecycle)
-15. Job status subscription (inline `job:status-requested` handler)
-16. Workers (6 annotation/generation workers)
+1. JobQueue (with the inline `job:status-requested` subscription)
+2. GraphDatabase
+3. EventStore (with EventBus integration)
+4. VectorStore + EmbeddingProvider *(optional — Qdrant or memory, from `@semiont/vectors`)*
+5. **KnowledgeBase** (groups stores including optional vectors; starts GraphDBConsumer; rebuilds views + graph unless `skipRebuild`)
+6. **Stower** (must start before reader actors — it handles writes they depend on)
+7. Entity type bootstrap (emits via EventBus, Stower persists)
+8. **Gatherer** (context assembly, vector semantic search; gets its own InferenceClient)
+9. **Matcher** (candidate search, vector semantic search, composite scoring; gets its own InferenceClient)
+10. **Browser** (browse reads, entity type and tag-schema listing, directory browse)
+11. **CloneTokenManager** (clone token lifecycle)
+12. Bus command handlers (`registerBusHandlers` — request-channel translators)
+
+Not started here: the **Smelter** (standalone process via `@semiont/make-meaning/smelter-main`) and the **job workers** (worker process in `@semiont/jobs`).
 
 ## Storage Architecture
 

@@ -91,7 +91,7 @@ const fetchContent = async (): Promise<string> => {
 };
 ```
 
-There is no `ContentFetcher` injected into a constructor anywhere. If you need the resource's text, the worker process hands it to you; if you need something else from the KB, reach for `session.client`.
+If you need the resource's text, the worker process hands it to you; if you need something else from the KB, reach for `session.client`.
 
 ## How a Worker Emits
 
@@ -249,8 +249,8 @@ Because processors are pure, you test them with no bus, no session, and no queue
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-import { resourceId } from '@semiont/core';
-import type { InferenceClient, components } from '@semiont/inference';
+import { resourceId, type components } from '@semiont/core';
+import type { InferenceClient } from '@semiont/inference';
 
 type Agent = components['schemas']['Agent'];
 

@@ -15,32 +15,43 @@ Use `@semiont/make-meaning` directly in TypeScript scripts without requiring a r
 ```typescript
 #!/usr/bin/env tsx
 
-import { EventBus } from '@semiont/core';
-import { startMakeMeaning } from '@semiont/make-meaning';
-import { loadEnvironmentConfig, findProjectRoot } from '@semiont/cli/config-loader';
-import { createLogger } from '@semiont/core';
+import { EventBus, createLogger } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { startMakeMeaning, type MakeMeaningConfig } from '@semiont/make-meaning';
 
 async function main() {
-  const projectRoot = findProjectRoot();
-  const environment = process.env.SEMIONT_ENV || 'local';
-  const config = loadEnvironmentConfig(projectRoot, environment);
+  const project = new SemiontProject(process.env.SEMIONT_ROOT!);
   const logger = createLogger('script');
+
+  // Typically loaded from your project's environment JSON
+  const config: MakeMeaningConfig = {
+    services: {
+      graph: { platform: { type: 'posix' }, type: 'memory' },
+    },
+    actors: {
+      gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: process.env.ANTHROPIC_API_KEY! },
+      matcher:  { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: process.env.ANTHROPIC_API_KEY! },
+    },
+    workers: {
+      default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: process.env.ANTHROPIC_API_KEY! },
+    },
+  };
 
   // EventBus is created outside make-meaning
   const eventBus = new EventBus();
 
-  // Start make-meaning service (initializes KB, actors, workers)
-  const makeMeaning = await startMakeMeaning(config, eventBus, logger);
+  // Start make-meaning service (initializes KB, actors, job queue)
+  const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
 
   try {
     // Access components:
-    // makeMeaning.kb                 — Knowledge Base (views, content, graph, eventStore)
-    // makeMeaning.jobQueue           — Job queue
-    // makeMeaning.stower             — Write gateway actor
-    // makeMeaning.gatherer           — Read actor (browse, gather, entity types)
-    // makeMeaning.matcher             — Search/link actor
-    // makeMeaning.cloneTokenManager  — Clone token actor
-    // makeMeaning.graphDb            — Graph database
+    // makeMeaning.knowledgeSystem.kb                — Knowledge Base (eventStore, views, content, graph, graphConsumer, vectors?)
+    // makeMeaning.knowledgeSystem.stower            — Write gateway actor
+    // makeMeaning.knowledgeSystem.browser           — Read actor (browse queries, directory listings)
+    // makeMeaning.knowledgeSystem.gatherer          — Context assembly actor
+    // makeMeaning.knowledgeSystem.matcher           — Search/link actor
+    // makeMeaning.knowledgeSystem.cloneTokenManager — Clone token actor
+    // makeMeaning.jobQueue                          — Job queue
 
     console.log('Script running...');
   } finally {
@@ -61,30 +72,37 @@ tsx scripts/your-script.ts
 
 ## Creating Resources
 
+Content is written to the content store first; `createResource` then registers it and returns the new `ResourceId`:
+
 ```typescript
 import { ResourceOperations } from '@semiont/make-meaning';
+import { deriveStorageUri } from '@semiont/content';
 import { userId } from '@semiont/core';
 
-const result = await ResourceOperations.createResource(
+const kb = makeMeaning.knowledgeSystem.kb;
+const uri = deriveStorageUri('my-document', 'text/plain');
+const stored = await kb.content.store(Buffer.from('Document content here'), uri);
+
+const rId = await ResourceOperations.createResource(
   {
     name: 'My Document',
-    content: Buffer.from('Document content here'),
+    storageUri: stored.storageUri,
+    contentChecksum: stored.checksum,
+    byteSize: stored.byteSize,
     format: 'text/plain',
     language: 'en',
   },
   userId('script-user'),
   eventBus,
-  config.services.backend.publicURL,
 );
 
-console.log(`Created: ${result.resource['@id']}`);
+console.log(`Created: ${rId}`);
 ```
 
 ## Queuing Detection Jobs
 
 ```typescript
-import { resourceId, userId, entityType } from '@semiont/core';
-import { jobId } from '@semiont/http-transport';
+import { resourceId, userId, entityType, jobId } from '@semiont/core';
 import type { PendingJob, DetectionParams } from '@semiont/jobs';
 
 const job: PendingJob<DetectionParams> = {
@@ -114,7 +132,7 @@ await makeMeaning.jobQueue.createJob(job);
 
 ## Monitoring Job Progress
 
-Subscribe to EventBus events before creating the job:
+Job processing requires the worker process (`@semiont/jobs`) to be running against the same project — `startMakeMeaning` only owns the queue; see [Job Workers](./job-workers.md). Subscribe to EventBus events before creating the job:
 
 ```typescript
 import { firstValueFrom, filter, timeout } from 'rxjs';
@@ -140,7 +158,7 @@ console.log('Job complete!');
 ```typescript
 import { ResourceContext, AnnotationContext, GraphContext } from '@semiont/make-meaning';
 
-const { kb } = makeMeaning;
+const { kb } = makeMeaning.knowledgeSystem;
 
 // Get resource metadata
 const resource = await ResourceContext.getResourceMetadata(resourceId, kb);
@@ -152,14 +170,14 @@ const annotations = await AnnotationContext.getAllAnnotations(resourceId, kb);
 const results = await GraphContext.searchResources('query text', kb, 10);
 
 // Get graph stats
-const stats = await makeMeaning.graphDb.getStats();
+const stats = await kb.graph.getStats();
 console.log(`Total resources: ${stats.resourceCount}`);
 ```
 
 ## Batch Processing
 
 ```typescript
-const resourceIds = await makeMeaning.kb.eventStore.log.getAllResourceIds();
+const resourceIds = await makeMeaning.knowledgeSystem.kb.eventStore.log.getAllResourceIds();
 
 console.log(`Processing ${resourceIds.length} resources...`);
 

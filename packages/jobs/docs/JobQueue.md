@@ -7,7 +7,7 @@ The `FsJobQueue` class manages the lifecycle of jobs in a filesystem-based queue
 The FsJobQueue uses a status-directory pattern where jobs are stored in directories named after their status:
 
 ```
-data/jobs/
+{project.jobsDir}/
   ├── pending/      # Jobs waiting to be processed
   ├── running/      # Jobs currently being processed
   ├── complete/     # Successfully completed jobs
@@ -50,8 +50,7 @@ Creates a new job and persists it to the queue.
 
 ```typescript
 import type { PendingJob, GenerationParams } from '@semiont/jobs';
-import { jobId } from '@semiont/http-transport';
-import { userId, resourceId, annotationId } from '@semiont/core';
+import { jobId, userId, resourceId, annotationId } from '@semiont/core';
 
 const job: PendingJob<GenerationParams> = {
   status: 'pending',
@@ -81,7 +80,7 @@ await queue.createJob(job);
 ```
 
 **Behavior:**
-- Writes job to `{dataDir}/jobs/{status}/{jobId}.json`
+- Writes job to `{project.jobsDir}/{status}/{jobId}.json`
 - Creates parent directories if needed
 - Overwrites if job with same ID already exists at that status
 - If status is `pending`, pushes to the in-memory queue for immediate worker pickup
@@ -103,7 +102,7 @@ if (job) {
 
   // Type-safe access based on status
   if (job.status === 'running') {
-    console.log(`Progress: ${job:progress.percentage}%`);
+    console.log(`Progress: ${job.progress.percentage}%`);
   }
   if (job.status === 'complete') {
     console.log(`Result: ${JSON.stringify(job.result)}`);
@@ -143,7 +142,7 @@ if (job.status === 'running') {
     status: 'complete',
     metadata: job.metadata,
     params: job.params,
-    startedAt: job:startedAt,
+    startedAt: job.startedAt,
     completedAt: new Date().toISOString(),
     result: { resourceId: resourceId('doc-new'), resourceName: 'Generated Article' },
   };
@@ -225,9 +224,8 @@ const genJob = await queue.pollNextPendingJob(
 - Returns `null` if queue is empty (or no match)
 
 **Concurrency:**
-- Multiple workers can safely poll concurrently
-- Once a worker moves job to `running`, other workers won't see it
-- No explicit locking needed (status directories provide isolation)
+- The in-memory queue lives in the single backend process that owns the `FsJobQueue`. Remote workers never call this method — they claim jobs over the bus (`job:claim`), which the backend's claim handler serves via `getJob` + `updateJob`
+- A claim for a job that has already moved to `running` fails with "Job already claimed", so two workers cannot win the same job
 
 ## Cancelling Jobs
 

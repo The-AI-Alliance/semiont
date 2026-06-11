@@ -14,7 +14,7 @@ This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/
 - **Browser** (read) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type listing, and directory browse (merging filesystem listings with KB metadata)
 - **Gatherer** (context assembly) — assembles gathered context for annotations (`gather:requested`) and resources (`gather:resource-requested`); searches vectors for semantically similar passages (adds `semanticContext` to `GatheredContext`)
 - **Matcher** (search/link) — context-driven candidate search with multi-source retrieval, composite structural scoring, and optional LLM semantic scoring
-- **Smelter** (embed) — subscribes to resource/annotation events, chunks text, embeds via `@semiont/vectors`, emits `embedding:compute` commands (persisted by Stower as `embedding:computed` events), and indexes into vector store (Qdrant)
+- **Smelter** (embed) — standalone embedding pipeline run via `@semiont/make-meaning/smelter-main` (not started by `startMakeMeaning`); subscribes to domain events, chunks text, embeds via `@semiont/vectors`, persists embeddings to the EmbeddingStore (`.semiont/embeddings/`), and indexes into the vector store (Qdrant)
 - **CloneTokenManager** (yield) — manages clone token lifecycle for resource cloning
 
 All actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
@@ -44,7 +44,7 @@ const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
 
 // Access components
 const { knowledgeSystem, jobQueue } = makeMeaning;
-const { kb, stower, browser, gatherer, matcher, smelter, cloneTokenManager } = knowledgeSystem;
+const { kb, stower, browser, gatherer, matcher, cloneTokenManager } = knowledgeSystem;
 
 // Graceful shutdown
 await makeMeaning.stop();
@@ -52,33 +52,37 @@ await makeMeaning.stop();
 
 This single call initializes:
 - **KnowledgeSystem** — groups the Knowledge Base and its actors
-  - **KnowledgeBase** — groups EventStore, ViewStorage, WorkingTreeStore, GraphDatabase, GraphDBConsumer, and optionally VectorStore and Smelter
+  - **KnowledgeBase** — groups EventStore, ViewStorage, WorkingTreeStore, GraphDatabase, GraphDBConsumer, and optionally VectorStore
   - **Stower** — subscribes to write commands on EventBus
   - **Browser** — subscribes to all KB read queries and directory browse requests on EventBus
   - **Gatherer** — subscribes to annotation and resource gather requests on EventBus; searches vectors for semantically similar passages
   - **Matcher** — subscribes to candidate search requests on EventBus
-  - **Smelter** — subscribes to resource/annotation events, chunks text, embeds, indexes into Qdrant
   - **CloneTokenManager** — subscribes to clone token operations on EventBus
 - **JobQueue** — background job processing queue + job status subscription
-- **6 annotation workers** — poll job queue for async AI tasks
+- **Bus command handlers** — request-channel translators registered via `registerBusHandlers`
+
+It does **not** start the Smelter (a standalone process — `@semiont/make-meaning/smelter-main`) or the job workers (the worker process in [@semiont/jobs](../jobs/) — see [Job Workers](./docs/job-workers.md)).
 
 ### Gather Context (via EventBus)
 
 ```typescript
 import { firstValueFrom, race, filter, timeout } from 'rxjs';
 
+const correlationId = crypto.randomUUID();
+
 // Emit gather request for an annotation
 eventBus.get('gather:requested').next({
-  annotationUri,
+  correlationId,
+  annotationId,
   resourceId,
-  options: { contextLines: 5 },
+  options: { contextWindow: 1000 },
 });
 
 // Await result
 const result = await firstValueFrom(
   race(
-    eventBus.get('gather:complete').pipe(filter(e => e.annotationUri === annotationUri)),
-    eventBus.get('gather:failed').pipe(filter(e => e.annotationUri === annotationUri)),
+    eventBus.get('gather:complete').pipe(filter(e => e.correlationId === correlationId)),
+    eventBus.get('gather:failed').pipe(filter(e => e.correlationId === correlationId)),
   ).pipe(timeout(30_000)),
 );
 ```
@@ -100,7 +104,7 @@ graph TB
         BROWSER["Browser<br/>(read)"]
         GATHERER["Gatherer<br/>(context assembly)"]
         MATCHER["Matcher<br/>(search/link)"]
-        SMELTER["Smelter<br/>(embed)"]
+        SMELTER["Smelter<br/>(embed, standalone process)"]
         CTM["CloneTokenManager<br/>(clone)"]
         KB["Knowledge Base"]
         VECTORS["Vector Store<br/>(Qdrant)"]
@@ -115,18 +119,17 @@ graph TB
         CTM -->|query| KB
     end
 
-    BUS -->|"yield:create, yield:update, yield:mv<br/>mark:create, mark:delete, mark:update-body<br/>frame:add-entity-type, mark:archive, mark:unarchive<br/>mark:update-entity-types, job:start, job:*"| STOWER
-    BUS -->|"browse:resource-requested, browse:resources-requested<br/>browse:annotations-requested, browse:annotation-requested<br/>browse:events-requested, browse:annotation-history-requested<br/>browse:referenced-by-requested, browse:entity-types-requested<br/>browse:directory-requested"| BROWSER
+    BUS -->|"yield:create, yield:update, yield:mv<br/>mark:create, mark:delete, mark:update-body<br/>frame:add-entity-type, frame:add-tag-schema<br/>mark:archive, mark:unarchive, mark:update-entity-types<br/>job:start, job:complete, job:fail"| STOWER
+    BUS -->|"browse:resource-requested, browse:resources-requested<br/>browse:annotations-requested, browse:annotation-requested<br/>browse:events-requested, browse:annotation-history-requested<br/>browse:referenced-by-requested, browse:entity-types-requested<br/>browse:tag-schemas-requested, browse:directory-requested"| BROWSER
     BUS -->|"gather:requested<br/>gather:resource-requested"| GATHERER
     BUS -->|"match:search-requested"| MATCHER
-    BUS -->|"yield:created, mark:created,<br/>mark:body-updated"| SMELTER
+    BUS -->|"domain events:<br/>yield:created, yield:updated<br/>yield:representation-added<br/>mark:added, mark:removed, mark:archived"| SMELTER
     BUS -->|"yield:clone-token-requested<br/>yield:clone-resource-requested<br/>yield:clone-create"| CTM
 
-    STOWER -->|"yield:created, yield:updated, yield:moved<br/>mark:created, mark:deleted, mark:body-updated<br/>frame:entity-type-added, ..."| BUS
-    BROWSER -->|"browse:resource-result, browse:resources-result<br/>browse:annotations-result, browse:annotation-result<br/>browse:events-result, browse:annotation-history-result<br/>browse:referenced-by-result, browse:entity-types-result<br/>browse:directory-result"| BUS
+    STOWER -->|"yield:create-ok, yield:update-ok, yield:move-ok<br/>mark:delete-ok, *-failed replies<br/>(domain events are republished onto the bus<br/>by the EventStore: yield:created, mark:added, ...)"| BUS
+    BROWSER -->|"browse:resource-result, browse:resources-result<br/>browse:annotations-result, browse:annotation-result<br/>browse:events-result, browse:annotation-history-result<br/>browse:referenced-by-result, browse:entity-types-result<br/>browse:tag-schemas-result, browse:directory-result"| BUS
     GATHERER -->|"gather:complete, gather:failed<br/>gather:resource-complete, gather:resource-failed"| BUS
     MATCHER -->|"match:search-results, match:search-failed"| BUS
-    SMELTER -->|"embedding:compute,<br/>embedding:delete"| BUS
     CTM -->|"yield:clone-token-generated<br/>yield:clone-resource-result<br/>yield:clone-created"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
@@ -146,7 +149,7 @@ graph TB
 
 The **Knowledge System** binds the Knowledge Base to its actors. Nothing outside the Knowledge System reads or writes the Knowledge Base directly.
 
-The **Knowledge Base** is an inert store — it has no intelligence, no goals, no decisions. It groups five core subsystems and two optional ones:
+The **Knowledge Base** is an inert store — it has no intelligence, no goals, no decisions. It groups five core subsystems and one optional one:
 
 | Store | Implementation | Purpose |
 |-------|---------------|---------|
@@ -156,14 +159,15 @@ The **Knowledge Base** is an inert store — it has no intelligence, no goals, n
 | **Graph** | `GraphDatabase` | Eventually consistent relationship projection |
 | **Graph Consumer** | `GraphDBConsumer` | Event-to-graph synchronization pipeline |
 | **Vectors** *(optional)* | `VectorStore` | Semantic vector index (Qdrant + memory) via `@semiont/vectors` |
-| **Smelter** *(optional)* | `Smelter` | Embedding pipeline actor (chunk, embed, index) |
+
+The Smelter (event-to-vector projection) is **not** a KB member — it runs as a standalone process via `@semiont/make-meaning/smelter-main`.
 
 ```typescript
 import { createKnowledgeBase } from '@semiont/make-meaning';
 
-const kb = await createKnowledgeBase(eventStore, project, graphDb, logger);
+const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options);
 // kb.eventStore, kb.views, kb.content, kb.graph, kb.graphConsumer
-// kb.vectors (optional), kb.smelter (optional)
+// kb.vectors (optional), kb.projectionsDir
 ```
 
 ### EventBus Ownership
@@ -196,7 +200,7 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 ### Service (Primary)
 
 - `startMakeMeaning(project, config, eventBus, logger)` — Initialize all infrastructure
-- `MakeMeaningService` — Type for service return value (`knowledgeSystem`, `jobQueue`, `workers`, `stop`)
+- `MakeMeaningService` — Type for service return value (`knowledgeSystem`, `jobQueue`, `stop`)
 
 ### Knowledge System
 
@@ -205,7 +209,7 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 
 ### Knowledge Base
 
-- `createKnowledgeBase(eventStore, project, graphDb, logger)` — Async factory function
+- `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options?)` — Async factory function
 - `KnowledgeBase` — Interface grouping the five KB stores (including `graphConsumer`)
 
 ### Actors
@@ -214,8 +218,8 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 - `Browser` — Read actor (all KB queries, directory listings merged with KB metadata)
 - `Gatherer` — Context assembly actor (annotation and resource gather flows; vector semantic search)
 - `Matcher` — Search/link actor (context-driven candidate search with structural + semantic scoring)
-- `Smelter` — Embedding pipeline actor (chunk, embed, persist, index into vector store)
 - `CloneTokenManager` — Clone token lifecycle actor (yield domain)
+- `createSmelterActorStateUnit` — domain-event fan-in for the standalone Smelter process (`@semiont/make-meaning/smelter-main`); the `Smelter` class itself is not exported from the package index
 
 ### Operations
 
@@ -245,6 +249,8 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 - **[@semiont/inference](../inference/)** — AI primitives (generateText)
 - **[@semiont/vectors](../vectors/)** — Vector store abstraction (Qdrant + memory) and embedding providers (Voyage, Ollama)
 - **[@semiont/jobs](../jobs/)** — Job queue and annotation workers
+- **[@semiont/observability](../observability/)** — Actor spans and metrics providers
+- **[@semiont/sdk](../sdk/)** — `StateUnit` / `WorkerBus` types (used by the Smelter actor state unit)
 
 ## Testing
 

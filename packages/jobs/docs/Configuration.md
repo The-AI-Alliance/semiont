@@ -41,13 +41,13 @@ Created automatically by `initialize()`.
 
 ### Job Claiming (SSE, not polling)
 
-Workers do not poll the queue. The worker process opens a `SemiontSession` and a `JobClaimAdapter` (from `@semiont/sdk`) subscribes to the bus `job:queued` channel over SSE. When a job is queued, the adapter is pushed the event, claims the job atomically, and dispatches it by `jobType`. There is no poll interval or error-backoff to tune.
+Workers do not poll the queue. The worker process opens a `SemiontSession` and a `JobClaimAdapter` (created internally by `startWorkerProcess`, in this package's `src/job-claim-adapter.ts`) subscribes to the bus `job:queued` channel over SSE. When a job is queued, the adapter is pushed the event, claims the job atomically, and dispatches it by `jobType`. There is no poll interval or error-backoff to tune.
 
 Each worker process serves the `jobTypes` it is configured for — driven by the per-`(provider, model)` worker entries in `~/.semiontconfig`. Multiple job types that share an inference engine share one worker process (and one software-agent identity); different engines run as separate processes.
 
-```typescript
-import { startWorkerProcess } from '@semiont/jobs/worker-main';
+`startWorkerProcess` is internal to the package — the `worker-main.ts` entry point calls it once per agent group:
 
+```typescript
 const adapter = startWorkerProcess({
   session,          // SemiontSession authenticated as this worker's agent
   jobTypes,         // string[] — job types this agent claims
