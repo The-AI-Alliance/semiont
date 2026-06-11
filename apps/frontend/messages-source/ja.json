@@ -474,16 +474,12 @@
     "confirmImport": "はい、インポート",
     "cancelImport": "キャンセル",
     "phaseStarted": "インポート開始中…",
-    "phaseEntityTypes": "エンティティタイプをインポート中…",
-    "phaseResources": "リソースをインポート中…",
-    "phaseAnnotations": "アノテーションをインポート中…",
     "phaseComplete": "インポート完了",
     "phaseError": "インポート失敗",
-    "hashChainValid": "ハッシュチェーン検証済み",
-    "hashChainInvalid": "ハッシュチェーンの検証に失敗",
-    "streams": "ストリーム",
-    "events": "イベント",
-    "blobs": "コンテンツブロブ"
+    "statsEventsReplayed": "リプレイされたイベント",
+    "statsResourcesCreated": "作成されたリソース",
+    "statsAnnotationsCreated": "作成されたアノテーション",
+    "statsEntityTypesAdded": "追加されたエンティティタイプ"
   },
   "CookieBanner": {
     "saving": "保存中...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "リプレイされたイベント",
+    "statsResourcesCreated": "作成されたリソース",
+    "statsAnnotationsCreated": "作成されたアノテーション",
+    "statsEntityTypesAdded": "追加されたエンティティタイプ"
   },
   "KnowledgeBasePanel": {
     "title": "ナレッジベース",

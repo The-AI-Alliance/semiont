@@ -474,16 +474,12 @@
     "confirmImport": "Có, nhập",
     "cancelImport": "Hủy",
     "phaseStarted": "Bắt đầu nhập…",
-    "phaseEntityTypes": "Đang nhập loại thực thể…",
-    "phaseResources": "Đang nhập tài nguyên…",
-    "phaseAnnotations": "Đang nhập chú thích…",
     "phaseComplete": "Nhập hoàn tất",
     "phaseError": "Nhập thất bại",
-    "hashChainValid": "Chuỗi băm đã xác minh",
-    "hashChainInvalid": "Xác minh chuỗi băm thất bại",
-    "streams": "Luồng",
-    "events": "Sự kiện",
-    "blobs": "Blob nội dung"
+    "statsEventsReplayed": "Sự kiện đã phát lại",
+    "statsResourcesCreated": "Tài nguyên đã tạo",
+    "statsAnnotationsCreated": "Chú thích đã tạo",
+    "statsEntityTypesAdded": "Loại thực thể đã thêm"
   },
   "CookieBanner": {
     "saving": "Đang lưu...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Sự kiện đã phát lại",
+    "statsResourcesCreated": "Tài nguyên đã tạo",
+    "statsAnnotationsCreated": "Chú thích đã tạo",
+    "statsEntityTypesAdded": "Loại thực thể đã thêm"
   },
   "KnowledgeBasePanel": {
     "title": "Cơ sở kiến thức",

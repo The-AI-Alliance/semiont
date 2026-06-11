@@ -474,16 +474,12 @@
     "confirmImport": "Oui, importer",
     "cancelImport": "Annuler",
     "phaseStarted": "Démarrage de l'importation…",
-    "phaseEntityTypes": "Importation des types d'entités…",
-    "phaseResources": "Importation des ressources…",
-    "phaseAnnotations": "Importation des annotations…",
     "phaseComplete": "Importation terminée",
     "phaseError": "Échec de l'importation",
-    "hashChainValid": "Chaîne de hachage vérifiée",
-    "hashChainInvalid": "Échec de la vérification de la chaîne de hachage",
-    "streams": "Flux",
-    "events": "Événements",
-    "blobs": "Blobs de contenu"
+    "statsEventsReplayed": "Événements rejoués",
+    "statsResourcesCreated": "Ressources créées",
+    "statsAnnotationsCreated": "Annotations créées",
+    "statsEntityTypesAdded": "Types d'entités ajoutés"
   },
   "CookieBanner": {
     "saving": "Enregistrement...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Événements rejoués",
+    "statsResourcesCreated": "Ressources créées",
+    "statsAnnotationsCreated": "Annotations créées",
+    "statsEntityTypesAdded": "Types d'entités ajoutés"
   },
   "KnowledgeBasePanel": {
     "title": "Bases de connaissances",

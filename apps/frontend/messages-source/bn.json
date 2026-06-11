@@ -474,16 +474,12 @@
     "confirmImport": "হ্যাঁ, আমদানি করুন",
     "cancelImport": "বাতিল",
     "phaseStarted": "আমদানি শুরু হচ্ছে…",
-    "phaseEntityTypes": "সত্তার ধরন আমদানি হচ্ছে…",
-    "phaseResources": "রিসোর্স আমদানি হচ্ছে…",
-    "phaseAnnotations": "টীকা আমদানি হচ্ছে…",
     "phaseComplete": "আমদানি সম্পন্ন",
     "phaseError": "আমদানি ব্যর্থ",
-    "hashChainValid": "হ্যাশ চেইন যাচাই হয়েছে",
-    "hashChainInvalid": "হ্যাশ চেইন যাচাই ব্যর্থ",
-    "streams": "স্ট্রিম",
-    "events": "ইভেন্ট",
-    "blobs": "কনটেন্ট ব্লব"
+    "statsEventsReplayed": "পুনরায় চালানো ইভেন্ট",
+    "statsResourcesCreated": "তৈরি করা রিসোর্স",
+    "statsAnnotationsCreated": "তৈরি করা টীকা",
+    "statsEntityTypesAdded": "যোগ করা সত্তার ধরন"
   },
   "CookieBanner": {
     "saving": "সংরক্ষণ হচ্ছে...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "পুনরায় চালানো ইভেন্ট",
+    "statsResourcesCreated": "তৈরি করা রিসোর্স",
+    "statsAnnotationsCreated": "তৈরি করা টীকা",
+    "statsEntityTypesAdded": "যোগ করা সত্তার ধরন"
   },
   "KnowledgeBasePanel": {
     "title": "জ্ঞান ভাণ্ডার",

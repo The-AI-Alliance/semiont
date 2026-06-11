@@ -474,16 +474,12 @@
     "confirmImport": "כן, ייבא",
     "cancelImport": "ביטול",
     "phaseStarted": "מתחיל ייבוא…",
-    "phaseEntityTypes": "מייבא סוגי ישויות…",
-    "phaseResources": "מייבא משאבים…",
-    "phaseAnnotations": "מייבא הערות…",
     "phaseComplete": "הייבוא הושלם",
     "phaseError": "הייבוא נכשל",
-    "hashChainValid": "שרשרת הגיבוב אומתה",
-    "hashChainInvalid": "אימות שרשרת הגיבוב נכשל",
-    "streams": "זרמים",
-    "events": "אירועים",
-    "blobs": "בלובי תוכן"
+    "statsEventsReplayed": "אירועים שהופעלו מחדש",
+    "statsResourcesCreated": "משאבים שנוצרו",
+    "statsAnnotationsCreated": "הערות שנוצרו",
+    "statsEntityTypesAdded": "סוגי ישויות שנוספו"
   },
   "CookieBanner": {
     "saving": "שומר...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "אירועים שהופעלו מחדש",
+    "statsResourcesCreated": "משאבים שנוצרו",
+    "statsAnnotationsCreated": "הערות שנוצרו",
+    "statsEntityTypesAdded": "סוגי ישויות שנוספו"
   },
   "KnowledgeBasePanel": {
     "title": "בסיסי ידע",

@@ -474,16 +474,12 @@
     "confirmImport": "نعم، استيراد",
     "cancelImport": "إلغاء",
     "phaseStarted": "بدء الاستيراد…",
-    "phaseEntityTypes": "استيراد أنواع الكيانات…",
-    "phaseResources": "استيراد الموارد…",
-    "phaseAnnotations": "استيراد التعليقات التوضيحية…",
     "phaseComplete": "اكتمل الاستيراد",
     "phaseError": "فشل الاستيراد",
-    "hashChainValid": "تم التحقق من سلسلة التجزئة",
-    "hashChainInvalid": "فشل التحقق من سلسلة التجزئة",
-    "streams": "التدفقات",
-    "events": "الأحداث",
-    "blobs": "كائنات المحتوى"
+    "statsEventsReplayed": "الأحداث المُعاد تشغيلها",
+    "statsResourcesCreated": "الموارد المنشأة",
+    "statsAnnotationsCreated": "التعليقات التوضيحية المنشأة",
+    "statsEntityTypesAdded": "أنواع الكيانات المضافة"
   },
   "CookieBanner": {
     "saving": "جارٍ الحفظ...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "الأحداث المُعاد تشغيلها",
+    "statsResourcesCreated": "الموارد المنشأة",
+    "statsAnnotationsCreated": "التعليقات التوضيحية المنشأة",
+    "statsEntityTypesAdded": "أنواع الكيانات المضافة"
   },
   "KnowledgeBasePanel": {
     "title": "قواعد المعرفة",

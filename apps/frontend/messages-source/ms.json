@@ -474,16 +474,12 @@
     "confirmImport": "Ya, Import",
     "cancelImport": "Batal",
     "phaseStarted": "Memulakan import…",
-    "phaseEntityTypes": "Mengimport jenis entiti…",
-    "phaseResources": "Mengimport sumber…",
-    "phaseAnnotations": "Mengimport anotasi…",
     "phaseComplete": "Import selesai",
     "phaseError": "Import gagal",
-    "hashChainValid": "Rantaian hash disahkan",
-    "hashChainInvalid": "Pengesahan rantaian hash gagal",
-    "streams": "Aliran",
-    "events": "Peristiwa",
-    "blobs": "Blob kandungan"
+    "statsEventsReplayed": "Peristiwa dimain semula",
+    "statsResourcesCreated": "Sumber dicipta",
+    "statsAnnotationsCreated": "Anotasi dicipta",
+    "statsEntityTypesAdded": "Jenis entiti ditambah"
   },
   "CookieBanner": {
     "saving": "Menyimpan...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Peristiwa dimain semula",
+    "statsResourcesCreated": "Sumber dicipta",
+    "statsAnnotationsCreated": "Anotasi dicipta",
+    "statsEntityTypesAdded": "Jenis entiti ditambah"
   },
   "KnowledgeBasePanel": {
     "title": "Pangkalan Pengetahuan",

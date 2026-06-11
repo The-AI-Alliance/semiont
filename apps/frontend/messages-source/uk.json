@@ -474,16 +474,12 @@
     "confirmImport": "Так, імпортувати",
     "cancelImport": "Скасувати",
     "phaseStarted": "Початок імпорту…",
-    "phaseEntityTypes": "Імпорт типів сутностей…",
-    "phaseResources": "Імпорт ресурсів…",
-    "phaseAnnotations": "Імпорт анотацій…",
     "phaseComplete": "Імпорт завершено",
     "phaseError": "Імпорт не вдався",
-    "hashChainValid": "Хеш-ланцюг перевірено",
-    "hashChainInvalid": "Перевірка хеш-ланцюга не вдалася",
-    "streams": "Потоки",
-    "events": "Події",
-    "blobs": "Блоби вмісту"
+    "statsEventsReplayed": "Відтворені події",
+    "statsResourcesCreated": "Створені ресурси",
+    "statsAnnotationsCreated": "Створені анотації",
+    "statsEntityTypesAdded": "Додані типи сутностей"
   },
   "CookieBanner": {
     "saving": "Збереження...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Відтворені події",
+    "statsResourcesCreated": "Створені ресурси",
+    "statsAnnotationsCreated": "Створені анотації",
+    "statsEntityTypesAdded": "Додані типи сутностей"
   },
   "KnowledgeBasePanel": {
     "title": "Бази знань",

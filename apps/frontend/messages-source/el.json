@@ -474,16 +474,12 @@
     "confirmImport": "Ναι, εισαγωγή",
     "cancelImport": "Ακύρωση",
     "phaseStarted": "Έναρξη εισαγωγής…",
-    "phaseEntityTypes": "Εισαγωγή τύπων οντοτήτων…",
-    "phaseResources": "Εισαγωγή πόρων…",
-    "phaseAnnotations": "Εισαγωγή σχολιασμών…",
     "phaseComplete": "Η εισαγωγή ολοκληρώθηκε",
     "phaseError": "Η εισαγωγή απέτυχε",
-    "hashChainValid": "Η αλυσίδα κατακερματισμού επαληθεύτηκε",
-    "hashChainInvalid": "Η επαλήθευση αλυσίδας κατακερματισμού απέτυχε",
-    "streams": "Ροές",
-    "events": "Συμβάντα",
-    "blobs": "Αντικείμενα περιεχομένου"
+    "statsEventsReplayed": "Συμβάντα που αναπαράχθηκαν",
+    "statsResourcesCreated": "Πόροι που δημιουργήθηκαν",
+    "statsAnnotationsCreated": "Σχολιασμοί που δημιουργήθηκαν",
+    "statsEntityTypesAdded": "Τύποι οντοτήτων που προστέθηκαν"
   },
   "CookieBanner": {
     "saving": "Αποθήκευση...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Συμβάντα που αναπαράχθηκαν",
+    "statsResourcesCreated": "Πόροι που δημιουργήθηκαν",
+    "statsAnnotationsCreated": "Σχολιασμοί που δημιουργήθηκαν",
+    "statsEntityTypesAdded": "Τύποι οντοτήτων που προστέθηκαν"
   },
   "KnowledgeBasePanel": {
     "title": "Βάσεις Γνώσης",

@@ -474,16 +474,12 @@
     "confirmImport": "Ano, importovat",
     "cancelImport": "Zrušit",
     "phaseStarted": "Zahajování importu…",
-    "phaseEntityTypes": "Import typů entit…",
-    "phaseResources": "Import zdrojů…",
-    "phaseAnnotations": "Import anotací…",
     "phaseComplete": "Import dokončen",
     "phaseError": "Import selhal",
-    "hashChainValid": "Řetězec hashů ověřen",
-    "hashChainInvalid": "Ověření řetězce hashů selhalo",
-    "streams": "Proudy",
-    "events": "Události",
-    "blobs": "Obsahové bloby"
+    "statsEventsReplayed": "Přehrané události",
+    "statsResourcesCreated": "Vytvořené zdroje",
+    "statsAnnotationsCreated": "Vytvořené anotace",
+    "statsEntityTypesAdded": "Přidané typy entit"
   },
   "CookieBanner": {
     "saving": "Ukládání...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Přehrané události",
+    "statsResourcesCreated": "Vytvořené zdroje",
+    "statsAnnotationsCreated": "Vytvořené anotace",
+    "statsEntityTypesAdded": "Přidané typy entit"
   },
   "KnowledgeBasePanel": {
     "title": "Znalostní báze",

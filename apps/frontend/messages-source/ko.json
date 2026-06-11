@@ -474,16 +474,12 @@
     "confirmImport": "예, 가져오기",
     "cancelImport": "취소",
     "phaseStarted": "가져오기 시작 중…",
-    "phaseEntityTypes": "엔티티 유형 가져오는 중…",
-    "phaseResources": "리소스 가져오는 중…",
-    "phaseAnnotations": "주석 가져오는 중…",
     "phaseComplete": "가져오기 완료",
     "phaseError": "가져오기 실패",
-    "hashChainValid": "해시 체인 검증됨",
-    "hashChainInvalid": "해시 체인 검증 실패",
-    "streams": "스트림",
-    "events": "이벤트",
-    "blobs": "콘텐츠 블롭"
+    "statsEventsReplayed": "재생된 이벤트",
+    "statsResourcesCreated": "생성된 리소스",
+    "statsAnnotationsCreated": "생성된 주석",
+    "statsEntityTypesAdded": "추가된 엔티티 유형"
   },
   "CookieBanner": {
     "saving": "저장 중...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "재생된 이벤트",
+    "statsResourcesCreated": "생성된 리소스",
+    "statsAnnotationsCreated": "생성된 주석",
+    "statsEntityTypesAdded": "추가된 엔티티 유형"
   },
   "KnowledgeBasePanel": {
     "title": "지식 베이스",

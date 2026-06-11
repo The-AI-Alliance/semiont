@@ -474,16 +474,12 @@
     "confirmImport": "Ja, importer",
     "cancelImport": "Avbryt",
     "phaseStarted": "Starter import…",
-    "phaseEntityTypes": "Importerer entitetstyper…",
-    "phaseResources": "Importerer ressurser…",
-    "phaseAnnotations": "Importerer merknader…",
     "phaseComplete": "Import fullført",
     "phaseError": "Import mislyktes",
-    "hashChainValid": "Hash-kjede verifisert",
-    "hashChainInvalid": "Verifisering av hash-kjede mislyktes",
-    "streams": "Strømmer",
-    "events": "Hendelser",
-    "blobs": "Innholdsblober"
+    "statsEventsReplayed": "Avspilte hendelser",
+    "statsResourcesCreated": "Opprettede ressurser",
+    "statsAnnotationsCreated": "Opprettede merknader",
+    "statsEntityTypesAdded": "Tilføyde entitetstyper"
   },
   "CookieBanner": {
     "saving": "Lagrer...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Avspilte hendelser",
+    "statsResourcesCreated": "Opprettede ressurser",
+    "statsAnnotationsCreated": "Opprettede merknader",
+    "statsEntityTypesAdded": "Tilføyde entitetstyper"
   },
   "KnowledgeBasePanel": {
     "title": "Kunnskapsbaser",

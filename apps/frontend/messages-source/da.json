@@ -474,16 +474,12 @@
     "confirmImport": "Ja, importer",
     "cancelImport": "Annuller",
     "phaseStarted": "Starter import…",
-    "phaseEntityTypes": "Importerer entitetstyper…",
-    "phaseResources": "Importerer ressourcer…",
-    "phaseAnnotations": "Importerer annotationer…",
     "phaseComplete": "Import fuldført",
     "phaseError": "Import mislykkedes",
-    "hashChainValid": "Hash-kæde verificeret",
-    "hashChainInvalid": "Verificering af hash-kæde mislykkedes",
-    "streams": "Strømme",
-    "events": "Hændelser",
-    "blobs": "Indholdsblobs"
+    "statsEventsReplayed": "Genafspillede hændelser",
+    "statsResourcesCreated": "Oprettede ressourcer",
+    "statsAnnotationsCreated": "Oprettede annotationer",
+    "statsEntityTypesAdded": "Tilføjede entitetstyper"
   },
   "CookieBanner": {
     "saving": "Gemmer...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Genafspillede hændelser",
+    "statsResourcesCreated": "Oprettede ressourcer",
+    "statsAnnotationsCreated": "Oprettede annotationer",
+    "statsEntityTypesAdded": "Tilføjede entitetstyper"
   },
   "KnowledgeBasePanel": {
     "title": "Videnbaser",

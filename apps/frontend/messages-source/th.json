@@ -474,16 +474,12 @@
     "confirmImport": "ใช่ นำเข้า",
     "cancelImport": "ยกเลิก",
     "phaseStarted": "กำลังเริ่มนำเข้า…",
-    "phaseEntityTypes": "กำลังนำเข้าประเภทเอนทิตี…",
-    "phaseResources": "กำลังนำเข้าทรัพยากร…",
-    "phaseAnnotations": "กำลังนำเข้าคำอธิบายประกอบ…",
     "phaseComplete": "นำเข้าเสร็จสมบูรณ์",
     "phaseError": "การนำเข้าล้มเหลว",
-    "hashChainValid": "ตรวจสอบแฮชเชนแล้ว",
-    "hashChainInvalid": "การตรวจสอบแฮชเชนล้มเหลว",
-    "streams": "สตรีม",
-    "events": "เหตุการณ์",
-    "blobs": "บล็อบเนื้อหา"
+    "statsEventsReplayed": "เหตุการณ์ที่เล่นซ้ำ",
+    "statsResourcesCreated": "ทรัพยากรที่สร้าง",
+    "statsAnnotationsCreated": "คำอธิบายประกอบที่สร้าง",
+    "statsEntityTypesAdded": "ประเภทเอนทิตีที่เพิ่ม"
   },
   "CookieBanner": {
     "saving": "กำลังบันทึก...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "เหตุการณ์ที่เล่นซ้ำ",
+    "statsResourcesCreated": "ทรัพยากรที่สร้าง",
+    "statsAnnotationsCreated": "คำอธิบายประกอบที่สร้าง",
+    "statsEntityTypesAdded": "ประเภทเอนทิตีที่เพิ่ม"
   },
   "KnowledgeBasePanel": {
     "title": "ฐานความรู้",

@@ -474,16 +474,12 @@
     "confirmImport": "Sim, importar",
     "cancelImport": "Cancelar",
     "phaseStarted": "Iniciando importação…",
-    "phaseEntityTypes": "Importando tipos de entidade…",
-    "phaseResources": "Importando recursos…",
-    "phaseAnnotations": "Importando anotações…",
     "phaseComplete": "Importação concluída",
     "phaseError": "Importação falhou",
-    "hashChainValid": "Cadeia de hash verificada",
-    "hashChainInvalid": "Verificação da cadeia de hash falhou",
-    "streams": "Fluxos",
-    "events": "Eventos",
-    "blobs": "Blobs de conteúdo"
+    "statsEventsReplayed": "Eventos reproduzidos",
+    "statsResourcesCreated": "Recursos criados",
+    "statsAnnotationsCreated": "Anotações criadas",
+    "statsEntityTypesAdded": "Tipos de entidade adicionados"
   },
   "CookieBanner": {
     "saving": "Salvando...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Eventos reproduzidos",
+    "statsResourcesCreated": "Recursos criados",
+    "statsAnnotationsCreated": "Anotações criadas",
+    "statsEntityTypesAdded": "Tipos de entidade adicionados"
   },
   "KnowledgeBasePanel": {
     "title": "Bases de conhecimento",

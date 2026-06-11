@@ -474,16 +474,12 @@
     "confirmImport": "Kyllä, tuo",
     "cancelImport": "Peruuta",
     "phaseStarted": "Aloitetaan tuontia…",
-    "phaseEntityTypes": "Tuodaan entiteettityyppejä…",
-    "phaseResources": "Tuodaan resursseja…",
-    "phaseAnnotations": "Tuodaan merkintöjä…",
     "phaseComplete": "Tuonti valmis",
     "phaseError": "Tuonti epäonnistui",
-    "hashChainValid": "Tiivisteketju vahvistettu",
-    "hashChainInvalid": "Tiivisteketjun vahvistus epäonnistui",
-    "streams": "Virrat",
-    "events": "Tapahtumat",
-    "blobs": "Sisältöblobit"
+    "statsEventsReplayed": "Toistetut tapahtumat",
+    "statsResourcesCreated": "Luodut resurssit",
+    "statsAnnotationsCreated": "Luodut merkinnät",
+    "statsEntityTypesAdded": "Lisätyt entiteettityypit"
   },
   "CookieBanner": {
     "saving": "Tallennetaan...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Toistetut tapahtumat",
+    "statsResourcesCreated": "Luodut resurssit",
+    "statsAnnotationsCreated": "Luodut merkinnät",
+    "statsEntityTypesAdded": "Lisätyt entiteettityypit"
   },
   "KnowledgeBasePanel": {
     "title": "Tietopankit",

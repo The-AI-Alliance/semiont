@@ -474,16 +474,12 @@
     "confirmImport": "Ja, importera",
     "cancelImport": "Avbryt",
     "phaseStarted": "Startar import…",
-    "phaseEntityTypes": "Importerar entitetstyper…",
-    "phaseResources": "Importerar resurser…",
-    "phaseAnnotations": "Importerar anteckningar…",
     "phaseComplete": "Import klar",
     "phaseError": "Import misslyckades",
-    "hashChainValid": "Hashkedja verifierad",
-    "hashChainInvalid": "Verifiering av hashkedja misslyckades",
-    "streams": "Strömmar",
-    "events": "Händelser",
-    "blobs": "Innehållsblobar"
+    "statsEventsReplayed": "Återuppspelade händelser",
+    "statsResourcesCreated": "Skapade resurser",
+    "statsAnnotationsCreated": "Skapade anteckningar",
+    "statsEntityTypesAdded": "Tillagda entitetstyper"
   },
   "CookieBanner": {
     "saving": "Sparar...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Återuppspelade händelser",
+    "statsResourcesCreated": "Skapade resurser",
+    "statsAnnotationsCreated": "Skapade anteckningar",
+    "statsEntityTypesAdded": "Tillagda entitetstyper"
   },
   "KnowledgeBasePanel": {
     "title": "Kunskapsbaser",

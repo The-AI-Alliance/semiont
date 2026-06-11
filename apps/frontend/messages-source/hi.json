@@ -474,16 +474,12 @@
     "confirmImport": "हाँ, आयात करें",
     "cancelImport": "रद्द करें",
     "phaseStarted": "आयात शुरू हो रहा है…",
-    "phaseEntityTypes": "इकाई प्रकार आयात हो रहे हैं…",
-    "phaseResources": "संसाधन आयात हो रहे हैं…",
-    "phaseAnnotations": "एनोटेशन आयात हो रहे हैं…",
     "phaseComplete": "आयात पूर्ण",
     "phaseError": "आयात विफल",
-    "hashChainValid": "हैश चेन सत्यापित",
-    "hashChainInvalid": "हैश चेन सत्यापन विफल",
-    "streams": "स्ट्रीम",
-    "events": "इवेंट",
-    "blobs": "कंटेंट ब्लॉब"
+    "statsEventsReplayed": "पुनः चलाए गए इवेंट",
+    "statsResourcesCreated": "बनाए गए संसाधन",
+    "statsAnnotationsCreated": "बनाए गए एनोटेशन",
+    "statsEntityTypesAdded": "जोड़े गए इकाई प्रकार"
   },
   "CookieBanner": {
     "saving": "सहेजा जा रहा है...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "पुनः चलाए गए इवेंट",
+    "statsResourcesCreated": "बनाए गए संसाधन",
+    "statsAnnotationsCreated": "बनाए गए एनोटेशन",
+    "statsEntityTypesAdded": "जोड़े गए इकाई प्रकार"
   },
   "KnowledgeBasePanel": {
     "title": "ज्ञान आधार",

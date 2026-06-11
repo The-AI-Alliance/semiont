@@ -474,16 +474,12 @@
     "confirmImport": "Da, importă",
     "cancelImport": "Anulează",
     "phaseStarted": "Se începe importul…",
-    "phaseEntityTypes": "Se importă tipuri de entități…",
-    "phaseResources": "Se importă resurse…",
-    "phaseAnnotations": "Se importă adnotări…",
     "phaseComplete": "Import finalizat",
     "phaseError": "Importul a eșuat",
-    "hashChainValid": "Lanțul de hash verificat",
-    "hashChainInvalid": "Verificarea lanțului de hash a eșuat",
-    "streams": "Fluxuri",
-    "events": "Evenimente",
-    "blobs": "Bloburi de conținut"
+    "statsEventsReplayed": "Evenimente redate",
+    "statsResourcesCreated": "Resurse create",
+    "statsAnnotationsCreated": "Adnotări create",
+    "statsEntityTypesAdded": "Tipuri de entități adăugate"
   },
   "CookieBanner": {
     "saving": "Se salvează...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Evenimente redate",
+    "statsResourcesCreated": "Resurse create",
+    "statsAnnotationsCreated": "Adnotări create",
+    "statsEntityTypesAdded": "Tipuri de entități adăugate"
   },
   "KnowledgeBasePanel": {
     "title": "Baze de cunoștințe",

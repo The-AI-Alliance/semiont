@@ -474,16 +474,12 @@
     "confirmImport": "Evet, içe aktar",
     "cancelImport": "İptal",
     "phaseStarted": "İçe aktarma başlatılıyor…",
-    "phaseEntityTypes": "Varlık türleri içe aktarılıyor…",
-    "phaseResources": "Kaynaklar içe aktarılıyor…",
-    "phaseAnnotations": "Açıklamalar içe aktarılıyor…",
     "phaseComplete": "İçe aktarma tamamlandı",
     "phaseError": "İçe aktarma başarısız",
-    "hashChainValid": "Hash zinciri doğrulandı",
-    "hashChainInvalid": "Hash zinciri doğrulaması başarısız",
-    "streams": "Akışlar",
-    "events": "Olaylar",
-    "blobs": "İçerik blobları"
+    "statsEventsReplayed": "Yeniden oynatılan olaylar",
+    "statsResourcesCreated": "Oluşturulan kaynaklar",
+    "statsAnnotationsCreated": "Oluşturulan açıklamalar",
+    "statsEntityTypesAdded": "Eklenen varlık türleri"
   },
   "CookieBanner": {
     "saving": "Kaydediliyor...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Yeniden oynatılan olaylar",
+    "statsResourcesCreated": "Oluşturulan kaynaklar",
+    "statsAnnotationsCreated": "Oluşturulan açıklamalar",
+    "statsEntityTypesAdded": "Eklenen varlık türleri"
   },
   "KnowledgeBasePanel": {
     "title": "Bilgi Tabanları",

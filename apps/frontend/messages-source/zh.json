@@ -474,16 +474,12 @@
     "confirmImport": "是的，导入",
     "cancelImport": "取消",
     "phaseStarted": "开始导入…",
-    "phaseEntityTypes": "正在导入实体类型…",
-    "phaseResources": "正在导入资源…",
-    "phaseAnnotations": "正在导入注释…",
     "phaseComplete": "导入完成",
     "phaseError": "导入失败",
-    "hashChainValid": "哈希链已验证",
-    "hashChainInvalid": "哈希链验证失败",
-    "streams": "流",
-    "events": "事件",
-    "blobs": "内容块"
+    "statsEventsReplayed": "已重放的事件",
+    "statsResourcesCreated": "已创建的资源",
+    "statsAnnotationsCreated": "已创建的注释",
+    "statsEntityTypesAdded": "已添加的实体类型"
   },
   "CookieBanner": {
     "saving": "保存中...",
@@ -564,16 +560,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "已重放的事件",
+    "statsResourcesCreated": "已创建的资源",
+    "statsAnnotationsCreated": "已创建的注释",
+    "statsEntityTypesAdded": "已添加的实体类型"
   },
   "KnowledgeBasePanel": {
     "title": "知识库",
