@@ -274,9 +274,11 @@ exchangeRouter.post('/api/moderate/exchange/import', async (c) => {
         send({
           phase: 'complete',
           result: {
-            resourcesCreated: result.resourcesCreated,
-            annotationsCreated: result.annotationsCreated,
-            entityTypesAdded: result.entityTypesAdded,
+            stats: {
+              resourcesCreated: result.resourcesCreated,
+              annotationsCreated: result.annotationsCreated,
+              entityTypesAdded: result.entityTypesAdded,
+            },
           },
         });
       } catch (err) {
