@@ -48,7 +48,7 @@ semiont restore -e production --file backup.tar.gz
 semiont verify --file backup.tar.gz
 ```
 
-`verify` checks: manifest format, hash chain integrity, first/last checksum match, event and blob counts. It requires no `--environment`.
+`verify` checks: manifest format and version, per-stream event counts against the manifest, and content blob count. It requires no `--environment`.
 
 ---
 
