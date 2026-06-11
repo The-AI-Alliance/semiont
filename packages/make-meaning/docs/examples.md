@@ -14,26 +14,33 @@ import { firstValueFrom, filter, timeout, race } from 'rxjs';
 
 const eventBus = new EventBus();
 const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), config, eventBus, logger);
-const { kb } = makeMeaning;
+const { kb } = makeMeaning.knowledgeSystem;
 ```
 
 ## Creating Resources
 
+Write content to the content store first, then register it via `createResource` (returns the new `ResourceId`):
+
 ```typescript
-const result = await ResourceOperations.createResource(
+import { deriveStorageUri } from '@semiont/content';
+
+const uri = deriveStorageUri('my-document', 'text/markdown');
+const stored = await kb.content.store(Buffer.from('# Hello World\n\nThis is a test document.'), uri);
+
+const rId = await ResourceOperations.createResource(
   {
     name: 'My Document',
-    content: Buffer.from('# Hello World\n\nThis is a test document.'),
+    storageUri: stored.storageUri,
+    contentChecksum: stored.checksum,
+    byteSize: stored.byteSize,
     format: 'text/markdown',
     language: 'en',
   },
   userId('user-123'),
   eventBus,
-  config.services.backend.publicURL,
 );
 
-console.log(`Created: ${result.resource['@id']}`);
-console.log(`Resource ID: ${result.resourceId}`);
+console.log(`Resource ID: ${rId}`);
 ```
 
 ## Querying Resources
@@ -93,7 +100,6 @@ const result = await AnnotationOperations.createAnnotation(
   userId('user-123'),
   userToAgent({ id: userId('user-123'), name: 'Test User', email: 'test@example.com', domain: 'example.com' }),
   eventBus,
-  config.services.backend.publicURL,
 );
 
 console.log(`Created annotation: ${result.annotation.id}`);
@@ -118,16 +124,16 @@ const allAnnotations = await AnnotationContext.getAllAnnotations(resourceId, kb)
 ```typescript
 import { AnnotationContext } from '@semiont/make-meaning';
 
-const context = await AnnotationContext.buildLLMContext(
+const response = await AnnotationContext.buildLLMContext(
   annotationId,
   resourceId,
   kb,
-  { contextLines: 10, includeMetadata: true },
+  { contextWindow: 1000 },
 );
 
-console.log(`Selected: "${context.selected}"`);
-console.log(`Before: "${context.before}"`);
-console.log(`After: "${context.after}"`);
+console.log(`Selected: "${response.context?.sourceContext?.selected}"`);
+console.log(`Before: "${response.context?.sourceContext?.before}"`);
+console.log(`After: "${response.context?.sourceContext?.after}"`);
 ```
 
 ## Using the SDK (Recommended)
@@ -174,7 +180,7 @@ const result$ = merge(
   ),
   eventBus.get('gather:failed').pipe(
     filter(e => e.correlationId === correlationId),
-    map(e => ({ ok: false as const, error: e.error })),
+    map(e => ({ ok: false as const, error: new Error(e.message) })),
   ),
 ).pipe(take(1), timeout(30_000));
 
