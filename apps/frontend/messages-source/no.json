@@ -303,11 +303,11 @@
     "signOut": "Logg ut"
   },
   "AnnotateView": {
-    "ariaLabel": "Opprett merknad fra valgt tekst. Trykk H for utheving eller R for referanse.",
+    "ariaLabel": "Opprett annotering fra valgt tekst. Trykk H for utheving eller R for referanse.",
     "tooltip": "Klikk for å opprette utheving • Høyreklikk for flere valg"
   },
   "CreateAnnotationPopup": {
-    "title": "Merk",
+    "title": "Annotér",
     "entityTypesOptional": "Entitetstyper (valgfritt)",
     "createReference": "Opprett referanse"
   },
@@ -478,7 +478,7 @@
     "phaseError": "Gjenoppretting mislyktes",
     "statsEventsReplayed": "Avspilte hendelser",
     "statsResourcesCreated": "Opprettede ressurser",
-    "statsAnnotationsCreated": "Opprettede merknader",
+    "statsAnnotationsCreated": "Opprettede annoteringer",
     "statsEntityTypesAdded": "Tilføyde entitetstyper"
   },
   "CookieBanner": {
@@ -564,7 +564,7 @@
     "phaseError": "Import mislyktes",
     "statsEventsReplayed": "Avspilte hendelser",
     "statsResourcesCreated": "Opprettede ressurser",
-    "statsAnnotationsCreated": "Opprettede merknader",
+    "statsAnnotationsCreated": "Opprettede annoteringer",
     "statsEntityTypesAdded": "Tilføyde entitetstyper"
   },
   "KnowledgeBasePanel": {
