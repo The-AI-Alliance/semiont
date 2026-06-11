@@ -180,7 +180,7 @@ registerJobQueueProvider(() => ({
   running: jobs.running.size,
 }));
 
-registerVectorIndexSizeProvider(() => qdrant.getCollectionInfo());
+registerVectorIndexSizeProvider(() => vectorStore.count());
 ```
 
 ## Implementation notes

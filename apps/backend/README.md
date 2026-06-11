@@ -357,12 +357,11 @@ SEMIONT_ROOT=/path/to/kb npm run rebuild-graph
 
 # Rebuild a single resource in the graph
 SEMIONT_ROOT=/path/to/kb npm run rebuild-graph -- <resourceId>
-
-# Rebuild vector store from persisted embedding events (no re-embedding)
-SEMIONT_ROOT=/path/to/kb npm run rebuild-vectors
 ```
 
-Both commands read `~/.semiontconfig` for database credentials, graph, and vector store settings. Set `SEMIONT_ENV` or pass `--environment <env>` to select a non-default environment.
+The command reads `~/.semiontconfig` for database credentials, graph, and vector store settings. Set `SEMIONT_ENV` or pass `--environment <env>` to select a non-default environment.
+
+The vector store has no backend CLI: the smelter worker (`@semiont/make-meaning/smelter-main`) reconciles Qdrant against the KS catalog on every startup — re-embedding missing resources and annotations and deleting orphaned vectors. To recover from a wiped Qdrant volume, just restart the smelter; to force a full re-embed, wipe the Qdrant volume first and then restart it.
 
 ### Development
 ```bash
