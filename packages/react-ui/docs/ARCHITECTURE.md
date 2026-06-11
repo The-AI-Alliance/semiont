@@ -456,7 +456,7 @@ const t = useTranslations('Common');
 ### API Errors
 
 ```tsx
-import { APIError } from '@semiont/api-client';
+import { APIError } from '@semiont/http-transport';
 
 try {
   await client.mark.create(rId, motivation, selectors);
@@ -480,7 +480,7 @@ mounted UI:
 
 ```tsx
 import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
-import { APIError } from '@semiont/api-client';
+import { APIError } from '@semiont/http-transport';
 
 function handleError(error: unknown) {
   if (error instanceof APIError) {

@@ -47,10 +47,10 @@ component_management:
       name: "@semiont/core"
       paths:
         - packages/core/**
-    - component_id: api-client
-      name: "@semiont/api-client"
+    - component_id: http-transport
+      name: "@semiont/http-transport"
       paths:
-        - packages/api-client/**
+        - packages/http-transport/**
     - component_id: ontology
       name: "@semiont/ontology"
       paths:
@@ -109,7 +109,6 @@ ignore:
 
   # Generated files
   - "**/generated/**"
-  - "packages/api-client/src/types.ts"
 
   # Examples and demos
   - "**/examples/**"
@@ -129,9 +128,9 @@ comment:
 # Flag configuration for different test suites
 flags:
   # Individual package flags
-  api-client:
+  http-transport:
     paths:
-      - packages/api-client/**
+      - packages/http-transport/**
     carryforward: true
 
   content:

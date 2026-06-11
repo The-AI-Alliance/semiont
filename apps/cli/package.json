@@ -47,7 +47,7 @@
     "test:watch:unit": "vitest --watch --config vitest.config.unit.ts"
   },
   "dependencies": {
-    "@semiont/api-client": "0.5.7",
+    "@semiont/http-transport": "0.5.7",
     "@semiont/content": "0.5.7",
     "@semiont/core": "0.5.7",
     "@semiont/event-sourcing": "0.5.7",

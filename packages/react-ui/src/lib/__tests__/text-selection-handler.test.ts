@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { buildTextSelectors, fallbackTextPosition } from '../text-selection-handler';
 
-// Mock extractContext from api-client
+// Mock extractContext from http-transport
 vi.mock('@semiont/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/core')>();
   return {

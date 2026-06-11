@@ -3,7 +3,7 @@ import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } f
 import type { FrontendServiceConfig, BackendServiceConfig } from '@semiont/core';
 import { baseUrl } from '@semiont/core';
 import { SemiontClient } from '@semiont/sdk';
-import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
+import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 

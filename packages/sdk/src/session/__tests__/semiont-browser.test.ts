@@ -512,7 +512,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
   });
 
   it('routes 401 from transport.errors$ to signals.sessionExpiredAt$', async () => {
-    const { APIError } = await import('@semiont/api-client');
+    const { APIError } = await import('@semiont/http-transport');
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
@@ -533,7 +533,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
   });
 
   it('routes 403 from transport.errors$ to signals.permissionDeniedAt$', async () => {
-    const { APIError } = await import('@semiont/api-client');
+    const { APIError } = await import('@semiont/http-transport');
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
@@ -552,7 +552,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
   });
 
   it('does not fire either signal for non-401/403 transport errors', async () => {
-    const { APIError } = await import('@semiont/api-client');
+    const { APIError } = await import('@semiont/http-transport');
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);

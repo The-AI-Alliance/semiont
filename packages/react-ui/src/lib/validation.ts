@@ -2,7 +2,7 @@
  * Frontend-specific validation utilities
  *
  * Browser and Next.js specific validation with security checks.
- * For generic validation utilities, see @semiont/api-client/utils/validation
+ * For generic validation utilities, see @semiont/http-transport/utils/validation
  */
 
 import { isValidEmail, type ValidationResult } from '@semiont/core';

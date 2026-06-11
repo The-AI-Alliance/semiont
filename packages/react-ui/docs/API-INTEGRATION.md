@@ -237,7 +237,7 @@ inspect the value/error from the `browse.*` observable, or branch on the
 `await`ed result / thrown `APIError` from a write call.
 
 `APIError` and the transport classes (`HttpTransport`, `HttpContentTransport`)
-are exported from `@semiont/api-client`. The `components` type comes from
+are exported from `@semiont/http-transport`. The `components` type comes from
 `@semiont/core`. Everything else — the client, session, browser, namespaces,
 cache, and `createSearchPipeline` — comes from `@semiont/sdk`.
 

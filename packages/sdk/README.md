@@ -104,7 +104,7 @@ Page-shaped state machines (admin tables, compose page, resource viewer page, et
 - The transport-neutral `WorkerBus` interface (worker adapters live in their domain packages — `@semiont/jobs`, `@semiont/make-meaning`)
 - Branded ID types, the unified error hierarchy, the `TransportErrorCode` neutral vocabulary
 
-Nothing page-shaped, nothing web-shell-shaped. A TUI, mobile reader, daemon, or AI agent installs `@semiont/sdk` alone (plus a transport package — `@semiont/api-client` for HTTP, `@semiont/make-meaning` for in-process).
+Nothing page-shaped, nothing web-shell-shaped. A TUI, mobile reader, daemon, or AI agent installs `@semiont/sdk` alone (plus a transport package — `@semiont/http-transport` for HTTP, `@semiont/make-meaning` for in-process).
 
 ## Installation
 
@@ -245,7 +245,7 @@ Apache-2.0 — see [LICENSE](https://github.com/The-AI-Alliance/semiont/blob/mai
 ## Related packages
 
 - [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core) — domain types, `ITransport` contract, OpenAPI-derived schemas
-- [`@semiont/api-client`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/api-client) — HTTP transport (`HttpTransport`, `HttpContentTransport`)
+- [`@semiont/http-transport`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/http-transport) — HTTP transport (`HttpTransport`, `HttpContentTransport`)
 - [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning) — in-process transport (`LocalTransport`) and the actor model behind it
 - [`@semiont/observability`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/observability) — OpenTelemetry tracing the SDK propagates across the bus
 - [`@semiont/react-ui`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/react-ui) — React bindings (`useStateUnit`, web `SessionStorage`)

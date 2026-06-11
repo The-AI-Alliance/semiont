@@ -1,7 +1,7 @@
 {
-  "name": "@semiont/api-client",
+  "name": "@semiont/http-transport",
   "version": "0.5.7",
-  "description": "Semiont API SDK - types, client, and utilities",
+  "description": "HTTP transport adapters for the Semiont SDK",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -26,7 +26,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/The-AI-Alliance/semiont.git",
-    "directory": "packages/api-client"
+    "directory": "packages/http-transport"
   },
   "scripts": {
     "pretypecheck": "npm run build --workspace=@semiont/core --if-present && npm run build --workspace=@semiont/observability --if-present",
@@ -54,13 +54,10 @@
   },
   "keywords": [
     "semiont",
-    "api",
-    "client",
-    "sdk",
-    "openapi",
-    "annotations",
-    "utilities",
-    "w3c"
+    "http",
+    "transport",
+    "sse",
+    "sdk"
   ],
   "author": "Semiont Team",
   "license": "Apache-2.0"

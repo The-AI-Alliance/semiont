@@ -5,7 +5,7 @@ High-level guide to the Semiont semantic knowledge platform API.
 **For Endpoint Details:**
 - **[OpenAPI Specification](../../specs/README.md)** - Complete endpoint reference (source in [../../specs/src/](../../specs/src/))
 - **Interactive Explorer**: http://localhost:3001/api (local) - Test endpoints interactively
-- **[API Client Package](../../packages/api-client/)** - TypeScript SDK for consuming this API
+- **[SDK Package](../../packages/sdk/)** - TypeScript SDK for consuming this API (over [@semiont/http-transport](../../packages/http-transport/))
 
 **For Implementation Details:**
 - [W3C Web Annotation Implementation](./W3C-WEB-ANNOTATION.md) - How annotations flow through backend layers
@@ -20,7 +20,7 @@ All endpoint details, schemas, and request/response formats are defined in the [
 - **Spec-First Architecture**: Types generated from this specification
 - **Interactive Testing**: Import into Postman, Insomnia, or use the built-in explorer
 - **Client Generation**: Generate SDKs in any language
-- **Type-Safe**: Full TypeScript definitions in [@semiont/api-client](../../packages/api-client/)
+- **Type-Safe**: Full TypeScript definitions in [@semiont/http-transport](../../packages/http-transport/)
 - **Live Endpoint**: `/api/openapi.json` serves the bundled spec with dynamic server URL
 - **Source Files**: Edit files in [../../specs/src/](../../specs/src/), then run `npm run openapi:bundle`
 

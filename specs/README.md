@@ -30,7 +30,7 @@ The OpenAPI specification is the **source of truth** for the entire API:
 1. **Source**: `specs/src/openapi.json` and referenced files (tracked in git)
 2. **Build**: Bundled to `specs/openapi.json` by Redocly (generated, gitignored)
 3. **Types**: TypeScript types generated from bundled spec → `@semiont/core`
-4. **Consumption**: `@semiont/api-client` and backend import types from `@semiont/core`
+4. **Consumption**: `@semiont/http-transport` and backend import types from `@semiont/core`
 
 ```
 specs/src/openapi.json          (source - in git)
@@ -43,7 +43,7 @@ specs/openapi.json              (generated - gitignored)
         ↓
 @semiont/core/src/types.ts      (generated types - source of truth)
         ↓
-@semiont/api-client re-exports types (for convenience)
+@semiont/http-transport re-exports types (for convenience)
         ↓
 backend and frontend import from core
 ```
@@ -179,7 +179,7 @@ High-level guides in [docs/protocol/](../docs/protocol/):
 
 For implementation details:
 - [Backend Documentation](../apps/backend/README.md) - Backend architecture
-- [API Client Documentation](../packages/api-client/README.md) - TypeScript SDK
+- [API Client Documentation](../packages/http-transport/README.md) - TypeScript SDK
 
 ## Decomposition Notes
 
@@ -231,7 +231,7 @@ Generated from `npm run openapi:stats`:
 - [Root README](../README.md) - Project overview
 - [System Documentation](../docs/system/README.md) - System architecture index
 - [Backend README](../apps/backend/README.md) - Backend implementation
-- [API Client README](../packages/api-client/README.md) - TypeScript SDK
+- [API Client README](../packages/http-transport/README.md) - TypeScript SDK
 
 ---
 

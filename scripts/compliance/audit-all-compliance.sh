@@ -22,8 +22,8 @@ npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/apps/frontend/src" |
 npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/packages/mcp-server/src" || echo "⚠️  EventBus/SSE violations found in mcp-server"
 echo ""
 
-# Raw bus access check — forbid client.emit/.on/.stream outside api-client
-echo "🚌 Checking for raw bus access outside api-client..."
+# Raw bus access check — forbid client.emit/.on/.stream outside http-transport
+echo "🚌 Checking for raw bus access outside http-transport..."
 bash "$COMPLIANCE_DIR/audit-raw-bus.sh"
 echo ""
 

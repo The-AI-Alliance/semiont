@@ -3,7 +3,7 @@ import { segmentTextWithAnnotations, _resetDegradedAnchorWarnings } from '../tex
 import { getAnnotationDecorationMeta, computeAnnotationDecorations } from '../codemirror-logic';
 import type { Annotation } from '@semiont/core';
 
-// Mock api-client functions used by segmentTextWithAnnotations
+// Mock http-transport functions used by segmentTextWithAnnotations
 vi.mock('@semiont/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/core')>();
   return {

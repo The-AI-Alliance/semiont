@@ -23,7 +23,7 @@ Self-hosted, so your data stays on your infrastructure. Inference runs on **[Ant
 
 ### Core Tenets
 
-**Peer Collaboration** — Humans and AI agents are architectural equals. Every operation flows through the same API, event bus, and event-sourced storage regardless of who initiates it. Any workflow can be performed manually, automated by an agent, or done collaboratively — through the GUI, the [CLI](https://github.com/The-AI-Alliance/semiont/tree/main/apps/cli), the [TypeScript SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/api-client), or [agent skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/skills) for agentic coding assistants.
+**Peer Collaboration** — Humans and AI agents are architectural equals. Every operation flows through the same API, event bus, and event-sourced storage regardless of who initiates it. Any workflow can be performed manually, automated by an agent, or done collaboratively — through the GUI, the [CLI](https://github.com/The-AI-Alliance/semiont/tree/main/apps/cli), the [TypeScript SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk), or [agent skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/skills) for agentic coding assistants.
 
 **Document-Grounded Knowledge** — Knowledge is always anchored to source documents. Annotations point into specific passages; references link documents to each other. The knowledge graph is a projection of these grounded relationships, not a replacement for the original material.
 

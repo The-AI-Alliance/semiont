@@ -8,7 +8,7 @@
 
 Core types and domain logic for the Semiont semantic knowledge platform. This package is the **source of truth for OpenAPI types** and provides backend utilities for event sourcing, URIs, DID generation, and the EventBus.
 
-> **Architecture Note**: This package generates TypeScript types from the OpenAPI specification. `@semiont/api-client` re-exports these types and provides HTTP client functionality.
+> **Architecture Note**: This package generates TypeScript types from the OpenAPI specification. `@semiont/http-transport` re-exports these types and provides HTTP client functionality.
 
 ## Who Should Use This
 
@@ -30,14 +30,14 @@ import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 
 **Rule**: If your code runs in a browser or edge runtime, use `@semiont/core`. If it runs in Node.js and needs filesystem access, use `@semiont/core/node`.
 
-## Who Should Use `@semiont/api-client` Instead
+## Who Should Use `@semiont/http-transport` Instead
 
 - **External Applications** - For HTTP client + utilities
 - **Frontend** (`apps/frontend`, `packages/react-ui`) - For API communication and W3C utilities
 - **Demo Scripts** - For higher-level API access
 - **MCP Servers** - For client-side annotation utilities
 
-**Rule of thumb**: If you need to make HTTP requests or work with W3C selectors, use `@semiont/api-client`. If you only need types and domain logic, use `@semiont/core`.
+**Rule of thumb**: If you need to make HTTP requests or work with W3C selectors, use `@semiont/http-transport`. If you only need types and domain logic, use `@semiont/core`.
 
 ## Installation
 
@@ -256,42 +256,42 @@ CREATION_METHODS.IMPORT       // 'import'
 
 ## What's NOT Included
 
-The following utilities have been **moved to @semiont/api-client** (as of 2025-10-24):
+The following utilities have been **moved to @semiont/http-transport** (as of 2025-10-24):
 
 ### ❌ Selector Utilities
 
-**Use `@semiont/api-client` instead:**
+**Use `@semiont/http-transport` instead:**
 
 ```typescript
 // OLD (removed from @semiont/core):
 import { getExactText, getTextPositionSelector } from '@semiont/core';
 
-// NEW (use @semiont/api-client):
-import { getExactText, getTextPositionSelector } from '@semiont/api-client';
+// NEW (use @semiont/http-transport):
+import { getExactText, getTextPositionSelector } from '@semiont/http-transport';
 ```
 
 ### ❌ Locale Utilities
 
-**Use `@semiont/api-client` instead:**
+**Use `@semiont/http-transport` instead:**
 
 ```typescript
 // OLD (removed from @semiont/core):
 import { LOCALES, formatLocaleDisplay, getLocaleInfo } from '@semiont/core';
 
-// NEW (use @semiont/api-client):
-import { LOCALES, formatLocaleDisplay, getLocaleInfo } from '@semiont/api-client';
+// NEW (use @semiont/http-transport):
+import { LOCALES, formatLocaleDisplay, getLocaleInfo } from '@semiont/http-transport';
 ```
 
 ### ❌ Annotation Utilities (Public API)
 
-**Use `@semiont/api-client` instead:**
+**Use `@semiont/http-transport` instead:**
 
 ```typescript
 // OLD (removed from @semiont/core):
 import { compareAnnotationIds, getEntityTypes, getBodySource } from '@semiont/core';
 
-// NEW (use @semiont/api-client):
-import { compareAnnotationIds, getEntityTypes, getBodySource } from '@semiont/api-client';
+// NEW (use @semiont/http-transport):
+import { compareAnnotationIds, getEntityTypes, getBodySource } from '@semiont/http-transport';
 ```
 
 ## Architecture: Spec-First
@@ -300,14 +300,14 @@ Semiont follows a **spec-first architecture**:
 
 1. **OpenAPI Specification** ([specs/src/](../../specs/src/)) is the source of truth
 2. **@semiont/core** generates types from OpenAPI and provides utilities
-3. **@semiont/api-client** re-exports types from core and provides HTTP client
+3. **@semiont/http-transport** re-exports types from core and provides HTTP client
 
 **Principle**:
 - OpenAPI types & domain utilities → `@semiont/core` (source of truth)
-- HTTP client & convenience re-exports → `@semiont/api-client`
+- HTTP client & convenience re-exports → `@semiont/http-transport`
 - Backend internal implementation → imports from `@semiont/core`
 
-**Type Yield Flow**: OpenAPI spec → `@semiont/core/src/types.ts` (via `openapi-typescript`) → re-exported by `@semiont/api-client` for convenience. This ensures no circular dependencies and clear build order.
+**Type Yield Flow**: OpenAPI spec → `@semiont/core/src/types.ts` (via `openapi-typescript`) → re-exported by `@semiont/http-transport` for convenience. This ensures no circular dependencies and clear build order.
 
 ## Development
 
@@ -328,7 +328,7 @@ Apache-2.0
 
 ## Related Packages
 
-- [`@semiont/api-client`](../api-client/) - Primary TypeScript SDK (use this for most cases)
+- [`@semiont/http-transport`](../http-transport/) - Primary TypeScript SDK (use this for most cases)
 - [`@semiont/backend`](../../apps/backend/) - Backend API server
 - [`@semiont/frontend`](../../apps/frontend/) - Web application
 

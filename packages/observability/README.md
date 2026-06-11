@@ -197,4 +197,4 @@ Apache-2.0 — see [LICENSE](https://github.com/The-AI-Alliance/semiont/blob/mai
 
 - [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core) — Tier 1 `busLog`, domain types
 - [`@semiont/sdk`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk) — high-level Semiont client, the primary consumer of this package's spanning helpers
-- [`@semiont/api-client`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/api-client) — HTTP transport, propagates `traceparent` on every request
+- [`@semiont/http-transport`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/http-transport) — HTTP transport, propagates `traceparent` on every request

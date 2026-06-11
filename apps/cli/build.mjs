@@ -154,7 +154,7 @@ await Promise.all(scriptFiles.map(async (name) => {
         'constructs',
         // Local workspace packages - keep external to avoid CommonJS/ESM issues
         '@semiont/api-types',
-        '@semiont/api-client',
+        '@semiont/http-transport',
         '@semiont/core',
         '@semiont/content',
         '@semiont/event-sourcing',

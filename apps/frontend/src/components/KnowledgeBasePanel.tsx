@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { SemiontClient, defaultProtocol, isValidHostname, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
-import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
+import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { baseUrl } from '@semiont/core';
 import {
   useSemiont,

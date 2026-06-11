@@ -17,7 +17,7 @@
 
 import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob } from './job-claim-adapter';
 import type { SemiontSession } from '@semiont/sdk';
-import { type HttpTransport } from '@semiont/api-client';
+import { type HttpTransport } from '@semiont/http-transport';
 import { type EventMap } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
@@ -265,7 +265,7 @@ async function handleJobInner(
       inferenceClient, job.params as never, onProgress, config.logger,
     );
 
-    // Content never travels on the bus. Upload via the api-client's
+    // Content never travels on the bus. Upload via the http-transport's
     // `client.yield.resource()` — same serializer the /know/compose
     // page uses, so the multipart wire shape has ONE definition.
     // The backend writes content to disk and emits `yield:create`

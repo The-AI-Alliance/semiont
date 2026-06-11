@@ -84,7 +84,7 @@ console.log(`Created: ${result.resource['@id']}`);
 
 ```typescript
 import { resourceId, userId, entityType } from '@semiont/core';
-import { jobId } from '@semiont/api-client';
+import { jobId } from '@semiont/http-transport';
 import type { PendingJob, DetectionParams } from '@semiont/jobs';
 
 const job: PendingJob<DetectionParams> = {

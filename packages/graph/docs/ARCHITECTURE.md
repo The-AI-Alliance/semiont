@@ -10,7 +10,7 @@ The graph database serves as an optional read-only projection for relationship t
 
 ### What Works WITHOUT the Graph
 
-Core document and annotation operations function completely without graph availability:
+Core resource and annotation operations function completely without graph availability:
 
 - ✅ Viewing resources and annotations - Uses filesystem projections
 - ✅ Creating annotations - Event store + filesystem projection
@@ -45,11 +45,13 @@ graph LR
     end
 
     subgraph "Data Model"
-        DOC[Document Vertices]
+        RES[Resource Vertices]
         ANN[Annotation Vertices]
+        ET[EntityType Vertices]
         TAG[TagCollection Vertices]
         BT[BELONGS_TO Edges]
         REF[REFERENCES Edges]
+        TA[TAGGED_AS Edges]
     end
 
     APP --> GDI
@@ -58,15 +60,16 @@ graph LR
     GDI --> JAN
     GDI --> MEM
 
-    NEO --> DOC
-    NEP --> DOC
-    JAN --> DOC
-    MEM --> DOC
+    NEO --> RES
+    NEP --> RES
+    JAN --> RES
+    MEM --> RES
 
-    DOC --> ANN
+    RES --> ANN
     ANN -->|belongs to| BT
     ANN -->|references| REF
-    DOC --> TAG
+    ANN -->|tagged as| TA
+    RES --> TAG
 ```
 
 ## Event-Driven Projection
@@ -105,18 +108,20 @@ For details on handling race conditions and eventual consistency, see [Eventual 
 
 ### Vertex Types
 
-1. **Document** - Immutable after creation (only archiving allowed)
+1. **Resource** - Immutable after creation (only archiving allowed)
 2. **Annotation** - Can be updated (W3C Web Annotations)
-3. **TagCollection** - Append-only entity/reference type collections
+3. **EntityType** - One vertex per entity type tag
+4. **TagCollection** - Append-only entity type collections
 
 ### Edge Types
 
-1. **BELONGS_TO** - Annotation → Document (source)
-2. **REFERENCES** - Annotation → Document (target, if resolved)
+1. **BELONGS_TO** - Annotation → Resource (source)
+2. **REFERENCES** - Annotation → Resource (target, if resolved)
+3. **TAGGED_AS** - Annotation → EntityType
 
 ### Design Principles
 
-- Document immutability
+- Resource immutability
 - Type safety (no defensive defaults)
 - Vertex labels for type identification
 - Consistent edge directions

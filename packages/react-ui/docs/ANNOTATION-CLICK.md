@@ -31,7 +31,7 @@ type Motivation = components['schemas']['Motivation'];
 // 'linking' | 'commenting' | 'highlighting' | 'tagging' | 'assessing'
 ```
 
-**Location**: types in `packages/core/`; annotation utilities in `packages/sdk/` (api-client is HTTP-transport-only)
+**Location**: types in `packages/core/`; annotation utilities in `packages/sdk/` (http-transport is HTTP-transport-only)
 
 ### Layer 2: State Layer (React Components)
 

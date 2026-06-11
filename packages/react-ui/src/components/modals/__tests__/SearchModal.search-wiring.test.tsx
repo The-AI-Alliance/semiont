@@ -31,7 +31,7 @@ vi.mock('@headlessui/react', () => ({
   TransitionChild: ({ children }: any) => <>{children}</>,
 }));
 
-// Mock the api-client Observable surface
+// Mock the http-transport Observable surface
 const browseResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
 const browseResourcesMock = vi.fn(() => browseResourcesSubject.asObservable());
 

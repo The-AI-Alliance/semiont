@@ -24,7 +24,7 @@ const { mockYield, mockGather, mockLoadCachedClient } = vi.hoisted(() => {
   return { mockYield, mockGather, mockLoadCachedClient };
 });
 
-vi.mock('../../api-client-factory.js', () => ({
+vi.mock('../../client-factory.js', () => ({
   resolveBusUrl: vi.fn(() => 'http://localhost:4000'),
   loadCachedClient: mockLoadCachedClient,
 }));

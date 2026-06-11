@@ -27,7 +27,7 @@ import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 import { printSuccess, printWarning } from '../io/cli-logger.js';
 
 import { findProjectRoot } from '../config-loader.js';
-import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
+import { loadCachedClient, resolveBusUrl } from '../client-factory.js';
 import type { SemiontClient } from '@semiont/sdk';
 
 function guessFormat(filePath: string): string {

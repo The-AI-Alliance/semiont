@@ -1,6 +1,6 @@
-# API Client Logging
+# HTTP Transport Logging
 
-Complete guide to logging and observability in the Semiont API client transport.
+Complete guide to logging and observability in `HttpTransport`.
 
 ## Table of Contents
 
@@ -16,7 +16,7 @@ Complete guide to logging and observability in the Semiont API client transport.
 
 ## Overview
 
-The `HttpTransport` in `@semiont/api-client` provides optional logging support to help you:
+The `HttpTransport` in `@semiont/http-transport` provides optional logging support to help you:
 
 - **Debug authentication issues** - See whether a token is being sent
 - **Monitor API usage** - Track all HTTP requests and responses
@@ -36,7 +36,7 @@ The `HttpTransport` in `@semiont/api-client` provides optional logging support t
 ### Basic Setup
 
 ```typescript
-import { HttpTransport } from '@semiont/api-client';
+import { HttpTransport } from '@semiont/http-transport';
 import type { Logger } from '@semiont/core';
 import { baseUrl } from '@semiont/core';
 import winston from 'winston';

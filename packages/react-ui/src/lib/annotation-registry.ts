@@ -15,7 +15,7 @@
 import type { components } from '@semiont/core';
 import { isHighlight, isComment, isReference, isTag } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
-type Motivation = components['schemas']['Motivation']; // Already defined in api-client with all 13 W3C motivations!
+type Motivation = components['schemas']['Motivation']; // Already defined in @semiont/core with all 13 W3C motivations!
 
 /**
  * Detection configuration for SSE-based annotation detection

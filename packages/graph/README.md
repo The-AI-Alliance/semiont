@@ -39,45 +39,45 @@ The examples below show direct usage for **testing, CLI tools, or standalone app
 
 ```typescript
 import { getGraphDatabase } from '@semiont/graph';
-import type { EnvironmentConfig } from '@semiont/core';
+import { resourceId, annotationId } from '@semiont/core';
+import type { GraphServiceConfig } from '@semiont/core';
 
-const envConfig: EnvironmentConfig = {
-  services: {
-    graph: {
-      type: 'neo4j',
-      uri: 'bolt://localhost:7687',
-      username: 'neo4j',
-      password: 'password',
-      database: 'neo4j'
-    }
-  }
+// The `services.graph` block of an environment config
+const graphConfig: GraphServiceConfig = {
+  platform: { type: 'container' },
+  type: 'neo4j',
+  uri: 'bolt://localhost:7687',
+  username: 'neo4j',
+  password: 'password',
+  database: 'neo4j'
 };
 
-const graph = await getGraphDatabase(envConfig);
-await graph.connect();
+// Singleton factory — connects automatically
+const graph = await getGraphDatabase(graphConfig);
 
-// Create a document
-const document = await graph.createDocument({
-  id: 'doc-123',
+// Create a resource (W3C ResourceDescriptor)
+const resource = await graph.createResource({
+  '@context': 'https://www.w3.org/ns/ldp',
+  '@id': resourceId('doc-123'),
   name: 'My Document',
-  format: 'text/plain',
   entityTypes: ['Person', 'Organization'],
-  archived: false,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString()
+  representations: [{ mediaType: 'text/plain' }],
+  dateCreated: new Date().toISOString()
 });
 
-// Create an annotation
+// Create an annotation (W3C Web Annotation; highlights carry no body)
 const annotation = await graph.createAnnotation({
-  id: 'anno-456',
-  target: { source: 'doc-123' },
-  body: [{ value: 'Important note' }],
-  creator: 'user-123',
-  created: new Date().toISOString()
+  id: annotationId('anno-456'),
+  motivation: 'highlighting',
+  target: {
+    source: 'doc-123',
+    selector: { type: 'TextQuoteSelector', exact: 'Important phrase', prefix: '', suffix: '' }
+  },
+  creator: { '@type': 'Person', name: 'user-123' }
 });
 
 // Query relationships
-const annotations = await graph.getAnnotationsForDocument('doc-123');
+const annotations = await graph.getResourceAnnotations(resourceId('doc-123'));
 ```
 
 ## Features
@@ -92,58 +92,56 @@ const annotations = await graph.getAnnotationsForDocument('doc-123');
 ## Documentation
 
 - [API Reference](./docs/API.md) - Complete API documentation
+- [GraphDatabase Interface](./docs/GraphInterface.md) - The full interface contract
 - [Architecture](./docs/ARCHITECTURE.md) - System design and principles
 - [Eventual Consistency](./docs/EVENTUAL-CONSISTENCY.md) - Order-independent projections and race condition handling
 
 ## Supported Implementations
 
+Each example below is the `services.graph` block of an environment config — pass it directly to `getGraphDatabase()`. (`platform` is required by the config schema but not used by this package.)
+
 ### Neo4j
 Native graph database with Cypher query language.
 
 ```typescript
-const envConfig = {
-  services: {
-    graph: {
-      type: 'neo4j',
-      uri: 'bolt://localhost:7687',
-      username: 'neo4j',
-      password: 'password',
-      database: 'neo4j'
-    }
-  }
+const graphConfig: GraphServiceConfig = {
+  platform: { type: 'container' },
+  type: 'neo4j',
+  uri: 'bolt://localhost:7687',
+  username: 'neo4j',
+  password: 'password',
+  database: 'neo4j'
 };
 ```
+
+`uri`, `username`, `password`, and `database` support `${ENV_VAR}` placeholders, evaluated at startup.
 
 ### AWS Neptune
 Managed graph database supporting Gremlin.
 
 ```typescript
-const envConfig = {
-  services: {
-    graph: {
-      type: 'neptune',
-      endpoint: 'wss://your-cluster.neptune.amazonaws.com:8182/gremlin',
-      port: 8182,
-      region: 'us-east-1'
-    }
-  }
+const graphConfig: GraphServiceConfig = {
+  platform: { type: 'aws' },
+  type: 'neptune',
+  endpoint: 'wss://your-cluster.neptune.amazonaws.com:8182/gremlin',
+  port: 8182,
+  region: 'us-east-1'
 };
 ```
+
+If `endpoint` is omitted, the cluster endpoint is discovered via the AWS SDK using `region`.
 
 ### JanusGraph
 Open-source distributed graph database.
 
 ```typescript
-const envConfig = {
-  services: {
-    graph: {
-      type: 'janusgraph',
-      host: 'localhost',
-      port: 8182,
-      storage: 'cassandra',
-      index: 'elasticsearch'
-    }
-  }
+const graphConfig: GraphServiceConfig = {
+  platform: { type: 'container' },
+  type: 'janusgraph',
+  host: 'localhost',
+  port: 8182,
+  storage: 'cassandra',
+  index: 'elasticsearch'
 };
 ```
 
@@ -151,12 +149,9 @@ const envConfig = {
 In-memory implementation for development and testing.
 
 ```typescript
-const envConfig = {
-  services: {
-    graph: {
-      type: 'memory'
-    }
-  }
+const graphConfig: GraphServiceConfig = {
+  platform: { type: 'posix' },
+  type: 'memory'
 };
 ```
 
@@ -165,27 +160,37 @@ const envConfig = {
 ### Core Operations
 
 ```typescript
-// Document operations
-await graph.createDocument(document);
-await graph.getDocument(id);
-await graph.updateDocument(id, updates);
-await graph.deleteDocument(id);
+// Resource operations
+await graph.createResource(resource);
+await graph.getResource(id);
+await graph.updateResource(id, updates);
+await graph.deleteResource(id);
+await graph.listResources({ entityTypes: ['Person'] });
+await graph.searchResources('query');
 
 // Annotation operations
-await graph.createAnnotation(annotation);
+await graph.createAnnotation(input);
 await graph.getAnnotation(id);
 await graph.updateAnnotation(id, updates);
 await graph.deleteAnnotation(id);
+await graph.listAnnotations({ resourceId });
 
-// Query operations
-await graph.getAnnotationsForDocument(documentId);
-await graph.findDocumentsByEntityTypes(['Person']);
-await graph.findAnnotationsByTarget(targetId);
+// Relationship queries
+await graph.getResourceAnnotations(resourceId);
+await graph.getHighlights(resourceId);
+await graph.getReferences(resourceId);
+await graph.getResourceReferencedBy(resourceId);
+
+// Graph traversal
+await graph.getResourceConnections(resourceId);
+await graph.findPath(fromResourceId, toResourceId);
 
 // Tag collections
 await graph.getEntityTypes();
 await graph.addEntityType('NewType');
 ```
+
+See [GraphInterface.md](./docs/GraphInterface.md) for the full contract.
 
 ## Graph as Optional Projection
 

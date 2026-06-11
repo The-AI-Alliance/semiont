@@ -2,7 +2,7 @@
  * Transport interfaces — the shared contract for any wire-or-local
  * communication path consumed by `SemiontClient`. Concrete implementations
  * live alongside the runtime they wrap (`HttpTransport` in
- * `@semiont/api-client`, in-process variants in `@semiont/make-meaning`,
+ * `@semiont/http-transport`, in-process variants in `@semiont/make-meaning`,
  * etc.).
  *
  * Three interfaces:

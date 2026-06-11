@@ -12,7 +12,7 @@
  */
 
 import { BehaviorSubject } from 'rxjs';
-import { HttpTransport, HttpContentTransport } from '@semiont/api-client';
+import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
 import { baseUrl, type AccessToken } from '@semiont/core';
 import { SemiontClient } from '../client';
 import { SemiontSession, type UserInfo } from './semiont-session';

@@ -29,15 +29,15 @@ import { AuthNamespace } from './namespaces/auth';
 import { AdminNamespace } from './namespaces/admin';
 import type { IBackendOperations, IContentTransport, ITransport } from '@semiont/core';
 
-// Local imports of the HTTP adapters from @semiont/api-client — needed
+// Local imports of the HTTP adapters from @semiont/http-transport — needed
 // here so `SemiontClient.fromHttp(...)` can construct them. The same
 // names are re-exported below for consumer convenience, so
 // `import { SemiontClient, HttpTransport } from '@semiont/sdk'` Just Works
-// without a separate api-client import.
+// without a separate http-transport import.
 import {
   HttpTransport,
   HttpContentTransport,
-} from '@semiont/api-client';
+} from '@semiont/http-transport';
 
 // Convenience re-exports of the HTTP adapters. Non-HTTP transports
 // (e.g. LocalTransport from @semiont/make-meaning) are wired directly by
@@ -48,7 +48,7 @@ export {
   HttpTransport,
   type HttpTransportConfig,
   HttpContentTransport,
-} from '@semiont/api-client';
+} from '@semiont/http-transport';
 
 export class SemiontClient {
   /**

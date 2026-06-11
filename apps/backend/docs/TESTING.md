@@ -303,7 +303,7 @@ describe('Resource Creation Flow', () => {
 ```typescript
 // src/__tests__/routes/my-feature.test.ts
 import { describe, it, expect, beforeAll, vi } from 'vitest';
-import { userId, email } from '@semiont/api-client';
+import { userId, email } from '@semiont/http-transport';
 import { JWTService } from '../../auth/jwt';
 import type { Hono } from 'hono';
 import type { EnvironmentConfig } from '@semiont/core';

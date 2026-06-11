@@ -8,7 +8,7 @@ import {
 } from '../codemirror-logic';
 import type { TextSegment } from '../codemirror-logic';
 
-// Mock api-client type guards
+// Mock http-transport type guards
 vi.mock('@semiont/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/core')>();
   return {

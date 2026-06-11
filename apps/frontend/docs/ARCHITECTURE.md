@@ -192,7 +192,7 @@ const {
   signOut,
 } = useKnowledgeBaseSession();
 
-// API calls use @semiont/api-client; the AuthTokenProvider in protected
+// API calls use @semiont/http-transport; the AuthTokenProvider in protected
 // layouts wires the active KB's token into outgoing requests automatically.
 const apiClient = useApiClient();
 const data = await apiClient.getDocument(id);
@@ -229,7 +229,7 @@ await updateMutation.mutateAsync({ id, title, content });
 
 High-churn entity data and browser-persistent application state are managed as observable stores — `BehaviorSubject`-backed classes with no React dependency. Components subscribe via `useObservable(store.observable$)`.
 
-**Verb namespace Observables** (live in `@semiont/api-client`, owned by `SemiontApiClient`):
+**Verb namespace Observables** (live in `@semiont/http-transport`, owned by `SemiontApiClient`):
 
 | Namespace | Access | What it caches |
 |---|---|---|
@@ -237,7 +237,7 @@ High-churn entity data and browser-persistent application state are managed as o
 | Browse | `semiont.browse.annotations(id)` | Annotation lists per resource, updated in-place by enriched SSE events |
 | Browse | `semiont.browse.entityTypes()` | Entity types, updated via `frame:entity-type-added` bus channel |
 
-These update automatically when backend domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual `invalidateQueries` calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/api-client` README](../../../packages/api-client/README.md) for the full verb namespace API.
+These update automatically when backend domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual `invalidateQueries` calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/http-transport` README](../../../packages/http-transport/README.md) for the full verb namespace API.
 
 **Application state stores** (live in `apps/frontend/src/stores/`, browser-coupled):
 
@@ -246,7 +246,7 @@ These update automatically when backend domain events arrive through the bus gat
 | `OpenResourcesStore` | Open document tabs; persisted to `localStorage`, synced across browser tabs via `StorageEvent` |
 | `SessionStore` | Session expiry state derived from the JWT; drives the "expiring soon" warning |
 
-These stores depend on browser APIs (`localStorage`, `window`) and so cannot live in the framework-agnostic `api-client` package.
+These stores depend on browser APIs (`localStorage`, `window`) and so cannot live in the framework-agnostic `http-transport` package.
 
 **React integration**: `AuthTokenProvider` holds the current token in a `BehaviorSubject`, and `ApiClientProvider` passes that subject to `SemiontApiClient` as `token$`. The client reads the observable's current value on every request; token changes propagate automatically without any React-specific wiring.
 
@@ -272,7 +272,7 @@ ResourceViewerPage
 
 Callers of `ResourceViewerPage` do not manage media tokens; the component handles it internally. The `useMediaToken` hook is available from `@semiont/react-ui` for any component that needs a token-authenticated URL independently.
 
-See [`@semiont/api-client/docs/MEDIA-TOKENS.md`](../../../packages/api-client/docs/MEDIA-TOKENS.md) for the full specification including the JWT format and `POST /api/tokens/media` endpoint.
+See [`@semiont/http-transport/docs/MEDIA-TOKENS.md`](../../../packages/http-transport/docs/MEDIA-TOKENS.md) for the full specification including the JWT format and `POST /api/tokens/media` endpoint.
 
 ### UI State (React Context)
 
@@ -330,7 +330,7 @@ export const api = {
 
 React Query uses query keys to identify and cache queries. We follow **TanStack Query best practices** by centralizing query keys in a single source of truth.
 
-**Location:** `/src/lib/api-client.ts`
+**Location:** `/src/lib/http-transport.ts`
 
 **Structure:**
 ```typescript
@@ -551,7 +551,7 @@ apps/frontend/src/
 │   ├── config.ts          # i18next initialisation
 │   └── routing.tsx        # Link, useRouter, usePathname, useLocale
 ├── lib/                   # App-specific utility libraries
-│   ├── api-client.ts      # API client setup with React Query
+│   ├── http-transport.ts      # API client setup with React Query
 │   ├── query-helpers.ts   # React Query utilities
 │   └── cacheManager.ts    # CacheManager implementation for @semiont/react-ui
 └── types/                 # TypeScript type definitions

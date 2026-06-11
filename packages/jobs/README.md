@@ -21,7 +21,7 @@ npm install @semiont/jobs
 **Dependencies:**
 - `@semiont/core` — Core types, `SemiontProject`, EventBus
 - `@semiont/sdk` — `SemiontSession`, `JobClaimAdapter` (worker process)
-- `@semiont/api-client` — HTTP transport, OpenAPI types
+- `@semiont/http-transport` — HTTP transport, OpenAPI types
 - `@semiont/inference` — InferenceClient for AI operations
 - `@semiont/content` — Content storage URI derivation
 - `@semiont/observability` — Spans and job-outcome metrics
@@ -173,6 +173,6 @@ Apache-2.0
 
 - [`@semiont/core`](../core/) — Domain types, `SemiontProject`, EventBus
 - [`@semiont/sdk`](../sdk/) — `SemiontSession`, `JobClaimAdapter`
-- [`@semiont/api-client`](../api-client/) — HTTP transport, OpenAPI types
+- [`@semiont/http-transport`](../http-transport/) — HTTP transport, OpenAPI types
 - [`@semiont/inference`](../inference/) — AI inference client
 - [`@semiont/make-meaning`](../make-meaning/) — Actor model, Knowledge Base, service orchestration

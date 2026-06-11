@@ -36,7 +36,7 @@ import {
   type EnvironmentConfig,
 } from '@semiont/core';
 import { InMemorySessionStorage, SemiontClient, SemiontSession, kbBackendUrl, setStoredSession, type HttpEndpoint, type KnowledgeBase } from '@semiont/sdk';
-import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
+import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { baseUrl, type AccessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
 

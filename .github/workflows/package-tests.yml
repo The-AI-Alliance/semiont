@@ -16,7 +16,7 @@ jobs:
       fail-fast: false  # Don't cancel other packages if one fails
       matrix:
         package:
-          - api-client
+          - http-transport
           - content
           - core
           - event-sourcing
@@ -48,23 +48,23 @@ jobs:
       - name: Build package dependencies only
         run: |
           # Only build packages that this package actually depends on at test-time
-          # Most packages only need @semiont/api-client and @semiont/core built
+          # Most packages only need @semiont/http-transport and @semiont/core built
           case "${{ matrix.package }}" in
             core)
               # core generates OpenAPI types - no dependencies
               npm run openapi:bundle
               ;;
-            api-client)
-              # api-client depends on core for OpenAPI types
+            http-transport)
+              # http-transport depends on core for OpenAPI types
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               ;;
             sdk)
-              # sdk depends on core (contract + types) and api-client
+              # sdk depends on core (contract + types) and http-transport
               # (re-exports HttpTransport for the convenience-bundle).
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
-              npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/http-transport
               ;;
             observability)
               # observability depends only on core (for setBusLogTraceIdProvider).
@@ -79,13 +79,13 @@ jobs:
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
-              npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/http-transport
               ;;
             jobs)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
-              npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/http-transport
               npm run build --workspace=@semiont/sdk
               npm run build --workspace=@semiont/content
               npm run build --workspace=@semiont/event-sourcing
@@ -96,7 +96,7 @@ jobs:
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
-              npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/http-transport
               npm run build --workspace=@semiont/sdk
               npm run build --workspace=@semiont/content
               npm run build --workspace=@semiont/event-sourcing
@@ -109,13 +109,13 @@ jobs:
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
-              npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/http-transport
               npm run build --workspace=@semiont/sdk
               ;;
             mcp-server)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
-              npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/http-transport
               npm run build --workspace=@semiont/sdk
               ;;
           esac

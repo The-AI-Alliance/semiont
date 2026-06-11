@@ -16,7 +16,7 @@
 import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelter-actor-state-unit';
-import { HttpTransport } from '@semiont/api-client';
+import { HttpTransport } from '@semiont/http-transport';
 import { baseUrl as makeBaseUrl, accessToken as makeAccessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
 import type { AccessToken } from '@semiont/core';

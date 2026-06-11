@@ -1,13 +1,13 @@
-# `@semiont/api-client` Reference
+# `@semiont/http-transport` Reference
 
-`@semiont/api-client` ships the HTTP-specific implementations of the transport contracts in `@semiont/core`. The developer-facing surface (`SemiontClient`, the verb namespaces, sessions, state units) lives in `@semiont/sdk`. This doc covers the HTTP adapters only.
+`@semiont/http-transport` ships the HTTP-specific implementations of the transport contracts in `@semiont/core`. The developer-facing surface (`SemiontClient`, the verb namespaces, sessions, state units) lives in `@semiont/sdk`. This doc covers the HTTP adapters only.
 
 For the namespace-level API tour, see [`@semiont/sdk/docs/Usage.md`](../../sdk/docs/Usage.md).
 
 ## `HttpTransport`
 
 ```typescript
-import { HttpTransport } from '@semiont/api-client';
+import { HttpTransport } from '@semiont/http-transport';
 
 new HttpTransport(config: HttpTransportConfig)
 ```
@@ -38,7 +38,7 @@ For session-managed refresh (proactive refresh on a timer, terminal-auth-failure
 ## `HttpContentTransport`
 
 ```typescript
-import { HttpContentTransport } from '@semiont/api-client';
+import { HttpContentTransport } from '@semiont/http-transport';
 
 new HttpContentTransport(transport: HttpTransport)
 ```
@@ -48,14 +48,15 @@ Implements `IContentTransport` from `@semiont/core`. Binary I/O — `putBinary`,
 ## `APIError`
 
 ```typescript
-class APIError extends Error {
+class APIError extends SemiontError {
+  code: TransportErrorCode;
   status: number;
   statusText: string;
-  details?: unknown;
+  details?: { status: number; statusText: string; body?: unknown };
 }
 ```
 
-Thrown for non-2xx HTTP responses from the REST methods on `HttpTransport`. `status` and `statusText` are the HTTP-level fields; `details` is the parsed response body when available.
+Thrown for non-2xx HTTP responses from the REST methods on `HttpTransport`. `status` and `statusText` are the HTTP-level fields; `code` is the `TransportErrorCode` classification derived from the status; `details.body` is the parsed response body when available. `SemiontError` and `TransportErrorCode` come from `@semiont/core`.
 
 ## Composing with `SemiontClient`
 
@@ -68,10 +69,13 @@ import { BehaviorSubject } from 'rxjs';
 
 const token$ = new BehaviorSubject<AccessToken | null>(accessToken('...'));
 const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example.com'), token$ });
-const client = new SemiontClient(transport, new HttpContentTransport(transport));
+// HttpTransport implements both ITransport and IBackendOperations; passing it
+// third enables the `auth` / `admin` namespaces. Omit the third argument and
+// `client.auth` / `client.admin` are `undefined`.
+const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 ```
 
-Direct imports from `@semiont/api-client` are appropriate when constructing the transport stack by hand (CLI factories, MCP entrypoints, worker pools that wire bespoke `tokenRefresher` callbacks or token sources).
+Direct imports from `@semiont/http-transport` are appropriate when constructing the transport stack by hand (CLI factories, MCP entrypoints, worker pools that wire bespoke `tokenRefresher` callbacks or token sources).
 
 ## Behavioral contract
 

@@ -10,7 +10,7 @@ import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
 import { SemiontClient, type SemiontBrowser } from '@semiont/sdk';
-import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
+import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { baseUrl, EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { ToastProvider } from './components/Toast';

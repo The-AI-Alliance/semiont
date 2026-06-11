@@ -14,7 +14,7 @@ vi.mock('@headlessui/react', () => ({
   TransitionChild: ({ children }: any) => <>{children}</>,
 }));
 
-// Mock the api-client Observable surface.
+// Mock the http-transport Observable surface.
 // The session-based useSemiont path: useObservable(useSemiont().activeSession$)?.client
 // We mock useSemiont to return a stable browser whose activeSession$ emits a
 // session-shaped object that carries the mock client.
