@@ -1,7 +1,7 @@
 /**
  * Persisted Events
  *
- * The 18 event types that get appended to the JSONL event log.
+ * The event types that get appended to the JSONL event log.
  * Each maps a type string to its OpenAPI payload schema.
  * The PersistedEvent union derives from this catalog.
  */
@@ -61,7 +61,7 @@ export type EventOfType<K extends keyof PersistedEventCatalog> =
     ? EventBase & { type: K; payload: PersistedEventCatalog[K] }
     : EventBase & { type: K; resourceId: ResourceId; payload: PersistedEventCatalog[K] };
 
-/** The union of all 20 persisted event types. Discriminated on `type`. */
+/** The union of all persisted event types. Discriminated on `type`. */
 export type PersistedEvent = {
   [K in keyof PersistedEventCatalog]: EventOfType<K>
 }[keyof PersistedEventCatalog];
