@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getExtensionForMimeType, hasKnownExtension } from '../mime-extensions';
+import { getExtensionForMimeType, hasKnownExtension, deriveStorageUri } from '../mime-extensions';
 
 describe('mime-extensions', () => {
   describe('getExtensionForMimeType', () => {
@@ -323,6 +323,20 @@ describe('mime-extensions', () => {
         expect(getExtensionForMimeType('')).toBe('.dat');
       });
     });
+
+    describe('Malformed MIME types', () => {
+      it('should return .dat for extremely long MIME type', () => {
+        expect(getExtensionForMimeType(`application/vnd.${'x'.repeat(200)}.format`)).toBe('.dat');
+      });
+
+      it('should return .dat for MIME type with only a type (no subtype)', () => {
+        expect(getExtensionForMimeType('text')).toBe('.dat');
+      });
+
+      it('should return .dat for MIME type with empty subtype', () => {
+        expect(getExtensionForMimeType('text/')).toBe('.dat');
+      });
+    });
   });
 
   describe('hasKnownExtension', () => {
@@ -375,6 +389,12 @@ describe('mime-extensions', () => {
       expect(hasKnownExtension('')).toBe(false);
     });
 
+    it('should return false for malformed MIME types', () => {
+      expect(hasKnownExtension('/')).toBe(false);
+      expect(hasKnownExtension('text')).toBe(false);
+      expect(hasKnownExtension('   ')).toBe(false);
+    });
+
     it('should handle MIME types with parameters', () => {
       expect(hasKnownExtension('text/plain; charset=utf-8')).toBe(true);
       expect(hasKnownExtension('application/json; charset=utf-8')).toBe(true);
@@ -387,6 +407,24 @@ describe('mime-extensions', () => {
 
     it('should trim whitespace', () => {
       expect(hasKnownExtension('  text/plain  ')).toBe(true);
+    });
+  });
+
+  describe('deriveStorageUri', () => {
+    it('should slugify the name and append the MIME extension', () => {
+      expect(deriveStorageUri('My Document', 'text/markdown')).toBe('file://my-document.md');
+    });
+
+    it('should collapse runs of non-alphanumeric characters into single hyphens', () => {
+      expect(deriveStorageUri('Q3 — Sales & Marketing (final)', 'application/pdf')).toBe('file://q3-sales-marketing-final.pdf');
+    });
+
+    it('should strip leading and trailing hyphens from the slug', () => {
+      expect(deriveStorageUri('  (draft)  ', 'text/plain')).toBe('file://draft.txt');
+    });
+
+    it('should use .dat for unknown formats', () => {
+      expect(deriveStorageUri('mystery', 'unknown/type')).toBe('file://mystery.dat');
     });
   });
 });

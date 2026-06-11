@@ -4,49 +4,13 @@ How @semiont/content handles media types and file extensions.
 
 ## Overview
 
-The package maps MIME types to file extensions to ensure stored content has proper extensions for filesystem browsing and external tool compatibility.
+The package maps MIME types to file extensions so derived storage URIs and exported files carry proper extensions for filesystem browsing and external tool compatibility.
 
 From [src/mime-extensions.ts](../src/mime-extensions.ts): The package includes mappings for 80+ common MIME types.
-
-## Media Type Structure
-
-### Base Type vs Full Type
-
-MIME types can include parameters:
-
-```typescript
-// Full media type with charset
-"text/plain; charset=utf-8"
-
-// Base media type (used for paths)
-"text/plain"
-```
-
-From [src/representation-store.ts](../src/representation-store.ts): Lines 114 and 154 strip charset parameters using `split(';')[0].trim()`.
-
-### Path vs Metadata
-
-**For directory structure**: Only base type is used
-```
-representations/text~1plain/5a/aa/rep-{checksum}.txt
-```
-
-**For metadata**: Full type with parameters is preserved
-```typescript
-{
-  mediaType: "text/plain; charset=iso-8859-1",  // Full type preserved
-  checksum: "5aaa...",
-  // ...
-}
-```
-
-From [src/representation-store.ts](../src/representation-store.ts): The `store()` method preserves full mediaType in metadata (line 144) while using baseMediaType for paths.
 
 ## File Extension Mapping
 
 ### Common Types
-
-The package includes mappings for common content types:
 
 ```typescript
 // Text formats
@@ -61,15 +25,15 @@ The package includes mappings for common content types:
 'application/zip'  → '.zip'
 
 // Image formats
-'image/png'  → '.png'
-'image/jpeg' → '.jpg'
+'image/png'     → '.png'
+'image/jpeg'    → '.jpg'
 'image/svg+xml' → '.svg'
 
 // Programming languages
-'text/javascript'      → '.js'
-'text/x-typescript'    → '.ts'
-'text/x-python'        → '.py'
-'application/x-sh'     → '.sh'
+'text/javascript'   → '.js'
+'text/x-typescript' → '.ts'
+'text/x-python'     → '.py'
+'text/x-shell'      → '.sh'
 ```
 
 From [src/mime-extensions.ts](../src/mime-extensions.ts): The `MIME_TO_EXTENSION` constant defines all mappings.
@@ -83,8 +47,6 @@ const ext = getExtensionForMimeType('unknown/type');
 // Returns: '.dat'
 ```
 
-From [src/mime-extensions.ts](../src/mime-extensions.ts): Line 115 returns `.dat` for unmapped types.
-
 ## Usage
 
 ### Getting Extensions
@@ -93,123 +55,49 @@ From [src/mime-extensions.ts](../src/mime-extensions.ts): Line 115 returns `.dat
 import { getExtensionForMimeType } from '@semiont/content';
 
 // Known type
-const mdExt = getExtensionForMimeType('text/markdown');
-console.log(mdExt);  // '.md'
+getExtensionForMimeType('text/markdown');  // '.md'
 
-// Type with parameters (parameters ignored)
-const txtExt = getExtensionForMimeType('text/plain; charset=utf-8');
-console.log(txtExt);  // '.txt'
+// Type with parameters (parameters stripped before lookup)
+getExtensionForMimeType('text/plain; charset=utf-8');  // '.txt'
 
 // Unknown type
-const unknownExt = getExtensionForMimeType('custom/format');
-console.log(unknownExt);  // '.dat'
+getExtensionForMimeType('custom/format');  // '.dat'
 ```
-
-From [src/mime-extensions.ts](../src/mime-extensions.ts): The `getExtensionForMimeType()` function (lines 107-116) handles all three cases.
 
 ### Checking Known Types
 
 ```typescript
 import { hasKnownExtension } from '@semiont/content';
 
-const isKnown = hasKnownExtension('image/png');
-console.log(isKnown);  // true
-
-const isUnknown = hasKnownExtension('custom/format');
-console.log(isUnknown);  // false
+hasKnownExtension('image/png');      // true
+hasKnownExtension('custom/format');  // false
 ```
 
-From [src/mime-extensions.ts](../src/mime-extensions.ts): The `hasKnownExtension()` function (lines 124-127) checks if a type has a known mapping.
+### Deriving Storage URIs
 
-## Encoding Media Types for Paths
-
-### Forward Slash Encoding
-
-MIME types contain forward slashes which are directory separators on Unix systems. These are encoded:
-
-```
-text/markdown     → text~1markdown
-application/json  → application~1json
-image/svg+xml     → image~1svg+xml
-```
-
-The encoding scheme:
-- `/` → `~1` (JSON Pointer encoding)
-- Other characters unchanged
-
-From [src/representation-store.ts](../src/representation-store.ts): The `encodeMediaType()` method (line 193) performs this encoding.
-
-### Why JSON Pointer Encoding?
-
-The `~1` encoding follows [RFC 6901 (JSON Pointer)](https://datatracker.ietf.org/doc/html/rfc6901):
-- `~0` represents `~`
-- `~1` represents `/`
-
-Benefits:
-- Standard encoding scheme
-- Reversible if needed
-- Filesystem-safe on all platforms
-
-From [src/representation-store.ts](../src/representation-store.ts): Uses simple `replace(/\//g, '~1')` for encoding.
-
-## Complete Example
-
-### Storage Path Construction
-
-For content with media type `text/markdown; charset=utf-8` and checksum `5aaa0b72...`:
+`deriveStorageUri()` combines a slugified resource name with the MIME extension to produce a `file://` URI for the working tree:
 
 ```typescript
-// 1. Extract base type
-const fullType = "text/markdown; charset=utf-8";
-const baseType = fullType.split(';')[0].trim();  // "text/markdown"
+import { deriveStorageUri } from '@semiont/content';
 
-// 2. Encode for path
-const encoded = baseType.replace(/\//g, '~1');    // "text~1markdown"
+deriveStorageUri('My Document', 'text/markdown');
+// 'file://my-document.md'
 
-// 3. Get extension
-const ext = getExtensionForMimeType(baseType);    // ".md"
-
-// 4. Build path
-const path = `representations/text~1markdown/5a/aa/rep-5aaa0b72....md`;
+deriveStorageUri('Q3 Sales & Marketing', 'application/pdf');
+// 'file://q3-sales-marketing.pdf'
 ```
 
-From [src/representation-store.ts](../src/representation-store.ts): Lines 113-133 implement this logic in the `store()` method.
+The name is lowercased, runs of non-alphanumeric characters collapse to single hyphens, and leading/trailing hyphens are stripped.
 
-## Character Encoding Preservation
+## Case Sensitivity
 
-### Charset in Metadata
-
-Character set parameters are preserved in the stored metadata:
+MIME types are case-insensitive per RFC 2045; lookups normalize to lowercase:
 
 ```typescript
-const content = Buffer.from('Héllo', 'latin1');
-
-const stored = await store.store(content, {
-  mediaType: 'text/plain; charset=iso-8859-1'
-});
-
-console.log(stored.mediaType);
-// "text/plain; charset=iso-8859-1" - full type preserved
+getExtensionForMimeType('TEXT/PLAIN')  // '.txt'
+getExtensionForMimeType('text/plain')  // '.txt'
+getExtensionForMimeType('Text/Plain')  // '.txt'
 ```
-
-From [src/representation-store.ts](../src/representation-store.ts): Line 144 spreads the original metadata including full mediaType.
-
-### Storage Path
-
-Only the base type affects the storage path:
-
-```typescript
-// These both store to the same directory:
-'text/plain; charset=utf-8'       → .../text~1plain/.../
-'text/plain; charset=iso-8859-1'  → .../text~1plain/.../
-
-// But metadata preserves the full type
-```
-
-This allows:
-- Consistent directory structure
-- Preserved encoding information for decoding
-- Proper handling of different encodings for same base type
 
 ## Supported Media Types
 
@@ -281,8 +169,6 @@ text/x-swift, text/x-kotlin, text/x-shell
 font/woff, font/woff2, font/ttf, font/otf
 ```
 
-From [src/mime-extensions.ts](../src/mime-extensions.ts): Complete mapping defined in `MIME_TO_EXTENSION` constant.
-
 ## Adding New MIME Types
 
 To add support for new MIME types, update the mapping:
@@ -297,24 +183,9 @@ const MIME_TO_EXTENSION: Record<string, string> = {
 };
 ```
 
-No changes needed to storage logic - extensions are looked up automatically.
-
-## Case Sensitivity
-
-MIME types are case-insensitive per RFC 2045:
-
-```typescript
-getExtensionForMimeType('TEXT/PLAIN')     // '.txt'
-getExtensionForMimeType('text/plain')     // '.txt'
-getExtensionForMimeType('Text/Plain')     // '.txt'
-```
-
-From [src/mime-extensions.ts](../src/mime-extensions.ts): Line 109 normalizes to lowercase before lookup.
+Extensions are looked up automatically wherever the mapping is used.
 
 ## References
 
 - MIME types specification: [RFC 2045](https://datatracker.ietf.org/doc/html/rfc2045)
 - Media type registry: [IANA Media Types](https://www.iana.org/assignments/media-types/media-types.xhtml)
-- JSON Pointer: [RFC 6901](https://datatracker.ietf.org/doc/html/rfc6901)
-- From [src/mime-extensions.ts](../src/mime-extensions.ts): Comprehensive MIME type to extension mapping
-- From [src/representation-store.ts](../src/representation-store.ts): Media type handling in storage operations
