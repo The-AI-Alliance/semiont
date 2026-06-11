@@ -16,7 +16,6 @@ import { execFileSync } from 'child_process';
  *   configDir      — $XDG_CONFIG_HOME/semiont/{name}/  (generated config for managed processes)
  *   dataHome       — $XDG_DATA_HOME/semiont/{name}/   (persistent user data, e.g. database files)
  *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
- *   embeddingsDir   — stateDir/embeddings/
  *   projectionsDir  — stateDir/projections/
  *   jobsDir         — stateDir/jobs/
  *   backendLogsDir      — stateDir/backend/
@@ -48,7 +47,6 @@ export class SemiontProject {
 
   // Ephemeral — state
   readonly stateDir: string;
-  readonly embeddingsDir: string;
   readonly projectionsDir: string;
   readonly jobsDir: string;
   readonly backendLogsDir: string;
@@ -81,7 +79,6 @@ export class SemiontProject {
 
     const xdgState = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
     this.stateDir = path.join(xdgState, 'semiont', this.name);
-    this.embeddingsDir = path.join(this.stateDir, 'embeddings');
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
     this.backendLogsDir = path.join(this.stateDir, 'backend');
