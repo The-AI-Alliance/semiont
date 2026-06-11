@@ -20,7 +20,6 @@ export default defineConfig({
       'src/**/*.unit.test.ts',
       // These use mocks despite not being named .unit.test.ts
       'src/**/init-command.test.ts',
-      'src/**/configure-command.test.ts',
       'src/**/provision-command.test.ts',
     ],
     setupFiles: ['src/__tests__/setup-env.ts'],

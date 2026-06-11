@@ -16,7 +16,6 @@ export default defineConfig({
       'src/**/*.unit.test.ts',
       // These tests use mocks even though not named .unit.test.ts
       'src/**/init-command.test.ts',
-      'src/**/configure-command.test.ts',
       'src/**/provision-command.test.ts',
     ],
     exclude: ['node_modules', 'dist'],

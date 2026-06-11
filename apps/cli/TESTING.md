@@ -19,7 +19,7 @@ Unit tests are designed to test individual functions and commands in isolation:
 - Located in files matching:
   - `*.unit.test.ts`
   - `init-command.test.ts` (uses mocks)
-  - `configure-command.test.ts` (uses mocks)
+  - `provision-command.test.ts` (uses mocks)
 
 **Run with:** `npm run test:unit`
 
@@ -67,7 +67,7 @@ import { vi } from 'vitest';
 
 // Mock external dependencies
 vi.mock('fs');
-vi.mock('../lib/some-module');
+vi.mock('../some-module');
 
 // Import after mocks are set up
 import { myCommand } from '../my-command';
@@ -106,9 +106,9 @@ When migrating commands to the new unified structure:
 ## Environment Setup
 
 The `__tests__/setup-env.ts` file:
-- Creates a temporary test directory
-- Initializes a test project using the `init` command
-- Sets `SEMIONT_ROOT` environment variable
+- Creates a temporary test directory and changes into it
+- Creates a `.semiont/` anchor directory so `findProjectRoot()` can discover it
+- Sets `SEMIONT_ENV=test`
 - Cleans up after all tests complete
 
 This setup is only used for integration tests, allowing unit tests to run in complete isolation.
