@@ -111,7 +111,6 @@ describe('Smelter', () => {
     await fs.mkdir(project.eventsDir, { recursive: true });
     await fs.mkdir(project.embeddingsDir, { recursive: true });
     await fs.mkdir(project.projectionsDir, { recursive: true });
-    await fs.mkdir(project.representationsDir, { recursive: true });
   });
 
   beforeEach(async () => {

@@ -55,5 +55,5 @@ export function createProcessLogger(component: string): Logger {
     transports: [new winston.transports.Console()],
   });
 
-  return logger as unknown as Logger;
+  return logger;
 }

@@ -64,4 +64,9 @@ export interface VectorStore {
   // Read
   searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]>;
   searchAnnotations(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]>;
+  /**
+   * Total point count across all collections (resources + annotations).
+   * Feeds the `semiont.vector.index.size` gauge.
+   */
+  count(): Promise<number>;
 }

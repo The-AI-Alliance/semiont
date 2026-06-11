@@ -29,6 +29,7 @@ export {
   resolveStorageUri,
   writeStorageUriEntry,
   removeStorageUriEntry,
+  listStorageUriEntries,
   ResourceNotFoundError,
   type StorageUriEntry,
 } from './storage/storage-uri-index';

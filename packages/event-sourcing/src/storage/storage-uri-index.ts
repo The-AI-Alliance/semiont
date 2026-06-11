@@ -83,6 +83,45 @@ export async function writeStorageUriEntry(
 }
 
 /**
+ * List all URI → resourceId mappings in the index.
+ *
+ * Walks every shard directory under {projectionsDir}/storage-uri/.
+ *
+ * @param projectionsDir - Path to the projections directory
+ * @returns All index entries (empty if the index does not exist yet)
+ */
+export async function listStorageUriEntries(
+  projectionsDir: string,
+): Promise<StorageUriEntry[]> {
+  const indexRoot = path.join(projectionsDir, 'storage-uri');
+  const entries: StorageUriEntry[] = [];
+
+  const walk = async (dir: string): Promise<void> => {
+    const dirents = await fs.readdir(dir, { withFileTypes: true });
+    for (const dirent of dirents) {
+      const fullPath = path.join(dir, dirent.name);
+      if (dirent.isDirectory()) {
+        await walk(fullPath);
+      } else if (dirent.isFile() && dirent.name.endsWith('.json')) {
+        const raw = await fs.readFile(fullPath, 'utf-8');
+        entries.push(JSON.parse(raw) as StorageUriEntry);
+      }
+    }
+  };
+
+  try {
+    await walk(indexRoot);
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+
+  return entries;
+}
+
+/**
  * Remove a URI entry from the index.
  *
  * Called by ViewMaterializer when handling resource.moved (old URI only).

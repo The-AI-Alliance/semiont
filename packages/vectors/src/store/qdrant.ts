@@ -128,6 +128,14 @@ export class QdrantVectorStore implements VectorStore {
     });
   }
 
+  async count(): Promise<number> {
+    const [resources, annotations] = await Promise.all([
+      this.qdrant.count('resources', { exact: true }),
+      this.qdrant.count('annotations', { exact: true }),
+    ]);
+    return resources.count + annotations.count;
+  }
+
   async searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
     return this.search('resources', embedding, opts);
   }

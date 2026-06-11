@@ -100,6 +100,10 @@ export class MemoryVectorStore implements VectorStore {
     this.annotations = this.annotations.filter(p => p.id !== String(annotationId));
   }
 
+  async count(): Promise<number> {
+    return this.resources.length + this.annotations.length;
+  }
+
   async searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
     return this.search(this.resources, embedding, opts);
   }

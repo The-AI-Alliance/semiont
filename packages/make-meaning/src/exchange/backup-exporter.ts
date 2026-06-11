@@ -3,9 +3,9 @@
  *
  * Produces a lossless tar.gz archive of the system of record:
  * - Event log (all streams, JSONL format)
- * - Content store (content-addressed blobs)
+ * - Working-tree content (archived as checksum-named blobs)
  *
- * Reads events via EventStore and content via RepresentationStore.
+ * Reads events via EventStore and content via WorkingTreeStore.
  * The archive can restore a complete knowledge base.
  */
 

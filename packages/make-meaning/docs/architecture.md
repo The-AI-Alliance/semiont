@@ -77,7 +77,7 @@ graph TB
 
 **Implementation**: [src/stower.ts](../src/stower.ts)
 
-The single write path to the Knowledge Base. No other code calls `eventStore.appendEvent()` or `repStore.store()`.
+The single write path to the Knowledge Base event log — no other code calls `eventStore.appendEvent()`. Working-tree content is handled via `kb.content` (a `WorkingTreeStore`): the Stower registers, moves, and removes files in response to commands, while upload paths write bytes with `kb.content.store()` before emitting `yield:create`.
 
 **Subscriptions** (EventBus commands → domain events). Success is usually signalled by the domain event itself, which the EventStore republishes onto the bus; the explicit reply channels are listed where they exist:
 
@@ -219,9 +219,9 @@ ResourceOperations.createResource()
 
 ## Worker Architecture
 
-Workers live in `@semiont/jobs`, not in this package. They poll a `JobQueue` and emit commands on the EventBus when they produce annotations or resources. Workers are **not** actors — they use a polling loop, not RxJS subscriptions.
+Workers live in `@semiont/jobs`, not in this package. They run as a separate process, subscribe to the bus `job:queued` channel over SSE, and claim jobs via the `job:claim` request/response protocol — there is no polling loop. Workers are **not** actors — they claim and process jobs rather than subscribing to a reducer.
 
-Workers receive `EventBus`, `InferenceClient`, `ContentFetcher`, and `Logger` via constructor. They emit `mark:create`, `yield:create`, `job:start`, `job:complete`, etc. on the bus. The Stower handles all persistence.
+Workers emit `mark:create` and the job lifecycle events (`job:start`, `job:report-progress`, `job:complete`, `job:fail`) on the bus via their session's transport. The Stower handles all persistence.
 
 See [Job Workers](./job-workers.md) for details.
 

@@ -10,6 +10,8 @@ import { CommandResult } from '../command-result.js';
 import { type ServicePlatformInfo } from '../service-resolver.js';
 import { isPlatformResources } from '../../platforms/platform-resources.js';
 import { SemiontProject } from '@semiont/core/node';
+import { WorkingTreeStore } from '@semiont/content';
+import { listStorageUriEntries } from '@semiont/event-sourcing';
 import { findProjectRoot } from '../config-loader.js';
 
 import type {
@@ -264,10 +266,18 @@ export class DashboardDataSource {
         result.eventLog.eventCount = eventCount;
       }
 
-      // Content store — recursive scan
-      result.contentStore.path = project.representationsDir;
-      if (fs.existsSync(project.representationsDir)) {
-        const { fileCount, sizeBytes } = this.dirStats(project.representationsDir);
+      // Content store — the working tree itself; stats over event-tracked resources
+      result.contentStore.path = project.root;
+      {
+        const workingTree = new WorkingTreeStore(project);
+        let fileCount = 0;
+        let sizeBytes = 0;
+        for (const entry of await listStorageUriEntries(project.projectionsDir)) {
+          try {
+            sizeBytes += fs.statSync(workingTree.resolveUri(entry.uri)).size;
+            fileCount++;
+          } catch { /* file missing from working tree — skip */ }
+        }
         result.contentStore.fileCount = fileCount;
         result.contentStore.sizeBytes = sizeBytes;
       }
@@ -379,22 +389,6 @@ export class DashboardDataSource {
     if (svc?.port) return `localhost:${svc.port}`;
     if (svc?.publicURL) return svc.publicURL;
     return undefined;
-  }
-
-  private dirStats(dir: string): { fileCount: number; sizeBytes: number } {
-    let fileCount = 0;
-    let sizeBytes = 0;
-    const walk = (d: string) => {
-      try {
-        for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
-          const full = `${d}/${entry.name}`;
-          if (entry.isDirectory()) { walk(full); }
-          else if (entry.isFile()) { fileCount++; sizeBytes += fs.statSync(full).size; }
-        }
-      } catch { /* skip */ }
-    };
-    walk(dir);
-    return { fileCount, sizeBytes };
   }
 
   private mapStatus(status?: 'running' | 'stopped' | 'unknown' | string): 'healthy' | 'warning' | 'unhealthy' | 'unknown' {

@@ -8,7 +8,7 @@
  *
  * Usage:
  *   const { project, teardown } = await createTestProject('my-test');
- *   // project.root, project.stateDir, project.representationsDir, etc.
+ *   // project.root, project.stateDir, project.eventsDir, etc.
  *   await teardown();  // in afterEach
  */
 
