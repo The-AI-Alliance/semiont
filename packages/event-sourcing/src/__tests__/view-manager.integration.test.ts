@@ -138,7 +138,7 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
   function stored(event: PersistedEvent, seq: number): StoredEvent {
     return {
       ...event,
-      metadata: { sequenceNumber: seq, streamPosition: seq - 1 },
+      metadata: { sequenceNumber: seq },
     } as StoredEvent;
   }
 

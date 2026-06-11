@@ -7,7 +7,7 @@
  * - File rotation
  * - Event stream initialization
  *
- * @see docs/EVENT-STORE.md#eventstorage for architecture details
+ * @see docs/STORAGE-LAYOUT.md for the on-disk layout
  */
 
 import { promises as fs } from 'fs';
@@ -167,7 +167,6 @@ export class EventStorage {
 
     const metadata: EventMetadata = {
       sequenceNumber,
-      streamPosition: 0,  // Will be set during write
       ...(options?.correlationId !== undefined && { correlationId: options.correlationId }),
     };
 
