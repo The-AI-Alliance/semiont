@@ -115,7 +115,7 @@ The worker process (`worker-main.ts` → `startWorkerProcess` in `worker-process
 
 Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`). Processors never fetch content themselves — the worker process fetches it via `session.client.browse.resourceContent(resourceId)` and passes it in.
 
-Workers emit bus events via `session.client.transport.emit('mark:create' | 'job:start' | 'job:report-progress' | 'job:complete' | 'job:fail', payload)` — the Stower actor in @semiont/make-meaning handles persistence.
+Workers emit bus events via `session.client.transport.emit('mark:create' | 'job:start' | 'job:report-progress' | 'job:complete' | 'job:fail', payload)` — the Stower actor in @semiont/make-meaning handles persistence to the event log, and the job command handlers mirror the same events into the queue files (completion, retry-on-failure with `maxRetries`, progress-as-heartbeat).
 
 ## Adding a Job Type
 

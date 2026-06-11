@@ -43,6 +43,8 @@ Created automatically by `initialize()`.
 
 Workers do not poll the queue. The worker process opens a `SemiontSession` and a `JobClaimAdapter` (created internally by `startWorkerProcess`, in this package's `src/job-claim-adapter.ts`) subscribes to the bus `job:queued` channel over SSE. When a job is queued, the adapter is pushed the event, claims the job atomically, and dispatches it by `jobType`. There is no poll interval or error-backoff to tune.
 
+Announcements have built-in catch-up: the backend re-announces pending jobs every 30 seconds (and immediately at startup), so a job queued while every eligible worker was busy or disconnected is claimed as soon as one frees up.
+
 Each worker process serves the `jobTypes` it is configured for — driven by the per-`(provider, model)` worker entries in `~/.semiontconfig`. Multiple job types that share an inference engine share one worker process (and one software-agent identity); different engines run as separate processes.
 
 `startWorkerProcess` is internal to the package — the `worker-main.ts` entry point calls it once per agent group:
@@ -95,18 +97,10 @@ The worker process handles its own `SIGTERM`/`SIGINT` — disposing each agent's
 
 ### Job Cleanup
 
+Retention is automatic: `initialize()` starts an hourly sweep that deletes completed/failed/cancelled jobs older than 24 hours. For ad-hoc pruning with a different window, call `cleanupOldJobs` directly:
+
 ```typescript
-// Remove completed/failed/cancelled jobs older than 24 hours (default)
-const removed = await queue.cleanupOldJobs();
-
-// Custom retention
 const removed = await queue.cleanupOldJobs(168); // 1 week in hours
-
-// Periodic cleanup
-setInterval(async () => {
-  const removed = await queue.cleanupOldJobs(24);
-  if (removed > 0) logger.info(`Cleaned up ${removed} old jobs`);
-}, 3600000); // Every hour
 ```
 
 ### Health Checks
@@ -126,24 +120,7 @@ For the queue itself, call `queue.getStats()` to report job counts by status.
 
 **Cause:** A worker process crashed mid-processing or was killed without graceful shutdown.
 
-**Solution:** On startup, use `FsJobQueue`'s `listJobs` to find stale running jobs and move them back to pending:
-
-```typescript
-const running = await queue.listJobs({ status: 'running' });
-const fiveMinutesAgo = Date.now() - 300000;
-
-for (const job of running) {
-  if (job.status === 'running' && new Date(job.startedAt).getTime() < fiveMinutesAgo) {
-    logger.info(`Resetting stuck job: ${job.metadata.id}`);
-    const pendingJob: PendingJob<any> = {
-      status: 'pending',
-      metadata: job.metadata,
-      params: job.params,
-    };
-    await queue.updateJob(pendingJob, 'running');
-  }
-}
-```
+**Recovery is automatic.** Progress writes refresh the running file's mtime (a heartbeat); the 30-second maintenance tick recovers any running job whose file hasn't been touched for 30 minutes, retrying it (re-queued and re-announced) while `retryCount < maxRetries` and failing it after that with `worker presumed dead`. A legitimately long-running job stays safe as long as its worker reports progress within the window.
 
 ### Permission Errors
 

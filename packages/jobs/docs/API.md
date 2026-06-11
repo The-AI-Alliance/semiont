@@ -2,7 +2,7 @@
 
 ## FsJobQueue
 
-`FsJobQueue` is the filesystem-backed implementation of the `JobQueue` interface. The interface contract (`initialize`, `destroy`, `createJob`, `getJob`, `updateJob`, `pollNextPendingJob`, `cancelJob`, `getStats`) is the same across backends; `listJobs` and `cleanupOldJobs` are `FsJobQueue`-specific methods not on the interface.
+`FsJobQueue` is the filesystem-backed implementation of the `JobQueue` interface. The interface contract (`initialize`, `destroy`, `createJob`, `getJob`, `updateJob`, `completeJob`, `failJob`, `recordProgress`, `cancelPendingJobs`, `cancelJob`, `getStats`) is the same across backends; `listJobs`, `cleanupOldJobs`, and `recoverStaleRunningJobs` are `FsJobQueue`-specific methods not on the interface.
 
 ### Constructor
 
@@ -24,15 +24,15 @@ await queue.initialize();
 
 ### `initialize(): Promise<void>`
 
-Creates status directories and loads pending jobs into memory. Starts `fs.watch` on `pending/` for external change detection. Idempotent.
+Creates status directories, announces any existing pending backlog on `job:queued` (restart recovery), and starts the maintenance intervals: a 30-second tick that re-announces pending jobs and recovers stale running jobs, and an hourly retention sweep that prunes terminal jobs older than 24 hours. Idempotent.
 
 ### `destroy(): void`
 
-Closes the filesystem watcher and clears debounce timers.
+Stops the maintenance intervals.
 
 ### `createJob(job: AnyJob): Promise<void>`
 
-Persists a job to `{project.jobsDir}/{status}/{id}.json`. If status is `pending`, pushes to the in-memory queue. If EventBus is provided and job params include `resourceId`, emits `job:queued`.
+Persists a job to `{project.jobsDir}/{status}/{id}.json`. If status is `pending`, the EventBus is provided, and job params include `resourceId`, emits `job:queued`.
 
 ```typescript
 import type { PendingJob, GenerationParams } from '@semiont/jobs';
@@ -78,7 +78,32 @@ if (job?.status === 'complete') {
 
 ### `updateJob(job: AnyJob, oldStatus?: JobStatus): Promise<void>`
 
-Updates a job in place, or atomically moves it between status directories if `oldStatus` differs from `job.status`.
+Updates a job in place, or atomically moves it between status directories if `oldStatus` differs from `job.status`. A job moved back to `pending` (e.g. a retry) is re-announced on `job:queued`.
+
+### `completeJob(jobId: JobId, result): Promise<boolean>`
+
+Moves a running job to `complete` with the result and `completedAt`. Returns `false` (and changes nothing) if the job is missing or not running — duplicate `job:complete` events are harmless.
+
+```typescript
+const moved = await queue.completeJob(jobId('job-abc123'), { totalFound: 3, totalEmitted: 3, errors: 0 });
+```
+
+### `failJob(jobId: JobId, error): Promise<'retried' | 'failed' | null>`
+
+Retry-or-fail a running job. While `retryCount < maxRetries` the job moves back to `pending` with the count bumped (and is re-announced for another worker to claim); after that it moves to `failed` with the error. Returns `null` if the job isn't running.
+
+```typescript
+const outcome = await queue.failJob(jobId('job-abc123'), 'inference timeout');
+// 'retried' | 'failed' | null
+```
+
+### `recordProgress(jobId: JobId, progress): Promise<void>`
+
+Writes progress into a running job's file, throttled to one write per 5 seconds per job. Beyond surfacing live progress to `job:status-requested`, each write refreshes the file's mtime — the heartbeat that stale-running recovery watches. A no-op for jobs that aren't running.
+
+### `cancelPendingJobs(category: 'annotation' | 'generation'): Promise<number>`
+
+Cancels all pending jobs in a category — the granularity of the `job:cancel-requested` UI signal (`'annotation'` covers every `*-annotation` type). Running jobs are left to finish. Returns the number cancelled.
 
 ```typescript
 // Progress update (same status)
@@ -102,20 +127,6 @@ if (job.status === 'running') {
   };
   await queue.updateJob(complete, 'running');
 }
-```
-
-### `pollNextPendingJob(predicate?): Promise<AnyJob | null>`
-
-Returns the next pending job from the in-memory queue (FIFO). No filesystem I/O. If a predicate is provided, returns the first matching job.
-
-```typescript
-// Any pending job
-const next = await queue.pollNextPendingJob();
-
-// Only generation jobs
-const genJob = await queue.pollNextPendingJob(
-  job => job.metadata.type === 'generation'
-);
 ```
 
 ### `listJobs(filters?: JobQueryFilters): Promise<AnyJob[]>`
@@ -154,15 +165,18 @@ const cancelled = await queue.cancelJob(jobId('job-abc123'));
 
 > `FsJobQueue`-specific — not part of the `JobQueue` interface.
 
-Removes completed, failed, and cancelled jobs older than the retention period. Returns count of deleted jobs.
+Removes completed, failed, and cancelled jobs older than the retention period. Returns count of deleted jobs. Runs automatically every hour with the default 24-hour retention; call it directly only for ad-hoc pruning.
 
 ```typescript
-// Remove jobs older than 24 hours (default)
-const removed = await queue.cleanupOldJobs();
-
 // Remove jobs older than 1 week
 const removed = await queue.cleanupOldJobs(168);
 ```
+
+### `recoverStaleRunningJobs(): Promise<number>`
+
+> `FsJobQueue`-specific — not part of the `JobQueue` interface.
+
+Recovers running jobs orphaned by a dead worker: any `running/` file whose mtime is older than 30 minutes is fed through the same retry-or-fail path as `failJob`. Progress writes refresh the mtime, so a worker that reports within the window is never recovered out from under itself. Runs automatically on the 30-second maintenance tick.
 
 ### `getStats(): Promise<{ pending, running, complete, failed, cancelled }>`
 
@@ -221,6 +235,10 @@ emit mark:create per annotation; emit job:complete
   ↓ on error
 emit job:fail; adapter.failJob(jobId, message)
 ```
+
+A pending job whose announcement found no idle eligible worker (all busy, worker offline or mid-reconnect, backend restart) is re-announced every 30 seconds, so backlog drains as soon as a worker frees up. Duplicate announcements are harmless — claims on a job that already moved to `running` fail with "Job already claimed".
+
+On the backend, the lifecycle events are mirrored into the queue files (see `@semiont/make-meaning`'s job command handlers): `job:complete` moves the file to `complete/`, `job:fail` retries or moves it to `failed/`, and `job:report-progress` is written into the running file as both live progress and a worker heartbeat.
 
 Lifecycle and `mark:create` events are emitted via `session.client.transport.emit(...)`. The Stower actor in @semiont/make-meaning persists them.
 

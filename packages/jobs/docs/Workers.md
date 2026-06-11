@@ -220,6 +220,8 @@ emit job:fail  →  adapter.failJob(jobId, message)
 
 The subscription in `startWorkerProcess` wraps `handleJob` in a `.catch` that emits `job:fail` and calls `adapter.failJob`, so any throw from your processor surfaces as a clean failure. `handleJob` also records an OpenTelemetry span (`job:<type>`) and a job-outcome metric around each run — you get that for free by living inside `handleJobInner`.
 
+On the backend, `job:fail` feeds a retry-or-fail path: the job is re-queued (and re-announced) while `retryCount < maxRetries`, then lands in `failed/`. Your `onProgress` calls double as a heartbeat — a running job that reports nothing for 30 minutes is presumed orphaned and recovered the same way, so call `onProgress` at meaningful stages rather than never.
+
 ## Reporting Progress
 
 Progress is a callback, not a queue mutation. The worker process hands your processor an `onProgress`:

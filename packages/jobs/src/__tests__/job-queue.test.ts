@@ -173,7 +173,8 @@ describe('JobQueue', () => {
   });
 
   afterEach(async () => {
-    // Clean up temporary directory
+    // Stop the re-announce interval and clean up temporary directory
+    jobQueue.destroy();
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
@@ -366,25 +367,65 @@ describe('JobQueue', () => {
     });
   });
 
-  describe('pollNextPendingJob()', () => {
-    test('should return oldest pending job', async () => {
-      const job1 = createPendingDetectionJob('job-1');
-      const job2 = createPendingDetectionJob('job-2');
+  describe('pending catch-up', () => {
+    test('initialize() announces jobs already in pending/', async () => {
+      // Backlog written by a previous queue instance (e.g. before a restart)
+      await jobQueue.createJob(createPendingDetectionJob('job-backlog-1'));
+      await jobQueue.createJob(createPendingDetectionJob('job-backlog-2'));
 
-      await jobQueue.createJob(job1);
-      // Small delay to ensure different timestamps
-      await new Promise(resolve => setTimeout(resolve, 10));
-      await jobQueue.createJob(job2);
+      const eventBus = new EventBus();
+      const events: { jobId: string }[] = [];
+      eventBus.get('job:queued').subscribe(event => {
+        events.push(event);
+      });
 
-      const polled = await jobQueue.pollNextPendingJob();
+      const restarted = new JobQueue(project, mockLogger, eventBus);
+      await restarted.initialize();
+      restarted.destroy();
 
-      expect(polled?.metadata.id).toBe(jobId('job-1'));
+      expect(events.map(e => e.jobId)).toEqual([
+        jobId('job-backlog-1'),
+        jobId('job-backlog-2'),
+      ]);
     });
 
-    test('should return null when no pending jobs', async () => {
-      const polled = await jobQueue.pollNextPendingJob();
+    test('initialize() announces nothing when pending/ is empty', async () => {
+      const eventBus = new EventBus();
+      const events: unknown[] = [];
+      eventBus.get('job:queued').subscribe(event => {
+        events.push(event);
+      });
 
-      expect(polled).toBeNull();
+      const restarted = new JobQueue(project, mockLogger, eventBus);
+      await restarted.initialize();
+      restarted.destroy();
+
+      expect(events).toHaveLength(0);
+    });
+
+    test('updateJob() re-announces a job moved back to pending', async () => {
+      const eventBus = new EventBus();
+      const testQueue = new JobQueue(project, mockLogger, eventBus);
+      await testQueue.initialize();
+
+      const failed = createFailedDetectionJob('job-retry');
+      await testQueue.createJob(failed);
+
+      const events: { jobId: string }[] = [];
+      eventBus.get('job:queued').subscribe(event => {
+        events.push(event);
+      });
+
+      const retried: PendingJob<DetectionParams> = {
+        status: 'pending',
+        metadata: failed.metadata,
+        params: failed.params,
+      };
+      await testQueue.updateJob(retried, 'failed');
+      testQueue.destroy();
+
+      expect(events).toHaveLength(1);
+      expect(events[0]?.jobId).toBe(jobId('job-retry'));
     });
   });
 
@@ -501,6 +542,7 @@ describe('JobQueue', () => {
       });
 
       await testQueue.createJob(job);
+      testQueue.destroy();
 
       // Verify event was emitted
       expect(events).toHaveLength(1);
@@ -520,6 +562,218 @@ describe('JobQueue', () => {
 
       // Should not throw
       await expect(testQueue.createJob(job)).resolves.not.toThrow();
+      testQueue.destroy();
+    });
+  });
+
+  describe('completeJob()', () => {
+    test('moves a running job to complete with result and completedAt', async () => {
+      const job = createRunningDetectionJob('job-done');
+      await jobQueue.createJob(job);
+
+      const result = { totalFound: 3, totalEmitted: 3, errors: 0 };
+      const moved = await jobQueue.completeJob(jobId('job-done'), result);
+
+      expect(moved).toBe(true);
+      const updated = await jobQueue.getJob(jobId('job-done'));
+      expect(updated?.status).toBe('complete');
+      if (updated?.status === 'complete') {
+        expect(updated.result).toEqual(result);
+        expect(updated.startedAt).toBe(job.startedAt);
+        expect(updated.completedAt).toBeTruthy();
+      }
+      const oldPath = path.join(project.jobsDir, 'running', 'job-done.json');
+      await expect(fs.access(oldPath)).rejects.toThrow();
+    });
+
+    test('is a no-op for a job that is not running', async () => {
+      const job = createPendingDetectionJob('job-still-pending');
+      await jobQueue.createJob(job);
+
+      const moved = await jobQueue.completeJob(jobId('job-still-pending'), {});
+
+      expect(moved).toBe(false);
+      expect((await jobQueue.getJob(jobId('job-still-pending')))?.status).toBe('pending');
+    });
+
+    test('returns false for an unknown job', async () => {
+      expect(await jobQueue.completeJob(jobId('job-missing'), {})).toBe(false);
+    });
+  });
+
+  describe('failJob()', () => {
+    test('moves a running job back to pending and re-announces while retries remain', async () => {
+      const eventBus = new EventBus();
+      const testQueue = new JobQueue(project, mockLogger, eventBus);
+      await testQueue.initialize();
+
+      const job = createRunningDetectionJob('job-flaky'); // retryCount 0, maxRetries 3
+      await testQueue.createJob(job);
+
+      const announced: { jobId: string }[] = [];
+      eventBus.get('job:queued').subscribe(event => {
+        announced.push(event);
+      });
+
+      const outcome = await testQueue.failJob(jobId('job-flaky'), 'inference timeout');
+      testQueue.destroy();
+
+      expect(outcome).toBe('retried');
+      const updated = await testQueue.getJob(jobId('job-flaky'));
+      expect(updated?.status).toBe('pending');
+      expect(updated?.metadata.retryCount).toBe(1);
+      expect(announced.map(e => e.jobId)).toEqual([jobId('job-flaky')]);
+    });
+
+    test('moves a running job to failed when retries are exhausted', async () => {
+      const job = createRunningDetectionJob('job-doomed');
+      job.metadata.retryCount = 3; // maxRetries is 3
+      await jobQueue.createJob(job);
+
+      const outcome = await jobQueue.failJob(jobId('job-doomed'), 'inference exploded');
+
+      expect(outcome).toBe('failed');
+      const updated = await jobQueue.getJob(jobId('job-doomed'));
+      expect(updated?.status).toBe('failed');
+      if (updated?.status === 'failed') {
+        expect(updated.error).toBe('inference exploded');
+        expect(updated.completedAt).toBeTruthy();
+      }
+    });
+
+    test('returns null for a job that is not running', async () => {
+      const job = createPendingDetectionJob('job-not-started');
+      await jobQueue.createJob(job);
+
+      expect(await jobQueue.failJob(jobId('job-not-started'), 'irrelevant')).toBeNull();
+      expect((await jobQueue.getJob(jobId('job-not-started')))?.status).toBe('pending');
+    });
+  });
+
+  describe('recordProgress()', () => {
+    test('writes progress into the running job file', async () => {
+      const job = createRunningDetectionJob('job-progress');
+      await jobQueue.createJob(job);
+
+      await jobQueue.recordProgress(jobId('job-progress'), { stage: 'analyzing', percentage: 40 });
+
+      const updated = await jobQueue.getJob(jobId('job-progress'));
+      expect(updated?.status).toBe('running');
+      if (updated?.status === 'running') {
+        expect(updated.progress).toEqual({ stage: 'analyzing', percentage: 40 });
+      }
+    });
+
+    test('throttles rapid successive writes', async () => {
+      const job = createRunningDetectionJob('job-chatty');
+      await jobQueue.createJob(job);
+
+      await jobQueue.recordProgress(jobId('job-chatty'), { stage: 'analyzing', percentage: 10 });
+      await jobQueue.recordProgress(jobId('job-chatty'), { stage: 'analyzing', percentage: 11 });
+
+      const updated = await jobQueue.getJob(jobId('job-chatty'));
+      expect(updated?.status).toBe('running');
+      if (updated?.status === 'running') {
+        expect(updated.progress).toEqual({ stage: 'analyzing', percentage: 10 });
+      }
+    });
+
+    test('writes again once the throttle window has passed', async () => {
+      vi.useFakeTimers();
+      try {
+        const job = createRunningDetectionJob('job-patient');
+        await jobQueue.createJob(job);
+
+        await jobQueue.recordProgress(jobId('job-patient'), { stage: 'analyzing', percentage: 10 });
+        vi.advanceTimersByTime(6_000);
+        await jobQueue.recordProgress(jobId('job-patient'), { stage: 'creating', percentage: 80 });
+
+        const updated = await jobQueue.getJob(jobId('job-patient'));
+        expect(updated?.status).toBe('running');
+        if (updated?.status === 'running') {
+          expect(updated.progress).toEqual({ stage: 'creating', percentage: 80 });
+        }
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    test('ignores progress for jobs that are not running', async () => {
+      const job = createPendingDetectionJob('job-early-progress');
+      await jobQueue.createJob(job);
+
+      await jobQueue.recordProgress(jobId('job-early-progress'), { percentage: 50 });
+
+      expect((await jobQueue.getJob(jobId('job-early-progress')))?.status).toBe('pending');
+    });
+  });
+
+  describe('cancelPendingJobs()', () => {
+    test('cancels pending annotation jobs, leaves generation and running jobs alone', async () => {
+      await jobQueue.createJob(createPendingDetectionJob('job-ann-1'));
+      await jobQueue.createJob(createPendingDetectionJob('job-ann-2'));
+      await jobQueue.createJob(createPendingGenerationJob('job-gen-1'));
+      await jobQueue.createJob(createRunningDetectionJob('job-ann-running'));
+
+      const cancelled = await jobQueue.cancelPendingJobs('annotation');
+
+      expect(cancelled).toBe(2);
+      expect((await jobQueue.getJob(jobId('job-ann-1')))?.status).toBe('cancelled');
+      expect((await jobQueue.getJob(jobId('job-ann-2')))?.status).toBe('cancelled');
+      expect((await jobQueue.getJob(jobId('job-gen-1')))?.status).toBe('pending');
+      expect((await jobQueue.getJob(jobId('job-ann-running')))?.status).toBe('running');
+    });
+
+    test("cancels pending generation jobs for the 'generation' category", async () => {
+      await jobQueue.createJob(createPendingDetectionJob('job-ann-3'));
+      await jobQueue.createJob(createPendingGenerationJob('job-gen-2'));
+
+      const cancelled = await jobQueue.cancelPendingJobs('generation');
+
+      expect(cancelled).toBe(1);
+      expect((await jobQueue.getJob(jobId('job-gen-2')))?.status).toBe('cancelled');
+      expect((await jobQueue.getJob(jobId('job-ann-3')))?.status).toBe('pending');
+    });
+  });
+
+  describe('recoverStaleRunningJobs()', () => {
+    test('re-queues a stale running job with retries remaining', async () => {
+      await jobQueue.createJob(createRunningDetectionJob('job-stale-retry'));
+      const filePath = path.join(project.jobsDir, 'running', 'job-stale-retry.json');
+      const past = new Date(Date.now() - 31 * 60_000);
+      await fs.utimes(filePath, past, past);
+
+      const recovered = await jobQueue.recoverStaleRunningJobs();
+
+      expect(recovered).toBe(1);
+      const updated = await jobQueue.getJob(jobId('job-stale-retry'));
+      expect(updated?.status).toBe('pending');
+      expect(updated?.metadata.retryCount).toBe(1);
+    });
+
+    test('fails a stale running job whose retries are exhausted', async () => {
+      const job = createRunningDetectionJob('job-stale-dead');
+      job.metadata.retryCount = 3;
+      await jobQueue.createJob(job);
+      const filePath = path.join(project.jobsDir, 'running', 'job-stale-dead.json');
+      const past = new Date(Date.now() - 31 * 60_000);
+      await fs.utimes(filePath, past, past);
+
+      const recovered = await jobQueue.recoverStaleRunningJobs();
+
+      expect(recovered).toBe(1);
+      const updated = await jobQueue.getJob(jobId('job-stale-dead'));
+      expect(updated?.status).toBe('failed');
+      if (updated?.status === 'failed') {
+        expect(updated.error).toContain('presumed dead');
+      }
+    });
+
+    test('leaves fresh running jobs untouched', async () => {
+      await jobQueue.createJob(createRunningDetectionJob('job-fresh'));
+
+      expect(await jobQueue.recoverStaleRunningJobs()).toBe(0);
+      expect((await jobQueue.getJob(jobId('job-fresh')))?.status).toBe('running');
     });
   });
 });
