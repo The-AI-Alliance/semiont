@@ -33,7 +33,7 @@ import type { ITransport, IContentTransport } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
 
 const TEST_USER = 'did:web:test:users:test' as UserId;
-const TEST_META = { sequenceNumber: 1, streamPosition: 0 } as EventMetadata;
+const TEST_META = { sequenceNumber: 1 } as EventMetadata;
 
 const NINE_TYPES = [
   'Author', 'Concept', 'Date', 'Event', 'Location',

@@ -5,7 +5,7 @@
     "node": ">=24.0.0"
   },
   "type": "module",
-  "description": "Content-addressed storage for resource representations",
+  "description": "Working-tree storage for project resources and PDF text-layer extraction",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -42,9 +42,9 @@
   "keywords": [
     "content",
     "storage",
-    "representation",
-    "content-addressed",
-    "deduplication",
+    "working-tree",
+    "checksum",
+    "pdf",
     "semiont"
   ],
   "author": "The AI Alliance",

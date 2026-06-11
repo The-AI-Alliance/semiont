@@ -234,39 +234,33 @@ See [API Reference](../../docs/protocol/API.md) for complete endpoint documentat
 ```
 apps/backend/
 ├── docs/                      # Documentation
-│   ├── DEVELOPMENT.md        # Local development guide
-│   ├── API.md                # API endpoint reference
+│   ├── ARCHITECTURE.md       # Backend architecture
 │   ├── AUTHENTICATION.md     # Auth implementation
-│   ├── TESTING.md            # Testing guide
-│   ├── DEPLOYMENT.md         # Deployment procedures
-│   └── CONTRIBUTING.md       # Contributing guidelines
+│   ├── DEVELOPMENT.md        # Local development guide
+│   ├── LOGGING.md            # Logging guide
+│   └── TESTING.md            # Testing guide
 ├── src/
+│   ├── __tests__/            # Test suites
+│   ├── auth/                 # Authentication (JWT, OAuth)
+│   ├── cli/                  # Rebuild CLIs (graph, projections, vectors)
+│   ├── lib/                  # SSE helpers
+│   ├── middleware/           # HTTP middleware (auth, logging, security headers, OpenAPI validation)
 │   ├── routes/               # Modular route definitions (thin EventBus wrappers)
+│   ├── types/                # Type definitions
 │   ├── utils/                # Shared utilities
 │   │   └── event-bus-request.ts  # correlationId request-response helper
-│   ├── auth/                 # Authentication & authorization
-│   ├── middleware/           # HTTP middleware
-│   ├── types/                # Type definitions
-│   ├── validation/           # Zod validation schemas
-│   ├── events/               # Event sourcing
-│   │   ├── event-store.ts   # Immutable event log
-│   │   ├── view-manager.ts  # View management
-│   │   ├── views/           # View materialization
-│   │   └── consumers/       # Event subscription (e.g., graph sync)
-│   ├── jobs/                 # Background job workers (prototype)
-│   │   ├── job-queue.ts     # Filesystem-based job queue
-│   │   ├── types.ts         # Job type definitions
-│   │   └── workers/         # Detection & generation workers
-│   ├── services/             # Business logic services
-│   ├── storage/              # Storage layers
-│   │   ├── filesystem.ts    # Content store
-│   │   └── view-storage.ts  # Materialized views
-│   └── index.ts              # Main application
+│   ├── db.ts                 # Prisma client setup
+│   ├── index.ts              # Main application
+│   └── logger.ts             # Winston-based logger
 ├── prisma/
+│   ├── migrations/           # Database migrations
 │   └── schema.prisma         # Database schema
+├── scripts/                  # start.sh
 └── README.md                 # This file
 
-Note: OpenAPI specification source is maintained at `../../specs/src/` (project root)
+Note: OpenAPI specification source is maintained at `../../specs/src/` (project root).
+Content storage lives in `packages/content` (WorkingTreeStore) and materialized views
+in `packages/event-sourcing` — not in this app.
 ```
 
 ## Core Design Principles
@@ -277,25 +271,26 @@ Note: OpenAPI specification source is maintained at `../../specs/src/` (project 
 
 ```typescript
 // ✅ CORRECT: Access infrastructure via context
-const { eventStore, graphDb, repStore, inferenceClient } = c.get('makeMeaning');
+const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
 // ❌ WRONG: Never create infrastructure in routes or services
 const graphDb = await getGraphDatabase(config);  // NEVER DO THIS
-const repStore = new FilesystemRepresentationStore(...);  // NEVER DO THIS
+const content = new WorkingTreeStore(...);  // NEVER DO THIS
 ```
 
 **Architecture:**
 - **MakeMeaningService** (`@semiont/make-meaning`) owns ALL infrastructure:
-  - `eventStore: EventStore` - Immutable event log and materialized views
-  - `graphDb: GraphDatabase` - Graph database for relationships and traversal
-  - `repStore: RepresentationStore` - Content-addressed document storage
-  - `inferenceClient: InferenceClient` - LLM inference for AI operations
+  - `knowledgeSystem: KnowledgeSystem` - the KB actors (Stower, Gatherer, Matcher, Browser, CloneTokenManager) and `kb: KnowledgeBase`:
+    - `kb.eventStore: EventStore` - Immutable event log and materialized views
+    - `kb.content: WorkingTreeStore` - Working-tree file content (`file://` URIs, SHA-256 integrity checksums)
+    - `kb.graph: GraphDatabase` - Graph database for relationships and traversal
+    - `kb.graphConsumer: GraphDBConsumer` - Event-to-graph synchronization
   - `jobQueue: JobQueue` - Background job processing
-  - `workers: { ... }` - All background workers (6 types)
-  - `graphConsumer: GraphDBConsumer` - Event-to-graph synchronization
+  - Inference clients are created per-actor inside make-meaning (Gatherer, Matcher) - never in backend code
+  - Background workers run in a separate worker-pool process (see [Architecture](./docs/ARCHITECTURE.md))
 
 **Implementation Pattern:**
-- Infrastructure created ONCE in [index.ts:56](src/index.ts#L56) via `startMakeMeaning(config)`
+- Infrastructure created ONCE in [index.ts:104](src/index.ts#L104) via `startMakeMeaning(project, config, eventBus, logger)`
 - Routes access via `c.get('makeMeaning')` from Hono context
 - Services receive infrastructure as parameters (dependency injection)
 - NO route or service creates its own infrastructure instances
@@ -362,12 +357,11 @@ SEMIONT_ROOT=/path/to/kb npm run rebuild-graph
 
 # Rebuild a single resource in the graph
 SEMIONT_ROOT=/path/to/kb npm run rebuild-graph -- <resourceId>
-
-# Rebuild vector store from persisted embedding events (no re-embedding)
-SEMIONT_ROOT=/path/to/kb npm run rebuild-vectors
 ```
 
-Both commands read `~/.semiontconfig` for database credentials, graph, and vector store settings. Set `SEMIONT_ENV` or pass `--environment <env>` to select a non-default environment.
+The command reads `~/.semiontconfig` for database credentials, graph, and vector store settings. Set `SEMIONT_ENV` or pass `--environment <env>` to select a non-default environment.
+
+The vector store has no backend CLI: the smelter worker (`@semiont/make-meaning/smelter-main`) reconciles Qdrant against the KS catalog on every startup — re-embedding missing resources and annotations and deleting orphaned vectors. To recover from a wiped Qdrant volume, just restart the smelter; to force a full re-embed, wipe the Qdrant volume first and then restart it.
 
 ### Development
 ```bash
@@ -425,7 +419,7 @@ We welcome contributions! Please read:
 3. [Testing Guide](./docs/TESTING.md) - Writing and running tests
 
 **Key Requirements**:
-- **Follow infrastructure management pattern** - NEVER create EventStore, GraphDatabase, RepresentationStore, or InferenceClient instances (see [Architecture](./docs/ARCHITECTURE.md))
+- **Follow infrastructure management pattern** - NEVER create EventStore, GraphDatabase, WorkingTreeStore, or InferenceClient instances (see [Architecture](./docs/ARCHITECTURE.md))
 - Functional programming (pure functions, no mutations)
 - All tests must pass
 - TypeScript must compile without errors (strict mode)

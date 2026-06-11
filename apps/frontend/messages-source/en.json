@@ -504,16 +504,12 @@
     "confirmImport": "Yes, Restore",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting restore…",
-    "phaseEntityTypes": "Restoring entity types…",
-    "phaseResources": "Restoring resources…",
-    "phaseAnnotations": "Restoring annotations…",
     "phaseComplete": "Restore complete",
     "phaseError": "Restore failed",
-    "hashChainValid": "Hash chain verified",
-    "hashChainInvalid": "Hash chain verification failed",
-    "streams": "Streams",
-    "events": "Events",
-    "blobs": "Content blobs"
+    "statsEventsReplayed": "Events replayed",
+    "statsResourcesCreated": "Resources created",
+    "statsAnnotationsCreated": "Annotations created",
+    "statsEntityTypesAdded": "Entity types added"
   },
   "ModerationLinkedData": {
     "title": "Export & Import",
@@ -535,16 +531,12 @@
     "confirmImport": "Yes, Import",
     "cancelImport": "Cancel",
     "phaseStarted": "Starting import…",
-    "phaseEntityTypes": "Importing entity types…",
-    "phaseResources": "Importing resources…",
-    "phaseAnnotations": "Importing annotations…",
     "phaseComplete": "Import complete",
     "phaseError": "Import failed",
-    "hashChainValid": "Verified",
-    "hashChainInvalid": "Verification failed",
-    "streams": "Resources",
-    "events": "Annotations",
-    "blobs": "Entity types"
+    "statsEventsReplayed": "Events replayed",
+    "statsResourcesCreated": "Resources created",
+    "statsAnnotationsCreated": "Annotations created",
+    "statsEntityTypesAdded": "Entity types added"
   },
   "CookieBanner": {
     "saving": "Saving...",

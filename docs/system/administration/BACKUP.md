@@ -30,16 +30,21 @@ The archive contains the complete event history and all content-addressed blobs.
 The restore process replays all events through the EventBus → Stower pipeline. Progress is reported in phases:
 
 - **Started** — Archive uploaded and parsed
-- **Entity Types** — Schema entity types restored
-- **Resources** — Resources and content recreated
-- **Annotations** — Annotations replayed
-- **Complete** — Hash chain verification result shown
+- **Complete** — Replay statistics shown (events replayed, resources created, annotations created, entity types added)
+
+If the archive is invalid or replay fails, an error phase is reported with the failure message.
 
 **Warning**: Restore adds data to the existing knowledge base. It does not wipe existing data first.
 
 ## CLI
 
-The CLI currently supports the [Linked Data exchange format](../../protocol/EXCHANGE.md) (`semiont export` / `semiont import`), not the full backup format. Full backup and restore is available through the GUI only.
+The CLI supports both formats:
+
+- `semiont backup` / `semiont restore` — full backup archives (the format described in this document)
+- `semiont verify` — validates a backup archive offline without importing it (no running services needed)
+- `semiont export` / `semiont import` — the [Linked Data exchange format](../../protocol/EXCHANGE.md)
+
+See [Knowledge Base Commands](../../../apps/cli/docs/KNOWLEDGE-BASE.md) for usage.
 
 ## Backup Archive Format
 
@@ -82,11 +87,11 @@ The manifest is a JSONL file. The first line is the header; subsequent lines are
 **Stream summaries** (subsequent lines):
 
 ```json
-{"stream": "__system__", "eventCount": 9, "firstChecksum": "b25b56...", "lastChecksum": "1a0759..."}
-{"stream": "4feadd89-...", "eventCount": 12, "firstChecksum": "65b696...", "lastChecksum": "abc123..."}
+{"stream": "__system__", "eventCount": 9}
+{"stream": "4feadd89-...", "eventCount": 12}
 ```
 
-Each stream summary records the first and last event checksums, enabling hash chain verification during restore.
+Each stream summary records the stream's event count, which `semiont verify` checks against the actual stream contents.
 
 ### Event Streams (`.semiont/events/`)
 
@@ -99,9 +104,11 @@ Each file is a JSONL stream of `StoredEvent` objects. Events are stored in their
 
 Content-addressed files stored at the archive root: `{checksum}.{ext}` (e.g., `519d39ca.md`, `a1b2c3d4.pdf`). The checksum and media type are extracted from `yield:created` event payloads. The file extension is derived from the content's MIME type.
 
-## Hash Chain Verification
+## Integrity
 
-Events in each stream form a hash chain: each event's `prevEventHash` field references the preceding event's `checksum`. During restore, the importer verifies this chain and reports whether it is intact. A broken chain indicates the archive may have been tampered with or corrupted, but restore proceeds regardless (with a warning).
+Backup archives carry no per-event integrity metadata. During restore, the importer validates the manifest (presence, format, version) and warns about event streams that are listed in the manifest but missing from the archive; restore proceeds regardless. For offline validation before restoring, `semiont verify` additionally checks each stream's event count and the content blob count against the manifest.
+
+Integrity of the live event log is provided by git at the commit level: when `gitSync` is enabled, every append stages the event log file, and once committed, git's object hashes make tampering evident. See [Storage Layout](../../../packages/event-sourcing/docs/STORAGE-LAYOUT.md) for details.
 
 ## What Is Included
 

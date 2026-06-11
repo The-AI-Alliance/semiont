@@ -6,15 +6,13 @@
  * with a type-specific batch handler.
  */
 
-import type { StoredEvent } from '@semiont/core';
-
 /**
  * Partition a batch of events into runs of consecutive same-type events.
  * e.g. [A, A, B, B, B, A] → [[A, A], [B, B, B], [A]]
  */
-export function partitionByType(events: StoredEvent[]): StoredEvent[][] {
-  const runs: StoredEvent[][] = [];
-  let currentRun: StoredEvent[] = [];
+export function partitionByType<T extends { type: string }>(events: T[]): T[][] {
+  const runs: T[][] = [];
+  let currentRun: T[] = [];
 
   for (const event of events) {
     if (currentRun.length > 0 && currentRun[0].type !== event.type) {

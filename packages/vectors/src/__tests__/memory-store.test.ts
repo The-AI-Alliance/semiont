@@ -115,6 +115,32 @@ describe('MemoryVectorStore', () => {
     });
   });
 
+  describe('count', () => {
+    it('counts points across resources and annotations', async () => {
+      expect(await store.count()).toBe(0);
+
+      const vecs = await embedding.embedBatch(['chunk one', 'chunk two']);
+      await store.upsertResourceVectors('res-1' as ResourceId, [
+        { chunkIndex: 0, text: 'chunk one', embedding: vecs[0] },
+        { chunkIndex: 1, text: 'chunk two', embedding: vecs[1] },
+      ]);
+
+      const annVec = await embedding.embed('an annotation');
+      await store.upsertAnnotationVector('ann-1' as AnnotationId, annVec, {
+        annotationId: 'ann-1' as AnnotationId,
+        resourceId: 'res-1' as ResourceId,
+        motivation: 'highlighting',
+        entityTypes: [],
+        exactText: 'an annotation',
+      });
+
+      expect(await store.count()).toBe(3);
+
+      await store.deleteResourceVectors('res-1' as ResourceId);
+      expect(await store.count()).toBe(1);
+    });
+  });
+
   describe('filtering', () => {
     beforeEach(async () => {
       // Set up two annotations with different entity types and motivations

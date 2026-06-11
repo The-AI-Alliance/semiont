@@ -1,8 +1,8 @@
 /**
  * Voyage AI Embedding Provider
  *
- * Cloud embedding via the Voyage AI API (partner of Anthropic).
- * Uses the same API key as Anthropic inference.
+ * Cloud embedding via the Voyage AI API.
+ * Requires a Voyage AI API key (distinct from Anthropic inference keys).
  */
 
 import type { EmbeddingProvider } from './interface';

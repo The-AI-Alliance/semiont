@@ -51,12 +51,31 @@ export interface VectorStore {
   clearAll(): Promise<void>;
 
   // Write
+  /**
+   * Replace all vectors for a resource with the given chunks.
+   * Existing vectors for the resource are removed first, so a resource
+   * that shrinks to fewer chunks leaves no orphans.
+   */
   upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[]): Promise<void>;
   upsertAnnotationVector(annotationId: AnnotationId, embedding: number[], payload: AnnotationPayload): Promise<void>;
   deleteResourceVectors(resourceId: ResourceId): Promise<void>;
   deleteAnnotationVector(annotationId: AnnotationId): Promise<void>;
+  /** Delete every annotation vector whose payload points at the resource. */
+  deleteAnnotationVectorsForResource(resourceId: ResourceId): Promise<void>;
 
   // Read
   searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]>;
   searchAnnotations(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]>;
+  /**
+   * Total point count across all collections (resources + annotations).
+   * Feeds the `semiont.vector.index.size` gauge.
+   */
+  count(): Promise<number>;
+
+  // Enumeration — drives the Smelter's startup reconciliation: the set of
+  // ids actually indexed, compared against what the KS says should exist.
+  /** Distinct resourceIds present in the resources collection. */
+  listResourceIds(): Promise<Set<string>>;
+  /** Distinct annotationIds present in the annotations collection. */
+  listAnnotationIds(): Promise<Set<string>>;
 }

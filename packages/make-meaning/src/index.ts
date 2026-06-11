@@ -41,9 +41,17 @@ export type { CreateResourceResult } from './stower';
 export { Browser } from './browser';
 export { CloneTokenManager } from './clone-token-manager';
 
-// Smelter — domain-event fan-in state unit (consumed by `smelter-main`'s standalone
-// container entry point; also importable directly for callers that want to
-// wire their own smelter pipeline on top of an existing `WorkerBus`).
+// Smelter — event-to-vector pipeline plus its domain-event fan-in state unit.
+// `smelter-main` (the standalone container entry point) wires the two together;
+// both are exported for callers that want to run the pipeline on top of their
+// own `WorkerBus`.
+export {
+  Smelter,
+  isEmbeddableMediaType,
+  type ReconcileSummary,
+  type ReconcileState,
+} from './smelter';
+export { WorkerContentTransport } from './worker-content-transport';
 export {
   createSmelterActorStateUnit,
   type SmelterActorStateUnit,
@@ -57,10 +65,6 @@ export * from './exchange';
 // Resource operations
 export { ResourceOperations } from './resource-operations';
 export type { CreateResourceInput } from './resource-operations';
-
-// Annotation assembly (pure functions)
-export { assembleAnnotation, applyBodyOperations } from './annotation-assembly';
-export type { AssembledAnnotation } from './annotation-assembly';
 
 // Annotation operations
 export { AnnotationOperations } from './annotation-operations';
@@ -81,7 +85,3 @@ export {
   generateResourceSummary,
   generateReferenceSuggestions,
 } from './generation/resource-generation';
-
-// Placeholder for initial build
-export const PACKAGE_NAME = '@semiont/make-meaning';
-export const VERSION = '0.1.0';

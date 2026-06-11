@@ -3,7 +3,7 @@
  *
  * Single Responsibility: View updates only
  * - Updates resource views from events
- * - Updates system views (entity types)
+ * - Updates system views (entity types, tag schemas)
  * - Rebuilds views when needed
  *
  * Does NOT handle:

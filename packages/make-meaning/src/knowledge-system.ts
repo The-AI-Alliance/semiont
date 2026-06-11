@@ -5,10 +5,10 @@
  * Nothing outside the KnowledgeSystem reads or writes the KnowledgeBase directly.
  *
  * - kb:                the durable store (event log, views, content, graph)
- * - stower:            write actor — weaves new knowledge in
- * - gatherer:          read actor — traces threads to build context
- * - matcher:           search actor — finds related threads
- * - browser:           filesystem actor — lists project directories
+ * - stower:            write actor — the single write gateway
+ * - browser:           read actor — all KB queries plus directory listings
+ * - gatherer:          context-assembly actor — builds GatheredContext from passage, graph, and vectors
+ * - matcher:           search actor — context-driven candidate search and scoring
  * - cloneTokenManager: token actor — manages resource clone tokens
  *
  * EventBus, JobQueue, and workers are peers to KnowledgeSystem, not members.

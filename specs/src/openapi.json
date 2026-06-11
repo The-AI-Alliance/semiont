@@ -92,7 +92,7 @@
     },
     "/api/resources/{id}": {
       "$ref": "paths/api_resources_{id}.json"
-    },
+    }
   },
   "components": {
     "schemas": {

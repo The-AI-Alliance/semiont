@@ -6,6 +6,10 @@ Annotation and generation workers live in **[@semiont/jobs](../../jobs/README.md
 
 Workers run in a separate **worker process** (the worker pool — [worker-main.ts](../../jobs/src/worker-main.ts) → [startWorkerProcess](../../jobs/src/worker-process.ts)). The process claims pending jobs over the bus through a `JobClaimAdapter` (reactive, SSE-driven — not a local polling loop) and emits commands on the bus when it produces annotations or resources. Every emit goes through a `SemiontSession` (`session.client.transport.emit(...)`), so the worker is an ordinary bus participant authenticated as a software agent.
 
+A job whose `job:queued` announcement found no idle eligible worker is not lost: the backend's `FsJobQueue` re-announces all pending jobs every 30 seconds (and immediately at startup), so backlog is claimed as soon as a worker frees up or reconnects.
+
+The worker's lifecycle events are mirrored into the queue files by the job command handlers (`registerJobCommandHandlers`): `job:complete` moves the job to `complete/`; `job:fail` retries it (re-queue + re-announce) while `retryCount < maxRetries`, then lands it in `failed/`; `job:report-progress` is written into the running file as live progress and doubles as a worker heartbeat — a running job with no heartbeat for 30 minutes is presumed orphaned and fed through the same retry-or-fail path. `job:cancel-requested` cancels pending jobs of the requested category. Terminal jobs are pruned after 24 hours.
+
 Workers never persist directly — the **Stower** actor subscribes to the emitted commands and handles all persistence (`eventStore.appendEvent()`). On the backend side, [`startMakeMeaning()`](../src/service.ts) owns the `JobQueue` and registers the bus command handlers; it does **not** instantiate workers.
 
 ## Available Workers

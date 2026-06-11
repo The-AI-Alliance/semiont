@@ -1,18 +1,12 @@
 /**
- * Smelter Actor
+ * Smelter — event-to-vector pipeline for the standalone smelter worker.
  *
- * Takes raw content, refines it into embedding vectors, persists them to the
- * EmbeddingStore (.semiont/embeddings/), and indexes them into the VectorStore
- * (Qdrant). Peer to the Graph Consumer.
- *
- * Pipeline:
- *   1. Subscribe to resource and annotation events from the EventStore
- *   2. Chunk resource text into overlapping passages
- *   3. Embed each chunk via the configured EmbeddingProvider
- *   4. Write vectors to EmbeddingStore (overwrite-in-place, git-durable)
- *   5. Index vectors into the VectorStore (Qdrant) for fast similarity search
- *
- * Uses the same burst-buffer RxJS pipeline as GraphDBConsumer.
+ * Consumes the smelter-relevant domain events surfaced by
+ * `SmelterActorStateUnit.events$`, reads resource content via the injected
+ * `IContentTransport` (direct working-tree reads in worker mode — see
+ * `WorkerContentTransport`), chunks and embeds it via the configured
+ * EmbeddingProvider, and indexes vectors into the VectorStore (Qdrant).
+ * `smelter-main` is the container entry point that wires this up.
  *
  * ## Per-resource serialization
  *
@@ -22,77 +16,97 @@
  * `GraphDBConsumer`, `Gatherer`, and (in a different shape) `ViewManager`.
  * See `packages/core/src/serialize-per-key.ts` for the shared primitive
  * used by RPC-style services.
+ *
+ * ## Batching
+ *
+ * `burstBuffer` collects event bursts per resource; consecutive same-type
+ * runs within a burst share a single `embedBatch()` call.
+ *
+ * ## Reconciliation
+ *
+ * Qdrant is an ephemeral projection of the event log. `reconcile()` brings
+ * it back in sync at startup — after a wiped volume, or after events missed
+ * while the worker was down. See the method doc for the algorithm.
  */
 
-import { Subject, Subscription, from } from 'rxjs';
+import { Observable, Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
-import { type EventStore, type ViewStorage } from '@semiont/event-sourcing';
 import { burstBuffer, errField } from '@semiont/core';
-import type { Logger, StoredEvent, PersistedEvent, EventOfType } from '@semiont/core';
+import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, IContentTransport } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import type { EventBus } from '@semiont/core';
+import { getExactText, getTargetSelector, getPrimaryMediaType, decodeRepresentation } from '@semiont/core';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
-import type { EmbeddingProvider } from '@semiont/vectors';
-import type { ChunkingConfig } from '@semiont/vectors';
-import { chunkText, DEFAULT_CHUNKING_CONFIG } from '@semiont/vectors';
-import type { WorkingTreeStore } from '@semiont/content';
-import { getExactText, getTargetSelector } from '@semiont/core';
-import type { EmbeddingStore } from './embedding-store.js';
-import { partitionByType } from './batch-utils.js';
+import type { EmbeddingProvider, ChunkingConfig } from '@semiont/vectors';
+import { chunkText } from '@semiont/vectors';
 import { withActorSpan } from '@semiont/observability';
+import { busRequest, type BusRequestPrimitive } from '@semiont/sdk';
+import { partitionByType } from './batch-utils';
+import type { SmelterEvent } from './smelter-actor-state-unit';
+
+/**
+ * Media types the smelter embeds. Binary types decode to mojibake that
+ * pollutes the vector space — PDF foremost; see
+ * `.plans/SMELTER-MEDIA-TYPES.md` for the extraction stage that will
+ * eventually let them carry analytical weight too.
+ */
+export function isEmbeddableMediaType(mediaType: string | undefined): boolean {
+  return !!mediaType && mediaType.startsWith('text/');
+}
+
+export interface ReconcileSummary {
+  resourcesEmbedded: number;
+  resourceVectorsDeleted: number;
+  annotationsEmbedded: number;
+  annotationVectorsDeleted: number;
+}
+
+export type ReconcileState =
+  | { phase: 'pending' }
+  | { phase: 'running' }
+  | { phase: 'done'; summary: ReconcileSummary }
+  | { phase: 'failed'; error: string };
 
 export class Smelter {
-  private static readonly SMELTER_RELEVANT_EVENTS: Set<PersistedEvent['type']> = new Set([
-    'yield:created', 'yield:updated', 'yield:representation-added',
-    'mark:archived', 'mark:added', 'mark:removed',
-  ]);
-
   private static readonly BURST_WINDOW_MS = 50;
   private static readonly MAX_BATCH_SIZE = 100;
   private static readonly IDLE_TIMEOUT_MS = 200;
+  private static readonly RECONCILE_PAGE_SIZE = 200;
 
-  private _globalSubscriptions: Subscription[] = [];
-  private eventSubject = new Subject<StoredEvent>();
+  private eventSubject = new Subject<SmelterEvent>();
+  private sourceSubscription: Subscription | null = null;
   private pipelineSubscription: Subscription | null = null;
-  private readonly logger: Logger;
-  private readonly chunkingConfig: ChunkingConfig;
+  private _eventsProcessed = 0;
+  private _reconcileState: ReconcileState = { phase: 'pending' };
 
   constructor(
-    _eventStore: EventStore,
-    private eventBus: EventBus,
+    private events$: Observable<SmelterEvent>,
     private vectorStore: VectorStore,
     private embeddingProvider: EmbeddingProvider,
-    private contentStore: WorkingTreeStore,
-    private embeddingStore: EmbeddingStore,
-    private viewStorage: ViewStorage,
-    logger: Logger,
-    chunkingConfig?: ChunkingConfig,
-  ) {
-    this.logger = logger;
-    this.chunkingConfig = chunkingConfig ?? DEFAULT_CHUNKING_CONFIG;
+    private content: IContentTransport,
+    private bus: BusRequestPrimitive,
+    private chunkingConfig: ChunkingConfig,
+    private logger: Logger,
+  ) {}
+
+  get eventsProcessed(): number {
+    return this._eventsProcessed;
   }
 
-  async initialize(): Promise<void> {
-    this.logger.info('Smelter actor initializing');
+  get reconcileState(): ReconcileState {
+    return this._reconcileState;
+  }
 
-    for (const eventType of Smelter.SMELTER_RELEVANT_EVENTS) {
-      this._globalSubscriptions.push(
-        this.eventBus.getDomainEvent(eventType).subscribe(
-          (storedEvent: StoredEvent) => this.eventSubject.next(storedEvent)
-        )
-      );
-    }
-
+  initialize(): void {
     this.pipelineSubscription = this.eventSubject.pipe(
-      groupBy((se: StoredEvent) => se.resourceId ?? '__unknown__'),
+      groupBy((e: SmelterEvent) => e.resourceId ?? '__unknown__'),
       mergeMap((group) =>
         group.pipe(
-          burstBuffer<StoredEvent>({
+          burstBuffer<SmelterEvent>({
             burstWindowMs: Smelter.BURST_WINDOW_MS,
             maxBatchSize: Smelter.MAX_BATCH_SIZE,
             idleTimeoutMs: Smelter.IDLE_TIMEOUT_MS,
           }),
-          concatMap((eventOrBatch: StoredEvent | StoredEvent[]) => {
+          concatMap((eventOrBatch: SmelterEvent | SmelterEvent[]) => {
             if (Array.isArray(eventOrBatch)) {
               return from(
                 withActorSpan('smelter', 'batch', () => this.processBatch(eventOrBatch), {
@@ -101,174 +115,34 @@ export class Smelter {
               );
             }
             return from(
-              withActorSpan('smelter', eventOrBatch.type as string, () => this.safeProcessEvent(eventOrBatch)),
+              withActorSpan('smelter', eventOrBatch.type, () => this.safeProcessEvent(eventOrBatch)),
             );
           }),
         ),
       ),
     ).subscribe({
-      error: (err) => this.logger.error('Smelter pipeline error', { error: err }),
+      error: (err) => this.logger.error('Smelter pipeline error', { error: errField(err) }),
     });
 
-    this.logger.info('Smelter actor initialized');
+    this.sourceSubscription = this.events$.subscribe((event) => {
+      this.logger.debug('Bus event received', { type: event.type, resourceId: event.resourceId });
+      this.eventSubject.next(event);
+    });
+
+    this.logger.info('Smelter pipeline initialized');
   }
 
-  async stop(): Promise<void> {
-    for (const sub of this._globalSubscriptions) sub.unsubscribe();
-    this._globalSubscriptions = [];
+  stop(): void {
+    this.sourceSubscription?.unsubscribe();
+    this.sourceSubscription = null;
     this.pipelineSubscription?.unsubscribe();
+    this.pipelineSubscription = null;
     this.eventSubject.complete();
-    this.logger.info('Smelter actor stopped');
+    this.logger.info('Smelter stopped');
   }
 
-  /**
-   * Rebuild the vector store from the EmbeddingStore (.semiont/embeddings/).
-   *
-   * For each stored file, checks whether the model matches the configured
-   * provider. On mismatch, re-embeds from the stored text and overwrites the
-   * file before upserting into Qdrant. On match, loads the stored vectors
-   * directly — no embedding provider calls needed.
-   */
-  async rebuildAll(): Promise<void> {
-    this.logger.info('Rebuilding vector store from EmbeddingStore');
-
-    await this.vectorStore.clearAll();
-
-    const currentModel = this.embeddingProvider.model();
-    const currentDimensions = this.embeddingProvider.dimensions();
-
-    // ── Resources ─────────────────────────────────────────────────────────────
-    const resourceIds = await this.embeddingStore.getAllResourceIds();
-    this.logger.info('Found resource embedding files', { count: resourceIds.length });
-
-    let resourcesIndexed = 0;
-
-    for (const rid of resourceIds) {
-      const resourceId = makeResourceId(rid);
-      const stored = await this.embeddingStore.readResourceEmbeddings(resourceId);
-      if (!stored || stored.chunks.length === 0) continue;
-
-      let chunks: EmbeddingChunk[];
-
-      if (stored.model !== currentModel) {
-        // Model mismatch — re-embed from stored text
-        this.logger.info('Re-embedding resource (model mismatch)', {
-          resourceId: rid, storedModel: stored.model, currentModel,
-        });
-        const texts = stored.chunks.map(c => c.text);
-        const embeddings = await this.embeddingProvider.embedBatch(texts);
-        chunks = stored.chunks.map((c, i) => ({
-          chunkIndex: c.chunkIndex,
-          text: c.text,
-          embedding: embeddings[i],
-        }));
-        await this.embeddingStore.writeResourceChunks(resourceId, currentModel, currentDimensions, chunks);
-      } else {
-        chunks = stored.chunks;
-      }
-
-      await this.vectorStore.upsertResourceVectors(resourceId, chunks);
-      resourcesIndexed++;
-    }
-
-    // ── Annotations ───────────────────────────────────────────────────────────
-    const annotationIds = await this.embeddingStore.getAllAnnotationIds();
-    this.logger.info('Found annotation embedding files', { count: annotationIds.length });
-
-    let annotationsIndexed = 0;
-
-    for (const aid of annotationIds) {
-      const annotationId = makeAnnotationId(aid);
-      const stored = await this.embeddingStore.readAnnotationEmbedding(annotationId);
-      if (!stored) continue;
-
-      let embedding: number[];
-
-      if (stored.model !== currentModel) {
-        this.logger.info('Re-embedding annotation (model mismatch)', {
-          annotationId: aid, storedModel: stored.model, currentModel,
-        });
-        embedding = await this.embeddingProvider.embed(stored.text);
-        await this.embeddingStore.writeAnnotationEmbedding(
-          annotationId,
-          makeResourceId(stored.resourceId),
-          currentModel,
-          currentDimensions,
-          stored.text,
-          embedding,
-          stored.motivation,
-          stored.entityTypes,
-        );
-      } else {
-        embedding = stored.embedding;
-      }
-
-      const payload: AnnotationPayload = {
-        annotationId,
-        resourceId: makeResourceId(stored.resourceId),
-        motivation: stored.motivation,
-        entityTypes: stored.entityTypes,
-        exactText: stored.text,
-      };
-      await this.vectorStore.upsertAnnotationVector(annotationId, embedding, payload);
-      annotationsIndexed++;
-    }
-
-    // ── Back-fill: resources in materialized views with no embedding file ─────
-    // Catches resources where the file was never written (crash mid-embed,
-    // pre-migration KB, etc.). Uses the already-rebuilt view store rather than
-    // scanning the event log — cheaper and provides storageUri directly.
-    const storedResourceIdSet = new Set(resourceIds);
-    const allViews = await this.viewStorage.getAll();
-    let backfilled = 0;
-
-    for (const view of allViews) {
-      const ridStr = view.resource['@id'];
-      if (storedResourceIdSet.has(ridStr)) continue;
-      if (view.resource.archived) continue;
-      if (!view.resource.storageUri) continue;
-
-      // Views can reference storageUris whose files have been deleted from the
-      // working tree. WorkingTreeStore.retrieve throws on missing files, so we
-      // must catch and skip — this is a best-effort back-fill, not a hard error.
-      let content: Buffer;
-      try {
-        content = await this.contentStore.retrieve(view.resource.storageUri);
-      } catch (err) {
-        this.logger.warn('Smelter back-fill skipped — content missing', {
-          resourceId: ridStr, storageUri: view.resource.storageUri,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        continue;
-      }
-
-      const text = new TextDecoder().decode(content);
-      if (!text.trim()) continue;
-
-      const chunks = chunkText(text, this.chunkingConfig);
-      if (chunks.length === 0) continue;
-
-      const rid = makeResourceId(ridStr);
-      const embeddings = await this.embeddingProvider.embedBatch(chunks);
-      const embeddingChunks: EmbeddingChunk[] = chunks.map((chunkText, i) => ({
-        chunkIndex: i, text: chunkText, embedding: embeddings[i],
-      }));
-
-      await this.embeddingStore.writeResourceChunks(rid, currentModel, currentDimensions, embeddingChunks);
-      await this.vectorStore.upsertResourceVectors(rid, embeddingChunks);
-      backfilled++;
-      resourcesIndexed++;
-
-      this.logger.info('Smelter back-filled missing resource embedding', { resourceId: ridStr });
-    }
-
-    this.logger.info('Vector store rebuild complete', { resourcesIndexed, annotationsIndexed, backfilled });
-  }
-
-  private async processBatch(events: StoredEvent[]): Promise<void> {
-    const runs = partitionByType(events);
-
-    for (const run of runs) {
+  private async processBatch(events: SmelterEvent[]): Promise<void> {
+    for (const run of partitionByType(events)) {
       try {
         if (run.length === 1) {
           await this.safeProcessEvent(run[0]);
@@ -288,10 +162,8 @@ export class Smelter {
   /**
    * Batch-optimized processing for consecutive events of the same type.
    */
-  private async applyBatchByType(events: StoredEvent[]): Promise<void> {
-    const type = events[0].type;
-
-    switch (type) {
+  private async applyBatchByType(events: SmelterEvent[]): Promise<void> {
+    switch (events[0].type) {
       case 'yield:created':
         await this.batchResourceCreated(events);
         break;
@@ -305,79 +177,188 @@ export class Smelter {
     }
   }
 
+  private async safeProcessEvent(event: SmelterEvent): Promise<void> {
+    try {
+      await this.processEvent(event);
+      this._eventsProcessed++;
+    } catch (err) {
+      this.logger.error('Smelter failed to process event', {
+        type: event.type,
+        resourceId: event.resourceId,
+        error: errField(err),
+      });
+    }
+  }
+
+  private async processEvent(event: SmelterEvent): Promise<void> {
+    switch (event.type) {
+      case 'yield:created':
+        await this.embedResource(event, 'Indexed resource');
+        break;
+      case 'yield:updated':
+      case 'yield:representation-added':
+        await this.embedResource(event, 'Re-embedded resource');
+        break;
+      case 'mark:archived':
+        await this.handleResourceArchived(event);
+        break;
+      case 'mark:added':
+        await this.handleAnnotationAdded(event);
+        break;
+      case 'mark:removed':
+        await this.handleAnnotationRemoved(event);
+        break;
+    }
+  }
+
+  /**
+   * Resolve a resource's embeddable text: bytes via the content transport,
+   * gated to text media types, decoded charset-aware. Returns null (logged)
+   * when the resource is non-text, unavailable, or empty — callers skip it.
+   */
+  private async fetchEmbeddableText(resourceId: string): Promise<string | null> {
+    try {
+      const { data, contentType } = await this.content.getBinary(makeResourceId(resourceId));
+      if (!isEmbeddableMediaType(contentType)) {
+        this.logger.debug('Skipping non-text resource', { resourceId, contentType });
+        return null;
+      }
+      const text = decodeRepresentation(Buffer.from(data), contentType);
+      return text.trim() ? text : null;
+    } catch (error) {
+      this.logger.warn('Content unavailable for embedding', { resourceId, error: errField(error) });
+      return null;
+    }
+  }
+
+  private async embedResource(event: SmelterEvent, logMessage: string): Promise<void> {
+    const rid = event.resourceId;
+    if (!rid) return;
+
+    const text = await this.fetchEmbeddableText(rid);
+    if (!text) return;
+
+    const chunks = chunkText(text, this.chunkingConfig);
+    if (chunks.length === 0) return;
+
+    const embeddings = await this.embeddingProvider.embedBatch(chunks);
+    const embeddingChunks: EmbeddingChunk[] = chunks.map((t, i) => ({
+      chunkIndex: i, text: t, embedding: embeddings[i],
+    }));
+
+    await this.vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks);
+    this.logger.info(logMessage, { resourceId: rid, chunks: chunks.length });
+  }
+
+  private async handleResourceArchived(event: SmelterEvent): Promise<void> {
+    const rid = event.resourceId;
+    if (!rid) return;
+    await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
+    // Annotations anchored to an archived resource must not surface in
+    // search either — and reconcile() treats them as orphans, so deleting
+    // them here keeps the live path and a restart in agreement.
+    await this.vectorStore.deleteAnnotationVectorsForResource(makeResourceId(rid));
+    this.logger.info('Deleted vectors for archived resource', { resourceId: rid });
+  }
+
+  private async handleAnnotationAdded(event: SmelterEvent): Promise<void> {
+    const annotation = event.payload.annotation as Annotation | undefined;
+    if (!annotation?.id) return;
+
+    const rid = event.resourceId;
+    if (!rid) return;
+
+    const selector = getTargetSelector(annotation.target);
+    const exactText = getExactText(selector);
+    if (!exactText?.trim()) return;
+
+    const aid = makeAnnotationId(annotation.id);
+    const embedding = await this.embeddingProvider.embed(exactText);
+
+    const payload: AnnotationPayload = {
+      annotationId: aid,
+      resourceId: makeResourceId(rid),
+      motivation: annotation.motivation ?? '',
+      entityTypes: ((annotation as Record<string, unknown>).entityTypes as string[] | undefined) ?? [],
+      exactText,
+    };
+    await this.vectorStore.upsertAnnotationVector(aid, embedding, payload);
+    this.logger.info('Indexed annotation', { annotationId: String(aid) });
+  }
+
+  private async handleAnnotationRemoved(event: SmelterEvent): Promise<void> {
+    const annotationId = event.payload.annotationId as string | undefined;
+    if (!annotationId) return;
+    const aid = makeAnnotationId(annotationId);
+    await this.vectorStore.deleteAnnotationVector(aid);
+    this.logger.info('Deleted annotation vector', { annotationId });
+  }
+
   /**
    * Batch-embed chunks from multiple yield:created events in a single
-   * embedBatch() call, then write to EmbeddingStore and index per resource.
+   * embedBatch() call, then index per resource.
    */
-  private async batchResourceCreated(events: StoredEvent[]): Promise<void> {
-    const resourceData: { rid: ReturnType<typeof makeResourceId>; chunks: string[] }[] = [];
+  private async batchResourceCreated(events: SmelterEvent[]): Promise<void> {
+    const resourceData: { rid: ResourceId; chunks: string[] }[] = [];
     const allChunks: string[] = [];
 
-    for (const storedEvent of events) {
-      const event = storedEvent as EventOfType<'yield:created'>;
-      const rid = makeResourceId(event.resourceId!);
-      const storageUri = event.payload.storageUri;
-      if (!storageUri) continue;
+    for (const event of events) {
+      const rid = event.resourceId;
+      if (!rid) continue;
 
-      const content = await this.contentStore.retrieve(storageUri);
-      if (!content) continue;
-
-      const text = new TextDecoder().decode(content);
-      if (!text.trim()) continue;
+      const text = await this.fetchEmbeddableText(rid);
+      if (!text) continue;
 
       const chunks = chunkText(text, this.chunkingConfig);
       if (chunks.length === 0) continue;
 
-      resourceData.push({ rid, chunks });
+      resourceData.push({ rid: makeResourceId(rid), chunks });
       allChunks.push(...chunks);
     }
 
     if (allChunks.length === 0) return;
 
     const allEmbeddings = await this.embeddingProvider.embedBatch(allChunks);
-    const model = this.embeddingProvider.model();
-    const dimensions = this.embeddingProvider.dimensions();
 
     let offset = 0;
     for (const { rid, chunks } of resourceData) {
-      const embeddingChunks: EmbeddingChunk[] = chunks.map((text, i) => ({
-        chunkIndex: i, text, embedding: allEmbeddings[offset + i],
+      const embeddingChunks: EmbeddingChunk[] = chunks.map((t, i) => ({
+        chunkIndex: i, text: t, embedding: allEmbeddings[offset + i],
       }));
-
-      await this.embeddingStore.writeResourceChunks(rid, model, dimensions, embeddingChunks);
       await this.vectorStore.upsertResourceVectors(rid, embeddingChunks);
-      this.logger.debug('Smelter batch-indexed resource', {
-        resourceId: String(rid), chunks: embeddingChunks.length,
-      });
-
+      this.logger.info('Batch-indexed resource', { resourceId: String(rid), chunks: chunks.length });
       offset += chunks.length;
     }
+
+    this._eventsProcessed += events.length;
   }
 
   /**
    * Batch-embed exact texts from multiple mark:added events in a single
-   * embedBatch() call, then write to EmbeddingStore and index per annotation.
+   * embedBatch() call, then index per annotation.
    */
-  private async batchAnnotationAdded(events: StoredEvent[]): Promise<void> {
+  private async batchAnnotationAdded(events: SmelterEvent[]): Promise<void> {
     const annotationData: {
-      rid: ReturnType<typeof makeResourceId>;
-      aid: ReturnType<typeof makeAnnotationId>;
+      rid: ResourceId;
+      aid: AnnotationId;
       exactText: string;
       motivation: string;
       entityTypes: string[];
     }[] = [];
 
-    for (const storedEvent of events) {
-      const event = storedEvent as EventOfType<'mark:added'>;
-      const annotation = event.payload.annotation;
+    for (const event of events) {
+      const annotation = event.payload.annotation as Annotation | undefined;
       if (!annotation?.id) continue;
+
+      const rid = event.resourceId;
+      if (!rid) continue;
 
       const selector = getTargetSelector(annotation.target);
       const exactText = getExactText(selector);
       if (!exactText?.trim()) continue;
 
       annotationData.push({
-        rid: makeResourceId(event.resourceId!),
+        rid: makeResourceId(rid),
         aid: makeAnnotationId(annotation.id),
         exactText,
         motivation: annotation.motivation ?? '',
@@ -388,220 +369,150 @@ export class Smelter {
     if (annotationData.length === 0) return;
 
     const allEmbeddings = await this.embeddingProvider.embedBatch(
-      annotationData.map(a => a.exactText),
+      annotationData.map((a) => a.exactText),
     );
-    const model = this.embeddingProvider.model();
-    const dimensions = this.embeddingProvider.dimensions();
 
     for (let i = 0; i < annotationData.length; i++) {
       const { rid, aid, exactText, motivation, entityTypes } = annotationData[i];
-      const embedding = allEmbeddings[i];
-
-      await this.embeddingStore.writeAnnotationEmbedding(
-        aid, rid, model, dimensions, exactText, embedding, motivation, entityTypes,
-      );
-
       const payload: AnnotationPayload = {
         annotationId: aid, resourceId: rid, motivation, entityTypes, exactText,
       };
-      await this.vectorStore.upsertAnnotationVector(aid, embedding, payload);
-      this.logger.debug('Smelter batch-indexed annotation', {
-        annotationId: String(aid), resourceId: String(rid),
-      });
+      await this.vectorStore.upsertAnnotationVector(aid, allEmbeddings[i], payload);
+      this.logger.info('Batch-indexed annotation', { annotationId: String(aid) });
     }
+
+    this._eventsProcessed += events.length;
   }
 
-  private async safeProcessEvent(storedEvent: StoredEvent): Promise<void> {
-    try {
-      await this.processEvent(storedEvent);
-    } catch (err) {
-      this.logger.error('Smelter failed to process event', {
-        type: storedEvent.type,
-        resourceId: storedEvent.resourceId,
-        error: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-      });
-    }
-  }
-
-  private async processEvent(storedEvent: StoredEvent): Promise<void> {
-    switch (storedEvent.type) {
-      case 'yield:created':
-        await this.handleResourceCreated(storedEvent as EventOfType<'yield:created'>);
-        break;
-      case 'yield:updated':
-        await this.handleResourceUpdated(storedEvent as EventOfType<'yield:updated'>);
-        break;
-      case 'yield:representation-added':
-        await this.handleRepresentationAdded(storedEvent as EventOfType<'yield:representation-added'>);
-        break;
-      case 'mark:archived':
-        await this.handleResourceArchived(storedEvent as EventOfType<'mark:archived'>);
-        break;
-      case 'mark:added':
-        await this.handleAnnotationAdded(storedEvent as EventOfType<'mark:added'>);
-        break;
-      case 'mark:removed':
-        await this.handleAnnotationRemoved(storedEvent as EventOfType<'mark:removed'>);
-        break;
-    }
-  }
-
-  private async handleResourceCreated(event: EventOfType<'yield:created'>): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    const rid = makeResourceId(event.resourceId!);
-    const storageUri = event.payload.storageUri;
-    if (!storageUri) return;
-
-    this.logger.info('Smelter handleResourceCreated start', {
-      resourceId: String(rid), storageUri,
-      heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-    });
-
-    const content = await this.contentStore.retrieve(storageUri);
-    if (!content) return;
-
-    const text = new TextDecoder().decode(content);
-    if (!text.trim()) return;
-
-    const chunks = chunkText(text, this.chunkingConfig);
-    if (chunks.length === 0) return;
-
-    this.logger.info('Smelter chunked resource', {
-      resourceId: String(rid), textBytes: text.length, chunkCount: chunks.length,
-      heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-    });
-
-    const embeddings = await this.embeddingProvider.embedBatch(chunks);
-    const model = this.embeddingProvider.model();
-    const dimensions = this.embeddingProvider.dimensions();
-
-    this.logger.info('Smelter embedded resource', {
-      resourceId: String(rid), chunkCount: chunks.length, dimensions,
-      heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-    });
-
-    const embeddingChunks: EmbeddingChunk[] = chunks.map((text, i) => ({
-      chunkIndex: i, text, embedding: embeddings[i],
-    }));
-
-    await this.embeddingStore.writeResourceChunks(rid, model, dimensions, embeddingChunks);
-
-    this.logger.info('Smelter wrote resource embeddings to store', {
-      resourceId: String(rid), chunkCount: embeddingChunks.length,
-      heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-    });
-
-    await this.vectorStore.upsertResourceVectors(rid, embeddingChunks);
-    this.logger.info('Smelter indexed resource', {
-      resourceId: String(rid), chunks: embeddingChunks.length,
-      heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-    });
-  }
+  // ── Reconciliation ───────────────────────────────────────────────────
 
   /**
-   * Re-embed a resource whose content has changed in-place.
+   * Reconcile the vector store against the KS catalog.
    *
-   * Used by yield:updated and yield:representation-added handlers. Reads the
-   * current storageUri from the materialized view (which is updated before the
-   * EventBus fires), deletes stale Qdrant vectors, and overwrites the
-   * EmbeddingStore file with fresh chunks.
+   * Lists what IS indexed (via the store's id enumeration) and what SHOULD
+   * be (non-archived resources with embeddable media types, plus their
+   * exact-text annotations, via the `browse:*` RPC channels), then
+   * re-embeds what's missing and deletes what shouldn't be there — vectors
+   * for resources that were hard-deleted, archived while the worker was
+   * down, or whose media type the smelter no longer embeds.
+   *
+   * Call after the live subscription is attached so nothing falls in the
+   * gap. Runs beside the live pipeline rather than through it: re-embeds
+   * are sequential (one embedding call in flight — the same per-resource
+   * call shape as the live path), and the two paths converge because every
+   * upsert replaces a resource's full vector set from current content.
+   * The index snapshot is taken BEFORE the catalog listing so a resource
+   * indexed by a live event mid-reconcile is never mistaken for an orphan.
    */
-  private async reembedResource(rid: ReturnType<typeof makeResourceId>): Promise<void> {
-    const view = await this.viewStorage.get(rid);
-    const storageUri = view?.resource.storageUri;
-    if (!storageUri) return;
+  async reconcile(): Promise<ReconcileSummary> {
+    this._reconcileState = { phase: 'running' };
+    try {
+      const [indexedResources, indexedAnnotations] = await Promise.all([
+        this.vectorStore.listResourceIds(),
+        this.vectorStore.listAnnotationIds(),
+      ]);
+      const resources = await this.listAllResources();
+      this.logger.info('Reconcile started', {
+        indexedResources: indexedResources.size,
+        indexedAnnotations: indexedAnnotations.size,
+        liveResources: resources.length,
+      });
 
-    const content = await this.contentStore.retrieve(storageUri);
-    if (!content) return;
+      const summary: ReconcileSummary = {
+        resourcesEmbedded: 0,
+        resourceVectorsDeleted: 0,
+        annotationsEmbedded: 0,
+        annotationVectorsDeleted: 0,
+      };
 
-    const text = new TextDecoder().decode(content);
-    if (!text.trim()) return;
+      const embeddableIds = new Set<string>();
+      for (const resource of resources) {
+        if (resource['@id'] && isEmbeddableMediaType(getPrimaryMediaType(resource))) {
+          embeddableIds.add(resource['@id']);
+        }
+      }
 
-    const chunks = chunkText(text, this.chunkingConfig);
-    if (chunks.length === 0) return;
+      for (const rid of indexedResources) {
+        if (embeddableIds.has(rid)) continue;
+        await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
+        summary.resourceVectorsDeleted++;
+      }
 
-    const embeddings = await this.embeddingProvider.embedBatch(chunks);
-    const model = this.embeddingProvider.model();
-    const dimensions = this.embeddingProvider.dimensions();
+      for (const rid of embeddableIds) {
+        if (indexedResources.has(rid)) continue;
+        await this.safeProcessEvent({ type: 'yield:created', resourceId: rid, payload: {} });
+        summary.resourcesEmbedded++;
+      }
 
-    const embeddingChunks: EmbeddingChunk[] = chunks.map((chunkText, i) => ({
-      chunkIndex: i, text: chunkText, embedding: embeddings[i],
-    }));
+      // Annotations: every live resource is consulted — not just the
+      // re-embedded ones — so orphan detection sees the full live set.
+      const liveAnnotationIds = new Set<string>();
+      const missing: SmelterEvent[] = [];
+      for (const resource of resources) {
+        const rid = resource['@id'];
+        if (!rid) continue;
+        const { annotations } = await busRequest<{ annotations: Annotation[] }>(
+          this.bus,
+          'browse:annotations-requested',
+          { resourceId: rid },
+          'browse:annotations-result',
+          'browse:annotations-failed',
+        );
+        for (const annotation of annotations) {
+          const exactText = getExactText(getTargetSelector(annotation.target));
+          if (!annotation.id || !exactText?.trim()) continue;
+          liveAnnotationIds.add(annotation.id);
+          if (!indexedAnnotations.has(annotation.id)) {
+            missing.push({ type: 'mark:added', resourceId: rid, payload: { resourceId: rid, annotation } });
+          }
+        }
+      }
 
-    await this.embeddingStore.writeResourceChunks(rid, model, dimensions, embeddingChunks);
-    // Delete-then-upsert to purge stale chunk indices if the chunk count changed
-    await this.vectorStore.deleteResourceVectors(rid);
-    await this.vectorStore.upsertResourceVectors(rid, embeddingChunks);
+      for (let i = 0; i < missing.length; i += Smelter.MAX_BATCH_SIZE) {
+        const slice = missing.slice(i, i + Smelter.MAX_BATCH_SIZE);
+        try {
+          await this.batchAnnotationAdded(slice);
+          summary.annotationsEmbedded += slice.length;
+        } catch (error) {
+          this.logger.error('Reconcile failed to embed annotation slice', {
+            runSize: slice.length,
+            error: errField(error),
+          });
+        }
+      }
 
-    this.logger.debug('Smelter re-embedded resource', {
-      resourceId: String(rid), chunks: embeddingChunks.length,
-    });
+      for (const aid of indexedAnnotations) {
+        if (liveAnnotationIds.has(aid)) continue;
+        await this.vectorStore.deleteAnnotationVector(makeAnnotationId(aid));
+        summary.annotationVectorsDeleted++;
+      }
+
+      this._reconcileState = { phase: 'done', summary };
+      this.logger.info('Reconcile complete', { ...summary });
+      return summary;
+    } catch (error) {
+      this._reconcileState = {
+        phase: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+      };
+      this.logger.error('Reconcile failed', { error: errField(error) });
+      throw error;
+    }
   }
 
-  private async handleResourceUpdated(event: EventOfType<'yield:updated'>): Promise<void> {
-    await this.reembedResource(makeResourceId(event.resourceId!));
-  }
-
-  private async handleRepresentationAdded(event: EventOfType<'yield:representation-added'>): Promise<void> {
-    await this.reembedResource(makeResourceId(event.resourceId!));
-  }
-
-  private async handleResourceArchived(event: EventOfType<'mark:archived'>): Promise<void> {
-    const rid = makeResourceId(event.resourceId!);
-    await this.vectorStore.deleteResourceVectors(rid);
-    await this.embeddingStore.deleteResourceEmbeddings(rid);
-    this.logger.debug('Smelter deleted resource vectors', { resourceId: String(rid) });
-  }
-
-  private async handleAnnotationAdded(event: EventOfType<'mark:added'>): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    const annotation = event.payload.annotation;
-    if (!annotation || !annotation.id) return;
-
-    const rid = makeResourceId(event.resourceId!);
-    const aid = makeAnnotationId(annotation.id);
-
-    const selector = getTargetSelector(annotation.target);
-    const exactText = getExactText(selector);
-    if (!exactText || !exactText.trim()) return;
-
-    this.logger.info('Smelter handleAnnotationAdded start', {
-      annotationId: String(aid), resourceId: String(rid), textLength: exactText.length,
-      heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-    });
-
-    const embedding = await this.embeddingProvider.embed(exactText);
-    const model = this.embeddingProvider.model();
-    const dimensions = this.embeddingProvider.dimensions();
-    const motivation = annotation.motivation ?? '';
-    const entityTypes = ((annotation as Record<string, unknown>).entityTypes as string[] | undefined) ?? [];
-
-    await this.embeddingStore.writeAnnotationEmbedding(
-      aid, rid, model, dimensions, exactText, embedding, motivation, entityTypes,
-    );
-
-    const payload: AnnotationPayload = {
-      annotationId: aid, resourceId: rid, motivation, entityTypes, exactText,
-    };
-    await this.vectorStore.upsertAnnotationVector(aid, embedding, payload);
-
-    this.logger.info('Smelter indexed annotation', {
-      annotationId: String(aid), resourceId: String(rid),
-    });
-  }
-
-  private async handleAnnotationRemoved(event: EventOfType<'mark:removed'>): Promise<void> {
-    const annotationId = String(event.payload.annotationId);
-    if (!annotationId) return;
-
-    const aid = makeAnnotationId(annotationId);
-
-    await this.vectorStore.deleteAnnotationVector(aid);
-    await this.embeddingStore.deleteAnnotationEmbedding(aid);
-
-    this.logger.debug('Smelter deleted annotation vector', { annotationId: String(aid) });
+  /** Page through `browse:resources-requested` until the catalog is exhausted. */
+  private async listAllResources(): Promise<ResourceDescriptor[]> {
+    const all: ResourceDescriptor[] = [];
+    for (;;) {
+      const page = await busRequest<{ resources: ResourceDescriptor[]; total: number }>(
+        this.bus,
+        'browse:resources-requested',
+        { archived: false, offset: all.length, limit: Smelter.RECONCILE_PAGE_SIZE },
+        'browse:resources-result',
+        'browse:resources-failed',
+      );
+      all.push(...page.resources);
+      if (page.resources.length === 0 || all.length >= page.total) return all;
+    }
   }
 }

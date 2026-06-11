@@ -24,7 +24,7 @@ apps/cli/src/core/commands/my-command.ts
 
 ### 2. Define the schema
 
-Use `ApiOptionsSchema` (for commands that call the API) or `BaseOptionsSchema` (for commands that don't):
+There are three schema tiers in `base-options-schema.ts`: `BaseOptionsSchema` (fields shared by every command), `OpsOptionsSchema` (adds `--environment`, for platform/service commands), and `ApiOptionsSchema` (adds `--bus`, for commands that talk to the backend). Knowledge-base commands use `ApiOptionsSchema`:
 
 ```typescript
 import { z } from 'zod';
@@ -40,30 +40,23 @@ export const MyCommandOptionsSchema = ApiOptionsSchema.extend({
 export type MyCommandOptions = z.output<typeof MyCommandOptionsSchema>;
 ```
 
-`ApiOptionsSchema` extends `BaseOptionsSchema` with `--bus`, `--user`, and `--password` connection overrides. Only use it when the command calls `createAuthenticatedClient`.
+`ApiOptionsSchema` extends `BaseOptionsSchema` with `--bus` (alias `-b`, fallback `$SEMIONT_BUS`). There are no `--user`/`--password` flags — authentication comes from the token cached by `semiont login`. Only use it when the command calls `loadCachedClient`.
 
 ### 3. Implement the handler
 
 ```typescript
 import { CommandResults } from '../command-types.js';
-import { findProjectRoot } from '../config-loader.js';
-import { createAuthenticatedClient } from '../client-factory.js';
+import { loadCachedClient, resolveBusUrl } from '../client-factory.js';
 
 export async function runMyCommand(options: MyCommandOptions): Promise<CommandResults> {
   const startTime = Date.now();
-  const projectRoot = findProjectRoot();
-  const environment = options.environment!;
-
-  const { client, token } = await createAuthenticatedClient(
-    projectRoot,
-    environment,
-    { bus: options.bus, user: options.user, password: options.password }
-  );
+  const rawBusUrl = resolveBusUrl(options.bus);
+  const { semiont } = loadCachedClient(rawBusUrl);
 
   const [rawResourceId] = options.args;
 
-  // Call the API
-  const result = await client.someMethod(rawResourceId, { auth: token });
+  // Call the API through the SDK client's namespaces
+  const result = await semiont.myNamespace.someMethod(rawResourceId);
 
   // Write JSON to stdout; progress label to stderr
   if (!options.quiet) process.stderr.write(`Done: ${rawResourceId}\n`);
@@ -71,7 +64,7 @@ export async function runMyCommand(options: MyCommandOptions): Promise<CommandRe
 
   return {
     command: 'my-command',
-    environment,
+    environment: rawBusUrl,
     timestamp: new Date(),
     duration: Date.now() - startTime,
     summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },
@@ -84,6 +77,8 @@ export async function runMyCommand(options: MyCommandOptions): Promise<CommandRe
   };
 }
 ```
+
+`loadCachedClient(rawBusUrl)` returns `{ semiont, token }` — a `SemiontClient` from `@semiont/sdk` plus the cached `AccessToken` (useful for listen-style state units). It throws a user-facing "Not logged in" error if no valid token exists for that bus URL.
 
 ### 4. Export the command definition
 
@@ -115,7 +110,7 @@ export const myCmd = new CommandBuilder()
   .build();
 ```
 
-Use `withBaseArgs` instead of `withApiArgs` if the command does not call the API.
+Use `withOpsArgs` instead of `withApiArgs` if the command operates on environments/services (adds `--environment`/`-e` instead of `--bus`/`-b`).
 
 ### 5. Register the command
 
@@ -204,30 +199,29 @@ See the `listen` command for a working example.
 
 ### One-shot bus request-response (gather/bind-style)
 
-Subscribe to the completion event before starting the stream, then await:
+SDK namespace methods are called directly on the `semiont` client. Promise-returning methods are awaited as usual; observable-returning methods (long-running backend work that streams progress) are resolved with rxjs `lastValueFrom`:
 
 ```typescript
-import { EventBus } from '@semiont/core';
+import { lastValueFrom } from 'rxjs';
 
-const eventBus = new EventBus();
+// Promise-returning method
+const context = await semiont.gather.resource(resourceId, { contextWindow: 1000 });
 
-const donePromise = new Promise<SomeType>((resolve, reject) => {
-  eventBus.get('gather:finished').subscribe((e) => resolve(e.context));
-  eventBus.get('gather:failed').subscribe((e) => reject(e.error));  // 'gather:failed' is SSE infra
-});
-
-client.sse.gatherResource(resourceId, requestBody, { auth: token, eventBus });
-
-const result = await donePromise;
+// Observable-returning method — completes when the backend finishes
+const result = await lastValueFrom(
+  semiont.gather.annotation(resourceId, annotationId, { contextWindow: 1000 }),
+);
 ```
+
+See `gather.ts` and `bind.ts` for working examples.
 
 ---
 
 ## Checklist
 
-- [ ] Schema extends `ApiOptionsSchema` (or `BaseOptionsSchema` if no API calls)
-- [ ] `.args()` uses `withApiArgs` (or `withBaseArgs`)
-- [ ] `createAuthenticatedClient` receives `{ bus, user, password }` from options
+- [ ] Schema extends `ApiOptionsSchema` (or `OpsOptionsSchema`/`BaseOptionsSchema` if no API calls)
+- [ ] `.args()` uses `withApiArgs` (or `withOpsArgs`)
+- [ ] `loadCachedClient(resolveBusUrl(options.bus))` provides the authenticated `semiont` client
 - [ ] JSON written to `stdout`; labels/progress written to `stderr`
 - [ ] Returns a valid `CommandResults` object
 - [ ] Registered in `command-discovery.ts`

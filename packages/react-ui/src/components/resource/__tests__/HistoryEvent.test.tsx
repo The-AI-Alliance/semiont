@@ -58,7 +58,6 @@ function makeStoredEvent(overrides: Record<string, any> = {}): any {
     ...overrides,
     metadata: {
       sequenceNumber: 1,
-      streamPosition: 0,
     },
   };
 }

@@ -1,38 +1,37 @@
 /**
- * LocalContentTransport — `IContentTransport` for an in-process
- * `KnowledgeSystem`.
+ * WorkerContentTransport — `IContentTransport` for standalone workers with
+ * direct (mounted) access to the project working tree.
  *
- * Reads go straight to `kb.views` (resource lookup) + `kb.content`
- * (byte retrieval). No network, no auth — local mode runs as a single
- * host-process identity.
+ * The smelter container has two privileged attachments: the vector store
+ * (Qdrant, direct) and the content store (the KB working tree, bind-mounted
+ * read-only). Metadata still flows over the bus — `getBinary` resolves the
+ * resource descriptor via `browse:resource-requested`, then reads the
+ * primary representation's bytes straight off disk via `WorkingTreeStore`.
+ * Bytes never cross the HTTP wire.
  *
- * `putBinary` is intentionally not implemented in Phase 2: in-process
- * resource creation is exercised through bus emits (mark/yield
- * namespaces), not multipart upload. If a future caller needs raw
- * binary upload from a local context, wire it through the same
- * resource-creation pipeline the HTTP `/resources` handler uses.
+ * `putBinary` is not implemented: workers using this transport are content
+ * readers; resource creation goes through the backend's `/resources` route.
  */
 
-import type { AccessToken, ContentFormat, ResourceId } from '@semiont/core';
+import type { AccessToken, ContentFormat, ResourceId, ResourceDescriptor } from '@semiont/core';
 import { busLog, getPrimaryRepresentation } from '@semiont/core';
 import { SpanKind, withSpan } from '@semiont/observability';
 import type { IContentTransport, PutBinaryRequest, PutBinaryOptions } from '@semiont/core';
+import type { WorkingTreeStore } from '@semiont/content';
+import { busRequest, type BusRequestPrimitive } from '@semiont/sdk';
 
-import type { KnowledgeSystem } from './knowledge-system.js';
-
-export class LocalContentTransport implements IContentTransport {
-  constructor(private readonly ks: KnowledgeSystem) {}
+export class WorkerContentTransport implements IContentTransport {
+  constructor(
+    private readonly bus: BusRequestPrimitive,
+    private readonly store: WorkingTreeStore,
+  ) {}
 
   async putBinary(
     _request: PutBinaryRequest,
     _options?: PutBinaryOptions,
   ): Promise<{ resourceId: ResourceId }> {
-    // `onProgress` and `signal` from `_options` are accepted for interface
-    // conformance and ignored — local mode has no wire over which bytes
-    // flow, so progress events would be synthetic and offer no signal,
-    // and the upload is synchronous-ish so cancellation has no window.
     throw new Error(
-      'LocalContentTransport does not support putBinary() — create resources via bus emits (mark/yield namespaces) in local mode',
+      'WorkerContentTransport does not support putBinary() — workers read content; creation goes through the backend /resources route',
     );
   }
 
@@ -56,9 +55,9 @@ export class LocalContentTransport implements IContentTransport {
     return withSpan(
       'content.get',
       async () => {
-        // Local content store is buffer-oriented, not streaming. Read
-        // fully and wrap in a one-shot ReadableStream so callers that
-        // prefer the streaming surface still work.
+        // The working tree is buffer-oriented, not streaming. Read fully
+        // and wrap in a one-shot ReadableStream so callers that prefer the
+        // streaming surface still work.
         const { data, contentType } = await this.loadBinary(resourceId);
         const bytes = new Uint8Array(data);
         const stream = new ReadableStream<Uint8Array>({
@@ -79,18 +78,23 @@ export class LocalContentTransport implements IContentTransport {
   private async loadBinary(
     resourceId: ResourceId,
   ): Promise<{ data: ArrayBuffer; contentType: string }> {
-    const view = await this.ks.kb.views.get(resourceId);
-    if (!view) throw new Error(`Resource not found: ${resourceId}`);
-    const rep = getPrimaryRepresentation(view.resource);
+    const result = await busRequest<{ resource: ResourceDescriptor }>(
+      this.bus,
+      'browse:resource-requested',
+      { resourceId },
+      'browse:resource-result',
+      'browse:resource-failed',
+    );
+    const rep = getPrimaryRepresentation(result.resource);
     if (!rep?.storageUri) {
       throw new Error(`Resource ${resourceId} has no representation with a storageUri`);
     }
-    const buf = await this.ks.kb.content.retrieve(rep.storageUri);
+    const buf = await this.store.retrieve(rep.storageUri);
     const data = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
     return { data, contentType: rep.mediaType };
   }
 
   dispose(): void {
-    // KnowledgeSystem lifetime is owned by the caller. Nothing to release.
+    // Bus and store lifetimes are owned by the caller. Nothing to release.
   }
 }

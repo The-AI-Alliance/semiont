@@ -332,7 +332,7 @@ export type PlatformResources =
 
 ### 7. Update Platform Type
 
-Add your platform to the PlatformType in `src/core/platform-types.ts`:
+Add your platform to the PlatformType in `src/core/platform.ts`:
 
 ```typescript
 export type PlatformType = 'aws' | 'container' | 'posix' | 'external' | 'mock' | 'my-platform';

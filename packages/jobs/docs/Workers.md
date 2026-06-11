@@ -91,7 +91,7 @@ const fetchContent = async (): Promise<string> => {
 };
 ```
 
-There is no `ContentFetcher` injected into a constructor anywhere. If you need the resource's text, the worker process hands it to you; if you need something else from the KB, reach for `session.client`.
+If you need the resource's text, the worker process hands it to you; if you need something else from the KB, reach for `session.client`.
 
 ## How a Worker Emits
 
@@ -220,6 +220,8 @@ emit job:fail  →  adapter.failJob(jobId, message)
 
 The subscription in `startWorkerProcess` wraps `handleJob` in a `.catch` that emits `job:fail` and calls `adapter.failJob`, so any throw from your processor surfaces as a clean failure. `handleJob` also records an OpenTelemetry span (`job:<type>`) and a job-outcome metric around each run — you get that for free by living inside `handleJobInner`.
 
+On the backend, `job:fail` feeds a retry-or-fail path: the job is re-queued (and re-announced) while `retryCount < maxRetries`, then lands in `failed/`. Your `onProgress` calls double as a heartbeat — a running job that reports nothing for 30 minutes is presumed orphaned and recovered the same way, so call `onProgress` at meaningful stages rather than never.
+
 ## Reporting Progress
 
 Progress is a callback, not a queue mutation. The worker process hands your processor an `onProgress`:
@@ -249,8 +251,8 @@ Because processors are pure, you test them with no bus, no session, and no queue
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-import { resourceId } from '@semiont/core';
-import type { InferenceClient, components } from '@semiont/inference';
+import { resourceId, type components } from '@semiont/core';
+import type { InferenceClient } from '@semiont/inference';
 
 type Agent = components['schemas']['Agent'];
 

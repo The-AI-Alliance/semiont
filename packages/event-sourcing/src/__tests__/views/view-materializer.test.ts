@@ -19,7 +19,6 @@ import { v4 as uuidv4 } from 'uuid';
 function createEventMetadata(sequenceNumber: number): EventMetadata {
   return {
     sequenceNumber,
-    streamPosition: sequenceNumber * 100,
   };
 }
 

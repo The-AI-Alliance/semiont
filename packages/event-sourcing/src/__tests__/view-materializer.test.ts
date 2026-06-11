@@ -2,8 +2,6 @@
  * ViewMaterializer Tests - View materialization from events
  *
  * Tests event-to-view transformation, incremental updates, and system views
- *
- * @see docs/EVENT-STORE.md#viewmaterializer
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -54,7 +52,6 @@ describe('ViewMaterializer', () => {
       ...fullEvent,
       metadata: {
         sequenceNumber,
-        streamPosition: sequenceNumber - 1,
       },
     } as StoredEvent;
   }

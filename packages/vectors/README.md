@@ -28,7 +28,7 @@ const store = await createVectorStore({
 });
 ```
 
-Requires a running [Qdrant](https://qdrant.tech) instance. The `@qdrant/js-client-rest` peer dependency is lazy-loaded on `connect()`. Collections are auto-created if they don't exist.
+Requires a running [Qdrant](https://qdrant.tech) instance. The `@qdrant/js-client-rest` client is lazy-loaded on `connect()`. Collections are auto-created if they don't exist.
 
 ### Memory (testing)
 
@@ -115,14 +115,16 @@ await store.upsertResourceVectors(resourceId, chunks.map((text, i) => ({
 
 // Index an annotation
 const vec = await provider.embed(annotation.exactText);
-await store.upsertAnnotationVector(annotationId, {
+await store.upsertAnnotationVector(annotationId, vec, {
   annotationId,
   resourceId,
   motivation: 'describing',
   entityTypes: ['Person'],
   exactText: 'Marie Curie',
-}, vec);
+});
 ```
+
+`upsertResourceVectors` replaces all existing vectors for the resource, so re-indexing a resource that shrank leaves no orphan chunks.
 
 ## Configuration
 
@@ -134,13 +136,13 @@ type = "qdrant"
 host = "localhost"
 port = 6333
 
-[environments.local.services.vectors.embedding]
+[environments.local.services.embedding]
 type = "voyage"
 model = "voyage-3"
 
-[environments.local.services.vectors.chunking]
+[environments.local.services.embedding.chunking]
 chunkSize = 512
-overlap = 50
+overlap = 64
 ```
 
 ## License

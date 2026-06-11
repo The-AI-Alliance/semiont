@@ -7,7 +7,7 @@ The `FsJobQueue` class manages the lifecycle of jobs in a filesystem-based queue
 The FsJobQueue uses a status-directory pattern where jobs are stored in directories named after their status:
 
 ```
-data/jobs/
+{project.jobsDir}/
   ├── pending/      # Jobs waiting to be processed
   ├── running/      # Jobs currently being processed
   ├── complete/     # Successfully completed jobs
@@ -38,8 +38,9 @@ await queue.initialize();
 
 **What `initialize()` does:**
 - Creates status directories (`pending/`, `running/`, etc.)
-- Loads existing pending jobs into an in-memory queue
-- Starts `fs.watch` on the `pending/` directory to pick up external changes (debounced)
+- Announces any existing pending jobs on `job:queued` (restart catch-up)
+- Starts a 30-second maintenance tick: re-announces all pending jobs and recovers stale running jobs (no heartbeat for 30 minutes → retry-or-fail)
+- Starts an hourly retention sweep: terminal jobs older than 24 hours are deleted
 - Idempotent (safe to call multiple times)
 
 ## Creating Jobs
@@ -50,8 +51,7 @@ Creates a new job and persists it to the queue.
 
 ```typescript
 import type { PendingJob, GenerationParams } from '@semiont/jobs';
-import { jobId } from '@semiont/http-transport';
-import { userId, resourceId, annotationId } from '@semiont/core';
+import { jobId, userId, resourceId, annotationId } from '@semiont/core';
 
 const job: PendingJob<GenerationParams> = {
   status: 'pending',
@@ -81,11 +81,10 @@ await queue.createJob(job);
 ```
 
 **Behavior:**
-- Writes job to `{dataDir}/jobs/{status}/{jobId}.json`
+- Writes job to `{project.jobsDir}/{status}/{jobId}.json`
 - Creates parent directories if needed
 - Overwrites if job with same ID already exists at that status
-- If status is `pending`, pushes to the in-memory queue for immediate worker pickup
-- If EventBus provided and job params contain `resourceId`, emits `job:queued` event
+- If status is `pending`, the EventBus is provided, and job params contain `resourceId`, emits a `job:queued` announcement for immediate worker pickup
 
 ## Retrieving Jobs
 
@@ -103,7 +102,7 @@ if (job) {
 
   // Type-safe access based on status
   if (job.status === 'running') {
-    console.log(`Progress: ${job:progress.percentage}%`);
+    console.log(`Progress: ${job.progress.percentage}%`);
   }
   if (job.status === 'complete') {
     console.log(`Result: ${JSON.stringify(job.result)}`);
@@ -143,7 +142,7 @@ if (job.status === 'running') {
     status: 'complete',
     metadata: job.metadata,
     params: job.params,
-    startedAt: job:startedAt,
+    startedAt: job.startedAt,
     completedAt: new Date().toISOString(),
     result: { resourceId: resourceId('doc-new'), resourceName: 'Generated Article' },
   };
@@ -156,7 +155,7 @@ if (job.status === 'running') {
 - `oldStatus` — (Optional) Previous status for atomic move
 
 **Behavior:**
-- If `oldStatus` provided and different from `job.status`: deletes from old directory, writes to new directory, updates in-memory queue
+- If `oldStatus` provided and different from `job.status`: deletes from old directory, writes to new directory; a job moved back to `pending` (e.g. a retry) is re-announced on `job:queued`
 - If `oldStatus` not provided or same as `job.status`: overwrites job file in current directory
 
 ## Listing Jobs
@@ -202,32 +201,39 @@ interface JobQueryFilters {
 - Results sorted by creation time (newest first)
 - Pagination via `limit` and `offset`
 
-## Polling for Jobs
+## Job Announcement and Catch-up
 
-### `pollNextPendingJob(predicate?): Promise<AnyJob | null>`
+Workers never poll the queue. The queue *announces* pending jobs on the EventBus `job:queued` channel, and workers claim them over the bus (`job:claim`), which the backend's claim handler serves via `getJob` + `updateJob`.
 
-Gets the next pending job from the in-memory queue (FIFO). No filesystem I/O.
+A pending job is announced:
 
-```typescript
-// Get any pending job
-const next = await queue.pollNextPendingJob();
-
-// Get first pending job matching a predicate
-const genJob = await queue.pollNextPendingJob(
-  job => job.metadata.type === 'generation'
-);
-```
-
-**Behavior:**
-- Without predicate: shifts the first job from the in-memory queue
-- With predicate: finds and removes the first matching job
-- Queue is populated at `initialize()` and kept in sync by `createJob()`, `updateJob()`, and `fs.watch`
-- Returns `null` if queue is empty (or no match)
+- **On creation** — `createJob()` emits `job:queued` immediately
+- **On retry** — `updateJob()` re-announces a job moved back to `pending`
+- **On startup** — `initialize()` announces every job already in `pending/` (restart recovery)
+- **Every 30 seconds** — an interval re-announces all pending jobs, so a job whose announcement found no idle eligible worker (all busy, worker offline or mid-reconnect) is claimed as soon as a worker frees up
 
 **Concurrency:**
-- Multiple workers can safely poll concurrently
-- Once a worker moves job to `running`, other workers won't see it
-- No explicit locking needed (status directories provide isolation)
+- Duplicate announcements are harmless: a claim for a job that has already moved to `running` fails with "Job already claimed", so two workers cannot win the same job
+
+## Job Lifecycle Sync
+
+The queue exposes transition methods that the backend's bus handlers (in `@semiont/make-meaning`) call when workers emit lifecycle events:
+
+### `completeJob(jobId, result): Promise<boolean>`
+
+`job:complete` → moves `running/` → `complete/` with the result and `completedAt`. Returns `false` if the job isn't running (duplicate events are harmless).
+
+### `failJob(jobId, error): Promise<'retried' | 'failed' | null>`
+
+`job:fail` → retry-or-fail. While `metadata.retryCount < metadata.maxRetries`, the job moves back to `pending/` with the count bumped and is re-announced for another worker. After that it moves to `failed/` with the error.
+
+### `recordProgress(jobId, progress): Promise<void>`
+
+`job:report-progress` → written into the `running/` file (throttled to one write per 5s per job). The write doubles as a worker heartbeat: the file's mtime is what stale-running recovery checks.
+
+### `recoverStaleRunningJobs(): Promise<number>`
+
+Runs on the 30-second maintenance tick. A `running/` file untouched for 30 minutes means the worker died mid-job; it goes through the same retry-or-fail path as `failJob` with the error `worker presumed dead`.
 
 ## Cancelling Jobs
 
@@ -239,11 +245,15 @@ Cancels a pending or running job. Returns `false` if job doesn't exist or is alr
 const cancelled = await queue.cancelJob(jobId('job-abc123'));
 ```
 
+### `cancelPendingJobs(category: 'annotation' | 'generation'): Promise<number>`
+
+Cancels all *pending* jobs in a category — `'annotation'` covers every `*-annotation` type. This is what the `job:cancel-requested` UI signal maps to. Running jobs are left to finish (interrupting a worker mid-inference would need a worker-side kill channel that doesn't exist).
+
 ## Cleanup and Lifecycle
 
 ### `destroy(): void`
 
-Cleans up the filesystem watcher and internal timers. Call when shutting down.
+Stops the maintenance intervals. Call when shutting down.
 
 ```typescript
 queue.destroy();
@@ -301,24 +311,17 @@ await Promise.all(
 );
 ```
 
-### Retry Failed Jobs
+### Retries
+
+Retries are automatic: `failJob` re-queues a failed job (with `retryCount` bumped and a fresh `job:queued` announcement) until `maxRetries` is exhausted, and only then lands it in `failed/`. A job in `failed/` has used all its retries — re-queue one manually only if you've fixed the underlying cause:
 
 ```typescript
-const failed = await queue.listJobs({ status: 'failed' });
-
-for (const job of failed) {
-  if (job.status === 'failed' && job.metadata.retryCount < job.metadata.maxRetries) {
-    const retryJob: PendingJob<any> = {
-      status: 'pending',
-      metadata: {
-        ...job.metadata,
-        retryCount: job.metadata.retryCount + 1,
-      },
-      params: job.params,
-    };
-    await queue.updateJob(retryJob, 'failed');
-  }
-}
+const retryJob: PendingJob<any> = {
+  status: 'pending',
+  metadata: { ...job.metadata, retryCount: 0 },
+  params: job.params,
+};
+await queue.updateJob(retryJob, 'failed'); // re-announced automatically
 ```
 
 ### Monitor Queue Depth
@@ -330,10 +333,8 @@ console.log(`Pending: ${stats.pending}, Running: ${stats.running}, Failed: ${sta
 
 ## Performance Considerations
 
-**Polling overhead:**
-- `pollNextPendingJob()` reads from an in-memory array — no filesystem I/O per poll
-- The in-memory queue is populated once at startup and kept in sync via `createJob()`, `updateJob()`, and a debounced `fs.watch` listener
-- Workers can poll at high frequency without filesystem overhead
+**Announcement overhead:**
+- The 30-second re-announce tick reads every file in `pending/` — cheap while the pending backlog stays small, which it should: jobs are claimed as soon as an eligible worker is idle
 
 **Directory size limits:**
 - Performance degrades with >1000 jobs per status directory

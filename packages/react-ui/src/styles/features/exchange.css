@@ -362,36 +362,6 @@
   color: var(--semiont-color-gray-400);
 }
 
-/* Hash chain badge */
-.semiont-exchange__hash-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.semiont-exchange__hash-badge--valid {
-  background-color: var(--semiont-color-green-100);
-  color: var(--semiont-color-green-800);
-}
-
-[data-theme="dark"] .semiont-exchange__hash-badge--valid {
-  background-color: rgba(34, 197, 94, 0.15);
-  color: var(--semiont-color-green-300);
-}
-
-.semiont-exchange__hash-badge--invalid {
-  background-color: var(--semiont-color-red-100);
-  color: var(--semiont-color-red-800);
-}
-
-[data-theme="dark"] .semiont-exchange__hash-badge--invalid {
-  background-color: rgba(239, 68, 68, 0.15);
-  color: var(--semiont-color-red-300);
-}
-
 /* Error message */
 .semiont-exchange__error-message {
   font-size: 0.875rem;

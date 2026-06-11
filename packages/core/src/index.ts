@@ -83,7 +83,7 @@ export type {
   ResourceAnnotations,
 } from './event-base';
 
-// Persisted events (the 20 event types written to the log)
+// Persisted events (the event types written to the log)
 export type {
   EventOfType,
   PersistedEvent,
@@ -361,7 +361,3 @@ export type {
   GraphDatabaseType,
   ServicePlatformConfig
 } from './config/config.types';
-
-// Version information
-export const CORE_TYPES_VERSION = '0.1.0';
-export const SDK_VERSION = '0.1.0';

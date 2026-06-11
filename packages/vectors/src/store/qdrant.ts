@@ -6,6 +6,7 @@
  */
 
 import { createHash } from 'crypto';
+import type { QdrantClient, Schemas } from '@qdrant/js-client-rest';
 import type { ResourceId, AnnotationId } from '@semiont/core';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions } from './interface';
 
@@ -25,12 +26,16 @@ export interface QdrantConfig {
 }
 
 export class QdrantVectorStore implements VectorStore {
-  private client: any = null;
-  private connected = false;
+  private client: QdrantClient | null = null;
   private config: QdrantConfig;
 
   constructor(config: QdrantConfig) {
     this.config = config;
+  }
+
+  private get qdrant(): QdrantClient {
+    if (!this.client) throw new Error('QdrantVectorStore is not connected');
+    return this.client;
   }
 
   async connect(): Promise<void> {
@@ -43,36 +48,37 @@ export class QdrantVectorStore implements VectorStore {
     // Ensure collections exist
     await this.ensureCollection('resources', this.config.dimensions);
     await this.ensureCollection('annotations', this.config.dimensions);
-    this.connected = true;
   }
 
   async disconnect(): Promise<void> {
     this.client = null;
-    this.connected = false;
   }
 
   async clearAll(): Promise<void> {
-    try { await this.client.deleteCollection('resources'); } catch { /* may not exist */ }
-    try { await this.client.deleteCollection('annotations'); } catch { /* may not exist */ }
+    try { await this.qdrant.deleteCollection('resources'); } catch { /* may not exist */ }
+    try { await this.qdrant.deleteCollection('annotations'); } catch { /* may not exist */ }
     await this.ensureCollection('resources', this.config.dimensions);
     await this.ensureCollection('annotations', this.config.dimensions);
   }
 
   isConnected(): boolean {
-    return this.connected;
+    return this.client !== null;
   }
 
   private async ensureCollection(name: string, dimensions: number): Promise<void> {
     try {
-      await this.client.getCollection(name);
+      await this.qdrant.getCollection(name);
     } catch {
-      await this.client.createCollection(name, {
+      await this.qdrant.createCollection(name, {
         vectors: { size: dimensions, distance: 'Cosine' },
       });
     }
   }
 
   async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[]): Promise<void> {
+    // Replace semantics: purge existing chunks first, or a resource that
+    // shrinks leaves orphan points at the higher chunk indices.
+    await this.deleteResourceVectors(resourceId);
     if (chunks.length === 0) return;
 
     const points = chunks.map((chunk) => ({
@@ -85,7 +91,7 @@ export class QdrantVectorStore implements VectorStore {
       },
     }));
 
-    await this.client.upsert('resources', { points });
+    await this.qdrant.upsert('resources', { points });
   }
 
   async upsertAnnotationVector(
@@ -93,7 +99,7 @@ export class QdrantVectorStore implements VectorStore {
     embedding: number[],
     payload: AnnotationPayload
   ): Promise<void> {
-    await this.client.upsert('annotations', {
+    await this.qdrant.upsert('annotations', {
       points: [{
         id: toQdrantId(String(annotationId)),
         vector: embedding,
@@ -109,7 +115,7 @@ export class QdrantVectorStore implements VectorStore {
   }
 
   async deleteResourceVectors(resourceId: ResourceId): Promise<void> {
-    await this.client.delete('resources', {
+    await this.qdrant.delete('resources', {
       filter: {
         must: [{ key: 'resourceId', match: { value: String(resourceId) } }],
       },
@@ -117,9 +123,53 @@ export class QdrantVectorStore implements VectorStore {
   }
 
   async deleteAnnotationVector(annotationId: AnnotationId): Promise<void> {
-    await this.client.delete('annotations', {
+    await this.qdrant.delete('annotations', {
       points: [toQdrantId(String(annotationId))],
     });
+  }
+
+  async deleteAnnotationVectorsForResource(resourceId: ResourceId): Promise<void> {
+    await this.qdrant.delete('annotations', {
+      filter: {
+        must: [{ key: 'resourceId', match: { value: String(resourceId) } }],
+      },
+    });
+  }
+
+  async count(): Promise<number> {
+    const [resources, annotations] = await Promise.all([
+      this.qdrant.count('resources', { exact: true }),
+      this.qdrant.count('annotations', { exact: true }),
+    ]);
+    return resources.count + annotations.count;
+  }
+
+  async listResourceIds(): Promise<Set<string>> {
+    return this.scrollPayloadField('resources', 'resourceId');
+  }
+
+  async listAnnotationIds(): Promise<Set<string>> {
+    return this.scrollPayloadField('annotations', 'annotationId');
+  }
+
+  /** Collect the distinct values of one payload field across a collection. */
+  private async scrollPayloadField(collection: string, field: string): Promise<Set<string>> {
+    const values = new Set<string>();
+    let offset: Schemas['ScrollRequest']['offset'] = undefined;
+    do {
+      const page = await this.qdrant.scroll(collection, {
+        limit: 1000,
+        offset,
+        with_payload: [field],
+        with_vector: false,
+      });
+      for (const point of page.points) {
+        const value = point.payload?.[field];
+        if (typeof value === 'string') values.add(value);
+      }
+      offset = page.next_page_offset ?? undefined;
+    } while (offset !== undefined && offset !== null);
+    return values;
   }
 
   async searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
@@ -133,28 +183,31 @@ export class QdrantVectorStore implements VectorStore {
   private async search(collection: string, embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
     const filter = this.buildFilter(opts.filter);
 
-    const results = await this.client.search(collection, {
+    const results = await this.qdrant.search(collection, {
       vector: embedding,
       limit: opts.limit,
       score_threshold: opts.scoreThreshold,
-      filter: filter || undefined,
+      filter: filter ?? undefined,
       with_payload: true,
     });
 
-    return results.map((r: any) => ({
-      id: String(r.id),
-      score: r.score,
-      resourceId: r.payload.resourceId as ResourceId,
-      annotationId: r.payload.annotationId as AnnotationId | undefined,
-      text: r.payload.text as string,
-      entityTypes: r.payload.entityTypes as string[] | undefined,
-    }));
+    return results.map((r) => {
+      const payload = r.payload ?? {};
+      return {
+        id: String(r.id),
+        score: r.score,
+        resourceId: payload.resourceId as ResourceId,
+        annotationId: payload.annotationId as AnnotationId | undefined,
+        text: payload.text as string,
+        entityTypes: payload.entityTypes as string[] | undefined,
+      };
+    });
   }
 
-  private buildFilter(filter?: SearchOptions['filter']): any | null {
+  private buildFilter(filter?: SearchOptions['filter']): Schemas['Filter'] | null {
     if (!filter) return null;
 
-    const must: any[] = [];
+    const must: Schemas['FieldCondition'][] = [];
 
     if (filter.entityTypes && filter.entityTypes.length > 0) {
       // any-of: match payloads whose `entityTypes` array contains at least one
@@ -171,7 +224,7 @@ export class QdrantVectorStore implements VectorStore {
       must.push({ key: 'motivation', match: { value: filter.motivation } });
     }
 
-    const must_not: any[] = [];
+    const must_not: Schemas['FieldCondition'][] = [];
 
     if (filter.excludeResourceId) {
       must_not.push({ key: 'resourceId', match: { value: String(filter.excludeResourceId) } });

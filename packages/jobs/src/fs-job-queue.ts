@@ -2,23 +2,57 @@
  * Job Queue Manager
  *
  * Filesystem-based job queue with atomic operations.
- * Jobs are stored in directories by status for easy polling.
+ * Jobs are stored in directories by status; status transitions are
+ * atomic delete + write across directories.
  */
 
-import { promises as fs, watch, type FSWatcher } from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
-import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob } from './types';
+import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob, CompleteJob, FailedJob, PendingJob, RunningJob } from './types';
 import type { SemiontProject } from '@semiont/core/node';
-import type { JobId, Logger, EventBus } from '@semiont/core';
+import { jobId as toJobId, type JobId, type Logger, type EventBus } from '@semiont/core';
 import type { JobQueue } from './job-queue-interface';
+
+/**
+ * How often pending jobs are re-announced on `job:queued` and stale
+ * running jobs are checked for recovery.
+ *
+ * The announcement in `createJob` only reaches workers that are
+ * connected and idle at that moment. Re-announcing every pending job
+ * on an interval restores catch-up for everything that announcement
+ * misses: all eligible workers busy, a worker offline or mid-SSE-
+ * reconnect, or a backend restart with a pending backlog. Claim
+ * arbitration (the `job:claim` handler refuses non-pending jobs)
+ * makes duplicate announcements harmless.
+ */
+const REANNOUNCE_INTERVAL_MS = 30_000;
+
+/**
+ * A running job whose file hasn't been touched for this long is
+ * presumed orphaned by a dead worker and fed through the retry-or-fail
+ * path. Progress writes (`recordProgress`) refresh the file's mtime,
+ * so this is a heartbeat timeout, not a job-duration limit — but a
+ * worker that emits no progress for the whole window will be falsely
+ * recovered, so it stays deliberately generous.
+ */
+const STALE_RUNNING_MS = 30 * 60_000;
+
+/** Minimum spacing between progress writes per job — workers can be chatty. */
+const PROGRESS_WRITE_MIN_INTERVAL_MS = 5_000;
+
+/** Terminal jobs (complete/failed/cancelled) are pruned after this long. */
+const RETENTION_HOURS = 24;
+
+/** How often the retention pruning runs. */
+const CLEANUP_INTERVAL_MS = 3_600_000;
 
 export class FsJobQueue implements JobQueue {
   private jobsDir: string;
   private logger: Logger;
-  // In-memory pending queue: avoids fs.readdir() on every poll (6×/sec with 6 workers)
-  private pendingQueue: AnyJob[] = [];
-  private watcher: FSWatcher | null = null;
-  private loadDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private reannounceTimer: ReturnType<typeof setInterval> | null = null;
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+  /** Per-job timestamp of the last progress write, for throttling. */
+  private lastProgressWrite = new Map<string, number>();
 
   constructor(
     project: SemiontProject,
@@ -30,7 +64,8 @@ export class FsJobQueue implements JobQueue {
   }
 
   /**
-   * Initialize job queue directories, load pending jobs, and start fs.watch
+   * Initialize job queue directories, announce any pending backlog,
+   * and start the re-announce interval. Idempotent.
    */
   async initialize(): Promise<void> {
     const statuses: JobStatus[] = ['pending', 'running', 'complete', 'failed', 'cancelled'];
@@ -40,72 +75,93 @@ export class FsJobQueue implements JobQueue {
       await fs.mkdir(dir, { recursive: true });
     }
 
-    // Load existing pending jobs into memory
-    await this.loadPendingJobs();
+    if (this.eventBus && !this.reannounceTimer) {
+      // Jobs left pending across a restart are announced right away…
+      await this.announcePendingJobs();
+      // …and anything that misses an announcement is retried here, along
+      // with recovery of jobs orphaned by a dead worker.
+      this.reannounceTimer = setInterval(() => {
+        this.announcePendingJobs().catch((error) => {
+          this.logger.warn('Pending-job re-announce failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+        this.recoverStaleRunningJobs().catch((error) => {
+          this.logger.warn('Stale-running recovery failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      }, REANNOUNCE_INTERVAL_MS);
+      // Don't let the interval keep the process alive on shutdown.
+      this.reannounceTimer.unref?.();
+    }
 
-    // Watch for external changes (other processes, crash recovery)
-    const pendingDir = path.join(this.jobsDir, 'pending');
-    try {
-      this.watcher = watch(pendingDir, () => {
-        this.debouncedLoadPendingJobs();
-      });
-    } catch (error) {
-      this.logger.warn('Failed to watch pending directory', {
-        error: error instanceof Error ? error.message : String(error)
-      });
+    if (!this.cleanupTimer) {
+      this.cleanupTimer = setInterval(() => {
+        this.cleanupOldJobs(RETENTION_HOURS).catch((error) => {
+          this.logger.warn('Job retention cleanup failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      }, CLEANUP_INTERVAL_MS);
+      this.cleanupTimer.unref?.();
     }
 
     this.logger.info('Job queue initialized');
   }
 
   /**
-   * Clean up watcher
+   * Stop the re-announce and retention intervals
    */
   destroy(): void {
-    if (this.watcher) {
-      this.watcher.close();
-      this.watcher = null;
+    if (this.reannounceTimer) {
+      clearInterval(this.reannounceTimer);
+      this.reannounceTimer = null;
     }
-    if (this.loadDebounceTimer) {
-      clearTimeout(this.loadDebounceTimer);
-      this.loadDebounceTimer = null;
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
     }
   }
 
   /**
-   * Load pending jobs from disk into in-memory queue
+   * Emit `job:queued` for a pending job, if an EventBus is wired and
+   * the job carries a `resourceId` (every current job type does).
    */
-  private async loadPendingJobs(): Promise<void> {
+  private announce(job: AnyJob): void {
+    if (this.eventBus && 'params' in job && 'resourceId' in job.params) {
+      this.eventBus.get('job:queued').next({
+        jobId: job.metadata.id,
+        jobType: job.metadata.type,
+        resourceId: job.params.resourceId,
+        userId: job.metadata.userId,
+      });
+    }
+  }
+
+  /**
+   * Announce every job currently in `pending/`. Files that vanish or
+   * fail to parse mid-scan (claimed, cancelled, partially written)
+   * are skipped — they're either gone for a good reason or picked up
+   * on the next tick.
+   */
+  private async announcePendingJobs(): Promise<void> {
     const pendingDir = path.join(this.jobsDir, 'pending');
+    let files: string[];
     try {
-      const files = await fs.readdir(pendingDir);
-      files.sort();
-
-      const jobs: AnyJob[] = [];
-      for (const file of files) {
-        try {
-          const content = await fs.readFile(path.join(pendingDir, file), 'utf-8');
-          jobs.push(JSON.parse(content) as AnyJob);
-        } catch {
-          // Skip unreadable files
-        }
-      }
-      this.pendingQueue = jobs;
+      files = await fs.readdir(pendingDir);
     } catch {
-      // Directory might not exist yet
-      this.pendingQueue = [];
+      return;
     }
-  }
-
-  /**
-   * Debounced version of loadPendingJobs — fs.watch can fire rapidly
-   */
-  private debouncedLoadPendingJobs(): void {
-    if (this.loadDebounceTimer) return;
-    this.loadDebounceTimer = setTimeout(async () => {
-      this.loadDebounceTimer = null;
-      await this.loadPendingJobs();
-    }, 100);
+    files.sort();
+    for (const file of files) {
+      try {
+        const content = await fs.readFile(path.join(pendingDir, file), 'utf-8');
+        this.announce(JSON.parse(content) as AnyJob);
+      } catch {
+        // Skip unreadable files
+      }
+    }
   }
 
   /**
@@ -116,19 +172,8 @@ export class FsJobQueue implements JobQueue {
     await fs.writeFile(jobPath, JSON.stringify(job, null, 2), 'utf-8');
     this.logger.info('Job created', { jobId: job.metadata.id, status: job.status });
 
-    // Push to in-memory queue for immediate pickup
     if (job.status === 'pending') {
-      this.pendingQueue.push(job);
-      this.pendingQueue.sort((a, b) => a.metadata.id.localeCompare(b.metadata.id));
-    }
-
-    if (this.eventBus && 'params' in job && 'resourceId' in job.params) {
-      this.eventBus.get('job:queued').next({
-        jobId: job.metadata.id,
-        jobType: job.metadata.type,
-        resourceId: job.params.resourceId,
-        userId: job.metadata.userId,
-      });
+      this.announce(job);
     }
   }
 
@@ -164,18 +209,6 @@ export class FsJobQueue implements JobQueue {
       } catch (error) {
         // Ignore if file doesn't exist
       }
-
-      // Keep in-memory queue in sync
-      if (oldStatus === 'pending') {
-        // Leaving pending: remove from queue
-        const idx = this.pendingQueue.findIndex(j => j.metadata.id === job.metadata.id);
-        if (idx !== -1) this.pendingQueue.splice(idx, 1);
-      }
-      if (job.status === 'pending') {
-        // Entering pending (e.g., retry): add to queue
-        this.pendingQueue.push(job);
-        this.pendingQueue.sort((a, b) => a.metadata.id.localeCompare(b.metadata.id));
-      }
     }
 
     // Write to new location
@@ -184,23 +217,98 @@ export class FsJobQueue implements JobQueue {
 
     if (oldStatus && oldStatus !== job.status) {
       this.logger.info('Job moved', { jobId: job.metadata.id, oldStatus, newStatus: job.status });
+      // Re-entering pending (e.g. a retry) is a fresh announcement.
+      if (job.status === 'pending') {
+        this.announce(job);
+      }
     } else {
       this.logger.info('Job updated', { jobId: job.metadata.id, status: job.status });
     }
   }
 
   /**
-   * Poll for next pending job (FIFO) from in-memory queue.
-   * If a predicate is provided, returns the first matching job (skipping non-matching ones).
+   * Move a running job to `complete`. Returns false (and changes
+   * nothing) if the job is missing or not running — which also makes
+   * duplicate `job:complete` events harmless.
    */
-  async pollNextPendingJob(predicate?: (job: AnyJob) => boolean): Promise<AnyJob | null> {
-    if (!predicate) {
-      return this.pendingQueue.shift() ?? null;
+  async completeJob(jobId: JobId, result: Record<string, unknown>): Promise<boolean> {
+    const job = await this.getJob(jobId);
+    if (!job || job.status !== 'running') {
+      return false;
     }
 
-    const index = this.pendingQueue.findIndex(predicate);
-    if (index === -1) return null;
-    return this.pendingQueue.splice(index, 1)[0] ?? null;
+    this.lastProgressWrite.delete(jobId);
+    const completed: CompleteJob<any, any> = {
+      status: 'complete',
+      metadata: job.metadata,
+      params: job.params,
+      startedAt: job.startedAt,
+      completedAt: new Date().toISOString(),
+      result,
+    };
+    await this.updateJob(completed, 'running');
+    return true;
+  }
+
+  /**
+   * Retry-or-fail a running job. While `retryCount < maxRetries` the
+   * job goes back to `pending` with the count bumped (and is
+   * re-announced); after that it lands in `failed` with the error.
+   * Returns null (and changes nothing) if the job isn't running.
+   */
+  async failJob(jobId: JobId, error: string): Promise<'retried' | 'failed' | null> {
+    const job = await this.getJob(jobId);
+    if (!job || job.status !== 'running') {
+      return null;
+    }
+
+    this.lastProgressWrite.delete(jobId);
+    if (job.metadata.retryCount < job.metadata.maxRetries) {
+      const retried: PendingJob<any> = {
+        status: 'pending',
+        metadata: { ...job.metadata, retryCount: job.metadata.retryCount + 1 },
+        params: job.params,
+      };
+      await this.updateJob(retried, 'running');
+      return 'retried';
+    }
+
+    const failed: FailedJob<any> = {
+      status: 'failed',
+      metadata: job.metadata,
+      params: job.params,
+      startedAt: job.startedAt,
+      completedAt: new Date().toISOString(),
+      error,
+    };
+    await this.updateJob(failed, 'running');
+    return 'failed';
+  }
+
+  /**
+   * Write progress into a running job's file. Throttled per job, and
+   * a no-op for jobs that aren't running. Beyond surfacing live
+   * progress to `job:status-requested`, each write refreshes the
+   * file's mtime — the heartbeat `recoverStaleRunningJobs` watches.
+   */
+  async recordProgress(jobId: JobId, progress: Record<string, unknown>): Promise<void> {
+    const now = Date.now();
+    const lastWrite = this.lastProgressWrite.get(jobId) ?? 0;
+    if (now - lastWrite < PROGRESS_WRITE_MIN_INTERVAL_MS) {
+      return;
+    }
+    this.lastProgressWrite.set(jobId, now);
+
+    const job = await this.getJob(jobId);
+    if (!job || job.status !== 'running') {
+      this.lastProgressWrite.delete(jobId);
+      return;
+    }
+
+    // Written directly (not via updateJob) so chatty progress doesn't
+    // flood the info log.
+    const updated: RunningJob<any, any> = { ...job, progress };
+    await fs.writeFile(this.getJobPath(jobId, 'running'), JSON.stringify(updated, null, 2), 'utf-8');
   }
 
   /**
@@ -275,6 +383,72 @@ export class FsJobQueue implements JobQueue {
 
     await this.updateJob(cancelledJob, oldStatus);
     return true;
+  }
+
+  /**
+   * Cancel all pending jobs in a category — the granularity of the
+   * `job:cancel-requested` UI signal. Running jobs are left to finish:
+   * interrupting a worker mid-inference would need a worker-side kill
+   * channel that doesn't exist.
+   */
+  async cancelPendingJobs(category: 'annotation' | 'generation'): Promise<number> {
+    const matches = category === 'generation'
+      ? (type: string) => type === 'generation'
+      : (type: string) => type.endsWith('-annotation');
+
+    const pending = await this.listJobs({ status: 'pending', limit: Number.MAX_SAFE_INTEGER });
+    let cancelled = 0;
+    for (const job of pending) {
+      if (!matches(job.metadata.type)) continue;
+      if (await this.cancelJob(job.metadata.id)) {
+        cancelled++;
+      }
+    }
+
+    if (cancelled > 0) {
+      this.logger.info('Cancelled pending jobs', { category, cancelled });
+    }
+    return cancelled;
+  }
+
+  /**
+   * Recover running jobs orphaned by a dead worker: any `running/`
+   * file whose mtime is older than the stale window is fed through
+   * the same retry-or-fail path as `job:fail`. Progress writes
+   * refresh the mtime, so a live worker is never recovered out from
+   * under itself as long as it reports within the window.
+   */
+  async recoverStaleRunningJobs(): Promise<number> {
+    const runningDir = path.join(this.jobsDir, 'running');
+    let files: string[];
+    try {
+      files = await fs.readdir(runningDir);
+    } catch {
+      return 0;
+    }
+
+    const now = Date.now();
+    let recovered = 0;
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue;
+      try {
+        const stat = await fs.stat(path.join(runningDir, file));
+        if (now - stat.mtimeMs < STALE_RUNNING_MS) continue;
+
+        const staleId = toJobId(file.slice(0, -'.json'.length));
+        const outcome = await this.failJob(
+          staleId,
+          `worker presumed dead — no progress within ${STALE_RUNNING_MS / 60_000} minutes`,
+        );
+        if (outcome) {
+          this.logger.warn('Recovered stale running job', { jobId: staleId, outcome });
+          recovered++;
+        }
+      } catch {
+        // File vanished mid-scan (job finished) — nothing to recover
+      }
+    }
+    return recovered;
   }
 
   /**
@@ -360,4 +534,3 @@ export class FsJobQueue implements JobQueue {
     return stats;
   }
 }
-

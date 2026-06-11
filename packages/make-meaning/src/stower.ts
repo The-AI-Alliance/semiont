@@ -3,7 +3,7 @@
  *
  * The single write gateway to the Knowledge Base. Subscribes to command
  * events on the EventBus and translates them into domain events on the
- * EventStore + content writes to the RepresentationStore.
+ * EventStore + content operations on the WorkingTreeStore.
  *
  * From ARCHITECTURE.md:
  * The Knowledge Base has exactly three actor interfaces:
@@ -11,7 +11,8 @@
  * - Gatherer (read context)
  * - Matcher (read search)
  *
- * No other code should call eventStore.appendEvent() or repStore.store().
+ * No other code should call eventStore.appendEvent() or mutate the working tree
+ * through kb.content.
  *
  * Subscriptions:
  * - yield:create       → resource.created (+ content store)   → yield:created / yield:create-failed

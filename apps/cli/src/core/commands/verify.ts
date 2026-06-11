@@ -2,8 +2,9 @@
  * Verify Command
  *
  * Validates a backup archive without importing it.
- * Checks manifest format, hash chain integrity per stream,
- * and content blob presence.
+ * Checks manifest format and version, per-stream event counts
+ * against the manifest, and content blob count against the
+ * manifest stats.
  *
  * Usage:
  *   semiont verify --file backup.tar.gz

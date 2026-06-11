@@ -54,7 +54,6 @@ function makeStoredEvent(type: string, payload: Record<string, unknown>): Stored
     payload,
     metadata: {
       sequenceNumber: 1,
-      streamPosition: 0,
     },
   } as StoredEvent;
 }

@@ -130,14 +130,14 @@ The API builds and maintains a knowledge graph with these core entities:
 
 The API is backed by a 4-layer data architecture:
 
-1. **RepresentationStore**: W3C-compliant content-addressed storage (filesystem, SHA-256)
+1. **WorkingTreeStore**: Working-tree file storage — the project working tree is the source of truth, resources are identified by `file://` URIs, SHA-256 checksums recorded for integrity
 2. **Event Store**: Immutable event log (filesystem JSONL)
 3. **Projection Store**: Materialized resource state views (filesystem JSON)
 4. **Graph Database**: Relationship traversal (Neptune/In-Memory)
 
 **Benefits:**
 - **W3C Compliance**: Resources and representations follow W3C standards
-- **Content Addressing**: Automatic deduplication via SHA-256 checksums
+- **Content Integrity**: SHA-256 checksums recorded and verified against working-tree files
 - **Event Sourcing**: Complete audit trail, time-travel queries
 - **Rebuildable**: Projections and graph can be rebuilt from events
 - **Scalable**: Each layer optimized for its access pattern

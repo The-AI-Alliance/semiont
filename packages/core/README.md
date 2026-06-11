@@ -6,16 +6,15 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/core.svg)](https://www.npmjs.com/package/@semiont/core)
 [![License](https://img.shields.io/npm/l/@semiont/core.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Core types and domain logic for the Semiont semantic knowledge platform. This package is the **source of truth for OpenAPI types** and provides backend utilities for event sourcing, URIs, DID generation, and the EventBus.
+Core types and domain logic for the Semiont semantic knowledge platform. This package is the **source of truth for OpenAPI types** and provides the shared domain layer: event-sourcing types, the EventBus, the transport contract, W3C Web Annotation utilities, anchoring, DIDs, and configuration loading.
 
-> **Architecture Note**: This package generates TypeScript types from the OpenAPI specification. `@semiont/http-transport` re-exports these types and provides HTTP client functionality.
+> **Architecture Note**: This package generates TypeScript types from the OpenAPI specification. Every other package in the monorepo imports them from here.
 
 ## Who Should Use This
 
 - ✅ **Backend** (`apps/backend`) - Server implementation, imports types from core
-- ✅ **Packages** - Other monorepo packages that need OpenAPI types or EventBus
-- ✅ **Internal Utilities** - Type generation, validation, domain logic
-- ✅ **Frontend / Browser** - Types and pure utilities (main barrel is browser-safe)
+- ✅ **Packages** - Other monorepo packages that need OpenAPI types, the EventBus, or the transport contract
+- ✅ **Frontend / Browser** - Types and pure utilities (the main barrel is browser-safe)
 
 ## Who Should Use `@semiont/core/node` Instead
 
@@ -30,14 +29,11 @@ import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 
 **Rule**: If your code runs in a browser or edge runtime, use `@semiont/core`. If it runs in Node.js and needs filesystem access, use `@semiont/core/node`.
 
-## Who Should Use `@semiont/http-transport` Instead
+## Who Should Use `@semiont/sdk` Instead
 
-- **External Applications** - For HTTP client + utilities
-- **Frontend** (`apps/frontend`, `packages/react-ui`) - For API communication and W3C utilities
-- **Demo Scripts** - For higher-level API access
-- **MCP Servers** - For client-side annotation utilities
+Application code talking to a Semiont backend should use [`@semiont/sdk`](../sdk/), which provides `SemiontClient`, the verb-oriented namespaces, and the session layer. The SDK consumes the `ITransport` / `IContentTransport` contracts defined here; the HTTP implementations of those contracts live in [`@semiont/http-transport`](../http-transport/) and are re-exported by the SDK for convenience.
 
-**Rule of thumb**: If you need to make HTTP requests or work with W3C selectors, use `@semiont/http-transport`. If you only need types and domain logic, use `@semiont/core`.
+**Rule of thumb**: If you are making API calls, use `@semiont/sdk`. If you only need types and domain logic, use `@semiont/core`. Import from `@semiont/http-transport` directly only when constructing a transport stack by hand.
 
 ## Installation
 
@@ -84,114 +80,78 @@ const token = accessToken('eyJhbGc...');
 const eType = entityType('Person');
 ```
 
+Branded ID types (`ResourceId`, `AnnotationId`, `UserId`) with factories and guards (`resourceId`, `annotationId`, `userId`, `isResourceId`, `isAnnotationId`) live alongside the URI brands.
+
 ### Event Sourcing Types
 
-Event types for the event-sourced architecture:
+The persisted event catalog — every event type written to the JSONL event log, discriminated on `type` and namespaced by concern (`yield:*` resource lifecycle, `mark:*` annotations and tags, `frame:*` schema registration, `job:*` job lifecycle):
 
 ```typescript
 import type {
-  ResourceEvent,
-  ResourceCreatedEvent,
-  ResourceArchivedEvent,
-  DocumentUnarchivedEvent,
-  AnnotationAddedEvent,
-  AnnotationRemovedEvent,
-  AnnotationBodyUpdatedEvent,
-  EntityTagAddedEvent,
-  EntityTagRemovedEvent,
+  PersistedEvent,
+  PersistedEventType,
+  EventOfType,
+  EventInput,
   StoredEvent,
   EventMetadata,
-  DocumentAnnotations,
   BodyOperation,
+  ResourceAnnotations,
 } from '@semiont/core';
-```
+import { PERSISTED_EVENT_TYPES } from '@semiont/core';
 
-### DID Utilities
-
-Generate W3C Decentralized Identifiers for annotations:
-
-```typescript
-import { userToDid, userToAgent, didToAgent } from '@semiont/core';
-
-// Convert user to DID:WEB
-const did = userToDid(user);
-// => 'did:web:localhost%3A4000:users:user-id'
-
-// Convert user to W3C Agent
-const agent = userToAgent(user);
-// => { id: 'did:web:...', type: 'Person', name: 'User Name' }
-```
-
-### Cryptographic Utilities
-
-Content-addressing and checksums:
-
-```typescript
-import {
-  generateId,
-  generateToken,
-  generateUuid,
-  calculateChecksum,
-  verifyChecksum,
-} from '@semiont/core';
-
-// Generate unique IDs
-const id = generateId();
-const token = generateToken();
-const uuid = generateUuid();
-
-// Content checksums for verification
-const checksum = calculateChecksum(content);
-const isValid = verifyChecksum(content, checksum);
-```
-
-### Type Guards
-
-Runtime type checking:
-
-```typescript
-import {
-  isString,
-  isNumber,
-  isBoolean,
-  isObject,
-  isArray,
-  isNonEmptyArray,
-  isDefined,
-} from '@semiont/core';
-
-if (isNonEmptyArray(value)) {
-  // TypeScript knows value is T[] with length > 0
+function handle(event: PersistedEvent) {
+  if (event.type === 'mark:added') {
+    // payload is narrowed to the AnnotationAdded payload
+  }
 }
 ```
 
-### Error Classes
+`PERSISTED_EVENT_TYPES` is the runtime list of every persisted event type, with a compile-time exhaustiveness check against the catalog.
 
-Backend error types:
+### EventBus
+
+The RxJS-based event bus shared by backend and clients, with a typed channel protocol:
+
+```typescript
+import { EventBus, ScopedEventBus, burstBuffer, serializePerKey } from '@semiont/core';
+import type { EventMap, EventName } from '@semiont/core';
+```
+
+- **`EventBus` / `ScopedEventBus`** — framework-agnostic pub/sub over the unified `EventMap`
+- **`CHANNEL_SCHEMAS`** — maps each channel to its OpenAPI payload schema
+- **`burstBuffer`** — RxJS operator for coalescing event bursts
+- **`serializePerKey`** — per-key serialization for RPC-style callers
+- **`busLog` / `setBusLogTraceIdProvider`** — cross-wire bus observability
+
+### Transport Contract
+
+The interfaces every concrete transport must satisfy, plus the channel set transports bridge into a client's bus:
+
+```typescript
+import type { ITransport, IContentTransport, IBackendOperations, ConnectionState } from '@semiont/core';
+import { BRIDGED_CHANNELS } from '@semiont/core';
+```
+
+`@semiont/http-transport` implements these over HTTP + SSE; `LocalTransport` in `@semiont/make-meaning` implements them in-process.
+
+### W3C Web Annotation Utilities
+
+Pure functions for building and reading W3C Annotations:
 
 ```typescript
 import {
-  SemiontError,
-  APIError,
-  NotFoundError,
-  ConflictError,
-  ValidationError,
-  UnauthorizedError,
+  assembleAnnotation,
+  applyBodyOperations,
+  getBodySource,
+  getTargetSelector,
+  getExactText,
+  isHighlight,
+  isReference,
+  isComment,
 } from '@semiont/core';
-
-throw new NotFoundError('Document not found');
-throw new ValidationError('Invalid annotation format');
 ```
 
-### HTTP Client Utilities
-
-Backend HTTP utilities (internal use):
-
-```typescript
-import { fetchAPI, createFetchAPI } from '@semiont/core';
-
-const response = await fetchAPI(url, { method: 'POST', body: data });
-```
+Selector helpers cover text position, text quote, SVG, and PDF-viewrect fragment selectors (`getTextPositionSelector`, `getSvgSelector`, `createFragmentSelector`, `parseSvgSelector`, …).
 
 ### Annotation body matcher
 
@@ -223,13 +183,91 @@ const linkingIdx = findBodyItem(annotation.body, {
 `purpose` is optional in the identity. Omit it to match on identity alone;
 provide it when the caller knows which purpose to target.
 
+### Anchoring
+
+Re-anchor annotations after content edits — fuzzy text matching plus a render-time strategy that combines position and quote selectors with confidence scoring:
+
+```typescript
+import {
+  anchorAnnotation,
+  normalizeText,
+  buildContentCache,
+  findBestTextMatch,
+} from '@semiont/core';
+```
+
+### DID Utilities
+
+Generate and parse W3C Decentralized Identifiers for humans and software peers:
+
+```typescript
+import { userToDid, userToAgent, agentToDid, softwareToAgent, didToAgent } from '@semiont/core';
+
+userToDid({ email: 'alice@example.com', domain: 'example.com' });
+// => 'did:web:example.com:users:alice%40example.com'
+
+userToAgent({ id: 'u1', domain: 'example.com', name: 'Alice', email: 'alice@example.com' });
+// => { '@type': 'Person', '@id': 'did:web:example.com:users:alice%40example.com', name: 'Alice' }
+
+didToAgent('did:web:example.com:agents:ollama:gemma2%3A27b');
+// => { '@type': 'Software', '@id': ..., name: 'ollama gemma2:27b', provider: 'ollama', model: 'gemma2:27b' }
+```
+
+### Error Classes
+
+In-process error types, sharing the `TransportErrorCode` vocabulary with the transport-specific classes (`APIError` lives in `@semiont/http-transport`):
+
+```typescript
+import {
+  SemiontError,
+  ValidationError,
+  ScriptError,
+  NotFoundError,
+  UnauthorizedError,
+  ConflictError,
+} from '@semiont/core';
+
+throw new NotFoundError('Resource not found');
+```
+
+### Type Guards & Validation
+
+```typescript
+import { isString, isObject, isArray, isDefined, validateData, isValidEmail } from '@semiont/core';
+
+if (isDefined(value)) {
+  // TypeScript knows value is T, not T | null | undefined
+}
+```
+
+### Resource & Misc Utilities
+
+- **ResourceDescriptor accessors** — `getResourceId`, `getPrimaryRepresentation`, `getChecksum`, `isArchived`, `decodeRepresentation`, …
+- **Locales** — `LOCALES`, `getLocaleInfo`, `formatLocaleDisplay`, …
+- **MIME** — `getMimeCategory`, `isImageMimeType`, `getExtensionForMimeType`, …
+- **Text encoding** — `extractCharset`, `decodeWithCharset`
+- **Text context** — `extractContext`, `reconcileSelector`
+- **SVG** — `createRectangleSvg`, `parseSvgSelector`, `scaleSvgToNative`, …
+- **IDs** — `generateUuid`
+
+### Configuration
+
+Schema-generated configuration types plus loaders:
+
+```typescript
+import { loadTomlConfig, parseEnvironment, ConfigurationError } from '@semiont/core';
+import type { SemiontConfig, EnvironmentConfig, ServicesConfig } from '@semiont/core';
+```
+
+Filesystem-backed loading (`SemiontProject`, `loadEnvironmentConfig`) is in `@semiont/core/node` — see above.
+
 ### Backend Internal Types
 
 Types not in the OpenAPI spec:
 
 ```typescript
 import type {
-  UpdateDocumentInput,
+  UpdateResourceInput,
   ResourceFilter,
   CreateAnnotationInternal,
   AnnotationCategory,
@@ -240,74 +278,15 @@ import type {
 } from '@semiont/core';
 ```
 
-### Constants
-
-Backend-specific constants:
-
-```typescript
-import { CREATION_METHODS } from '@semiont/core';
-
-CREATION_METHODS.API          // 'api'
-CREATION_METHODS.PASTE        // 'paste'
-CREATION_METHODS.FILE_UPLOAD  // 'file-upload'
-CREATION_METHODS.REFERENCE    // 'reference'
-CREATION_METHODS.IMPORT       // 'import'
-```
-
-## What's NOT Included
-
-The following utilities have been **moved to @semiont/http-transport** (as of 2025-10-24):
-
-### ❌ Selector Utilities
-
-**Use `@semiont/http-transport` instead:**
-
-```typescript
-// OLD (removed from @semiont/core):
-import { getExactText, getTextPositionSelector } from '@semiont/core';
-
-// NEW (use @semiont/http-transport):
-import { getExactText, getTextPositionSelector } from '@semiont/http-transport';
-```
-
-### ❌ Locale Utilities
-
-**Use `@semiont/http-transport` instead:**
-
-```typescript
-// OLD (removed from @semiont/core):
-import { LOCALES, formatLocaleDisplay, getLocaleInfo } from '@semiont/core';
-
-// NEW (use @semiont/http-transport):
-import { LOCALES, formatLocaleDisplay, getLocaleInfo } from '@semiont/http-transport';
-```
-
-### ❌ Annotation Utilities (Public API)
-
-**Use `@semiont/http-transport` instead:**
-
-```typescript
-// OLD (removed from @semiont/core):
-import { compareAnnotationIds, getEntityTypes, getBodySource } from '@semiont/core';
-
-// NEW (use @semiont/http-transport):
-import { compareAnnotationIds, getEntityTypes, getBodySource } from '@semiont/http-transport';
-```
-
 ## Architecture: Spec-First
 
 Semiont follows a **spec-first architecture**:
 
 1. **OpenAPI Specification** ([specs/src/](../../specs/src/)) is the source of truth
-2. **@semiont/core** generates types from OpenAPI and provides utilities
-3. **@semiont/http-transport** re-exports types from core and provides HTTP client
+2. **@semiont/core** generates types from OpenAPI and provides domain utilities
+3. Every other package imports types from `@semiont/core`; application code talks to the backend through `@semiont/sdk`, whose transports implement core's `ITransport` contract
 
-**Principle**:
-- OpenAPI types & domain utilities → `@semiont/core` (source of truth)
-- HTTP client & convenience re-exports → `@semiont/http-transport`
-- Backend internal implementation → imports from `@semiont/core`
-
-**Type Yield Flow**: OpenAPI spec → `@semiont/core/src/types.ts` (via `openapi-typescript`) → re-exported by `@semiont/http-transport` for convenience. This ensures no circular dependencies and clear build order.
+**Type Yield Flow**: OpenAPI spec → `@semiont/core/src/types.ts` (via `openapi-typescript`) → imported across the monorepo. This ensures no circular dependencies and clear build order.
 
 ## Development
 
@@ -328,7 +307,8 @@ Apache-2.0
 
 ## Related Packages
 
-- [`@semiont/http-transport`](../http-transport/) - Primary TypeScript SDK (use this for most cases)
+- [`@semiont/sdk`](../sdk/) - The Semiont SDK (`SemiontClient`) - use this for application development
+- [`@semiont/http-transport`](../http-transport/) - HTTP implementations of core's transport contract
 - [`@semiont/backend`](../../apps/backend/) - Backend API server
 - [`@semiont/frontend`](../../apps/frontend/) - Web application
 

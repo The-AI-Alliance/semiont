@@ -4,32 +4,32 @@
 
 ### Stower
 
-The single write gateway to the Knowledge Base. Subscribes to command events on the EventBus and translates them into domain events on the EventStore and content writes to the RepresentationStore.
+The single write gateway to the Knowledge Base. Subscribes to command events on the EventBus and translates them into domain events on the EventStore and content registrations in the WorkingTreeStore.
 
 **Implementation**: [src/stower.ts](../src/stower.ts)
 
 ```typescript
 import { Stower } from '@semiont/make-meaning';
 
-const stower = new Stower(kb, publicURL, eventBus, logger);
+const stower = new Stower(kb, eventBus, logger);
 await stower.initialize();  // Subscribes to EventBus
 await stower.stop();         // Unsubscribes
 ```
 
 No public business methods. All interaction is via EventBus commands. See [Architecture](./architecture.md) for the full subscription table.
 
-### Gatherer
+### Browser
 
-Read actor. Handles all browse reads, context assembly, entity type listing, and vector semantic search (adds `semanticContext` to `GatheredContext` when a VectorStore is available).
+Read actor. Handles all deterministic KB read queries — resources, annotations, events, annotation history, referenced-by lookups, entity type and tag-schema listing — plus directory browse (filesystem listings merged with KB metadata).
 
-**Implementation**: [src/gatherer.ts](../src/gatherer.ts)
+**Implementation**: [src/browser.ts](../src/browser.ts)
 
 ```typescript
-import { Gatherer } from '@semiont/make-meaning';
+import { Browser } from '@semiont/make-meaning';
 
-const gatherer = new Gatherer(publicURL, kb, eventBus, inferenceClient, logger, config);
-await gatherer.initialize();
-await gatherer.stop();
+const browser = new Browser(kb.views, kb, eventBus, project, logger);
+await browser.initialize();
+await browser.stop();
 ```
 
 Responds to:
@@ -39,7 +39,26 @@ Responds to:
 - `browse:annotation-requested` → emits `browse:annotation-result` or `browse:annotation-failed`
 - `browse:events-requested` → emits `browse:events-result` or `browse:events-failed`
 - `browse:annotation-history-requested` → emits `browse:annotation-history-result` or `browse:annotation-history-failed`
-- `mark:entity-types-requested` → emits `mark:entity-types-result` or `mark:entity-types-failed`
+- `browse:referenced-by-requested` → emits `browse:referenced-by-result` or `browse:referenced-by-failed`
+- `browse:entity-types-requested` → emits `browse:entity-types-result` or `browse:entity-types-failed`
+- `browse:tag-schemas-requested` → emits `browse:tag-schemas-result` or `browse:tag-schemas-failed`
+- `browse:directory-requested` → emits `browse:directory-result` or `browse:directory-failed`
+
+### Gatherer
+
+Context assembly actor. Builds `GatheredContext` for annotations and resources — passage context, graph neighborhood, vector semantic search (adds `semanticContext` when an `EmbeddingProvider` and VectorStore are available), and optionally an LLM relationship summary.
+
+**Implementation**: [src/gatherer.ts](../src/gatherer.ts)
+
+```typescript
+import { Gatherer } from '@semiont/make-meaning';
+
+const gatherer = new Gatherer(kb, eventBus, inferenceClient, logger, embeddingProvider);
+await gatherer.initialize();
+await gatherer.stop();
+```
+
+Responds to:
 - `gather:requested` → emits `gather:complete` or `gather:failed`
 - `gather:resource-requested` → emits `gather:resource-complete` or `gather:resource-failed`
 
@@ -52,34 +71,32 @@ Search/link actor. Searches KB stores for entity resolution, context-driven sear
 ```typescript
 import { Matcher } from '@semiont/make-meaning';
 
-const matcher = new Matcher(kb, eventBus, logger, inferenceClient);
+const matcher = new Matcher(kb, eventBus, logger, inferenceClient, embeddingProvider);
 await matcher.initialize();
 await matcher.stop();
 ```
 
 Responds to:
-- `bind:search-requested` → context-driven search when `context` field is present, plain search otherwise → emits `bind:search-results` or `bind:search-failed`
-- `bind:referenced-by-requested` → emits `bind:referenced-by-result` or `bind:referenced-by-failed`
+- `match:search-requested` → context-driven search over the `context` field (a `GatheredContext`) → emits `match:search-results` or `match:search-failed`
 
-### Smelter
+Referenced-by lookups are handled by the Browser (`browse:referenced-by-requested`), not the Matcher.
 
-Embedding pipeline actor. Subscribes to resource and annotation events, chunks text, computes embeddings via `@semiont/vectors` (EmbeddingProvider: Voyage or Ollama), emits `embedding:compute` commands (persisted by Stower as `embedding:computed` domain events), and indexes vectors into the VectorStore (Qdrant or memory).
+### Smelter (standalone process)
 
-**Implementation**: [src/smelter.ts](../src/smelter.ts)
+Embedding pipeline actor. Runs in its own process via `@semiont/make-meaning/smelter-main` — it is **not** started by `startMakeMeaning()`. It chunks text, computes embeddings via `@semiont/vectors` (EmbeddingProvider: Voyage or Ollama), persists them to the EmbeddingStore (`.semiont/embeddings/`), and indexes vectors into the VectorStore (Qdrant or memory).
+
+**Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
+
+For custom wiring on top of an existing `WorkerBus`, the package exports both the pipeline and its domain-event fan-in:
 
 ```typescript
-import { Smelter } from '@semiont/make-meaning';
-
-const smelter = new Smelter(kb, eventBus, vectorStore, embeddingProvider, logger, chunkingConfig);
-await smelter.initialize();
-await smelter.stop();
+import { Smelter, createSmelterActorStateUnit } from '@semiont/make-meaning';
 ```
 
-Responds to:
-- `yield:created` → chunks and embeds resource text, indexes into VectorStore → emits `embedding:compute`
-- `mark:created` → chunks and embeds annotation text → emits `embedding:compute`
-- `mark:body-updated` → re-chunks and re-embeds annotation text → emits `embedding:compute`
-- `yield:moved` / resource deleted → removes vectors from index → emits `embedding:delete`
+Consumes domain events:
+- `yield:created` / `yield:updated` / `yield:representation-added` → chunks and embeds resource text, persists, indexes into VectorStore
+- `mark:added` → chunks and embeds annotation text, persists, indexes
+- `mark:removed` / `mark:archived` → removes vectors from index
 
 ### CloneTokenManager
 
@@ -90,7 +107,7 @@ Clone token lifecycle actor. Manages temporary tokens for resource cloning.
 ```typescript
 import { CloneTokenManager } from '@semiont/make-meaning';
 
-const ctm = new CloneTokenManager(eventBus, kb, publicURL, logger);
+const ctm = new CloneTokenManager(kb, eventBus, logger);
 await ctm.initialize();
 await ctm.stop();
 ```
@@ -117,24 +134,10 @@ static async createResource(
   input: CreateResourceInput,
   userId: UserId,
   eventBus: EventBus,
-  publicURL: string,
-): Promise<CreateResourceResult>
+): Promise<ResourceId>
 ```
 
-Emits `yield:create` on EventBus, awaits `yield:created` from Stower.
-
-#### updateResource()
-
-```typescript
-static async updateResource(
-  resourceId: ResourceId,
-  input: UpdateResourceInput,
-  userId: UserId,
-  eventBus: EventBus,
-): Promise<void>
-```
-
-Emits `mark:update-entity-types`, `mark:archive`, or `mark:unarchive` on EventBus depending on input.
+Callers write content to the content store first; `CreateResourceInput` carries the resulting `storageUri`, `contentChecksum`, and `byteSize` (plus `name`, `format`, and optional `language`, `entityTypes`, generation provenance). Emits `yield:create` on EventBus, awaits `yield:create-ok` / `yield:create-failed` from Stower, and returns the new `ResourceId`.
 
 ### AnnotationOperations
 
@@ -150,38 +153,39 @@ static async createAnnotation(
   userId: UserId,
   creator: Agent,
   eventBus: EventBus,
-  publicURL: string,
 ): Promise<CreateAnnotationResult>
 ```
 
-Builds a full W3C Annotation (with `creator` and `created`), emits `mark:create` on EventBus, awaits `mark:created` from Stower.
+Assembles a full W3C Annotation locally (`assembleAnnotation` from `@semiont/core`, with `creator` and `created`), emits `mark:create` on EventBus (fire-and-forget — Stower persists), and returns the assembled annotation.
 
 #### updateAnnotationBody()
 
 ```typescript
 static async updateAnnotationBody(
-  annotationId: AnnotationId,
-  resourceId: ResourceId,
-  operations: AnnotationBodyOperation[],
+  id: string,
+  request: UpdateAnnotationBodyRequest,
   userId: UserId,
   eventBus: EventBus,
+  kb: KnowledgeBase,
 ): Promise<UpdateAnnotationBodyResult>
 ```
 
-Emits `mark:update-body` on EventBus.
+Reads the current annotation from the KB, emits `mark:update-body` on EventBus, and returns the annotation with the body operations applied optimistically.
 
 #### deleteAnnotation()
 
 ```typescript
 static async deleteAnnotation(
-  annotationId: AnnotationId,
-  resourceId: ResourceId,
+  id: string,
+  resourceId: string,
   userId: UserId,
   eventBus: EventBus,
+  kb: KnowledgeBase,
+  logger?: Logger,
 ): Promise<void>
 ```
 
-Emits `mark:delete` on EventBus, awaits `mark:deleted` from Stower.
+Verifies the annotation exists in the resource's projection, then emits `mark:delete` on EventBus (fire-and-forget — Stower persists).
 
 ---
 
@@ -235,13 +239,14 @@ static async buildLLMContext(
   annotationId: AnnotationId,
   resourceId: ResourceId,
   kb: KnowledgeBase,
-  options: BuildContextOptions,
+  options?: BuildContextOptions,
   inferenceClient?: InferenceClient,
   logger?: Logger,
+  embeddingProvider?: EmbeddingProvider,
 ): Promise<AnnotationLLMContextResponse>
 ```
 
-Builds rich context for AI processing including the annotation, surrounding text, resource metadata, and knowledge graph neighborhood (`graphContext`). When an `InferenceClient` is provided, also generates an `inferredRelationshipSummary` describing how the passage relates to its graph neighborhood.
+Builds rich context for AI processing including the annotation, surrounding text, resource metadata, and knowledge graph neighborhood (`graphContext`). When an `InferenceClient` is provided, also generates an `inferredRelationshipSummary` describing how the passage relates to its graph neighborhood; when an `EmbeddingProvider` is provided (and the KB has vectors), adds `semanticContext` from vector search.
 
 #### getResourceAnnotations()
 
@@ -334,23 +339,23 @@ static async getResourceContext(
 
 ```typescript
 export interface KnowledgeBase {
-  eventStore: EventStore;
-  views: ViewStorage;
-  content: RepresentationStore;
-  graph: GraphDatabase;
-  vectors?: VectorStore;   // Optional — Qdrant or memory (from @semiont/vectors)
-  smelter?: Smelter;       // Optional — embedding pipeline actor
+  eventStore:     EventStore;
+  views:          ViewStorage;
+  content:        WorkingTreeStore;
+  graph:          GraphDatabase;
+  graphConsumer:  GraphDBConsumer;
+  vectors?:       VectorStore;   // Optional — Qdrant or memory (from @semiont/vectors)
+  projectionsDir: string;
 }
 
-export function createKnowledgeBase(
+export async function createKnowledgeBase(
   eventStore: EventStore,
-  basePath: string,
-  projectRoot: string | undefined,
+  project: SemiontProject,
   graphDb: GraphDatabase,
+  eventBus: EventBus,
   logger: Logger,
-  vectorStore?: VectorStore,
-  smelter?: Smelter,
-): KnowledgeBase
+  options?: { vectorStore?: VectorStore; skipRebuild?: boolean },
+): Promise<KnowledgeBase>
 ```
 
 ## See Also

@@ -20,10 +20,11 @@ npm install @semiont/jobs
 
 **Dependencies:**
 - `@semiont/core` — Core types, `SemiontProject`, EventBus
-- `@semiont/sdk` — `SemiontSession`, `JobClaimAdapter` (worker process)
+- `@semiont/sdk` — `SemiontSession`, `WorkerBus` (worker process)
 - `@semiont/http-transport` — HTTP transport, OpenAPI types
 - `@semiont/inference` — InferenceClient for AI operations
 - `@semiont/content` — Content storage URI derivation
+- `@semiont/event-sourcing` — Annotation id generation
 - `@semiont/observability` — Spans and job-outcome metrics
 
 ## Quick Start
@@ -88,16 +89,16 @@ interface JobMetadata {
   id: JobId;
   type: JobType;
   userId: UserId;
-  userName: string;       // For building W3C Agent creator
-  userEmail: string;      // For building W3C Agent creator
-  userDomain: string;     // For building W3C Agent creator
+  userName: string;       // Audit-only snapshot of the requesting user
+  userEmail: string;      // Audit-only snapshot of the requesting user
+  userDomain: string;     // Audit-only snapshot of the requesting user
   created: string;
   retryCount: number;
   maxRetries: number;
 }
 ```
 
-The `userName`, `userEmail`, and `userDomain` fields are used by workers to build the W3C `Agent` for annotation `creator` attribution via `userToAgent()`.
+The `userName`, `userEmail`, and `userDomain` fields are an audit-only snapshot of the requesting user, persisted in the on-disk job file. Workers derive annotation `creator` attribution from `userId` via `didToAgent()`.
 
 ## Annotation Workers
 
@@ -112,9 +113,9 @@ The worker process (`worker-main.ts` → `startWorkerProcess` in `worker-process
 | `comment-annotation` | `processCommentJob` |
 | `tag-annotation` | `processTagJob` |
 
-Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`). Each processor fetches content via `session.client.browse.resourceContent(resourceId)`.
+Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`). Processors never fetch content themselves — the worker process fetches it via `session.client.browse.resourceContent(resourceId)` and passes it in.
 
-Workers emit bus events via `session.client.transport.emit('mark:create' | 'job:start' | 'job:report-progress' | 'job:complete' | 'job:fail', payload)` — the Stower actor in @semiont/make-meaning handles persistence.
+Workers emit bus events via `session.client.transport.emit('mark:create' | 'job:start' | 'job:report-progress' | 'job:complete' | 'job:fail', payload)` — the Stower actor in @semiont/make-meaning handles persistence to the event log, and the job command handlers mirror the same events into the queue files (completion, retry-on-failure with `maxRetries`, progress-as-heartbeat).
 
 ## Adding a Job Type
 
@@ -133,12 +134,12 @@ Jobs use TypeScript discriminated unions for type safety:
 ```typescript
 function handleJob(job: AnyJob) {
   if (job.status === 'running') {
-    console.log(job:progress);    // Available
+    console.log(job.progress);    // Available
     // console.log(job.result);   // Compile error
   }
   if (job.status === 'complete') {
     console.log(job.result);      // Available
-    // console.log(job:progress); // Compile error
+    // console.log(job.progress); // Compile error
   }
 }
 ```
@@ -148,7 +149,7 @@ function handleJob(job: AnyJob) {
 Jobs are stored as individual JSON files organized by status:
 
 ```
-data/jobs/
+{project.jobsDir}/
   pending/job-abc123.json
   running/job-def456.json
   complete/job-ghi789.json
@@ -172,7 +173,7 @@ Apache-2.0
 ## Related Packages
 
 - [`@semiont/core`](../core/) — Domain types, `SemiontProject`, EventBus
-- [`@semiont/sdk`](../sdk/) — `SemiontSession`, `JobClaimAdapter`
+- [`@semiont/sdk`](../sdk/) — `SemiontSession`, `WorkerBus`
 - [`@semiont/http-transport`](../http-transport/) — HTTP transport, OpenAPI types
 - [`@semiont/inference`](../inference/) — AI inference client
 - [`@semiont/make-meaning`](../make-meaning/) — Actor model, Knowledge Base, service orchestration

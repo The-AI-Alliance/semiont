@@ -45,16 +45,12 @@ const createProps = (overrides?: Partial<AdminExchangePageProps>): AdminExchange
     },
     progress: {
       phaseStarted: 'Starting…',
-      phaseEntityTypes: 'Entity types…',
-      phaseResources: 'Resources…',
-      phaseAnnotations: 'Annotations…',
       phaseComplete: 'Complete',
       phaseError: 'Failed',
-      hashChainValid: 'Hash valid',
-      hashChainInvalid: 'Hash invalid',
-      streams: 'Streams',
-      events: 'Events',
-      blobs: 'Blobs',
+      statsEventsReplayed: 'Events replayed',
+      statsResourcesCreated: 'Resources created',
+      statsAnnotationsCreated: 'Annotations created',
+      statsEntityTypesAdded: 'Entity types added',
     },
   },
   ToolbarPanels: () => <div data-testid="toolbar-panels" />,
@@ -100,10 +96,11 @@ describe('AdminExchangePage', () => {
   it('renders ImportProgress with backup result on completion', () => {
     render(<AdminExchangePage {...createProps({
       importPhase: 'complete',
-      importResult: { stats: { streams: 5, events: 42, blobs: 3 }, hashChainValid: true },
+      importResult: { stats: { eventsReplayed: 42, resourcesCreated: 5, annotationsCreated: 12, entityTypesAdded: 3 } },
     })} />);
     expect(screen.getByText('Complete')).toBeInTheDocument();
-    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getByText('42')).toBeInTheDocument();
+    expect(screen.getByText('Events replayed')).toBeInTheDocument();
   });
 
   it('applies panel-open class when common panel is active', () => {

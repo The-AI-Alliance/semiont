@@ -10,14 +10,12 @@ import { execFileSync } from 'child_process';
  * XDG environment variables are read here and nowhere else.
  *
  * Durable paths (inside the project root, committed or repo-local):
- *   eventsDir          — .semiont/events/      (system of record, committed)
- *   representationsDir — representations/      (content store, committed)
+ *   eventsDir — .semiont/events/  (system of record, committed)
  *
  * Ephemeral paths (outside the project root, never committed):
  *   configDir      — $XDG_CONFIG_HOME/semiont/{name}/  (generated config for managed processes)
  *   dataHome       — $XDG_DATA_HOME/semiont/{name}/   (persistent user data, e.g. database files)
  *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
- *   embeddingsDir   — stateDir/embeddings/
  *   projectionsDir  — stateDir/projections/
  *   jobsDir         — stateDir/jobs/
  *   backendLogsDir      — stateDir/backend/
@@ -40,7 +38,6 @@ export class SemiontProject {
 
   // Durable
   readonly eventsDir: string;
-  readonly representationsDir: string;
 
   // Ephemeral — config (generated config files for managed processes)
   readonly configDir: string;
@@ -50,7 +47,6 @@ export class SemiontProject {
 
   // Ephemeral — state
   readonly stateDir: string;
-  readonly embeddingsDir: string;
   readonly projectionsDir: string;
   readonly jobsDir: string;
   readonly backendLogsDir: string;
@@ -74,7 +70,6 @@ export class SemiontProject {
     this.gitSync = SemiontProject.readGitSync(projectRoot);
 
     this.eventsDir = path.join(projectRoot, '.semiont', 'events');
-    this.representationsDir = path.join(projectRoot, 'representations');
 
     const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
     this.configDir = path.join(xdgConfig, 'semiont', this.name);
@@ -84,7 +79,6 @@ export class SemiontProject {
 
     const xdgState = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
     this.stateDir = path.join(xdgState, 'semiont', this.name);
-    this.embeddingsDir = path.join(this.stateDir, 'embeddings');
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
     this.backendLogsDir = path.join(this.stateDir, 'backend');

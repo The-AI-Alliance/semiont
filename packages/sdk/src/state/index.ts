@@ -12,8 +12,8 @@
 //              `WorkerBus` channel-IO interface)
 //
 // Domain-specific worker adapters live with their domain, not here.
-// `@semiont/jobs` houses `createJobClaimAdapter` and `createJobQueueStateUnit`
-// (the job-claim protocol runtime + the jobs-list state observer).
+// `@semiont/jobs` houses `createJobClaimAdapter` (the job-claim protocol
+// runtime, internal to its worker process).
 // `@semiont/make-meaning` houses `createSmelterActorStateUnit` (the
 // domain-event fan-in for the Smelter worker, co-located with the
 // Smelter actor and its `smelter-main` entry point).

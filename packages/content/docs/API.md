@@ -1,280 +1,185 @@
-# Content Storage API Reference
+# Content API Reference
 
 ## Overview
 
-The `@semiont/content` package provides content-addressed storage using SHA-256 checksums, enabling automatic deduplication and integrity verification.
+The `@semiont/content` package manages files in the project working tree, records SHA-256 checksums for integrity, and extracts positioned text layers from PDFs.
 
-## RepresentationStore Interface
+## WorkingTreeStore
 
 ### Initialization
 
 ```typescript
-import { FilesystemRepresentationStore } from '@semiont/content';
+import { WorkingTreeStore } from '@semiont/content';
+import { SemiontProject } from '@semiont/core/node';
 
-const store = new FilesystemRepresentationStore({
-  basePath: '/data/storage'
-});
+const project = new SemiontProject('/path/to/project');
+const store = new WorkingTreeStore(project, logger /* optional */);
 ```
+
+The store resolves `file://` URIs against the project root. When the project has `[git] sync = true` in `.semiont/config`, mutating operations also keep the git index up to date; every method accepts `{ noGit: true }` to skip that for a single call.
 
 ### Storing Content
 
+`store()` writes bytes to disk. Used when the file does not yet exist and the caller provides content (API/GUI/AI path).
+
 ```typescript
-// Store content (returns checksum and metadata)
-const storedRep = await store.store(
-  Buffer.from('Document content'),
-  {
-    mediaType: 'text/plain',
-    language: 'en',
-    rel: 'original'
-  }
+const stored = await store.store(
+  Buffer.from('# Overview\n'),
+  'file://docs/overview.md'
 );
 
-// Returns:
+// Returns StoredResource:
 // {
-//   checksum: 'sha256:abc123...',
-//   mediaType: 'text/plain',
-//   language: 'en',
-//   rel: 'original',
-//   size: 1024
+//   storageUri: 'file://docs/overview.md',
+//   checksum: '5aaa0b72...',        // SHA-256 hex of content
+//   byteSize: 12,
+//   created: '2026-06-10T12:00:00.000Z'
 // }
+```
+
+Intermediate directories are created automatically. With git sync, the file is staged via `git add`.
+
+### Registering Existing Files
+
+`register()` reads a file that is already on disk and returns its metadata (CLI path). If `expectedChecksum` is provided and does not match, it throws `ChecksumMismatchError`.
+
+```typescript
+const registered = await store.register('file://docs/overview.md');
+
+// With verification:
+await store.register('file://docs/overview.md', expectedChecksum);
+// throws ChecksumMismatchError on mismatch
 ```
 
 ### Retrieving Content
 
 ```typescript
-// Get content by checksum
-const buffer = await store.get('sha256:abc123...');
-
-// Convert to string for text content
+const buffer = await store.retrieve('file://docs/overview.md');
 const text = buffer.toString('utf-8');
+// Throws "Resource not found: <uri>" if the file does not exist
 ```
 
-### Managing Content
+### Moving and Removing
 
 ```typescript
-// Check if content exists
-const exists = await store.exists('sha256:abc123...');
+// Rename/move (git mv with git sync, fs.rename otherwise)
+await store.move('file://docs/overview.md', 'file://docs/intro.md');
 
-// Delete content
-await store.delete('sha256:abc123...');
+// Delete (git rm with git sync, fs.unlink otherwise)
+await store.remove('file://docs/intro.md');
+
+// Remove from the git index but keep the file on disk (git rm --cached)
+await store.remove('file://docs/intro.md', { keepFile: true });
 ```
 
-## Content Addressing
-
-### How It Works
-
-1. **Input**: Content buffer (any format)
-2. **Calculate**: SHA-256 checksum
-3. **Determine**: File extension from MIME type
-4. **Store**: At path based on checksum
-
-### Storage Path Structure
-
-```
-basePath/
-└── representations/
-    ├── text~1plain/
-    │   └── ab/
-    │       └── cd/
-    │           └── rep-abcd1234.txt
-    ├── text~1markdown/
-    │   └── 5a/
-    │       └── aa/
-    │           └── rep-5aaa0b72.md
-    └── image~1png/
-        └── ff/
-            └── ff/
-                └── rep-ffff8888.png
-```
-
-Path components:
-- `representations/` - Namespace
-- `text~1plain/` - URL-encoded media type
-- `ab/cd/` - 4-hex sharding from checksum
-- `rep-abcd1234.txt` - Filename with checksum and extension
-
-## W3C Representation Model
-
-### StoredRepresentation
+### Resolving URIs
 
 ```typescript
-interface StoredRepresentation {
-  checksum: string;      // SHA-256 checksum
-  mediaType: string;     // MIME type
-  language?: string;     // ISO language code
-  rel?: string;          // Relationship type
-  size: number;          // Content size in bytes
+store.resolveUri('file://docs/overview.md');
+// => '/path/to/project/docs/overview.md'
+// Throws for URIs that do not start with file://
+```
+
+### Types
+
+```typescript
+interface StoredResource {
+  storageUri: string;    // file:// URI (e.g. "file://docs/overview.md")
+  checksum: string;      // SHA-256 hex of content
+  byteSize: number;      // Size in bytes
+  created: string;       // ISO 8601 timestamp
 }
-```
 
-### Multiple Representations
-
-Store different representations of the same resource:
-
-```typescript
-// Store original
-const original = await store.store(
-  Buffer.from('Original text'),
-  { mediaType: 'text/plain', rel: 'original' }
-);
-
-// Store translation
-const translation = await store.store(
-  Buffer.from('Texto original'),
-  { mediaType: 'text/plain', rel: 'translation', language: 'es' }
-);
-
-// Store derived format
-const markdown = await store.store(
-  Buffer.from('# Original text'),
-  { mediaType: 'text/markdown', rel: 'derived' }
-);
-```
-
-## Deduplication
-
-### Automatic Deduplication
-
-Identical content is stored only once:
-
-```typescript
-const rep1 = await store.store(
-  Buffer.from('Same content'),
-  { mediaType: 'text/plain' }
-);
-
-const rep2 = await store.store(
-  Buffer.from('Same content'),
-  { mediaType: 'text/plain' }
-);
-
-console.log(rep1.checksum === rep2.checksum); // true
-// Only one file on disk
-```
-
-### Storage Efficiency
-
-```typescript
-// Example: 100 documents with identical content
-// Traditional: 100 files × 10KB = 1MB
-// Content-addressed: 1 file × 10KB = 10KB
-// Space saved: 99%
-```
-
-## Binary Content
-
-### Storing Binary Files
-
-```typescript
-import { readFileSync } from 'fs';
-
-// Store image
-const imageBuffer = readFileSync('photo.jpg');
-const imageRep = await store.store(imageBuffer, {
-  mediaType: 'image/jpeg'
-});
-
-// Store PDF
-const pdfBuffer = readFileSync('document.pdf');
-const pdfRep = await store.store(pdfBuffer, {
-  mediaType: 'application/pdf'
-});
-```
-
-### Retrieving Binary Content
-
-```typescript
-const imageBuffer = await store.get(imageRep.checksum);
-// Use buffer directly or save to file
-writeFileSync('retrieved.jpg', imageBuffer);
+class ChecksumMismatchError extends Error {
+  readonly storageUri: string;
+  readonly expected: string;
+  readonly actual: string;
+}
 ```
 
 ## Checksum Utilities
 
-### Calculate Checksum
-
 ```typescript
-import { calculateChecksum } from '@semiont/content';
+import { calculateChecksum, verifyChecksum } from '@semiont/content';
 
-const checksum = calculateChecksum(Buffer.from('content'));
-console.log(checksum); // sha256:abc123...
+const checksum = calculateChecksum(Buffer.from('Hello'));
+// SHA-256 hex string (64 chars)
+
+verifyChecksum(Buffer.from('Hello'), checksum);  // true
 ```
 
-### Verify Integrity
+## MIME Utilities
 
 ```typescript
-import { verifyChecksum } from '@semiont/content';
+import {
+  getExtensionForMimeType,
+  hasKnownExtension,
+  deriveStorageUri,
+} from '@semiont/content';
 
-const isValid = await verifyChecksum(
-  buffer,
-  'sha256:abc123...'
-);
+getExtensionForMimeType('text/markdown');           // '.md'
+getExtensionForMimeType('text/plain; charset=utf-8'); // '.txt' (parameters ignored)
+getExtensionForMimeType('unknown/type');             // '.dat'
 
-if (!isValid) {
-  throw new Error('Content corrupted');
+hasKnownExtension('image/png');     // true
+hasKnownExtension('unknown/type');  // false
+
+deriveStorageUri('My Document', 'text/markdown');
+// 'file://my-document.md' (lowercased, non-alphanumerics collapsed to hyphens)
+```
+
+See [mime-types.md](./mime-types.md) for the full mapping.
+
+## PDF Text Layer
+
+### extractPdfTextLayer
+
+Extracts positioned text from a native (non-scanned) PDF using pdfjs-dist. Returns `null` when the document has no text items (scanned/image-only PDFs).
+
+```typescript
+import { extractPdfTextLayer } from '@semiont/content';
+
+const layer = await extractPdfTextLayer(pdfBytes);  // Uint8Array | Buffer
+if (layer === null) {
+  // scanned or image-only PDF
 }
 ```
 
-## Sharding Strategy
+### locate
 
-### 4-Hex Sharding
-
-Uses first 4 hex characters of checksum for directory structure:
+Finds bounding rectangles for a character span `[start, end)` of `layer.text`. Returns one `PdfCoordinate` per line of text covered by the span (possibly across pages), or an empty array if no text items overlap the span.
 
 ```typescript
-// Checksum: sha256:abcd1234...
-// Path: ab/cd/rep-abcd1234...
+import { locate } from '@semiont/content';
 
-// Provides 65,536 shards (16^4)
-// Uniform distribution via SHA-256
+const rects = locate(layer, 120, 178);
+// => [{ page: 1, x: 56.7, y: 701.2, width: 213.4, height: 11.9 }, ...]
 ```
 
-### Jump Consistent Hash
+### Types
 
 ```typescript
-import { getShardPath } from '@semiont/content';
+interface PdfTextLayer {
+  pages: PdfPageInfo[];  // Page dimensions in PDF points
+  text: string;          // Reading-order concatenation across all pages
+  items: PdfTextItem[];  // One entry per text run (roughly a word)
+}
 
-const shardPath = getShardPath('sha256:abc123...');
-// Returns: 'ab/c1'
-```
+interface PdfTextItem {
+  start: number;  // Char offset in PdfTextLayer.text (inclusive)
+  end: number;    // Char offset in PdfTextLayer.text (exclusive)
+  page: number;   // 1-indexed page number
+  x: number;      // PDF points, origin bottom-left
+  y: number;
+  width: number;
+  height: number;
+}
 
-## Error Handling
-
-```typescript
-try {
-  const content = await store.get(checksum);
-} catch (error) {
-  if (error.code === 'ENOENT') {
-    // Content not found
-  } else if (error.code === 'EACCES') {
-    // Permission denied
-  } else if (error.code === 'ENOSPC') {
-    // No space left on device
-  } else {
-    // Other error
-  }
+interface PdfPageInfo {
+  pageNumber: number;
+  widthPt: number;
+  heightPt: number;
 }
 ```
 
-## Performance Characteristics
-
-### Operation Complexity
-
-- **Store**: O(1) - SHA-256 calculation + write
-- **Get**: O(1) - Direct path calculation
-- **Exists**: O(1) - Filesystem stat
-- **Delete**: O(1) - Direct path calculation
-
-### Checksum Performance
-
-- SHA-256 calculation: ~500 MB/s (typical)
-- Small files (<1KB): Negligible overhead
-- Large files (>10MB): Consider streaming
-
-## Best Practices
-
-1. **Buffer Management**: Use streams for large files
-2. **Error Handling**: Always handle missing content gracefully
-3. **Cleanup**: Implement reference counting for safe deletion
-4. **Monitoring**: Track storage usage and shard distribution
-5. **Backup**: Regular backups of content directory
+All geometry is in PDF point space with the origin at the bottom-left of the page (Y increases upward). The Y-flip to canvas pixels happens downstream in the browser. The `PdfCoordinate` type that `locate()` emits lives in `@semiont/core` alongside the viewrect FragmentSelector codec.

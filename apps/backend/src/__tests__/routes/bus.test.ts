@@ -43,7 +43,7 @@ function fakeStoredMarkAdded(
     version: 1,
     timestamp: '2026-01-01T00:00:00Z',
     payload: { annotation },
-    metadata: { sequenceNumber: seq, streamPosition: seq - 1 } as EventMetadata,
+    metadata: { sequenceNumber: seq } as EventMetadata,
   };
 }
 
@@ -64,7 +64,7 @@ function fakeStoredYieldCreated(
     version: 1,
     timestamp: '2026-01-01T00:00:00Z',
     payload,
-    metadata: { sequenceNumber: seq, streamPosition: seq - 1 } as EventMetadata,
+    metadata: { sequenceNumber: seq } as EventMetadata,
   };
 }
 

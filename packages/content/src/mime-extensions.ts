@@ -1,8 +1,8 @@
 /**
  * MIME Type to File Extension Mapping
  *
- * Maps common MIME types to their standard file extensions.
- * Used by RepresentationStore to save files with proper extensions.
+ * Maps common MIME types to their standard file extensions, used to derive
+ * file:// storage URIs and to name exported files.
  */
 
 /**

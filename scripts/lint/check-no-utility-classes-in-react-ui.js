@@ -146,7 +146,7 @@ function checkFileForUtilityClasses(filePath) {
  * Recursively find all TSX/JSX files in a directory
  */
 function findReactUIFiles() {
-  const reactUiSrc = path.join(__dirname, '../packages/react-ui/src');
+  const reactUiSrc = path.join(__dirname, '../../packages/react-ui/src');
 
   if (!fs.existsSync(reactUiSrc)) {
     console.error('Error: packages/react-ui/src not found');
@@ -219,7 +219,10 @@ function main() {
   }
 
   console.log('⚠️  Utility-class frameworks (Tailwind, UnoCSS, Bootstrap utilities, etc.) are NOT allowed in @semiont/react-ui');
-  console.log('   See REACT-UI-NO-TAILWIND.md for the policy and how to fix this.');
+  console.log('   Policy: use semantic BEM classes prefixed with "semiont-", styled in a CSS file');
+  console.log('   co-located with the component, using the CSS variables from');
+  console.log('   packages/react-ui/src/styles/variables.css (add [data-theme="dark"] variants');
+  console.log('   for theme-sensitive properties). Good examples: Toast.css, ErrorBoundary.tsx.');
   console.log(`   Total violations: ${allViolations.length}\n`);
 
   process.exit(1);

@@ -10,7 +10,7 @@ export type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult
 export { QdrantVectorStore } from './store/qdrant';
 export type { QdrantConfig } from './store/qdrant';
 export { MemoryVectorStore } from './store/memory';
-export { createVectorStore, getVectorStore } from './store/factory';
+export { createVectorStore } from './store/factory';
 export type { VectorStoreConfig } from './store/factory';
 
 // Embedding

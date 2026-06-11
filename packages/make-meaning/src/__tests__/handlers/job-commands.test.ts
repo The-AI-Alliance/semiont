@@ -20,8 +20,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { firstValueFrom, filter, race, timer, take } from 'rxjs';
-import { EventBus, type Logger, type TagSchema } from '@semiont/core';
+import { EventBus, jobId, userId, resourceId, type Logger, type TagSchema } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
+import { FsJobQueue } from '@semiont/jobs';
 import { registerJobCommandHandlers } from '../../handlers/job-commands';
 import { createTestProject } from '../helpers/test-project';
 
@@ -50,6 +51,10 @@ interface MockJobQueue {
   createJob: ReturnType<typeof vi.fn>;
   getJob: ReturnType<typeof vi.fn>;
   updateJob: ReturnType<typeof vi.fn>;
+  completeJob: ReturnType<typeof vi.fn>;
+  failJob: ReturnType<typeof vi.fn>;
+  recordProgress: ReturnType<typeof vi.fn>;
+  cancelPendingJobs: ReturnType<typeof vi.fn>;
 }
 
 function makeJobQueue(): MockJobQueue {
@@ -57,6 +62,10 @@ function makeJobQueue(): MockJobQueue {
     createJob: vi.fn().mockResolvedValue(undefined),
     getJob: vi.fn().mockResolvedValue(null),
     updateJob: vi.fn().mockResolvedValue(undefined),
+    completeJob: vi.fn().mockResolvedValue(true),
+    failJob: vi.fn().mockResolvedValue('failed'),
+    recordProgress: vi.fn().mockResolvedValue(undefined),
+    cancelPendingJobs: vi.fn().mockResolvedValue(0),
   };
 }
 
@@ -405,5 +414,192 @@ describe('registerJobCommandHandlers — entity-type validation', () => {
     const result = await firstValueFrom(race(created$, timer(2_000)));
     expect(result).toBeDefined();
     expect(jobQueue.createJob).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('registerJobCommandHandlers — queue lifecycle sync', () => {
+  let project: SemiontProject;
+  let teardown: () => Promise<void>;
+  let eventBus: EventBus;
+  let jobQueue: MockJobQueue;
+
+  beforeEach(async () => {
+    ({ project, teardown } = await createTestProject('job-commands-lifecycle'));
+    eventBus = new EventBus();
+    jobQueue = makeJobQueue();
+    registerJobCommandHandlers(eventBus, jobQueue as never, project, silentLogger);
+  });
+
+  afterEach(async () => {
+    eventBus.destroy();
+    await teardown();
+  });
+
+  it('moves the queue file on job:complete', async () => {
+    eventBus.get('job:complete').next({
+      resourceId: 'rid-1',
+      jobId: 'job-c1',
+      jobType: 'reference-annotation',
+      result: { totalFound: 2, totalEmitted: 2, errors: 0 },
+    } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.completeJob).toHaveBeenCalledWith('job-c1', { totalFound: 2, totalEmitted: 2, errors: 0 });
+    });
+  });
+
+  it('passes an empty result to completeJob when job:complete carries none', async () => {
+    eventBus.get('job:complete').next({
+      resourceId: 'rid-1',
+      jobId: 'job-c2',
+      jobType: 'reference-annotation',
+    } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.completeJob).toHaveBeenCalledWith('job-c2', {});
+    });
+  });
+
+  it('routes job:fail through the queue retry-or-fail path', async () => {
+    eventBus.get('job:fail').next({
+      resourceId: 'rid-1',
+      jobId: 'job-f1',
+      jobType: 'generation',
+      error: 'boom',
+    } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.failJob).toHaveBeenCalledWith('job-f1', 'boom');
+    });
+  });
+
+  it('mirrors job:report-progress into the queue', async () => {
+    eventBus.get('job:report-progress').next({
+      resourceId: 'rid-1',
+      jobId: 'job-p1',
+      jobType: 'generation',
+      percentage: 40,
+      progress: { stage: 'generating', percentage: 40, message: 'Generating...' },
+    } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.recordProgress).toHaveBeenCalledWith(
+        'job-p1',
+        { stage: 'generating', percentage: 40, message: 'Generating...' },
+      );
+    });
+  });
+
+  it('falls back to the bare percentage when job:report-progress has no progress object', async () => {
+    eventBus.get('job:report-progress').next({
+      resourceId: 'rid-1',
+      jobId: 'job-p2',
+      jobType: 'generation',
+      percentage: 55,
+    } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.recordProgress).toHaveBeenCalledWith('job-p2', { percentage: 55 });
+    });
+  });
+
+  it('cancels pending jobs of the requested category on job:cancel-requested', async () => {
+    eventBus.get('job:cancel-requested').next({ jobType: 'annotation' } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.cancelPendingJobs).toHaveBeenCalledWith('annotation');
+    });
+  });
+});
+
+describe('registerJobCommandHandlers — lifecycle integration (real FsJobQueue)', () => {
+  let project: SemiontProject;
+  let teardown: () => Promise<void>;
+  let eventBus: EventBus;
+  let queue: FsJobQueue;
+
+  // The seam between the bus handlers and the queue was silently broken
+  // for the life of the system (nothing ever moved jobs out of running/),
+  // so this suite exercises the real path: bus event -> handler -> real
+  // FsJobQueue -> file moves on disk.
+
+  function runningJob(id: string) {
+    return {
+      status: 'running' as const,
+      metadata: {
+        id: jobId(id),
+        type: 'reference-annotation',
+        userId: userId(TEST_USER_DID),
+        userName: 'Test User',
+        userEmail: 'test@test.local',
+        userDomain: 'test.local',
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3,
+      },
+      params: { resourceId: resourceId('res-int'), entityTypes: [] },
+      startedAt: new Date().toISOString(),
+      progress: {},
+    };
+  }
+
+  beforeEach(async () => {
+    ({ project, teardown } = await createTestProject('job-commands-integration'));
+    eventBus = new EventBus();
+    queue = new FsJobQueue(project, silentLogger, eventBus);
+    await queue.initialize();
+    registerJobCommandHandlers(eventBus, queue, project, silentLogger);
+  });
+
+  afterEach(async () => {
+    queue.destroy();
+    eventBus.destroy();
+    await teardown();
+  });
+
+  it('job:complete on the bus moves the running job file to complete/ with the result', async () => {
+    await queue.createJob(runningJob('job-int-complete') as never);
+
+    eventBus.get('job:complete').next({
+      resourceId: 'res-int',
+      jobId: 'job-int-complete',
+      jobType: 'reference-annotation',
+      result: { totalFound: 1, totalEmitted: 1, errors: 0 },
+    } as never);
+
+    await vi.waitFor(async () => {
+      const job = await queue.getJob(jobId('job-int-complete'));
+      expect(job?.status).toBe('complete');
+    });
+
+    const job = await queue.getJob(jobId('job-int-complete'));
+    if (job?.status === 'complete') {
+      expect(job.result).toEqual({ totalFound: 1, totalEmitted: 1, errors: 0 });
+    }
+  });
+
+  it('job:fail on the bus re-queues the running job with a bumped retryCount and re-announces it', async () => {
+    await queue.createJob(runningJob('job-int-fail') as never);
+
+    const announced: { jobId: string }[] = [];
+    eventBus.get('job:queued').subscribe((event) => {
+      announced.push(event as { jobId: string });
+    });
+
+    eventBus.get('job:fail').next({
+      resourceId: 'res-int',
+      jobId: 'job-int-fail',
+      jobType: 'reference-annotation',
+      error: 'inference timeout',
+    } as never);
+
+    await vi.waitFor(async () => {
+      const job = await queue.getJob(jobId('job-int-fail'));
+      expect(job?.status).toBe('pending');
+    });
+
+    const job = await queue.getJob(jobId('job-int-fail'));
+    expect(job?.metadata.retryCount).toBe(1);
+    expect(announced.map((e) => e.jobId)).toContain(jobId('job-int-fail'));
   });
 });

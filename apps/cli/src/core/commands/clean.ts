@@ -10,7 +10,7 @@
  *
  * Does NOT touch:
  *   - .semiont/events/   (system of record)
- *   - representations/   (committed data)
+ *   - working tree files (the content store)
  *   - ~/.semiontconfig   (user config)
  *   - .semiont/config    (project config)
  *

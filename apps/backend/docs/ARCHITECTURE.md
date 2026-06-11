@@ -14,18 +14,18 @@ This is a **critical architectural constraint** that must be followed throughout
 
 ```typescript
 // ✅ CORRECT: Access infrastructure via MakeMeaningService
-const { eventStore, graphDb, repStore, inferenceClient } = c.get('makeMeaning');
+const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
 // ❌ WRONG: NEVER create infrastructure in routes or services
 const graphDb = await getGraphDatabase(config);              // VIOLATION
-const repStore = new FilesystemRepresentationStore(...);     // VIOLATION
+const content = new WorkingTreeStore(...);                   // VIOLATION
 const eventStore = createEventStore(...);                    // VIOLATION
 const inferenceClient = await getInferenceClient(config);   // VIOLATION
 ```
 
 #### What MakeMeaningService Owns
 
-The `MakeMeaningService` created in [src/index.ts:56](../src/index.ts#L56) via `startMakeMeaning()` owns **all infrastructure**.
+The `MakeMeaningService` created in [src/index.ts:104](../src/index.ts#L104) via `startMakeMeaning()` owns **all infrastructure**.
 
 See [@semiont/make-meaning](../../../packages/make-meaning/) for the implementation of `startMakeMeaning()` and detailed infrastructure ownership documentation.
 
@@ -41,10 +41,10 @@ See [@semiont/make-meaning](../../../packages/make-meaning/) for the implementat
    - Single connection pool shared across requests
    - Automatically synchronized via GraphDBConsumer
 
-3. **RepresentationStore** - Content-addressed document storage
-   - Stores all document content using content hashing
-   - Deduplication and efficient retrieval
-   - Single instance prevents duplicate file operations
+3. **WorkingTreeStore** - Working-tree file content (`kb.content`)
+   - The project working tree is the source of truth for file content
+   - Resources are identified by stable `file://` URIs
+   - SHA-256 checksums recorded and verified for integrity
 
 4. **InferenceClient** - LLM inference client
    - Connection to AI model provider (OpenAI, Anthropic, etc.)
@@ -71,11 +71,11 @@ See [@semiont/make-meaning](../../../packages/make-meaning/) for the implementat
 
 #### Implementation Pattern
 
-**Backend Initialization** ([src/index.ts:56](../src/index.ts#L56)):
+**Backend Initialization** ([src/index.ts:104](../src/index.ts#L104)):
 
 ```typescript
 // Create MakeMeaningService ONCE at startup
-const makeMeaning = await startMakeMeaning(config);
+const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
 
 // Inject into Hono context for all routes
 app.use('*', async (c, next) => {
@@ -89,46 +89,42 @@ app.use('*', async (c, next) => {
 ```typescript
 router.get('/resources/:id', async (c) => {
   // ✅ Get infrastructure from context
-  const { eventStore, graphDb, repStore } = c.get('makeMeaning');
+  const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
   // Use infrastructure
-  const resource = await graphDb.getResource(resourceId);
-  const content = await repStore.retrieve(checksum, mediaType);
-  await eventStore.appendEvent(event);
+  const resource = await kb.graph.getResource(resourceId);
+  const content = await kb.content.retrieve(storageUri);
 
   return c.json(response);
 });
 ```
 
-**Service Pattern** (Dependency Injection):
+**Service Pattern** (injected parameters):
 
 ```typescript
 // Service receives infrastructure as parameters
 export class ResourceOperations {
   static async createResource(
     input: CreateResourceInput,
-    user: User,
-    eventStore: EventStore,        // Injected
-    repStore: RepresentationStore,  // Injected
-    config: EnvironmentConfig
-  ): Promise<CreateResourceResponse> {
-    // Use injected infrastructure
-    const storedRep = await repStore.store(content, metadata);
-    await eventStore.appendEvent(event);
+    userId: UserId,
+    eventBus: EventBus,  // Injected — emits yield:create; the Stower actor persists
+  ): Promise<ResourceId> {
+    // ...
   }
 }
 
-// Route calls service with infrastructure from context
+// Route writes content to the working tree, then calls the service
 router.post('/resources', async (c) => {
-  const { eventStore, repStore } = c.get('makeMeaning');
-  const response = await ResourceOperations.createResource(
-    input,
-    user,
-    eventStore,  // Pass from context
-    repStore,    // Pass from context
-    config
+  const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+  const eventBus = c.get('eventBus');
+
+  const stored = await kb.content.store(contentBuffer, storageUri);
+  const resourceId = await ResourceOperations.createResource(
+    { name, storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format },
+    userId,
+    eventBus,
   );
-  return c.json(response);
+  return c.json({ resourceId }, 202);
 });
 ```
 
@@ -165,11 +161,11 @@ To verify compliance with this pattern:
 
 ```bash
 # Check for violations in routes
-grep -r "new FilesystemRepresentationStore\|await getGraphDatabase\|await getInferenceClient\|createEventStore(" \
+grep -r "new WorkingTreeStore\|await getGraphDatabase\|await getInferenceClient\|createEventStore(" \
   apps/backend/src/routes --include="*.ts"
 
 # Check for violations in services
-grep -r "new FilesystemRepresentationStore\|await getGraphDatabase\|await getInferenceClient\|createEventStore(" \
+grep -r "new WorkingTreeStore\|await getGraphDatabase\|await getInferenceClient\|createEventStore(" \
   apps/backend/src/services --include="*.ts"
 
 # Should return no results (all matches should be in test files only)
@@ -195,13 +191,13 @@ router.get('/resources/:id/references', async (c) => {
 });
 ```
 
-**❌ Violation 2: Creating RepresentationStore in service**
+**❌ Violation 2: Creating WorkingTreeStore in service**
 ```typescript
 // WRONG
 class MyService {
   static async process(input: Input, config: EnvironmentConfig) {
-    const repStore = new FilesystemRepresentationStore(...);  // VIOLATION
-    await repStore.store(content, metadata);
+    const content = new WorkingTreeStore(...);  // VIOLATION
+    await content.store(buffer, storageUri);
   }
 }
 ```
@@ -212,17 +208,17 @@ class MyService {
 class MyService {
   static async process(
     input: Input,
-    repStore: RepresentationStore,  // Injected parameter
+    content: WorkingTreeStore,  // Injected parameter
     config: EnvironmentConfig
   ) {
-    await repStore.store(content, metadata);
+    await content.store(buffer, storageUri);
   }
 }
 
 // Route passes from context
 router.post('/process', async (c) => {
-  const { repStore } = c.get('makeMeaning');
-  await MyService.process(input, repStore, config);  // ✅
+  const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+  await MyService.process(input, kb.content, config);  // ✅
 });
 ```
 
@@ -345,7 +341,7 @@ The helper:
 - [Make-Meaning Package](../../../packages/make-meaning/) - Implementation of MakeMeaningService
 - [Event Sourcing Package](../../../packages/event-sourcing/) - EventStore implementation
 - [Graph Package](../../../packages/graph/) - GraphDatabase implementation
-- [Content Package](../../../packages/content/) - RepresentationStore implementation
+- [Content Package](../../../packages/content/) - WorkingTreeStore implementation
 - [Inference Package](../../../packages/inference/) - InferenceClient implementation
 
 ---

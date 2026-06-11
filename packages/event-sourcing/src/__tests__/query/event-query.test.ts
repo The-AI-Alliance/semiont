@@ -2,8 +2,6 @@
  * EventQuery Tests - Read operations with filtering
  *
  * Tests event queries with filters, limits, and edge cases
- *
- * @see docs/EVENT-STORE.md#eventquery
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';

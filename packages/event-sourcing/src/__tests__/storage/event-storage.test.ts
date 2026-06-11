@@ -2,8 +2,6 @@
  * EventStorage Tests - Physical storage layer
  *
  * Tests JSONL file I/O, sharding, file rotation, and sequence tracking
- *
- * @see docs/EVENT-STORE.md#eventstorage
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';

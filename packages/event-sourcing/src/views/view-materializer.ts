@@ -4,9 +4,7 @@
  * Materializes resource views from events:
  * - Full view materialization from scratch
  * - Incremental view updates
- * - System-level views (entity types)
- *
- * @see docs/EVENT-STORE.md#viewmaterializer for architecture details
+ * - System-level views (entity types, tag schemas)
  */
 
 import { promises as fs } from 'fs';

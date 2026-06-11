@@ -25,16 +25,16 @@ interface JobMetadata {
   id: JobId;
   type: JobType;
   userId: UserId;
-  userName: string;       // For building W3C Agent creator
-  userEmail: string;      // For building W3C Agent creator
-  userDomain: string;     // For building W3C Agent creator
+  userName: string;       // Audit-only snapshot of the requesting user
+  userEmail: string;      // Audit-only snapshot of the requesting user
+  userDomain: string;     // Audit-only snapshot of the requesting user
   created: string;        // ISO 8601
   retryCount: number;
   maxRetries: number;
 }
 ```
 
-The `userName`, `userEmail`, and `userDomain` fields are used by workers to build the W3C `Agent` for annotation `creator` attribution via `userToAgent()`.
+The `userName`, `userEmail`, and `userDomain` fields are an audit-only snapshot of the requesting user, persisted in the on-disk job file. Workers derive annotation `creator` attribution from `userId` via `didToAgent()`.
 
 ## Reference Annotation (`reference-annotation`)
 
@@ -78,8 +78,7 @@ interface DetectionResult {
 
 ```typescript
 import type { PendingJob, DetectionParams } from '@semiont/jobs';
-import { jobId } from '@semiont/http-transport';
-import { userId, resourceId } from '@semiont/core';
+import { jobId, userId, resourceId } from '@semiont/core';
 
 const job: PendingJob<DetectionParams> = {
   status: 'pending',
@@ -401,12 +400,12 @@ type AnyJob = DetectionJob | GenerationJob | HighlightDetectionJob | AssessmentD
 ```typescript
 function processJob(job: AnyJob) {
   if (job.status === 'running') {
-    console.log(job:progress);      // Available
+    console.log(job.progress);      // Available
     // console.log(job.result);     // Compile error
   }
   if (job.status === 'complete') {
     console.log(job.result);        // Available
-    // console.log(job:progress);   // Compile error
+    // console.log(job.progress);   // Compile error
   }
 }
 ```
@@ -422,6 +421,6 @@ function isRunningGenerationJob(
 
 if (isRunningGenerationJob(job)) {
   console.log(job.params.title);     // GenerationParams
-  console.log(job:progress.stage);   // YieldProgress
+  console.log(job.progress.stage);   // YieldProgress
 }
 ```

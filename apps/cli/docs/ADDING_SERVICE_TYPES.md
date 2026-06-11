@@ -9,13 +9,16 @@ Service types are high-level categorizations that services declare about themsel
 ### Current Service Types
 
 - **frontend** - User-facing web applications
-- **backend** - API servers and application logic  
+- **backend** - API servers and application logic
 - **database** - Data persistence layers
-- **filesystem** - File storage and management services
+- **graph** - Graph databases, knowledge graphs
 - **worker** - Background job processors
-- **mcp** - Model Context Protocol services
 - **inference** - AI/ML model serving
-- **generic** - General-purpose services (fallback)
+- **mcp** - Model Context Protocol services
+- **vectors** - Vector databases (Qdrant, etc.)
+- **embedding** - Embedding model providers
+- **stack** - Infrastructure stacks (CloudFormation, Terraform)
+- **filesystem** - Shared/persistent file storage (EFS, NFS, etc.)
 
 ## Architecture
 
@@ -51,12 +54,15 @@ export const SERVICE_TYPES = {
   FRONTEND: 'frontend',
   BACKEND: 'backend',
   DATABASE: 'database',
-  FILESYSTEM: 'filesystem',
+  GRAPH: 'graph',
   WORKER: 'worker',
-  MCP: 'mcp',
   INFERENCE: 'inference',
+  MCP: 'mcp',
+  VECTORS: 'vectors',
+  EMBEDDING: 'embedding',
+  STACK: 'stack',
+  FILESYSTEM: 'filesystem',
   CACHE: 'cache',        // Add your new type
-  GENERIC: 'generic',
 } as const;
 
 export type ServiceType = typeof SERVICE_TYPES[keyof typeof SERVICE_TYPES];
@@ -84,51 +90,52 @@ Create a service class that declares this type in `src/services/cache-service.ts
 
 ```typescript
 import { BaseService } from '../core/base-service.js';
-import { ServiceRequirements } from '../core/service-requirements.js';
+import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
 import { SERVICE_TYPES, SERVICE_TYPE_ANNOTATION } from '../core/service-types.js';
 import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
 
 export class CacheService extends BaseService {
-  
-  getRequirements(): ServiceRequirements {
-    const baseRequirements = super.getRequirements();
-    
-    return {
-      ...baseRequirements,
-      
+
+  // getRequirements() is abstract on BaseService — there is no super implementation.
+  // Start from a RequirementPreset and merge.
+  override getRequirements(): ServiceRequirements {
+    return mergeRequirements(RequirementPresets.statefulDatabase(), {
       // REQUIRED: Declare the service type
       annotations: {
         [SERVICE_TYPE_ANNOTATION]: SERVICE_TYPES.CACHE,
-        
-        // Declare supported commands
-        [COMMAND_CAPABILITY_ANNOTATIONS.START]: 'true',
-        [COMMAND_CAPABILITY_ANNOTATIONS.STOP]: 'true',
-        [COMMAND_CAPABILITY_ANNOTATIONS.CHECK]: 'true',
-        [COMMAND_CAPABILITY_ANNOTATIONS.FLUSH]: 'true',  // Cache-specific
+
+        // Declare supported commands beyond the defaults
+        // (FLUSH is a new annotation you add to COMMAND_CAPABILITY_ANNOTATIONS
+        // alongside the new command)
+        [COMMAND_CAPABILITY_ANNOTATIONS.FLUSH]: 'true',
       },
-      
+
       // Cache-specific requirements
       resources: {
         memory: '4Gi',  // Caches need memory
         cpu: '500m',
       },
-      
+
       network: {
         ports: [6379],  // Redis default
         protocol: 'tcp',
       },
-      
-      // Cache-specific configuration
+
+      // Cache-specific configuration — `cache` is a new optional field you add
+      // to ServiceRequirements in src/core/service-requirements.ts, alongside
+      // the existing database/worker/mcp/external sections
       cache: {
         type: 'redis',
         maxMemory: '3Gi',
         evictionPolicy: 'lru',
         persistence: false,
       }
-    };
+    });
   }
 }
 ```
+
+Note that `start`, `stop`, `restart`, `check`, `watch`, `provision`, and `configure` are assumed supported by default (`DEFAULT_SUPPORTED_COMMANDS`) — only declare them to opt *out* (`'false'`).
 
 ### 4. Create Platform Handlers
 
@@ -138,10 +145,13 @@ Each platform needs handlers for the new service type. Create handlers in each p
 `src/platforms/posix/handlers/cache-start.ts`:
 
 ```typescript
-import { HandlerDescriptor } from '../../../core/handlers/types.js';
-import { StartHandlerContext, StartHandlerResult } from './types.js';
+// Each platform's handlers/types.ts re-exports a HandlerDescriptor alias with
+// the platform type parameter pre-bound, plus platform-specific contexts
+import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { preflightFromChecks, checkCommandAvailable } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
-const startCacheService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startCacheService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service, savedState } = context;
   const requirements = service.getRequirements();
   
@@ -176,11 +186,18 @@ const startCacheService = async (context: StartHandlerContext): Promise<StartHan
   };
 };
 
-export const cacheStartDescriptor: HandlerDescriptor = {
+const preflightCacheStart = async (_context: PosixStartHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkCommandAvailable('redis-server'),
+  ]);
+};
+
+export const cacheStartDescriptor: HandlerDescriptor<PosixStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'posix',
   serviceType: 'cache',
   handler: startCacheService,
+  preflight: preflightCacheStart,   // Required field
 };
 ```
 
@@ -276,37 +293,41 @@ const provisionElastiCache = async (context: AWSStartHandlerContext): Promise<St
   };
 };
 
-export const elasticacheStartDescriptor: HandlerDescriptor = {
+export const elasticacheStartDescriptor: HandlerDescriptor<AWSStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'aws',
   serviceType: 'cache',
   handler: provisionElastiCache,
+  preflight: preflightElastiCacheStart,   // Required field
   requiresDiscovery: true,
 };
 ```
 
 ### 5. Platform Type Mapping (Optional)
 
-If platforms need to map the service type to specific implementations, override `mapServiceType` in the platform class:
+Platforms can override `mapServiceType(declaredType: ServiceType): ServiceType` to translate or allowlist service types before handler lookup. The base implementation is identity. Platforms like posix use it as an allowlist — unsupported types throw with a clear error. If a platform supports your new type, add it there:
 
 ```typescript
-// In src/platforms/aws/platform.ts
-export class AWSPlatform extends Platform {
-  
-  protected override mapServiceType(declaredType: string): string {
-    switch (declaredType) {
-      case 'cache':
-        // AWS uses ElastiCache for cache services
-        return 'elasticache';
-      case 'queue':
-        // AWS uses SQS for queue services
-        return 'sqs';
-      default:
-        return declaredType;
-    }
+// In src/platforms/posix/platform.ts
+protected override mapServiceType(declaredType: ServiceType): ServiceType {
+  switch (declaredType) {
+    case 'frontend':
+    case 'backend':
+    case 'database':
+    case 'graph':
+    case 'mcp':
+    case 'inference':
+    case 'cache':        // Add your new type
+      return declaredType;
+    default:
+      throw new Error(
+        `Unsupported service type for posix platform: '${declaredType}'. ...`
+      );
   }
 }
 ```
+
+Note the signature is `ServiceType → ServiceType` — any mapped-to value must itself be a registered service type, since it is used as the handler lookup key.
 
 ### 6. Register Handlers
 
@@ -356,20 +377,30 @@ export async function flushCommand(options: FlushOptions) {
 
 ### 8. Update Service Factory
 
-Add logic to create cache services in `src/services/service-factory.ts`:
+Add the service to `SUPPORTED_SERVICES` and the switch in `src/services/service-factory.ts`:
 
 ```typescript
 export class ServiceFactory {
-  static create(name: ServiceName, platform: PlatformType, config: Config, serviceConfig: ServiceConfig): Service {
-    // Check if service declares itself as cache
-    const requirements = this.getServiceRequirements(name, serviceConfig);
-    const serviceType = requirements.annotations?.[SERVICE_TYPE_ANNOTATION];
-    
-    if (serviceType === SERVICE_TYPES.CACHE) {
-      return new CacheService(name, platform, config, serviceConfig);
+  static create(
+    name: ServiceName,
+    platform: PlatformType,
+    config: Config,
+    envConfig: EnvironmentConfig,
+    serviceConfig: ServiceConfig
+  ): Service {
+    const runtimeFlags = {
+      verbose: config.verbose,
+      quiet: config.quiet,
+      dryRun: config.dryRun,
+      forceDiscovery: config.forceDiscovery
+    };
+
+    switch (name) {
+      // ... existing cases
+      case 'cache':
+        return new CacheService(name, platform, envConfig, serviceConfig, runtimeFlags);
+      // ...
     }
-    
-    // ... other service type checks
   }
 }
 ```
@@ -385,15 +416,17 @@ import { CacheService } from '../../services/cache-service.js';
 import { SERVICE_TYPES } from '../service-types.js';
 
 describe('Cache Service Type', () => {
+  const runtimeFlags = { verbose: false, quiet: false };
+
   it('should declare cache type', () => {
-    const service = new CacheService('cache', 'posix', mockConfig, mockServiceConfig);
+    const service = new CacheService('cache', 'posix', mockEnvConfig, mockServiceConfig, runtimeFlags);
     const requirements = service.getRequirements();
     
     expect(requirements.annotations?.['service/type']).toBe(SERVICE_TYPES.CACHE);
   });
   
   it('should include cache-specific requirements', () => {
-    const service = new CacheService('cache', 'posix', mockConfig, mockServiceConfig);
+    const service = new CacheService('cache', 'posix', mockEnvConfig, mockServiceConfig, runtimeFlags);
     const requirements = service.getRequirements();
     
     expect(requirements.cache).toBeDefined();
@@ -411,17 +444,14 @@ One of the most important patterns to understand is the distinction between serv
 
 ### Configuration Pattern
 
-Services should declare both in their configuration:
+Services should declare both in their configuration (`~/.semiontconfig`, TOML — `platform` is a plain string the loader normalizes internally):
 
-```json
-{
-  "graph": {
-    "platform": { "type": "container" },
-    "type": "janusgraph",  // CRITICAL: Implementation type
-    "port": 8182,
-    // ... other config
-  }
-}
+```toml
+[environments.local.graph]
+platform = "container"
+type = "janusgraph"     # CRITICAL: Implementation type
+port = 8182
+# ... other config
 ```
 
 ### Handler Pattern
@@ -560,10 +590,11 @@ If handlers aren't being found:
 1. Verify handler descriptor has all required fields:
 ```typescript
 {
-  command: 'start',      // Required
-  platform: 'posix',     // Required
-  serviceType: 'cache',  // Required
-  handler: async () => {},  // Required
+  command: 'start',          // Required
+  platform: 'posix',         // Required
+  serviceType: 'cache',      // Required
+  handler: async () => {},   // Required
+  preflight: async () => {}, // Required
 }
 ```
 

@@ -5,17 +5,25 @@
  * import from `@semiont/observability/node` or `/web` at the process entry
  * point. Everything else uses this module.
  *
- * Tier 2 of `.plans/OBSERVABILITY.md`. The public surface is intentionally
- * thin:
+ * Tier 2 of `.plans/OBSERVABILITY.md`. The public surface:
  *
- *   - `withSpan(name, fn, attrs?)` — wrap an async block in a span.
- *   - `injectTraceparent(payload)` / `extractTraceparent(value)` — W3C
+ *   - `withSpan(name, fn, options?)` — wrap an async block in a span;
+ *     `options` carries `kind` and `attrs`.
+ *   - `withActorSpan(actor, channel, fn, extraAttrs?)` — consumer-span
+ *     wrapper for bus-event handlers, with handler-duration recording.
+ *   - `injectTraceparent(payload)` / `extractTraceparent(payload)` — W3C
  *     trace-context propagation across the SSE channel (the bus payload
  *     gets a `_trace?: { traceparent }` sibling to `correlationId`).
- *   - `setSpanContextFromTraceparent(traceparent, fn)` — set incoming
- *     traceparent as the parent context for a synchronous block.
+ *   - `withTraceparent(carrier, fn)` — run `fn` with the incoming
+ *     traceparent as the parent context.
  *   - `getActiveTraceparent()` — read the active span's traceparent for
  *     manual propagation (e.g. attaching to a fetch header or SSE field).
+ *   - `getLogTraceContext()` — active `trace_id` / `span_id` for log-line
+ *     correlation.
+ *   - Metric recorders (`recordBusEmit`, `recordHandlerDuration`,
+ *     `recordJobOutcome`, `recordSubscriberConnect` / `Disconnect`,
+ *     `recordInferenceUsage`) and gauge providers
+ *     (`registerJobQueueProvider`, `registerVectorIndexSizeProvider`).
  *
  * No-op when no exporter is configured: `@opentelemetry/api`'s default
  * tracer is a no-op, so `withSpan` is essentially free until

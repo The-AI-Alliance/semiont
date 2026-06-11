@@ -1,42 +1,37 @@
 /**
  * Smelter Main — standalone entry point
  *
- * Continuous stream processor that subscribes to domain events via the
- * EventBus gateway, fetches content via HTTP, chunks text, embeds via
- * the configured provider, and writes vectors to Qdrant.
+ * Thin wiring for the `Smelter` pipeline: loads configuration from
+ * ~/.semiontconfig (TOML) via the canonical `createTomlConfigLoader`,
+ * authenticates with the KS via shared secret, constructs the embedding
+ * provider, vector store, content transport, and HTTP transport, then
+ * hands the SmelterActorStateUnit's event stream to the Smelter and runs
+ * a startup reconcile. All event processing lives in `./smelter`.
  *
- * Reads configuration from ~/.semiontconfig (TOML) via the canonical
- * `createTomlConfigLoader` from @semiont/core. Authenticates with the
- * KS via shared secret.
+ * The smelter has two privileged attachments beyond the bus: the vector
+ * store (Qdrant, direct) and the content store (the KB working tree at
+ * SEMIONT_ROOT — bind-mounted read-only in container deployments).
  *
  * Environment variables:
  *   SEMIONT_WORKER_SECRET — shared secret for JWT auth with the KS
+ *   SEMIONT_ROOT          — project root holding the KB working tree
  */
 
-import { Subject, Subscription, from } from 'rxjs';
-import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
-import { createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelter-actor-state-unit';
-import { HttpTransport } from '@semiont/http-transport';
-import { baseUrl as makeBaseUrl, accessToken as makeAccessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
+import { createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelter-actor-state-unit';
+import { Smelter } from './smelter';
+import { WorkerContentTransport } from './worker-content-transport';
+import { HttpTransport } from '@semiont/http-transport';
+import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader } from '@semiont/core';
 import type { AccessToken } from '@semiont/core';
-import { burstBuffer, createTomlConfigLoader } from '@semiont/core';
-import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import type { ResourceId } from '@semiont/core';
-import type { VectorStore, EmbeddingProvider, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
-import { createVectorStore, createEmbeddingProvider, chunkText } from '@semiont/vectors';
+import { SemiontProject } from '@semiont/core/node';
+import { WorkingTreeStore } from '@semiont/content';
+import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/vectors';
-import { getExactText, getTargetSelector } from '@semiont/core';
 import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
-
-interface SmelterEvent {
-  type: string;
-  resourceId?: string;
-  payload: Record<string, unknown>;
-}
 
 // ── Config ───────────────────────────────────────────────────────────
 
@@ -80,13 +75,17 @@ const chunkingConfig: ChunkingConfig = {
 };
 
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
+
+const semiontRoot = process.env.SEMIONT_ROOT;
+if (!semiontRoot) {
+  throw new Error('SEMIONT_ROOT is required — the smelter reads content directly from the KB working tree');
+}
+const projectRoot: string = semiontRoot;
+
 const healthPort = 9091;
 
-const BURST_WINDOW_MS = 50;
-const MAX_BATCH_SIZE = 100;
-const IDLE_TIMEOUT_MS = 200;
-
 import { createProcessLogger } from '@semiont/observability/process-logger';
+import { registerVectorIndexSizeProvider } from '@semiont/observability';
 const logger = createProcessLogger('smelter');
 
 // ── Auth ─────────────────────────────────────────────────────────────
@@ -120,232 +119,6 @@ async function authenticate(): Promise<string> {
   return token;
 }
 
-// ── Content fetching via HTTP ────────────────────────────────────────
-
-let authToken = '';
-
-async function fetchContent(resourceId: string): Promise<string | null> {
-  try {
-    const response = await fetch(`${baseUrl}/api/resources/${resourceId}`, {
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        Accept: 'text/plain',
-      },
-    });
-    if (!response.ok) return null;
-    return response.text();
-  } catch {
-    return null;
-  }
-}
-
-// ── Event processing ─────────────────────────────────────────────────
-
-let vectorStore: VectorStore;
-let embeddingProvider: EmbeddingProvider;
-let eventsProcessed = 0;
-
-async function processEvent(event: SmelterEvent): Promise<void> {
-  try {
-    switch (event.type) {
-      case 'yield:created':
-        await handleResourceCreated(event);
-        break;
-      case 'yield:updated':
-      case 'yield:representation-added':
-        await handleResourceReembed(event);
-        break;
-      case 'mark:archived':
-        await handleResourceArchived(event);
-        break;
-      case 'mark:added':
-        await handleAnnotationAdded(event);
-        break;
-      case 'mark:removed':
-        await handleAnnotationRemoved(event);
-        break;
-    }
-    eventsProcessed++;
-  } catch (err) {
-    logger.error('Failed to process event', { type: event.type, resourceId: event.resourceId, error: err instanceof Error ? err.message : String(err) });
-  }
-}
-
-async function handleResourceCreated(event: SmelterEvent): Promise<void> {
-  const rid = event.resourceId;
-  if (!rid) return;
-
-  const text = await fetchContent(rid);
-  if (!text?.trim()) return;
-
-  const chunks = chunkText(text, chunkingConfig);
-  if (chunks.length === 0) return;
-
-  const embeddings = await embeddingProvider.embedBatch(chunks);
-  const embeddingChunks: EmbeddingChunk[] = chunks.map((t, i) => ({
-    chunkIndex: i, text: t, embedding: embeddings[i],
-  }));
-
-  await vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks);
-  logger.info('Indexed resource', { resourceId: rid, chunks: chunks.length });
-}
-
-async function handleResourceReembed(event: SmelterEvent): Promise<void> {
-  const rid = event.resourceId;
-  if (!rid) return;
-
-  const text = await fetchContent(rid);
-  if (!text?.trim()) return;
-
-  const chunks = chunkText(text, chunkingConfig);
-  if (chunks.length === 0) return;
-
-  const embeddings = await embeddingProvider.embedBatch(chunks);
-  const embeddingChunks: EmbeddingChunk[] = chunks.map((t, i) => ({
-    chunkIndex: i, text: t, embedding: embeddings[i],
-  }));
-
-  await vectorStore.deleteResourceVectors(makeResourceId(rid));
-  await vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks);
-  logger.info('Re-embedded resource', { resourceId: rid, chunks: chunks.length });
-}
-
-async function handleResourceArchived(event: SmelterEvent): Promise<void> {
-  const rid = event.resourceId;
-  if (!rid) return;
-  await vectorStore.deleteResourceVectors(makeResourceId(rid));
-  logger.info('Deleted vectors for archived resource', { resourceId: rid });
-}
-
-async function handleAnnotationAdded(event: SmelterEvent): Promise<void> {
-  const annotation = event.payload.annotation as Record<string, unknown> | undefined;
-  if (!annotation?.id) return;
-
-  const rid = event.resourceId;
-  if (!rid) return;
-
-  const selector = getTargetSelector(annotation.target as any);
-  const exactText = getExactText(selector);
-  if (!exactText?.trim()) return;
-
-  const aid = makeAnnotationId(annotation.id as string);
-  const embedding = await embeddingProvider.embed(exactText);
-
-  const payload: AnnotationPayload = {
-    annotationId: aid,
-    resourceId: makeResourceId(rid),
-    motivation: (annotation.motivation as string) ?? '',
-    entityTypes: (annotation.entityTypes as string[]) ?? [],
-    exactText,
-  };
-  await vectorStore.upsertAnnotationVector(aid, embedding, payload);
-  logger.info('Indexed annotation', { annotationId: String(aid) });
-}
-
-async function handleAnnotationRemoved(event: SmelterEvent): Promise<void> {
-  const annotationId = event.payload.annotationId as string | undefined;
-  if (!annotationId) return;
-  const aid = makeAnnotationId(annotationId);
-  await vectorStore.deleteAnnotationVector(aid);
-  logger.info('Deleted annotation vector', { annotationId });
-}
-
-async function processBatch(events: SmelterEvent[]): Promise<void> {
-  const type = events[0].type;
-
-  if (type === 'yield:created') {
-    await batchResourceCreated(events);
-  } else if (type === 'mark:added') {
-    await batchAnnotationAdded(events);
-  } else {
-    for (const event of events) {
-      await processEvent(event);
-    }
-  }
-}
-
-async function batchResourceCreated(events: SmelterEvent[]): Promise<void> {
-  const resourceData: { rid: ResourceId; chunks: string[] }[] = [];
-  const allChunks: string[] = [];
-
-  for (const event of events) {
-    const rid = event.resourceId;
-    if (!rid) continue;
-
-    const text = await fetchContent(rid);
-    if (!text?.trim()) continue;
-
-    const chunks = chunkText(text, chunkingConfig);
-    if (chunks.length === 0) continue;
-
-    resourceData.push({ rid: makeResourceId(rid), chunks });
-    allChunks.push(...chunks);
-  }
-
-  if (allChunks.length === 0) return;
-
-  const allEmbeddings = await embeddingProvider.embedBatch(allChunks);
-
-  let offset = 0;
-  for (const { rid, chunks } of resourceData) {
-    const embeddingChunks: EmbeddingChunk[] = chunks.map((t, i) => ({
-      chunkIndex: i, text: t, embedding: allEmbeddings[offset + i],
-    }));
-    await vectorStore.upsertResourceVectors(rid, embeddingChunks);
-    logger.info('Batch-indexed resource', { resourceId: String(rid), chunks: chunks.length });
-    offset += chunks.length;
-  }
-
-  eventsProcessed += events.length;
-}
-
-async function batchAnnotationAdded(events: SmelterEvent[]): Promise<void> {
-  const annotationData: {
-    rid: ResourceId;
-    aid: ReturnType<typeof makeAnnotationId>;
-    exactText: string;
-    motivation: string;
-    entityTypes: string[];
-  }[] = [];
-
-  for (const event of events) {
-    const annotation = event.payload.annotation as Record<string, unknown> | undefined;
-    if (!annotation?.id) continue;
-
-    const rid = event.resourceId;
-    if (!rid) continue;
-
-    const selector = getTargetSelector(annotation.target as any);
-    const exactText = getExactText(selector);
-    if (!exactText?.trim()) continue;
-
-    annotationData.push({
-      rid: makeResourceId(rid),
-      aid: makeAnnotationId(annotation.id as string),
-      exactText,
-      motivation: (annotation.motivation as string) ?? '',
-      entityTypes: (annotation.entityTypes as string[]) ?? [],
-    });
-  }
-
-  if (annotationData.length === 0) return;
-
-  const allEmbeddings = await embeddingProvider.embedBatch(
-    annotationData.map((a) => a.exactText),
-  );
-
-  for (let i = 0; i < annotationData.length; i++) {
-    const { rid, aid, exactText, motivation, entityTypes } = annotationData[i];
-    const payload: AnnotationPayload = {
-      annotationId: aid, resourceId: rid, motivation, entityTypes, exactText,
-    };
-    await vectorStore.upsertAnnotationVector(aid, allEmbeddings[i], payload);
-    logger.info('Batch-indexed annotation', { annotationId: String(aid) });
-  }
-
-  eventsProcessed += events.length;
-}
-
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
@@ -353,10 +126,10 @@ async function main() {
   initObservabilityNode({ serviceName: 'semiont-smelter' });
 
   logger.info('Authenticating', { baseUrl });
-  authToken = await authenticate();
+  const authToken = await authenticate();
   logger.info('Authenticated');
 
-  embeddingProvider = await createEmbeddingProvider({
+  const embeddingProvider = await createEmbeddingProvider({
     type: embeddingType,
     model: embeddingModel,
     baseURL: embeddingBaseURL,
@@ -364,13 +137,17 @@ async function main() {
   logger.info('Embedding provider ready', { type: embeddingType, model: embeddingModel });
 
   const dimensions = embeddingProvider.dimensions();
-  vectorStore = await createVectorStore({
+  const vectorStore = await createVectorStore({
     type: 'qdrant',
     host: qdrantHost,
     port: qdrantPort,
     dimensions,
   });
   logger.info('Vector store ready', { host: qdrantHost, port: qdrantPort, dimensions });
+
+  // Tier 3 observability: report index point count. Polled at the
+  // metric-collection interval (default 30s).
+  registerVectorIndexSizeProvider(() => vectorStore.count());
 
   const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(authToken));
   const httpTransport = new HttpTransport({
@@ -381,33 +158,23 @@ async function main() {
     bus: httpTransport.actor,
   });
 
-  const eventSubject = new Subject<SmelterEvent>();
+  const project = new SemiontProject(projectRoot);
+  const contentTransport = new WorkerContentTransport(
+    httpTransport,
+    new WorkingTreeStore(project, logger),
+  );
+  logger.info('Content store attached', { projectRoot: project.root });
 
-  const pipelineSubscription: Subscription = eventSubject.pipe(
-    groupBy((e) => e.resourceId ?? '__unknown__'),
-    mergeMap((group) =>
-      group.pipe(
-        burstBuffer<SmelterEvent>({
-          burstWindowMs: BURST_WINDOW_MS,
-          maxBatchSize: MAX_BATCH_SIZE,
-          idleTimeoutMs: IDLE_TIMEOUT_MS,
-        }),
-        concatMap((eventOrBatch: SmelterEvent | SmelterEvent[]) => {
-          if (Array.isArray(eventOrBatch)) {
-            return from(processBatch(eventOrBatch));
-          }
-          return from(processEvent(eventOrBatch));
-        }),
-      ),
-    ),
-  ).subscribe({
-    error: (err) => logger.error('Pipeline error', { error: err instanceof Error ? err.message : String(err) }),
-  });
-
-  actorStateUnit.events$.subscribe((event) => {
-    logger.debug('Bus event received', { type: event.type, resourceId: event.resourceId });
-    eventSubject.next(event);
-  });
+  const smelter = new Smelter(
+    actorStateUnit.events$,
+    vectorStore,
+    embeddingProvider,
+    contentTransport,
+    httpTransport,
+    chunkingConfig,
+    logger,
+  );
+  smelter.initialize();
 
   actorStateUnit.start();
   logger.info('Subscribed to domain events');
@@ -415,7 +182,11 @@ async function main() {
   const health = createServer((req, res) => {
     if (req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', eventsProcessed }));
+      res.end(JSON.stringify({
+        status: 'ok',
+        eventsProcessed: smelter.eventsProcessed,
+        reconcile: smelter.reconcileState,
+      }));
     } else {
       res.writeHead(404);
       res.end();
@@ -429,14 +200,20 @@ async function main() {
     logger.info('Shutting down');
     actorStateUnit.dispose();
     httpTransport.dispose();
-    pipelineSubscription.unsubscribe();
-    eventSubject.complete();
+    smelter.stop();
     health.close();
     process.exit(0);
   };
 
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
+
+  // Catch-up pass: the live subscription is attached, so anything that
+  // changed while this worker was down — or a wiped Qdrant volume — is
+  // brought back in sync here. Fatal on failure: a smelter that cannot
+  // reconcile is serving an index of unknown completeness. (A restart
+  // re-runs it from scratch — reconcile is idempotent.)
+  await smelter.reconcile();
 }
 
 main().catch((error) => {

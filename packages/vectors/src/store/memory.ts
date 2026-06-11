@@ -100,6 +100,26 @@ export class MemoryVectorStore implements VectorStore {
     this.annotations = this.annotations.filter(p => p.id !== String(annotationId));
   }
 
+  async deleteAnnotationVectorsForResource(resourceId: ResourceId): Promise<void> {
+    this.annotations = this.annotations.filter(p => p.payload.resourceId !== String(resourceId));
+  }
+
+  async count(): Promise<number> {
+    return this.resources.length + this.annotations.length;
+  }
+
+  async listResourceIds(): Promise<Set<string>> {
+    return new Set(this.resources.map(p => p.payload.resourceId));
+  }
+
+  async listAnnotationIds(): Promise<Set<string>> {
+    const ids = new Set<string>();
+    for (const p of this.annotations) {
+      if (p.payload.annotationId) ids.add(p.payload.annotationId);
+    }
+    return ids;
+  }
+
   async searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
     return this.search(this.resources, embedding, opts);
   }
@@ -132,7 +152,7 @@ export class MemoryVectorStore implements VectorStore {
 
     scored.sort((a, b) => b.score - a.score);
 
-    if (opts.scoreThreshold) {
+    if (opts.scoreThreshold !== undefined) {
       const threshold = opts.scoreThreshold;
       return scored
         .filter(s => s.score >= threshold)

@@ -46,11 +46,14 @@ vi.mock('@semiont/make-meaning', () => ({
     }),
   },
   startMakeMeaning: vi.fn().mockResolvedValue({
-    eventStore: { append: vi.fn() },
-    repStore: { store: vi.fn() },
+    knowledgeSystem: {
+      kb: {
+        eventStore: { appendEvent: vi.fn() },
+        content: { store: vi.fn() },
+      },
+    },
     jobQueue: { createJob: vi.fn() },
-    workers: [],
-    graphConsumer: {}
+    stop: vi.fn(),
   })
 }));
 

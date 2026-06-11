@@ -165,7 +165,7 @@ The rule, by event kind:
 
 ## Persistence: the system of record
 
-Domain events (past-tense `-ed` channels) are the only events that get appended to the event store. They're typed as `StoredEvent<EventOfType<...>>` in the EventMap rather than as OpenAPI schemas — they carry storage metadata (sequence number, hash chain link, persist timestamp) on top of the domain payload.
+Domain events (past-tense `-ed` channels) are the only events that get appended to the event store. They're typed as `StoredEvent<EventOfType<...>>` in the EventMap rather than as OpenAPI schemas — they carry storage metadata (sequence number, stream position) on top of the domain payload.
 
 `PERSISTED_EVENT_TYPES` in [persisted-events.ts](../../packages/core/src/persisted-events.ts) is the list of channels the event-sourcing layer treats as durable. Adding a new domain event means adding it to that list — a `StoredEvent`-typed entry in `EventMap` that isn't in `PERSISTED_EVENT_TYPES` will fail typecheck.
 
