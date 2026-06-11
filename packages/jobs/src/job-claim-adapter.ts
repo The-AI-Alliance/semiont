@@ -14,10 +14,10 @@
  * observables for job orchestration. It does **not** own the bus,
  * has no HTTP concerns, and has no modal state.
  *
- * The `bus` parameter is typed against the small `JobClaimBus`
- * interface below so the adapter is transport-neutral. HTTP workers
- * pass `(session.client.transport as HttpTransport).actor`; an
- * in-process worker could pass a shim wrapping `client.bus`.
+ * The `bus` parameter is typed against the small `WorkerBus`
+ * interface (from `@semiont/sdk`) so the adapter is transport-neutral.
+ * HTTP workers pass `(session.client.transport as HttpTransport).actor`;
+ * an in-process worker could pass a shim wrapping `client.bus`.
  */
 
 import { BehaviorSubject, Observable, Subject } from 'rxjs';

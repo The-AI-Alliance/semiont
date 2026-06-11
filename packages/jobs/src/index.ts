@@ -50,7 +50,6 @@ export type {
   AssessmentDetectionResult,
   CommentDetectionResult,
   TagDetectionResult,
-  ContentFetcher,
 } from './types';
 
 export {

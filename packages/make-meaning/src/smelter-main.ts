@@ -205,7 +205,6 @@ async function handleResourceReembed(event: SmelterEvent): Promise<void> {
     chunkIndex: i, text: t, embedding: embeddings[i],
   }));
 
-  await vectorStore.deleteResourceVectors(makeResourceId(rid));
   await vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks);
   logger.info('Re-embedded resource', { resourceId: rid, chunks: chunks.length });
 }

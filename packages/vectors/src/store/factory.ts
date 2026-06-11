@@ -1,7 +1,7 @@
 /**
  * VectorStore Factory
  *
- * Creates a VectorStore instance based on configuration.
+ * Creates a connected VectorStore instance based on configuration.
  */
 
 import type { VectorStore } from './interface';
@@ -14,26 +14,20 @@ export interface VectorStoreConfig {
   dimensions: number;
 }
 
-let instance: VectorStore | null = null;
-
 export async function createVectorStore(config: VectorStoreConfig): Promise<VectorStore> {
-  if (instance) return instance;
+  let store: VectorStore;
 
   if (config.type === 'qdrant') {
     const { QdrantVectorStore } = await import('./qdrant');
-    instance = new QdrantVectorStore({
+    store = new QdrantVectorStore({
       host: config.host ?? 'localhost',
       port: config.port ?? 6333,
       dimensions: config.dimensions,
     });
   } else {
-    instance = new MemoryVectorStore();
+    store = new MemoryVectorStore();
   }
 
-  await instance.connect();
-  return instance;
-}
-
-export function getVectorStore(): VectorStore | null {
-  return instance;
+  await store.connect();
+  return store;
 }

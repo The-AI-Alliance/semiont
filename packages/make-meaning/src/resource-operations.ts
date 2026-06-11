@@ -4,7 +4,7 @@
  * Business logic for resource operations. All writes go through the EventBus
  * — the Stower actor subscribes and handles persistence.
  *
- * For create: emits yield:create, awaits yield:created / yield:create-failed.
+ * For create: emits yield:create, awaits yield:create-ok / yield:create-failed.
  */
 
 import { firstValueFrom, race, timer } from 'rxjs';

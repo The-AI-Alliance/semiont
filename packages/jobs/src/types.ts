@@ -11,16 +11,7 @@
  * - State machine is explicit and type-safe
  */
 
-import type { Readable } from 'stream';
 import type { Annotation, JobId, EntityType, ResourceId, UserId, AnnotationId, GatheredContext, TagSchema } from '@semiont/core';
-
-/**
- * Content fetcher - turns a ResourceId into a readable stream.
- * Workers use this to access resource content on demand.
- * The implementation is provided by the backend at startup.
- */
-export type ContentFetcher = (resourceId: ResourceId) => Promise<Readable | null>;
-
 
 export type JobType = 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
@@ -36,6 +27,13 @@ export interface JobMetadata {
   id: JobId;
   type: JobType;
   userId: UserId;
+  /**
+   * Audit-only snapshot of the requesting user (with `userEmail` and
+   * `userDomain` below), stamped at job creation and persisted in the
+   * on-disk job file. No code path reads these back — annotation
+   * `creator` attribution is derived from `userId` via `didToAgent()`.
+   * Kept intentionally so job files are self-describing to a human.
+   */
   userName: string;
   userEmail: string;
   userDomain: string;

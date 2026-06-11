@@ -505,8 +505,9 @@ export class Smelter {
    *
    * Used by yield:updated and yield:representation-added handlers. Reads the
    * current storageUri from the materialized view (which is updated before the
-   * EventBus fires), deletes stale Qdrant vectors, and overwrites the
-   * EmbeddingStore file with fresh chunks.
+   * EventBus fires) and overwrites both the vector store (upsertResourceVectors
+   * replaces all vectors for the resource) and the EmbeddingStore file with
+   * fresh chunks.
    */
   private async reembedResource(rid: ReturnType<typeof makeResourceId>): Promise<void> {
     const view = await this.viewStorage.get(rid);
@@ -531,8 +532,6 @@ export class Smelter {
     }));
 
     await this.embeddingStore.writeResourceChunks(rid, model, dimensions, embeddingChunks);
-    // Delete-then-upsert to purge stale chunk indices if the chunk count changed
-    await this.vectorStore.deleteResourceVectors(rid);
     await this.vectorStore.upsertResourceVectors(rid, embeddingChunks);
 
     this.logger.debug('Smelter re-embedded resource', {

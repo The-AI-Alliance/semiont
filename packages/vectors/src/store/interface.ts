@@ -51,6 +51,11 @@ export interface VectorStore {
   clearAll(): Promise<void>;
 
   // Write
+  /**
+   * Replace all vectors for a resource with the given chunks.
+   * Existing vectors for the resource are removed first, so a resource
+   * that shrinks to fewer chunks leaves no orphans.
+   */
   upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[]): Promise<void>;
   upsertAnnotationVector(annotationId: AnnotationId, embedding: number[], payload: AnnotationPayload): Promise<void>;
   deleteResourceVectors(resourceId: ResourceId): Promise<void>;

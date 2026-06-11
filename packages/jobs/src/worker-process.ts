@@ -79,8 +79,8 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   // Workers are HTTP-bound today; the actor is needed for the job-claim
   // protocol (SSE subscribe + ad-hoc channel adds). Cast to HttpTransport
   // is intentional: `LocalTransport` workers don't exist. The adapter
-  // itself is transport-neutral — see `JobClaimBus` in
-  // packages/sdk/src/state/domain/job-claim-adapter.ts.
+  // itself is transport-neutral — see `WorkerBus` in
+  // packages/sdk/src/state/lib/worker-bus.ts.
   const httpTransport = session.client.transport as HttpTransport;
   const adapter = createJobClaimAdapter({
     bus: httpTransport.actor,

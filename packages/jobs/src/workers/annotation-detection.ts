@@ -6,8 +6,8 @@
  * 2. Call AI inference
  * 3. Parse and validate results using MotivationParsers
  *
- * All methods take content as a string parameter.
- * Workers are responsible for fetching content via ContentFetcher.
+ * All methods take content as a string parameter — the worker process
+ * fetches it and hands it in.
  */
 
 import type { InferenceClient } from '@semiont/inference';
@@ -19,26 +19,9 @@ import {
   type AssessmentMatch,
   type TagMatch,
 } from './detection/motivation-parsers';
-import type { ResourceId, TagSchema } from '@semiont/core';
-import type { ContentFetcher } from '../types';
+import type { TagSchema } from '@semiont/core';
 
 export class AnnotationDetection {
-
-  /**
-   * Fetch content from a ContentFetcher and read the stream to a string.
-   * Shared helper for all workers.
-   */
-  static async fetchContent(contentFetcher: ContentFetcher, resourceId: ResourceId): Promise<string> {
-    const stream = await contentFetcher(resourceId);
-    if (!stream) {
-      throw new Error(`Could not load content for resource ${resourceId}`);
-    }
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    return Buffer.concat(chunks).toString('utf-8');
-  }
 
   /**
    * Detect comments in content.

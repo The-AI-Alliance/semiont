@@ -132,7 +132,7 @@ export class MemoryVectorStore implements VectorStore {
 
     scored.sort((a, b) => b.score - a.score);
 
-    if (opts.scoreThreshold) {
+    if (opts.scoreThreshold !== undefined) {
       const threshold = opts.scoreThreshold;
       return scored
         .filter(s => s.score >= threshold)
