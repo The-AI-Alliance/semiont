@@ -6,16 +6,12 @@
 
 export interface ImportProgressTranslations {
   phaseStarted: string;
-  phaseEntityTypes: string;
-  phaseResources: string;
-  phaseAnnotations: string;
   phaseComplete: string;
   phaseError: string;
-  hashChainValid: string;
-  hashChainInvalid: string;
-  streams: string;
-  events: string;
-  blobs: string;
+  statsEventsReplayed: string;
+  statsResourcesCreated: string;
+  statsAnnotationsCreated: string;
+  statsEntityTypesAdded: string;
 }
 
 export interface ImportProgressProps {
@@ -27,11 +23,15 @@ export interface ImportProgressProps {
 
 const PHASE_LABELS: Record<string, keyof ImportProgressTranslations> = {
   started: 'phaseStarted',
-  'entity-types': 'phaseEntityTypes',
-  resources: 'phaseResources',
-  annotations: 'phaseAnnotations',
   complete: 'phaseComplete',
   error: 'phaseError',
+};
+
+const STAT_LABELS: Record<string, keyof ImportProgressTranslations> = {
+  eventsReplayed: 'statsEventsReplayed',
+  resourcesCreated: 'statsResourcesCreated',
+  annotationsCreated: 'statsAnnotationsCreated',
+  entityTypesAdded: 'statsEntityTypesAdded',
 };
 
 export function ImportProgress({ phase, message, result, translations: t }: ImportProgressProps) {
@@ -40,6 +40,13 @@ export function ImportProgress({ phase, message, result, translations: t }: Impo
 
   const isComplete = phase === 'complete';
   const isError = phase === 'error';
+
+  const stats = result?.stats != null && typeof result.stats === 'object'
+    ? (result.stats as Record<string, unknown>)
+    : undefined;
+  const statEntries = stats
+    ? Object.entries(stats).filter((entry): entry is [string, number] => typeof entry[1] === 'number')
+    : [];
 
   return (
     <div className="semiont-exchange__progress">
@@ -51,30 +58,17 @@ export function ImportProgress({ phase, message, result, translations: t }: Impo
         <p className="semiont-exchange__progress-message">{message}</p>
       )}
 
-      {isComplete && result && (
+      {isComplete && statEntries.length > 0 && (
         <div className="semiont-exchange__result">
-          {result.stats != null && typeof result.stats === 'object' && (
-            <>
-              {Object.entries(result.stats as Record<string, number>).map(([key, value]) => {
-                const label = key === 'streams' ? t.streams
-                  : key === 'events' ? t.events
-                  : key === 'blobs' ? t.blobs
-                  : key;
-                return (
-                  <div key={key} className="semiont-exchange__result-stat">
-                    <span className="semiont-exchange__result-value">{value}</span>
-                    <span className="semiont-exchange__result-label">{label}</span>
-                  </div>
-                );
-              })}
-            </>
-          )}
-
-          {result.hashChainValid !== undefined && (
-            <div className={`semiont-exchange__hash-badge${result.hashChainValid ? ' semiont-exchange__hash-badge--valid' : ' semiont-exchange__hash-badge--invalid'}`}>
-              {result.hashChainValid ? t.hashChainValid : t.hashChainInvalid}
-            </div>
-          )}
+          {statEntries.map(([key, value]) => {
+            const statKey = STAT_LABELS[key];
+            return (
+              <div key={key} className="semiont-exchange__result-stat">
+                <span className="semiont-exchange__result-value">{value}</span>
+                <span className="semiont-exchange__result-label">{statKey ? t[statKey] : key}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 

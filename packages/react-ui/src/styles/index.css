@@ -91,6 +91,7 @@
 @import '../components/annotation/references.css';
 @import '../components/Toast.css';
 @import '../components/StatusDisplay.css';
+@import '../components/ProtectedErrorBoundary.css';
 @import '../components/loading-states/loading.css';
 @import '../components/error-states/errors.css';
 @import '../features/auth/auth.css';

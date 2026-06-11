@@ -45,16 +45,12 @@ const createProps = (overrides?: Partial<LinkedDataPageProps>): LinkedDataPagePr
     },
     progress: {
       phaseStarted: 'Starting…',
-      phaseEntityTypes: 'Entity types…',
-      phaseResources: 'Resources…',
-      phaseAnnotations: 'Annotations…',
       phaseComplete: 'Complete',
       phaseError: 'Failed',
-      hashChainValid: 'Verified',
-      hashChainInvalid: 'Verification failed',
-      streams: 'Resources',
-      events: 'Annotations',
-      blobs: 'Entity types',
+      statsEventsReplayed: 'Events replayed',
+      statsResourcesCreated: 'Resources created',
+      statsAnnotationsCreated: 'Annotations created',
+      statsEntityTypesAdded: 'Entity types added',
     },
   },
   ToolbarPanels: () => <div data-testid="toolbar-panels" />,
@@ -100,9 +96,15 @@ describe('LinkedDataPage', () => {
   it('renders ImportProgress with result on completion', () => {
     render(<LinkedDataPage {...createProps({
       importPhase: 'complete',
-      importResult: { resourcesCreated: 5, annotationsCreated: 12, entityTypesAdded: 3 },
+      importResult: { stats: { resourcesCreated: 5, annotationsCreated: 12, entityTypesAdded: 3 } },
     })} />);
     expect(screen.getByText('Complete')).toBeInTheDocument();
+    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getByText('Resources created')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
+    expect(screen.getByText('Annotations created')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('Entity types added')).toBeInTheDocument();
   });
 
   it('applies panel-open class when common panel is active', () => {

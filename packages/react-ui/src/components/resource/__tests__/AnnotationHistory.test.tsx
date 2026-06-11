@@ -78,7 +78,6 @@ function makeStoredEvent(id: string, type: string, seq: number, overrides: Recor
     ...overrides,
     metadata: {
       sequenceNumber: seq,
-      streamPosition: 0,
     },
   };
 }
