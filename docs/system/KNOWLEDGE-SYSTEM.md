@@ -33,7 +33,7 @@ graph TB
     STOWER -->|store| CONTENT
 
     SMELTER -->|embed| VECTORS
-    SMELTER -->|"emit embedding:compute"| STOWER
+    CONTENT -->|read| SMELTER
 
     subgraph kb ["Knowledge Base"]
         subgraph sor ["System of Record (git-tracked)"]
@@ -101,7 +101,7 @@ The Browser is the read actor for navigation and content retrieval. It handles d
 
 ### Smelter
 
-The Smelter is the vector projection actor. It runs in its own container (`semiont-smelter`) — not in the backend process — and reaches the backend through the unified bus, the same way workers do. When a resource is created or an annotation is added, the Smelter receives the event, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store (Qdrant). It emits `embedding:compute` commands on the bus so the Stower can persist them as `embedding:computed` domain events in `.semiont/events/` — making them part of the system of record. The Smelter follows the same RxJS burst-buffer pattern as the Graph Consumer for per-resource ordering and batch efficiency.
+The Smelter is the vector projection actor. It runs in its own container (`semiont-smelter`) — not in the backend process — and reaches the backend through the unified bus, the same way workers do. Beyond the bus it has two privileged attachments: the vector store (Qdrant, direct) and the content store (the KB working tree, bind-mounted; `SEMIONT_ROOT`). When a resource is created or an annotation is added, the Smelter receives the event, reads the content from the working tree, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store. Vectors are a pure projection — nothing is written back to the event log. Because Qdrant is ephemeral, the Smelter reconciles it against the KS catalog on every startup: it lists what is indexed, lists what should be (via the `browse:*` channels), re-embeds what's missing, and deletes orphans — so a wiped Qdrant volume, or events missed while the worker was down, recover by restarting the smelter. The Smelter follows the same RxJS burst-buffer pattern as the Graph Consumer for per-resource ordering and batch efficiency.
 
 ## See also
 
