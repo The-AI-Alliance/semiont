@@ -14,7 +14,7 @@ This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/
 - **Browser** (read) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type listing, and directory browse (merging filesystem listings with KB metadata)
 - **Gatherer** (context assembly) — assembles gathered context for annotations (`gather:requested`) and resources (`gather:resource-requested`); searches vectors for semantically similar passages (adds `semanticContext` to `GatheredContext`)
 - **Matcher** (search/link) — context-driven candidate search with multi-source retrieval, composite structural scoring, and optional LLM semantic scoring
-- **Smelter** (embed) — standalone embedding pipeline run via `@semiont/make-meaning/smelter-main` (not started by `startMakeMeaning`); subscribes to domain events, chunks text, embeds via `@semiont/vectors`, persists embeddings to the EmbeddingStore (`.semiont/embeddings/`), and indexes into the vector store (Qdrant)
+- **Smelter** (embed) — standalone embedding pipeline run via `@semiont/make-meaning/smelter-main` (not started by `startMakeMeaning`); subscribes to domain events, reads content from the KB working tree via `WorkerContentTransport`, chunks text, embeds via `@semiont/vectors`, and indexes into the vector store (Qdrant). On startup it reconciles Qdrant against the KS catalog — re-embedding what's missing and deleting orphans — so a wiped Qdrant volume recovers by restarting the smelter
 - **CloneTokenManager** (yield) — manages clone token lifecycle for resource cloning
 
 All actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
@@ -219,7 +219,7 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 - `Gatherer` — Context assembly actor (annotation and resource gather flows; vector semantic search)
 - `Matcher` — Search/link actor (context-driven candidate search with structural + semantic scoring)
 - `CloneTokenManager` — Clone token lifecycle actor (yield domain)
-- `createSmelterActorStateUnit` — domain-event fan-in for the standalone Smelter process (`@semiont/make-meaning/smelter-main`); the `Smelter` class itself is not exported from the package index
+- `Smelter` / `createSmelterActorStateUnit` — embedding pipeline and its domain-event fan-in; wired together by the standalone `@semiont/make-meaning/smelter-main` entry point, and exported for callers that run the pipeline on their own `WorkerBus`
 
 ### Operations
 

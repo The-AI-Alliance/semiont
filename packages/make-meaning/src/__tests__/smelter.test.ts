@@ -1,32 +1,34 @@
 /**
  * Smelter Tests
  *
- * Tests the Smelter actor's event processing pipeline:
- * - Resource embedding and indexing (via embedBatch)
- * - Annotation embedding and indexing
- * - Deletion handling
- * - EmbeddingStore write-through on creation
- * - rebuildAll() loads from EmbeddingStore, detects model mismatch and re-embeds
- * - Cross-resource batch processing
+ * Tests the Smelter worker pipeline:
+ * - Resource embedding and indexing (via embedBatch) on yield:created
+ * - Re-embedding on yield:updated / yield:representation-added
+ * - Annotation embedding and indexing on mark:added
+ * - Deletion handling (mark:archived, mark:removed)
+ * - Burst batching: same-type runs share one embedBatch() call
+ * - Mixed-type bursts partitioned into ordered runs
+ * - Startup reconciliation against a fake KS catalog
  *
+ * Drives the pipeline with a plain RxJS Subject standing in for the
+ * SmelterActorStateUnit's events$, a mock IContentTransport standing in
+ * for the content store, and a fake bus serving the browse RPC channels.
  * Uses MemoryVectorStore and a mock EmbeddingProvider.
  */
 
-import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } from 'vitest';
-import { EventStore, FilesystemViewStorage, type ViewStorage } from '@semiont/event-sourcing';
-import { SemiontProject } from '@semiont/core/node';
-import { EventBus, resourceId, userId } from '@semiont/core';
-import type { Logger } from '@semiont/core';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Observable, Subject } from 'rxjs';
+import type { Logger, EventMap, IContentTransport, components } from '@semiont/core';
+import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
-import { WorkingTreeStore } from '@semiont/content';
-import { Smelter } from '../smelter';
-import { EmbeddingStore } from '../embedding-store';
+import type { BusRequestPrimitive } from '@semiont/sdk';
+import { Smelter, isEmbeddableMediaType } from '../smelter';
+import type { SmelterEvent } from '../smelter-actor-state-unit';
 import { partitionByType } from '../batch-utils';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+type Annotation = components['schemas']['Annotation'];
 
 const tick = (ms = 400) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -55,6 +57,117 @@ function createMockEmbeddingProvider(model = 'mock-model'): EmbeddingProvider {
   };
 }
 
+function makeAnnotation(resourceId: string, annotationId: string, exact: string): Annotation {
+  return {
+    '@context': 'http://www.w3.org/ns/anno.jsonld',
+    type: 'Annotation',
+    id: annotationId,
+    motivation: 'highlighting',
+    target: {
+      source: resourceId,
+      selector: {
+        type: 'TextQuoteSelector',
+        exact,
+      },
+    },
+    created: new Date().toISOString(),
+  };
+}
+
+function annotationEvent(resourceId: string, annotationId: string, exact: string): SmelterEvent {
+  return {
+    type: 'mark:added',
+    resourceId,
+    payload: {
+      resourceId,
+      annotation: makeAnnotation(resourceId, annotationId, exact),
+    },
+  };
+}
+
+function resourceDescriptor(id: string, mediaType = 'text/plain'): ResourceDescriptor {
+  return {
+    '@context': 'https://schema.org',
+    '@id': id,
+    name: id,
+    representations: [{ mediaType, storageUri: `file://${id}.txt` }],
+  };
+}
+
+/**
+ * IContentTransport over an in-memory map, mirroring WorkerContentTransport
+ * semantics: unknown resources throw rather than returning null.
+ */
+function createMockContentTransport(
+  contentByResourceId: Map<string, string>,
+  contentType = 'text/plain',
+): IContentTransport {
+  return {
+    async putBinary() {
+      throw new Error('not supported');
+    },
+    async getBinary(resourceId) {
+      const text = contentByResourceId.get(String(resourceId));
+      if (text === undefined) throw new Error(`Resource not found: ${resourceId}`);
+      const bytes = new TextEncoder().encode(text);
+      const data = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(data).set(bytes);
+      return { data, contentType };
+    },
+    async getBinaryStream() {
+      throw new Error('not used in tests');
+    },
+    dispose() {},
+  };
+}
+
+/**
+ * BusRequestPrimitive serving the browse RPC channels from a fake catalog,
+ * with the same correlationId request/reply protocol the Browser actor uses.
+ */
+function createFakeKsBus(
+  resources: ResourceDescriptor[],
+  annotationsByResource: Map<string, Annotation[]> = new Map(),
+): BusRequestPrimitive {
+  const channels = new Map<string, Subject<Record<string, unknown>>>();
+  const channel = (name: string): Subject<Record<string, unknown>> => {
+    let subject = channels.get(name);
+    if (!subject) {
+      subject = new Subject<Record<string, unknown>>();
+      channels.set(name, subject);
+    }
+    return subject;
+  };
+
+  return {
+    async emit<K extends keyof EventMap>(name: K, payload: EventMap[K]): Promise<void> {
+      const request = payload as Record<string, unknown>;
+      if (name === 'browse:resources-requested') {
+        const offset = (request.offset as number | undefined) ?? 0;
+        const limit = (request.limit as number | undefined) ?? 50;
+        queueMicrotask(() => channel('browse:resources-result').next({
+          correlationId: request.correlationId,
+          response: {
+            resources: resources.slice(offset, offset + limit),
+            total: resources.length,
+            offset,
+            limit,
+          },
+        }));
+      } else if (name === 'browse:annotations-requested') {
+        const annotations = annotationsByResource.get(request.resourceId as string) ?? [];
+        queueMicrotask(() => channel('browse:annotations-result').next({
+          correlationId: request.correlationId,
+          response: { annotations, total: annotations.length },
+        }));
+      }
+    },
+    stream<K extends keyof EventMap>(name: K): Observable<EventMap[K]> {
+      return channel(name as string) as unknown as Observable<EventMap[K]>;
+    },
+  };
+}
+
 describe('partitionByType', () => {
   it('partitions consecutive same-type events into runs', () => {
     const events = [
@@ -64,7 +177,7 @@ describe('partitionByType', () => {
       { type: 'b' },
       { type: 'b' },
       { type: 'a' },
-    ] as any;
+    ];
 
     const runs = partitionByType(events);
     expect(runs).toHaveLength(3);
@@ -77,7 +190,7 @@ describe('partitionByType', () => {
     const events = [
       { type: 'x' },
       { type: 'x' },
-    ] as any;
+    ];
 
     const runs = partitionByType(events);
     expect(runs).toHaveLength(1);
@@ -90,394 +203,327 @@ describe('partitionByType', () => {
 });
 
 describe('Smelter', () => {
-  let tempDir: string;
-  let project: SemiontProject;
-  let eventStore: EventStore;
-  let eventBus: EventBus;
+  let events$: Subject<SmelterEvent>;
   let vectorStore: MemoryVectorStore;
   let embeddingProvider: EmbeddingProvider;
-  let contentStore: WorkingTreeStore;
-  let embeddingStore: EmbeddingStore;
-  let viewStorage: ViewStorage;
+  let contentByResourceId: Map<string, string>;
   let smelter: Smelter;
 
-  beforeAll(async () => {
-    tempDir = join(tmpdir(), `smelter-test-${uuidv4()}`);
-    await fs.mkdir(tempDir, { recursive: true });
-    await fs.mkdir(join(tempDir, '.semiont'), { recursive: true });
-    await fs.writeFile(join(tempDir, '.semiont', 'config'), '[project]\nname = "test"\n');
-
-    project = new SemiontProject(tempDir);
-    await fs.mkdir(project.eventsDir, { recursive: true });
-    await fs.mkdir(project.embeddingsDir, { recursive: true });
-    await fs.mkdir(project.projectionsDir, { recursive: true });
-  });
-
   beforeEach(async () => {
-    eventBus = new EventBus();
-    viewStorage = new FilesystemViewStorage(project);
-    eventStore = new EventStore(project, project.projectionsDir, viewStorage, eventBus, mockLogger);
+    events$ = new Subject<SmelterEvent>();
     vectorStore = new MemoryVectorStore();
     await vectorStore.connect();
     embeddingProvider = createMockEmbeddingProvider();
-    contentStore = new WorkingTreeStore(project, mockLogger);
-    embeddingStore = new EmbeddingStore(project);
+    contentByResourceId = new Map();
 
     smelter = new Smelter(
-      eventStore,
-      eventBus,
+      events$,
       vectorStore,
       embeddingProvider,
-      contentStore,
-      embeddingStore,
-      viewStorage,
+      createMockContentTransport(contentByResourceId),
+      createFakeKsBus([]),
+      { chunkSize: 512, overlap: 64 },
       mockLogger,
     );
-    await smelter.initialize();
+    smelter.initialize();
   });
 
-  afterEach(async () => {
-    await smelter.stop();
-  });
-
-  afterAll(async () => {
-    await fs.rm(tempDir, { recursive: true, force: true });
+  afterEach(() => {
+    smelter.stop();
   });
 
   it('initializes without error', () => {
     expect(smelter).toBeDefined();
   });
 
-  it('calls embedBatch when a resource is created with content', async () => {
-    const content = Buffer.from('Abraham Lincoln was the 16th president of the United States.');
-    const uri = 'file://lincoln.txt';
-    await contentStore.store(content, uri, { noGit: true });
+  it('indexes resource vectors on yield:created', async () => {
+    contentByResourceId.set('res-fox', 'The quick brown fox jumps over the lazy dog.');
 
-    await eventStore.appendEvent({
-      type: 'yield:created',
-      resourceId: resourceId('res-lincoln'),
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        name: 'Lincoln',
-        format: 'text/plain',
-        contentChecksum: 'abc123',
-        storageUri: uri,
-      },
-    });
-
+    events$.next({ type: 'yield:created', resourceId: 'res-fox', payload: {} });
     await tick();
 
     expect(embeddingProvider.embedBatch).toHaveBeenCalled();
-  });
-
-  it('writes embeddings to EmbeddingStore on resource creation', async () => {
-    const content = Buffer.from('Short text for embedding test.');
-    const uri = 'file://embed-test.txt';
-    await contentStore.store(content, uri, { noGit: true });
-
-    const rid = resourceId('res-embed-store');
-    await eventStore.appendEvent({
-      type: 'yield:created',
-      resourceId: rid,
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        name: 'Embed Test',
-        format: 'text/plain',
-        contentChecksum: 'def456',
-        storageUri: uri,
-      },
-    });
-
-    await tick();
-
-    const stored = await embeddingStore.readResourceEmbeddings(rid);
-    expect(stored).not.toBeNull();
-    expect(stored!.model).toBe('mock-model');
-    expect(stored!.chunks.length).toBeGreaterThan(0);
-    expect(stored!.chunks[0].embedding).toHaveLength(4);
-  });
-
-  it('indexes resource vectors into vector store', async () => {
-    const content = Buffer.from('The quick brown fox jumps over the lazy dog.');
-    const uri = 'file://fox.txt';
-    await contentStore.store(content, uri, { noGit: true });
-
-    await eventStore.appendEvent({
-      type: 'yield:created',
-      resourceId: resourceId('res-fox'),
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        name: 'Fox',
-        format: 'text/plain',
-        contentChecksum: 'fox123',
-        storageUri: uri,
-      },
-    });
-
-    await tick();
-
     const queryVec = deterministicEmbed('quick brown fox');
     const results = await vectorStore.searchResources(queryVec, { limit: 5 });
     expect(results.length).toBeGreaterThan(0);
+    expect(results[0].resourceId).toBe('res-fox');
   });
 
-  it('indexes annotation text into vector store and EmbeddingStore', async () => {
-    await eventStore.appendEvent({
-      type: 'yield:created',
-      resourceId: resourceId('res-1'),
-      userId: userId('user-1'),
-      version: 1,
-      payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
-    });
+  it('skips resources whose content cannot be fetched', async () => {
+    events$.next({ type: 'yield:created', resourceId: 'res-missing', payload: {} });
     await tick();
 
-    await eventStore.appendEvent({
-      type: 'mark:added',
-      resourceId: resourceId('res-1'),
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        annotation: {
-          '@context': 'http://www.w3.org/ns/anno.jsonld',
-          type: 'Annotation',
-          id: 'ann-1',
-          motivation: 'highlighting',
-          target: {
-            type: 'SpecificResource',
-            source: 'res-1',
-            selector: {
-              type: 'TextQuoteSelector',
-              exact: 'Lincoln was a great leader',
-            },
-          },
-          created: new Date().toISOString(),
-        },
-      },
-    } as any);
+    expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
+  });
 
+  it('re-embeds resource when yield:updated fires', async () => {
+    contentByResourceId.set('res-updated', 'Initial content for update test.');
+    events$.next({ type: 'yield:created', resourceId: 'res-updated', payload: {} });
+    await tick();
+
+    const callsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    contentByResourceId.set('res-updated', 'Replaced content after update event.');
+    events$.next({ type: 'yield:updated', resourceId: 'res-updated', payload: {} });
+    await tick();
+
+    const callsAfterUpdate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(callsAfterUpdate).toBeGreaterThan(callsAfterCreate);
+    expect(embeddingProvider.embedBatch).toHaveBeenLastCalledWith(
+      expect.arrayContaining([expect.stringContaining('Replaced content')]),
+    );
+  });
+
+  it('re-embeds resource when yield:representation-added fires', async () => {
+    contentByResourceId.set('res-repr', 'Resource with a new representation.');
+    events$.next({ type: 'yield:created', resourceId: 'res-repr', payload: {} });
+    await tick();
+
+    const callsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    events$.next({ type: 'yield:representation-added', resourceId: 'res-repr', payload: {} });
+    await tick();
+
+    const callsAfterRepr = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(callsAfterRepr).toBeGreaterThan(callsAfterCreate);
+  });
+
+  it('indexes annotation text on mark:added', async () => {
+    events$.next(annotationEvent('res-1', 'ann-1', 'Lincoln was a great leader'));
     await tick();
 
     expect(embeddingProvider.embed).toHaveBeenCalledWith('Lincoln was a great leader');
     const queryVec = deterministicEmbed('Lincoln was a great leader');
     const results = await vectorStore.searchAnnotations(queryVec, { limit: 5 });
     expect(results.length).toBeGreaterThan(0);
-
-    // Also check EmbeddingStore
-    const { annotationId: makeAnnotationId } = await import('@semiont/core');
-    const stored = await embeddingStore.readAnnotationEmbedding(makeAnnotationId('ann-1'));
-    expect(stored).not.toBeNull();
-    expect(stored!.model).toBe('mock-model');
-    expect(stored!.text).toBe('Lincoln was a great leader');
-    expect(stored!.motivation).toBe('highlighting');
   });
 
-  it('deletes resource vectors on resource.archived', async () => {
-    const content = Buffer.from('Content to be archived.');
-    const uri = 'file://archive-me.txt';
-    await contentStore.store(content, uri, { noGit: true });
-
-    await eventStore.appendEvent({
-      type: 'yield:created',
-      resourceId: resourceId('res-archive'),
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        name: 'Archive Me',
-        format: 'text/plain',
-        contentChecksum: 'arch1',
-        storageUri: uri,
-      },
-    });
+  it('deletes resource vectors on mark:archived', async () => {
+    contentByResourceId.set('res-archive', 'Content to be archived.');
+    events$.next({ type: 'yield:created', resourceId: 'res-archive', payload: {} });
     await tick();
 
     const queryVec = deterministicEmbed('Content to be archived');
     let results = await vectorStore.searchResources(queryVec, { limit: 5 });
     expect(results.length).toBeGreaterThan(0);
 
-    await eventStore.appendEvent({
-      type: 'mark:archived',
-      resourceId: resourceId('res-archive'),
-      userId: userId('user-1'),
-      version: 1,
-      payload: {},
-    });
+    events$.next({ type: 'mark:archived', resourceId: 'res-archive', payload: {} });
     await tick();
 
     results = await vectorStore.searchResources(queryVec, { limit: 5 });
     expect(results.length).toBe(0);
   });
 
-  it('rebuilds vector store from EmbeddingStore', async () => {
-    const rid = resourceId('res-rebuild');
-    const text = 'Rebuilding vectors from embedding store.';
-    const embedding = deterministicEmbed(text);
+  it('deletes annotation vector on mark:removed', async () => {
+    events$.next(annotationEvent('res-1', 'ann-removed', 'Soon to be removed'));
+    await tick();
 
-    // Write directly to EmbeddingStore (simulating a prior run)
-    await embeddingStore.writeResourceChunks(rid, 'mock-model', 4, [
-      { chunkIndex: 0, text, embedding },
-    ]);
-
-    // Vector store is empty — nothing indexed yet
-    const queryVec = deterministicEmbed(text);
-    let results = await vectorStore.searchResources(queryVec, { limit: 5 });
-    expect(results.length).toBe(0);
-
-    await smelter.rebuildAll();
-
-    results = await vectorStore.searchResources(queryVec, { limit: 5 });
+    const queryVec = deterministicEmbed('Soon to be removed');
+    let results = await vectorStore.searchAnnotations(queryVec, { limit: 5 });
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0].resourceId).toBe(String(rid));
-    // rebuildAll should not have called the provider (model matches)
+
+    events$.next({ type: 'mark:removed', resourceId: 'res-1', payload: { annotationId: 'ann-removed' } });
+    await tick();
+
+    results = await vectorStore.searchAnnotations(queryVec, { limit: 5 });
+    expect(results.length).toBe(0);
+  });
+
+  it('batches a burst of yield:created events after the leading edge', async () => {
+    contentByResourceId.set('res-burst', 'Burst content for batch embedding.');
+
+    // burstBuffer is leading-edge: the first event passes through solo, the
+    // next two accumulate into one batch → one embedBatch call covering both.
+    events$.next({ type: 'yield:created', resourceId: 'res-burst', payload: {} });
+    events$.next({ type: 'yield:created', resourceId: 'res-burst', payload: {} });
+    events$.next({ type: 'yield:created', resourceId: 'res-burst', payload: {} });
+    await tick();
+
+    expect(embeddingProvider.embedBatch).toHaveBeenCalledTimes(2);
+    const lastCall = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.lastCall;
+    expect(lastCall![0]).toHaveLength(2);
+  });
+
+  it('processes mixed-type bursts as ordered same-type runs', async () => {
+    contentByResourceId.set('res-mixed', 'Mixed burst resource content.');
+
+    events$.next({ type: 'yield:created', resourceId: 'res-mixed', payload: {} });
+    events$.next(annotationEvent('res-mixed', 'ann-mixed', 'mixed burst annotation'));
+    await tick();
+
+    expect(embeddingProvider.embedBatch).toHaveBeenCalled();
+    expect(embeddingProvider.embed).toHaveBeenCalledWith('mixed burst annotation');
+    const results = await vectorStore.searchAnnotations(deterministicEmbed('mixed burst annotation'), { limit: 5 });
+    expect(results.length).toBeGreaterThan(0);
+  });
+
+  it('counts processed events for the health endpoint', async () => {
+    contentByResourceId.set('res-count', 'Counted content.');
+    events$.next({ type: 'yield:created', resourceId: 'res-count', payload: {} });
+    await tick();
+
+    expect(smelter.eventsProcessed).toBeGreaterThan(0);
+  });
+
+  it('stops cleanly', () => {
+    smelter.stop();
+  });
+});
+
+describe('isEmbeddableMediaType', () => {
+  it('accepts text media types and rejects binary ones', () => {
+    expect(isEmbeddableMediaType('text/plain')).toBe(true);
+    expect(isEmbeddableMediaType('text/markdown')).toBe(true);
+    expect(isEmbeddableMediaType('application/pdf')).toBe(false);
+    expect(isEmbeddableMediaType('image/png')).toBe(false);
+    expect(isEmbeddableMediaType(undefined)).toBe(false);
+  });
+});
+
+describe('Smelter.reconcile', () => {
+  let vectorStore: MemoryVectorStore;
+  let embeddingProvider: EmbeddingProvider;
+  let contentByResourceId: Map<string, string>;
+
+  beforeEach(async () => {
+    vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    embeddingProvider = createMockEmbeddingProvider();
+    contentByResourceId = new Map();
+  });
+
+  function createSmelter(
+    resources: ResourceDescriptor[],
+    annotationsByResource: Map<string, Annotation[]> = new Map(),
+  ): Smelter {
+    return new Smelter(
+      new Subject<SmelterEvent>(),
+      vectorStore,
+      embeddingProvider,
+      createMockContentTransport(contentByResourceId),
+      createFakeKsBus(resources, annotationsByResource),
+      { chunkSize: 512, overlap: 64 },
+      mockLogger,
+    );
+  }
+
+  it('re-embeds resources missing from a wiped vector store', async () => {
+    contentByResourceId.set('res-a', 'Alpha content for reconcile.');
+    contentByResourceId.set('res-b', 'Beta content for reconcile.');
+
+    const smelter = createSmelter([resourceDescriptor('res-a'), resourceDescriptor('res-b')]);
+    const summary = await smelter.reconcile();
+
+    expect(summary.resourcesEmbedded).toBe(2);
+    expect(await vectorStore.listResourceIds()).toEqual(new Set(['res-a', 'res-b']));
+    expect(smelter.reconcileState).toEqual({ phase: 'done', summary });
+  });
+
+  it('leaves already-indexed resources alone', async () => {
+    contentByResourceId.set('res-indexed', 'Already indexed.');
+    await vectorStore.upsertResourceVectors(
+      makeResourceId('res-indexed'),
+      [{ chunkIndex: 0, text: 'Already indexed.', embedding: deterministicEmbed('Already indexed.') }],
+    );
+
+    const smelter = createSmelter([resourceDescriptor('res-indexed')]);
+    const summary = await smelter.reconcile();
+
+    expect(summary.resourcesEmbedded).toBe(0);
     expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
   });
 
-  it('back-fills resources missing an embedding file during rebuildAll', async () => {
-    const content = Buffer.from('Missing embedding file content.');
-    const uri = 'file://missing-embed.txt';
-    await contentStore.store(content, uri, { noGit: true });
+  it('deletes vectors for resources no longer in the catalog', async () => {
+    await vectorStore.upsertResourceVectors(
+      makeResourceId('res-gone'),
+      [{ chunkIndex: 0, text: 'stale', embedding: deterministicEmbed('stale') }],
+    );
 
-    // Write a materialized view directly (simulating a completed view rebuild
-    // with no corresponding embedding file — the gap rebuildAll must fill)
-    const rid = resourceId('res-backfill');
-    await viewStorage.save(rid, {
-      resource: {
-        '@context': 'https://schema.org',
-        '@id': rid,
-        name: 'Backfill Me',
-        archived: false,
-        storageUri: uri,
-        representations: [],
-      },
-      annotations: { resourceId: rid, annotations: [], version: 0, updatedAt: '' },
-    });
+    const smelter = createSmelter([]);
+    const summary = await smelter.reconcile();
 
-    // Confirm no embedding file exists
-    const before = await embeddingStore.readResourceEmbeddings(rid);
-    expect(before).toBeNull();
-
-    // rebuildAll should detect the gap and back-fill
-    await smelter.rebuildAll();
-
-    // File should now exist
-    const after = await embeddingStore.readResourceEmbeddings(rid);
-    expect(after).not.toBeNull();
-    expect(after!.chunks.length).toBeGreaterThan(0);
-
-    // And Qdrant should have it
-    const queryVec = deterministicEmbed('Missing embedding file content');
-    const results = await vectorStore.searchResources(queryVec, { limit: 5 });
-    expect(results.length).toBeGreaterThan(0);
+    expect(summary.resourceVectorsDeleted).toBe(1);
+    expect(await vectorStore.listResourceIds()).toEqual(new Set());
   });
 
-  it('re-embeds on model mismatch during rebuildAll', async () => {
-    const rid = resourceId('res-stale-model');
-    const text = 'This was embedded with an old model.';
-    const staleEmbedding = deterministicEmbed(text);
+  it('treats vectors of non-text resources as orphans and skips re-embedding them', async () => {
+    await vectorStore.upsertResourceVectors(
+      makeResourceId('res-pdf'),
+      [{ chunkIndex: 0, text: 'mojibake', embedding: deterministicEmbed('mojibake') }],
+    );
 
-    // Write with a different (stale) model name
-    await embeddingStore.writeResourceChunks(rid, 'old-model', 4, [
-      { chunkIndex: 0, text, embedding: staleEmbedding },
-    ]);
+    const smelter = createSmelter([resourceDescriptor('res-pdf', 'application/pdf')]);
+    const summary = await smelter.reconcile();
 
-    await smelter.rebuildAll();
-
-    // Provider should have been called to re-embed
-    expect(embeddingProvider.embedBatch).toHaveBeenCalled();
-
-    // File should now reflect the current model
-    const stored = await embeddingStore.readResourceEmbeddings(rid);
-    expect(stored!.model).toBe('mock-model');
+    expect(summary.resourceVectorsDeleted).toBe(1);
+    expect(summary.resourcesEmbedded).toBe(0);
+    expect(await vectorStore.listResourceIds()).toEqual(new Set());
   });
 
-  it('re-embeds resource when yield:updated fires', async () => {
-    const uri = 'file://updated-resource.txt';
-    const rid = resourceId('res-updated');
-
-    // Create resource with initial content
-    await contentStore.store(Buffer.from('Initial content for update test.'), uri, { noGit: true });
-    await eventStore.appendEvent({
-      type: 'yield:created',
-      resourceId: rid,
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        name: 'Update Test',
-        format: 'text/plain',
-        contentChecksum: 'init-cs',
-        storageUri: uri,
+  it('embeds missing annotations and deletes orphaned annotation vectors', async () => {
+    contentByResourceId.set('res-ann', 'Annotated resource content.');
+    await vectorStore.upsertResourceVectors(
+      makeResourceId('res-ann'),
+      [{ chunkIndex: 0, text: 'Annotated resource content.', embedding: deterministicEmbed('Annotated') }],
+    );
+    await vectorStore.upsertAnnotationVector(
+      makeAnnotationId('ann-orphan'),
+      deterministicEmbed('orphan'),
+      {
+        annotationId: makeAnnotationId('ann-orphan'),
+        resourceId: makeResourceId('res-ann'),
+        motivation: 'highlighting',
+        entityTypes: [],
+        exactText: 'orphan',
       },
-    });
-    await tick();
+    );
 
-    const callsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+    const smelter = createSmelter(
+      [resourceDescriptor('res-ann')],
+      new Map([['res-ann', [makeAnnotation('res-ann', 'ann-live', 'live annotation text')]]]),
+    );
+    const summary = await smelter.reconcile();
 
-    // Replace content at the same URI and fire yield:updated
-    await contentStore.store(Buffer.from('Replaced content after update event.'), uri, { noGit: true });
-    await eventStore.appendEvent({
-      type: 'yield:updated',
-      resourceId: rid,
-      userId: userId('user-1'),
-      version: 1,
-      payload: { contentChecksum: 'new-cs' },
-    });
-    await tick();
-
-    // embedBatch should have been called again
-    const callsAfterUpdate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
-    expect(callsAfterUpdate).toBeGreaterThan(callsAfterCreate);
-
-    // EmbeddingStore should reflect the new content
-    const stored = await embeddingStore.readResourceEmbeddings(rid);
-    expect(stored).not.toBeNull();
-    expect(stored!.chunks[0].text).toContain('Replaced content');
+    expect(summary.annotationsEmbedded).toBe(1);
+    expect(summary.annotationVectorsDeleted).toBe(1);
+    expect(await vectorStore.listAnnotationIds()).toEqual(new Set(['ann-live']));
   });
 
-  it('re-embeds resource when yield:representation-added fires', async () => {
-    const uri = 'file://repr-resource.txt';
-    const rid = resourceId('res-repr-added');
+  it('pages through catalogs larger than one page', async () => {
+    const resources: ResourceDescriptor[] = [];
+    for (let i = 0; i < 250; i++) {
+      const id = `res-page-${i}`;
+      resources.push(resourceDescriptor(id));
+      contentByResourceId.set(id, `Content ${i}.`);
+    }
 
-    await contentStore.store(Buffer.from('Resource with a new representation.'), uri, { noGit: true });
-    await eventStore.appendEvent({
-      type: 'yield:created',
-      resourceId: rid,
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        name: 'Repr Test',
-        format: 'text/plain',
-        contentChecksum: 'repr-cs',
-        storageUri: uri,
-      },
-    });
-    await tick();
+    const smelter = createSmelter(resources);
+    const summary = await smelter.reconcile();
 
-    const callsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
-
-    await eventStore.appendEvent({
-      type: 'yield:representation-added',
-      resourceId: rid,
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        representation: {
-          mediaType: 'text/markdown',
-          storageUri: uri,
-          checksum: 'repr-md-cs',
-          rel: 'derived',
-        },
-      },
-    } as any);
-    await tick();
-
-    // embedBatch should have fired again due to re-embed
-    const callsAfterRepr = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
-    expect(callsAfterRepr).toBeGreaterThan(callsAfterCreate);
+    expect(summary.resourcesEmbedded).toBe(250);
+    expect((await vectorStore.listResourceIds()).size).toBe(250);
   });
 
-  it('stops cleanly', async () => {
-    await smelter.stop();
+  it('records failure state when the catalog is unreachable', async () => {
+    const deadBus: BusRequestPrimitive = {
+      async emit() {
+        throw new Error('bus down');
+      },
+      stream<K extends keyof EventMap>(): Observable<EventMap[K]> {
+        return new Subject<EventMap[K]>();
+      },
+    };
+    const smelter = new Smelter(
+      new Subject<SmelterEvent>(),
+      vectorStore,
+      embeddingProvider,
+      createMockContentTransport(contentByResourceId),
+      deadBus,
+      { chunkSize: 512, overlap: 64 },
+      mockLogger,
+    );
+
+    await expect(smelter.reconcile()).rejects.toThrow('bus down');
+    expect(smelter.reconcileState).toEqual({ phase: 'failed', error: 'bus down' });
   });
 });

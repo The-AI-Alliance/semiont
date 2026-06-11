@@ -204,9 +204,6 @@ export class AnnotationContext {
       }
     }
 
-    // TODO: Generate suggested resolution using AI
-    const suggestedResolution = undefined;
-
     // Build graph context via graph traversal
     logger?.debug('Building graph context', { resourceId });
 
@@ -350,10 +347,8 @@ Summary:`;
       annotation,
       sourceResource: sourceDoc,
       targetResource: targetDoc,
-      ...(generationContext ? { context: generationContext } : {}),
-      ...(sourceContext ? { sourceContext } : {}),  // Keep for backward compatibility
+      context: generationContext,
       ...(targetContext ? { targetContext } : {}),
-      ...(suggestedResolution ? { suggestedResolution } : {}),
     };
 
     return response;

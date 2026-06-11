@@ -9,7 +9,7 @@ import { FsJobQueue, type JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
 import type { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, jobId } from '@semiont/core';
-import { registerJobQueueProvider } from '@semiont/observability';
+import { registerJobQueueProvider, registerVectorIndexSizeProvider } from '@semiont/observability';
 import { resolveActorInference, type MakeMeaningConfig } from './config';
 import { from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
@@ -117,6 +117,11 @@ async function createKnowledgeSystemFromConfig(
       embedding: embeddingConfig.type,
       model: embeddingConfig.model,
     });
+
+    // Tier 3 observability: report index point count. Polled at the
+    // metric-collection interval (default 30s).
+    const store = vectorStore;
+    registerVectorIndexSizeProvider(() => store.count());
   }
 
   const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, {

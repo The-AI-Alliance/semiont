@@ -83,14 +83,14 @@ Referenced-by lookups are handled by the Browser (`browse:referenced-by-requeste
 
 ### Smelter (standalone process)
 
-Embedding pipeline actor. Runs in its own process via `@semiont/make-meaning/smelter-main` — it is **not** started by `startMakeMeaning()` and the `Smelter` class is not exported from the package index. It chunks text, computes embeddings via `@semiont/vectors` (EmbeddingProvider: Voyage or Ollama), persists them to the EmbeddingStore (`.semiont/embeddings/`), and indexes vectors into the VectorStore (Qdrant or memory).
+Embedding pipeline actor. Runs in its own process via `@semiont/make-meaning/smelter-main` — it is **not** started by `startMakeMeaning()`. It chunks text, computes embeddings via `@semiont/vectors` (EmbeddingProvider: Voyage or Ollama), persists them to the EmbeddingStore (`.semiont/embeddings/`), and indexes vectors into the VectorStore (Qdrant or memory).
 
 **Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
 
-For custom wiring on top of an existing `WorkerBus`, the package exports the domain-event fan-in:
+For custom wiring on top of an existing `WorkerBus`, the package exports both the pipeline and its domain-event fan-in:
 
 ```typescript
-import { createSmelterActorStateUnit } from '@semiont/make-meaning';
+import { Smelter, createSmelterActorStateUnit } from '@semiont/make-meaning';
 ```
 
 Consumes domain events:

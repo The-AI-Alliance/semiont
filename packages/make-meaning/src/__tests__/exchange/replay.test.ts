@@ -3,7 +3,6 @@
  *
  * Tests the event replay engine that translates domain events to command
  * events via EventBus with backpressure. Covers:
- * - Hash chain validation
  * - Event type dispatch (resource.created, annotation.added, etc.)
  * - Skipped event types (job.*, representation.*)
  * - Content blob resolution
@@ -50,7 +49,6 @@ function makeStoredEvent(event: Record<string, unknown>): string {
     ...event,
     metadata: {
       sequenceNumber: 1,
-      streamPosition: 0,
     },
   });
 }

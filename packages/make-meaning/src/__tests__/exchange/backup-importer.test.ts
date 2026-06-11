@@ -89,7 +89,6 @@ function makeStoredEventJson(type: string, payload: Record<string, unknown>) {
     type, resourceId: TEST_RESOURCE, userId: TEST_USER, payload,
     metadata: {
       sequenceNumber: 1,
-      streamPosition: 0,
     },
   });
 }

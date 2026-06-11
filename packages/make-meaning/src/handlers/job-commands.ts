@@ -151,4 +151,68 @@ export function registerJobCommandHandlers(
       });
     }
   });
+
+  // ── Queue lifecycle sync ────────────────────────────────────────────
+  // Stower persists job:complete / job:fail to the event log; these
+  // subscriptions keep the *queue files* in step so `getStats()`,
+  // `job:status-requested`, and retry bookkeeping reflect reality.
+
+  eventBus.get('job:complete').subscribe(async (event) => {
+    try {
+      const moved = await jobQueue.completeJob(
+        jobId(event.jobId),
+        (event.result ?? {}) as Record<string, unknown>,
+      );
+      if (!moved) {
+        logger.warn('job:complete for a job not in running', { jobId: event.jobId });
+      }
+    } catch (error) {
+      logger.error('Failed to sync job completion to queue', {
+        jobId: event.jobId,
+        error: (error as Error).message,
+      });
+    }
+  });
+
+  eventBus.get('job:fail').subscribe(async (event) => {
+    try {
+      const outcome = await jobQueue.failJob(jobId(event.jobId), event.error);
+      if (outcome === 'retried') {
+        logger.info('Job re-queued for retry', { jobId: event.jobId });
+      } else if (outcome === null) {
+        logger.warn('job:fail for a job not in running', { jobId: event.jobId });
+      }
+    } catch (error) {
+      logger.error('Failed to sync job failure to queue', {
+        jobId: event.jobId,
+        error: (error as Error).message,
+      });
+    }
+  });
+
+  eventBus.get('job:report-progress').subscribe(async (event) => {
+    try {
+      await jobQueue.recordProgress(
+        jobId(event.jobId),
+        (event.progress ?? { percentage: event.percentage }) as Record<string, unknown>,
+      );
+    } catch (error) {
+      logger.error('Failed to record job progress', {
+        jobId: event.jobId,
+        error: (error as Error).message,
+      });
+    }
+  });
+
+  eventBus.get('job:cancel-requested').subscribe(async (event) => {
+    try {
+      const cancelled = await jobQueue.cancelPendingJobs(event.jobType);
+      logger.info('Cancel requested', { jobType: event.jobType, cancelled });
+    } catch (error) {
+      logger.error('Failed to cancel pending jobs', {
+        jobType: event.jobType,
+        error: (error as Error).message,
+      });
+    }
+  });
 }
