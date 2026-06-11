@@ -1,7 +1,7 @@
 {
   "name": "@semiont/core",
   "version": "0.5.7",
-  "description": "Core domain types for Semiont - Document, Annotation, and Graph models",
+  "description": "Core types and domain logic for Semiont - Resource, Annotation, and Graph models",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -50,8 +50,8 @@
   "keywords": [
     "types",
     "domain",
-    "document",
-    "selection",
+    "resource",
+    "annotation",
     "graph",
     "semiont"
   ],
