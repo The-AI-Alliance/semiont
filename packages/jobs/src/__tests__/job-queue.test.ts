@@ -775,5 +775,20 @@ describe('JobQueue', () => {
       expect(await jobQueue.recoverStaleRunningJobs()).toBe(0);
       expect((await jobQueue.getJob(jobId('job-fresh')))?.status).toBe('running');
     });
+
+    test('a progress write rescues an otherwise-stale running job', async () => {
+      // Pins the heartbeat contract: recordProgress must refresh the
+      // file's mtime, or the janitor would recover live jobs out from
+      // under their workers.
+      await jobQueue.createJob(createRunningDetectionJob('job-heartbeat'));
+      const filePath = path.join(project.jobsDir, 'running', 'job-heartbeat.json');
+      const past = new Date(Date.now() - 31 * 60_000);
+      await fs.utimes(filePath, past, past);
+
+      await jobQueue.recordProgress(jobId('job-heartbeat'), { stage: 'analyzing', percentage: 50 });
+
+      expect(await jobQueue.recoverStaleRunningJobs()).toBe(0);
+      expect((await jobQueue.getJob(jobId('job-heartbeat')))?.status).toBe('running');
+    });
   });
 });
