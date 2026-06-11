@@ -60,6 +60,8 @@ export interface VectorStore {
   upsertAnnotationVector(annotationId: AnnotationId, embedding: number[], payload: AnnotationPayload): Promise<void>;
   deleteResourceVectors(resourceId: ResourceId): Promise<void>;
   deleteAnnotationVector(annotationId: AnnotationId): Promise<void>;
+  /** Delete every annotation vector whose payload points at the resource. */
+  deleteAnnotationVectorsForResource(resourceId: ResourceId): Promise<void>;
 
   // Read
   searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]>;
@@ -69,4 +71,11 @@ export interface VectorStore {
    * Feeds the `semiont.vector.index.size` gauge.
    */
   count(): Promise<number>;
+
+  // Enumeration — drives the Smelter's startup reconciliation: the set of
+  // ids actually indexed, compared against what the KS says should exist.
+  /** Distinct resourceIds present in the resources collection. */
+  listResourceIds(): Promise<Set<string>>;
+  /** Distinct annotationIds present in the annotations collection. */
+  listAnnotationIds(): Promise<Set<string>>;
 }

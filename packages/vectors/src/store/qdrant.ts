@@ -128,12 +128,48 @@ export class QdrantVectorStore implements VectorStore {
     });
   }
 
+  async deleteAnnotationVectorsForResource(resourceId: ResourceId): Promise<void> {
+    await this.qdrant.delete('annotations', {
+      filter: {
+        must: [{ key: 'resourceId', match: { value: String(resourceId) } }],
+      },
+    });
+  }
+
   async count(): Promise<number> {
     const [resources, annotations] = await Promise.all([
       this.qdrant.count('resources', { exact: true }),
       this.qdrant.count('annotations', { exact: true }),
     ]);
     return resources.count + annotations.count;
+  }
+
+  async listResourceIds(): Promise<Set<string>> {
+    return this.scrollPayloadField('resources', 'resourceId');
+  }
+
+  async listAnnotationIds(): Promise<Set<string>> {
+    return this.scrollPayloadField('annotations', 'annotationId');
+  }
+
+  /** Collect the distinct values of one payload field across a collection. */
+  private async scrollPayloadField(collection: string, field: string): Promise<Set<string>> {
+    const values = new Set<string>();
+    let offset: Schemas['ScrollRequest']['offset'] = undefined;
+    do {
+      const page = await this.qdrant.scroll(collection, {
+        limit: 1000,
+        offset,
+        with_payload: [field],
+        with_vector: false,
+      });
+      for (const point of page.points) {
+        const value = point.payload?.[field];
+        if (typeof value === 'string') values.add(value);
+      }
+      offset = page.next_page_offset ?? undefined;
+    } while (offset !== undefined && offset !== null);
+    return values;
   }
 
   async searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
