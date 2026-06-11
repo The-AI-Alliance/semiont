@@ -166,9 +166,9 @@ class BackendService extends BaseService {
 **Pattern:** Services declare their type, platforms map to implementations
 
 Service types are high-level categories declared by services:
-- **Core Types**: frontend, backend, database, filesystem, worker, mcp, inference
+- **Core Types**: frontend, backend, database, graph, worker, inference, mcp, vectors, embedding, stack, filesystem
 - **Declaration**: Services use `service/type` annotation in requirements
-- **Platform Mapping**: Platforms may map types to specific implementations (e.g., AWS maps frontend → s3-cloudfront)
+- **Platform Mapping**: Platforms may override `mapServiceType` to translate or allowlist types before handler lookup
 - **Handler Resolution**: Platform + ServiceType + Command = Specific Handler
 
 ### 5. Platforms
@@ -193,26 +193,31 @@ All platforms now use a unified handler-based architecture:
 - Automatic registration via HandlerRegistry
 - Handlers receive context with options passed through from commands
 
-Example handler structure:
+Example handler structure (each platform's `handlers/types.ts` re-exports a `HandlerDescriptor` alias with the platform type parameter pre-bound):
 ```typescript
-// posix/handlers/web-start.ts
-export const webStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+// posix/handlers/frontend-start.ts
+export const frontendStartDescriptor: HandlerDescriptor<PosixStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'posix',
-  serviceType: 'web',
+  serviceType: 'frontend',
   handler: async (context) => {
-    // Web service start logic for POSIX systems
+    // Frontend start logic for POSIX systems
     // Access to context.service and context.options
     // Returns StartHandlerResult
+  },
+  preflight: async (context) => {
+    // Required: checks run by --preflight mode and nextCommand advisories
+    return preflightFromChecks([checkCommandAvailable('node')]);
   }
 };
 
-// aws/handlers/lambda-check.ts
-export const lambdaCheckDescriptor: HandlerDescriptor = {
+// aws/handlers/backend-check.ts
+export const backendCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
-  serviceType: 'lambda',
-  handler: lambdaCheckHandler,
+  serviceType: 'backend',
+  handler: backendCheckHandler,
+  preflight: backendCheckPreflight,
   requiresDiscovery: true  // Needs CloudFormation resource discovery
 };
 ```
@@ -226,15 +231,13 @@ Benefits of unified handler architecture:
 - **Consistent execution**: MultiServiceExecutor ensures uniform behavior across all commands
 - **Type safety**: CommandDescriptor and HandlerDescriptor provide strong typing
 
-### 4. Libraries
-**Location:** `src/lib/`  
+### 6. Shared Utilities
+**Location:** `src/core/io/` and `src/core/`  
 **Purpose:** Shared utilities used across the system  
 **Categories:**
-- **CLI utilities:** colors, logger, paths
-- **Validation:** validators, environment-validator
-- **Configuration:** cli-config, types
-- **Networking:** network-utils
-- **String manipulation:** string-utils
+- **CLI I/O** (`src/core/io/`): cli-colors, cli-logger, cli-paths, arg-parser, output-formatter, network-utils, string-utils
+- **Validation** (`src/core/`): validators
+- **Configuration** (`src/core/`): cli-config, config-loader, types
 
 ## Key Design Patterns
 
@@ -254,7 +257,7 @@ abstract class Platform {
 Factories create appropriate instances based on configuration:
 
 ```typescript
-ServiceFactory.create(name, platform, config)
+ServiceFactory.create(name, platform, config, envConfig, serviceConfig)
 PlatformFactory.getPlatform(type)
 ```
 
@@ -262,37 +265,40 @@ PlatformFactory.getPlatform(type)
 Commands use CommandDescriptor with MultiServiceExecutor:
 
 ```typescript
-const startDescriptor: CommandDescriptor<StartOptions> = {
+const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor({
   name: 'start',
-  buildResult: (handlerResult, service, platform, serviceType) => ({
-    entity: service.name,
-    platform: platform.type,
-    success: handlerResult.success,
-    timestamp: new Date(),
-    error: handlerResult.error,
-    extensions: {
-      start: {
-        endpoint: handlerResult.endpoint,
-        resources: handlerResult.resources
-      }
-    }
-  }),
+  buildResult: (handlerResult, service, platform, serviceType) =>
+    createCommandResult({
+      entity: service.name,
+      platform: platform.getPlatformName(),
+      success: handlerResult.success,
+      error: handlerResult.error,
+      metadata: { ...handlerResult.metadata, serviceType },
+    }, {
+      status: handlerResult.success ? 'running' : 'unknown',
+      endpoint: handlerResult.endpoint,
+      resources: handlerResult.resources,
+    }),
   buildServiceConfig: (options, serviceInfo) => ({
-    verbose: options.verbose,
-    quiet: options.quiet,
-    environment: options.environment
+    ...serviceInfo.config,
+    platform: serviceInfo.platform,
   }),
   extractHandlerOptions: (options) => ({
-    force: options.force,
-    restart: options.restart
-  })
-};
+    verbose: options.verbose,
+    quiet: options.quiet,
+    dryRun: options.dryRun,
+  }),
+  continueOnError: true,
+  supportsAll: true,
+  nextCommand: 'check',   // run check's preflights as advisories after start
+});
 
 // Command uses MultiServiceExecutor
-export const startCommand = async (options: StartOptions) => {
-  const executor = new MultiServiceExecutor(startDescriptor);
-  return executor.execute(options);
-};
+const startExecutor = new MultiServiceExecutor(startDescriptor);
+
+export async function start(serviceDeployments, options, envConfig) {
+  return startExecutor.execute(serviceDeployments, options, envConfig);
+}
 ```
 
 ### Requirements Pattern
@@ -507,34 +513,37 @@ File System (state/<env>/<service>.json)
 
 ```
 src/
+├── cli.ts                 # Entry point
 ├── core/                  # Core engine and types
-│   ├── platform.ts        # Abstract Platform class
-│   ├── platform-types.ts  # PlatformType enum
+│   ├── platform.ts        # Abstract Platform class + PlatformType
+│   ├── base-service.ts    # Abstract BaseService class
 │   ├── service-interface.ts # Service contracts
+│   ├── service-types.ts   # ServiceType definitions
 │   ├── multi-service-executor.ts
-│   └── ...
-├── commands/              # CLI commands
-│   ├── start.ts
-│   ├── stop.ts
-│   ├── check.ts
-│   └── ...
+│   ├── commands/          # CLI command definitions
+│   │   ├── start.ts
+│   │   ├── stop.ts
+│   │   ├── check.ts
+│   │   └── ...
+│   ├── handlers/          # Handler registry and types
+│   ├── dashboard/         # Watch-command web dashboard
+│   │   ├── dashboard-data.ts
+│   │   ├── dashboard-components.tsx
+│   │   └── ...
+│   └── io/                # Shared CLI utilities
+│       ├── cli-logger.ts
+│       ├── cli-colors.ts
+│       └── ...
 ├── services/              # Service implementations
-│   ├── base-service.ts
+│   ├── service-factory.ts
 │   ├── backend-service.ts
 │   └── ...
 ├── platforms/             # Platform implementations
 │   ├── posix/
 │   ├── container/
 │   ├── aws/
-│   └── ...
-├── lib/                   # Shared utilities
-│   ├── cli-logger.ts
-│   ├── validators.ts
-│   └── ...
-├── dashboard/             # Dashboard components
-│   ├── dashboard-data.ts
-│   ├── dashboard-components.tsx
-│   └── ...
+│   ├── external/
+│   └── mock/
 └── __tests__/            # Test files
 ```
 
@@ -546,12 +555,12 @@ src/
 // Platform types
 type PlatformType = 'posix' | 'container' | 'aws' | 'external' | 'mock';
 
-// Service types  
-type ServiceName = 'backend' | 'frontend' | 'database' | 'filesystem' | 'mcp';
+// Service names are open strings; the ServiceFactory switch is the registry
+type ServiceName = string;
 
 // Configuration types
 interface Config {
-  projectRoot: string;
+  projectRoot: string | null;
   environment: Environment;
   verbose: boolean;
   quiet: boolean;
@@ -641,7 +650,7 @@ See [Configuration Guide](../../../docs/system/administration/CONFIGURATION.md) 
 ### Adding New Commands
 See [ADDING_COMMANDS.md](./ADDING_COMMANDS.md)
 
-1. Create command file in `src/commands/`
+1. Create command file in `src/core/commands/`
 2. Define result types and schema
 3. Implement handler function
 4. Export with CommandBuilder
