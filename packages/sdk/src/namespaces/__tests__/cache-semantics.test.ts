@@ -21,7 +21,7 @@ import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 
 const TEST_USER_ID = 'did:web:test:users:test' as UserId;
-const TEST_METADATA = { sequenceNumber: 1, streamPosition: 0 } as EventMetadata;
+const TEST_METADATA = { sequenceNumber: 1 } as EventMetadata;
 
 function mockAnnotation(id: string, source = 'res-1'): Annotation {
   return {

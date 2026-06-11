@@ -8,7 +8,7 @@ import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 
 function stored(event: Record<string, any>): any {
-  return { ...event, metadata: { sequenceNumber: 1, streamPosition: 0 } };
+  return { ...event, metadata: { sequenceNumber: 1 } };
 }
 
 function mockAnnotation(id: string): Annotation {
