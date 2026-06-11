@@ -98,16 +98,12 @@ export default function AdminExchangeClient() {
         },
         progress: {
           phaseStarted: t('phaseStarted'),
-          phaseEntityTypes: t('phaseEntityTypes'),
-          phaseResources: t('phaseResources'),
-          phaseAnnotations: t('phaseAnnotations'),
           phaseComplete: t('phaseComplete'),
           phaseError: t('phaseError'),
-          hashChainValid: t('hashChainValid'),
-          hashChainInvalid: t('hashChainInvalid'),
-          streams: t('streams'),
-          events: t('events'),
-          blobs: t('blobs'),
+          statsEventsReplayed: t('statsEventsReplayed'),
+          statsResourcesCreated: t('statsResourcesCreated'),
+          statsAnnotationsCreated: t('statsAnnotationsCreated'),
+          statsEntityTypesAdded: t('statsEntityTypesAdded'),
         },
       }}
       ToolbarPanels={ToolbarPanels}
