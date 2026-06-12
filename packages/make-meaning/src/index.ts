@@ -47,7 +47,6 @@ export { CloneTokenManager } from './clone-token-manager';
 // own `WorkerBus`.
 export {
   Smelter,
-  isEmbeddableMediaType,
   type ReconcileSummary,
   type ReconcileState,
   type SmelterTiming,

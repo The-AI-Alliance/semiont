@@ -20,7 +20,8 @@ import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '
 import { calculateChecksum } from '@semiont/content';
 import { MemoryVectorStore, chunkText } from '@semiont/vectors';
 import type { ChunkingConfig, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
-import { Smelter, isEmbeddableMediaType, type SmelterTiming } from '../smelter';
+import { textExtractionOf } from '@semiont/core';
+import { Smelter, type SmelterTiming } from '../smelter';
 import type { SmelterEvent } from '../smelter-actor-state-unit';
 import { partitionByType } from '../batch-utils';
 import {
@@ -75,8 +76,14 @@ async function pump(s: fc.Scheduler, done: () => boolean, maxMs = 4000): Promise
 
 const ridArb = fc.nat(9999).map((n) => `res-${n}`);
 const textArb = fc.string({ minLength: 1, maxLength: 60 }).filter((s) => s.trim().length > 0);
-const textMediaArb = fc.constantFrom('text/plain', 'text/markdown', 'text/html; charset=utf-8');
-const binaryMediaArb = fc.constantFrom('application/pdf', 'image/png', 'application/octet-stream');
+// The smelter's media gate, as inlined at both smelter.ts call sites:
+// "embed anything that decodes as text" (MEDIA-TYPES.md decision 7).
+const embeds = (mediaType: string) => textExtractionOf(mediaType) === 'decode';
+
+// Pools by gate outcome: decodable types embed; the rest (binary, and
+// pdf-text-layer until SMELTER-MEDIA-TYPES.md lands its dispatch) are skipped.
+const textMediaArb = fc.constantFrom('text/plain', 'text/markdown', 'text/html; charset=utf-8', 'application/json');
+const binaryMediaArb = fc.constantFrom('application/pdf', 'image/png', 'application/octet-stream', 'application/zip');
 const mediaTypeArb = fc.oneof(textMediaArb, binaryMediaArb);
 
 interface CatalogEntry {
@@ -156,7 +163,7 @@ function modelFold(catalog: CatalogEntry[], seq: SmelterEvent[]): ModelIds {
       case 'yield:updated':
       case 'yield:representation-added': {
         const entry = byRid.get(rid);
-        if (entry && isEmbeddableMediaType(entry.mediaType)) resources.add(rid);
+        if (entry && embeds(entry.mediaType)) resources.add(rid);
         break;
       }
       case 'mark:archived': {
@@ -344,16 +351,24 @@ describe('P0 — pure laws', () => {
     );
   });
 
-  // P0b (FOPL): ∀ m ∈ M: embeddable(m) ↔ ∃ s. m = "text/" ⧺ s
-  // (M excludes undefined — the missing-media-type edge is pinned explicitly)
-  it('P0b: the media gate accepts exactly text/*', () => {
-    expect(isEmbeddableMediaType(undefined)).toBe(false);
+  // P0b (FOPL): ∀ m ∈ M: m = "text/" ⧺ s → extraction(m) = decode
+  // — the registry gate never narrows the old text/* prefix gate
+  // (MEDIA-TYPES.md decision 7: "embed anything that decodes as text").
+  // Widened admissions and the deferred pdf tier are pinned as examples;
+  // the gate expression itself is `textExtractionOf(m) === 'decode'`.
+  it('P0b: the media gate embeds exactly what decodes as text', () => {
     fc.assert(
-      fc.property(fc.oneof(textMediaArb, binaryMediaArb, fc.string({ maxLength: 20 })), (mt) => {
-        expect(isEmbeddableMediaType(mt)).toBe(mt.startsWith('text/'));
+      fc.property(fc.string({ maxLength: 20 }).map((s) => `text/${s}`), (mt) => {
+        expect(textExtractionOf(mt)).toBe('decode');
       }),
       { numRuns: 500 },
     );
+    expect(embeds('application/json')).toBe(true);          // structured text joins the old gate
+    expect(embeds('text/x-foo')).toBe(true);                // registry-miss text/* (RFC 2046 fallback)
+    expect(embeds('application/zip')).toBe(false);          // binary stays out
+    expect(embeds('application/octet-stream')).toBe(false);
+    expect(embeds('application/pdf')).toBe(false);          // pdf-text-layer ≠ decode: deferred to
+    expect(textExtractionOf('application/pdf')).toBe('pdf-text-layer'); // SMELTER-MEDIA-TYPES.md — never mojibake
   });
 });
 
@@ -446,10 +461,10 @@ describe('Smelter axioms', () => {
   }, 30_000);
 
   // S6 (FOPL): ∀ executions (live or reconcile), ∀ r: vec(final, r) ≠ ∅ → gate(media(r))
-  it('S6: only text/* resources ever have vectors, on every path', async () => {
+  it('S6: only resources that decode as text ever have vectors, on every path', async () => {
     await fc.assert(
       fc.asyncProperty(catalogArb.filter((c) => c.length > 0), async (catalog) => {
-        const expected = catalog.filter((e) => e.mediaType.startsWith('text/')).map((e) => e.rid).sort();
+        const expected = catalog.filter((e) => embeds(e.mediaType)).map((e) => e.rid).sort();
 
         const live = await makeHarness({ catalog });
         try {
@@ -471,6 +486,24 @@ describe('Smelter axioms', () => {
       { numRuns: 25 },
     );
   }, 30_000);
+
+  // Phase 3b acceptance (MEDIA-TYPES.md): the widened gate, end to end —
+  // structured text embeds, binary does not, registry-miss text/* embeds.
+  it('gate: application/json embeds, application/zip does not, registry-miss text/x-foo embeds', async () => {
+    const catalog: CatalogEntry[] = [
+      { rid: 'r-json', mediaType: 'application/json', text: '{"makes":"meaning"}', annotations: [] },
+      { rid: 'r-zip', mediaType: 'application/zip', text: 'PK not really an archive', annotations: [] },
+      { rid: 'r-foo', mediaType: 'text/x-foo', text: 'unregistered text dialect', annotations: [] },
+    ];
+    const h = await makeHarness({ catalog });
+    try {
+      for (const e of catalog) h.events$.next({ type: 'yield:created', resourceId: e.rid, payload: {} });
+      await h.settle();
+      expect((await h.ids()).resources).toEqual(['r-foo', 'r-json']);
+    } finally {
+      h.stop();
+    }
+  });
 
   // S7 (FOPL): ∀ σ: ids(final(σ)) = ids(model(σ))
   // (state compared via id sets; chunk content is deterministic given ids)
@@ -582,7 +615,7 @@ describe('Smelter axioms', () => {
           await h.smelter.reconcile();
 
           expect(await h.ids()).toEqual({
-            resources: catalog.filter((e) => e.mediaType.startsWith('text/')).map((e) => e.rid).sort(),
+            resources: catalog.filter((e) => embeds(e.mediaType)).map((e) => e.rid).sort(),
             annotations: catalog.flatMap((e) => e.annotations.map((a) => a.aid)).sort(),
           });
         } finally {

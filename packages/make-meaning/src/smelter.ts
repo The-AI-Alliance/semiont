@@ -39,7 +39,7 @@ import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { burstBuffer, errField } from '@semiont/core';
 import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, IContentTransport } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
+import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, decodeRepresentation, textExtractionOf } from '@semiont/core';
 import { calculateChecksum } from '@semiont/content';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import type { EmbeddingProvider, ChunkingConfig } from '@semiont/vectors';
@@ -49,15 +49,12 @@ import { busRequest, type BusRequestPrimitive } from '@semiont/sdk';
 import { partitionByType } from './batch-utils';
 import type { SmelterEvent } from './smelter-actor-state-unit';
 
-/**
- * Media types the smelter embeds. Binary types decode to mojibake that
- * pollutes the vector space — PDF foremost; see
- * `.plans/SMELTER-MEDIA-TYPES.md` for the extraction stage that will
- * eventually let them carry analytical weight too.
- */
-export function isEmbeddableMediaType(mediaType: string | undefined): boolean {
-  return !!mediaType && mediaType.startsWith('text/');
-}
+// The media gate is `textExtractionOf(mediaType) === 'decode'` at both call
+// sites (live fetch and reconcile planning): registry rows plus the RFC 2046
+// text/* fallback — "embed anything that decodes as text" (MEDIA-TYPES.md
+// decision 7). 'pdf-text-layer' types stay out until the per-type extraction
+// dispatch lands (`.plans/SMELTER-MEDIA-TYPES.md`) — binary types decode to
+// mojibake that pollutes the vector space.
 
 export interface ReconcileSummary {
   resourcesEmbedded: number;
@@ -299,10 +296,11 @@ export class Smelter {
 
   /**
    * Resolve a resource's embeddable text: bytes via the content transport,
-   * gated to text media types, decoded charset-aware. The checksum is over
-   * the raw bytes actually read — stamped onto the vectors so reconciliation
-   * can compare against the catalog's claim (S12). Returns null (logged)
-   * when the resource is non-text, unavailable, or empty — callers skip it.
+   * gated to media types that decode as text, decoded charset-aware. The
+   * checksum is over the raw bytes actually read — stamped onto the vectors
+   * so reconciliation can compare against the catalog's claim (S12). Returns
+   * null (logged) when the resource doesn't decode as text, is unavailable,
+   * or is empty — callers skip it.
    */
   private async fetchEmbeddableText(resourceId: string): Promise<{ text: string; checksum: string } | null> {
     try {
@@ -313,8 +311,8 @@ export class Smelter {
       const { data, contentType } = await this.content.getBinary(makeResourceId(resourceId), {
         accept: 'application/octet-stream',
       });
-      if (!isEmbeddableMediaType(contentType)) {
-        this.logger.debug('Skipping non-text resource', { resourceId, contentType });
+      if (textExtractionOf(contentType) !== 'decode') {
+        this.logger.debug('Skipping resource that does not decode as text', { resourceId, contentType });
         return null;
       }
       const bytes = Buffer.from(data);
@@ -521,7 +519,8 @@ export class Smelter {
       // primary representation's checksum (the bytes the smelter would read).
       const embeddable = new Map<string, string | undefined>();
       for (const resource of resources) {
-        if (resource['@id'] && isEmbeddableMediaType(getPrimaryMediaType(resource))) {
+        const mediaType = getPrimaryMediaType(resource);
+        if (resource['@id'] && mediaType && textExtractionOf(mediaType) === 'decode') {
           embeddable.set(resource['@id'], getPrimaryRepresentation(resource)?.checksum);
         }
       }

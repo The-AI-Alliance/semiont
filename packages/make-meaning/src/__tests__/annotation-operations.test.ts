@@ -13,7 +13,7 @@ import { firstValueFrom } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { AnnotationOperations } from '../annotation-operations';
 import { ResourceOperations } from '../resource-operations';
-import { resourceId, userId, EventBus, type Logger } from '@semiont/core';
+import { resourceId, userId, EventBus, type Logger, type SupportedMediaType } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from '../knowledge-base';
@@ -69,13 +69,13 @@ describe('AnnotationOperations', () => {
   let testResourceId: string;
 
   async function create(
-    opts: { name: string; content: Buffer; format: string; language?: string; entityTypes?: string[] },
+    opts: { name: string; content: Buffer; format: SupportedMediaType; language?: string; entityTypes?: string[] },
     uid: ReturnType<typeof userId>,
   ) {
     const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
     const stored = await kb.content.store(opts.content, uri);
     return ResourceOperations.createResource(
-      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format as any, language: opts.language, entityTypes: opts.entityTypes },
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language, entityTypes: opts.entityTypes },
       uid,
       eventBus,
     );

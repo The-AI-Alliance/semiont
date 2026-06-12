@@ -11,7 +11,7 @@
 
 import type { Writable } from 'node:stream';
 import type { ResourceId, StoredEvent, Logger } from '@semiont/core';
-import { getExtensionForMimeType } from '@semiont/content';
+import { extensionForMediaType } from '@semiont/core';
 import { writeTarGz, type TarEntry } from './tar';
 import {
   BACKUP_FORMAT,
@@ -90,7 +90,7 @@ export async function exportBackup(
 
   for (const [storageUri, mediaType] of contentRefs) {
     const data = await content.retrieve(storageUri);
-    const ext = getExtensionForMimeType(mediaType);
+    const ext = extensionForMediaType(mediaType);
     contentBlobs.set(storageUri, { data, ext });
     totalContentBytes += data.length;
   }

@@ -14,7 +14,7 @@ import type { Readable } from 'node:stream';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { Logger, ResourceId, UserId } from '@semiont/core';
-import { EventBus, annotationId as annotationIdFactory, resourceId as makeResourceId } from '@semiont/core';
+import { EventBus, annotationId as annotationIdFactory, resourceId as makeResourceId, baseMediaType, isSupportedMediaType } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
 import { deriveStorageUri } from '@semiont/content';
@@ -270,8 +270,12 @@ async function importResource(
     throw new Error(`Missing content blob for checksum ${contentChecksum} (resource "${name}")`);
   }
 
-  // Write content to disk before emitting on bus (no Buffer on bus)
-  const resolvedUri = deriveStorageUri(name, format);
+  // Write content to disk before emitting on bus (no Buffer on bus).
+  // Imported formats are not guaranteed registry-valid (the import-leniency
+  // invariant) — foreign types derive a .bin name; the resource's mediaType
+  // keeps the truth.
+  const base = baseMediaType(format);
+  const resolvedUri = deriveStorageUri(name, isSupportedMediaType(base) ? base : 'application/octet-stream');
   const stored = await contentStore.store(blob, resolvedUri);
 
   // Create resource via EventBus
