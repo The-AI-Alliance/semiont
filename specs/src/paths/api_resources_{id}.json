@@ -32,6 +32,9 @@
           },
           "application/pdf": {
             "schema": { "type": "string", "format": "binary" }
+          },
+          "*/*": {
+            "schema": { "type": "string", "format": "binary" }
           }
         }
       },

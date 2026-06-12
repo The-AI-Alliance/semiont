@@ -1,7 +1,7 @@
 {
   "get": {
     "summary": "Get a resource (content-negotiated)",
-    "description": "Content negotiation via the Accept header:\n- application/ld+json (default) — returns JSON-LD metadata including all annotations + inbound entity references\n- text/* or image/* or application/pdf — returns the raw representation bytes\n\nBinary payloads flow directly from the content store; metadata payloads go through the bus gateway.",
+    "description": "Content negotiation via the Accept header:\n- application/ld+json (default) or application/json — returns JSON-LD metadata including all annotations + inbound entity references. application/json is itself a SupportedMediaType, but on this route it means metadata (accepted ambiguity): a raw application/json representation can only be fetched via Accept: application/octet-stream.\n- any other SupportedMediaType, or a wildcard (image/*, */*) — returns the stored representation: charset-decoded text for text-flavored types, verbatim bytes for everything else (images, PDFs, archives, and every other admitted type).\n- application/octet-stream — returns the stored representation's bytes verbatim with the true media type in Content-Type (byte-fidelity mode for checksum consumers).\n\nBinary payloads flow directly from the content store; metadata payloads go through the bus gateway.",
     "tags": ["Resources"],
     "security": [
       { "bearerAuth": [] }
@@ -18,7 +18,7 @@
         "in": "header",
         "required": false,
         "schema": { "type": "string" },
-        "description": "application/ld+json for metadata, or a text/image/pdf media type for raw content"
+        "description": "application/ld+json (or application/json) for metadata; any SupportedMediaType or wildcard for the stored representation; application/octet-stream for verbatim bytes"
       }
     ],
     "responses": {
@@ -43,6 +43,9 @@
             "schema": { "type": "string", "format": "binary" }
           },
           "application/pdf": {
+            "schema": { "type": "string", "format": "binary" }
+          },
+          "*/*": {
             "schema": { "type": "string", "format": "binary" }
           }
         }

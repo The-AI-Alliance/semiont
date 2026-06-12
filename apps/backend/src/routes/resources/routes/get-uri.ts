@@ -2,29 +2,81 @@
  * Get Resource URI Route
  *
  * Single endpoint for all resource representations:
- * - Accept: application/ld+json -> JSON-LD metadata via EventBus (default)
- * - Accept: text/plain, text/markdown, etc. -> raw representation (binary, stays direct)
+ * - Accept: application/ld+json (default) or application/json -> JSON-LD
+ *   metadata via EventBus. application/json is itself a registry media type,
+ *   but on these routes it keeps its metadata meaning (accepted ambiguity —
+ *   .plans/MEDIA-TYPES.md decision 2); a raw JSON representation is fetched
+ *   via application/octet-stream instead.
+ * - Accept naming any other supported media type, or a wildcard -> the stored
+ *   representation: charset-decoded text for registry rows marked 'decode',
+ *   verbatim bytes for everything else (images, PDFs, archives, ...).
  * - Accept: application/octet-stream -> stored representation bytes verbatim,
  *   true media type in Content-Type (byte-fidelity mode for checksum
  *   consumers — see .plans/SMELTER-AXIOMS.md, S12)
  */
 
+import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { busLog, getPrimaryMediaType, decodeRepresentation } from '@semiont/core';
+import {
+  busLog,
+  getPrimaryMediaType,
+  decodeRepresentation,
+  baseMediaType,
+  isSupportedMediaType,
+  textExtractionOf,
+  resourceId,
+} from '@semiont/core';
 import { ResourceContext } from '@semiont/make-meaning';
-import { resourceId } from '@semiont/core';
 import { eventBusRequest } from '../../../utils/event-bus-request';
 import { getLogger } from '../../../logger';
 import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
 
 const getRouteLogger = () => getLogger().child({ component: 'get-resource-uri' });
 
+// Media types that mean "JSON-LD metadata" on these routes. application/json
+// is a registry member, but here it keeps its metadata meaning (accepted
+// ambiguity — .plans/MEDIA-TYPES.md decision 2): a raw application/json
+// representation cannot be content-negotiated by name; clients fetch it via
+// Accept: application/octet-stream.
+const METADATA_MEDIA_TYPES = new Set(['application/ld+json', 'application/json']);
+
+// Does the Accept header name the stored representation rather than JSON-LD
+// metadata? Registry-driven (big tent): any supported media type asks for the
+// representation (Accept: application/zip serves the ZIP; this includes
+// application/octet-stream, the verbatim mode), as does any wildcard —
+// */* or type wildcards like image/*, which browsers send.
+function acceptsRepresentation(acceptHeader: string): boolean {
+  return acceptHeader.split(',').some((entry) => {
+    const type = baseMediaType(entry);
+    if (METADATA_MEDIA_TYPES.has(type)) return false;
+    if (type === '*/*' || type.endsWith('/*')) return true;
+    return isSupportedMediaType(type);
+  });
+}
+
+// Registry-driven representation dispatch: only formats the registry says to
+// charset-decode take the text path; everything else — images, PDFs,
+// archives, unknown binaries — is served verbatim, never mojibake.
+// Registry-miss text/* still decodes (RFC 2046); a media type missing from
+// the stored metadata is unknowable bytes, served as application/octet-stream.
+function serveRepresentation(c: Context, content: Buffer, mediaType: string | undefined) {
+  if (mediaType && textExtractionOf(mediaType) === 'decode') {
+    return c.text(decodeRepresentation(content, mediaType));
+  }
+  return c.newResponse(new Uint8Array(content), 200, {
+    'Content-Type': mediaType || 'application/octet-stream',
+  });
+}
+
 export function registerGetResourceUri(router: ResourcesRouterType) {
   // /api/resources/:id — browser-friendly alias used by <img>, PDF.js, etc.
   // Strips JSON-LD/JSON from Accept header so content negotiation always returns
   // raw representations (browsers cannot read httpOnly cookies for auth headers,
-  // but the semiont-token cookie is sent automatically).
+  // but the semiont-token cookie is sent automatically). Stripping
+  // application/json mirrors the negotiation on /resources/:id, where it means
+  // "JSON-LD metadata", never the stored representation — see
+  // METADATA_MEDIA_TYPES above.
   router.get('/api/resources/:id', async (c) => {
     const { id } = c.req.param();
     let acceptHeader = c.req.header('Accept') || '*/*';
@@ -63,10 +115,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
           c.header('Cache-Control', 'public, max-age=31536000, immutable');
           if (mediaType) c.header('Content-Type', mediaType);
 
-          if (mediaType?.startsWith('image/') || mediaType === 'application/pdf') {
-            return c.newResponse(new Uint8Array(content), 200, { 'Content-Type': mediaType! });
-          }
-          return c.text(decodeRepresentation(content, mediaType || 'text/plain'));
+          return serveRepresentation(c, content, mediaType);
         },
         {
           kind: SpanKind.SERVER,
@@ -89,9 +138,10 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     // decode/re-encode is allowed on this path.
     const wantsVerbatim = acceptHeader.includes('application/octet-stream');
 
-    // If requesting raw representation (text/plain, text/markdown, images, etc.)
-    // Binary content stays direct — excluded from EventBus by design
-    if (wantsVerbatim || acceptHeader.includes('text/') || acceptHeader.includes('image/') || acceptHeader.includes('application/pdf')) {
+    // Raw representation when the Accept header names any supported media
+    // type or a wildcard (see acceptsRepresentation); JSON-LD metadata
+    // otherwise. Binary content stays direct — excluded from EventBus by design
+    if (wantsVerbatim || acceptsRepresentation(acceptHeader)) {
       busLog('GET', 'content', { resourceId: id, accept: acceptHeader });
 
       const traceparent = c.req.header('traceparent');
@@ -142,11 +192,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
               });
             }
 
-            if (mediaType?.startsWith('image/') || mediaType === 'application/pdf') {
-              return c.newResponse(new Uint8Array(content), 200, { 'Content-Type': mediaType });
-            } else {
-              return c.text(decodeRepresentation(content, mediaType || 'text/plain'));
-            }
+            return serveRepresentation(c, content, mediaType);
           },
           {
             kind: SpanKind.SERVER,
