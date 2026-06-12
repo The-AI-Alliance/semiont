@@ -2,13 +2,13 @@
 
 ## Supported Versions
 
-Security fixes are provided for the `0.5.x` release line. We recommend
-running **0.5.6 or later**, which is the current release in good standing.
+Security fixes are provided for **0.5.6 and later**. We recommend running
+the latest 0.5.x release.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.5.x   | :white_check_mark: |
-| < 0.5.x | :x:                |
+| Version  | Supported          |
+| -------- | ------------------ |
+| >= 0.5.6 | :white_check_mark: |
+| < 0.5.6  | :x:                |
 
 ## Reporting a Vulnerability
 
