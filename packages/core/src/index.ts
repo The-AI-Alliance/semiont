@@ -286,15 +286,25 @@ export {
 } from './validation';
 export type { ValidationSuccess, ValidationFailure, ValidationResult } from './validation';
 
-// MIME type helpers
+// Media-type registry (capability-tiered, keyed by the spec's SupportedMediaType enum)
 export {
-  getExtensionForMimeType,
-  isImageMimeType,
-  isTextMimeType,
-  isPdfMimeType,
-  getMimeCategory,
-} from './mime-utils';
-export type { MimeCategory } from './mime-utils';
+  MEDIA_TYPES,
+  baseMediaType,
+  isSupportedMediaType,
+  capabilitiesOf,
+  extensionForMediaType,
+  mediaTypeForExtension,
+  textExtractionOf,
+  AUTHORABLE_MEDIA_TYPES,
+  EMBEDDABLE_MEDIA_TYPES,
+} from './media-types';
+export type {
+  SupportedMediaType,
+  MediaTypeCapabilities,
+  RenderMode,
+  AnchoringModel,
+  TextExtraction,
+} from './media-types';
 
 // Resource types
 export type { UpdateResourceInput, ResourceFilter } from './resource-types';

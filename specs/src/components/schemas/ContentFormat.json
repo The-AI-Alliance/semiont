@@ -1,5 +1,5 @@
 {
   "type": "string",
-  "description": "Content format as MIME type, optionally with charset parameter. Values include: text/plain, text/plain; charset=utf-8, text/plain; charset=iso-8859-1, text/markdown, text/markdown; charset=windows-1252, image/png, image/jpeg, application/pdf",
+  "description": "Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf",
   "example": "text/plain; charset=utf-8"
 }
