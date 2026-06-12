@@ -71,6 +71,7 @@
     "annotationRemoved": "アノテーションを削除",
     "annotationBodyUpdated": "アノテーションを更新",
     "jobEvent": "ジョブイベント",
+    "embeddingComputed": "埋め込み計算済み",
     "justNow": "たった今",
     "minutesAgo": "{{count}}分前",
     "hoursAgo": "{{count}}時間前",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "AIを使用して意味的関連性で結果をスコアリング",
     "searching": "検索中...",
     "search": "検索"
-  },
-  "History": {
-    "embeddingComputed": "埋め込み計算済み"
   }
 }

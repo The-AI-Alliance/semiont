@@ -71,6 +71,7 @@
     "annotationRemoved": "Merkintä poistettu",
     "annotationBodyUpdated": "Merkintä päivitetty",
     "jobEvent": "Työtapahtuma",
+    "embeddingComputed": "Upotus laskettu",
     "justNow": "juuri nyt",
     "minutesAgo": "{{count}} min sitten",
     "hoursAgo": "{{count}} t sitten",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "Käytä tekoälyä tulosten pisteyttämiseen semanttisen relevanssin mukaan",
     "searching": "Haetaan...",
     "search": "Hae"
-  },
-  "History": {
-    "embeddingComputed": "Upotus laskettu"
   }
 }

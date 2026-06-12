@@ -71,6 +71,7 @@
     "annotationRemoved": "Annotering fjernet",
     "annotationBodyUpdated": "Annotering oppdatert",
     "jobEvent": "Jobbhendelse",
+    "embeddingComputed": "Embedding beregnet",
     "justNow": "akkurat nå",
     "minutesAgo": "{{count}}m siden",
     "hoursAgo": "{{count}}t siden",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "Bruk AI til å score resultater etter semantisk relevans",
     "searching": "Søker...",
     "search": "Søk"
-  },
-  "History": {
-    "embeddingComputed": "Embedding beregnet"
   }
 }

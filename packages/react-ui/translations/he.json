@@ -71,6 +71,7 @@
     "annotationRemoved": "הערה הוסרה",
     "annotationBodyUpdated": "הערה עודכנה",
     "jobEvent": "אירוע משימה",
+    "embeddingComputed": "הטמעה חושבה",
     "justNow": "הרגע",
     "minutesAgo": "לפני {{count}} ד'",
     "hoursAgo": "לפני {{count}} ש'",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "שימוש ב-AI לדירוג תוצאות לפי רלוונטיות סמנטית",
     "searching": "מחפש...",
     "search": "חיפוש"
-  },
-  "History": {
-    "embeddingComputed": "הטמעה חושבה"
   }
 }

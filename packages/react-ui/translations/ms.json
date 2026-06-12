@@ -71,6 +71,7 @@
     "annotationRemoved": "Anotasi Dibuang",
     "annotationBodyUpdated": "Anotasi Dikemas Kini",
     "jobEvent": "Peristiwa Tugas",
+    "embeddingComputed": "Embedding dikira",
     "justNow": "baru sahaja",
     "minutesAgo": "{{count}}m lalu",
     "hoursAgo": "{{count}}j lalu",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "Gunakan AI untuk menilai hasil mengikut kerelevanan semantik",
     "searching": "Mencari...",
     "search": "Cari"
-  },
-  "History": {
-    "embeddingComputed": "Embedding dikira"
   }
 }

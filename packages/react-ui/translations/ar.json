@@ -71,6 +71,7 @@
     "annotationRemoved": "تمت إزالة التعليق التوضيحي",
     "annotationBodyUpdated": "تم تحديث التعليق التوضيحي",
     "jobEvent": "حدث مهمة",
+    "embeddingComputed": "تم حساب التضمين",
     "justNow": "الآن",
     "minutesAgo": "منذ {{count}}د",
     "hoursAgo": "منذ {{count}}س",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "استخدام الذكاء الاصطناعي لتقييم النتائج حسب الصلة الدلالية",
     "searching": "جاري البحث...",
     "search": "بحث"
-  },
-  "History": {
-    "embeddingComputed": "تم حساب التضمين"
   }
 }

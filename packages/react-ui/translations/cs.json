@@ -71,6 +71,7 @@
     "annotationRemoved": "Anotace odebrána",
     "annotationBodyUpdated": "Anotace aktualizována",
     "jobEvent": "Událost úlohy",
+    "embeddingComputed": "Embedding vypočten",
     "justNow": "právě teď",
     "minutesAgo": "před {{count}} min",
     "hoursAgo": "před {{count}} hod",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "Použít AI k hodnocení výsledků podle sémantické relevance",
     "searching": "Vyhledávání...",
     "search": "Hledat"
-  },
-  "History": {
-    "embeddingComputed": "Embedding vypočten"
   }
 }
