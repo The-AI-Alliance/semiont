@@ -38,7 +38,6 @@ const SMELTER_CHANNELS = [
 
 export interface SmelterActorStateUnit extends StateUnit {
   events$: Observable<SmelterEvent>;
-  emit(channel: string, payload: Record<string, unknown>): Promise<void>;
   start(): void;
 }
 
@@ -60,7 +59,6 @@ export function createSmelterActorStateUnit(options: SmelterActorStateUnitOption
 
   return {
     events$,
-    emit: (channel, payload) => bus.emit(channel, payload),
     start: () => {
       if (started) return;
       started = true;

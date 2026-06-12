@@ -2,6 +2,8 @@
 
 ## Actors
 
+Seven actors in two categories: five **access actors** (Stower, Browser, Gatherer, Matcher, CloneTokenManager) mediate reads and writes; two **projection pipelines** (Graph Consumer, Smelter) follow the event log.
+
 ### Stower
 
 The single write gateway to the Knowledge Base. Subscribes to command events on the EventBus and translates them into domain events on the EventStore and content registrations in the WorkingTreeStore.
@@ -81,21 +83,27 @@ Responds to:
 
 Referenced-by lookups are handled by the Browser (`browse:referenced-by-requested`), not the Matcher.
 
-### Smelter (standalone process)
+### Graph Consumer (projection pipeline)
 
-Embedding pipeline actor. Runs in its own process via `@semiont/make-meaning/smelter-main` — it is **not** started by `startMakeMeaning()`. It chunks text, computes embeddings via `@semiont/vectors` (EmbeddingProvider: Voyage or Ollama), persists them to the EmbeddingStore (`.semiont/embeddings/`), and indexes vectors into the VectorStore (Qdrant or memory).
+Event-to-graph projection pipeline. Subscribes to graph-relevant domain events and applies them to the graph database with per-resource ordering and adaptive burst batching. Not exported from the package index — `createKnowledgeBase()` constructs and starts it, exposing it as `kb.graphConsumer` (`initialize()`, `stop()`, `rebuildAll()`).
+
+**Implementation**: [src/graph/consumer.ts](../src/graph/consumer.ts)
+
+### Smelter (projection pipeline, standalone process)
+
+Event-to-vector projection pipeline. Runs in its own process via `@semiont/make-meaning/smelter-main` — it is **not** started by `startMakeMeaning()`. It reads content from the KB working tree via `WorkerContentTransport`, chunks text, computes embeddings via `@semiont/vectors` (EmbeddingProvider: Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). At startup, `reconcile()` diffs the index against the live catalog — re-embedding what's missing or stale (checksum-stamped upserts make changed content detectable), deleting orphans — so a wiped Qdrant volume recovers by restarting the smelter.
 
 **Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
 
-For custom wiring on top of an existing `WorkerBus`, the package exports both the pipeline and its domain-event fan-in:
+For custom wiring on top of an existing `WorkerBus`, the package exports the pipeline, its domain-event fan-in, and the worker-side content transport:
 
 ```typescript
-import { Smelter, createSmelterActorStateUnit } from '@semiont/make-meaning';
+import { Smelter, createSmelterActorStateUnit, WorkerContentTransport } from '@semiont/make-meaning';
 ```
 
 Consumes domain events:
-- `yield:created` / `yield:updated` / `yield:representation-added` → chunks and embeds resource text, persists, indexes into VectorStore
-- `mark:added` → chunks and embeds annotation text, persists, indexes
+- `yield:created` / `yield:updated` / `yield:representation-added` → chunks and embeds resource text, indexes into VectorStore
+- `mark:added` → chunks and embeds annotation text, indexes
 - `mark:removed` / `mark:archived` → removes vectors from index
 
 ### CloneTokenManager

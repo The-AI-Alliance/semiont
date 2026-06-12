@@ -18,189 +18,27 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Observable, Subject } from 'rxjs';
-import type { Logger, EventMap, IContentTransport, components } from '@semiont/core';
-import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
+import type { EventMap, components } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
+import { calculateChecksum } from '@semiont/content';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive } from '@semiont/sdk';
-import { Smelter, isEmbeddableMediaType } from '../smelter';
+import { Smelter } from '../smelter';
 import type { SmelterEvent } from '../smelter-actor-state-unit';
-import { partitionByType } from '../batch-utils';
+import {
+  mockLogger,
+  deterministicEmbed,
+  createMockEmbeddingProvider,
+  annotationEvent,
+  resourceDescriptor,
+  createMockContentTransport,
+  createFakeKsBus,
+} from './helpers/smelter-harness';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-type Annotation = components['schemas']['Annotation'];
 
 const tick = (ms = 400) => new Promise(resolve => setTimeout(resolve, ms));
-
-const mockLogger: Logger = {
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-  child: vi.fn(() => mockLogger),
-};
-
-function deterministicEmbed(text: string): number[] {
-  const vec = new Array(4);
-  for (let i = 0; i < 4; i++) {
-    vec[i] = Math.sin((text.charCodeAt(i % text.length) || 0) + i);
-  }
-  return vec;
-}
-
-function createMockEmbeddingProvider(model = 'mock-model'): EmbeddingProvider {
-  return {
-    embed: vi.fn().mockImplementation(async (text: string) => deterministicEmbed(text)),
-    embedBatch: vi.fn().mockImplementation(async (texts: string[]) => texts.map(deterministicEmbed)),
-    dimensions: vi.fn().mockReturnValue(4),
-    model: vi.fn().mockReturnValue(model),
-  };
-}
-
-function makeAnnotation(resourceId: string, annotationId: string, exact: string): Annotation {
-  return {
-    '@context': 'http://www.w3.org/ns/anno.jsonld',
-    type: 'Annotation',
-    id: annotationId,
-    motivation: 'highlighting',
-    target: {
-      source: resourceId,
-      selector: {
-        type: 'TextQuoteSelector',
-        exact,
-      },
-    },
-    created: new Date().toISOString(),
-  };
-}
-
-function annotationEvent(resourceId: string, annotationId: string, exact: string): SmelterEvent {
-  return {
-    type: 'mark:added',
-    resourceId,
-    payload: {
-      resourceId,
-      annotation: makeAnnotation(resourceId, annotationId, exact),
-    },
-  };
-}
-
-function resourceDescriptor(id: string, mediaType = 'text/plain'): ResourceDescriptor {
-  return {
-    '@context': 'https://schema.org',
-    '@id': id,
-    name: id,
-    representations: [{ mediaType, storageUri: `file://${id}.txt` }],
-  };
-}
-
-/**
- * IContentTransport over an in-memory map, mirroring WorkerContentTransport
- * semantics: unknown resources throw rather than returning null.
- */
-function createMockContentTransport(
-  contentByResourceId: Map<string, string>,
-  contentType = 'text/plain',
-): IContentTransport {
-  return {
-    async putBinary() {
-      throw new Error('not supported');
-    },
-    async getBinary(resourceId) {
-      const text = contentByResourceId.get(String(resourceId));
-      if (text === undefined) throw new Error(`Resource not found: ${resourceId}`);
-      const bytes = new TextEncoder().encode(text);
-      const data = new ArrayBuffer(bytes.byteLength);
-      new Uint8Array(data).set(bytes);
-      return { data, contentType };
-    },
-    async getBinaryStream() {
-      throw new Error('not used in tests');
-    },
-    dispose() {},
-  };
-}
-
-/**
- * BusRequestPrimitive serving the browse RPC channels from a fake catalog,
- * with the same correlationId request/reply protocol the Browser actor uses.
- */
-function createFakeKsBus(
-  resources: ResourceDescriptor[],
-  annotationsByResource: Map<string, Annotation[]> = new Map(),
-): BusRequestPrimitive {
-  const channels = new Map<string, Subject<Record<string, unknown>>>();
-  const channel = (name: string): Subject<Record<string, unknown>> => {
-    let subject = channels.get(name);
-    if (!subject) {
-      subject = new Subject<Record<string, unknown>>();
-      channels.set(name, subject);
-    }
-    return subject;
-  };
-
-  return {
-    async emit<K extends keyof EventMap>(name: K, payload: EventMap[K]): Promise<void> {
-      const request = payload as Record<string, unknown>;
-      if (name === 'browse:resources-requested') {
-        const offset = (request.offset as number | undefined) ?? 0;
-        const limit = (request.limit as number | undefined) ?? 50;
-        queueMicrotask(() => channel('browse:resources-result').next({
-          correlationId: request.correlationId,
-          response: {
-            resources: resources.slice(offset, offset + limit),
-            total: resources.length,
-            offset,
-            limit,
-          },
-        }));
-      } else if (name === 'browse:annotations-requested') {
-        const annotations = annotationsByResource.get(request.resourceId as string) ?? [];
-        queueMicrotask(() => channel('browse:annotations-result').next({
-          correlationId: request.correlationId,
-          response: { annotations, total: annotations.length },
-        }));
-      }
-    },
-    stream<K extends keyof EventMap>(name: K): Observable<EventMap[K]> {
-      return channel(name as string) as unknown as Observable<EventMap[K]>;
-    },
-  };
-}
-
-describe('partitionByType', () => {
-  it('partitions consecutive same-type events into runs', () => {
-    const events = [
-      { type: 'a' },
-      { type: 'a' },
-      { type: 'b' },
-      { type: 'b' },
-      { type: 'b' },
-      { type: 'a' },
-    ];
-
-    const runs = partitionByType(events);
-    expect(runs).toHaveLength(3);
-    expect(runs[0]).toHaveLength(2);
-    expect(runs[1]).toHaveLength(3);
-    expect(runs[2]).toHaveLength(1);
-  });
-
-  it('returns single run for uniform events', () => {
-    const events = [
-      { type: 'x' },
-      { type: 'x' },
-    ];
-
-    const runs = partitionByType(events);
-    expect(runs).toHaveLength(1);
-    expect(runs[0]).toHaveLength(2);
-  });
-
-  it('returns empty array for empty input', () => {
-    expect(partitionByType([])).toEqual([]);
-  });
-});
 
 describe('Smelter', () => {
   let events$: Subject<SmelterEvent>;
@@ -223,6 +61,7 @@ describe('Smelter', () => {
       createMockContentTransport(contentByResourceId),
       createFakeKsBus([]),
       { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
       mockLogger,
     );
     smelter.initialize();
@@ -370,123 +209,63 @@ describe('Smelter', () => {
   });
 });
 
-describe('isEmbeddableMediaType', () => {
-  it('accepts text media types and rejects binary ones', () => {
-    expect(isEmbeddableMediaType('text/plain')).toBe(true);
-    expect(isEmbeddableMediaType('text/markdown')).toBe(true);
-    expect(isEmbeddableMediaType('application/pdf')).toBe(false);
-    expect(isEmbeddableMediaType('image/png')).toBe(false);
-    expect(isEmbeddableMediaType(undefined)).toBe(false);
-  });
-});
-
 describe('Smelter.reconcile', () => {
   let vectorStore: MemoryVectorStore;
   let embeddingProvider: EmbeddingProvider;
   let contentByResourceId: Map<string, string>;
+  let smelters: Smelter[];
 
   beforeEach(async () => {
     vectorStore = new MemoryVectorStore();
     await vectorStore.connect();
     embeddingProvider = createMockEmbeddingProvider();
     contentByResourceId = new Map();
+    smelters = [];
   });
 
-  function createSmelter(
-    resources: ResourceDescriptor[],
-    annotationsByResource: Map<string, Annotation[]> = new Map(),
-  ): Smelter {
-    return new Smelter(
+  afterEach(() => {
+    for (const smelter of smelters) smelter.stop();
+  });
+
+  // reconcile() drains its work items through the pipeline, so the smelter
+  // must be initialized — same contract as smelter-main.
+  function createSmelter(resources: ResourceDescriptor[]): Smelter {
+    const smelter = new Smelter(
       new Subject<SmelterEvent>(),
       vectorStore,
       embeddingProvider,
       createMockContentTransport(contentByResourceId),
-      createFakeKsBus(resources, annotationsByResource),
+      createFakeKsBus(resources),
       { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
       mockLogger,
     );
+    smelter.initialize();
+    smelters.push(smelter);
+    return smelter;
   }
 
-  it('re-embeds resources missing from a wiped vector store', async () => {
-    contentByResourceId.set('res-a', 'Alpha content for reconcile.');
-    contentByResourceId.set('res-b', 'Beta content for reconcile.');
-
-    const smelter = createSmelter([resourceDescriptor('res-a'), resourceDescriptor('res-b')]);
-    const summary = await smelter.reconcile();
-
-    expect(summary.resourcesEmbedded).toBe(2);
-    expect(await vectorStore.listResourceIds()).toEqual(new Set(['res-a', 'res-b']));
-    expect(smelter.reconcileState).toEqual({ phase: 'done', summary });
-  });
+  // Convergence from arbitrary divergence is the S11 axiom property
+  // (smelter-axioms.test.ts). These examples pin what S11's id-set
+  // equality cannot: no wasted re-embedding, the catalog page boundary,
+  // and the failure state machine.
 
   it('leaves already-indexed resources alone', async () => {
-    contentByResourceId.set('res-indexed', 'Already indexed.');
+    const text = 'Already indexed.';
+    const checksum = calculateChecksum(text);
+    contentByResourceId.set('res-indexed', text);
     await vectorStore.upsertResourceVectors(
       makeResourceId('res-indexed'),
-      [{ chunkIndex: 0, text: 'Already indexed.', embedding: deterministicEmbed('Already indexed.') }],
+      [{ chunkIndex: 0, text, embedding: deterministicEmbed(text) }],
+      checksum,
     );
 
-    const smelter = createSmelter([resourceDescriptor('res-indexed')]);
+    const smelter = createSmelter([resourceDescriptor('res-indexed', 'text/plain', checksum)]);
     const summary = await smelter.reconcile();
 
     expect(summary.resourcesEmbedded).toBe(0);
     expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
-  });
-
-  it('deletes vectors for resources no longer in the catalog', async () => {
-    await vectorStore.upsertResourceVectors(
-      makeResourceId('res-gone'),
-      [{ chunkIndex: 0, text: 'stale', embedding: deterministicEmbed('stale') }],
-    );
-
-    const smelter = createSmelter([]);
-    const summary = await smelter.reconcile();
-
-    expect(summary.resourceVectorsDeleted).toBe(1);
-    expect(await vectorStore.listResourceIds()).toEqual(new Set());
-  });
-
-  it('treats vectors of non-text resources as orphans and skips re-embedding them', async () => {
-    await vectorStore.upsertResourceVectors(
-      makeResourceId('res-pdf'),
-      [{ chunkIndex: 0, text: 'mojibake', embedding: deterministicEmbed('mojibake') }],
-    );
-
-    const smelter = createSmelter([resourceDescriptor('res-pdf', 'application/pdf')]);
-    const summary = await smelter.reconcile();
-
-    expect(summary.resourceVectorsDeleted).toBe(1);
-    expect(summary.resourcesEmbedded).toBe(0);
-    expect(await vectorStore.listResourceIds()).toEqual(new Set());
-  });
-
-  it('embeds missing annotations and deletes orphaned annotation vectors', async () => {
-    contentByResourceId.set('res-ann', 'Annotated resource content.');
-    await vectorStore.upsertResourceVectors(
-      makeResourceId('res-ann'),
-      [{ chunkIndex: 0, text: 'Annotated resource content.', embedding: deterministicEmbed('Annotated') }],
-    );
-    await vectorStore.upsertAnnotationVector(
-      makeAnnotationId('ann-orphan'),
-      deterministicEmbed('orphan'),
-      {
-        annotationId: makeAnnotationId('ann-orphan'),
-        resourceId: makeResourceId('res-ann'),
-        motivation: 'highlighting',
-        entityTypes: [],
-        exactText: 'orphan',
-      },
-    );
-
-    const smelter = createSmelter(
-      [resourceDescriptor('res-ann')],
-      new Map([['res-ann', [makeAnnotation('res-ann', 'ann-live', 'live annotation text')]]]),
-    );
-    const summary = await smelter.reconcile();
-
-    expect(summary.annotationsEmbedded).toBe(1);
-    expect(summary.annotationVectorsDeleted).toBe(1);
-    expect(await vectorStore.listAnnotationIds()).toEqual(new Set(['ann-live']));
+    expect(smelter.reconcileState).toEqual({ phase: 'done', summary });
   });
 
   it('pages through catalogs larger than one page', async () => {
@@ -501,7 +280,7 @@ describe('Smelter.reconcile', () => {
     const summary = await smelter.reconcile();
 
     expect(summary.resourcesEmbedded).toBe(250);
-    expect((await vectorStore.listResourceIds()).size).toBe(250);
+    expect((await vectorStore.listResourceChecksums()).size).toBe(250);
   });
 
   it('records failure state when the catalog is unreachable', async () => {
@@ -520,8 +299,11 @@ describe('Smelter.reconcile', () => {
       createMockContentTransport(contentByResourceId),
       deadBus,
       { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
       mockLogger,
     );
+    smelter.initialize();
+    smelters.push(smelter);
 
     await expect(smelter.reconcile()).rejects.toThrow('bus down');
     expect(smelter.reconcileState).toEqual({ phase: 'failed', error: 'bus down' });

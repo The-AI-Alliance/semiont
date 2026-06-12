@@ -3,8 +3,8 @@
  *
  * Consumes the smelter-relevant domain events surfaced by
  * `SmelterActorStateUnit.events$`, reads resource content via the injected
- * `IContentTransport` (direct working-tree reads in worker mode — see
- * `WorkerContentTransport`), chunks and embeds it via the configured
+ * `IContentTransport` (HTTP verbatim mode in worker deployments — the
+ * stored bytes, untouched), chunks and embeds it via the configured
  * EmbeddingProvider, and indexes vectors into the VectorStore (Qdrant).
  * `smelter-main` is the container entry point that wires this up.
  *
@@ -26,7 +26,12 @@
  *
  * Qdrant is an ephemeral projection of the event log. `reconcile()` brings
  * it back in sync at startup — after a wiped volume, or after events missed
- * while the worker was down. See the method doc for the algorithm.
+ * while the worker was down. It is a planner: it diffs the store against the
+ * catalog (over the `browse:*` RPC channels) — both membership AND content
+ * freshness, via the checksum stamped onto every resource upsert — and
+ * enqueues `smelt:*` work items through the same mailbox as live events, so
+ * per-resource ordering holds across the two paths (axioms S1/S2/S11/S12 in
+ * `.plans/SMELTER-AXIOMS.md`).
  */
 
 import { Observable, Subject, Subscription, from } from 'rxjs';
@@ -34,7 +39,8 @@ import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { burstBuffer, errField } from '@semiont/core';
 import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, IContentTransport } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import { getExactText, getTargetSelector, getPrimaryMediaType, decodeRepresentation } from '@semiont/core';
+import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
+import { calculateChecksum } from '@semiont/content';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import type { EmbeddingProvider, ChunkingConfig } from '@semiont/vectors';
 import { chunkText } from '@semiont/vectors';
@@ -66,17 +72,47 @@ export type ReconcileState =
   | { phase: 'done'; summary: ReconcileSummary }
   | { phase: 'failed'; error: string };
 
-export class Smelter {
-  private static readonly BURST_WINDOW_MS = 50;
-  private static readonly MAX_BATCH_SIZE = 100;
-  private static readonly IDLE_TIMEOUT_MS = 200;
-  private static readonly RECONCILE_PAGE_SIZE = 200;
+/**
+ * Burst-buffer timings for the event pipeline. Required — `smelter-main`
+ * passes production values (50/100/200); test harnesses pass ~1ms values so
+ * property suites run at generator speed. See `.plans/SMELTER-AXIOMS.md` (D4).
+ */
+export interface SmelterTiming {
+  burstWindowMs: number;
+  maxBatchSize: number;
+  idleTimeoutMs: number;
+}
 
-  private eventSubject = new Subject<SmelterEvent>();
+/**
+ * Reconcile-planner work items — enqueued through the same mailbox as wire
+ * events. Distinct `smelt:*` types make forged domain events unrepresentable
+ * (`.plans/SMELTER-AXIOMS.md`, D1); the shared shape lets the per-resource
+ * lanes and batch paths serve both kinds of input.
+ */
+export interface SmelterWorkItem {
+  type: 'smelt:embed' | 'smelt:purge' | 'smelt:embed-annotation' | 'smelt:purge-annotation';
+  resourceId: string;
+  payload: Record<string, unknown>;
+}
+
+export type SmelterInput = SmelterEvent | SmelterWorkItem;
+
+function isWorkItem(input: SmelterInput): input is SmelterWorkItem {
+  return input.type.startsWith('smelt:');
+}
+
+export class Smelter {
+  private static readonly RECONCILE_PAGE_SIZE = 200;
+  /** Bound on concurrently in-flight reconcile work — a cold rebuild must not fan out unbounded embedding calls. */
+  private static readonly RECONCILE_WAVE = 8;
+
+  private eventSubject = new Subject<SmelterInput>();
   private sourceSubscription: Subscription | null = null;
   private pipelineSubscription: Subscription | null = null;
   private _eventsProcessed = 0;
   private _reconcileState: ReconcileState = { phase: 'pending' };
+  private workDone = 0;
+  private workWaiter: { target: number; resolve: () => void } | null = null;
 
   constructor(
     private events$: Observable<SmelterEvent>,
@@ -85,6 +121,7 @@ export class Smelter {
     private content: IContentTransport,
     private bus: BusRequestPrimitive,
     private chunkingConfig: ChunkingConfig,
+    private timing: SmelterTiming,
     private logger: Logger,
   ) {}
 
@@ -98,24 +135,28 @@ export class Smelter {
 
   initialize(): void {
     this.pipelineSubscription = this.eventSubject.pipe(
-      groupBy((e: SmelterEvent) => e.resourceId ?? '__unknown__'),
+      groupBy((e: SmelterInput) => e.resourceId ?? '__unknown__'),
       mergeMap((group) =>
         group.pipe(
-          burstBuffer<SmelterEvent>({
-            burstWindowMs: Smelter.BURST_WINDOW_MS,
-            maxBatchSize: Smelter.MAX_BATCH_SIZE,
-            idleTimeoutMs: Smelter.IDLE_TIMEOUT_MS,
+          burstBuffer<SmelterInput>({
+            burstWindowMs: this.timing.burstWindowMs,
+            maxBatchSize: this.timing.maxBatchSize,
+            idleTimeoutMs: this.timing.idleTimeoutMs,
           }),
-          concatMap((eventOrBatch: SmelterEvent | SmelterEvent[]) => {
-            if (Array.isArray(eventOrBatch)) {
+          concatMap((inputOrBatch: SmelterInput | SmelterInput[]) => {
+            if (Array.isArray(inputOrBatch)) {
               return from(
-                withActorSpan('smelter', 'batch', () => this.processBatch(eventOrBatch), {
-                  'batch.size': eventOrBatch.length,
-                }),
+                withActorSpan('smelter', 'batch', async () => {
+                  this._eventsProcessed += await this.processBatch(inputOrBatch);
+                }, { 'batch.size': inputOrBatch.length }),
               );
             }
             return from(
-              withActorSpan('smelter', eventOrBatch.type, () => this.safeProcessEvent(eventOrBatch)),
+              withActorSpan('smelter', inputOrBatch.type, async () => {
+                const ok = await this.safeProcessEvent(inputOrBatch);
+                if (isWorkItem(inputOrBatch)) this.noteWorkDone(1);
+                else if (ok) this._eventsProcessed++;
+              }),
             );
           }),
         ),
@@ -141,13 +182,29 @@ export class Smelter {
     this.logger.info('Smelter stopped');
   }
 
-  private async processBatch(events: SmelterEvent[]): Promise<void> {
+  private noteWorkDone(count: number): void {
+    this.workDone += count;
+    if (this.workWaiter && this.workDone >= this.workWaiter.target) {
+      this.workWaiter.resolve();
+      this.workWaiter = null;
+    }
+  }
+
+  /**
+   * Returns the number of WIRE events processed without error (the S9b
+   * oracle) — `smelt:*` work-item runs tick the drain counter instead.
+   */
+  private async processBatch(events: SmelterInput[]): Promise<number> {
+    let wireProcessed = 0;
     for (const run of partitionByType(events)) {
+      const workRun = isWorkItem(run[0]);
       try {
         if (run.length === 1) {
-          await this.safeProcessEvent(run[0]);
+          const ok = await this.safeProcessEvent(run[0]);
+          if (ok && !workRun) wireProcessed++;
         } else {
-          await this.applyBatchByType(run);
+          const processed = await this.applyBatchByType(run);
+          if (!workRun) wireProcessed += processed;
         }
       } catch (error) {
         this.logger.error('Smelter failed to process batch run', {
@@ -155,42 +212,51 @@ export class Smelter {
           runSize: run.length,
           error: errField(error),
         });
+      } finally {
+        if (workRun) this.noteWorkDone(run.length);
       }
     }
+    return wireProcessed;
   }
 
   /**
    * Batch-optimized processing for consecutive events of the same type.
+   * Returns the number of events processed without error.
    */
-  private async applyBatchByType(events: SmelterEvent[]): Promise<void> {
+  private async applyBatchByType(events: SmelterInput[]): Promise<number> {
     switch (events[0].type) {
       case 'yield:created':
-        await this.batchResourceCreated(events);
-        break;
+      case 'smelt:embed':
+        return this.batchResourceCreated(events);
       case 'mark:added':
-        await this.batchAnnotationAdded(events);
-        break;
-      default:
+      case 'smelt:embed-annotation':
+        return this.batchAnnotationAdded(events);
+      default: {
+        let processed = 0;
         for (const event of events) {
-          await this.safeProcessEvent(event);
+          if (await this.safeProcessEvent(event)) processed++;
         }
+        return processed;
+      }
     }
   }
 
-  private async safeProcessEvent(event: SmelterEvent): Promise<void> {
+  /** Returns true if the input was processed without error. */
+  private async safeProcessEvent(event: SmelterInput): Promise<boolean> {
     try {
       await this.processEvent(event);
-      this._eventsProcessed++;
+      return true;
     } catch (err) {
       this.logger.error('Smelter failed to process event', {
         type: event.type,
         resourceId: event.resourceId,
         error: errField(err),
       });
+      return false;
     }
   }
 
-  private async processEvent(event: SmelterEvent): Promise<void> {
+  private async processEvent(event: SmelterInput): Promise<void> {
     switch (event.type) {
       case 'yield:created':
         await this.embedResource(event, 'Indexed resource');
@@ -208,37 +274,66 @@ export class Smelter {
       case 'mark:removed':
         await this.handleAnnotationRemoved(event);
         break;
+      // Reconcile work items — same handlers, distinct provenance.
+      case 'smelt:embed':
+        await this.embedResource(event, 'Reconcile-indexed resource');
+        break;
+      case 'smelt:purge':
+        await this.handleResourcePurge(event);
+        break;
+      case 'smelt:embed-annotation':
+        await this.handleAnnotationAdded(event);
+        break;
+      case 'smelt:purge-annotation':
+        await this.handleAnnotationRemoved(event);
+        break;
     }
+  }
+
+  private async handleResourcePurge(event: SmelterInput): Promise<void> {
+    const rid = event.resourceId;
+    if (!rid) return;
+    await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
+    this.logger.info('Reconcile deleted orphan resource vectors', { resourceId: rid });
   }
 
   /**
    * Resolve a resource's embeddable text: bytes via the content transport,
-   * gated to text media types, decoded charset-aware. Returns null (logged)
+   * gated to text media types, decoded charset-aware. The checksum is over
+   * the raw bytes actually read — stamped onto the vectors so reconciliation
+   * can compare against the catalog's claim (S12). Returns null (logged)
    * when the resource is non-text, unavailable, or empty — callers skip it.
    */
-  private async fetchEmbeddableText(resourceId: string): Promise<string | null> {
+  private async fetchEmbeddableText(resourceId: string): Promise<{ text: string; checksum: string } | null> {
     try {
-      const { data, contentType } = await this.content.getBinary(makeResourceId(resourceId));
+      // Verbatim mode: the stored representation's bytes, untouched. Content
+      // negotiation would break the checksum stamp — it must hash the same
+      // bytes the catalog's checksum was computed from (S12; the route-side
+      // half of that contract is the backend's resource-raw-mode lemma test).
+      const { data, contentType } = await this.content.getBinary(makeResourceId(resourceId), {
+        accept: 'application/octet-stream',
+      });
       if (!isEmbeddableMediaType(contentType)) {
         this.logger.debug('Skipping non-text resource', { resourceId, contentType });
         return null;
       }
-      const text = decodeRepresentation(Buffer.from(data), contentType);
-      return text.trim() ? text : null;
+      const bytes = Buffer.from(data);
+      const text = decodeRepresentation(bytes, contentType);
+      return text.trim() ? { text, checksum: calculateChecksum(bytes) } : null;
     } catch (error) {
       this.logger.warn('Content unavailable for embedding', { resourceId, error: errField(error) });
       return null;
     }
   }
 
-  private async embedResource(event: SmelterEvent, logMessage: string): Promise<void> {
+  private async embedResource(event: SmelterInput, logMessage: string): Promise<void> {
     const rid = event.resourceId;
     if (!rid) return;
 
-    const text = await this.fetchEmbeddableText(rid);
-    if (!text) return;
+    const fetched = await this.fetchEmbeddableText(rid);
+    if (!fetched) return;
 
-    const chunks = chunkText(text, this.chunkingConfig);
+    const chunks = chunkText(fetched.text, this.chunkingConfig);
     if (chunks.length === 0) return;
 
     const embeddings = await this.embeddingProvider.embedBatch(chunks);
@@ -246,11 +341,11 @@ export class Smelter {
       chunkIndex: i, text: t, embedding: embeddings[i],
     }));
 
-    await this.vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks);
+    await this.vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks, fetched.checksum);
     this.logger.info(logMessage, { resourceId: rid, chunks: chunks.length });
   }
 
-  private async handleResourceArchived(event: SmelterEvent): Promise<void> {
+  private async handleResourceArchived(event: SmelterInput): Promise<void> {
     const rid = event.resourceId;
     if (!rid) return;
     await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
@@ -261,7 +356,7 @@ export class Smelter {
     this.logger.info('Deleted vectors for archived resource', { resourceId: rid });
   }
 
-  private async handleAnnotationAdded(event: SmelterEvent): Promise<void> {
+  private async handleAnnotationAdded(event: SmelterInput): Promise<void> {
     const annotation = event.payload.annotation as Annotation | undefined;
     if (!annotation?.id) return;
 
@@ -286,7 +381,7 @@ export class Smelter {
     this.logger.info('Indexed annotation', { annotationId: String(aid) });
   }
 
-  private async handleAnnotationRemoved(event: SmelterEvent): Promise<void> {
+  private async handleAnnotationRemoved(event: SmelterInput): Promise<void> {
     const annotationId = event.payload.annotationId as string | undefined;
     if (!annotationId) return;
     const aid = makeAnnotationId(annotationId);
@@ -298,46 +393,46 @@ export class Smelter {
    * Batch-embed chunks from multiple yield:created events in a single
    * embedBatch() call, then index per resource.
    */
-  private async batchResourceCreated(events: SmelterEvent[]): Promise<void> {
-    const resourceData: { rid: ResourceId; chunks: string[] }[] = [];
+  private async batchResourceCreated(events: SmelterInput[]): Promise<number> {
+    const resourceData: { rid: ResourceId; chunks: string[]; checksum: string }[] = [];
     const allChunks: string[] = [];
 
     for (const event of events) {
       const rid = event.resourceId;
       if (!rid) continue;
 
-      const text = await this.fetchEmbeddableText(rid);
-      if (!text) continue;
+      const fetched = await this.fetchEmbeddableText(rid);
+      if (!fetched) continue;
 
-      const chunks = chunkText(text, this.chunkingConfig);
+      const chunks = chunkText(fetched.text, this.chunkingConfig);
       if (chunks.length === 0) continue;
 
-      resourceData.push({ rid: makeResourceId(rid), chunks });
+      resourceData.push({ rid: makeResourceId(rid), chunks, checksum: fetched.checksum });
       allChunks.push(...chunks);
     }
 
-    if (allChunks.length === 0) return;
+    if (allChunks.length === 0) return events.length;
 
     const allEmbeddings = await this.embeddingProvider.embedBatch(allChunks);
 
     let offset = 0;
-    for (const { rid, chunks } of resourceData) {
+    for (const { rid, chunks, checksum } of resourceData) {
       const embeddingChunks: EmbeddingChunk[] = chunks.map((t, i) => ({
         chunkIndex: i, text: t, embedding: allEmbeddings[offset + i],
       }));
-      await this.vectorStore.upsertResourceVectors(rid, embeddingChunks);
+      await this.vectorStore.upsertResourceVectors(rid, embeddingChunks, checksum);
       this.logger.info('Batch-indexed resource', { resourceId: String(rid), chunks: chunks.length });
       offset += chunks.length;
     }
 
-    this._eventsProcessed += events.length;
+    return events.length;
   }
 
   /**
    * Batch-embed exact texts from multiple mark:added events in a single
    * embedBatch() call, then index per annotation.
    */
-  private async batchAnnotationAdded(events: SmelterEvent[]): Promise<void> {
+  private async batchAnnotationAdded(events: SmelterInput[]): Promise<number> {
     const annotationData: {
       rid: ResourceId;
       aid: AnnotationId;
@@ -366,7 +461,7 @@ export class Smelter {
       });
     }
 
-    if (annotationData.length === 0) return;
+    if (annotationData.length === 0) return events.length;
 
     const allEmbeddings = await this.embeddingProvider.embedBatch(
       annotationData.map((a) => a.exactText),
@@ -381,7 +476,7 @@ export class Smelter {
       this.logger.info('Batch-indexed annotation', { annotationId: String(aid) });
     }
 
-    this._eventsProcessed += events.length;
+    return events.length;
   }
 
   // ── Reconciliation ───────────────────────────────────────────────────
@@ -391,24 +486,28 @@ export class Smelter {
    *
    * Lists what IS indexed (via the store's id enumeration) and what SHOULD
    * be (non-archived resources with embeddable media types, plus their
-   * exact-text annotations, via the `browse:*` RPC channels), then
-   * re-embeds what's missing and deletes what shouldn't be there — vectors
-   * for resources that were hard-deleted, archived while the worker was
-   * down, or whose media type the smelter no longer embeds.
+   * exact-text annotations, via the `browse:*` RPC channels), then plans the
+   * diff as `smelt:*` work items — embeds for what's missing, purges for
+   * what shouldn't be there — and drains them through the pipeline mailbox.
+   * Work items share the per-resource lanes with live events, so a reconcile
+   * re-embed can never interleave with (or stale-overwrite) live processing
+   * of the same resource (axioms S1/S2). Waves of RECONCILE_WAVE bound how
+   * many embedding calls a cold rebuild has in flight.
    *
    * Call after the live subscription is attached so nothing falls in the
-   * gap. Runs beside the live pipeline rather than through it: re-embeds
-   * are sequential (one embedding call in flight — the same per-resource
-   * call shape as the live path), and the two paths converge because every
-   * upsert replaces a resource's full vector set from current content.
-   * The index snapshot is taken BEFORE the catalog listing so a resource
-   * indexed by a live event mid-reconcile is never mistaken for an orphan.
+   * gap. The index snapshot is taken BEFORE the catalog listing so a
+   * resource indexed by a live event mid-reconcile is never mistaken for an
+   * orphan; convergence holds because every upsert replaces a resource's
+   * full vector set from current content.
    */
   async reconcile(): Promise<ReconcileSummary> {
+    if (!this.pipelineSubscription) {
+      throw new Error('Smelter.reconcile() requires initialize() — work items drain through the pipeline');
+    }
     this._reconcileState = { phase: 'running' };
     try {
       const [indexedResources, indexedAnnotations] = await Promise.all([
-        this.vectorStore.listResourceIds(),
+        this.vectorStore.listResourceChecksums(),
         this.vectorStore.listAnnotationIds(),
       ]);
       const resources = await this.listAllResources();
@@ -418,36 +517,33 @@ export class Smelter {
         liveResources: resources.length,
       });
 
-      const summary: ReconcileSummary = {
-        resourcesEmbedded: 0,
-        resourceVectorsDeleted: 0,
-        annotationsEmbedded: 0,
-        annotationVectorsDeleted: 0,
-      };
-
-      const embeddableIds = new Set<string>();
+      // Embeddable live resources, each with the catalog's claim about its
+      // primary representation's checksum (the bytes the smelter would read).
+      const embeddable = new Map<string, string | undefined>();
       for (const resource of resources) {
         if (resource['@id'] && isEmbeddableMediaType(getPrimaryMediaType(resource))) {
-          embeddableIds.add(resource['@id']);
+          embeddable.set(resource['@id'], getPrimaryRepresentation(resource)?.checksum);
         }
       }
 
-      for (const rid of indexedResources) {
-        if (embeddableIds.has(rid)) continue;
-        await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
-        summary.resourceVectorsDeleted++;
-      }
+      const work: SmelterWorkItem[] = [];
 
-      for (const rid of embeddableIds) {
-        if (indexedResources.has(rid)) continue;
-        await this.safeProcessEvent({ type: 'yield:created', resourceId: rid, payload: {} });
-        summary.resourcesEmbedded++;
+      for (const rid of indexedResources.keys()) {
+        if (!embeddable.has(rid)) work.push({ type: 'smelt:purge', resourceId: rid, payload: {} });
+      }
+      for (const [rid, catalogChecksum] of embeddable) {
+        if (!indexedResources.has(rid)) {
+          work.push({ type: 'smelt:embed', resourceId: rid, payload: {} });
+        } else if (catalogChecksum !== undefined && indexedResources.get(rid) !== catalogChecksum) {
+          // Stale-but-present: indexed from earlier bytes (or from a pre-stamp
+          // deployment, where the stamp reads as undefined) — re-embed (S12).
+          work.push({ type: 'smelt:embed', resourceId: rid, payload: {} });
+        }
       }
 
       // Annotations: every live resource is consulted — not just the
       // re-embedded ones — so orphan detection sees the full live set.
       const liveAnnotationIds = new Set<string>();
-      const missing: SmelterEvent[] = [];
       for (const resource of resources) {
         const rid = resource['@id'];
         if (!rid) continue;
@@ -463,30 +559,27 @@ export class Smelter {
           if (!annotation.id || !exactText?.trim()) continue;
           liveAnnotationIds.add(annotation.id);
           if (!indexedAnnotations.has(annotation.id)) {
-            missing.push({ type: 'mark:added', resourceId: rid, payload: { resourceId: rid, annotation } });
+            work.push({ type: 'smelt:embed-annotation', resourceId: rid, payload: { annotation } });
           }
         }
       }
 
-      for (let i = 0; i < missing.length; i += Smelter.MAX_BATCH_SIZE) {
-        const slice = missing.slice(i, i + Smelter.MAX_BATCH_SIZE);
-        try {
-          await this.batchAnnotationAdded(slice);
-          summary.annotationsEmbedded += slice.length;
-        } catch (error) {
-          this.logger.error('Reconcile failed to embed annotation slice', {
-            runSize: slice.length,
-            error: errField(error),
-          });
+      for (const aid of indexedAnnotations) {
+        if (!liveAnnotationIds.has(aid)) {
+          // An orphan's anchor is unknown — the annotation no longer exists
+          // in the catalog — so the orphan's own id keys its lane.
+          work.push({ type: 'smelt:purge-annotation', resourceId: aid, payload: { annotationId: aid } });
         }
       }
 
-      for (const aid of indexedAnnotations) {
-        if (liveAnnotationIds.has(aid)) continue;
-        await this.vectorStore.deleteAnnotationVector(makeAnnotationId(aid));
-        summary.annotationVectorsDeleted++;
-      }
+      await this.drain(work);
 
+      const summary: ReconcileSummary = {
+        resourcesEmbedded: work.filter((w) => w.type === 'smelt:embed').length,
+        resourceVectorsDeleted: work.filter((w) => w.type === 'smelt:purge').length,
+        annotationsEmbedded: work.filter((w) => w.type === 'smelt:embed-annotation').length,
+        annotationVectorsDeleted: work.filter((w) => w.type === 'smelt:purge-annotation').length,
+      };
       this._reconcileState = { phase: 'done', summary };
       this.logger.info('Reconcile complete', { ...summary });
       return summary;
@@ -497,6 +590,23 @@ export class Smelter {
       };
       this.logger.error('Reconcile failed', { error: errField(error) });
       throw error;
+    }
+  }
+
+  /**
+   * Enqueue planner work through the mailbox in bounded waves and await
+   * completion. The pipeline ticks `noteWorkDone` for every consumed work
+   * item (success or failure — failures are logged like any live event), so
+   * each wave's waiter resolves exactly when its items have been processed.
+   */
+  private async drain(work: SmelterWorkItem[]): Promise<void> {
+    for (let i = 0; i < work.length; i += Smelter.RECONCILE_WAVE) {
+      const wave = work.slice(i, i + Smelter.RECONCILE_WAVE);
+      const done = new Promise<void>((resolve) => {
+        this.workWaiter = { target: this.workDone + wave.length, resolve };
+      });
+      for (const item of wave) this.eventSubject.next(item);
+      await done;
     }
   }
 

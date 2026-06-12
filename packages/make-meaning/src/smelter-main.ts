@@ -8,24 +8,21 @@
  * hands the SmelterActorStateUnit's event stream to the Smelter and runs
  * a startup reconcile. All event processing lives in `./smelter`.
  *
- * The smelter has two privileged attachments beyond the bus: the vector
- * store (Qdrant, direct) and the content store (the KB working tree at
- * SEMIONT_ROOT — bind-mounted read-only in container deployments).
+ * The smelter is a pure network peer: events arrive over SSE, content is
+ * fetched over HTTP in verbatim mode (the stored bytes, untouched — the
+ * checksum stamp depends on it; SMELTER-AXIOMS.md S12), and its single
+ * privileged attachment beyond the bus is the vector store (Qdrant).
  *
  * Environment variables:
  *   SEMIONT_WORKER_SECRET — shared secret for JWT auth with the KS
- *   SEMIONT_ROOT          — project root holding the KB working tree
  */
 
 import { BehaviorSubject } from 'rxjs';
 import { createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelter-actor-state-unit';
 import { Smelter } from './smelter';
-import { WorkerContentTransport } from './worker-content-transport';
-import { HttpTransport } from '@semiont/http-transport';
+import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
 import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader } from '@semiont/core';
 import type { AccessToken } from '@semiont/core';
-import { SemiontProject } from '@semiont/core/node';
-import { WorkingTreeStore } from '@semiont/content';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/vectors';
 import { createServer } from 'http';
@@ -76,12 +73,6 @@ const chunkingConfig: ChunkingConfig = {
 
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
 
-const semiontRoot = process.env.SEMIONT_ROOT;
-if (!semiontRoot) {
-  throw new Error('SEMIONT_ROOT is required — the smelter reads content directly from the KB working tree');
-}
-const projectRoot: string = semiontRoot;
-
 const healthPort = 9091;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
@@ -126,8 +117,26 @@ async function main() {
   initObservabilityNode({ serviceName: 'semiont-smelter' });
 
   logger.info('Authenticating', { baseUrl });
-  const authToken = await authenticate();
+  const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(await authenticate()));
   logger.info('Authenticated');
+
+  // Agent tokens expire (24h — POST /api/tokens/agent). Two recovery paths
+  // keep a long-lived worker authenticated: `tokenRefresher` re-authenticates
+  // and retries once when any HTTP request 401s, and a proactive re-auth at
+  // half the TTL covers the listen-only case — SSE reconnects read `token$`
+  // fresh, so pushing here is what keeps the event feed alive.
+  const refreshToken = async (): Promise<string | null> => {
+    const token = await authenticate();
+    tokenSubject.next(makeAccessToken(token));
+    return token;
+  };
+  const reauthTimer = setInterval(() => {
+    refreshToken().catch((error) => {
+      logger.error('Proactive re-authentication failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }, 12 * 60 * 60 * 1000);
 
   const embeddingProvider = await createEmbeddingProvider({
     type: embeddingType,
@@ -149,21 +158,20 @@ async function main() {
   // metric-collection interval (default 30s).
   registerVectorIndexSizeProvider(() => vectorStore.count());
 
-  const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(authToken));
   const httpTransport = new HttpTransport({
     baseUrl: makeBaseUrl(baseUrl),
     token$: tokenSubject,
+    tokenRefresher: refreshToken,
   });
   const actorStateUnit: SmelterActorStateUnit = createSmelterActorStateUnit({
     bus: httpTransport.actor,
   });
 
-  const project = new SemiontProject(projectRoot);
-  const contentTransport = new WorkerContentTransport(
-    httpTransport,
-    new WorkingTreeStore(project, logger),
-  );
-  logger.info('Content store attached', { projectRoot: project.root });
+  // Same adapter the SDK wires for its content path; reuses the bus
+  // transport's ky instance, token$ auth, and trace propagation. The Smelter
+  // requests verbatim mode per read (see fetchEmbeddableText).
+  const contentTransport = new HttpContentTransport(httpTransport);
+  logger.info('Content transport ready', { mode: 'http' });
 
   const smelter = new Smelter(
     actorStateUnit.events$,
@@ -172,6 +180,7 @@ async function main() {
     contentTransport,
     httpTransport,
     chunkingConfig,
+    { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
     logger,
   );
   smelter.initialize();
@@ -198,6 +207,7 @@ async function main() {
 
   const shutdown = () => {
     logger.info('Shutting down');
+    clearInterval(reauthTimer);
     actorStateUnit.dispose();
     httpTransport.dispose();
     smelter.stop();

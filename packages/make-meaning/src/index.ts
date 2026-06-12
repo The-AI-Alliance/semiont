@@ -50,8 +50,10 @@ export {
   isEmbeddableMediaType,
   type ReconcileSummary,
   type ReconcileState,
+  type SmelterTiming,
+  type SmelterWorkItem,
+  type SmelterInput,
 } from './smelter';
-export { WorkerContentTransport } from './worker-content-transport';
 export {
   createSmelterActorStateUnit,
   type SmelterActorStateUnit,

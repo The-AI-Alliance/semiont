@@ -2,9 +2,8 @@
  * createSmelterActorStateUnit — unit tests.
  *
  * The state unit takes a shared bus and attaches smelter-channel fan-in.
- * We fake the bus with a minimal object that exposes the three
- * methods the state unit uses (`on$`, `emit`, `addChannels`) and drive
- * events through RxJS subjects. No HTTP or SSE involved.
+ * We fake the bus with a minimal object that satisfies the WorkerBus shape
+ * and drive events through RxJS subjects. No HTTP or SSE involved.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -16,7 +15,6 @@ import type { WorkerBus } from '@semiont/sdk';
 function fakeBus() {
   const channels = new Set<string>();
   const streams = new Map<string, Subject<any>>();
-  const emits: Array<{ channel: string; payload: any }> = [];
 
   const getStream = (channel: string): Subject<any> => {
     let s = streams.get(channel);
@@ -32,16 +30,15 @@ function fakeBus() {
       cs.forEach((c) => channels.add(c));
     }),
     on$: vi.fn((channel: string) => getStream(channel).asObservable()),
-    emit: vi.fn(async (channel: string, payload: Record<string, unknown>) => {
-      emits.push({ channel, payload });
-    }),
+    // Required by the WorkerBus shape; the smelter state unit is a silent
+    // sink (SMELTER-AXIOMS.md, D3) and never calls it.
+    emit: vi.fn(async () => {}),
   };
 
   return {
     bus,
     channels,
     pushEvent: (channel: string, payload: any) => getStream(channel).next(payload),
-    emits,
   };
 }
 
@@ -80,17 +77,6 @@ describe('createSmelterActorStateUnit', () => {
     expect(events[0]!.type).toBe('yield:created');
     expect(events[0]!.resourceId).toBe('r-1');
     expect(events[1]!.type).toBe('mark:added');
-
-    stateUnit.dispose();
-  });
-
-  it('emit delegates to the bus', async () => {
-    const stateUnit = createSmelterActorStateUnit({ bus: h.bus });
-    await stateUnit.emit('smelter:indexed', { resourceId: 'r-1' });
-
-    expect(h.emits).toEqual([
-      { channel: 'smelter:indexed', payload: { resourceId: 'r-1' } },
-    ]);
 
     stateUnit.dispose();
   });
