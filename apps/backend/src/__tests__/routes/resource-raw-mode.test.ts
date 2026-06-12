@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { Hono } from 'hono';
 import type { User } from '@prisma/client';
-import type { EventBus as EventBusType, Logger } from '@semiont/core';
+import type { EventBus as EventBusType, Logger, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
@@ -65,12 +65,12 @@ describe('GET /resources/:id verbatim mode (S12 transport-fidelity lemma)', () =
     await testEnv.cleanup();
   });
 
-  async function putResource(bytes: Buffer, mediaType: string): Promise<{ rid: string; checksum: string }> {
+  async function putResource(bytes: Buffer, mediaType: string): Promise<{ rid: ResourceId; checksum: string }> {
     seq++;
-    const rid = `res-raw-${seq}`;
+    const rid = makeResourceId(`res-raw-${seq}`);
     const uri = `file://raw-${seq}.bin`;
     const stored = await content.store(bytes, uri, { noGit: true });
-    await views.save(makeResourceId(rid), {
+    await views.save(rid, {
       resource: {
         '@context': 'https://schema.org',
         '@id': rid,
