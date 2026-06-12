@@ -113,13 +113,13 @@ Coordinates are in PDF point space, originating from the bottom-left of the page
 import {
   calculateChecksum,       // SHA-256 hex of a string or Buffer
   verifyChecksum,          // Compare content against an expected checksum
-  getExtensionForMimeType, // "text/markdown" → ".md" (".dat" if unknown)
-  hasKnownExtension,       // Is there a real mapping for this MIME type?
   deriveStorageUri,        // ("My Doc", "text/markdown") → "file://my-doc.md"
 } from '@semiont/content';
 ```
 
-The MIME mapping covers 80+ types; see [docs/mime-types.md](./docs/mime-types.md).
+`deriveStorageUri` takes a `SupportedMediaType`; the media-type registry —
+which types are admitted, their extensions, and their capabilities — lives in
+[@semiont/core](../core/)'s `media-types.ts`. See [docs/mime-types.md](./docs/mime-types.md).
 
 ## Documentation
 
