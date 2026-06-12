@@ -276,7 +276,7 @@
     "autoDetected": "זוהה אוטומטית מהקובץ",
     "encoding": "קידוד",
     "dropFileOrClick": "גררו קובץ או לחצו להעלאה",
-    "supportedFormats": "נתמכים: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "ניתן להעלות כל סוג קובץ. תוכן טקסט ו-PDF מנותח; סוגים אחרים מקוטלגים להורדה.",
     "content": "תוכן",
     "resourceContent": "תוכן המשאב",
     "archiveOriginal": "העברת המשאב המקורי לארכיון לאחר שכפול",

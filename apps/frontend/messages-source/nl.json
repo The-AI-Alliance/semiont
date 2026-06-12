@@ -276,7 +276,7 @@
     "autoDetected": "Automatisch gedetecteerd uit bestand",
     "encoding": "Codering",
     "dropFileOrClick": "Sleep bestand of klik om te uploaden",
-    "supportedFormats": "Ondersteund: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Elk bestandstype kan worden geüpload. Tekst- en PDF-inhoud wordt geanalyseerd; andere typen worden gecatalogiseerd om te downloaden.",
     "content": "Inhoud",
     "resourceContent": "Broninhoud",
     "archiveOriginal": "Originele bron archiveren na het klonen",

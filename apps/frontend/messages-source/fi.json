@@ -276,7 +276,7 @@
     "autoDetected": "Tunnistettu automaattisesti tiedostosta",
     "encoding": "Koodaus",
     "dropFileOrClick": "Pudota tiedosto tai napsauta ladataksesi",
-    "supportedFormats": "Tuetut: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Voit lähettää minkä tahansa tiedostotyypin. Teksti- ja PDF-sisältö analysoidaan; muut tyypit luetteloidaan latausta varten.",
     "content": "Sisältö",
     "resourceContent": "Resurssin sisältö",
     "archiveOriginal": "Arkistoi alkuperäinen resurssi kloonauksen jälkeen",

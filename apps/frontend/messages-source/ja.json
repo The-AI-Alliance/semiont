@@ -276,7 +276,7 @@
     "autoDetected": "ファイルから自動検出",
     "encoding": "エンコーディング",
     "dropFileOrClick": "ファイルをドロップまたはクリックしてアップロード",
-    "supportedFormats": "対応形式: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "あらゆる形式のファイルをアップロードできます。テキストとPDFの内容は解析され、その他の形式はダウンロード用にカタログ化されます。",
     "content": "コンテンツ",
     "resourceContent": "リソースコンテンツ",
     "archiveOriginal": "クローン後に元のリソースをアーカイブ",

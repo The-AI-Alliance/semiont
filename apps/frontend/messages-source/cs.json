@@ -276,7 +276,7 @@
     "autoDetected": "Automaticky rozpoznáno ze souboru",
     "encoding": "Kódování",
     "dropFileOrClick": "Přetáhněte soubor nebo klikněte pro nahrání",
-    "supportedFormats": "Podporováno: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Nahrát lze soubor libovolného typu. Textový obsah a PDF se analyzují; ostatní typy se katalogizují ke stažení.",
     "content": "Obsah",
     "resourceContent": "Obsah zdroje",
     "archiveOriginal": "Archivovat původní zdroj po klonování",

@@ -276,7 +276,7 @@
     "autoDetected": "ตรวจจับอัตโนมัติจากไฟล์",
     "encoding": "การเข้ารหัส",
     "dropFileOrClick": "วางไฟล์หรือคลิกเพื่ออัปโหลด",
-    "supportedFormats": "รองรับ: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "อัปโหลดไฟล์ได้ทุกประเภท เนื้อหาข้อความและ PDF จะได้รับการวิเคราะห์ ส่วนประเภทอื่นจะถูกจัดทำรายการไว้ให้ดาวน์โหลด",
     "content": "เนื้อหา",
     "resourceContent": "เนื้อหาทรัพยากร",
     "archiveOriginal": "จัดเก็บทรัพยากรต้นฉบับหลังจากโคลน",

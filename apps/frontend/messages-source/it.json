@@ -276,7 +276,7 @@
     "autoDetected": "Rilevato automaticamente dal file",
     "encoding": "Codifica",
     "dropFileOrClick": "Trascina il file o clicca per caricare",
-    "supportedFormats": "Supportati: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "È possibile caricare qualsiasi tipo di file. I contenuti di testo e PDF vengono analizzati; gli altri tipi vengono catalogati per il download.",
     "content": "Contenuto",
     "resourceContent": "Contenuto della Risorsa",
     "archiveOriginal": "Archivia la risorsa originale dopo la clonazione",

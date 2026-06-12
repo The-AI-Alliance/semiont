@@ -276,7 +276,7 @@
     "autoDetected": "Detectado automáticamente del archivo",
     "encoding": "Codificación",
     "dropFileOrClick": "Suelta el archivo o haz clic para subir",
-    "supportedFormats": "Soportado: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Se puede subir cualquier tipo de archivo. El contenido de texto y PDF se analiza; los demás tipos se catalogan para su descarga.",
     "content": "Contenido",
     "resourceContent": "Contenido del Recurso",
     "archiveOriginal": "Archivar recurso original después de clonar",

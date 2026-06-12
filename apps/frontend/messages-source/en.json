@@ -306,7 +306,7 @@
     "autoDetected": "Auto-detected from file",
     "encoding": "Encoding",
     "dropFileOrClick": "Drop file or click to upload",
-    "supportedFormats": "Supported: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Any file type can be uploaded. Text and PDF content is analyzed; other types are catalogued for download.",
     "content": "Content",
     "resourceContent": "Resource Content",
     "archiveOriginal": "Archive original resource after cloning",

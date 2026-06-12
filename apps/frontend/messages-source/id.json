@@ -276,7 +276,7 @@
     "autoDetected": "Terdeteksi otomatis dari berkas",
     "encoding": "Pengodean",
     "dropFileOrClick": "Letakkan berkas atau klik untuk mengunggah",
-    "supportedFormats": "Didukung: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Semua jenis file dapat diunggah. Konten teks dan PDF dianalisis; jenis lainnya dikatalogkan untuk diunduh.",
     "content": "Konten",
     "resourceContent": "Konten Sumber Daya",
     "archiveOriginal": "Arsipkan sumber daya asli setelah kloning",

@@ -276,7 +276,7 @@
     "autoDetected": "Dikesan automatik daripada fail",
     "encoding": "Pengekodan",
     "dropFileOrClick": "Lepaskan fail atau klik untuk muat naik",
-    "supportedFormats": "Disokong: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Sebarang jenis fail boleh dimuat naik. Kandungan teks dan PDF dianalisis; jenis lain dikatalogkan untuk dimuat turun.",
     "content": "Kandungan",
     "resourceContent": "Kandungan Sumber",
     "archiveOriginal": "Arkibkan sumber asal selepas pengklonan",

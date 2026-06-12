@@ -276,7 +276,7 @@
     "autoDetected": "Automatisch aus Datei erkannt",
     "encoding": "Kodierung",
     "dropFileOrClick": "Datei hierher ziehen oder klicken zum Hochladen",
-    "supportedFormats": "Unterstützt: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Es kann jeder Dateityp hochgeladen werden. Text- und PDF-Inhalte werden analysiert; andere Typen werden zum Herunterladen katalogisiert.",
     "content": "Inhalt",
     "resourceContent": "Ressourceninhalt",
     "archiveOriginal": "Originalressource nach dem Klonen archivieren",

@@ -276,7 +276,7 @@
     "autoDetected": "Automatisk oppdaget fra fil",
     "encoding": "Koding",
     "dropFileOrClick": "Slipp fil eller klikk for å laste opp",
-    "supportedFormats": "Støttet: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Alle filtyper kan lastes opp. Tekst- og PDF-innhold analyseres; andre typer katalogiseres for nedlasting.",
     "content": "Innhold",
     "resourceContent": "Ressursinnhold",
     "archiveOriginal": "Arkiver original ressurs etter kloning",

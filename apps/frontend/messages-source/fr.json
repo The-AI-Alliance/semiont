@@ -276,7 +276,7 @@
     "autoDetected": "Détecté automatiquement à partir du fichier",
     "encoding": "Encodage",
     "dropFileOrClick": "Déposez un fichier ou cliquez pour téléverser",
-    "supportedFormats": "Formats pris en charge : text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Tout type de fichier peut être téléversé. Le contenu texte et PDF est analysé ; les autres types sont catalogués pour téléchargement.",
     "content": "Contenu",
     "resourceContent": "Contenu de la ressource",
     "archiveOriginal": "Archiver la ressource originale après le clonage",
