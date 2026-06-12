@@ -208,6 +208,28 @@ describe('runYield', () => {
       expect(result.summary.failed).toBe(1);
       expect(result.summary.succeeded).toBe(0);
     });
+
+    // Format detection goes through core's registry (mediaTypeForExtension) —
+    // these cases pin the alias equivalence the old local guessFormat map had,
+    // and the octet-stream fallback for unknown extensions.
+    describe('format detection', () => {
+      it.each([
+        ['/test/project/root/docs/a.md', 'text/markdown'],
+        ['/test/project/root/docs/a.markdown', 'text/markdown'],
+        ['/test/project/root/docs/a.htm', 'text/html'],
+        ['/test/project/root/docs/a.jpeg', 'image/jpeg'],
+      ])('detects %s as %s', async (filePath, expectedFormat) => {
+        await runYield(makeUploadOptions({ upload: [filePath] }));
+        const [req] = mockYield.resource.mock.calls[0];
+        expect(req.format).toBe(expectedFormat);
+      });
+
+      it('falls back to application/octet-stream for unknown extensions', async () => {
+        await runYield(makeUploadOptions({ upload: ['/test/project/root/data.xyz'] }));
+        const [req] = mockYield.resource.mock.calls[0];
+        expect(req.format).toBe('application/octet-stream');
+      });
+    });
   });
 
   describe('delegate mode', () => {

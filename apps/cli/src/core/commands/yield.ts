@@ -19,7 +19,7 @@ import * as path from 'path';
 import { promises as nodeFs } from 'fs';
 import { z } from 'zod';
 import { lastValueFrom } from 'rxjs';
-import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
+import { resourceId as toResourceId, annotationId as toAnnotationId, mediaTypeForExtension } from '@semiont/core';
 import type { GatheredContext } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
@@ -29,23 +29,6 @@ import { printSuccess, printWarning } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 import { loadCachedClient, resolveBusUrl } from '../client-factory.js';
 import type { SemiontClient } from '@semiont/sdk';
-
-function guessFormat(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
-  const map: Record<string, string> = {
-    '.md': 'text/markdown',
-    '.markdown': 'text/markdown',
-    '.txt': 'text/plain',
-    '.html': 'text/html',
-    '.htm': 'text/html',
-    '.json': 'application/json',
-    '.pdf': 'application/pdf',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-  };
-  return map[ext] ?? 'application/octet-stream';
-}
 
 // =====================================================================
 // SCHEMA
@@ -197,7 +180,9 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
     const relPath = path.relative(projectRoot, absPath).replace(/\\/g, '/');
     const storageUri = `file://${relPath}`;
     const name = options.name ?? path.basename(filePath, path.extname(filePath));
-    const format = guessFormat(filePath);
+    // Registry-driven detection; unknown extensions are still uploadable
+    // under the big tent (validated by the create route server-side)
+    const format = mediaTypeForExtension(path.extname(filePath)) ?? 'application/octet-stream';
 
     const { resourceId } = await semiont.yield.resource(
       { name, file: content, format, storageUri },
