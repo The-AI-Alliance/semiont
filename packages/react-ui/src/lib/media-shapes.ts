@@ -6,7 +6,7 @@
  */
 
 import type { ShapeType } from '../components/annotation/AnnotateToolbar';
-import { isPdfMimeType } from '@semiont/core';
+import { capabilitiesOf } from '@semiont/core';
 /**
  * Selector types that support shape selection
  */
@@ -29,7 +29,7 @@ export function getSupportedShapes(mediaType: string | undefined | null): ShapeT
 
   // PDF only supports rectangles via FragmentSelector (RFC 3778)
   // Circle and polygon would require SvgSelector, which loses page context
-  if (isPdfMimeType(mediaType)) {
+  if (capabilitiesOf(mediaType)?.render === 'pdf') {
     return ['rectangle'];
   }
 
@@ -68,7 +68,7 @@ export function getSelectorType(mediaType: string | undefined | null): SelectorT
   }
 
   // PDF uses FragmentSelector (RFC 3778)
-  if (isPdfMimeType(mediaType)) {
+  if (capabilitiesOf(mediaType)?.render === 'pdf') {
     return 'fragment';
   }
 

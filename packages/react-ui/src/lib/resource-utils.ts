@@ -3,44 +3,43 @@
  * Shared helper functions for resource display and metadata
  */
 
+import { baseMediaType, capabilitiesOf } from '@semiont/core';
+
 /**
- * Get icon emoji based on media type
+ * Get icon emoji based on media type.
+ *
+ * The icon is a pure file-kind UI concern — there is no icon field in the
+ * core registry, and it intentionally does NOT track render capability:
+ * every image gets the image glyph whether or not we can preview it. Only
+ * the base type matters, normalized via the registry's `baseMediaType`.
  */
 export function getResourceIcon(mediaType: string | undefined): string {
   if (!mediaType) return '📄';
 
-  const baseType = mediaType.split(';')[0]?.trim().toLowerCase() || '';
-
-  if (baseType.startsWith('image/')) {
-    return '🖼️';
-  }
-
-  switch (baseType) {
+  const base = baseMediaType(mediaType);
+  if (base.startsWith('image/')) return '🖼️';
+  switch (base) {
     case 'text/markdown':
       return '📝';
     case 'text/html':
       return '🌐';
-    case 'text/plain':
-      return '📄';
     default:
       return '📄';
   }
 }
 
 /**
- * Check if a resource supports text-based AI detection features
+ * Check if a resource supports text-based AI detection features.
  *
- * Currently returns true for any text/* media type.
- * Future enhancements may include:
- * - Checking resource language/locale compatibility
- * - Validating content size limits
- * - Checking for specific text format requirements
+ * Detection anchors on character-offset text selectors, so the gate is the
+ * registry's anchoring model: true exactly for the text-selector types
+ * (markdown, plain, html, json). Registry misses (imported foreign types)
+ * are not offered detection in the UI.
  *
  * @param mediaType - The media type string (e.g., 'text/plain', 'text/markdown')
  * @returns true if the resource supports AI detection features
  */
 export function supportsDetection(mediaType: string | undefined): boolean {
   if (!mediaType) return false;
-  const baseType = mediaType.split(';')[0]?.trim().toLowerCase() || '';
-  return baseType.startsWith('text/');
+  return capabilitiesOf(mediaType)?.anchoring === 'text-selector';
 }

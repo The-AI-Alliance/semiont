@@ -15,18 +15,14 @@ vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
   })),
 }));
 
-// Mock @semiont/core utilities (these helpers and `resourceId` all live in core).
+// Mock @semiont/core utilities. The media-type registry (`capabilitiesOf`)
+// is NOT mocked — BrowseView dispatches on the real registry's render mode,
+// so the tested types (text/markdown, image/png, application/octet-stream)
+// resolve through the real source of truth.
 vi.mock('@semiont/core', async () => {
   const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
-    getMimeCategory: vi.fn((mimeType: string) => {
-      if (mimeType.startsWith('text/')) return 'text';
-      if (mimeType.startsWith('image/')) return 'image';
-      if (mimeType === 'application/pdf') return 'image';
-      return 'unsupported';
-    }),
-    isPdfMimeType: vi.fn((mimeType: string) => mimeType === 'application/pdf'),
     resourceId: vi.fn((id: string) => id),
     getExactText: vi.fn(() => 'exact text'),
     getTextPositionSelector: vi.fn(() => ({ start: 0, end: 10 })),

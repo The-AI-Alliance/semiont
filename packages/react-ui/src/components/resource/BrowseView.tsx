@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback, useMemo, memo, lazy, Suspense } from 'r
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { annotationId as toAnnotationId } from '@semiont/core';
-import { getMimeCategory, isPdfMimeType } from '@semiont/core';
+import { capabilitiesOf } from '@semiont/core';
 import { createHoverHandlers } from '@semiont/sdk';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
@@ -83,7 +83,7 @@ export const BrowseView = memo(function BrowseView({
   const session = useObservable(useSemiont().activeSession$);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const category = getMimeCategory(mimeType);
+  const render = capabilitiesOf(mimeType)?.render ?? 'none';
 
   const { highlights, references, assessments, comments, tags } = annotations;
 
@@ -207,8 +207,9 @@ export const BrowseView = memo(function BrowseView({
     'beckon:focus': handleAnnotationFocus,
   });
 
-  // Route to appropriate viewer based on MIME type category
-  switch (category) {
+  // Route to the viewer for this media type's render mode. The switch is
+  // exhaustive over RenderMode, so every path returns.
+  switch (render) {
     case 'text':
       return (
         <div className="semiont-browse-view" data-mime-type="text">
@@ -226,34 +227,31 @@ export const BrowseView = memo(function BrowseView({
         </div>
       );
 
-    case 'image':
-      // Check if it's actually a PDF (categorized as 'image' for spatial annotations)
-      if (isPdfMimeType(mimeType)) {
-        return (
-          <div className="semiont-browse-view" data-mime-type="pdf">
-            <AnnotateToolbar
-              selectedMotivation={null}
-              selectedClick={selectedClick}
-              showSelectionGroup={false}
-              showDeleteButton={false}
-              annotateMode={annotateMode}
-              annotators={ANNOTATORS}
-            />
-            <div ref={containerRef} className="semiont-browse-view__content">
-              <Suspense fallback={<div className="semiont-browse-view__loading">Loading PDF viewer...</div>}>
-                <PdfAnnotationCanvas
-                  pdfUrl={content}
-                  existingAnnotations={allAnnotations}
-                  drawingMode={null}
-                  selectedMotivation={null}
-                />
-              </Suspense>
-            </div>
+    case 'pdf':
+      return (
+        <div className="semiont-browse-view" data-mime-type="pdf">
+          <AnnotateToolbar
+            selectedMotivation={null}
+            selectedClick={selectedClick}
+            showSelectionGroup={false}
+            showDeleteButton={false}
+            annotateMode={annotateMode}
+            annotators={ANNOTATORS}
+          />
+          <div ref={containerRef} className="semiont-browse-view__content">
+            <Suspense fallback={<div className="semiont-browse-view__loading">Loading PDF viewer...</div>}>
+              <PdfAnnotationCanvas
+                pdfUrl={content}
+                existingAnnotations={allAnnotations}
+                drawingMode={null}
+                selectedMotivation={null}
+              />
+            </Suspense>
           </div>
-        );
-      }
+        </div>
+      );
 
-      // Regular image
+    case 'image':
       return (
         <div className="semiont-browse-view" data-mime-type="image">
           <AnnotateToolbar
@@ -274,7 +272,9 @@ export const BrowseView = memo(function BrowseView({
         </div>
       );
 
-    case 'unsupported':
+    case 'none':
+      // Catalogued type with no preview (render: 'none') or an imported
+      // foreign type the registry doesn't know — same UI: metadata + download.
       return (
         <div ref={containerRef} className="semiont-browse-view semiont-browse-view--unsupported" data-mime-type="unsupported">
           <div className="semiont-browse-view__empty">

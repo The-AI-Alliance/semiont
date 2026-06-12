@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { GatheredContext } from '@semiont/core';
-import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/core';
+import { capabilitiesOf, AUTHORABLE_MEDIA_TYPES, MEDIA_TYPES, mediaTypeForExtension, isSupportedMediaType, LOCALES } from '@semiont/core';
 import type { UploadProgress } from '@semiont/sdk';
 import { type CloneData, type ReferenceData } from '../state/compose-page-state-unit';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
@@ -16,6 +16,29 @@ import { buttonStyles } from '../../../lib/button-styles';
 import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';
 import { useFormAnnouncements } from '../../../components/LiveRegion';
 import { UploadProgressBar } from './UploadProgressBar';
+
+/**
+ * Big tent: every registry type is uploadable. The `accept` hint lists all
+ * known extensions — it's only a hint; `handleFileUpload` never rejects.
+ */
+const UPLOAD_ACCEPT = Object.values(MEDIA_TYPES).map((c) => c.extension).join(',');
+
+/**
+ * Detection chain for uploaded files (same spirit as the CLI):
+ * 1. the browser's `file.type`, if it names a registry member;
+ * 2. otherwise the filename extension (`file.type` is routinely empty for
+ *    `.md` and friends);
+ * 3. otherwise `application/octet-stream` — itself a registry member, so
+ *    under the big tent every file is uploadable.
+ */
+function detectUploadMediaType(file: File): string {
+  if (file.type && isSupportedMediaType(file.type)) return file.type;
+  if (file.name.includes('.')) {
+    const byExt = mediaTypeForExtension(file.name.slice(file.name.lastIndexOf('.')));
+    if (byExt) return byExt;
+  }
+  return 'application/octet-stream';
+}
 
 export interface ResourceComposePageProps {
   mode: 'new' | 'clone' | 'reference';
@@ -170,8 +193,9 @@ export function ResourceComposePage({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const detectedMediaType = detectUploadMediaType(file);
     setUploadedFile(file);
-    setFileMimeType(file.type);
+    setFileMimeType(detectedMediaType);
     setInputMethod('upload');
 
     // Set file name as default resource name if empty
@@ -180,8 +204,9 @@ export function ResourceComposePage({
       setNewResourceName(nameWithoutExt);
     }
 
-    // For images and PDFs, create preview URL
-    if (isImageMimeType(file.type) || isPdfMimeType(file.type)) {
+    // Images and PDFs get an object-URL preview; everything else reads as text.
+    const detectedRender = capabilitiesOf(detectedMediaType)?.render;
+    if (detectedRender === 'image' || detectedRender === 'pdf') {
       const previewUrl = URL.createObjectURL(file);
       setFilePreviewUrl(previewUrl);
     } else {
@@ -521,7 +546,7 @@ export function ResourceComposePage({
                     <div className="semiont-form__upload-area">
                       <input
                         type="file"
-                        accept="text/plain,text/markdown,image/png,image/jpeg,application/pdf"
+                        accept={UPLOAD_ACCEPT}
                         onChange={handleFileUpload}
                         className="semiont-form__upload-input"
                         disabled={isCreating}
@@ -563,7 +588,7 @@ export function ResourceComposePage({
               )}
 
               {/* Image Preview */}
-              {uploadedFile && filePreviewUrl && isImageMimeType(fileMimeType) && (
+              {uploadedFile && filePreviewUrl && capabilitiesOf(fileMimeType)?.render === 'image' && (
                 <div className="semiont-form__image-preview">
                   <p className="semiont-form__image-preview-label">Preview:</p>
                   <div className="semiont-form__image-preview-container">
@@ -594,9 +619,11 @@ export function ResourceComposePage({
                     disabled={isCreating}
                     className="semiont-select"
                   >
-                    <option value="text/markdown">Markdown (text/markdown)</option>
-                    <option value="text/plain">Plain Text (text/plain)</option>
-                    <option value="text/html">HTML (text/html)</option>
+                    {AUTHORABLE_MEDIA_TYPES.map((mt) => (
+                      <option key={mt} value={mt}>
+                        {capabilitiesOf(mt)?.label ?? mt} ({mt})
+                      </option>
+                    ))}
                   </select>
                 </div>
               )}

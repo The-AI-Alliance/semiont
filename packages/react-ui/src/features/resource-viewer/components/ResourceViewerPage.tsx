@@ -9,8 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import type { components, ResourceDescriptor, ResourceId, GatheredContext, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import { annotationId } from '@semiont/core';
-import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/core';
-import { getMimeCategory } from '@semiont/core';
+import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, capabilitiesOf } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
 import { AnnotationHistory } from '@semiont/react-ui';
@@ -141,9 +140,12 @@ export function ResourceViewerPage({
   const { hoverDelayMs } = useHoverDelay();
   const { triggerSparkleAnimation, clearNewAnnotationId } = useResourceAnnotations();
 
-  // Determine MIME category to choose content path
+  // Render mode chooses the content path: 'text' decodes inline; 'image'
+  // and 'pdf' go through the media-token (binary) path. 'none'/registry-miss
+  // fall to the text path harmlessly — the viewer shows metadata + download.
   const resourceMediaType = getPrimaryMediaType(resource) || 'text/plain';
-  const isBinary = getMimeCategory(resourceMediaType) === 'image';
+  const renderMode = capabilitiesOf(resourceMediaType)?.render;
+  const isBinary = renderMode === 'image' || renderMode === 'pdf';
 
   // Text path: fetch and decode representation (disabled for binary — mediaToken path handles those)
   const { content: textContent, loading: textLoading } = useResourceContent(rUri, resource, !isBinary);
