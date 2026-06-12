@@ -16,6 +16,7 @@ interface StoredPoint {
     annotationId?: string;
     chunkIndex?: number;
     text: string;
+    contentChecksum?: string;
     motivation?: string;
     entityTypes?: string[];
   };
@@ -56,7 +57,7 @@ export class MemoryVectorStore implements VectorStore {
     return this.connected;
   }
 
-  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[]): Promise<void> {
+  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string): Promise<void> {
     // Remove existing vectors for this resource
     this.resources = this.resources.filter(p => p.payload.resourceId !== String(resourceId));
 
@@ -68,6 +69,7 @@ export class MemoryVectorStore implements VectorStore {
           resourceId: String(resourceId),
           chunkIndex: chunk.chunkIndex,
           text: chunk.text,
+          contentChecksum,
         },
       });
     }
@@ -108,8 +110,14 @@ export class MemoryVectorStore implements VectorStore {
     return this.resources.length + this.annotations.length;
   }
 
-  async listResourceIds(): Promise<Set<string>> {
-    return new Set(this.resources.map(p => p.payload.resourceId));
+  async listResourceChecksums(): Promise<Map<string, string | undefined>> {
+    const checksums = new Map<string, string | undefined>();
+    for (const p of this.resources) {
+      if (!checksums.has(p.payload.resourceId)) {
+        checksums.set(p.payload.resourceId, p.payload.contentChecksum);
+      }
+    }
+    return checksums;
   }
 
   async listAnnotationIds(): Promise<Set<string>> {
