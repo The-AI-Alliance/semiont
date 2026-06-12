@@ -18,7 +18,7 @@
 import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob } from './job-claim-adapter';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { type EventMap } from '@semiont/core';
+import { getPrimaryMediaType, textExtractionOf, type EventMap } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { deriveStorageUri } from '@semiont/content';
@@ -172,6 +172,26 @@ async function handleJobInner(
   if (!config.jobTypes.includes(jobType)) {
     adapter.failJob(jobId, `Worker not configured for job type: ${jobType}`);
     return;
+  }
+
+  // Detection jobs decode the source resource as text — fetchContent()
+  // sends Accept: text/plain and TextDecoder-decodes whatever returns —
+  // so gate on the registry's extraction strategy before fetching:
+  // binary types have no text to analyze (the LLM would see mojibake),
+  // and PDFs need the text-layer path that arrives with PDF-DETECTION.md.
+  // Generation reads the annotation carried in its params, not the
+  // source bytes, so it is not gated. Throwing here surfaces as a normal
+  // job:fail through the startWorkerProcess catch.
+  if (jobType !== 'generation') {
+    const descriptor = await session.client.browse.resource(resourceId as never);
+    const mediaType = getPrimaryMediaType(descriptor);
+    const extraction = mediaType ? textExtractionOf(mediaType) : 'none';
+    if (extraction === 'pdf-text-layer') {
+      throw new Error(`Cannot run ${jobType} on resource ${resourceId}: PDF text-layer detection is not yet supported`);
+    }
+    if (extraction !== 'decode') {
+      throw new Error(`Cannot run ${jobType} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
+    }
   }
 
   const onProgress: OnProgress = (percentage, message, stage, extra) => {

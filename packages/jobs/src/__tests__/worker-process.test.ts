@@ -83,6 +83,12 @@ function makeFakeSessionAndAdapter() {
         },
       },
       browse: {
+        // Detection jobs gate on the resource's media type before
+        // fetching content; default to a text resource so the happy
+        // paths proceed.
+        resource: vi.fn(async (_rid: string) => ({
+          representations: [{ mediaType: 'text/plain' }],
+        })),
         resourceContent: vi.fn(async (_rid: string) => 'the content'),
       },
       yield: {
@@ -353,6 +359,89 @@ describe('handleJob orchestration', () => {
       // job:start still fires at entry; the outer wrapper emits job:fail.
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(false);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(0);
+    });
+  });
+
+  // ── Detection media-type gate (MEDIA-TYPES.md Phase 3c) ──────────────
+  // browse.resourceContent() sends Accept: text/plain and TextDecoder-
+  // decodes whatever returns, so a detection job on a binary resource
+  // would feed mojibake to the LLM. The gate checks textExtractionOf
+  // on the resource's primary media type before fetching.
+
+  describe('detection media-type gate', () => {
+    it('fails a detection job on a binary resource before fetching content or calling the processor', async () => {
+      const h = makeFakeSessionAndAdapter();
+      vi.mocked(h.session.client.browse.resource).mockResolvedValue({
+        representations: [{ mediaType: 'application/zip' }],
+      } as never);
+
+      await expect(
+        handleJob(h.adapter, makeConfig(h.session), makeJob('reference-annotation'))
+      ).rejects.toThrow(/has no extractable text/);
+
+      expect(h.session.client.browse.resourceContent).not.toHaveBeenCalled();
+      expect(processReferenceJob).not.toHaveBeenCalled();
+      expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(false);
+    });
+
+    it('fails a detection job on a PDF with a distinct not-yet-supported message', async () => {
+      const h = makeFakeSessionAndAdapter();
+      vi.mocked(h.session.client.browse.resource).mockResolvedValue({
+        representations: [{ mediaType: 'application/pdf' }],
+      } as never);
+
+      await expect(
+        handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'))
+      ).rejects.toThrow(/text-layer detection is not yet supported/);
+
+      expect(h.session.client.browse.resourceContent).not.toHaveBeenCalled();
+      expect(processHighlightJob).not.toHaveBeenCalled();
+    });
+
+    it('fails a detection job when the resource has no primary representation', async () => {
+      const h = makeFakeSessionAndAdapter();
+      vi.mocked(h.session.client.browse.resource).mockResolvedValue({
+        representations: [],
+      } as never);
+
+      await expect(
+        handleJob(h.adapter, makeConfig(h.session), makeJob('comment-annotation'))
+      ).rejects.toThrow(/has no extractable text/);
+
+      expect(h.session.client.browse.resourceContent).not.toHaveBeenCalled();
+    });
+
+    it('proceeds for a registry-miss text subtype (RFC 2046 fallback)', async () => {
+      // Imported content can carry unregistered text/* types — the
+      // import-leniency invariant. They decode, so detection runs.
+      vi.mocked(processCommentJob).mockResolvedValue({
+        annotations: [] as never,
+        result: { commentsFound: 0, commentsCreated: 0 } as never,
+      });
+      const h = makeFakeSessionAndAdapter();
+      vi.mocked(h.session.client.browse.resource).mockResolvedValue({
+        representations: [{ mediaType: 'text/x-custom' }],
+      } as never);
+
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('comment-annotation'));
+
+      expect(processCommentJob).toHaveBeenCalled();
+      expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(true);
+    });
+
+    it('does not gate generation jobs (they read the annotation, not the source bytes)', async () => {
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: 'body',
+        title: 'T',
+        format: 'text/markdown',
+        result: {} as never,
+      });
+      const h = makeFakeSessionAndAdapter();
+
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { referenceId: 'ref-1' }));
+
+      expect(h.session.client.browse.resource).not.toHaveBeenCalled();
+      expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(true);
     });
   });
 });

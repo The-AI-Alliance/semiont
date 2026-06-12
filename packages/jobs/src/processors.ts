@@ -13,7 +13,7 @@ import { AnnotationDetection } from './workers/annotation-detection';
 import { extractEntities } from './workers/detection/entity-extractor';
 import { generateResourceFromTopic } from './workers/generation/resource-generation';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import { didToAgent, type Logger, type ResourceId, type components } from '@semiont/core';
+import { didToAgent, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
 import { reconcileSelector, type ReconciledSelector } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type {
@@ -252,7 +252,7 @@ export async function processCommentJob(
     // language on the body TextualBody. Optional in the schema, but
     // consumers that do language-aware rendering rely on them.
     buildTextAnnotation(content, params.resourceId, userId, generator, 'commenting', c, [
-      { type: 'TextualBody', value: c.comment, purpose: 'commenting', format: 'text/plain', language: bodyLanguage },
+      { type: 'TextualBody', value: c.comment, purpose: 'commenting', format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
     ]),
   ));
 
@@ -291,7 +291,7 @@ export async function processAssessmentJob(
     // a description" signal and breaks existing readers that access
     // `body.value` directly on the object.
     buildTextAnnotation(content, params.resourceId, userId, generator, 'assessing', a, {
-      type: 'TextualBody', value: a.assessment, purpose: 'assessing', format: 'text/plain', language: bodyLanguage,
+      type: 'TextualBody', value: a.assessment, purpose: 'assessing', format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage,
     }),
   ));
 
@@ -352,7 +352,7 @@ export async function processReferenceJob(
     // via mark:body-updated to produce the resolved shape. Emitting an
     // empty body would break the append contract.
     const unresolvedBody = [
-      { type: 'TextualBody', value: entityTypeName, purpose: 'tagging', format: 'text/plain', language: bodyLanguage },
+      { type: 'TextualBody', value: entityTypeName, purpose: 'tagging', format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
     ];
 
     for (const entity of extractedEntities) {
@@ -429,8 +429,8 @@ export async function processTagJob(
     // classifying body is the only trace of schema provenance in the
     // event log — do not drop it.
     return buildTextAnnotation(content, params.resourceId, userId, generator, 'tagging', t, [
-      { type: 'TextualBody', value: category,         purpose: 'tagging',     format: 'text/plain', language: bodyLanguage },
-      { type: 'TextualBody', value: params.schema.id, purpose: 'classifying', format: 'text/plain' },
+      { type: 'TextualBody', value: category,         purpose: 'tagging',     format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
+      { type: 'TextualBody', value: params.schema.id, purpose: 'classifying', format: 'text/plain' satisfies SupportedMediaType },
     ]);
   }));
 
@@ -457,7 +457,7 @@ export async function processGenerationJob(
   params: GenerationParams,
   onProgress: OnProgress,
   logger: Logger,
-): Promise<{ content: string; title: string; format: string; result: GenerationResult }> {
+): Promise<{ content: string; title: string; format: SupportedMediaType; result: GenerationResult }> {
   onProgress(20, 'Fetching context...', 'fetching');
 
   const title = params.title ?? 'Untitled';
