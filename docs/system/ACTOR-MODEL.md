@@ -22,17 +22,26 @@ graph TD
         GATHERER["Gatherer"]
         MATCHER["Matcher"]
         BROWSER["Browser"]
+        CTM["CloneTokenManager"]
+        GC["Graph Consumer<br/>(pipeline)"]
+        SMELTER["Smelter<br/>(pipeline)"]
         KB["Knowledge Base"]
         STOWER -->|"write"| KB
         GATHERER -->|"query"| KB
         MATCHER -->|"query"| KB
         BROWSER -->|"query"| KB
+        CTM -->|"query"| KB
+        GC -->|"project"| KB
+        SMELTER -->|"project"| KB
     end
 
     BUS -->|"write commands"| STOWER
     BUS -->|"gather"| GATHERER
-    BUS -->|"bind"| MATCHER
+    BUS -->|"match"| MATCHER
     BUS -->|"browse"| BROWSER
+    BUS -->|"clone"| CTM
+    BUS -->|"domain events"| GC
+    BUS -->|"domain events"| SMELTER
 
     SOURCES["Content Sources"] --> FEEDER["Feeder"]
     FEEDER -->|"yield"| BUS
@@ -49,13 +58,13 @@ graph TD
     class BUS bus
     class KB kb
     class SOURCES stream
-    class FEEDER,STOWER,GATHERER,MATCHER,BROWSER worker
+    class FEEDER,STOWER,GATHERER,MATCHER,BROWSER,CTM,GC,SMELTER worker
 ```
 
 Three categories of actor:
 
 1. **Intelligent actors** — humans or AI agents that read, interpret, and annotate content. They produce events that carry semantic intent (mark, browse, yield, match, bind, gather, beckon).
-2. **The knowledge base** — a passive actor that listens to events and materializes durable state. It has no intelligence; it simply records what the intelligent actors decide. Five reactive sub-actors mediate access (see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)).
+2. **The knowledge base** — a passive actor that listens to events and materializes durable state. It has no intelligence; it simply records what the intelligent actors decide. Seven reactive sub-actors serve it: five access actors that mediate every read and write (Stower, Browser, Gatherer, Matcher, CloneTokenManager) and two projection pipelines that follow the event log (Graph Consumer → graph, Smelter → vectors). See [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md).
 3. **Content streams** — external sources that yield new resources into the system (uploads, web fetches, API ingestion). Mediated by the **Feeder** actor.
 
 The event bus is the only coupling between actors. An actor does not know who else is listening.

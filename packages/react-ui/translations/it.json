@@ -71,6 +71,7 @@
     "annotationRemoved": "Annotazione Rimossa",
     "annotationBodyUpdated": "Annotazione Aggiornata",
     "jobEvent": "Evento di Lavoro",
+    "embeddingComputed": "Embedding calcolato",
     "justNow": "proprio ora",
     "minutesAgo": "{{count}}m fa",
     "hoursAgo": "{{count}}h fa",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "Usa l'IA per valutare i risultati in base alla rilevanza semantica",
     "searching": "Ricerca in corso...",
     "search": "Cerca"
-  },
-  "History": {
-    "embeddingComputed": "Embedding calcolato"
   }
 }

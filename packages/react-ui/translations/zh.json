@@ -71,6 +71,7 @@
     "annotationRemoved": "已移除注释",
     "annotationBodyUpdated": "已更新注释",
     "jobEvent": "任务事件",
+    "embeddingComputed": "嵌入计算完成",
     "justNow": "刚刚",
     "minutesAgo": "{{count}}分钟前",
     "hoursAgo": "{{count}}小时前",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "使用 AI 按语义相关性对结果进行评分",
     "searching": "搜索中...",
     "search": "搜索"
-  },
-  "History": {
-    "embeddingComputed": "嵌入计算完成"
   }
 }

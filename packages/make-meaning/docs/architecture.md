@@ -4,7 +4,9 @@
 
 ## Actor Model
 
-The package owns the **Knowledge Base** and its actors that interface with it. All communication flows through the **EventBus** — actors subscribe via RxJS pipelines and expose only `initialize()` and `stop()`.
+The package owns the **Knowledge Base** and the seven actors that serve it, in two categories: five **access actors** (Stower, Browser, Gatherer, Matcher, CloneTokenManager) mediate every read and write, and two **projection pipelines** (Graph Consumer, Smelter) follow the event log to keep the eventually-consistent read models (graph, vectors) in sync. All communication flows through the **EventBus** — actors subscribe via RxJS pipelines and expose no public business methods: `initialize()` and `stop()`, plus a startup recovery entry point on the pipelines (`rebuildAll()` / `reconcile()`).
+
+The third derived read model — the materialized views — is **not** pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()`, giving bus subscribers a read-your-writes guarantee.
 
 ```mermaid
 graph TB
@@ -16,7 +18,8 @@ graph TB
     BUS -->|"browse:*"| BROWSER["Browser"]
     BUS -->|"gather:*"| GATHERER["Gatherer"]
     BUS -->|"match:search-requested"| MATCHER["Matcher"]
-    BUS -->|"domain events:<br/>yield:created, yield:updated,<br/>yield:representation-added,<br/>mark:added, mark:removed, mark:archived"| SMELTER["Smelter<br/>(standalone process)"]
+    BUS -->|"domain events:<br/>yield:created, yield:updated,<br/>yield:representation-added,<br/>mark:added, mark:removed, mark:archived"| SMELTER["Smelter<br/>(pipeline, standalone process)"]
+    BUS -->|"graph-relevant<br/>domain events"| GC["Graph Consumer<br/>(pipeline)"]
     BUS -->|"yield:clone-*"| CTM["CloneTokenManager"]
 
     STOWER -->|append| EVENTLOG
@@ -31,9 +34,10 @@ graph TB
         GRAPH["Graph<br/>(eventually consistent)"]
         VECTORS["Vector Store<br/>(Qdrant / memory)"]
 
-        EVENTLOG -->|materialize| VIEWS
-        EVENTLOG -->|project| GRAPH
+        EVENTLOG -->|"materialize<br/>(sync, on append)"| VIEWS
     end
+
+    GC -->|project| GRAPH
 
     BROWSER -->|query| VIEWS
     BROWSER -->|search| GRAPH
@@ -67,7 +71,7 @@ graph TB
 
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
-    class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,CTM worker
+    class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,GC,CTM worker
     class Routes,Workers,EBC caller
 ```
 
@@ -160,20 +164,6 @@ Referenced-by lookups are a deterministic single-index query and live on the Bro
 
 **Context-driven search** retrieves candidates from four sources (name match, entity type filter, graph neighborhood, vector semantic search), scores them with structural signals (entity type overlap, bidirectionality, citation weight, name match, recency, vector similarity weighted at 25), and optionally blends LLM semantic relevance scores when an `InferenceClient` is available.
 
-### Smelter (Embedding Actor, standalone process)
-
-**Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
-
-The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`SmelterActorStateUnit`](../src/smelter-actor-state-unit.ts) fan-in. It chunks text content, computes embeddings via `@semiont/vectors` (Voyage or Ollama), persists them to the EmbeddingStore (`.semiont/embeddings/`), and indexes vectors into the VectorStore (Qdrant or memory). It does not emit bus commands.
-
-| Domain Event | Handler |
-|--------------|---------|
-| `yield:created` / `yield:updated` / `yield:representation-added` | Chunk resource text, embed, persist, index into VectorStore |
-| `mark:added` | Chunk annotation text, embed, persist, index into VectorStore |
-| `mark:removed` / `mark:archived` | Remove vectors from index |
-
-`Smelter.rebuildAll()` reconstitutes the vector index from the EmbeddingStore without re-calling the embedding provider (unless the embedding model changed).
-
 ### CloneTokenManager (Clone Token Actor)
 
 **Implementation**: [src/clone-token-manager.ts](../src/clone-token-manager.ts)
@@ -185,6 +175,39 @@ Manages the lifecycle of temporary clone tokens for resource cloning. In-memory 
 | `yield:clone-token-requested` | Validate resource + content, generate token | `yield:clone-token-generated` / `yield:clone-token-failed` |
 | `yield:clone-resource-requested` | Validate token, look up source resource | `yield:clone-resource-result` / `yield:clone-resource-failed` |
 | `yield:clone-create` | Validate token, create resource via `ResourceOperations` | `yield:clone-created` / `yield:clone-create-failed` |
+
+### Graph Consumer (Projection Pipeline)
+
+**Implementation**: [src/graph/consumer.ts](../src/graph/consumer.ts)
+
+The `GraphDBConsumer` subscribes to all domain events and projects graph-relevant events into the graph database. It uses an RxJS pipeline with adaptive burst buffering:
+
+```
+EventBus (callback, fire-and-forget)
+  → Pre-filter: 9 graph-relevant event types
+    → Subject<StoredEvent> (callback-to-RxJS bridge)
+      → groupBy(resourceId)        — one stream per resource
+        → burstBuffer(50ms, 500, 200ms) — adaptive batching per resource
+          → concatMap               — sequential per resource
+            → Single event: applyEventToGraph()
+            → Batch: processBatch() → batchCreateResources / createAnnotations
+```
+
+It is carried on the `KnowledgeBase` record (`kb.graphConsumer`) — `createKnowledgeBase()` constructs and starts it, and calls `rebuildAll()` at startup to replay the event log, so a wiped graph volume is recoverable.
+
+### Smelter (Projection Pipeline, standalone process)
+
+**Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
+
+The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`SmelterActorStateUnit`](../src/smelter-actor-state-unit.ts) fan-in. It reads content from the KB working tree via `WorkerContentTransport` (metadata over the bus, bytes straight off disk), chunks it, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Graph Consumer, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call.
+
+| Domain Event | Handler |
+|--------------|---------|
+| `yield:created` / `yield:updated` / `yield:representation-added` | Chunk resource text, embed, index into VectorStore |
+| `mark:added` | Chunk annotation text, embed, index into VectorStore |
+| `mark:removed` / `mark:archived` | Remove vectors from index |
+
+Because Qdrant is an ephemeral projection of the event log, `Smelter.reconcile()` runs at startup. It is a *planner*: it diffs the index against the live catalog — membership (missing ids, orphans) and freshness (every upsert is stamped with the checksum of the bytes actually embedded; a mismatch against the catalog's claim means stale vectors) — and enqueues typed `smelt:*` work items through the same per-resource mailbox as live events, so reconcile and live traffic never race on a resource. A wiped Qdrant volume, or events missed while the worker was down, recover by restarting the smelter.
 
 ## Knowledge Base
 
@@ -224,21 +247,6 @@ Workers live in `@semiont/jobs`, not in this package. They run as a separate pro
 Workers emit `mark:create` and the job lifecycle events (`job:start`, `job:report-progress`, `job:complete`, `job:fail`) on the bus via their session's transport. The Stower handles all persistence.
 
 See [Job Workers](./job-workers.md) for details.
-
-## Graph Consumer
-
-The `GraphDBConsumer` subscribes to all domain events and projects graph-relevant events into the graph database. It uses an RxJS pipeline with adaptive burst buffering:
-
-```
-EventBus (callback, fire-and-forget)
-  → Pre-filter: 9 graph-relevant event types
-    → Subject<StoredEvent> (callback-to-RxJS bridge)
-      → groupBy(resourceId)        — one stream per resource
-        → burstBuffer(50ms, 500, 200ms) — adaptive batching per resource
-          → concatMap               — sequential per resource
-            → Single event: applyEventToGraph()
-            → Batch: processBatch() → batchCreateResources / createAnnotations
-```
 
 ## Initialization Order
 

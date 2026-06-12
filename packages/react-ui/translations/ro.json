@@ -71,6 +71,7 @@
     "annotationRemoved": "Adnotare eliminată",
     "annotationBodyUpdated": "Adnotare actualizată",
     "jobEvent": "Eveniment de proces",
+    "embeddingComputed": "Embedding calculat",
     "justNow": "chiar acum",
     "minutesAgo": "acum {{count}}m",
     "hoursAgo": "acum {{count}}h",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "Folosiți AI pentru a evalua rezultatele după relevanța semantică",
     "searching": "Se caută...",
     "search": "Caută"
-  },
-  "History": {
-    "embeddingComputed": "Embedding calculat"
   }
 }

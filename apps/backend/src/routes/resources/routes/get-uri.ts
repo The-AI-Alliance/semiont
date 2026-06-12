@@ -4,6 +4,9 @@
  * Single endpoint for all resource representations:
  * - Accept: application/ld+json -> JSON-LD metadata via EventBus (default)
  * - Accept: text/plain, text/markdown, etc. -> raw representation (binary, stays direct)
+ * - Accept: application/octet-stream -> stored representation bytes verbatim,
+ *   true media type in Content-Type (byte-fidelity mode for checksum
+ *   consumers — see .plans/SMELTER-AXIOMS.md, S12)
  */
 
 import { HTTPException } from 'hono/http-exception';
@@ -79,9 +82,16 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     // Check Accept header for content negotiation
     const acceptHeader = c.req.header('Accept') || 'application/ld+json';
 
+    // Verbatim mode: the stored representation's bytes, untouched, with the
+    // true media type in Content-Type. For byte-fidelity consumers — the
+    // smelter's checksum stamp must hash exactly the bytes the catalog's
+    // checksum was computed from (SMELTER-AXIOMS.md, S12), so no charset
+    // decode/re-encode is allowed on this path.
+    const wantsVerbatim = acceptHeader.includes('application/octet-stream');
+
     // If requesting raw representation (text/plain, text/markdown, images, etc.)
     // Binary content stays direct — excluded from EventBus by design
-    if (acceptHeader.includes('text/') || acceptHeader.includes('image/') || acceptHeader.includes('application/pdf')) {
+    if (wantsVerbatim || acceptHeader.includes('text/') || acceptHeader.includes('image/') || acceptHeader.includes('application/pdf')) {
       busLog('GET', 'content', { resourceId: id, accept: acceptHeader });
 
       const traceparent = c.req.header('traceparent');
@@ -124,6 +134,12 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
             const mediaType = getPrimaryMediaType(resource);
             if (mediaType) {
               c.header('Content-Type', mediaType);
+            }
+
+            if (wantsVerbatim) {
+              return c.newResponse(new Uint8Array(content), 200, {
+                'Content-Type': mediaType || 'application/octet-stream',
+              });
             }
 
             if (mediaType?.startsWith('image/') || mediaType === 'application/pdf') {

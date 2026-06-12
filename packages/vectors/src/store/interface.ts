@@ -54,9 +54,12 @@ export interface VectorStore {
   /**
    * Replace all vectors for a resource with the given chunks.
    * Existing vectors for the resource are removed first, so a resource
-   * that shrinks to fewer chunks leaves no orphans.
+   * that shrinks to fewer chunks leaves no orphans. `contentChecksum` is
+   * the checksum of the bytes the chunks were computed from; it is stamped
+   * onto the points so reconciliation can detect stale-but-present
+   * resources (SMELTER-AXIOMS.md, S12).
    */
-  upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[]): Promise<void>;
+  upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string): Promise<void>;
   upsertAnnotationVector(annotationId: AnnotationId, embedding: number[], payload: AnnotationPayload): Promise<void>;
   deleteResourceVectors(resourceId: ResourceId): Promise<void>;
   deleteAnnotationVector(annotationId: AnnotationId): Promise<void>;
@@ -72,10 +75,15 @@ export interface VectorStore {
    */
   count(): Promise<number>;
 
-  // Enumeration — drives the Smelter's startup reconciliation: the set of
-  // ids actually indexed, compared against what the KS says should exist.
-  /** Distinct resourceIds present in the resources collection. */
-  listResourceIds(): Promise<Set<string>>;
+  // Enumeration — drives the Smelter's startup reconciliation: what is
+  // actually indexed (and from which content), compared against what the
+  // KS says should exist.
+  /**
+   * Distinct resourceIds present in the resources collection, each with its
+   * stamped content checksum (undefined for points written before stamping
+   * existed — reconciliation treats those as stale and re-embeds them).
+   */
+  listResourceChecksums(): Promise<Map<string, string | undefined>>;
   /** Distinct annotationIds present in the annotations collection. */
   listAnnotationIds(): Promise<Set<string>>;
 }

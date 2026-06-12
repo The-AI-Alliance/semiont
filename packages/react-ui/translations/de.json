@@ -71,6 +71,7 @@
     "annotationRemoved": "Annotation entfernt",
     "annotationBodyUpdated": "Annotation aktualisiert",
     "jobEvent": "Auftrags-Ereignis",
+    "embeddingComputed": "Embedding berechnet",
     "justNow": "gerade eben",
     "minutesAgo": "vor {{count}} Min.",
     "hoursAgo": "vor {{count}} Std.",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "KI zur Bewertung der Ergebnisse nach semantischer Relevanz verwenden",
     "searching": "Suche läuft...",
     "search": "Suchen"
-  },
-  "History": {
-    "embeddingComputed": "Embedding berechnet"
   }
 }

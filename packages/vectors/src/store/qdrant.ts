@@ -75,7 +75,7 @@ export class QdrantVectorStore implements VectorStore {
     }
   }
 
-  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[]): Promise<void> {
+  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string): Promise<void> {
     // Replace semantics: purge existing chunks first, or a resource that
     // shrinks leaves orphan points at the higher chunk indices.
     await this.deleteResourceVectors(resourceId);
@@ -88,6 +88,7 @@ export class QdrantVectorStore implements VectorStore {
         resourceId: String(resourceId),
         chunkIndex: chunk.chunkIndex,
         text: chunk.text,
+        contentChecksum,
       },
     }));
 
@@ -144,8 +145,25 @@ export class QdrantVectorStore implements VectorStore {
     return resources.count + annotations.count;
   }
 
-  async listResourceIds(): Promise<Set<string>> {
-    return this.scrollPayloadField('resources', 'resourceId');
+  async listResourceChecksums(): Promise<Map<string, string | undefined>> {
+    const checksums = new Map<string, string | undefined>();
+    let offset: Schemas['ScrollRequest']['offset'] = undefined;
+    do {
+      const page = await this.qdrant.scroll('resources', {
+        limit: 1000,
+        offset,
+        with_payload: ['resourceId', 'contentChecksum'],
+        with_vector: false,
+      });
+      for (const point of page.points) {
+        const rid = point.payload?.resourceId;
+        if (typeof rid !== 'string' || checksums.has(rid)) continue;
+        const checksum = point.payload?.contentChecksum;
+        checksums.set(rid, typeof checksum === 'string' ? checksum : undefined);
+      }
+      offset = page.next_page_offset ?? undefined;
+    } while (offset !== undefined && offset !== null);
+    return checksums;
   }
 
   async listAnnotationIds(): Promise<Set<string>> {

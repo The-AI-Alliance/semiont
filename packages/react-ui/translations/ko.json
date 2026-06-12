@@ -71,6 +71,7 @@
     "annotationRemoved": "주석 제거됨",
     "annotationBodyUpdated": "주석 업데이트됨",
     "jobEvent": "작업 이벤트",
+    "embeddingComputed": "임베딩 계산됨",
     "justNow": "방금",
     "minutesAgo": "{{count}}분 전",
     "hoursAgo": "{{count}}시간 전",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "AI를 사용하여 의미적 관련성에 따라 결과 점수 부여",
     "searching": "검색 중...",
     "search": "검색"
-  },
-  "History": {
-    "embeddingComputed": "임베딩 계산됨"
   }
 }

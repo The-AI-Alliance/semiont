@@ -303,11 +303,11 @@
     "signOut": "Logga ut"
   },
   "AnnotateView": {
-    "ariaLabel": "Skapa anteckning från markerad text. Tryck H för markering eller R för referens.",
+    "ariaLabel": "Skapa annotering från markerad text. Tryck H för markering eller R för referens.",
     "tooltip": "Klicka för att skapa markering • Högerklicka för fler alternativ"
   },
   "CreateAnnotationPopup": {
-    "title": "Anteckna",
+    "title": "Annotera",
     "entityTypesOptional": "Entitetstyper (valfritt)",
     "createReference": "Skapa referens"
   },

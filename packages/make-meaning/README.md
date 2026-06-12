@@ -8,16 +8,24 @@
 
 **Making meaning from resources through actors, context assembly, and relationship reasoning.**
 
-This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/ACTOR-MODEL.md). It owns the **Knowledge Base** and the actors that interface with it:
+This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/ACTOR-MODEL.md). It owns the **Knowledge Base** and the seven actors that serve it.
+
+Five **access actors** mediate every read and write — the bus-facing interface of the Knowledge Base:
 
 - **Stower** (write) — the single write gateway to the Knowledge Base; handles all resource and annotation mutations and job lifecycle events
-- **Browser** (read) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type listing, and directory browse (merging filesystem listings with KB metadata)
+- **Browser** (read) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type and tag-schema listing, and directory browse (merging filesystem listings with KB metadata)
 - **Gatherer** (context assembly) — assembles gathered context for annotations (`gather:requested`) and resources (`gather:resource-requested`); searches vectors for semantically similar passages (adds `semanticContext` to `GatheredContext`)
 - **Matcher** (search/link) — context-driven candidate search with multi-source retrieval, composite structural scoring, and optional LLM semantic scoring
-- **Smelter** (embed) — standalone embedding pipeline run via `@semiont/make-meaning/smelter-main` (not started by `startMakeMeaning`); subscribes to domain events, reads content from the KB working tree via `WorkerContentTransport`, chunks text, embeds via `@semiont/vectors`, and indexes into the vector store (Qdrant). On startup it reconciles Qdrant against the KS catalog — re-embedding what's missing and deleting orphans — so a wiped Qdrant volume recovers by restarting the smelter
 - **CloneTokenManager** (yield) — manages clone token lifecycle for resource cloning
 
-All actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
+Two **projection pipelines** follow the event log to keep the eventually-consistent read models in sync — addressed by no one, replying to nothing:
+
+- **Graph Consumer** (project) — subscribes to graph-relevant domain events and projects them into the graph database; carried on the KB record (`kb.graphConsumer`) and rebuilt from the event log at startup (`rebuildAll()`)
+- **Smelter** (embed) — standalone embedding pipeline run via `@semiont/make-meaning/smelter-main` (not started by `startMakeMeaning`); subscribes to domain events, reads content from the KB working tree via `WorkerContentTransport`, chunks text, embeds via `@semiont/vectors`, and indexes into the vector store (Qdrant). On startup it reconciles Qdrant against the KS catalog — re-embedding what's missing or stale (every upsert is stamped with the embedded bytes' checksum, so changed content is detected) and deleting orphans — so a wiped Qdrant volume, or events missed while the worker was down, recover by restarting the smelter
+
+(The third derived read model — the materialized views — is not pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()` for a read-your-writes guarantee.)
+
+All seven actors subscribe to the EventBus via RxJS pipelines and expose no public business methods — only `initialize()` and `stop()`, plus a startup recovery entry point on the pipelines (`rebuildAll()` / `reconcile()`). Callers communicate with the access actors by putting events on the bus.
 
 The EventBus is a **complete interface** for all knowledge-domain operations. HTTP routes in the backend are thin wrappers that delegate to EventBus actors. The `@semiont/http-transport` exposes the same operations via verb-oriented namespaces (`semiont.browse`, `semiont.mark`, `semiont.gather`, etc.).
 
@@ -104,7 +112,8 @@ graph TB
         BROWSER["Browser<br/>(read)"]
         GATHERER["Gatherer<br/>(context assembly)"]
         MATCHER["Matcher<br/>(search/link)"]
-        SMELTER["Smelter<br/>(embed, standalone process)"]
+        SMELTER["Smelter<br/>(embed pipeline, standalone process)"]
+        GC["Graph Consumer<br/>(graph pipeline)"]
         CTM["CloneTokenManager<br/>(clone)"]
         KB["Knowledge Base"]
         VECTORS["Vector Store<br/>(Qdrant)"]
@@ -116,6 +125,7 @@ graph TB
         MATCHER -->|search| VECTORS
         SMELTER -->|embed & index| VECTORS
         SMELTER -->|read| KB
+        GC -->|project| KB
         CTM -->|query| KB
     end
 
@@ -124,6 +134,7 @@ graph TB
     BUS -->|"gather:requested<br/>gather:resource-requested"| GATHERER
     BUS -->|"match:search-requested"| MATCHER
     BUS -->|"domain events:<br/>yield:created, yield:updated<br/>yield:representation-added<br/>mark:added, mark:removed, mark:archived"| SMELTER
+    BUS -->|"graph-relevant<br/>domain events"| GC
     BUS -->|"yield:clone-token-requested<br/>yield:clone-resource-requested<br/>yield:clone-create"| CTM
 
     STOWER -->|"yield:create-ok, yield:update-ok, yield:move-ok<br/>mark:delete-ok, *-failed replies<br/>(domain events are republished onto the bus<br/>by the EventStore: yield:created, mark:added, ...)"| BUS
@@ -139,7 +150,7 @@ graph TB
 
     class BUS bus
     classDef vectorstore fill:#6b8e9d,stroke:#4a6a7a,stroke-width:2px,color:#fff
-    class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,CTM actor
+    class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,GC,CTM actor
     class KB kb
     class VECTORS vectorstore
     class Routes,Workers,EBC caller
@@ -154,13 +165,13 @@ The **Knowledge Base** is an inert store — it has no intelligence, no goals, n
 | Store | Implementation | Purpose |
 |-------|---------------|---------|
 | **Event Log** | `EventStore` | Immutable append-only log of all domain events |
-| **Materialized Views** | `ViewStorage` | Denormalized projections for fast reads |
+| **Materialized Views** | `ViewStorage` | Denormalized projections for fast reads (materialized synchronously on append) |
 | **Content Store** | `WorkingTreeStore` | Working-tree files addressed by URI |
 | **Graph** | `GraphDatabase` | Eventually consistent relationship projection |
-| **Graph Consumer** | `GraphDBConsumer` | Event-to-graph synchronization pipeline |
+| **Graph Consumer** | `GraphDBConsumer` | Event-to-graph projection pipeline (one of the two pipeline actors; carried on the KB record because `createKnowledgeBase()` constructs and starts it) |
 | **Vectors** *(optional)* | `VectorStore` | Semantic vector index (Qdrant + memory) via `@semiont/vectors` |
 
-The Smelter (event-to-vector projection) is **not** a KB member — it runs as a standalone process via `@semiont/make-meaning/smelter-main`.
+Its sibling pipeline, the Smelter (event-to-vector projection), is **not** a KB member — it runs as a standalone process via `@semiont/make-meaning/smelter-main`.
 
 ```typescript
 import { createKnowledgeBase } from '@semiont/make-meaning';
@@ -210,7 +221,7 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 ### Knowledge Base
 
 - `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options?)` — Async factory function
-- `KnowledgeBase` — Interface grouping the five KB stores (including `graphConsumer`)
+- `KnowledgeBase` — Interface grouping the KB stores (`eventStore`, `views`, `content`, `graph`, optional `vectors`) plus the `graphConsumer` pipeline
 
 ### Actors
 
@@ -219,7 +230,9 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 - `Gatherer` — Context assembly actor (annotation and resource gather flows; vector semantic search)
 - `Matcher` — Search/link actor (context-driven candidate search with structural + semantic scoring)
 - `CloneTokenManager` — Clone token lifecycle actor (yield domain)
-- `Smelter` / `createSmelterActorStateUnit` — embedding pipeline and its domain-event fan-in; wired together by the standalone `@semiont/make-meaning/smelter-main` entry point, and exported for callers that run the pipeline on their own `WorkerBus`
+- `Smelter` / `createSmelterActorStateUnit` / `WorkerContentTransport` — the embedding pipeline, its domain-event fan-in, and the worker-side content transport; wired together by the standalone `@semiont/make-meaning/smelter-main` entry point, and exported for callers that run the pipeline on their own `WorkerBus`
+
+The Graph Consumer (`GraphDBConsumer`) is not exported — `createKnowledgeBase()` constructs it internally and exposes it as `kb.graphConsumer`.
 
 ### Operations
 

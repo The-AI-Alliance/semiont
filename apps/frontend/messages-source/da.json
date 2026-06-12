@@ -478,7 +478,7 @@
     "phaseError": "Gendannelse mislykkedes",
     "statsEventsReplayed": "Genafspillede hændelser",
     "statsResourcesCreated": "Oprettede ressourcer",
-    "statsAnnotationsCreated": "Oprettede annotationer",
+    "statsAnnotationsCreated": "Oprettede annoteringer",
     "statsEntityTypesAdded": "Tilføjede entitetstyper"
   },
   "CookieBanner": {
@@ -564,7 +564,7 @@
     "phaseError": "Import mislykkedes",
     "statsEventsReplayed": "Genafspillede hændelser",
     "statsResourcesCreated": "Oprettede ressourcer",
-    "statsAnnotationsCreated": "Oprettede annotationer",
+    "statsAnnotationsCreated": "Oprettede annoteringer",
     "statsEntityTypesAdded": "Tilføjede entitetstyper"
   },
   "KnowledgeBasePanel": {

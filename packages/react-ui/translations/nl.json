@@ -71,6 +71,7 @@
     "annotationRemoved": "Annotatie verwijderd",
     "annotationBodyUpdated": "Annotatie bijgewerkt",
     "jobEvent": "Taakgebeurtenis",
+    "embeddingComputed": "Embedding berekend",
     "justNow": "zojuist",
     "minutesAgo": "{{count}}m geleden",
     "hoursAgo": "{{count}}u geleden",
@@ -319,10 +320,7 @@
     "hoverDelaySlow": "Langzaam",
     "hoverDelayDescription": "{{delay}}ms vertraging voordat zweefeffecten verschijnen"
   },
-  "AnnotateView": {
-    "ariaLabel": "Annotatie maken van geselecteerde tekst. Druk op H voor markering of R voor referentie.",
-    "tooltip": "Klik om markering te maken • Rechtsklik voor meer opties"
-  },
+  "AnnotateView": {},
   "ReferenceWizard": {
     "gatherTitle": "Verzamelde context",
     "configureGenerationTitle": "Generatie configureren",
@@ -359,8 +357,5 @@
     "semanticScoringHelp": "Gebruik AI om resultaten te beoordelen op semantische relevantie",
     "searching": "Zoeken...",
     "search": "Zoeken"
-  },
-  "History": {
-    "embeddingComputed": "Embedding berekend"
   }
 }

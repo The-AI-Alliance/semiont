@@ -71,6 +71,7 @@
     "annotationRemoved": "ลบคำอธิบายประกอบแล้ว",
     "annotationBodyUpdated": "อัปเดตคำอธิบายประกอบแล้ว",
     "jobEvent": "เหตุการณ์งาน",
+    "embeddingComputed": "คำนวณเอ็มเบดดิงแล้ว",
     "justNow": "เมื่อสักครู่",
     "minutesAgo": "{{count}} นาทีที่แล้ว",
     "hoursAgo": "{{count}} ชม. ที่แล้ว",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "ใช้ AI เพื่อให้คะแนนผลลัพธ์ตามความเกี่ยวข้องเชิงความหมาย",
     "searching": "กำลังค้นหา...",
     "search": "ค้นหา"
-  },
-  "History": {
-    "embeddingComputed": "คำนวณเอ็มเบดดิงแล้ว"
   }
 }

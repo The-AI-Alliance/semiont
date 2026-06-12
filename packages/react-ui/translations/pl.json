@@ -71,6 +71,7 @@
     "annotationRemoved": "Usunięto adnotację",
     "annotationBodyUpdated": "Zaktualizowano adnotację",
     "jobEvent": "Zdarzenie zadania",
+    "embeddingComputed": "Embedding obliczony",
     "justNow": "właśnie teraz",
     "minutesAgo": "{{count}}m temu",
     "hoursAgo": "{{count}}g temu",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "Użyj AI do oceny wyników według semantycznego dopasowania",
     "searching": "Wyszukiwanie...",
     "search": "Szukaj"
-  },
-  "History": {
-    "embeddingComputed": "Embedding obliczony"
   }
 }

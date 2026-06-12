@@ -11,6 +11,10 @@
  * - matcher:           search actor — context-driven candidate search and scoring
  * - cloneTokenManager: token actor — manages resource clone tokens
  *
+ * These are the five access actors. Two projection-pipeline actors complete
+ * the seven: the Graph Consumer (kb.graphConsumer, started by
+ * createKnowledgeBase) and the Smelter (standalone process via smelter-main).
+ *
  * EventBus, JobQueue, and workers are peers to KnowledgeSystem, not members.
  */
 

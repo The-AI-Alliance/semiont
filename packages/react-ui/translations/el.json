@@ -71,6 +71,7 @@
     "annotationRemoved": "Αφαιρέθηκε Σχολιασμός",
     "annotationBodyUpdated": "Ενημερώθηκε Σχολιασμός",
     "jobEvent": "Συμβάν Εργασίας",
+    "embeddingComputed": "Ενσωμάτωση υπολογίστηκε",
     "justNow": "μόλις τώρα",
     "minutesAgo": "πριν {{count}}λ",
     "hoursAgo": "πριν {{count}}ώ",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "Χρήση AI για βαθμολόγηση αποτελεσμάτων κατά σημασιολογική συνάφεια",
     "searching": "Αναζήτηση...",
     "search": "Αναζήτηση"
-  },
-  "History": {
-    "embeddingComputed": "Ενσωμάτωση υπολογίστηκε"
   }
 }

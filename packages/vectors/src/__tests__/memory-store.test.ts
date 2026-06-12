@@ -29,7 +29,7 @@ describe('MemoryVectorStore', () => {
       const vec = await embedding.embed('Abraham Lincoln was the 16th president');
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'Abraham Lincoln was the 16th president', embedding: vec },
-      ]);
+      ], 'cs-lincoln');
 
       const results = await store.searchResources(vec, { limit: 5 });
       expect(results).toHaveLength(1);
@@ -42,12 +42,12 @@ describe('MemoryVectorStore', () => {
       const vec1 = await embedding.embed('original text');
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'original text', embedding: vec1 },
-      ]);
+      ], 'cs-v1');
 
       const vec2 = await embedding.embed('updated text');
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'updated text', embedding: vec2 },
-      ]);
+      ], 'cs-v2');
 
       const results = await store.searchResources(vec2, { limit: 5 });
       expect(results).toHaveLength(1);
@@ -58,7 +58,7 @@ describe('MemoryVectorStore', () => {
       const vec = await embedding.embed('some text');
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'some text', embedding: vec },
-      ]);
+      ], 'cs-some');
 
       await store.deleteResourceVectors('res-1' as ResourceId);
 
@@ -72,7 +72,7 @@ describe('MemoryVectorStore', () => {
         { chunkIndex: 0, text: 'chunk one', embedding: vecs[0] },
         { chunkIndex: 1, text: 'chunk two', embedding: vecs[1] },
         { chunkIndex: 2, text: 'chunk three', embedding: vecs[2] },
-      ]);
+      ], 'cs-chunks');
 
       const results = await store.searchResources(vecs[0], { limit: 10 });
       expect(results.length).toBe(3);
@@ -123,7 +123,7 @@ describe('MemoryVectorStore', () => {
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'chunk one', embedding: vecs[0] },
         { chunkIndex: 1, text: 'chunk two', embedding: vecs[1] },
-      ]);
+      ], 'cs-count');
 
       const annVec = await embedding.embed('an annotation');
       await store.upsertAnnotationVector('ann-1' as AnnotationId, annVec, {
@@ -138,6 +138,35 @@ describe('MemoryVectorStore', () => {
 
       await store.deleteResourceVectors('res-1' as ResourceId);
       expect(await store.count()).toBe(1);
+    });
+  });
+
+  describe('enumeration', () => {
+    it('lists distinct resource ids with their stamped checksums', async () => {
+      const vecs = await embedding.embedBatch(['alpha', 'beta']);
+      await store.upsertResourceVectors('res-1' as ResourceId, [
+        { chunkIndex: 0, text: 'alpha', embedding: vecs[0] },
+      ], 'cs-alpha');
+      await store.upsertResourceVectors('res-2' as ResourceId, [
+        { chunkIndex: 0, text: 'beta', embedding: vecs[1] },
+      ], 'cs-beta');
+
+      expect(await store.listResourceChecksums()).toEqual(new Map([
+        ['res-1', 'cs-alpha'],
+        ['res-2', 'cs-beta'],
+      ]));
+    });
+
+    it('re-upsert replaces the stamped checksum', async () => {
+      const vec = await embedding.embed('gamma');
+      await store.upsertResourceVectors('res-1' as ResourceId, [
+        { chunkIndex: 0, text: 'gamma', embedding: vec },
+      ], 'cs-old');
+      await store.upsertResourceVectors('res-1' as ResourceId, [
+        { chunkIndex: 0, text: 'gamma', embedding: vec },
+      ], 'cs-new');
+
+      expect((await store.listResourceChecksums()).get('res-1')).toBe('cs-new');
     });
   });
 

@@ -71,6 +71,7 @@
     "annotationRemoved": "টীকা অপসারিত হয়েছে",
     "annotationBodyUpdated": "টীকা আপডেট হয়েছে",
     "jobEvent": "কাজের ঘটনা",
+    "embeddingComputed": "এমবেডিং গণনা করা হয়েছে",
     "justNow": "এইমাত্র",
     "minutesAgo": "{{count}} মি. আগে",
     "hoursAgo": "{{count}} ঘ. আগে",
@@ -356,8 +357,5 @@
     "semanticScoringHelp": "অর্থগত প্রাসঙ্গিকতা অনুযায়ী ফলাফল স্কোর করতে AI ব্যবহার করুন",
     "searching": "অনুসন্ধান করা হচ্ছে...",
     "search": "অনুসন্ধান"
-  },
-  "History": {
-    "embeddingComputed": "এমবেডিং গণনা করা হয়েছে"
   }
 }
