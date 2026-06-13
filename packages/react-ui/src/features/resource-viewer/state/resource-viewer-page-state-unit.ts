@@ -9,7 +9,7 @@ import { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';
 import { createMatchStateUnit } from '@semiont/sdk';
 import { createYieldStateUnit, type YieldStateUnit } from '@semiont/sdk';
 import type { SemiontClient } from '@semiont/sdk';
-import { decodeWithCharset } from '@semiont/core';
+import { decodeWithCharset, textExtractionOf } from '@semiont/core';
 import { isHighlight, isComment, isAssessment, isReference, isTag } from '@semiont/core';
 import type { ReferencedByEntry } from '@semiont/sdk';
 
@@ -113,7 +113,11 @@ export function createResourceViewerPageStateUnit(
   const mediaToken$ = new BehaviorSubject<string | null>(null);
 
   const mediaType = options?.mediaType || 'text/plain';
-  const isBinaryType = mediaType.startsWith('image/') || mediaType === 'application/pdf';
+  // "Fetch raw bytes or decode as text?" — binary iff the registry says this
+  // type does not decode to text. Storage-tier images (gif/webp) are
+  // render:'none' but still binary, and a ZIP must avoid the text path; a
+  // mechanical render-mode check would mis-route both into mojibake.
+  const isBinaryType = textExtractionOf(mediaType) !== 'decode';
 
   if (!isBinaryType && mediaType) {
     contentLoading$.next(true);

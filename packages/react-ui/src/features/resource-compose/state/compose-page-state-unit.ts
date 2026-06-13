@@ -5,7 +5,7 @@ import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
 import type { SemiontClient } from '@semiont/sdk';
-import { getPrimaryMediaType, decodeWithCharset } from '@semiont/core';
+import { getPrimaryMediaType, decodeWithCharset, extensionForMediaType } from '@semiont/core';
 import type { UploadProgress } from '@semiont/sdk';
 
 export type ComposeMode = 'new' | 'clone' | 'reference';
@@ -143,7 +143,7 @@ export function createComposePageStateUnit(
       mimeType = saveParams.format ?? 'application/octet-stream';
     } else {
       const blob = new Blob([saveParams.content || ''], { type: saveParams.format ?? 'application/octet-stream' });
-      const extension = saveParams.format === 'text/plain' ? '.txt' : saveParams.format === 'text/html' ? '.html' : '.md';
+      const extension = extensionForMediaType(saveParams.format ?? 'application/octet-stream');
       fileToUpload = new File([blob], saveParams.name + extension, { type: saveParams.format ?? 'application/octet-stream' });
       mimeType = saveParams.format ?? 'application/octet-stream';
     }

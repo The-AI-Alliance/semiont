@@ -150,6 +150,43 @@ describe('createResourceViewerPageStateUnit', () => {
     stateUnit.dispose();
   });
 
+  // isBinaryType keys off textExtractionOf(...) !== 'decode', not render mode:
+  // storage-tier binary (ZIP, gif/webp) must be fetched as bytes, never
+  // decoded as text — the client-side twin of the Phase 3a serving-side fix.
+  it('fetches storage-tier binary (ZIP) as bytes, never the text-decode path', async () => {
+    const mediaToken = vi.fn().mockResolvedValue({ token: 'tok-zip' });
+    const resourceRepresentation = vi.fn();
+    tc = clientWithNamespaces({ mediaToken, resourceRepresentation });
+    const stateUnit = createResourceViewerPageStateUnit(
+      tc.client, RID, 'en', mockBrowse(),
+      { mediaType: 'application/zip' },
+    );
+
+    const token = await firstValueFrom(stateUnit.mediaToken$.pipe(filter((t) => t !== null)));
+    expect(token).toBe('tok-zip');
+    expect(resourceRepresentation).not.toHaveBeenCalled();
+
+    stateUnit.dispose();
+  });
+
+  it('decodes a registry-miss text/* subtype via the text path (RFC 2046)', async () => {
+    const mediaToken = vi.fn();
+    const resourceRepresentation = vi.fn().mockResolvedValue({
+      data: new TextEncoder().encode('hi').buffer,
+      contentType: 'text/x-custom',
+    });
+    tc = clientWithNamespaces({ mediaToken, resourceRepresentation });
+    const stateUnit = createResourceViewerPageStateUnit(
+      tc.client, RID, 'en', mockBrowse(),
+      { mediaType: 'text/x-custom' },
+    );
+
+    expect(resourceRepresentation).toHaveBeenCalled();
+    expect(mediaToken).not.toHaveBeenCalled();
+
+    stateUnit.dispose();
+  });
+
   it('wizard initializes closed', async () => {
     tc = clientWithNamespaces();
     const stateUnit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());

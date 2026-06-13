@@ -3,7 +3,7 @@
  *
  * Pins the capability registry's rows and the behavior of its helpers.
  * The extension expectations absorb the test data that previously lived
- * in packages/content's mime-extensions tests.
+ * in packages/content (now storage-uri.test.ts there).
  */
 
 import { describe, it, expect } from 'vitest';
