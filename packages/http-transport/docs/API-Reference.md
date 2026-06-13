@@ -43,7 +43,7 @@ import { HttpContentTransport } from '@semiont/http-transport';
 new HttpContentTransport(transport: HttpTransport)
 ```
 
-Implements `IContentTransport` from `@semiont/core`. Binary I/O — `putBinary`, `getBinary`, `getBinaryStream`. Shares the wrapped transport's `baseUrl`, `token$`, and timeout; binary requests piggyback on the same auth.
+Implements `IContentTransport` from `@semiont/core`. Binary I/O — `putBinary`, `getBinary`, `getBinaryStream` — plus `getResourceGraph`, which dereferences `GET /resources/:id/jsonld` and returns the parsed `GetResourceResponse` (the resource's JSON-LD metadata graph). Shares the wrapped transport's `baseUrl`, `token$`, and timeout; all requests piggyback on the same auth.
 
 ## `APIError`
 

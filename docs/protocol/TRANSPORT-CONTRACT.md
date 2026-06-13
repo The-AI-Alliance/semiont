@@ -47,9 +47,13 @@ interface ITransport {
 }
 ```
 
-`IContentTransport` is a separate interface for binary I/O (`putBinary`,
-`getBinary`, `getBinaryStream`). The split keeps backpressure and
-streaming concerns away from the typed-channel surface.
+`IContentTransport` is a separate interface for resource content:
+binary I/O (`putBinary`, `getBinary`, `getBinaryStream`) plus
+`getResourceGraph`, which dereferences the resource's JSON-LD metadata
+graph — the LD face an external linked-data client sees (the HTTP
+transport fetches `/resources/:id/jsonld`; in-process transports
+assemble it from their `KnowledgeSystem`). The split keeps backpressure
+and streaming concerns away from the typed-channel surface.
 
 ## Delivery semantics — what every transport must honor
 
