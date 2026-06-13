@@ -121,9 +121,9 @@ export function createResourceViewerPageStateUnit(
 
   if (!isBinaryType && mediaType) {
     contentLoading$.next(true);
-    client.browse.resourceRepresentation(resourceId, { accept: mediaType })
-      .then(({ data }) => {
-        content$.next(decodeWithCharset(data, mediaType));
+    client.browse.resourceRepresentation(resourceId)
+      .then(({ data, contentType }) => {
+        content$.next(decodeWithCharset(data, contentType));
         contentLoading$.next(false);
       })
       .catch(() => { contentLoading$.next(false); });
