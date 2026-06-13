@@ -127,8 +127,9 @@ async function fetchResourceText(
   semiont: SemiontClient,
   resourceId: ReturnType<typeof toResourceId>,
 ): Promise<string> {
-  const { data } = await semiont.browse.resourceRepresentation(resourceId, { accept: 'text/plain' });
-  return new TextDecoder().decode(data);
+  // Pure-pipe + one decoder: resourceContent decodes with the response's
+  // charset (no blind UTF-8). See .plans/SIMPLER-JSON-LD.md.
+  return semiont.browse.resourceContent(resourceId);
 }
 
 function buildTextSelector(options: MarkOptions, content?: string): any[] {
