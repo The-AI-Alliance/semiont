@@ -121,6 +121,9 @@ export function createContentTransport(opts: {
     async getBinaryStream(): Promise<never> {
       throw new Error('not used in tests');
     },
+    async getResourceGraph(): Promise<never> {
+      throw new Error('not used in tests');
+    },
     dispose() {},
   };
 }

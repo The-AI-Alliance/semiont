@@ -579,7 +579,7 @@ export function ResourceViewerPage({
 
             {/* JSON-LD Panel */}
             {activePanel === 'jsonld' && (
-              <JsonLdPanel resource={resource} />
+              <JsonLdPanel resourceId={rUri} />
             )}
           </ToolbarPanels>
 

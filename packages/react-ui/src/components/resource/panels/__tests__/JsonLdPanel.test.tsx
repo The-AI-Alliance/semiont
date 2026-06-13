@@ -3,500 +3,171 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { JsonLdPanel } from '../JsonLdPanel';
+import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 
-type SemiontResource = components['schemas']['ResourceDescriptor'];
+type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
-// Mock CodeMirror modules
+// Mock CodeMirror modules (the panel still renders the graph in CodeMirror)
 vi.mock('@codemirror/view', () => {
   class MockEditorView {
     destroy = vi.fn();
-    constructor() {
-      // Store config if needed for assertions
-    }
     static editable = { of: vi.fn() };
     static theme = vi.fn(() => ({}));
   }
-
-  return {
-    EditorView: MockEditorView,
-    lineNumbers: vi.fn(),
-  };
+  return { EditorView: MockEditorView, lineNumbers: vi.fn() };
 });
-
 vi.mock('@codemirror/state', () => ({
-  EditorState: {
-    create: vi.fn(() => ({})),
-    readOnly: { of: vi.fn() },
-  },
+  EditorState: { create: vi.fn(() => ({})), readOnly: { of: vi.fn() } },
 }));
-
-vi.mock('@codemirror/lang-json', () => ({
-  json: vi.fn(),
-}));
-
-vi.mock('@codemirror/theme-one-dark', () => ({
-  oneDark: {},
-}));
-
+vi.mock('@codemirror/lang-json', () => ({ json: vi.fn() }));
+vi.mock('@codemirror/theme-one-dark', () => ({ oneDark: {} }));
 vi.mock('@codemirror/language', () => ({
   syntaxHighlighting: vi.fn(),
-  HighlightStyle: {
-    define: vi.fn(() => ({})),
-  },
+  HighlightStyle: { define: vi.fn(() => ({})) },
 }));
-
 vi.mock('../../../lib/codemirror-json-theme', () => ({
   jsonLightTheme: {},
   jsonLightHighlightStyle: {},
 }));
 
-// Mock useLineNumbers hook (must be before import)
+// Mock the hooks the panel consumes — NOT the session/client stack.
 vi.mock('@/hooks/useLineNumbers');
-
+vi.mock('@/hooks/useResourceGraph');
 import { useLineNumbers } from '@/hooks/useLineNumbers';
+import { useResourceGraph } from '@/hooks/useResourceGraph';
 
-// Test data fixtures
-const createMockResource = (overrides?: Partial<SemiontResource>): SemiontResource => ({
-  '@context': 'http://www.w3.org/ns/anno.jsonld',
-  '@id': 'test-resource-1',
-  id: 'test-resource-1',
-  name: 'Test Resource',
-  content: 'This is test content',
-  format: 'text/plain',
-  archived: false,
-  entityTypes: ['Person', 'Organization'],
-  locale: 'en-US',
-  representations: [],
-  created: '2024-01-01T10:00:00Z',
-  modified: '2024-01-01T10:00:00Z',
-  ...overrides,
-});
+const RID = resourceId('test-resource-1');
+
+const MOCK_GRAPH: GetResourceResponse = {
+  resource: {
+    '@context': 'http://www.w3.org/ns/anno.jsonld',
+    '@id': 'test-resource-1',
+    id: 'test-resource-1',
+    name: 'Test Resource',
+    content: 'This is test content',
+    format: 'text/plain',
+    archived: false,
+    entityTypes: ['Person'],
+    locale: 'en-US',
+    representations: [],
+    created: '2024-01-01T10:00:00Z',
+    modified: '2024-01-01T10:00:00Z',
+  },
+  annotations: [],
+  entityReferences: [],
+};
 
 describe('JsonLdPanel Component', () => {
-  let mockClipboard: any;
+  let mockClipboard: { writeText: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Mock clipboard API
-    mockClipboard = {
-      writeText: vi.fn().mockResolvedValue(undefined),
-    };
+    mockClipboard = { writeText: vi.fn().mockResolvedValue(undefined) };
     Object.defineProperty(navigator, 'clipboard', {
-      value: mockClipboard,
-      writable: true,
-      configurable: true,
+      value: mockClipboard, writable: true, configurable: true,
     });
-
-    // Mock document.documentElement for dark mode detection
     Object.defineProperty(document.documentElement, 'classList', {
-      value: {
-        contains: vi.fn().mockReturnValue(false),
-      },
-      writable: true,
-      configurable: true,
+      value: { contains: vi.fn().mockReturnValue(false) },
+      writable: true, configurable: true,
     });
 
-    // Mock useLineNumbers hook implementation
     vi.mocked(useLineNumbers).mockReturnValue({
-      showLineNumbers: true,
-      toggleLineNumbers: vi.fn()
+      showLineNumbers: true, toggleLineNumbers: vi.fn(),
+    });
+    // Default: graph loaded successfully.
+    vi.mocked(useResourceGraph).mockReturnValue({
+      graph: MOCK_GRAPH, loading: false, error: null,
     });
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  afterEach(() => { vi.restoreAllMocks(); });
 
   describe('Rendering', () => {
-    it('should render panel with header', () => {
-      const resource = createMockResource();
-      render(<JsonLdPanel resource={resource} />);
-
+    it('renders the header, copy button, and editor container', () => {
+      const { container } = render(<JsonLdPanel resourceId={RID} />);
       expect(screen.getByText('JSON-LD')).toBeInTheDocument();
-    });
-
-    it('should render copy button', () => {
-      const resource = createMockResource();
-      render(<JsonLdPanel resource={resource} />);
-
       expect(screen.getByText(/Copy/)).toBeInTheDocument();
+      expect(container.querySelector('.semiont-jsonld-panel__editor')).toBeInTheDocument();
     });
 
-    it('should render editor container', () => {
-      const resource = createMockResource();
-      const { container } = render(<JsonLdPanel resource={resource} />);
-
-      const editorDiv = container.querySelector('.semiont-jsonld-panel__editor');
-      expect(editorDiv).toBeInTheDocument();
+    it('fetches the graph for the given resourceId', () => {
+      render(<JsonLdPanel resourceId={RID} />);
+      expect(useResourceGraph).toHaveBeenCalledWith(RID);
     });
   });
 
-  describe('CodeMirror Integration', () => {
-    it('should initialize CodeMirror editor', () => {
-      const resource = createMockResource();
-      const { container } = render(<JsonLdPanel resource={resource} />);
-
-      // Verify editor container is rendered
-      const editorDiv = container.querySelector('.semiont-jsonld-panel__editor');
-      expect(editorDiv).toBeInTheDocument();
+  describe('Loading / error states', () => {
+    it('shows a loading state and disables Copy while loading', () => {
+      vi.mocked(useResourceGraph).mockReturnValue({ graph: null, loading: true, error: null });
+      render(<JsonLdPanel resourceId={RID} />);
+      expect(screen.getByText(/Loading JSON-LD/i)).toBeInTheDocument();
+      expect(screen.getByText(/Copy/).closest('button')).toBeDisabled();
     });
 
-    it('should pass resource as JSON to editor', () => {
-      const resource = createMockResource();
-      const { container } = render(<JsonLdPanel resource={resource} />);
-
-      // Verify component renders without errors
-      expect(container.firstChild).toBeInTheDocument();
-    });
-
-    it('should format JSON with indentation', () => {
-      const resource = createMockResource();
-      const { container } = render(<JsonLdPanel resource={resource} />);
-
-      // Verify component renders without errors
-      expect(container.firstChild).toBeInTheDocument();
-    });
-
-    it('should configure editor as read-only', () => {
-      const resource = createMockResource();
-      const { container } = render(<JsonLdPanel resource={resource} />);
-
-      // Verify component renders without errors (read-only is configured internally)
-      expect(container.firstChild).toBeInTheDocument();
-    });
-
-    it('should include line numbers when enabled', () => {
-      vi.mocked(useLineNumbers).mockReturnValue({ showLineNumbers: true, toggleLineNumbers: vi.fn() });
-
-      const resource = createMockResource();
-      const { container } = render(<JsonLdPanel resource={resource} />);
-
-      // Verify component renders without errors (line numbers configured internally)
-      expect(container.firstChild).toBeInTheDocument();
-    });
-
-    it('should not include line numbers when disabled', () => {
-      vi.mocked(useLineNumbers).mockReturnValue({ showLineNumbers: false, toggleLineNumbers: vi.fn() });
-
-      const resource = createMockResource();
-      const { container } = render(<JsonLdPanel resource={resource} />);
-
-      // Verify component renders without errors (line numbers not included)
-      expect(container.firstChild).toBeInTheDocument();
-    });
-
-    it('should cleanup editor on unmount', () => {
-      const resource = createMockResource();
-      const { unmount } = render(<JsonLdPanel resource={resource} />);
-
-      // Should unmount without errors (cleanup happens internally)
-      expect(() => unmount()).not.toThrow();
-    });
-  });
-
-  describe('Dark Mode Support', () => {
-    it('should use dark theme when dark mode is active', () => {
-      Object.defineProperty(document.documentElement, 'classList', {
-        value: {
-          contains: vi.fn().mockReturnValue(true), // Dark mode active
-        },
-        writable: true,
-        configurable: true,
+    it('shows an error state and disables Copy on failure', () => {
+      vi.mocked(useResourceGraph).mockReturnValue({
+        graph: null, loading: false, error: new Error('boom'),
       });
-
-      const resource = createMockResource();
-      const { container } = render(<JsonLdPanel resource={resource} />);
-
-      // Verify component renders without errors (dark theme configured internally)
-      expect(container.firstChild).toBeInTheDocument();
-    });
-
-    it('should use light theme when dark mode is not active', () => {
-      Object.defineProperty(document.documentElement, 'classList', {
-        value: {
-          contains: vi.fn().mockReturnValue(false), // Light mode
-        },
-        writable: true,
-        configurable: true,
-      });
-
-      const resource = createMockResource();
-      const { container } = render(<JsonLdPanel resource={resource} />);
-
-      // Verify component renders without errors (light theme configured internally)
-      expect(container.firstChild).toBeInTheDocument();
+      render(<JsonLdPanel resourceId={RID} />);
+      expect(screen.getByText(/Failed to load JSON-LD/i)).toBeInTheDocument();
+      expect(screen.getByText(/Copy/).closest('button')).toBeDisabled();
     });
   });
 
-  describe('Copy to Clipboard', () => {
-    it('should copy JSON to clipboard when button clicked', async () => {
-      const resource = createMockResource();
-      render(<JsonLdPanel resource={resource} />);
-
-      const copyButton = screen.getByText(/Copy/);
-      await userEvent.click(copyButton);
+  describe('Copy to clipboard', () => {
+    it('copies the full graph — not the bare descriptor', async () => {
+      render(<JsonLdPanel resourceId={RID} />);
+      await userEvent.click(screen.getByText(/Copy/));
 
       expect(mockClipboard.writeText).toHaveBeenCalledOnce();
+      const parsed = JSON.parse(mockClipboard.writeText.mock.calls[0][0]);
 
-      const copiedText = mockClipboard.writeText.mock.calls[0][0];
-      expect(copiedText).toContain('test-resource-1');
-      expect(copiedText).toContain('Test Resource');
+      // The graph wraps the descriptor and adds annotation collections; a bare
+      // ResourceDescriptor would have `id` at the top level and no `resource`.
+      expect(parsed.resource.id).toBe('test-resource-1');
+      expect(Array.isArray(parsed.annotations)).toBe(true);
+      expect(Array.isArray(parsed.entityReferences)).toBe(true);
+      expect(parsed.id).toBeUndefined();
     });
 
-    it('should copy formatted JSON', async () => {
-      const resource = createMockResource();
-      render(<JsonLdPanel resource={resource} />);
-
-      const copyButton = screen.getByText(/Copy/);
-      await userEvent.click(copyButton);
-
-      const copiedText = mockClipboard.writeText.mock.calls[0][0];
-
-      // Should be formatted with indentation
-      expect(copiedText).toContain('\n');
-      expect(copiedText).toContain('  ');
-
-      // Should be valid JSON
-      expect(() => JSON.parse(copiedText)).not.toThrow();
+    it('copies pretty-printed, valid JSON', async () => {
+      render(<JsonLdPanel resourceId={RID} />);
+      await userEvent.click(screen.getByText(/Copy/));
+      const copied = mockClipboard.writeText.mock.calls[0][0];
+      expect(copied).toContain('\n');
+      expect(copied).toContain('  ');
+      expect(() => JSON.parse(copied)).not.toThrow();
     });
 
-    it('should handle clipboard API errors gracefully', async () => {
+    it('does not copy when there is no graph yet', async () => {
+      vi.mocked(useResourceGraph).mockReturnValue({ graph: null, loading: true, error: null });
+      render(<JsonLdPanel resourceId={RID} />);
+      const button = screen.getByText(/Copy/).closest('button')!;
+      await userEvent.click(button);
+      expect(mockClipboard.writeText).not.toHaveBeenCalled();
+    });
+
+    it('handles clipboard errors gracefully', async () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockClipboard.writeText.mockRejectedValue(new Error('Clipboard error'));
-
-      const resource = createMockResource();
-      render(<JsonLdPanel resource={resource} />);
-
-      const copyButton = screen.getByText(/Copy/);
-
-      await expect(async () => {
-        await userEvent.click(copyButton);
-      }).not.toThrow();
-
+      render(<JsonLdPanel resourceId={RID} />);
+      await userEvent.click(screen.getByText(/Copy/));
       await waitFor(() => {
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          'Failed to copy JSON-LD:',
-          expect.any(Error)
-        );
+        expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to copy JSON-LD:', expect.any(Error));
       });
-
       consoleErrorSpy.mockRestore();
     });
   });
 
-  describe('Resource Updates', () => {
-    it('should reinitialize editor when resource changes', () => {
-      const resource1 = createMockResource({ id: 'resource-1', name: 'Resource 1' });
-      const { rerender, container } = render(<JsonLdPanel resource={resource1} />);
-
-      expect(container.firstChild).toBeInTheDocument();
-
-      const resource2 = createMockResource({ id: 'resource-2', name: 'Resource 2' });
-
-      // Should rerender without errors
-      expect(() => rerender(<JsonLdPanel resource={resource2} />)).not.toThrow();
-    });
-
-    it('should reinitialize editor when line numbers setting changes', () => {
-      vi.mocked(useLineNumbers).mockReturnValue({ showLineNumbers: true, toggleLineNumbers: vi.fn() });
-
-      const resource = createMockResource();
-      const { rerender } = render(<JsonLdPanel resource={resource} />);
-
-      vi.mocked(useLineNumbers).mockReturnValue({ showLineNumbers: false, toggleLineNumbers: vi.fn() });
-
-      // Should rerender without errors
-      expect(() => rerender(<JsonLdPanel resource={resource} />)).not.toThrow();
-    });
-  });
-
-  describe('Edge Cases', () => {
-    it('should handle resource with minimal data', () => {
-      const minimalResource: SemiontResource = {
-        '@context': 'http://www.w3.org/ns/anno.jsonld',
-        '@id': 'minimal',
-        id: 'minimal',
-        name: 'Minimal',
-        content: 'Test',
-        format: 'text/plain',
-        archived: false,
-        representations: [],
-        created: '2024-01-01T00:00:00Z',
-        modified: '2024-01-01T00:00:00Z',
-      };
-
-      expect(() => {
-        render(<JsonLdPanel resource={minimalResource} />);
-      }).not.toThrow();
-    });
-
-    it('should handle resource with special characters', () => {
-      const resource = createMockResource({
-        name: 'Test "Resource" with \'quotes\' & special <chars>',
-        content: 'Content with\nnewlines\tand\ttabs',
-      });
-
-      expect(() => {
-        render(<JsonLdPanel resource={resource} />);
-      }).not.toThrow();
-    });
-
-    it('should handle very large resource data', () => {
-      const largeContent = 'A'.repeat(100000);
-      const resource = createMockResource({
-        content: largeContent,
-      });
-
-      expect(() => {
-        render(<JsonLdPanel resource={resource} />);
-      }).not.toThrow();
-    });
-
-    it('should handle resource with unicode characters', () => {
-      const resource = createMockResource({
-        name: '测试资源 テストリソース ресурс тест',
-        content: '🎉🔥💯 Unicode content',
-      });
-
-      expect(() => {
-        render(<JsonLdPanel resource={resource} />);
-      }).not.toThrow();
-    });
-
-    it('should handle undefined optional fields', () => {
-      const resource: SemiontResource = {
-        '@context': 'http://www.w3.org/ns/anno.jsonld',
-        '@id': 'test',
-        id: 'test',
-        name: 'Test',
-        content: 'Content',
-        format: 'text/plain',
-        archived: false,
-        representations: [],
-        created: '2024-01-01T00:00:00Z',
-        modified: '2024-01-01T00:00:00Z',
-        // Optional fields omitted
-      };
-
-      expect(() => {
-        render(<JsonLdPanel resource={resource} />);
-      }).not.toThrow();
-    });
-  });
-
-  describe('Styling and Appearance', () => {
-    it('should have proper panel structure', () => {
-      const resource = createMockResource();
-      const { container } = render(<JsonLdPanel resource={resource} />);
-
-      const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('semiont-jsonld-panel');
-    });
-
-    it('should have proper header styling', () => {
-      const resource = createMockResource();
-      render(<JsonLdPanel resource={resource} />);
-
-      const header = screen.getByText('JSON-LD').parentElement;
-      expect(header).toHaveClass('semiont-jsonld-panel__header');
-    });
-
-    it('should have proper button styling', () => {
-      const resource = createMockResource();
-      render(<JsonLdPanel resource={resource} />);
-
-      const copyButton = screen.getByText(/Copy/).closest('button');
-      expect(copyButton).toHaveClass('semiont-button', 'semiont-button--icon');
-    });
-
-    it('should have proper editor container styling', () => {
-      const resource = createMockResource();
-      const { container } = render(<JsonLdPanel resource={resource} />);
-
-      const editorContainer = container.querySelector('.semiont-jsonld-panel__editor');
-      expect(editorContainer).toBeInTheDocument();
-    });
-
-    it('should support dark mode styling', () => {
-      const resource = createMockResource();
-      const { container } = render(<JsonLdPanel resource={resource} />);
-
-      const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('semiont-jsonld-panel');
-    });
-  });
-
-  describe('Accessibility', () => {
-    it('should have title attribute on copy button', () => {
-      const resource = createMockResource();
-      render(<JsonLdPanel resource={resource} />);
-
+  describe('Accessibility / structure', () => {
+    it('has the panel structure and a titled copy button', () => {
+      const { container } = render(<JsonLdPanel resourceId={RID} />);
+      expect(container.firstChild).toHaveClass('semiont-jsonld-panel');
       const copyButton = screen.getByText(/Copy/).closest('button');
       expect(copyButton).toHaveAttribute('title', 'Copy to clipboard');
-    });
-
-    it('should have semantic heading', () => {
-      const resource = createMockResource();
-      render(<JsonLdPanel resource={resource} />);
-
-      const heading = screen.getByText('JSON-LD');
-      expect(heading).toHaveClass('semiont-jsonld-panel__title');
-    });
-
-    it('should have proper button structure', () => {
-      const resource = createMockResource();
-      render(<JsonLdPanel resource={resource} />);
-
-      const copyButton = screen.getByText(/Copy/).closest('button');
-      expect(copyButton?.tagName).toBe('BUTTON');
-    });
-  });
-
-  describe('JSON-LD Format', () => {
-    it('should produce valid JSON', async () => {
-      const resource = createMockResource();
-      render(<JsonLdPanel resource={resource} />);
-
-      const copyButton = screen.getByText(/Copy/);
-      await userEvent.click(copyButton);
-
-      const copiedText = mockClipboard.writeText.mock.calls[0][0];
-
-      expect(() => {
-        const parsed = JSON.parse(copiedText);
-        expect(parsed).toHaveProperty('id');
-        expect(parsed).toHaveProperty('name');
-        expect(parsed).toHaveProperty('content');
-      }).not.toThrow();
-    });
-
-    it('should include all resource fields', async () => {
-      const resource = createMockResource({
-        id: 'full-resource',
-        name: 'Full Resource',
-        content: 'Complete content',
-        format: 'text/markdown',
-        archived: true,
-        entityTypes: ['Person', 'Organization'],
-        locale: 'en-US',
-      });
-
-      render(<JsonLdPanel resource={resource} />);
-
-      const copyButton = screen.getByText(/Copy/);
-      await userEvent.click(copyButton);
-
-      const copiedText = mockClipboard.writeText.mock.calls[0][0];
-      const parsed = JSON.parse(copiedText);
-
-      expect(parsed.id).toBe('full-resource');
-      expect(parsed.name).toBe('Full Resource');
-      expect(parsed.format).toBe('text/markdown');
-      expect(parsed.archived).toBe(true);
-      expect(parsed.entityTypes).toEqual(['Person', 'Organization']);
-      expect(parsed.locale).toBe('en-US');
+      expect(screen.getByText('JSON-LD')).toHaveClass('semiont-jsonld-panel__title');
     });
   });
 });

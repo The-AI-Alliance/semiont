@@ -28,17 +28,16 @@ import { withActorSpan } from '@semiont/observability';
 import { getExactText, getTargetSource, getTargetSelector, getResourceEntityTypes, getBodySource } from '@semiont/core';
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ViewStorage } from '@semiont/event-sourcing';
-import { getEntityTypes } from '@semiont/ontology';
 import type { KnowledgeBase } from './knowledge-base';
 import { readEntityTypesProjection } from './views/entity-types-reader';
 import { readTagSchemasProjection } from './views/tag-schemas-reader';
 import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
+import { assembleResourceGraph } from './resource-graph';
 
 type DirectoryEntry = components['schemas']['DirectoryEntry'];
 type FileEntry      = components['schemas']['FileEntry'];
 type DirEntry       = components['schemas']['DirEntry'];
-type Annotation     = components['schemas']['Annotation'];
 
 export class Browser {
   private subscriptions: Subscription[] = [];
@@ -89,12 +88,9 @@ export class Browser {
 
   private async handleBrowseResource(event: EventMap['browse:resource-requested']): Promise<void> {
     try {
-      // Materialize from event store (matches get-uri.ts JSON-LD path)
-      const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
-      const events = await eventQuery.getResourceEvents(resourceId(event.resourceId));
-      const stored = await this.kb.eventStore.views.materializer.materialize(events, resourceId(event.resourceId));
+      const response = await assembleResourceGraph(this.kb, resourceId(event.resourceId));
 
-      if (!stored) {
+      if (!response) {
         this.eventBus.get('browse:resource-failed').next({
           correlationId: event.correlationId,
           message: 'Resource not found',
@@ -102,19 +98,9 @@ export class Browser {
         return;
       }
 
-      const annotations = stored.annotations.annotations;
-      const entityReferences = annotations.filter((a: Annotation) => {
-        if (a.motivation !== 'linking') return false;
-        return getEntityTypes({ body: a.body }).length > 0;
-      });
-
       this.eventBus.get('browse:resource-result').next({
         correlationId: event.correlationId,
-        response: {
-          resource: stored.resource,
-          annotations,
-          entityReferences,
-        },
+        response,
       });
     } catch (error) {
       this.logger.error('Browse resource failed', { resourceId: event.resourceId, error: errField(error) });

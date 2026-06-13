@@ -1,14 +1,14 @@
 /**
  * Transport-fidelity lemma for the smelter's S12 axiom
- * (`.plans/SMELTER-AXIOMS.md`): bytes served by GET /resources/:id in
- * verbatim mode (Accept: application/octet-stream) hash to the checksum
- * registered for the stored representation — ∀ contents, including
- * non-UTF-8 bytes that the decoded-text mode re-encodes.
+ * (`.plans/SMELTER-AXIOMS.md`): bytes served by GET /resources/:id hash to
+ * the checksum registered for the stored representation — ∀ contents,
+ * including non-UTF-8 bytes.
  *
- * The smelter's S12 property runs against a mocked IContentTransport that
- * is byte-faithful by construction; this test makes that assumption
- * executable on the real route, which is where the fidelity can actually
- * break (decodeRepresentation + UTF-8 re-encode on the text path).
+ * Since .plans/SIMPLER-JSON-LD.md Phase 1 the route is a pure pipe, so this
+ * holds on EVERY content response — no special Accept: application/octet-stream
+ * mode is needed (or honored; Accept is never read). The smelter's S12
+ * property runs against a mocked IContentTransport that is byte-faithful by
+ * construction; this test makes that assumption executable on the real route.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
@@ -35,7 +35,7 @@ const mockLogger: Logger = {
 
 type Variables = { user: User; principalDid: string; eventBus: EventBusType; makeMeaning: unknown };
 
-describe('GET /resources/:id verbatim mode (S12 transport-fidelity lemma)', () => {
+describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () => {
   let testEnv: TestEnvironmentConfig;
   let project: SemiontProject;
   let views: FilesystemViewStorage;
@@ -50,8 +50,8 @@ describe('GET /resources/:id verbatim mode (S12 transport-fidelity lemma)', () =
     views = new FilesystemViewStorage(project);
     content = new WorkingTreeStore(project, mockLogger);
 
-    // The verbatim/representation branch touches only kb.views and
-    // kb.content — same stubbing depth as routes/bus.test.ts.
+    // The pipe touches only kb.views and kb.content — same stubbing depth
+    // as routes/bus.test.ts.
     const kb = { views, content };
     app = new Hono<{ Variables: Variables }>();
     app.use('*', async (c, next) => {
@@ -85,9 +85,8 @@ describe('GET /resources/:id verbatim mode (S12 transport-fidelity lemma)', () =
   }
 
   // Lemma (FOPL): ∀ bytes b, ∀ media m:
-  //   served(GET /resources/r, Accept: application/octet-stream) = b
-  //   ∧ sha256(served) = registeredChecksum(b)
-  it('serves stored bytes verbatim under Accept: application/octet-stream', async () => {
+  //   served(GET /resources/r) = b ∧ sha256(served) = registeredChecksum(b)
+  it('serves stored bytes verbatim on every content response', async () => {
     await fc.assert(
       fc.asyncProperty(
         fc.uint8Array({ minLength: 1, maxLength: 2048 }),
@@ -103,9 +102,7 @@ describe('GET /resources/:id verbatim mode (S12 transport-fidelity lemma)', () =
           const buf = Buffer.from(bytes);
           const { rid, checksum } = await putResource(buf, mediaType);
 
-          const res = await app.request(`/resources/${rid}`, {
-            headers: { Accept: 'application/octet-stream' },
-          });
+          const res = await app.request(`/resources/${rid}`);
           expect(res.status).toBe(200);
 
           const served = Buffer.from(await res.arrayBuffer());
@@ -118,16 +115,20 @@ describe('GET /resources/:id verbatim mode (S12 transport-fidelity lemma)', () =
     );
   }, 30_000);
 
-  it('decoded-text mode is not byte-faithful for non-UTF-8 content (why verbatim mode exists)', async () => {
-    // "héh" in ISO-8859-1: 0xE9 is invalid UTF-8, so the text path's
-    // decode + UTF-8 re-encode cannot reproduce the stored bytes.
+  it('serves non-UTF-8 text byte-faithfully with the stored Content-Type verbatim', async () => {
+    // "héh" in ISO-8859-1: 0xE9 is invalid UTF-8. The conneg-era route
+    // charset-decoded and UTF-8 re-encoded this (changing the bytes); the
+    // pipe must not.
     const buf = Buffer.from([0x68, 0xe9, 0x68]);
-    const { rid, checksum } = await putResource(buf, 'text/plain; charset=iso-8859-1');
+    const mediaType = 'text/plain; charset=iso-8859-1';
+    const { rid, checksum } = await putResource(buf, mediaType);
 
-    const res = await app.request(`/resources/${rid}`, { headers: { Accept: 'text/plain' } });
+    const res = await app.request(`/resources/${rid}`);
     expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe(mediaType);
 
     const served = Buffer.from(await res.arrayBuffer());
-    expect(calculateChecksum(served)).not.toBe(checksum);
+    expect(served.equals(buf)).toBe(true);
+    expect(calculateChecksum(served)).toBe(checksum);
   });
 });

@@ -304,13 +304,11 @@ export class Smelter {
    */
   private async fetchEmbeddableText(resourceId: string): Promise<{ text: string; checksum: string } | null> {
     try {
-      // Verbatim mode: the stored representation's bytes, untouched. Content
-      // negotiation would break the checksum stamp — it must hash the same
-      // bytes the catalog's checksum was computed from (S12; the route-side
-      // half of that contract is the backend's resource-raw-mode lemma test).
-      const { data, contentType } = await this.content.getBinary(makeResourceId(resourceId), {
-        accept: 'application/octet-stream',
-      });
+      // The stored representation's bytes, untouched — the content route is a
+      // pure pipe now (no negotiation), so getBinary returns exactly the bytes
+      // the catalog's checksum was computed from (S12; the route-side half is
+      // the backend's resource-raw-mode lemma test).
+      const { data, contentType } = await this.content.getBinary(makeResourceId(resourceId));
       if (textExtractionOf(contentType) !== 'decode') {
         this.logger.debug('Skipping resource that does not decode as text', { resourceId, contentType });
         return null;

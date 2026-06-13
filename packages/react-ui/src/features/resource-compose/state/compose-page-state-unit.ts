@@ -1,11 +1,11 @@
 import { BehaviorSubject, type Observable, map } from 'rxjs';
-import type { GatheredContext, AnnotationId, ContentFormat, AccessToken, ResourceDescriptor, ResourceId } from '@semiont/core';
+import type { GatheredContext, AnnotationId, AccessToken, ResourceDescriptor, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
 import type { SemiontClient } from '@semiont/sdk';
-import { getPrimaryMediaType, decodeWithCharset, extensionForMediaType } from '@semiont/core';
+import { decodeWithCharset, extensionForMediaType } from '@semiont/core';
 import type { UploadProgress } from '@semiont/sdk';
 
 export type ComposeMode = 'new' | 'clone' | 'reference';
@@ -108,11 +108,8 @@ export function createComposePageStateUnit(
         const tokenResult = await client.yield.fromToken(params.token!);
         if (tokenResult && auth) {
           const rId = makeResourceId(tokenResult['@id']);
-          const mediaType = getPrimaryMediaType(tokenResult) || 'text/plain';
-          const { data } = await client.browse.resourceRepresentation(rId, {
-            accept: mediaType as ContentFormat,
-          });
-          const content = decodeWithCharset(data, mediaType);
+          const { data, contentType } = await client.browse.resourceRepresentation(rId);
+          const content = decodeWithCharset(data, contentType);
           cloneData$.next({ sourceResource: tokenResult, sourceContent: content });
         }
       } catch {

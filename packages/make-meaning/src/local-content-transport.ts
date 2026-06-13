@@ -13,12 +13,15 @@
  * resource-creation pipeline the HTTP `/resources` handler uses.
  */
 
-import type { AccessToken, ContentFormat, ResourceId } from '@semiont/core';
+import type { AccessToken, ResourceId, components } from '@semiont/core';
 import { busLog, getPrimaryRepresentation } from '@semiont/core';
 import { SpanKind, withSpan } from '@semiont/observability';
 import type { IContentTransport, PutBinaryRequest, PutBinaryOptions } from '@semiont/core';
 
 import type { KnowledgeSystem } from './knowledge-system.js';
+import { assembleResourceGraph } from './resource-graph.js';
+
+type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
 export class LocalContentTransport implements IContentTransport {
   constructor(private readonly ks: KnowledgeSystem) {}
@@ -38,9 +41,9 @@ export class LocalContentTransport implements IContentTransport {
 
   async getBinary(
     resourceId: ResourceId,
-    options?: { accept?: ContentFormat | string; auth?: AccessToken },
+    _options?: { auth?: AccessToken },
   ): Promise<{ data: ArrayBuffer; contentType: string }> {
-    busLog('GET', 'content', { resourceId, accept: options?.accept });
+    busLog('GET', 'content', { resourceId });
     return withSpan(
       'content.get',
       () => this.loadBinary(resourceId),
@@ -50,9 +53,9 @@ export class LocalContentTransport implements IContentTransport {
 
   async getBinaryStream(
     resourceId: ResourceId,
-    options?: { accept?: ContentFormat | string; auth?: AccessToken },
+    _options?: { auth?: AccessToken },
   ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
-    busLog('GET', 'content', { resourceId, accept: options?.accept, stream: true });
+    busLog('GET', 'content', { resourceId, stream: true });
     return withSpan(
       'content.get',
       async () => {
@@ -88,6 +91,20 @@ export class LocalContentTransport implements IContentTransport {
     const buf = await this.ks.kb.content.retrieve(rep.storageUri);
     const data = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
     return { data, contentType: rep.mediaType };
+  }
+
+  /**
+   * Assemble the resource's JSON-LD graph in-process from the KB — the local
+   * realization of `IContentTransport.getResourceGraph` (symmetric with
+   * getBinary; SIMPLER-JSON-LD.md decision 7). Local mode has no auth.
+   */
+  async getResourceGraph(
+    resourceId: ResourceId,
+    _options?: { auth?: AccessToken },
+  ): Promise<GetResourceResponse> {
+    const graph = await assembleResourceGraph(this.ks.kb, resourceId);
+    if (!graph) throw new Error(`Resource not found: ${resourceId}`);
+    return graph;
   }
 
   dispose(): void {

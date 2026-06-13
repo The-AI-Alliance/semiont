@@ -114,7 +114,7 @@ The read actor for the Knowledge Base. Handles deterministic, fact-based queries
 
 | Request Event | Handler | Result Event |
 |--------------|---------|-------------|
-| `browse:resource-requested` | `ResourceContext.getResourceMetadata()` + event materialization | `browse:resource-result` / `browse:resource-failed` |
+| `browse:resource-requested` | `assembleResourceGraph()` — materializes the resource from the event store and filters its inbound entity references (shared with `LocalContentTransport.getResourceGraph`) | `browse:resource-result` / `browse:resource-failed` |
 | `browse:resources-requested` | `ResourceContext.listResources()` (delegates to `kb.graph.searchResources` when `search` is set) | `browse:resources-result` / `browse:resources-failed` |
 | `browse:annotations-requested` | `AnnotationContext.getAllAnnotations()` | `browse:annotations-result` / `browse:annotations-failed` |
 | `browse:annotation-requested` | `AnnotationContext.getAnnotation()` + `ResourceContext.getResourceMetadata()` | `browse:annotation-result` / `browse:annotation-failed` |

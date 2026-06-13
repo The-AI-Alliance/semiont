@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ResourceDescriptor, ResourceId, components } from '@semiont/core';
+import type { ResourceDescriptor, ResourceId } from '@semiont/core';
 import { getPrimaryMediaType } from '@semiont/core';
 import { decodeWithCharset } from '@semiont/core';
 import { useToast } from '../components/Toast';
@@ -27,11 +27,9 @@ export function useResourceContent(
     if (!semiont || !enabled || !mediaType) return;
     let cancelled = false;
     setLoading(true);
-    semiont.browse.resourceRepresentation(rUri, {
-      accept: mediaType as components['schemas']['ContentFormat'],
-    }).then(({ data }) => {
+    semiont.browse.resourceRepresentation(rUri).then(({ data, contentType }) => {
       if (cancelled) return;
-      setContent(decodeWithCharset(data, mediaType));
+      setContent(decodeWithCharset(data, contentType));
       setLoading(false);
     }).catch((error) => {
       if (cancelled) return;

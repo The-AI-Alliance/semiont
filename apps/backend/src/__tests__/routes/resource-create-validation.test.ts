@@ -1,9 +1,13 @@
 /**
- * Registry validation on POST /resources (.plans/MEDIA-TYPES.md, Phase 3a):
- * admission is gated on the format's base type being a SupportedMediaType.
- * Unsupported base types 400 naming the offender; parameters survive
- * validation ("text/plain; charset=iso-8859-1" is admitted, stored verbatim)
- * while the base type — not the parameterized string — names the storage URI.
+ * Create-route validation on POST /resources:
+ * - format admission (MEDIA-TYPES.md Phase 3a): the base type must be a
+ *   SupportedMediaType; unsupported base types 400 naming the offender;
+ *   parameters survive validation ("text/plain; charset=iso-8859-1" is
+ *   admitted and stored verbatim).
+ * - storageUri is required: the client names the content's location and the
+ *   server stores the bytes there verbatim — it does not derive a path.
+ *   Omitting storageUri is a 400 (the typed PutBinaryRequest.storageUri is
+ *   required, and every client supplies one).
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -52,21 +56,37 @@ app.use('*', async (c, next) => {
 });
 registerCreateResource(app as unknown as ResourcesRouterType);
 
-async function postResource(format: string) {
+// storageUri defaults to a deliberately non-derivable path so the "stored
+// verbatim" assertions can't be satisfied by accidental derivation. Pass
+// storageUri: null to omit the field.
+async function postResource(
+  { format = 'text/markdown', storageUri = 'file://explicit-location.bin' }:
+  { format?: string; storageUri?: string | null } = {},
+) {
   const fd = new FormData();
   fd.set('name', 'My Doc');
   fd.set('file', new File([new Uint8Array([0x68, 0x69])], 'doc.bin'));
   fd.set('format', format);
+  if (storageUri) fd.set('storageUri', storageUri);
   return app.request('/resources', { method: 'POST', body: fd });
 }
 
-describe('POST /resources format validation (MEDIA-TYPES.md Phase 3a)', () => {
+describe('POST /resources validation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
+  it('400s when storageUri is omitted, before any side effect', async () => {
+    const res = await postResource({ storageUri: null });
+
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain('storageUri');
+    expect(storeMock).not.toHaveBeenCalled();
+    expect(ResourceOperations.createResource).not.toHaveBeenCalled();
+  });
+
   it('400s on an unsupported base type, naming the offender, before any side effect', async () => {
-    const res = await postResource('application/x-not-a-thing');
+    const res = await postResource({ format: 'application/x-not-a-thing' });
 
     expect(res.status).toBe(400);
     expect(await res.text()).toContain('application/x-not-a-thing');
@@ -74,20 +94,27 @@ describe('POST /resources format validation (MEDIA-TYPES.md Phase 3a)', () => {
     expect(ResourceOperations.createResource).not.toHaveBeenCalled();
   });
 
-  it('admits a registry member and derives the storage URI from it', async () => {
-    const res = await postResource('text/markdown');
+  it('stores at the client-supplied storageUri verbatim — never derives one', async () => {
+    const res = await postResource({ format: 'text/markdown', storageUri: 'file://chosen/path.md' });
 
     expect(res.status).toBe(202);
     expect(await res.json()).toEqual({ resourceId: 'res-created-1' });
     expect(storeMock).toHaveBeenCalledTimes(1);
-    expect(storeMock.mock.calls[0]![1]).toBe('file://my-doc.md');
+    expect(storeMock.mock.calls[0]![1]).toBe('file://chosen/path.md');
+    expect(ResourceOperations.createResource).toHaveBeenCalledWith(
+      expect.objectContaining({ storageUri: 'file://chosen/path.md' }),
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
-  it('admits a parameterized format: base type names the URI, parameters stored verbatim', async () => {
-    const res = await postResource('text/plain; charset=iso-8859-1');
+  it('admits a parameterized format and stores it verbatim', async () => {
+    const res = await postResource({
+      format: 'text/plain; charset=iso-8859-1',
+      storageUri: 'file://doc.txt',
+    });
 
     expect(res.status).toBe(202);
-    expect(storeMock.mock.calls[0]![1]).toBe('file://my-doc.txt');
     expect(ResourceOperations.createResource).toHaveBeenCalledWith(
       expect.objectContaining({ format: 'text/plain; charset=iso-8859-1' }),
       expect.anything(),

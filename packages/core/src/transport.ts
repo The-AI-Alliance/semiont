@@ -40,6 +40,7 @@ import type { EventBus } from './event-bus';
 import type { SemiontError } from './errors';
 
 type Agent = components['schemas']['Agent'];
+type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
 // ── Connection state ────────────────────────────────────────────────────
 
@@ -297,13 +298,25 @@ export interface IContentTransport {
 
   getBinary(
     resourceId: ResourceId,
-    options?: { accept?: ContentFormat; auth?: AccessToken },
+    options?: { auth?: AccessToken },
   ): Promise<{ data: ArrayBuffer; contentType: string }>;
 
   getBinaryStream(
     resourceId: ResourceId,
-    options?: { accept?: ContentFormat; auth?: AccessToken },
+    options?: { auth?: AccessToken },
   ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
+
+  /**
+   * Fetch the resource's JSON-LD metadata graph (descriptor + annotations +
+   * inbound entity references). The HTTP transport dereferences
+   * `GET /resources/:id/jsonld` (the LD face an external linked-data client
+   * sees); in-process transports assemble it from their `KnowledgeSystem`.
+   * See `.plans/SIMPLER-JSON-LD.md` §5 / decision 7.
+   */
+  getResourceGraph(
+    resourceId: ResourceId,
+    options?: { auth?: AccessToken },
+  ): Promise<GetResourceResponse>;
 
   dispose(): void;
 }

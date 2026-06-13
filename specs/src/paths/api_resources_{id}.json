@@ -1,7 +1,7 @@
 {
   "get": {
-    "summary": "Get raw resource content (browser-friendly alias)",
-    "description": "Browser-friendly alternative to GET /resources/{id} that always returns the raw representation, never JSON-LD. Used by `<img>` / PDF.js / `<video>` tags and anywhere an httpOnly cookie is the only feasible auth vector. Behaves like GET /resources/{id} with JSON-LD stripped from the Accept header before content negotiation.\n\nSets long-lived immutable Cache-Control (content is addressed by checksum upstream, so bytes never change for a given resource id).",
+    "summary": "Get a resource's stored representation (browser-friendly alias)",
+    "description": "Identical pipe to GET /resources/{id} — verbatim bytes, stored media type in Content-Type, Accept never read. Exists only as the auth affordance for `<img>` / PDF.js / download links, which cannot carry Authorization headers: the `?token=` media token or the httpOnly semiont-token cookie ride along automatically.\n\nResponses carry `Cache-Control: public, max-age=31536000, immutable` — `public` is safe here, unlike the bearer-authenticated main route, because the `?token=` is part of the cache key.",
     "tags": ["Resources"],
     "security": [
       { "bearerAuth": [] }
@@ -16,23 +16,14 @@
     ],
     "responses": {
       "200": {
-        "description": "Raw representation bytes with appropriate Content-Type",
+        "description": "The stored representation's bytes, verbatim",
+        "headers": {
+          "Link": {
+            "schema": { "type": "string" },
+            "description": "`</resources/{id}/jsonld>; rel=\"describedby\"; type=\"application/ld+json\"` — where to dereference the resource's JSON-LD description"
+          }
+        },
         "content": {
-          "text/plain": {
-            "schema": { "type": "string" }
-          },
-          "text/markdown": {
-            "schema": { "type": "string" }
-          },
-          "text/html": {
-            "schema": { "type": "string" }
-          },
-          "image/*": {
-            "schema": { "type": "string", "format": "binary" }
-          },
-          "application/pdf": {
-            "schema": { "type": "string", "format": "binary" }
-          },
           "*/*": {
             "schema": { "type": "string", "format": "binary" }
           }

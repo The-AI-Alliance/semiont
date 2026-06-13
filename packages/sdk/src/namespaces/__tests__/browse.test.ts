@@ -118,6 +118,7 @@ function makeContent(): IContentTransport {
     putBinary: vi.fn(),
     getBinary: vi.fn().mockResolvedValue({ data: new ArrayBuffer(0), contentType: 'text/plain' }),
     getBinaryStream: vi.fn().mockResolvedValue({ stream: new ReadableStream(), contentType: 'text/plain' }),
+    getResourceGraph: vi.fn(),
     dispose: vi.fn(),
   };
 }

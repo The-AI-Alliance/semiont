@@ -8,29 +8,35 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { syntaxHighlighting } from '@codemirror/language';
 import { jsonLightTheme, jsonLightHighlightStyle } from '../../../lib/codemirror-json-theme';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
-import type { components } from '@semiont/core';
+import { useResourceGraph } from '../../../hooks/useResourceGraph';
+import type { ResourceId } from '@semiont/core';
 import './JsonLdPanel.css';
 
-type SemiontResource = components['schemas']['ResourceDescriptor'];
-
 interface Props {
-  resource: SemiontResource;
+  resourceId: ResourceId;
 }
 
-export function JsonLdPanel({ resource: semiontResource }: Props) {
+/**
+ * Dereferences the resource's LD face (`GET /resources/:id/jsonld` via
+ * `browse.resourceGraph`) and pretty-prints the full graph — descriptor +
+ * annotations + inbound entity references — read-only. This is exactly what
+ * an external linked-data client gets when dereferencing the resource's
+ * `describedby` URI, so the panel doubles as a living end-to-end test of the
+ * LD face. See `.plans/SIMPLER-JSON-LD.md` §5.
+ */
+export function JsonLdPanel({ resourceId }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const { showLineNumbers } = useLineNumbers();
+  const { graph, loading, error } = useResourceGraph(resourceId);
 
-  // Initialize CodeMirror
+  const documentText = graph ? JSON.stringify(graph, null, 2) : '';
+
+  // Initialize CodeMirror once the graph has loaded.
   useEffect(() => {
-    if (!editorRef.current) return;
+    if (!editorRef.current || !documentText) return;
 
-    // Check if dark mode is active
     const isDarkMode = document.documentElement?.classList.contains('dark') ?? false;
-
-    // Convert resource to JSON-LD format
-    const jsonLdContent = JSON.stringify(semiontResource, null, 2);
 
     const extensions = [
       json(),
@@ -38,12 +44,10 @@ export function JsonLdPanel({ resource: semiontResource }: Props) {
       EditorState.readOnly.of(true),
     ];
 
-    // Add line numbers if enabled
     if (showLineNumbers) {
       extensions.push(lineNumbers());
     }
 
-    // Add theme based on dark/light mode
     if (isDarkMode) {
       extensions.push(oneDark);
     } else {
@@ -52,7 +56,7 @@ export function JsonLdPanel({ resource: semiontResource }: Props) {
     }
 
     const state = EditorState.create({
-      doc: jsonLdContent,
+      doc: documentText,
       extensions,
     });
 
@@ -67,11 +71,12 @@ export function JsonLdPanel({ resource: semiontResource }: Props) {
       view.destroy();
       viewRef.current = null;
     };
-  }, [semiontResource, showLineNumbers]);
+  }, [documentText, showLineNumbers]);
 
   const handleCopyToClipboard = async () => {
+    if (!documentText) return;
     try {
-      await navigator.clipboard.writeText(JSON.stringify(semiontResource, null, 2));
+      await navigator.clipboard.writeText(documentText);
     } catch (err) {
       console.error('Failed to copy JSON-LD:', err);
     }
@@ -88,10 +93,22 @@ export function JsonLdPanel({ resource: semiontResource }: Props) {
           onClick={handleCopyToClipboard}
           className="semiont-button semiont-button--icon"
           title="Copy to clipboard"
+          disabled={!graph}
         >
           📋 Copy
         </button>
       </div>
+
+      {loading && (
+        <p className="semiont-jsonld-panel__status" role="status">
+          Loading JSON-LD…
+        </p>
+      )}
+      {error && !loading && (
+        <p className="semiont-jsonld-panel__status semiont-jsonld-panel__status--error" role="alert">
+          Failed to load JSON-LD.
+        </p>
+      )}
 
       {/* JSON-LD content rendered with CodeMirror */}
       <div

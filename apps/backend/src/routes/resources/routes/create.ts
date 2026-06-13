@@ -12,7 +12,6 @@ import { busLog, userId, baseMediaType, isSupportedMediaType } from '@semiont/co
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
-import { deriveStorageUri } from '@semiont/content';
 import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
 
 type ContentFormat = components['schemas']['ContentFormat'];
@@ -43,10 +42,12 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const generatorStr = formData.get('generator') as string | null;
     const isDraftStr = formData.get('isDraft') as string | null;
 
-    // Validate required fields
-    if (!name || !file || !formatRaw) {
+    // Validate required fields. storageUri is required: the client names the
+    // content's location (the typed PutBinaryRequest.storageUri is required,
+    // and every client supplies one), so the server does not invent a path.
+    if (!name || !file || !formatRaw || !storageUri) {
       throw new HTTPException(400, {
-        message: 'Missing required fields: name, file, format'
+        message: 'Missing required fields: name, file, format, storageUri'
       });
     }
 
@@ -99,15 +100,14 @@ export function registerCreateResource(router: ResourcesRouterType) {
           const arrayBuffer = await file.arrayBuffer();
           const contentBuffer = Buffer.from(arrayBuffer);
           const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-          const resolvedUri = storageUri || deriveStorageUri(name, formatBase);
-          const stored = await kb.content.store(contentBuffer, resolvedUri);
+          const stored = await kb.content.store(contentBuffer, storageUri);
 
           // Delegate to make-meaning for resource creation (via EventBus)
           const eventBus = c.get('eventBus');
           return ResourceOperations.createResource(
             {
               name,
-              storageUri: resolvedUri,
+              storageUri,
               contentChecksum: stored.checksum,
               byteSize: stored.byteSize,
               format,
