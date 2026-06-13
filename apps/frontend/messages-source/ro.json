@@ -276,7 +276,7 @@
     "autoDetected": "Detectat automat din fișier",
     "encoding": "Codificare",
     "dropFileOrClick": "Trage fișierul sau apasă pentru a încărca",
-    "supportedFormats": "Acceptate: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Poate fi încărcat orice tip de fișier. Conținutul text și PDF este analizat; celelalte tipuri sunt catalogate pentru descărcare.",
     "content": "Conținut",
     "resourceContent": "Conținutul resursei",
     "archiveOriginal": "Arhivează resursa originală după clonare",

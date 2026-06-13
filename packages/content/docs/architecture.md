@@ -52,7 +52,7 @@ Every method accepts `{ noGit: true }` for callers that manage staging themselve
 
 ### 5. Framework Independence
 
-The package has no dependencies on web frameworks or HTTP libraries. It depends on `@semiont/core` for the `SemiontProject` and `Logger` types and on `pdfjs-dist` for PDF parsing. It runs anywhere Node runs: backend, CLI, scripts, tests.
+The package has no dependencies on web frameworks or HTTP libraries. It depends on `@semiont/core` for the `SemiontProject` and `Logger` types and the media-type registry (`MEDIA_TYPES`, `SupportedMediaType`), and on `pdfjs-dist` for PDF parsing. It runs anywhere Node runs: backend, CLI, scripts, tests.
 
 In production the store is instantiated once by [@semiont/make-meaning](../../make-meaning/)'s `createKnowledgeBase()` and shared via the `KnowledgeBase.content` field.
 
@@ -74,7 +74,7 @@ Server and browser split the coordinate work: everything here is in PDF point sp
 │  WorkingTreeStore   PDF text layer   │
 │  files + git index  extract + locate │
 │                                      │
-│  checksum utils     MIME extensions  │
+│  checksum utils     storage URIs     │
 └──────────────────────────────────────┘
         ▲
         │ instantiated by

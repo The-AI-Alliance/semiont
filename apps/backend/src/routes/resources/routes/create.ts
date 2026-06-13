@@ -8,7 +8,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { busLog, userId } from '@semiont/core';
+import { busLog, userId, baseMediaType, isSupportedMediaType } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
@@ -50,8 +50,17 @@ export function registerCreateResource(router: ResourcesRouterType) {
       });
     }
 
-    // Type-cast to ContentFormat (OpenAPI validates this enum at spec level)
-    const format = formatRaw as ContentFormat;
+    // ContentFormat is a free-form string that may carry parameters
+    // ("text/plain; charset=iso-8859-1"); admission is gated on the base
+    // type's registry membership. Parameters are preserved on the stored
+    // format as metadata.
+    const formatBase = baseMediaType(formatRaw);
+    if (!isSupportedMediaType(formatBase)) {
+      throw new HTTPException(400, {
+        message: `Unsupported media type: ${formatBase}`,
+      });
+    }
+    const format: ContentFormat = formatRaw;
 
     busLog('PUT', 'content', {
       name,
@@ -90,7 +99,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
           const arrayBuffer = await file.arrayBuffer();
           const contentBuffer = Buffer.from(arrayBuffer);
           const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-          const resolvedUri = storageUri || deriveStorageUri(name, format);
+          const resolvedUri = storageUri || deriveStorageUri(name, formatBase);
           const stored = await kb.content.store(contentBuffer, resolvedUri);
 
           // Delegate to make-meaning for resource creation (via EventBus)

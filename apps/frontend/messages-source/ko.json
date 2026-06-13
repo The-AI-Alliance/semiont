@@ -276,7 +276,7 @@
     "autoDetected": "파일에서 자동 감지됨",
     "encoding": "인코딩",
     "dropFileOrClick": "파일을 놓거나 클릭하여 업로드",
-    "supportedFormats": "지원: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "모든 파일 형식을 업로드할 수 있습니다. 텍스트 및 PDF 콘텐츠는 분석되고, 그 외 형식은 다운로드용으로 등록됩니다.",
     "content": "콘텐츠",
     "resourceContent": "리소스 콘텐츠",
     "archiveOriginal": "복제 후 원본 리소스 보관",

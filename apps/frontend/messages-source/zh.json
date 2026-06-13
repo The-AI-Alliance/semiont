@@ -276,7 +276,7 @@
     "autoDetected": "从文件自动检测",
     "encoding": "编码",
     "dropFileOrClick": "拖放文件或点击上传",
-    "supportedFormats": "支持：text/plain、text/markdown、image/png、image/jpeg",
+    "supportedFormats": "可上传任意类型的文件。文本和 PDF 内容会被分析；其他类型则会编入目录供下载。",
     "content": "内容",
     "resourceContent": "资源内容",
     "archiveOriginal": "克隆后归档原始资源",

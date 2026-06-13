@@ -276,7 +276,7 @@
     "autoDetected": "ফাইল থেকে স্বয়ংক্রিয়ভাবে শনাক্ত",
     "encoding": "এনকোডিং",
     "dropFileOrClick": "ফাইল ছেড়ে দিন বা আপলোড করতে ক্লিক করুন",
-    "supportedFormats": "সমর্থিত: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "যেকোনো ধরনের ফাইল আপলোড করা যায়। টেক্সট ও PDF কন্টেন্ট বিশ্লেষণ করা হয়; অন্যান্য ধরন ডাউনলোডের জন্য তালিকাভুক্ত করা হয়।",
     "content": "বিষয়বস্তু",
     "resourceContent": "সম্পদের বিষয়বস্তু",
     "archiveOriginal": "ক্লোন করার পরে মূল সম্পদ সংরক্ষণাগারভুক্ত করুন",

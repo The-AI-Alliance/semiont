@@ -16,8 +16,8 @@
 import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { EventMap, Logger, ResourceId } from '@semiont/core';
-import { type EventBus, cloneToken as makeCloneToken, type CloneToken, resourceId, userId as makeUserId } from '@semiont/core';
-import { getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/core';
+import { type EventBus, cloneToken as makeCloneToken, type CloneToken, type SupportedMediaType, resourceId, userId as makeUserId } from '@semiont/core';
+import { getPrimaryRepresentation, getResourceEntityTypes, baseMediaType, isSupportedMediaType, capabilitiesOf } from '@semiont/core';
 import { deriveStorageUri } from '@semiont/content';
 import { ResourceContext } from './resource-context';
 import { ResourceOperations } from './resource-operations';
@@ -200,13 +200,12 @@ export class CloneTokenManager {
         return;
       }
 
-      // Determine format
-      const primaryRep = getPrimaryRepresentation(sourceDoc);
-      const mediaType = primaryRep?.mediaType || 'text/plain';
-      const validFormats = ['text/plain', 'text/markdown'] as const;
-      const format: 'text/plain' | 'text/markdown' = validFormats.includes(mediaType as any)
-        ? (mediaType as 'text/plain' | 'text/markdown')
-        : 'text/plain';
+      // Determine format. A clone opens in the compose editor, so the gate
+      // is the registry's `authorable` capability: authorable sources keep
+      // their base media type, everything else falls back to text/plain.
+      const base = baseMediaType(getPrimaryRepresentation(sourceDoc)?.mediaType ?? 'text/plain');
+      const format: SupportedMediaType =
+        isSupportedMediaType(base) && capabilitiesOf(base)?.authorable ? base : 'text/plain';
 
       // Write content to disk, then create via EventBus (no Buffer on bus)
       const resolvedUri = deriveStorageUri(event.name, format);

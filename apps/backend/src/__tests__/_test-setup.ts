@@ -85,8 +85,9 @@ export interface TestEnvironmentConfig {
 export async function setupTestEnvironment(envName?: string): Promise<TestEnvironmentConfig> {
   const environment = envName || process.env.SEMIONT_ENV || 'unit';
 
-  const testDir = join(tmpdir(), `semiont-backend-test-${Date.now()}`);
-  await fs.mkdir(testDir, { recursive: true });
+  // mkdtemp, not Date.now(): parallel test files calling this in the same
+  // millisecond must not share (and mutually clobber) one directory.
+  const testDir = await fs.mkdtemp(join(tmpdir(), 'semiont-backend-test-'));
 
   const dataPath = join(testDir, 'data');
   await fs.mkdir(dataPath, { recursive: true });

@@ -276,7 +276,7 @@
     "autoDetected": "مُكتشَف تلقائيًا من الملف",
     "encoding": "الترميز",
     "dropFileOrClick": "أسقط الملف أو انقر للتحميل",
-    "supportedFormats": "المدعوم: text/plain، text/markdown، image/png، image/jpeg",
+    "supportedFormats": "يمكن رفع أي نوع من الملفات. يتم تحليل محتوى النصوص وملفات PDF؛ أما الأنواع الأخرى فتُفهرس للتنزيل.",
     "content": "المحتوى",
     "resourceContent": "محتوى المورد",
     "archiveOriginal": "أرشفة المورد الأصلي بعد الاستنساخ",

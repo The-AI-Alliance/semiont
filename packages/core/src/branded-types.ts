@@ -53,8 +53,9 @@ export function entityType(value: string): EntityType { return value as EntityTy
 export function searchQuery(value: string): SearchQuery { return value as SearchQuery; }
 export function baseUrl(value: string): BaseUrl { return value as BaseUrl; }
 
-// Motivation and ContentFormat use OpenAPI enums - no helpers needed
-// Use the enum values directly from the OpenAPI spec
+// Motivation is an OpenAPI enum — use its values directly, no helper needed.
+// ContentFormat is a free-form MIME string whose base type must be a
+// SupportedMediaType; validation lives in media-types.ts, not in a brand.
 
 // ============================================================================
 // HTTP URI TYPES

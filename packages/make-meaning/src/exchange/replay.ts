@@ -13,7 +13,7 @@
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { Logger, StoredEvent, PersistedEvent, ResourceId, AnnotationId } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, baseMediaType, isSupportedMediaType } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
 import { deriveStorageUri } from '@semiont/content';
@@ -173,8 +173,14 @@ async function replayResourceCreated(
     throw new Error(`Missing content blob for checksum ${payload.contentChecksum}`);
   }
 
-  // Write content to disk before emitting on bus (no Buffer on bus)
-  const resolvedUri = payload.storageUri || deriveStorageUri(payload.name, payload.format);
+  // Write content to disk before emitting on bus (no Buffer on bus).
+  // storageUri-first: only derive when the archived event carries none.
+  // Replayed formats are not guaranteed registry-valid (the import-leniency
+  // invariant) — foreign types derive a .bin name; the event payload keeps
+  // the true mediaType.
+  const base = baseMediaType(payload.format);
+  const resolvedUri = payload.storageUri
+    || deriveStorageUri(payload.name, isSupportedMediaType(base) ? base : 'application/octet-stream');
   const stored = await contentStore.store(blob, resolvedUri);
 
   const result$ = race(

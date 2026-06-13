@@ -6,7 +6,7 @@ Documentation for the working-tree content package.
 
 - **[API Reference](API.md)** - Complete API documentation
 - **[Architecture](architecture.md)** - Design principles and implementation
-- **[MIME Types](mime-types.md)** - Media type handling (80+ types)
+- **[Media Types](mime-types.md)** - Storage URI derivation (the registry itself lives in @semiont/core)
 
 ## Quick Reference
 
@@ -25,16 +25,15 @@ Documentation for the working-tree content package.
 - `locate()` maps a character span to per-line bounding rectangles
 - Coordinates are PDF points, origin bottom-left; the Y-flip happens in the browser
 
-### MIME Types
+### Media Types
 
-- 80+ supported types with proper extensions
-- `deriveStorageUri()` builds a `file://` URI from a resource name and MIME type
-- Unknown types default to `.dat`
+- `deriveStorageUri()` builds a `file://` URI from a resource name and a validated `SupportedMediaType`
+- The media-type registry (admitted types, extensions, capabilities) lives in `@semiont/core`'s `media-types.ts`
 
 From [../src/working-tree-store.ts](../src/working-tree-store.ts): Working tree storage.
 From [../src/extract-pdf-text-layer.ts](../src/extract-pdf-text-layer.ts): PDF text-layer extraction.
 From [../src/locate.ts](../src/locate.ts): Span-to-rectangle geometry.
-From [../src/mime-extensions.ts](../src/mime-extensions.ts): MIME type mappings.
+From [../src/storage-uri.ts](../src/storage-uri.ts): Storage URI derivation.
 From [../src/checksum.ts](../src/checksum.ts): SHA-256 utilities.
 
 ## External References

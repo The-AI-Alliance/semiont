@@ -276,7 +276,7 @@
     "autoDetected": "फ़ाइल से स्वतः पहचाना गया",
     "encoding": "एन्कोडिंग",
     "dropFileOrClick": "फ़ाइल ड्रॉप करें या अपलोड करने के लिए क्लिक करें",
-    "supportedFormats": "समर्थित: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "किसी भी प्रकार की फ़ाइल अपलोड की जा सकती है। टेक्स्ट और PDF सामग्री का विश्लेषण किया जाता है; अन्य प्रकार डाउनलोड के लिए सूचीबद्ध किए जाते हैं।",
     "content": "सामग्री",
     "resourceContent": "संसाधन सामग्री",
     "archiveOriginal": "क्लोनिंग के बाद मूल संसाधन को संग्रहित करें",

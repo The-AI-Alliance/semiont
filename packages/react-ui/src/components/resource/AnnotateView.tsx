@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import { getMimeCategory, isPdfMimeType } from '@semiont/core';
+import { capabilitiesOf } from '@semiont/core';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { segmentTextWithAnnotations } from '../../lib/text-segmentation';
 import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';
@@ -71,7 +71,7 @@ export function AnnotateView({
   const containerRef = useRef<HTMLDivElement>(null);
   const session = useObservable(useSemiont().activeSession$);
 
-  const category = getMimeCategory(mimeType);
+  const render = capabilitiesOf(mimeType)?.render ?? 'none';
 
   const { highlights, references, assessments, comments, tags } = annotations;
 
@@ -192,8 +192,8 @@ export function AnnotateView({
     };
   }, [selectedMotivation, content]);
 
-  // Route to appropriate viewer based on MIME type category
-  switch (category) {
+  // Route to the annotation viewer for this media type's render mode.
+  switch (render) {
     case 'text':
       return (
         <div className="semiont-annotate-view" data-mime-type="text" ref={containerRef}>
@@ -225,40 +225,38 @@ export function AnnotateView({
         </div>
       );
 
-    case 'image':
-      // MIME-specific viewer selection within spatial annotation category
-      if (isPdfMimeType(mimeType)) {
-        // Phase 2: PDF annotation support
-        return (
-          <div className="semiont-annotate-view" data-mime-type="pdf" ref={containerRef}>
-            <AnnotateToolbar
-              selectedMotivation={selectedMotivation}
-              selectedClick={selectedClick}
-              showShapeGroup={true}
-              selectedShape={selectedShape}
-              mediaType={mimeType}
-              annotateMode={annotateMode}
-              annotators={ANNOTATORS}
-            />
-            <div className="semiont-annotate-view__content">
-              {content && (
-                <Suspense fallback={<div className="semiont-annotate-view__loading">Loading PDF viewer...</div>}>
-                  <PdfAnnotationCanvas
-                    pdfUrl={content}
-                    existingAnnotations={allAnnotations}
-                    drawingMode={selectedMotivation ? selectedShape : null}
-                    selectedMotivation={selectedMotivation}
-                    session={session}
-                    hoveredAnnotationId={hoveredAnnotationId || null}
-                    hoverDelayMs={hoverDelayMs}
-                  />
-                </Suspense>
-              )}
-            </div>
+    case 'pdf':
+      // PDF annotation support (spatial, FragmentSelector)
+      return (
+        <div className="semiont-annotate-view" data-mime-type="pdf" ref={containerRef}>
+          <AnnotateToolbar
+            selectedMotivation={selectedMotivation}
+            selectedClick={selectedClick}
+            showShapeGroup={true}
+            selectedShape={selectedShape}
+            mediaType={mimeType}
+            annotateMode={annotateMode}
+            annotators={ANNOTATORS}
+          />
+          <div className="semiont-annotate-view__content">
+            {content && (
+              <Suspense fallback={<div className="semiont-annotate-view__loading">Loading PDF viewer...</div>}>
+                <PdfAnnotationCanvas
+                  pdfUrl={content}
+                  existingAnnotations={allAnnotations}
+                  drawingMode={selectedMotivation ? selectedShape : null}
+                  selectedMotivation={selectedMotivation}
+                  session={session}
+                  hoveredAnnotationId={hoveredAnnotationId || null}
+                  hoverDelayMs={hoverDelayMs}
+                />
+              </Suspense>
+            )}
           </div>
-        );
-      }
+        </div>
+      );
 
+    case 'image':
       // PNG, JPEG, etc. - full annotation support
       return (
         <div className="semiont-annotate-view" data-mime-type="image" ref={containerRef}>
@@ -287,7 +285,7 @@ export function AnnotateView({
         </div>
       );
 
-    case 'unsupported':
+    case 'none':
     default:
       return (
         <div ref={containerRef} className="semiont-annotate-view semiont-annotate-view--unsupported" data-mime-type="unsupported">

@@ -276,7 +276,7 @@
     "autoDetected": "تشخیص خودکار از فایل",
     "encoding": "رمزگذاری",
     "dropFileOrClick": "فایل را رها کنید یا برای بارگذاری کلیک کنید",
-    "supportedFormats": "پشتیبانی‌شده: text/plain، text/markdown، image/png، image/jpeg",
+    "supportedFormats": "هر نوع فایلی را می‌توان بارگذاری کرد. محتوای متنی و PDF تحلیل می‌شود؛ سایر انواع برای دانلود فهرست می‌شوند.",
     "content": "محتوا",
     "resourceContent": "محتوای منبع",
     "archiveOriginal": "بایگانی منبع اصلی پس از کپی",

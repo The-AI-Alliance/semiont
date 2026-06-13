@@ -276,7 +276,7 @@
     "autoDetected": "Tự động phát hiện từ tệp",
     "encoding": "Mã hóa",
     "dropFileOrClick": "Thả tệp hoặc nhấp để tải lên",
-    "supportedFormats": "Hỗ trợ: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Có thể tải lên mọi loại tệp. Nội dung văn bản và PDF được phân tích; các loại khác được lập danh mục để tải xuống.",
     "content": "Nội dung",
     "resourceContent": "Nội dung tài nguyên",
     "archiveOriginal": "Lưu trữ tài nguyên gốc sau khi nhân bản",

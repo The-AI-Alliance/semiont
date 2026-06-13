@@ -251,7 +251,7 @@ export interface IBackendOperations {
 export interface PutBinaryRequest {
   name: string;
   file: File | Buffer;
-  format: ContentFormat | string;
+  format: ContentFormat;
   storageUri: string;
   entityTypes?: string[];
   language?: string;
@@ -297,12 +297,12 @@ export interface IContentTransport {
 
   getBinary(
     resourceId: ResourceId,
-    options?: { accept?: ContentFormat | string; auth?: AccessToken },
+    options?: { accept?: ContentFormat; auth?: AccessToken },
   ): Promise<{ data: ArrayBuffer; contentType: string }>;
 
   getBinaryStream(
     resourceId: ResourceId,
-    options?: { accept?: ContentFormat | string; auth?: AccessToken },
+    options?: { accept?: ContentFormat; auth?: AccessToken },
   ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
 
   dispose(): void;

@@ -76,7 +76,7 @@
         }
       },
       "400": {
-        "description": "Missing required fields (name, file, or format)",
+        "description": "Missing required fields (name, file, or format), or the format's base MIME type is not a SupportedMediaType. The error message names the offending type.",
         "content": {
           "application/json": {
             "schema": {

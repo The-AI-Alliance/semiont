@@ -276,7 +276,7 @@
     "autoDetected": "Automatiskt identifierad från fil",
     "encoding": "Kodning",
     "dropFileOrClick": "Släpp fil eller klicka för att ladda upp",
-    "supportedFormats": "Stöds: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Alla filtyper kan laddas upp. Text- och PDF-innehåll analyseras; övriga typer katalogiseras för nedladdning.",
     "content": "Innehåll",
     "resourceContent": "Resursinnehåll",
     "archiveOriginal": "Arkivera originalresursen efter kloning",

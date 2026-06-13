@@ -276,7 +276,7 @@
     "autoDetected": "Dosyadan otomatik algılandı",
     "encoding": "Kodlama",
     "dropFileOrClick": "Dosyayı sürükleyin veya yüklemek için tıklayın",
-    "supportedFormats": "Desteklenen: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Her tür dosya yüklenebilir. Metin ve PDF içeriği analiz edilir; diğer türler indirme için kataloglanır.",
     "content": "İçerik",
     "resourceContent": "Kaynak İçeriği",
     "archiveOriginal": "Klonladıktan sonra orijinal kaynağı arşivle",

@@ -18,7 +18,7 @@ import { take } from 'rxjs/operators';
 import { LLMContext } from '../llm-context';
 import { ResourceOperations } from '../resource-operations';
 import { AnnotationOperations } from '../annotation-operations';
-import { resourceId, userId, EventBus, type Logger } from '@semiont/core';
+import { resourceId, userId, EventBus, type Logger, type SupportedMediaType } from '@semiont/core';
 import type { GraphServiceConfig } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, deriveStorageUri } from '@semiont/content';
@@ -57,13 +57,13 @@ describe('LLM Context', () => {
   let testResourceId: string;
 
   async function create(
-    opts: { name: string; content: Buffer; format: string; language?: string },
+    opts: { name: string; content: Buffer; format: SupportedMediaType; language?: string },
     uid: ReturnType<typeof userId>,
   ) {
     const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
     const stored = await kb.content.store(opts.content, uri);
     return ResourceOperations.createResource(
-      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format as any, language: opts.language },
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language },
       uid,
       eventBus,
     );

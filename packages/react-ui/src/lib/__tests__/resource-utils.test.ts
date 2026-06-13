@@ -106,18 +106,8 @@ describe('resource-utils', () => {
         expect(supportsDetection('text/html')).toBe(true);
       });
 
-      it('should return true for any text/* media type', () => {
-        const textTypes = [
-          'text/csv',
-          'text/xml',
-          'text/javascript',
-          'text/css',
-          'text/calendar',
-        ];
-
-        textTypes.forEach(type => {
-          expect(supportsDetection(type)).toBe(true);
-        });
+      it('should return true for application/json (text-selector anchoring)', () => {
+        expect(supportsDetection('application/json')).toBe(true);
       });
 
       it('should return true for text/* with charset', () => {
@@ -148,15 +138,31 @@ describe('resource-utils', () => {
         });
       });
 
-      it('should return false for application types', () => {
+      it('should return false for application types (except json)', () => {
         const appTypes = [
-          'application/json',
           'application/pdf',
           'application/zip',
           'application/octet-stream',
         ];
 
         appTypes.forEach(type => {
+          expect(supportsDetection(type)).toBe(false);
+        });
+      });
+
+      it('should return false for storage-tier text/* types (no text-selector anchoring)', () => {
+        // Detection produces text-position annotations, so it is offered only
+        // for the text-selector types — not for catalogued storage-tier text
+        // (csv, xml, source code) which the registry anchors as 'none'.
+        const storageTierText = [
+          'text/csv',
+          'text/xml',
+          'text/javascript',
+          'text/css',
+          'text/calendar',
+        ];
+
+        storageTierText.forEach(type => {
           expect(supportsDetection(type)).toBe(false);
         });
       });

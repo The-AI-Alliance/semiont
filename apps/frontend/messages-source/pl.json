@@ -276,7 +276,7 @@
     "autoDetected": "Automatycznie wykryto z pliku",
     "encoding": "Kodowanie",
     "dropFileOrClick": "Upuść plik lub kliknij, aby przesłać",
-    "supportedFormats": "Obsługiwane: text/plain, text/markdown, image/png, image/jpeg",
+    "supportedFormats": "Można przesłać dowolny typ pliku. Treść tekstowa i PDF jest analizowana; pozostałe typy są katalogowane do pobrania.",
     "content": "Treść",
     "resourceContent": "Treść zasobu",
     "archiveOriginal": "Zarchiwizuj oryginalny zasób po klonowaniu",

@@ -108,27 +108,22 @@ const checksum = calculateChecksum(Buffer.from('Hello'));
 verifyChecksum(Buffer.from('Hello'), checksum);  // true
 ```
 
-## MIME Utilities
+## Storage URI Derivation
 
 ```typescript
-import {
-  getExtensionForMimeType,
-  hasKnownExtension,
-  deriveStorageUri,
-} from '@semiont/content';
-
-getExtensionForMimeType('text/markdown');           // '.md'
-getExtensionForMimeType('text/plain; charset=utf-8'); // '.txt' (parameters ignored)
-getExtensionForMimeType('unknown/type');             // '.dat'
-
-hasKnownExtension('image/png');     // true
-hasKnownExtension('unknown/type');  // false
+import { deriveStorageUri } from '@semiont/content';
+import type { SupportedMediaType } from '@semiont/core';
 
 deriveStorageUri('My Document', 'text/markdown');
 // 'file://my-document.md' (lowercased, non-alphanumerics collapsed to hyphens)
 ```
 
-See [mime-types.md](./mime-types.md) for the full mapping.
+The `format` parameter is a `SupportedMediaType` — extensions come from the
+media-type registry in `@semiont/core`, and formats are validated upstream at
+the create/yield boundary, so the lookup is strict (no `.dat` fallback here).
+Extension lookups for arbitrary strings (`extensionForMediaType`,
+`mediaTypeForExtension`, capability queries) live in `@semiont/core`; see
+[mime-types.md](./mime-types.md).
 
 ## PDF Text Layer
 

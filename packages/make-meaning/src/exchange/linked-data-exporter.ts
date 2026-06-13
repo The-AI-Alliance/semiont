@@ -13,7 +13,7 @@
 import type { Writable } from 'node:stream';
 import type { Logger } from '@semiont/core';
 import type { components } from '@semiont/core';
-import { getExtensionForMimeType } from '@semiont/content';
+import { extensionForMediaType } from '@semiont/core';
 import { writeTarGz, type TarEntry } from './tar';
 import {
   LINKED_DATA_FORMAT,
@@ -155,7 +155,7 @@ export async function exportLinkedData(
   for (const [storageUri, mediaType] of contentRefs) {
     try {
       const data = await content.retrieve(storageUri);
-      const ext = getExtensionForMimeType(mediaType);
+      const ext = extensionForMediaType(mediaType);
       contentBlobs.set(storageUri, { data, ext });
     } catch (err) {
       logger?.warn('Failed to retrieve content blob', { storageUri, error: String(err) });
@@ -271,7 +271,7 @@ function buildResourceJsonLd(
           ? rep.checksum.slice(7)
           : rep.checksum;
         mediaObj['sha256'] = rawChecksum;
-        const ext = getExtensionForMimeType(rep.mediaType);
+        const ext = extensionForMediaType(rep.mediaType);
         mediaObj['name'] = `${rawChecksum}${ext}`;
       }
       if (rep.language) mediaObj['inLanguage'] = rep.language;
