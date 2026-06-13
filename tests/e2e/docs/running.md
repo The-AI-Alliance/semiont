@@ -50,7 +50,7 @@ container run --rm \
   -e E2E_FRONTEND_URL=http://<frontend-ip>:3000 \
   -e E2E_BACKEND_URL=http://<backend-ip>:4000 \
   -e CI=1 \
-  mcr.microsoft.com/playwright:v1.59.1-noble \
+  mcr.microsoft.com/playwright:v1.60.0-noble \
   npx playwright test
 ```
 
@@ -82,7 +82,7 @@ container so its glibc matches what Playwright was built against):
 container run --rm \
   -v "$(git rev-parse --show-toplevel):/workspace" \
   -w /workspace/tests/e2e \
-  mcr.microsoft.com/playwright:v1.59.1-noble \
+  mcr.microsoft.com/playwright:v1.60.0-noble \
   npm install
 ```
 
