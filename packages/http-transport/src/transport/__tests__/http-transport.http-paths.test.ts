@@ -63,7 +63,6 @@ import { HttpContentTransport } from '../http-content-transport';
 
 const testBaseUrl = baseUrl('http://localhost:4000');
 const testResourceId = resourceId('test-resource-id');
-const testResourceUrl = `${testBaseUrl}/resources/${testResourceId}`;
 
 /** Build a `data: <json>\n\n` SSE-shaped ReadableStream for restore/import tests. */
 function encodeSseStream(events: Array<Record<string, unknown>>): ReadableStream<Uint8Array> {
@@ -327,22 +326,6 @@ describe('HttpTransport — HTTP wire shape', () => {
       expect(new TextDecoder().decode(result.data)).toBe(text);
     });
 
-    test('forwards accept header', async () => {
-      const buffer = new TextEncoder().encode('md').buffer;
-      vi.mocked(mockKy.get).mockReturnValue({
-        headers: { get: vi.fn(() => 'text/markdown') },
-        arrayBuffer: vi.fn().mockResolvedValue(buffer),
-      } as never);
-
-      await content.getBinary(testResourceId, { accept: 'text/markdown' });
-      expect(mockKy.get).toHaveBeenCalledWith(
-        testResourceUrl,
-        expect.objectContaining({
-          headers: expect.objectContaining({ Accept: 'text/markdown' }),
-        }),
-      );
-    });
-
     test('getBinaryStream returns readable stream', async () => {
       const data = new Uint8Array([1, 2, 3]);
       const stream = new ReadableStream<Uint8Array>({
@@ -356,7 +339,7 @@ describe('HttpTransport — HTTP wire shape', () => {
         body: stream,
       } as never);
 
-      const result = await content.getBinaryStream(testResourceId, { accept: 'video/mp4' });
+      const result = await content.getBinaryStream(testResourceId);
       expect(result.contentType).toBe('video/mp4');
       const reader = result.stream.getReader();
       const { value } = await reader.read();

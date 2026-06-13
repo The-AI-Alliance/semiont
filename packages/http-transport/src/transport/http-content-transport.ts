@@ -40,12 +40,14 @@
  * complaint, wire a manual retry loop here that reads `token$` afresh.
  */
 
-import type { AccessToken, ContentFormat, ResourceId, PutBinaryOptions } from '@semiont/core';
+import type { AccessToken, ResourceId, PutBinaryOptions, components } from '@semiont/core';
 import { busLog } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
 import { APIError } from './http-transport';
 import type { IContentTransport, PutBinaryRequest } from '@semiont/core';
+
+type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
 export class HttpContentTransport implements IContentTransport {
   constructor(private readonly transport: HttpTransport) {}
@@ -107,17 +109,16 @@ export class HttpContentTransport implements IContentTransport {
 
   async getBinary(
     resourceId: ResourceId,
-    options?: { accept?: ContentFormat | string; auth?: AccessToken },
+    options?: { auth?: AccessToken },
   ): Promise<{ data: ArrayBuffer; contentType: string }> {
-    busLog('GET', 'content', { resourceId, accept: options?.accept });
+    busLog('GET', 'content', { resourceId });
     return withSpan(
       'content.get',
       async () => {
+        // Pure pipe: no Accept header — the route serves the stored bytes
+        // verbatim with their real Content-Type (SIMPLER-JSON-LD.md).
         const response = await this.transport.rawHttp.get(`${this.transport.baseUrl}/resources/${resourceId}`, {
-          headers: {
-            Accept: options?.accept ?? 'text/plain',
-            ...this.requestHeaders(options?.auth),
-          },
+          headers: this.requestHeaders(options?.auth),
         });
         const contentType = response.headers.get('content-type') || 'application/octet-stream';
         const data = await response.arrayBuffer();
@@ -129,17 +130,15 @@ export class HttpContentTransport implements IContentTransport {
 
   async getBinaryStream(
     resourceId: ResourceId,
-    options?: { accept?: ContentFormat | string; auth?: AccessToken },
+    options?: { auth?: AccessToken },
   ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
-    busLog('GET', 'content', { resourceId, accept: options?.accept, stream: true });
+    busLog('GET', 'content', { resourceId, stream: true });
     return withSpan(
       'content.get',
       async () => {
+        // Pure pipe: no Accept header (see getBinary).
         const response = await this.transport.rawHttp.get(`${this.transport.baseUrl}/resources/${resourceId}`, {
-          headers: {
-            Accept: options?.accept ?? 'text/plain',
-            ...this.requestHeaders(options?.auth),
-          },
+          headers: this.requestHeaders(options?.auth),
         });
         const contentType = response.headers.get('content-type') || 'application/octet-stream';
         if (!response.body) {
@@ -151,6 +150,28 @@ export class HttpContentTransport implements IContentTransport {
         kind: SpanKind.CLIENT,
         attrs: { 'resource.id': resourceId as unknown as string, 'content.stream': true },
       },
+    );
+  }
+
+  /**
+   * Dereference the resource's JSON-LD graph over HTTP — the LD face an
+   * external linked-data client sees. Deliberately HTTP, not the bus
+   * (SIMPLER-JSON-LD.md §5).
+   */
+  async getResourceGraph(
+    resourceId: ResourceId,
+    options?: { auth?: AccessToken },
+  ): Promise<GetResourceResponse> {
+    busLog('GET', 'content', { resourceId, graph: true });
+    return withSpan(
+      'content.get_graph',
+      () =>
+        this.transport.rawHttp
+          .get(`${this.transport.baseUrl}/resources/${resourceId}/jsonld`, {
+            headers: this.requestHeaders(options?.auth),
+          })
+          .json<GetResourceResponse>(),
+      { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string, 'content.graph': true } },
     );
   }
 
