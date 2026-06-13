@@ -180,6 +180,21 @@ describe('SemiontClient over LocalTransport', () => {
       }
     });
 
+    it('returns the seeded resource graph via browse.resourceGraph(id)', async () => {
+      // Exercises LocalContentTransport.getResourceGraph → assembleResourceGraph:
+      // the in-process realization of the /jsonld face (SIMPLER-JSON-LD Phase 2).
+      const h = await bootHarness();
+      try {
+        const id = await h.seedResource({ name: 'doc', content: 'body' });
+        const graph = await h.client.browse.resourceGraph(id);
+        expect(graph.resource['@id'] ?? graph.resource.id).toBe(id);
+        expect(Array.isArray(graph.annotations)).toBe(true);
+        expect(Array.isArray(graph.entityReferences)).toBe(true);
+      } finally {
+        await h.dispose();
+      }
+    });
+
     it('emits browse:resource-failed for a non-existent id', async () => {
       const h = await bootHarness();
       try {
