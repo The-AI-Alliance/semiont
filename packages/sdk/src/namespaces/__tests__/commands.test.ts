@@ -72,6 +72,7 @@ function makeMockContent(): IContentTransport {
     putBinary: vi.fn().mockResolvedValue({ resourceId: 'res-new' }),
     getBinary: vi.fn(),
     getBinaryStream: vi.fn(),
+    getResourceGraph: vi.fn(),
     dispose: vi.fn(),
   };
 }

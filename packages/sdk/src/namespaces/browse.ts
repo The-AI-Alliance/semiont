@@ -1,6 +1,6 @@
 import { Observable, map } from 'rxjs';
 import { CacheObservable } from '../awaitable';
-import { annotationId as makeAnnotationId, resourceId as makeResourceId, searchQuery } from '@semiont/core';
+import { annotationId as makeAnnotationId, resourceId as makeResourceId, searchQuery, decodeWithCharset } from '@semiont/core';
 import type {
   Annotation,
   EventBus,
@@ -284,23 +284,31 @@ export class BrowseNamespace implements IBrowseNamespace {
   // ── One-shot reads ──────────────────────────────────────────────────────
 
   async resourceContent(resourceId: ResourceId): Promise<string> {
-    const result = await this.content.getBinary(resourceId, { accept: 'text/plain' });
-    const decoder = new TextDecoder();
-    return decoder.decode(result.data);
+    const result = await this.content.getBinary(resourceId);
+    // Decode with the charset the response advertises — no blind UTF-8.
+    return decodeWithCharset(result.data, result.contentType);
+  }
+
+  /**
+   * Fetch the resource's JSON-LD metadata graph (descriptor + annotations +
+   * inbound entity references). One-shot, uncached, dereferenced via the
+   * transport's HTTP `/jsonld` face (bus-free) — the LD view an external
+   * linked-data client gets. See `.plans/SIMPLER-JSON-LD.md` §5.
+   */
+  async resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse> {
+    return this.content.getResourceGraph(resourceId);
   }
 
   async resourceRepresentation(
     resourceId: ResourceId,
-    options?: { accept?: string },
   ): Promise<{ data: ArrayBuffer; contentType: string }> {
-    return this.content.getBinary(resourceId, options?.accept ? { accept: options.accept } : undefined);
+    return this.content.getBinary(resourceId);
   }
 
   async resourceRepresentationStream(
     resourceId: ResourceId,
-    options?: { accept?: string },
   ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
-    return this.content.getBinaryStream(resourceId, options?.accept ? { accept: options.accept } : undefined);
+    return this.content.getBinaryStream(resourceId);
   }
 
   async resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]> {

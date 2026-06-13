@@ -48,6 +48,7 @@ import type {
 import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 type StoredEventResponse = components['schemas']['StoredEventResponse'];
+type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type GatherProgress = components['schemas']['GatherProgress'];
 type MatchSearchResult = components['schemas']['MatchSearchResult'];
 type JobProgress = components['schemas']['JobProgress'];
@@ -199,8 +200,9 @@ export interface BrowseNamespace {
 
   // One-shot reads (Promise — no caching, no live update)
   resourceContent(resourceId: ResourceId): Promise<string>;
-  resourceRepresentation(resourceId: ResourceId, options?: { accept?: string }): Promise<{ data: ArrayBuffer; contentType: string }>;
-  resourceRepresentationStream(resourceId: ResourceId, options?: { accept?: string }): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
+  resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse>;
+  resourceRepresentation(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }>;
+  resourceRepresentationStream(resourceId: ResourceId): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
   resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]>;
   annotationHistory(resourceId: ResourceId, annotationId: AnnotationId): Promise<AnnotationHistoryResponse>;
   connections(resourceId: ResourceId): Promise<GraphConnection[]>;
