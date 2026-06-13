@@ -1,208 +1,93 @@
 /**
- * Get Resource URI Route
+ * Get Resource URI Routes
  *
- * Single endpoint for all resource representations:
- * - Accept: application/ld+json (default) or application/json -> JSON-LD
- *   metadata via EventBus. application/json is itself a registry media type,
- *   but on these routes it keeps its metadata meaning (accepted ambiguity —
- *   .plans/MEDIA-TYPES.md decision 2); a raw JSON representation is fetched
- *   via application/octet-stream instead.
- * - Accept naming any other supported media type, or a wildcard -> the stored
- *   representation: charset-decoded text for registry rows marked 'decode',
- *   verbatim bytes for everything else (images, PDFs, archives, ...).
- * - Accept: application/octet-stream -> stored representation bytes verbatim,
- *   true media type in Content-Type (byte-fidelity mode for checksum
- *   consumers — see .plans/SMELTER-AXIOMS.md, S12)
+ * Pure pipe + dereferenceable description (.plans/SIMPLER-JSON-LD.md):
+ *
+ * - GET /resources/:id — the stored representation's bytes, verbatim, with
+ *   the stored media type in Content-Type (application/octet-stream when
+ *   unknown). The Accept header is never read: no content negotiation, no
+ *   transcoding, so byte fidelity (SMELTER-AXIOMS.md, S12) holds on every
+ *   response. A Link: rel="describedby" header points machine clients at
+ *   the JSON-LD description.
+ * - GET /resources/:id/jsonld — the JSON-LD description (GetResourceResponse:
+ *   descriptor + annotations + inbound entity references) via the bus
+ *   gateway. Live data — Cache-Control: no-cache.
+ * - GET /api/resources/:id — browser-friendly alias of the pipe. Exists only
+ *   as the ?token= / httpOnly-cookie auth affordance for <img>, PDF.js, and
+ *   download links, which cannot carry Authorization headers.
  */
 
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import {
-  busLog,
-  getPrimaryMediaType,
-  decodeRepresentation,
-  baseMediaType,
-  isSupportedMediaType,
-  textExtractionOf,
-  resourceId,
-} from '@semiont/core';
+import { busLog, getPrimaryMediaType, resourceId } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
 import { ResourceContext } from '@semiont/make-meaning';
+import type { KnowledgeBase } from '@semiont/make-meaning';
 import { eventBusRequest } from '../../../utils/event-bus-request';
 import { getLogger } from '../../../logger';
 import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
 
 const getRouteLogger = () => getLogger().child({ component: 'get-resource-uri' });
 
-// Media types that mean "JSON-LD metadata" on these routes. application/json
-// is a registry member, but here it keeps its metadata meaning (accepted
-// ambiguity — .plans/MEDIA-TYPES.md decision 2): a raw application/json
-// representation cannot be content-negotiated by name; clients fetch it via
-// Accept: application/octet-stream.
-const METADATA_MEDIA_TYPES = new Set(['application/ld+json', 'application/json']);
-
-// Does the Accept header name the stored representation rather than JSON-LD
-// metadata? Registry-driven (big tent): any supported media type asks for the
-// representation (Accept: application/zip serves the ZIP; this includes
-// application/octet-stream, the verbatim mode), as does any wildcard —
-// */* or type wildcards like image/*, which browsers send.
-function acceptsRepresentation(acceptHeader: string): boolean {
-  return acceptHeader.split(',').some((entry) => {
-    const type = baseMediaType(entry);
-    if (METADATA_MEDIA_TYPES.has(type)) return false;
-    if (type === '*/*' || type.endsWith('/*')) return true;
-    return isSupportedMediaType(type);
-  });
+function traceCarrier(c: Context) {
+  const traceparent = c.req.header('traceparent');
+  const tracestate = c.req.header('tracestate');
+  return traceparent
+    ? (tracestate ? { traceparent, tracestate } : { traceparent })
+    : undefined;
 }
 
-// Registry-driven representation dispatch: only formats the registry says to
-// charset-decode take the text path; everything else — images, PDFs,
-// archives, unknown binaries — is served verbatim, never mojibake.
-// Registry-miss text/* still decodes (RFC 2046); a media type missing from
-// the stored metadata is unknowable bytes, served as application/octet-stream.
-function serveRepresentation(c: Context, content: Buffer, mediaType: string | undefined) {
-  if (mediaType && textExtractionOf(mediaType) === 'decode') {
-    return c.text(decodeRepresentation(content, mediaType));
+/** Metadata lookup + existence checks + content retrieval for the pipe. */
+async function loadRepresentation(
+  id: string,
+  kb: KnowledgeBase,
+): Promise<{ content: Buffer; mediaType: string | undefined }> {
+  let resource: ResourceDescriptor | null;
+  try {
+    resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
+  } catch (error) {
+    getRouteLogger().error('Failed to get resource metadata', {
+      resourceId: id,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    throw new HTTPException(500, { message: 'Failed to retrieve resource' });
   }
+  if (!resource) {
+    throw new HTTPException(404, { message: 'Resource not found' });
+  }
+  if (!resource.storageUri) {
+    throw new HTTPException(404, { message: 'Resource representation not found' });
+  }
+  const content = await kb.content.retrieve(resource.storageUri);
+  if (!content) {
+    throw new HTTPException(404, { message: 'Resource representation not found' });
+  }
+  return { content, mediaType: getPrimaryMediaType(resource) };
+}
+
+// The pipe: stored bytes, verbatim, stored media type in Content-Type. No
+// decode, no transcode — the only decoders live at consumers that want text
+// (sdk resourceContent, the viewer hook, the smelter).
+function pipeRepresentation(c: Context, content: Buffer, mediaType: string | undefined) {
   return c.newResponse(new Uint8Array(content), 200, {
     'Content-Type': mediaType || 'application/octet-stream',
   });
 }
 
+// The LD face (FAIR-Signposting / LDP): content responses advertise the
+// JSON-LD description's location instead of content-negotiating for it.
+function describedByLink(id: string): string {
+  return `</resources/${id}/jsonld>; rel="describedby"; type="application/ld+json"`;
+}
+
 export function registerGetResourceUri(router: ResourcesRouterType) {
-  // /api/resources/:id — browser-friendly alias used by <img>, PDF.js, etc.
-  // Strips JSON-LD/JSON from Accept header so content negotiation always returns
-  // raw representations (browsers cannot read httpOnly cookies for auth headers,
-  // but the semiont-token cookie is sent automatically). Stripping
-  // application/json mirrors the negotiation on /resources/:id, where it means
-  // "JSON-LD metadata", never the stored representation — see
-  // METADATA_MEDIA_TYPES above.
-  router.get('/api/resources/:id', async (c) => {
+  // GET /resources/:id/jsonld — the JSON-LD description, via the bus
+  // gateway (Gatherer). Hono params don't span '/', so this cannot collide
+  // with the pipe route below.
+  router.get('/resources/:id/jsonld', async (c) => {
     const { id } = c.req.param();
-    let acceptHeader = c.req.header('Accept') || '*/*';
-    acceptHeader = acceptHeader
-      .split(',')
-      .map(t => t.trim())
-      .filter(t => t !== 'application/ld+json' && t !== 'application/json')
-      .join(', ') || '*/*';
-    busLog('GET', 'content', { resourceId: id, accept: acceptHeader });
-
-    const traceparent = c.req.header('traceparent');
-    const tracestate = c.req.header('tracestate');
-    const carrier = traceparent
-      ? (tracestate ? { traceparent, tracestate } : { traceparent })
-      : undefined;
-
-    return withTraceparent(carrier, () =>
-      withSpan(
-        'content.get.server',
-        async () => {
-          const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-
-          let resource: any;
-          try {
-            resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
-          } catch {
-            throw new HTTPException(500, { message: 'Failed to retrieve resource' });
-          }
-          if (!resource) throw new HTTPException(404, { message: 'Resource not found' });
-          if (!resource.storageUri) throw new HTTPException(404, { message: 'Resource representation not found' });
-
-          const content = await kb.content.retrieve(resource.storageUri);
-          if (!content) throw new HTTPException(404, { message: 'Resource representation not found' });
-
-          const mediaType = getPrimaryMediaType(resource);
-          c.header('Cache-Control', 'public, max-age=31536000, immutable');
-          if (mediaType) c.header('Content-Type', mediaType);
-
-          return serveRepresentation(c, content, mediaType);
-        },
-        {
-          kind: SpanKind.SERVER,
-          attrs: { 'resource.id': id, 'http.accept': acceptHeader },
-        },
-      ),
-    );
-  });
-
-  router.get('/resources/:id', async (c) => {
-    const { id } = c.req.param();
-
-    // Check Accept header for content negotiation
-    const acceptHeader = c.req.header('Accept') || 'application/ld+json';
-
-    // Verbatim mode: the stored representation's bytes, untouched, with the
-    // true media type in Content-Type. For byte-fidelity consumers — the
-    // smelter's checksum stamp must hash exactly the bytes the catalog's
-    // checksum was computed from (SMELTER-AXIOMS.md, S12), so no charset
-    // decode/re-encode is allowed on this path.
-    const wantsVerbatim = acceptHeader.includes('application/octet-stream');
-
-    // Raw representation when the Accept header names any supported media
-    // type or a wildcard (see acceptsRepresentation); JSON-LD metadata
-    // otherwise. Binary content stays direct — excluded from EventBus by design
-    if (wantsVerbatim || acceptsRepresentation(acceptHeader)) {
-      busLog('GET', 'content', { resourceId: id, accept: acceptHeader });
-
-      const traceparent = c.req.header('traceparent');
-      const tracestate = c.req.header('tracestate');
-      const carrier = traceparent
-        ? (tracestate ? { traceparent, tracestate } : { traceparent })
-        : undefined;
-
-      return withTraceparent(carrier, () =>
-        withSpan(
-          'content.get.server',
-          async () => {
-            const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-
-            let resource: any;
-            try {
-              resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
-            } catch (error: any) {
-              getRouteLogger().error('Failed to get resource metadata', {
-                resourceId: id,
-                error: error instanceof Error ? error.message : String(error),
-                stack: error instanceof Error ? error.stack : undefined
-              });
-              throw new HTTPException(500, { message: 'Failed to retrieve resource' });
-            }
-
-            if (!resource) {
-              throw new HTTPException(404, { message: 'Resource not found' });
-            }
-
-            if (!resource.storageUri) {
-              throw new HTTPException(404, { message: 'Resource representation not found' });
-            }
-
-            const content = await kb.content.retrieve(resource.storageUri);
-            if (!content) {
-              throw new HTTPException(404, { message: 'Resource representation not found' });
-            }
-
-            const mediaType = getPrimaryMediaType(resource);
-            if (mediaType) {
-              c.header('Content-Type', mediaType);
-            }
-
-            if (wantsVerbatim) {
-              return c.newResponse(new Uint8Array(content), 200, {
-                'Content-Type': mediaType || 'application/octet-stream',
-              });
-            }
-
-            return serveRepresentation(c, content, mediaType);
-          },
-          {
-            kind: SpanKind.SERVER,
-            attrs: { 'resource.id': id, 'http.accept': acceptHeader },
-          },
-        ),
-      );
-    }
-
-    // JSON-LD metadata path — delegate to EventBus → Gatherer
     const eventBus = c.get('eventBus');
     const correlationId = crypto.randomUUID();
 
@@ -215,8 +100,13 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
         'browse:resource-failed',
       );
 
-      c.header('Content-Type', 'application/ld+json; charset=utf-8');
-      return c.json(response);
+      // Headers passed to c.json directly: Hono's c.json overwrites a
+      // prepared content-type (set via c.header) with application/json.
+      return c.json(response, 200, {
+        'Content-Type': 'application/ld+json; charset=utf-8',
+        // Live data: annotations and inbound references change.
+        'Cache-Control': 'no-cache',
+      });
     } catch (error) {
       if (error instanceof Error) {
         if (error.message === 'Resource not found') {
@@ -228,5 +118,58 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       }
       throw error;
     }
+  });
+
+  // GET /resources/:id — the pipe. Accept is never read; the JSON-LD
+  // description lives at the /jsonld subpath, advertised by the Link header.
+  router.get('/resources/:id', async (c) => {
+    const { id } = c.req.param();
+    busLog('GET', 'content', { resourceId: id });
+
+    return withTraceparent(traceCarrier(c), () =>
+      withSpan(
+        'content.get.server',
+        async () => {
+          const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+          const { content, mediaType } = await loadRepresentation(id, kb);
+
+          // private, not public: this route is bearer-authenticated, and
+          // public would let shared caches store and re-serve the bytes
+          // without auth (RFC 9111 §3.5; SIMPLER-JSON-LD.md decision 6).
+          c.header('Cache-Control', 'private, max-age=31536000, immutable');
+          c.header('Link', describedByLink(id));
+          return pipeRepresentation(c, content, mediaType);
+        },
+        { kind: SpanKind.SERVER, attrs: { 'resource.id': id } },
+      ),
+    );
+  });
+
+  // GET /api/resources/:id — browser-friendly alias of the pipe. Exists
+  // only as the auth affordance for <img>, PDF.js, and download links:
+  // browsers cannot attach Authorization headers there, but the ?token=
+  // query / httpOnly semiont-token cookie ride along automatically.
+  // (Folding the alias into /resources/:id is an auth-design question —
+  // out of scope; see .plans/SIMPLER-JSON-LD.md §3.)
+  router.get('/api/resources/:id', async (c) => {
+    const { id } = c.req.param();
+    busLog('GET', 'content', { resourceId: id });
+
+    return withTraceparent(traceCarrier(c), () =>
+      withSpan(
+        'content.get.server',
+        async () => {
+          const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+          const { content, mediaType } = await loadRepresentation(id, kb);
+
+          // public is safe here, unlike the main route: the ?token= is part
+          // of the cache key (SIMPLER-JSON-LD.md decision 6).
+          c.header('Cache-Control', 'public, max-age=31536000, immutable');
+          c.header('Link', describedByLink(id));
+          return pipeRepresentation(c, content, mediaType);
+        },
+        { kind: SpanKind.SERVER, attrs: { 'resource.id': id } },
+      ),
+    );
   });
 }

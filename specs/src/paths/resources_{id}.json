@@ -1,7 +1,7 @@
 {
   "get": {
-    "summary": "Get a resource (content-negotiated)",
-    "description": "Content negotiation via the Accept header:\n- application/ld+json (default) or application/json — returns JSON-LD metadata including all annotations + inbound entity references. application/json is itself a SupportedMediaType, but on this route it means metadata (accepted ambiguity): a raw application/json representation can only be fetched via Accept: application/octet-stream.\n- any other SupportedMediaType, or a wildcard (image/*, */*) — returns the stored representation: charset-decoded text for text-flavored types, verbatim bytes for everything else (images, PDFs, archives, and every other admitted type).\n- application/octet-stream — returns the stored representation's bytes verbatim with the true media type in Content-Type (byte-fidelity mode for checksum consumers).\n\nBinary payloads flow directly from the content store; metadata payloads go through the bus gateway.",
+    "summary": "Get a resource's stored representation (the pipe)",
+    "description": "Returns the stored representation's bytes, verbatim, with the stored media type in Content-Type (`application/octet-stream` when the stored metadata carries none). The Accept header is never read: there is no content negotiation and no transcoding, so the served bytes always hash to the representation's registered checksum.\n\nThe resource's JSON-LD description (descriptor + annotations + inbound entity references) lives at GET /resources/{id}/jsonld; every content response advertises it via a `Link: rel=\"describedby\"` header.\n\nContent is immutable (checksum-addressed), and this route is bearer-authenticated, so responses carry `Cache-Control: private, max-age=31536000, immutable`.",
     "tags": ["Resources"],
     "security": [
       { "bearerAuth": [] }
@@ -12,46 +12,25 @@
         "in": "path",
         "required": true,
         "schema": { "type": "string" }
-      },
-      {
-        "name": "Accept",
-        "in": "header",
-        "required": false,
-        "schema": { "type": "string" },
-        "description": "application/ld+json (or application/json) for metadata; any SupportedMediaType or wildcard for the stored representation; application/octet-stream for verbatim bytes"
       }
     ],
     "responses": {
       "200": {
-        "description": "Resource content or metadata, depending on Accept",
+        "description": "The stored representation's bytes, verbatim",
+        "headers": {
+          "Link": {
+            "schema": { "type": "string" },
+            "description": "`</resources/{id}/jsonld>; rel=\"describedby\"; type=\"application/ld+json\"` — where to dereference the resource's JSON-LD description"
+          }
+        },
         "content": {
-          "application/ld+json": {
-            "schema": {
-              "$ref": "../components/schemas/GetResourceResponse.json"
-            }
-          },
-          "text/plain": {
-            "schema": { "type": "string" }
-          },
-          "text/markdown": {
-            "schema": { "type": "string" }
-          },
-          "text/html": {
-            "schema": { "type": "string" }
-          },
-          "image/*": {
-            "schema": { "type": "string", "format": "binary" }
-          },
-          "application/pdf": {
-            "schema": { "type": "string", "format": "binary" }
-          },
           "*/*": {
             "schema": { "type": "string", "format": "binary" }
           }
         }
       },
       "404": {
-        "description": "Resource not found",
+        "description": "Resource or representation not found",
         "content": {
           "application/json": {
             "schema": {
@@ -62,16 +41,6 @@
       },
       "500": {
         "description": "Failed to retrieve resource",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/ErrorResponse.json"
-            }
-          }
-        }
-      },
-      "504": {
-        "description": "Request timed out (bus gateway)",
         "content": {
           "application/json": {
             "schema": {
