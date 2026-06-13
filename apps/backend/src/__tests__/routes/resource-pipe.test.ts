@@ -194,4 +194,14 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
       sub.unsubscribe();
     }
   });
+
+  it('404s (not 500) on the pipe for a resource that was never stored', async () => {
+    const res = await app.request('/resources/res-pipe-absent');
+    expect(res.status).toBe(404);
+  });
+
+  it('404s on the /api/ alias for a missing resource too', async () => {
+    const res = await app.request('/api/resources/res-pipe-absent');
+    expect(res.status).toBe(404);
+  });
 });

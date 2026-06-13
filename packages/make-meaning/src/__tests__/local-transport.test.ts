@@ -195,6 +195,19 @@ describe('SemiontClient over LocalTransport', () => {
       }
     });
 
+    it('rejects resourceGraph for a non-existent id (assembleResourceGraph → null)', async () => {
+      // LocalContentTransport.getResourceGraph throws when the assembler finds
+      // no stored view — the in-process analogue of the HTTP /jsonld 404.
+      const h = await bootHarness();
+      try {
+        await expect(
+          h.client.browse.resourceGraph(makeResourceId('does-not-exist')),
+        ).rejects.toThrow(/not found/i);
+      } finally {
+        await h.dispose();
+      }
+    });
+
     it('emits browse:resource-failed for a non-existent id', async () => {
       const h = await bootHarness();
       try {

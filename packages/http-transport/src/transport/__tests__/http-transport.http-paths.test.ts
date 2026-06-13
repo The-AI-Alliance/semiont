@@ -355,6 +355,34 @@ describe('HttpTransport — HTTP wire shape', () => {
     });
   });
 
+  describe('Resource graph (HttpContentTransport.getResourceGraph)', () => {
+    test('GETs /resources/:id/jsonld and returns the parsed graph', async () => {
+      const graph = { resource: { '@id': 'test-resource-id' }, annotations: [], entityReferences: [] };
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue(graph),
+      } as never);
+
+      const result = await content.getResourceGraph(testResourceId);
+      expect(result).toBe(graph);
+      expect(mockKy.get).toHaveBeenCalledWith(
+        `${testBaseUrl}/resources/${testResourceId}/jsonld`,
+        { headers: {} },
+      );
+    });
+
+    test('sends the bearer auth header when a token is provided', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ resource: {}, annotations: [], entityReferences: [] }),
+      } as never);
+
+      await content.getResourceGraph(testResourceId, { auth: 'tok-123' as never });
+      expect(mockKy.get).toHaveBeenCalledWith(
+        `${testBaseUrl}/resources/${testResourceId}/jsonld`,
+        { headers: { Authorization: 'Bearer tok-123' } },
+      );
+    });
+  });
+
   describe('Multipart upload (HttpContentTransport.putBinary)', () => {
     // Pin the multipart wire shape that POST /resources expects. The
     // frontend compose page, the generation worker, and any future

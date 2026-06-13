@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { BehaviorSubject } from 'rxjs';
 import '@testing-library/jest-dom';
 import { resourceId } from '@semiont/core';
@@ -66,5 +66,32 @@ describe('useResourceGraph', () => {
 
     expect(result.current.error).toBeInstanceOf(Error);
     expect(result.current.graph).toBeNull();
+  });
+
+  it('a stale in-flight fetch does not clobber a newer id (cancellation guard)', async () => {
+    let resolveOld!: (g: unknown) => void;
+    let resolveNew!: (g: unknown) => void;
+    const oldFetch = new Promise((r) => { resolveOld = r; });
+    const newFetch = new Promise((r) => { resolveNew = r; });
+    const GRAPH_OLD = { resource: { id: 'res-old' }, annotations: [], entityReferences: [] };
+    const GRAPH_NEW = { resource: { id: 'res-new' }, annotations: [], entityReferences: [] };
+    mockResourceGraph.mockReturnValueOnce(oldFetch).mockReturnValueOnce(newFetch);
+
+    const { result, rerender } = renderHook(({ id }) => useResourceGraph(id), {
+      wrapper: Wrapper,
+      initialProps: { id: resourceId('res-old') },
+    });
+
+    // Switch ids before the first fetch resolves: the effect cleanup marks the
+    // old request cancelled and a fresh fetch starts for the new id.
+    rerender({ id: resourceId('res-new') });
+
+    // Resolve the newer request, then the stale one.
+    await act(async () => { resolveNew(GRAPH_NEW); });
+    await waitFor(() => expect(result.current.graph).toEqual(GRAPH_NEW));
+    await act(async () => { resolveOld(GRAPH_OLD); });
+
+    // The stale res-old resolution must not overwrite res-new.
+    expect(result.current.graph).toEqual(GRAPH_NEW);
   });
 });
