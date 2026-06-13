@@ -28,7 +28,7 @@
               },
               "storageUri": {
                 "type": "string",
-                "description": "Where the content has been / should be placed (file://... for local). If omitted, derived from name + format."
+                "description": "Where the content lives (file://... for local). Required — the client names the location; the server does not derive one."
               },
               "language": {
                 "type": "string",
@@ -59,7 +59,7 @@
                 "description": "'true' or 'false' — whether the resource is a draft"
               }
             },
-            "required": ["name", "file", "format"]
+            "required": ["name", "file", "format", "storageUri"]
           }
         }
       }
@@ -76,7 +76,7 @@
         }
       },
       "400": {
-        "description": "Missing required fields (name, file, or format), or the format's base MIME type is not a SupportedMediaType. The error message names the offending type.",
+        "description": "Missing required fields (name, file, format, or storageUri), or the format's base MIME type is not a SupportedMediaType. The error message names the offending type.",
         "content": {
           "application/json": {
             "schema": {
