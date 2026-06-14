@@ -13,6 +13,10 @@ RUN npm config set registry $NPM_REGISTRY && \
 # the picomatch / glob / etc. CVE surface that ships inside npm's bundled
 # node_modules.
 FROM node:26-alpine
+# Patch base-image OS packages so alpine security fixes (e.g. the openssl
+# libcrypto3/libssl3 HIGH CVE flagged by the Trivy gate) apply even when the
+# node:26-alpine snapshot hasn't been rebuilt against them yet.
+RUN apk upgrade --no-cache
 RUN rm -rf /usr/local/lib/node_modules/npm \
            /usr/local/bin/npm \
            /usr/local/bin/npx
