@@ -27,14 +27,14 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/http-transport": "*",
     "@semiont/core": "*",
+    "@semiont/http-transport": "*",
     "@semiont/ontology": "*",
     "uuid": "^14.0.0"
   },
   "peerDependencies": {
     "gremlin": "^3.7.4",
-    "neo4j-driver": "6.0.1"
+    "neo4j-driver": "^6.1.0"
   },
   "peerDependenciesMeta": {
     "neo4j-driver": {
