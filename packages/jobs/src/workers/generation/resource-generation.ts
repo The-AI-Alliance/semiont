@@ -128,6 +128,21 @@ ${after ? `${after}...` : ''}
     }
   }
 
+  // Build semantic context section if available — the vector matches the gather
+  // flow already retrieved for the focal passage, used to ground generation (RAG).
+  // Capped at top-3 by score and truncated per passage to bound prompt cost; the
+  // gather step pre-filters to ≤10 matches above a 0.5 cosine threshold.
+  // See .plans/SEMANTIC-CONTEXT-RAG.md.
+  let semanticContextSection = '';
+  const similar = context?.semanticContext?.similar ?? [];
+  if (similar.length > 0) {
+    const lines = [...similar]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map(m => `- (${m.score.toFixed(2)}) ${m.text.slice(0, 240)}`);
+    semanticContextSection = `\n\nRelated passages from the knowledge base:\n${lines.join('\n')}`;
+  }
+
   const structureGuidance = finalMaxTokens >= 1000
     ? 'organized into titled sections (## Section) with well-structured paragraphs'
     : 'organized into well-structured paragraphs';
@@ -135,7 +150,7 @@ ${after ? `${after}...` : ''}
   // Simple, direct prompt - just ask for markdown content
   const prompt = `Generate a concise, informative resource about "${topic}".
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
-${userPrompt ? `Additional context: ${userPrompt}` : ''}${annotationSection}${contextSection}${graphContextSection}${sourceLanguageInstruction}${languageInstruction}
+${userPrompt ? `Additional context: ${userPrompt}` : ''}${annotationSection}${contextSection}${graphContextSection}${semanticContextSection}${sourceLanguageInstruction}${languageInstruction}
 
 Requirements:
 - Start with a clear heading (# Title)
