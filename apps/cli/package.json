@@ -47,11 +47,11 @@
     "test:watch:unit": "vitest --watch --config vitest.config.unit.ts"
   },
   "dependencies": {
-    "@semiont/http-transport": "0.5.8",
     "@semiont/content": "0.5.8",
     "@semiont/core": "0.5.8",
     "@semiont/event-sourcing": "0.5.8",
     "@semiont/graph": "0.5.8",
+    "@semiont/http-transport": "0.5.8",
     "@semiont/make-meaning": "0.5.8",
     "@semiont/sdk": "0.5.8",
     "arg": "^5.0.2",
@@ -59,7 +59,7 @@
     "express": "^5.2.1",
     "ink": "^7.0.5",
     "js-yaml": "^4.2.0",
-    "neo4j-driver": "^6.0.1",
+    "neo4j-driver": "^6.1.0",
     "react": "^19.2.6",
     "smol-toml": "^1.6.1",
     "socket.io": "^4.5.4",
