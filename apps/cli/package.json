@@ -59,7 +59,7 @@
     "express": "^5.2.1",
     "ink": "^7.0.5",
     "js-yaml": "^4.2.0",
-    "neo4j-driver": "^6.0.1",
+    "neo4j-driver": "^6.1.0",
     "react": "^19.2.6",
     "smol-toml": "^1.6.1",
     "socket.io": "^4.5.4",
