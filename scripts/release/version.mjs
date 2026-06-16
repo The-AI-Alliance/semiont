@@ -84,27 +84,6 @@ function bumpVersion(version, type) {
   return formatVersion(v);
 }
 
-/**
- * Stamp `@semiont/*` and `semiont-*` cross-references in a package.json's
- * dependency sections. `*` workspace ranges are preserved (npm resolves
- * those at publish time).
- */
-function syncSemiontDeps(json, version) {
-  let changed = false;
-  for (const section of ['dependencies', 'devDependencies', 'peerDependencies']) {
-    if (!json[section]) continue;
-    for (const dep of Object.keys(json[section])) {
-      if (!(dep.startsWith('@semiont/') || dep.startsWith('semiont-'))) continue;
-      if (json[section][dep] === '*') continue;
-      if (json[section][dep] !== version) {
-        json[section][dep] = version;
-        changed = true;
-      }
-    }
-  }
-  return changed;
-}
-
 function showVersions() {
   const versionData = readJSON(VERSION_FILE);
 
@@ -152,10 +131,6 @@ function syncVersions() {
       console.log(`  ${name}: already at ${entry.version}`);
     }
 
-    if (syncSemiontDeps(pkgJson, entry.version)) {
-      updated = true;
-    }
-
     if (updated) {
       writeJSON(pkgPath, pkgJson);
     }
@@ -169,9 +144,6 @@ function syncVersions() {
       if (publishPkg.version !== entry.version) {
         console.log(`  Updating ${publishPath}: ${publishPkg.version} → ${entry.version}`);
         publishPkg.version = entry.version;
-        publishUpdated = true;
-      }
-      if (syncSemiontDeps(publishPkg, entry.version)) {
         publishUpdated = true;
       }
       if (publishUpdated) {
