@@ -16,7 +16,8 @@ export async function extractPdfTextLayer(
 ): Promise<PdfTextLayer | null> {
     // pdf.js v5 removed the isEvalSupported option; this path only calls
     // getTextContent (no rendering / no PDF functions).
-    const doc = await pdfjs.getDocument({ data: bytes }).promise;
+    const loadingTask = pdfjs.getDocument({ data: bytes });
+    const doc = await loadingTask.promise;
 
     try {
         const pages: PdfPageInfo[] = [];
@@ -75,7 +76,9 @@ export async function extractPdfTextLayer(
 
         return { pages, text, items };
     } finally {
-        // Release the pdf.js document — Phase 2 runs this in a long-lived worker pool.
-        await doc.destroy();
+        // Release the pdf.js document — Phase 2 runs this in a long-lived worker
+        // pool. pdf.js 6.0 removed PDFDocumentProxy.destroy(); teardown moved to
+        // PDFDocumentLoadingTask.destroy().
+        await loadingTask.destroy();
     }
 }
