@@ -32,6 +32,44 @@ function log(msg) {
   console.log(msg);
 }
 
+/**
+ * Curated source `devDependencies` that the *published* backend needs at
+ * runtime even though source treats them as dev-only. `prisma` is the CLI that
+ * runs database migrations against the deployed schema, so the published tarball
+ * must depend on it.
+ */
+const BACKEND_RUNTIME_DEVDEPS = ['prisma'];
+
+/**
+ * Derive the published backend's `dependencies` from source — the single source
+ * of truth for external runtime version ranges. This mirrors stampInternalDeps
+ * (which owns the internal `@semiont/*` pins): instead of hand-maintaining a
+ * second copy of the dep ranges in `package.publish.json` (which silently
+ * drifted), we read them straight from `apps/backend/package.json` so they can
+ * never diverge. External ranges and the internal `@semiont/*` set both come
+ * verbatim from source; runtime deps that source keeps as devDependencies
+ * (BACKEND_RUNTIME_DEVDEPS) are folded in. The internal `"*"` ranges are pinned
+ * to the exact release version afterwards by stampInternalDeps.
+ *
+ * @param {string} backendDir absolute path to apps/backend
+ * @returns {Record<string,string>} the staged manifest's `dependencies`
+ */
+function deriveBackendRuntimeDeps(backendDir) {
+  const src = JSON.parse(readFileSync(resolve(backendDir, 'package.json'), 'utf-8'));
+  const deps = { ...src.dependencies };
+  for (const name of BACKEND_RUNTIME_DEVDEPS) {
+    const range = src.devDependencies?.[name];
+    if (!range) {
+      throw new Error(
+        `Cannot promote '${name}' to a runtime dependency: not found in apps/backend/package.json devDependencies`
+      );
+    }
+    deps[name] = range;
+  }
+  // Stable alphabetical ordering for a clean, diffable staged manifest.
+  return Object.fromEntries(Object.keys(deps).sort().map((k) => [k, deps[k]]));
+}
+
 function stageBackend(version) {
   log('\n=== Staging @semiont/backend ===\n');
 
@@ -42,6 +80,7 @@ function stageBackend(version) {
     log(`  Would stage to: ${stageDir}`);
     log(`  Would copy: dist/, prisma/`);
     log(`  Would use: package.publish.json with version ${version}`);
+    log(`  Would derive dependencies from apps/backend/package.json (promoted: ${BACKEND_RUNTIME_DEVDEPS.join(', ')})`);
     return stageDir;
   }
 
@@ -65,11 +104,15 @@ function stageBackend(version) {
   execFileSync('cp', ['-r', resolve(backendDir, 'prisma'), resolve(stageDir, 'prisma')]);
   execFileSync('cp', [resolve(backendDir, 'prisma.config.ts'), resolve(stageDir, 'prisma.config.ts')]);
 
-  // Copy and update publish package.json
+  // Copy and update publish package.json. `package.publish.json` holds only the
+  // publish metadata that differs from source (name, bin, files, …) — NOT deps.
   const publishPkg = JSON.parse(readFileSync(resolve(backendDir, 'package.publish.json'), 'utf-8'));
   publishPkg.version = version;
 
-  // Pin internal cross-deps to the exact release version (single stamper).
+  // Derive runtime deps from source (single source of truth for external
+  // ranges), then pin internal @semiont/* cross-deps to the exact release
+  // version (single stamper).
+  publishPkg.dependencies = deriveBackendRuntimeDeps(backendDir);
   stampInternalDeps(publishPkg, version);
 
   writeFileSync(resolve(stageDir, 'package.json'), JSON.stringify(publishPkg, null, 2) + '\n');
@@ -77,6 +120,7 @@ function stageBackend(version) {
   // Copy README for npm listing
   execFileSync('cp', [resolve(backendDir, 'README.npm.md'), resolve(stageDir, 'README.md')]);
 
+  log(`  Derived ${Object.keys(publishPkg.dependencies).length} runtime deps from source (promoted: ${BACKEND_RUNTIME_DEVDEPS.join(', ')})`);
   log(`  Staged @semiont/backend@${version} to ${stageDir}`);
   log(`  Files: dist/, prisma/, prisma.config.ts, package.json, README.md`);
 
