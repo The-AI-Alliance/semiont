@@ -15,6 +15,17 @@ cd "$(git rev-parse --show-toplevel)"
 
 die() { echo "error: $1" >&2; exit 1; }
 
+# Resolve the container runtime (mirrors scripts/container/container-utils.js):
+# honor $CONTAINER_RUNTIME, else the first of container/docker/podman present.
+resolve_container_runtime() {
+  if [[ -n "${CONTAINER_RUNTIME:-}" ]]; then echo "$CONTAINER_RUNTIME"; return; fi
+  local rt
+  for rt in container docker podman; do
+    command -v "$rt" >/dev/null 2>&1 && { echo "$rt"; return; }
+  done
+  die "no container runtime found (Apple Container, Docker, or Podman) — needed to regenerate package-lock.json"
+}
+
 check_deps() {
   command -v jq >/dev/null 2>&1 || die "jq is required (brew install jq)"
   command -v git >/dev/null 2>&1 || die "git is required"
@@ -93,6 +104,7 @@ sync_semiont_deps() {
 # --- Main ---
 
 check_deps
+RUNTIME=$(resolve_container_runtime)
 
 CURRENT=$(current_version)
 validate_version "$CURRENT"
@@ -111,7 +123,8 @@ echo ""
 echo "This will:"
 echo "  1. Bump version from ${CURRENT} to ${NEXT} (${BUMP_TYPE})"
 echo "  2. Update all package.json files"
-echo "  3. Commit and push to main"
+echo "  3. Regenerate package-lock.json (npm, in ${RUNTIME})"
+echo "  4. Commit and push to main"
 echo ""
 read -rp "Proceed? (y/N): " confirm
 [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Cancelled."; exit 0; }
@@ -167,6 +180,19 @@ if [[ "$ERRORS" -gt 0 ]]; then
 fi
 echo "  All packages at ${NEXT}"
 
+# Phase 2.5: Regenerate package-lock.json so the committed lock matches the new
+# versions. npm is the only thing that produces a correct lockfileVersion-3 lock
+# (a hand jq-edit desyncs its interlinked version records); run it in a node:24
+# container because the release host has no Node.
+echo ""
+echo "Regenerating package-lock.json (npm in ${RUNTIME})..."
+"$RUNTIME" run --rm -v "$PWD":/work -w /work node:24 \
+  npm install --package-lock-only --include=optional
+LOCK_VERSION=$(jq -r '.packages[""].version' package-lock.json)
+[[ "$LOCK_VERSION" == "$NEXT" ]] || die "package-lock.json root is '${LOCK_VERSION}' after regen (expected ${NEXT})"
+FILES+=(package-lock.json)
+echo "  package-lock.json regenerated at ${NEXT}"
+
 # Phase 3: Commit and push
 echo ""
 COMMIT_MSG="bump version to ${NEXT}
@@ -175,6 +201,7 @@ This commit bumps the version after releasing ${CURRENT} as stable.
 
 Version bump type: ${BUMP_TYPE}
 - All package.json files updated to ${NEXT}
+- package-lock.json regenerated to match
 - Publish manually via GitHub Actions workflow dispatch"
 
 git add "${FILES[@]}"

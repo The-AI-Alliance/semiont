@@ -107,7 +107,24 @@ After the release completes, bump the version for the next development cycle:
 This script:
 - Bumps the version in `version.json`
 - Syncs to all `package.json` files
+- Regenerates `package-lock.json` to match (npm, run in a container)
 - Commits (signed) and pushes to main
+
+### Lockfile policy
+
+The bump regenerates `package-lock.json` (`npm install --package-lock-only
+--include=optional`, run in a `node:24` container — the release host has no
+Node) and stages it in the same commit, so the committed lock always records
+the bumped versions. This keeps `npm ci` usable for reproducible/clean installs
+(release seed builds, Docker images). Without it the lock stays one version
+behind after every bump and `npm ci` fails on the lock↔`package.json` mismatch;
+CI hides this because it installs with `npm install`, which silently re-resolves
+and heals the drift. Do not hand-edit the lock to "fix" a version: a
+lockfileVersion-3 file records each workspace version in several interlinked
+places (the `packages` map, app dependency pins, `link: true` entries), and only
+npm rewrites it consistently. `--include=optional` is required so the
+per-platform native pins (`@rolldown/binding-*`, `lightningcss-*`) stay in the
+lock.
 
 ## Version Management Scripts
 
