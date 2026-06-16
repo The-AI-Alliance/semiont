@@ -69,11 +69,13 @@
     "@hono/node-server": "^2.0.4",
     "ip-address": "^10.1.1",
     "ws": "^8.20.1",
-    "@opentelemetry/core": "^2.7.0",
-    "@opentelemetry/resources": "^2.7.0",
-    "@opentelemetry/sdk-metrics": "^2.7.0",
-    "@opentelemetry/sdk-trace-base": "^2.7.0",
-    "@opentelemetry/sdk-trace-web": "^2.7.0",
+    "esbuild": "^0.28.1",
+    "js-yaml": "^4.2.0",
+    "@opentelemetry/core": "^2.8.0",
+    "@opentelemetry/resources": "^2.8.0",
+    "@opentelemetry/sdk-metrics": "^2.8.0",
+    "@opentelemetry/sdk-trace-base": "^2.8.0",
+    "@opentelemetry/sdk-trace-web": "^2.8.0",
     "@opentelemetry/semantic-conventions": "^1.40.0"
   },
   "devDependencies": {
