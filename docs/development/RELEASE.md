@@ -135,6 +135,29 @@ npm run version:bump    # Bump version (patch/minor/major)
 npm run version:set     # Set a specific version
 ```
 
+## Internal dependency pinning
+
+Workspace packages depend on each other (`@semiont/*` / `semiont-*`). The rule:
+
+- **In source, internal deps are `"*"`.** That links the local workspace in dev
+  (any version satisfies `"*"`) and **can never drift** — a `"*"` range is never
+  stale, so a clean `npm ci` always resolves to your source, never a stale
+  published copy from the npm cache.
+- **At publish, `"*"` is rewritten to the exact release version.** We publish
+  every package at every version, so an exact pin always resolves to a matching
+  sibling and a published tarball can never pull a mismatched internal version.
+
+There is exactly **one** implementation of that rewrite —
+`scripts/ci/stamp-internal-deps.mjs` (`stampInternalDeps`) — used by both
+publish paths: `scripts/ci/stamp-versions.mjs` (invoked by `publish.sh`, for the
+in-place libs + cli) and `publish-npm-apps.mjs` (for the staged backend/frontend
+tarballs). `version-bump.sh` and `version:sync` only stamp the `version` field;
+they do **not** pin internal deps — those stay `"*"`.
+
+Do **not** hand-pin an internal dep to a concrete version in source: it adds a
+maintenance point that drifts and lets a stale published copy substitute for
+your workspace — the exact failure this convention removes.
+
 ## Package manifest: `version.json`
 
 `version.json` is the workspace's single source of truth for the
@@ -176,7 +199,9 @@ each package after its dependencies.
 
 ### Adding a new workspace package
 
-1. Create the package directory and its `package.json` as usual.
+1. Create the package directory and its `package.json` as usual. Pin any
+   internal `@semiont/*` dependencies as `"*"`, never a concrete version (see
+   **Internal dependency pinning** above).
 2. Add an entry to `version.json` in the right dependency-order
    position, with `publish: true` if it should ship to npm or
    `publish: false` for internal packages (test helpers, MCP

@@ -15,6 +15,7 @@ import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { stampInternalDeps } from './stamp-internal-deps.mjs';
 
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -68,12 +69,8 @@ function stageBackend(version) {
   const publishPkg = JSON.parse(readFileSync(resolve(backendDir, 'package.publish.json'), 'utf-8'));
   publishPkg.version = version;
 
-  // Sync @semiont/* dependency versions
-  for (const dep of Object.keys(publishPkg.dependencies)) {
-    if (dep.startsWith('@semiont/')) {
-      publishPkg.dependencies[dep] = `^${version}`;
-    }
-  }
+  // Pin internal cross-deps to the exact release version (single stamper).
+  stampInternalDeps(publishPkg, version);
 
   writeFileSync(resolve(stageDir, 'package.json'), JSON.stringify(publishPkg, null, 2) + '\n');
 
@@ -123,6 +120,7 @@ function stageFrontend(version) {
   // Copy and update publish package.json
   const publishPkg = JSON.parse(readFileSync(resolve(frontendDir, 'package.publish.json'), 'utf-8'));
   publishPkg.version = version;
+  stampInternalDeps(publishPkg, version);
 
   writeFileSync(resolve(stageDir, 'package.json'), JSON.stringify(publishPkg, null, 2) + '\n');
 

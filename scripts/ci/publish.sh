@@ -61,43 +61,7 @@ banner "STAMP VERSIONS"
 echo -e "  Version: ${BOLD}$VERSION${RESET}  Tag: ${BOLD}$TAG${RESET}  Registry: ${DIM}$REGISTRY${RESET}"
 echo ""
 
-node -e "
-  const fs = require('fs');
-  const version = '$VERSION';
-
-  const versionJson = JSON.parse(fs.readFileSync('version.json', 'utf-8'));
-  versionJson.version = version;
-  for (const pkg of Object.values(versionJson.packages)) {
-    pkg.version = version;
-  }
-  fs.writeFileSync('version.json', JSON.stringify(versionJson, null, 2) + '\n');
-  console.log('  version.json → ' + version);
-
-  // Stamp every package.json that has a corresponding entry in
-  // version.json — including non-published ones (test-utils,
-  // mcp-server, desktop) so the workspace stays version-coherent.
-  // Bump cross-references to other @semiont/* packages too, so
-  // published tarballs install against the new version on registries
-  // that don't honor workspace ranges.
-  for (const pkg of Object.values(versionJson.packages)) {
-    const path = pkg.dir + '/package.json';
-    const json = JSON.parse(fs.readFileSync(path, 'utf-8'));
-    json.version = version;
-    for (const section of ['dependencies', 'devDependencies', 'peerDependencies']) {
-      if (!json[section]) continue;
-      for (const dep of Object.keys(json[section])) {
-        if (dep.startsWith('@semiont/') || dep.startsWith('semiont-')) {
-          // Don't touch '*' workspace ranges — npm resolves those at publish time.
-          if (json[section][dep] !== '*') {
-            json[section][dep] = version;
-          }
-        }
-      }
-    }
-    fs.writeFileSync(path, JSON.stringify(json, null, 2) + '\n');
-    console.log('  ' + json.name + ' → ' + version);
-  }
-"
+node scripts/ci/stamp-versions.mjs "$VERSION"
 
 # --- Stage app packages ---
 

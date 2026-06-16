@@ -66,6 +66,23 @@ verdaccio_cleanup() {
 }
 trap verdaccio_cleanup ERR INT TERM
 
+# On exit (success or failure), revert the version-stamp that publish.sh writes
+# into the bind-mounted source manifests (version.json + every workspace
+# package.json) — a local publish should not leave the working tree dirty.
+# Guarded: if those files were already modified before the run, leave them
+# alone so we never clobber in-progress edits.
+restore_manifests() {
+  local now_dirty
+  now_dirty=$(git -C "$REPO_ROOT" status --porcelain -- version.json ':(glob)packages/*/package.json' ':(glob)apps/*/package.json' 2>/dev/null || true)
+  [[ -z "$now_dirty" ]] && return
+  if [[ -n "${PRE_DIRTY:-}" ]]; then
+    warn "Source manifests were already modified before this run — leaving the working tree as-is (revert the publish stamp yourself: git status)."
+    return
+  fi
+  git -C "$REPO_ROOT" restore -- version.json ':(glob)packages/*/package.json' ':(glob)apps/*/package.json' 2>/dev/null || true
+  ok "Reverted the publish version-stamp in the working tree"
+}
+
 banner "SEMIONT LOCAL BUILD"
 step "Container runtime: ${BOLD}$RT${RESET}"
 
@@ -201,6 +218,11 @@ rm -rf .npm-stage
 # --- Build + Publish in container ---
 
 banner "BUILD + PUBLISH"
+
+# Snapshot manifest dirtiness *before* publish, then arm the revert trap, so the
+# EXIT handler can undo only the publish stamp and not any pre-existing edits.
+PRE_DIRTY=$(git -C "$REPO_ROOT" status --porcelain -- version.json ':(glob)packages/*/package.json' ':(glob)apps/*/package.json' 2>/dev/null || true)
+trap restore_manifests EXIT
 
 $RT run --rm \
   -v "$REPO_ROOT":/workspace \
