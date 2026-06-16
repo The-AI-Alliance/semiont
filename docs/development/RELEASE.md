@@ -158,6 +158,45 @@ Do **not** hand-pin an internal dep to a concrete version in source: it adds a
 maintenance point that drifts and lets a stale published copy substitute for
 your workspace — the exact failure this convention removes.
 
+## External dependency ranges: derived at publish (backend)
+
+The backend publishes from a staging directory, so it needs a publish-only
+manifest (`apps/backend/package.publish.json`) — the published package has a
+different `name` (`@semiont/backend` vs `semiont-backend`), adds `bin`/`files`/
+`publishConfig`, and drops dev tooling. That template holds **only the publish
+metadata that differs from source**. It does **not** re-declare dependencies.
+
+The same single-source-of-truth rule as internal pinning applies to *external*
+runtime deps: **source `apps/backend/package.json` is the single source of truth
+for external version ranges.** At staging, `stageBackend`
+(`scripts/ci/publish-npm-apps.mjs`) builds the published `dependencies` by:
+
+1. Taking `apps/backend/package.json` `dependencies` verbatim — both the
+   external ranges and the internal `@semiont/*` set. They are read from source,
+   so they **can never drift** from it.
+2. Promoting the curated runtime deps that source keeps as `devDependencies`
+   (`BACKEND_RUNTIME_DEVDEPS` — currently just `prisma`, the migration CLI the
+   deployed package runs). Their ranges also come from source.
+3. Pinning the internal `@semiont/*` deps to the exact release version via the
+   shared `stampInternalDeps` (see **Internal dependency pinning** above).
+
+Do **not** add a `dependencies` block to `package.publish.json` — the staging
+script overwrites it, so hand-authored entries there are silently ignored. To
+add a runtime dependency, add it to `apps/backend/package.json`. If it must stay
+a `devDependency` in source but ship at runtime (like `prisma`), add it to
+`BACKEND_RUNTIME_DEVDEPS` in `scripts/ci/publish-npm-apps.mjs`.
+
+This replaced a hand-maintained copy of the dep ranges in
+`package.publish.json` that drifted from source on every dependency bump (it had
+shipped a `@hono/node-server` *major* behind source, and had dropped
+`@semiont/observability` entirely even though the built backend imports it at
+startup).
+
+The **frontend** is deliberately different: `apps/frontend/package.publish.json`
+declares **no** runtime dependencies and nothing derives them, because the
+published frontend is a pre-built Vite bundle — its deps are compiled into
+`dist/`, not resolved by npm at install time.
+
 ## Package manifest: `version.json`
 
 `version.json` is the workspace's single source of truth for the
