@@ -69,6 +69,7 @@
     "@hono/node-server": "^2.0.4",
     "ip-address": "^10.1.1",
     "ws": "^8.20.1",
+    "esbuild": "^0.28.1",
     "@opentelemetry/core": "^2.7.0",
     "@opentelemetry/resources": "^2.7.0",
     "@opentelemetry/sdk-metrics": "^2.7.0",
