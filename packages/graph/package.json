@@ -27,14 +27,14 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/http-transport": "*",
     "@semiont/core": "*",
+    "@semiont/http-transport": "*",
     "@semiont/ontology": "*",
     "uuid": "^14.0.0"
   },
   "peerDependencies": {
     "gremlin": "^3.7.4",
-    "neo4j-driver": "6.0.1"
+    "neo4j-driver": "^6.1.0"
   },
   "peerDependenciesMeta": {
     "neo4j-driver": {
@@ -76,6 +76,6 @@
     "directory": "packages/graph"
   },
   "optionalDependencies": {
-    "@aws-sdk/client-neptune": "^3.1061.0"
+    "@aws-sdk/client-neptune": "^3.1065.0"
   }
 }

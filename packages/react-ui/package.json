@@ -87,8 +87,8 @@
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.8",
     "autoprefixer": "^10.5.0",
-    "axe-core": "^4.11.4",
-    "cssnano": "^8.0.1",
+    "axe-core": "^4.12.1",
+    "cssnano": "^8.0.2",
     "jest-axe": "^10.0.0",
     "jsdom": "^29.1.1",
     "postcss-import": "^16.1.1",
@@ -109,8 +109,8 @@
     "directory": "packages/react-ui"
   },
   "dependencies": {
-    "@semiont/http-transport": "*",
     "@semiont/core": "*",
+    "@semiont/http-transport": "*",
     "@semiont/sdk": "*",
     "react-error-boundary": "^6.1.2"
   }
