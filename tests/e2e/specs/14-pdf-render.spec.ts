@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/auth';
+import type { Page } from '@playwright/test';
 
 /**
  * Smoke test: the PDFJS-6-UNIFY browser acceptance gate.
@@ -34,7 +35,7 @@ const IMG = '.semiont-pdf-annotation-canvas__image';
 const SVG = '.semiont-pdf-annotation-canvas__svg';
 const CONTAINER = '.semiont-pdf-annotation-canvas__container';
 
-async function openPdfInAnnotateMode(page: import('@playwright/test').Page) {
+async function openPdfInAnnotateMode(page: Page) {
   await page.goto('/en/know/discover');
   const card = page.getByRole('button', { name: PDF_CARD });
   await expect(card).toBeVisible({ timeout: 15_000 });
