@@ -19,7 +19,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@semiont/core": "*"
+    "@semiont/core": "0.5.8"
   },
   "scripts": {
     "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",

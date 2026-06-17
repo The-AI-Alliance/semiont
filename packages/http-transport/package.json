@@ -39,8 +39,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/core": "*",
-    "@semiont/observability": "*",
+    "@semiont/core": "0.5.8",
+    "@semiont/observability": "0.5.8",
     "ky": "^2.0.2",
     "rxjs": "^7.8.1"
   },

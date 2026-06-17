@@ -1,198 +1,76 @@
 /**
- * Browser PDF.js utilities
+ * Browser PDF.js — bundled from the npm `pdfjs-dist` (v6) package, loaded
+ * lazily.
  *
- * Uses native browser PDF.js when available, falls back to CDN.
- * Zero npm dependencies - no webpack bundling issues.
+ * pdf.js (the ~300 kB display layer) is pulled in via a dynamic `import()` the
+ * first time a PDF is actually opened, so it is code-split out of the main app
+ * bundle — restoring the lazy-load behaviour the old CDN loader had. Only the
+ * pdf.js *types* are imported statically (erased at build time, zero runtime
+ * cost).
+ *
+ * The worker can't be resolved inside this tsup-built library (Vite's `?url`
+ * lives in the app), so the host hands us the worker URL via `setPdfWorkerSrc`
+ * once at startup; it is applied to `GlobalWorkerOptions` when pdf.js loads.
+ * See `apps/frontend/src/main.tsx`.
  */
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 
-// Type definitions for PDF.js API
-export interface PDFDocumentProxy {
-  numPages: number;
-  getPage(pageNumber: number): Promise<PDFPageProxy>;
-}
+export type { PDFDocumentProxy };
 
-export interface PDFPageProxy {
-  getViewport(params: { scale: number; rotation?: number }): PDFViewport;
-  render(params: PDFRenderParams): PDFRenderTask;
-  getTextContent(): Promise<TextContent>;
-}
-
-export interface PDFViewport {
-  width: number;
-  height: number;
-  scale: number;
-  rotation: number;
-}
-
-export interface PDFRenderParams {
-  canvasContext: CanvasRenderingContext2D;
-  viewport: PDFViewport;
-}
-
-export interface PDFRenderTask {
-  promise: Promise<void>;
-  cancel(): void;
-}
-
-export interface PDFLib {
-  getDocument(params: { url: string }): PDFLoadingTask;
-  GlobalWorkerOptions: {
-    workerSrc: string;
-  };
-  version: string;
-}
-
-export interface PDFLoadingTask {
-  promise: Promise<PDFDocumentProxy>;
-  destroy(): void;
-}
+let workerSrc: string | undefined;
 
 /**
- * Text content types (for Phase 2)
+ * Supply the (Vite-resolved) pdf.js worker URL. Call once at app startup,
+ * before any PDF is opened.
  */
-export interface TextItem {
-  str: string;
-  dir: string;
-  transform: number[]; // [scaleX, skewX, skewY, scaleY, x, y]
-  width: number;
-  height: number;
-  fontName: string;
-  hasEOL: boolean;
+export function setPdfWorkerSrc(src: string): void {
+  workerSrc = src;
 }
 
-export interface TextContent {
-  items: TextItem[];
-  styles: Record<string, any>;
-}
+let pdfjsPromise: Promise<typeof import('pdfjs-dist')> | undefined;
 
-/**
- * Ensure PDF.js is available, loading from local public folder if needed
- */
-export async function ensurePdfJs(): Promise<PDFLib> {
-  // Check if already available (browser native or already loaded)
-  if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
-    return (window as any).pdfjsLib as PDFLib;
-  }
-
-  // Load from local public folder (staged during build)
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = '/pdfjs/pdf.min.mjs';
-    script.type = 'module';
-
-    script.onload = () => {
-      const pdfjsLib = (window as any).pdfjsLib as PDFLib;
-
-      if (!pdfjsLib) {
-        reject(new Error('PDF.js loaded but pdfjsLib not available'));
-        return;
+/** Lazy-load pdf.js once, applying the worker URL on first load. */
+async function getPdfjs(): Promise<typeof import('pdfjs-dist')> {
+  if (!pdfjsPromise) {
+    pdfjsPromise = import('pdfjs-dist').then((pdfjsLib) => {
+      if (workerSrc) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
       }
-
-      // Configure worker (also served from local public folder)
-      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
-
-      resolve(pdfjsLib);
-    };
-
-    script.onerror = () => {
-      reject(new Error('Failed to load PDF.js from /pdfjs/pdf.min.mjs'));
-    };
-
-    document.head.appendChild(script);
-  });
+      return pdfjsLib;
+    });
+  }
+  return pdfjsPromise;
 }
 
 /**
- * Load PDF document from a URL.
- *
- * The URL must include authentication (e.g. ?token=<media-token>).
- * PDF.js streams the document directly — no ArrayBuffer buffering in JS.
+ * Load a PDF document from a URL. The URL must carry auth (e.g. `?token=…`);
+ * pdf.js streams the document directly.
  */
 export async function loadPdfDocument(url: string): Promise<PDFDocumentProxy> {
-  const pdfjsLib = await ensurePdfJs();
-  const loadingTask = pdfjsLib.getDocument({ url });
-  return loadingTask.promise;
+  const pdfjsLib = await getPdfjs();
+  return pdfjsLib.getDocument({ url }).promise;
 }
 
 /**
- * Render PDF page to canvas and return as data URL
+ * Render a PDF page to a PNG data URL. The `page` is already loaded (its owning
+ * document came from `loadPdfDocument`), so no pdf.js import is needed here.
  */
 export async function renderPdfPageToDataUrl(
   page: PDFPageProxy,
-  scale = 1.0
+  scale = 1.0,
 ): Promise<{ dataUrl: string; width: number; height: number }> {
   const viewport = page.getViewport({ scale });
 
-  // Create canvas
   const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  if (!context) {
-    throw new Error('Failed to get 2D context');
-  }
-
   canvas.width = viewport.width;
   canvas.height = viewport.height;
 
-  // Render PDF page to canvas
-  const renderTask = page.render({
-    canvasContext: context,
-    viewport: viewport
-  });
+  // pdf.js 6 requires the `canvas` parameter; `canvasContext` is deprecated.
+  await page.render({ canvas, viewport }).promise;
 
-  await renderTask.promise;
-
-  // Convert to data URL
-  return {
-    dataUrl: canvas.toDataURL('image/png'),
-    width: viewport.width,
-    height: viewport.height
-  };
-}
-
-/**
- * Render PDF page with text content extraction (Phase 2)
- *
- * This function extracts text in parallel with rendering for future
- * text layer support. Currently the text content is available but not used.
- */
-export async function renderPdfPageWithText(
-  page: PDFPageProxy,
-  scale = 1.0
-): Promise<{
-  dataUrl: string;
-  width: number;
-  height: number;
-  textContent: TextContent;
-}> {
-  const viewport = page.getViewport({ scale });
-
-  // Create canvas for rendering
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  if (!context) {
-    throw new Error('Failed to get 2D context');
-  }
-
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-
-  // Render PDF page to canvas
-  const renderTask = page.render({
-    canvasContext: context,
-    viewport: viewport
-  });
-
-  // Extract text content in parallel (for future text layer support)
-  const [, textContent] = await Promise.all([
-    renderTask.promise,
-    page.getTextContent()
-  ]);
-
-  // Convert to data URL
   return {
     dataUrl: canvas.toDataURL('image/png'),
     width: viewport.width,
     height: viewport.height,
-    textContent
   };
 }

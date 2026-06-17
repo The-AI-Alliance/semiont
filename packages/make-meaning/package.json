@@ -31,17 +31,17 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/http-transport": "*",
-    "@semiont/content": "*",
-    "@semiont/core": "*",
-    "@semiont/event-sourcing": "*",
-    "@semiont/graph": "*",
-    "@semiont/inference": "*",
-    "@semiont/jobs": "*",
-    "@semiont/observability": "*",
-    "@semiont/ontology": "*",
-    "@semiont/sdk": "*",
-    "@semiont/vectors": "*"
+    "@semiont/http-transport": "0.5.8",
+    "@semiont/content": "0.5.8",
+    "@semiont/core": "0.5.8",
+    "@semiont/event-sourcing": "0.5.8",
+    "@semiont/graph": "0.5.8",
+    "@semiont/inference": "0.5.8",
+    "@semiont/jobs": "0.5.8",
+    "@semiont/observability": "0.5.8",
+    "@semiont/ontology": "0.5.8",
+    "@semiont/sdk": "0.5.8",
+    "@semiont/vectors": "0.5.8"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.8",

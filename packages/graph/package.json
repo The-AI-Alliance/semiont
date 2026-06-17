@@ -27,9 +27,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/core": "*",
-    "@semiont/http-transport": "*",
-    "@semiont/ontology": "*",
+    "@semiont/core": "0.5.8",
+    "@semiont/http-transport": "0.5.8",
+    "@semiont/ontology": "0.5.8",
     "uuid": "^14.0.0"
   },
   "peerDependencies": {
