@@ -8,6 +8,14 @@
  * not. A freshly-rebuilt template KB starts empty, which makes specs
  * 02-09 fail at the very first "open resource:" assertion.
  *
+ * Seeds two `text/plain` resources (for the text-annotation specs) plus
+ * one `application/pdf` resource (for `14-pdf-render.spec.ts`, the
+ * PDFJS-6-UNIFY browser smoke). The PDF is seeded **first** on purpose:
+ * Discover lists resources newest-first
+ * (`make-meaning/src/resource-context.ts` `sortByDateDesc`), so the
+ * oldest resource sorts last and never becomes the `.first()` card the
+ * text specs (02-09) open. Adding the PDF must not displace that card.
+ *
  * This module exports two entry points:
  *
  *   - `seedKb(opts)` — async function callable from Playwright's
@@ -30,30 +38,64 @@ import { SemiontClient } from '@semiont/sdk';
 interface SeedSpec {
   name: string;
   storageUri: string;
-  format: 'text/plain';
+  format: 'text/plain' | 'application/pdf';
   language: string;
-  content: string;
+  /** Raw resource bytes — text encoded utf-8, PDF decoded from base64. */
+  bytes: Buffer;
 }
 
-// Two short documents in `text/plain` (NOT `text/markdown`). The
+/**
+ * A minimal, self-contained single-page PDF (300×200) that draws a blue
+ * filled rectangle and the text "Smoke Test PDF" — enough that pdf.js
+ * renders a non-blank page. Embedded as base64 rather than a fixture
+ * file because the repo's only PDFs
+ * (`packages/content/src/__tests__/fixtures/*.pdf`) are gitignored and
+ * generated on demand, so they aren't guaranteed present in the e2e
+ * container. Verified to load in pdfjs-dist@6 (numPages=1, text layer
+ * "Smoke Test PDF").
+ */
+const PDF_FIXTURE_BASE64 =
+  'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq' +
+  'CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq' +
+  'CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCAzMDAg' +
+  'MjAwXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA1IDAgUiA+PiA+PiAvQ29udGVudHMgNCAw' +
+  'IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA4MiA+PgpzdHJlYW0KMCAwIDEgcmcKNDAg' +
+  'MTEwIDIyMCA2MCByZQpmCkJUCi9GMSAyNCBUZgowIDAgMCByZwo1MCA2MCBUZAooU21va2UgVGVz' +
+  'dCBQREYpIFRqCkVUCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PCAvVHlwZSAvRm9udCAvU3Vi' +
+  'dHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCnhyZWYKMCA2CjAwMDAw' +
+  'MDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAw' +
+  'MDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI0MSAwMDAwMCBuIAowMDAwMDAwMzcyIDAwMDAwIG4g' +
+  'CnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKNDQyCiUlRU9G';
+
+// Names + storageUris are stable so a re-run sees the same KB shape.
+//
+// The two text documents are `text/plain` (NOT `text/markdown`): the
 // markdown MIME type triggers ReactMarkdown rendering in BrowseView,
 // which strips header syntax (`#`, `**`, etc.) from the rendered DOM.
 // Annotations placed on those source-only characters can't be resolved
-// to rendered positions, and the in-content overlay silently skips
-// them — meaning the annotation persists but never renders an
-// `[data-annotation-id]` span. Plain text has a 1:1 source↔rendered
-// offset mapping, so any selection round-trips and renders.
+// to rendered positions, and the in-content overlay silently skips them.
+// Plain text has a 1:1 source↔rendered offset mapping, so any selection
+// round-trips and renders. Each has multiple paragraphs so the
+// manual-highlight / manual-reference / comment / hover-beckon specs
+// have text to select.
 //
-// Each document has multiple paragraphs so the manual-highlight /
-// manual-reference / comment / hover-beckon specs have text to select.
-// Names + storageUris are stable so a re-run sees the same KB shape.
+// The PDF is listed FIRST so it is created first → oldest → sorts last
+// in Discover (see the module doc); the text specs' `.first()` card
+// stays a text resource.
 const SEED_RESOURCES: readonly SeedSpec[] = [
+  {
+    name: 'Spatial Smoke PDF',
+    storageUri: 'file://e2e/seed-spatial.pdf',
+    format: 'application/pdf',
+    language: 'en',
+    bytes: Buffer.from(PDF_FIXTURE_BASE64, 'base64'),
+  },
   {
     name: 'Quantum Computing Primer',
     storageUri: 'file://e2e/seed-1.txt',
     format: 'text/plain',
     language: 'en',
-    content:
+    bytes: Buffer.from(
       'Quantum computing is a model of computation that uses quantum-mechanical ' +
       'phenomena, such as superposition and entanglement, to perform operations on ' +
       'data. Where a classical bit is either zero or one, a qubit can be a ' +
@@ -65,13 +107,15 @@ const SEED_RESOURCES: readonly SeedSpec[] = [
       'When two or more qubits become entangled, their joint state cannot be ' +
       'expressed as a product of individual qubit states. Operations on one ' +
       'entangled qubit instantaneously affect the others, regardless of distance.\n',
+      'utf-8',
+    ),
   },
   {
     name: 'Photosynthesis Overview',
     storageUri: 'file://e2e/seed-2.txt',
     format: 'text/plain',
     language: 'en',
-    content:
+    bytes: Buffer.from(
       'Photosynthesis is the process by which plants, algae, and certain bacteria ' +
       'convert light energy into chemical energy stored in glucose. The overall ' +
       'reaction transforms carbon dioxide and water into sugar and oxygen, using ' +
@@ -84,6 +128,8 @@ const SEED_RESOURCES: readonly SeedSpec[] = [
       'the chloroplast stroma. The enzyme RuBisCO fixes carbon dioxide onto a ' +
       'five-carbon sugar, and a series of reductions powered by ATP and NADPH ' +
       'produce glucose and other organic molecules.\n',
+      'utf-8',
+    ),
   },
 ];
 
@@ -103,7 +149,7 @@ export interface SeedOptions {
  * (excluding ones that already existed).
  *
  * The "already exists" path returns success — the suite only cares
- * that ≥2 seed resources are present, not that this run created them.
+ * that the seed resources are present, not that this run created them.
  */
 export async function seedKb(opts: SeedOptions): Promise<{ created: number; existed: number }> {
   const log = opts.log ?? ((m: string) => { console.log(m); });
@@ -133,7 +179,7 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
         const result = await client.yield.resource({
           name: spec.name,
           storageUri: spec.storageUri,
-          file: Buffer.from(spec.content, 'utf-8'),
+          file: spec.bytes,
           format: spec.format,
           language: spec.language,
         });
