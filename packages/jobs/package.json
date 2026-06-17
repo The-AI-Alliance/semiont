@@ -29,13 +29,13 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/http-transport": "*",
-    "@semiont/content": "*",
-    "@semiont/core": "*",
-    "@semiont/event-sourcing": "*",
-    "@semiont/inference": "*",
-    "@semiont/observability": "*",
-    "@semiont/sdk": "*"
+    "@semiont/http-transport": "0.5.8",
+    "@semiont/content": "0.5.8",
+    "@semiont/core": "0.5.8",
+    "@semiont/event-sourcing": "0.5.8",
+    "@semiont/inference": "0.5.8",
+    "@semiont/observability": "0.5.8",
+    "@semiont/sdk": "0.5.8"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.8",

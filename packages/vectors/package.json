@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@qdrant/js-client-rest": "^1.18.0",
-    "@semiont/core": "*"
+    "@semiont/core": "0.5.8"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.8",

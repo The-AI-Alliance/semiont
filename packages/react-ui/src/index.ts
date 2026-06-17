@@ -20,6 +20,7 @@ export * from './lib/media-shapes';
 export { createSearchPipeline, type SearchPipeline, type SearchPipelineOptions, type SearchState } from '@semiont/sdk';
 export * from './lib/annotation-overlay';
 export * from './lib/resource-utils';
+export { setPdfWorkerSrc } from './lib/browser-pdfjs';
 export * from './lib/validation';
 
 // Hooks

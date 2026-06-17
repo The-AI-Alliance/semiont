@@ -7,6 +7,14 @@ import App from './App';
 import './i18n/config'; // initialise i18next
 import './app/globals.css';
 import './styles/animations.css';
+import { setPdfWorkerSrc } from '@semiont/react-ui';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+// Hand react-ui the (Vite-resolved) pdf.js worker URL once at startup. This is
+// a cheap string — pdf.js itself is dynamically imported only when a PDF is
+// opened, so it stays code-split out of the main bundle. Replaces the old CDN
+// `copy-pdfjs.js` staging.
+setPdfWorkerSrc(pdfWorkerUrl);
 
 // Tier 2 observability. The OTel web SDK is hefty — code-splitting via
 // dynamic import keeps it out of the main bundle entirely when no

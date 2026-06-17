@@ -4,22 +4,9 @@
  * Tests PDF.js loading and basic functionality
  */
 
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, expect } from 'vitest';
 
 describe('browser-pdfjs', () => {
-  beforeEach(() => {
-    // Clear any existing pdfjsLib
-    if (typeof window !== 'undefined') {
-      (window as any).pdfjsLib = undefined;
-    }
-  });
-
-  test('loads PDF.js script when not available', async () => {
-    // This test verifies the script loading mechanism
-    // In a real browser environment, this would load /pdfjs/pdf.min.mjs
-    expect(true).toBe(true); // Placeholder - actual test needs browser environment
-  });
-
   test('validates PDF structure', () => {
     // Test that we can detect invalid PDF files
     // A valid PDF starts with %PDF-
