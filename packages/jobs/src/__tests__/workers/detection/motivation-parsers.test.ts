@@ -3,10 +3,17 @@
  *
  * Tests the MotivationParsers class which parses and validates AI responses
  * for different annotation motivations.
+ *
+ * Phase 2b (de-silence): the parsers no longer tolerate malformed output or
+ * swallow parse failures into an empty array. Post-Phase-1 both providers emit
+ * syntactically-valid, fence-free JSON arrays, so a parse failure is a real
+ * failure and must throw (→ job:failed) rather than silently return zero
+ * annotations. A legitimately-empty `[]` still parses to a success with no
+ * matches. The former tolerant `extractObjectsFromArray` walker is gone.
  */
 
 import { describe, it, expect } from 'vitest';
-import { MotivationParsers, extractObjectsFromArray } from '../../../workers/detection/motivation-parsers';
+import { MotivationParsers } from '../../../workers/detection/motivation-parsers';
 
 // No `@semiont/core` mock — the real `reconcileSelector` runs against the
 // synthetic test content. Tests that exercise hallucinated text (offsets
@@ -36,22 +43,6 @@ describe('MotivationParsers', () => {
         end: 5,
         comment: 'This is a test comment'
       });
-    });
-
-    it('should handle markdown-wrapped JSON', () => {
-      const response = '```json\n' + JSON.stringify([
-        {
-          exact: 'Paris',
-          start: 14,
-          end: 19,
-          comment: 'A city'
-        }
-      ]) + '\n```';
-
-      const result = MotivationParsers.parseComments(response, testContent);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].exact).toBe('Paris');
     });
 
     it('drops comments whose exact does not appear in the source', () => {
@@ -90,18 +81,17 @@ describe('MotivationParsers', () => {
       expect(result).toHaveLength(0);
     });
 
-    it('should handle malformed JSON gracefully', () => {
-      const result = MotivationParsers.parseComments('not valid json', testContent);
-
-      expect(result).toEqual([]);
+    it('parses a legitimately-empty array as a success with no matches', () => {
+      expect(MotivationParsers.parseComments('[]', testContent)).toEqual([]);
     });
 
-    it('should handle non-array response', () => {
+    it('throws on unparseable response instead of silently returning []', () => {
+      expect(() => MotivationParsers.parseComments('not valid json', testContent)).toThrow();
+    });
+
+    it('throws on a non-array response instead of silently returning []', () => {
       const response = JSON.stringify({ exact: 'Alice', start: 0, end: 5 });
-
-      const result = MotivationParsers.parseComments(response, testContent);
-
-      expect(result).toEqual([]);
+      expect(() => MotivationParsers.parseComments(response, testContent)).toThrow(/array/i);
     });
   });
 
@@ -125,21 +115,6 @@ describe('MotivationParsers', () => {
       });
     });
 
-    it('should handle markdown code fence variants', () => {
-      const response = '```\n' + JSON.stringify([
-        {
-          exact: 'Paris',
-          start: 14,
-          end: 19
-        }
-      ]) + '\n```';
-
-      const result = MotivationParsers.parseHighlights(response, testContent);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].exact).toBe('Paris');
-    });
-
     it('should filter out invalid highlights', () => {
       const response = JSON.stringify([
         { exact: 'Alice' },
@@ -152,10 +127,12 @@ describe('MotivationParsers', () => {
       expect(result[0]!.exact).toBe('Alice');
     });
 
-    it('should handle malformed JSON gracefully', () => {
-      const result = MotivationParsers.parseHighlights('{invalid', testContent);
+    it('parses a legitimately-empty array as a success with no matches', () => {
+      expect(MotivationParsers.parseHighlights('[]', testContent)).toEqual([]);
+    });
 
-      expect(result).toEqual([]);
+    it('throws on unparseable response instead of silently returning []', () => {
+      expect(() => MotivationParsers.parseHighlights('{invalid', testContent)).toThrow();
     });
   });
 
@@ -181,22 +158,6 @@ describe('MotivationParsers', () => {
       });
     });
 
-    it('should handle markdown-wrapped JSON', () => {
-      const response = '```json\n' + JSON.stringify([
-        {
-          exact: 'Paris',
-          start: 14,
-          end: 19,
-          assessment: 'Capital of France'
-        }
-      ]) + '\n```';
-
-      const result = MotivationParsers.parseAssessments(response, testContent);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].exact).toBe('Paris');
-    });
-
     it('drops assessments whose exact does not appear in the source', () => {
       const response = JSON.stringify([
         { exact: 'Bob', assessment: 'Valid' },
@@ -209,40 +170,22 @@ describe('MotivationParsers', () => {
       expect(result[0]!.exact).toBe('Bob');
     });
 
-    it('should handle malformed JSON gracefully', () => {
-      const result = MotivationParsers.parseAssessments('not json', testContent);
-
-      expect(result).toEqual([]);
+    it('throws on unparseable response instead of silently returning []', () => {
+      expect(() => MotivationParsers.parseAssessments('not json', testContent)).toThrow();
     });
 
-    it('should recover valid objects when LLM emits stray tokens between array elements', () => {
-      // Regression: gemma4:26b hallucinated a bare `wide: 0,` line between
-      // two well-formed objects, breaking strict JSON.parse. The tolerant
-      // parser must still surface the recoverable objects so the user sees
-      // partial results rather than a silent zero-count "success".
-      const response = `\`\`\`json
-[
-  {
-    "exact": "Alice",
-    "start": 0,
-    "end": 5,
-    "assessment": "First assessment"
-  },
+    it('throws on stray tokens between array elements instead of partially recovering', () => {
+      // Pre-Phase-2 the tolerant walker recovered the two well-formed objects
+      // around a hallucinated `wide: 0,` line. Post-Phase-1 such output cannot
+      // come from a constrained provider, so it is a real parse failure that
+      // must fail the job loudly rather than silently surface partial results.
+      const response = `[
+  { "exact": "Alice", "start": 0, "end": 5, "assessment": "First assessment" },
   wide: 0,
-  {
-    "exact": "Bob",
-    "start": 21,
-    "end": 24,
-    "assessment": "Second assessment"
-  }
-]
-\`\`\``;
+  { "exact": "Bob", "start": 21, "end": 24, "assessment": "Second assessment" }
+]`;
 
-      const result = MotivationParsers.parseAssessments(response, testContent);
-
-      expect(result).toHaveLength(2);
-      expect(result[0].exact).toBe('Alice');
-      expect(result[1].exact).toBe('Bob');
+      expect(() => MotivationParsers.parseAssessments(response, testContent)).toThrow();
     });
   });
 
@@ -266,21 +209,6 @@ describe('MotivationParsers', () => {
       });
     });
 
-    it('should handle markdown-wrapped JSON', () => {
-      const response = '```json\n' + JSON.stringify([
-        {
-          exact: 'Bob stayed home',
-          start: 21,
-          end: 36
-        }
-      ]) + '\n```';
-
-      const result = MotivationParsers.parseTags(response);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].exact).toBe('Bob stayed home');
-    });
-
     it('should filter out tags with empty exact text', () => {
       const response = JSON.stringify([
         {
@@ -295,18 +223,17 @@ describe('MotivationParsers', () => {
       expect(result).toHaveLength(0);
     });
 
-    it('should handle malformed JSON gracefully', () => {
-      const result = MotivationParsers.parseTags('invalid json');
-
-      expect(result).toEqual([]);
+    it('parses a legitimately-empty array as a success with no matches', () => {
+      expect(MotivationParsers.parseTags('[]')).toEqual([]);
     });
 
-    it('should handle non-array response', () => {
+    it('throws on unparseable response instead of silently returning []', () => {
+      expect(() => MotivationParsers.parseTags('invalid json')).toThrow();
+    });
+
+    it('throws on a non-array response instead of silently returning []', () => {
       const response = JSON.stringify({ exact: 'test', start: 0, end: 4 });
-
-      const result = MotivationParsers.parseTags(response);
-
-      expect(result).toEqual([]);
+      expect(() => MotivationParsers.parseTags(response)).toThrow(/array/i);
     });
   });
 
@@ -354,101 +281,5 @@ describe('MotivationParsers', () => {
 
       expect(result).toEqual([]);
     });
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────
-// extractObjectsFromArray — the tolerant array extractor used by every
-// parser above. Shipped with minimal coverage (one end-to-end case via
-// parseAssessments); these direct tests pin the state-machine contract
-// so future edits don't silently break nested-brace / escape handling.
-// ─────────────────────────────────────────────────────────────────────
-
-describe('extractObjectsFromArray', () => {
-  it('parses a well-formed JSON array (fast path)', () => {
-    const result = extractObjectsFromArray('[{"a":1},{"b":2}]');
-    expect(result).toEqual([{ a: 1 }, { b: 2 }]);
-  });
-
-  it('strips ```json markdown fences', () => {
-    const result = extractObjectsFromArray('```json\n[{"a":1}]\n```');
-    expect(result).toEqual([{ a: 1 }]);
-  });
-
-  it('strips plain ``` fences', () => {
-    const result = extractObjectsFromArray('```\n[{"a":1}]\n```');
-    expect(result).toEqual([{ a: 1 }]);
-  });
-
-  it('returns [] for empty input', () => {
-    expect(extractObjectsFromArray('')).toEqual([]);
-    expect(extractObjectsFromArray('   \n\t  ')).toEqual([]);
-  });
-
-  it('returns [] when response has no array brackets at all', () => {
-    expect(extractObjectsFromArray('not json')).toEqual([]);
-    expect(extractObjectsFromArray('{"a":1}')).toEqual([]); // object, not array
-  });
-
-  it('parses an empty JSON array', () => {
-    expect(extractObjectsFromArray('[]')).toEqual([]);
-  });
-
-  it('recovers well-formed objects when stray tokens sit between them (the wide:0 case)', () => {
-    // Regression: gemma4:26b emitted `wide: 0,` between two valid objects.
-    const response = '[{"a":1},\n  wide: 0,\n{"b":2}]';
-    const result = extractObjectsFromArray(response);
-    expect(result).toEqual([{ a: 1 }, { b: 2 }]);
-  });
-
-  it('skips malformed objects but keeps surrounding valid ones', () => {
-    const response = '[{"a":1}, {broken: "no quotes"}, {"c":3}]';
-    const result = extractObjectsFromArray(response);
-    expect(result).toEqual([{ a: 1 }, { c: 3 }]);
-  });
-
-  it('treats braces inside string values as literal, not as object delimiters', () => {
-    // The `}` inside "ugly: }junk" must not close the outer object.
-    const response = '[{"note":"ugly: }junk"},{"b":2}]';
-    const result = extractObjectsFromArray(response);
-    expect(result).toEqual([{ note: 'ugly: }junk' }, { b: 2 }]);
-  });
-
-  it('handles escaped quotes inside strings without losing object boundaries', () => {
-    const response = '[{"quote":"she said \\"hi\\""},{"b":2}]';
-    const result = extractObjectsFromArray(response);
-    expect(result).toEqual([{ quote: 'she said "hi"' }, { b: 2 }]);
-  });
-
-  it('handles multi-line objects across newlines', () => {
-    const response = `[
-  {
-    "a": 1,
-    "b": "two"
-  },
-  {
-    "c": 3
-  }
-]`;
-    const result = extractObjectsFromArray(response);
-    expect(result).toEqual([{ a: 1, b: 'two' }, { c: 3 }]);
-  });
-
-  it('tolerates prose before and after the array', () => {
-    const response = 'Here is the answer:\n[{"a":1}]\n\nThat is all.';
-    const result = extractObjectsFromArray(response);
-    expect(result).toEqual([{ a: 1 }]);
-  });
-
-  it('returns [] when brackets exist but contain nothing recoverable', () => {
-    expect(extractObjectsFromArray('[garbage, more garbage]')).toEqual([]);
-  });
-
-  it('skips an unclosed object at the end but keeps earlier valid ones', () => {
-    // Worker saw a response where the final object was cut off mid-stream.
-    // The tolerant parser should still return whatever closed cleanly.
-    const response = '[{"a":1},{"b":2},{"c":';
-    const result = extractObjectsFromArray(response);
-    expect(result).toEqual([{ a: 1 }, { b: 2 }]);
   });
 });

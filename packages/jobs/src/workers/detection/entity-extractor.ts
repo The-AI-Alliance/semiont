@@ -1,5 +1,5 @@
 import type { InferenceClient } from '@semiont/inference';
-import { getLocaleEnglishName, type Logger } from '@semiont/core';
+import { getLocaleEnglishName, isArray, isObject, isString, type Logger } from '@semiont/core';
 
 /**
  * Entity reference extracted from text — pre-reconciliation.
@@ -123,44 +123,53 @@ Example output:
   );
   logger.debug('Got entity extraction response', { responseLength: response.text.length });
 
+  // Truncation is data loss, not "no entities" — check it BEFORE parsing.
+  // Post-Phase-1 a truncated response is a syntactically-valid but incomplete
+  // array (the structured-output path serializes whatever was generated), so
+  // JSON.parse would succeed and the loss would be invisible. Fail loudly.
+  if (response.stopReason === 'max_tokens') {
+    const errorMsg = 'Entity extraction response truncated (max_tokens) — increase max_tokens or reduce resource size; failing the job rather than dropping annotations.';
+    logger.error(errorMsg, { responseLength: response.text.length });
+    throw new Error(errorMsg);
+  }
+
+  // A parse failure used to be swallowed as `[]` — silent data loss
+  // indistinguishable from a legitimately-empty extraction. Surface it as a
+  // thrown error so the job fails (job:failed) and `withSpan` marks the span.
+  let entities: unknown;
   try {
-    // Clean up response if wrapped in markdown
-    let jsonStr = response.text.trim();
-    if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-    }
-
-    const entities = JSON.parse(jsonStr);
-    logger.debug('Parsed entities from AI response', { count: entities.length });
-
-    // Check if response was truncated - this is an ERROR condition
-    if (response.stopReason === 'max_tokens') {
-      const errorMsg = `AI response truncated: Found ${entities.length} entities but response hit max_tokens limit. Increase max_tokens or reduce resource size.`;
-      logger.error(errorMsg);
-      throw new Error(errorMsg);
-    }
-
-    return entities
-      .filter((e: any) => {
-        const ok =
-          e && typeof e === 'object' &&
-          typeof e.exact === 'string' &&
-          typeof e.entityType === 'string';
-        if (!ok) {
-          logger.debug('Dropped malformed LLM entity', { entity: e });
-        }
-        return ok;
-      })
-      .map((entity: any): ExtractedEntity => ({
-        exact: entity.exact,
-        entityType: entity.entityType,
-        ...(typeof entity.prefix === 'string' ? { prefix: entity.prefix } : {}),
-        ...(typeof entity.suffix === 'string' ? { suffix: entity.suffix } : {}),
-      }));
+    entities = JSON.parse(response.text.trim());
   } catch (error) {
     logger.error('Failed to parse entity extraction response', {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      response: response.text.slice(0, 500),
     });
-    return [];
+    throw new Error('Failed to parse entity extraction response', {
+      cause: error instanceof Error ? error : new Error(String(error)),
+    });
   }
+
+  if (!isArray(entities)) {
+    logger.error('Failed to parse entity extraction response: expected a JSON array', {
+      response: response.text.slice(0, 500),
+    });
+    throw new Error('Failed to parse entity extraction response: expected a JSON array');
+  }
+
+  logger.debug('Parsed entities from AI response', { count: entities.length });
+
+  return entities
+    .filter((e): e is Record<string, unknown> & { exact: string; entityType: string } => {
+      const ok = isObject(e) && isString(e.exact) && isString(e.entityType);
+      if (!ok) {
+        logger.debug('Dropped malformed LLM entity', { entity: e });
+      }
+      return ok;
+    })
+    .map((entity): ExtractedEntity => ({
+      exact: entity.exact,
+      entityType: entity.entityType,
+      ...(isString(entity.prefix) ? { prefix: entity.prefix } : {}),
+      ...(isString(entity.suffix) ? { suffix: entity.suffix } : {}),
+    }));
 }

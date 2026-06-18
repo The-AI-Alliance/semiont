@@ -9,79 +9,36 @@
  * Console statements kept for debugging - consider adding logger parameter in future.
  */
 
-import { reconcileSelector, type AnchorMethod } from '@semiont/core';
+import { reconcileSelector, isObject, isString, type AnchorMethod } from '@semiont/core';
+
 /**
- * Best-effort extractor that pulls a JSON array of objects out of a raw
- * LLM response. Tolerates:
- *   - markdown code fences (``` / ```json)
- *   - prose before/after the array
- *   - stray non-JSON tokens between array elements (a common
- *     hallucination: e.g. a line like `wide: 0,` inserted between two
- *     well-formed objects).
+ * Strict parse of an LLM JSON-array response.
  *
- * Strategy: try strict `JSON.parse` first (fast path); on failure, walk
- * between the outermost `[` and `]` and parse each balanced `{ ... }`
- * object independently, skipping any that don't parse. Returns the
- * recovered objects — callers should still filter/validate fields.
+ * Post-Phase-1 both providers emit syntactically-valid, fence-free JSON
+ * arrays — Anthropic via forced structured tool-use, Ollama via
+ * grammar-constrained sampling — so there is nothing to tolerate. A parse
+ * failure, or a non-array, is a real failure and is surfaced as a throw so
+ * the job fails loudly (`job:failed`) instead of silently returning zero
+ * annotations. A legitimately-empty `[]` parses to an empty array (a success
+ * with no matches).
  *
- * Exported for direct unit testing of the state machine edge cases
- * (nested braces in strings, escape sequences, empty/garbage input).
+ * Replaces the former tolerant `extractObjectsFromArray` walker, deleted
+ * along with the silent-drop policy it served.
  */
-export function extractObjectsFromArray(response: string): unknown[] {
-  let cleaned = response.trim();
-
-  // Strip markdown code fences if present
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
-  }
-
-  // Fast path: well-formed JSON
+function parseJsonArray(response: string, motivation: string): unknown[] {
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(cleaned);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    // fall through to tolerant parse
+    parsed = JSON.parse(response.trim());
+  } catch (error) {
+    console.error(`[MotivationParsers] Failed to parse AI ${motivation} response:`, error);
+    console.error('Raw response:', response);
+    throw error instanceof Error ? error : new Error(String(error));
   }
-
-  // Tolerant path: extract each top-level `{ ... }` from within the
-  // first `[` / last `]`, parse independently. If the response was
-  // truncated mid-stream (no closing `]`), fall back to end-of-string
-  // so we still recover whatever closed cleanly before the cutoff.
-  const start = cleaned.indexOf('[');
-  if (start === -1) return [];
-  const endBracket = cleaned.lastIndexOf(']');
-  const end = endBracket > start ? endBracket : cleaned.length;
-
-  const inner = cleaned.slice(start + 1, end);
-  const objects: unknown[] = [];
-  let depth = 0;
-  let objStart = -1;
-  let inString = false;
-  let escape = false;
-
-  for (let i = 0; i < inner.length; i++) {
-    const ch = inner[i];
-    if (escape) { escape = false; continue; }
-    if (ch === '\\') { escape = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
-    if (inString) continue;
-    if (ch === '{') {
-      if (depth === 0) objStart = i;
-      depth++;
-    } else if (ch === '}') {
-      depth--;
-      if (depth === 0 && objStart !== -1) {
-        try {
-          objects.push(JSON.parse(inner.slice(objStart, i + 1)));
-        } catch {
-          // Skip malformed object
-        }
-        objStart = -1;
-      }
-    }
+  if (!Array.isArray(parsed)) {
+    console.error(`[MotivationParsers] Expected a JSON array for ${motivation} detection, got ${typeof parsed}:`, response);
+    throw new Error(`Expected a JSON array for ${motivation} detection, got ${typeof parsed}`);
   }
-
-  return objects;
+  return parsed;
 }
 
 /**
@@ -135,166 +92,144 @@ export class MotivationParsers {
   /**
    * Parse and validate AI response for comment detection
    *
-   * @param response - Raw AI response string (may include markdown code fences)
+   * @param response - Raw AI response text (a JSON array)
    * @param content - Original content to validate offsets against
    * @returns Array of validated comment matches
+   * @throws if the response is not a parseable JSON array
    */
   static parseComments(response: string, content: string): CommentMatch[] {
-    try {
-      const parsed = extractObjectsFromArray(response);
+    const parsed = parseJsonArray(response, 'comment');
 
-      const valid = parsed.filter((c): c is { exact: string; prefix?: string; suffix?: string; comment: string } =>
-        !!c && typeof c === 'object' &&
-        typeof (c as any).exact === 'string' &&
-        typeof (c as any).comment === 'string' &&
-        (c as any).comment.trim().length > 0
-      );
+    const valid = parsed.filter((c): c is { exact: string; prefix?: string; suffix?: string; comment: string } =>
+      isObject(c) &&
+      isString(c.exact) &&
+      isString(c.comment) &&
+      c.comment.trim().length > 0
+    );
 
-      console.log(`[MotivationParsers] Parsed ${valid.length} valid comments from ${parsed.length} total`);
+    console.log(`[MotivationParsers] Parsed ${valid.length} valid comments from ${parsed.length} total`);
 
-      const validatedComments: CommentMatch[] = [];
-      for (const comment of valid) {
-        const reconciled = reconcileSelector(content, {
-          exact: comment.exact,
-          ...(typeof comment.prefix === 'string' ? { prefix: comment.prefix } : {}),
-          ...(typeof comment.suffix === 'string' ? { suffix: comment.suffix } : {}),
-        });
-        if (!reconciled) {
-          console.warn(`[MotivationParsers] Dropped hallucinated comment "${comment.exact}"`);
-          continue;
-        }
-        logAnchorMethod('comment', comment.exact, reconciled.anchorMethod);
-        validatedComments.push({
-          comment: comment.comment,
-          exact: reconciled.exact,
-          start: reconciled.start,
-          end: reconciled.end,
-          ...(reconciled.prefix !== undefined ? { prefix: reconciled.prefix } : {}),
-          ...(reconciled.suffix !== undefined ? { suffix: reconciled.suffix } : {}),
-        });
+    const validatedComments: CommentMatch[] = [];
+    for (const comment of valid) {
+      const reconciled = reconcileSelector(content, {
+        exact: comment.exact,
+        ...(typeof comment.prefix === 'string' ? { prefix: comment.prefix } : {}),
+        ...(typeof comment.suffix === 'string' ? { suffix: comment.suffix } : {}),
+      });
+      if (!reconciled) {
+        console.warn(`[MotivationParsers] Dropped hallucinated comment "${comment.exact}"`);
+        continue;
       }
-
-      return validatedComments;
-    } catch (error) {
-      console.error('[MotivationParsers] Failed to parse AI comment response:', error);
-      return [];
+      logAnchorMethod('comment', comment.exact, reconciled.anchorMethod);
+      validatedComments.push({
+        comment: comment.comment,
+        exact: reconciled.exact,
+        start: reconciled.start,
+        end: reconciled.end,
+        ...(reconciled.prefix !== undefined ? { prefix: reconciled.prefix } : {}),
+        ...(reconciled.suffix !== undefined ? { suffix: reconciled.suffix } : {}),
+      });
     }
+
+    return validatedComments;
   }
 
   /**
    * Parse and validate AI response for highlight detection
    *
-   * @param response - Raw AI response string (may include markdown code fences)
+   * @param response - Raw AI response text (a JSON array)
    * @param content - Original content to validate offsets against
    * @returns Array of validated highlight matches
+   * @throws if the response is not a parseable JSON array
    */
   static parseHighlights(response: string, content: string): HighlightMatch[] {
-    try {
-      const parsed = extractObjectsFromArray(response);
+    const parsed = parseJsonArray(response, 'highlight');
 
-      const highlights = parsed.filter((h): h is { exact: string; prefix?: string; suffix?: string } =>
-        !!h && typeof h === 'object' &&
-        typeof (h as any).exact === 'string'
-      );
+    const highlights = parsed.filter((h): h is { exact: string; prefix?: string; suffix?: string } =>
+      isObject(h) && isString(h.exact)
+    );
 
-      const validatedHighlights: HighlightMatch[] = [];
-      for (const highlight of highlights) {
-        const reconciled = reconcileSelector(content, {
-          exact: highlight.exact,
-          ...(typeof highlight.prefix === 'string' ? { prefix: highlight.prefix } : {}),
-          ...(typeof highlight.suffix === 'string' ? { suffix: highlight.suffix } : {}),
-        });
-        if (!reconciled) {
-          console.warn(`[MotivationParsers] Dropped hallucinated highlight "${highlight.exact}"`);
-          continue;
-        }
-        logAnchorMethod('highlight', highlight.exact, reconciled.anchorMethod);
-        validatedHighlights.push({
-          exact: reconciled.exact,
-          start: reconciled.start,
-          end: reconciled.end,
-          ...(reconciled.prefix !== undefined ? { prefix: reconciled.prefix } : {}),
-          ...(reconciled.suffix !== undefined ? { suffix: reconciled.suffix } : {}),
-        });
+    const validatedHighlights: HighlightMatch[] = [];
+    for (const highlight of highlights) {
+      const reconciled = reconcileSelector(content, {
+        exact: highlight.exact,
+        ...(typeof highlight.prefix === 'string' ? { prefix: highlight.prefix } : {}),
+        ...(typeof highlight.suffix === 'string' ? { suffix: highlight.suffix } : {}),
+      });
+      if (!reconciled) {
+        console.warn(`[MotivationParsers] Dropped hallucinated highlight "${highlight.exact}"`);
+        continue;
       }
-
-      return validatedHighlights;
-    } catch (error) {
-      console.error('[MotivationParsers] Failed to parse AI highlight response:', error);
-      console.error('Raw response:', response);
-      return [];
+      logAnchorMethod('highlight', highlight.exact, reconciled.anchorMethod);
+      validatedHighlights.push({
+        exact: reconciled.exact,
+        start: reconciled.start,
+        end: reconciled.end,
+        ...(reconciled.prefix !== undefined ? { prefix: reconciled.prefix } : {}),
+        ...(reconciled.suffix !== undefined ? { suffix: reconciled.suffix } : {}),
+      });
     }
+
+    return validatedHighlights;
   }
 
   /**
    * Parse and validate AI response for assessment detection
    *
-   * @param response - Raw AI response string (may include markdown code fences)
+   * @param response - Raw AI response text (a JSON array)
    * @param content - Original content to validate offsets against
    * @returns Array of validated assessment matches
+   * @throws if the response is not a parseable JSON array
    */
   static parseAssessments(response: string, content: string): AssessmentMatch[] {
-    try {
-      const parsed = extractObjectsFromArray(response);
+    const parsed = parseJsonArray(response, 'assessment');
 
-      const assessments = parsed.filter((a): a is { exact: string; prefix?: string; suffix?: string; assessment: string } =>
-        !!a && typeof a === 'object' &&
-        typeof (a as any).exact === 'string' &&
-        typeof (a as any).assessment === 'string'
-      );
+    const assessments = parsed.filter((a): a is { exact: string; prefix?: string; suffix?: string; assessment: string } =>
+      isObject(a) && isString(a.exact) && isString(a.assessment)
+    );
 
-      const validatedAssessments: AssessmentMatch[] = [];
-      for (const assessment of assessments) {
-        const reconciled = reconcileSelector(content, {
-          exact: assessment.exact,
-          ...(typeof assessment.prefix === 'string' ? { prefix: assessment.prefix } : {}),
-          ...(typeof assessment.suffix === 'string' ? { suffix: assessment.suffix } : {}),
-        });
-        if (!reconciled) {
-          console.warn(`[MotivationParsers] Dropped hallucinated assessment "${assessment.exact}"`);
-          continue;
-        }
-        logAnchorMethod('assessment', assessment.exact, reconciled.anchorMethod);
-        validatedAssessments.push({
-          assessment: assessment.assessment,
-          exact: reconciled.exact,
-          start: reconciled.start,
-          end: reconciled.end,
-          ...(reconciled.prefix !== undefined ? { prefix: reconciled.prefix } : {}),
-          ...(reconciled.suffix !== undefined ? { suffix: reconciled.suffix } : {}),
-        });
+    const validatedAssessments: AssessmentMatch[] = [];
+    for (const assessment of assessments) {
+      const reconciled = reconcileSelector(content, {
+        exact: assessment.exact,
+        ...(typeof assessment.prefix === 'string' ? { prefix: assessment.prefix } : {}),
+        ...(typeof assessment.suffix === 'string' ? { suffix: assessment.suffix } : {}),
+      });
+      if (!reconciled) {
+        console.warn(`[MotivationParsers] Dropped hallucinated assessment "${assessment.exact}"`);
+        continue;
       }
-
-      return validatedAssessments;
-    } catch (error) {
-      console.error('[MotivationParsers] Failed to parse AI assessment response:', error);
-      console.error('Raw response:', response);
-      return [];
+      logAnchorMethod('assessment', assessment.exact, reconciled.anchorMethod);
+      validatedAssessments.push({
+        assessment: assessment.assessment,
+        exact: reconciled.exact,
+        start: reconciled.start,
+        end: reconciled.end,
+        ...(reconciled.prefix !== undefined ? { prefix: reconciled.prefix } : {}),
+        ...(reconciled.suffix !== undefined ? { suffix: reconciled.suffix } : {}),
+      });
     }
+
+    return validatedAssessments;
   }
 
   /**
    * Parse the LLM's tag response into raw, pre-reconciliation tag inputs.
    * Reconciliation happens in `validateTagOffsets`, which adds `start`/`end`
    * by anchoring `exact` against the source content.
+   *
+   * @throws if the response is not a parseable JSON array
    */
   static parseTags(response: string): RawTagInput[] {
-    try {
-      const parsed = extractObjectsFromArray(response);
+    const parsed = parseJsonArray(response, 'tag');
 
-      const valid = parsed.filter((t): t is RawTagInput =>
-        !!t && typeof t === 'object' &&
-        typeof (t as any).exact === 'string' &&
-        (t as any).exact.trim().length > 0
-      );
+    const valid = parsed.filter((t): t is RawTagInput =>
+      isObject(t) && isString(t.exact) && t.exact.trim().length > 0
+    );
 
-      console.log(`[MotivationParsers] Parsed ${valid.length} valid tags from ${parsed.length} total`);
+    console.log(`[MotivationParsers] Parsed ${valid.length} valid tags from ${parsed.length} total`);
 
-      return valid;
-    } catch (error) {
-      console.error('[MotivationParsers] Failed to parse AI tag response:', error);
-      return [];
-    }
+    return valid;
   }
 
   /**
