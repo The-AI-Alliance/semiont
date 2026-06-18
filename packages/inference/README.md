@@ -111,7 +111,7 @@ const items = JSON.parse(json); // guaranteed to be an array
 
 Each implementation honors the contract with its provider's mechanism:
 - **Ollama**: grammar-constrained sampling — the request's `format` field carries a minimal array schema.
-- **Anthropic**: assistant-turn prefill (`[`); the prefix is re-attached to the returned text so callers always see a complete JSON document.
+- **Anthropic**: forced structured tool-use — a single tool is offered and forced via `tool_choice`, so the model answers by filling the tool's input, which the API serializes as escaped JSON. The array is carried under an `items` property (tool inputs must be objects) and unwrapped to a top-level array on return.
 
 Current callers all expect arrays (entity extraction, motivation detection). If an object-emitting caller appears, the option grows a `root: 'array' | 'object'` field — see the notes in [src/interface.ts](src/interface.ts).
 

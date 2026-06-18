@@ -84,7 +84,7 @@ interface InferenceOptions {
 `format: 'json'` constrains output to a **parseable top-level JSON array**, regardless of provider:
 
 - **Ollama** uses grammar-constrained sampling: the request's `format` field carries a minimal array schema (`{ type: 'array', items: {} }`). The bare `"json"` string would allow any JSON value, including a wrapping object, which would break callers that `.map` over the result.
-- **Anthropic** has no native JSON mode, so the client adds an assistant-turn prefill (`[`). Claude continues from the bracket, syntactically committed to an array. The prefill characters don't appear in the API response, so the client re-attaches the `[` before returning — callers always receive a complete JSON document.
+- **Anthropic** uses forced structured **tool-use**. The client offers a single tool and forces it via `tool_choice: { type: 'tool', name }`, so the model must answer by filling the tool's input — which the API serializes as **properly-escaped** JSON. This eliminates both free-text failure modes at the source: trailing prose after the `]`, and an unescaped `"` inside a string. Because a tool's input must be an object, the array is carried under an `items` property and unwrapped (`JSON.stringify(input.items)`) so callers still receive a top-level array in `text`.
 
 Element shape is **not** constrained — the prompt carries the per-element schema; only the outer array is enforced.
 
