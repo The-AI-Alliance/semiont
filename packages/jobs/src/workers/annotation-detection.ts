@@ -10,7 +10,7 @@
  * fetches it and hands it in.
  */
 
-import type { InferenceClient } from '@semiont/inference';
+import type { InferenceClient, InferenceResponse } from '@semiont/inference';
 import { MotivationPrompts } from './detection/motivation-prompts';
 import {
   MotivationParsers,
@@ -20,6 +20,19 @@ import {
   type TagMatch,
 } from './detection/motivation-parsers';
 import type { TagSchema } from '@semiont/core';
+
+/**
+ * A `max_tokens` stop reason means the model's JSON was cut off mid-stream.
+ * Post-Phase-1 that still yields a syntactically-valid but incomplete array
+ * (structured output serializes whatever was generated), so it would parse
+ * cleanly and silently under-report. Fail the job loudly instead — parity
+ * with the entity-extractor path.
+ */
+function assertNotTruncated(response: InferenceResponse, motivation: string): void {
+  if (response.stopReason === 'max_tokens') {
+    throw new Error(`${motivation} detection response truncated (max_tokens) — increase max_tokens or reduce resource size; failing the job rather than under-reporting annotations.`);
+  }
+}
 
 export class AnnotationDetection {
 
@@ -41,8 +54,9 @@ export class AnnotationDetection {
     sourceLanguage?: string
   ): Promise<CommentMatch[]> {
     const prompt = MotivationPrompts.buildCommentPrompt(content, instructions, tone, density, language, sourceLanguage);
-    const response = await client.generateText(prompt, 3000, 0.4, { format: 'json' });
-    return MotivationParsers.parseComments(response, content);
+    const response = await client.generateTextWithMetadata(prompt, 3000, 0.4, { format: 'json' });
+    assertNotTruncated(response, 'comment');
+    return MotivationParsers.parseComments(response.text, content);
   }
 
   /**
@@ -60,8 +74,9 @@ export class AnnotationDetection {
     sourceLanguage?: string
   ): Promise<HighlightMatch[]> {
     const prompt = MotivationPrompts.buildHighlightPrompt(content, instructions, density, sourceLanguage);
-    const response = await client.generateText(prompt, 2000, 0.3, { format: 'json' });
-    return MotivationParsers.parseHighlights(response, content);
+    const response = await client.generateTextWithMetadata(prompt, 2000, 0.3, { format: 'json' });
+    assertNotTruncated(response, 'highlight');
+    return MotivationParsers.parseHighlights(response.text, content);
   }
 
   /**
@@ -81,8 +96,9 @@ export class AnnotationDetection {
     sourceLanguage?: string
   ): Promise<AssessmentMatch[]> {
     const prompt = MotivationPrompts.buildAssessmentPrompt(content, instructions, tone, density, language, sourceLanguage);
-    const response = await client.generateText(prompt, 3000, 0.3, { format: 'json' });
-    return MotivationParsers.parseAssessments(response, content);
+    const response = await client.generateTextWithMetadata(prompt, 3000, 0.3, { format: 'json' });
+    assertNotTruncated(response, 'assessment');
+    return MotivationParsers.parseAssessments(response.text, content);
   }
 
   /**
@@ -120,8 +136,9 @@ export class AnnotationDetection {
       sourceLanguage
     );
 
-    const response = await client.generateText(prompt, 4000, 0.2, { format: 'json' });
-    const parsedTags = MotivationParsers.parseTags(response);
+    const response = await client.generateTextWithMetadata(prompt, 4000, 0.2, { format: 'json' });
+    assertNotTruncated(response, 'tag');
+    const parsedTags = MotivationParsers.parseTags(response.text);
     return MotivationParsers.validateTagOffsets(parsedTags, content, category);
   }
 }

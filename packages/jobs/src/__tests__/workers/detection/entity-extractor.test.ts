@@ -106,50 +106,20 @@ describe('extractEntities', () => {
     expect(result[1].exact).toBe('Bob');
   });
 
-  it('should handle markdown-wrapped JSON response', async () => {
+  it('throws on truncation (max_tokens) instead of silently dropping annotations', async () => {
+    // Phase 2a: a truncated response is data loss, not "no entities". The
+    // truncation check runs BEFORE parse, so even a syntactically-valid but
+    // incomplete array must fail the job loudly rather than return [].
     const text = 'Alice went to Paris.';
     const mockResponse = [
-      {
-        exact: 'Alice',
-        entityType: 'Person',
-        startOffset: 0,
-        endOffset: 5
-      }
+      { exact: 'Alice', entityType: 'Person', prefix: '', suffix: ' went to' },
     ];
 
-    mockInferenceClient.setResponses(['```json\n' + JSON.stringify(mockResponse) + '\n```']);
-
-    const result = await extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].exact).toBe('Alice');
-  });
-
-  it('should log error and return empty array when response is truncated', async () => {
-    const text = 'Alice went to Paris.';
-    const mockResponse = [
-      {
-        exact: 'Alice',
-        entityType: 'Person',
-        startOffset: 0,
-        endOffset: 5,
-        prefix: '',
-        suffix: ' went to'
-      }
-    ];
-
-    // Set response with max_tokens stop reason to simulate truncation
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)], ['max_tokens']);
 
-    // When truncated, extractEntities throws but catch block returns []
-    try {
-      const result = await extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER);
-      expect(result).toEqual([]);
-    } catch (error) {
-      // If it throws, that's also acceptable - the catch block should return []
-      // But the test expects [] to be returned, not thrown
-      throw error;
-    }
+    await expect(
+      extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER),
+    ).rejects.toThrow(/truncat/i);
   });
 
   it('should handle entity types with examples', async () => {
@@ -206,12 +176,14 @@ describe('extractEntities', () => {
     expect(result[1].exact).toBe('The Nobel laureate');
   });
 
-  it('should handle malformed JSON gracefully', async () => {
+  it('throws on unparseable response instead of silently returning []', async () => {
+    // Phase 2a: parse failure is silent data loss in disguise — it must
+    // surface as a thrown error (→ job:failed) rather than an empty success.
     mockInferenceClient.setResponses(['This is not JSON']);
 
-    const result = await extractEntities('Alice went to Paris.', ['Person'], mockInferenceClient, false, LOGGER);
-
-    expect(result).toEqual([]);
+    await expect(
+      extractEntities('Alice went to Paris.', ['Person'], mockInferenceClient, false, LOGGER),
+    ).rejects.toThrow(/parse/i);
   });
 
   describe('source language', () => {

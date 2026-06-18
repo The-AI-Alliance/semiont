@@ -334,10 +334,11 @@ describe('AnnotationDetection', () => {
   });
 
   describe('error handling', () => {
-    it('should handle AI inference errors gracefully', async () => {
-      // Mock client to throw error
+    it('should propagate AI inference errors', async () => {
+      // detectComments now reads metadata (stopReason) via
+      // generateTextWithMetadata, so the failure is injected there.
       const errorClient = new MockInferenceClient(['']);
-      errorClient.generateText = vi.fn().mockRejectedValue(new Error('AI service unavailable'));
+      errorClient.generateTextWithMetadata = vi.fn().mockRejectedValue(new Error('AI service unavailable'));
 
       await expect(
         AnnotationDetection.detectComments(
@@ -347,17 +348,28 @@ describe('AnnotationDetection', () => {
       ).rejects.toThrow('AI service unavailable');
     });
 
-    it('should handle malformed AI responses gracefully', async () => {
-      // Mock invalid JSON response - parsers handle this gracefully and return empty array
+    it('throws on malformed AI responses instead of silently returning []', async () => {
+      // Phase 2b: a parse failure is silent data loss — it must surface as a
+      // thrown error (→ job:failed), not a graceful empty array.
       mockClient.setResponses(['invalid json']);
 
-      const result = await AnnotationDetection.detectHighlights(
-        testContent,
-        mockClient
+      await expect(
+        AnnotationDetection.detectHighlights(testContent, mockClient)
+      ).rejects.toThrow();
+    });
+
+    it('throws on a truncated (max_tokens) response instead of under-reporting', async () => {
+      // Phase 2b truncation parity with 2a: the motivation path now reads
+      // stopReason via generateTextWithMetadata and fails the job loudly
+      // rather than parsing a valid-but-incomplete array as a partial success.
+      mockClient.setResponses(
+        [JSON.stringify([{ exact: 'Climate change', start: 0, end: 14 }])],
+        ['max_tokens'],
       );
 
-      // Invalid JSON should result in empty results (graceful failure)
-      expect(result).toBeInstanceOf(Array);
+      await expect(
+        AnnotationDetection.detectHighlights(testContent, mockClient)
+      ).rejects.toThrow(/truncat/i);
     });
   });
 

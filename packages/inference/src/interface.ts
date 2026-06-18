@@ -15,10 +15,11 @@ export interface InferenceOptions {
    * Constrain output to a parseable JSON array. Every implementation
    * MUST satisfy this contract using whatever mechanism its provider
    * supports — Ollama uses grammar-constrained sampling
-   * (`format: "json"`); Anthropic uses assistant-turn prefill (`[`)
-   * and re-attaches the prefix on return. Callers can rely on the
-   * returned `text` being a top-level JSON array regardless of
-   * provider.
+   * (`format: "json"`); Anthropic uses forced structured tool-use (a
+   * single tool, forced via `tool_choice`, whose array result the API
+   * serializes as escaped JSON) and unwraps the array on return.
+   * Callers can rely on the returned `text` being a top-level JSON
+   * array regardless of provider.
    *
    * Current callers all expect arrays (entity extraction, motivation
    * detection). If an object-emitting caller appears, this option
