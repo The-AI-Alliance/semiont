@@ -1,5 +1,4 @@
 import { Context, Next } from 'hono';
-import { getCookie } from 'hono/cookie';
 import { OAuthService } from '../auth/oauth';
 import { JWTService } from '../auth/jwt';
 import { User } from '@prisma/client';
@@ -57,8 +56,6 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
   let tokenStr: string | undefined;
   if (authHeader?.startsWith('Bearer ')) {
     tokenStr = authHeader.substring(7).trim();
-  } else {
-    tokenStr = getCookie(c, 'semiont-token');
   }
 
   if (!tokenStr) {

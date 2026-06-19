@@ -9,7 +9,6 @@
  */
 
 import { Hono } from 'hono';
-import { setCookie, deleteCookie } from 'hono/cookie';
 import { validateRequestBody } from '../middleware/validate-openapi';
 import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
@@ -135,14 +134,6 @@ authRouter.post('/api/tokens/password',
         data: { lastLogin: new Date() }
       });
 
-      setCookie(c, 'semiont-token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Lax',
-        path: '/',
-        maxAge: 10 * 60, // 10 minutes, matching access token lifetime
-      });
-
       const response: AuthResponse = {
         success: true,
         user: {
@@ -198,14 +189,6 @@ authRouter.post('/api/tokens/google',
 
       // Create or update user (returns access + refresh tokens)
       const { user, token, refreshToken, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
-
-      setCookie(c, 'semiont-token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Lax',
-        path: '/',
-        maxAge: 10 * 60, // 10 minutes, matching access token lifetime
-      });
 
       const response: AuthResponse = {
         success: true,
@@ -510,7 +493,6 @@ authRouter.post('/api/users/logout', authMiddleware, async (c) => {
     where: { id: user.id },
     data: { tokenVersion: { increment: 1 } },
   });
-  deleteCookie(c, 'semiont-token', { path: '/' }); // cookie removal lands in Phase 3
   return c.body(null, 204);
 });
 
