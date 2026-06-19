@@ -34,7 +34,6 @@ type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type UserResponse = components['schemas']['UserResponse'];
 type AcceptTermsResponse = components['schemas']['AcceptTermsResponse'];
-type MCPGenerateResponse = components['schemas']['MCPGenerateResponse'];
 
 // Create auth router with plain Hono
 export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unknown; token: string } }>();
@@ -124,9 +123,10 @@ authRouter.post('/api/tokens/password',
         domain: user.domain,
         provider: user.provider,
         isAdmin: user.isAdmin,
+        tokenVersion: user.tokenVersion,
       };
 
-      const token = JWTService.generateToken(jwtPayload, '1h');
+      const token = JWTService.generateToken(jwtPayload, '10m');
       const refreshToken = JWTService.generateToken(jwtPayload, '30d');
 
       // Update last login
@@ -140,7 +140,7 @@ authRouter.post('/api/tokens/password',
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'Lax',
         path: '/',
-        maxAge: 60 * 60, // 1 hour, matching access token lifetime
+        maxAge: 10 * 60, // 10 minutes, matching access token lifetime
       });
 
       const response: AuthResponse = {
@@ -204,7 +204,7 @@ authRouter.post('/api/tokens/google',
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'Lax',
         path: '/',
-        maxAge: 60 * 60, // 1 hour, matching access token lifetime
+        maxAge: 10 * 60, // 10 minutes, matching access token lifetime
       });
 
       const response: AuthResponse = {
@@ -277,6 +277,13 @@ authRouter.post('/api/tokens/refresh',
         return c.json({ error: 'User not found or inactive' }, 401);
       }
 
+      // Per-user revocation epoch (SDK-AUTH-CORS Phase 2): a refresh token
+      // whose tokenVersion is behind the user's current value has been revoked
+      // (e.g. by logout).
+      if (payload.tokenVersion !== user.tokenVersion) {
+        return c.json({ error: 'Token revoked' }, 401);
+      }
+
       // Generate new short-lived access token (1 hour)
       const accessTokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
         userId: makeUserId(user.id),
@@ -284,9 +291,10 @@ authRouter.post('/api/tokens/refresh',
         domain: user.domain,
         provider: user.provider,
         isAdmin: user.isAdmin,
-        ...(user.name && { name: user.name })
+        ...(user.name && { name: user.name }),
+        tokenVersion: user.tokenVersion,
       };
-      const accessToken = JWTService.generateToken(accessTokenPayload, '1h'); // 1 hour expiration
+      const accessToken = JWTService.generateToken(accessTokenPayload, '10m'); // 10 minute expiration
 
       const response: TokenRefreshResponse = {
         access_token: accessToken
@@ -343,89 +351,6 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
   return c.json(response, 200);
 });
 
-/**
- * GET /api/tokens/mcp-setup?callback=...
- *
- * MCP CLI Token Setup - Browser-initiated flow that reads the httpOnly semiont-token
- * cookie, generates a long-lived MCP refresh token, and redirects to the CLI callback URL.
- * Requires authentication (cookie or Bearer).
- */
-authRouter.get('/api/tokens/mcp-setup', authMiddleware, async (c) => {
-  const callback = c.req.query('callback');
-
-  if (!callback) {
-    return c.json({ error: 'Callback URL required' }, 400);
-  }
-
-  // Allow only localhost callbacks (following Google OAuth pattern for CLI auth)
-  const allowedCallbackPatterns = [
-    /^http:\/\/localhost:\d+\/.*$/,
-    /^http:\/\/127\.0\.0\.1:\d+\/.*$/,
-    /^http:\/\/\[::1\]:\d+\/.*$/,
-  ];
-
-  if (!allowedCallbackPatterns.some(p => p.test(callback))) {
-    return c.json({ error: 'Invalid callback URL. Must be a localhost URL for CLI authentication.' }, 400);
-  }
-
-  const user = c.get('user');
-
-  try {
-    const tokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
-      userId: makeUserId(user.id),
-      email: makeEmail(user.email),
-      domain: user.domain,
-      provider: user.provider,
-      isAdmin: user.isAdmin,
-      ...(user.name && { name: user.name })
-    };
-    const refreshToken = JWTService.generateToken(tokenPayload, '30d');
-
-    return c.redirect(`${callback}?token=${refreshToken}`, 302);
-  } catch (error) {
-    getRouteLogger().error('MCP setup error', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    return c.json({ error: 'Failed to generate refresh token' }, 500);
-  }
-});
-
-/**
- * POST /api/tokens/mcp-generate
- *
- * Generate MCP Token - Generate a short-lived token for MCP server
- * Requires authentication
- * Response type: MCPGenerateResponse from OpenAPI spec
- */
-authRouter.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
-  const user = c.get('user');
-
-  try {
-    // Generate long-lived refresh token (30 days) for MCP
-    const tokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
-      userId: makeUserId(user.id),
-      email: makeEmail(user.email),
-      domain: user.domain,
-      provider: user.provider,
-      isAdmin: user.isAdmin,
-      ...(user.name && { name: user.name })
-    };
-    const refreshToken = JWTService.generateToken(tokenPayload, '30d'); // 30 day expiration
-
-    const response: MCPGenerateResponse = {
-      refresh_token: refreshToken
-    };
-
-    return c.json(response, 200);
-  } catch (error) {
-    getRouteLogger().error('MCP token generation error', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    return c.json({ error: 'Failed to generate refresh token' }, 401);
-  }
-});
 
 /**
  * POST /api/tokens/agent
@@ -518,6 +443,7 @@ authRouter.post('/api/tokens/agent', async (c) => {
     provider: agentUser.provider,
     isAdmin: false,
     agentDid: did,
+    tokenVersion: agentUser.tokenVersion,
   }, '24h');
 
   return c.json({ token, did }, 200);
@@ -575,11 +501,17 @@ authRouter.post('/api/users/accept-terms', authMiddleware, async (c) => {
  * This endpoint exists for consistency and future session management
  */
 authRouter.post('/api/users/logout', authMiddleware, async (c) => {
-  deleteCookie(c, 'semiont-token', { path: '/' });
-  return c.json({
-    success: true,
-    message: 'Logged out successfully',
-  }, 200);
+  // Revoke every outstanding token for this user by bumping the per-user
+  // revocation epoch (SDK-AUTH-CORS Phase 2) — refresh and live access tokens
+  // minted at the old version are rejected from here on.
+  const user = c.get('user');
+  const prisma = DatabaseConnection.getClient();
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { tokenVersion: { increment: 1 } },
+  });
+  deleteCookie(c, 'semiont-token', { path: '/' }); // cookie removal lands in Phase 3
+  return c.body(null, 204);
 });
 
 /**

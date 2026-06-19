@@ -50,7 +50,7 @@ function makeAgentUser(overrides: Partial<User> = {}): User {
     passwordHash: null,
     isAdmin: false,
     isActive: true,
-    isModerator: false,
+    isModerator: false, tokenVersion: 0,
     termsAcceptedAt: null,
     lastLogin: null,
     createdAt: new Date(),

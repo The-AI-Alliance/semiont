@@ -43,7 +43,7 @@ describe('OAuth Service', () => {
     passwordHash: null,
     isAdmin: false,
     isActive: true,
-    isModerator: false,
+    isModerator: false, tokenVersion: 0,
     termsAcceptedAt: null,
     lastLogin: new Date(),
     createdAt: new Date(),

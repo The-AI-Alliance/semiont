@@ -12,7 +12,7 @@ function createUserData(overrides: Partial<any> = {}) {
     providerId: `google-${Date.now()}`,
     isActive: true,
     isAdmin: false,
-    isModerator: false,
+    isModerator: false, tokenVersion: 0,
     ...overrides
   };
 }

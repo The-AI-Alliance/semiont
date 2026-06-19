@@ -55,7 +55,7 @@ describe('Authentication Integration', () => {
         passwordHash: null,
         isAdmin: false,
         isActive: true,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
@@ -97,7 +97,7 @@ describe('Authentication Integration', () => {
         passwordHash: null,
         isAdmin: false,
         isActive: true,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
@@ -136,7 +136,7 @@ describe('Authentication Integration', () => {
         passwordHash: null,
         isAdmin: false,
         isActive: true,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
@@ -178,7 +178,7 @@ describe('Authentication Integration', () => {
         passwordHash,
         isAdmin: false,
         isActive: true,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
@@ -218,7 +218,7 @@ describe('Authentication Integration', () => {
         passwordHash: null,
         isAdmin: false,
         isActive: true,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
@@ -261,7 +261,7 @@ describe('Authentication Integration', () => {
         passwordHash,
         isAdmin: false,
         isActive: true,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
@@ -315,7 +315,7 @@ describe('Authentication Integration', () => {
         passwordHash,
         isAdmin: false,
         isActive: true,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
@@ -334,7 +334,7 @@ describe('Authentication Integration', () => {
         passwordHash: null,
         isAdmin: false,
         isActive: true,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
@@ -390,7 +390,7 @@ describe('Authentication Integration', () => {
       passwordHash: null,
       isAdmin: false,
       isActive: true,
-      isModerator: false,
+      isModerator: false, tokenVersion: 0,
       termsAcceptedAt: null,
       lastLogin: null,
       createdAt: new Date(),
@@ -462,13 +462,13 @@ describe('Authentication Integration', () => {
         passwordHash: null,
         isAdmin: false,
         isActive: true,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      const token = JWTService.generateToken({
+      const token = JWTService.generateToken({ tokenVersion: 0,
         userId: makeUserId(user.id),
         email: makeEmail(user.email),
         domain: user.domain,
@@ -513,13 +513,13 @@ describe('Authentication Integration', () => {
         passwordHash: null,
         isAdmin: false,
         isActive: true,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      const bearerToken = JWTService.generateToken({
+      const bearerToken = JWTService.generateToken({ tokenVersion: 0,
         userId: makeUserId(bearerUser.id),
         email: makeEmail(bearerUser.email),
         domain: bearerUser.domain,
@@ -556,13 +556,13 @@ describe('Authentication Integration', () => {
         passwordHash: null,
         isAdmin: false,
         isActive: true,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      const token = JWTService.generateToken({
+      const token = JWTService.generateToken({ tokenVersion: 0,
         userId: makeUserId(user.id),
         email: makeEmail(user.email),
         domain: user.domain,
@@ -596,13 +596,13 @@ describe('Authentication Integration', () => {
         passwordHash: null,
         isAdmin: false,
         isActive: true,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      const token = JWTService.generateToken({
+      const token = JWTService.generateToken({ tokenVersion: 0,
         userId: makeUserId(user.id),
         email: makeEmail(user.email),
         domain: user.domain,
@@ -616,11 +616,17 @@ describe('Authentication Integration', () => {
         headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      expect(response.status).toBe(200);
-      const data = await response.json() as { success: boolean };
-      expect(data.success).toBe(true);
+      expect(response.status).toBe(204);
+      // Logout revokes the session by bumping the per-user token epoch
+      // (SDK-AUTH-CORS Phase 2).
+      expect(mockPrismaUser.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: user.id },
+          data: { tokenVersion: { increment: 1 } },
+        }),
+      );
 
-      // Verify the cookie is cleared (Max-Age=0 signals deletion)
+      // The cookie is still cleared until Phase 3 removes the cookie entirely.
       const setCookie = response.headers.get('set-cookie');
       expect(setCookie).not.toBeNull();
       expect(setCookie).toMatch(/semiont-token=/);

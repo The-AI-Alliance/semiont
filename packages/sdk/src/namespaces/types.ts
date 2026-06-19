@@ -440,7 +440,6 @@ export interface AuthNamespace {
   logout(): Promise<void>;
   me(): Promise<User>;
   acceptTerms(): Promise<void>;
-  mcpToken(): Promise<{ token: string }>;
   mediaToken(resourceId: ResourceId): Promise<{ token: string }>;
 }
 

@@ -24,6 +24,7 @@ model User {
   isModerator     Boolean   @default(false) // Moderator role for content governance
   termsAcceptedAt DateTime? // When user accepted terms of service
   lastLogin       DateTime?
+  tokenVersion    Int       @default(0) // bumped on logout to revoke all of this user's tokens (SDK-AUTH-CORS Phase 2)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

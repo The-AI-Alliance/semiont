@@ -445,12 +445,6 @@ export class HttpTransport implements ITransport, IBackendOperations {
     }).json();
   }
 
-  async generateMcpToken(): Promise<{ token: string }> {
-    return this.http.post(`${this.baseUrl}/api/tokens/mcp-generate`, {
-      headers: this.authHeaders(),
-    }).json();
-  }
-
   async getMediaToken(resourceId: ResourceId): Promise<{ token: string }> {
     return this.http.post(`${this.baseUrl}/api/tokens/media`, {
       json: { resourceId },

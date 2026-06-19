@@ -37,10 +37,6 @@ export class AuthNamespace implements IAuthNamespace {
     await this.backend.acceptTerms();
   }
 
-  async mcpToken(): Promise<{ token: string }> {
-    return this.backend.generateMcpToken();
-  }
-
   async mediaToken(resourceId: ResourceId): Promise<{ token: string }> {
     return this.backend.getMediaToken(resourceId);
   }
