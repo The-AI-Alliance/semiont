@@ -7,6 +7,15 @@ import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
 
 import { makeMeaningMock } from '../helpers/make-meaning-mock';
 
+// pdfjs (via the make-meaning mock's importOriginal) needs DOMMatrix at module
+// load; stub it in the hoist phase so this file runs in isolation.
+vi.hoisted(() => {
+  const g = globalThis as unknown as Record<string, unknown>;
+  g.DOMMatrix ??= class {};
+  g.ImageData ??= class {};
+  g.Path2D ??= class {};
+});
+
 // Mock make-meaning service to avoid graph initialization at import time
 vi.mock('@semiont/make-meaning', async (importOriginal) => {
   const actual = await importOriginal() as any;
@@ -179,7 +188,7 @@ describe('POST /api/tokens/password', () => {
       expect(data.token.split('.')).toHaveLength(3);
     });
 
-    it('should return both an access token (1h) and a refresh token (30d)', async () => {
+    it('should return both an access token (10m) and a refresh token (30d)', async () => {
       const mockUser: User = {
         id: faker.string.uuid(),
         email: testEmail,
@@ -217,11 +226,11 @@ describe('POST /api/tokens/password', () => {
       // They are distinct (different exp claims)
       expect(data.refreshToken).not.toBe(data.token);
 
-      // Access token expires in ~1 hour (give or take a few seconds for clock skew)
+      // Access token expires in ~10 minutes (give or take a few seconds for clock skew)
       const accessPayload = JSON.parse(Buffer.from(data.token.split('.')[1]!, 'base64').toString());
       const accessTtlSec = accessPayload.exp - Math.floor(Date.now() / 1000);
-      expect(accessTtlSec).toBeGreaterThan(60 * 55);   // > 55 minutes
-      expect(accessTtlSec).toBeLessThanOrEqual(60 * 60 + 5); // <= 1 hour + skew
+      expect(accessTtlSec).toBeGreaterThan(60 * 9);   // > 9 minutes
+      expect(accessTtlSec).toBeLessThanOrEqual(60 * 10 + 5); // <= 10 minutes + skew
 
       // Refresh token expires in ~30 days
       const refreshPayload = JSON.parse(Buffer.from(data.refreshToken.split('.')[1]!, 'base64').toString());

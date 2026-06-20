@@ -112,6 +112,7 @@ describe('JWT Service', () => {
           domain: 'example.com',
           provider: 'google',
           isAdmin: false,
+          tokenVersion: 0,
         },
         'test-secret-key-for-testing-32char',
         {
