@@ -116,10 +116,17 @@ The bump regenerates `package-lock.json` (`npm install --package-lock-only
 --include=optional`, run in a `node:24` container — the release host has no
 Node) and stages it in the same commit, so the committed lock always records
 the bumped versions. This keeps `npm ci` usable for reproducible/clean installs
-(release seed builds, Docker images). Without it the lock stays one version
-behind after every bump and `npm ci` fails on the lock↔`package.json` mismatch;
-CI hides this because it installs with `npm install`, which silently re-resolves
-and heals the drift. Do not hand-edit the lock to "fix" a version: a
+(release seed builds, Docker images) — and the **CI test/build jobs run
+`npm ci --include=optional`**, so any lockfile drift fails the build loudly at
+install instead of being silently healed by `npm install`. (The publish workflow
+intentionally stays on `npm install` — it stamps `"*"`→exact versions, after
+which the tree no longer matches the committed lock.)
+
+**Contributor rule:** any dependency change must commit the regenerated
+`package-lock.json` — regenerate with `npm install --package-lock-only
+--include=optional` in a `node:24` container; `npm ci` now rejects an out-of-sync
+lock, so an uncommitted lock turns CI red. Do not hand-edit the lock to "fix" a
+version: a
 lockfileVersion-3 file records each workspace version in several interlinked
 places (the `packages` map, app dependency pins, `link: true` entries), and only
 npm rewrites it consistently. `--include=optional` is required so the
