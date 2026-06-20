@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies and build packages
         run: |
           cd ../..
-          npm install --include=optional
+          npm ci --include=optional
           npm run build:packages
 
       - name: Build and install CLI
@@ -233,7 +233,7 @@ jobs:
       - name: Install dependencies and build packages
         run: |
           cd ../..
-          npm install --include=optional
+          npm ci --include=optional
           npm run build:packages
 
       - name: Build and install CLI

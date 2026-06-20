@@ -23,7 +23,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --include=optional
+        run: npm ci --include=optional
 
       - name: Run Raw Bus Access Audit
         run: |

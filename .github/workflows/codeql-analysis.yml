@@ -47,7 +47,7 @@ jobs:
         cache: 'npm'
 
     - name: Install all dependencies
-      run: npm install --include=optional
+      run: npm ci --include=optional
       continue-on-error: true
 
     - name: Perform CodeQL Analysis

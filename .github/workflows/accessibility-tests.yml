@@ -34,7 +34,7 @@ jobs:
 
       - name: Build dependencies
         run: |
-          npm install --include=optional
+          npm ci --include=optional
           npm run openapi:bundle
           npm run build --workspace=@semiont/core
           npm run build --workspace=@semiont/http-transport
@@ -96,7 +96,7 @@ jobs:
 
       - name: Build dependencies
         run: |
-          npm install --include=optional
+          npm ci --include=optional
           npm run openapi:bundle
           npm run build --workspace=@semiont/core
           npm run build --workspace=@semiont/http-transport
@@ -166,7 +166,7 @@ jobs:
 
       - name: Build dependencies
         run: |
-          npm install --include=optional
+          npm ci --include=optional
           npm run openapi:bundle
           npm run build --workspace=@semiont/core
           npm run build --workspace=@semiont/http-transport
