@@ -160,7 +160,6 @@ export class HttpTransport implements ITransport, IBackendOperations {
     this.http = ky.create({
       timeout,
       retry: retryConfig,
-      credentials: 'include',
       hooks: {
         beforeRequest: [
           ({ request }) => {
