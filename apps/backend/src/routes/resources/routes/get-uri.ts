@@ -13,8 +13,9 @@
  *   descriptor + annotations + inbound entity references) via the bus
  *   gateway. Live data — Cache-Control: no-cache.
  * - GET /api/resources/:id — browser-friendly alias of the pipe. Exists only
- *   as the ?token= / httpOnly-cookie auth affordance for <img>, PDF.js, and
- *   download links, which cannot carry Authorization headers.
+ *   as the ?token= auth affordance for <img>, PDF.js, and download links,
+ *   which cannot carry Authorization headers (bearer + ?token= only — no
+ *   cookie, per SDK-AUTH-CORS Phase 3).
  */
 
 import type { Context } from 'hono';
@@ -147,8 +148,10 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
 
   // GET /api/resources/:id — browser-friendly alias of the pipe. Exists
   // only as the auth affordance for <img>, PDF.js, and download links:
-  // browsers cannot attach Authorization headers there, but the ?token=
-  // query / httpOnly semiont-token cookie ride along automatically.
+  // browsers cannot attach Authorization headers there, so they pass a
+  // short-lived, resource-scoped media token via ?token= (the middleware
+  // checks it first; see middleware/auth.ts). Auth is bearer + ?token= only —
+  // no cookie (SDK-AUTH-CORS Phase 3).
   // (Folding the alias into /resources/:id is an auth-design question —
   // out of scope; see .plans/SIMPLER-JSON-LD.md §3.)
   router.get('/api/resources/:id', async (c) => {

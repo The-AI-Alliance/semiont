@@ -16,6 +16,13 @@ export const JWTPayloadSchema = z.object({
   // `_userId` instead of recomputing `userToDid(user)`. Unset for human
   // tokens.
   agentDid: z.string().optional(),
+  // Per-user revocation epoch (SDK-AUTH-CORS Phase 2): every token carries the
+  // user's tokenVersion at mint; logout bumps User.tokenVersion, so a token
+  // whose tokenVersion is behind the user's current value is rejected.
+  // Required — a token minted before this feature lacks the claim and fails
+  // validation, so the holder re-authenticates. That is the intended
+  // revoke-every-session-on-rollout behavior, not a regression.
+  tokenVersion: z.number().int(),
   iat: z.number().optional(),
   exp: z.number().optional(),
 });

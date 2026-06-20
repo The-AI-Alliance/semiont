@@ -55,10 +55,6 @@ interface UserResponse {
   created: string;
 }
 
-interface LogoutResponse {
-  success: boolean;
-  message: string;
-}
 
 interface ErrorResponse {
   error: string;
@@ -169,15 +165,8 @@ describe('API Contract Tests', () => {
       expect(mockResponse.isActive).toBeDefined();
     });
 
-    it('should match LogoutResponse contract', () => {
-      const mockResponse: LogoutResponse = {
-        success: true,
-        message: 'Logged out successfully',
-      };
-
-      expect(mockResponse.success).toBeDefined();
-      expect(mockResponse.message).toBeDefined();
-    });
+    // Logout returns 204 No Content (SDK-AUTH-CORS Phase 2) — there is no
+    // response body contract to assert.
 
     it('should match ErrorResponse contract', () => {
       const mockResponse: ErrorResponse = {

@@ -37,7 +37,10 @@ const CONTAINER = '.semiont-pdf-annotation-canvas__container';
 
 async function openPdfInAnnotateMode(page: Page) {
   await page.goto('/en/know/discover');
-  const card = page.getByRole('button', { name: PDF_CARD });
+  // `.first()` — the seed isn't idempotent (duplicate "Spatial Smoke PDF"
+  // resources accumulate across runs), so the name matches multiple cards;
+  // any of them is an identical fresh PDF fixture.
+  const card = page.getByRole('button', { name: PDF_CARD }).first();
   await expect(card).toBeVisible({ timeout: 15_000 });
   await card.click();
   await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });

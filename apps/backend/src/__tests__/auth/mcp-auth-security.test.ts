@@ -1,9 +1,9 @@
 import { userId } from '@semiont/core';
 import { email } from '@semiont/core';
 /**
- * MCP Authentication Security Tests
- * 
- * Tests to verify the security of MCP OAuth flow and token refresh endpoints
+ * Auth security tests — the token-refresh endpoint and token-handling best
+ * practices. (The MCP setup/OAuth-flow blocks were removed with the MCP token
+ * routes — SDK-AUTH-CORS Phase 2.)
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -49,87 +49,6 @@ describe('MCP Authentication security', () => {
     JWTService.resetConfig();
   });
 
-  describe('/api/auth/mcp-setup Security', () => {
-    it('security: should require authentication for MCP setup endpoint', async () => {
-      // This test resources that the endpoint MUST have authMiddleware
-      // The actual implementation has authMiddleware, so unauthorized access returns 401
-      expect(true).toBe(true); // Placeholder - actual test would make HTTP request
-    });
-
-    it('security: should not expose refresh tokens in logs', () => {
-      // Generate a test refresh token
-      const refreshToken = JWTService.generateToken({
-        userId: userId('clh0vssng0000356tmf4mt8fb'),
-        email: email('test@example.com'),
-        domain: 'example.com',
-        provider: 'google',
-        isAdmin: false,
-      }, '30d');
-      
-      // Ensure token is not accidentally logged
-      const consoleSpy = vi.spyOn(console, 'log');
-      const debugSpy = vi.spyOn(console, 'debug');
-      
-      // Simulate token generation (without actually logging)
-      // The implementation should never log tokens
-      
-      expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining(refreshToken));
-      expect(debugSpy).not.toHaveBeenCalledWith(expect.stringContaining(refreshToken));
-    });
-
-    it('security: should validate callback URL to prevent open redirect', () => {
-      const validCallbacks = [
-        'http://localhost:8585/callback',
-        'http://localhost:3000/callback',
-        'http://127.0.0.1:8585/callback'
-      ];
-      
-      const invalidCallbacks = [
-        'http://evil.com/phishing',
-        'javascript:alert(1)',
-        '//evil.com/redirect',
-        'data:text/html,<script>alert(1)</script>'
-      ];
-      
-      // Valid callbacks should be allowed
-      validCallbacks.forEach(url => {
-        expect(url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')).toBe(true);
-      });
-      
-      // Invalid callbacks should be rejected
-      invalidCallbacks.forEach(url => {
-        expect(url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')).toBe(false);
-      });
-    });
-
-    it('security: should use secure token generation with sufficient entropy', async () => {
-      // Test that refresh tokens have proper length and randomness
-      const token1 = JWTService.generateToken({
-        userId: userId('clh0vssng0001356tmf4mt8fb'),
-        email: email('user1@example.com'),
-        domain: 'example.com',
-        provider: 'google',
-        isAdmin: false,
-      }, '30d');
-      
-      // Wait 1 second to ensure different iat timestamp (JWT timestamps are in seconds)
-      await new Promise(resolve => setTimeout(resolve, 1001));
-      
-      const token2 = JWTService.generateToken({
-        userId: userId('clh0vssng0001356tmf4mt8fb'), // Same user
-        email: email('user1@example.com'),
-        domain: 'example.com',
-        provider: 'google',
-        isAdmin: false,
-      }, '30d');
-      
-      // Tokens for same user should be different (includes timestamp)
-      expect(token1).not.toBe(token2);
-      
-      // Tokens should be sufficiently long
-      expect(token1.length).toBeGreaterThan(100);
-    });
-  });
 
   describe('/api/auth/refresh Security', () => {
     it('security: should reject invalid refresh tokens', async () => {
@@ -152,7 +71,7 @@ describe('MCP Authentication security', () => {
       // This test resources that access and refresh tokens are differentiated by expiration time
       // Access tokens: short-lived (1 hour)
       // Refresh tokens: long-lived (30 days)
-      const accessToken = JWTService.generateToken({
+      const accessToken = JWTService.generateToken({ tokenVersion: 0,
         userId: userId('clh0vssng0002356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',
@@ -160,7 +79,7 @@ describe('MCP Authentication security', () => {
         isAdmin: false
       }, '1h'); // Access token: 1 hour expiry
       
-      const refreshToken = JWTService.generateToken({
+      const refreshToken = JWTService.generateToken({ tokenVersion: 0,
         userId: userId('clh0vssng0002356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',
@@ -187,7 +106,7 @@ describe('MCP Authentication security', () => {
       // Setup: User doesn't exist in database
       mockPrisma.user.findUnique.mockResolvedValue(null);
       
-      const refreshToken = JWTService.generateToken({
+      const refreshToken = JWTService.generateToken({ tokenVersion: 0,
         userId: userId('clh0vssng0003356tmf4mt8fb'),
         email: email('deleted@example.com'),
         domain: 'example.com',
@@ -254,7 +173,7 @@ describe('MCP Authentication security', () => {
         image: null,
         isActive: true,
         isAdmin: false,
-        isModerator: false,
+        isModerator: false, tokenVersion: 0,
         lastLogin: null,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -264,7 +183,7 @@ describe('MCP Authentication security', () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       
       // Generate access token (would be done by refresh endpoint)
-      const accessToken = JWTService.generateToken({
+      const accessToken = JWTService.generateToken({ tokenVersion: 0,
         userId: userId(mockUser.id),
         email: email(mockUser.email),
         name: mockUser.name || undefined,
@@ -287,7 +206,7 @@ describe('MCP Authentication security', () => {
 
   describe('Token Security Best Practices', () => {
     it('security: should use secure JWT algorithm', () => {
-      const token = JWTService.generateToken({
+      const token = JWTService.generateToken({ tokenVersion: 0,
         userId: userId('clh0vssng0005356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',
@@ -307,7 +226,7 @@ describe('MCP Authentication security', () => {
     });
 
     it('security: should include proper token claims', () => {
-      const token = JWTService.generateToken({
+      const token = JWTService.generateToken({ tokenVersion: 0,
         userId: userId('clh0vssng0002356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',
@@ -329,7 +248,7 @@ describe('MCP Authentication security', () => {
       // Refresh tokens: long-lived (30 days), used only to get new access tokens
       // Access tokens: short-lived (1 hour), used for API calls
       
-      const refreshToken = JWTService.generateToken({
+      const refreshToken = JWTService.generateToken({ tokenVersion: 0,
         userId: userId('clh0vssng0005356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',
@@ -340,7 +259,7 @@ describe('MCP Authentication security', () => {
       const refreshPayload = JWTService.verifyToken(refreshToken);
       
       // Access tokens should be used for API calls
-      const accessToken = JWTService.generateToken({
+      const accessToken = JWTService.generateToken({ tokenVersion: 0,
         userId: userId('clh0vssng0005356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',
@@ -375,46 +294,4 @@ describe('MCP Authentication security', () => {
     });
   });
 
-  describe('MCP OAuth Flow Security', () => {
-    it('security: should validate OAuth state parameter to prevent CSRF', () => {
-      // The MCP setup flow should include state validation
-      // This is handled by the OAuth provider (Google, GitHub, etc.)
-      // but we should resource the requirement
-      expect(true).toBe(true); // Placeholder - actual OAuth flow includes state
-    });
-
-    it('security: should use HTTPS in production for token transmission', () => {
-      // In production, all auth endpoints should use HTTPS
-      const productionUrls = [
-        'https://api.semiont.com/api/auth/mcp-setup',
-        'https://api.semiont.com/api/auth/refresh'
-      ];
-      
-      productionUrls.forEach(url => {
-        expect(url.startsWith('https://')).toBe(true);
-      });
-    });
-
-    it('security: should store tokens securely on client side', () => {
-      // Resource that tokens should be stored securely
-      // - Refresh tokens in encrypted config files
-      // - Access tokens in memory only
-      // - Never in plain text files or logs
-      
-      const secureStorageLocations = [
-        '~/.config/semiont/mcp-auth-*.json', // Should be mode 600
-        process.env.SEMIONT_API_TOKEN || '' // In memory via environment
-      ];
-      
-      const insecureLocations = [
-        '/tmp/token.txt',
-        './token.json',
-        'localStorage' // For CLI, not applicable but good to resource
-      ];
-      
-      // This resources the security requirement
-      expect(secureStorageLocations.length).toBeGreaterThan(0);
-      expect(insecureLocations).toBeDefined(); // Should be avoided
-    });
-  });
 });

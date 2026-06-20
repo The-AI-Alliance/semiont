@@ -17,6 +17,15 @@ import type { MakeMeaningService } from '@semiont/make-meaning';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
 import { makeMeaningMock } from './helpers/make-meaning-mock';
 
+// pdfjs (pulled in by the make-meaning mock's importOriginal) needs DOMMatrix
+// at module load; stub it in the hoist phase so this file runs in isolation.
+vi.hoisted(() => {
+  const g = globalThis as unknown as Record<string, unknown>;
+  g.DOMMatrix ??= class {};
+  g.ImageData ??= class {};
+  g.Path2D ??= class {};
+});
+
 // Mock make-meaning service to avoid graph initialization at import time
 vi.mock('@semiont/make-meaning', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>;
@@ -41,15 +50,11 @@ type ErrorResponse = {
 describe('Security Controls', () => {
   let app: Hono<{ Variables: Variables }>;
   let testEnv: TestEnvironmentConfig;
-  let config: EnvironmentConfig;
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
     const { app: importedApp } = await import('../index');
     app = importedApp;
-
-    // Get config from testEnv (already loaded by setupTestEnvironment)
-    config = testEnv.config;
   });
 
   afterAll(async () => {
@@ -69,40 +74,33 @@ describe('Security Controls', () => {
       expect(res.headers.get('access-control-allow-origin')).toBeDefined();
     });
 
-    it('should match configured CORS origin', async () => {
+    it('emits a literal "*" Access-Control-Allow-Origin (bearer-only, not echo-origin)', async () => {
+      // A NON-configured origin: with a literal '*' any origin gets '*'; the
+      // old configured-origin behavior would have returned localhost:3000, and
+      // an echo-origin shim would reflect example.com. Pinning the literal '*'
+      // also guards against a hono regression to reflect-origin
+      // (the CORS-LOGIN-FIX anti-pattern).
       const res = await app.request('/api/health', {
         method: 'GET',
         headers: {
-          'Origin': 'http://localhost:3000',
+          'Origin': 'http://example.com',
         },
       });
 
-      const corsOrigin = res.headers.get('access-control-allow-origin');
-      const configuredOrigin = config.services?.backend?.corsOrigin;
-
-      console.log(`\n🌐 CORS Configuration:`);
-      console.log(`   Configured origin: ${configuredOrigin}`);
-      console.log(`   Response header: ${corsOrigin}`);
-
-      // Verify CORS is configured
-      expect(corsOrigin).toBeDefined();
+      expect(res.headers.get('access-control-allow-origin')).toBe('*');
     });
 
-    it('should include credentials support in CORS headers', async () => {
+    it('does not send Access-Control-Allow-Credentials (bearer-only, no cookies)', async () => {
+      // Credentials are dropped (bearer tokens are not ambient), which is
+      // exactly what makes the literal '*' origin legal.
       const res = await app.request('/api/health', {
         method: 'GET',
         headers: {
-          'Origin': 'http://localhost:3000',
+          'Origin': 'http://example.com',
         },
       });
 
-      const allowCredentials = res.headers.get('access-control-allow-credentials');
-
-      console.log(`\n🔐 CORS Credentials:`);
-      console.log(`   Allow-Credentials: ${allowCredentials}`);
-
-      // Verify credentials are allowed (required for cookies/auth)
-      expect(allowCredentials).toBe('true');
+      expect(res.headers.get('access-control-allow-credentials')).toBeNull();
     });
 
     it('should handle preflight OPTIONS requests', async () => {
@@ -416,8 +414,8 @@ describe('Security Controls', () => {
     it('should use secure defaults for all security controls', () => {
       // This test documents the security defaults
       const securityDefaults = {
-        'CORS credentials': 'enabled (required for auth)',
-        'CORS origin': 'configured from environment',
+        'CORS credentials': 'disabled (bearer-only, no cookies)',
+        'CORS origin': 'wildcard (*) — public, bearer-only',
         'Error messages': 'generic, no sensitive data',
         'Stack traces': 'never exposed in production responses',
         'Database errors': 'never exposed to clients',

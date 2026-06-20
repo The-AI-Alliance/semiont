@@ -24,9 +24,6 @@
     "/api/tokens/refresh": {
       "$ref": "paths/api_tokens_refresh.json"
     },
-    "/api/tokens/mcp-generate": {
-      "$ref": "paths/api_tokens_mcp-generate.json"
-    },
     "/api/tokens/media": {
       "$ref": "paths/api_tokens_media.json"
     },
@@ -74,9 +71,6 @@
     },
     "/api/cookies/export": {
       "$ref": "paths/api_cookies_export.json"
-    },
-    "/api/tokens/mcp-setup": {
-      "$ref": "paths/api_tokens_mcp-setup.json"
     },
     "/bus/subscribe": {
       "$ref": "paths/bus_subscribe.json"
@@ -323,9 +317,6 @@
       },
       "PasswordAuthRequest": {
         "$ref": "components/schemas/PasswordAuthRequest.json"
-      },
-      "MCPGenerateResponse": {
-        "$ref": "components/schemas/MCPGenerateResponse.json"
       },
       "Motivation": {
         "$ref": "components/schemas/Motivation.json"

@@ -52,7 +52,6 @@ vi.mock('../utils/config', () => ({
         platform: { type: 'posix' as const },
         port: 4000,
         publicURL: 'http://localhost:4000',
-        corsOrigin: 'http://localhost:3000',
       },
       filesystem: {
         platform: { type: 'posix' as const },

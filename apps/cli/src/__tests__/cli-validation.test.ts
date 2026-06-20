@@ -118,7 +118,6 @@ port = 3003
 platform = "posix"
 port = 8080
 publicURL = "http://demo.example.com:8080"
-corsOrigin = "http://demo.example.com:3000"
 
 [environments.demo.site]
 domain = "demo.example.com"
@@ -140,7 +139,6 @@ adminEmail = "admin@demo.example.com"
 platform = "posix"
 port = 4001
 publicURL = "http://test.local:4001"
-corsOrigin = "http://test.local:4000"
 
 [environments.test.site]
 domain = "test.local"

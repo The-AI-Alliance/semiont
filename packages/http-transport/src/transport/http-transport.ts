@@ -160,7 +160,6 @@ export class HttpTransport implements ITransport, IBackendOperations {
     this.http = ky.create({
       timeout,
       retry: retryConfig,
-      credentials: 'include',
       hooks: {
         beforeRequest: [
           ({ request }) => {
@@ -441,12 +440,6 @@ export class HttpTransport implements ITransport, IBackendOperations {
 
   async getCurrentUser(): Promise<UserResponse> {
     return this.http.get(`${this.baseUrl}/api/users/me`, {
-      headers: this.authHeaders(),
-    }).json();
-  }
-
-  async generateMcpToken(): Promise<{ token: string }> {
-    return this.http.post(`${this.baseUrl}/api/tokens/mcp-generate`, {
       headers: this.authHeaders(),
     }).json();
   }

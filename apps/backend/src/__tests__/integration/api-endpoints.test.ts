@@ -85,10 +85,6 @@ interface UserResponse {
   created: string;
 }
 
-interface LogoutResponse {
-  success: boolean;
-  message: string;
-}
 
 interface ErrorResponse {
   error: string;
@@ -165,7 +161,7 @@ const testUser = {
   providerId: 'google-test-user-id',
     passwordHash: null,
   isAdmin: false,
-  isModerator: false,
+  isModerator: false, tokenVersion: 0,
   isActive: true,
   termsAcceptedAt: new Date(),
   lastLogin: new Date(),
@@ -208,7 +204,7 @@ describe('API Endpoints Integration Tests', () => {
     app = serverModule.app;
 
     // Generate a test token
-    testToken = JWTService.generateToken({
+    testToken = JWTService.generateToken({ tokenVersion: 0,
       userId: userId(testUser.id),
       email: email(testUser.email),
       name: testUser.name,
@@ -367,7 +363,7 @@ describe('API Endpoints Integration Tests', () => {
           providerId: 'google-123',
     passwordHash: null,
           isAdmin: false,
-          isModerator: false,
+          isModerator: false, tokenVersion: 0,
           isActive: true,
           termsAcceptedAt: null,
           lastLogin: new Date(),
@@ -462,7 +458,7 @@ describe('API Endpoints Integration Tests', () => {
       providerId: 'google-123',
     passwordHash: null,
       isAdmin: false,
-      isModerator: false,
+      isModerator: false, tokenVersion: 0,
       isActive: true,
       termsAcceptedAt: new Date(),
       lastLogin: new Date(),
@@ -520,7 +516,7 @@ describe('API Endpoints Integration Tests', () => {
       expect(data.error).toContain('token');
     });
 
-    it('POST /api/users/logout should return success', async () => {
+    it('POST /api/users/logout returns 204 No Content', async () => {
       const res = await app.request('/api/users/logout', {
         method: 'POST',
         headers: {
@@ -528,10 +524,7 @@ describe('API Endpoints Integration Tests', () => {
         },
       });
 
-      expect(res.status).toBe(200);
-      const data = await res.json() as LogoutResponse;
-      expect(data.success).toBe(true);
-      expect(data.message).toBe('Logged out successfully');
+      expect(res.status).toBe(204);
     });
 
     it('POST /api/users/accept-terms should update terms acceptance', async () => {
@@ -564,7 +557,7 @@ describe('API Endpoints Integration Tests', () => {
       providerId: 'google-admin-123',
     passwordHash: null,
       isAdmin: true,
-      isModerator: true,
+      isModerator: true, tokenVersion: 0,
       isActive: true,
       termsAcceptedAt: new Date(),
       lastLogin: new Date(),
@@ -582,7 +575,7 @@ describe('API Endpoints Integration Tests', () => {
       providerId: 'google-user-123',
     passwordHash: null,
       isAdmin: false,
-      isModerator: false,
+      isModerator: false, tokenVersion: 0,
       isActive: true,
       termsAcceptedAt: new Date(),
       lastLogin: new Date(),

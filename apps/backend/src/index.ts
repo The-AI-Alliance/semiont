@@ -49,9 +49,6 @@ const config = loadEnvironmentConfig(projectRoot, env);
 if (!config.services?.backend) {
   throw new Error('services.backend is required in environment config');
 }
-if (!config.services.backend.corsOrigin) {
-  throw new Error('services.backend.corsOrigin is required in environment config');
-}
 
 const backendService = config.services.backend;
 
@@ -141,11 +138,10 @@ type Variables = {
 // Create Hono app with proper typing
 const app = new Hono<{ Variables: Variables }>();
 
-// Add CORS middleware
-app.use('*', cors({
-  origin: backendService.corsOrigin,
-  credentials: true,
-}));
+// CORS: bearer-only API → literal '*', no credentials (SDK-AUTH-CORS Phase 4).
+// '*' is legal precisely because credentials are off; do NOT reflect the
+// request origin (the CORS-LOGIN-FIX "echo any origin + credentials" anti-pattern).
+app.use('*', cors({ origin: '*' }));
 
 // Add security headers middleware (after CORS, before other middleware)
 app.use('*', securityHeaders());
@@ -272,6 +268,15 @@ if (config.env?.NODE_ENV !== 'test') {
     logger.info('Semiont Backend ready', {
       url: `http://localhost:${info.port}/api`,
       environment: config.env?.NODE_ENV ?? 'development'
+    });
+
+    // Startup posture log (SDK-AUTH-CORS Phase 6): make the open-CORS/bearer-only
+    // stance visible at boot, so a future auth failure isn't misdiagnosed as the
+    // CORS mystery that produced CORS-LOGIN-FIX.md.
+    logger.info('Auth posture: bearer-only, open CORS', {
+      cors: 'any origin (*)',
+      credentials: 'disabled',
+      auth: 'Authorization: Bearer; media tokens via ?token= for /api/resources/:id',
     });
 
     // Initialize JWT Service with configuration

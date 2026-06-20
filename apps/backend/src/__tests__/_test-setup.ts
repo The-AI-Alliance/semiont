@@ -16,7 +16,6 @@ const MINIMAL_SEMIONTCONFIG = `
 platform = "posix"
 port = 4000
 publicURL = "http://localhost:4000"
-corsOrigin = "http://localhost:3000"
 
 [environments.integration.make-meaning.graph]
 type = "memory"
@@ -44,7 +43,6 @@ oauthAllowedDomains = ["test.local"]
 platform = "posix"
 port = 4000
 publicURL = "http://localhost:4000"
-corsOrigin = "http://localhost:3000"
 
 [environments.unit.make-meaning.graph]
 type = "memory"
@@ -107,7 +105,6 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
         platform: { type: 'posix' },
         port: 4000,
         publicURL: 'http://localhost:4000',
-        corsOrigin: 'http://localhost:3000',
       },
       graph: {
         platform: { type: 'posix' },

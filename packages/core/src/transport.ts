@@ -214,7 +214,6 @@ export interface IBackendOperations {
   logout(): Promise<void>;
   acceptTerms(): Promise<void>;
   getCurrentUser(): Promise<UserResponse>;
-  generateMcpToken(): Promise<{ token: string }>;
   getMediaToken(resourceId: ResourceId): Promise<{ token: string }>;
 
   // ── Admin ─────────────────────────────────────────────────────────────

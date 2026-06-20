@@ -55,7 +55,6 @@ function makeMockTransport(): ITransport {
     logout: vi.fn(),
     acceptTerms: vi.fn(),
     getCurrentUser: vi.fn(),
-    generateMcpToken: vi.fn(),
     getMediaToken: vi.fn(),
     listUsers: vi.fn(),
     getUserStats: vi.fn(),

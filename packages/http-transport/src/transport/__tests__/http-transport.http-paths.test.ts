@@ -155,14 +155,6 @@ describe('HttpTransport — HTTP wire shape', () => {
       expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/users/accept-terms`, { headers: {} });
     });
 
-    test('generateMcpToken posts to /api/tokens/mcp-generate', async () => {
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ token: 'mcp-tok' }),
-      } as never);
-      const result = await transport.generateMcpToken();
-      expect(result).toEqual({ token: 'mcp-tok' });
-      expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/tokens/mcp-generate`, { headers: {} });
-    });
 
     test('getMediaToken posts resourceId to /api/tokens/media', async () => {
       vi.mocked(mockKy.post).mockReturnValue({

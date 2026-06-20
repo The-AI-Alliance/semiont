@@ -38,6 +38,7 @@ import { SemiontClient } from '../../client';
 import { SemiontSession, type SemiontSessionConfig } from '../semiont-session';
 import type { AccessToken } from '@semiont/core';
 import { SESSION_PREFIX_RE, storageKey, seedStoredSession, TestStorage } from './test-storage-helpers';
+import { getStoredSession } from '../storage';
 
 function freshJwt(expSecondsFromNow = 3600): string {
   const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
@@ -166,6 +167,29 @@ describe('SemiontSession — refresh', () => {
     await session.refresh();
     expect(onAuthFailed).toHaveBeenCalledWith(expect.stringContaining('session has expired'));
     expect(session.token$.getValue()).toBeNull();
+
+    await session.dispose();
+  });
+
+  it('a revoked refresh (refresh→null) clears the stored session so the dead token is not reused (SDK-AUTH-CORS Phase 2)', async () => {
+    // When the backend revokes the per-user epoch (logout), /api/tokens/refresh
+    // returns 401, the factory's performRefresh resolves null, and the session
+    // must end: token cleared, stored session cleared (so the dead refresh
+    // token is never replayed), and the expiry signal fired.
+    const jwt = freshJwt();
+    seedStoredSession(storage, KB.id, jwt, 'revoked-refresh-tok');
+    refresh.mockResolvedValue(null);
+    const onAuthFailed = vi.fn();
+
+    const session = newSession({ onAuthFailed });
+    await session.ready;
+
+    const result = await session.refresh();
+
+    expect(result).toBeNull();
+    expect(session.token$.getValue()).toBeNull();
+    expect(getStoredSession(storage, KB.id)).toBeNull();
+    expect(onAuthFailed).toHaveBeenCalledWith(expect.stringContaining('session has expired'));
 
     await session.dispose();
   });

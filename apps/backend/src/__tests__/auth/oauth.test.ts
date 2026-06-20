@@ -43,7 +43,7 @@ describe('OAuth Service', () => {
     passwordHash: null,
     isAdmin: false,
     isActive: true,
-    isModerator: false,
+    isModerator: false, tokenVersion: 0,
     termsAcceptedAt: null,
     lastLogin: new Date(),
     createdAt: new Date(),
@@ -308,6 +308,7 @@ describe('OAuth Service', () => {
         domain: mockUser.domain,
         provider: mockUser.provider,
         isAdmin: mockUser.isAdmin,
+        tokenVersion: mockUser.tokenVersion,
       };
 
       vi.mocked(JWTService.verifyToken).mockReturnValue(mockPayload);
@@ -332,6 +333,7 @@ describe('OAuth Service', () => {
         provider: 'agent',
         isAdmin: false,
         agentDid: did,
+        tokenVersion: mockUser.tokenVersion,
       };
       vi.mocked(JWTService.verifyToken).mockReturnValue(mockPayload);
       mockPrismaUser.findUnique.mockResolvedValue(mockUser);

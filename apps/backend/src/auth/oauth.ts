@@ -107,9 +107,10 @@ export class OAuthService {
       domain: user.domain,
       provider: user.provider,
       isAdmin: user.isAdmin,
+      tokenVersion: user.tokenVersion,
     };
 
-    const token = makeAccessToken(JWTService.generateToken(jwtPayload, '1h'));
+    const token = makeAccessToken(JWTService.generateToken(jwtPayload, '10m'));
     const refreshToken = JWTService.generateToken(jwtPayload, '30d');
 
     return { user, token, refreshToken, isNewUser };
@@ -137,6 +138,13 @@ export class OAuthService {
 
     if (!user || !user.isActive) {
       throw new Error('User not found or inactive');
+    }
+
+    // Per-user revocation epoch (SDK-AUTH-CORS Phase 2): a token whose
+    // tokenVersion is behind the user's current value has been revoked (e.g.
+    // by logout).
+    if (payload.tokenVersion !== user.tokenVersion) {
+      throw new Error('Token revoked');
     }
 
     return payload.agentDid ? { user, agentDid: payload.agentDid } : { user };

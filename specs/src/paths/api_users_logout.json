@@ -1,7 +1,7 @@
 {
   "post": {
     "summary": "Logout",
-    "description": "Logout the current user",
+    "description": "Log out the current user by revoking the per-user token epoch (SDK-AUTH-CORS Phase 2): the user's tokenVersion is incremented, so every outstanding access and refresh token for that user is rejected from here on. Returns 204 No Content — there is no session body to return.",
     "tags": [
       "Users"
     ],
@@ -11,15 +11,8 @@
       }
     ],
     "responses": {
-      "200": {
-        "description": "Logged out successfully",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/AcceptTermsResponse.json"
-            }
-          }
-        }
+      "204": {
+        "description": "Logged out — the user's tokens are revoked. No content."
       }
     }
   }
