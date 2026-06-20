@@ -7,7 +7,6 @@ platform = "posix"
 port = 3001
 publicURL = "http://localhost:3001"
 frontendURL = "http://localhost:3000"
-corsOrigin = "http://localhost:3000"
 
 [environments.local.make-meaning.graph]
 type = "memory"
@@ -62,7 +61,6 @@ describe('loadTomlConfig', () => {
 
     expect(config.services?.backend?.port).toBe(3001);
     expect(config.services?.backend?.publicURL).toBe('http://localhost:3001');
-    expect(config.services?.backend?.corsOrigin).toBe('http://localhost:3000');
   });
 
   it('maps graph section to EnvironmentConfig.services.graph', () => {

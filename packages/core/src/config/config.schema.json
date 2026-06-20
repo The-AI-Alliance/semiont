@@ -145,9 +145,6 @@
         "publicURL": {
           "type": "string"
         },
-        "corsOrigin": {
-          "type": "string"
-        },
         "image": {
           "type": "string"
         },
@@ -282,8 +279,7 @@
       "required": [
         "platform",
         "port",
-        "publicURL",
-        "corsOrigin"
+        "publicURL"
       ],
       "additionalProperties": false
     },

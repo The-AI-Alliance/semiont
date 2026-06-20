@@ -43,7 +43,6 @@ describe('Dynamic Environment Discovery', () => {
 platform = "posix"
 port = 4000
 publicURL = "http://demo.local:4000"
-corsOrigin = "http://demo.local:3000"
 
 [environments.demo.site]
 domain = "demo.local"
@@ -52,7 +51,6 @@ domain = "demo.local"
 platform = "posix"
 port = 8080
 publicURL = "http://feature.local:8080"
-corsOrigin = "http://feature.local:3000"
 
 [environments.feature-branch.site]
 domain = "feature.local"
@@ -129,7 +127,6 @@ name = "Test User"
 platform = "posix"
 port = 8080
 publicURL = "http://sandbox.example.com:8080"
-corsOrigin = "http://sandbox.example.com:3000"
 
 [environments.sandbox.site]
 domain = "sandbox.example.com"

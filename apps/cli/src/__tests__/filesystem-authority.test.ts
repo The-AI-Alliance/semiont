@@ -43,7 +43,6 @@ describe('TOML Config Authority for Environment Validation', () => {
 platform = "posix"
 port = 8080
 publicURL = "http://foo.example.com:8080"
-corsOrigin = "http://foo.example.com:3000"
 
 [environments.foo.site]
 domain = "foo.example.com"

@@ -136,7 +136,6 @@ interface EnvironmentSection {
     port?: number;
     publicURL?: string;
     frontendURL?: string;
-    corsOrigin?: string;
   };
   frontend?: {
     platform?: string;
@@ -421,7 +420,6 @@ export function loadTomlConfig(
       platform: { type: requirePlatform(backend.platform, 'backend') },
       port: backend.port ?? 4000,
       publicURL: backend.publicURL ?? `http://localhost:${backend.port ?? 4000}`,
-      corsOrigin: backend.corsOrigin ?? backend.frontendURL ?? 'http://localhost:3000',
     };
   }
 

@@ -139,7 +139,6 @@ port = 3003
 platform = "posix"
 port = 8080
 publicURL = "http://custom.example.com:8080"
-corsOrigin = "http://custom.example.com:3000"
 
 [environments.custom.site]
 domain = "custom.example.com"
