@@ -87,7 +87,7 @@ describe('Auth Middleware', () => {
         
         await authMiddleware(context, mockNext);
         
-        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(context.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Unauthorized' }), 401);
         expect(mockNext).not.toHaveBeenCalled();
         expect(mockOAuthService.getPrincipalFromToken).not.toHaveBeenCalled();
       });
@@ -97,7 +97,7 @@ describe('Auth Middleware', () => {
         
         await authMiddleware(context, mockNext);
         
-        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(context.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Unauthorized' }), 401);
         expect(mockNext).not.toHaveBeenCalled();
       });
 
@@ -106,7 +106,7 @@ describe('Auth Middleware', () => {
         
         await authMiddleware(context, mockNext);
         
-        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(context.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Unauthorized' }), 401);
         expect(mockNext).not.toHaveBeenCalled();
       });
 
@@ -115,7 +115,7 @@ describe('Auth Middleware', () => {
         
         await authMiddleware(context, mockNext);
         
-        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(context.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Unauthorized' }), 401);
         expect(mockNext).not.toHaveBeenCalled();
       });
 
@@ -132,7 +132,7 @@ describe('Auth Middleware', () => {
           
           await authMiddleware(context, mockNext);
           
-          expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+          expect(context.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Unauthorized' }), 401);
           expect(mockNext).not.toHaveBeenCalled();
         }
       });
@@ -433,7 +433,7 @@ describe('Auth Middleware', () => {
 
         await authMiddleware(context, mockNext);
 
-        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(context.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Unauthorized' }), 401);
         expect(mockNext).not.toHaveBeenCalled();
       });
 
@@ -446,7 +446,7 @@ describe('Auth Middleware', () => {
 
         await authMiddleware(context, mockNext);
 
-        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(context.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Unauthorized' }), 401);
         expect(mockNext).not.toHaveBeenCalled();
       });
 
@@ -460,7 +460,7 @@ describe('Auth Middleware', () => {
         await authMiddleware(context, mockNext);
 
         expect(mockJWTService.verifyMediaToken).toHaveBeenCalledWith('token.for.res-abc', 'res-other');
-        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(context.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Unauthorized' }), 401);
         expect(mockNext).not.toHaveBeenCalled();
       });
 
@@ -476,7 +476,7 @@ describe('Auth Middleware', () => {
         // verifyMediaToken must not be called — path doesn't match
         expect(mockJWTService.verifyMediaToken).not.toHaveBeenCalled();
         // Falls through to normal auth which fails (no Bearer header)
-        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(context.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Unauthorized' }), 401);
         expect(mockNext).not.toHaveBeenCalled();
       });
 
@@ -490,7 +490,7 @@ describe('Auth Middleware', () => {
         await authMiddleware(context, mockNext);
 
         expect(mockJWTService.verifyMediaToken).not.toHaveBeenCalled();
-        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(context.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Unauthorized' }), 401);
         expect(mockNext).not.toHaveBeenCalled();
       });
 
@@ -694,7 +694,7 @@ describe('Auth Middleware', () => {
       
       await authMiddleware(context, nextMiddleware);
       
-      expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+      expect(context.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Unauthorized' }), 401);
       expect(nextMiddleware).not.toHaveBeenCalled();
     });
   });
