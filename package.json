@@ -79,7 +79,7 @@
     "@opentelemetry/semantic-conventions": "^1.40.0"
   },
   "devDependencies": {
-    "@redocly/cli": "^2.21.1",
+    "@redocly/cli": "^2.34.0",
     "glob": "^13.0.6",
     "@types/node": "^25.5.0",
     "baseline-browser-mapping": "^2.9.6",
