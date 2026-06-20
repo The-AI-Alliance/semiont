@@ -270,6 +270,15 @@ if (config.env?.NODE_ENV !== 'test') {
       environment: config.env?.NODE_ENV ?? 'development'
     });
 
+    // Startup posture log (SDK-AUTH-CORS Phase 6): make the open-CORS/bearer-only
+    // stance visible at boot, so a future auth failure isn't misdiagnosed as the
+    // CORS mystery that produced CORS-LOGIN-FIX.md.
+    logger.info('Auth posture: bearer-only, open CORS', {
+      cors: 'any origin (*)',
+      credentials: 'disabled',
+      auth: 'Authorization: Bearer; media tokens via ?token= for /api/resources/:id',
+    });
+
     // Initialize JWT Service with configuration
     try {
       const { JWTService } = await import('./auth/jwt');

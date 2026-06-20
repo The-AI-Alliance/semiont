@@ -13,8 +13,9 @@
  *   descriptor + annotations + inbound entity references) via the bus
  *   gateway. Live data — Cache-Control: no-cache.
  * - GET /api/resources/:id — browser-friendly alias of the pipe. Exists only
- *   as the ?token= / httpOnly-cookie auth affordance for <img>, PDF.js, and
- *   download links, which cannot carry Authorization headers.
+ *   as the ?token= auth affordance for <img>, PDF.js, and download links,
+ *   which cannot carry Authorization headers (bearer + ?token= only — no
+ *   cookie, per SDK-AUTH-CORS Phase 3).
  */
 
 import type { Context } from 'hono';

@@ -65,7 +65,13 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
       path: c.req.path,
       method: c.req.method
     });
-    return c.json({ error: 'Unauthorized' }, 401);
+    // Actionable body (SDK-AUTH-CORS Phase 6): keep the machine-readable
+    // `error` code, add a `hint` so a bare-IRI browser navigation / a script
+    // that forgot the header gets one line naming the fix.
+    return c.json({
+      error: 'Unauthorized',
+      hint: 'Authentication required: send an `Authorization: Bearer <token>` header. A raw browser navigation to a protected resource is unauthenticated.',
+    }, 401);
   }
 
   try {
