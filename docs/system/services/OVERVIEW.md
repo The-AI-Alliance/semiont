@@ -63,7 +63,6 @@ Services are configured per environment in `~/.semiontconfig`:
 [environments.local.backend]
 port = 4000
 publicURL = "http://localhost:4000"
-corsOrigin = "http://localhost:3000"
 
 [environments.local.make-meaning.graph]
 type = "memory"   # or: neo4j

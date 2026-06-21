@@ -280,14 +280,7 @@ describe('Authorization', () => {
 
 ### Environment Variables
 
-Currently no specific authorization environment variables. Future additions might include:
-
-```bash
-# Future configuration
-NEXT_PUBLIC_ENABLE_RBAC=true
-NEXT_PUBLIC_PERMISSION_CACHE_TTL=300
-NEXT_PUBLIC_ACCESS_REQUEST_ENABLED=true
-```
+There are currently no authorization-specific environment variables.
 
 ### Permission Definitions
 

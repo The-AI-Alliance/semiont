@@ -37,9 +37,8 @@ Testing in the Semiont frontend is split between two packages following the comp
 │         apps/frontend               │
 │         Test Coverage:              │
 │                                     │
-│  • Next.js page wrappers            │
-│  • API routes                       │
-│  • NextAuth integration             │
+│  • App shell, routing, providers    │
+│  • AuthShell & route guards         │
 │  • App-specific components          │
 │  • Integration flows                │
 └─────────────┬───────────────────────┘
@@ -66,12 +65,10 @@ Testing in the Semiont frontend is split between two packages following the comp
 - Provider logic
 - UI components (Button, Card, ResourceViewer, etc.)
 
-**In apps/frontend** (Next.js specific):
-- Page wrappers that use Next.js hooks
-- API route handlers
-- NextAuth configuration
-- Integration flows across pages
-- App-specific components
+**In apps/frontend** (Vite SPA specific):
+- App shell, routing, and provider composition (`providers.tsx`, `AuthShell`)
+- Integration flows across pages (e.g. the sign-up flow)
+- App-specific components (Home, About, CookieBanner, etc.)
 
 ## Running Tests
 
@@ -174,20 +171,22 @@ src/
 - Component interactions across boundaries
 - End-to-end feature workflows
 
-### API Tests
+### App Shell & Routing Tests
+
+The SPA has no server and no API routes; the non-component frontend tests
+cover the app shell, routing, and provider composition:
 
 ```
 src/
-└── app/
-    ├── auth/[...nextauth]/__tests__/     # NextAuth.js route tests
-    ├── cookies/consent/__tests__/        # Cookie consent API tests
-    └── cookies/export/__tests__/         # Data export API tests
+├── __tests__/route-auth-shell.test.tsx   # route guards / AuthShell mounting
+├── app/__tests__/providers.test.tsx      # root provider composition
+└── contexts/__tests__/AuthShell.test.tsx # protected boundary + modals
 ```
 
 **What to test**:
-- Next.js API route handlers
-- Request/response validation
-- Error handling
+- Provider composition and the `SemiontProvider` / `AuthShell` boundary
+- Route guards and protected-layout mounting
+- Auth-failure modal surfacing and error handling
 
 ### Security Tests
 
@@ -499,11 +498,11 @@ export interface ResourceViewerProps {
 }
 
 export function ResourceViewer(props: ResourceViewerProps) {
-  // Uses injected providers for data
-  const resources = useResources(); // From ApiClientProvider
+  // Reads the active session's client from context (SemiontProvider)
+  const client = useObservable(useSemiont().activeSession$)?.client;
   const { t } = useTranslations(); // From TranslationProvider
 
-  const { data, isLoading } = resources.get.useQuery(props.resourceId);
+  const data = useObservable(client?.browse.resource(props.resourceId));
 
   // Pure component logic - all framework-agnostic
   return (
@@ -514,12 +513,14 @@ export function ResourceViewer(props: ResourceViewerProps) {
   );
 }
 
-// ✅ Page Wrapper (apps/frontend/app/[locale]/resources/[id]/page.tsx)
+// ✅ Route component (a React Router v7 route element)
+import { useParams } from 'react-router-dom';
 import { ResourceViewer } from '@semiont/react-ui';
 
-export default function ResourcePage({ params }: { params: { id: string } }) {
-  // Thin wrapper - just passes params
-  return <ResourceViewer resourceId={params.id} />;
+export function ResourcePage() {
+  // Thin wrapper - reads the route param and passes it through
+  const { id } = useParams();
+  return <ResourceViewer resourceId={id!} />;
 }
 ```
 
@@ -629,14 +630,13 @@ it('renders page', () => {
 - Resource components: `ResourceViewer`, `AnnotateView`, `BrowseView`
 - Auth components: `SignUpForm`, `AuthErrorDisplay`, `WelcomePage`
 - Annotation components: All annotation UI and popups
-- Hooks: `useResources`, `useAnnotations`, `useToast`, etc.
+- Hooks: `useObservable`, `useResourceContent`, `useMediaToken`, `useToast`, etc.
 - Utilities: Validation, query keys, annotation registry
 
 **apps/frontend:**
-- Page wrappers: Thin Next.js page components
-- Integration tests: Multi-step user flows
-- API routes: NextAuth, cookie consent, data export
-- App-specific components: Home, About, Privacy pages
+- App shell & routing: providers, AuthShell, route guards
+- Integration tests: Multi-step user flows (e.g. sign-up)
+- App-specific components: Home, About, Privacy, CookieBanner
 
 ### Reference Examples
 
@@ -648,7 +648,7 @@ npm test
 
 # Example test locations
 packages/react-ui/src/components/__tests__/Button.test.tsx
-packages/react-ui/src/hooks/__tests__/useResources.test.tsx
+packages/react-ui/src/hooks/__tests__/useResourceContent.test.tsx
 packages/react-ui/src/features/auth/__tests__/SignUpForm.test.tsx
 ```
 
@@ -660,10 +660,10 @@ npm test
 
 # Example test locations
 src/app/[locale]/auth/__tests__/signup-flow.integration.test.tsx
-src/app/api/auth/[...nextauth]/__tests__/route.test.ts
+src/contexts/__tests__/AuthShell.integration.test.tsx
 ```
 
-**Key Testing Pattern**: Business logic lives in @semiont/react-ui and is thoroughly tested there. The frontend only tests Next.js-specific integration and thin wrapper components.
+**Key Testing Pattern**: Business logic lives in @semiont/react-ui and is thoroughly tested there. The frontend tests app-shell/routing/provider integration and app-specific components.
 
 ## Future Testing Enhancements
 

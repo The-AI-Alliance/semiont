@@ -114,7 +114,7 @@ authRouter.post('/api/tokens/password',
 
       getRouteLogger().debug('Password auth successful', { email });
 
-      // Generate access (1h) and refresh (30d) tokens
+      // Generate access (10m) and refresh (30d) tokens
       const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
         userId: makeUserId(user.id),
         email: makeEmail(user.email),
@@ -267,7 +267,7 @@ authRouter.post('/api/tokens/refresh',
         return c.json({ error: 'Token revoked' }, 401);
       }
 
-      // Generate new short-lived access token (1 hour)
+      // Generate new short-lived access token (10 minutes)
       const accessTokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
         userId: makeUserId(user.id),
         email: makeEmail(user.email),

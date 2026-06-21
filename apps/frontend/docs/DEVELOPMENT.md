@@ -423,7 +423,7 @@ const envSchema = z.object({
 
 ### Authentication Issues
 - Check browser dev tools Network tab
-- Verify httpOnly JWT cookie in Application tab > Cookies
+- Confirm requests carry an `Authorization: Bearer <jwt>` header — the access token lives in JS memory (held by the SDK session), not in a cookie
 - Check /api/auth/me response for current session state
 - Verify backend is running and accessible
 
@@ -467,7 +467,7 @@ const envSchema = z.object({
 
 **Solutions**:
 - Check backend logs for OAuth errors
-- Verify httpOnly cookie is being set (Application tab in devtools)
+- Confirm the SDK session captured an access token after login — it's held in JS memory and sent as `Authorization: Bearer`, not set as a cookie
 - Check /api/auth/me returns correct user data
 - Ensure OAuth callback URL in Google Cloud Console points to backend (/api/auth/oauth/google/callback)
 

@@ -8,13 +8,12 @@ This document describes the current security implementation in Semiont and provi
 
 For backend implementation details, see the [Backend Authentication Guide](../../../apps/backend/docs/AUTHENTICATION.md).
 
-Semiont implements authentication using NextAuth.js with support for:
+Semiont implements **bearer-only** authentication — an `Authorization: Bearer` JWT on every request, no session cookies (see [Authentication](./AUTHENTICATION.md)) — with OAuth sign-in support for:
 
 - **Google OAuth**: Secure authentication via Google Identity Platform (production environments)
 - **GitHub OAuth**: Secure authentication via GitHub (production environments)
 - **GitLab OAuth**: Secure authentication via GitLab (production environments)
-- **Session Management**: JWT-based session handling with configurable expiration
-- **Backend JWT Tokens**: 7-day access tokens, 30-day refresh tokens for MCP clients
+- **Bearer JWTs**: 10-minute access tokens, 30-day refresh tokens, with a per-user `tokenVersion` revocation epoch (logout revokes all of a user's tokens)
 
 ### Authorization
 
@@ -83,8 +82,6 @@ Comprehensive security test coverage ensures no authentication regressions:
 
 ```bash
 # Required environment variables (keep secure)
-export NEXTAUTH_SECRET="<strong-random-string>"
-export NEXTAUTH_URL="https://your-domain.com"
 export JWT_SECRET="<strong-random-string-32-chars-minimum>"
 export GOOGLE_CLIENT_ID="<oauth-client-id>"
 export GOOGLE_CLIENT_SECRET="<oauth-client-secret>"
@@ -113,8 +110,8 @@ export OAUTH_ALLOWED_DOMAINS="example.com,example.org"
 | HTTPS | Optional | Required |
 | Error Details | Full stack traces | Generic error messages |
 | Debug Logging | Enabled | Disabled |
-| CORS | Permissive | Restrictive (frontend domain only) |
-| JWT Expiration | 7 days | 7 days (access), 30 days (refresh) |
+| CORS | Open (`*`, bearer-only) | Open (`*`, bearer-only) |
+| JWT Expiration | 10 min (access), 30 days (refresh) | 10 min (access), 30 days (refresh) |
 
 ## Security Best Practices for Operators
 
@@ -122,7 +119,7 @@ export OAUTH_ALLOWED_DOMAINS="example.com,example.org"
 
 1. **OAuth Configuration**: Configure OAuth providers with appropriate redirect URIs
 2. **Domain Restrictions**: Set OAUTH_ALLOWED_DOMAINS to restrict user registration by email domain
-3. **Session Timeout**: Configure appropriate session expiration times (default: 24 hours NextAuth, 7 days backend JWT)
+3. **Token Expiration**: Access tokens are short-lived (10 min); refresh tokens last 30 days; a logout revokes all of a user's tokens (see [Authentication](./AUTHENTICATION.md))
 4. **API Keys**: Rotate API keys and secrets regularly
 5. **Admin Accounts**: Limit admin role assignments to trusted users
 
@@ -147,7 +144,7 @@ full request trace, and the `bus.dispatch:*` server spans on
 2. **File Permissions**: Ensure proper file system permissions on `SEMIONT_ROOT`
 3. **Database Security**: Follow database-specific security guidelines
 4. **Audit Trails**: Retain logs for security analysis (all events include userId)
-5. **Secret Rotation**: Regularly rotate JWT_SECRET, NEXTAUTH_SECRET, and OAuth credentials
+5. **Secret Rotation**: Regularly rotate JWT_SECRET and OAuth credentials
 
 ### Supply-Chain Integrity
 

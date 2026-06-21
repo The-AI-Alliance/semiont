@@ -17,7 +17,6 @@ Add a new `[environments.<name>.*]` set of sections to `~/.semiontconfig`:
 port = 3001
 publicURL = "https://api.staging.example.com"
 frontendURL = "https://staging.example.com"
-corsOrigin = "https://staging.example.com"
 
 [environments.staging.site]
 domain = "staging.example.com"
@@ -59,7 +58,7 @@ Each environment can include:
 
 | Section | Purpose |
 |---|---|
-| `[environments.<env>.backend]` | Backend port, public URL, CORS origin |
+| `[environments.<env>.backend]` | Backend port, public URL |
 | `[environments.<env>.site]` | Domain, OAuth allowed domains, site name |
 | `[environments.<env>.database]` | PostgreSQL connection settings |
 | `[environments.<env>.make-meaning.graph]` | Graph database (memory, neo4j) |

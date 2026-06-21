@@ -30,8 +30,6 @@ docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
 
 **Required environment variables:**
 - `SERVER_API_URL` — Backend API URL
-- `NEXTAUTH_URL` — Frontend URL for NextAuth callbacks
-- `NEXTAUTH_SECRET` — Secret for NextAuth session encryption (min 32 characters)
 
 **Optional environment variables:**
 - `NEXT_PUBLIC_SITE_NAME` — Site name displayed in UI (default: `Semiont`)

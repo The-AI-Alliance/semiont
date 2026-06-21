@@ -3,12 +3,12 @@
 Backend developer's guide to implementing and debugging authentication in the Semiont backend.
 
 **Related Documentation:**
-- **[System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md)** - **Read this first!** Complete authentication flows, diagrams, NextAuth.js + backend integration, and MCP implementation
+- **[System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md)** - **Read this first!** The complete bearer-only authentication model, flows, and diagrams
 - [Main README](../README.md) - Backend overview
 - [API Reference](../../../docs/protocol/API.md) - API endpoints
 - [Development Guide](./DEVELOPMENT.md) - Local setup
 
-**Scope**: This document is a practical guide for backend developers. For the complete authentication architecture, flow diagrams, and frontend integration, see the [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md).
+**Scope**: This document is a practical guide for backend developers. For the complete authentication architecture and flow diagrams, see the [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md).
 
 ## Quick Reference
 
@@ -47,7 +47,7 @@ These endpoints are documented in the OpenAPI spec as public (no `security` fiel
 - `GET /api/health` - Health check for load balancer monitoring
 - `POST /api/tokens/password` - Password authentication
 - `POST /api/tokens/google` - Google OAuth authentication
-- `POST /api/tokens/refresh` - Refresh token exchange for MCP clients
+- `POST /api/tokens/refresh` - Exchange a refresh token for a new access token (driven by the SDK `Session`)
 
 All other routes require JWT authentication via router-level middleware.
 
@@ -169,11 +169,12 @@ curl -H "Authorization: Bearer eyJhbGc..." \
 ### 2. Automatic Validation
 
 The auth middleware automatically:
-- Extracts token from Authorization header
-- Verifies JWT signature
+- Extracts the token from the `Authorization: Bearer` header (or the `?token=` media token on `GET /api/resources/:id`)
+- Verifies the JWT signature
 - Checks token expiration
-- Validates user exists in database
-- Attaches user to request context
+- Loads the user from the database and confirms they are active
+- Enforces revocation: rejects the token when `payload.tokenVersion !== user.tokenVersion` (a logout bump invalidates every live token)
+- Attaches the user to the request context
 
 ### 3. Route Access
 
@@ -187,69 +188,90 @@ app.get('/api/documents', async (c) => {
 });
 ```
 
-## MCP Authentication Endpoints
+## Token & Session Endpoints
 
-Special backend endpoints for Model Context Protocol clients. For complete MCP flow, see [System Authentication](../../../docs/system/administration/AUTHENTICATION.md#mcp-authentication).
-
-### `POST /api/tokens/mcp-generate`
-
-Generate a 30-day refresh token for MCP clients.
-
-- **Auth**: Requires valid JWT access token
-- **Called by**: Frontend's `/auth/mcp-setup` endpoint
-- **Returns**: `{ refreshToken: string, expiresIn: number }`
+Backend-specific endpoints beyond the public login routes (`/api/tokens/password`,
+`/api/tokens/google`). Align behavior to the canonical
+[System Authentication](../../../docs/system/administration/AUTHENTICATION.md).
 
 ### `POST /api/tokens/refresh`
 
-Exchange refresh token for new access token.
+Exchange a 30-day refresh token for a new 10-minute access token. This is the path
+the SDK `Session` drives to keep a client signed in without re-prompting.
 
-- **Auth**: Public (accepts refresh token in body)
-- **Used by**: MCP clients every hour
-- **Returns**: `{ accessToken: string, expiresIn: number }`
-
-### MCP Backend Usage Example
+- **Auth**: Public (the refresh token is supplied in the request body)
+- **Revocation-aware**: rejected if the token's `tokenVersion` is behind the user's current value (see logout)
+- **Returns**: `{ access_token: string }`
 
 ```typescript
-// MCP client exchanges refresh token
+// The SDK Session exchanges a refresh token for a fresh access token
 const response = await fetch('https://api.semiont.com/api/tokens/refresh', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ refreshToken })
 });
+const { access_token } = await response.json();
 
-const { accessToken } = await response.json();
-
-// Use access token for API requests
+// Use the access token for API requests
 const documents = await fetch('https://api.semiont.com/api/documents', {
-  headers: { 'Authorization': `Bearer ${accessToken}` }
+  headers: { 'Authorization': `Bearer ${access_token}` }
 });
 ```
 
+### `POST /api/tokens/media`
+
+Mint a short-lived, resource-scoped **media token** for header-less fetches
+(`<img>`, `<iframe>`, PDF.js) that can't send an `Authorization` header.
+
+- **Auth**: Requires a valid access token
+- **Body**: `{ resourceId: string }`
+- **Returns**: `{ token: string }` — a 5-minute token scoped to that one resource,
+  presented as `GET /api/resources/:id?token=…` and verified by the auth
+  middleware's media path
+
+### `POST /api/users/logout`
+
+Revoke the caller's sessions. Increments the user's `tokenVersion`, which instantly
+invalidates the 30-day refresh token **and** every live access token on its next
+request — server-side, all devices.
+
+- **Auth**: Requires a valid access token
+- **Returns**: `204 No Content`
+
+> **MCP clients.** The previous browser-mediated MCP token-provisioning flow has been
+> **removed**. Today `packages/mcp-server` runs single-backend with a **static**
+> `SEMIONT_ACCESS_TOKEN` (from env) that does **not** refresh — so it stops working at the
+> 10-minute access-token TTL, or when a logout bumps `tokenVersion`. A refreshing
+> provisioning flow is being rebuilt; this guide will document it once it lands.
+
 ## JWT Token Structure
 
-### Access Token (7-day expiration)
+Access and refresh tokens carry the **same claim set** (validated by
+`JWTPayloadSchema` in [src/types/jwt-types.ts](../src/types/jwt-types.ts)); they
+differ only in lifetime. Every token carries the user's `tokenVersion` at mint
+time — the middleware rejects it once the stored `tokenVersion` moves ahead (see
+logout, above). Software-agent tokens additionally carry an `agentDid`.
+
+### Access Token (10-minute expiration)
 
 ```json
 {
-  "sub": "user-123",
+  "userId": "clx0a1b2c3d4e5f6g7h8i9j0k",
   "email": "user@example.com",
+  "domain": "example.com",
+  "provider": "google",
   "isAdmin": false,
-  "isModerator": false,
+  "tokenVersion": 0,
   "iat": 1698765432,
-  "exp": 1699370232
+  "exp": 1698766032
 }
 ```
 
-### Refresh Token (30-day expiration, MCP only)
+### Refresh Token (30-day expiration)
 
-```json
-{
-  "sub": "user-123",
-  "type": "refresh",
-  "iat": 1698765432,
-  "exp": 1701357432
-}
-```
+Held by the SDK `Session`, which exchanges it for fresh access tokens via
+`POST /api/tokens/refresh`. Same claims as the access token (including
+`tokenVersion`, so a logout revokes it) — only `exp` differs.
 
 ## Security Implementation
 
@@ -270,7 +292,7 @@ The backend validates tokens through multiple layers:
 - **Environment validation** - JWT_SECRET must be 32+ characters
 - **Request validation** - All inputs validated with Zod schemas
 - **SQL injection prevention** - Prisma ORM with parameterized queries
-- **CORS configuration** - Frontend domain whitelist
+- **CORS** - open (`origin: '*'`, no credentials); safe because auth is bearer-only, not cookie-based
 - **Domain restrictions** - OAuth limited to allowed domains
 
 ### Security Test Coverage
@@ -319,11 +341,11 @@ DEBUG=hono:*
 LOG_LEVEL=debug
 ```
 
-**MCP Token Exchange Fails**:
+**Refresh Token Exchange Fails**:
 
-- Check refresh token hasn't expired (30 days)
-- Verify `/api/auth/refresh` endpoint is accessible
-- Ensure refresh token is correctly transmitted in body
+- Check the refresh token hasn't expired (30 days) or been revoked by a logout (`tokenVersion` bump)
+- Verify the `POST /api/tokens/refresh` endpoint is accessible
+- Ensure the refresh token is sent as `{ "refreshToken": "…" }` in the body
 
 ### Backend Debugging Tools
 
@@ -363,7 +385,6 @@ app.get('/api/debug/whoami', async (c) => {
 ## Implementation Reference
 
 For complete implementation details including:
-- Frontend NextAuth.js configuration
 - Complete authentication flow diagrams
 - OAuth provider setup
 - Environment variable configuration
@@ -395,5 +416,5 @@ See [System Authentication Architecture](../../../docs/system/administration/AUT
 
 ---
 
-**Last Updated**: 2026-03-15
+**Last Updated**: 2026-06-20
 **Scope**: Backend authentication implementation and debugging

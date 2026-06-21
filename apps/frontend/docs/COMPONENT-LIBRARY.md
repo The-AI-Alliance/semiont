@@ -50,17 +50,15 @@ composes the library.
 
 #### Hooks and utilities
 - `useObservable`, `useShellStateUnit`, `useResourceContent`, `useMediaToken`, `useLineNumbers`, `useHoverDelay`, `useKeyboardShortcuts`, `useToast`, `useSessionExpiry`, `useTheme`
-- `useEventBus`, `useEventSubscriptions`, `useApiClient`, `useAuthToken`, `useAuthToken$`, `useKnowledgeBaseSession`
+- `useSemiont`, `useEventSubscription`, `useEventSubscriptions`
 
 #### Providers and contexts
-- `EventBusProvider` — per-workspace RxJS EventBus
-- `AuthTokenProvider` — holds the token as a `BehaviorSubject<AccessToken | null>`
-- `ApiClientProvider` — constructs the `SemiontApiClient` from `baseUrl` + token observable
-- `KnowledgeBaseSessionProvider` — active KB + validated session; owns per-KB JWT storage
+- `SemiontProvider` — puts the `SemiontBrowser` singleton (sessions, KBs, the per-KB `SemiontClient`) into context; read via `useSemiont()`
 - `TranslationProvider` — pluggable i18n manager
-- `OpenResourcesProvider`, `ResourceAnnotationsProvider` — workspace state
+- `AnnotationProvider`, `ResourceAnnotationsProvider` — annotation + workspace state
+- `ThemeProvider`, `ToastProvider`, `LiveRegionProvider` — theming, toasts, a11y live region
 
-#### Flow state units (from `@semiont/http-transport`, re-exported)
+#### Flow state units (from `@semiont/sdk`, re-exported)
 - `createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBindStateUnit`, `createBeckonStateUnit`, `createShellStateUnit`
 - Resource-page composition: `createResourceViewerPageStateUnit`
 
@@ -88,32 +86,41 @@ composes the library.
 The frontend mounts library providers directly — there is no app-side
 wrapper layer to maintain.
 
-### The Authenticated Provider Stack
+### The Provider Stack
+
+Global providers are mounted once at the app root
+(`apps/frontend/src/app/providers.tsx`). The `SemiontBrowser` singleton
+behind `SemiontProvider` carries all session state, so there is **no**
+per-layout auth/client provider:
 
 ```tsx
-// apps/frontend/src/app/[locale]/know/layout.tsx (excerpt)
-<AuthTokenProvider token={authToken}>
-  <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)} tokenRefresher={refreshActive}>
-    <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-      <ResourceAnnotationsProvider>
-        {/* page content */}
-      </ResourceAnnotationsProvider>
-    </OpenResourcesProvider>
-  </ApiClientProvider>
-</AuthTokenProvider>
+<TranslationProvider translationManager={…}>
+  <SemiontProvider>            {/* sessions, KBs, the per-KB SemiontClient */}
+    <ToastProvider>
+      <LiveRegionProvider>
+        <KeyboardShortcutsProvider>
+          <ThemeProvider>
+            {/* app */}
+          </ThemeProvider>
+        </KeyboardShortcutsProvider>
+      </LiveRegionProvider>
+    </ToastProvider>
+  </SemiontProvider>
+</TranslationProvider>
 ```
 
-`EventBusProvider` is mounted higher in the tree (one bus per
-workspace). `AuthShell` wraps the whole authenticated subtree:
+Protected layouts additionally mount `AuthShell`, which adds the protected
+error boundary and the session-expired / permission-denied modals (they
+read the active session's signals):
 
 ```tsx
 <AuthShell>
-  {/* the stack above, including AuthTokenProvider and everything it nests */}
+  {/* authenticated routes */}
 </AuthShell>
 ```
 
 The library owns provider implementations; the frontend owns the
-decision about where to mount them. For the provider API reference
+decision about where to mount them. For the provider/session API reference
 (props, hooks, behavior), see
 [`packages/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md).
 
@@ -122,7 +129,7 @@ decision about where to mount them. For the provider API reference
 ### Basic usage
 
 ```tsx
-import { Toolbar, ResourceViewer, useApiClient } from '@semiont/react-ui';
+import { Toolbar, ResourceViewer, useSemiont } from '@semiont/react-ui';
 ```
 
 Components read from the provider stack via hooks — no explicit props
@@ -135,14 +142,19 @@ Flow VMs and namespace methods return RxJS Observables. The
 `useObservable` hook bridges them into React state:
 
 ```tsx
-import { useApiClient, useObservable } from '@semiont/react-ui';
+import { useSemiont, useObservable } from '@semiont/react-ui';
 
 function ResourceTitle({ resourceId }) {
-  const semiont = useApiClient();
-  const resource = useObservable(semiont.browse.resource(resourceId));
+  // The client lives on the active session (null until one is active)
+  const client = useObservable(useSemiont().activeSession$)?.client;
+  const resource = useObservable(client?.browse.resource(resourceId));
   return <h1>{resource?.name}</h1>;
 }
 ```
+
+Most components reach for a dedicated hook (`useResourceContent`,
+`useMediaToken`, the flow state units) rather than reading the client
+directly.
 
 Cache invalidation, refetching, and bus-driven updates happen inside
 `BrowseNamespace` — the component only sees the current value.

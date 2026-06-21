@@ -21,7 +21,7 @@ The Semiont frontend is a Vite + React Router v7 SPA. The architecture emphasize
 
 - **Type Safety**: TypeScript throughout with strict mode enabled
 - **Server State Management**: React Query for all API interactions
-- **Authentication**: JWT cookie managed entirely by the backend — no frontend auth server
+- **Authentication**: bearer-only — the SDK session holds the JWT in memory and sends `Authorization: Bearer`; no cookie, no frontend auth server
 - **No Global Mutable State**: All state is managed through React hooks and contexts
 - **Fail-Fast Philosophy**: No default values - explicit configuration required
 
@@ -82,25 +82,21 @@ The frontend leverages **@semiont/react-ui**, a comprehensive framework-agnostic
 - **Form Hooks**: useFormValidation with built-in validation rules
 
 #### Provider Pattern
-@semiont/react-ui uses a provider pattern with two layers — global (every page) and protected (only routes that require auth):
+@semiont/react-ui uses a two-layer provider model — global (every page) and protected (only routes that require auth):
 
 ```tsx
-// Global layer — auth-independent
+// Global layer — auth-independent (apps/frontend/src/app/providers.tsx)
 <TranslationProvider translationManager={i18nextManager}>
-  <QueryClientProvider client={queryClient}>
-    <ApiClientProvider baseUrl={apiBaseUrl}>
-      {/* App components can now use translation/query/api hooks */}
+  <SemiontProvider>            {/* the SemiontBrowser singleton: sessions, KBs, the client */}
+    {/* Toast, LiveRegion, KeyboardShortcuts, Theme, then the app */}
 
-      {/* Protected layer — only inside layouts that require auth */}
-      <KnowledgeBaseSessionProvider>
-        <ProtectedErrorBoundary>
-          <SessionExpiredModal />
-          <PermissionDeniedModal />
-          {/* Auth-aware components live here */}
-        </ProtectedErrorBoundary>
-      </KnowledgeBaseSessionProvider>
-    </ApiClientProvider>
-  </QueryClientProvider>
+    {/* Protected layer — AuthShell, mounted only inside layouts that require auth */}
+    <ProtectedErrorBoundary>
+      <SessionExpiredModal />
+      <PermissionDeniedModal />
+      {/* Auth-aware components live here */}
+    </ProtectedErrorBoundary>
+  </SemiontProvider>
 </TranslationProvider>
 ```
 
@@ -157,79 +153,51 @@ See [AUTHENTICATION.md](./AUTHENTICATION.md) for the full authentication flow.
 
 **Session Management:**
 ```
-KnowledgeBaseSessionProvider (mounted by AuthShell, library-side)
-    ├── owns: KB list, active KB id, per-KB JWTs in localStorage
-    ├── owns: validated session for active KB (token + user)
-    ├── owns: sessionExpiredAt / permissionDeniedAt modal flags
-    └── useKnowledgeBaseSession() hook (throws if outside provider)
+SemiontProvider (app root) → SemiontBrowser singleton (library-side, outside React)
+    ├── owns: kbs$ (KB list), activeKbId$ (active KB) — persisted via the storage adapter
+    ├── owns: activeSession$ — the active KB's SemiontSession (its SemiontClient + access/refresh tokens)
+    ├── owns: activeSignals$ — session-expired / permission-denied modal signals
+    ├── owns: openResources$, identityToken$
+    └── useSemiont() → SemiontBrowser   (components read observables via useObservable)
         └── Application Components
 ```
 
 **Authentication Flow:**
-1. User adds a KB and submits credentials → frontend POSTs to that KB's backend → backend returns a JWT
-2. Provider stores token in `localStorage` and sets the new KB active
-3. On mount/switch the provider validates the stored token via `getMe`
-4. 401 from validation OR from any React Query call → provider sets `sessionExpiredAt` → `SessionExpiredModal` surfaces
+1. User adds a KB and submits credentials → `SemiontSession.signInHttp` POSTs to that KB's backend → backend returns access + refresh tokens in the response body
+2. The browser activates the session (`activeSession$`), marks the KB active (`activeKbId$`), and persists the session via the storage adapter
+3. On reload/switch the browser restores the stored session; the client uses its in-memory access token, re-minting from the refresh token as it nears the 10-minute expiry
+4. A 401 that can't be refreshed → the session's signals set the expiry flag → `SessionExpiredModal` surfaces
 
 **Token Management:**
-- One JWT per KB in `localStorage` (`semiont.token.<kbId>`)
-- The provider exposes mutations (`addKnowledgeBase`, `signIn`, `signOut`) so consumers never touch storage directly
-- `useKnowledgeBaseSession()` exposes coarse derived auth fields (`isAuthenticated`, `isAdmin`, `displayName`, etc.) memoized off `session.user`
+- Bearer-only: every request carries `Authorization: Bearer <jwt>` — there is no cookie and no ambient credential
+- The per-KB session (10-minute access token + 30-day refresh token) is held in memory and persisted per-KB via the storage adapter (localStorage on web), so it survives reload
+- The browser exposes mutations (`addKnowledgeBase`, `signIn`, `signOut`); `signOut(kbId)` calls the backend logout, bumping `tokenVersion` to revoke the refresh token and all live access tokens server-side (all devices)
 
 ### Authentication Hooks
 
 ```typescript
-import { useKnowledgeBaseSession } from '@semiont/react-ui';
+import { useSemiont, useObservable } from '@semiont/react-ui';
 
-// Get authentication state and mutations
-const {
-  isAuthenticated,
-  isAdmin,
-  isModerator,
-  displayName,
-  token,
-  activeKnowledgeBase,
-  signOut,
-} = useKnowledgeBaseSession();
+// The browser singleton and its observable session state
+const browser = useSemiont();
+const session = useObservable(browser.activeSession$);   // null when signed out
+const activeKbId = useObservable(browser.activeKbId$);
 
-// API calls use @semiont/http-transport; the AuthTokenProvider in protected
-// layouts wires the active KB's token into outgoing requests automatically.
-const apiClient = useApiClient();
-const data = await apiClient.getDocument(id);
+// The SemiontClient lives on the active session; namespace verbs hang off it.
+// The session feeds the client its in-memory bearer token automatically.
+const resource = await session?.client.browse.resource(id);
+
+// Mutations go through the browser:
+await browser.signOut(activeKbId!);
 ```
 
 ## State Management
-
-### Server State (React Query)
-
-All server data is managed through React Query hooks generated from the API client.
-
-**Queries (Read Operations):**
-```typescript
-// Fetch data with automatic caching and refetching
-const { data, isLoading, error } = api.documents.get.useQuery(documentId);
-```
-
-**Mutations (Write Operations):**
-```typescript
-// Create/update/delete with automatic cache invalidation
-const updateMutation = api.documents.update.useMutation();
-await updateMutation.mutateAsync({ id, title, content });
-```
-
-**Benefits:**
-- Automatic caching (5 minute stale time)
-- Background refetching
-- Request deduplication
-- Optimistic updates
-- Error handling with retry logic
-- No manual state management needed
 
 ### Observable Stores (RxJS BehaviorSubject)
 
 High-churn entity data and browser-persistent application state are managed as observable stores — `BehaviorSubject`-backed classes with no React dependency. Components subscribe via `useObservable(store.observable$)`.
 
-**Verb namespace Observables** (live in `@semiont/http-transport`, owned by `SemiontApiClient`):
+**Verb namespace Observables** (live in `@semiont/sdk`, owned by `SemiontClient`):
 
 | Namespace | Access | What it caches |
 |---|---|---|
@@ -237,7 +205,7 @@ High-churn entity data and browser-persistent application state are managed as o
 | Browse | `semiont.browse.annotations(id)` | Annotation lists per resource, updated in-place by enriched SSE events |
 | Browse | `semiont.browse.entityTypes()` | Entity types, updated via `frame:entity-type-added` bus channel |
 
-These update automatically when backend domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual `invalidateQueries` calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/http-transport` README](../../../packages/http-transport/README.md) for the full verb namespace API.
+These update automatically when backend domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual cache-invalidation calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/sdk` Usage.md](../../../packages/sdk/docs/Usage.md) for the full verb namespace API.
 
 **Application state stores** (live in `apps/frontend/src/stores/`, browser-coupled):
 
@@ -248,7 +216,7 @@ These update automatically when backend domain events arrive through the bus gat
 
 These stores depend on browser APIs (`localStorage`, `window`) and so cannot live in the framework-agnostic `http-transport` package.
 
-**React integration**: `AuthTokenProvider` holds the current token in a `BehaviorSubject`, and `ApiClientProvider` passes that subject to `SemiontApiClient` as `token$`. The client reads the observable's current value on every request; token changes propagate automatically without any React-specific wiring.
+**React integration**: `SemiontProvider` exposes the `SemiontBrowser` singleton via `useSemiont()`. Each per-KB `SemiontSession` owns its `SemiontClient` and feeds it the in-memory bearer token as `token$`; the client reads the observable's current value on every request, so token refreshes propagate automatically without any React-specific wiring.
 
 ### Binary Content (Media Tokens)
 
@@ -279,13 +247,9 @@ See [`@semiont/http-transport/docs/MEDIA-TOKENS.md`](../../../packages/http-tran
 UI-only state and framework-agnostic providers:
 
 **Framework-Agnostic Providers** (from `@semiont/react-ui`):
-- `AnnotationProvider` - Injects `AnnotationManager` for annotation mutations
-- `CacheProvider` - Injects `CacheManager` for cache invalidation
-- `AnnotationUIProvider` - UI-only state for sparkle animations (`newAnnotationIds`)
+- `SemiontProvider` - Puts the `SemiontBrowser` singleton (KB list, active KB, per-KB `SemiontSession` + its `SemiontClient`, open resources) into context; read via `useSemiont()`
 - `TranslationProvider` - Injects `TranslationManager` for i18n
-- `ApiClientProvider` - Injects `ApiClientManager` for API access
-- `KnowledgeBaseSessionProvider` - Owns KB list, active KB, validated session (mounted only inside the protected layout boundary)
-- `OpenResourcesProvider` - Injects `OpenResourcesManager` for routing
+- `AnnotationProvider` - Injects `AnnotationManager` for annotation mutations
 
 These providers are framework-independent and can work with Next.js, Vite, or any React framework. The app provides framework-specific manager implementations.
 
@@ -466,7 +430,7 @@ User action (e.g., click save)
 ### Real-Time Updates (Bus Gateway)
 
 ```
-SemiontApiClient creates one ActorStateUnit (single SSE to /bus/subscribe)
+SemiontClient creates one ActorStateUnit (single SSE to /bus/subscribe)
     └── ResourceViewerPage mounts and subscribes to browse.*(id) live queries
         └── observing them acquires the resource scope (adds scoped channels; #847)
             └── Backend emits domain events on scoped bus
@@ -520,10 +484,9 @@ The provider tree has two distinct layers:
 
 ### Why the split
 
-- **Pre-app surfaces** (landing page, OAuth flow, static pages) do not need to validate JWTs and should not surface auth-failure modals.
-- **Protected layouts** validate the active KB's JWT on mount via `getMe`. A 401 from that call sets `sessionExpiredAt` on the context, which `SessionExpiredModal` reads and surfaces.
-- **`KnowledgeBaseSessionProvider` re-validates internally when the active KB changes** so switching KBs forces a fresh validation against the new backend — no external bridge component needed.
-- **Protected layouts mount their own `ApiClientProvider`** pointing at the active KB's backend URL — they read the URL from `useKnowledgeBaseSession().activeKnowledgeBase`.
+- **Pre-app surfaces** (landing page, OAuth flow, static pages) do not need a validated session and should not surface auth-failure modals.
+- **Protected layouts** mount `AuthShell`, which surfaces the auth-failure modals from the active session's signals (`activeSignals$`). A 401 that can't be refreshed marks the session expired and `SessionExpiredModal` surfaces.
+- **Switching KBs swaps `activeSession$`** to the new KB's session (with its own `SemiontClient` pointing at that KB's backend) — the `SemiontBrowser` singleton handles it, with no per-layout provider or external bridge.
 
 See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for details on the Provider Pattern architecture.
 

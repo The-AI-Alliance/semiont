@@ -223,9 +223,9 @@ See [Authentication Guide](./docs/AUTHENTICATION.md) for implementation details.
 ### API Routing Architecture
 
 Clean separation of concerns:
-- **Backend owns**: `/api/*` - All API endpoints
-- **Frontend owns**: `/auth/*` - NextAuth.js OAuth flows
-- **No routing conflicts** - Simple ALB 3-rule pattern
+- **Backend owns**: `/api/*` - all API endpoints, including the OAuth credential exchange and JWT minting (`POST /api/tokens/google`)
+- **Frontend**: the static Vite + React SPA - no server routes (#557 removed Next.js)
+- **No routing conflicts** - simple ALB host/path rules
 
 See [API Reference](../../docs/protocol/API.md) for complete endpoint documentation.
 

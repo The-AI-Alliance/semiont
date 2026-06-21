@@ -517,11 +517,11 @@ semiont exec --service backend 'touch /mnt/efs/test.txt && echo "test" > /mnt/ef
 # Check OAuth configuration
 semiont configure show
 
-# Check OAuth environment variables
-semiont exec --service frontend 'env | grep -E "(GOOGLE|NEXTAUTH|OAUTH)"'
+# Check OAuth environment variables (the backend exchanges the Google credential and mints JWTs)
+semiont exec --service backend 'env | grep -E "(GOOGLE|OAUTH|JWT_SECRET)"'
 
-# Check NextAuth logs
-semiont watch logs --service frontend | grep -i "nextauth\|oauth\|google"
+# Check backend auth logs
+semiont watch logs --service backend | grep -i "oauth\|google\|auth"
 ```
 
 **Common Causes & Solutions:**
@@ -529,7 +529,7 @@ semiont watch logs --service frontend | grep -i "nextauth\|oauth\|google"
 - **Invalid OAuth credentials:** Verify Google Client ID and Secret are correct
 - **Wrong redirect URI:** Ensure redirect URI in Google Console matches your domain
 - **Domain restrictions:** Check OAuth domain configuration in `/environments/[env].json`
-- **Session secret missing:** Verify NEXTAUTH_SECRET is set
+- **JWT secret missing:** Verify `JWT_SECRET` is set on the backend
 - **HTTPS requirement:** OAuth requires HTTPS in production
 
 ### 8. Cost Budget Exceeded
