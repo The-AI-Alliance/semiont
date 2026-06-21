@@ -210,15 +210,13 @@ function MyComponent() {
 ### Handling Permission Errors
 
 ```typescript
-// Using React Query mutation
-const deleteMutation = api.documents.delete.useMutation();
-
+// A verb call rejects on failure; a 403 also surfaces the modal automatically
 try {
-  await deleteMutation.mutateAsync(documentId);
+  await semiont.mark.delete(resourceId, annotationId);
 } catch (error) {
   if (error instanceof APIError && error.status === 403) {
-    // Automatically handled by global error handler
-    // PermissionDeniedModal will appear
+    // The transport stamped this as `forbidden` and already routed it to
+    // SessionSignals → PermissionDeniedModal appears
   }
 }
 ```
@@ -301,7 +299,7 @@ const permissions = {
 ### Common Issues
 
 1. **Modal not appearing on 403**
-   - Check if `notifyPermissionDenied` is being called from QueryCache.onError
+   - Check that the transport surfaced a `forbidden` error on `session.errors$` (it drives `notifyPermissionDenied`)
    - Verify `PermissionDeniedModal` is mounted inside `AuthShell`
    - Confirm the page is inside the protected layout boundary — outside it, no provider is mounted and the notify call is a no-op
    - Check browser console for errors

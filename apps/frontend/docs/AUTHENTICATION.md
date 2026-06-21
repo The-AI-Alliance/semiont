@@ -145,8 +145,8 @@ false) is how the layout knows to render the unauth view with a
                          session fires sessionExpiredAt$ on the dead session (see below)
 
 3. Out-of-band 401/403 from any HTTP / bus call
-   └── QueryCache.onError (or similar) → notifySessionExpired() / notifyPermissionDenied()
-       └── Module-level notify calls into the active session's modal flags
+   └── transport stamps unauthorized/forbidden → session.errors$ → SemiontBrowser
+       └── routes to the active session's SessionSignals (notifySessionExpired / notifyPermissionDenied)
            └── Modal reads the flag via useObservable and surfaces
 
 4. Sign out
@@ -168,23 +168,25 @@ OAuth providers can be configured per KB on the backend. The flow:
 
 ## Cross-tree session signaling
 
-Code outside the React tree (React Query `QueryCache.onError`,
-`MutationCache.onError`, etc.) cannot call hooks. It signals the
-active session via module-scoped notify functions registered at
-provider mount:
+Auth failures originate in the transport, which lives outside the React
+tree and cannot call hooks. The transport stamps each failure with a
+`TransportErrorCode` and republishes it on `session.errors$`. The
+`SemiontBrowser` singleton subscribes to the active session's error
+stream and routes failures to that session's `SessionSignals`:
 
 ```typescript
-import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
-
-new QueryCache({
-  onError: (error) => {
-    if (error instanceof APIError) {
-      if (error.status === 401) notifySessionExpired('Your session has expired.');
-      if (error.status === 403) notifyPermissionDenied('Access denied.');
-    }
-  },
+// SemiontBrowser, on session activation (packages/sdk/src/session/semiont-browser.ts)
+session.errors$.subscribe((err) => {
+  if (err.code === 'unauthorized') signals.notifySessionExpired(err.message);
+  else if (err.code === 'forbidden') signals.notifyPermissionDenied(err.message);
 });
 ```
+
+`SessionSignals` exposes the modal state as `BehaviorSubject`s
+(`sessionExpiredAt$`, `permissionDeniedAt$`, …), surfaced by the browser
+as `activeSignals$`. `SessionExpiredModal` and `PermissionDeniedModal`
+subscribe to it via `useObservable` — so a failure raised entirely
+outside React still drives the UI.
 
 When no `SemiontProvider` is mounted (e.g. on the landing page),
 these calls are no-ops — the `SemiontBrowser`'s notify-handler

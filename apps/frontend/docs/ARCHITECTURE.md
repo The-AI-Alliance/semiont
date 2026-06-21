@@ -497,50 +497,29 @@ See [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) for documentat
 The `@semiont/react-ui` library uses the **Provider Pattern** to remain framework-agnostic:
 
 ```typescript
-// @semiont/react-ui defines INTERFACES
+// @semiont/react-ui defines the INTERFACE
 interface AnnotationManager {
   createAnnotation: (params: CreateAnnotationParams) => Promise<Annotation | undefined>;
   deleteAnnotation: (params: DeleteAnnotationParams) => Promise<void>;
 }
 
-interface CacheManager {
-  invalidateAnnotations: (rId: ResourceId) => void | Promise<void>;
-  invalidateEvents: (rId: ResourceId) => void | Promise<void>;
-}
-
-// Apps provide IMPLEMENTATIONS
+// Apps provide an IMPLEMENTATION backed by the SDK client
 const annotationManager: AnnotationManager = {
-  createAnnotation: async (params) => {
-    const annotation = await client.createAnnotation(params);
-    queryClient.invalidateQueries(['annotations', params.rId]);
-    return annotation;
-  },
-  deleteAnnotation: async (params) => {
-    await client.deleteAnnotation(params);
-    queryClient.invalidateQueries(['annotations', params.rId]);
-  }
+  createAnnotation: (params) => semiont.mark.annotation(params),
+  deleteAnnotation: (params) => semiont.mark.delete(params.rId, params.aId),
 };
+// No manual cache invalidation: the backend's domain events (mark:create-ok,
+// mark:removed, …) drive the browse caches automatically.
 
-const cacheManager: CacheManager = {
-  invalidateAnnotations: (rId) => {
-    queryClient.invalidateQueries({ queryKey: ['annotations', rId] });
-  },
-  invalidateEvents: (rId) => {
-    queryClient.invalidateQueries({ queryKey: ['resources', 'events', rId] });
-  }
-};
-
-// Inject implementations via providers
+// Inject the implementation via the provider
 <AnnotationProvider annotationManager={annotationManager}>
-  <CacheProvider cacheManager={cacheManager}>
-    <App />
-  </CacheProvider>
+  <App />
 </AnnotationProvider>
 ```
 
 **Benefits:**
-- ✅ React UI library has **zero React Query dependency**
-- ✅ Apps can use React Query, SWR, Apollo, or any data fetching library
+- ✅ The UI library depends only on RxJS and the SDK's observable model — no external data-fetching library
+- ✅ Cache invalidation is automatic (domain-event driven), so host implementations stay thin
 - ✅ Easy to test with mock implementations
 - ✅ Clear separation of concerns
 
@@ -577,26 +556,25 @@ if (!session?.backendToken) {
 **Philosophy:** Components fetch their own data, not through props drilling.
 
 ```typescript
-// Each component fetches what it needs
-function DocumentView({ documentId }: { documentId: string }) {
-  const { data: doc } = api.documents.get.useQuery(documentId);
-  const { data: highlights } = api.annotations.getHighlights.useQuery(documentId);
-  // Note: API client uses 'annotations', but backend endpoint is still '/api/selections'
+// Each component subscribes to exactly the observables it needs
+function ResourceView({ resourceId }: { resourceId: ResourceId }) {
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  const resource = useObservable(semiont?.browse.resource(resourceId));
+  const annotations = useObservable(semiont?.browse.annotations(resourceId));
+  // Each is `undefined` while loading and re-emits on every cache update
   // ...
 }
 ```
 
-### 4. Query Invalidation Over Manual Refetch
+### 4. Event-Driven Invalidation Over Manual Refetch
 
-**Philosophy:** Let React Query handle refetching automatically.
+**Philosophy:** Let backend domain events drive cache invalidation automatically.
 
 ```typescript
-// After mutation, invalidate queries
-const updateMutation = api.documents.update.useMutation({
-  onSuccess: () => {
-    queryClient.invalidateQueries(['/api/documents']);
-  }
-});
+// A write is just a verb call — no onSuccess, no invalidate.
+await semiont.mark.annotation(input);
+// The backend broadcasts mark:create-ok over the bus; the browse cache
+// invalidates the affected query and every subscriber re-renders.
 ```
 
 ### 5. Separation of Concerns
@@ -606,8 +584,8 @@ const updateMutation = api.documents.update.useMutation({
 - Toast notifications
 - Animation state (sparkles)
 
-**React Query handles server state:**
-- Documents
+**SDK observable caches handle server state:**
+- Resources
 - Annotations
 - Entity types
 

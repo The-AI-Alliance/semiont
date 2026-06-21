@@ -345,9 +345,12 @@ TypeScript provides compile-time validation across all components:
 
 ```typescript
 // All components are fully typed
-export function GreetingSection(): JSX.Element {
-  const { data, error, isLoading } = api.hello.greeting.useQuery();
-  // TypeScript ensures data structure matches API contract
+export function ResourceTitle({ id }: { id: ResourceId }): JSX.Element {
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  const resource = useObservable(semiont?.browse.resource(id));
+  // `resource` is typed ResourceDescriptor | undefined — the compiler
+  // enforces the shape the API contract guarantees
+  return <h1>{resource?.title}</h1>;
 }
 ```
 
@@ -533,9 +536,11 @@ export function ResourcePage() {
 
 ```typescript
 // packages/react-ui/src/components/__tests__/ResourceViewer.test.tsx
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { BehaviorSubject } from 'rxjs';
+import { BrowseNamespace } from '@semiont/sdk';
 import { ResourceViewer } from '../ResourceViewer';
-import { TestProviders } from '../../test-utils';
+import { renderWithProviders } from '../../test-utils';
 
 it('renders resource title', async () => {
   const mockResource = {
@@ -544,14 +549,11 @@ it('renders resource title', async () => {
     content: 'Test content'
   };
 
-  render(
-    <TestProviders
-      apiClient={{ resources: { get: { useQuery: () => ({ data: mockResource }) } } }}
-      translations={{ 'resource.title': 'Resource Title' }}
-    >
-      <ResourceViewer resourceId="123" />
-    </TestProviders>
-  );
+  // Emit the mock from the SDK's browse query (spy on the namespace prototype)
+  vi.spyOn(BrowseNamespace.prototype, 'resource')
+    .mockReturnValue(new BehaviorSubject(mockResource) as never);
+
+  renderWithProviders(<ResourceViewer resourceId="123" />);
 
   expect(await screen.findByText('Resource Title')).toBeInTheDocument();
   expect(screen.getByText('Test Resource')).toBeInTheDocument();
@@ -610,7 +612,7 @@ it('renders page title', () => {
 import Page from '../page'; // The wrapper
 
 it('renders page', () => {
-  // Need to mock: useQuery, useTheme, useTranslations, etc.
+  // Need to mock: the SDK session/client, useTheme, useTranslations, etc.
   vi.mock('...'); // Many mocks needed!
   renderWithProviders(<Page />); // Complex test setup
 });
@@ -634,7 +636,7 @@ it('renders page', () => {
 - Auth components: `SignUpForm`, `AuthErrorDisplay`, `WelcomePage`
 - Annotation components: All annotation UI and popups
 - Hooks: `useObservable`, `useResourceContent`, `useMediaToken`, `useToast`, etc.
-- Utilities: Validation, query keys, annotation registry
+- Utilities: Validation, annotation registry
 
 **apps/frontend:**
 - App shell & routing: providers, AuthShell, route guards

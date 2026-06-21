@@ -1,6 +1,6 @@
 # Archive and Clone Features
 
-> **⚠️ Note:** Code examples in this document use the old `apiService.*` pattern. The current architecture uses React Query hooks (`api.*`). See [ARCHITECTURE.md](./ARCHITECTURE.md) and [AUTHENTICATION.md](./AUTHENTICATION.md) for current patterns.
+> **⚠️ Note:** Code examples in this document use an older API pattern. The current architecture calls the SDK's verb-namespace client (`semiont.browse.*`, `semiont.mark.*`, …) and subscribes via `useObservable`. See [ARCHITECTURE.md](./ARCHITECTURE.md) and [AUTHENTICATION.md](./AUTHENTICATION.md) for current patterns.
 
 ## Overview
 
