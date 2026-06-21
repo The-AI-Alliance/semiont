@@ -281,20 +281,23 @@ expect(mockFn).toHaveBeenCalledWith(expectedArgs);
 ### Hook Testing Example
 
 ```typescript
-// Mock useKnowledgeBaseSession via @semiont/react-ui and assert downstream behavior
-import { renderHook } from '@testing-library/react';
+// Mock useSemiont to return a browser with a fake active session, then assert
+// downstream behavior. (For richer cases, inject a real SemiontBrowser via
+// `<SemiontProvider browser={…}>` — see src/test-utils.tsx.)
+import { render } from '@testing-library/react';
 import { vi } from 'vitest';
-import { useKnowledgeBaseSession } from '@semiont/react-ui';
+import { BehaviorSubject } from 'rxjs';
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
+  const user$ = new BehaviorSubject({ isAdmin: true, name: 'Alice' });
+  const activeSession$ = new BehaviorSubject({ user$, client: {}, kb: { id: 'kb-1' } });
   return {
     ...actual,
-    useKnowledgeBaseSession: () => ({
-      ...actual.defaultMockKnowledgeBaseSession ?? {},
-      isAuthenticated: true,
-      isAdmin: true,
-      displayName: 'Alice',
+    useSemiont: () => ({
+      activeSession$,
+      activeKbId$: new BehaviorSubject('kb-1'),
+      activeSignals$: new BehaviorSubject(null),
     }),
   };
 });

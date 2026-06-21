@@ -82,7 +82,7 @@ App-level singleton. Owns:
   sit on the spinner forever after every `signOut`, which
   intentionally leaves `activeKbId` set with `session` null.
 - `openResources$` — open-resource list (tab bar)
-- `identityToken$` — app-level identity bridge (e.g. NextAuth)
+- `identityToken$` — optional app-level identity bridge: a slot the host populates (via `setIdentityToken()`) with an external OAuth identity token, for environments that bridge one in
 - `error$` — session-level error stream
 - CRUD methods: `addKb`, `removeKb`, `setActiveKb`, `signIn`, `signOut`,
   `addOpenResource`, etc.

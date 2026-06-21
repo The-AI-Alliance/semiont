@@ -634,10 +634,11 @@ client.browse.resources({});
 
 ### Authentication
 
-- Never store tokens in localStorage (XSS risk)
-- Use httpOnly cookies when possible
-- Validate tokens on every API call
-- Handle 401/403 responses globally
+- **Bearer-only:** the access token is sent as `Authorization: Bearer <jwt>` — no cookie, no ambient credential
+- Access tokens are **short-lived (10 min)** and **revocable**: logout bumps the user's `tokenVersion`, invalidating the refresh token and every live access token server-side, on all devices
+- The access + refresh tokens are held in memory and persisted per-KB through the `SessionStorage` adapter; the short TTL plus server-side revocation are the XSS mitigation (the token lives in app-controlled storage, not a browser-managed credential)
+- Handle 401/403 globally — the active session's `SessionSignals` surface `SessionExpiredModal` / `PermissionDeniedModal`
+- See the canonical [AUTHENTICATION.md](../../../docs/system/administration/AUTHENTICATION.md) for the full model
 
 ### Input Validation
 

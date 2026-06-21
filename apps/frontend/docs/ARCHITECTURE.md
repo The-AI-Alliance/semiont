@@ -20,7 +20,7 @@ This document describes the high-level architecture of the Semiont frontend appl
 The Semiont frontend is a Vite + React Router v7 SPA. The architecture emphasizes:
 
 - **Type Safety**: TypeScript throughout with strict mode enabled
-- **Server State Management**: React Query for all API interactions
+- **Server State Management**: RxJS observable caches on the SDK's verb-namespace client, invalidated automatically by backend domain events
 - **Authentication**: bearer-only — the SDK session holds the JWT in memory and sends `Authorization: Bearer`; no cookie, no frontend auth server
 - **No Global Mutable State**: All state is managed through React hooks and contexts
 - **Fail-Fast Philosophy**: No default values - explicit configuration required
@@ -33,7 +33,7 @@ The Semiont frontend is a Vite + React Router v7 SPA. The architecture emphasize
 - **TypeScript 5** - Type safety and developer experience
 
 ### State Management
-- **React Query (TanStack Query)** - Server state, caching, and data synchronization
+- **RxJS (BehaviorSubject)** - Server-state caching and live updates via the SDK's verb-namespace observables, subscribed through `useObservable`
 - **React Context** - UI state and cross-cutting concerns (keyboard shortcuts, toast notifications)
 - **i18next + react-i18next** - Internationalization
 
@@ -76,7 +76,7 @@ The frontend leverages **@semiont/react-ui**, a comprehensive framework-agnostic
 - **Session**: SessionTimer, SessionExpiryBanner
 
 #### Hooks & Utilities
-- **API Hooks**: React Query wrappers for all Semiont API operations
+- **Data Hooks**: `useObservable` / `useObservableBrowse` for subscribing to the SDK's verb-namespace observable caches
 - **UI Hooks**: useTheme, useKeyboardShortcuts, useToast, useDebounce
 - **Resource Hooks**: useResourceContent, useMediaToken
 - **Form Hooks**: useFormValidation with built-in validation rules
@@ -226,7 +226,7 @@ The solution is **media tokens** — short-lived JWTs scoped to a single resourc
 
 ```
 ResourceViewerPage
-  → useMediaToken(resourceId)       # React Query, staleTime: 4 min
+  → useMediaToken(resourceId)       # auth.mediaToken(id); refreshed every 4 min
       → POST /api/tokens/media
       → { token }
   → resourceUrl = `${baseUrl}/api/resources/${id}?token=${token}`
@@ -262,138 +262,62 @@ See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSIO
 
 ## API Integration
 
-### API Client Structure
+### Verb-Namespace Client
+
+Components never call REST routes or generated query hooks. Each per-KB `SemiontSession` owns a `SemiontClient` whose surface is a set of **verb namespaces** — methods grouped by intent rather than by resource:
 
 ```typescript
-// Type-safe API client with React Query hooks
-export const api = {
-  documents: {
-    get: {
-      useQuery: (id: string) => useAuthenticatedQuery(['/api/documents', id], ...)
-    },
-    list: {
-      useQuery: () => useAuthenticatedQuery(['/api/documents'], ...)
-    },
-    create: {
-      useMutation: () => useAuthenticatedMutation(...)
-    },
-    update: {
-      useMutation: () => useAuthenticatedMutation(...)
-    },
-    delete: {
-      useMutation: () => useAuthenticatedMutation(...)
-    }
-  },
-  annotations: { ... },  // Note: API still uses 'selections' endpoint, to be renamed later
-  entityTypes: { ... },
-  // ... other resources
-};
+const semiont = useObservable(useSemiont().activeSession$)?.client;
+
+// browse — reads. Live queries return CacheObservable<T> (subscribe via useObservable);
+//          one-shot reads return Promise<T>.
+semiont.browse.resource(id);         // CacheObservable<ResourceDescriptor>
+semiont.browse.annotations(id);      // CacheObservable<Annotation[]>
+semiont.browse.entityTypes();        // CacheObservable<string[]>
+semiont.browse.resourceContent(id);  // Promise<string> (one-shot)
+
+// mark / yield / frame / bind / gather / match — writes and long-running operations
+semiont.mark.annotation(input);      // Promise<{ annotationId }>
+semiont.mark.delete(rId, aId);       // Promise<void>
+semiont.yield.fromAnnotation(...);   // StreamObservable<YieldGenerationEvent>
+semiont.frame.addEntityType(type);   // Promise<void>
 ```
 
-### Query Keys
+`CacheObservable<T>` and `StreamObservable<T>` extend RxJS `Observable<T>` and are also `PromiseLike<T>`, so both `.subscribe()` (or `useObservable`) and `await` work without any wrapper. See [`@semiont/sdk` Usage.md](../../../packages/sdk/docs/Usage.md) for the full namespace API.
 
-React Query uses query keys to identify and cache queries. We follow **TanStack Query best practices** by centralizing query keys in a single source of truth.
+### Caching and Invalidation
 
-**Location:** `/src/lib/http-transport.ts`
+There are no query keys to manage. Each live `browse.*` query is backed by an internal `Cache` primitive keyed by its resource id. Caches invalidate themselves in response to backend **domain events** delivered over the bus gateway — call sites never invalidate anything by hand:
 
-**Structure:**
-```typescript
-export const QUERY_KEYS = {
-  auth: {
-    me: () => ['/api/auth/me'],
-  },
-  documents: {
-    all: (limit?: number, archived?: boolean) => ['/api/documents', limit, archived],
-    detail: (id: string) => ['/api/documents', id],
-    search: (query: string, limit: number) => ['/api/documents/search', query, limit],
-    events: (id: string) => ['/api/documents', id, 'events'],
-    highlights: (documentId: string) => ['/api/documents/:id/highlights', documentId],
-    references: (documentId: string) => ['/api/documents/:id/references', documentId],
-  },
-  entityTypes: {
-    all: () => ['/api/entity-types'],
-  },
-  // ... other resources
-};
-```
+| Domain event | Cache effect |
+|---|---|
+| `mark:create-ok` / `mark:removed` | Invalidate the resource's annotation list |
+| `mark:body-updated` | Write-through update to the annotation detail + list caches |
+| `mark:archived` / `mark:unarchived` | Invalidate the resource descriptor and resource lists |
+| `yield:create-ok` / `yield:update-ok` | Invalidate the resource descriptor and resource lists |
+| `frame:entity-type-added` | Invalidate the entity-types cache |
+| `frame:tag-schema-added` | Invalidate the tag-schemas cache |
 
-**Usage in Hooks:**
-```typescript
-// Query hook uses QUERY_KEYS
-getReferences: {
-  useQuery: (documentId: string) => {
-    return useAuthenticatedQuery(
-      QUERY_KEYS.documents.references(documentId),  // Single source of truth
-      `/api/documents/${documentId}/references`
-    );
-  }
-}
-```
-
-**Usage in Invalidation:**
-```typescript
-// Invalidation uses same key - guaranteed to match
-queryClient.invalidateQueries({
-  queryKey: QUERY_KEYS.documents.references(documentId)
-});
-```
-
-**Benefits:**
-- ✅ **Type-safe**: TypeScript autocomplete for all query keys
-- ✅ **Single source of truth**: Change key structure in one place
-- ✅ **No mismatches**: Impossible for hook and invalidation to use different keys
-- ✅ **Refactoring safety**: Rename/restructure without breaking cache invalidation
-- ✅ **Hierarchical invalidation**: Can invalidate all document queries or specific subsets
-
-**Anti-Pattern (Before):**
-```typescript
-// ❌ WRONG - Keys hardcoded in multiple places
-useAuthenticatedQuery(['/api/documents/:id/references', documentId], ...);
-queryClient.invalidateQueries({ queryKey: ['/api/selections', documentId, 'references'] });
-// These don't match! Cache invalidation silently fails.
-```
-
-**Best Practice (After):**
-```typescript
-// ✅ RIGHT - Keys from QUERY_KEYS constant
-useAuthenticatedQuery(QUERY_KEYS.documents.references(documentId), ...);
-queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(documentId) });
-// Guaranteed to match!
-```
-
-**Why No `as const`:**
-```typescript
-// We don't use 'as const' because it creates readonly tuple types
-// which can cause React Query type mismatches
-() => ['/api/documents', id] as const  // ❌ Readonly tuple - avoid
-() => ['/api/documents', id]           // ✅ Mutable array - use this
-```
+On reconnect, a detected event gap (`bus:resume-gap`) triggers a blanket invalidation so no update is silently missed.
 
 ### Error Handling
 
-**Global Error Handlers:**
-```typescript
-// In QueryClient configuration
-import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
+**Auth failures (401 / 403):** The transport stamps every failure with a `TransportErrorCode` — `unauthorized` for 401, `forbidden` for 403 — and republishes them on `session.errors$`. `SemiontBrowser` subscribes to the active session's error stream and routes them to that session's `SessionSignals`:
 
-queryCache: new QueryCache({
-  onError: (error) => {
-    if (error instanceof APIError) {
-      if (error.status === 401) {
-        notifySessionExpired('Session expired');
-      } else if (error.status === 403) {
-        notifyPermissionDenied('Permission denied');
-      }
-    }
-  }
-})
+```typescript
+// SemiontBrowser, when a session activates (packages/sdk/src/session/semiont-browser.ts)
+session.errors$.subscribe((err) => {
+  if (err.code === 'unauthorized') signals.notifySessionExpired(err.message);
+  else if (err.code === 'forbidden') signals.notifyPermissionDenied(err.message);
+});
 ```
 
-`notifySessionExpired` / `notifyPermissionDenied` are module-scoped functions that route into whichever `KnowledgeBaseSessionProvider` is currently mounted (inside `AuthShell`). When no provider is mounted (e.g. on the landing page), these calls are no-ops.
+`SessionSignals` holds the modal state as `BehaviorSubject`s (`sessionExpiredAt$`, `permissionDeniedAt$`, …); `SessionExpiredModal` and `PermissionDeniedModal` render by subscribing to the browser's `activeSignals$` via `useObservable`. When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so auth errors have nowhere to surface and are no-ops.
 
-**Component-Level:**
+**Component-level:** a live query carries its own loading/error state in the value it emits — `useObservable(semiont.browse.resource(id))` is `undefined` while loading. One-shot hooks such as `useResourceGraph` return an explicit `{ data, loading, error }` shape:
+
 ```typescript
-const { data, error } = api.documents.get.useQuery(id);
+const { graph, loading, error } = useResourceGraph(id);
 
 if (error) {
   return <ErrorDisplay error={error} />;
@@ -402,30 +326,28 @@ if (error) {
 
 ## Data Flow
 
-### Read Flow (Queries)
+### Read Flow (Live Queries)
 
 ```
 Component renders
-    └── useQuery hook checks cache
-        ├── Cache HIT → Return cached data + background refetch
-        └── Cache MISS → Fetch from API
-            └── useAuthenticatedAPI adds Bearer token
-                └── Fetch from backend
-                    └── Cache result + return data
+    └── useObservable(semiont.browse.resource(id))
+        └── browse Cache checks for the resource id
+            ├── Cache HIT  → emit cached value, revalidate in background
+            └── Cache MISS → transport fetches (Bearer token attached)
+                                └── cache result → Observable emits → component re-renders
 ```
 
-### Write Flow (Mutations)
+### Write Flow (Verb Methods)
 
 ```
-User action (e.g., click save)
-    └── Component calls mutation.mutateAsync()
-        └── useAuthenticatedAPI adds Bearer token
-            └── POST/PATCH/DELETE to backend
-                └── On success:
-                    ├── Invalidate related queries
-                    ├── Trigger automatic refetch
-                    └── UI updates with fresh data
+User action (e.g., create annotation)
+    └── await semiont.mark.annotation(input)   (Bearer token attached)
+        └── backend applies the change, broadcasts a domain event (mark:create-ok)
+            └── event arrives over the bus gateway → browse Cache invalidates the affected query
+                └── live Observable re-emits → subscribed components re-render
 ```
+
+No call site invalidates anything by hand — the domain event drives the cache update.
 
 ### Real-Time Updates (Bus Gateway)
 
@@ -452,25 +374,24 @@ The provider tree has two distinct layers:
 ```tsx
 // apps/frontend/src/app/providers.tsx
 <TranslationProvider>          // @semiont/react-ui — i18n
-  <QueryClientProvider>        // React Query (with auth-event dispatching in onError)
+  <SemiontProvider>            // @semiont/react-ui — the SemiontBrowser singleton (sessions, KBs, the per-KB SemiontClient + app-scoped event bus)
     <ToastProvider>            // @semiont/react-ui — toast notifications
       <LiveRegionProvider>     // @semiont/react-ui — screen reader announcements
         <KeyboardShortcutsProvider>  // app-specific
           <ThemeProvider>      // @semiont/react-ui — theme
-            <EventBusProvider> // @semiont/react-ui — RxJS event bus
-              <NavigationHandler />
-              {children}        // landing, about, privacy, terms, /auth/connect, /auth/error, /auth/signup, or any of the AuthShell-wrapped subtrees below
+            <NavigationHandler />
+            {children}          // landing, about, privacy, terms, /auth/connect, /auth/error, /auth/signup, or any of the AuthShell-wrapped subtrees below
 ```
 
 ### Auth shell (mounted in protected layouts only)
 
 ```tsx
-// apps/frontend/src/contexts/AuthShell.tsx
-<KnowledgeBaseSessionProvider>      // owns KB list, active KB, validated session, modal flags
-  <ProtectedErrorBoundary>          // catches render-time crashes inside the protected tree
-    <SessionExpiredModal />         // reads sessionExpiredAt from context
-    <PermissionDeniedModal />       // reads permissionDeniedAt from context
-    {children}                      // protected layout body
+// apps/frontend/src/contexts/AuthShell.tsx — no provider; the SemiontBrowser
+// singleton (mounted at the app root) already holds all session state.
+<ProtectedErrorBoundary>            // catches render-time crashes inside the protected tree
+  <SessionExpiredModal />           // reads sessionExpiredAt$ from the active session's signals
+  <PermissionDeniedModal />         // reads permissionDeniedAt$ from the active session's signals
+  {children}                        // protected layout body
 ```
 
 ### Where the auth shell mounts
@@ -514,9 +435,10 @@ apps/frontend/src/
 │   ├── config.ts          # i18next initialisation
 │   └── routing.tsx        # Link, useRouter, usePathname, useLocale
 ├── lib/                   # App-specific utility libraries
-│   ├── http-transport.ts      # API client setup with React Query
-│   ├── query-helpers.ts   # React Query utilities
-│   └── cacheManager.ts    # CacheManager implementation for @semiont/react-ui
+│   ├── env.ts             # Runtime environment configuration
+│   ├── routing.tsx        # Routing utilities
+│   ├── cookies/           # Cookie helpers
+│   └── browser-stubs/     # Browser API stubs
 └── types/                 # TypeScript type definitions
 
 packages/react-ui/src/      # Reusable React components library
@@ -773,11 +695,11 @@ Annotation overlays and panel entries synchronize via hover events for all media
 
 Two major refactors are complete:
 
-**MERGED-KB-SESSION** (Track 2 of AUTH-CLEANUP): Merged the previously-separate `KnowledgeBaseProvider`, `AuthProvider`, and `SessionProvider` into one library-side `KnowledgeBaseSessionProvider` in `@semiont/react-ui`.
+**MERGED-KB-SESSION** (Track 2 of AUTH-CLEANUP): Merged the previously-separate `KnowledgeBaseProvider`, `AuthProvider`, and `SessionProvider` into one library-side session model — now the `SemiontBrowser` singleton behind `SemiontProvider` in `@semiont/react-ui` (the interim `KnowledgeBaseSessionProvider` was itself later folded into it).
 - Frontend `AuthContext.tsx`, `KnowledgeBaseContext.tsx`, `useAuth.ts`, `useSessionManager.ts` are gone
 - Library `SessionContext.tsx`, `auth-events.ts`, and `dispatch401Error`/`dispatch403Error` are gone
-- Auth state via `useKnowledgeBaseSession()` from `@semiont/react-ui`
-- Cross-tree 401/403 signaling via `notifySessionExpired` / `notifyPermissionDenied`
+- Auth state via `useSemiont()` → `activeSession$` → `user$` from `@semiont/react-ui`
+- Cross-tree 401/403 signaling via the active session's `SessionSignals` (`notifySessionExpired` / `notifyPermissionDenied`)
 
 **NO-NEXTJS** (see `/NO-NEXTJS.md`): Replaced Next.js with Vite + React Router v7 + i18next.
 - `next build` → `vite build` (output: static files)

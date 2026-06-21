@@ -1,11 +1,10 @@
 # Authenticated Media Access
 
-> **Heads-up on the filename.** This doc used to describe a Next.js server-side
-> *proxy route* (`/api/resources/[id]`). That route is **gone** — the frontend
-> is now a pure Vite + React SPA (#557) with **no server**, and auth is
-> **bearer-only** (#890). There is nothing to proxy through. The live mechanism
-> is the **`?token=` media token** documented here; the `RESOURCE-PROXY` filename
-> is kept only so inbound links don't break.
+> **What changed.** This doc used to describe a Next.js server-side *proxy route*
+> (`/api/resources/[id]`) and was named `RESOURCE-PROXY.md`. That route is **gone**
+> — the frontend is now a pure Vite + React SPA (#557) with **no server**, and auth
+> is **bearer-only** (#890). There is nothing to proxy through; the live mechanism
+> is the **`?token=` media token** documented below.
 
 ## The problem: header-less elements can't authenticate
 
