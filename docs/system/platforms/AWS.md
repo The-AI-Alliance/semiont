@@ -204,8 +204,8 @@ ListenerCondition.pathPatterns(['/api', '/api/*'])
 ```
 
 **Benefits**:
-- **No path conflicts**: NextAuth at `/auth/*` doesn't intercept backend `/api/auth/*` routes
-- **Clear separation**: Frontend handles OAuth, backend handles all API logic
+- **No path conflicts**: the SPA's client-side routes don't intercept backend `/api/*` routes
+- **Clear separation**: the frontend is a static SPA; the backend handles all API logic (including the OAuth credential exchange + JWT minting)
 - **Simple mental model**: Easy to understand routing rules
 - **Independent scaling**: Frontend and backend scale separately
 

@@ -620,7 +620,6 @@ environment = "local"
 [environments.local.backend]
 port = 3001
 publicURL = "http://localhost:3001"
-corsOrigin = "http://localhost:3000"
 
 [environments.local.database]
 host = "localhost"

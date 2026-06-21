@@ -40,7 +40,6 @@ platform = "posix"
 port = 3001
 publicURL = "http://localhost:3001"
 frontendURL = "http://localhost:3000"
-corsOrigin = "http://localhost:3000"
 
 [environments.local.site]
 domain = "localhost"

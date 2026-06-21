@@ -10,7 +10,7 @@ Semiont stores secrets in a dedicated file outside the project directory, separa
 
 ```toml
 [secrets]
-JWT_SECRET = "..."   # Shared with frontend as NEXTAUTH_SECRET
+JWT_SECRET = "..."   # Backend-only: signs and validates bearer JWTs
 ```
 
 This file is:
@@ -21,7 +21,7 @@ This file is:
 
 ## JWT Secret
 
-The JWT secret must be identical in both the backend (`JWT_SECRET`) and frontend (`NEXTAUTH_SECRET`). Storing it in the secrets file ensures it persists across re-provisions without ever appearing in a config file that might be synced or accidentally committed.
+The JWT secret is used by the **backend** to sign and validate bearer tokens. The frontend is a pure SPA and never sees it — it only holds the bearer token the backend returns. Storing the secret in the secrets file ensures it persists across re-provisions without ever appearing in a config file that might be synced or accidentally committed.
 
 ### First provision
 ```

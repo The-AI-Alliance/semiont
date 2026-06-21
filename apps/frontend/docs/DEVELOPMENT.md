@@ -180,19 +180,16 @@ export default function Dashboard() {
 **2. Create component** in `src/components/`:
 ```typescript
 // src/components/DashboardContent.tsx
-import { api } from "@/lib/http-transport";
-import { useKnowledgeBaseSession } from "@semiont/react-ui";
+import { useSemiont, useObservable } from "@semiont/react-ui";
 
 export function DashboardContent() {
-  const { isFullyAuthenticated } = useKnowledgeBaseSession();
-  const { data, isLoading, error } = api.dashboard.getData.useQuery();
+  const session = useObservable(useSemiont().activeSession$);
+  // Verb-namespace queries on the client return RxJS Observables; `useObservable`
+  // bridges them into React state (e.g. session?.client.browse.entityTypes()).
+  const data = useObservable(session?.client.browse.entityTypes());
 
-  if (!isFullyAuthenticated) {
-    return <div>Please sign in to view dashboard</div>;
-  }
-
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
+  if (!session) return <div>Please sign in to view dashboard</div>;
+  if (!data) return <div>Loading...</div>;
 
   return (
     <div>
@@ -207,41 +204,28 @@ export function DashboardContent() {
 
 See [API Integration Guide](./API-INTEGRATION.md) for complete details.
 
-**Quick example**:
+**Quick example**: data access is exposed by `@semiont/sdk` as verb-namespace
+methods on `SemiontClient` (e.g. `client.browse.*`) that return RxJS Observables
+backed by EventBus-invalidated caches. Adding a new read means:
+
 ```typescript
-// 1. Define types in src/lib/http-transport.ts
-interface DashboardDataResponse {
-  metrics: {
-    activeUsers: number;
-    totalPosts: number;
-    systemStatus: string;
-  };
-  recentActivity: Activity[];
+// 1. The OpenAPI spec + generated types define the response shape
+//    (specs/ → @semiont/core types). No hand-written response interfaces.
+
+// 2. The SDK exposes it as a namespace method returning an Observable
+//    (added in @semiont/sdk, e.g. BrowseNamespace.dashboard(): Observable<DashboardData>)
+
+// 3. The component subscribes via useObservable — no React Query, no manual cache keys
+import { useSemiont, useObservable } from '@semiont/react-ui';
+
+function Dashboard() {
+  const session = useObservable(useSemiont().activeSession$);
+  const data = useObservable(session?.client.browse.dashboard());
+  // EventBus domain events invalidate and refresh the cache automatically.
 }
-
-// 2. Add API service method
-export const apiService = {
-  dashboard: {
-    getData: (): Promise<DashboardDataResponse> =>
-      apiClient.get('/api/dashboard/data'),
-  },
-};
-
-// 3. Add React Query hook
-export const api = {
-  dashboard: {
-    getData: {
-      useQuery: () => {
-        return useQuery({
-          queryKey: ['dashboard.data'],
-          queryFn: () => apiService.dashboard.getData(),
-          enabled: !!useKnowledgeBaseSession().isFullyAuthenticated,
-        });
-      }
-    }
-  }
-};
 ```
+
+See [API Integration Guide](./API-INTEGRATION.md) for the namespace + bus model.
 
 ### Adding New UI Components
 
@@ -342,41 +326,27 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 **1. Create protected route wrapper**:
 ```typescript
 // src/components/ProtectedRoute.tsx
-"use client";
-
-import { useKnowledgeBaseSession } from "@semiont/react-ui";
-import { useRouter } from "@/i18n/routing";
+import { useSemiont, useObservable } from "@semiont/react-ui";
+import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  requireFullAuth?: boolean;
-}
-
-export function ProtectedRoute({
-  children,
-  requireFullAuth = false
-}: ProtectedRouteProps) {
-  const { isAuthenticated, isFullyAuthenticated, isLoading } = useKnowledgeBaseSession();
-  const router = useRouter();
+export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const browser = useSemiont();
+  const session = useObservable(browser.activeSession$);
+  const activating = useObservable(browser.sessionActivating$) ?? false;
+  const navigate = useNavigate();
 
   useEffect(() => {
-    if (!isLoading) {
-      const hasRequiredAuth = requireFullAuth ? isFullyAuthenticated : isAuthenticated;
-
-      if (!hasRequiredAuth) {
-        router.push('/auth/signin');
-      }
+    if (!activating && !session) {
+      navigate('/auth/signin');
     }
-  }, [isAuthenticated, isFullyAuthenticated, isLoading, requireFullAuth, router]);
+  }, [session, activating, navigate]);
 
-  if (isLoading) {
+  if (activating) {
     return <div className="flex justify-center p-8">Loading...</div>;
   }
 
-  const hasRequiredAuth = requireFullAuth ? isFullyAuthenticated : isAuthenticated;
-
-  return hasRequiredAuth ? <>{children}</> : null;
+  return session ? <>{children}</> : null;
 }
 ```
 
@@ -387,7 +357,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 export default function AdminPage() {
   return (
-    <ProtectedRoute requireFullAuth={true}>
+    <ProtectedRoute>
       <AdminContent />
     </ProtectedRoute>
   );
@@ -423,7 +393,7 @@ const envSchema = z.object({
 
 ### Authentication Issues
 - Check browser dev tools Network tab
-- Verify httpOnly JWT cookie in Application tab > Cookies
+- Confirm requests carry an `Authorization: Bearer <jwt>` header — the access token lives in JS memory (held by the SDK session), not in a cookie
 - Check /api/auth/me response for current session state
 - Verify backend is running and accessible
 
@@ -467,7 +437,7 @@ const envSchema = z.object({
 
 **Solutions**:
 - Check backend logs for OAuth errors
-- Verify httpOnly cookie is being set (Application tab in devtools)
+- Confirm the SDK session captured an access token after login — it's held in JS memory and sent as `Authorization: Bearer`, not set as a cookie
 - Check /api/auth/me returns correct user data
 - Ensure OAuth callback URL in Google Cloud Console points to backend (/api/auth/oauth/google/callback)
 

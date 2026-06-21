@@ -37,9 +37,8 @@ Testing in the Semiont frontend is split between two packages following the comp
 │         apps/frontend               │
 │         Test Coverage:              │
 │                                     │
-│  • Next.js page wrappers            │
-│  • API routes                       │
-│  • NextAuth integration             │
+│  • App shell, routing, providers    │
+│  • AuthShell & route guards         │
 │  • App-specific components          │
 │  • Integration flows                │
 └─────────────┬───────────────────────┘
@@ -66,12 +65,10 @@ Testing in the Semiont frontend is split between two packages following the comp
 - Provider logic
 - UI components (Button, Card, ResourceViewer, etc.)
 
-**In apps/frontend** (Next.js specific):
-- Page wrappers that use Next.js hooks
-- API route handlers
-- NextAuth configuration
-- Integration flows across pages
-- App-specific components
+**In apps/frontend** (Vite SPA specific):
+- App shell, routing, and provider composition (`providers.tsx`, `AuthShell`)
+- Integration flows across pages (e.g. the sign-up flow)
+- App-specific components (Home, About, CookieBanner, etc.)
 
 ## Running Tests
 
@@ -174,20 +171,22 @@ src/
 - Component interactions across boundaries
 - End-to-end feature workflows
 
-### API Tests
+### App Shell & Routing Tests
+
+The SPA has no server and no API routes; the non-component frontend tests
+cover the app shell, routing, and provider composition:
 
 ```
 src/
-└── app/
-    ├── auth/[...nextauth]/__tests__/     # NextAuth.js route tests
-    ├── cookies/consent/__tests__/        # Cookie consent API tests
-    └── cookies/export/__tests__/         # Data export API tests
+├── __tests__/route-auth-shell.test.tsx   # route guards / AuthShell mounting
+├── app/__tests__/providers.test.tsx      # root provider composition
+└── contexts/__tests__/AuthShell.test.tsx # protected boundary + modals
 ```
 
 **What to test**:
-- Next.js API route handlers
-- Request/response validation
-- Error handling
+- Provider composition and the `SemiontProvider` / `AuthShell` boundary
+- Route guards and protected-layout mounting
+- Auth-failure modal surfacing and error handling
 
 ### Security Tests
 
@@ -282,20 +281,23 @@ expect(mockFn).toHaveBeenCalledWith(expectedArgs);
 ### Hook Testing Example
 
 ```typescript
-// Mock useKnowledgeBaseSession via @semiont/react-ui and assert downstream behavior
-import { renderHook } from '@testing-library/react';
+// Mock useSemiont to return a browser with a fake active session, then assert
+// downstream behavior. (For richer cases, inject a real SemiontBrowser via
+// `<SemiontProvider browser={…}>` — see src/test-utils.tsx.)
+import { render } from '@testing-library/react';
 import { vi } from 'vitest';
-import { useKnowledgeBaseSession } from '@semiont/react-ui';
+import { BehaviorSubject } from 'rxjs';
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
+  const user$ = new BehaviorSubject({ isAdmin: true, name: 'Alice' });
+  const activeSession$ = new BehaviorSubject({ user$, client: {}, kb: { id: 'kb-1' } });
   return {
     ...actual,
-    useKnowledgeBaseSession: () => ({
-      ...actual.defaultMockKnowledgeBaseSession ?? {},
-      isAuthenticated: true,
-      isAdmin: true,
-      displayName: 'Alice',
+    useSemiont: () => ({
+      activeSession$,
+      activeKbId$: new BehaviorSubject('kb-1'),
+      activeSignals$: new BehaviorSubject(null),
     }),
   };
 });
@@ -343,9 +345,12 @@ TypeScript provides compile-time validation across all components:
 
 ```typescript
 // All components are fully typed
-export function GreetingSection(): JSX.Element {
-  const { data, error, isLoading } = api.hello.greeting.useQuery();
-  // TypeScript ensures data structure matches API contract
+export function ResourceTitle({ id }: { id: ResourceId }): JSX.Element {
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  const resource = useObservable(semiont?.browse.resource(id));
+  // `resource` is typed ResourceDescriptor | undefined — the compiler
+  // enforces the shape the API contract guarantees
+  return <h1>{resource?.title}</h1>;
 }
 ```
 
@@ -499,11 +504,11 @@ export interface ResourceViewerProps {
 }
 
 export function ResourceViewer(props: ResourceViewerProps) {
-  // Uses injected providers for data
-  const resources = useResources(); // From ApiClientProvider
+  // Reads the active session's client from context (SemiontProvider)
+  const client = useObservable(useSemiont().activeSession$)?.client;
   const { t } = useTranslations(); // From TranslationProvider
 
-  const { data, isLoading } = resources.get.useQuery(props.resourceId);
+  const data = useObservable(client?.browse.resource(props.resourceId));
 
   // Pure component logic - all framework-agnostic
   return (
@@ -514,12 +519,14 @@ export function ResourceViewer(props: ResourceViewerProps) {
   );
 }
 
-// ✅ Page Wrapper (apps/frontend/app/[locale]/resources/[id]/page.tsx)
+// ✅ Route component (a React Router v7 route element)
+import { useParams } from 'react-router-dom';
 import { ResourceViewer } from '@semiont/react-ui';
 
-export default function ResourcePage({ params }: { params: { id: string } }) {
-  // Thin wrapper - just passes params
-  return <ResourceViewer resourceId={params.id} />;
+export function ResourcePage() {
+  // Thin wrapper - reads the route param and passes it through
+  const { id } = useParams();
+  return <ResourceViewer resourceId={id!} />;
 }
 ```
 
@@ -529,9 +536,11 @@ export default function ResourcePage({ params }: { params: { id: string } }) {
 
 ```typescript
 // packages/react-ui/src/components/__tests__/ResourceViewer.test.tsx
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { BehaviorSubject } from 'rxjs';
+import { BrowseNamespace } from '@semiont/sdk';
 import { ResourceViewer } from '../ResourceViewer';
-import { TestProviders } from '../../test-utils';
+import { renderWithProviders } from '../../test-utils';
 
 it('renders resource title', async () => {
   const mockResource = {
@@ -540,14 +549,11 @@ it('renders resource title', async () => {
     content: 'Test content'
   };
 
-  render(
-    <TestProviders
-      apiClient={{ resources: { get: { useQuery: () => ({ data: mockResource }) } } }}
-      translations={{ 'resource.title': 'Resource Title' }}
-    >
-      <ResourceViewer resourceId="123" />
-    </TestProviders>
-  );
+  // Emit the mock from the SDK's browse query (spy on the namespace prototype)
+  vi.spyOn(BrowseNamespace.prototype, 'resource')
+    .mockReturnValue(new BehaviorSubject(mockResource) as never);
+
+  renderWithProviders(<ResourceViewer resourceId="123" />);
 
   expect(await screen.findByText('Resource Title')).toBeInTheDocument();
   expect(screen.getByText('Test Resource')).toBeInTheDocument();
@@ -606,7 +612,7 @@ it('renders page title', () => {
 import Page from '../page'; // The wrapper
 
 it('renders page', () => {
-  // Need to mock: useQuery, useTheme, useTranslations, etc.
+  // Need to mock: the SDK session/client, useTheme, useTranslations, etc.
   vi.mock('...'); // Many mocks needed!
   renderWithProviders(<Page />); // Complex test setup
 });
@@ -629,14 +635,13 @@ it('renders page', () => {
 - Resource components: `ResourceViewer`, `AnnotateView`, `BrowseView`
 - Auth components: `SignUpForm`, `AuthErrorDisplay`, `WelcomePage`
 - Annotation components: All annotation UI and popups
-- Hooks: `useResources`, `useAnnotations`, `useToast`, etc.
-- Utilities: Validation, query keys, annotation registry
+- Hooks: `useObservable`, `useResourceContent`, `useMediaToken`, `useToast`, etc.
+- Utilities: Validation, annotation registry
 
 **apps/frontend:**
-- Page wrappers: Thin Next.js page components
-- Integration tests: Multi-step user flows
-- API routes: NextAuth, cookie consent, data export
-- App-specific components: Home, About, Privacy pages
+- App shell & routing: providers, AuthShell, route guards
+- Integration tests: Multi-step user flows (e.g. sign-up)
+- App-specific components: Home, About, Privacy, CookieBanner
 
 ### Reference Examples
 
@@ -648,7 +653,7 @@ npm test
 
 # Example test locations
 packages/react-ui/src/components/__tests__/Button.test.tsx
-packages/react-ui/src/hooks/__tests__/useResources.test.tsx
+packages/react-ui/src/hooks/__tests__/useResourceContent.test.tsx
 packages/react-ui/src/features/auth/__tests__/SignUpForm.test.tsx
 ```
 
@@ -660,10 +665,10 @@ npm test
 
 # Example test locations
 src/app/[locale]/auth/__tests__/signup-flow.integration.test.tsx
-src/app/api/auth/[...nextauth]/__tests__/route.test.ts
+src/contexts/__tests__/AuthShell.integration.test.tsx
 ```
 
-**Key Testing Pattern**: Business logic lives in @semiont/react-ui and is thoroughly tested there. The frontend only tests Next.js-specific integration and thin wrapper components.
+**Key Testing Pattern**: Business logic lives in @semiont/react-ui and is thoroughly tested there. The frontend tests app-shell/routing/provider integration and app-specific components.
 
 ## Future Testing Enhancements
 

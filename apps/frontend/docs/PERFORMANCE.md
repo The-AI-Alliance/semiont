@@ -71,13 +71,10 @@ import Image from 'next/image';
 
 ### 3. API Caching
 
-Configured with TanStack Query for optimal data fetching:
+Server data is cached by the SDK's `browse` observable caches — no per-call cache configuration. A live query is shared and deduplicated across all subscribers and revalidated by backend domain events:
 ```typescript
-const { data } = api.documents.list.useQuery({
-  staleTime: 1000 * 60 * 5,  // Cache for 5 minutes
-  cacheTime: 1000 * 60 * 30,  // Keep in cache for 30 minutes
-  refetchOnWindowFocus: false  // Don't refetch on window focus
-});
+// Shared, deduplicated cache; re-emits when the resource changes
+const resources = useObservable(semiont.browse.resources());
 ```
 
 ### 4. Error Boundaries

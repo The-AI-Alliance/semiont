@@ -17,21 +17,24 @@ The current authorization system provides:
 
 ### Core Components
 
-#### 1. Role flags on `useKnowledgeBaseSession()`
+#### 1. Role flags from the active session's `user$`
 
-The merged session hook exposes coarse role flags derived from the authenticated user:
+Role flags live on the authenticated user, exposed by the active `SemiontSession` as `user$`:
 
 ```typescript
-import { useKnowledgeBaseSession } from '@semiont/react-ui';
+import { useSemiont, useObservable } from '@semiont/react-ui';
 
-const { isAdmin, isModerator } = useKnowledgeBaseSession();
+const session = useObservable(useSemiont().activeSession$);
+const user = useObservable(session?.user$);
+const isAdmin = user?.isAdmin ?? false;
+const isModerator = user?.isModerator ?? false;
 ```
 
-These come straight from the `getMe` response and are coarse — fine-grained permission scopes are still backend-only and a future enhancement.
+These come straight from the authenticated user record and are coarse — fine-grained permission scopes are still backend-only and a future enhancement.
 
 #### 2. PermissionDeniedModal (`@semiont/react-ui`)
 
-A library modal that surfaces when users encounter 403 errors. It reads from `KnowledgeBaseSessionContext` (specifically `permissionDeniedAt` and `permissionDeniedMessage`), so it appears whenever the active provider's flag becomes non-null. Recovery options:
+A library modal that surfaces when users encounter 403 errors. It reads the active session's `SessionSignals` (specifically `permissionDeniedAt$` and `permissionDeniedMessage$`, exposed by the browser as `activeSignals$`), so it appears whenever that signal becomes non-null. Recovery options:
 
 - **Go Back** - Return to previous page
 - **Go to Home** - Navigate to home page
@@ -39,52 +42,50 @@ A library modal that surfaces when users encounter 403 errors. It reads from `Kn
 
 The modal is mounted inside `AuthShell` alongside `SessionExpiredModal`.
 
-#### 3. notifyPermissionDenied (`@semiont/react-ui`)
+#### 3. `signals.notifyPermissionDenied` (`@semiont/sdk`)
 
-Code outside the React tree (the React Query `QueryCache.onError` and `MutationCache.onError` handlers) signals the active provider via a module-scoped notify function:
+A 403 from the backend surfaces on the transport's error stream; the `SemiontBrowser` observes it and raises the signal on the active session's `SessionSignals`:
 
 ```typescript
-import { notifyPermissionDenied } from '@semiont/react-ui';
-
-// In QueryCache.onError
+// inside SemiontBrowser, observing transport errors
 if (error instanceof APIError && error.status === 403) {
-  notifyPermissionDenied('You need admin access for this action');
+  signals.notifyPermissionDenied(error.message);
 }
 ```
 
-When no `KnowledgeBaseSessionProvider` is mounted (e.g. on the landing page), the call is a no-op. The provider clears the flag when the user dismisses the modal via `acknowledgePermissionDenied()`.
+When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so nothing is raised. The signal is cleared (`clearPermissionDenied`) when the user dismisses the modal.
 
 ## 403 Error Handling Flow
 
 ```mermaid
 flowchart TD
     A[API Call] --> B{Response Status}
-    B -->|403| C[APIError Thrown]
-    C --> D[QueryCache.onError]
-    D --> E[notifyPermissionDenied]
-    E --> F[Provider sets permissionDeniedAt]
-    F --> G[PermissionDeniedModal reads context, shows]
+    B -->|403| C[APIError on transport.errors$]
+    C --> D[SemiontBrowser observes the error]
+    D --> E[signals.notifyPermissionDenied]
+    E --> F[permissionDeniedAt$ set on active session]
+    F --> G[PermissionDeniedModal reads activeSignals$, shows]
     G --> H{User Choice}
-    H -->|Go Back| I[Router.back + ack]
-    H -->|Go Home| J[Navigate to / + ack]
-    H -->|Switch Account| K[Sign In Flow + ack]
+    H -->|Go Back| I[Router.back + clear]
+    H -->|Go Home| J[Navigate to / + clear]
+    H -->|Switch Account| K[Sign In Flow + clear]
 ```
 
 ### Error Detection Layers
 
-1. **API Client Level** (`@semiont/http-transport`)
-   - Throws `APIError` with status: 403
-   - Preserves error context from backend
+1. **Transport Level** (`@semiont/http-transport`)
+   - Throws `APIError` with status: 403 and surfaces it on `transport.errors$`
+   - Preserves error context from the backend
 
-2. **React Query Level** (`apps/frontend/src/app/providers.tsx`)
+2. **Session Level** (`@semiont/sdk` — `SemiontBrowser`)
    ```typescript
    if (error instanceof APIError && error.status === 403) {
-     notifyPermissionDenied('Permission denied');
+     signals.notifyPermissionDenied('Permission denied');
    }
    ```
 
 3. **Component Level**
-   - Components inside `AuthShell` can read `isAdmin` / `isModerator` from `useKnowledgeBaseSession()` to disable or hide UI affordances proactively
+   - Components can read `isAdmin` / `isModerator` from the active session's `user$` (`useObservable(session?.user$)`) to disable or hide UI affordances proactively
 
 ## Security Considerations
 
@@ -195,7 +196,8 @@ Both systems use the same event-driven architecture for consistent error handlin
 
 ```typescript
 function MyComponent() {
-  const { isAdmin } = useKnowledgeBaseSession();
+  const session = useObservable(useSemiont().activeSession$);
+  const isAdmin = useObservable(session?.user$)?.isAdmin ?? false;
 
   if (!isAdmin) {
     return <ReadOnlyMessage />;
@@ -208,15 +210,13 @@ function MyComponent() {
 ### Handling Permission Errors
 
 ```typescript
-// Using React Query mutation
-const deleteMutation = api.documents.delete.useMutation();
-
+// A verb call rejects on failure; a 403 also surfaces the modal automatically
 try {
-  await deleteMutation.mutateAsync(documentId);
+  await semiont.mark.delete(resourceId, annotationId);
 } catch (error) {
   if (error instanceof APIError && error.status === 403) {
-    // Automatically handled by global error handler
-    // PermissionDeniedModal will appear
+    // The transport stamped this as `forbidden` and already routed it to
+    // SessionSignals → PermissionDeniedModal appears
   }
 }
 ```
@@ -280,14 +280,7 @@ describe('Authorization', () => {
 
 ### Environment Variables
 
-Currently no specific authorization environment variables. Future additions might include:
-
-```bash
-# Future configuration
-NEXT_PUBLIC_ENABLE_RBAC=true
-NEXT_PUBLIC_PERMISSION_CACHE_TTL=300
-NEXT_PUBLIC_ACCESS_REQUEST_ENABLED=true
-```
+There are currently no authorization-specific environment variables.
 
 ### Permission Definitions
 
@@ -306,7 +299,7 @@ const permissions = {
 ### Common Issues
 
 1. **Modal not appearing on 403**
-   - Check if `notifyPermissionDenied` is being called from QueryCache.onError
+   - Check that the transport surfaced a `forbidden` error on `session.errors$` (it drives `notifyPermissionDenied`)
    - Verify `PermissionDeniedModal` is mounted inside `AuthShell`
    - Confirm the page is inside the protected layout boundary — outside it, no provider is mounted and the notify call is a no-op
    - Check browser console for errors

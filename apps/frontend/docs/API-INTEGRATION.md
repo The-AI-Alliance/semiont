@@ -1,9 +1,10 @@
 # API Integration Guide
 
 How the Semiont frontend integrates with the backend through the
-framework-agnostic `@semiont/react-ui` library and the `@semiont/http-transport`
-package — including the provider pattern, bus gateway transport, and
-W3C annotation model.
+framework-agnostic `@semiont/react-ui` library, the `@semiont/sdk` client
+(`SemiontClient`, sessions, the namespace verb API), and the
+`@semiont/http-transport` wire adapter — including the provider model, bus
+gateway transport, and W3C annotation model.
 
 ## Overview
 
@@ -25,21 +26,32 @@ that maintains framework independence:
 │    packages/react-ui                │
 │  (Framework-agnostic library)       │
 │                                     │
-│  • ApiClientProvider                │
-│  • AuthTokenProvider                │
+│  • SemiontProvider — the single     │
+│    React bridge to SemiontBrowser   │
 │  • Flow state units (RxJS)          │
 │  • UI components & hooks            │
 └─────────────┬───────────────────────┘
               │ uses
               ▼
 ┌─────────────────────────────────────┐
-│    packages/http-transport              │
-│  (Type-safe API client)             │
+│    packages/sdk                     │
+│  (SemiontClient + sessions)         │
+│                                     │
+│  • SemiontBrowser / SemiontSession  │
+│  • Namespace verb API               │
+│    (browse, mark, yield, …)         │
+│  • Bus gateway (single SSE)         │
+└─────────────┬───────────────────────┘
+              │ uses
+              ▼
+┌─────────────────────────────────────┐
+│    packages/http-transport          │
+│  (Wire adapter)                     │
 │                                     │
 │  • OpenAPI-generated types          │
-│  • Namespace verb API               │
-│  • Bus gateway (single SSE)         │
-│  • HTTP for binary + auth           │
+│  • HttpTransport (HTTP + bus)       │
+│  • Binary + media-token auth        │
+│  • APIError                         │
 └─────────────────────────────────────┘
 ```
 
@@ -47,58 +59,83 @@ All API interactions feature:
 
 - **Type-safety** — TypeScript types generated from the OpenAPI spec
 - **Framework-agnostic react-ui** — plugs into any React framework via providers
-- **Observable auth** — `token$: BehaviorSubject<AccessToken | null>` reactively drives bus auth
-- **One bus connection** — `SemiontApiClient` maintains a single SSE subscription to `/bus/subscribe`
+- **In-memory bearer auth** — the per-KB `SemiontSession` holds the access token in JS memory and feeds the client's `token$`; no cookies, no ambient credentials
+- **One bus connection** — `SemiontClient` maintains a single SSE subscription to `/bus/subscribe`
 - **Structured errors** — consistent error shape from the backend, surfaced through `APIError`
 
-## Provider Pattern Architecture
+## Provider Model
 
-The Provider Pattern lets `@semiont/react-ui` run in any React framework
-by abstracting framework-specific pieces (session, token source, routing)
-behind a small set of context providers.
+`@semiont/react-ui` stays framework-neutral by keeping all session and client
+logic in `@semiont/sdk` — pure RxJS classes with no React inside — and exposing
+exactly **one** React bridge: `SemiontProvider`.
 
-### How It Works
+### How it works
 
-1. `@semiont/react-ui` exposes providers that take a minimal, framework-neutral shape (e.g. `AuthTokenProvider` takes `token: string | null`).
-2. The frontend mounts those providers with values sourced from its own auth system.
-3. Components inside read from the providers via hooks — they never touch the framework directly.
+`SemiontProvider` puts the module-scoped `SemiontBrowser` singleton into React
+context; `useSemiont()` hands it back. The browser owns everything
+session-related (the KB list, the active KB, and the per-KB `SemiontSession`),
+lives outside React, and survives every re-render and route change. There is
+**no** stack of token/client providers — a component reads the active client
+through the browser's observables:
 
-This boundary lets the same library power a Vite app, a Next.js app, or
-a mobile shell without code changes to the components.
+```tsx
+import { useSemiont, useObservable } from '@semiont/react-ui';
 
-### Provider Stack
-
-For an authenticated area of the app the provider stack looks like:
-
-```
-EventBusProvider
-  └── AuthTokenProvider (token: string | null from your auth system)
-       └── ApiClientProvider (baseUrl, tokenRefresher?)
-            └── your components
+function useClient() {
+  // null until a session is active for the current KB
+  return useObservable(useSemiont().activeSession$)?.client;
+}
 ```
 
-`ApiClientProvider` reads the `BehaviorSubject` from `AuthTokenContext`
-and passes it to `SemiontApiClient` as `token$`. The client uses
-`token$.getValue()` on every request and subscribes to it to start its
-bus actor the first time a real token arrives.
+The app mounts the provider once at the root (see
+`apps/frontend/src/app/providers.tsx`):
 
-**Reference implementation**: see
+```tsx
+<TranslationProvider …>
+  <SemiontProvider>
+    {/* Toast, LiveRegion, KeyboardShortcuts, Theme, then the app */}
+  </SemiontProvider>
+</TranslationProvider>
+```
+
+Most components never read the client directly — dedicated hooks
+(`useMediaToken`, `useResourceContent`, the flow state units) encapsulate the
+`activeSession$ → client` read.
+
+**Reference**: see
 [`packages/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md)
-for the exact provider API. See
+for the session/provider API and
 [`packages/sdk/docs/Usage.md`](../../../packages/sdk/docs/Usage.md)
-for how the client consumes `token$`.
+for the client and bus subscription.
 
 ## Authentication Flow
 
-A user is always authenticated against a specific Knowledge Base.
-`KnowledgeBaseSessionProvider` (mounted via `AuthShell` in protected
-layouts) owns the active KB, the per-KB JWT in localStorage, and the
-validated session.
+A user is always authenticated against a specific Knowledge Base; there is
+**no global session**. The `SemiontBrowser` singleton holds:
+
+- `kbs$` — the known Knowledge Bases
+- `activeKbId$` — which one is active
+- `activeSession$` — the active KB's `SemiontSession` (or `null` when signed out)
+- `activeSignals$` — that session's session-expired / permission-denied signals
+
+Switching KBs swaps `activeSession$` atomically. Each `SemiontSession` owns its
+own `SemiontClient` and the per-KB **bearer token in JS memory** — a 10-minute
+access token re-minted from a 30-day refresh token. Bearer-only: no cookie, no
+ambient credential.
+
+- **Sign in** — `SemiontSession.signInHttp({ … })` exchanges credentials for the
+  JWT (returned in the response body) and activates the session.
+- **Sign out** — `browser.signOut(kbId)` calls the backend logout, which bumps
+  the user's `tokenVersion` — revoking the refresh token and every live access
+  token **server-side, on all devices** — and clears `activeSession$`.
+
+Protected layouts mount `AuthShell`, which mounts the protected error boundary
+and the two auth-failure modals; the modals read the active session's signals
+(`activeSignals$`):
 
 ```tsx
 // apps/frontend/src/contexts/AuthShell.tsx
 import {
-  KnowledgeBaseSessionProvider,
   ProtectedErrorBoundary,
   SessionExpiredModal,
   PermissionDeniedModal,
@@ -106,42 +143,35 @@ import {
 
 export function AuthShell({ children }) {
   return (
-    <KnowledgeBaseSessionProvider>
-      <ProtectedErrorBoundary>
-        <SessionExpiredModal />
-        <PermissionDeniedModal />
-        {children}
-      </ProtectedErrorBoundary>
-    </KnowledgeBaseSessionProvider>
+    <ProtectedErrorBoundary>
+      <SessionExpiredModal />
+      <PermissionDeniedModal />
+      {children}
+    </ProtectedErrorBoundary>
   );
 }
 ```
 
-Components inside the shell read session state with `useKnowledgeBaseSession()`:
+Components read auth state by subscribing to the browser's observables — a
+`null` `activeSession$` means the user isn't signed into the active KB:
 
 ```tsx
-import { useKnowledgeBaseSession } from '@semiont/react-ui';
+import { useSemiont, useObservable } from '@semiont/react-ui';
 
 function UserBadge() {
-  const { isAuthenticated, displayName, signOut, activeKnowledgeBase } =
-    useKnowledgeBaseSession();
-  if (!isAuthenticated || !activeKnowledgeBase) return null;
-  return (
-    <button onClick={() => signOut(activeKnowledgeBase.id)}>
-      {displayName} (Sign out)
-    </button>
-  );
+  const browser = useSemiont();
+  const session = useObservable(browser.activeSession$);
+  const activeKbId = useObservable(browser.activeKbId$);
+  if (!session || !activeKbId) return null;
+  return <button onClick={() => browser.signOut(activeKbId)}>Sign out</button>;
 }
 ```
-
-The hook throws if called outside the provider — there is no fallback.
-Auth-aware components must always be inside the protected boundary.
 
 **Key points:**
 
 - **Per-KB sessions** — there is no global session; switching KBs switches sessions atomically.
-- **No manual token management** — the session provider handles storage; the http-transport reads the token observably.
-- **Type-safe** — types flow from the OpenAPI spec through the http-transport to components.
+- **No manual token management** — the `SemiontSession` mints and refreshes the bearer token in memory; the client reads it observably.
+- **Type-safe** — types flow from the OpenAPI spec through the transport to components.
 
 ## Bus Gateway Transport
 
@@ -282,8 +312,8 @@ like `browse:resources-failed`), raised from the promise returned by
 
 ### Automatic Recovery
 
-- **401 errors** — if `ApiClientProvider` is given a `tokenRefresher`, the client retries once with a fresh token before propagating the error.
-- **Session expired** — `KnowledgeBaseSessionProvider` detects expiry and surfaces `SessionExpiredModal`.
+- **401 errors** — the `SemiontSession` re-mints a fresh access token from the refresh token and retries once before propagating the error.
+- **Session expired** — when the refresh token is gone or revoked, the active session's signals surface `SessionExpiredModal`.
 - **Permission denied** — surfaced via `PermissionDeniedModal`.
 
 ## Related Documentation

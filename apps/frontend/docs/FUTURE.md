@@ -105,7 +105,7 @@ val documents = client.documentsApi.listDocuments()
 - **Framework**: React Native + Expo
 - **API Client**: `@semiont/http-transport` (reuse existing!)
 - **Storage**: AsyncStorage + SQLite
-- **Sync**: React Query with persistence
+- **Sync**: `@semiont/sdk` observable caches, with the bus gateway (SSE) for live updates
 - **Auth**: expo-auth-session for OAuth
 
 **Key Advantages**:
@@ -117,16 +117,16 @@ val documents = client.documentsApi.listDocuments()
 **Starting Point**:
 ```typescript
 // apps/mobile-app
-import { api } from '@semiont/http-transport';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { SemiontClient } from '@semiont/sdk';
+import { useObservable } from '@semiont/react-ui';
 
-function DocumentList() {
-  const { data, isLoading } = api.documents.list.useQuery();
+function ResourceList({ semiont }: { semiont: SemiontClient }) {
+  const resources = useObservable(semiont.browse.resources());
 
   return (
     <FlatList
-      data={data?.documents}
-      renderItem={({ item }) => <DocumentCard document={item} />}
+      data={resources ?? []}
+      renderItem={({ item }) => <ResourceCard resource={item} />}
     />
   );
 }

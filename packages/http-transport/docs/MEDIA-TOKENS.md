@@ -17,7 +17,7 @@ A media token is a short-lived JWT with:
 
 Signed with the same `JWT_SECRET` as session tokens. No backend state — validation is pure crypto.
 
-The token is appended as a query parameter: `?token=<media-token>`. The backend validates it on resource endpoints and accepts it in place of a session cookie or Bearer token.
+The token is appended as a query parameter: `?token=<media-token>`. The backend validates it on resource endpoints and accepts it in place of a Bearer token (for elements that can't send a header).
 
 ### Threat model
 
@@ -54,7 +54,7 @@ const { token, loading } = useMediaToken(resourceId);
 ```
 ResourceViewerPage
   → useMediaToken(resourceId)
-      → POST /api/tokens/media  (Bearer/cookie auth, once per 4 min)
+      → POST /api/tokens/media  (Bearer auth, once per 4 min)
       → { token }
   → resourceUrl = `${baseUrl}/api/resources/${id}?token=${token}`
   → passes resourceUrl to viewer component

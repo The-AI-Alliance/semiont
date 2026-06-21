@@ -39,7 +39,7 @@ interface ITransport {
 
   // Typed wire methods: auth, admin, exchange, system
   authenticatePassword, authenticateGoogle, refreshAccessToken,
-  logout, acceptTerms, getCurrentUser, generateMcpToken, getMediaToken,
+  logout, acceptTerms, getCurrentUser, getMediaToken,
   listUsers, getUserStats, updateUser, getOAuthConfig,
   backupKnowledgeBase, restoreKnowledgeBase,
   exportKnowledgeBase, importKnowledgeBase,

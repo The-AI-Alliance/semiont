@@ -183,11 +183,11 @@ export class SemiontBrowser {
     return this.eventBus.get(channel).asObservable();
   }
 
-  // ── Identity token (NextAuth bridge; D1) ──────────────────────────────
+  // ── Identity token (external OAuth/identity bridge; D1) ───────────────
 
   /**
-   * Set the app-level identity token. Sourced from whatever the host
-   * environment uses for OAuth sessions (e.g. NextAuth in a browser app).
+   * Set the app-level identity token. Sourced from an external
+   * OAuth/identity-provider token supplied by the host environment.
    * Should be called once from the host's startup-and-on-change site;
    * no other code should write to this slot.
    */
