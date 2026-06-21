@@ -443,13 +443,15 @@ apps/frontend/src/
 
 packages/react-ui/src/      # Reusable React components library
 ├── features/              # Feature-based components
-│   ├── auth/              # Authentication components
+│   ├── auth/              # Sign-in / sign-up components
 │   │   ├── components/
 │   │   │   ├── SignInForm.tsx         # Framework-agnostic sign-in
 │   │   │   ├── SignUpForm.tsx         # Framework-agnostic sign-up
-│   │   │   ├── AuthErrorDisplay.tsx   # Error display
-│   │   │   └── WelcomePage.tsx        # Welcome page
+│   │   │   └── AuthErrorDisplay.tsx   # Error display
 │   │   └── __tests__/     # Component tests
+│   ├── auth-welcome/      # Post-auth welcome / terms
+│   │   └── components/
+│   │       └── WelcomePage.tsx        # Welcome page
 │   ├── resource-viewer/   # Resource viewing components
 │   ├── resource-discovery/ # Discovery components
 │   └── ...                # Other feature modules
@@ -463,20 +465,21 @@ packages/react-ui/src/      # Reusable React components library
 │   └── ...                # Other reusable components
 ├── contexts/              # Provider Pattern contexts
 │   ├── AnnotationContext.tsx
-│   ├── CacheContext.tsx
-│   ├── ApiClientContext.tsx
-│   ├── TranslationContext.tsx
-│   └── KnowledgeBaseSessionContext.tsx
+│   ├── ResourceAnnotationsContext.tsx
+│   ├── RoutingContext.tsx
+│   ├── ThemeContext.tsx
+│   └── TranslationContext.tsx
 ├── hooks/                 # Reusable React hooks
-│   ├── useResourceAnnotations.ts
+│   ├── useObservable.ts
+│   ├── useResourceGraph.ts
 │   └── ...
 ├── lib/                   # Reusable utilities
 │   ├── annotation-registry.ts  # Annotation type metadata
-│   ├── api-hooks.ts       # API client utilities
+│   ├── validation.ts      # Form validation rules
 │   └── ...
 └── types/                 # Shared TypeScript interfaces
     ├── AnnotationManager.ts
-    ├── CacheManager.ts
+    ├── TranslationManager.ts
     └── ...
 ```
 
@@ -484,7 +487,7 @@ packages/react-ui/src/      # Reusable React components library
 - `apps/frontend/src` - Vite SPA pages and app-specific implementations
 - `packages/react-ui/src` - Framework-agnostic components and interfaces
 
-**Note**: Authentication components (SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage) are framework-agnostic and live in `packages/react-ui/src/features/auth/`. The frontend provides React Router-specific wrappers that handle routing, translations, and auth state.
+**Note**: Authentication components (SignInForm, SignUpForm, AuthErrorDisplay) are framework-agnostic and live in `packages/react-ui/src/features/auth/`; the post-auth WelcomePage lives in `packages/react-ui/src/features/auth-welcome/`. The frontend provides React Router-specific wrappers that handle routing, translations, and auth state.
 
 See [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) for documentation on the reusable component library.
 
