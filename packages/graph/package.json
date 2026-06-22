@@ -1,6 +1,6 @@
 {
   "name": "@semiont/graph",
-  "version": "0.5.9",
+  "version": "0.5.10",
   "engines": {
     "node": ">=24.0.0"
   },
