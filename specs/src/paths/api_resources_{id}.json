@@ -1,7 +1,7 @@
 {
   "get": {
     "summary": "Get a resource's stored representation (browser-friendly alias)",
-    "description": "Identical pipe to GET /resources/{id} — verbatim bytes, stored media type in Content-Type, Accept never read. Exists only as the auth affordance for `<img>` / PDF.js / download links, which cannot carry Authorization headers: the `?token=` media token or the httpOnly semiont-token cookie ride along automatically.\n\nResponses carry `Cache-Control: public, max-age=31536000, immutable` — `public` is safe here, unlike the bearer-authenticated main route, because the `?token=` is part of the cache key.",
+    "description": "Identical pipe to GET /resources/{id} — verbatim bytes, stored media type in Content-Type, Accept never read. Exists only as the auth affordance for `<img>` / PDF.js / download links, which cannot carry Authorization headers: the `?token=` media token rides along automatically.\n\nResponses carry `Cache-Control: public, max-age=31536000, immutable` — `public` is safe here, unlike the bearer-authenticated main route, because the `?token=` is part of the cache key.",
     "tags": ["Resources"],
     "security": [
       { "bearerAuth": [] }
