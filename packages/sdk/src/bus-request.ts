@@ -1,10 +1,11 @@
 import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxjs';
-import { catchError, filter, map, take, timeout } from 'rxjs/operators';
+import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
 import { SemiontError, type EventMap } from '@semiont/core';
 
 export type BusRequestErrorCode =
   | 'bus.timeout'
   | 'bus.rejected'
+  | 'bus.closed'
   | 'bus.bad-payload'
   | 'bus.unauthorized'
   | 'bus.forbidden'
@@ -72,30 +73,32 @@ export async function busRequest<TResult>(
       }
       return throwError(() => err);
     }),
+    // If the stream completes with no value — the bus was disposed before a
+    // reply (e.g. during `semiont.dispose()` with a request in flight) —
+    // resolve to a typed `bus.closed` result instead of letting `firstValueFrom`
+    // throw rxjs `EmptyError`. An awaited caller then gets a clean
+    // BusRequestError; an in-flight promise nobody is awaiting simply resolves,
+    // so it can't surface as an unhandled rejection on dispose.
+    // See .plans/bugs/busrequest-emptyerror-on-dispose.md.
+    defaultIfEmpty({
+      ok: false as const,
+      error: new BusRequestError(
+        `Bus closed before a reply on ${resultChannel}`,
+        'bus.closed',
+        { channel: emitChannel, resultChannel, correlationId },
+      ),
+    }),
   );
 
   // Subscribe before emitting so we don't miss an instantaneous reply
   // (which can happen with an in-process LocalTransport bus).
   const resultPromise = firstValueFrom(result$);
 
-  try {
-    await bus.emit(emitChannel as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
-  } catch (err) {
-    // If emit threw, control is about to leave this function without
-    // anyone awaiting `resultPromise`. Its subscription stays open
-    // until the bus completes (e.g. during `semiont.dispose()`), at
-    // which point firstValueFrom throws EmptyError with no consumer —
-    // surfacing as an uncaught rejection in skill scripts as a
-    // cosmetic stack trace after `Done.`.
-    //
-    // Attach a no-op handler so the eventual rejection has somewhere
-    // to land. We can't actively cancel the firstValueFrom
-    // subscription (its Promise type exposes no handle), but
-    // suppressing its unhandled-rejection is enough; the bus's
-    // natural lifecycle tears the subscription down whenever it ends.
-    resultPromise.catch(() => {});
-    throw err;
-  }
+  // No guard around emit: an emit rejection propagates to the caller
+  // naturally, and `result$`'s `defaultIfEmpty` guarantees `resultPromise`
+  // *resolves* (never rejects) when the bus is disposed before a reply — so it
+  // cannot leak an unhandled rejection regardless of whether anyone awaits it.
+  await bus.emit(emitChannel as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
 
   const result = await resultPromise;
   if (!result.ok) {
