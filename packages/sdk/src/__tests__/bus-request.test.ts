@@ -240,6 +240,49 @@ describe('busRequest', () => {
       process.off('unhandledRejection', onUnhandled);
     }
   });
+
+  it('does not leak an unhandled rejection when the bus is disposed while a fire-and-forget request is in flight', async () => {
+    // The reported crash (busrequest-emptyerror-on-dispose): a busRequest whose
+    // `emit` is still pending — so its internal `firstValueFrom` promise has no
+    // awaiter yet — and whose returned promise nobody awaits. When the bus
+    // completes (dispose), pre-fix `firstValueFrom` rejects `EmptyError` with no
+    // handler → unhandledRejection → process crash.
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const bus = makeBus(RESULT, FAILURE);
+      // emit never resolves → busRequest parks at `await bus.emit()`, so its
+      // `await resultPromise` is never reached (resultPromise has no awaiter).
+      bus.emit = vi.fn(() => new Promise<void>(() => {})) as BusRequestPrimitive['emit'];
+
+      // Fire-and-forget: do NOT await the returned promise.
+      void busRequest(bus, EMIT, {}, RESULT, FAILURE);
+      await Promise.resolve();
+
+      // Dispose: complete the underlying subjects, as `semiont.dispose()` does.
+      bus.resultSubject.complete();
+      bus.failureSubject.complete();
+
+      await new Promise((r) => setTimeout(r, 10));
+      expect(unhandled).toHaveLength(0);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
+  it('rejects an awaited request with BusRequestError(bus.closed) when the bus is disposed before a reply', async () => {
+    const bus = makeBus(RESULT, FAILURE);
+    const promise = busRequest(bus, EMIT, {}, RESULT, FAILURE);
+    await Promise.resolve(); // let emit resolve; busRequest now awaits the reply
+
+    // Dispose before any reply arrives.
+    bus.resultSubject.complete();
+    bus.failureSubject.complete();
+
+    await expect(promise).rejects.toMatchObject({ code: 'bus.closed' });
+  });
 });
 
 describe('BusRequestError', () => {
