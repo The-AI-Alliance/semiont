@@ -17,7 +17,8 @@
 import { describe, expect, it } from 'vitest';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { CacheObservable, StreamObservable } from '../awaitable';
+import { resourceId as toResourceId } from '@semiont/core';
+import { CacheObservable, StreamObservable, UploadObservable } from '../awaitable';
 
 describe('StreamObservable', () => {
   it('await resolves to the last emitted value', async () => {
@@ -144,5 +145,78 @@ describe('CacheObservable', () => {
     const wrapped = CacheObservable.from(source);
     expect(wrapped).toBeInstanceOf(CacheObservable);
     expect(await wrapped).toBe('hello');
+  });
+});
+
+describe('StreamObservable.run', () => {
+  it('subscribes the producer exactly ONCE — progress via callback, terminal via the promise (A2 fix)', async () => {
+    let subscribeCount = 0;
+    const stream = new StreamObservable<string>((subscriber) => {
+      subscribeCount += 1;
+      subscriber.next('progress');
+      subscriber.next('done');
+      subscriber.complete();
+    });
+    const seen: string[] = [];
+    const last = await stream.run((v) => seen.push(v));
+    expect(subscribeCount).toBe(1);
+    expect(seen).toEqual(['progress', 'done']);
+    expect(last).toBe('done');
+  });
+
+  it('rejects when the source errors', async () => {
+    const stream = new StreamObservable<number>((subscriber) => {
+      subscriber.next(1);
+      subscriber.error(new Error('boom'));
+    });
+    await expect(stream.run(() => {})).rejects.toThrow('boom');
+  });
+
+  it('rejects when the source completes without emitting (mirrors lastValueFrom)', async () => {
+    const stream = new StreamObservable<number>((subscriber) => {
+      subscriber.complete();
+    });
+    await expect(stream.run(() => {})).rejects.toThrow();
+  });
+
+  it('characterizes the A2 footgun: subscribe + await fires a COLD producer TWICE', async () => {
+    // The trap `run()` exists to avoid. Pinned so the MULTICAST-JOB-TRIGGERS
+    // redesign (which would make this 1) is a deliberate, tested flip — not a
+    // silent behavior change.
+    let subscribeCount = 0;
+    const stream = new StreamObservable<number>((subscriber) => {
+      subscribeCount += 1;
+      subscriber.next(1);
+      subscriber.complete();
+    });
+    stream.subscribe({ next: () => {} });
+    await stream;
+    expect(subscribeCount).toBe(2);
+  });
+});
+
+describe('UploadObservable.run', () => {
+  it('forwards each progress event and resolves { resourceId } from ONE subscription', async () => {
+    let subscribeCount = 0;
+    const upload = new UploadObservable((subscriber) => {
+      subscribeCount += 1;
+      subscriber.next({ phase: 'started', totalBytes: 10 });
+      subscriber.next({ phase: 'progress', bytesUploaded: 5, totalBytes: 10 });
+      subscriber.next({ phase: 'finished', resourceId: toResourceId('res-1') });
+      subscriber.complete();
+    });
+    const phases: string[] = [];
+    const result = await upload.run((e) => phases.push(e.phase));
+    expect(subscribeCount).toBe(1);
+    expect(phases).toEqual(['started', 'progress', 'finished']);
+    expect(result).toEqual({ resourceId: toResourceId('res-1') });
+  });
+
+  it('rejects if the terminal event is not "finished"', async () => {
+    const upload = new UploadObservable((subscriber) => {
+      subscriber.next({ phase: 'started', totalBytes: 0 });
+      subscriber.complete();
+    });
+    await expect(upload.run(() => {})).rejects.toThrow();
   });
 });
