@@ -26,7 +26,7 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
 
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
       - name: Read version
         id: version
@@ -89,7 +89,7 @@ jobs:
     permissions:
       actions: write
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Trigger npm publish workflow
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
