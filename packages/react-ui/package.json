@@ -87,6 +87,7 @@
     }
   },
   "devDependencies": {
+    "@headlessui/react": "^2.2.10",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^16.1.0",
     "@types/react": "^19.2.16",
@@ -120,6 +121,7 @@
     "@semiont/http-transport": "*",
     "@semiont/sdk": "*",
     "pdfjs-dist": "^6.0.227",
-    "react-error-boundary": "^6.1.2"
+    "react-error-boundary": "^6.1.2",
+    "use-sync-external-store": "^1.6.0"
   }
 }
