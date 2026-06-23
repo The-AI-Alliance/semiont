@@ -79,10 +79,14 @@
   "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "styled-components": "^6.0.0"
+    "styled-components": "^6.0.0",
+    "vitest": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "styled-components": {
+      "optional": true
+    },
+    "vitest": {
       "optional": true
     }
   },
@@ -122,6 +126,8 @@
     "@semiont/sdk": "*",
     "pdfjs-dist": "^6.0.227",
     "react-error-boundary": "^6.1.2",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "use-sync-external-store": "^1.6.0"
   }
 }
