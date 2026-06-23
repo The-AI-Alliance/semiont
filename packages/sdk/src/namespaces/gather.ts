@@ -1,9 +1,12 @@
 import { merge } from 'rxjs';
 import { filter, map, takeUntil } from 'rxjs/operators';
-import type { AnnotationId, ResourceId, EventBus } from '@semiont/core';
+import type { AnnotationId, ResourceId, EventBus, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { StreamObservable } from '../awaitable';
+import { busRequest } from '../bus-request';
 import type { GatherNamespace as IGatherNamespace, GatherAnnotationProgress } from './types';
+
+type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextResponse'];
 
 export class GatherNamespace implements IGatherNamespace {
   constructor(
@@ -69,10 +72,38 @@ export class GatherNamespace implements IGatherNamespace {
     });
   }
 
+  /**
+   * Gather whole-resource LLM context — a request/reply over
+   * `gather:resource-requested` → `gather:resource-complete`/`-failed`. Unlike
+   * `annotation()` there are no progress events, so this is a `Promise`, not a
+   * `StreamObservable`. Resolves to the `ResourceLLMContextResponse` the backend
+   * assembled (the resource graph + related resources + annotations); rejects
+   * with a `BusRequestError` on failure. Defaults mirror the CLI `gather`
+   * command (depth 2, maxResources 10, content in, summary out).
+   */
   resource(
-    _resourceId: ResourceId,
-    _options?: { contextWindow?: number },
-  ): StreamObservable<GatherAnnotationProgress> {
-    throw new Error('Not implemented: gather.resource() — no backend route yet');
+    resourceId: ResourceId,
+    options?: {
+      depth?: number;
+      maxResources?: number;
+      includeContent?: boolean;
+      includeSummary?: boolean;
+    },
+  ): Promise<ResourceLLMContextResponse> {
+    return busRequest<ResourceLLMContextResponse>(
+      this.transport,
+      'gather:resource-requested',
+      {
+        resourceId,
+        options: {
+          depth: options?.depth ?? 2,
+          maxResources: options?.maxResources ?? 10,
+          includeContent: options?.includeContent ?? true,
+          includeSummary: options?.includeSummary ?? false,
+        },
+      },
+      'gather:resource-complete',
+      'gather:resource-failed',
+    );
   }
 }

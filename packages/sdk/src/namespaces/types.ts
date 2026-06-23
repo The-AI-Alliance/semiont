@@ -53,6 +53,7 @@ type GatherProgress = components['schemas']['GatherProgress'];
 type MatchSearchResult = components['schemas']['MatchSearchResult'];
 type JobProgress = components['schemas']['JobProgress'];
 type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
+type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextResponse'];
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
 type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
@@ -337,8 +338,13 @@ export interface GatherNamespace {
 
   resource(
     resourceId: ResourceId,
-    options?: { contextWindow?: number },
-  ): StreamObservable<GatherAnnotationProgress>;
+    options?: {
+      depth?: number;
+      maxResources?: number;
+      includeContent?: boolean;
+      includeSummary?: boolean;
+    },
+  ): Promise<ResourceLLMContextResponse>;
 }
 
 /**

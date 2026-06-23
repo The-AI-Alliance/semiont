@@ -47,7 +47,12 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
 
   if (subcommand === 'resource') {
     const id = toResourceId(rawResourceId);
-    result = await semiont.gather.resource(id, { contextWindow: options.contextWindow });
+    result = await semiont.gather.resource(id, {
+      depth: options.depth,
+      maxResources: options.maxResources,
+      includeContent: !options.noContent,
+      includeSummary: options.summary,
+    });
   } else if (subcommand === 'annotation') {
     if (!rawAnnotationId) {
       throw new Error('Usage: semiont gather annotation <resourceId> <annotationId>');
