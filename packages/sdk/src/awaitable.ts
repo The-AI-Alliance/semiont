@@ -9,6 +9,14 @@
  * `firstValueFrom` wrappers; reactive consumers keep using `.subscribe(...)`
  * and `.pipe(...)` exactly as before.
  *
+ * ⚠️ Pick ONE consumption per instance. These are **cold** Observables, so
+ * `await` and `.subscribe(...)` each re-run the producer — doing both on the
+ * same `StreamObservable`/`UploadObservable` fires the underlying job/upload
+ * *twice* (`.then` calls `lastValueFrom`, which subscribes again). To get
+ * progress *and* the terminal result from a single execution, use `.run(onNext)`.
+ * A hot/multicast redesign that removes the footgun is proposed in
+ * `.plans/MULTICAST-JOB-TRIGGERS.md`.
+ *
  * The asymmetric `.then()` semantics — last-value-on-completion for streams,
  * first-non-undefined-value for caches — is encoded by the subclass name. The
  * docstring on the namespace method tells the consumer which one applies.
@@ -18,7 +26,7 @@
  * RxJS land; `lastValueFrom` from `rxjs` is the right bridge there.
  */
 
-import { Observable, firstValueFrom, lastValueFrom } from 'rxjs';
+import { Observable, EmptyError, firstValueFrom, lastValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { ResourceId } from '@semiont/core';
 
@@ -28,7 +36,8 @@ import type { ResourceId } from '@semiont/core';
  * `mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`.
  *
  * Awaiting resolves to the **last** emitted value (via `lastValueFrom`).
- * Subscribing yields every emission, ending in `complete`.
+ * Subscribing yields every emission, ending in `complete`. **Do not do both on
+ * one instance** (see the module note); use `run()` for progress + result.
  */
 export class StreamObservable<T> extends Observable<T> implements PromiseLike<T> {
   then<R1 = T, R2 = never>(
@@ -36,6 +45,33 @@ export class StreamObservable<T> extends Observable<T> implements PromiseLike<T>
     onrejected?: ((e: unknown) => R2 | PromiseLike<R2>) | null,
   ): PromiseLike<R1 | R2> {
     return lastValueFrom(this).then(onfulfilled, onrejected);
+  }
+
+  /**
+   * Subscribe **once**, delivering every emission to `onNext`, and resolve to
+   * the last emitted value on completion (rejects on error, or with rxjs
+   * `EmptyError` if the stream completes without emitting). The
+   * single-subscription way to consume progress *and* the terminal result from
+   * a job-triggering stream — unlike `.subscribe(...)` + `await`, which re-runs
+   * this cold Observable and fires the underlying job twice.
+   */
+  run(onNext: (value: T) => void): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      let last!: T;
+      let hasValue = false;
+      this.subscribe({
+        next: (v) => {
+          hasValue = true;
+          last = v;
+          onNext(v);
+        },
+        error: reject,
+        complete: () => {
+          if (hasValue) resolve(last);
+          else reject(new EmptyError());
+        },
+      });
+    });
   }
 
   /** Wrap an existing Observable's subscribe behavior in a StreamObservable. */
@@ -148,5 +184,29 @@ export class UploadObservable extends Observable<UploadProgress> implements Prom
       const result = { resourceId: v.resourceId };
       return onfulfilled ? onfulfilled(result) : (result as unknown as R1);
     }, onrejected);
+  }
+
+  /**
+   * Subscribe **once**, delivering every `UploadProgress` event to `onNext`, and
+   * resolve to `{ resourceId }` from the `finished` event (rejects on error, or
+   * if the terminal event isn't `finished`). The single-subscription way to
+   * track upload progress *and* get the resource id — unlike `.subscribe(...)` +
+   * `await`, which re-runs this cold Observable and uploads twice.
+   */
+  run(onNext: (event: UploadProgress) => void): Promise<{ resourceId: ResourceId }> {
+    return new Promise<{ resourceId: ResourceId }>((resolve, reject) => {
+      let last: UploadProgress | undefined;
+      this.subscribe({
+        next: (e) => {
+          last = e;
+          onNext(e);
+        },
+        error: reject,
+        complete: () => {
+          if (last?.phase === 'finished') resolve({ resourceId: last.resourceId });
+          else reject(new Error(`UploadObservable completed on a non-finished event: ${last?.phase ?? '<none>'}`));
+        },
+      });
+    });
   }
 }
