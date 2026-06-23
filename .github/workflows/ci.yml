@@ -292,6 +292,29 @@ jobs:
           semiont --version
           semiont --help
 
+  check-phantom-deps:
+    name: Phantom Dependency Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Build packages
+        run: |
+          npm ci --include=optional
+          npm run build:packages
+
+      - name: Verify every published dist import is declared
+        run: node scripts/ci/check-dist-imports.mjs
+
   build-all:
     name: Build All Applications
     runs-on: ubuntu-latest
