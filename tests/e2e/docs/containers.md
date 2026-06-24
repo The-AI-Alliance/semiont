@@ -138,7 +138,7 @@ its IP will change — re-grab it before re-running e2e.
 ## Playwright image tag must match `@playwright/test`
 
 The container invocation pins a specific tag:
-`mcr.microsoft.com/playwright:v1.60.0-noble`. If `npm install`
+`mcr.microsoft.com/playwright:v1.61.0-noble`. If `npm install`
 upgrades `@playwright/test`, pull the matching image:
 
 ```sh
