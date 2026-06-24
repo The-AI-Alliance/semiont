@@ -39,7 +39,7 @@ import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { burstBuffer, errField } from '@semiont/core';
 import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, IContentTransport } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, decodeRepresentation, textExtractionOf } from '@semiont/core';
+import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, decodeRepresentation, textExtractionOf } from '@semiont/core';
 import { calculateChecksum } from '@semiont/content';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import type { EmbeddingProvider, ChunkingConfig } from '@semiont/vectors';
@@ -322,6 +322,26 @@ export class Smelter {
     }
   }
 
+  /**
+   * Read a resource's current entity types from the materialized view — the
+   * authoritative source, updated before the EventBus fires to consumers — so
+   * its vectors carry the discriminator `searchResources` filters on (e.g.
+   * exclude `['Question']`). One read on every embed path, mirroring how the
+   * smelter already reads current content and annotations; a failed read
+   * propagates to the pipeline's per-resource error handler (reconcile heals),
+   * rather than silently stamping `[]` and letting the resource leak into recall.
+   */
+  private async resolveEntityTypes(resourceId: string): Promise<string[]> {
+    const { resource } = await busRequest<{ resource: ResourceDescriptor | undefined }>(
+      this.bus,
+      'browse:resource-requested',
+      { resourceId },
+      'browse:resource-result',
+      'browse:resource-failed',
+    );
+    return getResourceEntityTypes(resource);
+  }
+
   private async embedResource(event: SmelterInput, logMessage: string): Promise<void> {
     const rid = event.resourceId;
     if (!rid) return;
@@ -332,12 +352,13 @@ export class Smelter {
     const chunks = chunkText(fetched.text, this.chunkingConfig);
     if (chunks.length === 0) return;
 
+    const entityTypes = await this.resolveEntityTypes(rid);
     const embeddings = await this.embeddingProvider.embedBatch(chunks);
     const embeddingChunks: EmbeddingChunk[] = chunks.map((t, i) => ({
       chunkIndex: i, text: t, embedding: embeddings[i],
     }));
 
-    await this.vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks, fetched.checksum);
+    await this.vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks, fetched.checksum, entityTypes);
     this.logger.info(logMessage, { resourceId: rid, chunks: chunks.length });
   }
 
@@ -390,7 +411,7 @@ export class Smelter {
    * embedBatch() call, then index per resource.
    */
   private async batchResourceCreated(events: SmelterInput[]): Promise<number> {
-    const resourceData: { rid: ResourceId; chunks: string[]; checksum: string }[] = [];
+    const resourceData: { rid: ResourceId; chunks: string[]; checksum: string; entityTypes: string[] }[] = [];
     const allChunks: string[] = [];
 
     for (const event of events) {
@@ -403,7 +424,8 @@ export class Smelter {
       const chunks = chunkText(fetched.text, this.chunkingConfig);
       if (chunks.length === 0) continue;
 
-      resourceData.push({ rid: makeResourceId(rid), chunks, checksum: fetched.checksum });
+      const entityTypes = await this.resolveEntityTypes(rid);
+      resourceData.push({ rid: makeResourceId(rid), chunks, checksum: fetched.checksum, entityTypes });
       allChunks.push(...chunks);
     }
 
@@ -412,11 +434,11 @@ export class Smelter {
     const allEmbeddings = await this.embeddingProvider.embedBatch(allChunks);
 
     let offset = 0;
-    for (const { rid, chunks, checksum } of resourceData) {
+    for (const { rid, chunks, checksum, entityTypes } of resourceData) {
       const embeddingChunks: EmbeddingChunk[] = chunks.map((t, i) => ({
         chunkIndex: i, text: t, embedding: allEmbeddings[offset + i],
       }));
-      await this.vectorStore.upsertResourceVectors(rid, embeddingChunks, checksum);
+      await this.vectorStore.upsertResourceVectors(rid, embeddingChunks, checksum, entityTypes);
       this.logger.info('Batch-indexed resource', { resourceId: String(rid), chunks: chunks.length });
       offset += chunks.length;
     }

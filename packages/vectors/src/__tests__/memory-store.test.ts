@@ -29,7 +29,7 @@ describe('MemoryVectorStore', () => {
       const vec = await embedding.embed('Abraham Lincoln was the 16th president');
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'Abraham Lincoln was the 16th president', embedding: vec },
-      ], 'cs-lincoln');
+      ], 'cs-lincoln', []);
 
       const results = await store.searchResources(vec, { limit: 5 });
       expect(results).toHaveLength(1);
@@ -42,12 +42,12 @@ describe('MemoryVectorStore', () => {
       const vec1 = await embedding.embed('original text');
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'original text', embedding: vec1 },
-      ], 'cs-v1');
+      ], 'cs-v1', []);
 
       const vec2 = await embedding.embed('updated text');
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'updated text', embedding: vec2 },
-      ], 'cs-v2');
+      ], 'cs-v2', []);
 
       const results = await store.searchResources(vec2, { limit: 5 });
       expect(results).toHaveLength(1);
@@ -58,7 +58,7 @@ describe('MemoryVectorStore', () => {
       const vec = await embedding.embed('some text');
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'some text', embedding: vec },
-      ], 'cs-some');
+      ], 'cs-some', []);
 
       await store.deleteResourceVectors('res-1' as ResourceId);
 
@@ -72,11 +72,58 @@ describe('MemoryVectorStore', () => {
         { chunkIndex: 0, text: 'chunk one', embedding: vecs[0] },
         { chunkIndex: 1, text: 'chunk two', embedding: vecs[1] },
         { chunkIndex: 2, text: 'chunk three', embedding: vecs[2] },
-      ], 'cs-chunks');
+      ], 'cs-chunks', []);
 
       const results = await store.searchResources(vecs[0], { limit: 10 });
       expect(results.length).toBe(3);
       expect(results[0].text).toBe('chunk one'); // best match
+    });
+  });
+
+  describe('resource entity-type discrimination', () => {
+    it('stamps entityTypes onto resource vectors', async () => {
+      const vec = await embedding.embed('What is the capital of France?');
+      await store.upsertResourceVectors('q-1' as ResourceId, [
+        { chunkIndex: 0, text: 'What is the capital of France?', embedding: vec },
+      ], 'cs-q1', ['Question']);
+
+      const results = await store.searchResources(vec, { limit: 5 });
+      expect(results).toHaveLength(1);
+      expect(results[0].entityTypes).toEqual(['Question']);
+    });
+
+    it('excludes resources whose entityTypes intersect excludeEntityTypes', async () => {
+      const qVec = await embedding.embed('What is the capital of France?');
+      await store.upsertResourceVectors('q-1' as ResourceId, [
+        { chunkIndex: 0, text: 'What is the capital of France?', embedding: qVec },
+      ], 'cs-q1', ['Question']);
+
+      const dVec = await embedding.embed('Paris is the capital of France.');
+      await store.upsertResourceVectors('doc-1' as ResourceId, [
+        { chunkIndex: 0, text: 'Paris is the capital of France.', embedding: dVec },
+      ], 'cs-doc1', ['Article']);
+
+      // Query closest to the question itself, but questions must drop out of recall.
+      const results = await store.searchResources(qVec, {
+        limit: 10,
+        filter: { excludeEntityTypes: ['Question'] },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].resourceId).toBe('doc-1');
+    });
+
+    it('keeps resources when excludeEntityTypes does not intersect', async () => {
+      const vec = await embedding.embed('Paris is the capital of France.');
+      await store.upsertResourceVectors('doc-1' as ResourceId, [
+        { chunkIndex: 0, text: 'Paris is the capital of France.', embedding: vec },
+      ], 'cs-doc1', ['Article']);
+
+      const results = await store.searchResources(vec, {
+        limit: 10,
+        filter: { excludeEntityTypes: ['Question'] },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].resourceId).toBe('doc-1');
     });
   });
 
@@ -123,7 +170,7 @@ describe('MemoryVectorStore', () => {
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'chunk one', embedding: vecs[0] },
         { chunkIndex: 1, text: 'chunk two', embedding: vecs[1] },
-      ], 'cs-count');
+      ], 'cs-count', []);
 
       const annVec = await embedding.embed('an annotation');
       await store.upsertAnnotationVector('ann-1' as AnnotationId, annVec, {
@@ -146,10 +193,10 @@ describe('MemoryVectorStore', () => {
       const vecs = await embedding.embedBatch(['alpha', 'beta']);
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'alpha', embedding: vecs[0] },
-      ], 'cs-alpha');
+      ], 'cs-alpha', []);
       await store.upsertResourceVectors('res-2' as ResourceId, [
         { chunkIndex: 0, text: 'beta', embedding: vecs[1] },
-      ], 'cs-beta');
+      ], 'cs-beta', []);
 
       expect(await store.listResourceChecksums()).toEqual(new Map([
         ['res-1', 'cs-alpha'],
@@ -161,10 +208,10 @@ describe('MemoryVectorStore', () => {
       const vec = await embedding.embed('gamma');
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'gamma', embedding: vec },
-      ], 'cs-old');
+      ], 'cs-old', []);
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'gamma', embedding: vec },
-      ], 'cs-new');
+      ], 'cs-new', []);
 
       expect((await store.listResourceChecksums()).get('res-1')).toBe('cs-new');
     });

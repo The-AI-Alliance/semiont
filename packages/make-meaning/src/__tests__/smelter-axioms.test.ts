@@ -594,13 +594,13 @@ describe('Smelter axioms', () => {
             if (div.preIndexed[i]) {
               await h.store.upsertResourceVectors(makeResourceId(catalog[i].rid), [
                 { chunkIndex: 0, text: catalog[i].text, embedding: deterministicEmbed(catalog[i].text) },
-              ], calculateChecksum(catalog[i].text));
+              ], calculateChecksum(catalog[i].text), []);
             }
           }
           for (const rid of div.orphanRids) {
             await h.store.upsertResourceVectors(makeResourceId(rid), [
               { chunkIndex: 0, text: 'orphan', embedding: deterministicEmbed('orphan') },
-            ], calculateChecksum('orphan'));
+            ], calculateChecksum('orphan'), []);
           }
           for (const aid of div.orphanAids) {
             await h.store.upsertAnnotationVector(makeAnnotationId(aid), deterministicEmbed(aid), {

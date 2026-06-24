@@ -39,6 +39,13 @@ export interface SearchOptions {
     resourceId?: ResourceId;
     motivation?: string;
     excludeResourceId?: ResourceId;
+    /**
+     * Drop any point whose `entityTypes` intersect this set (any-of exclusion,
+     * the mirror of `entityTypes`). Lets a caller exclude a whole structural
+     * kind from recall — e.g. `['Question']` so answer-generation retrieval
+     * never surfaces prior questions.
+     */
+    excludeEntityTypes?: string[];
   };
 }
 
@@ -57,9 +64,11 @@ export interface VectorStore {
    * that shrinks to fewer chunks leaves no orphans. `contentChecksum` is
    * the checksum of the bytes the chunks were computed from; it is stamped
    * onto the points so reconciliation can detect stale-but-present
-   * resources (SMELTER-AXIOMS.md, S12).
+   * resources (SMELTER-AXIOMS.md, S12). `entityTypes` is the resource's
+   * entity-type set, stamped onto every point so `searchResources` can
+   * discriminate by kind (e.g. exclude `['Question']` from recall).
    */
-  upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string): Promise<void>;
+  upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[]): Promise<void>;
   upsertAnnotationVector(annotationId: AnnotationId, embedding: number[], payload: AnnotationPayload): Promise<void>;
   deleteResourceVectors(resourceId: ResourceId): Promise<void>;
   deleteAnnotationVector(annotationId: AnnotationId): Promise<void>;
