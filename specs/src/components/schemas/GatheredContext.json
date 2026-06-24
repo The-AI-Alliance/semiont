@@ -1,127 +1,94 @@
 {
   "type": "object",
-  "description": "Context gathered for an annotation. Includes source document excerpts, metadata, and graph-derived context. Used by both Find (bind) and Generate (yield) flows.",
+  "description": "Context gathered for a gather.* call — consumed by yield.* (generation) and the matcher. A shared base (graph, semanticContext, metadata, inferredRelationshipSummary) plus a discriminated `focus` that names the anchor: an annotation or a whole resource.",
   "properties": {
-    "annotation": {
-      "$ref": "./Annotation.json",
-      "description": "The annotation this context was gathered for"
-    },
-    "sourceResource": {
-      "$ref": "./ResourceDescriptor.json",
-      "description": "The resource containing the annotation"
-    },
-    "sourceContext": {
-      "type": "object",
-      "description": "Text context from the source document",
-      "properties": {
-        "before": {
-          "type": "string",
-          "description": "Text appearing before the selected passage"
-        },
-        "selected": {
-          "type": "string",
-          "description": "The selected text passage (the annotation target)"
-        },
-        "after": {
-          "type": "string",
-          "description": "Text appearing after the selected passage"
-        }
-      },
-      "required": ["selected"]
-    },
-    "metadata": {
-      "type": "object",
-      "description": "Context metadata about the annotation and its source",
-      "properties": {
-        "resourceType": {
-          "type": "string",
-          "description": "Type of source resource (e.g., 'document', 'image', 'video')"
-        },
-        "language": {
-          "type": "string",
-          "description": "BCP 47 language tag of source content"
-        },
-        "entityTypes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Entity types associated with the annotation"
-        }
-      }
-    },
-    "userHint": {
-      "type": "string",
-      "description": "User-provided textual hint to supplement or replace the selected text for search and generation"
-    },
-    "graphContext": {
-      "type": "object",
-      "description": "Graph-derived context from the knowledge base",
-      "properties": {
-        "connections": {
-          "type": "array",
-          "description": "Resources connected to the source resource via annotations",
-          "items": {
-            "type": "object",
-            "properties": {
-              "resourceId": {
-                "type": "string",
-                "description": "ID of the connected resource"
-              },
-              "resourceName": {
-                "type": "string",
-                "description": "Name of the connected resource"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": { "type": "string" },
-                "description": "Entity types on the connected resource"
-              },
-              "bidirectional": {
-                "type": "boolean",
-                "description": "Whether the connection goes both ways"
-              }
-            },
-            "required": ["resourceId", "resourceName", "bidirectional"]
-          }
-        },
-        "citedByCount": {
-          "type": "integer",
-          "description": "Number of other resources that reference the source resource"
-        },
-        "citedBy": {
-          "type": "array",
-          "description": "Resources that reference the source resource",
-          "items": {
-            "type": "object",
-            "properties": {
-              "resourceId": {
-                "type": "string"
-              },
-              "resourceName": {
-                "type": "string"
-              }
-            },
-            "required": ["resourceId", "resourceName"]
-          }
-        },
-        "siblingEntityTypes": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Entity types from other annotations on the same resource"
-        },
-        "entityTypeFrequencies": {
+    "focus": {
+      "description": "The gather anchor. Discriminated on `kind`.",
+      "oneOf": [
+        {
           "type": "object",
-          "description": "Global frequency counts for entity types (for IDF-like weighting)",
-          "additionalProperties": {
-            "type": "integer"
-          }
+          "description": "Annotation-anchored focus.",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["annotation"]
+            },
+            "annotation": {
+              "$ref": "./Annotation.json",
+              "description": "The annotation this context was gathered for"
+            },
+            "sourceResource": {
+              "$ref": "./ResourceDescriptor.json",
+              "description": "The resource containing the annotation"
+            },
+            "selected": {
+              "type": "object",
+              "description": "Text context around the annotation target",
+              "properties": {
+                "before": {
+                  "type": "string",
+                  "description": "Text appearing before the selected passage"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "The selected text passage (the annotation target)"
+                },
+                "after": {
+                  "type": "string",
+                  "description": "Text appearing after the selected passage"
+                }
+              },
+              "required": ["text"]
+            },
+            "userHint": {
+              "type": "string",
+              "description": "User-provided hint to supplement or replace the selected text for search and generation"
+            }
+          },
+          "required": ["kind", "annotation", "sourceResource"]
         },
-        "inferredRelationshipSummary": {
-          "type": "string",
-          "description": "LLM-generated summary of the annotation's relationships in the knowledge graph"
+        {
+          "type": "object",
+          "description": "Whole-resource focus.",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["resource"]
+            },
+            "resource": {
+              "$ref": "./ResourceDescriptor.json",
+              "description": "The resource this context was gathered for"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "suggestedReferences": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "content": {
+              "type": "object",
+              "description": "Resource content (included when requested)",
+              "properties": {
+                "main": {
+                  "type": "string",
+                  "description": "Content of the focal resource"
+                },
+                "related": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "description": "Map of related resource IDs to their content"
+                }
+              }
+            }
+          },
+          "required": ["kind", "resource"]
         }
-      }
+      ]
+    },
+    "graph": {
+      "$ref": "./KnowledgeGraph.json",
+      "description": "Knowledge graph backbone — resources AND annotations as typed nodes. The flattened views (connections, citedBy, siblings) are derived from this."
     },
     "semanticContext": {
       "type": "object",
@@ -136,7 +103,39 @@
         }
       },
       "required": ["similar"]
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Context metadata about the focal anchor and its source",
+      "properties": {
+        "resourceType": {
+          "type": "string",
+          "description": "Type of source resource (e.g., 'document', 'image', 'video')"
+        },
+        "language": {
+          "type": "string",
+          "description": "BCP 47 language tag of source content"
+        },
+        "entityTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Entity types associated with the focal anchor"
+        },
+        "entityTypeFrequencies": {
+          "type": "object",
+          "description": "Global frequency counts for entity types (for IDF-like weighting). A KB-wide statistic, not a neighborhood property — kept here rather than on the graph.",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "inferredRelationshipSummary": {
+      "type": "string",
+      "description": "LLM-generated summary of the focal anchor's relationships in the knowledge graph"
     }
   },
-  "required": ["annotation", "sourceResource"]
+  "required": ["focus"]
 }

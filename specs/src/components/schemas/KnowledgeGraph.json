@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "description": "Knowledge graph gathered for an LLM context — a shared backbone in which resources AND annotations are typed nodes, connected by typed (optionally bidirectional) edges. Flattened views the matcher/generation read (connections, citedBy, siblings) are derived from these nodes/edges.",
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Node identifier — a ResourceId or AnnotationId"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["resource", "annotation"],
+            "description": "Whether this node is a resource or an annotation"
+          },
+          "label": {
+            "type": "string"
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Entity types on the node (resources) or carried by the annotation"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": ["id", "type", "label"]
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "Edge kind (e.g. citation, annotation-of, sibling)"
+          },
+          "bidirectional": {
+            "type": "boolean",
+            "description": "Whether the connection goes both ways"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": ["source", "target", "type"]
+      }
+    }
+  },
+  "required": ["nodes", "edges"]
+}

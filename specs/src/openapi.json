@@ -312,6 +312,9 @@
       "JobStatusResponse": {
         "$ref": "components/schemas/JobStatusResponse.json"
       },
+      "KnowledgeGraph": {
+        "$ref": "components/schemas/KnowledgeGraph.json"
+      },
       "ListResourcesResponse": {
         "$ref": "components/schemas/ListResourcesResponse.json"
       },
@@ -332,9 +335,6 @@
       },
       "SemanticMatch": {
         "$ref": "components/schemas/SemanticMatch.json"
-      },
-      "ResourceLLMContextResponse": {
-        "$ref": "components/schemas/ResourceLLMContextResponse.json"
       },
       "SpecificResource": {
         "$ref": "components/schemas/SpecificResource.json"
