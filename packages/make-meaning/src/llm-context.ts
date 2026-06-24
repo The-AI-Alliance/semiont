@@ -47,18 +47,19 @@ export class LLMContext {
       ? await ResourceContext.getResourceContent(mainDoc, kb)
       : undefined;
 
-    // Get graph representation (includes related resources and connections)
-    const graph = await GraphContext.buildGraphRepresentation(
+    // Get the knowledge graph (resources AND annotations as nodes)
+    const graph = await GraphContext.buildKnowledgeGraph(
       resourceId,
       options.maxResources,
       kb,
     );
 
-    // Extract related resources from graph nodes (excluding main resource)
+    // Extract related resources from graph nodes (resource nodes only,
+    // excluding main — annotation nodes are not resources to fetch)
     const relatedDocs: ResourceDescriptor[] = [];
     const resourceIdStr = resourceId.toString();
     for (const node of graph.nodes) {
-      if (node.id !== resourceIdStr) {
+      if (node.type === 'resource' && node.id !== resourceIdStr) {
         const relatedDoc = await ResourceContext.getResourceMetadata(makeResourceId(node.id), kb);
         if (relatedDoc) {
           relatedDocs.push(relatedDoc);

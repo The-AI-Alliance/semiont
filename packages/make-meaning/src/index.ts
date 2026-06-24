@@ -77,7 +77,8 @@ export type { ListResourcesFilters } from './resource-context';
 export { AnnotationContext } from './annotation-context';
 export type { BuildContextOptions } from './annotation-context';
 export { GraphContext } from './graph-context';
-export type { GraphNode, GraphEdge, GraphRepresentation } from './graph-context';
+// The graph shape is the core/spec type `KnowledgeGraph` (`@semiont/core`);
+// make-meaning no longer defines local graph-shape twins.
 export { LLMContext } from './llm-context';
 export type { LLMContextOptions } from './llm-context';
 
