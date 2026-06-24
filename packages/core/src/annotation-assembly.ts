@@ -97,7 +97,9 @@ export function validateSvgMarkup(svg: string): string | null {
  * Generates a bare annotation ID (no URL prefix). URIs are constructed
  * at the API boundary when returning responses to clients.
  *
- * Throws on invalid input (missing selector, missing motivation, invalid SVG).
+ * Throws on invalid input (missing motivation, invalid SVG markup). The target
+ * selector is OPTIONAL — a source-only target annotates the whole resource (W3C;
+ * e.g. resource-level edges), per RESOURCE-LEVEL-ANCHOR.
  */
 export function assembleAnnotation(
   request: CreateAnnotationRequest,
@@ -105,16 +107,10 @@ export function assembleAnnotation(
 ): AssembledAnnotation {
   const newAnnotationId = annotationId(generateUuid());
 
-  // Validate selector: must have TextPositionSelector, SvgSelector, or FragmentSelector
-  const posSelector = getTextPositionSelector(request.target.selector);
+  // The target selector is OPTIONAL — a source-only target annotates the whole
+  // resource (W3C; e.g. resource-level edges). When an SvgSelector IS present,
+  // its markup must still be valid.
   const svgSelector = getSvgSelector(request.target.selector);
-  const fragmentSelector = getFragmentSelector(request.target.selector);
-
-  if (!posSelector && !svgSelector && !fragmentSelector) {
-    throw new Error('Either TextPositionSelector, SvgSelector, or FragmentSelector is required for creating annotations');
-  }
-
-  // Validate SVG markup if SvgSelector is provided
   if (svgSelector) {
     const svgError = validateSvgMarkup(svgSelector.value);
     if (svgError) {

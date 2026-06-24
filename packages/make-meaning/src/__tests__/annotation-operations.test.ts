@@ -116,6 +116,23 @@ describe('AnnotationOperations', () => {
   });
 
   describe('createAnnotation', () => {
+    it('creates a resource-level edge: source-only target + SpecificResource body (P2)', async () => {
+      const result = await createAnnotationAndAwait(
+        {
+          motivation: 'linking',
+          target: { source: testResourceId }, // whole-resource target, no selector
+          body: { type: 'SpecificResource', source: testResourceId, purpose: 'linking' },
+        },
+        userId('user-1'),
+        eventBus,
+      );
+
+      expect(result.annotation.motivation).toBe('linking');
+      // target persisted verbatim — selector-less (RESOURCE-LEVEL-ANCHOR P2)
+      expect(result.annotation.target).toEqual({ source: testResourceId });
+      expect(result.annotation.id.length).toBeGreaterThan(0);
+    });
+
     it('should create annotation with motivation: highlighting', async () => {
       const result = await createAnnotationAndAwait(
         {
@@ -473,34 +490,6 @@ describe('AnnotationOperations', () => {
           eventBus,
         )
       ).rejects.toThrow('motivation is required');
-    });
-
-    it('should reject missing text position selector', async () => {
-      const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
-      await expect(
-        AnnotationOperations.createAnnotation(
-          {
-            motivation: 'commenting',
-            target: {
-              source: testResourceId,
-              selector: [
-                {
-                  type: 'TextQuoteSelector',
-                  exact: 'test',
-                } as any,
-              ],
-            },
-            body: {
-              type: 'TextualBody',
-              value: 'Test',
-              format: 'text/plain',
-            },
-          },
-          userId('user-1'),
-          creator,
-          eventBus,
-        )
-      ).rejects.toThrow('Either TextPositionSelector, SvgSelector, or FragmentSelector is required');
     });
   });
 
