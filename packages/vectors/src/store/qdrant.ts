@@ -48,6 +48,8 @@ export class QdrantVectorStore implements VectorStore {
     // Ensure collections exist
     await this.ensureCollection('resources', this.config.dimensions);
     await this.ensureCollection('annotations', this.config.dimensions);
+    // Index the discriminator so excludeEntityTypes filtering scales.
+    await this.ensurePayloadIndex('resources', 'entityTypes');
   }
 
   async disconnect(): Promise<void> {
@@ -75,7 +77,18 @@ export class QdrantVectorStore implements VectorStore {
     }
   }
 
-  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string): Promise<void> {
+  /**
+   * Idempotently create a keyword payload index. Qdrant accepts a repeat call
+   * for an already-indexed field, so this runs safely on every connect and
+   * back-fills the index on collections created before the field was indexed.
+   */
+  private async ensurePayloadIndex(collection: string, field: string): Promise<void> {
+    try {
+      await this.qdrant.createPayloadIndex(collection, { field_name: field, field_schema: 'keyword' });
+    } catch { /* already indexed, or created concurrently */ }
+  }
+
+  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[]): Promise<void> {
     // Replace semantics: purge existing chunks first, or a resource that
     // shrinks leaves orphan points at the higher chunk indices.
     await this.deleteResourceVectors(resourceId);
@@ -89,6 +102,7 @@ export class QdrantVectorStore implements VectorStore {
         chunkIndex: chunk.chunkIndex,
         text: chunk.text,
         contentChecksum,
+        entityTypes,
       },
     }));
 
@@ -246,6 +260,11 @@ export class QdrantVectorStore implements VectorStore {
 
     if (filter.excludeResourceId) {
       must_not.push({ key: 'resourceId', match: { value: String(filter.excludeResourceId) } });
+    }
+
+    if (filter.excludeEntityTypes && filter.excludeEntityTypes.length > 0) {
+      // any-of exclusion: drop points whose entityTypes contain any of these.
+      must_not.push({ key: 'entityTypes', match: { any: filter.excludeEntityTypes } });
     }
 
     if (must.length === 0 && must_not.length === 0) return null;

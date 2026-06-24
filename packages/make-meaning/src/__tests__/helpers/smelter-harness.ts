@@ -76,11 +76,12 @@ export function annotationEvent(resourceId: string, annotationId: string, exact:
   };
 }
 
-export function resourceDescriptor(id: string, mediaType = 'text/plain', checksum?: string): ResourceDescriptor {
+export function resourceDescriptor(id: string, mediaType = 'text/plain', checksum?: string, entityTypes: string[] = []): ResourceDescriptor {
   return {
     '@context': 'https://schema.org',
     '@id': id,
     name: id,
+    ...(entityTypes.length ? { entityTypes } : {}),
     representations: [{ mediaType, storageUri: `file://${id}.txt`, ...(checksum ? { checksum } : {}) }],
   };
 }
@@ -173,6 +174,12 @@ export function createFakeKsBus(
             offset,
             limit,
           },
+        }));
+      } else if (name === 'browse:resource-requested') {
+        const resource = resources.find((r) => r['@id'] === request.resourceId);
+        queueMicrotask(() => channel('browse:resource-result').next({
+          correlationId: request.correlationId,
+          response: { resource },
         }));
       } else if (name === 'browse:annotations-requested') {
         const annotations = annotationsByResource.get(request.resourceId as string) ?? [];

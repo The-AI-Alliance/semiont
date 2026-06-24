@@ -250,6 +250,28 @@ describe('Smelter.reconcile', () => {
   // equality cannot: no wasted re-embedding, the catalog page boundary,
   // and the failure state machine.
 
+  it('stamps a resource\'s entityTypes (read from the descriptor) onto its vectors', async () => {
+    const text = 'What is the capital of France?';
+    const checksum = calculateChecksum(text);
+    contentByResourceId.set('res-q', text);
+
+    // entityTypes live on the descriptor (the catalog), not the event payload —
+    // the smelter reads the authoritative current state, so reconcile stamps them.
+    const smelter = createSmelter([resourceDescriptor('res-q', 'text/plain', checksum, ['Question'])]);
+    await smelter.reconcile();
+
+    const queryVec = deterministicEmbed('capital of France');
+    const all = await vectorStore.searchResources(queryVec, { limit: 5 });
+    expect(all.find((r) => r.resourceId === 'res-q')?.entityTypes).toEqual(['Question']);
+
+    // And the discriminator is usable: excludeEntityTypes drops it from recall.
+    const excluded = await vectorStore.searchResources(queryVec, {
+      limit: 5,
+      filter: { excludeEntityTypes: ['Question'] },
+    });
+    expect(excluded.some((r) => r.resourceId === 'res-q')).toBe(false);
+  });
+
   it('leaves already-indexed resources alone', async () => {
     const text = 'Already indexed.';
     const checksum = calculateChecksum(text);
@@ -258,6 +280,7 @@ describe('Smelter.reconcile', () => {
       makeResourceId('res-indexed'),
       [{ chunkIndex: 0, text, embedding: deterministicEmbed(text) }],
       checksum,
+      [],
     );
 
     const smelter = createSmelter([resourceDescriptor('res-indexed', 'text/plain', checksum)]);

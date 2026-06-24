@@ -57,7 +57,7 @@ export class MemoryVectorStore implements VectorStore {
     return this.connected;
   }
 
-  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string): Promise<void> {
+  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[]): Promise<void> {
     // Remove existing vectors for this resource
     this.resources = this.resources.filter(p => p.payload.resourceId !== String(resourceId));
 
@@ -70,6 +70,7 @@ export class MemoryVectorStore implements VectorStore {
           chunkIndex: chunk.chunkIndex,
           text: chunk.text,
           contentChecksum,
+          entityTypes,
         },
       });
     }
@@ -148,6 +149,10 @@ export class MemoryVectorStore implements VectorStore {
         if (f.entityTypes && f.entityTypes.length > 0) {
           const pTypes = p.payload.entityTypes ?? [];
           if (!f.entityTypes.some(t => pTypes.includes(t))) return false;
+        }
+        if (f.excludeEntityTypes && f.excludeEntityTypes.length > 0) {
+          const pTypes = p.payload.entityTypes ?? [];
+          if (f.excludeEntityTypes.some(t => pTypes.includes(t))) return false;
         }
         return true;
       });
