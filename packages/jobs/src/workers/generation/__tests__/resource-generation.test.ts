@@ -542,5 +542,62 @@ describe('generateResourceFromTopic', () => {
       expect(prompt).not.toContain('Annotation motivation');
       expect(prompt).not.toContain('Source document context');
     });
+
+    it('grounds the prompt in the resource summary, suggested references, and content', async () => {
+      client.setResponses(['# X\n\nbody']);
+      const context: GatheredContext = {
+        focus: {
+          kind: 'resource',
+          resource: testSourceResource,
+          summary: 'A concise summary of the focal resource.',
+          suggestedReferences: ['Alpha', 'Beta'],
+          content: { main: 'MAIN-CONTENT-BODY', related: { r2: 'RELATED-CONTENT-BODY' } },
+        },
+        graph: buildGraph(),
+        metadata: {},
+      };
+
+      await generateResourceFromTopic('Topic', [], client, LOGGER, undefined, undefined, context);
+
+      const prompt = promptArg();
+      expect(prompt).toContain('A concise summary of the focal resource.');
+      expect(prompt).toContain('Alpha');
+      expect(prompt).toContain('MAIN-CONTENT-BODY');
+      expect(prompt).toContain('RELATED-CONTENT-BODY');
+      expect(prompt).not.toContain('Annotation motivation');
+    });
+
+    it('omits resource sections that are absent (omit-empty)', async () => {
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic('Topic', [], client, LOGGER, undefined, undefined, makeResourceContext());
+
+      const prompt = promptArg();
+      expect(prompt).not.toContain('Summary:');
+      expect(prompt).not.toContain('Resource content:');
+    });
+  });
+
+  describe('output media type', () => {
+    it('text/markdown (default) instructs markdown formatting', async () => {
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic('Topic', [], client, LOGGER);
+
+      expect(promptArg()).toMatch(/markdown/i);
+    });
+
+    it('text/plain drops the markdown scaffolding and asks for plain prose', async () => {
+      client.setResponses(['X\n\nbody']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined, undefined, undefined, undefined, undefined, 'text/plain',
+      );
+
+      const prompt = promptArg();
+      expect(prompt).not.toMatch(/markdown/i);
+      expect(prompt).not.toContain('# Title');
+      expect(prompt).toMatch(/plain text/i);
+    });
   });
 });

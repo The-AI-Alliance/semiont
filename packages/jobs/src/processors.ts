@@ -458,6 +458,17 @@ export async function processGenerationJob(
   onProgress: OnProgress,
   logger: Logger,
 ): Promise<{ content: string; title: string; format: SupportedMediaType; result: GenerationResult }> {
+  // Generation produces text only for now. Refuse any other requested media type
+  // loudly (the throw propagates as job:fail) rather than silently emitting markdown
+  // under a mislabeled format. Validate before the LLM call so it fails fast.
+  const GENERATABLE_MEDIA_TYPES: readonly SupportedMediaType[] = ['text/markdown', 'text/plain'];
+  const outputMediaType: SupportedMediaType = params.outputMediaType ?? 'text/markdown';
+  if (!GENERATABLE_MEDIA_TYPES.includes(outputMediaType)) {
+    throw new Error(
+      `Unsupported outputMediaType for generation: ${outputMediaType}. Generation produces ${GENERATABLE_MEDIA_TYPES.join(' or ')}.`,
+    );
+  }
+
   onProgress(20, 'Fetching context...', 'fetching');
 
   const title = params.title ?? 'Untitled';
@@ -476,6 +487,7 @@ export async function processGenerationJob(
     params.temperature,
     params.maxTokens,
     params.sourceLanguage,
+    outputMediaType,
   );
 
   onProgress(85, 'Creating resource...', 'creating');
@@ -483,7 +495,7 @@ export async function processGenerationJob(
   return {
     content: generated.content,
     title: generated.title ?? title,
-    format: 'text/markdown',
+    format: outputMediaType,
     result: {
       resourceId: '' as ResourceId,
       resourceName: generated.title ?? title,

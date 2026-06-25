@@ -238,6 +238,28 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
     expect(queuedJob.params.schema, 'generation jobs must not get a TagSchema injected').toBeUndefined();
     expect(queuedJob.params.schemaId).toBeUndefined();
   });
+
+  it('sets maxRetries to 0 for generation (non-idempotent) and 1 for detection', async () => {
+    const gen$ = (eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>)
+      .pipe(filter((e) => e.correlationId === 'cid-retry-gen'), take(1));
+    eventBus.get('job:create').next({
+      correlationId: 'cid-retry-gen', jobType: 'generation', resourceId: 'rid-test',
+      params: { title: 'T' }, _userId: TEST_USER_DID,
+    } as never);
+    await firstValueFrom(race(gen$, timer(2_000)));
+    const genJob = jobQueue.createJob.mock.calls.at(-1)![0] as { metadata: { maxRetries: number } };
+    expect(genJob.metadata.maxRetries, 'generation must not retry — re-rolling is not a replay').toBe(0);
+
+    const ref$ = (eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>)
+      .pipe(filter((e) => e.correlationId === 'cid-retry-ref'), take(1));
+    eventBus.get('job:create').next({
+      correlationId: 'cid-retry-ref', jobType: 'reference-annotation', resourceId: 'rid-test',
+      params: {}, _userId: TEST_USER_DID,
+    } as never);
+    await firstValueFrom(race(ref$, timer(2_000)));
+    const refJob = jobQueue.createJob.mock.calls.at(-1)![0] as { metadata: { maxRetries: number } };
+    expect(refJob.metadata.maxRetries, 'detection keeps one self-heal retry').toBe(1);
+  });
 });
 
 describe('registerJobCommandHandlers — entity-type validation', () => {

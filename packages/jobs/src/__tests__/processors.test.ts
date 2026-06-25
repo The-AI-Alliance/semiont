@@ -347,6 +347,30 @@ describe('processGenerationJob', () => {
   });
 });
 
+describe('processGenerationJob — outputMediaType', () => {
+  beforeEach(() => {
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: 'c', title: 'T' });
+  });
+
+  it('defaults the generated resource format to text/markdown', async () => {
+    const r = await processGenerationJob(makeInferenceClient(), { title: 'T' }, vi.fn(), LOGGER);
+    expect(r.format).toBe('text/markdown');
+  });
+
+  it('honors a requested text/plain outputMediaType', async () => {
+    const r = await processGenerationJob(makeInferenceClient(), { title: 'T', outputMediaType: 'text/plain' }, vi.fn(), LOGGER);
+    expect(r.format).toBe('text/plain');
+  });
+
+  it('throws for an unsupported outputMediaType — before the LLM call, no silent fallback', async () => {
+    vi.mocked(generateResourceFromTopic).mockClear();
+    await expect(
+      processGenerationJob(makeInferenceClient(), { title: 'T', outputMediaType: 'image/png' }, vi.fn(), LOGGER),
+    ).rejects.toThrow(/unsupported outputMediaType/i);
+    expect(generateResourceFromTopic).not.toHaveBeenCalled();
+  });
+});
+
 // ============================================================================
 // Attribution composition (creator / generator / wasAttributedTo)
 // ============================================================================
@@ -671,10 +695,10 @@ describe('locale threading', () => {
       );
 
       // Positional signature: topic, entityTypes, client, logger, prompt,
-      // locale, context, temperature, maxTokens, sourceLanguage.
+      // locale, context, temperature, maxTokens, sourceLanguage, outputMediaType.
       expect(generateResourceFromTopic).toHaveBeenCalledWith(
         'Topic', [], client, LOGGER, undefined, 'de', undefined,
-        undefined, undefined, 'fr',
+        undefined, undefined, 'fr', 'text/markdown',
       );
     });
   });

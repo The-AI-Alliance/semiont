@@ -47,7 +47,11 @@ export function registerJobCommandHandlers(
           userDomain: user.domain,
           created: new Date().toISOString(),
           retryCount: 0,
-          maxRetries: jobType === 'generation' ? 3 : 1,
+          // Generation is non-idempotent — a retry re-runs the LLM and produces
+          // *different* content (not a replay) — and expensive. Surface the failure
+          // to the caller rather than silently re-rolling. Detection jobs re-scan the
+          // same content (≈idempotent) and keep one self-heal retry.
+          maxRetries: jobType === 'generation' ? 0 : 1,
         },
         params: {
           resourceId: resourceId(resId as string),
