@@ -70,7 +70,9 @@ describe('gather.resource', () => {
     const cid = payload.correlationId as string;
     expect(typeof cid).toBe('string');
 
-    const response = { mainResource: { id: rid }, relatedResources: [], annotations: [] };
+    // gather:resource-complete now carries a unified GatheredContext (focus.kind:'resource'),
+    // not the old ResourceLLMContextResponse (CONTEXT-UNIFICATION P1).
+    const response = { focus: { kind: 'resource', resource: { '@id': rid } }, graph: { nodes: [], edges: [] }, metadata: {} };
     subjectFor('gather:resource-complete').next({ correlationId: cid, resourceId: rid, response });
 
     expect(await promise).toEqual(response);

@@ -1,12 +1,10 @@
 import { merge } from 'rxjs';
 import { filter, map, takeUntil } from 'rxjs/operators';
-import type { AnnotationId, ResourceId, EventBus, components } from '@semiont/core';
+import type { AnnotationId, ResourceId, EventBus, GatheredContext } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { StreamObservable } from '../awaitable';
 import { busRequest } from '../bus-request';
 import type { GatherNamespace as IGatherNamespace, GatherAnnotationProgress } from './types';
-
-type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextResponse'];
 
 export class GatherNamespace implements IGatherNamespace {
   constructor(
@@ -76,10 +74,10 @@ export class GatherNamespace implements IGatherNamespace {
    * Gather whole-resource LLM context — a request/reply over
    * `gather:resource-requested` → `gather:resource-complete`/`-failed`. Unlike
    * `annotation()` there are no progress events, so this is a `Promise`, not a
-   * `StreamObservable`. Resolves to the `ResourceLLMContextResponse` the backend
-   * assembled (the resource graph + related resources + annotations); rejects
-   * with a `BusRequestError` on failure. Defaults mirror the CLI `gather`
-   * command (depth 2, maxResources 10, content in, summary out).
+   * `StreamObservable`. Resolves to the unified `GatheredContext` (focus.kind:
+   * 'resource') the backend assembled — the resource focus plus the shared
+   * knowledge graph; rejects with a `BusRequestError` on failure. Defaults mirror
+   * the CLI `gather` command (depth 2, maxResources 10, content in, summary out).
    */
   resource(
     resourceId: ResourceId,
@@ -89,8 +87,8 @@ export class GatherNamespace implements IGatherNamespace {
       includeContent?: boolean;
       includeSummary?: boolean;
     },
-  ): Promise<ResourceLLMContextResponse> {
-    return busRequest<ResourceLLMContextResponse>(
+  ): Promise<GatheredContext> {
+    return busRequest<GatheredContext>(
       this.transport,
       'gather:resource-requested',
       {

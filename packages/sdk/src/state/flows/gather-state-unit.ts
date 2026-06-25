@@ -38,7 +38,7 @@ export function createGatherStateUnit(
       next: (progress) => {
         if ('response' in progress && progress.response) {
           context$.next(
-            (progress as { response: { context: GatheredContext } }).response.context ?? null,
+            (progress as { response: GatheredContext }).response ?? null,
           );
           loading$.next(false);
         }
