@@ -19,8 +19,8 @@ import * as path from 'path';
 import { promises as nodeFs } from 'fs';
 import { z } from 'zod';
 import { lastValueFrom } from 'rxjs';
-import { resourceId as toResourceId, annotationId as toAnnotationId, mediaTypeForExtension } from '@semiont/core';
-import type { GatheredContext } from '@semiont/core';
+import { resourceId as toResourceId, annotationId as toAnnotationId, mediaTypeForExtension, isSupportedMediaType } from '@semiont/core';
+import type { GatheredContext, SupportedMediaType } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -58,6 +58,12 @@ export const YieldOptionsSchema = ApiOptionsSchema.extend({
   temperature: z.coerce.number().min(0).max(1).optional(),
   maxTokens: z.coerce.number().int().min(100).max(4000).optional(),
   contextWindow: z.coerce.number().int().min(100).max(5000).default(1000),
+  /**
+   * Media type of the generated resource (delegate mode). Validated for
+   * registry membership at the call site; the create route owns the
+   * authorable / role-appropriateness rejection (MEDIA-TYPES).
+   */
+  outputMediaType: z.string().optional(),
 }).superRefine((val, ctx) => {
   const hasUpload = val.upload.length > 0;
   const hasDelegate = val.delegate;
@@ -72,8 +78,8 @@ export const YieldOptionsSchema = ApiOptionsSchema.extend({
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--name can only be used when uploading a single file' });
   }
   if (hasDelegate) {
+    // --annotation is optional: present → annotation-anchored, absent → resource-anchored.
     if (!val.resource) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--resource <resourceId> is required with --delegate' });
-    if (!val.annotation) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--annotation <annotationId> is required with --delegate' });
     if (!val.storageUri) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--storage-uri is required with --delegate' });
   }
 });
@@ -84,13 +90,61 @@ export type YieldOptions = z.output<typeof YieldOptionsSchema>;
 // DELEGATE MODE HELPERS
 // =====================================================================
 
+/**
+ * Validate --output-media-type for registry membership (a typo is a CLI
+ * input error). The create route owns the authorable / role-appropriateness
+ * rejection — no parallel gate here (MEDIA-TYPES). Uses the core type guard,
+ * not a cast.
+ */
+function resolveOutputMediaType(raw: string | undefined): SupportedMediaType | undefined {
+  if (raw === undefined) return undefined;
+  if (!isSupportedMediaType(raw)) {
+    throw new Error(`Unknown output media type: ${raw}`);
+  }
+  return raw;
+}
+
+function extractResult(final: { kind: string; data?: unknown }): { resourceId?: string; resourceName?: string } {
+  if (final.kind !== 'complete') return {};
+  const r = (final.data as { result?: { resourceId?: string; resourceName?: string } } | undefined)?.result ?? {};
+  return { resourceId: r.resourceId, resourceName: r.resourceName };
+}
+
 async function runDelegate(
   semiont: SemiontClient,
   options: YieldOptions,
 ): Promise<{ resourceId?: string; resourceName?: string }> {
   const rawResourceId = options.resource!;
-  const rawAnnotationId = options.annotation!;
   const rId = toResourceId(rawResourceId);
+  const outputMediaType = resolveOutputMediaType(options.outputMediaType);
+
+  // Resource-anchored mode: no --annotation. Derive a new resource from the
+  // whole source resource, grounded by a resource-focus GatheredContext.
+  if (!options.annotation) {
+    // gather.resource is a Promise (resource-focus), not an Observable.
+    // includeContent/includeSummary keep generation grounded (avoid the
+    // thin-context failure mode); the worker renders those sections.
+    const context = await semiont.gather.resource(rId, { includeContent: true, includeSummary: true });
+
+    if (!options.quiet) process.stderr.write(`Deriving from resource ${rawResourceId}...\n`);
+
+    const final = await lastValueFrom(
+      semiont.yield.fromResource(rId, {
+        title: options.title ?? rawResourceId,
+        storageUri: options.storageUri!,
+        context,
+        prompt: options.prompt,
+        language: options.language,
+        temperature: options.temperature,
+        maxTokens: options.maxTokens,
+        outputMediaType,
+      }),
+    );
+    return extractResult(final);
+  }
+
+  // Annotation-anchored mode.
+  const rawAnnotationId = options.annotation;
   const aId = toAnnotationId(rawAnnotationId);
 
   // Step 1: gather context
@@ -119,10 +173,10 @@ async function runDelegate(
       sourceLanguage: options.sourceLanguage ?? ctxSourceLanguage,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
+      outputMediaType,
     }),
   );
-  const r = ((final.kind === 'complete' ? final.data.result : undefined) ?? {}) as { resourceId?: string; resourceName?: string };
-  return { resourceId: r.resourceId, resourceName: r.resourceName };
+  return extractResult(final);
 }
 
 // =====================================================================
@@ -211,7 +265,8 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
 export const yieldCmd = new CommandBuilder()
   .name('yield')
   .description(
-    'Upload a local file as a resource (--upload), or generate a new resource from an annotation\'s gathered context (--delegate). ' +
+    'Upload a local file as a resource (--upload), or generate a new resource via --delegate: ' +
+    'from an annotation\'s gathered context (with --annotation), or derived from a whole source resource (without --annotation). ' +
     'Delegate mode outputs JSON { resourceId, resourceName, storageUri } to stdout.'
   )
   .requiresEnvironment(true)
@@ -223,6 +278,8 @@ export const yieldCmd = new CommandBuilder()
     'semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md',
     'semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md --title "Paris" --language en',
     'semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md --prompt "Write a brief encyclopedia entry" --temperature 0.3',
+    'semiont yield --delegate --resource <resourceId> --storage-uri file://generated/summary.md --prompt "Summarize this document"',
+    'semiont yield --delegate --resource <resourceId> --storage-uri file://generated/translated.html --prompt "Translate to French" --language fr --output-media-type text/html',
     'NEW_ID=$(semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md --quiet | jq -r \'.resourceId\') && semiont bind <resourceId> <annotationId> "$NEW_ID"',
   )
   .args({
@@ -275,6 +332,10 @@ export const yieldCmd = new CommandBuilder()
       '--context-window': {
         type: 'string',
         description: 'Delegate mode: characters of annotation context to gather (100–5000, default: 1000)',
+      },
+      '--output-media-type': {
+        type: 'string',
+        description: 'Delegate mode: media type of the generated resource (e.g. text/markdown, text/html; default: text/markdown)',
       },
     }, {
       '-n': '--name',

@@ -16,9 +16,11 @@ const { mockYield, mockGather, mockLoadCachedClient } = vi.hoisted(() => {
   const mockYield = {
     resource: vi.fn(),
     fromAnnotation: vi.fn(),
+    fromResource: vi.fn(),
   };
   const mockGather = {
     annotation: vi.fn(),
+    resource: vi.fn(),
   };
   const mockLoadCachedClient = vi.fn();
   return { mockYield, mockGather, mockLoadCachedClient };
@@ -90,6 +92,15 @@ function makeDelegateOptions(overrides: Partial<YieldOptions> = {}): YieldOption
   });
 }
 
+// Resource-anchored delegate: --resource + --storage-uri, no --annotation.
+function makeResourceDelegateOptions(overrides: Partial<YieldOptions> = {}): YieldOptions {
+  return makeDelegateOptions({
+    annotation: undefined,
+    storageUri: 'file://generated/derived.md',
+    ...overrides,
+  });
+}
+
 // ── Schema tests ──────────────────────────────────────────────────────────────
 
 describe('YieldOptionsSchema', () => {
@@ -133,13 +144,13 @@ describe('YieldOptionsSchema', () => {
     expect(r.success).toBe(false);
   });
 
-  it('rejects delegate without --annotation', () => {
+  it('accepts delegate without --annotation (resource-anchored mode)', () => {
     const r = YieldOptionsSchema.safeParse({
       delegate: true,
       resource: 'doc-1',
       storageUri: 'file://out.md',
     });
-    expect(r.success).toBe(false);
+    expect(r.success).toBe(true);
   });
 
   it('rejects delegate without --storage-uri', () => {
@@ -271,6 +282,68 @@ describe('runYield', () => {
       mockYield.fromAnnotation.mockReset();
       mockYield.fromAnnotation.mockReturnValueOnce(throwError(() => new Error('Generation failed')));
       await expect(runYield(makeDelegateOptions())).rejects.toThrow('Generation failed');
+    });
+
+    it('passes outputMediaType through to yield.fromAnnotation', async () => {
+      await runYield(makeDelegateOptions({ outputMediaType: 'text/html' }));
+      const [, , opts] = mockYield.fromAnnotation.mock.calls[0];
+      expect(opts.outputMediaType).toBe('text/html');
+    });
+
+    it('rejects an unknown outputMediaType (membership guard)', async () => {
+      await expect(runYield(makeDelegateOptions({ outputMediaType: 'text/markdwn' })))
+        .rejects.toThrow(/text\/markdwn/);
+    });
+  });
+
+  describe('delegate mode — resource-anchored', () => {
+    beforeEach(() => {
+      // gather.resource is a Promise (resource-focus), unlike gather.annotation (Observable)
+      mockGather.resource.mockResolvedValue({
+        focus: { kind: 'resource', resource: {} },
+        graph: { nodes: [], edges: [] },
+        metadata: {},
+      });
+      mockYield.fromResource.mockReturnValue(of({
+        kind: 'complete',
+        data: {
+          jobId: 'j2',
+          resourceId: 'res-2',
+          jobType: 'generation',
+          result: { resourceId: 'urn:semiont:resource:derived-1', resourceName: 'Derived' },
+        },
+      }));
+    });
+
+    it('calls gather.resource then yield.fromResource (no annotation)', async () => {
+      await runYield(makeResourceDelegateOptions());
+      expect(mockGather.resource).toHaveBeenCalledOnce();
+      expect(mockYield.fromResource).toHaveBeenCalledOnce();
+      expect(mockGather.annotation).not.toHaveBeenCalled();
+      expect(mockYield.fromAnnotation).not.toHaveBeenCalled();
+    });
+
+    it('grounds the gather (includeContent + includeSummary)', async () => {
+      await runYield(makeResourceDelegateOptions());
+      const [, opts] = mockGather.resource.mock.calls[0];
+      expect(opts).toMatchObject({ includeContent: true, includeSummary: true });
+    });
+
+    it('records the derived resourceId in result metadata', async () => {
+      const result = await runYield(makeResourceDelegateOptions());
+      expect(result.results[0]?.metadata?.resourceId).toBe('urn:semiont:resource:derived-1');
+    });
+
+    it('passes outputMediaType through to yield.fromResource', async () => {
+      await runYield(makeResourceDelegateOptions({ outputMediaType: 'text/plain' }));
+      const [, opts] = mockYield.fromResource.mock.calls[0];
+      expect(opts.outputMediaType).toBe('text/plain');
+    });
+
+    it('rejects when yield.fromResource errors', async () => {
+      mockYield.fromResource.mockReset();
+      mockYield.fromResource.mockReturnValueOnce(throwError(() => new Error('Derive failed')));
+      await expect(runYield(makeResourceDelegateOptions())).rejects.toThrow('Derive failed');
     });
   });
 });
