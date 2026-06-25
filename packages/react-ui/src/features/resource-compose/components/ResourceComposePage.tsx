@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { GatheredContext } from '@semiont/core';
+import { deriveViews, type GatheredContext } from '@semiont/core';
 import { capabilitiesOf, AUTHORABLE_MEDIA_TYPES, MEDIA_TYPES, mediaTypeForExtension, isSupportedMediaType, LOCALES } from '@semiont/core';
 import type { UploadProgress } from '@semiont/sdk';
 import { type CloneData, type ReferenceData } from '../state/compose-page-state-unit';
@@ -283,6 +283,12 @@ export function ResourceComposePage({
   const isClone = mode === 'clone';
   const isReferenceCompletion = mode === 'reference';
 
+  // Gathered-context panel — annotation-focus only for now.
+  const composeFocus = gatheredContext?.focus.kind === 'annotation' ? gatheredContext.focus : null;
+  const composeConnections = gatheredContext && composeFocus
+    ? deriveViews(gatheredContext.graph, String(composeFocus.sourceResource.id)).connections
+    : [];
+
   return (
     <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel as ToolbarPanelType) ? ' semiont-page--panel-open' : ''}`}>
       {/* Main Content Area */}
@@ -316,7 +322,7 @@ export function ResourceComposePage({
             border: '1px solid var(--semiont-border-primary)',
           }}>
             <h3 className="semiont-form__label" style={{ marginBottom: '0.75rem' }}>Gathered Context</h3>
-            {gatheredContext.sourceContext && (
+            {composeFocus?.selected && (
               <div style={{
                 padding: '0.75rem',
                 backgroundColor: 'var(--semiont-bg-primary)',
@@ -327,27 +333,27 @@ export function ResourceComposePage({
                 marginBottom: '0.5rem',
               }}>
                 <div style={{ fontSize: 'var(--semiont-text-sm)', fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: 'var(--semiont-text-secondary)' }}>
-                  {gatheredContext.sourceContext.before && <span>{gatheredContext.sourceContext.before}</span>}
+                  {composeFocus.selected.before && <span>{composeFocus.selected.before}</span>}
                   <span style={{
                     backgroundColor: 'var(--semiont-color-primary-100)',
                     padding: '0 0.25rem',
                     fontWeight: 600,
                     color: 'var(--semiont-color-primary-900)',
                   }}>
-                    {gatheredContext.sourceContext.selected}
+                    {composeFocus.selected.text}
                   </span>
-                  {gatheredContext.sourceContext.after && <span>{gatheredContext.sourceContext.after}</span>}
+                  {composeFocus.selected.after && <span>{composeFocus.selected.after}</span>}
                 </div>
               </div>
             )}
-            {gatheredContext.graphContext && gatheredContext.graphContext.connections && gatheredContext.graphContext.connections.length > 0 && (
+            {composeConnections.length > 0 && (
               <div style={{
                 padding: '0.5rem 0',
                 fontSize: 'var(--semiont-text-sm)',
                 color: 'var(--semiont-text-secondary)',
               }}>
                 <span style={{ fontSize: 'var(--semiont-text-xs)', fontWeight: 500, marginRight: '0.5rem' }}>Connections:</span>
-                {gatheredContext.graphContext.connections.map(conn => (
+                {composeConnections.map(conn => (
                   <span key={conn.resourceId} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.5rem', marginRight: '0.25rem' }}>
                     {conn.resourceName}
                   </span>

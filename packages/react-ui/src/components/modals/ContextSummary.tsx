@@ -1,6 +1,6 @@
 'use client';
 
-import type { GatheredContext } from '@semiont/core';
+import { deriveViews, type GatheredContext } from '@semiont/core';
 
 export interface ContextSummaryTranslations {
   sourceContextLabel: string;
@@ -16,14 +16,17 @@ export interface ContextSummaryProps {
 }
 
 export function ContextSummary({ context, translations: t }: ContextSummaryProps) {
-  const graphContext = context.graphContext;
-  const connections = graphContext?.connections ?? [];
-  const citedBy = graphContext?.citedBy ?? [];
-  const citedByCount = graphContext?.citedByCount ?? 0;
+  // Annotation-focus only for now (resource-focus rendering is future work).
+  if (context.focus.kind !== 'annotation') return null;
+  const { connections, citedBy, citedByCount } = deriveViews(
+    context.graph,
+    String(context.focus.sourceResource.id),
+    context.focus.annotation.id,
+  );
 
   return (
     <>
-      {graphContext && (connections.length > 0 || citedByCount > 0) && (
+      {(connections.length > 0 || citedByCount > 0) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
           {connections.length > 0 && (
