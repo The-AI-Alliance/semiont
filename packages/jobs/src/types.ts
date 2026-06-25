@@ -11,7 +11,7 @@
  * - State machine is explicit and type-safe
  */
 
-import type { Annotation, JobId, EntityType, ResourceId, UserId, AnnotationId, GatheredContext, TagSchema } from '@semiont/core';
+import type { JobId, EntityType, ResourceId, UserId, AnnotationId, GatheredContext, TagSchema, SupportedMediaType } from '@semiont/core';
 
 export type JobType = 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
@@ -80,10 +80,13 @@ export interface DetectionParams {
  * Generation job parameters
  */
 export interface GenerationParams {
-  referenceId: AnnotationId;
-  sourceResourceId: ResourceId;
-  sourceResourceName: string;
-  annotation: Annotation;
+  /**
+   * The unresolved reference an annotation-focus generation was triggered from.
+   * Absent for resource-focus generation (`yield.fromResource`). When present, the
+   * worker auto-binds the new resource to it; when absent, provenance is a minted
+   * source→derived reference annotation (Fork 2b).
+   */
+  referenceId?: AnnotationId;
   prompt?: string;
   title?: string;
   entityTypes?: EntityType[];
@@ -99,6 +102,13 @@ export interface GenerationParams {
   temperature?: number;
   maxTokens?: number;
   storageUri?: string;
+  /**
+   * Requested media type of the generated resource's content. Default `text/markdown`.
+   * The generation worker produces `text/markdown` and `text/plain`; any other value
+   * fails the job (no silent fallback) — Semiont is multi-modal at the core, but
+   * generation coverage is text-only for now and the gap is surfaced, not hidden.
+   */
+  outputMediaType?: SupportedMediaType;
 }
 
 /**
