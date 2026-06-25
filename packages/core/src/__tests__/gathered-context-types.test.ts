@@ -20,11 +20,14 @@ type Annotation = components['schemas']['Annotation'];
 
 const aResource = {} as ResourceDescriptor;
 const anAnnotation = {} as Annotation;
+const aGraph: KnowledgeGraph = { nodes: [], edges: [] };
 
 describe('GatheredContext — unified shape (P1)', () => {
   it('accepts a resource-focus context (no annotation)', () => {
     const ctx: GatheredContext = {
       focus: { kind: 'resource', resource: aResource, summary: 'a doc' },
+      graph: aGraph,
+      metadata: {},
     };
     expect(ctx.focus.kind).toBe('resource');
   });
@@ -38,6 +41,8 @@ describe('GatheredContext — unified shape (P1)', () => {
         selected: { text: 'passage' },
         userHint: 'a hint',
       },
+      graph: aGraph,
+      metadata: {},
     };
     if (ctx.focus.kind === 'annotation') {
       expect(ctx.focus.selected?.text).toBe('passage');
@@ -48,6 +53,7 @@ describe('GatheredContext — unified shape (P1)', () => {
   it('shared base: graph is KnowledgeGraph; entityTypeFrequencies on metadata', () => {
     const ctx: GatheredContext = {
       focus: { kind: 'resource', resource: aResource },
+      graph: aGraph,
       metadata: { entityTypeFrequencies: { Person: 3 }, language: 'en' },
       inferredRelationshipSummary: 'relates to X',
       semanticContext: { similar: [] },
@@ -85,6 +91,8 @@ describe('GatheredContext — annotation-wrapper collapse (P1b)', () => {
         targetResource: aResource,
         targetContext: { content: 'target body', summary: 'gist' },
       },
+      graph: aGraph,
+      metadata: {},
     };
     if (ctx.focus.kind === 'annotation') {
       expect(ctx.focus.targetContext?.content).toBe('target body');
@@ -94,6 +102,8 @@ describe('GatheredContext — annotation-wrapper collapse (P1b)', () => {
   it('gather:annotation channel responses are a bare GatheredContext', () => {
     const ctx: GatheredContext = {
       focus: { kind: 'annotation', annotation: anAnnotation, sourceResource: aResource },
+      graph: aGraph,
+      metadata: {},
     };
     const complete: GatherAnnotationComplete = { correlationId: 'c', annotationId: 'a-1', response: ctx };
     const finished: GatherAnnotationFinished = { correlationId: 'c', annotationId: 'a-1', response: ctx };

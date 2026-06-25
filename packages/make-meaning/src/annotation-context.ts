@@ -12,7 +12,7 @@
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import { generateResourceSummary } from './generation/resource-generation';
-import { getBodySource, getResourceId, getTargetSource, getTargetSelector, getResourceEntityTypes, getTextPositionSelector, getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
+import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes, getTextPositionSelector, getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
 
 import type {
@@ -25,10 +25,10 @@ import type {
 import { resourceId as createResourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { ResourceContext } from './resource-context';
+import { GraphContext } from './graph-context';
 import type { WorkingTreeStore } from '@semiont/content';
 import type { KnowledgeBase } from './knowledge-base';
 
-type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
 type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
 import type { Annotation } from '@semiont/core';
@@ -68,7 +68,7 @@ export class AnnotationContext {
     inferenceClient?: InferenceClient,
     logger?: Logger,
     embeddingProvider?: EmbeddingProvider,
-  ): Promise<AnnotationLLMContextResponse> {
+  ): Promise<GatheredContext> {
     const {
       includeSourceContext = true,
       includeTargetContext = true,
@@ -204,52 +204,29 @@ export class AnnotationContext {
       }
     }
 
-    // Build graph context via graph traversal
-    logger?.debug('Building graph context', { resourceId });
+    // Build the knowledge graph for the neighborhood (full — the cap is a view concern, Q2=C).
+    logger?.debug('Building knowledge graph', { resourceId });
+    const graph = await GraphContext.buildKnowledgeGraph(resourceId, kb);
 
-    const [connections, referencedByAnnotations, entityTypeStats] = await Promise.all([
-      kb.graph.getResourceConnections(resourceId),
-      kb.graph.getResourceReferencedBy(resourceId),
-      kb.graph.getEntityTypeStats(),
-    ]);
+    // Derive the flattened views (connections / citedBy / siblings) from the graph (Q1=A).
+    const views = GraphContext.deriveViews(graph, String(resourceId), annotationId);
 
-    // Extract cited-by resources from referenced-by annotations
-    const citedByMap = new Map<string, string>();
-    for (const ann of referencedByAnnotations) {
-      const source = getTargetSource(ann.target);
-      if (source && source !== String(resourceId)) {
-        const sourceResId = createResourceId(source);
-        const sourceView = await kb.views.get(sourceResId);
-        if (sourceView?.resource) {
-          citedByMap.set(source, sourceView.resource.name);
-        }
-      }
-    }
-
-    // Collect sibling entity types from other annotations on this resource
-    const annotationEntityTypes = getEntityTypes(annotation);
-    const siblingEntityTypes = new Set<string>();
-    for (const ann of sourceView.annotations.annotations) {
-      if (ann.id !== annotationId) {
-        for (const et of getEntityTypes(ann)) {
-          siblingEntityTypes.add(et);
-        }
-      }
-    }
-
-    // Build entity type frequency map
+    // Global IDF statistic — not graph-derivable, stays in metadata (D4).
+    const entityTypeStats = await kb.graph.getEntityTypeStats();
     const entityTypeFrequencies: Record<string, number> = {};
     for (const stat of entityTypeStats) {
       entityTypeFrequencies[stat.type] = stat.count;
     }
 
+    const annotationEntityTypes = getEntityTypes(annotation);
+
     // Optional inference enrichment: LLM summarizes relationships from passage + graph neighborhood
     let inferredRelationshipSummary: string | undefined;
     if (inferenceClient && sourceContext) {
       try {
-        const connNames = connections.map(c => c.targetResource.name).slice(0, 10);
-        const citedByNames = Array.from(citedByMap.values()).slice(0, 5);
-        const siblingTypes = Array.from(siblingEntityTypes).slice(0, 10);
+        const connNames = views.connections.map((c) => c.resourceName).slice(0, 10);
+        const citedByNames = views.citedBy.map((c) => c.resourceName).slice(0, 5);
+        const siblingTypes = views.siblingEntityTypes.slice(0, 10);
 
         const parts: string[] = [];
         parts.push(`Passage: "${sourceContext.selected}"`);
@@ -271,29 +248,6 @@ Summary:`;
         // Non-fatal — proceed without it
       }
     }
-
-    const graphContext: GatheredContext['graphContext'] = {
-      connections: connections.map(conn => ({
-        resourceId: getResourceId(conn.targetResource) ?? '',
-        resourceName: conn.targetResource.name,
-        entityTypes: getResourceEntityTypes(conn.targetResource),
-        bidirectional: conn.bidirectional,
-      })),
-      citedByCount: citedByMap.size,
-      citedBy: Array.from(citedByMap.entries()).map(([id, name]) => ({
-        resourceId: id,
-        resourceName: name,
-      })),
-      siblingEntityTypes: Array.from(siblingEntityTypes),
-      entityTypeFrequencies,
-      ...(inferredRelationshipSummary ? { inferredRelationshipSummary } : {}),
-    };
-
-    logger?.debug('Built graph context', {
-      connections: connections.length,
-      citedByCount: citedByMap.size,
-      siblingEntityTypes: siblingEntityTypes.size,
-    });
 
     // Build semantic context via vector search (if vectors and embedding are configured)
     let semanticContext: GatheredContext['semanticContext'];
@@ -323,35 +277,30 @@ Summary:`;
       }
     }
 
-    // Build GatheredContext structure (sourceContext is optional for image/PDF annotations)
-    const generationContext: GatheredContext = {
-      annotation,
-      sourceResource: sourceDoc,
+    // Assemble the unified GatheredContext (focus.kind:'annotation').
+    const context: GatheredContext = {
+      focus: {
+        kind: 'annotation',
+        annotation,
+        sourceResource: sourceDoc,
+        ...(sourceContext
+          ? { selected: { before: sourceContext.before || '', text: sourceContext.selected, after: sourceContext.after || '' } }
+          : {}),
+        ...(targetDoc ? { targetResource: targetDoc } : {}),
+        ...(targetContext ? { targetContext } : {}),
+      },
+      graph,
       metadata: {
         resourceType: 'document',
         language: sourceDoc.language as string | undefined,
         entityTypes: annotationEntityTypes,
+        entityTypeFrequencies,
       },
-      graphContext,
+      ...(inferredRelationshipSummary ? { inferredRelationshipSummary } : {}),
       ...(semanticContext ? { semanticContext } : {}),
     };
-    if (sourceContext) {
-      generationContext.sourceContext = {
-        before: sourceContext.before || '',
-        selected: sourceContext.selected,
-        after: sourceContext.after || '',
-      };
-    }
 
-    const response: AnnotationLLMContextResponse = {
-      annotation,
-      sourceResource: sourceDoc,
-      targetResource: targetDoc,
-      context: generationContext,
-      ...(targetContext ? { targetContext } : {}),
-    };
-
-    return response;
+    return context;
   }
 
   /**

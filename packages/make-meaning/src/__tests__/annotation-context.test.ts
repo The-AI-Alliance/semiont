@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AnnotationContext } from '../annotation-context';
+import { GraphContext } from '../graph-context';
 import { resourceId, annotationId, userId, EventBus, type Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore } from '@semiont/content';
@@ -20,7 +21,7 @@ function createMockGraphDb(): GraphDatabase {
     disconnect: vi.fn().mockResolvedValue(undefined),
     isConnected: vi.fn().mockReturnValue(true),
     createResource: vi.fn().mockResolvedValue({}),
-    getResource: vi.fn().mockResolvedValue(null),
+    getResource: vi.fn().mockImplementation(async (id: unknown) => ({ '@id': String(id), name: 'Test Resource', entityTypes: [], representations: [] })),
     updateResource: vi.fn().mockResolvedValue({}),
     deleteResource: vi.fn().mockResolvedValue(undefined),
     listResources: vi.fn().mockResolvedValue({ resources: [], total: 0 }),
@@ -257,8 +258,8 @@ describe('AnnotationContext', () => {
     );
 
     expect(result).toBeDefined();
-    expect(result).toHaveProperty('annotation');
-    expect(result).toHaveProperty('sourceResource');
+    expect(result.focus).toHaveProperty('annotation');
+    expect(result.focus).toHaveProperty('sourceResource');
   });
 
   it('should respect includeSourceContext option', async () => {
@@ -355,7 +356,7 @@ describe('AnnotationContext', () => {
     );
 
     expect(result).toBeDefined();
-    expect(result.annotation).toBeDefined();
+    expect(result.focus).toHaveProperty('annotation');
   });
 
   describe('graph context enrichment', () => {
@@ -388,10 +389,10 @@ describe('AnnotationContext', () => {
         mockLogger
       );
 
-      expect(result.context).toBeDefined();
-      expect(result.context?.graphContext).toBeDefined();
-      expect(result.context?.graphContext?.connections).toHaveLength(1);
-      expect(result.context?.graphContext?.connections?.[0]).toMatchObject({
+      expect(result.graph).toBeDefined();
+      const views = GraphContext.deriveViews(result.graph, testResourceId, testAnnId);
+      expect(views.connections).toHaveLength(1);
+      expect(views.connections[0]).toMatchObject({
         resourceId: 'connected-1',
         resourceName: 'Connected Resource',
         bidirectional: true,
@@ -429,9 +430,10 @@ describe('AnnotationContext', () => {
         mockLogger
       );
 
-      expect(result.context?.graphContext?.citedByCount).toBe(1);
-      expect(result.context?.graphContext?.citedBy).toHaveLength(1);
-      expect(result.context?.graphContext?.citedBy?.[0]?.resourceId).toBe(citingResourceId);
+      const views = GraphContext.deriveViews(result.graph, testResourceId, testAnnId);
+      expect(views.citedByCount).toBe(1);
+      expect(views.citedBy).toHaveLength(1);
+      expect(views.citedBy[0]?.resourceId).toBe(citingResourceId);
     });
 
     it('should include entity type frequencies', async () => {
@@ -457,7 +459,7 @@ describe('AnnotationContext', () => {
         mockLogger
       );
 
-      expect(result.context?.graphContext?.entityTypeFrequencies).toEqual({
+      expect(result.metadata.entityTypeFrequencies).toEqual({
         Person: 12,
         Location: 7,
         Event: 2,
@@ -506,6 +508,17 @@ describe('AnnotationContext', () => {
       (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      // Siblings now come from the graph projection (getResourceAnnotations), not the view (Q1=A / (c)).
+      (mockGraphDb.getResourceAnnotations as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        {
+          '@context': 'http://www.w3.org/ns/anno.jsonld',
+          id: annotationId(siblingAnnId),
+          type: 'Annotation',
+          motivation: 'tagging',
+          body: [{ type: 'TextualBody', value: 'Location', purpose: 'tagging', format: 'text/plain' }],
+          target: { source: testResourceId },
+        },
+      ]);
 
       const result = await AnnotationContext.buildLLMContext(
         annotationId(testAnnId),
@@ -516,9 +529,9 @@ describe('AnnotationContext', () => {
         mockLogger
       );
 
-      expect(result.context?.graphContext?.siblingEntityTypes).toBeDefined();
+      const views = GraphContext.deriveViews(result.graph, testResourceId, testAnnId);
       // The sibling annotation has entity type 'Location'
-      expect(result.context?.graphContext?.siblingEntityTypes).toContain('Location');
+      expect(views.siblingEntityTypes).toContain('Location');
     });
 
     it('should generate inferredRelationshipSummary when inferenceClient provided', async () => {
@@ -553,8 +566,8 @@ describe('AnnotationContext', () => {
         mockLogger
       );
 
-      expect(result.context?.graphContext?.inferredRelationshipSummary).toBeDefined();
-      expect(result.context?.graphContext?.inferredRelationshipSummary).toContain('fox');
+      expect(result.inferredRelationshipSummary).toBeDefined();
+      expect(result.inferredRelationshipSummary).toContain('fox');
       expect(mockInferenceClient.generateText).toHaveBeenCalledTimes(1);
       // Verify the prompt includes passage and graph neighborhood
       const prompt = mockInferenceClient.generateText.mock.calls[0][0];
@@ -581,7 +594,7 @@ describe('AnnotationContext', () => {
         mockLogger
       );
 
-      expect(result.context?.graphContext?.inferredRelationshipSummary).toBeUndefined();
+      expect(result.inferredRelationshipSummary).toBeUndefined();
     });
 
     it('should gracefully handle inference failure', async () => {
@@ -611,8 +624,8 @@ describe('AnnotationContext', () => {
       );
 
       // Should succeed without inferredRelationshipSummary
-      expect(result.context).toBeDefined();
-      expect(result.context?.graphContext?.inferredRelationshipSummary).toBeUndefined();
+      expect(result).toBeDefined();
+      expect(result.inferredRelationshipSummary).toBeUndefined();
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'Failed to generate inferred relationship summary',
         expect.anything(),
@@ -638,12 +651,12 @@ describe('AnnotationContext', () => {
         mockLogger
       );
 
-      expect(result.context?.graphContext).toEqual({
+      const views = GraphContext.deriveViews(result.graph, testResourceId, testAnnId);
+      expect(views).toEqual({
         connections: [],
-        citedByCount: 0,
         citedBy: [],
+        citedByCount: 0,
         siblingEntityTypes: [],
-        entityTypeFrequencies: {},
       });
     });
   });

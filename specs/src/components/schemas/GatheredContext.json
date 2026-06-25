@@ -154,5 +154,5 @@
       "description": "LLM-generated summary of the focal anchor's relationships in the knowledge graph"
     }
   },
-  "required": ["focus"]
+  "required": ["focus", "graph", "metadata"]
 }

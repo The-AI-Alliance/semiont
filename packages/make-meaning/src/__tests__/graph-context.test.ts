@@ -9,6 +9,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { GraphContext } from '../graph-context';
 import { resourceId } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
+import type { components } from '@semiont/core';
+type KnowledgeGraph = components['schemas']['KnowledgeGraph'];
 
 const mockGraphDb = {
   getResource: vi.fn(),
@@ -210,7 +212,7 @@ describe('GraphContext', () => {
       mockGraphDb.getResourceReferencedBy.mockResolvedValue([]);
       mockGraphDb.getResourceAnnotations.mockResolvedValue([]);
       await expect(
-        GraphContext.buildKnowledgeGraph(resourceId('res-main'), 10, mockKb),
+        GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb),
       ).rejects.toThrow('Resource not found');
     });
 
@@ -222,7 +224,7 @@ describe('GraphContext', () => {
         ],
       });
 
-      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), 10, mockKb);
+      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
 
       const annotationNodes = graph.nodes.filter((n) => n.type === 'annotation');
       expect(annotationNodes.map((n) => n.id).sort()).toEqual(['ann-1', 'ann-2']);
@@ -236,7 +238,7 @@ describe('GraphContext', () => {
         views: { 'res-citing': { resource: { '@id': 'res-citing', name: 'Citing Paper', entityTypes: [] } } },
       });
 
-      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), 10, mockKb);
+      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
 
       // citing resource is a node...
       expect(graph.nodes.find((n) => n.id === 'res-citing')).toMatchObject({ type: 'resource', label: 'Citing Paper' });
@@ -254,7 +256,7 @@ describe('GraphContext', () => {
         ],
       });
 
-      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), 10, mockKb);
+      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
 
       const peerEdge = graph.edges.find((e) => e.target === 'res-peer');
       expect(peerEdge).toMatchObject({ source: 'res-main', target: 'res-peer', type: 'cites', bidirectional: true });
@@ -265,10 +267,82 @@ describe('GraphContext', () => {
         annotations: [{ id: 'ann-sib', motivation: 'commenting', body: [] }],
       });
 
-      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), 10, mockKb);
+      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
 
       expect(graph.nodes.find((n) => n.id === 'ann-sib')).toMatchObject({ type: 'annotation' });
       expect(graph.edges).toContainEqual({ source: 'ann-sib', target: 'res-main', type: 'annotation-of' });
+    });
+  });
+
+  describe('deriveViews (CONTEXT-UNIFICATION P3, Q1=A — flattened views derived from the graph)', () => {
+    it('derives connections from main→peer edges (name, entityTypes, bidirectional)', () => {
+      const graph: KnowledgeGraph = {
+        nodes: [
+          { id: 'res-main', type: 'resource', label: 'Main', entityTypes: ['Paper'] },
+          { id: 'res-peer', type: 'resource', label: 'Peer', entityTypes: ['Author'] },
+        ],
+        edges: [{ source: 'res-main', target: 'res-peer', type: 'cites', bidirectional: true }],
+      };
+
+      const views = GraphContext.deriveViews(graph, 'res-main');
+
+      expect(views.connections).toEqual([
+        { resourceId: 'res-peer', resourceName: 'Peer', entityTypes: ['Author'], bidirectional: true },
+      ]);
+    });
+
+    it('derives citedBy + citedByCount from citation edges, KEEPING missing-view citers (Option A)', () => {
+      const graph: KnowledgeGraph = {
+        nodes: [
+          { id: 'res-main', type: 'resource', label: 'Main', entityTypes: [] },
+          { id: 'res-citing', type: 'resource', label: 'Citing Paper', entityTypes: [] },
+          // a citer whose view was missing at build time → labeled by its raw id
+          { id: 'res-noview', type: 'resource', label: 'res-noview', entityTypes: [] },
+        ],
+        edges: [
+          { source: 'res-citing', target: 'res-main', type: 'citation' },
+          { source: 'res-noview', target: 'res-main', type: 'citation' },
+        ],
+      };
+
+      const views = GraphContext.deriveViews(graph, 'res-main');
+
+      expect(views.citedByCount).toBe(2);
+      expect(views.citedBy).toEqual([
+        { resourceId: 'res-citing', resourceName: 'Citing Paper' },
+        { resourceId: 'res-noview', resourceName: 'res-noview' },
+      ]);
+    });
+
+    it('derives siblingEntityTypes as the union of annotation-node types, EXCLUDING the focal annotation', () => {
+      const graph: KnowledgeGraph = {
+        nodes: [
+          { id: 'res-main', type: 'resource', label: 'Main', entityTypes: [] },
+          { id: 'ann-focal', type: 'annotation', label: 'commenting', entityTypes: ['Focal'] },
+          { id: 'ann-sib-1', type: 'annotation', label: 'linking', entityTypes: ['Author', 'Org'] },
+          { id: 'ann-sib-2', type: 'annotation', label: 'commenting', entityTypes: ['Org'] },
+        ],
+        edges: [],
+      };
+
+      const views = GraphContext.deriveViews(graph, 'res-main', 'ann-focal');
+
+      expect([...views.siblingEntityTypes].sort()).toEqual(['Author', 'Org']);
+      expect(views.siblingEntityTypes).not.toContain('Focal');
+    });
+
+    it('returns empty views for a graph with only the main node', () => {
+      const graph: KnowledgeGraph = {
+        nodes: [{ id: 'res-main', type: 'resource', label: 'Main', entityTypes: [] }],
+        edges: [],
+      };
+
+      expect(GraphContext.deriveViews(graph, 'res-main')).toEqual({
+        connections: [],
+        citedBy: [],
+        citedByCount: 0,
+        siblingEntityTypes: [],
+      });
     });
   });
 });

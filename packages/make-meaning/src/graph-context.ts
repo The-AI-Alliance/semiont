@@ -20,8 +20,21 @@ import type { ResourceDescriptor } from '@semiont/core';
 
 // The unified knowledge-graph shape is the core/spec type (CONTEXT-UNIFICATION):
 // resources AND annotations are nodes; edges are typed and directional. The
-// hand-written local twins were deleted — this is the single source of truth.
+// hand-written local twins were deleted — this is the one canonical type definition.
 type KnowledgeGraph = components['schemas']['KnowledgeGraph'];
+
+/**
+ * Flattened neighborhood views derived from a `KnowledgeGraph` (CONTEXT-UNIFICATION P3, Q1=A).
+ * One derivation, shared by the annotation producer's `inferredRelationshipSummary` and the
+ * matcher (P4). It reports what the graph holds — and the graph is a projection of the event log
+ * (the system of record), read here because it is the queryable projection at gather time.
+ */
+export interface GraphViews {
+  connections: { resourceId: string; resourceName: string; entityTypes: string[]; bidirectional: boolean }[];
+  citedBy: { resourceId: string; resourceName: string }[];
+  citedByCount: number;
+  siblingEntityTypes: string[];
+}
 
 export class GraphContext {
   /**
@@ -77,14 +90,15 @@ export class GraphContext {
    */
   static async buildKnowledgeGraph(
     resourceId: ResourceId,
-    maxRelated: number,
     kb: KnowledgeBase,
   ): Promise<KnowledgeGraph> {
     const mainDoc = await kb.graph.getResource(resourceId);
     if (!mainDoc) {
       throw new Error('Resource not found');
     }
-    const mainId = getResourceId(mainDoc);
+    // Deterministic main-node id so both consumers (deriveViews ranking, the resource/viz
+    // related-node filter) line up without re-deriving it from a different projection.
+    const mainId = String(resourceId);
 
     const [connections, referencedBy, annotations] = await Promise.all([
       kb.graph.getResourceConnections(resourceId),
@@ -105,8 +119,9 @@ export class GraphContext {
     // Main resource
     addResourceNode(mainId, mainDoc.name, getResourceEntityTypes(mainDoc));
 
-    // Peer connections → resource nodes + directional/bidirectional edges
-    for (const conn of connections.slice(0, maxRelated - 1)) {
+    // Peer connections → resource nodes + directional/bidirectional edges.
+    // Full neighborhood — capping is a view concern, applied by the resource/viz consumer (Q2=C).
+    for (const conn of connections) {
       const peerId = getResourceId(conn.targetResource);
       if (!peerId) continue;
       addResourceNode(peerId, conn.targetResource.name, getResourceEntityTypes(conn.targetResource));
@@ -139,5 +154,52 @@ export class GraphContext {
     }
 
     return { nodes, edges };
+  }
+
+  /**
+   * Derive the flattened views (connections / citedBy / siblings) from a `KnowledgeGraph`
+   * (CONTEXT-UNIFICATION P3, Q1=A). Reports the graph as-is — Option A: missing-view citers are
+   * kept (the citation edge reflects a real reference event), and the only filter is excluding the
+   * focal annotation from siblings (an annotation isn't its own sibling). Peer connections are
+   * edges out of `mainResourceId`; citations and `annotation-of` edges point INTO it.
+   */
+  static deriveViews(
+    graph: KnowledgeGraph,
+    mainResourceId: string,
+    focalAnnotationId?: string,
+  ): GraphViews {
+    const nodeById = new Map(graph.nodes.map((n) => [n.id, n] as const));
+
+    const connections: GraphViews['connections'] = [];
+    const citedBy: GraphViews['citedBy'] = [];
+    for (const edge of graph.edges) {
+      if (edge.type === 'citation') {
+        if (edge.target !== mainResourceId) continue;
+        const node = nodeById.get(edge.source);
+        citedBy.push({ resourceId: edge.source, resourceName: node?.label ?? edge.source });
+      } else if (edge.source === mainResourceId) {
+        const node = nodeById.get(edge.target);
+        connections.push({
+          resourceId: edge.target,
+          resourceName: node?.label ?? edge.target,
+          entityTypes: node?.entityTypes ?? [],
+          bidirectional: edge.bidirectional ?? false,
+        });
+      }
+    }
+
+    const siblingEntityTypes = new Set<string>();
+    for (const node of graph.nodes) {
+      if (node.type === 'annotation' && node.id !== focalAnnotationId) {
+        for (const et of node.entityTypes ?? []) siblingEntityTypes.add(et);
+      }
+    }
+
+    return {
+      connections,
+      citedBy,
+      citedByCount: citedBy.length,
+      siblingEntityTypes: Array.from(siblingEntityTypes),
+    };
   }
 }
