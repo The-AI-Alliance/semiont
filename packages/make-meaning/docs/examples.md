@@ -124,16 +124,19 @@ const allAnnotations = await AnnotationContext.getAllAnnotations(resourceId, kb)
 ```typescript
 import { AnnotationContext } from '@semiont/make-meaning';
 
-const response = await AnnotationContext.buildLLMContext(
+const context = await AnnotationContext.buildLLMContext(
   annotationId,
   resourceId,
   kb,
   { contextWindow: 1000 },
 );
 
-console.log(`Selected: "${response.context?.sourceContext?.selected}"`);
-console.log(`Before: "${response.context?.sourceContext?.before}"`);
-console.log(`After: "${response.context?.sourceContext?.after}"`);
+// buildLLMContext returns an annotation-focus GatheredContext
+if (context.focus.kind === 'annotation') {
+  console.log(`Selected: "${context.focus.selected?.text}"`);
+  console.log(`Before: "${context.focus.selected?.before}"`);
+  console.log(`After: "${context.focus.selected?.after}"`);
+}
 ```
 
 ## Using the SDK (Recommended)

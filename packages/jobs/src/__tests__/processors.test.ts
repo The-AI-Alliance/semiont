@@ -310,12 +310,8 @@ describe('processGenerationJob', () => {
       makeInferenceClient(),
       {
         referenceId: annotationId('ann-1'),
-        sourceResourceId: RID,
-        sourceResourceName: 'src',
         title: 'Initial',
         entityTypes: [],
-        context: {} as any,
-        annotation: {} as any,
       },
       progress,
       LOGGER,
@@ -339,12 +335,8 @@ describe('processGenerationJob', () => {
       makeInferenceClient(),
       {
         referenceId: annotationId('ann-1'),
-        sourceResourceId: RID,
-        sourceResourceName: 'src',
         title: 'Fallback Title',
         entityTypes: [],
-        context: {} as any,
-        annotation: {} as any,
       },
       vi.fn(),
       LOGGER,
@@ -352,6 +344,30 @@ describe('processGenerationJob', () => {
 
     expect(result.title).toBe('Fallback Title');
     expect(result.result.resourceName).toBe('Fallback Title');
+  });
+});
+
+describe('processGenerationJob — outputMediaType', () => {
+  beforeEach(() => {
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: 'c', title: 'T' });
+  });
+
+  it('defaults the generated resource format to text/markdown', async () => {
+    const r = await processGenerationJob(makeInferenceClient(), { title: 'T' }, vi.fn(), LOGGER);
+    expect(r.format).toBe('text/markdown');
+  });
+
+  it('honors a requested text/plain outputMediaType', async () => {
+    const r = await processGenerationJob(makeInferenceClient(), { title: 'T', outputMediaType: 'text/plain' }, vi.fn(), LOGGER);
+    expect(r.format).toBe('text/plain');
+  });
+
+  it('throws for an unsupported outputMediaType — before the LLM call, no silent fallback', async () => {
+    vi.mocked(generateResourceFromTopic).mockClear();
+    await expect(
+      processGenerationJob(makeInferenceClient(), { title: 'T', outputMediaType: 'image/png' }, vi.fn(), LOGGER),
+    ).rejects.toThrow(/unsupported outputMediaType/i);
+    expect(generateResourceFromTopic).not.toHaveBeenCalled();
   });
 });
 
@@ -669,12 +685,8 @@ describe('locale threading', () => {
         client,
         {
           referenceId: annotationId('ann-1'),
-          sourceResourceId: RID,
-          sourceResourceName: 'src',
           title: 'Topic',
           entityTypes: [],
-          context: {} as any,
-          annotation: {} as any,
           language: 'de',
           sourceLanguage: 'fr',
         },
@@ -683,10 +695,10 @@ describe('locale threading', () => {
       );
 
       // Positional signature: topic, entityTypes, client, logger, prompt,
-      // locale, context, temperature, maxTokens, sourceLanguage.
+      // locale, context, temperature, maxTokens, sourceLanguage, outputMediaType.
       expect(generateResourceFromTopic).toHaveBeenCalledWith(
-        'Topic', [], client, LOGGER, undefined, 'de', expect.any(Object),
-        undefined, undefined, 'fr',
+        'Topic', [], client, LOGGER, undefined, 'de', undefined,
+        undefined, undefined, 'fr', 'text/markdown',
       );
     });
   });

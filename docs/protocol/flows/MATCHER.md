@@ -61,7 +61,7 @@ The Matcher retrieves candidates in parallel from three sources, then deduplicat
 
 1. **Name match** — `graph.searchResources(searchTerm)` — text search against resource names
 2. **Entity type filter** — `graph.listResources({ entityTypes })` — resources sharing entity types with the annotation
-3. **Graph neighborhood** — resources connected to the source resource, from `context.graphContext.connections`
+3. **Graph neighborhood** — resources connected to the source resource, derived from the shared `context.graph` (`deriveViews(context.graph, mainResourceId).connections`, from `@semiont/core`)
 
 Candidates found by more than one source receive a multi-source bonus at scoring time.
 

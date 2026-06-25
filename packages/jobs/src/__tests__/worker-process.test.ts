@@ -328,6 +328,36 @@ describe('handleJob orchestration', () => {
       expect(h.yieldResourceCalls).toHaveLength(1);
       expect(h.yieldResourceCalls[0]!.entityTypes).toBeUndefined();
     });
+
+    it('resource-focus generation (no referenceId) mints a source→derived reference annotation', async () => {
+      // YIELD-FROM-RESOURCE Fork 2b. Annotation-focus generation auto-binds via
+      // sourceAnnotationId; resource-focus has no triggering reference, so the worker
+      // mints a navigable reference: target = the whole source resource (resource-level,
+      // no selector), body = SpecificResource → the derived resource.
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: 'body', title: 'Derived Doc', format: 'text/markdown', result: {} as never,
+      });
+      const h = makeFakeSessionAndAdapter();
+
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', {}));
+
+      expect(h.yieldResourceCalls[0]!.sourceAnnotationId).toBeUndefined(); // no auto-bind
+
+      const markCreate = h.busEmits.find(e => e.channel === 'mark:create');
+      expect(markCreate, 'resource-focus generation mints a navigable source→derived reference').toBeDefined();
+      expect(markCreate!.payload).toMatchObject({
+        annotation: {
+          motivation: 'linking',
+          target: { source: RID },
+          body: { type: 'SpecificResource', source: 'new-res-42', purpose: 'linking' },
+        },
+      });
+      // resource-level target — no selector
+      const ann = (markCreate!.payload as { annotation: { target: { selector?: unknown } } }).annotation;
+      expect(ann.target.selector).toBeUndefined();
+
+      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'job:complete']);
+    });
   });
 
   describe('unknown job type', () => {

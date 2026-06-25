@@ -251,10 +251,10 @@ static async buildLLMContext(
   inferenceClient?: InferenceClient,
   logger?: Logger,
   embeddingProvider?: EmbeddingProvider,
-): Promise<AnnotationLLMContextResponse>
+): Promise<GatheredContext>
 ```
 
-Builds rich context for AI processing including the annotation, surrounding text, resource metadata, and knowledge graph neighborhood (`graphContext`). When an `InferenceClient` is provided, also generates an `inferredRelationshipSummary` describing how the passage relates to its graph neighborhood; when an `EmbeddingProvider` is provided (and the KB has vectors), adds `semanticContext` from vector search.
+Builds rich context for AI processing: an annotation-focus `GatheredContext` carrying the annotation, surrounding text, resource metadata, and the shared knowledge-graph backbone (`graph` / `KnowledgeGraph`). When an `InferenceClient` is provided, also generates an `inferredRelationshipSummary` describing how the passage relates to its graph neighborhood; when an `EmbeddingProvider` is provided (and the KB has vectors), adds `semanticContext` from vector search.
 
 #### getResourceAnnotations()
 
@@ -336,7 +336,7 @@ static async getResourceContext(
   options: LLMContextOptions,
   kb: KnowledgeBase,
   inferenceClient: InferenceClient,
-): Promise<ResourceLLMContextResponse>
+): Promise<GatheredContext>
 ```
 
 ---

@@ -98,6 +98,63 @@ export class YieldNamespace implements IYieldNamespace {
     annotationId: AnnotationId,
     options: GenerationOptions,
   ): StreamObservable<YieldGenerationEvent> {
+    return this.runGeneration(resourceId, {
+      referenceId: annotationId,
+      title: options.title,
+      prompt: options.prompt,
+      entityTypes: options.entityTypes,
+      language: options.language,
+      sourceLanguage: options.sourceLanguage,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+      storageUri: options.storageUri,
+      outputMediaType: options.outputMediaType,
+      context: options.context as unknown as Record<string, unknown>,
+    });
+  }
+
+  /**
+   * Generate a new resource *derived from* a whole source resource — translate,
+   * summarize, transform, extract, synthesize, rewrite; the role is carried by
+   * `options.prompt` (+ `language`, `outputMediaType`). No annotation anchor — pass a
+   * resource-focus `GatheredContext` (from `gather.resource`) as `options.context` to
+   * ground it. Long-running/LLM-based; on completion the worker mints a navigable
+   * source→derived reference annotation (provenance).
+   *
+   * ⚠️ Cold `StreamObservable`: do NOT both `.subscribe(...)` and `await` the same
+   * instance — that fires the job twice. Use `.run(onNext)` for progress + result.
+   * See `.plans/MULTICAST-JOB-TRIGGERS.md`.
+   */
+  fromResource(
+    resourceId: ResourceId,
+    options: GenerationOptions,
+  ): StreamObservable<YieldGenerationEvent> {
+    return this.runGeneration(resourceId, {
+      title: options.title,
+      prompt: options.prompt,
+      entityTypes: options.entityTypes,
+      language: options.language,
+      sourceLanguage: options.sourceLanguage,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+      storageUri: options.storageUri,
+      outputMediaType: options.outputMediaType,
+      context: options.context as unknown as Record<string, unknown>,
+    });
+  }
+
+  /**
+   * Shared job-lifecycle driver for `fromAnnotation`/`fromResource`. Emits
+   * `job:create` (jobType `generation`) with the supplied `params`, then streams the
+   * unified `job:report-progress`/`job:complete`/`job:fail` lifecycle (with a polled
+   * `job:status` fallback) as `YieldGenerationEvent`s, resolving on the terminal
+   * `complete`. The two public methods differ only in `params` (fromAnnotation sets
+   * `referenceId`; fromResource doesn't).
+   */
+  private runGeneration(
+    resourceId: ResourceId,
+    params: Record<string, unknown>,
+  ): StreamObservable<YieldGenerationEvent> {
     return new StreamObservable<YieldGenerationEvent>((subscriber) => {
       let done = false;
       let pollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -192,18 +249,7 @@ export class YieldNamespace implements IYieldNamespace {
         {
           jobType: 'generation',
           resourceId,
-          params: {
-            referenceId: annotationId,
-            title: options.title,
-            prompt: options.prompt,
-            entityTypes: options.entityTypes,
-            language: options.language,
-            sourceLanguage: options.sourceLanguage,
-            temperature: options.temperature,
-            maxTokens: options.maxTokens,
-            storageUri: options.storageUri,
-            context: options.context as unknown as Record<string, unknown>,
-          },
+          params,
         },
         'job:created',
         'job:create-failed',

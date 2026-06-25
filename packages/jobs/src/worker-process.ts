@@ -18,7 +18,7 @@
 import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob } from './job-claim-adapter';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { getPrimaryMediaType, textExtractionOf, type EventMap } from '@semiont/core';
+import { getPrimaryMediaType, textExtractionOf, assembleAnnotation, type EventMap } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { deriveStorageUri } from '@semiont/content';
@@ -310,6 +310,23 @@ async function handleJobInner(
       ...(genParams.entityTypes && genParams.entityTypes.length > 0 ? { entityTypes: genParams.entityTypes } : {}),
       generator,
     });
+
+    // Resource-focus generation has no triggering reference — mint a navigable
+    // source→derived reference annotation (YIELD-FROM-RESOURCE Fork 2b) so the
+    // derivation is a first-class edge, targeting the whole source resource
+    // (resource-level, no selector). Annotation-focus generation instead auto-binds
+    // the triggering reference via `sourceAnnotationId` on the upload above.
+    if (!genParams.referenceId) {
+      const { annotation: provenanceRef } = assembleAnnotation(
+        {
+          motivation: 'linking',
+          target: { source: String(resourceId) },
+          body: { type: 'SpecificResource', source: String(newResourceId), purpose: 'linking' },
+        },
+        generator,
+      );
+      await emitEvent(session, 'mark:create', { annotation: provenanceRef, userId, resourceId });
+    }
 
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,

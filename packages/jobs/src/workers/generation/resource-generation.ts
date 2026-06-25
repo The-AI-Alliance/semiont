@@ -5,7 +5,7 @@
  */
 
 import { getLocaleEnglishName, deriveViews } from '@semiont/core';
-import type { GatheredContext, Logger } from '@semiont/core';
+import type { GatheredContext, Logger, SupportedMediaType } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 
 
@@ -34,7 +34,8 @@ export async function generateResourceFromTopic(
   context?: GatheredContext,
   temperature?: number,
   maxTokens?: number,
-  sourceLanguage?: string
+  sourceLanguage?: string,
+  outputMediaType: SupportedMediaType = 'text/markdown'
 ): Promise<{ title: string; content: string }> {
   logger.debug('Generating resource from topic', {
     topicPreview: topic.substring(0, 100),
@@ -111,10 +112,28 @@ ${after ? `${after}...` : ''}
 ---
 `;
       }
-    } else if (focus.resource.name) {
-      // Minimal resource anchor — YIELD-FROM-RESOURCE Gap B fleshes out the
-      // grounded resource section (summary / suggestedReferences / content).
-      resourceSection = `\n\nFocal resource: ${focus.resource.name}`;
+    } else {
+      // Resource focus — ground in the focal resource's summary, suggested
+      // references, and content (omit-empty). Content is capped per resource to
+      // bound prompt size; the caller already chose breadth via gather.resource.
+      const RESOURCE_CONTENT_CAP = 4000;
+      const parts = [`- Resource: ${focus.resource.name}`];
+      if (focus.summary) parts.push(`- Summary: ${focus.summary}`);
+      if (focus.suggestedReferences && focus.suggestedReferences.length > 0) {
+        parts.push(`- Suggested references: ${focus.suggestedReferences.join(', ')}`);
+      }
+      resourceSection = `\n\nResource context:\n${parts.join('\n')}`;
+
+      if (focus.content?.main) {
+        resourceSection += `\n\nResource content:\n---\n${focus.content.main.slice(0, RESOURCE_CONTENT_CAP)}\n---`;
+      }
+      const related = Object.entries(focus.content?.related ?? {});
+      if (related.length > 0) {
+        const blocks = related
+          .map(([id, text]) => `[${id}]\n${text.slice(0, RESOURCE_CONTENT_CAP)}`)
+          .join('\n\n');
+        resourceSection += `\n\nRelated resource content:\n---\n${blocks}\n---`;
+      }
     }
 
     // Shared base: graph-derived neighborhood (connections / citedBy / siblings)
@@ -164,21 +183,27 @@ ${after ? `${after}...` : ''}
     semanticContextSection = `\n\nRelated passages from the knowledge base:\n${lines.join('\n')}`;
   }
 
-  const structureGuidance = finalMaxTokens >= 1000
+  // Format instructions branch on the requested output media type. Markdown is the
+  // default; text/plain drops the markup scaffolding so the result is clean prose.
+  const isPlainText = outputMediaType === 'text/plain';
+  const structureGuidance = !isPlainText && finalMaxTokens >= 1000
     ? 'organized into titled sections (## Section) with well-structured paragraphs'
     : 'organized into well-structured paragraphs';
+  const formatRequirements = isPlainText
+    ? `- Write the response as plain text — no formatting markup (no #, *, backticks, headings, or links)
+- Begin with the title on its own first line`
+    : `- Start with a clear heading (# Title)
+- Use markdown formatting
+- Write the response as markdown`;
 
-  // Simple, direct prompt - just ask for markdown content
   const prompt = `Generate a concise, informative resource about "${topic}".
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
 ${userPrompt ? `Additional context: ${userPrompt}` : ''}${annotationSection}${contextSection}${resourceSection}${graphSection}${semanticContextSection}${sourceLanguageInstruction}${languageInstruction}
 
 Requirements:
-- Start with a clear heading (# Title)
 - Aim for approximately ${finalMaxTokens} tokens of content, ${structureGuidance}
 - Be factual and informative
-- Use markdown formatting
-- Write the response as markdown`;
+${formatRequirements}`;
 
   // Simple parser - just use the response directly as markdown
   const parseResponse = (response: string): { title: string; content: string } => {
