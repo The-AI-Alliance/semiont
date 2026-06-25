@@ -104,8 +104,9 @@ function resolveOutputMediaType(raw: string | undefined): SupportedMediaType | u
   return raw;
 }
 
-function extractResult(final: { kind: string; data?: { result?: unknown } }): { resourceId?: string; resourceName?: string } {
-  const r = ((final.kind === 'complete' ? final.data?.result : undefined) ?? {}) as { resourceId?: string; resourceName?: string };
+function extractResult(final: { kind: string; data?: unknown }): { resourceId?: string; resourceName?: string } {
+  if (final.kind !== 'complete') return {};
+  const r = (final.data as { result?: { resourceId?: string; resourceName?: string } } | undefined)?.result ?? {};
   return { resourceId: r.resourceId, resourceName: r.resourceName };
 }
 
