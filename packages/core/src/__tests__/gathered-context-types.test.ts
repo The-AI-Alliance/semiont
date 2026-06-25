@@ -76,7 +76,7 @@ describe('GatheredContext — unified shape (P1)', () => {
 
 // ── P1b: annotation-wrapper collapse ──────────────────────────────────────────
 // The annotation focus carries the (dormant) target* capability that used to
-// live on the deleted AnnotationLLMContextResponse wrapper; the gather:annotation
+// live on the now-deleted per-kind annotation-response wrapper; the gather:annotation
 // channels now carry a bare GatheredContext, symmetric with the resource path.
 type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
 type GatherAnnotationFinished = components['schemas']['GatherAnnotationFinished'];
