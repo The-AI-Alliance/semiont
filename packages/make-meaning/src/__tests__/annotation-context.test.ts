@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AnnotationContext } from '../annotation-context';
-import { GraphContext } from '../graph-context';
+import { deriveViews } from '@semiont/core';
 import { resourceId, annotationId, userId, EventBus, type Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore } from '@semiont/content';
@@ -390,7 +390,7 @@ describe('AnnotationContext', () => {
       );
 
       expect(result.graph).toBeDefined();
-      const views = GraphContext.deriveViews(result.graph, testResourceId, testAnnId);
+      const views = deriveViews(result.graph, testResourceId, testAnnId);
       expect(views.connections).toHaveLength(1);
       expect(views.connections[0]).toMatchObject({
         resourceId: 'connected-1',
@@ -430,7 +430,7 @@ describe('AnnotationContext', () => {
         mockLogger
       );
 
-      const views = GraphContext.deriveViews(result.graph, testResourceId, testAnnId);
+      const views = deriveViews(result.graph, testResourceId, testAnnId);
       expect(views.citedByCount).toBe(1);
       expect(views.citedBy).toHaveLength(1);
       expect(views.citedBy[0]?.resourceId).toBe(citingResourceId);
@@ -529,7 +529,7 @@ describe('AnnotationContext', () => {
         mockLogger
       );
 
-      const views = GraphContext.deriveViews(result.graph, testResourceId, testAnnId);
+      const views = deriveViews(result.graph, testResourceId, testAnnId);
       // The sibling annotation has entity type 'Location'
       expect(views.siblingEntityTypes).toContain('Location');
     });
@@ -651,7 +651,7 @@ describe('AnnotationContext', () => {
         mockLogger
       );
 
-      const views = GraphContext.deriveViews(result.graph, testResourceId, testAnnId);
+      const views = deriveViews(result.graph, testResourceId, testAnnId);
       expect(views).toEqual({
         connections: [],
         citedBy: [],

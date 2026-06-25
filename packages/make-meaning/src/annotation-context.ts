@@ -12,7 +12,7 @@
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import { generateResourceSummary } from './generation/resource-generation';
-import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes, getTextPositionSelector, getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
+import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes, getTextPositionSelector, getPrimaryRepresentation, decodeRepresentation, deriveViews } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
 
 import type {
@@ -209,7 +209,7 @@ export class AnnotationContext {
     const graph = await GraphContext.buildKnowledgeGraph(resourceId, kb);
 
     // Derive the flattened views (connections / citedBy / siblings) from the graph (Q1=A).
-    const views = GraphContext.deriveViews(graph, String(resourceId), annotationId);
+    const views = deriveViews(graph, String(resourceId), annotationId);
 
     // Global IDF statistic — not graph-derivable, stays in metadata (D4).
     const entityTypeStats = await kb.graph.getEntityTypeStats();
