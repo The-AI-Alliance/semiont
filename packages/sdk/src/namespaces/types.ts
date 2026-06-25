@@ -53,6 +53,7 @@ type GatherProgress = components['schemas']['GatherProgress'];
 type MatchSearchResult = components['schemas']['MatchSearchResult'];
 type JobProgress = components['schemas']['JobProgress'];
 type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
+type SupportedMediaType = components['schemas']['SupportedMediaType'];
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
 type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
@@ -93,7 +94,7 @@ export interface CreateResourceInput {
   isDraft?: boolean;
 }
 
-/** Options for yield.fromAnnotation() */
+/** Options for yield.fromAnnotation() and yield.fromResource(). */
 export interface GenerationOptions {
   title: string;
   storageUri: string;
@@ -107,6 +108,12 @@ export interface GenerationOptions {
   sourceLanguage?: string;
   temperature?: number;
   maxTokens?: number;
+  /**
+   * Media type of the generated resource (the role's output format). Defaults to
+   * `text/markdown` at the worker, which validates it against its supported output
+   * set and **fails the job** for anything it can't write — not a silent fallback.
+   */
+  outputMediaType?: SupportedMediaType;
 }
 
 /** Options for mark.assist() */
@@ -387,6 +394,14 @@ export interface YieldNamespace {
   fromAnnotation(
     resourceId: ResourceId,
     annotationId: AnnotationId,
+    options: GenerationOptions,
+  ): StreamObservable<YieldGenerationEvent>;
+
+  // Generation derived from a whole resource (no annotation anchor). Same lifecycle
+  // and options as fromAnnotation; ground it with a resource-focus `context` from
+  // gather.resource. The worker mints a source→derived reference annotation.
+  fromResource(
+    resourceId: ResourceId,
     options: GenerationOptions,
   ): StreamObservable<YieldGenerationEvent>;
 

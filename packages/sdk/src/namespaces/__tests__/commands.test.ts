@@ -6,7 +6,7 @@ import { BindNamespace } from '../bind';
 import { GatherNamespace } from '../gather';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
-import type { ITransport, IContentTransport } from '@semiont/core';
+import type { ITransport, IContentTransport, GatheredContext } from '@semiont/core';
 
 const RID = resourceId('res-1');
 const AID = annotationId('ann-1');
@@ -477,6 +477,38 @@ describe('YieldNamespace', () => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         jobType: 'generation',
         resourceId: RID,
+      }));
+      resolve();
+    }, 20));
+  });
+
+  it('fromResource() emits job:create (generation) with no referenceId', () => {
+    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
+        jobType: 'generation',
+        resourceId: RID,
+        params: expect.not.objectContaining({ referenceId: expect.anything() }),
+      }));
+      resolve();
+    }, 20));
+  });
+
+  it('fromResource({ outputMediaType }) carries outputMediaType into job:create params', () => {
+    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, outputMediaType: 'text/plain' }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
+        params: expect.objectContaining({ outputMediaType: 'text/plain' }),
+      }));
+      resolve();
+    }, 20));
+  });
+
+  it('fromAnnotation({ outputMediaType }) carries outputMediaType into job:create params', () => {
+    yld.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, outputMediaType: 'text/plain' }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
+        params: expect.objectContaining({ outputMediaType: 'text/plain' }),
       }));
       resolve();
     }, 20));
