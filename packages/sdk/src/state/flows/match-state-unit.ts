@@ -1,6 +1,6 @@
 import type { Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
-import type { ResourceId, GatheredContext } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '../lib/state-unit';
@@ -17,7 +17,7 @@ export function createMatchStateUnit(
     const searchSub = client.match.search(
       makeResourceId(event.resourceId),
       makeAnnotationId(event.referenceId),
-      event.context as GatheredContext,
+      event.context,
       { limit: event.limit, useSemanticScoring: event.useSemanticScoring },
     ).pipe(
       timeout(60_000),

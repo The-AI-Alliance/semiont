@@ -13,13 +13,16 @@
 
 import { Subscription, from } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
-import type { EventMap, GatheredContext, Logger, ResourceDescriptor } from '@semiont/core';
-import { type EventBus, resourceId, errField } from '@semiont/core';
+import type { EventMap, GatheredContext, GraphViews, Logger, ResourceDescriptor } from '@semiont/core';
+import { type EventBus, resourceId, errField, deriveViews } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
+
+/** The annotation branch of the unified GatheredContext — the only focus the matcher serves. */
+type AnnotationFocus = Extract<GatheredContext['focus'], { kind: 'annotation' }>;
 
 export class Matcher {
   private subscriptions: Subscription[] = [];
@@ -54,8 +57,15 @@ export class Matcher {
   private async handleSearch(event: EventMap['match:search-requested']): Promise<void> {
     try {
       const context = event.context;
-      const selectedText = context.sourceContext?.selected ?? '';
-      const userHint = context.userHint ?? '';
+      if (context.focus.kind !== 'annotation') {
+        throw new Error(`Matcher expected annotation focus, received '${context.focus.kind}'`);
+      }
+      const focus = context.focus;
+      // The graph's main node was built (P3) from the focal resource id; the match event
+      // carries that same id. Join on it — not on a descriptor — per the plan's P4 mapping.
+      const mainResourceId = String(event.resourceId);
+      const selectedText = focus.selected?.text ?? '';
+      const userHint = focus.userHint ?? '';
       const searchTerm = [selectedText, userHint].filter(Boolean).join(' ');
 
       this.logger.debug('Searching for binding candidates', {
@@ -68,6 +78,8 @@ export class Matcher {
       const scored = await this.contextDrivenSearch(
         searchTerm,
         context,
+        focus,
+        mainResourceId,
         event.useSemanticScoring,
       );
 
@@ -109,10 +121,14 @@ export class Matcher {
   private async contextDrivenSearch(
     searchTerm: string,
     context: GatheredContext,
+    focus: AnnotationFocus,
+    mainResourceId: string,
     useSemanticScoring?: boolean,
   ): Promise<Array<ResourceDescriptor & { score: number; matchReason: string }>> {
-    const annotationEntityTypes = context.metadata?.entityTypes ?? [];
-    const connections = context.graphContext?.connections ?? [];
+    const annotationEntityTypes = context.metadata.entityTypes ?? [];
+    // The flattened connection/citation views are derived from the shared graph backbone.
+    const views = deriveViews(context.graph, mainResourceId);
+    const connections = views.connections;
 
     // 1. Multi-source candidate retrieval (parallel)
     const [nameMatches, entityTypeMatches, semanticMatches] = await Promise.all([
@@ -176,7 +192,7 @@ export class Matcher {
     const bidirectionalIds = new Set(
       connections.filter(c => c.bidirectional).map(c => c.resourceId),
     );
-    const entityTypeFreqs = context.graphContext?.entityTypeFrequencies ?? {};
+    const entityTypeFreqs = context.metadata.entityTypeFrequencies ?? {};
     const searchTermLower = searchTerm.toLowerCase();
 
     const scored = Array.from(candidateMap.values()).map(({ resource, sources }) => {
@@ -213,7 +229,7 @@ export class Matcher {
       }
 
       // Citation weight (well-connected candidates are more important)
-      const citedByCount = context.graphContext?.citedByCount ?? 0;
+      const citedByCount = views.citedByCount;
       if (sources.has('neighborhood') && citedByCount > 0) {
         score += Math.min(citedByCount * 2, 15);
       }
@@ -266,6 +282,8 @@ export class Matcher {
         const inferenceScores = await this.inferenceSemanticScore(
           searchTerm,
           context,
+          focus,
+          connections,
           scored.slice(0, 20), // Limit to top 20 candidates for cost
         );
         for (const item of scored) {
@@ -309,13 +327,13 @@ export class Matcher {
   private async inferenceSemanticScore(
     searchTerm: string,
     context: GatheredContext,
+    focus: AnnotationFocus,
+    connections: GraphViews['connections'],
     candidates: Array<ResourceDescriptor & { score: number }>,
   ): Promise<Map<string, number>> {
-    const passage = [context.sourceContext?.selected, context.userHint]
+    const passage = [focus.selected?.text, focus.userHint]
       .filter(Boolean).join(' — ') || searchTerm;
-    const entityTypes = context.metadata?.entityTypes ?? [];
-    const graphConnections = context.graphContext?.connections;
-    const connections = graphConnections ?? [];
+    const entityTypes = context.metadata.entityTypes ?? [];
 
     // Build candidate list for the prompt
     const candidateLines = candidates.map((c, i) => {
@@ -325,10 +343,10 @@ export class Matcher {
     }).join('\n');
 
     const contextParts: string[] = [];
-    contextParts.push(`Annotation motivation: ${context.annotation.motivation}`);
-    contextParts.push(`Source resource: ${context.sourceResource.name}`);
+    contextParts.push(`Annotation motivation: ${focus.annotation.motivation}`);
+    contextParts.push(`Source resource: ${focus.sourceResource.name}`);
     // Include body text for commenting/assessing annotations
-    const { motivation, body } = context.annotation;
+    const { motivation, body } = focus.annotation;
     if (motivation === 'commenting' || motivation === 'assessing') {
       const bodyItem = Array.isArray(body) ? body[0] : body;
       if (bodyItem && 'value' in bodyItem && bodyItem.value) {
@@ -341,8 +359,8 @@ export class Matcher {
       const connNames = connections.slice(0, 5).map(c => c.resourceName);
       contextParts.push(`Connected resources: ${connNames.join(', ')}`);
     }
-    if (context.graphContext?.inferredRelationshipSummary) {
-      contextParts.push(`Relationship context: ${context.graphContext.inferredRelationshipSummary}`);
+    if (context.inferredRelationshipSummary) {
+      contextParts.push(`Relationship context: ${context.inferredRelationshipSummary}`);
     }
 
     const prompt = `Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.

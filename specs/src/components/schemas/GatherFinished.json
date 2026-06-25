@@ -9,7 +9,7 @@
       "type": "string"
     },
     "response": {
-      "$ref": "ResourceLLMContextResponse.json"
+      "$ref": "./GatheredContext.json"
     }
   },
   "required": ["correlationId", "resourceId", "response"]

@@ -11,8 +11,8 @@
       "description": "Branded AnnotationId of the annotation whose context was gathered"
     },
     "response": {
-      "$ref": "./AnnotationLLMContextResponse.json",
-      "description": "The gathered annotation context"
+      "$ref": "./GatheredContext.json",
+      "description": "The gathered annotation context (unified GatheredContext, focus.kind:'annotation')"
     }
   },
   "required": ["correlationId", "annotationId", "response"]

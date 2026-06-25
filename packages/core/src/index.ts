@@ -371,3 +371,8 @@ export type {
   GraphDatabaseType,
   ServicePlatformConfig
 } from './config/config.types';
+
+// Knowledge-graph view derivation (CONTEXT-UNIFICATION P3) — pure fn over the KnowledgeGraph type,
+// shared by @semiont/make-meaning (matcher) and @semiont/jobs (generation).
+export { deriveViews } from './knowledge-graph-views';
+export type { GraphViews } from './knowledge-graph-views';

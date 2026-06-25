@@ -70,10 +70,15 @@ describe('createGatherStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('sets context when Observable emits completion with response.context', () => {
-    const mockContext = { annotation: { id: 'ann-1' }, sourceResource: {}, sourceContext: 'text' };
+  it('sets context when the Observable emits a completion (response IS the GatheredContext)', () => {
+    // P2b collapse: gather:complete carries a bare GatheredContext on `response`, not response.context.
+    const mockContext = {
+      focus: { kind: 'annotation', annotation: { id: 'ann-1' }, sourceResource: {} },
+      graph: { nodes: [], edges: [] },
+      metadata: {},
+    };
     const gatherFn = vi.fn(() => new Observable((sub) => {
-      sub.next({ response: { context: mockContext } });
+      sub.next({ response: mockContext });
       sub.complete();
     }));
     tc = withGather(gatherFn);
@@ -90,9 +95,9 @@ describe('createGatherStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('sets null context when Observable emits progress without context', () => {
+  it('leaves context null when the Observable emits a progress event (no response)', () => {
     const gatherFn = vi.fn(() => new Observable((sub) => {
-      sub.next({ response: {} });
+      sub.next({ progress: 0.5 });
       sub.complete();
     }));
     tc = withGather(gatherFn);
@@ -102,7 +107,7 @@ describe('createGatherStateUnit', () => {
     stateUnit.context$.subscribe(v => ctx.push(v));
 
     tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
-    // Initial null, cleared null from gather:requested, no context set (response has no context)
+    // Initial null + the gather:requested clear-null; a progress event carries no `response`, so context is never set.
     expect(ctx.every(v => v === null)).toBe(true);
     stateUnit.dispose();
   });

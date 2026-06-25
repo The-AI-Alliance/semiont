@@ -273,9 +273,14 @@ describe('runMatch', () => {
     vi.clearAllMocks();
     mockLoadCachedClient.mockReturnValue({ semiont: semiontStub, token: 'mock-token' });
     mockGather.annotation.mockReturnValue(of({
-      annotation: {},
-      sourceResource: {},
-      sourceContext: { before: '', selected: 'Paris', after: '' },
+      focus: {
+        kind: 'annotation',
+        annotation: {},
+        sourceResource: {},
+        selected: { before: '', text: 'Paris', after: '' },
+      },
+      graph: { nodes: [], edges: [] },
+      metadata: {},
     }));
     mockMatch.search.mockReturnValue(of({ response: mockResults }));
   });
@@ -300,7 +305,7 @@ describe('runMatch', () => {
   it('applies userHint to the gathered context', async () => {
     await runMatch(makeMatchOptions({ userHint: 'look for Paris papers' }));
     const [, , ctx] = mockMatch.search.mock.calls[0];
-    expect((ctx as any).userHint).toBe('look for Paris papers');
+    expect((ctx as any).focus.userHint).toBe('look for Paris papers');
   });
 
   it('rejects when gather.annotation errors', async () => {

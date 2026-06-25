@@ -4,7 +4,7 @@
  * (no progress events, so a Promise via busRequest, not a StreamObservable).
  *
  * The backend route (`gatherer.ts` handleResourceGather) and the wire contract
- * (GatherResourceRequest/Complete, ResourceLLMContextResponse) already exist;
+ * (GatherResourceRequest/Complete, carrying a unified GatheredContext) already exist;
  * this exercises the SDK method that was previously a throwing stub. See the
  * my-chat SDK-FRICTION-LOG B1.
  */
@@ -70,7 +70,9 @@ describe('gather.resource', () => {
     const cid = payload.correlationId as string;
     expect(typeof cid).toBe('string');
 
-    const response = { mainResource: { id: rid }, relatedResources: [], annotations: [] };
+    // gather:resource-complete now carries a unified GatheredContext (focus.kind:'resource'),
+    // not the old per-kind response wrapper (CONTEXT-UNIFICATION P1).
+    const response = { focus: { kind: 'resource', resource: { '@id': rid } }, graph: { nodes: [], edges: [] }, metadata: {} };
     subjectFor('gather:resource-complete').next({ correlationId: cid, resourceId: rid, response });
 
     expect(await promise).toEqual(response);

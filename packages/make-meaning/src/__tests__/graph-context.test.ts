@@ -11,16 +11,20 @@ import { resourceId } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
 
 const mockGraphDb = {
+  getResource: vi.fn(),
   getResourceReferencedBy: vi.fn(),
+  getResourceAnnotations: vi.fn(),
   findPath: vi.fn(),
   getResourceConnections: vi.fn(),
   searchResources: vi.fn()
 };
 
+const mockViews = { get: vi.fn() };
+
 describe('GraphContext', () => {
   const mockKb: KnowledgeBase = {
     eventStore: {} as any,
-    views: {} as any,
+    views: mockViews as any,
     content: {} as any,
     graph: mockGraphDb as any,
     projectionsDir: '',
@@ -181,5 +185,90 @@ describe('GraphContext', () => {
     await GraphContext.searchResources('query', mockKb);
 
     expect(mockGraphDb.searchResources).toHaveBeenCalledWith('query', undefined);
+  });
+
+  describe('buildKnowledgeGraph (CONTEXT-UNIFICATION P2)', () => {
+    const mainDoc = { '@id': 'res-main', name: 'Main', entityTypes: ['Paper'] };
+    const peerDoc = { '@id': 'res-peer', name: 'Peer', entityTypes: ['Author'] };
+
+    function setup(opts: {
+      connections?: any[];
+      referencedBy?: any[];
+      annotations?: any[];
+      views?: Record<string, any>;
+    }) {
+      mockGraphDb.getResource.mockResolvedValue(mainDoc);
+      mockGraphDb.getResourceConnections.mockResolvedValue(opts.connections ?? []);
+      mockGraphDb.getResourceReferencedBy.mockResolvedValue(opts.referencedBy ?? []);
+      mockGraphDb.getResourceAnnotations.mockResolvedValue(opts.annotations ?? []);
+      mockViews.get.mockImplementation(async (id: any) => opts.views?.[String(id)] ?? null);
+    }
+
+    it('throws when the main resource is missing', async () => {
+      mockGraphDb.getResource.mockResolvedValue(null);
+      mockGraphDb.getResourceConnections.mockResolvedValue([]);
+      mockGraphDb.getResourceReferencedBy.mockResolvedValue([]);
+      mockGraphDb.getResourceAnnotations.mockResolvedValue([]);
+      await expect(
+        GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb),
+      ).rejects.toThrow('Resource not found');
+    });
+
+    it('includes annotation nodes, not just resources (D2)', async () => {
+      setup({
+        annotations: [
+          { id: 'ann-1', motivation: 'commenting', body: [] },
+          { id: 'ann-2', motivation: 'linking', body: [] },
+        ],
+      });
+
+      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
+
+      const annotationNodes = graph.nodes.filter((n) => n.type === 'annotation');
+      expect(annotationNodes.map((n) => n.id).sort()).toEqual(['ann-1', 'ann-2']);
+      // every node carries the discriminator
+      expect(graph.nodes.every((n) => n.type === 'resource' || n.type === 'annotation')).toBe(true);
+    });
+
+    it('emits a citation as an inbound edge so citedBy/count are derivable', async () => {
+      setup({
+        referencedBy: [{ id: 'ann-cite', target: { source: 'res-citing' }, body: [] }],
+        views: { 'res-citing': { resource: { '@id': 'res-citing', name: 'Citing Paper', entityTypes: [] } } },
+      });
+
+      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
+
+      // citing resource is a node...
+      expect(graph.nodes.find((n) => n.id === 'res-citing')).toMatchObject({ type: 'resource', label: 'Citing Paper' });
+      // ...and the citation is an INBOUND edge (source = citing, target = main)
+      const citationEdges = graph.edges.filter((e) => e.type === 'citation');
+      expect(citationEdges).toEqual([{ source: 'res-citing', target: 'res-main', type: 'citation' }]);
+      // citedByCount = inbound citation edge count
+      expect(citationEdges.length).toBe(1);
+    });
+
+    it('carries bidirectional as an edge property', async () => {
+      setup({
+        connections: [
+          { targetResource: peerDoc, annotations: [], relationshipType: 'cites', bidirectional: true },
+        ],
+      });
+
+      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
+
+      const peerEdge = graph.edges.find((e) => e.target === 'res-peer');
+      expect(peerEdge).toMatchObject({ source: 'res-main', target: 'res-peer', type: 'cites', bidirectional: true });
+    });
+
+    it('includes sibling annotations as nodes with an annotation-of edge to the resource', async () => {
+      setup({
+        annotations: [{ id: 'ann-sib', motivation: 'commenting', body: [] }],
+      });
+
+      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
+
+      expect(graph.nodes.find((n) => n.id === 'ann-sib')).toMatchObject({ type: 'annotation' });
+      expect(graph.edges).toContainEqual({ source: 'ann-sib', target: 'res-main', type: 'annotation-of' });
+    });
   });
 });

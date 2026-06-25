@@ -74,31 +74,30 @@ describe('Gatherer', () => {
   describe('annotation-level gather', () => {
     it('should emit gather:complete on success', async () => {
       const mockContext = {
-        annotation: {
-          id: 'ann-1',
-          '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-          type: 'Annotation' as const,
-          motivation: 'linking' as const,
-          target: { source: 'res-1' },
-          body: { type: 'SpecificResource' as const, source: '' },
+        focus: {
+          kind: 'annotation' as const,
+          annotation: {
+            id: 'ann-1',
+            '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+            type: 'Annotation' as const,
+            motivation: 'linking' as const,
+            target: { source: 'res-1' },
+            body: { type: 'SpecificResource' as const, source: '' },
+          },
+          sourceResource: {
+            '@context': 'https://schema.org',
+            '@id': 'res-1',
+            name: 'Test Resource',
+            format: 'text/plain',
+            representations: [] as [],
+          },
+          selected: { before: 'before', text: 'selected', after: 'after' },
         },
-        sourceResource: {
-          '@context': 'https://schema.org',
-          '@id': 'res-1',
-          name: 'Test Resource',
-          format: 'text/plain',
-          representations: [] as [],
-        },
-        sourceContext: { before: 'before', selected: 'selected', after: 'after' },
+        graph: { nodes: [], edges: [] },
         metadata: { resourceType: 'document' as const },
       };
 
-      vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValue({
-        annotation: {} as any,
-        sourceResource: {} as any,
-        targetResource: null,
-        context: mockContext,
-      });
+      vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValue(mockContext);
 
       const resultPromise = eventBus.get('gather:complete').pipe(take(1)).toPromise();
 
@@ -110,7 +109,7 @@ describe('Gatherer', () => {
 
       const result = await resultPromise;
       expect(result!.annotationId).toBe('ann-1');
-      expect(result!.response.context).toEqual(mockContext);
+      expect(result!.response).toEqual(mockContext);
 
       expect(AnnotationContext.buildLLMContext).toHaveBeenCalledWith(
         'ann-1',

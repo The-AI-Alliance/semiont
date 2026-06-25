@@ -3,9 +3,14 @@
  *
  * Tests the Matcher's RxJS pipeline:
  * - Search request handling (match:search-requested → match:search-results/match:search-failed)
- * - Referenced-by handling (browse:referenced-by-requested → browse:referenced-by-result/browse:referenced-by-failed)
+ * - Context-driven scoring over the unified GatheredContext (focus.kind:'annotation')
  * - Error handling
  * - Lifecycle (stop)
+ *
+ * CONTEXT-UNIFICATION P4: the matcher reads the unified `GatheredContext` — `focus.annotation`
+ * for the anchor, and the flattened views (connections, citedByCount) are derived from the shared
+ * `graph` via core `deriveViews`. Fixtures build a `KnowledgeGraph` (via `buildGraph`) so the
+ * derivation reproduces the connection/citation signals the scorer reads.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -15,7 +20,13 @@ import type { KnowledgeBase } from '../knowledge-base';
 import type { InferenceClient } from '@semiont/inference';
 import { Matcher } from '../matcher';
 
-const testAnnotation: GatheredContext['annotation'] = {
+type AnnotationFocus = Extract<GatheredContext['focus'], { kind: 'annotation' }>;
+type KnowledgeGraph = GatheredContext['graph'];
+
+/** Resource id every fixture's graph is anchored on; matches the match event's `resourceId`. */
+const MAIN_ID = 'test-resource';
+
+const testAnnotation: AnnotationFocus['annotation'] = {
   id: 'test-ann',
   '@context': 'http://www.w3.org/ns/anno.jsonld',
   type: 'Annotation',
@@ -24,13 +35,74 @@ const testAnnotation: GatheredContext['annotation'] = {
   body: { type: 'SpecificResource', source: '' },
 };
 
-const testSourceResource: GatheredContext['sourceResource'] = {
+const testSourceResource: AnnotationFocus['sourceResource'] = {
   '@context': 'https://schema.org',
   '@id': 'test-resource',
   name: 'Test Resource',
   format: 'text/plain',
   representations: [],
 };
+
+/**
+ * Build a `KnowledgeGraph` anchored on MAIN_ID from connection/citation intent, so
+ * `deriveViews(graph, MAIN_ID)` reproduces the flattened signals the scorer reads:
+ * - `connections`: main→peer edges (peer resource nodes), carrying `bidirectional`.
+ * - `citedBy`/`citedByCount`: inbound `citation` edges. A citer in `citedByMissing` is an edge
+ *   with NO node — a missing-view citer (still counted, per P4 (ii)=A).
+ * - `siblingEntityTypes`: annotation nodes attached to the resource.
+ */
+function buildGraph(opts: {
+  connections?: Array<{ resourceId: string; resourceName: string; bidirectional?: boolean; entityTypes?: string[] }>;
+  citedByPresent?: Array<{ resourceId: string; resourceName: string }>;
+  citedByMissing?: string[];
+  siblingAnnotations?: Array<{ id: string; entityTypes?: string[] }>;
+} = {}): KnowledgeGraph {
+  const nodes: KnowledgeGraph['nodes'] = [
+    { id: MAIN_ID, type: 'resource', label: 'Test Resource' },
+  ];
+  const edges: KnowledgeGraph['edges'] = [];
+
+  for (const c of opts.connections ?? []) {
+    nodes.push({ id: c.resourceId, type: 'resource', label: c.resourceName, entityTypes: c.entityTypes });
+    edges.push({ source: MAIN_ID, target: c.resourceId, type: 'related', bidirectional: c.bidirectional ?? false });
+  }
+  for (const c of opts.citedByPresent ?? []) {
+    nodes.push({ id: c.resourceId, type: 'resource', label: c.resourceName });
+    edges.push({ source: c.resourceId, target: MAIN_ID, type: 'citation' });
+  }
+  for (const id of opts.citedByMissing ?? []) {
+    edges.push({ source: id, target: MAIN_ID, type: 'citation' });
+  }
+  for (const a of opts.siblingAnnotations ?? []) {
+    nodes.push({ id: a.id, type: 'annotation', label: a.id, entityTypes: a.entityTypes });
+    edges.push({ source: a.id, target: MAIN_ID, type: 'annotation-of' });
+  }
+  return { nodes, edges };
+}
+
+/** Build a unified GatheredContext (annotation focus) for a match request. */
+function makeContext(overrides: {
+  selected?: { before?: string; text: string; after?: string };
+  userHint?: string;
+  metadata?: GatheredContext['metadata'];
+  graph?: KnowledgeGraph;
+  inferredRelationshipSummary?: string;
+} = {}): GatheredContext {
+  return {
+    focus: {
+      kind: 'annotation',
+      annotation: testAnnotation,
+      sourceResource: testSourceResource,
+      selected: overrides.selected ?? { before: '', text: 'test', after: '' },
+      ...(overrides.userHint !== undefined ? { userHint: overrides.userHint } : {}),
+    },
+    graph: overrides.graph ?? buildGraph(),
+    metadata: overrides.metadata ?? {},
+    ...(overrides.inferredRelationshipSummary !== undefined
+      ? { inferredRelationshipSummary: overrides.inferredRelationshipSummary }
+      : {}),
+  };
+}
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -111,7 +183,7 @@ describe('Matcher', () => {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-1',
-        context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'test query' } },
+        context: makeContext({ selected: { text: 'test query' } }),
       });
 
       const result = await resultPromise;
@@ -140,7 +212,7 @@ describe('Matcher', () => {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-2',
-        context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'failing query' } },
+        context: makeContext({ selected: { text: 'failing query' } }),
       });
 
       const result = await resultPromise;
@@ -157,7 +229,7 @@ describe('Matcher', () => {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-3',
-        context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'nonexistent' } },
+        context: makeContext({ selected: { text: 'nonexistent' } }),
       });
 
       const result = await resultPromise;
@@ -192,16 +264,7 @@ describe('Matcher', () => {
       await matcher.initialize();
     });
 
-    function makeContext(overrides: Partial<GatheredContext> = {}): GatheredContext {
-      return {
-        annotation: testAnnotation,
-        sourceResource: testSourceResource,
-        sourceContext: { before: '', selected: 'test', after: '' },
-        ...overrides,
-      };
-    }
-
-    it('should search with minimal context (sourceContext only)', async () => {
+    it('should search with minimal context (selected text only)', async () => {
       mockSearchFn2.mockResolvedValue([RES_A]);
 
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
@@ -210,7 +273,7 @@ describe('Matcher', () => {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-no-ctx',
-        context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'Alpha' } },
+        context: makeContext({ selected: { text: 'Alpha' } }),
       });
 
       const result = await resultPromise;
@@ -229,7 +292,7 @@ describe('Matcher', () => {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-name',
-        context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
+        context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
@@ -260,7 +323,7 @@ describe('Matcher', () => {
         correlationId: 'test-corr-id',
         referenceId: 'ref-et',
         context: makeContext({
-          sourceContext: { before: '', selected: 'nonmatching', after: '' }, // no name match — isolate entity type signal
+          selected: { before: '', text: 'nonmatching', after: '' }, // no name match — isolate entity type signal
           metadata: { entityTypes: ['Person', 'Author'] },
         }),
       });
@@ -299,7 +362,7 @@ describe('Matcher', () => {
         correlationId: 'test-corr-id',
         referenceId: 'ref-no-gate',
         context: makeContext({
-          sourceContext: { before: '', selected: 'Lincoln', after: '' },
+          selected: { before: '', text: 'Lincoln', after: '' },
           metadata: { entityTypes: ['Person'] },
         }),
       });
@@ -323,13 +386,10 @@ describe('Matcher', () => {
         correlationId: 'test-corr-id',
         referenceId: 'ref-bidir',
         context: makeContext({
-          sourceContext: { before: '', selected: 'test', after: '' },
-          graphContext: {
-            connections: [
-              { resourceId: 'res-b', resourceName: 'Beta', bidirectional: true },
-            ],
-            citedByCount: 0,
-          },
+          selected: { before: '', text: 'test', after: '' },
+          graph: buildGraph({
+            connections: [{ resourceId: 'res-b', resourceName: 'Beta', bidirectional: true }],
+          }),
         }),
       });
 
@@ -355,13 +415,10 @@ describe('Matcher', () => {
         correlationId: 'test-corr-id',
         referenceId: 'ref-neighbor',
         context: makeContext({
-          sourceContext: { before: '', selected: 'something', after: '' },
-          graphContext: {
-            connections: [
-              { resourceId: 'res-c', resourceName: 'Gamma', bidirectional: false },
-            ],
-            citedByCount: 0,
-          },
+          selected: { before: '', text: 'something', after: '' },
+          graph: buildGraph({
+            connections: [{ resourceId: 'res-c', resourceName: 'Gamma', bidirectional: false }],
+          }),
         }),
       });
 
@@ -369,6 +426,46 @@ describe('Matcher', () => {
       expect(result!.response.length).toBeGreaterThanOrEqual(1);
       const gamma = result!.response.find((r: any) => r.name === 'Gamma');
       expect(gamma).toBeDefined();
+    });
+
+    it('counts missing-view citers in citedByCount (P4 (ii)=A delta)', async () => {
+      // The focal resource is cited by two resources; one citer's node is absent
+      // from the graph (its view is missing). Per (ii)=A, `deriveViews` reports the
+      // graph as-is — it counts the missing-view citer — so `citedByCount` reflects
+      // the full reference history, NOT the old precomputed map that dropped it.
+      //
+      // Gamma is a neighborhood-only candidate with no name/entity/recency signal, so
+      // its score is exactly: connected (+10) + citedBy boost (min(citedByCount*2, 15)).
+      // citedByCount = 2 → +4 → 14. The OLD behavior would have dropped the missing-view
+      // citer (citedByCount = 1 → +2 → 12); pinning 14 documents the intended rise.
+      mockSearchFn2.mockResolvedValue([]);
+      mockGetResource.mockImplementation((id: ResourceId) => {
+        if (id === resourceId('res-c')) return Promise.resolve({ '@id': 'res-c', name: 'Gamma' });
+        return Promise.resolve(null);
+      });
+
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
+        correlationId: 'test-corr-id',
+        referenceId: 'ref-citedby-delta',
+        context: makeContext({
+          selected: { before: '', text: 'zzz', after: '' }, // no name match — isolate the citedBy signal
+          graph: buildGraph({
+            connections: [{ resourceId: 'res-c', resourceName: 'Gamma', bidirectional: false }],
+            citedByPresent: [{ resourceId: 'citer-1', resourceName: 'Citer One' }],
+            citedByMissing: ['citer-2-missing'],
+          }),
+        }),
+      });
+
+      const result = await resultPromise;
+      const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
+      const gamma = scores.find(r => r.name === 'Gamma');
+      expect(gamma).toBeDefined();
+      expect(gamma!.matchReason).toContain('connected');
+      expect(gamma!.score).toBe(14);
     });
 
     it('should give multi-source bonus when candidate found by multiple strategies', async () => {
@@ -383,7 +480,7 @@ describe('Matcher', () => {
         correlationId: 'test-corr-id',
         referenceId: 'ref-multi',
         context: makeContext({
-          sourceContext: { before: '', selected: 'Alpha', after: '' },
+          selected: { before: '', text: 'Alpha', after: '' },
           metadata: { entityTypes: ['Person'] },
         }),
       });
@@ -408,7 +505,7 @@ describe('Matcher', () => {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-sort',
-        context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
+        context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
@@ -449,7 +546,7 @@ describe('Matcher', () => {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-inference',
-        context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
+        context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
@@ -495,7 +592,7 @@ describe('Matcher', () => {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-inference-fail',
-        context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
+        context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
@@ -517,7 +614,7 @@ describe('Matcher', () => {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-no-inference',
-        context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
+        context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
@@ -536,7 +633,7 @@ describe('Matcher', () => {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-fail',
-        context: makeContext({ sourceContext: { before: '', selected: 'anything', after: '' } }),
+        context: makeContext({ selected: { before: '', text: 'anything', after: '' } }),
       });
 
       const result = await resultPromise;
@@ -630,7 +727,7 @@ describe('Matcher', () => {
         resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-empty',
-          context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
+          context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
         });
 
         const result = await resultPromise;
@@ -697,14 +794,11 @@ describe('Matcher', () => {
           correlationId: 'test-corr-id',
           referenceId: 'ref-summary',
           context: makeContext({
-            sourceContext: { before: '', selected: 'Zeus', after: '' },
-            graphContext: {
-              connections: [
-                { resourceId: 'r1', resourceName: 'Olympus', bidirectional: false },
-              ],
-              citedByCount: 0,
-              inferredRelationshipSummary: summary,
-            },
+            selected: { before: '', text: 'Zeus', after: '' },
+            graph: buildGraph({
+              connections: [{ resourceId: 'r1', resourceName: 'Olympus', bidirectional: false }],
+            }),
+            inferredRelationshipSummary: summary,
           }),
         });
 
@@ -724,7 +818,7 @@ describe('Matcher', () => {
           correlationId: 'test-corr-id',
           referenceId: 'ref-passage',
           context: makeContext({
-            sourceContext: { before: 'In the beginning,', selected: 'Zeus ruled the heavens', after: 'and the earth.' },
+            selected: { before: 'In the beginning,', text: 'Zeus ruled the heavens', after: 'and the earth.' },
             metadata: { entityTypes: ['Person', 'Deity'] },
           }),
         });
@@ -751,7 +845,7 @@ describe('Matcher', () => {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-4',
-        context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'after stop' } },
+        context: makeContext({ selected: { text: 'after stop' } }),
       });
 
       // Give time for any processing

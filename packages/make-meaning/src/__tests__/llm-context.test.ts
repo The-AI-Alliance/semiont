@@ -18,8 +18,8 @@ import { take } from 'rxjs/operators';
 import { LLMContext } from '../llm-context';
 import { ResourceOperations } from '../resource-operations';
 import { AnnotationOperations } from '../annotation-operations';
-import { resourceId, userId, EventBus, type Logger, type SupportedMediaType } from '@semiont/core';
-import type { GraphServiceConfig } from '@semiont/core';
+import { resourceId, annotationId, userId, EventBus, type Logger, type SupportedMediaType } from '@semiont/core';
+import type { GraphServiceConfig, GatheredContext } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, deriveStorageUri } from '@semiont/content';
 import type { KnowledgeBase } from '../knowledge-base';
@@ -33,6 +33,12 @@ const mockLogger: Logger = {
   error: vi.fn(),
   child: vi.fn(() => mockLogger)
 };
+
+// getResourceContext returns a unified GatheredContext with focus.kind:'resource' (CONTEXT-UNIFICATION P3).
+function resFocus(ctx: GatheredContext) {
+  if (ctx.focus.kind !== 'resource') throw new Error('expected resource focus');
+  return ctx.focus;
+}
 
 // Mock @semiont/inference to avoid external API calls
 let mockClient: any;
@@ -135,8 +141,8 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.mainResource).toBeDefined();
-      expect(result.mainResource.name).toBe('LLM Context Test Resource');
+      expect(resFocus(result).resource).toBeDefined();
+      expect(resFocus(result).resource.name).toBe('LLM Context Test Resource');
     });
 
     it('should throw if resource not found', async () => {
@@ -158,8 +164,8 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.relatedResources).toBeDefined();
-      expect(Array.isArray(result.relatedResources)).toBe(true);
+      const related = result.graph.nodes.filter((n) => n.type === 'resource' && n.id !== testResourceId);
+      expect(related).toEqual([]);
     });
   });
 
@@ -194,6 +200,15 @@ describe('LLM Context', () => {
       );
       await created$;
 
+      // The unified context sources annotations from the graph projection; this test's kb wires no
+      // graph consumer, so add the annotation to the graph store directly.
+      await kb.graph.createAnnotation({
+        id: annotationId('llm-graph-ann'),
+        motivation: 'highlighting',
+        target: { source: testResourceId, selector: [{ type: 'TextPositionSelector', start: 0, end: 4 }] },
+        creator,
+      });
+
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
@@ -201,9 +216,8 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.annotations).toBeDefined();
-      expect(Array.isArray(result.annotations)).toBe(true);
-      expect(result.annotations.length).toBeGreaterThan(0);
+      const annotationNodes = result.graph.nodes.filter((n) => n.type === 'annotation');
+      expect(annotationNodes.length).toBeGreaterThan(0);
     });
   });
 
@@ -245,8 +259,8 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.mainResourceContent).toBeDefined();
-      expect(result.mainResourceContent).toContain('This is test content');
+      expect(resFocus(result).content?.main).toBeDefined();
+      expect(resFocus(result).content?.main).toContain('This is test content');
     });
 
     it('should not include main resource content when includeContent is false', async () => {
@@ -257,7 +271,7 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.mainResourceContent).toBeUndefined();
+      expect(resFocus(result).content?.main).toBeUndefined();
     });
 
     it('should include related resources content when includeContent is true', async () => {
@@ -268,8 +282,8 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.relatedResourcesContent).toBeDefined();
-      expect(typeof result.relatedResourcesContent).toBe('object');
+      expect(resFocus(result).content?.related).toBeDefined();
+      expect(typeof resFocus(result).content?.related).toBe('object');
     });
 
     it('should not include related resources content when includeContent is false', async () => {
@@ -280,7 +294,7 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.relatedResourcesContent).toBeUndefined();
+      expect(resFocus(result).content?.related).toBeUndefined();
     });
   });
 
@@ -295,8 +309,8 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.summary).toBeDefined();
-      expect(typeof result.summary).toBe('string');
+      expect(resFocus(result).summary).toBeDefined();
+      expect(typeof resFocus(result).summary).toBe('string');
     });
 
     it('should not generate summary when includeSummary is false', async () => {
@@ -307,7 +321,7 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.summary).toBeUndefined();
+      expect(resFocus(result).summary).toBeUndefined();
     });
 
     it('should not generate summary when content not available', async () => {
@@ -318,7 +332,7 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.summary).toBeUndefined();
+      expect(resFocus(result).summary).toBeUndefined();
     });
   });
 
@@ -336,8 +350,8 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.suggestedReferences).toBeDefined();
-      expect(Array.isArray(result.suggestedReferences)).toBe(true);
+      expect(resFocus(result).suggestedReferences).toBeDefined();
+      expect(Array.isArray(resFocus(result).suggestedReferences)).toBe(true);
     });
 
     it('should not generate reference suggestions when content not available', async () => {
@@ -348,21 +362,23 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.suggestedReferences).toBeUndefined();
+      expect(resFocus(result).suggestedReferences).toBeUndefined();
     });
   });
 
   describe('options handling', () => {
-    it('should respect maxResources option', async () => {
+    it('should cap related-resource content by maxResources (a view concern, Q2=C)', async () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
-        { depth: 1, maxResources: 5, includeContent: false, includeSummary: false },
+        { depth: 1, maxResources: 5, includeContent: true, includeSummary: false },
         kb,
         mockClient
       );
 
-      // Graph should respect maxResources limit
-      expect(result.graph.nodes.length).toBeLessThanOrEqual(5);
+      // The graph is the full neighborhood; maxResources caps the related-resource *content*
+      // (at most maxResources - 1 peers).
+      const related = resFocus(result).content?.related ?? {};
+      expect(Object.keys(related).length).toBeLessThanOrEqual(4);
     });
 
     it('should work with minimal options', async () => {
@@ -373,9 +389,9 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.mainResource).toBeDefined();
+      expect(resFocus(result).resource).toBeDefined();
       expect(result.graph).toBeDefined();
-      expect(result.annotations).toBeDefined();
+      expect(result.graph.nodes.length).toBeGreaterThan(0);
     });
 
     it('should work with maximal options', async () => {
@@ -391,13 +407,13 @@ describe('LLM Context', () => {
         mockClient
       );
 
-      expect(result.mainResource).toBeDefined();
-      expect(result.mainResourceContent).toBeDefined();
-      expect(result.relatedResourcesContent).toBeDefined();
-      expect(result.summary).toBeDefined();
-      expect(result.suggestedReferences).toBeDefined();
+      expect(resFocus(result).resource).toBeDefined();
+      expect(resFocus(result).content?.main).toBeDefined();
+      expect(resFocus(result).content?.related).toBeDefined();
+      expect(resFocus(result).summary).toBeDefined();
+      expect(resFocus(result).suggestedReferences).toBeDefined();
       expect(result.graph).toBeDefined();
-      expect(result.annotations).toBeDefined();
+      expect(result.graph.nodes.length).toBeGreaterThan(0);
     });
   });
 
@@ -416,17 +432,17 @@ describe('LLM Context', () => {
       );
 
       // Verify all major components are present
-      expect(result.mainResource).toBeDefined();
-      expect(result.mainResource.name).toBe('LLM Context Test Resource');
-      expect(result.mainResourceContent).toBeDefined();
-      expect(result.relatedResources).toBeDefined();
-      expect(result.relatedResourcesContent).toBeDefined();
-      expect(result.annotations).toBeDefined();
+      expect(resFocus(result).resource).toBeDefined();
+      expect(resFocus(result).resource.name).toBe('LLM Context Test Resource');
+      expect(resFocus(result).content?.main).toBeDefined();
+      expect(result.graph.nodes.some((n) => n.type === 'resource')).toBe(true);
+      expect(resFocus(result).content?.related).toBeDefined();
+      expect(result.graph.nodes.some((n) => n.type === 'annotation')).toBe(true);
       expect(result.graph).toBeDefined();
       expect(result.graph.nodes).toBeDefined();
       expect(result.graph.edges).toBeDefined();
-      expect(result.summary).toBeDefined();
-      expect(result.suggestedReferences).toBeDefined();
+      expect(resFocus(result).summary).toBeDefined();
+      expect(resFocus(result).suggestedReferences).toBeDefined();
     });
   });
 });

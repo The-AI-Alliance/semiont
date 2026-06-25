@@ -38,7 +38,7 @@ export function GatherContextStep({
 }: GatherContextStepProps) {
   const [sourceExpanded, setSourceExpanded] = useState(false);
   const contextReady = !contextLoading && !contextError && !!context;
-  const sourceContext = context?.sourceContext;
+  const focus = context?.focus.kind === 'annotation' ? context.focus : null;
   const highlightRef = useRef<HTMLSpanElement>(null);
 
   // Scroll the highlighted term into view when context loads
@@ -70,15 +70,15 @@ export function GatherContextStep({
       {context && (
         <>
           {/* Full-width source context strip */}
-          {sourceContext && (
+          {focus?.selected && (
             <div className="semiont-gather__source-strip">
               <label className="semiont-form__label" style={{ marginBottom: '0.375rem' }}>
-                {t.sourceContextLabel}{context.sourceResource?.name ? ` "${context.sourceResource.name}"` : ''}
+                {t.sourceContextLabel}{focus.sourceResource.name ? ` "${focus.sourceResource.name}"` : ''}
               </label>
               <div className={`semiont-gather__source-box${sourceExpanded ? ' semiont-gather__source-box--expanded' : ''}`}>
                 <div className="semiont-gather__source-context">
                   <div style={{ fontSize: 'var(--semiont-text-sm)', fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: 'var(--semiont-text-secondary)' }}>
-                    {sourceContext.before && <span>{sourceContext.before}</span>}
+                    {focus.selected.before && <span>{focus.selected.before}</span>}
                     <span
                       ref={highlightRef}
                       style={{
@@ -88,19 +88,19 @@ export function GatherContextStep({
                         color: 'var(--semiont-color-primary-900)',
                       }}
                     >
-                      {sourceContext.selected}
+                      {focus.selected.text}
                     </span>
                     {(context.metadata?.entityTypes ?? []).map(et => (
                       <span key={et} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', fontWeight: 400, verticalAlign: 'middle', marginLeft: '0.25rem' }}>
                         {et}
                       </span>
                     ))}
-                    {context.annotation?.motivation && (
+                    {focus.annotation.motivation && (
                       <span className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', fontWeight: 400, verticalAlign: 'middle', marginLeft: '0.25rem' }}>
-                        {context.annotation.motivation}
+                        {focus.annotation.motivation}
                       </span>
                     )}
-                    {sourceContext.after && <span>{sourceContext.after}</span>}
+                    {focus.selected.after && <span>{focus.selected.after}</span>}
                   </div>
                 </div>
                 <button

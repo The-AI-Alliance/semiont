@@ -4,7 +4,7 @@
  * Generates markdown resources from topics using AI inference.
  */
 
-import { getLocaleEnglishName } from '@semiont/core';
+import { getLocaleEnglishName, deriveViews } from '@semiont/core';
 import type { GatheredContext, Logger } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 
@@ -64,67 +64,88 @@ export async function generateResourceFromTopic(
     ? `\n\nThe source resource and embedded context are in ${getLanguageName(sourceLanguage)}.`
     : '';
 
-  // Build annotation context section if available
+  // ── Context sections — switch on the unified GatheredContext focus ─────────
+  // Annotation focus drives the annotation + selected-passage sections; resource
+  // focus drives a minimal resource anchor (the full grounding — summary,
+  // suggestedReferences, content — is YIELD-FROM-RESOURCE Gap B). The graph and
+  // semantic sections are shared base, rendered for either focus.
   let annotationSection = '';
-  if (context) {
-    const parts: string[] = [];
-    parts.push(`- Annotation motivation: ${context.annotation.motivation}`);
-    parts.push(`- Source resource: ${context.sourceResource.name}`);
-    // Include body text for commenting/assessing annotations
-    const { motivation, body } = context.annotation;
-    if (motivation === 'commenting' || motivation === 'assessing') {
-      const bodyItem = Array.isArray(body) ? body[0] : body;
-      if (bodyItem && 'value' in bodyItem && bodyItem.value) {
-        const label = motivation === 'commenting' ? 'Comment' : 'Assessment';
-        parts.push(`- ${label}: ${bodyItem.value}`);
-      }
-    }
-    annotationSection = `\n\nAnnotation context:\n${parts.join('\n')}`;
-  }
-
-  // Build context section if available
   let contextSection = '';
-  if (context?.sourceContext) {
-    const { before, selected, after } = context.sourceContext;
-    contextSection = `\n\nSource document context:
+  let resourceSection = '';
+  let graphSection = '';
+
+  if (context) {
+    const { focus } = context;
+    // The focal resource's id — equal to the id `buildKnowledgeGraph` (P3) anchored
+    // the graph's main node on, so `deriveViews` resolves edges. Read directly off
+    // the descriptor (a plain string on the generated type); there is no event id to
+    // thread here as the matcher had.
+    const mainResourceId =
+      focus.kind === 'annotation'
+        ? focus.sourceResource['@id']
+        : focus.resource['@id'];
+    const focalAnnotationId = focus.kind === 'annotation' ? focus.annotation.id : undefined;
+
+    if (focus.kind === 'annotation') {
+      const parts: string[] = [];
+      parts.push(`- Annotation motivation: ${focus.annotation.motivation}`);
+      parts.push(`- Source resource: ${focus.sourceResource.name}`);
+      // Include body text for commenting/assessing annotations
+      const { motivation, body } = focus.annotation;
+      if (motivation === 'commenting' || motivation === 'assessing') {
+        const bodyItem = Array.isArray(body) ? body[0] : body;
+        if (bodyItem && 'value' in bodyItem && bodyItem.value) {
+          const label = motivation === 'commenting' ? 'Comment' : 'Assessment';
+          parts.push(`- ${label}: ${bodyItem.value}`);
+        }
+      }
+      annotationSection = `\n\nAnnotation context:\n${parts.join('\n')}`;
+
+      if (focus.selected) {
+        const { before, text, after } = focus.selected;
+        contextSection = `\n\nSource document context:
 ---
 ${before ? `...${before}` : ''}
-**[${selected}]**
+**[${text}]**
 ${after ? `${after}...` : ''}
 ---
 `;
-  }
-
-  // Build graph context section if available
-  let graphContextSection = '';
-  if (context?.graphContext) {
-    const gc = context.graphContext;
-    const connections = gc.connections ?? [];
-    const citedBy = gc.citedBy ?? [];
-    const parts: string[] = [];
-
-    if (connections.length > 0) {
-      const connList = connections
-        .map(c => `${c.resourceName}${c.entityTypes?.length ? ` (${c.entityTypes.join(', ')})` : ''}`)
-        .join(', ');
-      parts.push(`- Connected resources: ${connList}`);
+      }
+    } else if (focus.resource.name) {
+      // Minimal resource anchor — YIELD-FROM-RESOURCE Gap B fleshes out the
+      // grounded resource section (summary / suggestedReferences / content).
+      resourceSection = `\n\nFocal resource: ${focus.resource.name}`;
     }
 
-    if (gc.citedByCount && gc.citedByCount > 0) {
-      const citedNames = citedBy.map(c => c.resourceName).join(', ');
-      parts.push(`- This resource is cited by ${gc.citedByCount} other resource${gc.citedByCount > 1 ? 's' : ''}${citedNames ? `: ${citedNames}` : ''}`);
-    }
+    // Shared base: graph-derived neighborhood (connections / citedBy / siblings)
+    // plus the LLM relationship summary, recomputed from the unified graph.
+    if (mainResourceId) {
+      const views = deriveViews(context.graph, mainResourceId, focalAnnotationId);
+      const parts: string[] = [];
 
-    if (gc.siblingEntityTypes && gc.siblingEntityTypes.length > 0) {
-      parts.push(`- Related entity types in this document: ${gc.siblingEntityTypes.join(', ')}`);
-    }
+      if (views.connections.length > 0) {
+        const connList = views.connections
+          .map(c => `${c.resourceName}${c.entityTypes.length ? ` (${c.entityTypes.join(', ')})` : ''}`)
+          .join(', ');
+        parts.push(`- Connected resources: ${connList}`);
+      }
 
-    if (gc.inferredRelationshipSummary) {
-      parts.push(`- Relationship summary: ${gc.inferredRelationshipSummary}`);
-    }
+      if (views.citedByCount > 0) {
+        const citedNames = views.citedBy.map(c => c.resourceName).join(', ');
+        parts.push(`- This resource is cited by ${views.citedByCount} other resource${views.citedByCount > 1 ? 's' : ''}${citedNames ? `: ${citedNames}` : ''}`);
+      }
 
-    if (parts.length > 0) {
-      graphContextSection = `\n\nKnowledge graph context:\n${parts.join('\n')}`;
+      if (views.siblingEntityTypes.length > 0) {
+        parts.push(`- Related entity types in this document: ${views.siblingEntityTypes.join(', ')}`);
+      }
+
+      if (context.inferredRelationshipSummary) {
+        parts.push(`- Relationship summary: ${context.inferredRelationshipSummary}`);
+      }
+
+      if (parts.length > 0) {
+        graphSection = `\n\nKnowledge graph context:\n${parts.join('\n')}`;
+      }
     }
   }
 
@@ -150,7 +171,7 @@ ${after ? `${after}...` : ''}
   // Simple, direct prompt - just ask for markdown content
   const prompt = `Generate a concise, informative resource about "${topic}".
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
-${userPrompt ? `Additional context: ${userPrompt}` : ''}${annotationSection}${contextSection}${graphContextSection}${semanticContextSection}${sourceLanguageInstruction}${languageInstruction}
+${userPrompt ? `Additional context: ${userPrompt}` : ''}${annotationSection}${contextSection}${resourceSection}${graphSection}${semanticContextSection}${sourceLanguageInstruction}${languageInstruction}
 
 Requirements:
 - Start with a clear heading (# Title)
