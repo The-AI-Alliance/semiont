@@ -39,24 +39,29 @@ const final = await lastValueFrom(
 );
 const context = (final as { context?: GatheredContext }).context;
 
-// Source context (passage text)
-console.log(context.sourceContext.selected);  // The exact text the annotation targets
-console.log(context.sourceContext.before);    // Surrounding passage before the selection
-console.log(context.sourceContext.after);     // Surrounding passage after the selection
+// gather.annotation returns an annotation-focus GatheredContext — narrow on focus.kind
+if (context.focus.kind === 'annotation') {
+  const focus = context.focus;
+  console.log(focus.selected?.text);      // The exact text the annotation targets
+  console.log(focus.selected?.before);    // Surrounding passage before the selection
+  console.log(focus.selected?.after);     // Surrounding passage after the selection
+  console.log(focus.sourceResource.name); // Source resource name
 
-// Graph context (knowledge graph neighborhood)
-console.log(context.graphContext.connections);       // Connected resources with scores
-console.log(context.graphContext.citedBy);           // Resources citing the source
-console.log(context.graphContext.citedByCount);      // Total citation count
-console.log(context.graphContext.siblingEntityTypes); // Entity types in neighborhood
-console.log(context.graphContext.entityTypeFrequencies); // IDF-weighted type frequencies
+  // The flattened neighborhood views derive from the shared graph backbone
+  // (deriveViews is exported from @semiont/core)
+  const views = deriveViews(context.graph, String(focus.sourceResource.id), focus.annotation.id);
+  console.log(views.connections);        // Connected resources with scores
+  console.log(views.citedBy);            // Resources citing the source
+  console.log(views.citedByCount);       // Total citation count
+  console.log(views.siblingEntityTypes); // Entity types in the neighborhood
+}
 
-// Inference enrichment (when InferenceClient is available)
-console.log(context.graphContext.inferredRelationshipSummary); // LLM-generated summary
-
-// Metadata
-console.log(context.metadata.entityTypes);   // Entity type tags on the annotation
-console.log(context.metadata.resourceName);  // Source resource name
+// Shared base (present on every GatheredContext, both focus kinds)
+console.log(context.graph.nodes);                    // KnowledgeGraph: resource + annotation nodes
+console.log(context.metadata.entityTypes);           // Entity type tags
+console.log(context.metadata.entityTypeFrequencies); // IDF-weighted type frequencies
+console.log(context.inferredRelationshipSummary);    // (optional) LLM-generated summary
+console.log(context.semanticContext?.similar);       // (optional) vector-similar passages
 ```
 
 Under the hood: the namespace emits `gather:annotation-request` via
@@ -86,14 +91,11 @@ The Gatherer actor assembles a `GatheredContext` by:
 7. Optionally generating an `inferredRelationshipSummary` via the InferenceClient
 
 The result is a `GatheredContext` containing:
-- **sourceContext** — `{ selected, before, after }` — the passage text
-- **metadata** — Entity types, annotation motivation, resource info
-- **graphContext** — Knowledge graph neighborhood:
-  - `connections` — Resources linked from/to the source resource, with `mutual` flag for bidirectional links
-  - `citedBy` / `citedByCount` — Resources that cite the source
-  - `siblingEntityTypes` — Entity types present in the graph neighborhood
-  - `entityTypeFrequencies` — IDF-weighted frequency map for entity types
-  - `inferredRelationshipSummary` — (optional) LLM-generated 1-2 sentence summary of how the passage relates to its graph neighborhood
+- **focus** (`kind: 'annotation'`) — `{ annotation, sourceResource, selected: { text, before, after }, userHint? }` — the annotation, its resource, and the passage text it targets
+- **graph** — a `KnowledgeGraph` (the shared backbone): resource **and** annotation nodes plus typed, directional edges (with a `bidirectional?` flag). The flattened neighborhood views — `connections`, `citedBy` / `citedByCount`, `siblingEntityTypes` — are **derived from `graph`** via `deriveViews` (`@semiont/core`), not stored
+- **metadata** — `{ entityTypes?, entityTypeFrequencies?, language?, resourceType? }` (the IDF-weighted frequency map is a global statistic kept here, not graph-derived)
+- **inferredRelationshipSummary** — (optional) LLM-generated 1-2 sentence summary of how the passage relates to its graph neighborhood
+- **semanticContext** — (optional) `{ similar }` — vector-similar passages, when embeddings are available
 
 ## Workflow
 
