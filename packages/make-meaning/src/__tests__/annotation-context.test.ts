@@ -360,7 +360,7 @@ describe('AnnotationContext', () => {
   });
 
   describe('graph context enrichment', () => {
-    it('should include graphContext with connections', async () => {
+    it('should include graph connections', async () => {
       const testResourceId = `resource-graph-conn-${Date.now()}`;
       const testAnnId = `ann-graph-conn-${Date.now()}`;
       await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
