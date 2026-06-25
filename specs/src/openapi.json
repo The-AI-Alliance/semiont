@@ -117,9 +117,6 @@
       "AnnotationContextResponse": {
         "$ref": "components/schemas/AnnotationContextResponse.json"
       },
-      "AnnotationLLMContextResponse": {
-        "$ref": "components/schemas/AnnotationLLMContextResponse.json"
-      },
       "AnnotationTarget": {
         "$ref": "components/schemas/AnnotationTarget.json"
       },

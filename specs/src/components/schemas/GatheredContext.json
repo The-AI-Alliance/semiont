@@ -43,6 +43,23 @@
             "userHint": {
               "type": "string",
               "description": "User-provided hint to supplement or replace the selected text for search and generation"
+            },
+            "targetResource": {
+              "$ref": "./ResourceDescriptor.json",
+              "description": "The resource the annotation links to, if it is a resolved reference. Dormant capability — produced/exposed but not yet consumed (see LINK-TARGET-CONTEXT.md)."
+            },
+            "targetContext": {
+              "type": "object",
+              "description": "Context about the annotation's link target. Dormant — see LINK-TARGET-CONTEXT.md.",
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                }
+              },
+              "required": ["content"]
             }
           },
           "required": ["kind", "annotation", "sourceResource"]
