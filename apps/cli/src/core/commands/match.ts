@@ -59,8 +59,10 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
     semiont.gather.annotation(resourceId, annotationId, { contextWindow: options.contextWindow }),
   ) as GatheredContext;
 
-  if (options.userHint) {
-    context = { ...context, userHint: options.userHint };
+  // userHint lives on the discriminated focus (annotation branch) post-unification.
+  // match always gathers an annotation context, so the narrow is just a type guard.
+  if (options.userHint && context.focus.kind === 'annotation') {
+    context = { ...context, focus: { ...context.focus, userHint: options.userHint } };
   }
 
   // Step 2: search via namespace (MatchStateUnit is EventBus-driven, CLI calls directly)
