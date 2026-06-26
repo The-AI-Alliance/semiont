@@ -48,8 +48,14 @@ export class QdrantVectorStore implements VectorStore {
     // Ensure collections exist
     await this.ensureCollection('resources', this.config.dimensions);
     await this.ensureCollection('annotations', this.config.dimensions);
-    // Index the discriminator so excludeEntityTypes filtering scales.
+    // Payload indexes so filtered operations scale:
+    //  - entityTypes: the excludeEntityTypes recall filter.
+    //  - resourceId: searchByResource's by-resource scroll + self-exclusion, and
+    //    the per-resource delete paths (deleteResourceVectors /
+    //    deleteAnnotationVectorsForResource).
     await this.ensurePayloadIndex('resources', 'entityTypes');
+    await this.ensurePayloadIndex('resources', 'resourceId');
+    await this.ensurePayloadIndex('annotations', 'resourceId');
   }
 
   async disconnect(): Promise<void> {
