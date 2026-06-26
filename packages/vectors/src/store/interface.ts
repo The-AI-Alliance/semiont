@@ -79,6 +79,21 @@ export interface VectorStore {
   searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]>;
   searchAnnotations(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]>;
   /**
+   * Find resources similar to a resource's own stored chunk vectors ("more like
+   * this resource"), without re-embedding any text.
+   *
+   * Per-chunk top-K + **max-sim merge** (not a centroid/average): searches by
+   * each of the resource's stored chunk vectors, then merges by `resourceId`
+   * keeping the **maximum** similarity any query chunk had to any target chunk.
+   * Each result's `score` is that max and its `text` is the best-matching target
+   * chunk, so callers see the passage that matched. The source resource's own
+   * points are excluded; `opts.filter.excludeEntityTypes` drops excluded kinds.
+   *
+   * Returns `[]` if the resource has no stored vectors yet (it must be indexed
+   * first — callers own that ordering).
+   */
+  searchByResource(resourceId: ResourceId, opts: SearchOptions): Promise<VectorSearchResult[]>;
+  /**
    * Total point count across all collections (resources + annotations).
    * Feeds the `semiont.vector.index.size` gauge.
    */
