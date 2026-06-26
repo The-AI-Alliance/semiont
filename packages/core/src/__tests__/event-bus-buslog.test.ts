@@ -67,3 +67,54 @@ describe('EventBus busLog integration', () => {
     expect(seen).toEqual([{ annotationId: 'ann-1' }]);
   });
 });
+
+/**
+ * Dropped-reply detector — the silent-failure guard from
+ * .plans/bugs/gather-resource-complete-not-bridged.md. A correlation-bearing
+ * reply emitted with zero observers is unreachable (no forwarder, no consumer),
+ * so the awaiting client times out 30 s later with no error. On Node this WARNs
+ * once per channel at emit time. Each test uses a DISTINCT channel because the
+ * once-per-channel dedup is process-global.
+ */
+describe('EventBus dropped-reply detection', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => warnSpy.mockRestore());
+
+  it('WARNs when a correlation reply is emitted with no observers', () => {
+    const bus = new EventBus();
+    bus.get('gather:resource-complete').next({ correlationId: 'deadbeef-1', response: {} } as never);
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const line = warnSpy.mock.calls[0]?.[0] as string;
+    expect(line).toContain('[bus DROP]');
+    expect(line).toContain('gather:resource-complete');
+    expect(line).toContain('cid=deadbeef');
+  });
+
+  it('does NOT warn when the reply has an observer', () => {
+    const bus = new EventBus();
+    bus.get('gather:resource-failed').subscribe(() => {});
+    bus.get('gather:resource-failed').next({ correlationId: 'deadbeef-2' } as never);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('does NOT warn for a non-reply emit (no correlationId) with no observers', () => {
+    const bus = new EventBus();
+    bus.get('match:search-results').next({} as never);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('warns only once per channel (a missing wiring is reported, not spammed)', () => {
+    const bus = new EventBus();
+    bus.get('browse:resource-result').next({ correlationId: 'deadbeef-3' } as never);
+    bus.get('browse:resource-result').next({ correlationId: 'deadbeef-4' } as never);
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+});

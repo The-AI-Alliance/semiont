@@ -89,11 +89,29 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       let ephemeralCounter = 0;
       const nextEphemeralId = () => makeEphemeralId(connectionId, ++ephemeralCounter);
 
+      // Per-connection record of exactly which channels this subscriber asked
+      // for. Makes a missing fan-in wiring greppable: if a reply channel is
+      // absent from `channels` here, the backend will never forward it to this
+      // client and any `busRequest` on it times out at 30 s with no error.
+      // (Pairs with the emit-side `[bus DROP]` warn; that fires when nothing
+      // subscribes at all, this shows what a given client *did* subscribe to.)
+      // See .plans/bugs/gather-resource-complete-not-bridged.md.
+      getBusLogger().info('SSE subscribe', {
+        connectionId,
+        channels,
+        scopedChannels,
+        ...(scope ? { scope } : {}),
+        ...(lastEventId ? { lastEventId } : {}),
+      });
+
       // Tier 3: track active SSE subscribers via UpDownCounter. Connect
       // increments; disconnect (stream.onAbort) decrements. The gauge
       // reflects current concurrent SSE connections per service instance.
       recordSubscriberConnect();
-      stream.onAbort(() => recordSubscriberDisconnect());
+      stream.onAbort(() => {
+        recordSubscriberDisconnect();
+        getBusLogger().info('SSE disconnect', { connectionId });
+      });
 
       /** Tracks last persisted seq delivered per scope, for replay→live dedup. */
       const lastDeliveredSeq = new Map<string, number>();

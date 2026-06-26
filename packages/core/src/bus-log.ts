@@ -22,6 +22,9 @@
 const NODE_BUS_LOG =
   typeof process !== 'undefined' && !!process.env?.SEMIONT_BUS_LOG;
 
+const IS_NODE =
+  typeof process !== 'undefined' && !!process.versions?.node;
+
 export type BusOp = 'EMIT' | 'RECV' | 'SSE' | 'PUT' | 'GET';
 
 export function busLogEnabled(): boolean {
@@ -68,4 +71,58 @@ export function busLog(
     (traceId ? ` trace=${traceId.slice(0, 8)}` : '');
   // eslint-disable-next-line no-console
   console.debug(tag, payload);
+}
+
+/**
+ * Whether to run the unobserved-reply check on every local emit.
+ *
+ * On in Node (backend + worker + smelter), where a dropped reply is a real
+ * delivery bug; off in the browser, where a 0-observer bridged reply just
+ * means the awaiting `busRequest` already resolved/timed out (benign).
+ *
+ * Always-on (no env flag) by design: the failure it catches is rare and
+ * high-signal, and the whole point is that it fires with zero setup — the
+ * incident that motivated it (.plans/bugs/gather-resource-complete-not-bridged.md)
+ * ran with bus-logging off, so a flag-gated check would have stayed silent.
+ */
+export function warnUnobservedRepliesEnabled(): boolean {
+  return IS_NODE;
+}
+
+/** One line per channel per process — a missing fan-in wiring is a config
+ *  bug, so the first dropped reply is enough; we don't spam on retries. */
+const unobservedReplyWarned = new Set<string>();
+
+/**
+ * The silent-dropped-reply detector.
+ *
+ * A correlation-bearing payload is a request/reply *reply* (`*-result`,
+ * `*-complete`, `*-failed`, …). If one is emitted on the backend bus with
+ * **zero local observers**, nothing forwards it — no SSE subscription, no
+ * in-process consumer — so the awaiting client never receives it and times
+ * out 30 s later with no error logged anywhere. That is exactly how
+ * `gather:resource-complete` failed when it was missing from
+ * `BRIDGED_CHANNELS` (.plans/bugs/gather-resource-complete-not-bridged.md).
+ *
+ * Emits one WARN per channel naming the likely fix. Non-reply emits (no
+ * `correlationId`) and emits with observers are ignored — broadcasts with no
+ * current audience are legitimate, so they must not warn.
+ */
+export function warnIfUnobservedReply(
+  channel: string,
+  payload: unknown,
+  observerCount: number,
+): void {
+  if (observerCount > 0) return;
+  const cidRaw = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
+  if (typeof cidRaw !== 'string' || cidRaw.length === 0) return;
+  if (unobservedReplyWarned.has(channel)) return;
+  unobservedReplyWarned.add(channel);
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[bus DROP] ${channel} cid=${cidRaw.slice(0, 8)} emitted with 0 subscribers — ` +
+      `a correlation reply with no local observer is dropped, so the awaiting client ` +
+      `times out (no error). Wire '${channel}' to a forwarder: add it to BRIDGED_CHANNELS ` +
+      `(packages/core/src/bridged-channels.ts) so the SSE subscription requests it.`,
+  );
 }
