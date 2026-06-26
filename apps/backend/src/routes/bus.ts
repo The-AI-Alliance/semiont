@@ -136,18 +136,43 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         } else {
           id = nextEphemeralId();
         }
-        // Tier 2: attach the active span's W3C traceparent to the payload
-        // so the receiving client can stitch its bus.recv span as a
-        // child. SSE has no header trailer, so trace-context rides on
-        // the payload as `_trace`.
-        if (payload && typeof payload === 'object') {
-          injectTraceparent(payload as Record<string, unknown>);
+        // Tier 2: attach the active span's W3C traceparent to the payload so
+        // the receiving client can stitch its bus.recv span as a child. SSE
+        // has no header trailer, so trace-context rides on the payload as
+        // `_trace`.
+        //
+        // For request/reply *replies* (payloads carrying a correlationId) we
+        // also open a short `sse.deliver:<channel>` span: the trace then shows
+        // the reply actually leaving the backend for this client — the
+        // delivered-counterpart to the emit-side `[bus DROP]` warn, so a
+        // delivered-to-wrong-cid or never-delivered reply is visible in one
+        // trace instead of cross-referenced by hand. `injectTraceparent` runs
+        // *inside* the span so the client's recv stitches under the deliver,
+        // not its parent. Non-reply broadcasts skip the span — they're
+        // high-volume and have no single awaiting client.
+        const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
+        const doWrite = async (): Promise<void> => {
+          if (payload && typeof payload === 'object') {
+            injectTraceparent(payload as Record<string, unknown>);
+          }
+          const data = eventScope
+            ? JSON.stringify({ channel, payload, scope: eventScope })
+            : JSON.stringify({ channel, payload });
+          busLog('SSE', channel, payload, eventScope);
+          await stream.writeSSE({ event: 'bus-event', data, id }).catch(() => {});
+        };
+        if (typeof cid === 'string' && cid.length > 0) {
+          await withSpan(`sse.deliver:${channel}`, doWrite, {
+            kind: SpanKind.PRODUCER,
+            attrs: {
+              'bus.channel': channel,
+              'bus.cid': cid,
+              ...(eventScope ? { 'bus.scope': eventScope } : {}),
+            },
+          });
+        } else {
+          await doWrite();
         }
-        const data = eventScope
-          ? JSON.stringify({ channel, payload, scope: eventScope })
-          : JSON.stringify({ channel, payload });
-        busLog('SSE', channel, payload, eventScope);
-        await stream.writeSSE({ event: 'bus-event', data, id }).catch(() => {});
       };
 
       const emitResumeGap = async (reason: string, gapScope?: string) => {
