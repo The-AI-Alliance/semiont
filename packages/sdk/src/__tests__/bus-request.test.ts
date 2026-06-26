@@ -61,7 +61,7 @@ describe('busRequest', () => {
   // `BridgedChannel`, so the fixtures must use members of `BRIDGED_CHANNELS`.
   const RESULT = 'gather:resource-complete';
   const FAILURE = 'gather:resource-failed';
-  const EMIT = 'unit:request';
+  const EMIT = 'gather:resource-requested';
 
   it('emits the request with a generated correlationId and resolves on the matching result', async () => {
     const bus = makeBus(RESULT, FAILURE);

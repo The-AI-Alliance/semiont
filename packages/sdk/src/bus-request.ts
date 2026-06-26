@@ -1,6 +1,6 @@
 import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxjs';
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
-import { SemiontError, type EventMap, type BridgedChannel } from '@semiont/core';
+import { SemiontError, type EventMap, type BridgedChannel, type EmittableChannel } from '@semiont/core';
 
 export type BusRequestErrorCode =
   | 'bus.timeout'
@@ -31,16 +31,20 @@ export interface BusRequestPrimitive {
 }
 
 /**
- * Request/reply over the bus. `resultChannel`/`failureChannel` are constrained
- * to `BridgedChannel`: a reply channel MUST be in `BRIDGED_CHANNELS` or the
- * transport never subscribes to it and the request times out with no error.
- * Typing them here makes that omission a compile error rather than a silent
- * 30 s timeout (see .plans/bugs/gather-resource-complete-not-bridged.md — the
- * `gather:resource-*` pair shipped unbridged with no compile/runtime signal).
+ * Request/reply over the bus. The channel params are typed to the right subsets
+ * of `EventName` (see the family note in `@semiont/core` bus-protocol.ts) so a
+ * mistyped channel is a compile error, not a silent 30 s timeout:
+ *
+ * - `emitChannel` is an `EmittableChannel` — the request carries a payload the
+ *   `/bus/emit` gateway validates; this catches a typo'd request channel.
+ * - `resultChannel`/`failureChannel` are `BridgedChannel` — a reply channel MUST
+ *   be in `BRIDGED_CHANNELS` or the transport never subscribes to it and the
+ *   request hangs (see .plans/bugs/gather-resource-complete-not-bridged.md — the
+ *   `gather:resource-*` pair shipped unbridged with no compile/runtime signal).
  */
 export async function busRequest<TResult>(
   bus: BusRequestPrimitive,
-  emitChannel: string,
+  emitChannel: EmittableChannel,
   payload: Record<string, unknown>,
   resultChannel: BridgedChannel,
   failureChannel: BridgedChannel,
