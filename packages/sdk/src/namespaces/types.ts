@@ -349,6 +349,9 @@ export interface GatherNamespace {
       maxResources?: number;
       includeContent?: boolean;
       includeSummary?: boolean;
+      /** Entity types to exclude from the semantic recall built into the context
+       *  (e.g. ['Question'] so prior questions never ground answer generation). */
+      excludeEntityTypes?: string[];
     },
   ): Promise<GatheredContext>;
 }

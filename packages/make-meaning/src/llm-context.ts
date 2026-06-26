@@ -21,6 +21,11 @@ export interface LLMContextOptions {
   maxResources: number;
   includeContent: boolean;
   includeSummary: boolean;
+  /**
+   * Entity types to exclude from the resource-gather semantic recall
+   * (caller-supplied; e.g. ['Question']). Optional; default none.
+   */
+  excludeEntityTypes?: string[];
 }
 
 export class LLMContext {
@@ -96,9 +101,33 @@ export class LLMContext {
     if (mainContent) content.main = mainContent;
     if (options.includeContent) content.related = relatedContent;
 
+    // Semantic recall over the resource's OWN already-indexed vectors (no
+    // re-embedding), excluding caller-supplied entity types. The applied filter
+    // is recorded on semanticContext as build provenance. EXCLUDE-VECTORS Phase 2b.
+    let semanticContext: GatheredContext['semanticContext'];
+    if (kb.vectors) {
+      const excludeEntityTypes = options.excludeEntityTypes ?? [];
+      const matches = await kb.vectors.searchByResource(resourceId, {
+        limit: options.maxResources,
+        scoreThreshold: 0.5,
+        ...(excludeEntityTypes.length ? { filter: { excludeEntityTypes } } : {}),
+      });
+      if (matches.length > 0) {
+        semanticContext = {
+          similar: matches.map((m) => ({
+            text: m.text,
+            resourceId: m.resourceId,
+            ...(m.annotationId ? { annotationId: m.annotationId } : {}),
+            score: m.score,
+            ...(m.entityTypes ? { entityTypes: m.entityTypes } : {}),
+          })),
+          ...(excludeEntityTypes.length ? { excludedEntityTypes: excludeEntityTypes } : {}),
+        };
+      }
+    }
+
     // Assemble the unified GatheredContext (focus.kind:'resource'). Related resources and
-    // annotations are graph nodes, not separate fields. semanticContext is left absent —
-    // EXCLUDE-VECTORS Phase 2b populates it (question-filtered).
+    // annotations are graph nodes, not separate fields.
     return {
       focus: {
         kind: 'resource',
@@ -108,6 +137,7 @@ export class LLMContext {
         ...(Object.keys(content).length > 0 ? { content } : {}),
       },
       graph,
+      ...(semanticContext ? { semanticContext } : {}),
       metadata: {
         resourceType: 'document',
         language: mainDoc.language as string | undefined,

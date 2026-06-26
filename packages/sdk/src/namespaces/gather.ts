@@ -86,6 +86,9 @@ export class GatherNamespace implements IGatherNamespace {
       maxResources?: number;
       includeContent?: boolean;
       includeSummary?: boolean;
+      /** Entity types to exclude from the semantic recall built into the context
+       *  (e.g. ['Question'] so prior questions never ground answer generation). */
+      excludeEntityTypes?: string[];
     },
   ): Promise<GatheredContext> {
     return busRequest<GatheredContext>(
@@ -98,6 +101,7 @@ export class GatherNamespace implements IGatherNamespace {
           maxResources: options?.maxResources ?? 10,
           includeContent: options?.includeContent ?? true,
           includeSummary: options?.includeSummary ?? false,
+          ...(options?.excludeEntityTypes?.length ? { excludeEntityTypes: options.excludeEntityTypes } : {}),
         },
       },
       'gather:resource-complete',

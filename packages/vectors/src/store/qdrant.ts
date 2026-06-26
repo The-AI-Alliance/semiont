@@ -212,6 +212,69 @@ export class QdrantVectorStore implements VectorStore {
     return this.search('annotations', embedding, opts);
   }
 
+  async searchByResource(resourceId: ResourceId, opts: SearchOptions): Promise<VectorSearchResult[]> {
+    // Fetch the resource's stored chunk vectors (page through all of them so a
+    // long resource isn't silently truncated).
+    const queryVectors: number[][] = [];
+    let offset: Schemas['ScrollRequest']['offset'] = undefined;
+    do {
+      const page = await this.qdrant.scroll('resources', {
+        filter: { must: [{ key: 'resourceId', match: { value: String(resourceId) } }] },
+        with_vector: true,
+        with_payload: false,
+        limit: 256,
+        offset,
+      });
+      for (const point of page.points) {
+        if (Array.isArray(point.vector)) queryVectors.push(point.vector as number[]);
+      }
+      offset = page.next_page_offset ?? undefined;
+    } while (offset !== undefined && offset !== null);
+
+    if (queryVectors.length === 0) return [];
+
+    // Self-exclude the source; carry the caller's filter (e.g. excludeEntityTypes).
+    const filter = this.buildFilter({ ...opts.filter, excludeResourceId: resourceId });
+
+    // One batched search per query chunk (single round-trip), top-`limit` each;
+    // over-fetch beyond `limit` is unnecessary because the max-sim merge only
+    // needs a target in some chunk's top-K to surface.
+    const searches = queryVectors.map((vector) => ({
+      vector,
+      limit: opts.limit,
+      score_threshold: opts.scoreThreshold,
+      filter: filter ?? undefined,
+      with_payload: true,
+    }));
+    const batches = await this.qdrant.searchBatch('resources', { searches });
+
+    // Max-sim merge: dedup by resourceId, keep the best (query-chunk × target-chunk)
+    // score and the best-matching target chunk's payload.
+    const bestByResource = new Map<string, { id: string; score: number; payload: Record<string, unknown> }>();
+    for (const batch of batches) {
+      for (const r of batch) {
+        const payload = r.payload ?? {};
+        const tid = String(payload.resourceId);
+        const prev = bestByResource.get(tid);
+        if (!prev || r.score > prev.score) {
+          bestByResource.set(tid, { id: String(r.id), score: r.score, payload });
+        }
+      }
+    }
+
+    return [...bestByResource.values()]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, opts.limit)
+      .map((m) => ({
+        id: m.id,
+        score: m.score,
+        resourceId: m.payload.resourceId as ResourceId,
+        annotationId: m.payload.annotationId as AnnotationId | undefined,
+        text: m.payload.text as string,
+        entityTypes: m.payload.entityTypes as string[] | undefined,
+      }));
+  }
+
   private async search(collection: string, embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
     const filter = this.buildFilter(opts.filter);
 

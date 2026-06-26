@@ -117,6 +117,11 @@
             "$ref": "./SemanticMatch.json"
           },
           "description": "Passages ranked by cosine similarity to the focal text"
+        },
+        "excludedEntityTypes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Entity types excluded from this recall — a record of how `similar` was filtered (e.g. ['Question'] so answer-generation never surfaces prior questions). Absent when no exclusion was applied."
         }
       },
       "required": ["similar"]

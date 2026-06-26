@@ -445,4 +445,57 @@ describe('LLM Context', () => {
       expect(resFocus(result).suggestedReferences).toBeDefined();
     });
   });
+
+  describe('semantic context (EXCLUDE-VECTORS Phase 2b)', () => {
+    // The fake vector store returns this pool from searchByResource, applying
+    // the excludeEntityTypes filter itself (the real store's job — already
+    // tested in @semiont/vectors). Here we verify getResourceContext forwards
+    // the filter, maps results, and records the exclusion as provenance.
+    const pool = [
+      { id: 'r-answer#0', score: 0.9, resourceId: 'r-answer', text: 'a prior answer', entityTypes: ['Answer'] },
+      { id: 'r-question#0', score: 0.8, resourceId: 'r-question', text: 'a prior question', entityTypes: ['Question'] },
+    ];
+    const baseOpts = { depth: 1, maxResources: 5, includeContent: false, includeSummary: false };
+
+    function kbWithVectors(capture?: (opts: any) => void): KnowledgeBase {
+      return {
+        ...kb,
+        vectors: {
+          searchByResource: vi.fn(async (_rid: any, opts: any) => {
+            capture?.(opts);
+            const exclude = new Set<string>(opts.filter?.excludeEntityTypes ?? []);
+            return pool.filter((p) => !p.entityTypes.some((t) => exclude.has(t)));
+          }),
+        } as any,
+      };
+    }
+
+    it('populates semanticContext from searchByResource', async () => {
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(), mockClient);
+      expect(ctx.semanticContext?.similar.map((s) => s.resourceId).sort()).toEqual(['r-answer', 'r-question']);
+    });
+
+    it('omits excluded-entity-type resources and records the exclusion', async () => {
+      let seen: any;
+      const ctx = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { ...baseOpts, excludeEntityTypes: ['Question'] },
+        kbWithVectors((o) => { seen = o; }),
+        mockClient,
+      );
+      expect(seen.filter.excludeEntityTypes).toEqual(['Question']);             // filter forwarded
+      expect(ctx.semanticContext?.similar.map((s) => s.resourceId)).toEqual(['r-answer']); // Question omitted
+      expect(ctx.semanticContext?.excludedEntityTypes).toEqual(['Question']);   // provenance recorded
+    });
+
+    it('records no excludedEntityTypes when no exclusion is applied', async () => {
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(), mockClient);
+      expect(ctx.semanticContext?.excludedEntityTypes).toBeUndefined();
+    });
+
+    it('leaves semanticContext absent when no vector store is configured', async () => {
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kb, mockClient);
+      expect(ctx.semanticContext).toBeUndefined();
+    });
+  });
 });

@@ -137,26 +137,59 @@ export class MemoryVectorStore implements VectorStore {
     return this.search(this.annotations, embedding, opts);
   }
 
-  private search(points: StoredPoint[], embedding: number[], opts: SearchOptions): VectorSearchResult[] {
-    let filtered = points;
+  async searchByResource(resourceId: ResourceId, opts: SearchOptions): Promise<VectorSearchResult[]> {
+    const rid = String(resourceId);
+    const queryPoints = this.resources.filter(p => p.payload.resourceId === rid);
+    if (queryPoints.length === 0) return [];
 
-    if (opts.filter) {
-      const f = opts.filter;
-      filtered = points.filter(p => {
-        if (f.resourceId && p.payload.resourceId !== String(f.resourceId)) return false;
-        if (f.excludeResourceId && p.payload.resourceId === String(f.excludeResourceId)) return false;
-        if (f.motivation && p.payload.motivation !== f.motivation) return false;
-        if (f.entityTypes && f.entityTypes.length > 0) {
-          const pTypes = p.payload.entityTypes ?? [];
-          if (!f.entityTypes.some(t => pTypes.includes(t))) return false;
-        }
-        if (f.excludeEntityTypes && f.excludeEntityTypes.length > 0) {
-          const pTypes = p.payload.entityTypes ?? [];
-          if (f.excludeEntityTypes.some(t => pTypes.includes(t))) return false;
-        }
-        return true;
-      });
+    // Self-exclude the source; carry the caller's filter (e.g. excludeEntityTypes).
+    const filter: SearchOptions['filter'] = { ...opts.filter, excludeResourceId: resourceId };
+
+    // Per-chunk max-sim, merged by resource: each candidate point scores as the
+    // best similarity to any of the source's query chunks; keep, per target
+    // resource, the single best-matching point (its score and its text).
+    const bestByResource = new Map<string, StoredPoint & { score: number }>();
+    for (const cand of this.resources) {
+      if (!this.passesFilter(cand, filter)) continue;
+      let best = -Infinity;
+      for (const q of queryPoints) {
+        const score = cosineSimilarity(q.vector, cand.vector);
+        if (score > best) best = score;
+      }
+      const prev = bestByResource.get(cand.payload.resourceId);
+      if (!prev || best > prev.score) {
+        bestByResource.set(cand.payload.resourceId, { ...cand, score: best });
+      }
     }
+
+    let merged = [...bestByResource.values()];
+    if (opts.scoreThreshold !== undefined) {
+      const threshold = opts.scoreThreshold;
+      merged = merged.filter(s => s.score >= threshold);
+    }
+    merged.sort((a, b) => b.score - a.score);
+    return merged.slice(0, opts.limit).map(s => this.toResult(s));
+  }
+
+  private passesFilter(p: StoredPoint, filter: SearchOptions['filter']): boolean {
+    if (!filter) return true;
+    const f = filter;
+    if (f.resourceId && p.payload.resourceId !== String(f.resourceId)) return false;
+    if (f.excludeResourceId && p.payload.resourceId === String(f.excludeResourceId)) return false;
+    if (f.motivation && p.payload.motivation !== f.motivation) return false;
+    if (f.entityTypes && f.entityTypes.length > 0) {
+      const pTypes = p.payload.entityTypes ?? [];
+      if (!f.entityTypes.some(t => pTypes.includes(t))) return false;
+    }
+    if (f.excludeEntityTypes && f.excludeEntityTypes.length > 0) {
+      const pTypes = p.payload.entityTypes ?? [];
+      if (f.excludeEntityTypes.some(t => pTypes.includes(t))) return false;
+    }
+    return true;
+  }
+
+  private search(points: StoredPoint[], embedding: number[], opts: SearchOptions): VectorSearchResult[] {
+    const filtered = points.filter(p => this.passesFilter(p, opts.filter));
 
     const scored = filtered.map(p => ({
       ...p,

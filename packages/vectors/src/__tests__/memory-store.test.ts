@@ -127,6 +127,74 @@ describe('MemoryVectorStore', () => {
     });
   });
 
+  describe('searchByResource (per-chunk max-sim)', () => {
+    it('returns empty when the resource has no stored vectors', async () => {
+      const results = await store.searchByResource('ghost' as ResourceId, { limit: 10 });
+      expect(results).toEqual([]);
+    });
+
+    it('finds resources similar to the source, excluding the source and excluded kinds', async () => {
+      await store.upsertResourceVectors('q-1' as ResourceId,
+        [{ chunkIndex: 0, text: 'capital of France?', embedding: [1, 0, 0] }], 'cs', ['Question']);
+      await store.upsertResourceVectors('q-2' as ResourceId,
+        [{ chunkIndex: 0, text: 'capital of France?', embedding: [1, 0, 0] }], 'cs', ['Question']);
+      await store.upsertResourceVectors('doc-paris' as ResourceId,
+        [{ chunkIndex: 0, text: 'Paris is the capital', embedding: [0.9, 0.1, 0] }], 'cs', ['Article']);
+      await store.upsertResourceVectors('doc-berlin' as ResourceId,
+        [{ chunkIndex: 0, text: 'Berlin is the capital', embedding: [0, 1, 0] }], 'cs', ['Article']);
+
+      const results = await store.searchByResource('q-1' as ResourceId, {
+        limit: 10,
+        filter: { excludeEntityTypes: ['Question'] },
+      });
+      const ids = results.map(r => r.resourceId);
+      expect(ids).not.toContain('q-1');  // source self-excluded
+      expect(ids).not.toContain('q-2');  // Question excluded
+      expect(ids).toContain('doc-paris');
+      expect(results[0].resourceId).toBe('doc-paris'); // most similar first
+    });
+
+    it('uses per-chunk max similarity, not a centroid average', async () => {
+      // Source has two orthogonal-topic chunks.
+      await store.upsertResourceVectors('multi' as ResourceId, [
+        { chunkIndex: 0, text: 'quantum', embedding: [1, 0] },
+        { chunkIndex: 1, text: 'cooking', embedding: [0, 1] },
+      ], 'cs', []);
+      // Each doc strongly matches ONE chunk; 'mid' matches the average of both.
+      await store.upsertResourceVectors('doc-quantum' as ResourceId,
+        [{ chunkIndex: 0, text: 'quantum doc', embedding: [1, 0] }], 'cs', ['Article']);
+      await store.upsertResourceVectors('doc-cooking' as ResourceId,
+        [{ chunkIndex: 0, text: 'cooking doc', embedding: [0, 1] }], 'cs', ['Article']);
+      await store.upsertResourceVectors('doc-mid' as ResourceId,
+        [{ chunkIndex: 0, text: 'mid doc', embedding: [0.7071, 0.7071] }], 'cs', ['Article']);
+
+      const results = await store.searchByResource('multi' as ResourceId, { limit: 10 });
+      const score = (id: string) => results.find(r => r.resourceId === id)!.score;
+
+      // Max-sim: each single-topic doc peaks at 1.0 on its chunk; 'mid' peaks at ~0.707.
+      expect(score('doc-quantum')).toBeCloseTo(1.0, 3);
+      expect(score('doc-cooking')).toBeCloseTo(1.0, 3);
+      expect(score('doc-mid')).toBeCloseTo(0.7071, 3);
+      // A centroid query would rank 'mid' top; max-sim ranks it last.
+      expect(results[results.length - 1].resourceId).toBe('doc-mid');
+    });
+
+    it('dedups multi-chunk targets to one result carrying the best-matching chunk', async () => {
+      await store.upsertResourceVectors('src' as ResourceId,
+        [{ chunkIndex: 0, text: 'q', embedding: [1, 0] }], 'cs', []);
+      await store.upsertResourceVectors('doc' as ResourceId, [
+        { chunkIndex: 0, text: 'off-topic chunk', embedding: [0, 1] },
+        { chunkIndex: 1, text: 'on-topic chunk', embedding: [1, 0] },
+      ], 'cs', ['Article']);
+
+      const results = await store.searchByResource('src' as ResourceId, { limit: 10 });
+      const docResults = results.filter(r => r.resourceId === 'doc');
+      expect(docResults).toHaveLength(1);                 // deduped to one
+      expect(docResults[0].score).toBeCloseTo(1.0, 3);    // best chunk's score
+      expect(docResults[0].text).toBe('on-topic chunk');  // best-matching chunk's text
+    });
+  });
+
   describe('annotation vectors', () => {
     it('upserts and searches annotation vectors', async () => {
       const vec = await embedding.embed('Lincoln delivered the Gettysburg Address');
