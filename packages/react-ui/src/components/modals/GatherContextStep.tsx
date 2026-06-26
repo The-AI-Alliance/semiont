@@ -9,11 +9,12 @@ export interface GatherContextStepProps {
   context: GatheredContext | null;
   contextLoading: boolean;
   contextError: Error | null;
-  userHint: string;
-  onUserHintChange: (value: string) => void;
-  onBind: () => void;
-  onGenerate: () => void;
-  onCompose: () => void;
+  /** Annotation-wizard controls. Omit for a display-only (e.g. resource-focus) render. */
+  userHint?: string;
+  onUserHintChange?: (value: string) => void;
+  onBind?: () => void;
+  onGenerate?: () => void;
+  onCompose?: () => void;
   translations: {
     title: string;
     loadingContext: string;
@@ -29,7 +30,7 @@ export function GatherContextStep({
   context,
   contextLoading,
   contextError,
-  userHint,
+  userHint = '',
   onUserHintChange,
   onBind,
   onGenerate,
@@ -39,6 +40,7 @@ export function GatherContextStep({
   const [sourceExpanded, setSourceExpanded] = useState(false);
   const contextReady = !contextLoading && !contextError && !!context;
   const focus = context?.focus.kind === 'annotation' ? context.focus : null;
+  const resourceFocus = context?.focus.kind === 'resource' ? context.focus : null;
   const highlightRef = useRef<HTMLSpanElement>(null);
 
   // Scroll the highlighted term into view when context loads
@@ -69,7 +71,7 @@ export function GatherContextStep({
 
       {context && (
         <>
-          {/* Full-width source context strip */}
+          {/* Full-width source context strip — annotation focus */}
           {focus?.selected && (
             <div className="semiont-gather__source-strip">
               <label className="semiont-form__label" style={{ marginBottom: '0.375rem' }}>
@@ -114,60 +116,103 @@ export function GatherContextStep({
             </div>
           )}
 
+          {/* Full-width source context strip — resource focus */}
+          {resourceFocus && (
+            <div className="semiont-gather__source-strip">
+              <label className="semiont-form__label" style={{ marginBottom: '0.375rem' }}>
+                {t.sourceContextLabel}{resourceFocus.resource.name ? ` "${resourceFocus.resource.name}"` : ''}
+              </label>
+              {(resourceFocus.summary || resourceFocus.content?.main) && (
+                <div className={`semiont-gather__source-box${sourceExpanded ? ' semiont-gather__source-box--expanded' : ''}`}>
+                  <div className="semiont-gather__source-context">
+                    <div style={{ fontSize: 'var(--semiont-text-sm)', whiteSpace: 'pre-wrap', color: 'var(--semiont-text-secondary)' }}>
+                      {resourceFocus.summary ?? resourceFocus.content?.main}
+                      {(context.metadata?.entityTypes ?? []).map(et => (
+                        <span key={et} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', fontWeight: 400, verticalAlign: 'middle', marginLeft: '0.25rem' }}>
+                          {et}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="semiont-gather__expand-btn"
+                    onClick={() => setSourceExpanded(v => !v)}
+                  >
+                    {sourceExpanded ? '▲ less' : '▼ more'}
+                  </button>
+                </div>
+              )}
+              {resourceFocus.suggestedReferences && resourceFocus.suggestedReferences.length > 0 && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  {resourceFocus.suggestedReferences.map(ref => (
+                    <span key={ref} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', marginRight: '0.25rem' }}>
+                      {ref}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Two-column body */}
           <div className="semiont-gather__body">
-            {/* Left: annotation metadata */}
+            {/* Left: context summary (graph views) */}
             <div className="semiont-gather__left">
               <ContextSummary context={context} translations={t} />
             </div>
 
-            {/* Right: hint textarea */}
-            <div className="semiont-gather__right">
-              <div className="semiont-form__field">
-                <label className="semiont-form__label">
-                  {t.userHintLabel}
-                </label>
-                <textarea
-                  value={userHint}
-                  onChange={(e) => onUserHintChange(e.target.value)}
-                  placeholder={t.userHintPlaceholder}
-                  className="semiont-search-modal__search-input semiont-gather__hint-textarea"
-                  style={{ resize: 'vertical', fontFamily: 'inherit' }}
-                />
+            {/* Right: hint textarea (annotation focus only) */}
+            {focus && (
+              <div className="semiont-gather__right">
+                <div className="semiont-form__field">
+                  <label className="semiont-form__label">
+                    {t.userHintLabel}
+                  </label>
+                  <textarea
+                    value={userHint}
+                    onChange={(e) => onUserHintChange?.(e.target.value)}
+                    placeholder={t.userHintPlaceholder}
+                    className="semiont-search-modal__search-input semiont-gather__hint-textarea"
+                    style={{ resize: 'vertical', fontFamily: 'inherit' }}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Full-width footer: resolution strategy */}
-          <div className="semiont-gather__footer">
-            <div className="semiont-gather__footer-label">{t.resolutionStrategyLabel}</div>
-            <div className="semiont-gather__actions">
-              <button
-                type="button"
-                onClick={onBind}
-                disabled={!contextReady}
-                className="semiont-button--primary semiont-button--flex"
-              >
-                🔍 {t.search}…
-              </button>
-              <button
-                type="button"
-                onClick={onGenerate}
-                disabled={!contextReady}
-                className="semiont-button--primary semiont-button--flex"
-              >
-                ✨ {t.generate}…
-              </button>
-              <button
-                type="button"
-                onClick={onCompose}
-                disabled={!contextReady}
-                className="semiont-button--secondary semiont-button--flex"
-              >
-                ✍️ {t.compose}
-              </button>
+          {/* Full-width footer: resolution strategy (annotation focus only) */}
+          {focus && (
+            <div className="semiont-gather__footer">
+              <div className="semiont-gather__footer-label">{t.resolutionStrategyLabel}</div>
+              <div className="semiont-gather__actions">
+                <button
+                  type="button"
+                  onClick={onBind}
+                  disabled={!contextReady}
+                  className="semiont-button--primary semiont-button--flex"
+                >
+                  🔍 {t.search}…
+                </button>
+                <button
+                  type="button"
+                  onClick={onGenerate}
+                  disabled={!contextReady}
+                  className="semiont-button--primary semiont-button--flex"
+                >
+                  ✨ {t.generate}…
+                </button>
+                <button
+                  type="button"
+                  onClick={onCompose}
+                  disabled={!contextReady}
+                  className="semiont-button--secondary semiont-button--flex"
+                >
+                  ✍️ {t.compose}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
     </div>

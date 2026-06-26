@@ -1,6 +1,6 @@
 import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxjs';
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
-import { SemiontError, type EventMap } from '@semiont/core';
+import { SemiontError, type EventMap, type BridgedChannel } from '@semiont/core';
 
 export type BusRequestErrorCode =
   | 'bus.timeout'
@@ -30,12 +30,20 @@ export interface BusRequestPrimitive {
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
 }
 
+/**
+ * Request/reply over the bus. `resultChannel`/`failureChannel` are constrained
+ * to `BridgedChannel`: a reply channel MUST be in `BRIDGED_CHANNELS` or the
+ * transport never subscribes to it and the request times out with no error.
+ * Typing them here makes that omission a compile error rather than a silent
+ * 30 s timeout (see .plans/bugs/gather-resource-complete-not-bridged.md — the
+ * `gather:resource-*` pair shipped unbridged with no compile/runtime signal).
+ */
 export async function busRequest<TResult>(
   bus: BusRequestPrimitive,
   emitChannel: string,
   payload: Record<string, unknown>,
-  resultChannel: string,
-  failureChannel: string,
+  resultChannel: BridgedChannel,
+  failureChannel: BridgedChannel,
   timeoutMs = 30_000,
 ): Promise<TResult> {
   const correlationId = crypto.randomUUID();

@@ -23,6 +23,12 @@ interface Props {
   wasAttributedTo?: Agent | Agent[] | undefined;
   wasDerivedFrom?: string | string[] | undefined;
   generator?: Agent | Agent[] | undefined;
+  /**
+   * Open the resource-generate flow. UI-only — the SDK isn't involved in
+   * *opening* the display (if collaborative gather ever lands, this graduates
+   * to a verb). Omit to hide the Generate action.
+   */
+  onGenerate?: () => void;
 }
 
 /**
@@ -45,6 +51,7 @@ export function ResourceInfoPanel({
   wasAttributedTo,
   wasDerivedFrom,
   generator,
+  onGenerate,
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
   const session = useObservable(useSemiont().activeSession$);
@@ -174,6 +181,21 @@ export function ResourceInfoPanel({
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Generate Action — opens the resource-generate flow (UI-only) */}
+      {onGenerate && (
+        <div className="semiont-resource-info-panel__action-section">
+          <button
+            onClick={onGenerate}
+            className="semiont-resource-button semiont-resource-button--secondary"
+          >
+            ✨ {t('generate')}
+          </button>
+          <p className="semiont-resource-info-panel__description">
+            {t('generateDescription')}
+          </p>
         </div>
       )}
 

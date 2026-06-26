@@ -39,6 +39,7 @@ export * from './contexts/ThemeContext';
 // Note: useDebounce is already exported from ./hooks/useDebounce
 export { useDropdown, useLoadingState, useLocalStorage } from './hooks/useUI';
 export * from './hooks/useResourceContent';
+export * from './hooks/useResourceGather';
 
 // Session (the React layer — provider + hook + browser storage adapter).
 // All session classes (`SemiontSession`, `SemiontBrowser`, `SessionSignals`,
@@ -136,6 +137,7 @@ export type {
 
 // Components - Modals
 export * from './components/modals/ReferenceWizardModal';
+export * from './components/modals/ResourceGenerateModal';
 export * from './components/modals/SearchModal';
 export * from './components/modals/ResourceSearchModal';
 export type {

@@ -20,6 +20,8 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       storageUri: 'Storage',
       clone: 'Clone',
       cloneDescription: 'Generate a shareable clone link for this resource',
+      generate: 'Generate',
+      generateDescription: "Generate a new resource from this one's context",
       archive: 'Archive',
       archiveDescription: 'Move this resource to archived status',
       unarchive: 'Unarchive',
@@ -266,6 +268,30 @@ describe('ResourceInfoPanel Component', () => {
       await waitFor(() => {
         expect(tracker.events.some(e => e.event === 'yield:clone')).toBe(true);
       });
+    });
+  });
+
+  describe('Generate Action', () => {
+    it('renders the Generate button when onGenerate is provided', () => {
+      renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}} />
+      );
+      expect(screen.getByRole('button', { name: /Generate/i })).toBeInTheDocument();
+      expect(screen.getByText("Generate a new resource from this one's context")).toBeInTheDocument();
+    });
+
+    it('hides the Generate button when onGenerate is omitted', () => {
+      renderWithEventBus(<ResourceInfoPanel {...defaultProps} />);
+      expect(screen.queryByRole('button', { name: /Generate/i })).not.toBeInTheDocument();
+    });
+
+    it('calls onGenerate when clicked', () => {
+      const onGenerate = vi.fn();
+      renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={onGenerate} />
+      );
+      fireEvent.click(screen.getByRole('button', { name: /Generate/i }));
+      expect(onGenerate).toHaveBeenCalledTimes(1);
     });
   });
 

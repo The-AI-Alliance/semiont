@@ -57,8 +57,10 @@ function makeBus(resultChannel: string, failureChannel: string): MockBus {
 }
 
 describe('busRequest', () => {
-  const RESULT = 'unit:result';
-  const FAILURE = 'unit:failure';
+  // Real bridged reply channels — `busRequest` now constrains result/failure to
+  // `BridgedChannel`, so the fixtures must use members of `BRIDGED_CHANNELS`.
+  const RESULT = 'gather:resource-complete';
+  const FAILURE = 'gather:resource-failed';
   const EMIT = 'unit:request';
 
   it('emits the request with a generated correlationId and resolves on the matching result', async () => {

@@ -16,12 +16,18 @@ export interface ContextSummaryProps {
 }
 
 export function ContextSummary({ context, translations: t }: ContextSummaryProps) {
-  // Annotation-focus only for now (resource-focus rendering is future work).
-  if (context.focus.kind !== 'annotation') return null;
+  // Graph views are focus-agnostic — only the focal resource id (and an optional
+  // focal annotation id) differ by kind.
+  const mainResourceId = context.focus.kind === 'annotation'
+    ? String(context.focus.sourceResource.id)
+    : String(context.focus.resource.id);
+  const focalAnnotationId = context.focus.kind === 'annotation'
+    ? context.focus.annotation.id
+    : undefined;
   const { connections, citedBy, citedByCount } = deriveViews(
     context.graph,
-    String(context.focus.sourceResource.id),
-    context.focus.annotation.id,
+    mainResourceId,
+    focalAnnotationId,
   );
 
   return (

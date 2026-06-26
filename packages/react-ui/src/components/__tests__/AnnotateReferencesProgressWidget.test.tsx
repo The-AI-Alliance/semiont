@@ -7,76 +7,56 @@ import type { components } from '@semiont/core';
 
 type JobProgress = components['schemas']['JobProgress'];
 
+// The widget no longer reads translations internally — the caller supplies the
+// copy + cancel job type. These are the annotation-flow values for these tests.
+const tr = {
+  title: 'Annotating',
+  cancel: 'Cancel',
+  inProgress: 'In progress',
+  complete: 'Complete',
+  failed: 'Failed',
+  found: (count: number) => `Found ${count}`,
+  current: (entityType: string) => `Current ${entityType}`,
+};
+
+function renderWidget(progress: JobProgress | null, opts?: { returnEventBus?: boolean }) {
+  return renderWithProviders(
+    <AnnotateReferencesProgressWidget progress={progress} cancelJobType="annotation" translations={tr} />,
+    opts,
+  );
+}
+
 describe('AnnotateReferencesProgressWidget', () => {
   it('returns null when progress is null', () => {
-    const { container } = renderWithProviders(
-      <AnnotateReferencesProgressWidget progress={null} />
-    );
-
+    const { container } = renderWidget(null);
     expect(container.firstChild).toBeNull();
   });
 
   it('renders progress with stage message', () => {
-    const progress: JobProgress = {
-      stage: 'in-progress',
-      percentage: 50,
-      message: 'Processing entities...',
-    };
-
-    renderWithProviders(
-      <AnnotateReferencesProgressWidget progress={progress} />
-    );
-
+    const progress: JobProgress = { stage: 'in-progress', percentage: 50, message: 'Processing entities...' };
+    renderWidget(progress);
     expect(screen.getByText('Processing entities...')).toBeInTheDocument();
   });
 
   it('shows cancel button when not complete', () => {
-    const progress: JobProgress = {
-      stage: 'in-progress',
-      percentage: 30,
-      message: 'Working...',
-    };
-
-    renderWithProviders(
-      <AnnotateReferencesProgressWidget progress={progress} />
-    );
-
-    const cancelButton = screen.getByTitle('ReferencesPanel.cancelAnnotation');
-    expect(cancelButton).toBeInTheDocument();
+    const progress: JobProgress = { stage: 'in-progress', percentage: 30, message: 'Working...' };
+    renderWidget(progress);
+    expect(screen.getByTitle('Cancel')).toBeInTheDocument();
   });
 
   it('hides cancel button when complete', () => {
-    const progress: JobProgress = {
-      stage: 'complete',
-      percentage: 100,
-      message: '',
-    };
-
-    renderWithProviders(
-      <AnnotateReferencesProgressWidget progress={progress} />
-    );
-
-    expect(screen.queryByTitle('ReferencesPanel.cancelAnnotation')).not.toBeInTheDocument();
+    const progress: JobProgress = { stage: 'complete', percentage: 100, message: '' };
+    renderWidget(progress);
+    expect(screen.queryByTitle('Cancel')).not.toBeInTheDocument();
   });
 
   it('emits job:cancel-requested on cancel click', () => {
     const handler = vi.fn();
-    const progress: JobProgress = {
-      stage: 'in-progress',
-      percentage: 40,
-      message: 'Working...',
-    };
-
-    const { eventBus } = renderWithProviders(
-      <AnnotateReferencesProgressWidget progress={progress} />,
-      { returnEventBus: true }
-    );
+    const progress: JobProgress = { stage: 'in-progress', percentage: 40, message: 'Working...' };
+    const { eventBus } = renderWidget(progress, { returnEventBus: true });
 
     const subscription = eventBus!.get('job:cancel-requested').subscribe(handler);
-
-    const cancelButton = screen.getByTitle('ReferencesPanel.cancelAnnotation');
-    fireEvent.click(cancelButton);
-
+    fireEvent.click(screen.getByTitle('Cancel'));
     expect(handler).toHaveBeenCalledWith({ jobType: 'annotation' });
 
     subscription.unsubscribe();
@@ -92,60 +72,30 @@ describe('AnnotateReferencesProgressWidget', () => {
         { entityType: 'Organization', foundCount: 3 },
       ],
     };
-
-    renderWithProviders(
-      <AnnotateReferencesProgressWidget progress={progress} />
-    );
-
+    renderWidget(progress);
     expect(screen.getByText('Person:')).toBeInTheDocument();
     expect(screen.getByText('Organization:')).toBeInTheDocument();
-    // Translation mock returns "ReferencesPanel.found" for each entity type
-    const foundLabels = screen.getAllByText('ReferencesPanel.found');
-    expect(foundLabels).toHaveLength(2);
+    expect(screen.getByText('Found 5')).toBeInTheDocument();
+    expect(screen.getByText('Found 3')).toBeInTheDocument();
   });
 
   it('shows complete icon for complete stage', () => {
-    const progress: JobProgress = {
-      stage: 'complete',
-      percentage: 100,
-      message: '',
-    };
-
-    const { container } = renderWithProviders(
-      <AnnotateReferencesProgressWidget progress={progress} />
-    );
-
+    const progress: JobProgress = { stage: 'complete', percentage: 100, message: '' };
+    const { container } = renderWidget(progress);
     expect(container.querySelector('[data-status="complete"]')).toBeInTheDocument();
-    expect(screen.getByText('ReferencesPanel.complete')).toBeInTheDocument();
+    expect(screen.getByText('Complete')).toBeInTheDocument();
   });
 
   it('shows error message for error stage', () => {
-    const progress: JobProgress = {
-      stage: 'error',
-      percentage: 0,
-      message: 'Something went wrong',
-    };
-
-    const { container } = renderWithProviders(
-      <AnnotateReferencesProgressWidget progress={progress} />
-    );
-
+    const progress: JobProgress = { stage: 'error', percentage: 0, message: 'Something went wrong' };
+    const { container } = renderWidget(progress);
     expect(container.querySelector('[data-status="error"]')).toBeInTheDocument();
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
   });
 
   it('shows current entity type processing details', () => {
-    const progress: JobProgress = {
-      stage: 'in-progress',
-      percentage: 50,
-      message: '',
-      currentEntityType: 'Location',
-    };
-
-    renderWithProviders(
-      <AnnotateReferencesProgressWidget progress={progress} />
-    );
-
+    const progress: JobProgress = { stage: 'in-progress', percentage: 50, message: '', currentEntityType: 'Location' };
+    renderWidget(progress);
     expect(screen.getByText(/Processing: Location/)).toBeInTheDocument();
   });
 });

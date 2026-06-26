@@ -29,6 +29,7 @@ export const BRIDGED_CHANNELS = [
   'mark:create-ok', 'mark:create-failed',
   'match:search-results', 'match:search-failed',
   'gather:complete', 'gather:failed',
+  'gather:resource-complete', 'gather:resource-failed',
   'gather:annotation-progress', 'gather:annotation-finished',
   'gather:summary-result', 'gather:summary-failed',
   'bind:body-updated', 'bind:body-update-failed',
@@ -47,4 +48,9 @@ export const BRIDGED_CHANNELS = [
   'bus:resume-gap',
 ] as const;
 
+/**
+ * The SUBSCRIBE-side subset of `EventName` — the channels a client can receive
+ * over a concrete transport. See the family note on `EventName` in
+ * bus-protocol.ts (emit on an `EmittableChannel`, subscribe on a `BridgedChannel`).
+ */
 export type BridgedChannel = typeof BRIDGED_CHANNELS[number];

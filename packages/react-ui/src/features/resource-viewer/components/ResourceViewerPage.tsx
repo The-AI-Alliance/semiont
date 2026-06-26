@@ -35,6 +35,8 @@ import { useStateUnit } from '../../../hooks/useStateUnit';
 import { useShellStateUnit } from '../../../hooks/useShellStateUnit';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
+import { ResourceGenerateModal } from '../../../components/modals/ResourceGenerateModal';
+import { AnnotateReferencesProgressWidget } from '../../../components/AnnotateReferencesProgressWidget';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
 
 type SemiontResource = ResourceDescriptor;
@@ -128,6 +130,7 @@ export function ResourceViewerPage({
 }: ResourceViewerPageProps) {
   // Translations
   const tw = useTranslations('ReferenceWizard');
+  const tg = useTranslations('ResourceGenerate');
 
   const browser = useSemiont();
   const session = useObservable(browser.activeSession$);
@@ -187,6 +190,7 @@ export function ResourceViewerPage({
   const wizardResourceId = wizardState?.resourceId ?? null;
   const wizardDefaultTitle = wizardState?.defaultTitle ?? '';
   const wizardEntityTypes = wizardState?.entityTypes ?? [];
+  const [generateOpen, setGenerateOpen] = useState(false);
 
   const handleWizardClose = useCallback(() => {
     stateUnit.closeWizard();
@@ -208,6 +212,23 @@ export function ResourceViewerPage({
       context: config.context,
     });
   }, [stateUnit, clearNewAnnotationId, resource]);
+
+  // Resource-generate flow (GENERATE-FROM-BUTTON): drive the SAME yield progress$
+  // the annotation path uses so the full AnnotateReferencesProgressWidget shows —
+  // NOT a toast. `generateFromResource` is Phase 6 (the @semiont/sdk session);
+  // this is declared RED until that method lands. Do not re-impl it here.
+  const handleResourceGenerateSubmit = useCallback((_resourceId: string, config: GenerationConfig) => {
+    stateUnit.yield.generateFromResource({
+      title: config.title,
+      storageUri: config.storagePath,
+      ...(config.prompt ? { prompt: config.prompt } : {}),
+      language: config.language,
+      sourceLanguage: getLanguage(resource),
+      temperature: config.temperature,
+      maxTokens: config.maxTokens,
+      context: config.context,
+    });
+  }, [stateUnit, resource]);
 
   const handleWizardLinkResource = useCallback(async (referenceId: string, targetResourceId: string) => {
     if (!semiont) return;
@@ -452,6 +473,21 @@ export function ResourceViewerPage({
               </h2>
             </div>
           </div>
+          {/* Resource-generation progress (GENERATE-FROM-BUTTON P7) — no annotationId ⇒ a resource-gen job */}
+          {generationProgress && !generationProgress.annotationId && (
+            <AnnotateReferencesProgressWidget
+              progress={generationProgress}
+              annotationType="generation"
+              cancelJobType="generation"
+              translations={{
+                title: tg('progressTitle'),
+                cancel: tg('progressCancel'),
+                inProgress: tg('progressInProgress'),
+                complete: tg('progressComplete'),
+                failed: tg('progressFailed'),
+              }}
+            />
+          )}
           {/* Scrollable body wrapper - contains document content, header is sibling above */}
           <div className="semiont-document-viewer__scrollable-body" lang={getLanguage(resource) || undefined}>
             <ErrorBoundary
@@ -565,6 +601,7 @@ export function ResourceViewerPage({
                 wasAttributedTo={resource.wasAttributedTo}
                 wasDerivedFrom={resource.wasDerivedFrom}
                 generator={resource.generator as components['schemas']['Agent'] | components['schemas']['Agent'][] | undefined}
+                onGenerate={() => setGenerateOpen(true)}
               />
             )}
 
@@ -643,6 +680,48 @@ export function ResourceViewerPage({
           maxResults: tw('maxResults'),
           semanticScoring: tw('semanticScoring'),
           semanticScoringHelp: tw('semanticScoringHelp'),
+        }}
+      />
+
+      {/* Resource-generate flow (GENERATE-FROM-BUTTON) */}
+      <ResourceGenerateModal
+        isOpen={generateOpen}
+        onClose={() => setGenerateOpen(false)}
+        resourceId={rUri}
+        defaultTitle=""
+        locale={locale}
+        onGenerateSubmit={handleResourceGenerateSubmit}
+        translations={{
+          gatherTitle: tg('gatherTitle'),
+          reviewTitle: tg('reviewTitle'),
+          configureTitle: tg('configureTitle'),
+          next: tg('next'),
+          back: tg('back'),
+          cancel: tg('cancel'),
+          gatherIntro: tg('gatherIntro'),
+          includeContent: tg('includeContent'),
+          includeSummary: tg('includeSummary'),
+          gatherDepth: tg('gatherDepth'),
+          gatherMaxResources: tg('gatherMaxResources'),
+          gatherButton: tg('gatherButton'),
+          excludeLabel: tg('excludeLabel'),
+          loadingContext: tg('loadingContext'),
+          failedContext: tg('failedContext'),
+          sourceContextLabel: tg('sourceContextLabel'),
+          connectionsLabel: tg('connectionsLabel'),
+          citedByLabel: tg('citedByLabel'),
+          resourceTitle: tg('resourceTitle'),
+          resourceTitlePlaceholder: tg('resourceTitlePlaceholder'),
+          additionalInstructions: tg('additionalInstructions'),
+          additionalInstructionsPlaceholder: tg('additionalInstructionsPlaceholder'),
+          language: tg('language'),
+          languageHelp: tg('languageHelp'),
+          creativity: tg('creativity'),
+          creativityFocused: tg('creativityFocused'),
+          creativityCreative: tg('creativityCreative'),
+          maxLength: tg('maxLength'),
+          maxLengthHelp: tg('maxLengthHelp'),
+          generate: tg('generate'),
         }}
       />
     </div>

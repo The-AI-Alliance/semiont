@@ -344,7 +344,22 @@ export type EventMap = {
   'bus:resume-gap': { scope?: string; lastSeenId?: string; reason: string };
 };
 
-/** Any valid channel name on the EventBus. */
+/**
+ * Any valid channel name on the EventBus — `keyof EventMap`, the root channel
+ * type. Two subsets matter, and confusing them is a silent-failure trap:
+ *
+ * - `EmittableChannel` (below) — channels with a non-null `CHANNEL_SCHEMAS`
+ *   entry; what you EMIT (the `/bus/emit` gateway validates the payload).
+ * - `BridgedChannel` (`bridged-channels.ts`) — the transport fan-in set; the
+ *   only channels a client can SUBSCRIBE to over a concrete transport.
+ *
+ * Request/reply (`busRequest`) emits on an `EmittableChannel` and subscribes on
+ * `BridgedChannel` replies. A reply channel that is a valid `EventName` but NOT
+ * in `BRIDGED_CHANNELS` is never delivered → the request times out with no
+ * compile or runtime error (see
+ * `.plans/bugs/gather-resource-complete-not-bridged.md`). `busRequest` now types
+ * its reply params `BridgedChannel` so that omission is a compile error.
+ */
 export type EventName = keyof EventMap;
 
 /**
