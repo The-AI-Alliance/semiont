@@ -25,7 +25,7 @@ const h = vi.hoisted(() => ({
   state: { context: null as unknown, loading: false, error: null as Error | null },
 }));
 
-vi.mock('../../hooks/useResourceGather', () => ({
+vi.mock('../../../hooks/useResourceGather', () => ({
   useResourceGather: () => ({
     context: h.state.context,
     loading: h.state.loading,
@@ -37,8 +37,8 @@ vi.mock('../../hooks/useResourceGather', () => ({
 
 const mockClient = { browse: { entityTypes: () => of<string[]>(['Person', 'Topic']) } };
 const activeSession$ = new BehaviorSubject<unknown>({ client: mockClient });
-vi.mock('../../session/SemiontProvider', async () => {
-  const actual = await vi.importActual<typeof import('../../session/SemiontProvider')>('../../session/SemiontProvider');
+vi.mock('../../../session/SemiontProvider', async () => {
+  const actual = await vi.importActual<typeof import('../../../session/SemiontProvider')>('../../../session/SemiontProvider');
   return { ...actual, useSemiont: () => ({ activeSession$ }) };
 });
 
