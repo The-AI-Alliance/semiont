@@ -6,11 +6,12 @@
  * how the step wires `gather()` (incl. the Phase-4 exclusion threading) and
  * `onGenerateSubmit`. `useSemiont` is mocked to feed the entity-type options.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BehaviorSubject, of } from 'rxjs';
 import type { GatheredContext } from '@semiont/core';
+import type { GenerationConfig } from '../ConfigureGenerationStep';
 
 const RESOURCE_CONTEXT = {
   focus: { kind: 'resource', resource: { id: 'res-1', name: 'My Resource' }, summary: 'A short summary' },
@@ -81,8 +82,8 @@ const T = {
   generate: 'Generate',
 };
 
-let onClose: ReturnType<typeof vi.fn>;
-let onGenerateSubmit: ReturnType<typeof vi.fn>;
+let onClose: Mock<() => void>;
+let onGenerateSubmit: Mock<(resourceId: string, config: GenerationConfig) => void>;
 
 function renderModal(props: Partial<React.ComponentProps<typeof ResourceGenerateModal>> = {}) {
   return render(
@@ -102,8 +103,8 @@ function renderModal(props: Partial<React.ComponentProps<typeof ResourceGenerate
 describe('ResourceGenerateModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    onClose = vi.fn();
-    onGenerateSubmit = vi.fn();
+    onClose = vi.fn<() => void>();
+    onGenerateSubmit = vi.fn<(resourceId: string, config: GenerationConfig) => void>();
     h.state = { context: null, loading: false, error: null };
     activeSession$.next({ client: mockClient });
     // jsdom doesn't implement scrollIntoView; GatherContextStep may call it.
@@ -168,6 +169,16 @@ describe('ResourceGenerateModal', () => {
       }),
     );
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('Back from configure-generation returns to review', () => {
+    h.state.context = RESOURCE_CONTEXT;
+    renderModal();
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ })); // → review
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }));   // → configure-generation
+    expect(screen.getByText('Configure Generation')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Back/ }));   // → review
+    expect(screen.getByText('Review Context')).toBeInTheDocument();
   });
 
   it('Back from review returns to the configure-gather step', () => {

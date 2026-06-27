@@ -41,10 +41,11 @@ describe('ConfigureGatherStep', () => {
     const onGather = vi.fn();
     render(<ConfigureGatherStep onGather={onGather} onCancel={vi.fn()} translations={t} />);
     fireEvent.click(screen.getByLabelText('Include content')); // uncheck
+    fireEvent.click(screen.getByLabelText('Include summary')); // uncheck
     fireEvent.change(screen.getByLabelText('Depth'), { target: { value: '4' } });
     fireEvent.change(screen.getByLabelText('Max resources'), { target: { value: '25' } });
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
-    expect(onGather).toHaveBeenCalledWith({ includeContent: false, includeSummary: true, depth: 4, maxResources: 25 });
+    expect(onGather).toHaveBeenCalledWith({ includeContent: false, includeSummary: false, depth: 4, maxResources: 25 });
   });
 
   it('honors the defaults prop', () => {
