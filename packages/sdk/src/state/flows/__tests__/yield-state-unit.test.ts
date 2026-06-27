@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable, Subject } from 'rxjs';
 import { resourceId as makeResourceId } from '@semiont/core';
-import type { components } from '@semiont/core';
+import type { components, GatheredContext } from '@semiont/core';
 import { createYieldStateUnit } from '../yield-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import type { YieldGenerationEvent } from '../../../namespaces/types';
@@ -202,5 +202,69 @@ describe('createYieldStateUnit', () => {
     progressSubject.next(progressEvent(makeProgress()));
     // The BehaviorSubject completed on dispose; no new emissions from it.
     expect(gen.at(-1)).toBe(false);  // last seen was the dispose teardown
+  });
+
+  // ── generateFromResource (resource-focus; shares `drive` with generate) ──
+
+  function withYieldResource(fromResourceFn: ReturnType<typeof vi.fn>): TestClient {
+    return makeTestClient({ yield: { fromResource: fromResourceFn } });
+  }
+
+  it('generateFromResource() calls client.yield.fromResource (resourceId + options, no referenceId)', () => {
+    const fromResourceFn = vi.fn(() => new Observable(() => {}));
+    tc = withYieldResource(fromResourceFn);
+    const stateUnit = createYieldStateUnit(tc.client, RID, 'en');
+
+    stateUnit.generateFromResource({ title: 'Test', storageUri: 'store://t', context: {} as GatheredContext });
+
+    expect(fromResourceFn).toHaveBeenCalledOnce();
+    expect(fromResourceFn).toHaveBeenCalledWith(
+      RID,
+      expect.objectContaining({ title: 'Test', language: 'en' }),
+    );
+    stateUnit.dispose();
+  });
+
+  it('generateFromResource() drives progress$/isGenerating$ and clears 2s after complete', () => {
+    vi.useFakeTimers();
+    const subject = new Subject<YieldGenerationEvent>();
+    tc = withYieldResource(vi.fn(() => subject.asObservable()));
+    const stateUnit = createYieldStateUnit(tc.client, RID, 'en');
+    const gen: boolean[] = [];
+    const prog: unknown[] = [];
+    stateUnit.isGenerating$.subscribe(v => gen.push(v));
+    stateUnit.progress$.subscribe(v => prog.push(v));
+
+    const p = makeProgress({ percentage: 40 });
+    stateUnit.generateFromResource({ title: 'T', storageUri: 's', context: {} as GatheredContext });
+    subject.next(progressEvent(p));
+    expect(prog).toEqual([null, p]);
+    expect(gen[gen.length - 1]).toBe(true);
+
+    subject.complete();
+    expect(gen[gen.length - 1]).toBe(false);
+    vi.advanceTimersByTime(2000);
+    expect(prog[prog.length - 1]).toBeNull();
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('generateFromResource() clears progress and stops generating on error', () => {
+    tc = withYieldResource(vi.fn(() => new Observable<YieldGenerationEvent>((sub) => {
+      sub.next(progressEvent(makeProgress({ percentage: 40 })));
+      sub.error(new Error('Generation failed'));
+    })));
+    const stateUnit = createYieldStateUnit(tc.client, RID, 'en');
+    const gen: boolean[] = [];
+    const prog: unknown[] = [];
+    stateUnit.isGenerating$.subscribe(v => gen.push(v));
+    stateUnit.progress$.subscribe(v => prog.push(v));
+
+    stateUnit.generateFromResource({ title: 'T', storageUri: 's', context: {} as GatheredContext });
+
+    expect(gen[gen.length - 1]).toBe(false);
+    expect(prog[prog.length - 1]).toBeNull();
+    stateUnit.dispose();
   });
 });

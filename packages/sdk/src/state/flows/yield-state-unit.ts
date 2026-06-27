@@ -4,6 +4,8 @@ import type { ResourceId, GatheredContext, components } from '@semiont/core';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '../lib/state-unit';
+import type { StreamObservable } from '../../awaitable';
+import type { YieldGenerationEvent } from '../../namespaces/types';
 
 type JobProgress = components['schemas']['JobProgress'];
 
@@ -23,7 +25,10 @@ export interface GenerateDocumentOptions {
 export interface YieldStateUnit extends StateUnit {
   isGenerating$: Observable<boolean>;
   progress$: Observable<JobProgress | null>;
+  /** Generate a resource derived from an annotation (reference) on this resource. */
   generate(referenceId: string, options: GenerateDocumentOptions): void;
+  /** Generate a resource derived from this whole resource (no annotation anchor). */
+  generateFromResource(options: GenerateDocumentOptions): void;
 }
 
 export function createYieldStateUnit(
@@ -36,22 +41,24 @@ export function createYieldStateUnit(
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
   let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Generation progress/complete/fail is driven entirely by the
-  // Observable returned from `client.yield.fromAnnotation` — that
-  // Observable is filtered to this specific job's jobId internally.
-  // No direct bus subscription needed here.
-  const generate = (referenceId: string, options: GenerateDocumentOptions): void => {
-    const genSub = client.yield.fromAnnotation(
-      makeResourceId(resourceId as string),
-      makeAnnotationId(referenceId),
-      { ...options, language: options.language || locale },
-    ).pipe(
+  // Generation progress/complete/fail is driven entirely by the StreamObservable
+  // returned from `client.yield.from{Annotation,Resource}` — it is filtered to
+  // this job's jobId internally, so no direct bus subscription is needed here.
+  //
+  // `drive` is the shared subscribe + progress-wiring for both generation entry
+  // points (they differ only in which `yield.*` they call). It `.subscribe()`s
+  // the cold stream ONCE — the state unit owns that single subscription (pushed
+  // to `subs`, torn down on dispose). Callers observe `progress$`/`isGenerating$`;
+  // they never get the stream back (a second subscription would re-fire the job —
+  // the A2 cold-stream double-fire), which is why the public methods return `void`.
+  const drive = (gen$: StreamObservable<YieldGenerationEvent>): void => {
+    const genSub = gen$.pipe(
       timeout({ each: 300_000 }),
     ).subscribe({
       next: (e) => {
-        // Surface live progress to the UI; `complete` events carry the
-        // final job result for awaiting callers but produce no extra
-        // panel signal here (the `complete` callback fires next).
+        // Surface live progress to the UI; `complete` events carry the final job
+        // result for awaiting callers but produce no extra panel signal here
+        // (the `complete` callback fires next).
         if (e.kind === 'progress') {
           progress$.next(e.data);
           isGenerating$.next(true);
@@ -70,10 +77,26 @@ export function createYieldStateUnit(
     subs.push(genSub);
   };
 
+  const generate = (referenceId: string, options: GenerateDocumentOptions): void => {
+    drive(client.yield.fromAnnotation(
+      makeResourceId(resourceId as string),
+      makeAnnotationId(referenceId),
+      { ...options, language: options.language || locale },
+    ));
+  };
+
+  const generateFromResource = (options: GenerateDocumentOptions): void => {
+    drive(client.yield.fromResource(
+      makeResourceId(resourceId as string),
+      { ...options, language: options.language || locale },
+    ));
+  };
+
   return {
     isGenerating$: isGenerating$.asObservable(),
     progress$: progress$.asObservable(),
     generate,
+    generateFromResource,
     dispose() {
       subs.forEach(s => s.unsubscribe());
       if (clearTimer) clearTimeout(clearTimer);

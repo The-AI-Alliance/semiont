@@ -455,6 +455,16 @@ export function ReferencesPanel({
             <AnnotateReferencesProgressWidget
               progress={progress}
               annotationType="reference"
+              cancelJobType="annotation"
+              translations={{
+                title: t('annotationProgressTitle'),
+                cancel: t('cancelAnnotation'),
+                inProgress: t('annotating'),
+                complete: t('complete'),
+                failed: t('failed'),
+                found: (count) => t('found', { count }),
+                current: (entityType) => t('current', { entityType }),
+              }}
             />
           )}
               </>

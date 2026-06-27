@@ -7,7 +7,7 @@
  */
 
 import { Subject } from 'rxjs';
-import { busLog, busLogEnabled } from './bus-log';
+import { busLog, busLogEnabled, warnIfUnobservedReply, warnUnobservedRepliesEnabled } from './bus-log';
 import type { EventMap } from './bus-protocol';
 import type { StoredEvent } from './event-base';
 import type { PersistedEventType } from './persisted-events';
@@ -92,10 +92,20 @@ export class EventBus {
       // retroactively wrap them. The bus capture fixture uses
       // `addInitScript` so the flag is set before any namespace
       // construction, which is when `get()` is first called.
-      if (busLogEnabled()) {
+      //
+      // Independently, on Node we wrap `.next()` to catch *dropped replies*:
+      // a correlation-bearing payload emitted with zero observers (see
+      // `warnIfUnobservedReply`). This needs no flag — it's how the
+      // `gather:resource-complete` bridge gap stayed invisible until a 30 s
+      // timeout. The two wraps share one closure when both are active.
+      const wantBusLog = busLogEnabled();
+      const wantDropCheck = warnUnobservedRepliesEnabled();
+      if (wantBusLog || wantDropCheck) {
+        const wrapped = subject;
         const originalNext = subject.next.bind(subject);
         subject.next = (value: EventMap[K]): void => {
-          busLog('EMIT', String(eventName), value as object);
+          if (wantBusLog) busLog('EMIT', String(eventName), value as object);
+          if (wantDropCheck) warnIfUnobservedReply(String(eventName), value, wrapped.observers.length);
           originalNext(value);
         };
       }
