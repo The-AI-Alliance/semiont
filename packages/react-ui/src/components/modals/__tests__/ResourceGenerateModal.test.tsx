@@ -35,7 +35,11 @@ vi.mock('../../../hooks/useResourceGather', () => ({
   }),
 }));
 
-const mockClient = { browse: { entityTypes: () => of<string[]>(['Person', 'Topic']) } };
+// Stable observable instance — the modal calls `entityTypes()` inline in
+// render, so a fresh observable each call would re-subscribe every render and
+// loop. The real SDK returns a cached observable; mirror that here.
+const entityTypes$ = of<string[]>(['Person', 'Topic']);
+const mockClient = { browse: { entityTypes: () => entityTypes$ } };
 const activeSession$ = new BehaviorSubject<unknown>({ client: mockClient });
 vi.mock('../../../session/SemiontProvider', async () => {
   const actual = await vi.importActual<typeof import('../../../session/SemiontProvider')>('../../../session/SemiontProvider');
@@ -98,6 +102,8 @@ function renderModal(props: Partial<React.ComponentProps<typeof ResourceGenerate
 describe('ResourceGenerateModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    onClose = vi.fn();
+    onGenerateSubmit = vi.fn();
     h.state = { context: null, loading: false, error: null };
     activeSession$.next({ client: mockClient });
     // jsdom doesn't implement scrollIntoView; GatherContextStep may call it.
