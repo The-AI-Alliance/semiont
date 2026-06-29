@@ -53,7 +53,7 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus, parentLogger: 
         correlationId: cid,
         error: (error as Error).message,
       });
-      (eventBus.get('bind:body-update-failed') as { next(v: unknown): void }).next({
+      eventBus.get('bind:body-update-failed').next({
         correlationId: cid,
         message: (error as Error).message,
       });
@@ -74,7 +74,7 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus, parentLogger: 
     if (!cid || !inflight.has(cid)) return;
     inflight.delete(cid);
     const message = (event as { message?: string }).message ?? 'Unknown error';
-    (eventBus.get('bind:body-update-failed') as { next(v: unknown): void }).next({
+    eventBus.get('bind:body-update-failed').next({
       correlationId: cid,
       message,
     });

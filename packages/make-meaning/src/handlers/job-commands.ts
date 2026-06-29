@@ -27,7 +27,7 @@ export function registerJobCommandHandlers(
   const logger = parentLogger.child({ component: 'job-commands' });
 
   eventBus.get('job:create').subscribe(async (command) => {
-    const { correlationId, jobType, resourceId: resId, params, _userId } = command as Record<string, unknown>;
+    const { correlationId, jobType, resourceId: resId, params, _userId } = command;
 
     try {
       if (!_userId || typeof _userId !== 'string') {
@@ -105,13 +105,13 @@ export function registerJobCommandHandlers(
 
       logger.info('Job created via bus', { jobId: job.metadata.id, jobType, correlationId });
 
-      (eventBus.get('job:created') as { next(v: unknown): void }).next({
+      eventBus.get('job:created').next({
         correlationId,
         response: { jobId: job.metadata.id },
       });
     } catch (error) {
       logger.error('job:create failed', { correlationId, error: (error as Error).message });
-      (eventBus.get('job:create-failed') as { next(v: unknown): void }).next({
+      eventBus.get('job:create-failed').next({
         correlationId,
         message: (error as Error).message,
       });
@@ -119,7 +119,7 @@ export function registerJobCommandHandlers(
   });
 
   eventBus.get('job:claim').subscribe(async (command) => {
-    const { correlationId, jobId: jid } = command as Record<string, unknown>;
+    const { correlationId, jobId: jid } = command;
 
     try {
       const job = await jobQueue.getJob(jobId(jid as string)) as {
@@ -144,12 +144,12 @@ export function registerJobCommandHandlers(
 
       await jobQueue.updateJob(runningJob as never, 'pending');
 
-      (eventBus.get('job:claimed') as { next(v: unknown): void }).next({
+      eventBus.get('job:claimed').next({
         correlationId,
         response: runningJob,
       });
     } catch (error) {
-      (eventBus.get('job:claim-failed') as { next(v: unknown): void }).next({
+      eventBus.get('job:claim-failed').next({
         correlationId,
         message: (error as Error).message,
       });
@@ -212,7 +212,7 @@ export function registerJobCommandHandlers(
     try {
       const cancelled = await jobQueue.cancelPendingJobs(event.jobType);
       logger.info('Cancel requested', { jobType: event.jobType, cancelled });
-      (eventBus.get('job:cancel-ok') as { next(v: unknown): void }).next({
+      eventBus.get('job:cancel-ok').next({
         correlationId: event.correlationId,
         response: { cancelled },
       });
@@ -221,7 +221,7 @@ export function registerJobCommandHandlers(
         jobType: event.jobType,
         error: (error as Error).message,
       });
-      (eventBus.get('job:cancel-failed') as { next(v: unknown): void }).next({
+      eventBus.get('job:cancel-failed').next({
         correlationId: event.correlationId,
         message: (error as Error).message,
       });

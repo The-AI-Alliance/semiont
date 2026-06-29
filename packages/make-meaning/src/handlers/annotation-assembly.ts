@@ -56,7 +56,7 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, parentLogg
         correlationId: cid,
         error: (error as Error).message,
       });
-      (eventBus.get('mark:create-failed') as { next(v: unknown): void }).next({
+      eventBus.get('mark:create-failed').next({
         correlationId: cid,
         message: (error as Error).message,
       });
