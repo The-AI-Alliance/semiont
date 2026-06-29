@@ -444,13 +444,13 @@ export class BrowseNamespace implements IBrowseNamespace {
   };
 
   /**
-   * Handler shared by `yield:create-ok` and `yield:update-ok`. Both
-   * report a resource mutation with the resourceId as a string (not
-   * yet branded), so we brand and apply the same effect as
-   * `onArchiveToggled`.
+   * Invalidate caches for a created/updated resource. `yield:create-ok` and
+   * `yield:update-ok` both drive this, but carry the resourceId at different
+   * paths now — create wraps it under `response` for busRequest's correlation
+   * reply — so each subscription extracts its own and calls here.
    */
-  private onYieldResourceMutated = (event: { resourceId: string }): void => {
-    const rId = makeResourceId(event.resourceId);
+  private invalidateMutatedResource = (resourceId: string): void => {
+    const rId = makeResourceId(resourceId);
     this.invalidateResourceDetail(rId);
     this.invalidateResourceLists();
   };
@@ -525,8 +525,8 @@ export class BrowseNamespace implements IBrowseNamespace {
       }
     });
 
-    this.on('yield:create-ok', this.onYieldResourceMutated);
-    this.on('yield:update-ok', this.onYieldResourceMutated);
+    this.on('yield:create-ok', (event) => this.invalidateMutatedResource(event.response.resourceId));
+    this.on('yield:update-ok', (event) => this.invalidateMutatedResource(event.resourceId));
 
     this.on('mark:archived', this.onArchiveToggled);
     this.on('mark:unarchived', this.onArchiveToggled);

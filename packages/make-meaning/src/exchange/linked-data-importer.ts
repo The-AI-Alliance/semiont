@@ -273,26 +273,24 @@ async function importResource(
   const resolvedUri = deriveStorageUri(name, isSupportedMediaType(base) ? base : 'application/octet-stream');
   const stored = await contentStore.store(blob, resolvedUri);
 
-  // Create resource via EventBus
-  const createResult$ = race(
-    eventBus.get('yield:create-ok').pipe(map((r) => r)),
-    eventBus.get('yield:create-failed').pipe(map((e) => { throw new Error(e.message); })),
-    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:create-ok'); })),
+  // Create resource via busRequest (correlation-matched in-process write;
+  // throws on failure/timeout).
+  const { resourceId: createdId } = await busRequest<{ resourceId: string }>(
+    asBusRequestPrimitive(eventBus),
+    'yield:create',
+    {
+      name,
+      storageUri: resolvedUri,
+      contentChecksum: stored.checksum,
+      byteSize: stored.byteSize,
+      format,
+      _userId: userId,
+      language,
+      entityTypes: entityTypes ?? [],
+    },
+    IMPORT_TIMEOUT_MS,
   );
-
-  eventBus.get('yield:create').next({
-    name,
-    storageUri: resolvedUri,
-    contentChecksum: stored.checksum,
-    byteSize: stored.byteSize,
-    format,
-    _userId: userId,
-    language,
-    entityTypes: entityTypes ?? [],
-  });
-
-  const created = await firstValueFrom(createResult$);
-  const resourceId = makeResourceId(created.resourceId);
+  const resourceId = makeResourceId(createdId);
 
   logger?.debug('Created resource from JSON-LD', { name, resourceId });
 

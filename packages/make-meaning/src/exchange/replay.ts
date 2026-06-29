@@ -178,27 +178,25 @@ async function replayResourceCreated(
     || deriveStorageUri(payload.name, isSupportedMediaType(base) ? base : 'application/octet-stream');
   const stored = await contentStore.store(blob, resolvedUri);
 
-  const result$ = race(
-    eventBus.get('yield:create-ok').pipe(map((r) => r)),
-    eventBus.get('yield:create-failed').pipe(map((e) => { throw new Error(e.message); })),
-    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:create-ok'); })),
+  // Correlation-matched in-process write (busRequest throws on failure/timeout).
+  await busRequest(
+    asBusRequestPrimitive(eventBus),
+    'yield:create',
+    {
+      name: payload.name,
+      storageUri: resolvedUri,
+      contentChecksum: stored.checksum,
+      byteSize: stored.byteSize,
+      format: payload.format as ContentFormat,
+      _userId: event.userId,
+      language: payload.language,
+      entityTypes: payload.entityTypes,
+      isDraft: payload.isDraft,
+      generatedFrom: payload.generatedFrom,
+      generationPrompt: payload.generationPrompt,
+    },
+    REPLAY_TIMEOUT_MS,
   );
-
-  eventBus.get('yield:create').next({
-    name: payload.name,
-    storageUri: resolvedUri,
-    contentChecksum: stored.checksum,
-    byteSize: stored.byteSize,
-    format: payload.format as ContentFormat,
-    _userId: event.userId,
-    language: payload.language,
-    entityTypes: payload.entityTypes,
-    isDraft: payload.isDraft,
-    generatedFrom: payload.generatedFrom,
-    generationPrompt: payload.generationPrompt,
-  });
-
-  await firstValueFrom(result$);
   logger?.debug('Replayed resource.created', { name: payload.name });
 }
 

@@ -140,27 +140,10 @@ export class Stower {
         },
       });
 
-      const resource: ResourceDescriptor = {
-        '@context': 'https://schema.org/' as const,
-        '@id': rId,
-        name: event.name,
-        archived: false,
-        entityTypes: event.entityTypes || [],
-        storageUri: event.storageUri,
-        currentChecksum: checksum,
-        dateCreated: new Date().toISOString(),
-        representations: [
-          {
-            mediaType: event.format,
-            checksum,
-            byteSize,
-            rel: 'original' as const,
-            language: event.language,
-          },
-        ],
-      };
-
-      this.eventBus.get('yield:create-ok').next({ resourceId: rId, resource });
+      this.eventBus.get('yield:create-ok').next({
+        correlationId: event.correlationId,
+        response: { resourceId: rId },
+      });
 
       // Auto-bind: when a resource is generated from a reference annotation,
       // resolve the source reference by adding the new resource as a linking
@@ -194,6 +177,7 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to create resource', { error: errField(error) });
       this.eventBus.get('yield:create-failed').next({
+        correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
     }
