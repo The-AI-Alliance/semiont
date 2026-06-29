@@ -14,7 +14,8 @@ import type { Readable } from 'node:stream';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { Logger, ResourceId, UserId } from '@semiont/core';
-import { EventBus, annotationId as annotationIdFactory, resourceId as makeResourceId, baseMediaType, isSupportedMediaType } from '@semiont/core';
+import { EventBus, annotationId as annotationIdFactory, resourceId as makeResourceId, baseMediaType, isSupportedMediaType, busRequest } from '@semiont/core';
+import { asBusRequestPrimitive } from '../bus-request-local';
 import type { components } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
 import { deriveStorageUri } from '@semiont/content';
@@ -219,18 +220,14 @@ async function addEntityType(
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
-  const result$ = race(
-    eventBus.get('frame:entity-type-added').pipe(map(() => 'ok' as const)),
-    eventBus.get('frame:entity-type-add-failed').pipe(map((e) => { throw new Error(e.message); })),
-    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for frame:entity-type-added'); })),
+  await busRequest<void>(
+    asBusRequestPrimitive(eventBus),
+    'frame:add-entity-type',
+    { tag: entityType, _userId: userId },
+    'frame:entity-type-add-ok',
+    'frame:entity-type-add-failed',
+    IMPORT_TIMEOUT_MS,
   );
-
-  eventBus.get('frame:add-entity-type').next({
-    tag: entityType,
-    _userId: userId,
-  });
-
-  await firstValueFrom(result$);
   logger?.debug('Added entity type', { entityType });
 }
 

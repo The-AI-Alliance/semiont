@@ -143,7 +143,7 @@ describe('linked-data-importer', () => {
     const addedTypes: string[] = [];
     eventBus.get('frame:add-entity-type').subscribe((msg) => {
       addedTypes.push(msg.tag);
-      defer(() => eventBus.get('frame:entity-type-added').next({ tag: msg.tag } as any));
+      defer(() => eventBus.get('frame:entity-type-add-ok').next({ correlationId: msg.correlationId } as any));
     });
 
     const archive = await buildArchive([
@@ -164,7 +164,7 @@ describe('linked-data-importer', () => {
 
   it('imports a resource with content blob', async () => {
     eventBus.get('frame:add-entity-type').subscribe((msg) => {
-      defer(() => eventBus.get('frame:entity-type-added').next({ tag: msg.tag } as any));
+      defer(() => eventBus.get('frame:entity-type-add-ok').next({ correlationId: msg.correlationId } as any));
     });
 
     let receivedChecksum: string | undefined;
@@ -358,7 +358,7 @@ describe('linked-data-importer', () => {
 
     eventBus.get('frame:add-entity-type').subscribe((msg) => {
       expect(msg._userId).toBe(customUser);
-      defer(() => eventBus.get('frame:entity-type-added').next({ tag: msg.tag } as any));
+      defer(() => eventBus.get('frame:entity-type-add-ok').next({ correlationId: msg.correlationId } as any));
     });
 
     eventBus.get('yield:create').subscribe((msg) => {
