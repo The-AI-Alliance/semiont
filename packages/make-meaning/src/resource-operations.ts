@@ -47,7 +47,7 @@ export class ResourceOperations {
     // took the first yield:create-ok on the channel regardless of which create
     // it answered). In-process callers stamp `_userId` directly, mirroring what
     // the gateway does for wire callers.
-    const { resourceId: rId } = await busRequest<{ resourceId: string }>(
+    const { resourceId: rId } = await busRequest(
       asBusRequestPrimitive(eventBus),
       'yield:create',
       {

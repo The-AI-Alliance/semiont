@@ -1,8 +1,20 @@
 import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxjs';
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
 import { SemiontError } from './errors';
-import type { EventMap } from './bus-protocol';
+import type { EventMap, EventName } from './bus-protocol';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
+
+/**
+ * The value a registered operation resolves to: the `response` field of its
+ * result channel's payload, or `void` for a result channel that carries no
+ * `response` (a confirmed-write ack with no data). Inferred from the registry,
+ * so callers never annotate `busRequest`'s return type. Relies on the reply-shape
+ * standard — see .plans/REPLY-SHAPE-STANDARD.md.
+ */
+export type BusReply<Op extends BusOperationKey> =
+  EventMap[(typeof BUS_OPERATIONS)[Op]['result'] & EventName] extends { response: infer R }
+    ? R
+    : void;
 
 export type BusRequestErrorCode =
   | 'bus.timeout'
@@ -44,17 +56,17 @@ export interface BusRequestPrimitive {
  * .plans/bugs/gather-resource-complete-not-bridged.md, where the `gather:resource-*`
  * pair shipped unbridged with no compile/runtime signal).
  *
- * `TResult` stays explicit: reply payload shapes are not uniform across channels
- * (some carry `{ correlationId, response }`, some put data at top level), so it
- * cannot be safely inferred from the result channel. `busRequest` reads
- * `e.response`; the caller annotates the expected `response` type.
+ * The return type is INFERRED from the registry (`BusReply<Op>` = the result
+ * channel's `response` type, or `void`) — callers never annotate it. Every reply
+ * is `{ correlationId, response: T }` (data) or `{ correlationId }` (void); see
+ * .plans/REPLY-SHAPE-STANDARD.md. `busRequest` reads `e.response`.
  */
-export async function busRequest<TResult>(
+export async function busRequest<Op extends BusOperationKey>(
   bus: BusRequestPrimitive,
-  operation: BusOperationKey,
+  operation: Op,
   payload: Record<string, unknown>,
   timeoutMs = 30_000,
-): Promise<TResult> {
+): Promise<BusReply<Op>> {
   const correlationId = crypto.randomUUID();
   const fullPayload = { ...payload, correlationId };
   const { result: resultChannel, failure: failureChannel } = BUS_OPERATIONS[operation];
@@ -62,7 +74,7 @@ export async function busRequest<TResult>(
   const result$ = merge(
     (bus.stream(resultChannel as keyof EventMap) as Observable<Record<string, unknown>>).pipe(
       filter((e) => e.correlationId === correlationId),
-      map((e) => ({ ok: true as const, response: e.response as TResult })),
+      map((e) => ({ ok: true as const, response: e.response as BusReply<Op> })),
     ),
     (bus.stream(failureChannel as keyof EventMap) as Observable<Record<string, unknown>>).pipe(
       filter((e) => e.correlationId === correlationId),

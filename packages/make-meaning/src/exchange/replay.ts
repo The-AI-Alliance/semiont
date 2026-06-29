@@ -144,7 +144,7 @@ async function replayEntityTypeAdded(
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
-  await busRequest<void>(
+  await busRequest(
     asBusRequestPrimitive(eventBus),
     'frame:add-entity-type',
     { tag: event.payload.entityType, _userId: event.userId },

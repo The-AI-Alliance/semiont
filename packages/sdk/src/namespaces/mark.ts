@@ -32,7 +32,7 @@ export class MarkNamespace implements IMarkNamespace {
     // for routing — we derive it from `input.target.source`, which is the
     // same value semantically.
     const resourceId = toResourceId(input.target.source);
-    const result = await busRequest<{ annotationId: string }>(
+    const result = await busRequest(
       this.transport,
       'mark:create-request',
       { resourceId, request: input },
@@ -44,7 +44,7 @@ export class MarkNamespace implements IMarkNamespace {
     // Confirmed write (matches `annotation()` above): await the backend's
     // correlation-keyed reply and REJECT on failure, rather than fire-and-forget
     // an emit whose mark:delete-failed nobody awaited (.plans/bugs/BRIDGE-GAPS.md).
-    await busRequest<void>(
+    await busRequest(
       this.transport,
       'mark:delete',
       { annotationId, resourceId },
@@ -55,7 +55,7 @@ export class MarkNamespace implements IMarkNamespace {
     // Confirmed write: await the backend's correlation-keyed reply and REJECT on
     // failure, rather than fire-and-forget an emit whose failure had nowhere to go
     // (.plans/bugs/BRIDGE-GAPS.md).
-    await busRequest<void>(
+    await busRequest(
       this.transport,
       'mark:archive',
       { resourceId },
@@ -63,7 +63,7 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   async unarchive(resourceId: ResourceId): Promise<void> {
-    await busRequest<void>(
+    await busRequest(
       this.transport,
       'mark:unarchive',
       { resourceId },
@@ -100,7 +100,7 @@ export class MarkNamespace implements IMarkNamespace {
           if (done) return;
           pollInterval = setInterval(() => {
             if (done) return;
-            busRequest<{ status: string; result?: unknown; error?: string; jobType?: string }>(
+            busRequest(
               this.transport, 'job:status-requested', { jobId },
             ).then((status) => {
                 if (done) return;
@@ -111,7 +111,7 @@ export class MarkNamespace implements IMarkNamespace {
                     kind: 'complete',
                     data: {
                       jobId,
-                      jobType: (status.jobType ?? 'annotation') as components['schemas']['JobType'],
+                      jobType: (status.type ?? 'annotation') as components['schemas']['JobType'],
                       resourceId: resourceId as string,
                       result: status.result as components['schemas']['JobResult'] | undefined,
                     },
@@ -269,7 +269,7 @@ export class MarkNamespace implements IMarkNamespace {
     if (options.schemaId !== undefined) params.schemaId = options.schemaId;
     if (options.categories !== undefined) params.categories = options.categories;
 
-    return busRequest<{ jobId: string }>(
+    return busRequest(
       this.transport,
       'job:create',
       { jobType, resourceId, params },

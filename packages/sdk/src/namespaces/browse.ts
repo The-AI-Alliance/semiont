@@ -95,7 +95,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     private readonly content: IContentTransport,
   ) {
     this.resourceCache = createCache<ResourceId, ResourceDescriptor>(async (id) => {
-      const result = await busRequest<GetResourceResponse>(
+      const result = await busRequest(
         this.transport,
         'browse:resource-requested',
         { resourceId: id },
@@ -106,7 +106,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.resourceListCache = createCache<string, ResourceDescriptor[]>(async (key) => {
       const filters = this.resourceListFilters.get(key) ?? {};
       const search = filters.search ? searchQuery(filters.search) : undefined;
-      const result = await busRequest<{ resources: ResourceDescriptor[] }>(
+      const result = await busRequest(
         this.transport,
         'browse:resources-requested',
         {
@@ -117,11 +117,13 @@ export class BrowseNamespace implements IBrowseNamespace {
           offset: 0,
         },
       );
-      return result.resources;
+      // Brand the wire type (unbranded @id: string) to the SDK's ResourceDescriptor
+      // (@id: ResourceId) at the boundary — same as resourceCache above.
+      return result.resources as ResourceDescriptor[];
     });
 
     this.annotationListCache = createCache<ResourceId, AnnotationsListResponse>(async (resourceId) => {
-      return busRequest<AnnotationsListResponse>(
+      return busRequest(
         this.transport,
         'browse:annotations-requested',
         { resourceId },
@@ -133,16 +135,16 @@ export class BrowseNamespace implements IBrowseNamespace {
       if (!resourceId) {
         throw new Error(`Cannot fetch annotation ${annotationId}: no resourceId known`);
       }
-      const result = await busRequest<{ annotation: Annotation }>(
+      const result = await busRequest(
         this.transport,
         'browse:annotation-requested',
         { resourceId, annotationId },
       );
-      return result.annotation;
+      return result.annotation as Annotation;
     });
 
     this.entityTypesCache = createCache<string, string[]>(async () => {
-      const result = await busRequest<{ entityTypes: string[] }>(
+      const result = await busRequest(
         this.transport,
         'browse:entity-types-requested',
         {},
@@ -151,7 +153,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
 
     this.tagSchemasCache = createCache<string, TagSchema[]>(async () => {
-      const result = await busRequest<{ tagSchemas: TagSchema[] }>(
+      const result = await busRequest(
         this.transport,
         'browse:tag-schemas-requested',
         {},
@@ -160,7 +162,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
 
     this.referencedByCache = createCache<ResourceId, ReferencedByEntry[]>(async (resourceId) => {
-      const result = await busRequest<{ referencedBy: ReferencedByEntry[] }>(
+      const result = await busRequest(
         this.transport,
         'browse:referenced-by-requested',
         { resourceId },
@@ -169,7 +171,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
 
     this.resourceEventsCache = createCache<ResourceId, StoredEventResponse[]>(async (resourceId) => {
-      const result = await busRequest<{ events: StoredEventResponse[] }>(
+      const result = await busRequest(
         this.transport,
         'browse:events-requested',
         { resourceId },
@@ -296,7 +298,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   async resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]> {
-    const result = await busRequest<{ events: StoredEventResponse[] }>(
+    const result = await busRequest(
       this.transport,
       'browse:events-requested',
       { resourceId },
@@ -305,7 +307,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   async annotationHistory(resourceId: ResourceId, annotationId: AnnotationId): Promise<AnnotationHistoryResponse> {
-    return busRequest<AnnotationHistoryResponse>(
+    return busRequest(
       this.transport,
       'browse:annotation-history-requested',
       { resourceId, annotationId },
@@ -328,7 +330,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     dirPath?: string,
     sort?: 'name' | 'mtime' | 'annotationCount',
   ): Promise<components['schemas']['BrowseFilesResponse']> {
-    return busRequest<components['schemas']['BrowseFilesResponse']>(
+    return busRequest(
       this.transport,
       'browse:directory-requested',
       { path: dirPath ?? '.', sort: sort ?? 'name' },

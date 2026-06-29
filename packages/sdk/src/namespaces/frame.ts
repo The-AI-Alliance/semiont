@@ -30,7 +30,7 @@ export class FrameNamespace implements IFrameNamespace {
   // failure — a remote add-failure is surfaced to the caller, never silently
   // dropped (.plans/bugs/BRIDGE-GAPS.md).
   async addEntityType(type: string): Promise<void> {
-    await busRequest<void>(
+    await busRequest(
       this.transport,
       'frame:add-entity-type',
       { tag: type },
@@ -39,7 +39,7 @@ export class FrameNamespace implements IFrameNamespace {
 
   async addEntityTypes(types: string[]): Promise<void> {
     for (const tag of types) {
-      await busRequest<void>(
+      await busRequest(
         this.transport,
         'frame:add-entity-type',
         { tag },
@@ -48,7 +48,7 @@ export class FrameNamespace implements IFrameNamespace {
   }
 
   async addTagSchema(schema: TagSchema): Promise<void> {
-    await busRequest<void>(
+    await busRequest(
       this.transport,
       'frame:add-tag-schema',
       { schema },

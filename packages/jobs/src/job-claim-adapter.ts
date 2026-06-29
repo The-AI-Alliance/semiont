@@ -114,10 +114,12 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       // Same request/reply path as the SDK: busRequest mints the correlationId,
       // matches the job:claimed / job:claim-failed reply by it, and returns the
       // reply's `response` (the claimed job).
-      const job = await busRequest<{
+      // `job:claimed`'s response is an untyped `Record<string, unknown>`, so narrow
+      // it to the claimed-job shape the worker reads.
+      const job = (await busRequest(requestBus, 'job:claim', { jobId: assignment.jobId }, 10_000)) as {
         params?: Record<string, unknown>;
         metadata?: { userId?: string };
-      }>(requestBus, 'job:claim', { jobId: assignment.jobId }, 10_000);
+      };
 
       return {
         jobId: assignment.jobId,

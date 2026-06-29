@@ -52,7 +52,7 @@ export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: Event
     // Confirmed request/reply over the in-process bus — the same path the SDK
     // uses. busRequest matches the correlation-keyed frame:entity-type-add-ok /
     // -failed reply and throws (BusRequestError) on failure or timeout.
-    await busRequest<void>(
+    await busRequest(
       asBusRequestPrimitive(eventBus),
       'frame:add-entity-type',
       { tag: entityType, _userId: SYSTEM_USER_ID },

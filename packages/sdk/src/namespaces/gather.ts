@@ -91,7 +91,7 @@ export class GatherNamespace implements IGatherNamespace {
       excludeEntityTypes?: string[];
     },
   ): Promise<GatheredContext> {
-    return busRequest<GatheredContext>(
+    return busRequest(
       this.transport,
       'gather:resource-requested',
       {

@@ -219,7 +219,7 @@ async function addEntityType(
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
-  await busRequest<void>(
+  await busRequest(
     asBusRequestPrimitive(eventBus),
     'frame:add-entity-type',
     { tag: entityType, _userId: userId },
@@ -274,7 +274,7 @@ async function importResource(
 
   // Create resource via busRequest (correlation-matched in-process write;
   // throws on failure/timeout).
-  const { resourceId: createdId } = await busRequest<{ resourceId: string }>(
+  const { resourceId: createdId } = await busRequest(
     asBusRequestPrimitive(eventBus),
     'yield:create',
     {

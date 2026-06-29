@@ -16,7 +16,7 @@ export class BindNamespace implements IBindNamespace {
     // awaits that real outcome and REJECTS on failure — not the old optimistic
     // fire-and-forget ack (.plans/bugs/BRIDGE-GAPS.md). busRequest mints the
     // correlationId, so we no longer set one by hand.
-    await busRequest<void>(
+    await busRequest(
       this.transport,
       'bind:update-body',
       { annotationId, resourceId, operations },
