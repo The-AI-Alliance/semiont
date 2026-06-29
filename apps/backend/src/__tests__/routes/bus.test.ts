@@ -357,6 +357,23 @@ describe('bus routes', () => {
       expect(body).toContain('"channel":"test:event"');
     });
 
+    it('stamps a DETERMINISTIC ephemeral `id: e-<channel>:<cid>` on a correlation reply', async () => {
+      // A reply (correlationId-bearing payload) gets a connection-independent id
+      // instead of the per-connection counter, so the make-before-break reconnect
+      // overlap (subscribeToResource) dedups it by event id. A counter id would
+      // differ across the two briefly-live connections and the same reply would
+      // slip through twice (.plans/bugs/BRIDGE-GAPS.md).
+      const res = await app.request('/bus/subscribe?channel=test%3Aevent');
+      expect(res.status).toBe(200);
+
+      setTimeout(() => {
+        eventBus.get('test:event' as any).next({ correlationId: 'abc12345', response: {} });
+      }, 20);
+
+      const body = await readSSE(res, (b) => b.includes('id: e-test:event:'));
+      expect(body).toContain('id: e-test:event:abc12345');
+    });
+
     it('stamps persisted `id: p-<scope>-<seq>` on scoped events with a sequenceNumber', async () => {
       const res = await app.request(
         '/bus/subscribe?scope=res-99&scoped=mark%3Aadded',

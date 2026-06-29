@@ -19,22 +19,45 @@
  */
 
 import type { ITransport, TagSchema } from '@semiont/core';
+import { busRequest } from '@semiont/core';
 import type { FrameNamespace as IFrameNamespace } from './types';
 
 export class FrameNamespace implements IFrameNamespace {
   constructor(private readonly transport: ITransport) {}
 
+  // Writes are confirmed: each awaits the backend's correlation-keyed
+  // `*-add-ok`/`*-add-failed` reply (bridged) via busRequest and REJECTS on
+  // failure — a remote add-failure is surfaced to the caller, never silently
+  // dropped (.plans/bugs/BRIDGE-GAPS.md).
   async addEntityType(type: string): Promise<void> {
-    await this.transport.emit('frame:add-entity-type', { tag: type });
+    await busRequest<void>(
+      this.transport,
+      'frame:add-entity-type',
+      { tag: type },
+      'frame:entity-type-add-ok',
+      'frame:entity-type-add-failed',
+    );
   }
 
   async addEntityTypes(types: string[]): Promise<void> {
     for (const tag of types) {
-      await this.transport.emit('frame:add-entity-type', { tag });
+      await busRequest<void>(
+        this.transport,
+        'frame:add-entity-type',
+        { tag },
+        'frame:entity-type-add-ok',
+        'frame:entity-type-add-failed',
+      );
     }
   }
 
   async addTagSchema(schema: TagSchema): Promise<void> {
-    await this.transport.emit('frame:add-tag-schema', { schema });
+    await busRequest<void>(
+      this.transport,
+      'frame:add-tag-schema',
+      { schema },
+      'frame:tag-schema-add-ok',
+      'frame:tag-schema-add-failed',
+    );
   }
 }

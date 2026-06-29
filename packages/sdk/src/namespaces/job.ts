@@ -1,7 +1,7 @@
 import type { Observable } from 'rxjs';
 import type { EventBus, EventMap, JobId, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { busRequest } from '../bus-request';
+import { busRequest } from '@semiont/core';
 import type { JobNamespace as IJobNamespace } from './types';
 
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
@@ -67,10 +67,18 @@ export class JobNamespace implements IJobNamespace {
     }
   }
 
-  async cancelByType(jobType: 'annotation' | 'generation'): Promise<void> {
-    // The backend only supports cancel-by-type (cancels all pending jobs
-    // of that type). A per-job cancel was never wired.
-    await this.transport.emit('job:cancel-requested', { jobType });
+  async cancelByType(jobType: 'annotation' | 'generation'): Promise<number> {
+    // Confirmed write: cancels all PENDING jobs of the type (running jobs finish —
+    // there's no worker-kill channel) and resolves with the count. Rejects on a
+    // queue failure instead of swallowing it. A per-job cancel was never wired.
+    const { cancelled } = await busRequest<{ cancelled: number }>(
+      this.transport,
+      'job:cancel-requested',
+      { jobType },
+      'job:cancel-ok',
+      'job:cancel-failed',
+    );
+    return cancelled;
   }
 
   cancelRequest(jobType: 'annotation' | 'generation'): void {

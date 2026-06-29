@@ -12,7 +12,7 @@ import type {
   components,
 } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { busRequest } from '../bus-request';
+import { busRequest } from '@semiont/core';
 import { StreamObservable } from '../awaitable';
 import type {
   MarkNamespace as IMarkNamespace,
@@ -43,15 +43,39 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   async delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void> {
-    await this.transport.emit('mark:delete', { annotationId, resourceId });
+    // Confirmed write (matches `annotation()` above): await the backend's
+    // correlation-keyed reply and REJECT on failure, rather than fire-and-forget
+    // an emit whose mark:delete-failed nobody awaited (.plans/bugs/BRIDGE-GAPS.md).
+    await busRequest<void>(
+      this.transport,
+      'mark:delete',
+      { annotationId, resourceId },
+      'mark:delete-ok',
+      'mark:delete-failed',
+    );
   }
 
   async archive(resourceId: ResourceId): Promise<void> {
-    await this.transport.emit('mark:archive', { resourceId });
+    // Confirmed write: await the backend's correlation-keyed reply and REJECT on
+    // failure, rather than fire-and-forget an emit whose failure had nowhere to go
+    // (.plans/bugs/BRIDGE-GAPS.md).
+    await busRequest<void>(
+      this.transport,
+      'mark:archive',
+      { resourceId },
+      'mark:archive-ok',
+      'mark:archive-failed',
+    );
   }
 
   async unarchive(resourceId: ResourceId): Promise<void> {
-    await this.transport.emit('mark:unarchive', { resourceId });
+    await busRequest<void>(
+      this.transport,
+      'mark:unarchive',
+      { resourceId },
+      'mark:unarchive-ok',
+      'mark:unarchive-failed',
+    );
   }
 
   assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): StreamObservable<MarkAssistEvent> {

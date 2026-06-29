@@ -89,7 +89,6 @@ export type EventMap = {
   'yield:create-failed': components['schemas']['CommandError'];
   'yield:update-ok': components['schemas']['YieldUpdateOk'];
   'yield:update-failed': components['schemas']['YieldUpdateOk'] & components['schemas']['CommandError'];
-  'yield:move-ok': components['schemas']['YieldMoveOk'];
   'yield:move-failed': { fromUri: string } & components['schemas']['CommandError'];
   'yield:clone-token-generated': { correlationId: string; response: components['schemas']['CloneResourceWithTokenResponse'] };
   'yield:clone-token-failed': { correlationId: string } & components['schemas']['CommandError'];
@@ -131,6 +130,13 @@ export type EventMap = {
   'mark:create-failed': components['schemas']['CommandError'];
   'mark:delete-ok': components['schemas']['MarkDeleteOk'];
   'mark:delete-failed': components['schemas']['CommandError'];
+  // archive/unarchive confirmed-write replies (bridged) — correlation-keyed
+  // acks the SDK's busRequest awaits. Failure routes the real outcome back
+  // instead of the old fire-and-forget silence (.plans/bugs/BRIDGE-GAPS.md).
+  'mark:archive-ok': { correlationId?: string };
+  'mark:archive-failed': components['schemas']['CommandError'];
+  'mark:unarchive-ok': { correlationId?: string };
+  'mark:unarchive-failed': components['schemas']['CommandError'];
   'mark:body-update-failed': components['schemas']['CommandError'];
 
   // UI events
@@ -162,8 +168,13 @@ export type EventMap = {
   'frame:add-entity-type': components['schemas']['FrameAddEntityTypeCommand'];
   'frame:add-tag-schema': components['schemas']['FrameAddTagSchemaCommand'];
 
-  // Command results
+  // Command results — `*-add-ok` / `*-add-failed` are correlation-keyed replies
+  // for the SDK's confirmed `busRequest` writes (both bridged). In-process callers
+  // (bootstrap/replay/import) instead race the `frame:*-added` domain event and
+  // don't await `*-add-ok`, so its correlationId is optional.
+  'frame:entity-type-add-ok': { correlationId?: string };
   'frame:entity-type-add-failed': components['schemas']['CommandError'];
+  'frame:tag-schema-add-ok': { correlationId?: string };
   'frame:tag-schema-add-failed': components['schemas']['CommandError'];
 
   // ========================================================================
@@ -310,6 +321,11 @@ export type EventMap = {
   'job:create-failed': { correlationId: string } & components['schemas']['CommandError'];
   'job:claimed': { correlationId: string; response: Record<string, unknown> };
   'job:claim-failed': { correlationId: string } & components['schemas']['CommandError'];
+  // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled
+  // (running jobs finish — there's no worker-kill channel). Failure surfaces a
+  // queue error instead of the old silent swallow (.plans/bugs/BRIDGE-GAPS.md).
+  'job:cancel-ok': { correlationId?: string; response: { cancelled: number } };
+  'job:cancel-failed': components['schemas']['CommandError'];
 
   // ========================================================================
   // SETTINGS (frontend-only)
@@ -431,7 +447,6 @@ export const CHANNEL_SCHEMAS = {
   'yield:create-failed':              'CommandError',
   'yield:update-ok':                  'YieldUpdateOk',
   'yield:update-failed':              null, // YieldUpdateOk & CommandError
-  'yield:move-ok':                    'YieldMoveOk',
   'yield:move-failed':                null, // { fromUri } & CommandError
   'yield:clone-token-generated':      null, // { correlationId; response: CloneResourceWithTokenResponse }
   'yield:clone-token-failed':         null, // { correlationId } & CommandError
@@ -463,8 +478,14 @@ export const CHANNEL_SCHEMAS = {
   'mark:create-failed':               'CommandError',
   'mark:delete-ok':                   'MarkDeleteOk',
   'mark:delete-failed':               'CommandError',
+  'mark:archive-ok':                  null,
+  'mark:archive-failed':              'CommandError',
+  'mark:unarchive-ok':                null,
+  'mark:unarchive-failed':            'CommandError',
   'mark:body-update-failed':          'CommandError',
+  'frame:entity-type-add-ok':          null,
   'frame:entity-type-add-failed':      'CommandError',
+  'frame:tag-schema-add-ok':           null,
   'frame:tag-schema-add-failed':       'CommandError',
   'mark:select-comment':              'SelectionData',
   'mark:select-tag':                  'SelectionData',
@@ -581,6 +602,8 @@ export const CHANNEL_SCHEMAS = {
   'job:create-failed':                null,
   'job:claimed':                      null, // { correlationId; response: Record<string, unknown> }
   'job:claim-failed':                 null,
+  'job:cancel-ok':                    null,
+  'job:cancel-failed':                'CommandError',
 
   // ── SETTINGS (frontend-only) ────────────────────────────────────
   'settings:theme-changed':           'SettingsThemeChangedEvent',

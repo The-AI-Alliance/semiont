@@ -9,7 +9,7 @@ import type {
 import { resourceId as toResourceId } from '@semiont/core';
 
 import type { ITransport, IContentTransport } from '@semiont/core';
-import { busRequest } from '../bus-request';
+import { busRequest } from '@semiont/core';
 import { StreamObservable, UploadObservable } from '../awaitable';
 import type {
   YieldNamespace as IYieldNamespace,

@@ -45,7 +45,7 @@ import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/ve
 import type { EmbeddingProvider, ChunkingConfig } from '@semiont/vectors';
 import { chunkText } from '@semiont/vectors';
 import { withActorSpan } from '@semiont/observability';
-import { busRequest, type BusRequestPrimitive } from '@semiont/sdk';
+import { busRequest, type BusRequestPrimitive } from '@semiont/core';
 import { partitionByType } from './batch-utils';
 import type { SmelterEvent } from './smelter-actor-state-unit';
 

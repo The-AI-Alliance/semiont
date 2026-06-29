@@ -225,6 +225,9 @@ export type {
 // Channel set every concrete transport bridges into the client's bus.
 export { BRIDGED_CHANNELS, type BridgedChannel } from './bridged-channels';
 
+// Request/reply over the bus — the transport-neutral primitive (relocated from @semiont/sdk).
+export { busRequest, BusRequestError, type BusRequestErrorCode, type BusRequestPrimitive } from './bus-request';
+
 // Fuzzy text anchoring (annotation re-anchoring under content edits)
 export {
   normalizeText,

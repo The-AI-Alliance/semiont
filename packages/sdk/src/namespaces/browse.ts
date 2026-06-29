@@ -14,7 +14,7 @@ import type {
   components,
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
-import { busRequest } from '../bus-request';
+import { busRequest } from '@semiont/core';
 import { createCache, type Cache } from '../cache';
 import type {
   BrowseNamespace as IBrowseNamespace,

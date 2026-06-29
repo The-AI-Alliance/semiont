@@ -532,6 +532,17 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
       expect(jobQueue.cancelPendingJobs).toHaveBeenCalledWith('annotation');
     });
   });
+
+  it('emits job:cancel-ok with the cancelled count', async () => {
+    jobQueue.cancelPendingJobs.mockResolvedValueOnce(3);
+    const acks: Array<{ correlationId?: string; response: { cancelled: number } }> = [];
+    eventBus.get('job:cancel-ok').subscribe((e) => acks.push(e));
+
+    eventBus.get('job:cancel-requested').next({ jobType: 'generation', correlationId: 'cid-1' } as never);
+
+    await vi.waitFor(() => expect(acks).toHaveLength(1));
+    expect(acks[0]).toMatchObject({ correlationId: 'cid-1', response: { cancelled: 3 } });
+  });
 });
 
 describe('registerJobCommandHandlers — lifecycle integration (real FsJobQueue)', () => {

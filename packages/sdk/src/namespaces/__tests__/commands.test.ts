@@ -6,6 +6,7 @@ import { BindNamespace } from '../bind';
 import { GatherNamespace } from '../gather';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
+import { JobNamespace } from '../job';
 import type { ITransport, IContentTransport, GatheredContext } from '@semiont/core';
 
 const RID = resourceId('res-1');
@@ -81,14 +82,12 @@ function makeMockContent(): IContentTransport {
 describe('MarkNamespace', () => {
   let eventBus: EventBus;
   let mark: MarkNamespace;
-  let emitSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     eventBus = new EventBus();
     const mock = createMockTransport({
       'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
     });
-    emitSpy = mock.emitSpy;
     mark = new MarkNamespace(mock.transport, eventBus);
   });
 
@@ -103,14 +102,61 @@ describe('MarkNamespace', () => {
     expect(result.annotationId).toBe('ann-new');
   });
 
-  it('delete() emits mark:delete on bus', async () => {
-    await mark.delete(RID, AID);
-    expect(emitSpy).toHaveBeenCalledWith('mark:delete', { annotationId: AID, resourceId: RID });
+  it('delete() emits mark:delete and resolves on mark:delete-ok', async () => {
+    const mock = createMockTransport({
+      'mark:delete': () => ({ resultChannel: 'mark:delete-ok', response: { annotationId: AID } }),
+    });
+    const m = new MarkNamespace(mock.transport, eventBus);
+    await m.delete(RID, AID);
+    expect(mock.emitSpy).toHaveBeenCalledWith('mark:delete', expect.objectContaining({ annotationId: AID, resourceId: RID }));
   });
 
-  it('archive() emits mark:archive on bus', async () => {
-    await mark.archive(RID);
-    expect(emitSpy).toHaveBeenCalledWith('mark:archive', { resourceId: RID });
+  it('delete() REJECTS on mark:delete-failed — a delete failure is not silently dropped', async () => {
+    const mock = createMockTransport();
+    const m = new MarkNamespace(mock.transport, eventBus);
+    const assertion = expect(m.delete(RID, AID)).rejects.toThrow(/denied/);
+    await new Promise((r) => setTimeout(r, 10));
+    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
+    (mock.transportBus.get('mark:delete-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'denied' });
+    await assertion;
+  });
+
+  it('archive() emits mark:archive and resolves on mark:archive-ok', async () => {
+    const mock = createMockTransport({
+      'mark:archive': () => ({ resultChannel: 'mark:archive-ok', response: {} }),
+    });
+    const m = new MarkNamespace(mock.transport, eventBus);
+    await m.archive(RID);
+    expect(mock.emitSpy).toHaveBeenCalledWith('mark:archive', expect.objectContaining({ resourceId: RID }));
+  });
+
+  it('archive() REJECTS on mark:archive-failed — an archive failure is not silently dropped', async () => {
+    const mock = createMockTransport();
+    const m = new MarkNamespace(mock.transport, eventBus);
+    const assertion = expect(m.archive(RID)).rejects.toThrow(/archive boom/);
+    await new Promise((r) => setTimeout(r, 10));
+    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
+    (mock.transportBus.get('mark:archive-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'archive boom' });
+    await assertion;
+  });
+
+  it('unarchive() emits mark:unarchive and resolves on mark:unarchive-ok', async () => {
+    const mock = createMockTransport({
+      'mark:unarchive': () => ({ resultChannel: 'mark:unarchive-ok', response: {} }),
+    });
+    const m = new MarkNamespace(mock.transport, eventBus);
+    await m.unarchive(RID);
+    expect(mock.emitSpy).toHaveBeenCalledWith('mark:unarchive', expect.objectContaining({ resourceId: RID }));
+  });
+
+  it('unarchive() REJECTS on mark:unarchive-failed (the former silent no-op now surfaces)', async () => {
+    const mock = createMockTransport();
+    const m = new MarkNamespace(mock.transport, eventBus);
+    const assertion = expect(m.unarchive(RID)).rejects.toThrow(/file not found/);
+    await new Promise((r) => setTimeout(r, 10));
+    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
+    (mock.transportBus.get('mark:unarchive-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'Cannot unarchive: file not found at x' });
+    await assertion;
   });
 
   it('assist() returns Observable that emits on job:report-progress', async () => {
@@ -245,8 +291,10 @@ describe('MarkNamespace', () => {
 // ── Bind ────────────────────────────────────────────────────────────────────
 
 describe('BindNamespace', () => {
-  it('body() emits bind:update-body on bus', async () => {
-    const mock = createMockTransport();
+  it('body() emits bind:update-body and resolves on bind:body-updated', async () => {
+    const mock = createMockTransport({
+      'bind:update-body': () => ({ resultChannel: 'bind:body-updated', response: {} }),
+    });
     const bind = new BindNamespace(mock.transport, new EventBus());
     await bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: 'res-2' } }]);
     expect(mock.emitSpy).toHaveBeenCalledWith('bind:update-body', expect.objectContaining({
@@ -254,6 +302,18 @@ describe('BindNamespace', () => {
       resourceId: RID,
       operations: expect.any(Array),
     }));
+  });
+
+  it('body() REJECTS on bind:body-update-failed — a bind failure is not silently dropped', async () => {
+    const mock = createMockTransport();
+    const bind = new BindNamespace(mock.transport, new EventBus());
+    const assertion = expect(
+      bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: 'res-2' } }]),
+    ).rejects.toThrow(/rejected/);
+    await new Promise((r) => setTimeout(r, 10));
+    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
+    (mock.transportBus.get('bind:body-update-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'rejected by handler' });
+    await assertion;
   });
 });
 
@@ -359,6 +419,28 @@ describe('MatchNamespace', () => {
 });
 
 // ── Yield ───────────────────────────────────────────────────────────────────
+
+describe('JobNamespace', () => {
+  it('cancelByType resolves with the cancelled count from job:cancel-ok', async () => {
+    const mock = createMockTransport({
+      'job:cancel-requested': () => ({ resultChannel: 'job:cancel-ok', response: { cancelled: 3 } }),
+    });
+    const job = new JobNamespace(mock.transport, new EventBus());
+    const count = await job.cancelByType('generation');
+    expect(count).toBe(3);
+    expect(mock.emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }));
+  });
+
+  it('cancelByType REJECTS on job:cancel-failed (queue error no longer swallowed)', async () => {
+    const mock = createMockTransport();
+    const job = new JobNamespace(mock.transport, new EventBus());
+    const assertion = expect(job.cancelByType('annotation')).rejects.toThrow(/queue down/);
+    await new Promise((r) => setTimeout(r, 10));
+    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
+    (mock.transportBus.get('job:cancel-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'queue down' });
+    await assertion;
+  });
+});
 
 describe('YieldNamespace', () => {
   let eventBus: EventBus;

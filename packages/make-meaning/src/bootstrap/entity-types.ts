@@ -17,10 +17,9 @@
  */
 
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import { EventBus, userId, resourceId, type Logger } from '@semiont/core';
+import { EventBus, userId, resourceId, busRequest, type Logger } from '@semiont/core';
+import { asBusRequestPrimitive } from '../bus-request-local';
 import type { EventStore } from '@semiont/event-sourcing';
-import { firstValueFrom, race, timer } from 'rxjs';
-import { map, take } from 'rxjs/operators';
 
 /**
  * Bootstrap entity types if any are missing from the event log.
@@ -50,18 +49,17 @@ export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: Event
   for (const entityType of missing) {
     logger?.debug('Adding entity type via EventBus', { entityType });
 
-    const result$ = race(
-      eventBus.get('frame:entity-type-added').pipe(take(1), map(() => ({ ok: true as const }))),
-      eventBus.get('frame:entity-type-add-failed').pipe(take(1), map((f) => ({ ok: false as const, error: new Error(f.message) }))),
-      timer(10_000).pipe(map(() => ({ ok: false as const, error: new Error(`Timeout adding entity type: ${entityType}`) }))),
+    // Confirmed request/reply over the in-process bus — the same path the SDK
+    // uses. busRequest matches the correlation-keyed frame:entity-type-add-ok /
+    // -failed reply and throws (BusRequestError) on failure or timeout.
+    await busRequest<void>(
+      asBusRequestPrimitive(eventBus),
+      'frame:add-entity-type',
+      { tag: entityType, _userId: SYSTEM_USER_ID },
+      'frame:entity-type-add-ok',
+      'frame:entity-type-add-failed',
+      10_000,
     );
-
-    eventBus.get('frame:add-entity-type').next({ tag: entityType, _userId: SYSTEM_USER_ID });
-
-    const outcome = await firstValueFrom(result$);
-    if (!outcome.ok) {
-      throw outcome.error;
-    }
   }
 
   logger?.info('Entity types bootstrap completed', { added: missing.length, total: DEFAULT_ENTITY_TYPES.length });

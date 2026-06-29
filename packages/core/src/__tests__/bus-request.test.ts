@@ -16,7 +16,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { Observable, Subject } from 'rxjs';
-import { SemiontError, type EventMap } from '@semiont/core';
+import { SemiontError } from '../errors';
+import type { EventMap } from '../bus-protocol';
 
 import {
   busRequest,

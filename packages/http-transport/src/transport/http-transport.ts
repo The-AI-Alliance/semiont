@@ -56,8 +56,13 @@ type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 
 // ── Channel constants (mirror client.ts) ────────────────────────────────
 
-const RESOURCE_SCOPED_CHANNELS = [
-  ...PERSISTED_EVENT_TYPES.filter((t) => t !== 'frame:entity-type-added'),
+export const RESOURCE_SCOPED_CHANNELS = [
+  // Exclude channels already globally bridged: a channel in both lists is
+  // forwarded twice on a scoped connection (global copy → ephemeral id, scoped
+  // copy → persisted id) with different SSE ids, escaping the client dedup
+  // (.plans/bugs/BRIDGE-GAPS.md). Generalizes the former one-off
+  // `frame:entity-type-added` exclusion.
+  ...PERSISTED_EVENT_TYPES.filter((t) => !(BRIDGED_CHANNELS as readonly string[]).includes(t)),
   ...RESOURCE_BROADCAST_TYPES,
 ];
 

@@ -23,7 +23,7 @@ import { resourceId as makeResourceId } from '@semiont/core';
 import { calculateChecksum } from '@semiont/content';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
-import type { BusRequestPrimitive } from '@semiont/sdk';
+import type { BusRequestPrimitive } from '@semiont/core';
 import { Smelter } from '../smelter';
 import type { SmelterEvent } from '../smelter-actor-state-unit';
 import {

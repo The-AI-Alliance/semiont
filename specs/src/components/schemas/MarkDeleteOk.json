@@ -2,6 +2,10 @@
   "type": "object",
   "description": "Success response after deleting an annotation.",
   "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation id echoed from the mark:delete command, so the SDK's busRequest can match the ack."
+    },
     "annotationId": {
       "type": "string"
     }

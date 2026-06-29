@@ -13,7 +13,8 @@
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { Logger, StoredEvent, PersistedEvent, ResourceId, AnnotationId } from '@semiont/core';
-import { EventBus, baseMediaType, isSupportedMediaType } from '@semiont/core';
+import { EventBus, baseMediaType, isSupportedMediaType, busRequest } from '@semiont/core';
+import { asBusRequestPrimitive } from '../bus-request-local';
 import type { components } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
 import { deriveStorageUri } from '@semiont/content';
@@ -144,18 +145,14 @@ async function replayEntityTypeAdded(
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
-  const result$ = race(
-    eventBus.get('frame:entity-type-added').pipe(map(() => 'ok' as const)),
-    eventBus.get('frame:entity-type-add-failed').pipe(map((e) => { throw new Error(e.message); })),
-    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for frame:entity-type-added'); })),
+  await busRequest<void>(
+    asBusRequestPrimitive(eventBus),
+    'frame:add-entity-type',
+    { tag: event.payload.entityType, _userId: event.userId },
+    'frame:entity-type-add-ok',
+    'frame:entity-type-add-failed',
+    REPLAY_TIMEOUT_MS,
   );
-
-  eventBus.get('frame:add-entity-type').next({
-    tag: event.payload.entityType,
-    _userId: event.userId,
-  });
-
-  await firstValueFrom(result$);
   logger?.debug('Replayed entitytype.added', { entityType: event.payload.entityType });
 }
 

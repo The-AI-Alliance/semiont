@@ -134,7 +134,19 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           lastDeliveredSeq.set(eventScope, seq);
           id = makePersistedId(eventScope, seq);
         } else {
-          id = nextEphemeralId();
+          // Deterministic ephemeral id for correlation replies. A make-before-break
+          // reconnect (subscribeToResource → addChannels) keeps the old + new SSE
+          // connections live briefly, and the client dedups the overlap by event id
+          // (actor-state-unit `seenEventIds`). A per-connection `nextEphemeralId()`
+          // tags the same reply with a different id on each connection → the dedup
+          // misses it → duplicate delivery (.plans/bugs/BRIDGE-GAPS.md). Keying on
+          // channel + correlationId makes both connections agree. Still `e-`-prefixed,
+          // so it stays non-replayable.
+          const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
+          id =
+            typeof cid === 'string' && cid.length > 0
+              ? `${EPHEMERAL_ID_PREFIX}${channel}:${cid}`
+              : nextEphemeralId();
         }
         // Tier 2: attach the active span's W3C traceparent to the payload so
         // the receiving client can stitch its bus.recv span as a child. SSE

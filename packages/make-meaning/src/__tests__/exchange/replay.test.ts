@@ -121,7 +121,7 @@ describe('replay', () => {
     it('replays an entitytype.added event', async () => {
       eventBus.get('frame:add-entity-type').subscribe((msg) => {
         expect(msg.tag).toBe('Person');
-        defer(() => eventBus.get('frame:entity-type-added').next({ tag: 'Person' } as any));
+        defer(() => eventBus.get('frame:entity-type-add-ok').next({ correlationId: msg.correlationId } as any));
       });
 
       const jsonl = entityTypeEvent('Person');
@@ -335,8 +335,8 @@ describe('replay', () => {
     });
 
     it('replays multiple events and accumulates stats', async () => {
-      eventBus.get('frame:add-entity-type').subscribe(() => {
-        defer(() => eventBus.get('frame:entity-type-added').next({ tag: 'Person' } as any));
+      eventBus.get('frame:add-entity-type').subscribe((msg) => {
+        defer(() => eventBus.get('frame:entity-type-add-ok').next({ correlationId: msg.correlationId } as any));
       });
 
       const contentBlob = Buffer.from('test content');
