@@ -2,6 +2,10 @@
   "type": "object",
   "description": "Bus command to update a yielded resource's storage content.",
   "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation id for request/reply matching, set by busRequest so the yield:update-ok / yield:update-failed reply routes back to the awaiting caller."
+    },
     "_userId": {
       "type": "string",
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."

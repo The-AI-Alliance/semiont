@@ -201,11 +201,14 @@ export class Stower {
           contentByteSize: event.byteSize,
         },
       });
-      this.eventBus.get('yield:update-ok').next({ resourceId: event.resourceId });
+      this.eventBus.get('yield:update-ok').next({
+        correlationId: event.correlationId,
+        response: { resourceId: event.resourceId },
+      });
     } catch (error) {
       this.logger.error('Failed to update resource', { error: errField(error) });
       this.eventBus.get('yield:update-failed').next({
-        resourceId: event.resourceId,
+        correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
     }

@@ -445,9 +445,8 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   /**
    * Invalidate caches for a created/updated resource. `yield:create-ok` and
-   * `yield:update-ok` both drive this, but carry the resourceId at different
-   * paths now — create wraps it under `response` for busRequest's correlation
-   * reply — so each subscription extracts its own and calls here.
+   * `yield:update-ok` both drive this and carry the resourceId at the same path
+   * (`response.resourceId`) — both are correlation replies for busRequest.
    */
   private invalidateMutatedResource = (resourceId: string): void => {
     const rId = makeResourceId(resourceId);
@@ -526,7 +525,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
 
     this.on('yield:create-ok', (event) => this.invalidateMutatedResource(event.response.resourceId));
-    this.on('yield:update-ok', (event) => this.invalidateMutatedResource(event.resourceId));
+    this.on('yield:update-ok', (event) => this.invalidateMutatedResource(event.response.resourceId));
 
     this.on('mark:archived', this.onArchiveToggled);
     this.on('mark:unarchived', this.onArchiveToggled);

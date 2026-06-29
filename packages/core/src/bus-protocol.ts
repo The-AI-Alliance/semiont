@@ -88,7 +88,7 @@ export type EventMap = {
   'yield:create-ok': components['schemas']['YieldCreateOk'];
   'yield:create-failed': components['schemas']['CommandError'];
   'yield:update-ok': components['schemas']['YieldUpdateOk'];
-  'yield:update-failed': components['schemas']['YieldUpdateOk'] & components['schemas']['CommandError'];
+  'yield:update-failed': components['schemas']['CommandError'];
   'yield:move-failed': { fromUri: string } & components['schemas']['CommandError'];
   'yield:clone-token-generated': { correlationId: string; response: components['schemas']['CloneResourceWithTokenResponse'] };
   'yield:clone-token-failed': { correlationId: string } & components['schemas']['CommandError'];
@@ -443,7 +443,7 @@ export const CHANNEL_SCHEMAS = {
   'yield:create-ok':                  'YieldCreateOk',
   'yield:create-failed':              'CommandError',
   'yield:update-ok':                  'YieldUpdateOk',
-  'yield:update-failed':              null, // YieldUpdateOk & CommandError
+  'yield:update-failed':              null, // { correlationId } & CommandError
   'yield:move-failed':                null, // { fromUri } & CommandError
   'yield:clone-token-generated':      null, // { correlationId; response: CloneResourceWithTokenResponse }
   'yield:clone-token-failed':         null, // { correlationId } & CommandError

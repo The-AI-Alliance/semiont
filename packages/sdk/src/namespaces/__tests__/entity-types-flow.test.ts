@@ -208,7 +208,7 @@ describe('entity types — Layer 2 (BrowseNamespace + Cache)', () => {
     eventBus.get('mark:added').next(fakeMarkAdded(RID, 'ann-1'));
     eventBus.get('mark:removed').next(fakeMarkRemoved(RID, 'ann-1'));
     eventBus.get('yield:create-ok').next(fakeYieldCreated('res-1'));
-    eventBus.get('yield:update-ok').next({ resourceId: 'res-1' });
+    eventBus.get('yield:update-ok').next({ response: { resourceId: 'res-1' } });
     eventBus.get('mark:archived').next(fakeMarkArchived(RID));
     eventBus.get('mark:unarchived').next(fakeMarkUnarchived(RID));
 
