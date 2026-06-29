@@ -41,6 +41,7 @@ export const BRIDGED_CHANNELS = [
   'job:status-result', 'job:status-failed',
   'job:created', 'job:create-failed',
   'job:claimed', 'job:claim-failed',
+  'job:cancel-ok', 'job:cancel-failed',
   'yield:create-ok', 'yield:create-failed',
   'yield:update-ok', 'yield:update-failed',
   'yield:clone-token-generated', 'yield:clone-token-failed',

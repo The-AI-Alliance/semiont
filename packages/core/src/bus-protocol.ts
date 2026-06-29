@@ -321,6 +321,11 @@ export type EventMap = {
   'job:create-failed': { correlationId: string } & components['schemas']['CommandError'];
   'job:claimed': { correlationId: string; response: Record<string, unknown> };
   'job:claim-failed': { correlationId: string } & components['schemas']['CommandError'];
+  // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled
+  // (running jobs finish — there's no worker-kill channel). Failure surfaces a
+  // queue error instead of the old silent swallow (.plans/bugs/BRIDGE-GAPS.md).
+  'job:cancel-ok': { correlationId?: string; response: { cancelled: number } };
+  'job:cancel-failed': components['schemas']['CommandError'];
 
   // ========================================================================
   // SETTINGS (frontend-only)
@@ -597,6 +602,8 @@ export const CHANNEL_SCHEMAS = {
   'job:create-failed':                null,
   'job:claimed':                      null, // { correlationId; response: Record<string, unknown> }
   'job:claim-failed':                 null,
+  'job:cancel-ok':                    null,
+  'job:cancel-failed':                'CommandError',
 
   // ── SETTINGS (frontend-only) ────────────────────────────────────
   'settings:theme-changed':           'SettingsThemeChangedEvent',

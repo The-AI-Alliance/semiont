@@ -2,6 +2,10 @@
   "type": "object",
   "description": "Request to cancel a job",
   "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back. Absent for the local cancelRequest UI signal."
+    },
     "jobType": {
       "type": "string",
       "enum": [

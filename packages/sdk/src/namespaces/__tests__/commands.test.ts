@@ -6,6 +6,7 @@ import { BindNamespace } from '../bind';
 import { GatherNamespace } from '../gather';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
+import { JobNamespace } from '../job';
 import type { ITransport, IContentTransport, GatheredContext } from '@semiont/core';
 
 const RID = resourceId('res-1');
@@ -418,6 +419,28 @@ describe('MatchNamespace', () => {
 });
 
 // ── Yield ───────────────────────────────────────────────────────────────────
+
+describe('JobNamespace', () => {
+  it('cancelByType resolves with the cancelled count from job:cancel-ok', async () => {
+    const mock = createMockTransport({
+      'job:cancel-requested': () => ({ resultChannel: 'job:cancel-ok', response: { cancelled: 3 } }),
+    });
+    const job = new JobNamespace(mock.transport, new EventBus());
+    const count = await job.cancelByType('generation');
+    expect(count).toBe(3);
+    expect(mock.emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }));
+  });
+
+  it('cancelByType REJECTS on job:cancel-failed (queue error no longer swallowed)', async () => {
+    const mock = createMockTransport();
+    const job = new JobNamespace(mock.transport, new EventBus());
+    const assertion = expect(job.cancelByType('annotation')).rejects.toThrow(/queue down/);
+    await new Promise((r) => setTimeout(r, 10));
+    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
+    (mock.transportBus.get('job:cancel-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'queue down' });
+    await assertion;
+  });
+});
 
 describe('YieldNamespace', () => {
   let eventBus: EventBus;

@@ -212,10 +212,18 @@ export function registerJobCommandHandlers(
     try {
       const cancelled = await jobQueue.cancelPendingJobs(event.jobType);
       logger.info('Cancel requested', { jobType: event.jobType, cancelled });
+      (eventBus.get('job:cancel-ok') as { next(v: unknown): void }).next({
+        correlationId: event.correlationId,
+        response: { cancelled },
+      });
     } catch (error) {
       logger.error('Failed to cancel pending jobs', {
         jobType: event.jobType,
         error: (error as Error).message,
+      });
+      (eventBus.get('job:cancel-failed') as { next(v: unknown): void }).next({
+        correlationId: event.correlationId,
+        message: (error as Error).message,
       });
     }
   });
