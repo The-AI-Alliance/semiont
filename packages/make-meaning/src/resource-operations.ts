@@ -7,14 +7,13 @@
  * For create: emits yield:create, awaits yield:create-ok / yield:create-failed.
  */
 
-import { firstValueFrom, race, timer } from 'rxjs';
-import { map, take } from 'rxjs/operators';
 import type {
   UserId,
   ResourceId,
 } from '@semiont/core';
 import type { components } from '@semiont/core';
-import { EventBus, resourceId as makeResourceId } from '@semiont/core';
+import { EventBus, resourceId as makeResourceId, busRequest } from '@semiont/core';
+import { asBusRequestPrimitive } from './bus-request-local';
 
 type ContentFormat = components['schemas']['ContentFormat'];
 type Agent = components['schemas']['Agent'];
@@ -43,43 +42,31 @@ export class ResourceOperations {
     userId: UserId,
     eventBus: EventBus,
   ): Promise<ResourceId> {
-    // Set up listeners before emitting
-    const result$ = race(
-      eventBus.get('yield:create-ok').pipe(
-        take(1),
-        map((result) => ({ ok: true as const, result })),
-      ),
-      eventBus.get('yield:create-failed').pipe(
-        take(1),
-        map((failure) => ({ ok: false as const, error: new Error(failure.message) })),
-      ),
-      timer(30_000).pipe(
-        map(() => ({ ok: false as const, error: new Error('Resource creation timed out') })),
-      ),
+    // Confirmed in-process write over busRequest: the reply is matched by
+    // correlationId, so concurrent creates can't cross-resolve (the old race()
+    // took the first yield:create-ok on the channel regardless of which create
+    // it answered). In-process callers stamp `_userId` directly, mirroring what
+    // the gateway does for wire callers.
+    const { resourceId: rId } = await busRequest(
+      asBusRequestPrimitive(eventBus),
+      'yield:create',
+      {
+        name: input.name,
+        storageUri: input.storageUri,
+        contentChecksum: input.contentChecksum,
+        byteSize: input.byteSize,
+        format: input.format,
+        _userId: userId,
+        language: input.language,
+        entityTypes: input.entityTypes,
+        generatedFrom: input.generatedFrom,
+        generationPrompt: input.generationPrompt,
+        generator: input.generator,
+        isDraft: input.isDraft,
+      },
+      30_000,
     );
 
-    // Emit the command. In-process callers stamp `_userId` directly,
-    // mirroring what the gateway does for wire callers.
-    eventBus.get('yield:create').next({
-      name: input.name,
-      storageUri: input.storageUri,
-      contentChecksum: input.contentChecksum,
-      byteSize: input.byteSize,
-      format: input.format,
-      _userId: userId,
-      language: input.language,
-      entityTypes: input.entityTypes,
-      generatedFrom: input.generatedFrom,
-      generationPrompt: input.generationPrompt,
-      generator: input.generator,
-      isDraft: input.isDraft,
-    });
-
-    const outcome = await firstValueFrom(result$);
-    if (!outcome.ok) {
-      throw outcome.error;
-    }
-
-    return makeResourceId(outcome.result.resourceId);
+    return makeResourceId(rId);
   }
 }

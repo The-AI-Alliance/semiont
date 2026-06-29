@@ -20,7 +20,6 @@ import type {
 } from './types';
 
 import type { ResourceDescriptor } from '@semiont/core';
-type GetResourceByTokenResponse = components['schemas']['GetResourceByTokenResponse'];
 
 export class YieldNamespace implements IYieldNamespace {
   constructor(
@@ -181,8 +180,8 @@ export class YieldNamespace implements IYieldNamespace {
           if (done) return;
           pollInterval = setInterval(() => {
             if (done) return;
-            busRequest<{ status: string; result?: Record<string, unknown>; error?: string; jobType?: string }>(
-              this.transport, 'job:status-requested', { jobId: jid }, 'job:status-result', 'job:status-failed',
+            busRequest(
+              this.transport, 'job:status-requested', { jobId: jid },
             ).then((status) => {
                 if (done) return;
                 if (status.status === 'complete') {
@@ -192,7 +191,7 @@ export class YieldNamespace implements IYieldNamespace {
                     kind: 'complete',
                     data: {
                       jobId: jid,
-                      jobType: (status.jobType ?? 'generation') as components['schemas']['JobType'],
+                      jobType: (status.type ?? 'generation') as components['schemas']['JobType'],
                       resourceId: resourceId as string,
                       result: status.result as components['schemas']['JobResult'] | undefined,
                     },
@@ -243,7 +242,7 @@ export class YieldNamespace implements IYieldNamespace {
         subscriber.error(new Error(e.error));
       });
 
-      busRequest<{ jobId: string }>(
+      busRequest(
         this.transport,
         'job:create',
         {
@@ -251,8 +250,6 @@ export class YieldNamespace implements IYieldNamespace {
           resourceId,
           params,
         },
-        'job:created',
-        'job:create-failed',
       ).then(({ jobId }) => {
         if (jobId && !done) {
           activeJobId = jobId;
@@ -278,33 +275,27 @@ export class YieldNamespace implements IYieldNamespace {
   }
 
   async cloneToken(resourceId: ResourceId): Promise<{ token: string; expiresAt: string }> {
-    return busRequest<{ token: string; expiresAt: string }>(
+    return busRequest(
       this.transport,
       'yield:clone-token-requested',
       { resourceId },
-      'yield:clone-token-generated',
-      'yield:clone-token-failed',
     );
   }
 
   async fromToken(token: string): Promise<ResourceDescriptor> {
-    const result = await busRequest<GetResourceByTokenResponse>(
+    const result = await busRequest(
       this.transport,
       'yield:clone-resource-requested',
       { token },
-      'yield:clone-resource-result',
-      'yield:clone-resource-failed',
     );
     return result.sourceResource as ResourceDescriptor;
   }
 
   async createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: ResourceId }> {
-    const result = await busRequest<{ resourceId: string }>(
+    const result = await busRequest(
       this.transport,
       'yield:clone-create',
       options,
-      'yield:clone-created',
-      'yield:clone-create-failed',
     );
     return { resourceId: toResourceId(result.resourceId) };
   }

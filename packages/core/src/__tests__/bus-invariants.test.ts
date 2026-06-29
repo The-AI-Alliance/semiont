@@ -40,7 +40,62 @@ import { describe, it, expect } from 'vitest';
 import { BRIDGED_CHANNELS } from '../bridged-channels';
 import { PERSISTED_EVENT_TYPES } from '../persisted-events';
 
+/**
+ * The Tier-1 migration safety net. `BRIDGED_CHANNELS` is now DERIVED from
+ * `BUS_OPERATIONS` (every op's result/failure/progress) plus `BRIDGED_BROADCASTS`
+ * — see .plans/BUS-OPERATIONS-REGISTRY.md. This frozen snapshot is the exact set
+ * the old hand-list carried (minus the reaped dead `gather:annotation-finished`).
+ * If an operation is ever missed or mistyped, the derived set diverges from this
+ * snapshot and the test goes red — so no reply channel can silently drop. Edit
+ * this snapshot ONLY for a deliberate, reviewed change to the bridged set.
+ */
+const FROZEN_BRIDGED = [
+  'browse:resources-result', 'browse:resources-failed',
+  'browse:resource-result', 'browse:resource-failed',
+  'browse:annotations-result', 'browse:annotations-failed',
+  'browse:annotation-result', 'browse:annotation-failed',
+  'browse:annotation-history-result', 'browse:annotation-history-failed',
+  'browse:events-result', 'browse:events-failed',
+  'browse:referenced-by-result', 'browse:referenced-by-failed',
+  'browse:entity-types-result', 'browse:entity-types-failed',
+  'browse:tag-schemas-result', 'browse:tag-schemas-failed',
+  'browse:directory-result', 'browse:directory-failed',
+  'browse:annotation-context-result', 'browse:annotation-context-failed',
+  'mark:delete-ok', 'mark:delete-failed',
+  'mark:create-ok', 'mark:create-failed',
+  'mark:archive-ok', 'mark:archive-failed',
+  'mark:unarchive-ok', 'mark:unarchive-failed',
+  'match:search-results', 'match:search-failed',
+  'gather:complete', 'gather:failed',
+  'gather:resource-complete', 'gather:resource-failed',
+  'gather:annotation-progress',
+  'gather:summary-result', 'gather:summary-failed',
+  'bind:body-updated', 'bind:body-update-failed',
+  'job:report-progress', 'job:complete', 'job:fail',
+  'job:status-result', 'job:status-failed',
+  'job:created', 'job:create-failed',
+  'job:claimed', 'job:claim-failed',
+  'job:cancel-ok', 'job:cancel-failed',
+  'yield:create-ok', 'yield:create-failed',
+  'yield:update-ok', 'yield:update-failed',
+  'yield:clone-token-generated', 'yield:clone-token-failed',
+  'yield:clone-resource-result', 'yield:clone-resource-failed',
+  'yield:clone-created', 'yield:clone-create-failed',
+  'frame:entity-type-added', 'frame:tag-schema-added',
+  'frame:entity-type-add-ok', 'frame:entity-type-add-failed',
+  'frame:tag-schema-add-ok', 'frame:tag-schema-add-failed',
+  'beckon:focus', 'beckon:sparkle',
+  'bus:resume-gap',
+];
+
 describe('bus channel-classification invariants', () => {
+  it('the derived BRIDGED_CHANNELS equals the frozen registry snapshot', () => {
+    expect(new Set(BRIDGED_CHANNELS)).toEqual(new Set(FROZEN_BRIDGED));
+    // guard against an accidental duplicate inflating the array length without
+    // changing the set (the no-dup test below also covers this, belt-and-braces)
+    expect(BRIDGED_CHANNELS.length).toBe(FROZEN_BRIDGED.length);
+  });
+
   it('BRIDGED_CHANNELS has no duplicate entries', () => {
     // A duplicate makes the backend SSE forwarder subscribe to the channel
     // twice — it maps `?channel=` entries 1:1 to subscriptions with no dedup —

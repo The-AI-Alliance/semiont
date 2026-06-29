@@ -332,14 +332,12 @@ export class Smelter {
    * rather than silently stamping `[]` and letting the resource leak into recall.
    */
   private async resolveEntityTypes(resourceId: string): Promise<string[]> {
-    const { resource } = await busRequest<{ resource: ResourceDescriptor | undefined }>(
+    const { resource } = await busRequest(
       this.bus,
       'browse:resource-requested',
       { resourceId },
-      'browse:resource-result',
-      'browse:resource-failed',
     );
-    return getResourceEntityTypes(resource);
+    return getResourceEntityTypes(resource as ResourceDescriptor);
   }
 
   private async embedResource(event: SmelterInput, logMessage: string): Promise<void> {
@@ -566,12 +564,10 @@ export class Smelter {
       for (const resource of resources) {
         const rid = resource['@id'];
         if (!rid) continue;
-        const { annotations } = await busRequest<{ annotations: Annotation[] }>(
+        const { annotations } = await busRequest(
           this.bus,
           'browse:annotations-requested',
           { resourceId: rid },
-          'browse:annotations-result',
-          'browse:annotations-failed',
         );
         for (const annotation of annotations) {
           const exactText = getExactText(getTargetSelector(annotation.target));
@@ -633,14 +629,12 @@ export class Smelter {
   private async listAllResources(): Promise<ResourceDescriptor[]> {
     const all: ResourceDescriptor[] = [];
     for (;;) {
-      const page = await busRequest<{ resources: ResourceDescriptor[]; total: number }>(
+      const page = await busRequest(
         this.bus,
         'browse:resources-requested',
         { archived: false, offset: all.length, limit: Smelter.RECONCILE_PAGE_SIZE },
-        'browse:resources-result',
-        'browse:resources-failed',
       );
-      all.push(...page.resources);
+      all.push(...(page.resources as ResourceDescriptor[]));
       if (page.resources.length === 0 || all.length >= page.total) return all;
     }
   }

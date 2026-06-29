@@ -1,8 +1,20 @@
 import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxjs';
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
 import { SemiontError } from './errors';
-import type { EventMap, EmittableChannel } from './bus-protocol';
-import type { BridgedChannel } from './bridged-channels';
+import type { EventMap, EventName } from './bus-protocol';
+import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
+
+/**
+ * The value a registered operation resolves to: the `response` field of its
+ * result channel's payload, or `void` for a result channel that carries no
+ * `response` (a confirmed-write ack with no data). Inferred from the registry,
+ * so callers never annotate `busRequest`'s return type. Relies on the reply-shape
+ * standard — see .plans/REPLY-SHAPE-STANDARD.md.
+ */
+export type BusReply<Op extends BusOperationKey> =
+  EventMap[(typeof BUS_OPERATIONS)[Op]['result'] & EventName] extends { response: infer R }
+    ? R
+    : void;
 
 export type BusRequestErrorCode =
   | 'bus.timeout'
@@ -33,32 +45,36 @@ export interface BusRequestPrimitive {
 }
 
 /**
- * Request/reply over the bus. The channel params are typed to the right subsets
- * of `EventName` (see the family note in `@semiont/core` bus-protocol.ts) so a
- * mistyped channel is a compile error, not a silent 30 s timeout:
+ * Request/reply over the bus, keyed by the operation's request channel.
  *
- * - `emitChannel` is an `EmittableChannel` — the request carries a payload the
- *   `/bus/emit` gateway validates; this catches a typo'd request channel.
- * - `resultChannel`/`failureChannel` are `BridgedChannel` — a reply channel MUST
- *   be in `BRIDGED_CHANNELS` or the transport never subscribes to it and the
- *   request hangs (see .plans/bugs/gather-resource-complete-not-bridged.md — the
- *   `gather:resource-*` pair shipped unbridged with no compile/runtime signal).
+ * The `operation` is a `BusOperationKey` (a request channel declared in
+ * `BUS_OPERATIONS`); the matching `result`/`failure` reply channels are looked
+ * up from the registry, so a caller cannot pass a mismatched or unbridged reply
+ * pair — the recurring unbridged-reply bug class is unrepresentable. Every
+ * registry reply derives into `BRIDGED_CHANNELS` (see bridged-channels.ts), so
+ * the transport always subscribes to it (cf.
+ * .plans/bugs/gather-resource-complete-not-bridged.md, where the `gather:resource-*`
+ * pair shipped unbridged with no compile/runtime signal).
+ *
+ * The return type is INFERRED from the registry (`BusReply<Op>` = the result
+ * channel's `response` type, or `void`) — callers never annotate it. Every reply
+ * is `{ correlationId, response: T }` (data) or `{ correlationId }` (void); see
+ * .plans/REPLY-SHAPE-STANDARD.md. `busRequest` reads `e.response`.
  */
-export async function busRequest<TResult>(
+export async function busRequest<Op extends BusOperationKey>(
   bus: BusRequestPrimitive,
-  emitChannel: EmittableChannel,
+  operation: Op,
   payload: Record<string, unknown>,
-  resultChannel: BridgedChannel,
-  failureChannel: BridgedChannel,
   timeoutMs = 30_000,
-): Promise<TResult> {
+): Promise<BusReply<Op>> {
   const correlationId = crypto.randomUUID();
   const fullPayload = { ...payload, correlationId };
+  const { result: resultChannel, failure: failureChannel } = BUS_OPERATIONS[operation];
 
   const result$ = merge(
     (bus.stream(resultChannel as keyof EventMap) as Observable<Record<string, unknown>>).pipe(
       filter((e) => e.correlationId === correlationId),
-      map((e) => ({ ok: true as const, response: e.response as TResult })),
+      map((e) => ({ ok: true as const, response: e.response as BusReply<Op> })),
     ),
     (bus.stream(failureChannel as keyof EventMap) as Observable<Record<string, unknown>>).pipe(
       filter((e) => e.correlationId === correlationId),
@@ -81,7 +97,7 @@ export async function busRequest<TResult>(
             new BusRequestError(
               `Bus request timed out after ${timeoutMs}ms on ${resultChannel}`,
               'bus.timeout',
-              { channel: emitChannel, resultChannel, correlationId, timeoutMs },
+              { channel: operation, resultChannel, correlationId, timeoutMs },
             ),
         );
       }
@@ -99,7 +115,7 @@ export async function busRequest<TResult>(
       error: new BusRequestError(
         `Bus closed before a reply on ${resultChannel}`,
         'bus.closed',
-        { channel: emitChannel, resultChannel, correlationId },
+        { channel: operation, resultChannel, correlationId },
       ),
     }),
   );
@@ -112,7 +128,7 @@ export async function busRequest<TResult>(
   // naturally, and `result$`'s `defaultIfEmpty` guarantees `resultPromise`
   // *resolves* (never rejects) when the bus is disposed before a reply — so it
   // cannot leak an unhandled rejection regardless of whether anyone awaits it.
-  await bus.emit(emitChannel as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
+  await bus.emit(operation as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
 
   const result = await resultPromise;
   if (!result.ok) {

@@ -101,23 +101,29 @@ deduplication) applies unchanged. HTTP adds:
   connection that wasn't live at publication time doesn't see the live
   delivery, but persisted events can be replayed on reconnect. See
   "Event id and resumption" below.
-- **Persisted domain events dual-publish.** `EventStore.appendEvent`
-  publishes on BOTH the global bus AND the resource-scoped bus. A
-  client subscribed to a resource scope receives each persisted event
-  once via the scoped delivery; a client subscribed globally receives
-  it once via the global delivery; a client subscribed both ways
-  receives it twice. (No deduplication — the shared contract already
-  prohibits it.)
+- **Persisted domain events route by exactly one discipline.** Although
+  `EventStore.appendEvent` publishes on BOTH the global bus AND the
+  resource-scoped bus, the bridged (global) and resource-scoped channel
+  sets are **disjoint**, and a subscription only delivers the channels
+  it asked for. So a persisted event reaches a client via exactly one
+  path: KB-global persisted events (`frame:*`) over the global
+  subscription, resource-scoped persisted events (`mark:added`,
+  `yield:created`, …) over the scope subscription. A client subscribed
+  both globally and to the resource does **not** receive the same event
+  twice — disjointness guarantees it (see "Event categorization and
+  scope" below). The one residual overlap — a make-before-break
+  reconnect — is handled by event-id dedup, described next.
 
 #### Event id and resumption
 
-Every event on the SSE stream carries an `id:` field of one of two
+Every event on the SSE stream carries an `id:` field of one of three
 shapes:
 
 | Shape | Meaning | Resumable |
 |---|---|---|
 | `p-<scope>-<seq>` | Persisted event, scoped. `<scope>` is the resource id, `<seq>` is `event.metadata.sequenceNumber`. | **Yes.** |
-| `e-<connectionId>-<counter>` | Ephemeral event or persisted event delivered on an unscoped channel. Unique per connection; no replay meaning. | No. |
+| `e-<channel>:<cid>` | Correlation reply (payload carries a `correlationId`). **Deterministic** — the same reply is tagged with the same id on every connection, so a make-before-break overlap dedups it to one emission. | No. |
+| `e-<connectionId>-<counter>` | Any other ephemeral event (no `correlationId`). Unique per connection; no replay meaning. | No. |
 
 Clients SHOULD track the last `id:` seen and send it as the
 `Last-Event-ID` request header on every reconnect. When the server
@@ -235,11 +241,12 @@ opens it aborts every prior controller, so rapid channel-set changes
 racing each other can't accumulate orphaned streams.
 
 During the brief handoff overlap the same live event can arrive on both
-connections. Persisted ids (`p-<scope>-<seq>`) are stable across
-connections, so the client dedups them to a single emission; ephemeral
-ids (`e-<connectionId>-<counter>`) are per-connection and not deduped —
-their consumers tolerate a rare double (`busRequest` takes the first;
-cache invalidations and job-completion are idempotent/terminal).
+connections. The client dedups by event id (`seenEventIds` in the
+actor-state-unit):
+
+- Persisted ids (`p-<scope>-<seq>`) are stable across connections → deduped to a single emission.
+- Correlation-reply ids (`e-<channel>:<cid>`) are deterministic → **also deduped**, so a reply landing on both the old and new connection is delivered once. (This closed a real duplicate-delivery bug: a per-connection id tagged the same reply differently on each connection and the dedup missed it — see the backend `writeBusEvent` rationale in `apps/backend/src/routes/bus.ts`.)
+- Other ephemeral ids (`e-<connectionId>-<counter>`) carry no `correlationId` and remain per-connection, so they aren't deduped — but their consumers tolerate a rare double (cache invalidations and job-completion are idempotent/terminal).
 
 ## Wire framing and client parser obligations
 
@@ -287,6 +294,15 @@ System-wide broadcasts (`beckon:focus`, `frame:entity-type-added`, etc.)
 are a special case of correlation-ID responses in terms of scoping:
 they go global, but they're received by every connected client, not
 filtered.
+
+The global (bridged) and resource-scoped delivery sets are **disjoint**
+by construction and by invariant test. The client subscribes globally to
+`BRIDGED_CHANNELS` and per-resource to
+`RESOURCE_SCOPED_CHANNELS = PERSISTED_EVENT_TYPES.filter(t => !BRIDGED_CHANNELS.includes(t))`
+(plus the currently empty `RESOURCE_BROADCAST_TYPES`). A channel in both
+sets would be forwarded twice — once globally, once scoped, with
+different ids — a duplicate on the client bus; the `filter` and the
+`BRIDGED_CHANNELS ∩ RESOURCE_SCOPED_CHANNELS === ∅` test prevent it.
 
 This table is the single source of scope truth. Any new channel must
 fit in one of the three rows. See [EVENT-BUS.md § Resource scoping](./EVENT-BUS.md#resource-scoping).
