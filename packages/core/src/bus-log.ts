@@ -19,6 +19,8 @@
  *   - Node:     `SEMIONT_BUS_LOG=1` in the process env (read at module load)
  */
 
+import { BRIDGED_CHANNELS } from './bridged-channels';
+
 const NODE_BUS_LOG =
   typeof process !== 'undefined' && !!process.env?.SEMIONT_BUS_LOG;
 
@@ -104,9 +106,11 @@ const unobservedReplyWarned = new Set<string>();
  * `gather:resource-complete` failed when it was missing from
  * `BRIDGED_CHANNELS` (.plans/bugs/gather-resource-complete-not-bridged.md).
  *
- * Emits one WARN per channel naming the likely fix. Non-reply emits (no
- * `correlationId`) and emits with observers are ignored — broadcasts with no
- * current audience are legitimate, so they must not warn.
+ * Emits one WARN per channel naming the likely fix. Ignored (no warning):
+ * non-reply emits (no `correlationId`), emits with observers, and — crucially —
+ * channels already in `BRIDGED_CHANNELS`: a 0-observer emit there is a redundant
+ * copy, not a gap (see .plans/bugs/BRIDGE-GAPS.md). So the detector fires only
+ * for a genuine missing forwarder, and its remediation text is always correct.
  */
 export function warnIfUnobservedReply(
   channel: string,
@@ -116,13 +120,21 @@ export function warnIfUnobservedReply(
   if (observerCount > 0) return;
   const cidRaw = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
   if (typeof cidRaw !== 'string' || cidRaw.length === 0) return;
+  // A 0-observer emit on a *bridged* channel is a redundant copy (a global +
+  // resource-scoped dual-emit, or an SSE reconnect replay), not a missing
+  // forwarder — the first copy already reached the awaiting `take(1)`
+  // subscriber. Only a NOT-bridged channel is a genuine drop. (`busRequest` now
+  // types its reply channels `BridgedChannel`, so an unbridged reply is a
+  // compile error; this runtime check covers non-`busRequest` correlation
+  // emits.) See .plans/bugs/BRIDGE-GAPS.md.
+  if ((BRIDGED_CHANNELS as readonly string[]).includes(channel)) return;
   if (unobservedReplyWarned.has(channel)) return;
   unobservedReplyWarned.add(channel);
   // eslint-disable-next-line no-console
   console.warn(
-    `[bus DROP] ${channel} cid=${cidRaw.slice(0, 8)} emitted with 0 subscribers — ` +
-      `a correlation reply with no local observer is dropped, so the awaiting client ` +
-      `times out (no error). Wire '${channel}' to a forwarder: add it to BRIDGED_CHANNELS ` +
-      `(packages/core/src/bridged-channels.ts) so the SSE subscription requests it.`,
+    `[bus DROP] ${channel} cid=${cidRaw.slice(0, 8)} emitted with 0 subscribers and not in ` +
+      `BRIDGED_CHANNELS — a correlation reply with no forwarder is dropped, so the awaiting ` +
+      `client times out (no error). Add '${channel}' to BRIDGED_CHANNELS ` +
+      `(packages/core/src/bridged-channels.ts) so transports subscribe to it.`,
   );
 }

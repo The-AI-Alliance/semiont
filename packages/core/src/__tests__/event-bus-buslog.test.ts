@@ -73,8 +73,10 @@ describe('EventBus busLog integration', () => {
  * .plans/bugs/gather-resource-complete-not-bridged.md. A correlation-bearing
  * reply emitted with zero observers is unreachable (no forwarder, no consumer),
  * so the awaiting client times out 30 s later with no error. On Node this WARNs
- * once per channel at emit time. Each test uses a DISTINCT channel because the
- * once-per-channel dedup is process-global.
+ * once per channel at emit time — but ONLY for channels not in `BRIDGED_CHANNELS`
+ * (a 0-observer emit on a bridged channel is a redundant copy, not a gap; see
+ * .plans/bugs/BRIDGE-GAPS.md). Each warning test uses a DISTINCT channel because
+ * the once-per-channel dedup is process-global.
  */
 describe('EventBus dropped-reply detection', () => {
   let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -84,15 +86,28 @@ describe('EventBus dropped-reply detection', () => {
   });
   afterEach(() => warnSpy.mockRestore());
 
-  it('WARNs when a correlation reply is emitted with no observers', () => {
+  it('WARNs when a correlation reply on a NOT-bridged channel has no observers', () => {
     const bus = new EventBus();
-    bus.get('gather:resource-complete').next({ correlationId: 'deadbeef-1', response: {} } as never);
+    // A channel deliberately absent from BRIDGED_CHANNELS — the genuine
+    // "missing forwarder" gap the detector exists to catch. Synthetic (not a
+    // real EventName) so it can never be bridged out from under this test.
+    bus.get('test:unbridged-reply-a' as never).next({ correlationId: 'deadbeef-1', response: {} } as never);
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     const line = warnSpy.mock.calls[0]?.[0] as string;
     expect(line).toContain('[bus DROP]');
-    expect(line).toContain('gather:resource-complete');
+    expect(line).toContain('test:unbridged-reply-a');
     expect(line).toContain('cid=deadbeef');
+  });
+
+  it('does NOT warn for a 0-observer reply on a BRIDGED channel (redundant copy, not a gap)', () => {
+    const bus = new EventBus();
+    // gather:resource-complete IS bridged — a 0-observer emit here is a duplicate
+    // the awaiting take(1) already consumed, not a drop. Regression guard for the
+    // false-positive [bus DROP] flood (.plans/bugs/BRIDGE-GAPS.md).
+    bus.get('gather:resource-complete').next({ correlationId: 'deadbeef-5', response: {} } as never);
+
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it('does NOT warn when the reply has an observer', () => {
@@ -112,8 +127,8 @@ describe('EventBus dropped-reply detection', () => {
 
   it('warns only once per channel (a missing wiring is reported, not spammed)', () => {
     const bus = new EventBus();
-    bus.get('browse:resource-result').next({ correlationId: 'deadbeef-3' } as never);
-    bus.get('browse:resource-result').next({ correlationId: 'deadbeef-4' } as never);
+    bus.get('test:unbridged-reply-b' as never).next({ correlationId: 'deadbeef-3' } as never);
+    bus.get('test:unbridged-reply-b' as never).next({ correlationId: 'deadbeef-4' } as never);
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });
