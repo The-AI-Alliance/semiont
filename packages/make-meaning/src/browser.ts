@@ -19,8 +19,8 @@
 
 import { promises as fs, type Dirent } from 'fs';
 import * as path from 'path';
-import { Subscription, from } from 'rxjs';
-import { mergeMap } from 'rxjs/operators';
+import { Subscription, from, EMPTY } from 'rxjs';
+import { mergeMap, catchError } from 'rxjs/operators';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventMap, Logger, components } from '@semiont/core';
 import { EventBus, resourceId, annotationId, errField } from '@semiont/core';
@@ -64,7 +64,19 @@ export class Browser {
       handler: (event: EventMap[K]) => Promise<void>,
     ) => this.eventBus.get(name).pipe(
       mergeMap((event) =>
-        from(withActorSpan('browser', name as string, () => handler(event))),
+        from(withActorSpan('browser', name as string, () => handler(event))).pipe(
+          // Isolate per-event failures: a single handler throw must NOT tear down the
+          // channel subscription for every future request — that's the browse:entity-types
+          // wedge (.plans/bugs/browse-entity-types-never-responds.md). Handlers emit their
+          // own *-failed reply; this is the structural backstop for any throw that escapes a
+          // handler's try/catch — the channel survives, the offending request is logged.
+          // (A per-channel *-failed can't be emitted from this generic helper without the
+          // request→failure mapping — that's the Tier 1 operations registry.)
+          catchError((error) => {
+            this.logger.error(`browse handler threw on ${name as string}`, { error: errField(error) });
+            return EMPTY;
+          }),
+        ),
       ),
     );
 
