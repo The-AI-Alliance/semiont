@@ -19,7 +19,7 @@
  */
 
 import type { ITransport, TagSchema } from '@semiont/core';
-import { busRequest } from '../bus-request';
+import { busRequest } from '@semiont/core';
 import type { FrameNamespace as IFrameNamespace } from './types';
 
 export class FrameNamespace implements IFrameNamespace {

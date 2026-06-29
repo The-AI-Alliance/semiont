@@ -1,7 +1,7 @@
 import type { Observable } from 'rxjs';
 import type { EventBus, EventMap, JobId, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { busRequest } from '../bus-request';
+import { busRequest } from '@semiont/core';
 import type { JobNamespace as IJobNamespace } from './types';
 
 type JobStatusResponse = components['schemas']['JobStatusResponse'];

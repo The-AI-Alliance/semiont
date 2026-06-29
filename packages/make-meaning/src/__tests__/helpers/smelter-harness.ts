@@ -17,7 +17,7 @@ import { vi } from 'vitest';
 import { Observable, Subject } from 'rxjs';
 import type { Logger, EventMap, IContentTransport, components } from '@semiont/core';
 import type { EmbeddingProvider } from '@semiont/vectors';
-import type { BusRequestPrimitive } from '@semiont/sdk';
+import type { BusRequestPrimitive } from '@semiont/core';
 import type { SmelterEvent } from '../../smelter-actor-state-unit';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

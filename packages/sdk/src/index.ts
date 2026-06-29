@@ -36,13 +36,8 @@ export * from './client';
 // results directly without `lastValueFrom`/`firstValueFrom` wrappers.
 export { StreamObservable, CacheObservable, UploadObservable, type UploadProgress } from './awaitable';
 
-// Bus-request helper.
-export {
-  busRequest,
-  BusRequestError,
-  type BusRequestErrorCode,
-  type BusRequestPrimitive,
-} from './bus-request';
+// `busRequest` / `BusRequestError` / `BusRequestPrimitive` now live in @semiont/core
+// (next to the bus protocol they're coupled to) — import them from there.
 
 // Verb-oriented namespace API. Frame is the schema-layer flow's surface;
 // the others are content-layer flows + job/auth/admin.

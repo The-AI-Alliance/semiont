@@ -12,7 +12,7 @@ import type {
   components,
 } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { busRequest } from '../bus-request';
+import { busRequest } from '@semiont/core';
 import { StreamObservable } from '../awaitable';
 import type {
   MarkNamespace as IMarkNamespace,

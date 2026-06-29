@@ -1,6 +1,8 @@
 import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxjs';
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
-import { SemiontError, type EventMap, type BridgedChannel, type EmittableChannel } from '@semiont/core';
+import { SemiontError } from './errors';
+import type { EventMap, EmittableChannel } from './bus-protocol';
+import type { BridgedChannel } from './bridged-channels';
 
 export type BusRequestErrorCode =
   | 'bus.timeout'
