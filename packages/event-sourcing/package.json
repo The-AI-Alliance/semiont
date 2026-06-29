@@ -57,9 +57,9 @@
     "vitest": "^4.1.8"
   },
   "dependencies": {
-    "@semiont/http-transport": "*",
     "@semiont/core": "*",
-    "nanoid": "^5.1.11",
+    "@semiont/http-transport": "*",
+    "nanoid": "^5.1.16",
     "uuid": "^14.0.0"
   }
 }
