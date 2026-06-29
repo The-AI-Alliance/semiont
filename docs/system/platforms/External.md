@@ -10,29 +10,22 @@ The External platform represents services managed outside Semiont CLI - external
 
 ## Configuration
 
-**Example from** [local.json](../../../apps/cli/templates/environments/local.json):
+**Example** (`~/.semiontconfig`):
 
-```json
-{
-  "inference": {
-    "platform": {
-      "type": "external"
-    },
-    "type": "anthropic",
-    "model": "claude-sonnet-4-20250514",
-    "endpoint": "https://api.anthropic.com",
-    "apiKey": "${ANTHROPIC_API_KEY}"
-  },
-  "graph": {
-    "platform": {
-      "type": "external"
-    },
-    "type": "neo4j",
-    "uri": "${NEO4J_URI}",
-    "username": "${NEO4J_USERNAME}",
-    "password": "${NEO4J_PASSWORD}"
-  }
-}
+```toml
+[environments.local.workers.default.inference]
+platform = "external"
+type = "anthropic"
+model = "claude-sonnet-4-20250514"
+endpoint = "https://api.anthropic.com"
+apiKey = "${ANTHROPIC_API_KEY}"
+
+[environments.local.make-meaning.graph]
+platform = "external"
+type = "neo4j"
+uri = "${NEO4J_URI}"
+username = "${NEO4J_USERNAME}"
+password = "${NEO4J_PASSWORD}"
 ```
 
 ## Supported Services

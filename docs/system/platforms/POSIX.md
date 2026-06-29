@@ -14,34 +14,27 @@ The POSIX platform runs services directly on your local machine as operating sys
 
 ## Configuration
 
-Services configured with `platform.type: "posix"` in environment files.
+Services configured with `platform = "posix"` in `~/.semiontconfig`.
 
-**Example from** [local.json](../../../apps/cli/templates/environments/local.json):
+**Example** (`~/.semiontconfig`):
 
-```json
-{
-  "backend": {
-    "platform": {
-      "type": "posix"
-    },
-    "command": "npm run dev",
-    "port": 4000
-  },
-  "frontend": {
-    "platform": {
-      "type": "posix"
-    },
-    "command": "npm run dev",
-    "port": 3000
-  }
-}
+```toml
+[environments.local.backend]
+platform = "posix"
+command = "npm run dev"
+port = 4000
+
+[environments.local.frontend]
+platform = "posix"
+command = "npm run dev"
+port = 3000
 ```
 
 ## Supported Services
 
-Based on [local.json](../../../apps/cli/templates/environments/local.json):
+Based on the per-service `platform` assignments in `~/.semiontconfig`:
 - **backend** - API server
-- **frontend** - Next.js app
+- **frontend** - Vite SPA
 - **mcp** - Model Context Protocol server
 - **filesystem** - File storage
 

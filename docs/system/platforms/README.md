@@ -54,10 +54,10 @@ Semiont services run on different **platforms** depending on the deployment envi
 
 ### By Environment
 
-Platform assignments from [local.json](../../../apps/cli/templates/environments/local.json):
+Platform assignments (example `~/.semiontconfig`):
 
 ```
-Development (local.json):
+Development environment:
 ├── Backend → POSIX
 ├── Frontend → POSIX
 ├── Database → Container (postgres:15-alpine)
@@ -90,35 +90,32 @@ Based on handler implementations:
 
 ## Configuration
 
-Platforms are configured in environment files like [local.json](../../../apps/cli/templates/environments/local.json).
+Platforms are assigned **per service** in `~/.semiontconfig` — a gitignored TOML file. Each service section carries a `platform` field naming its platform type. See [Adding Environments](../../../apps/cli/docs/ADDING_ENVIRONMENTS.md) for the full per-environment format.
 
-**Example** ([local.json:15-28](../../../apps/cli/templates/environments/local.json#L15-L28)):
+**Example** (`~/.semiontconfig`):
 
-```json
-{
-  "backend": {
-    "platform": { "type": "posix" },
-    "command": "npm run dev",
-    "port": 4000
-  },
-  "database": {
-    "platform": { "type": "container" },
-    "image": "postgres:15-alpine",
-    "port": 5432,
-    "environment": {
-      "POSTGRES_DB": "semiont",
-      "POSTGRES_USER": "postgres",
-      "POSTGRES_PASSWORD": "localpass"
-    }
-  },
-  "inference": {
-    "platform": { "type": "external" },
-    "type": "anthropic",
-    "model": "claude-sonnet-4-20250514",
-    "endpoint": "https://api.anthropic.com",
-    "apiKey": "${ANTHROPIC_API_KEY}"
-  }
-}
+```toml
+[environments.local.backend]
+platform = "posix"
+command = "npm run dev"
+port = 4000
+
+[environments.local.database]
+platform = "container"
+image = "postgres:15-alpine"
+port = 5432
+
+[environments.local.database.environment]
+POSTGRES_DB = "semiont"
+POSTGRES_USER = "postgres"
+POSTGRES_PASSWORD = "localpass"
+
+[environments.local.workers.default.inference]
+platform = "external"
+type = "anthropic"
+model = "claude-sonnet-4-20250514"
+endpoint = "https://api.anthropic.com"
+apiKey = "${ANTHROPIC_API_KEY}"
 ```
 
 ## CLI Commands

@@ -10,24 +10,19 @@ The Container platform runs services in containers using the auto-detected runti
 
 ## Configuration
 
-**Example from** [local.json](../../../apps/cli/templates/environments/local.json):
+**Example** (`~/.semiontconfig`):
 
-```json
-{
-  "database": {
-    "platform": {
-      "type": "container"
-    },
-    "image": "postgres:15-alpine",
-    "name": "semiont-local-db",
-    "port": 5432,
-    "environment": {
-      "POSTGRES_DB": "semiont",
-      "POSTGRES_USER": "postgres",
-      "POSTGRES_PASSWORD": "localpass"
-    }
-  }
-}
+```toml
+[environments.local.database]
+platform = "container"
+image = "postgres:15-alpine"
+name = "semiont-local-db"
+port = 5432
+
+[environments.local.database.environment]
+POSTGRES_DB = "semiont"
+POSTGRES_USER = "postgres"
+POSTGRES_PASSWORD = "localpass"
 ```
 
 ## Supported Services
