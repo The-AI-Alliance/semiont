@@ -115,8 +115,8 @@ describe('backup-importer', () => {
 
   it('imports a backup with system events', async () => {
     // Wire up handler for entity type addition
-    eventBus.get('frame:add-entity-type').subscribe(() => {
-      defer(() => eventBus.get('frame:entity-type-added').next({ tag: 'Person' } as any));
+    eventBus.get('frame:add-entity-type').subscribe((msg) => {
+      defer(() => eventBus.get('frame:entity-type-add-ok').next({ correlationId: msg.correlationId } as any));
     });
 
     const manifestLines = [
@@ -277,9 +277,9 @@ describe('backup-importer', () => {
   it('imports system events before resource events (order matters)', async () => {
     const order: string[] = [];
 
-    eventBus.get('frame:add-entity-type').subscribe(() => {
+    eventBus.get('frame:add-entity-type').subscribe((msg) => {
       order.push('entity-type');
-      defer(() => eventBus.get('frame:entity-type-added').next({ tag: 'Person' } as any));
+      defer(() => eventBus.get('frame:entity-type-add-ok').next({ correlationId: msg.correlationId } as any));
     });
 
     eventBus.get('yield:create').subscribe(() => {
@@ -316,8 +316,8 @@ describe('backup-importer', () => {
   });
 
   it('merges stats across multiple streams', async () => {
-    eventBus.get('frame:add-entity-type').subscribe(() => {
-      defer(() => eventBus.get('frame:entity-type-added').next({ tag: 'X' } as any));
+    eventBus.get('frame:add-entity-type').subscribe((msg) => {
+      defer(() => eventBus.get('frame:entity-type-add-ok').next({ correlationId: msg.correlationId } as any));
     });
 
     eventBus.get('yield:create').subscribe(() => {
