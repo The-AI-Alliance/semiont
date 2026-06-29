@@ -81,14 +81,12 @@ function makeMockContent(): IContentTransport {
 describe('MarkNamespace', () => {
   let eventBus: EventBus;
   let mark: MarkNamespace;
-  let emitSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     eventBus = new EventBus();
     const mock = createMockTransport({
       'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
     });
-    emitSpy = mock.emitSpy;
     mark = new MarkNamespace(mock.transport, eventBus);
   });
 
