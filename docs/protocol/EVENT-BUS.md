@@ -90,30 +90,24 @@ The bus is fan-out: every subscriber to a channel sees every event on it. Reques
 2. The handler does its work and emits the response (`match:search-results` or `match:search-failed`) carrying the **same** `correlationId`.
 3. The caller filters the response channel by `correlationId` to receive only its own answer.
 
-The SDK's `busRequest` helper ([packages/sdk/src/bus-request.ts](../../packages/sdk/src/bus-request.ts)) implements this pattern uniformly. Every request/response in the SDK is a thin call into `busRequest`:
+`busRequest` ([packages/core/src/bus-request.ts](../../packages/core/src/bus-request.ts)) implements this pattern uniformly. It lives in `@semiont/core`, next to the bus protocol, so the SDK *and* in-process workers share one helper. You call it with the **operation** — the request channel — and a payload; it mints the `correlationId`, looks the reply channels up from the registry, emits, and resolves the awaited reply:
 
 ```ts
-const correlationId = crypto.randomUUID();
-const fullPayload = { ...payload, correlationId };
-
-const result$ = merge(
-  bus.stream(resultChannel).pipe(
-    filter((e) => e.correlationId === correlationId),
-    map((e) => ({ ok: true as const, response: e.response })),
-  ),
-  bus.stream(failureChannel).pipe(
-    filter((e) => e.correlationId === correlationId),
-    map((e) => ({ ok: false as const, error: new BusRequestError(...) })),
-  ),
-).pipe(take(1), timeout(timeoutMs));
-
-await bus.emit(emitChannel, fullPayload);
-return firstValueFrom(result$);
+const { annotationId } = await busRequest(bus, 'mark:create-request', { resourceId, request });
+//                                              └ operation key       result/failure looked up from BUS_OPERATIONS;
+//                                                                    return type inferred — no <TResult> annotation
 ```
 
-This means: **every result-channel event must echo back the request's `correlationId`**. Result schemas (`browse:resource-result`, `gather:complete`, `match:search-results`, etc.) all carry a `correlationId: string` field for this reason. Handlers that don't echo it back will hang the caller's `busRequest` forever (or fail with `bus.timeout` after the configurable wait).
+Two declarations make this work, and together they retire a whole bug class (a reply channel that's forgotten from the bridged set, which fails as a silent 30 s timeout):
 
-Failure events follow the same shape — `{ correlationId } & CommandError` — so the caller's filter matches and the rejection lands as a `BusRequestError(code: 'bus.rejected', ...)` per the [SDK error model](../../packages/sdk/docs/Usage.md#error-handling).
+- **The operations registry.** [`BUS_OPERATIONS`](../../packages/core/src/bus-operations.ts) declares every request/reply operation **once** as a triple — `request → { result, failure, progress? }`. `busRequest` reads the request channel's entry to find its reply channels (so a caller can't pass a mismatched or unbridged pair), and the bridged-reply set is *derived* from it (see [Fan-in](#fan-in-sse-bridging)). The return type is inferred from the result channel — callers never write `<TResult>`.
+
+- **The reply-shape standard.** Every reply is one of three shapes, all keyed by `correlationId`:
+  - `{ correlationId, response: T }` — success with data → resolves to `T`.
+  - `{ correlationId }` — success, no data → resolves to `void`.
+  - `{ correlationId } & CommandError` — failure → rejects with `BusRequestError(code: 'bus.rejected', ...)` per the [SDK error model](../../packages/sdk/docs/Usage.md#error-handling).
+
+  `busRequest` reads `e.response`, so **every reply handler must echo the request's `correlationId` and put its data under `response`** — a handler that doesn't echo the id hangs the caller until `bus.timeout`. The uniformity is exactly what lets the return type be derived from the registry instead of hand-annotated.
 
 ## Trace context: the `_trace` carrier
 
@@ -139,20 +133,25 @@ For details on how `_trace` correlates with the grep-friendly `busLog` timeline 
 
 ## Resource scoping
 
-Some channels are fan-out *globally* — every subscriber to `match:search-results` sees every search response and filters by `correlationId`. Others are fan-out *per resource* — `job:complete` for a generation should reach every viewer of the affected resource, not just the user who kicked off the generation.
+A channel reaches clients in one of two **disjoint** delivery disciplines:
 
-`RESOURCE_BROADCAST_TYPES` in [bus-protocol.ts](../../packages/core/src/bus-protocol.ts) is the explicit list of channels that support resource scoping. Currently:
+- **Global fan-out** — forwarded to every connected client, which filters by `correlationId` (correlation replies like `match:search-results`) or just reacts (KB-global events like `frame:entity-type-added`). This is the *bridged* set (see [Fan-in](#fan-in-sse-bridging)).
+- **Resource-scoped** — delivered only to clients that have *joined* a resource's scope via `subscribeToResource(id)`. Publishers emit on a scoped bus (`eventBus.scope(resourceId)`); the HTTP transport carries the scope through SSE as `scope=<resourceId>&scoped=<channel>`. On the client, subscribing to a resource's `browse.*` live queries attaches a ref-counted scope that auto-detaches on the last unsubscribe (#847) — *freshness follows observation*.
+
+The resource-scoped set is the **persisted domain events** (`mark:added`, `yield:created`, … on resource X → viewers of X), *minus any that are globally bridged*. The KB-global persisted events (`frame:entity-type-added`, `frame:tag-schema-added`) are bridged, so they're excluded from scoped delivery. The transport derives the set (`@semiont/http-transport`):
 
 ```ts
-export const RESOURCE_BROADCAST_TYPES = [
-  'job:complete',
-  'job:fail',
-] as const;
+RESOURCE_SCOPED_CHANNELS = [
+  ...PERSISTED_EVENT_TYPES.filter(t => !BRIDGED_CHANNELS.includes(t)),
+  ...RESOURCE_BROADCAST_TYPES,
+];
 ```
 
-Publishers emit these on a scoped bus (`eventBus.scope(resourceId)`); the HTTP transport carries the scope through SSE via a `scope=<resourceId>&scoped=<channel>` URL parameter. On the client, subscribing to a resource's `browse.*` live queries attaches a ref-counted scope (the SDK drives the transport's internal `subscribeToResource` on observation) that auto-detaches when the last subscriber unsubscribes (#847).
+`RESOURCE_BROADCAST_TYPES` (in [bus-protocol.ts](../../packages/core/src/bus-protocol.ts)) is the extension point for *non-persisted* events that still want resource-scoped fan-out. It is **currently empty**: `job:complete` / `job:fail` were moved to global, `jobId`-keyed delivery (#847) — the dispatcher filters by `jobId`, viewers filter the same global stream by `resourceId`, so there's no scoped copy (and a client that is both no longer receives a duplicate).
 
-Per-caller progress (AI-assist progress, search results) is *not* scoped — it's a correlation-ID-shaped response that publishes globally and the caller filters by `correlationId`. Resource scoping is for genuine multi-participant fan-out: events that *every* viewer of a resource should see.
+**Bridged and resource-scoped must stay disjoint.** A channel delivered on *both* the global subscription and a scoped one arrives twice (with different SSE ids) → a duplicate on the client bus. The `filter(t => !BRIDGED_CHANNELS.includes(t))` above guarantees disjointness for the persisted-derived part; an invariant test (`BRIDGED_CHANNELS ∩ RESOURCE_SCOPED_CHANNELS === ∅`) backstops the unfiltered `RESOURCE_BROADCAST_TYPES` extension point.
+
+Per-caller progress and search results are *not* scoped — they're correlation-shaped replies that publish globally and the caller filters by `correlationId`. Resource scoping is for genuine multi-participant fan-out: events that *every* viewer of a resource should see.
 
 The rule, by event kind:
 
@@ -173,7 +172,7 @@ Commands, results, and UI signals are transient. They flow across the bus, drive
 
 ## Fan-in: SSE bridging
 
-The SDK's `SemiontClient` owns a local `EventBus`; the HTTP transport bridges wire events into it. `BRIDGED_CHANNELS` in [bridged-channels.ts](../../packages/core/src/bridged-channels.ts) is the set the transport cares about — every channel a remote caller might receive (every `-ok`, `-failed`, `-result`, plus the persisted domain events that drive cache invalidation).
+The SDK's `SemiontClient` owns a local `EventBus`; the HTTP transport bridges wire events into it. `BRIDGED_CHANNELS` in [bridged-channels.ts](../../packages/core/src/bridged-channels.ts) is the set the transport forwards — but it is no longer a hand-list. It is **derived**: every operation's reply channels (result + failure + optional progress) come from the `BUS_OPERATIONS` registry, plus a small hand-list `BRIDGED_BROADCASTS` of the non-request/reply minority (KB-global domain events like `frame:entity-type-added`, UI signals like `beckon:*`, and infra like `bus:resume-gap`). Deriving the reply set from the registry is what makes "a reply channel forgotten from the bridged set" — the recurring silent-timeout bug — unrepresentable.
 
 ```ts
 // HttpTransport, on SSE receive:
@@ -222,7 +221,7 @@ The SDK doesn't *replace* the bus — it wraps the channel-call patterns so cons
 
 **1. `ITransport`** ([packages/core/src/transport.ts](../../packages/core/src/transport.ts)) — the contract every transport implements: `emit(channel, payload, scope?)`, `stream(channel)`, `subscribeToResource(id)`, `bridgeInto(bus)`. Transport-neutral. Both `HttpTransport` (HTTP+SSE) and `LocalTransport` (in-process actor bus) implement this same surface.
 
-**2. `busRequest`** ([packages/sdk/src/bus-request.ts](../../packages/sdk/src/bus-request.ts)) — the request/response abstraction. Generates `correlationId`, emits the request, listens on the result and failure channels filtered to that ID, applies a timeout, and resolves to the response or rejects with a typed `BusRequestError`. Every namespace method that needs a round-trip is a thin call into this helper.
+**2. `busRequest`** ([packages/core/src/bus-request.ts](../../packages/core/src/bus-request.ts)) — the request/response abstraction. Called with the **operation** (request channel) and a payload; it mints the `correlationId`, looks the result/failure channels up from `BUS_OPERATIONS`, applies a timeout, infers its return type from the result channel, and resolves to the response or rejects with a typed `BusRequestError`. Every namespace method that needs a round-trip is a thin call into this helper. (It lives in `@semiont/core`, so in-process workers use the same path.)
 
 **3. Verb namespaces** (`semiont.mark.*`, `semiont.match.*`, `semiont.browse.*`, etc.) — the typed entry points. Each method picks the right channels for its operation, brands ID inputs, and returns the right shape (`Promise`, `StreamObservable`, `CacheObservable`). The channel choice is hidden behind the method name — `semiont.match.search(...)` knows it emits `match:search-requested` and resolves on `match:search-results` / `match:search-failed`.
 
@@ -240,7 +239,7 @@ The compile-time discipline is strict by design. A new channel requires changes 
 
 1. **`EventMap`** in [bus-protocol.ts](../../packages/core/src/bus-protocol.ts) — declare the channel name and payload type.
 2. **`CHANNEL_SCHEMAS`** in the same file — map the channel to its OpenAPI schema name (or `null` for non-validated). The `satisfies Record<EventName, ...>` clause on this map fails to typecheck if you forget.
-3. **`PERSISTED_EVENT_TYPES`** (only if it's a `StoredEvent` domain event) and/or **`BRIDGED_CHANNELS`** (only if it should reach the client over SSE). Each has its own completeness check.
+3. **`PERSISTED_EVENT_TYPES`** (only if it's a `StoredEvent` domain event) and, for SSE delivery, the routing: a request/reply operation is declared in **`BUS_OPERATIONS`** (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is added to **`BRIDGED_BROADCASTS`**. You no longer hand-edit `BRIDGED_CHANNELS` for replies. Each list has its own completeness check, and an equality test pins the derived bridged set.
 
 Then for the OpenAPI schema:
 

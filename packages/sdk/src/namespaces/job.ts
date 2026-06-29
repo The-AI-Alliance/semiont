@@ -37,12 +37,10 @@ export class JobNamespace implements IJobNamespace {
   }
 
   async status(jobId: JobId): Promise<JobStatusResponse> {
-    return busRequest<JobStatusResponse>(
+    return busRequest(
       this.transport,
       'job:status-requested',
       { jobId },
-      'job:status-result',
-      'job:status-failed',
     );
   }
 
@@ -71,12 +69,10 @@ export class JobNamespace implements IJobNamespace {
     // Confirmed write: cancels all PENDING jobs of the type (running jobs finish —
     // there's no worker-kill channel) and resolves with the count. Rejects on a
     // queue failure instead of swallowing it. A per-job cancel was never wired.
-    const { cancelled } = await busRequest<{ cancelled: number }>(
+    const { cancelled } = await busRequest(
       this.transport,
       'job:cancel-requested',
       { jobType },
-      'job:cancel-ok',
-      'job:cancel-failed',
     );
     return cancelled;
   }

@@ -1,13 +1,21 @@
 {
   "type": "object",
-  "description": "Success response after creating a yielded resource.",
+  "description": "Success reply after creating a yielded resource, matched to the originating command by correlationId.",
   "properties": {
-    "resourceId": {
-      "type": "string"
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation id echoed from the yield:create command so busRequest can match the reply."
     },
-    "resource": {
-      "$ref": "./ResourceDescriptor.json"
+    "response": {
+      "type": "object",
+      "description": "The created resource's identity.",
+      "properties": {
+        "resourceId": {
+          "type": "string"
+        }
+      },
+      "required": ["resourceId"]
     }
   },
-  "required": ["resourceId", "resource"]
+  "required": ["response"]
 }

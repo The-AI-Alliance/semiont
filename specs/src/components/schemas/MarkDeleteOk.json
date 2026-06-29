@@ -1,14 +1,21 @@
 {
   "type": "object",
-  "description": "Success response after deleting an annotation.",
+  "description": "Success reply after deleting an annotation, matched to the originating command by correlationId.",
   "properties": {
     "correlationId": {
       "type": "string",
-      "description": "Correlation id echoed from the mark:delete command, so the SDK's busRequest can match the ack."
+      "description": "Correlation id echoed from the mark:delete command so busRequest can match the reply."
     },
-    "annotationId": {
-      "type": "string"
+    "response": {
+      "type": "object",
+      "description": "The deleted annotation's identity.",
+      "properties": {
+        "annotationId": {
+          "type": "string"
+        }
+      },
+      "required": ["annotationId"]
     }
   },
-  "required": ["annotationId"]
+  "required": ["response"]
 }

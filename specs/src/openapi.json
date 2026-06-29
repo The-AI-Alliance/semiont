@@ -186,12 +186,6 @@
       "GatherProgress": {
         "$ref": "components/schemas/GatherProgress.json"
       },
-      "GatherAnnotationFinished": {
-        "$ref": "components/schemas/GatherAnnotationFinished.json"
-      },
-      "GatherFinished": {
-        "$ref": "components/schemas/GatherFinished.json"
-      },
       "MatchSearchResult": {
         "$ref": "components/schemas/MatchSearchResult.json"
       },

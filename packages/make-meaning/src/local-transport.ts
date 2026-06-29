@@ -110,11 +110,13 @@ export class LocalTransport implements ITransport {
         // Gateway-injection: stamp the host identity onto every emit so
         // handlers can trust `_userId` regardless of which transport
         // delivered the event.
-        const stamped = { ...(payload as object), _userId: this.userId };
+        // Gateway-injected `_userId` isn't in every channel's declared payload,
+        // so build the stamped object loosely and assert it back to EventMap[K].
+        const stamped: Record<string, unknown> = { ...(payload as Record<string, unknown>), _userId: this.userId };
         const target = resourceScope === undefined
           ? this.bus.get(channel)
-          : this.bus.scope(resourceScope as unknown as string).get(channel);
-        (target as unknown as { next(v: unknown): void }).next(stamped);
+          : this.bus.scope(resourceScope as string).get(channel);
+        target.next(stamped as EventMap[K]);
       },
       {
         kind: SpanKind.PRODUCER,
@@ -127,12 +129,12 @@ export class LocalTransport implements ITransport {
   }
 
   on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void {
-    const sub = (this.bus.get(channel) as unknown as Observable<EventMap[K]>).subscribe(handler);
+    const sub = this.bus.get(channel).subscribe(handler);
     return () => sub.unsubscribe();
   }
 
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-    return this.bus.get(channel) as unknown as Observable<EventMap[K]>;
+    return this.bus.get(channel);
   }
 
   subscribeToResource(_resourceId: ResourceId): () => void {
@@ -146,7 +148,7 @@ export class LocalTransport implements ITransport {
     if (this.bridges.includes(bus)) return;
     this.bridges.push(bus);
     for (const channel of BRIDGED_CHANNELS) {
-      const upstream = this.bus.get(channel as keyof EventMap) as unknown as Observable<unknown>;
+      const upstream: Observable<unknown> = this.bus.get(channel as keyof EventMap);
       this.bridgeSubs.push(
         upstream.subscribe((payload) => {
           busLog('RECV', channel, payload);
@@ -156,7 +158,7 @@ export class LocalTransport implements ITransport {
           void withSpan(
             `bus.recv:${channel}`,
             () => {
-              (bus.get(channel as keyof EventMap) as unknown as { next(v: unknown): void }).next(payload);
+              bus.get(channel as keyof EventMap).next(payload as EventMap[keyof EventMap]);
             },
             { kind: SpanKind.CONSUMER, attrs: { 'bus.channel': channel } },
           );

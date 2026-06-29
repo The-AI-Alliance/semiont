@@ -24,9 +24,13 @@ Both paths result in an `mark:body-updated` event that adds the `SpecificResourc
 ## Using the API Client
 
 Resolve a reference annotation by adding a `SpecificResource` link to
-its body. The `bind` namespace emits `bind:initiate` on the bus gateway
-— the backend Stower handler persists the body change and broadcasts
-the enriched `mark:body-updated` event to everyone viewing the resource.
+its body. The `bind` namespace issues a confirmed write over `busRequest`:
+`bind.body(...)` emits `bind:update-body`, the backend handler forwards
+to `mark:update-body`, matches the persisted outcome by `correlationId`,
+and replies on `bind:body-updated` / `bind:body-update-failed`. The SDK
+awaits that real outcome and throws on failure. Persisting the body change
+also broadcasts the enriched `mark:body-updated` event to everyone viewing
+the resource.
 
 ```typescript
 // Link a reference annotation to an existing resource
@@ -54,14 +58,15 @@ await client.bind.body(resourceId, annotationId, [{
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `bind:initiate` | `{ correlationId, annotationId, resourceId, operations }` | Frontend emits; Stower handles via bus gateway. Wizard-style UI also uses this channel to signal the wizard should open. |
+| `bind:initiate` | `{ annotationId, resourceId, defaultTitle, entityTypes }` | Local coordination signal: opens the wizard / signals a bind workflow should start (not the body-write channel). |
 | `match:search-requested` | `{ correlationId, referenceId, context, limit?, useSemanticScoring? }` | Search for binding candidates using gathered context |
 | `match:search-results` | `{ correlationId, referenceId, response }` | Scored search results from Matcher |
 | `match:search-failed` | `{ correlationId, referenceId, error }` | Search failed |
 | `browse:referenced-by-requested` | `{ correlationId, resourceId, motivation? }` | Query which annotations reference a resource |
 | `browse:referenced-by-result` | `{ correlationId, response }` | Referenced-by results |
-| `bind:body-updated` | `{ annotationId }` | Annotation body successfully updated |
-| `bind:body-update-failed` | `{ error }` | Annotation body update failed |
+| `bind:update-body` | `{ correlationId, annotationId, resourceId, operations }` | `client.bind.body()` emits this via `busRequest`; the handler forwards to `mark:update-body` and matches the persisted outcome by `correlationId`. |
+| `bind:body-updated` | `{ correlationId }` | Confirmed-write ack (void reply); `busRequest` resolves on it. |
+| `bind:body-update-failed` | `{ correlationId } & CommandError` | Body update failed; `busRequest` rejects on it. |
 
 ## Resolution Workflow
 
@@ -90,9 +95,10 @@ match:search-results → Wizard shows scored candidates (Step 3A)
     |
 User clicks "Link" on a result
     |
-client.bind.body(...) → bind:initiate emitted via /bus/emit → 202
+client.bind.body(...) → bind:update-body emitted via busRequest (awaits reply)
     |
-backend Stower persists mark:body-updated event, materializes view
+backend handler forwards to mark:update-body, persists mark:body-updated event,
+materializes view, replies bind:body-updated (correlationId-matched)
     |
 EventStore enrichment attaches post-materialization annotation,
 publishes on scoped EventBus → /bus/subscribe → frontend ActorStateUnit
