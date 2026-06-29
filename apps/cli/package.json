@@ -61,7 +61,7 @@
     "js-yaml": "^4.2.0",
     "neo4j-driver": "^6.1.0",
     "react": "^19.2.6",
-    "smol-toml": "^1.6.1",
+    "smol-toml": "^1.7.0",
     "socket.io": "^4.5.4",
     "zod": "^4.4.3"
   },
