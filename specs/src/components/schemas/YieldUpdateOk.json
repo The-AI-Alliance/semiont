@@ -1,10 +1,21 @@
 {
   "type": "object",
-  "description": "Success response after updating a yielded resource.",
+  "description": "Success reply after updating a yielded resource, matched to the originating command by correlationId.",
   "properties": {
-    "resourceId": {
-      "type": "string"
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation id echoed from the yield:update command so busRequest can match the reply."
+    },
+    "response": {
+      "type": "object",
+      "description": "The updated resource's identity.",
+      "properties": {
+        "resourceId": {
+          "type": "string"
+        }
+      },
+      "required": ["resourceId"]
     }
   },
-  "required": ["resourceId"]
+  "required": ["response"]
 }

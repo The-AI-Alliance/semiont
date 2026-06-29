@@ -21,8 +21,24 @@
  */
 
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import { firstValueFrom, merge, filter, map, take, timeout } from 'rxjs';
+import { busRequest, type BusRequestPrimitive, type EventMap } from '@semiont/core';
 import type { WorkerBus } from '@semiont/sdk';
+
+/**
+ * Adapt the string-typed `WorkerBus` to the `BusRequestPrimitive` that
+ * `busRequest` consumes, so job-claim rides the same request/reply path as the
+ * SDK instead of a hand-rolled copy of it.
+ */
+function workerBusAsPrimitive(bus: WorkerBus): BusRequestPrimitive {
+  return {
+    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<void> {
+      return bus.emit(channel as string, payload as Record<string, unknown>);
+    },
+    stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
+      return bus.on$<EventMap[K]>(channel as string);
+    },
+  };
+}
 
 export interface JobAssignment {
   jobId: string;
@@ -83,6 +99,7 @@ export interface JobClaimAdapter {
  */
 export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaimAdapter {
   const { bus, jobTypes } = options;
+  const requestBus = workerBusAsPrimitive(bus);
 
   const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
   const isProcessing$ = new BehaviorSubject<boolean>(false);
@@ -94,27 +111,16 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
 
   const claimJob = async (assignment: JobAssignment): Promise<ActiveJob | null> => {
     try {
-      const correlationId = crypto.randomUUID();
-      const result$ = merge(
-        bus.on$<Record<string, unknown>>('job:claimed').pipe(
-          filter((e) => e.correlationId === correlationId),
-          map((e) => ({ ok: true as const, response: e.response as Record<string, unknown> })),
-        ),
-        bus.on$<Record<string, unknown>>('job:claim-failed').pipe(
-          filter((e) => e.correlationId === correlationId),
-          map(() => ({ ok: false as const })),
-        ),
-      ).pipe(take(1), timeout(10_000));
-
-      const resultPromise = firstValueFrom(result$);
-      await bus.emit('job:claim', { correlationId, jobId: assignment.jobId });
-      const result = await resultPromise;
-
-      if (!result.ok) return null;
-      const job = result.response as {
+      // Same request/reply path as the SDK: busRequest mints the correlationId,
+      // matches the job:claimed / job:claim-failed reply by it, and returns the
+      // reply's `response` (the claimed job).
+      // `job:claimed`'s response is an untyped `Record<string, unknown>`, so narrow
+      // it to the claimed-job shape the worker reads.
+      const job = (await busRequest(requestBus, 'job:claim', { jobId: assignment.jobId }, 10_000)) as {
         params?: Record<string, unknown>;
         metadata?: { userId?: string };
       };
+
       return {
         jobId: assignment.jobId,
         type: assignment.type,
@@ -123,6 +129,9 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
         params: (job.params ?? {}) as Record<string, unknown>,
       };
     } catch {
+      // A claim-failed reply (job not pending / already claimed / queue error)
+      // or a timeout surfaces as a thrown BusRequestError; in every case the
+      // worker just moves on — matching the prior race() semantics (null).
       return null;
     }
   };

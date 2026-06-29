@@ -79,7 +79,6 @@ describe('GatheredContext — unified shape (P1)', () => {
 // live on the now-deleted per-kind annotation-response wrapper; the gather:annotation
 // channels now carry a bare GatheredContext, symmetric with the resource path.
 type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
-type GatherAnnotationFinished = components['schemas']['GatherAnnotationFinished'];
 
 describe('GatheredContext — annotation-wrapper collapse (P1b)', () => {
   it('annotation focus accepts targetResource? / targetContext?', () => {
@@ -106,8 +105,6 @@ describe('GatheredContext — annotation-wrapper collapse (P1b)', () => {
       metadata: {},
     };
     const complete: GatherAnnotationComplete = { correlationId: 'c', annotationId: 'a-1', response: ctx };
-    const finished: GatherAnnotationFinished = { correlationId: 'c', annotationId: 'a-1', response: ctx };
     expect(complete.response.focus.kind).toBe('annotation');
-    expect(finished.response.focus.kind).toBe('annotation');
   });
 });

@@ -95,12 +95,10 @@ export class BrowseNamespace implements IBrowseNamespace {
     private readonly content: IContentTransport,
   ) {
     this.resourceCache = createCache<ResourceId, ResourceDescriptor>(async (id) => {
-      const result = await busRequest<GetResourceResponse>(
+      const result = await busRequest(
         this.transport,
         'browse:resource-requested',
         { resourceId: id },
-        'browse:resource-result',
-        'browse:resource-failed',
       );
       return result.resource as ResourceDescriptor;
     });
@@ -108,7 +106,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.resourceListCache = createCache<string, ResourceDescriptor[]>(async (key) => {
       const filters = this.resourceListFilters.get(key) ?? {};
       const search = filters.search ? searchQuery(filters.search) : undefined;
-      const result = await busRequest<{ resources: ResourceDescriptor[] }>(
+      const result = await busRequest(
         this.transport,
         'browse:resources-requested',
         {
@@ -118,19 +116,17 @@ export class BrowseNamespace implements IBrowseNamespace {
           limit: filters.limit ?? 100,
           offset: 0,
         },
-        'browse:resources-result',
-        'browse:resources-failed',
       );
-      return result.resources;
+      // Brand the wire type (unbranded @id: string) to the SDK's ResourceDescriptor
+      // (@id: ResourceId) at the boundary — same as resourceCache above.
+      return result.resources as ResourceDescriptor[];
     });
 
     this.annotationListCache = createCache<ResourceId, AnnotationsListResponse>(async (resourceId) => {
-      return busRequest<AnnotationsListResponse>(
+      return busRequest(
         this.transport,
         'browse:annotations-requested',
         { resourceId },
-        'browse:annotations-result',
-        'browse:annotations-failed',
       );
     });
 
@@ -139,56 +135,46 @@ export class BrowseNamespace implements IBrowseNamespace {
       if (!resourceId) {
         throw new Error(`Cannot fetch annotation ${annotationId}: no resourceId known`);
       }
-      const result = await busRequest<{ annotation: Annotation }>(
+      const result = await busRequest(
         this.transport,
         'browse:annotation-requested',
         { resourceId, annotationId },
-        'browse:annotation-result',
-        'browse:annotation-failed',
       );
-      return result.annotation;
+      return result.annotation as Annotation;
     });
 
     this.entityTypesCache = createCache<string, string[]>(async () => {
-      const result = await busRequest<{ entityTypes: string[] }>(
+      const result = await busRequest(
         this.transport,
         'browse:entity-types-requested',
         {},
-        'browse:entity-types-result',
-        'browse:entity-types-failed',
       );
       return result.entityTypes;
     });
 
     this.tagSchemasCache = createCache<string, TagSchema[]>(async () => {
-      const result = await busRequest<{ tagSchemas: TagSchema[] }>(
+      const result = await busRequest(
         this.transport,
         'browse:tag-schemas-requested',
         {},
-        'browse:tag-schemas-result',
-        'browse:tag-schemas-failed',
       );
       return result.tagSchemas;
     });
 
     this.referencedByCache = createCache<ResourceId, ReferencedByEntry[]>(async (resourceId) => {
-      const result = await busRequest<{ referencedBy: ReferencedByEntry[] }>(
+      const result = await busRequest(
         this.transport,
         'browse:referenced-by-requested',
         { resourceId },
-        'browse:referenced-by-result',
-        'browse:referenced-by-failed',
       );
       return result.referencedBy;
     });
 
     this.resourceEventsCache = createCache<ResourceId, StoredEventResponse[]>(async (resourceId) => {
-      const result = await busRequest<{ events: StoredEventResponse[] }>(
+      const result = await busRequest(
         this.transport,
         'browse:events-requested',
         { resourceId },
-        'browse:events-result',
-        'browse:events-failed',
       );
       return result.events;
     });
@@ -312,23 +298,19 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   async resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]> {
-    const result = await busRequest<{ events: StoredEventResponse[] }>(
+    const result = await busRequest(
       this.transport,
       'browse:events-requested',
       { resourceId },
-      'browse:events-result',
-      'browse:events-failed',
     );
     return result.events;
   }
 
   async annotationHistory(resourceId: ResourceId, annotationId: AnnotationId): Promise<AnnotationHistoryResponse> {
-    return busRequest<AnnotationHistoryResponse>(
+    return busRequest(
       this.transport,
       'browse:annotation-history-requested',
       { resourceId, annotationId },
-      'browse:annotation-history-result',
-      'browse:annotation-history-failed',
     );
   }
 
@@ -348,12 +330,10 @@ export class BrowseNamespace implements IBrowseNamespace {
     dirPath?: string,
     sort?: 'name' | 'mtime' | 'annotationCount',
   ): Promise<components['schemas']['BrowseFilesResponse']> {
-    return busRequest<components['schemas']['BrowseFilesResponse']>(
+    return busRequest(
       this.transport,
       'browse:directory-requested',
       { path: dirPath ?? '.', sort: sort ?? 'name' },
-      'browse:directory-result',
-      'browse:directory-failed',
     );
   }
 
@@ -466,13 +446,12 @@ export class BrowseNamespace implements IBrowseNamespace {
   };
 
   /**
-   * Handler shared by `yield:create-ok` and `yield:update-ok`. Both
-   * report a resource mutation with the resourceId as a string (not
-   * yet branded), so we brand and apply the same effect as
-   * `onArchiveToggled`.
+   * Invalidate caches for a created/updated resource. `yield:create-ok` and
+   * `yield:update-ok` both drive this and carry the resourceId at the same path
+   * (`response.resourceId`) — both are correlation replies for busRequest.
    */
-  private onYieldResourceMutated = (event: { resourceId: string }): void => {
-    const rId = makeResourceId(event.resourceId);
+  private invalidateMutatedResource = (resourceId: string): void => {
+    const rId = makeResourceId(resourceId);
     this.invalidateResourceDetail(rId);
     this.invalidateResourceLists();
   };
@@ -513,7 +492,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
 
     this.on('mark:delete-ok', (event) => {
-      this.removeAnnotationDetail(makeAnnotationId(event.annotationId));
+      this.removeAnnotationDetail(makeAnnotationId(event.response.annotationId));
     });
 
     this.on('mark:added', (stored) => {
@@ -547,8 +526,8 @@ export class BrowseNamespace implements IBrowseNamespace {
       }
     });
 
-    this.on('yield:create-ok', this.onYieldResourceMutated);
-    this.on('yield:update-ok', this.onYieldResourceMutated);
+    this.on('yield:create-ok', (event) => this.invalidateMutatedResource(event.response.resourceId));
+    this.on('yield:update-ok', (event) => this.invalidateMutatedResource(event.response.resourceId));
 
     this.on('mark:archived', this.onArchiveToggled);
     this.on('mark:unarchived', this.onArchiveToggled);

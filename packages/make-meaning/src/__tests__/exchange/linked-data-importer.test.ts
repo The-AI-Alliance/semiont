@@ -9,7 +9,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Readable, Writable } from 'node:stream';
 import type { Logger, ResourceId, UserId, AnnotationId } from '@semiont/core';
-import type { components } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
 import { importLinkedData } from '../../exchange/linked-data-importer';
@@ -25,13 +24,6 @@ function bufferToReadable(buf: Buffer): Readable {
 
 const TEST_USER = 'did:web:localhost:users:test' as UserId;
 const TEST_RESOURCE = 'test-resource-id' as ResourceId;
-
-const STUB_RESOURCE: components['schemas']['ResourceDescriptor'] = {
-  '@context': 'https://schema.org',
-  '@id': 'http://test/resources/stub',
-  name: 'stub',
-  representations: [],
-};
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -174,8 +166,8 @@ describe('linked-data-importer', () => {
       expect(msg.format).toBe('text/markdown');
       expect(msg.storageUri).toBeDefined();
       defer(() => eventBus.get('yield:create-ok').next({
-        resourceId: TEST_RESOURCE,
-        resource: STUB_RESOURCE,
+        correlationId: msg.correlationId,
+        response: { resourceId: TEST_RESOURCE },
       }));
     });
 
@@ -198,10 +190,10 @@ describe('linked-data-importer', () => {
   });
 
   it('imports annotations for a resource', async () => {
-    eventBus.get('yield:create').subscribe(() => {
+    eventBus.get('yield:create').subscribe((msg) => {
       defer(() => eventBus.get('yield:create-ok').next({
-        resourceId: TEST_RESOURCE,
-        resource: STUB_RESOURCE,
+        correlationId: msg.correlationId,
+        response: { resourceId: TEST_RESOURCE },
       }));
     });
 
@@ -209,7 +201,7 @@ describe('linked-data-importer', () => {
     eventBus.get('mark:create').subscribe((msg) => {
       annotationIds.push(msg.annotation.id);
       defer(() => eventBus.get('mark:create-ok').next({
-        annotationId: msg.annotation.id as AnnotationId,
+        response: { annotationId: msg.annotation.id as AnnotationId },
       }));
     });
 
@@ -255,8 +247,8 @@ describe('linked-data-importer', () => {
     eventBus.get('yield:create').subscribe((msg) => {
       createdNames.push(msg.name);
       defer(() => eventBus.get('yield:create-ok').next({
-        resourceId: `res-${createdNames.length}` as ResourceId,
-        resource: STUB_RESOURCE,
+        correlationId: msg.correlationId,
+        response: { resourceId: `res-${createdNames.length}` as ResourceId },
       }));
     });
 
@@ -335,10 +327,10 @@ describe('linked-data-importer', () => {
   });
 
   it('throws when content blob is missing for a resource', async () => {
-    eventBus.get('yield:create').subscribe(() => {
+    eventBus.get('yield:create').subscribe((msg) => {
       defer(() => eventBus.get('yield:create-ok').next({
-        resourceId: TEST_RESOURCE,
-        resource: STUB_RESOURCE,
+        correlationId: msg.correlationId,
+        response: { resourceId: TEST_RESOURCE },
       }));
     });
 
@@ -364,8 +356,8 @@ describe('linked-data-importer', () => {
     eventBus.get('yield:create').subscribe((msg) => {
       expect(msg._userId).toBe(customUser);
       defer(() => eventBus.get('yield:create-ok').next({
-        resourceId: TEST_RESOURCE,
-        resource: STUB_RESOURCE,
+        correlationId: msg.correlationId,
+        response: { resourceId: TEST_RESOURCE },
       }));
     });
 
@@ -387,8 +379,8 @@ describe('linked-data-importer', () => {
     eventBus.get('yield:create').subscribe((msg) => {
       expect(msg.format).toBe('application/pdf');
       defer(() => eventBus.get('yield:create-ok').next({
-        resourceId: TEST_RESOURCE,
-        resource: STUB_RESOURCE,
+        correlationId: msg.correlationId,
+        response: { resourceId: TEST_RESOURCE },
       }));
     });
 

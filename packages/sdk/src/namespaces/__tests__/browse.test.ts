@@ -307,7 +307,7 @@ describe('BrowseNamespace', () => {
     it('mark:delete-ok → removes from detail cache', async () => {
       await firstDefined(browse.annotation(RID, AID));
       expect(emitSpy).toHaveBeenCalledTimes(1);
-      eventBus.get('mark:delete-ok').next({ annotationId: AID } as any);
+      eventBus.get('mark:delete-ok').next({ response: { annotationId: AID } });
       await firstDefined(browse.annotation(RID, AID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
@@ -369,7 +369,7 @@ describe('BrowseNamespace', () => {
   describe('EventBus → resource cache', () => {
     it('yield:create-ok → fetches new resource, invalidates lists', async () => {
       await firstDefined(browse.resources());
-      eventBus.get('yield:create-ok').next({ resourceId: RID, resource: mockResource('res-1') as any });
+      eventBus.get('yield:create-ok').next({ response: { resourceId: RID } });
       await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledWith('browse:resource-requested', expect.objectContaining({ resourceId: RID }));
     });

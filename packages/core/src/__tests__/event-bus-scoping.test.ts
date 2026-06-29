@@ -23,14 +23,14 @@ describe('EventBus scoping', () => {
     resource1.get('mark:create-ok').subscribe(e => events1.push(e));
     resource2.get('mark:create-ok').subscribe(e => events2.push(e));
 
-    resource1.get('mark:create-ok').next({ annotationId: 'ann-1' as never });
-    resource2.get('mark:create-ok').next({ annotationId: 'ann-2' as never });
+    resource1.get('mark:create-ok').next({ response: { annotationId:'ann-1' as never } });
+    resource2.get('mark:create-ok').next({ response: { annotationId:'ann-2' as never } });
 
     expect(events1).toHaveLength(1);
-    expect((events1[0] as { annotationId: string }).annotationId).toBe('ann-1');
+    expect((events1[0] as { response: { annotationId: string } }).response.annotationId).toBe('ann-1');
 
     expect(events2).toHaveLength(1);
-    expect((events2[0] as { annotationId: string }).annotationId).toBe('ann-2');
+    expect((events2[0] as { response: { annotationId: string } }).response.annotationId).toBe('ann-2');
   });
 
   it('isolates events between different scopes', () => {
@@ -44,10 +44,10 @@ describe('EventBus scoping', () => {
     resource2.get('mark:create-ok').subscribe(e => events2.push(e));
 
     // Emit to resource1 only
-    resource1.get('mark:create-ok').next({ annotationId: 'ann-1' as never });
+    resource1.get('mark:create-ok').next({ response: { annotationId:'ann-1' as never } });
 
     expect(events1).toHaveLength(1);
-    expect((events1[0] as { annotationId: string }).annotationId).toBe('ann-1');
+    expect((events1[0] as { response: { annotationId: string } }).response.annotationId).toBe('ann-1');
 
     expect(events2).toHaveLength(0); // Resource2 should not receive event
   });
@@ -63,14 +63,14 @@ describe('EventBus scoping', () => {
     subsystemScope.get('mark:create-ok').subscribe(e => subsystemEvents.push(e));
 
     // Events to different scopes are isolated
-    resourceScope.get('mark:create-ok').next({ annotationId: 'res-level' as never });
-    subsystemScope.get('mark:create-ok').next({ annotationId: 'subsystem-level' as never });
+    resourceScope.get('mark:create-ok').next({ response: { annotationId:'res-level' as never } });
+    subsystemScope.get('mark:create-ok').next({ response: { annotationId:'subsystem-level' as never } });
 
     expect(resourceEvents).toHaveLength(1);
-    expect((resourceEvents[0] as { annotationId: string }).annotationId).toBe('res-level');
+    expect((resourceEvents[0] as { response: { annotationId: string } }).response.annotationId).toBe('res-level');
 
     expect(subsystemEvents).toHaveLength(1);
-    expect((subsystemEvents[0] as { annotationId: string }).annotationId).toBe('subsystem-level');
+    expect((subsystemEvents[0] as { response: { annotationId: string } }).response.annotationId).toBe('subsystem-level');
   });
 
   it('shares same parent EventBus subjects map', () => {
@@ -89,11 +89,11 @@ describe('EventBus scoping', () => {
 
     const events: unknown[] = [];
     subject.subscribe(e => {
-      expect(e.annotationId).toBeDefined();
+      expect(e.response.annotationId).toBeDefined();
       events.push(e);
     });
 
-    subject.next({ annotationId: 'ann-1' as never });
+    subject.next({ response: { annotationId:'ann-1' as never } });
 
     expect(events).toHaveLength(1);
   });

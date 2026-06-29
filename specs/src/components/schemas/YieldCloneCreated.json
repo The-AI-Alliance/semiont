@@ -11,7 +11,8 @@
         "resourceId": {
           "type": "string"
         }
-      }
+      },
+      "required": ["resourceId"]
     }
   },
   "required": ["correlationId", "response"]

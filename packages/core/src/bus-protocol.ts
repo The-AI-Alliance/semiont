@@ -88,7 +88,7 @@ export type EventMap = {
   'yield:create-ok': components['schemas']['YieldCreateOk'];
   'yield:create-failed': components['schemas']['CommandError'];
   'yield:update-ok': components['schemas']['YieldUpdateOk'];
-  'yield:update-failed': components['schemas']['YieldUpdateOk'] & components['schemas']['CommandError'];
+  'yield:update-failed': components['schemas']['CommandError'];
   'yield:move-failed': { fromUri: string } & components['schemas']['CommandError'];
   'yield:clone-token-generated': { correlationId: string; response: components['schemas']['CloneResourceWithTokenResponse'] };
   'yield:clone-token-failed': { correlationId: string } & components['schemas']['CommandError'];
@@ -211,9 +211,6 @@ export type EventMap = {
 
   // SSE stream payloads
   'gather:annotation-progress': components['schemas']['GatherProgress'];
-  'gather:annotation-finished': components['schemas']['GatherAnnotationFinished'];
-  'gather:progress': components['schemas']['GatherProgress'];
-  'gather:finished': components['schemas']['GatherFinished'];
 
   // ========================================================================
   // BROWSE FLOW — knowledge base reads + UI navigation
@@ -446,7 +443,7 @@ export const CHANNEL_SCHEMAS = {
   'yield:create-ok':                  'YieldCreateOk',
   'yield:create-failed':              'CommandError',
   'yield:update-ok':                  'YieldUpdateOk',
-  'yield:update-failed':              null, // YieldUpdateOk & CommandError
+  'yield:update-failed':              null, // { correlationId } & CommandError
   'yield:move-failed':                null, // { fromUri } & CommandError
   'yield:clone-token-generated':      null, // { correlationId; response: CloneResourceWithTokenResponse }
   'yield:clone-token-failed':         null, // { correlationId } & CommandError
@@ -524,9 +521,6 @@ export const CHANNEL_SCHEMAS = {
   'gather:summary-result':            null, // { correlationId; response: Record<string, unknown> }
   'gather:summary-failed':            null, // { correlationId } & CommandError
   'gather:annotation-progress':       'GatherProgress',
-  'gather:annotation-finished':       'GatherAnnotationFinished',
-  'gather:progress':                  'GatherProgress',
-  'gather:finished':                  'GatherFinished',
 
   // ── BROWSE FLOW ─────────────────────────────────────────────────
   'browse:resource-requested':        'BrowseResourceRequest',

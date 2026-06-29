@@ -79,10 +79,7 @@ function fakeMarkRemoved(rId: ResourceId, annId: string): StoredEvent<EventOfTyp
 }
 
 function fakeYieldCreated(rId: string): EventMap['yield:create-ok'] {
-  return {
-    resourceId: rId,
-    resource: { '@context': 'http://schema.org', '@id': rId, name: 'Res', representations: [] },
-  } as unknown as EventMap['yield:create-ok'];
+  return { response: { resourceId: rId } };
 }
 
 function fakeMarkArchived(rId: ResourceId): StoredEvent<EventOfType<'mark:archived'>> {
@@ -211,7 +208,7 @@ describe('entity types — Layer 2 (BrowseNamespace + Cache)', () => {
     eventBus.get('mark:added').next(fakeMarkAdded(RID, 'ann-1'));
     eventBus.get('mark:removed').next(fakeMarkRemoved(RID, 'ann-1'));
     eventBus.get('yield:create-ok').next(fakeYieldCreated('res-1'));
-    eventBus.get('yield:update-ok').next(fakeYieldCreated('res-1'));
+    eventBus.get('yield:update-ok').next({ response: { resourceId: 'res-1' } });
     eventBus.get('mark:archived').next(fakeMarkArchived(RID));
     eventBus.get('mark:unarchived').next(fakeMarkUnarchived(RID));
 
