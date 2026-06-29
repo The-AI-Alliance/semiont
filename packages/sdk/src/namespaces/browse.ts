@@ -99,8 +99,6 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:resource-requested',
         { resourceId: id },
-        'browse:resource-result',
-        'browse:resource-failed',
       );
       return result.resource as ResourceDescriptor;
     });
@@ -118,8 +116,6 @@ export class BrowseNamespace implements IBrowseNamespace {
           limit: filters.limit ?? 100,
           offset: 0,
         },
-        'browse:resources-result',
-        'browse:resources-failed',
       );
       return result.resources;
     });
@@ -129,8 +125,6 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:annotations-requested',
         { resourceId },
-        'browse:annotations-result',
-        'browse:annotations-failed',
       );
     });
 
@@ -143,8 +137,6 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:annotation-requested',
         { resourceId, annotationId },
-        'browse:annotation-result',
-        'browse:annotation-failed',
       );
       return result.annotation;
     });
@@ -154,8 +146,6 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:entity-types-requested',
         {},
-        'browse:entity-types-result',
-        'browse:entity-types-failed',
       );
       return result.entityTypes;
     });
@@ -165,8 +155,6 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:tag-schemas-requested',
         {},
-        'browse:tag-schemas-result',
-        'browse:tag-schemas-failed',
       );
       return result.tagSchemas;
     });
@@ -176,8 +164,6 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:referenced-by-requested',
         { resourceId },
-        'browse:referenced-by-result',
-        'browse:referenced-by-failed',
       );
       return result.referencedBy;
     });
@@ -187,8 +173,6 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:events-requested',
         { resourceId },
-        'browse:events-result',
-        'browse:events-failed',
       );
       return result.events;
     });
@@ -316,8 +300,6 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.transport,
       'browse:events-requested',
       { resourceId },
-      'browse:events-result',
-      'browse:events-failed',
     );
     return result.events;
   }
@@ -327,8 +309,6 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.transport,
       'browse:annotation-history-requested',
       { resourceId, annotationId },
-      'browse:annotation-history-result',
-      'browse:annotation-history-failed',
     );
   }
 
@@ -352,8 +332,6 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.transport,
       'browse:directory-requested',
       { path: dirPath ?? '.', sort: sort ?? 'name' },
-      'browse:directory-result',
-      'browse:directory-failed',
     );
   }
 

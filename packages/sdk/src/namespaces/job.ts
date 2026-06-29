@@ -41,8 +41,6 @@ export class JobNamespace implements IJobNamespace {
       this.transport,
       'job:status-requested',
       { jobId },
-      'job:status-result',
-      'job:status-failed',
     );
   }
 
@@ -75,8 +73,6 @@ export class JobNamespace implements IJobNamespace {
       this.transport,
       'job:cancel-requested',
       { jobType },
-      'job:cancel-ok',
-      'job:cancel-failed',
     );
     return cancelled;
   }

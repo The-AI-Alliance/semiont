@@ -149,8 +149,6 @@ async function replayEntityTypeAdded(
     asBusRequestPrimitive(eventBus),
     'frame:add-entity-type',
     { tag: event.payload.entityType, _userId: event.userId },
-    'frame:entity-type-add-ok',
-    'frame:entity-type-add-failed',
     REPLAY_TIMEOUT_MS,
   );
   logger?.debug('Replayed entitytype.added', { entityType: event.payload.entityType });

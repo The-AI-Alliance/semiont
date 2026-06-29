@@ -56,8 +56,6 @@ export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: Event
       asBusRequestPrimitive(eventBus),
       'frame:add-entity-type',
       { tag: entityType, _userId: SYSTEM_USER_ID },
-      'frame:entity-type-add-ok',
-      'frame:entity-type-add-failed',
       10_000,
     );
   }

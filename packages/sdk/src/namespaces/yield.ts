@@ -182,7 +182,7 @@ export class YieldNamespace implements IYieldNamespace {
           pollInterval = setInterval(() => {
             if (done) return;
             busRequest<{ status: string; result?: Record<string, unknown>; error?: string; jobType?: string }>(
-              this.transport, 'job:status-requested', { jobId: jid }, 'job:status-result', 'job:status-failed',
+              this.transport, 'job:status-requested', { jobId: jid },
             ).then((status) => {
                 if (done) return;
                 if (status.status === 'complete') {
@@ -251,8 +251,6 @@ export class YieldNamespace implements IYieldNamespace {
           resourceId,
           params,
         },
-        'job:created',
-        'job:create-failed',
       ).then(({ jobId }) => {
         if (jobId && !done) {
           activeJobId = jobId;
@@ -282,8 +280,6 @@ export class YieldNamespace implements IYieldNamespace {
       this.transport,
       'yield:clone-token-requested',
       { resourceId },
-      'yield:clone-token-generated',
-      'yield:clone-token-failed',
     );
   }
 
@@ -292,8 +288,6 @@ export class YieldNamespace implements IYieldNamespace {
       this.transport,
       'yield:clone-resource-requested',
       { token },
-      'yield:clone-resource-result',
-      'yield:clone-resource-failed',
     );
     return result.sourceResource as ResourceDescriptor;
   }
@@ -303,8 +297,6 @@ export class YieldNamespace implements IYieldNamespace {
       this.transport,
       'yield:clone-create',
       options,
-      'yield:clone-created',
-      'yield:clone-create-failed',
     );
     return { resourceId: toResourceId(result.resourceId) };
   }

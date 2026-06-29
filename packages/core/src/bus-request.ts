@@ -1,8 +1,8 @@
 import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxjs';
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
 import { SemiontError } from './errors';
-import type { EventMap, EmittableChannel } from './bus-protocol';
-import type { BridgedChannel } from './bridged-channels';
+import type { EventMap } from './bus-protocol';
+import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 
 export type BusRequestErrorCode =
   | 'bus.timeout'
@@ -33,27 +33,31 @@ export interface BusRequestPrimitive {
 }
 
 /**
- * Request/reply over the bus. The channel params are typed to the right subsets
- * of `EventName` (see the family note in `@semiont/core` bus-protocol.ts) so a
- * mistyped channel is a compile error, not a silent 30 s timeout:
+ * Request/reply over the bus, keyed by the operation's request channel.
  *
- * - `emitChannel` is an `EmittableChannel` — the request carries a payload the
- *   `/bus/emit` gateway validates; this catches a typo'd request channel.
- * - `resultChannel`/`failureChannel` are `BridgedChannel` — a reply channel MUST
- *   be in `BRIDGED_CHANNELS` or the transport never subscribes to it and the
- *   request hangs (see .plans/bugs/gather-resource-complete-not-bridged.md — the
- *   `gather:resource-*` pair shipped unbridged with no compile/runtime signal).
+ * The `operation` is a `BusOperationKey` (a request channel declared in
+ * `BUS_OPERATIONS`); the matching `result`/`failure` reply channels are looked
+ * up from the registry, so a caller cannot pass a mismatched or unbridged reply
+ * pair — the recurring unbridged-reply bug class is unrepresentable. Every
+ * registry reply derives into `BRIDGED_CHANNELS` (see bridged-channels.ts), so
+ * the transport always subscribes to it (cf.
+ * .plans/bugs/gather-resource-complete-not-bridged.md, where the `gather:resource-*`
+ * pair shipped unbridged with no compile/runtime signal).
+ *
+ * `TResult` stays explicit: reply payload shapes are not uniform across channels
+ * (some carry `{ correlationId, response }`, some put data at top level), so it
+ * cannot be safely inferred from the result channel. `busRequest` reads
+ * `e.response`; the caller annotates the expected `response` type.
  */
 export async function busRequest<TResult>(
   bus: BusRequestPrimitive,
-  emitChannel: EmittableChannel,
+  operation: BusOperationKey,
   payload: Record<string, unknown>,
-  resultChannel: BridgedChannel,
-  failureChannel: BridgedChannel,
   timeoutMs = 30_000,
 ): Promise<TResult> {
   const correlationId = crypto.randomUUID();
   const fullPayload = { ...payload, correlationId };
+  const { result: resultChannel, failure: failureChannel } = BUS_OPERATIONS[operation];
 
   const result$ = merge(
     (bus.stream(resultChannel as keyof EventMap) as Observable<Record<string, unknown>>).pipe(
@@ -81,7 +85,7 @@ export async function busRequest<TResult>(
             new BusRequestError(
               `Bus request timed out after ${timeoutMs}ms on ${resultChannel}`,
               'bus.timeout',
-              { channel: emitChannel, resultChannel, correlationId, timeoutMs },
+              { channel: operation, resultChannel, correlationId, timeoutMs },
             ),
         );
       }
@@ -99,7 +103,7 @@ export async function busRequest<TResult>(
       error: new BusRequestError(
         `Bus closed before a reply on ${resultChannel}`,
         'bus.closed',
-        { channel: emitChannel, resultChannel, correlationId },
+        { channel: operation, resultChannel, correlationId },
       ),
     }),
   );
@@ -112,7 +116,7 @@ export async function busRequest<TResult>(
   // naturally, and `result$`'s `defaultIfEmpty` guarantees `resultPromise`
   // *resolves* (never rejects) when the bus is disposed before a reply — so it
   // cannot leak an unhandled rejection regardless of whether anyone awaits it.
-  await bus.emit(emitChannel as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
+  await bus.emit(operation as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
 
   const result = await resultPromise;
   if (!result.ok) {

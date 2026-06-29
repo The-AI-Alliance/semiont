@@ -58,15 +58,17 @@ function makeBus(resultChannel: string, failureChannel: string): MockBus {
 }
 
 describe('busRequest', () => {
-  // Real bridged reply channels — `busRequest` now constrains result/failure to
-  // `BridgedChannel`, so the fixtures must use members of `BRIDGED_CHANNELS`.
+  // A real registered operation: `busRequest` now takes the operation key (the
+  // request channel) and looks up result/failure from `BUS_OPERATIONS`. The mock
+  // bus is keyed on the derived channel names, so the fixtures keep them as
+  // constants for the stream wiring.
+  const EMIT = 'gather:resource-requested';
   const RESULT = 'gather:resource-complete';
   const FAILURE = 'gather:resource-failed';
-  const EMIT = 'gather:resource-requested';
 
   it('emits the request with a generated correlationId and resolves on the matching result', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest<{ value: number }>(bus, EMIT, { foo: 'bar' }, RESULT, FAILURE);
+    const promise = busRequest<{ value: number }>(bus, EMIT, { foo: 'bar' });
 
     // Let the synchronous emit run.
     await Promise.resolve();
@@ -83,7 +85,7 @@ describe('busRequest', () => {
 
   it('ignores result events with a non-matching correlationId', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest<{ value: number }>(bus, EMIT, {}, RESULT, FAILURE);
+    const promise = busRequest<{ value: number }>(bus, EMIT, {});
     await Promise.resolve();
     const cid = bus.emitPayload!.correlationId as string;
 
@@ -96,7 +98,7 @@ describe('busRequest', () => {
 
   it('rejects with BusRequestError(bus.rejected) when a failure event arrives', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const captured = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE).catch((e) => e);
+    const captured = busRequest<unknown>(bus, EMIT, {}).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitPayload!.correlationId as string;
 
@@ -113,7 +115,7 @@ describe('busRequest', () => {
 
   it('attaches structured details on bus.rejected', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const captured = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE).catch((e) => e);
+    const captured = busRequest<unknown>(bus, EMIT, {}).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitPayload!.correlationId as string;
 
@@ -131,7 +133,7 @@ describe('busRequest', () => {
 
   it('falls back to a default message when the failure event has no `message`', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const captured = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE).catch((e) => e);
+    const captured = busRequest<unknown>(bus, EMIT, {}).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitPayload!.correlationId as string;
 
@@ -151,7 +153,7 @@ describe('busRequest', () => {
       // Attach the catch handler synchronously so the rejection is never
       // unhandled — chained `await expect(...).rejects` triggers an
       // unhandled-rejection window that vitest reports as a failure.
-      const captured = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE, 100).catch((e) => e);
+      const captured = busRequest<unknown>(bus, EMIT, {}, 100).catch((e) => e);
 
       await vi.advanceTimersByTimeAsync(101);
 
@@ -170,7 +172,7 @@ describe('busRequest', () => {
     vi.useFakeTimers();
     try {
       const bus = makeBus(RESULT, FAILURE);
-      const captured = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE, 50).catch((e) => e);
+      const captured = busRequest<unknown>(bus, EMIT, {}, 50).catch((e) => e);
       await Promise.resolve();
       const cid = bus.emitPayload!.correlationId as string;
 
@@ -194,7 +196,7 @@ describe('busRequest', () => {
 
   it('uses the first matching result and ignores any after', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest<{ value: number }>(bus, EMIT, {}, RESULT, FAILURE);
+    const promise = busRequest<{ value: number }>(bus, EMIT, {});
     await Promise.resolve();
     const cid = bus.emitPayload!.correlationId as string;
 
@@ -227,7 +229,7 @@ describe('busRequest', () => {
       bus.emit = vi.fn(async () => { throw new Error('emit failed'); }) as BusRequestPrimitive['emit'];
 
       await expect(
-        busRequest(bus, EMIT, {}, RESULT, FAILURE),
+        busRequest(bus, EMIT, {}),
       ).rejects.toThrow('emit failed');
 
       // Now complete the result stream, as `semiont.dispose()` would —
@@ -261,7 +263,7 @@ describe('busRequest', () => {
       bus.emit = vi.fn(() => new Promise<void>(() => {})) as BusRequestPrimitive['emit'];
 
       // Fire-and-forget: do NOT await the returned promise.
-      void busRequest(bus, EMIT, {}, RESULT, FAILURE);
+      void busRequest(bus, EMIT, {});
       await Promise.resolve();
 
       // Dispose: complete the underlying subjects, as `semiont.dispose()` does.
@@ -277,7 +279,7 @@ describe('busRequest', () => {
 
   it('rejects an awaited request with BusRequestError(bus.closed) when the bus is disposed before a reply', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest(bus, EMIT, {}, RESULT, FAILURE);
+    const promise = busRequest(bus, EMIT, {});
     await Promise.resolve(); // let emit resolve; busRequest now awaits the reply
 
     // Dispose before any reply arrives.

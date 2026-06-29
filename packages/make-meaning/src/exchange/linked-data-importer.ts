@@ -224,8 +224,6 @@ async function addEntityType(
     asBusRequestPrimitive(eventBus),
     'frame:add-entity-type',
     { tag: entityType, _userId: userId },
-    'frame:entity-type-add-ok',
-    'frame:entity-type-add-failed',
     IMPORT_TIMEOUT_MS,
   );
   logger?.debug('Added entity type', { entityType });

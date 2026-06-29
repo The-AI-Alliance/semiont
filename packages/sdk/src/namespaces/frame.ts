@@ -34,8 +34,6 @@ export class FrameNamespace implements IFrameNamespace {
       this.transport,
       'frame:add-entity-type',
       { tag: type },
-      'frame:entity-type-add-ok',
-      'frame:entity-type-add-failed',
     );
   }
 
@@ -45,8 +43,6 @@ export class FrameNamespace implements IFrameNamespace {
         this.transport,
         'frame:add-entity-type',
         { tag },
-        'frame:entity-type-add-ok',
-        'frame:entity-type-add-failed',
       );
     }
   }
@@ -56,8 +52,6 @@ export class FrameNamespace implements IFrameNamespace {
       this.transport,
       'frame:add-tag-schema',
       { schema },
-      'frame:tag-schema-add-ok',
-      'frame:tag-schema-add-failed',
     );
   }
 }

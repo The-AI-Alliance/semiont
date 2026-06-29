@@ -104,8 +104,6 @@ export class GatherNamespace implements IGatherNamespace {
           ...(options?.excludeEntityTypes?.length ? { excludeEntityTypes: options.excludeEntityTypes } : {}),
         },
       },
-      'gather:resource-complete',
-      'gather:resource-failed',
     );
   }
 }

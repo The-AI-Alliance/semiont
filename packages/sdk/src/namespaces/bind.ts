@@ -20,8 +20,6 @@ export class BindNamespace implements IBindNamespace {
       this.transport,
       'bind:update-body',
       { annotationId, resourceId, operations },
-      'bind:body-updated',
-      'bind:body-update-failed',
     );
   }
 

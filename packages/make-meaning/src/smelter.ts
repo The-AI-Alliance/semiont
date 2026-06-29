@@ -336,8 +336,6 @@ export class Smelter {
       this.bus,
       'browse:resource-requested',
       { resourceId },
-      'browse:resource-result',
-      'browse:resource-failed',
     );
     return getResourceEntityTypes(resource);
   }
@@ -570,8 +568,6 @@ export class Smelter {
           this.bus,
           'browse:annotations-requested',
           { resourceId: rid },
-          'browse:annotations-result',
-          'browse:annotations-failed',
         );
         for (const annotation of annotations) {
           const exactText = getExactText(getTargetSelector(annotation.target));
@@ -637,8 +633,6 @@ export class Smelter {
         this.bus,
         'browse:resources-requested',
         { archived: false, offset: all.length, limit: Smelter.RECONCILE_PAGE_SIZE },
-        'browse:resources-result',
-        'browse:resources-failed',
       );
       all.push(...page.resources);
       if (page.resources.length === 0 || all.length >= page.total) return all;

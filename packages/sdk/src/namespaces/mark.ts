@@ -36,8 +36,6 @@ export class MarkNamespace implements IMarkNamespace {
       this.transport,
       'mark:create-request',
       { resourceId, request: input },
-      'mark:create-ok',
-      'mark:create-failed',
     );
     return { annotationId: toAnnotationId(result.annotationId) };
   }
@@ -50,8 +48,6 @@ export class MarkNamespace implements IMarkNamespace {
       this.transport,
       'mark:delete',
       { annotationId, resourceId },
-      'mark:delete-ok',
-      'mark:delete-failed',
     );
   }
 
@@ -63,8 +59,6 @@ export class MarkNamespace implements IMarkNamespace {
       this.transport,
       'mark:archive',
       { resourceId },
-      'mark:archive-ok',
-      'mark:archive-failed',
     );
   }
 
@@ -73,8 +67,6 @@ export class MarkNamespace implements IMarkNamespace {
       this.transport,
       'mark:unarchive',
       { resourceId },
-      'mark:unarchive-ok',
-      'mark:unarchive-failed',
     );
   }
 
@@ -109,7 +101,7 @@ export class MarkNamespace implements IMarkNamespace {
           pollInterval = setInterval(() => {
             if (done) return;
             busRequest<{ status: string; result?: unknown; error?: string; jobType?: string }>(
-              this.transport, 'job:status-requested', { jobId }, 'job:status-result', 'job:status-failed',
+              this.transport, 'job:status-requested', { jobId },
             ).then((status) => {
                 if (done) return;
                 if (status.status === 'complete') {
@@ -281,8 +273,6 @@ export class MarkNamespace implements IMarkNamespace {
       this.transport,
       'job:create',
       { jobType, resourceId, params },
-      'job:created',
-      'job:create-failed',
     );
   }
 }
