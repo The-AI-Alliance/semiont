@@ -27,7 +27,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.104.1",
+    "@anthropic-ai/sdk": "^0.105.0",
     "@semiont/core": "*",
     "@semiont/observability": "*"
   },
