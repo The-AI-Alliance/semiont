@@ -599,7 +599,7 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
       expect(emitSpy).toHaveBeenCalledTimes(1);
 
       // mark:delete-ok → remove path.
-      const deleteOkPayload: components['schemas']['MarkDeleteOk'] = { annotationId: AID };
+      const deleteOkPayload: components['schemas']['MarkDeleteOk'] = { response: { annotationId: AID } };
       eventBus.get('mark:delete-ok').next(deleteOkPayload);
       await flush();
 

@@ -307,7 +307,7 @@ describe('BrowseNamespace', () => {
     it('mark:delete-ok → removes from detail cache', async () => {
       await firstDefined(browse.annotation(RID, AID));
       expect(emitSpy).toHaveBeenCalledTimes(1);
-      eventBus.get('mark:delete-ok').next({ annotationId: AID } as any);
+      eventBus.get('mark:delete-ok').next({ response: { annotationId: AID } });
       await firstDefined(browse.annotation(RID, AID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });

@@ -69,7 +69,7 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, parentLogg
     const pending = inflight.get(cid);
     if (!pending) return;
     inflight.delete(cid);
-    (eventBus.get('mark:create-ok') as { next(v: unknown): void }).next({
+    eventBus.get('mark:create-ok').next({
       correlationId: cid,
       response: { annotationId: pending.annotationId },
     });

@@ -160,7 +160,7 @@ describe('replay', () => {
 
     it('replays an annotation.added event', async () => {
       eventBus.get('mark:create').subscribe(() => {
-        defer(() => eventBus.get('mark:create-ok').next({ annotationId: TEST_ANNOTATION }));
+        defer(() => eventBus.get('mark:create-ok').next({ response: { annotationId: TEST_ANNOTATION } }));
       });
 
       const jsonl = annotationAddedEvent('ann-1');
@@ -195,7 +195,7 @@ describe('replay', () => {
 
     it('replays an annotation.removed event', async () => {
       eventBus.get('mark:delete').subscribe(() => {
-        defer(() => eventBus.get('mark:delete-ok').next({ annotationId: TEST_ANNOTATION }));
+        defer(() => eventBus.get('mark:delete-ok').next({ response: { annotationId: TEST_ANNOTATION } }));
       });
 
       const jsonl = makeStoredEvent({
@@ -343,7 +343,7 @@ describe('replay', () => {
       });
 
       eventBus.get('mark:create').subscribe(() => {
-        defer(() => eventBus.get('mark:create-ok').next({ annotationId: TEST_ANNOTATION }));
+        defer(() => eventBus.get('mark:create-ok').next({ response: { annotationId: TEST_ANNOTATION } }));
       });
 
       const lines = [

@@ -490,7 +490,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
 
     this.on('mark:delete-ok', (event) => {
-      this.removeAnnotationDetail(makeAnnotationId(event.annotationId));
+      this.removeAnnotationDetail(makeAnnotationId(event.response.annotationId));
     });
 
     this.on('mark:added', (stored) => {

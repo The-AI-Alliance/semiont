@@ -294,7 +294,7 @@ export class Stower {
         version: 1,
         payload: { annotationId: annotationId(event.annotationId) },
       });
-      this.eventBus.get('mark:delete-ok').next({ correlationId: event.correlationId, annotationId: event.annotationId });
+      this.eventBus.get('mark:delete-ok').next({ correlationId: event.correlationId, response: { annotationId: event.annotationId } });
     } catch (error) {
       this.logger.error('Failed to delete annotation', { error: errField(error) });
       this.eventBus.get('mark:delete-failed').next({

@@ -106,7 +106,7 @@ describe('createMarkStateUnit', () => {
     stateUnit.pendingAnnotation$.subscribe(v => pend.push(v));
 
     tc.bus.get('mark:requested').next({ selector: {}, motivation: 'highlighting' } as any);
-    tc.bus.get('mark:create-ok').next({ annotationId: 'ann-1' });
+    tc.bus.get('mark:create-ok').next({ response: { annotationId: 'ann-1' } });
     expect(pend[pend.length - 1]).toBeNull();
     stateUnit.dispose();
   });

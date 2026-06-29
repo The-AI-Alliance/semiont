@@ -65,10 +65,7 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus, parentLogger: 
     if (!cid || !inflight.has(cid)) return;
     inflight.delete(cid);
     const annId = event.payload?.annotationId;
-    (eventBus.get('bind:body-updated') as { next(v: unknown): void }).next({
-      correlationId: cid,
-      annotationId: annId,
-    });
+    eventBus.get('bind:body-updated').next({ correlationId: cid });
     logger.info('Bind body-updated confirmed', { annotationId: annId, correlationId: cid });
   });
 

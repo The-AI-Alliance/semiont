@@ -201,7 +201,7 @@ describe('linked-data-importer', () => {
     eventBus.get('mark:create').subscribe((msg) => {
       annotationIds.push(msg.annotation.id);
       defer(() => eventBus.get('mark:create-ok').next({
-        annotationId: msg.annotation.id as AnnotationId,
+        response: { annotationId: msg.annotation.id as AnnotationId },
       }));
     });
 
