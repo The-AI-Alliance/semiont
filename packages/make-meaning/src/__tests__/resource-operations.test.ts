@@ -278,4 +278,51 @@ describe('ResourceOperations', () => {
       }
     });
   });
+
+  describe('archive / unarchive (confirmed writes)', () => {
+    let resId: string;
+
+    beforeAll(async () => {
+      resId = await create(
+        { name: 'Archivable', content: Buffer.from('archivable content', 'utf-8'), format: 'text/plain' },
+        userId('user-1'),
+      );
+    });
+
+    /** Emit a command and resolve with the first correlation-matched ok/failed reply. */
+    function roundTrip(
+      command: 'mark:archive' | 'mark:unarchive',
+      payload: Record<string, unknown>,
+      okChannel: 'mark:archive-ok' | 'mark:unarchive-ok',
+      failChannel: 'mark:archive-failed' | 'mark:unarchive-failed',
+    ): Promise<{ ok: boolean; message?: string }> {
+      return new Promise((resolve) => {
+        const correlationId = `cid-${++fileCounter}`;
+        const okSub = eventBus.get(okChannel).subscribe((e) => {
+          if (e.correlationId === correlationId) { okSub.unsubscribe(); failSub.unsubscribe(); resolve({ ok: true }); }
+        });
+        const failSub = eventBus.get(failChannel).subscribe((e) => {
+          if (e.correlationId === correlationId) { okSub.unsubscribe(); failSub.unsubscribe(); resolve({ ok: false, message: e.message }); }
+        });
+        eventBus.get(command).next({ ...payload, correlationId, _userId: 'user-1' } as never);
+      });
+    }
+
+    it('archive resolves on mark:archive-ok', async () => {
+      const result = await roundTrip('mark:archive', { resourceId: resId }, 'mark:archive-ok', 'mark:archive-failed');
+      expect(result).toEqual({ ok: true });
+    });
+
+    it('unarchive resolves on mark:unarchive-ok when there is no storageUri to verify', async () => {
+      const result = await roundTrip('mark:unarchive', { resourceId: resId }, 'mark:unarchive-ok', 'mark:unarchive-failed');
+      expect(result).toEqual({ ok: true });
+    });
+
+    it('unarchive of a missing file emits mark:unarchive-failed (was a silent no-op)', async () => {
+      const missing = deriveStorageUri('never-written-file', 'text/plain');
+      const result = await roundTrip('mark:unarchive', { resourceId: resId, storageUri: missing }, 'mark:unarchive-ok', 'mark:unarchive-failed');
+      expect(result.ok).toBe(false);
+      expect(result.message).toMatch(/file not found/i);
+    });
+  });
 });

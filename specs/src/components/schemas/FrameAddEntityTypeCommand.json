@@ -2,6 +2,10 @@
   "type": "object",
   "description": "Bus command to add a new entity type to the KB's vocabulary. Carried on the `frame:add-entity-type` channel — Frame is the schema-layer flow that owns vocabulary writes.",
   "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back. Absent for in-process (bootstrap/replay/import) emits, which race the frame:entity-type-added domain event instead."
+    },
     "tag": {
       "type": "string"
     },

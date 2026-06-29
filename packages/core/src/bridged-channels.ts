@@ -1,3 +1,5 @@
+import type { EventName } from './bus-protocol';
+
 /**
  * BRIDGED_CHANNELS
  *
@@ -27,6 +29,8 @@ export const BRIDGED_CHANNELS = [
   'browse:annotation-context-result', 'browse:annotation-context-failed',
   'mark:delete-ok', 'mark:delete-failed',
   'mark:create-ok', 'mark:create-failed',
+  'mark:archive-ok', 'mark:archive-failed',
+  'mark:unarchive-ok', 'mark:unarchive-failed',
   'match:search-results', 'match:search-failed',
   'gather:complete', 'gather:failed',
   'gather:resource-complete', 'gather:resource-failed',
@@ -44,9 +48,18 @@ export const BRIDGED_CHANNELS = [
   'yield:clone-created', 'yield:clone-create-failed',
   'frame:entity-type-added',
   'frame:tag-schema-added',
+  // Confirmed-write replies for the SDK's frame writes (busRequest). The
+  // success domain events above stay bridged for viewers; these route the
+  // correlation-keyed ack/failure back so a remote add-failure is never silent.
+  'frame:entity-type-add-ok', 'frame:entity-type-add-failed',
+  'frame:tag-schema-add-ok', 'frame:tag-schema-add-failed',
   'beckon:focus', 'beckon:sparkle',
   'bus:resume-gap',
-] as const;
+  // `as const satisfies readonly EventName[]` — parity with PERSISTED_EVENT_TYPES,
+  // RESOURCE_BROADCAST_TYPES, and CHANNEL_SCHEMAS: a typo'd or stale bridged
+  // name (one that isn't a real `keyof EventMap`) is a compile error here, not
+  // a silent miss hidden by the `as keyof EventMap` casts at the call sites.
+] as const satisfies readonly EventName[];
 
 /**
  * The SUBSCRIBE-side subset of `EventName` — the channels a client can receive

@@ -56,7 +56,7 @@ type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 
 // ── Channel constants (mirror client.ts) ────────────────────────────────
 
-const RESOURCE_SCOPED_CHANNELS = [
+export const RESOURCE_SCOPED_CHANNELS = [
   // Exclude channels already globally bridged: a channel in both lists is
   // forwarded twice on a scoped connection (global copy → ephemeral id, scoped
   // copy → persisted id) with different SSE ids, escaping the client dedup
