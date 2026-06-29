@@ -441,8 +441,9 @@ returns job:created { jobId }
     ↓
 Worker (separate process, subscribed to job:queued) claims via job:claim
     ↓
-Worker runs detection, emits mark:progress / mark:assist-finished /
-mark:assist-failed via /bus/emit (scoped to resourceId)
+Worker runs detection, emits the unified job lifecycle —
+job:report-progress / job:complete / job:fail — via /bus/emit
+(filtered by jobId; the SDK matches on the jobId from job:created)
     ↓
 Worker also emits mark:create per annotation; Stower persists and
 EventStore publishes enriched mark:added events
@@ -453,15 +454,15 @@ BrowseNamespace invalidates caches; UI updates in real-time (<50ms)
 
 Commands and result channels:
 
-| Trigger | Request | Success | Failure |
+| Trigger | Request | Progress / Success | Failure |
 |---|---|---|---|
-| `client.mark.assist(..., 'highlighting', ...)` | `job:create` (jobType: `highlight-annotation`) | `mark:assist-finished` | `mark:assist-failed` |
-| `client.mark.assist(..., 'assessing', ...)` | `job:create` (jobType: `assessment-annotation`) | `mark:assist-finished` | `mark:assist-failed` |
-| `client.mark.assist(..., 'commenting', ...)` | `job:create` (jobType: `comment-annotation`) | `mark:assist-finished` | `mark:assist-failed` |
-| `client.mark.assist(..., 'tagging', ...)` | `job:create` (jobType: `tag-annotation`) | `mark:assist-finished` | `mark:assist-failed` |
-| `client.mark.assist(..., 'linking', ...)` | `job:create` (jobType: `reference-annotation`) | `mark:assist-finished` | `mark:assist-failed` |
+| `client.mark.assist(..., 'highlighting', ...)` | `job:create` (jobType: `highlight-annotation`) | `job:report-progress` / `job:complete` | `job:fail` |
+| `client.mark.assist(..., 'assessing', ...)` | `job:create` (jobType: `assessment-annotation`) | `job:report-progress` / `job:complete` | `job:fail` |
+| `client.mark.assist(..., 'commenting', ...)` | `job:create` (jobType: `comment-annotation`) | `job:report-progress` / `job:complete` | `job:fail` |
+| `client.mark.assist(..., 'tagging', ...)` | `job:create` (jobType: `tag-annotation`) | `job:report-progress` / `job:complete` | `job:fail` |
+| `client.mark.assist(..., 'linking', ...)` | `job:create` (jobType: `reference-annotation`) | `job:report-progress` / `job:complete` | `job:fail` |
 
-All progress events flow on `mark:progress` scoped to the resource.
+There is no `mark:`-specific assist channel: AI-assisted detection runs as a job, so progress and terminal events flow on the unified `job:*` lifecycle, filtered by `jobId`.
 
 ### Backend Workers (Job Processing)
 
@@ -500,16 +501,17 @@ All annotation jobs run through the same processor pattern in [@semiont/jobs](..
 3. **Create Annotations**: For each entity → create W3C annotation with entity type tags → emit `mark:create` on EventBus
 4. **Progress Updates**: Emit progress after each entity type completes
 
-**Event Emission**: All workers emit `job:start`, `job:progress`, `job:complete`, or `job:failed` events to the EventBus. The Stower subscribes to these events and persists them to the Event Store. Workers receive dependencies (JobQueue, EventBus, EnvironmentConfig) via constructor parameters, not singletons.
+**Event Emission**: All workers emit the unified `job:start`, `job:report-progress`, `job:complete`, or `job:fail` events to the EventBus. The Stower subscribes to these events and persists them to the Event Store. Workers receive dependencies (JobQueue, EventBus, EnvironmentConfig) via constructor parameters, not singletons.
 
 ### Real-Time Updates
 
 Detection events flow through the bus gateway's single SSE connection,
 enabling real-time UI updates for every connected participant:
 
-**Progress Updates**: Workers emit `mark:progress` on the resource-scoped
+**Progress Updates**: Workers emit `job:report-progress` on the
 EventBus. The frontend's `SemiontClient` subscribes to these events
-via `/bus/subscribe`; MarkStateUnit surfaces them through an Observable.
+via `/bus/subscribe` and filters by `jobId`; `mark.assist()` surfaces
+them through an Observable.
 
 **Annotation Creation**: When a worker emits `mark:create` on the bus:
 1. Stower persists to the Event Store.

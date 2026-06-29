@@ -141,12 +141,18 @@ gateway. Clients do not set this."*
 
 ## `busRequest` — correlation-ID request/response
 
-`busRequest(transport, emitChannel, payload, resultChannel,
-failChannel, timeoutMs?)` is a shared helper built on the primitives:
+`busRequest(bus, operation, payload, timeoutMs?)` is a shared helper
+(in `@semiont/core`) built on the primitives:
 
-- Generates a `correlationId`, adds it to the payload, emits, then
-  observes the result and fail channels filtered on that
-  correlationId.
+- Called with the **operation** — the request channel — and a payload.
+  It looks the result and failure channels up from the `BUS_OPERATIONS`
+  registry, generates a `correlationId`, adds it to the payload, emits,
+  and observes those reply channels filtered on that correlationId.
+- **Return type inferred** from the operation's result channel — callers
+  pass neither the reply channels nor a `<TResult>` annotation. Replies
+  follow the standard shape (`{ correlationId, response: T }` /
+  `{ correlationId }` / `{ correlationId } & CommandError`); `busRequest`
+  resolves `response` or rejects with a typed error.
 - **30-second timeout** by default. Applies above the transport.
 - **Return value tied to correlationId, not connection.** The caller
   gets exactly one resolution — the first matching result or fail
@@ -184,8 +190,12 @@ kinds. Every transport preserves the categorization:
   un-scoped. Example: `mark:create-ok`, `job:status-result`.
 - **Resource-bound broadcasts** — published on
   `eventBus.scope(resourceId)`. Delivered only to subscribers attached
-  to that resource's scope via `subscribeToResource`. The set is named
-  by `RESOURCE_BROADCAST_TYPES` in `@semiont/core`.
+  to that resource's scope via `subscribeToResource`. The scoped set is
+  *derived* — the persisted domain events that aren't globally bridged,
+  plus the (currently empty) `RESOURCE_BROADCAST_TYPES` extension point
+  in `@semiont/core`. It is **disjoint** from the bridged (global) set
+  by construction and by invariant test; a channel in both would be
+  delivered twice. See [TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md).
 
 ## Non-goals — what this doc is not
 

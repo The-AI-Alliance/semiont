@@ -32,7 +32,7 @@ Attention-coordination channels broadcast globally, not persisted. Delivered to 
 
 ## Correlation-ID responses
 
-Non-persisted results matched back to the originating request by `correlationId`. Always published on the **global** bus; the caller filters by its own `correlationId`. SDK consumers use `busRequest` ([`packages/sdk/src/bus-request.ts`](../../packages/sdk/src/bus-request.ts)) which hides the correlation glue.
+Non-persisted results matched back to the originating request by `correlationId`. Always published on the **global** bus; the caller filters by its own `correlationId`. Consumers use `busRequest` ([`packages/core/src/bus-request.ts`](../../packages/core/src/bus-request.ts)), which hides the correlation glue and looks up the result/failure channels from `BUS_OPERATIONS`. Every reply follows the standard shape: `{ correlationId, response: T }` (data), `{ correlationId }` (void), or `{ correlationId } & CommandError` (failure).
 
 - `browse:*-result` / `browse:*-failed`
 - `mark:*-ok` / `mark:*-failed`
@@ -40,7 +40,6 @@ Non-persisted results matched back to the originating request by `correlationId`
 - `match:search-results` / `match:search-failed`
 - `gather:complete` / `gather:failed` / `gather:annotation-progress`
 - `gather:summary-result` / `gather:summary-failed`
-- `mark:progress` / `mark:assist-finished` / `mark:assist-failed`
 - `job:created` / `job:create-failed` / `job:claimed` / `job:claim-failed`
 - `job:complete` / `job:fail` — global job-lifecycle signals; the dispatching caller filters by `jobId`, resource viewers filter the same global stream by `resourceId` (keyed by id, not `correlationId`)
 - `yield:clone-token-generated` / `yield:clone-token-failed`
@@ -54,7 +53,7 @@ The authoritative list is `RESOURCE_BROADCAST_TYPES` in [`packages/core/src/bus-
 
 ## Bridged channels (HTTP transport fan-in)
 
-The set the HTTP transport pushes onto the client's local bus on SSE receive. Includes every `-ok`, `-failed`, `-result`, plus the persisted domain events that drive cache invalidation. Authoritative list: `BRIDGED_CHANNELS` in [`packages/core/src/bridged-channels.ts`](../../packages/core/src/bridged-channels.ts).
+The set the HTTP transport pushes onto the client's local bus on SSE receive: every operation's reply channels (`-ok` / `-failed` / `-result` / progress) plus the system-wide broadcasts. `BRIDGED_CHANNELS` ([`packages/core/src/bridged-channels.ts`](../../packages/core/src/bridged-channels.ts)) is **derived**, not hand-maintained — the reply channels come from the `BUS_OPERATIONS` registry, plus a small `BRIDGED_BROADCASTS` hand-list for the non-request/reply minority (KB-global domain events, `beckon:*` UI signals, infra). Deriving the reply set is what keeps a reply channel from being silently omitted. Bridged channels are delivered globally and are **disjoint** from the resource-scoped set (see [TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)).
 
 In-process transports do the same fan-in via `LocalTransport.bridgeInto(bus)`.
 
