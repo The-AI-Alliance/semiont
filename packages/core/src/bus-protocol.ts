@@ -211,9 +211,6 @@ export type EventMap = {
 
   // SSE stream payloads
   'gather:annotation-progress': components['schemas']['GatherProgress'];
-  'gather:annotation-finished': components['schemas']['GatherAnnotationFinished'];
-  'gather:progress': components['schemas']['GatherProgress'];
-  'gather:finished': components['schemas']['GatherFinished'];
 
   // ========================================================================
   // BROWSE FLOW — knowledge base reads + UI navigation
@@ -524,9 +521,6 @@ export const CHANNEL_SCHEMAS = {
   'gather:summary-result':            null, // { correlationId; response: Record<string, unknown> }
   'gather:summary-failed':            null, // { correlationId } & CommandError
   'gather:annotation-progress':       'GatherProgress',
-  'gather:annotation-finished':       'GatherAnnotationFinished',
-  'gather:progress':                  'GatherProgress',
-  'gather:finished':                  'GatherFinished',
 
   // ── BROWSE FLOW ─────────────────────────────────────────────────
   'browse:resource-requested':        'BrowseResourceRequest',

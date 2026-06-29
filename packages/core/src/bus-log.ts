@@ -134,7 +134,8 @@ export function warnIfUnobservedReply(
   console.warn(
     `[bus DROP] ${channel} cid=${cidRaw.slice(0, 8)} emitted with 0 subscribers and not in ` +
       `BRIDGED_CHANNELS — a correlation reply with no forwarder is dropped, so the awaiting ` +
-      `client times out (no error). Add '${channel}' to BRIDGED_CHANNELS ` +
-      `(packages/core/src/bridged-channels.ts) so transports subscribe to it.`,
+      `client times out (no error). Bridge it by declaring its operation in BUS_OPERATIONS ` +
+      `(packages/core/src/bus-operations.ts) — or, if it is a non-reply broadcast, add it to ` +
+      `BRIDGED_BROADCASTS (packages/core/src/bridged-channels.ts) — so transports subscribe to it.`,
   );
 }
