@@ -76,21 +76,21 @@
     "vitest": "^4.1.8"
   },
   "optionalDependencies": {
-    "@aws-sdk/client-cloudformation": "^3.1065.0",
-    "@aws-sdk/client-cloudwatch": "^3.1065.0",
-    "@aws-sdk/client-cloudwatch-logs": "^3.1065.0",
-    "@aws-sdk/client-cost-explorer": "^3.1065.0",
-    "@aws-sdk/client-ecr": "^3.1065.0",
-    "@aws-sdk/client-ecs": "^3.1065.0",
-    "@aws-sdk/client-efs": "^3.1065.0",
-    "@aws-sdk/client-elastic-load-balancing-v2": "^3.1065.0",
-    "@aws-sdk/client-lambda": "^3.1065.0",
-    "@aws-sdk/client-neptune": "^3.1065.0",
-    "@aws-sdk/client-rds": "^3.1065.0",
-    "@aws-sdk/client-route-53": "^3.1065.0",
-    "@aws-sdk/client-secrets-manager": "^3.1065.0",
-    "@aws-sdk/client-sts": "^3.1065.0",
-    "@aws-sdk/client-wafv2": "^3.1065.0"
+    "@aws-sdk/client-cloudformation": "^3.1075.0",
+    "@aws-sdk/client-cloudwatch": "^3.1075.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.1075.0",
+    "@aws-sdk/client-cost-explorer": "^3.1075.0",
+    "@aws-sdk/client-ecr": "^3.1075.0",
+    "@aws-sdk/client-ecs": "^3.1075.0",
+    "@aws-sdk/client-efs": "^3.1075.0",
+    "@aws-sdk/client-elastic-load-balancing-v2": "^3.1075.0",
+    "@aws-sdk/client-lambda": "^3.1075.0",
+    "@aws-sdk/client-neptune": "^3.1075.0",
+    "@aws-sdk/client-rds": "^3.1075.0",
+    "@aws-sdk/client-route-53": "^3.1075.0",
+    "@aws-sdk/client-secrets-manager": "^3.1075.0",
+    "@aws-sdk/client-sts": "^3.1075.0",
+    "@aws-sdk/client-wafv2": "^3.1075.0"
   },
   "overrides": {
     "esbuild": "0.27.2"
