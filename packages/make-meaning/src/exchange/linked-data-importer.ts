@@ -11,8 +11,7 @@
  */
 
 import type { Readable } from 'node:stream';
-import { firstValueFrom, race, timer } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { awaitReply } from './await-reply';
 import type { Logger, ResourceId, UserId } from '@semiont/core';
 import { EventBus, annotationId as annotationIdFactory, resourceId as makeResourceId, baseMediaType, isSupportedMediaType, busRequest } from '@semiont/core';
 import { asBusRequestPrimitive } from '../bus-request-local';
@@ -313,18 +312,17 @@ async function createAnnotation(
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
-  const result$ = race(
-    eventBus.get('mark:create-ok').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:create-failed').pipe(map((e) => { throw new Error(e.message); })),
-    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:create-ok'); })),
+  await awaitReply(
+    eventBus,
+    'mark:create',
+    {
+      annotation: dehydrateAnnotation(annotation),
+      _userId: userId,
+      resourceId,
+    },
+    'mark:create-ok',
+    'mark:create-failed',
+    IMPORT_TIMEOUT_MS,
   );
-
-  eventBus.get('mark:create').next({
-    annotation: dehydrateAnnotation(annotation),
-    _userId: userId,
-    resourceId,
-  });
-
-  await firstValueFrom(result$);
   logger?.debug('Created annotation', { annotationId: annotation.id });
 }

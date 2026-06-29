@@ -10,8 +10,7 @@
  * the caller controls memory strategy (streaming, on-disk, etc.).
  */
 
-import { firstValueFrom, race, timer } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { awaitReply } from './await-reply';
 import type { Logger, StoredEvent, PersistedEvent, ResourceId, AnnotationId } from '@semiont/core';
 import { EventBus, baseMediaType, isSupportedMediaType, busRequest } from '@semiont/core';
 import { asBusRequestPrimitive } from '../bus-request-local';
@@ -205,19 +204,18 @@ async function replayAnnotationAdded(
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
-  const result$ = race(
-    eventBus.get('mark:create-ok').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:create-failed').pipe(map((e) => { throw new Error(e.message); })),
-    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:create-ok'); })),
+  await awaitReply(
+    eventBus,
+    'mark:create',
+    {
+      annotation: event.payload.annotation as Annotation,
+      _userId: event.userId,
+      resourceId: event.resourceId as ResourceId,
+    },
+    'mark:create-ok',
+    'mark:create-failed',
+    REPLAY_TIMEOUT_MS,
   );
-
-  eventBus.get('mark:create').next({
-    annotation: event.payload.annotation as Annotation,
-    _userId: event.userId,
-    resourceId: event.resourceId as ResourceId,
-  });
-
-  await firstValueFrom(result$);
   logger?.debug('Replayed annotation.added', { annotationId: event.payload.annotation.id });
 }
 
@@ -226,20 +224,19 @@ async function replayAnnotationBodyUpdated(
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
-  const result$ = race(
-    eventBus.get('mark:body-updated').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:body-update-failed').pipe(map((e) => { throw new Error(e.message); })),
-    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:body-updated'); })),
+  await awaitReply(
+    eventBus,
+    'mark:update-body',
+    {
+      annotationId: event.payload.annotationId as AnnotationId,
+      _userId: event.userId,
+      resourceId: event.resourceId as ResourceId,
+      operations: event.payload.operations,
+    },
+    'mark:body-updated',
+    'mark:body-update-failed',
+    REPLAY_TIMEOUT_MS,
   );
-
-  eventBus.get('mark:update-body').next({
-    annotationId: event.payload.annotationId as AnnotationId,
-    _userId: event.userId,
-    resourceId: event.resourceId as ResourceId,
-    operations: event.payload.operations,
-  });
-
-  await firstValueFrom(result$);
   logger?.debug('Replayed annotation.body.updated', { annotationId: event.payload.annotationId });
 }
 
@@ -248,19 +245,18 @@ async function replayAnnotationRemoved(
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
-  const result$ = race(
-    eventBus.get('mark:delete-ok').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:delete-failed').pipe(map((e) => { throw new Error(e.message); })),
-    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:delete-ok'); })),
+  await awaitReply(
+    eventBus,
+    'mark:delete',
+    {
+      annotationId: event.payload.annotationId as AnnotationId,
+      _userId: event.userId,
+      resourceId: event.resourceId as ResourceId,
+    },
+    'mark:delete-ok',
+    'mark:delete-failed',
+    REPLAY_TIMEOUT_MS,
   );
-
-  eventBus.get('mark:delete').next({
-    annotationId: event.payload.annotationId as AnnotationId,
-    _userId: event.userId,
-    resourceId: event.resourceId as ResourceId,
-  });
-
-  await firstValueFrom(result$);
   logger?.debug('Replayed annotation.removed', { annotationId: event.payload.annotationId });
 }
 
