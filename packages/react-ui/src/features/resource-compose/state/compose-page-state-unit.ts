@@ -201,6 +201,7 @@ export function createComposePageStateUnit(
       cloneData$.complete();
       referenceData$.complete();
       gatheredContext$.complete();
+      uploadProgress$.complete();
       disposer.dispose();
     },
   };
