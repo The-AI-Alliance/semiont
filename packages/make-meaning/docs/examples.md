@@ -160,7 +160,7 @@ const content = await semiont.browse.resourceContent(resourceId('doc-123'));
 const events = await semiont.browse.resourceEvents(resourceId('doc-123'));
 
 // Gather LLM context, then search for candidate matches
-const context = await semiont.gather.annotation(annotationId('ann-1'), resourceId('doc-123'));
+const { response: context } = await semiont.gather.annotation(resourceId('doc-123'), annotationId('ann-1'));
 const results = await semiont.match.search(resourceId('doc-123'), annotationId('ref-1'), context);
 ```
 

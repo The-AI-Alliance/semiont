@@ -90,7 +90,7 @@ for (const ann of unresolved) {
   const selectedText = ann.target?.selector?.exact ?? '';
 
   // Step 3 — Gather LLM context
-  const gatherComplete = await semiont.gather.annotation(annId, rId, { contextWindow: 2000 });
+  const gatherComplete = await semiont.gather.annotation(rId, annId, { contextWindow: 2000 });
   const context = gatherComplete.response as GatheredContext;
 
   // Step 4 — Match against the KB
@@ -169,7 +169,7 @@ async function runWikiPipeline(resourceIdStr: string): Promise<void> {
     const annId = annotationId(ann.id);
     const selectedText = ann.target?.selector?.exact ?? '';
 
-    const gatherComplete = await semiont.gather.annotation(annId, rId, { contextWindow: 2000 });
+    const gatherComplete = await semiont.gather.annotation(rId, annId, { contextWindow: 2000 });
     const context = gatherComplete.response as GatheredContext;
 
     const matchResult = await semiont.match.search(rId, annId, context, {

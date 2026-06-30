@@ -28,9 +28,9 @@ import { firstValueFrom, lastValueFrom } from 'rxjs';
 
 // Gather context first (see Gather flow)
 const gather = await lastValueFrom(
-  client.gather.annotation(annId, rId, { contextWindow: 2000 }),
+  client.gather.annotation(rId, annId, { contextWindow: 2000 }),
 );
-const context = (gather as { context: GatheredContext }).context;
+const context = (gather as { response: GatheredContext }).response;
 
 // Run the match search
 const result = await firstValueFrom(

@@ -40,9 +40,9 @@ import { lastValueFrom } from 'rxjs';
 
 // First, gather context for the annotation (see Gather flow)
 const gather = await lastValueFrom(
-  client.gather.annotation(annotationId, resourceId, { contextWindow: 2000 }),
+  client.gather.annotation(resourceId, annotationId, { contextWindow: 2000 }),
 );
-const context = (gather as { context: GatheredContext }).context;
+const context = (gather as { response: GatheredContext }).response;
 
 // Generate a new resource from the reference annotation. Optional
 // `entityTypes` are stamped on the synthesized resource (so

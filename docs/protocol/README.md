@@ -69,7 +69,7 @@ import { SemiontClient } from '@semiont/sdk';
 const semiont = await SemiontClient.signInHttp({ baseUrl: 'http://localhost:4000', email, password });
 
 await semiont.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });
-const context = await semiont.gather.annotation(annId, resourceId);
+const { response: context } = await semiont.gather.annotation(resourceId, annId);
 const results = await semiont.match.search(resourceId, refId, context);
 await semiont.bind.body(resourceId, annId, [{ op: 'add', item: { type: 'SpecificResource', source: targetId } }]);
 ```

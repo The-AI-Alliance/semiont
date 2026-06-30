@@ -26,7 +26,7 @@ events while the Gatherer assembles context, then emits the final
 import { firstValueFrom, lastValueFrom } from 'rxjs';
 
 // Subscribe for progress + result
-client.gather.annotation(annotationId, resourceId, { contextWindow: 2000 })
+client.gather.annotation(resourceId, annotationId, { contextWindow: 2000 })
   .subscribe({
     next: (event) => console.log('progress:', event),
     complete: () => console.log('done'),
@@ -35,9 +35,9 @@ client.gather.annotation(annotationId, resourceId, { contextWindow: 2000 })
 
 // Or await the final context (one-shot)
 const final = await lastValueFrom(
-  client.gather.annotation(annotationId, resourceId, { contextWindow: 2000 }),
+  client.gather.annotation(resourceId, annotationId, { contextWindow: 2000 }),
 );
-const context = (final as { context?: GatheredContext }).context;
+const context = (final as { response: GatheredContext }).response;
 
 // gather.annotation returns an annotation-focus GatheredContext — narrow on focus.kind
 if (context.focus.kind === 'annotation') {
@@ -74,9 +74,9 @@ command. See [`EVENT-BUS.md`](../EVENT-BUS.md).
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `gather:requested` | `{ annotationId, resourceId }` | Fetch context for this annotation |
-| `gather:complete` | `{ annotationId, context: GatheredContext }` | Context successfully assembled |
-| `gather:failed` | `{ annotationId, error }` | Context fetch failed |
+| `gather:requested` | `{ correlationId, annotationId, resourceId, options }` | Fetch context for this annotation |
+| `gather:complete` | `{ correlationId, annotationId, response: GatheredContext }` | Context successfully assembled |
+| `gather:failed` | `{ correlationId, annotationId, error }` | Context fetch failed |
 
 ## Context Assembly
 

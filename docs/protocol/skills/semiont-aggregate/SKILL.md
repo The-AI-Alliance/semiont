@@ -90,7 +90,7 @@ const INCLUDE_GATHER = process.env.INCLUDE_GATHER !== '0';
 
 for (const hit of citingHits) {
   if (!INCLUDE_GATHER) continue;
-  const gather = await semiont.gather.annotation(hit.ann.id, resourceId(hit.caseId), {
+  const gather = await semiont.gather.annotation(resourceId(hit.caseId), hit.ann.id, {
     contextWindow: 1500,
   });
   hit.context = gather.response;
@@ -186,8 +186,8 @@ async function aggregate(anchorIdStr: string): Promise<void> {
   if (INCLUDE_GATHER) {
     for (const hit of hits) {
       const gather = await semiont.gather.annotation(
-        hit.ann.id,
         resourceId(hit.sourceId),
+        hit.ann.id,
         { contextWindow: 1500 },
       );
       hit.context = gather.response;

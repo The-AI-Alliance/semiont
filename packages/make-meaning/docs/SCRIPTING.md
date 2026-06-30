@@ -213,7 +213,7 @@ await semiont.mark.annotation({ /* CreateAnnotationInput: target, motivation, bo
 await semiont.frame.addEntityType('Person');
 
 // Gather LLM context
-const context = await semiont.gather.annotation(annotationId('ann-1'), resourceId('doc-123'));
+const { response: context } = await semiont.gather.annotation(resourceId('doc-123'), annotationId('ann-1'));
 
 // Bind references
 await semiont.bind.body(resourceId('doc-123'), annotationId('ann-1'), operations);

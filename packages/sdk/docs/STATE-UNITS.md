@@ -1,6 +1,6 @@
 # State units
 
-`@semiont/sdk` exposes a single foundational pattern called a **state unit**. The flow state units (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`), the domain worker adapters in `@semiont/jobs` and `@semiont/make-meaning`, and the per-feature page state units in `@semiont/react-ui` are all instances of it.
+`@semiont/sdk` exposes a single foundational pattern called a **state unit**. The flow state units (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`), the connection actor in `@semiont/http-transport` (`createActorStateUnit`), the smelter actor in `@semiont/make-meaning` (`createSmelterActorStateUnit`), and the per-feature page state units in `@semiont/react-ui` are all instances of it.
 
 This doc covers what state units do, why they help, how they're shaped, and the conventions that keep them composable.
 
@@ -37,7 +37,7 @@ interface StateUnit {
 }
 ```
 
-That's the entire structural commitment the type system catches. Implementing this interface is a claim that you're following the pattern; the rest of what makes a state unit a state unit is convention. A reader who sees `extends StateUnit` should expect everything below.
+`StateUnit` lives in `@semiont/core` — so every layer (`@semiont/sdk`, `@semiont/http-transport`, `@semiont/react-ui`, …) implements the same interface without a dependency cycle, and the `@semiont/core/testing` axiom harness can verify any of them. That's the entire structural commitment the type system catches. Implementing this interface is a claim that you're following the pattern; the rest is enforced below the type system — by the axiom suite and CI compliance scripts for the testable subset, and by review for the remainder (see [§ How these rules are enforced](#how-these-rules-are-enforced)). A reader who sees `extends StateUnit` should expect everything below.
 
 ## Anatomy
 
