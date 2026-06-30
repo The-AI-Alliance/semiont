@@ -42,7 +42,9 @@ export class StreamObservable<T> extends Observable<T> implements PromiseLike<T>
 export class CacheObservable<T> extends Observable<T | undefined> implements PromiseLike<T> {
   then(onfulfilled, onrejected) {
     // Cache-backed: fetch fresh (a re-read reflects writes), reject on failure.
-    return this.fetchFresh!().then(onfulfilled, onrejected);
+    if (this.fetchFresh) return this.fetchFresh().then(onfulfilled, onrejected);
+    // Non-cache wrapper (no fetch action): resolve to the first non-undefined emission.
+    return firstValueFrom(this.pipe(filter((v) => v !== undefined))).then(onfulfilled, onrejected);
   }
 }
 ```
@@ -97,8 +99,8 @@ semiont.browse.resource(rId).subscribe((r) => {
 
 // 3. Want progress events from a stream? subscribe.
 semiont.mark.assist(rId, 'linking').subscribe((event) => {
-  if (event.type === 'progress') updateProgress(event);
-  else if (event.type === 'finished') celebrate();
+  if (event.kind === 'progress') updateProgress(event);
+  else if (event.kind === 'complete') celebrate();
 });
 
 // 4. Want to compose with operators? pipe (and bridge back when you await).
@@ -113,6 +115,20 @@ const names = await lastValueFrom(
 ```
 
 Four idiomatic shapes, all on the same return value. The script-author who's never heard of RxJS uses the first; the React component uses the second; the live-progress UI uses the third; the data-pipeline author uses the fourth.
+
+### One consumption per instance — or use `.run()`
+
+`StreamObservable` and `UploadObservable` are **cold**: every `await` *and* every `.subscribe(...)` re-runs the producer. For a job-triggering stream that means doing **both** on the same instance fires the underlying job (generation, upload, assist) **twice**. Pick one per instance — `await` for just the result, `.subscribe(...)` for just progress.
+
+When you want **both** progress *and* the terminal result from a single execution, use **`.run(onNext)`**: it subscribes once, delivers every emission to `onNext`, and resolves the terminal value.
+
+```ts
+const done = await semiont.mark.assist(rId, 'linking').run((event) => {
+  if (event.kind === 'progress') updateProgress(event);   // every progress emission
+});                                                        // resolves the terminal event
+```
+
+(`CacheObservable` is exempt — its `await` is a fresh fetch, not a re-subscription, so `await` + `.subscribe(...)` on a live query is fine.)
 
 ## Method-by-method assignment
 
@@ -137,6 +153,7 @@ Four idiomatic shapes, all on the same return value. The script-author who's nev
 - `browse.referencedBy`
 - `browse.events`
 - `browse.entityTypes`
+- `browse.tagSchemas`
 
 **Collaboration signals** (return `void`; emit on the bus, fan out to other participants):
 

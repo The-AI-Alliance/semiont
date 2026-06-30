@@ -189,10 +189,8 @@ const resource = await semiont.browse.resource(resourceId);   // resource: Resou
 // Text content
 const content = await semiont.browse.resourceContent(resourceId);
 
-// Binary representation
-const { data, contentType } = await semiont.browse.resourceRepresentation(resourceId, {
-  accept: 'image/png',
-});
+// Binary representation — verbatim stored bytes; the stored media type comes back as `contentType`
+const { data, contentType } = await semiont.browse.resourceRepresentation(resourceId);
 
 // Event history
 const events = await semiont.browse.resourceEvents(resourceId);
@@ -301,7 +299,7 @@ await semiont.mark.unarchive(resourceId);
 semiont.mark.assist(resourceId, 'linking', {
   entityTypes: ['Person', 'Organization'],
 }).subscribe({
-  next: (event) => console.log(event.type, event),
+  next: (event) => console.log(event.kind, event),
   error: (err) => console.error('Failed:', err.message),
   complete: () => console.log('Done'),
 });
@@ -319,18 +317,31 @@ await semiont.bind.body(resourceId, annotationId, [
 
 ## Gather
 
-Long-running. Returns Observable with progress then gathered context.
+`gather.annotation` is long-running — a `StreamObservable` of progress then the gathered
+context. The terminal completion event carries the `GatheredContext` directly on `.response`.
 
 ```typescript
-semiont.gather.annotation(annotationId, resourceId, { contextWindow: 2000 }).subscribe({
+semiont.gather.annotation(resourceId, annotationId, { contextWindow: 2000 }).subscribe({
   next: (progress) => {
     if ('response' in progress) {
-      console.log('Context:', progress.response.context);
+      console.log('Context:', progress.response);
     } else {
       console.log(`Gathering: ${progress.percentage}%`);
     }
   },
   error: (err) => console.error('Failed:', err.message),
+});
+```
+
+`gather.resource` gathers context for a **whole resource** (no annotation anchor). Unlike
+`gather.annotation` it's a request/reply with no progress stream, so it resolves the
+`GatheredContext` directly as a `Promise`:
+
+```typescript
+const context = await semiont.gather.resource(resourceId, {
+  depth: 2,
+  maxResources: 10,
+  excludeEntityTypes: ['Draft'],   // omit these entity types from the semantic recall
 });
 ```
 
@@ -372,7 +383,22 @@ semiont.yield.fromAnnotation(resourceId, annotationId, {
   context: gatheredContext,
   entityTypes: ['Character', 'Hero'],
 }).subscribe({
-  next: (event) => console.log(event.type, event),
+  next: (event) => console.log(event.kind, event),
+  complete: () => console.log('Resource generated'),
+});
+
+// AI generation from a whole resource — the resource-anchored twin of fromAnnotation
+// (no annotationId). Ground it with a resource-focus GatheredContext from
+// gather.resource. `outputMediaType` (on both methods) sets the generated resource's
+// media type — default `text/markdown`; the worker validates it.
+semiont.yield.fromResource(resourceId, {
+  title: 'Summary',
+  storageUri: 'file://generated/summary.md',
+  context: resourceContext,
+  prompt: 'Summarize, grounding every claim in the context.',
+  outputMediaType: 'text/markdown',
+}).subscribe({
+  next: (event) => console.log(event.kind, event),
   complete: () => console.log('Resource generated'),
 });
 
@@ -387,7 +413,7 @@ await semiont.yield.createFromToken({ token, name: 'Clone', /* ... */ });
 Fire-and-forget. Ephemeral presence signal.
 
 ```typescript
-semiont.beckon.attention(annotationId, resourceId);
+semiont.beckon.attention(resourceId, annotationId);
 ```
 
 ## Auth
@@ -557,13 +583,14 @@ Bus-layer and session-layer errors keep their own code namespaces:
 | Class | Codes | Thrown by |
 |---|---|---|
 | `APIError` (extends `SemiontError`) | `TransportErrorCode` (above) — plus `APIError.status` for the original HTTP status | HTTP transport (`@semiont/http-transport`) |
-| `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.bad-payload`, `bus.unauthorized`, `bus.forbidden`, `bus.not-found` | bus-mediated commands inside namespaces |
+| `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.closed`, `bus.bad-payload`, `bus.unauthorized`, `bus.forbidden`, `bus.not-found` | bus-mediated commands inside namespaces |
 | `SemiontSessionError` | `session.auth-failed`, `session.refresh-exhausted`, `session.construct-failed` | the session layer — surfaced on `SemiontBrowser.error$`, not as a per-call rejection |
 
 Catch broadly on `SemiontError` and route on `code`; reach for `APIError` (imported from `@semiont/http-transport`) only when a handler genuinely needs HTTP-specific fields like `status`.
 
 ```typescript
-import { SemiontError, BusRequestError } from '@semiont/sdk';
+import { SemiontError } from '@semiont/sdk';
+import { BusRequestError } from '@semiont/core';   // busRequest / BusRequestError live in @semiont/core
 
 try {
   await semiont.mark.annotation(input);

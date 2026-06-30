@@ -83,7 +83,7 @@ const client = new SemiontClient(localTransport, localContentTransport);
 ## What's in the box
 
 - **`SemiontClient`** — the verb-oriented coordinator over a wire transport.
-- **Verb namespaces** — `browse`, `mark`, `bind`, `gather`, `match`, `yield`, `beckon`, `job`, `auth`, `admin`. Typed methods that wrap the bus protocol; consumers never touch raw channel strings.
+- **Verb namespaces** — `frame`, `browse`, `mark`, `bind`, `gather`, `match`, `yield`, `beckon`, `job`, `auth`, `admin`. Typed methods that wrap the bus protocol; consumers never touch raw channel strings.
 - **Collaboration primitives** — fire-and-forget signals on the verb namespaces (`beckon.hover`, `bind.initiate`, `mark.changeShape`, `browse.click`, ...) coordinate attention and intent across participants. Not afterthoughts, not browser-app fluff: they're how a multi-participant session stays coherent.
 - **Session layer** — `SemiontSession` (per-KB authentication, token refresh, lifecycle), `SemiontBrowser` (multi-KB orchestration), and `SessionStorage` adapters (`InMemorySessionStorage`, plus a browser-backed one in `@semiont/react-ui`).
 - **Flow state machines** — RxJS-based factories (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`) that wrap each long-running flow with `loading$` / `error$` / progress observables. UI-shape-agnostic — any consumer (browser, terminal, mobile, daemon) can subscribe.
@@ -102,7 +102,7 @@ Page-shaped state machines (admin tables, compose page, resource viewer page, et
 - `SemiontBrowser` for multi-KB orchestration (transport-agnostic; takes a `SessionFactory`)
 - The five flow state machines above
 - The transport-neutral `WorkerBus` interface (worker adapters live in their domain packages — `@semiont/jobs`, `@semiont/make-meaning`)
-- Branded ID types, the unified error hierarchy, the `TransportErrorCode` neutral vocabulary
+- Branded ID types and the unified error hierarchy (`SemiontError` and subclasses). The neutral `TransportErrorCode` vocabulary lives in `@semiont/core` — import it from there.
 
 Nothing page-shaped, nothing web-shell-shaped. A TUI, mobile reader, daemon, or AI agent installs `@semiont/sdk` alone (plus a transport package — `@semiont/http-transport` for HTTP, `@semiont/make-meaning` for in-process).
 
@@ -226,7 +226,8 @@ The verb-by-verb walkthroughs live in [docs/protocol/flows](https://github.com/T
 
 ## Documentation
 
-- [`docs/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/Usage.md) — per-namespace tour with concrete examples for Browse, Mark, Bind, Gather, Match, Yield, Beckon, Auth, Admin, Job, plus SSE and error handling.
+- [`docs/DEVELOPER-GUIDE.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/DEVELOPER-GUIDE.md) — **start here to build**: task-ordered how-to recipes (connect → ingest → enrich → gather → generate → annotate → teardown), each a short description plus the SDK lines.
+- [`docs/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/Usage.md) — per-namespace tour with concrete examples for Browse, Frame, Mark, Bind, Gather, Match, Yield, Beckon, Auth, Admin, Job, plus SSE and error handling.
 - [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md) — the Promise-shape-over-Observable design: how `await` works on the SDK's return values without learning RxJS, and where RxJS is still visible by design.
 - [`docs/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/STATE-UNITS.md) — the foundational pattern behind the flow state machines, worker adapters, and search pipeline: closure-based factories, RxJS-shaped surface, dispose lifecycle, and the axioms every new state unit honors.
 - [`docs/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/CACHE-SEMANTICS.md) — the cache primitive's behavioral contract.

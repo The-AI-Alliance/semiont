@@ -298,18 +298,19 @@ code.
 |---|---|
 | `actor.connected$: false → true` | **no effect** — resumption handles the gap (B13) |
 | `bus:resume-gap` | scope-targeted invalidation (if `scope`) or full blanket (if not); always refetch `entityTypes` (B13) |
-| `mark:delete-ok` | invalidate `annotationDetail[annotationId]` |
+| `mark:delete-ok` | **remove** `annotationDetail[annotationId]` (B13a — the entity is gone; drop the entry, don't refetch) |
 | `mark:added` | invalidate `annotationList[resourceId]`, `resourceEvents[resourceId]` |
 | `mark:removed` | invalidate `annotationList[resourceId]`, `resourceEvents[resourceId]`, `annotationDetail[annotationId]` |
-| `mark:body-updated` | in-place update `annotationList` entry, invalidate `annotationDetail[annotationId]`, `resourceEvents[resourceId]` |
+| `mark:body-updated` | in-place update (write-through, B13b) `annotationList` entry **and** `annotationDetail[annotationId]`, invalidate `resourceEvents[resourceId]` |
 | `mark:entity-tag-added` | invalidate `annotationList[resourceId]`, `resourceDetail[resourceId]`, `resourceEvents[resourceId]` |
 | `mark:entity-tag-removed` | invalidate `annotationList[resourceId]`, `resourceDetail[resourceId]`, `resourceEvents[resourceId]` |
 | `replay-window-exceeded` | invalidate `annotationList[resourceId]` |
-| `yield:create-ok` | write-through fetch of `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
+| `yield:create-ok` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
 | `yield:update-ok` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
 | `mark:archived` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
 | `mark:unarchived` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
 | `frame:entity-type-added` | invalidate `entityTypes` |
+| `frame:tag-schema-added` | invalidate `tagSchemas` |
 
 Observations from this table:
 
@@ -322,9 +323,12 @@ Observations from this table:
   The only per-annotation cache is `annotationDetail`; changes to an
   annotation always also invalidate the list that contains it. This
   is B10-consistent.
-- **`yield:create-ok` uses write-through fetch**, not invalidate.
-  Because the resource is new, there's no prior value to preserve;
-  the SWR distinction is moot.
+- **`yield:create-ok` invalidates** (it does not write-through). It shares the
+  `invalidateMutatedResource` path with `yield:update-ok` / `mark:archived` /
+  `mark:unarchived` — invalidate `resourceDetail[resourceId]` and the whole
+  `resourceList`. Because a just-created resource has nothing cached yet, the
+  `resourceDetail` invalidate is a no-op until it's first observed; the
+  `resourceList` invalidate is what surfaces the new resource to list views.
 
 ## Required audits in the implementation
 
