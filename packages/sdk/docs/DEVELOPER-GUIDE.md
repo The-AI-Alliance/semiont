@@ -147,6 +147,13 @@ const context = await session.client.gather.resource(resourceId, {
 const ann = await session.client.gather.annotation(resourceId, annotationId, { contextWindow: 2000 });
 ```
 
+`excludeEntityTypes` keys on the entity types **stamped on a resource** — the `entityTypes` you
+pass to `yield.resource(...)` at creation (recipe 5), drawn from the vocabulary you registered
+with `frame.addEntityTypes` (recipe 4). So a resource becomes a "Question" by being *created*
+with `entityTypes: ['Question']`; excluding `'Question'` here then keeps prior questions out of a
+new answer's recall. (This is the resource's own stamped type — distinct from the *tag
+annotations* `mark.assist('tagging')` writes, which `excludeEntityTypes` does not touch.)
+
 ## 8. Generate a derived resource
 
 `yield.fromResource` / `yield.fromAnnotation` synthesize a **new resource** from a source,
