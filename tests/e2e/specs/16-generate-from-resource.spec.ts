@@ -88,13 +88,25 @@ test.describe('generate from resource', () => {
     await nextBtn.click();
     await expect(modal).toContainText('Configure Generation');
 
+    // ConfigureGenerationStep is an HTML `<form>` with two `required` fields —
+    // `#wizard-title` (pre-filled) and `#wizard-storagePath` (EMPTY by default).
+    // The Generate button is `type="submit"`, so leaving storagePath empty makes
+    // the browser block submission (no `onGenerate`, no job) — exactly as spec 09
+    // documents. Fill both (unique per-run title so successive runs don't pile up
+    // same-named derived resources at the top of Discover).
+    const runId = Date.now();
+    const titleInput = modal.locator('#wizard-title');
+    await expect(titleInput).toBeAttached({ timeout: 5_000 });
+    await titleInput.fill(`e2e-spec-16-${runId}`);
+    await modal.locator('#wizard-storagePath').fill(`generated/e2e-16-${runId}.md`);
+
     bus.clear();
 
     // ── Generate → yield.fromResource runs the `generation` job → derived resource ──
     // Same job lifecycle as spec 09 (shared runGeneration driver): job:create
     // (jobType generation) → job:created → job:complete (carrying the new
     // result.resourceId; the worker also mints the source→derived provenance ref).
-    await modal.getByRole('button', { name: /generate/i }).click();
+    await modal.getByRole('button', { name: /generate/i }).last().click();
 
     const { request: createReq } = await bus.expectRequestResponse('job:create', 'job:created', 30_000);
     expect(createReq.cid, 'generation job:create must carry a correlationId').toBeTruthy();
