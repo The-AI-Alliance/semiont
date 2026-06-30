@@ -248,8 +248,7 @@ Everything thrown through the SDK extends `SemiontError` with a discriminated `c
 broadly and route on `code`; reach for `BusRequestError` for bus-specific cases.
 
 ```typescript
-import { SemiontError } from '@semiont/sdk';
-import { BusRequestError } from '@semiont/core';   // busRequest / BusRequestError live in @semiont/core
+import { SemiontError, BusRequestError } from '@semiont/sdk';
 
 try {
   await session.client.mark.annotation(input);

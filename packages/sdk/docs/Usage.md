@@ -589,8 +589,7 @@ Bus-layer and session-layer errors keep their own code namespaces:
 Catch broadly on `SemiontError` and route on `code`; reach for `APIError` (imported from `@semiont/http-transport`) only when a handler genuinely needs HTTP-specific fields like `status`.
 
 ```typescript
-import { SemiontError } from '@semiont/sdk';
-import { BusRequestError } from '@semiont/core';   // busRequest / BusRequestError live in @semiont/core
+import { SemiontError, BusRequestError } from '@semiont/sdk';
 
 try {
   await semiont.mark.annotation(input);
