@@ -102,7 +102,7 @@ Page-shaped state machines (admin tables, compose page, resource viewer page, et
 - `SemiontBrowser` for multi-KB orchestration (transport-agnostic; takes a `SessionFactory`)
 - The five flow state machines above
 - The transport-neutral `WorkerBus` interface (worker adapters live in their domain packages — `@semiont/jobs`, `@semiont/make-meaning`)
-- Branded ID types and the unified error hierarchy (`SemiontError` and subclasses). The neutral `TransportErrorCode` vocabulary lives in `@semiont/core` — import it from there.
+- Branded ID types, the unified error hierarchy (`SemiontError`, `BusRequestError`), and the neutral `TransportErrorCode` vocabulary — all re-exported from `@semiont/sdk` so you catch every SDK error from one package.
 
 Nothing page-shaped, nothing web-shell-shaped. A TUI, mobile reader, daemon, or AI agent installs `@semiont/sdk` alone (plus a transport package — `@semiont/http-transport` for HTTP, `@semiont/make-meaning` for in-process).
 
