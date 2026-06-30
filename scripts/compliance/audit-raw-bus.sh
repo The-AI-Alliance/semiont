@@ -26,7 +26,7 @@ set -euo pipefail
 #   - packages/sdk/src/**               — SemiontClient, namespaces, flow VMs,
 #                                          session
 #   - packages/http-transport/src/**        — HTTP adapters
-#   - packages/jobs/src/**              — job-claim adapter and job-queue state unit
+#   - packages/jobs/src/**              — job-claim adapter and worker loop
 #                                          (domain-owned worker adapters that
 #                                          subscribe to job:* bus events)
 #   - packages/make-meaning/src/local-transport.ts
