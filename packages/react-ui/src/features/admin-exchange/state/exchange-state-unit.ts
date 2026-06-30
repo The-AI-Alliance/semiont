@@ -33,7 +33,9 @@ export function createExchangeStateUnit(
   importFn: (file: File) => Observable<ProgressEvent>,
 ): ExchangeStateUnit {
   const disposer = createDisposer();
-  disposer.add(browse);
+  // `browse` (ShellStateUnit) is a *passed-in* dependency owned by the caller
+  // (`useShellStateUnit`), not this unit — do NOT add it to the disposer (it's the
+  // shared, app-scoped shell). See packages/sdk/docs/STATE-UNITS.md (composition rule).
 
   const selectedFile$ = new BehaviorSubject<File | null>(null);
   const preview$ = new BehaviorSubject<ImportPreview | null>(null);

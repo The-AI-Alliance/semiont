@@ -3,6 +3,7 @@ import { Observable } from 'rxjs';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { createMatchStateUnit } from '../match-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
+import { assertStateUnitAxioms } from '../../lib/state-unit-axioms';
 
 const RID = makeResourceId('res-1');
 
@@ -131,5 +132,16 @@ describe('createMatchStateUnit', () => {
     } as any);
 
     expect(searchFn).not.toHaveBeenCalled();
+  });
+});
+
+describe('MatchStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms', () => {
+    assertStateUnitAxioms({
+      setup: () => {
+        const tc = withMatch(vi.fn());
+        return { unit: createMatchStateUnit(tc.client, RID), teardown: () => tc.bus.destroy() };
+      },
+    });
   });
 });
