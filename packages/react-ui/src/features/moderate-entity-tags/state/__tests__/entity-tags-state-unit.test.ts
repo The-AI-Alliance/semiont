@@ -4,6 +4,7 @@ import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
 import { createEntityTagsStateUnit } from '../entity-tags-state-unit';
+import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing';
 
 function mockBrowse(): ShellStateUnit {
   return { dispose: vi.fn() } as unknown as ShellStateUnit;
@@ -98,5 +99,18 @@ describe('createEntityTagsStateUnit', () => {
     expect(adding).toBe(false);
 
     stateUnit.dispose();
+  });
+});
+
+describe('EntityTagsStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms (incl. A7-passed: never disposes the injected browse)', () => {
+    assertStateUnitAxioms({
+      setup: () => {
+        const browse = disposeProbe();
+        return { unit: createEntityTagsStateUnit(mockClient(), browse as unknown as ShellStateUnit), passedIn: [browse] };
+      },
+      surfaces: (u) => [u.newTag$, u.error$, u.isAdding$],
+      invocations: (u) => [() => u.setNewTag(''), () => u.addTag()],
+    });
   });
 });

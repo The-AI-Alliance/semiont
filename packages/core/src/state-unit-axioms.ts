@@ -118,11 +118,15 @@ export function assertStateUnitAxioms<T extends StateUnit>(spec: StateUnitAxiomS
     teardown();
   }
 
-  // X1 — no raw Subject on the public surface (expose `.asObservable()`).
+  // X1 — no raw *origin* Subject on the public surface (expose `.asObservable()`).
+  // Flag only origin Subjects — `new Subject` / `new BehaviorSubject`, the unit's own
+  // state, where `.source` is undefined. Derived `AnonymousSubject`s from `Subject.lift`
+  // (`shareReplay().pipe(...)`) carry a `.source` and are inert sinks (`.next()` does
+  // nothing useful) — idiomatic, not the forgotten-internal-Subject smell — so exclude them.
   {
     const { unit, teardown } = fresh();
     for (const [key, value] of Object.entries(unit)) {
-      if (value instanceof Subject) {
+      if (value instanceof Subject && (value as { source?: unknown }).source === undefined) {
         throw new Error(`X1: public field "${key}" is a raw Subject — expose it via .asObservable()`);
       }
     }

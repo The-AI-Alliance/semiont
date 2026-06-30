@@ -4,6 +4,7 @@ import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
 import { createAdminUsersStateUnit } from '../admin-users-state-unit';
+import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing';
 
 function mockBrowse(): ShellStateUnit {
   return { dispose: vi.fn() } as unknown as ShellStateUnit;
@@ -77,12 +78,16 @@ describe('createAdminUsersStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('does NOT dispose the passed-in browse (the caller owns the shared shell)', () => {
-    const browse = mockBrowse();
-    const stateUnit = createAdminUsersStateUnit(mockClient(), browse);
-    stateUnit.dispose();
-    // `browse` is an app-scoped ShellStateUnit owned by `useShellStateUnit`; this
-    // unit must not dispose a dependency it didn't construct (STATE-UNITS composition).
-    expect(browse.dispose).not.toHaveBeenCalled();
+});
+
+describe('AdminUsersStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms (incl. A7-passed: never disposes the injected browse)', () => {
+    assertStateUnitAxioms({
+      setup: () => {
+        const browse = disposeProbe();
+        return { unit: createAdminUsersStateUnit(mockClient(), browse as unknown as ShellStateUnit), passedIn: [browse] };
+      },
+      surfaces: (u) => [u.users$, u.stats$, u.usersLoading$, u.statsLoading$],
+    });
   });
 });

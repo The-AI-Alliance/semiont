@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom, of, throwError } from 'rxjs';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
 import { createExchangeStateUnit } from '../exchange-state-unit';
+import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing';
 
 function mockBrowse(): ShellStateUnit {
   return { dispose: vi.fn() } as unknown as ShellStateUnit;
@@ -167,5 +168,18 @@ describe('createExchangeStateUnit', () => {
     expect(importFn).not.toHaveBeenCalled();
 
     stateUnit.dispose();
+  });
+});
+
+describe('ExchangeStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms (incl. A7-passed: never disposes the injected browse)', () => {
+    assertStateUnitAxioms({
+      setup: () => {
+        const browse = disposeProbe();
+        return { unit: createExchangeStateUnit(browse as unknown as ShellStateUnit, vi.fn(), vi.fn()), passedIn: [browse] };
+      },
+      surfaces: (u) => [u.selectedFile$, u.preview$, u.importPhase$, u.importMessage$, u.importResult$, u.isExporting$, u.isImporting$],
+      invocations: (u) => [() => u.cancelImport(), () => u.doImport()],
+    });
   });
 });
