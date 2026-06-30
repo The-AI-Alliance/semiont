@@ -30,7 +30,9 @@ export function createDiscoverStateUnit(
   browse: ShellStateUnit,
 ): DiscoverStateUnit {
   const disposer = createDisposer();
-  disposer.add(browse);
+  // `browse` (ShellStateUnit) is a *passed-in* dependency owned by the caller
+  // (`useShellStateUnit`), not this unit — do NOT add it to the disposer (it's the
+  // shared, app-scoped shell). See packages/sdk/docs/STATE-UNITS.md (composition rule).
 
   // Selected entity-type chip on the Discover page. Drives both the
   // `recent` list and the search results — filtering happens on the

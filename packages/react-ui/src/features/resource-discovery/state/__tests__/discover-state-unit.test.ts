@@ -100,13 +100,15 @@ describe('createDiscoverStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('disposes browse and search on dispose', () => {
+  it('does NOT dispose the passed-in browse (the caller owns the shared shell)', () => {
     const browse = mockBrowse();
     const { client } = mockClient();
     const stateUnit = createDiscoverStateUnit(client, browse);
     stateUnit.dispose();
 
-    expect(browse.dispose).toHaveBeenCalled();
+    // `browse` is an app-scoped ShellStateUnit owned by `useShellStateUnit`; this
+    // unit must not dispose a dependency it didn't construct (STATE-UNITS composition).
+    expect(browse.dispose).not.toHaveBeenCalled();
   });
 
   it('initial selectedEntityType$ is empty and recent fetch carries no entityType', async () => {
