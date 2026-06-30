@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { createActorStateUnit } from '../actor-state-unit';
+import { assertStateUnitAxioms } from '@semiont/core/testing';
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -718,5 +719,17 @@ describe('createActorStateUnit', () => {
     expect(received).toHaveLength(1);
 
     stateUnit.dispose();
+  });
+});
+
+describe('ActorStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms', () => {
+    // Constructed but never start()ed — the SSE/timer/reconnect machinery is
+    // exercised by the suite above. Here we pin the lifecycle contract on the owned
+    // `state$` (A5/A6/inert). `events$` is internal (reached via on$()), not a field.
+    assertStateUnitAxioms({
+      setup: () => createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: ['gather:requested'] }),
+      surfaces: (u) => [u.state$],
+    });
   });
 });

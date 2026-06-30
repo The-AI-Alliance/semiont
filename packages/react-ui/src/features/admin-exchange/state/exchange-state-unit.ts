@@ -1,7 +1,7 @@
 import { BehaviorSubject, lastValueFrom, type Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { createDisposer } from '@semiont/sdk';
-import type { StateUnit } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
 import type { BackendDownload, ProgressEvent } from '@semiont/core';
 

@@ -21,7 +21,7 @@
 // Page-shaped state (admin tables, page routing, web shell) lives in
 // `@semiont/react-ui` next to the components that render it.
 
-export { type StateUnit, createDisposer } from './lib/state-unit';
+export { createDisposer } from './lib/state-unit';
 export {
   createSearchPipeline,
   type SearchPipeline,

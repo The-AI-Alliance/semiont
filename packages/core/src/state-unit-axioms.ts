@@ -1,15 +1,16 @@
 /**
  * Executable enforcement of the StateUnit pattern — the runtime twin of
  * `packages/sdk/docs/STATE-UNITS.md` and the ledger in
- * `.plans/STATE-UNIT-AXIOMS.md`. The `StateUnit` interface's own comment admits
- * the pattern is "convention enforced by review, not the type system"; this file
- * is that enforcement.
+ * `.plans/STATE-UNIT-AXIOMS.md`. The `StateUnit` interface's own comment notes
+ * the pattern is convention; this file makes it executable.
  *
  * `assertStateUnitAxioms(spec)` runs every applicable axiom against a factory in
  * one shot, throwing a labeled Error on the first violation (the axiom id is in
  * the message). It is framework-agnostic on purpose — only `rxjs` + `fast-check`,
- * no `vitest` — so it ships through `@semiont/sdk/testing` and any package's test
- * runner can invoke it from a single `it(...)` per state unit.
+ * no `vitest` — so it ships through `@semiont/core/testing` and any package's test
+ * runner can invoke it from a single `it(...)` per state unit. It lives in core
+ * (not sdk) so even packages below sdk (e.g. `http-transport`) can use it without
+ * a dependency cycle.
  *
  * Axioms (random-input dimension; fast-check):
  *   A5        dispose() is idempotent and total (n ∈ [1,20] calls never throw)

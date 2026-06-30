@@ -2,7 +2,7 @@ import { BehaviorSubject, type Observable, map } from 'rxjs';
 import type { GatheredContext, AnnotationId, AccessToken, ResourceDescriptor, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
-import type { StateUnit } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
 import type { SemiontClient } from '@semiont/sdk';
 import { decodeWithCharset, extensionForMediaType } from '@semiont/core';

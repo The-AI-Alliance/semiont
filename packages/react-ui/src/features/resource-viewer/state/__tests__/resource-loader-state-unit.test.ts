@@ -4,6 +4,7 @@ import { filter } from 'rxjs/operators';
 import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
 import { createResourceLoaderStateUnit } from '../resource-loader-state-unit';
+import { assertStateUnitAxioms } from '@semiont/core/testing';
 
 const RID = makeResourceId('res-1');
 
@@ -42,5 +43,15 @@ describe('createResourceLoaderStateUnit', () => {
     stateUnit.invalidate();
     expect(client.browse.invalidateResourceDetail).toHaveBeenCalledWith(RID);
     stateUnit.dispose();
+  });
+});
+
+describe('ResourceLoaderStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms', () => {
+    // No owned surfaces: resource$/isLoading$ are derived from client.browse; dispose is a no-op.
+    assertStateUnitAxioms({
+      setup: () => createResourceLoaderStateUnit(mockClient(), RID),
+      invocations: (u) => [() => u.invalidate()],
+    });
   });
 });

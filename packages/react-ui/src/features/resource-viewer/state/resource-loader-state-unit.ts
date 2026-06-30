@@ -1,6 +1,6 @@
 import { type Observable, map } from 'rxjs';
 import type { ResourceDescriptor, ResourceId } from '@semiont/core';
-import type { StateUnit } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
 
 export interface ResourceLoaderStateUnit extends StateUnit {

@@ -1,7 +1,7 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import type { AnnotationId } from '@semiont/core';
 import type { SemiontClient } from '../../client';
-import type { StateUnit } from '../lib/state-unit';
+import type { StateUnit } from '@semiont/core';
 
 export interface BeckonStateUnit extends StateUnit {
   hoveredAnnotationId$: Observable<AnnotationId | null>;

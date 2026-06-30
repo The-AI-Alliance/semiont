@@ -1,5 +1,5 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
-import type { StateUnit } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
 
 export interface SessionStateUnit extends StateUnit {

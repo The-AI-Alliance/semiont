@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Subject, firstValueFrom } from 'rxjs';
 import { take, toArray } from 'rxjs/operators';
 import { createSmelterActorStateUnit } from '../smelter-actor-state-unit';
+import { assertStateUnitAxioms } from '@semiont/core/testing';
 import type { WorkerBus } from '@semiont/sdk';
 
 function fakeBus() {
@@ -88,5 +89,15 @@ describe('createSmelterActorStateUnit', () => {
     expect(h.bus.addChannels).toHaveBeenCalledTimes(1);
 
     stateUnit.dispose();
+  });
+});
+
+describe('SmelterActorStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms', () => {
+    // No owned surfaces: `events$` is derived from the injected bus's `on$`.
+    assertStateUnitAxioms({
+      setup: () => createSmelterActorStateUnit({ bus: fakeBus().bus }),
+      invocations: (u) => [() => u.start()],
+    });
   });
 });

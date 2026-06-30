@@ -1,7 +1,8 @@
 import { BehaviorSubject, Subject, combineLatest, of, type Observable } from 'rxjs';
 import { debounceTime, distinctUntilChanged, map, startWith, switchMap, shareReplay } from 'rxjs/operators';
 import type { ResourceDescriptor } from '@semiont/core';
-import type { SemiontClient, StateUnit } from '@semiont/sdk';
+import type { SemiontClient } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
 

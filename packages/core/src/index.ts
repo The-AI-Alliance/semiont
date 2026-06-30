@@ -324,6 +324,10 @@ export type { GoogleAuthRequest } from './auth-types';
 // ID generation
 export { generateUuid } from './id-generation';
 
+// State-unit pattern — the disposable contract shared by every layer (sdk,
+// http-transport, react-ui, …). The axiom harness lives in `@semiont/core/testing`.
+export type { StateUnit } from './state-unit';
+
 // Utility functions
 export * from './type-guards';
 export * from './errors';

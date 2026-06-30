@@ -15,6 +15,11 @@
       "types": "./dist/config/node-config-loader.d.ts",
       "import": "./dist/config/node-config-loader.js",
       "default": "./dist/config/node-config-loader.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js",
+      "default": "./dist/testing.js"
     }
   },
   "engines": {

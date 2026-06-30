@@ -1,7 +1,7 @@
 import { BehaviorSubject, type Observable, map } from 'rxjs';
 import type { ResourceId, components } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
-import type { StateUnit } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
 import { createBeckonStateUnit, type BeckonStateUnit } from '@semiont/sdk';
 import { createMarkStateUnit, type MarkStateUnit } from '@semiont/sdk';

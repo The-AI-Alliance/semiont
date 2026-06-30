@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import type { SemiontClient } from '@semiont/sdk';
 import { createSessionStateUnit } from '../session-state-unit';
+import { assertStateUnitAxioms } from '@semiont/core/testing';
 
 function mockClient(logout?: ReturnType<typeof vi.fn>): SemiontClient {
   return {
@@ -31,5 +32,15 @@ describe('createSessionStateUnit', () => {
     await stateUnit.logout();
     expect(await firstValueFrom(stateUnit.isLoggingOut$)).toBe(false);
     stateUnit.dispose();
+  });
+});
+
+describe('SessionStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms', () => {
+    assertStateUnitAxioms({
+      setup: () => createSessionStateUnit(mockClient()),
+      surfaces: (u) => [u.isLoggingOut$],
+      invocations: (u) => [() => u.logout()],
+    });
   });
 });

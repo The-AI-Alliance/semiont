@@ -10,7 +10,7 @@
 
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import type { SemiontBrowser } from '@semiont/sdk';
-import type { StateUnit } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 
 export type ToolbarPanelType = 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'knowledge-base';
 

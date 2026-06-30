@@ -3,7 +3,7 @@ import { timeout } from 'rxjs/operators';
 import type { GatheredContext, ResourceId, AnnotationId } from '@semiont/core';
 import { annotationId as makeAnnotationId } from '@semiont/core';
 import type { SemiontClient } from '../../client';
-import type { StateUnit } from '../lib/state-unit';
+import type { StateUnit } from '@semiont/core';
 
 export interface GatherStateUnit extends StateUnit {
   context$: Observable<GatheredContext | null>;

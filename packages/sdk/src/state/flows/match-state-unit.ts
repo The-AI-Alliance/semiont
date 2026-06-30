@@ -3,7 +3,7 @@ import { timeout } from 'rxjs/operators';
 import type { ResourceId } from '@semiont/core';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient } from '../../client';
-import type { StateUnit } from '../lib/state-unit';
+import type { StateUnit } from '@semiont/core';
 
 export interface MatchStateUnit extends StateUnit {}
 

@@ -3,7 +3,7 @@ import { Observable } from 'rxjs';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { createMatchStateUnit } from '../match-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
-import { assertStateUnitAxioms } from '../../lib/state-unit-axioms';
+import { assertStateUnitAxioms } from '@semiont/core/testing';
 
 const RID = makeResourceId('res-1');
 

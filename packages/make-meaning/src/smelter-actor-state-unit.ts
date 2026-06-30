@@ -15,7 +15,8 @@
 
 import { Observable, merge } from 'rxjs';
 import { map } from 'rxjs/operators';
-import type { StateUnit, WorkerBus } from '@semiont/sdk';
+import type { WorkerBus } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 
 export interface SmelterEvent {
   type: string;

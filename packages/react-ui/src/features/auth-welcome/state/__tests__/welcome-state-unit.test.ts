@@ -3,6 +3,7 @@ import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
 import { createWelcomeStateUnit } from '../welcome-state-unit';
+import { assertStateUnitAxioms } from '@semiont/core/testing';
 
 function mockClient(overrides: {
   getMe?: ReturnType<typeof vi.fn>;
@@ -82,5 +83,15 @@ describe('createWelcomeStateUnit', () => {
     expect(data).toBeNull();
 
     stateUnit.dispose();
+  });
+});
+
+describe('WelcomeStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms', () => {
+    assertStateUnitAxioms({
+      setup: () => createWelcomeStateUnit(mockClient()),
+      surfaces: (u) => [u.userData$, u.isProcessing$],
+      invocations: (u) => [() => u.acceptTerms()],
+    });
   });
 });
