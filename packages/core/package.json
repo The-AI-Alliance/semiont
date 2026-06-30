@@ -15,6 +15,11 @@
       "types": "./dist/config/node-config-loader.d.ts",
       "import": "./dist/config/node-config-loader.js",
       "default": "./dist/config/node-config-loader.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js",
+      "default": "./dist/testing.js"
     }
   },
   "engines": {
@@ -75,5 +80,13 @@
     "ajv-formats": "^3.0.1",
     "rxjs": "^7.8.1",
     "smol-toml": "^1.7.0"
+  },
+  "peerDependencies": {
+    "fast-check": "^4.8.0"
+  },
+  "peerDependenciesMeta": {
+    "fast-check": {
+      "optional": true
+    }
   }
 }

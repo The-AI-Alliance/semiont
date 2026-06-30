@@ -1,6 +1,6 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
 import { createDisposer } from '@semiont/sdk';
-import type { StateUnit } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
 
 export interface WelcomeStateUnit extends StateUnit {

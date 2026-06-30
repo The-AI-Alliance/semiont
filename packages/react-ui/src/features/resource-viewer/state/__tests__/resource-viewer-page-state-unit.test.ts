@@ -4,6 +4,7 @@ import { filter } from 'rxjs/operators';
 import { annotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
 import { createResourceViewerPageStateUnit } from '../resource-viewer-page-state-unit';
+import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing';
 import { makeTestClient, type TestClient } from '../../../../__tests__/test-client';
 
 const RID = makeResourceId('res-1');
@@ -235,5 +236,34 @@ describe('createResourceViewerPageStateUnit', () => {
     expect(wizard.open).toBe(false);
 
     stateUnit.dispose();
+  });
+});
+
+describe('ResourceViewerPageStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms (A7-passed: browse survives; A7-owned: children disposed)', () => {
+    const RID = makeResourceId('res-ax');
+    assertStateUnitAxioms({
+      setup: () => {
+        const browse = disposeProbe();
+        const tc = clientWithNamespaces();
+        return {
+          unit: createResourceViewerPageStateUnit(tc.client, RID, 'en', browse as unknown as ShellStateUnit),
+          passedIn: [browse],
+          teardown: () => tc.bus.destroy(),
+        };
+      },
+      surfaces: (u) => [u.wizard$, u.content$, u.contentLoading$, u.mediaToken$],
+      invocations: (u) => [() => u.closeWizard()],
+      // A7-owned: the internally-constructed children must be disposed when the page
+      // disposes — proven by their own surfaces completing. (Match has no public
+      // surface; it's disposed via the same disposer.)
+      ownedChildSurfaces: (u) => [
+        u.beckon.hoveredAnnotationId$,
+        u.mark.pendingAnnotation$,
+        u.gather.context$,
+        u.yield.isGenerating$,
+      ],
+      numRuns: 5,
+    });
   });
 });

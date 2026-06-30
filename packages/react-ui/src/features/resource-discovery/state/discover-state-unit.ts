@@ -1,7 +1,8 @@
 import { BehaviorSubject, Subject, combineLatest, of, type Observable } from 'rxjs';
 import { debounceTime, distinctUntilChanged, map, startWith, switchMap, shareReplay } from 'rxjs/operators';
 import type { ResourceDescriptor } from '@semiont/core';
-import type { SemiontClient, StateUnit } from '@semiont/sdk';
+import type { SemiontClient } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
 
@@ -30,7 +31,9 @@ export function createDiscoverStateUnit(
   browse: ShellStateUnit,
 ): DiscoverStateUnit {
   const disposer = createDisposer();
-  disposer.add(browse);
+  // `browse` (ShellStateUnit) is a *passed-in* dependency owned by the caller
+  // (`useShellStateUnit`), not this unit — do NOT add it to the disposer (it's the
+  // shared, app-scoped shell). See packages/sdk/docs/STATE-UNITS.md (composition rule).
 
   // Selected entity-type chip on the Discover page. Drives both the
   // `recent` list and the search results — filtering happens on the

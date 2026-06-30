@@ -145,7 +145,7 @@ Rule of thumb: passed in → not yours to dispose. Constructed inside → yours 
 
 ## Conventions
 
-The rules below describe how state units are written. They're organized by topic.
+The rules below describe how state units are written, organized by topic. Which are automated (the axiom suite and CI compliance scripts) versus review-only is summarized in [§ How these rules are enforced](#how-these-rules-are-enforced).
 
 ### Closure-based identity
 
@@ -170,7 +170,7 @@ onProgress(callback: (e: ProgressEvent) => void): void;
 
 Public Observables are **read-only views** (`subject$.asObservable()`) over private Subjects held in the closure. The Subject is the authority; the Observable view is the attenuation. Consumers receive exactly the capability they need (subscribe), not the full power (`next`, `error`, `complete`).
 
-**No raw `Subject` on the public surface.** Exposing `BehaviorSubject<T>` would let consumers `next()` arbitrary values, bypassing the unit's logic.
+**No raw origin `Subject` on the public surface.** Exposing a `new Subject`/`new BehaviorSubject` directly would let consumers `next()` arbitrary values, bypassing the unit's logic — expose `.asObservable()` instead. (A derived `AnonymousSubject` from `shareReplay().pipe(...)` is an inert sink and fine; the X1 check tells them apart by `.source`.)
 
 ### Inputs
 
@@ -200,11 +200,34 @@ A few specific shapes are wrong and worth calling out:
 
 ## How these rules are enforced
 
-Today, the rules above are enforced by the TypeScript structural check (`dispose()` exists), a small handful of runtime tests in individual state-unit test files, and code review.
+The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The axiom ledger and FOPL specs live in [`.plans/STATE-UNIT-AXIOMS.md`](../../../.plans/STATE-UNIT-AXIOMS.md); the harness is `assertStateUnitAxioms` in `@semiont/core/testing`, invoked once from each state unit's test file.
 
-Work is in progress to convert the testable subset of these rules into automated enforcement: fast-check property tests for the lifecycle and isolation properties (idempotent dispose, subscriber completion, post-dispose inertness, instance-state isolation) and CI grep scripts for the static structural rules (no `class` declarations in state-unit files, no module-scoped mutable state, no `Promise<void>` on bus-emit methods). Some rules — anything depending on judgment about "long-running" or on cross-namespace consistency — will stay convention-only.
+Four enforcement tiers:
 
-The doc will be updated with explicit per-rule enforcement labels as that work lands.
+| Tier | Mechanism | Rules |
+|---|---|---|
+| **Axioms** — property-based (fast-check) | `assertStateUnitAxioms`, per unit | **A5** idempotent & total dispose · **A5b** post-dispose inertness · **A6** subscribers see `complete` · **X3-runtime** instance isolation |
+| **Structural assertions** — single-shot | `assertStateUnitAxioms`, per unit | **A1** plain-object identity · **X1** no raw origin Subject on the surface · **A7-passed** don't dispose injected deps · **A7-owned** do dispose constructed children |
+| **Static compliance** — CI grep (`scripts/compliance/`, run by `architecture-compliance.yml`) | bash + grep | **A1-static** no `class` in state-unit files · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces |
+| **Conventions** — code review only | — | **A3-interior** internal state in Subjects · **X2** no `Promise<T>` on long-running ops · **X6** no dual bus+field exposure of the same state |
+
+Every state unit's test carries an `assertStateUnitAxioms({...})` block — all 18 units across `@semiont/sdk`, `@semiont/http-transport`, `@semiont/make-meaning`, and `@semiont/react-ui`. (The one remaining gap: there is no meta-check yet that every *new* factory adds a block.)
+
+### Rule reference
+
+- **A1 / A1-static — plain-object factory, no class.** Runtime: `Object.getPrototypeOf(unit) === Object.prototype`. Static: no `class` declaration in a state-unit file.
+- **X1 — no raw origin Subject on the public surface.** A field that is `instanceof Subject` with `.source === undefined` (a `new Subject`/`new BehaviorSubject` — the unit's own state) lets consumers `next()` past the unit's logic; expose `.asObservable()`. Derived `AnonymousSubject`s from `shareReplay().pipe(...)` carry a `.source` and are inert sinks — excluded.
+- **X3 / X3-runtime — instance isolation.** Runtime: driving one instance never moves another's surfaces. Static: no module-scoped `let`/`var` or `const x = new Map/Subject/...`. The two are complementary — the static check catches shapes (e.g. a shared monotonic counter) whose leak doesn't change emission counts, which the runtime check can miss.
+- **A5 / A5b — dispose is idempotent and total; methods are inert afterward.**
+- **A6 — every owned Subject completes on dispose** (pre-dispose subscribers see `complete`; post-dispose subscriptions are inert).
+- **A7-passed / A7-owned — compose by parameter.** Never dispose an injected dependency; always dispose a child you constructed internally.
+- **X5 — fire-and-forget signals return `void`, not `Promise<void>`.** A thin regression speed-bump: the SDK already complies, and the script's allowlist holds the genuinely-awaiting acks (`delete`, `logout`, `addEntityType`, …).
+- **A3-interior / X2 / X6 — review only.** Internal state held in Subjects, no `Promise<T>` on operations that have progress + a final value, and no exposing the same state on both the bus and a unit field — these resist a cheap static check and are caught in review.
+
+### Deferred enforcement
+
+- **AST static checks (A2-static / A4-static / X1-static)** — that every `$`-suffixed field on a `XxxStateUnit` interface is typed `Observable<T>`, every Observable field is `readonly`, and no `Subject<T>` appears in an interface field position. These need the TypeScript compiler API (or ts-morph), not grep; deferred until review is shown to miss them.
+- **A6-deep** — today's A6 attaches *k* subscribers then disposes; the deep version would generate random `subscribe / emit / unsubscribe / dispose` sequences and assert completion plus no post-unsubscribe emission. Deferred until a subscribe/unsubscribe-race bug slips past the shallow version.
 
 ## Writing a new state unit — checklist
 
@@ -215,7 +238,7 @@ The doc will be updated with explicit per-rule enforcement labels as that work l
 5. **Track every internal subscription.** Use a `Subscription[]` or `createDisposer()`. On `dispose()`, unsubscribe all of them and complete every Subject you own.
 6. **Compose by parameter, not by ownership.** Take collaborators as arguments. Don't dispose passed-in collaborators.
 7. **No module-scoped state.** Everything mutable lives in the closure.
-8. **Test the lifecycle.** Construct, subscribe, dispose. Verify subscribers see `complete`. Verify subsequent emissions don't happen. Verify `dispose()` is idempotent.
+8. **Add the axiom block.** In the unit's test file, call `assertStateUnitAxioms({ setup, surfaces?, invocations?, ownedChildSurfaces? })` from `@semiont/core/testing` — it checks the lifecycle and composition axioms (A1/X1/A5/A5b/A6/X3/A7) for you. Mirror an existing `*-state-unit.test.ts`; see [§ How these rules are enforced](#how-these-rules-are-enforced).
 
 ## Why "state unit" and not "view-model"
 

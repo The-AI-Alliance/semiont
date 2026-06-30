@@ -2,7 +2,7 @@ import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
 import type { ResourceId, Motivation, Selector, EventMap, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
-import type { StateUnit } from '../lib/state-unit';
+import type { StateUnit } from '@semiont/core';
 
 type JobProgress = components['schemas']['JobProgress'];
 

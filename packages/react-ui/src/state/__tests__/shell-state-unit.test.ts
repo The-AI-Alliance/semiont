@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createShellStateUnit } from '../shell-state-unit';
+import { assertStateUnitAxioms } from '@semiont/core/testing';
 import { SemiontBrowser } from '@semiont/sdk';
 import { createHttpSessionFactory } from '@semiont/sdk';
 import { InMemorySessionStorage } from '@semiont/sdk';
@@ -190,5 +191,24 @@ describe('createShellStateUnit', () => {
     stateUnit.dispose();
     browser.emit('panel:open', { panel: 'info' });
     expect(values).toEqual([null]);
+  });
+});
+
+describe('ShellStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms', () => {
+    // A fresh real SemiontBrowser per run (low numRuns to bound the cost). Two
+    // independent browsers in X3 give genuine instance isolation.
+    assertStateUnitAxioms({
+      setup: () => {
+        const b = new SemiontBrowser({ storage: new InMemorySessionStorage(), sessionFactory: createHttpSessionFactory() });
+        return { unit: createShellStateUnit(b), teardown: () => { void b.dispose(); } };
+      },
+      surfaces: (u) => [u.activePanel$, u.scrollToAnnotationId$, u.panelInitialTab$],
+      invocations: (u) => [
+        () => u.openPanel('knowledge-base'), () => u.togglePanel('knowledge-base'),
+        () => u.closePanel(), () => u.onScrollCompleted(),
+      ],
+      numRuns: 10,
+    });
   });
 });

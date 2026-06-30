@@ -4,6 +4,7 @@ import { resourceId as makeResourceId } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
 import { createYieldStateUnit } from '../yield-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
+import { assertStateUnitAxioms } from '@semiont/core/testing';
 import type { YieldGenerationEvent } from '../../../namespaces/types';
 
 type JobProgress = components['schemas']['JobProgress'];
@@ -266,5 +267,23 @@ describe('createYieldStateUnit', () => {
     expect(gen[gen.length - 1]).toBe(false);
     expect(prog[prog.length - 1]).toBeNull();
     stateUnit.dispose();
+  });
+});
+
+describe('YieldStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms', () => {
+    const opts = { title: 'T', storageUri: 'file://x', context: {} as GatheredContext };
+    // Backend stub errors synchronously: drive()'s error path runs (no throw) and
+    // the timeout() timer is cleared on the sync error, so no timers leak across runs.
+    const stub = () => new Observable((s) => s.error(new Error('axiom-stub')));
+    assertStateUnitAxioms({
+      setup: () => {
+        const tc = makeTestClient({ yield: { fromAnnotation: vi.fn(stub), fromResource: vi.fn(stub) } });
+        return { unit: createYieldStateUnit(tc.client, RID, 'en'), teardown: () => tc.bus.destroy() };
+      },
+      surfaces: (u) => [u.isGenerating$, u.progress$],
+      invocations: (u) => [() => u.generate(REF_ID, opts), () => u.generateFromResource(opts)],
+      numRuns: 15,
+    });
   });
 });

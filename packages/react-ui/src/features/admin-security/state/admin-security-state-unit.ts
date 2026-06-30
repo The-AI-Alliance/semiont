@@ -1,6 +1,6 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
 import { createDisposer } from '@semiont/sdk';
-import type { StateUnit } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
 import type { SemiontClient } from '@semiont/sdk';
 
@@ -16,7 +16,9 @@ export function createAdminSecurityStateUnit(
   browse: ShellStateUnit,
 ): AdminSecurityStateUnit {
   const disposer = createDisposer();
-  disposer.add(browse);
+  // `browse` (ShellStateUnit) is a *passed-in* dependency owned by the caller
+  // (`useShellStateUnit`), not this unit — do NOT add it to the disposer (it's the
+  // shared, app-scoped shell). See packages/sdk/docs/STATE-UNITS.md (composition rule).
 
   const providers$ = new BehaviorSubject<unknown[]>([]);
   const allowedDomains$ = new BehaviorSubject<string[]>([]);

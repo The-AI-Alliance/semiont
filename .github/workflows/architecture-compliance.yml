@@ -31,6 +31,16 @@ jobs:
           ./scripts/compliance/audit-raw-bus.sh
           echo "::endgroup::"
 
+      - name: Run StateUnit Compliance Audit
+        run: |
+          echo "::group::StateUnit Compliance Audit (A1-static no-class / X3-static no-module-state / X5 fire-and-forget)"
+          fail=0
+          ./scripts/compliance/audit-state-unit-no-class.sh || fail=1
+          ./scripts/compliance/audit-state-unit-module-state.sh || fail=1
+          ./scripts/compliance/audit-fire-and-forget-promise-void.sh || fail=1
+          echo "::endgroup::"
+          exit $fail
+
       - name: Run React-UI Compliance Audit
         id: react-ui-audit
         run: |

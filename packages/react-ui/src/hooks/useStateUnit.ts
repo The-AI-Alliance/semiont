@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { StateUnit } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 
 export function useStateUnit<T extends StateUnit>(factory: () => T): T {
   const [unit] = useState(factory);

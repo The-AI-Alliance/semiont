@@ -2,7 +2,7 @@ import { BehaviorSubject, type Observable, map } from 'rxjs';
 import type { GatheredContext, AnnotationId, AccessToken, ResourceDescriptor, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
-import type { StateUnit } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
 import type { SemiontClient } from '@semiont/sdk';
 import { decodeWithCharset, extensionForMediaType } from '@semiont/core';
@@ -72,7 +72,9 @@ export function createComposePageStateUnit(
   auth?: AccessToken,
 ): ComposePageStateUnit {
   const disposer = createDisposer();
-  disposer.add(browse);
+  // `browse` (ShellStateUnit) is a *passed-in* dependency owned by the caller
+  // (`useShellStateUnit`), not this unit — do NOT add it to the disposer (it's the
+  // shared, app-scoped shell). See packages/sdk/docs/STATE-UNITS.md (composition rule).
 
   const isReferenceMode = Boolean(params.annotationUri && params.sourceDocumentId && params.name);
   const isCloneMode = params.mode === 'clone' && Boolean(params.token);
@@ -199,6 +201,7 @@ export function createComposePageStateUnit(
       cloneData$.complete();
       referenceData$.complete();
       gatheredContext$.complete();
+      uploadProgress$.complete();
       disposer.dispose();
     },
   };

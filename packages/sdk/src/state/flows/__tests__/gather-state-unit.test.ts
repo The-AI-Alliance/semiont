@@ -3,6 +3,7 @@ import { Observable, Subject } from 'rxjs';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { createGatherStateUnit } from '../gather-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
+import { assertStateUnitAxioms } from '@semiont/core/testing';
 
 const RID = makeResourceId('res-1');
 const AID = makeAnnotationId('ann-1');
@@ -194,5 +195,17 @@ describe('createGatherStateUnit', () => {
 
     tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
     expect(gatherFn).not.toHaveBeenCalled();
+  });
+});
+
+describe('GatherStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms', () => {
+    assertStateUnitAxioms({
+      setup: () => {
+        const tc = withGather(vi.fn());
+        return { unit: createGatherStateUnit(tc.client, RID), teardown: () => tc.bus.destroy() };
+      },
+      surfaces: (u) => [u.context$, u.loading$, u.error$, u.annotationId$],
+    });
   });
 });

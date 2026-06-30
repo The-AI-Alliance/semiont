@@ -10,7 +10,7 @@
 
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import type { SemiontBrowser } from '@semiont/sdk';
-import type { StateUnit } from '@semiont/sdk';
+import type { StateUnit } from '@semiont/core';
 
 export type ToolbarPanelType = 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'knowledge-base';
 
@@ -24,8 +24,6 @@ const MOTIVATION_TO_TAB: Record<string, string> = {
   'highlighting': 'highlight',
   'assessing': 'assessment',
 };
-
-let tabGenerationCounter = 0;
 
 export interface ShellStateUnit extends StateUnit {
   activePanel$: Observable<ToolbarPanelType | null>;
@@ -47,6 +45,9 @@ export function createShellStateUnit(browser: SemiontBrowser, options?: ShellSta
   const activePanel$ = new BehaviorSubject<ToolbarPanelType | null>(options?.initialPanel ?? null);
   const scrollToAnnotationId$ = new BehaviorSubject<string | null>(null);
   const panelInitialTab$ = new BehaviorSubject<{ tab: string; generation: number } | null>(null);
+  // Per-instance monotonic tab-generation counter. Was module-scoped — shared across
+  // every ShellStateUnit, an X3 instance-isolation leak; closure-scoped here.
+  let tabGenerationCounter = 0;
 
   if (options?.onPanelChange) {
     const cb = options.onPanelChange;

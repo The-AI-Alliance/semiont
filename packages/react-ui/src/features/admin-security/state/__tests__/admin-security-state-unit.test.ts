@@ -4,6 +4,7 @@ import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
 import { createAdminSecurityStateUnit } from '../admin-security-state-unit';
+import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing';
 
 function mockBrowse(): ShellStateUnit {
   return { dispose: vi.fn() } as unknown as ShellStateUnit;
@@ -64,5 +65,18 @@ describe('createAdminSecurityStateUnit', () => {
     expect(domains).toEqual([]);
 
     stateUnit.dispose();
+  });
+});
+
+describe('AdminSecurityStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms (incl. A7-passed: never disposes the injected browse)', () => {
+    assertStateUnitAxioms({
+      setup: () => {
+        const browse = disposeProbe();
+        const client = mockClient(vi.fn().mockResolvedValue({ providers: [], allowedDomains: [] }));
+        return { unit: createAdminSecurityStateUnit(client, browse as unknown as ShellStateUnit), passedIn: [browse] };
+      },
+      surfaces: (u) => [u.providers$, u.allowedDomains$, u.isLoading$],
+    });
   });
 });

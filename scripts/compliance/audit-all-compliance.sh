@@ -27,6 +27,13 @@ echo "🚌 Checking for raw bus access outside http-transport..."
 bash "$COMPLIANCE_DIR/audit-raw-bus.sh"
 echo ""
 
+# StateUnit pattern static checks (A1-static no-class, X3-static no-module-state, X5 fire-and-forget)
+echo "🧩 Checking StateUnit pattern (no class / no module-scoped state / fire-and-forget signals)..."
+bash "$COMPLIANCE_DIR/audit-state-unit-no-class.sh"
+bash "$COMPLIANCE_DIR/audit-state-unit-module-state.sh"
+bash "$COMPLIANCE_DIR/audit-fire-and-forget-promise-void.sh"
+echo ""
+
 # React-UI source code
 echo "📦 Auditing packages/react-ui source..."
 cd "$REPO_ROOT/packages/react-ui"

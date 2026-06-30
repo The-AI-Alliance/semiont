@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, type ConnectionState } from '@semiont/core';
+import { busLog, type ConnectionState, type StateUnit } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -8,11 +8,6 @@ import {
   withSpan,
   withTraceparent,
 } from '@semiont/observability';
-
-/** Minimal StateUnit surface — anything with a `dispose()` method. */
-interface StateUnit {
-  dispose(): void;
-}
 
 export type { ConnectionState };
 

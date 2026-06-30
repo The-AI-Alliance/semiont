@@ -4,6 +4,7 @@ import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
 import { createComposePageStateUnit } from '../compose-page-state-unit';
+import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing';
 
 /** Build an `UploadObservable`-shaped mock that emits started → finished. */
 function mockUpload(resourceId: string) {
@@ -183,5 +184,17 @@ describe('createComposePageStateUnit', () => {
     expect(createFromToken).toHaveBeenCalledOnce();
 
     stateUnit.dispose();
+  });
+});
+
+describe('ComposePageStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms (incl. A7-passed: never disposes the injected browse)', () => {
+    assertStateUnitAxioms({
+      setup: () => {
+        const browse = disposeProbe();
+        return { unit: createComposePageStateUnit(mockClient(), browse as unknown as ShellStateUnit, {}), passedIn: [browse] };
+      },
+      surfaces: (u) => [u.mode$, u.loading$, u.cloneData$, u.referenceData$, u.gatheredContext$, u.uploadProgress$],
+    });
   });
 });

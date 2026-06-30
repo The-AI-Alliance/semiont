@@ -3,6 +3,7 @@ import { Observable, Subject } from 'rxjs';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { createMarkStateUnit } from '../mark-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
+import { assertStateUnitAxioms } from '@semiont/core/testing';
 
 const RID = makeResourceId('res-1');
 
@@ -324,5 +325,17 @@ describe('createMarkStateUnit', () => {
 
     tc.bus.get('mark:submit').next({ motivation: 'highlighting', selector: {} } as any);
     expect(annotationFn).not.toHaveBeenCalled();
+  });
+});
+
+describe('MarkStateUnit — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms', () => {
+    assertStateUnitAxioms({
+      setup: () => {
+        const tc = withMark();
+        return { unit: createMarkStateUnit(tc.client, RID), teardown: () => tc.bus.destroy() };
+      },
+      surfaces: (u) => [u.pendingAnnotation$, u.assistingMotivation$, u.progress$],
+    });
   });
 });
