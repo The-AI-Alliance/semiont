@@ -40,6 +40,9 @@ export * from './contexts/ThemeContext';
 export { useDropdown, useLoadingState, useLocalStorage } from './hooks/useUI';
 export * from './hooks/useResourceContent';
 export * from './hooks/useResourceGather';
+export * from './hooks/useResourceLoader';
+export * from './hooks/useMediaToken';
+export * from './hooks/useSessionEventSubscriptions';
 
 // Session (the React layer — provider + hook + browser storage adapter).
 // All session classes (`SemiontSession`, `SemiontBrowser`, `SessionSignals`,
@@ -91,6 +94,7 @@ export * from './components/modals/SessionExpiredModal';
 export * from './components/resource/AnnotateView';
 export * from './components/resource/AnnotationHistory';
 export * from './components/resource/BrowseView';
+export * from './components/resource/browse-renderers';
 export * from './components/resource/HistoryEvent';
 export * from './components/resource/ResourceViewer';
 

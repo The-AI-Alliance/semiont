@@ -7,16 +7,13 @@ import { segmentTextWithAnnotations } from '../../lib/text-segmentation';
 import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';
 import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
 
-import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
-
 // Lazy load PDF component to avoid SSR issues with browser PDF.js loading
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
 
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import type { EditorView } from '@codemirror/view';
-import { useSemiont } from '../../session/SemiontProvider';
-import { useObservable } from '../../hooks/useObservable';
-import { useEventSubscriptions } from '../../contexts/useEventSubscription';
+import type { SemiontSession } from '@semiont/sdk';
+import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
 
 // Type augmentation for custom DOM properties
 interface EnrichedHTMLElement extends HTMLElement {
@@ -42,6 +39,10 @@ interface Props {
   showLineNumbers?: boolean;
   hoverDelayMs?: number;
   annotateMode: boolean;
+  /** Session for the shown resource — its client emits mark:* / mark.request; its bus feeds toolbar + beckon events. */
+  session: SemiontSession | null;
+  /** Recently-created annotation ids to sparkle (host-provided; was ResourceAnnotationsContext). */
+  newAnnotationIds?: Set<string>;
 }
 
 /**
@@ -65,11 +66,11 @@ export function AnnotateView({
   generatingReferenceId,
   showLineNumbers = false,
   hoverDelayMs = 150,
-  annotateMode
+  annotateMode,
+  session,
+  newAnnotationIds,
 }: Props) {
-  const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
-  const session = useObservable(useSemiont().activeSession$);
 
   const render = capabilitiesOf(mimeType)?.render ?? 'none';
 
@@ -103,7 +104,7 @@ export function AnnotateView({
   }, []);
 
   // Subscribe to toolbar events and annotation hover
-  useEventSubscriptions({
+  useSessionEventSubscriptions(session, {
     'mark:selection-changed': handleToolbarSelectionChanged,
     'mark:click-changed': handleToolbarClickChanged,
     'mark:shape-changed': handleToolbarShapeChanged,
@@ -203,6 +204,7 @@ export function AnnotateView({
             mediaType={mimeType}
             annotateMode={annotateMode}
             annotators={ANNOTATORS}
+            session={session}
           />
           <div className="semiont-annotate-view__content">
             <CodeMirrorRenderer
@@ -237,6 +239,7 @@ export function AnnotateView({
             mediaType={mimeType}
             annotateMode={annotateMode}
             annotators={ANNOTATORS}
+            session={session}
           />
           <div className="semiont-annotate-view__content">
             {content && (
@@ -268,6 +271,7 @@ export function AnnotateView({
             mediaType={mimeType}
             annotateMode={annotateMode}
             annotators={ANNOTATORS}
+            session={session}
           />
           <div className="semiont-annotate-view__content">
             {content && (

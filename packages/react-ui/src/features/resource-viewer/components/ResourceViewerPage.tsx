@@ -28,6 +28,7 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import { useHoverDelay } from '../../../hooks/useHoverDelay';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
+import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { createResourceViewerPageStateUnit } from '../state/resource-viewer-page-state-unit';
@@ -135,13 +136,24 @@ export function ResourceViewerPage({
   const browser = useSemiont();
   const session = useObservable(browser.activeSession$);
   const semiont = session?.client;
+  const navigateExternal = useObservableExternalNavigation();
+
+  // ResourceViewer is bring-your-own-session: feed it the active session plus
+  // host-owned navigation (reference follow) and panel control (app-scoped bus).
+  const handleViewerOpenResource = useCallback((id: string) => {
+    navigateExternal(`/know/resource/${id}`, { resourceId: id });
+  }, [navigateExternal]);
+
+  const handleViewerOpenPanel = useCallback((event: EventMap['panel:open']) => {
+    browser.emit('panel:open', event);
+  }, [browser]);
 
   // UI state hooks
   const { showError, showSuccess, showInfo } = useToast();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();
-  const { triggerSparkleAnimation, clearNewAnnotationId } = useResourceAnnotations();
+  const { triggerSparkleAnimation, clearNewAnnotationId, newAnnotationIds } = useResourceAnnotations();
 
   // Render mode chooses the content path: 'text' decodes inline; 'image'
   // and 'pdf' go through the media-token (binary) path. 'none'/registry-miss
@@ -154,7 +166,7 @@ export function ResourceViewerPage({
   const { content: textContent, loading: textLoading } = useResourceContent(rUri, resource, !isBinary);
 
   // Binary path: fetch short-lived media token, construct URL
-  const { token: mediaToken, loading: mediaTokenLoading } = useMediaToken(rUri);
+  const { token: mediaToken, loading: mediaTokenLoading } = useMediaToken(semiont ?? null, rUri);
   const binaryContent = (isBinary && mediaToken && semiont)
     ? `${semiont.baseUrl}/api/resources/${rUri}?token=${mediaToken}`
     : '';
@@ -516,6 +528,10 @@ export function ResourceViewerPage({
                 <ResourceViewer
                   resource={resourceWithContent}
                   annotations={groups ?? { highlights: [], comments: [], assessments: [], references: [], tags: [] }}
+                  session={session ?? null}
+                  onOpenResource={handleViewerOpenResource}
+                  onOpenPanel={handleViewerOpenPanel}
+                  newAnnotationIds={newAnnotationIds}
                   generatingReferenceId={generationProgress?.annotationId ?? null}
                   showLineNumbers={showLineNumbers}
                   hoverDelayMs={hoverDelayMs}

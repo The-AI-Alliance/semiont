@@ -19,14 +19,10 @@ import { TranslationProvider } from '../../../contexts/TranslationContext';
 import { ResourceAnnotationsProvider } from '../../../contexts/ResourceAnnotationsContext';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
 
-// Mock dependencies
-vi.mock('../../../hooks/useObservableBrowse', () => ({
-  useObservableExternalNavigation: () => vi.fn(),
-}));
-
-// ResourceViewer (and ResourceAnnotationsContext) now resolve the client via
+// ResourceViewer now takes its session as a prop; its children (BrowseView /
+// AnnotateView) and ResourceAnnotationsContext still resolve the client via
 // useSemiont(). Mock useSemiont to emit a minimal session carrying a stub
-// client with the methods the subject component touches. The session also
+// client with the methods those children touch. The session also
 // exposes `on` and `emit` stubs so useEventSubscription(s) don't explode.
 const stubClient = {
   browse: { invalidateAnnotationList: vi.fn() },
@@ -115,6 +111,7 @@ describe('ResourceViewer - Mode Switching', () => {
         <ResourceViewer
           resource={mockResource}
           annotations={mockAnnotations}
+          session={null}
         />
       </TestWrapper>
     );
@@ -128,6 +125,7 @@ describe('ResourceViewer - Mode Switching', () => {
         <ResourceViewer
           resource={mockResource}
           annotations={mockAnnotations}
+          session={null}
         />
       </TestWrapper>
     );
@@ -144,6 +142,7 @@ describe('ResourceViewer - Mode Switching', () => {
         <ResourceViewer
           resource={mockResource}
           annotations={mockAnnotations}
+          session={null}
         />
       </TestWrapper>
     );
@@ -158,6 +157,7 @@ describe('ResourceViewer - Mode Switching', () => {
         <ResourceViewer
           resource={mockResource}
           annotations={mockAnnotations}
+          session={null}
         />
       </TestWrapper>
     );
@@ -169,6 +169,7 @@ describe('ResourceViewer - Mode Switching', () => {
         <ResourceViewer
           resource={mockResource}
           annotations={mockAnnotations}
+          session={null}
         />
       </TestWrapper>
     );
@@ -181,6 +182,7 @@ describe('ResourceViewer - Mode Switching', () => {
         <ResourceViewer
           resource={mockResource}
           annotations={mockAnnotations}
+          session={null}
         />
       </TestWrapper>
     );
@@ -193,6 +195,7 @@ describe('ResourceViewer - Mode Switching', () => {
         <ResourceViewer
           resource={mockResource}
           annotations={mockAnnotations}
+          session={null}
         />
       </TestWrapper>
     );
@@ -209,6 +212,7 @@ describe('ResourceViewer - Mode Switching', () => {
         <ResourceViewer
           resource={mockResource}
           annotations={mockAnnotations}
+          session={null}
         />
       </TestWrapper>
     );
@@ -221,6 +225,7 @@ describe('ResourceViewer - Mode Switching', () => {
           <ResourceViewer
             resource={mockResource}
             annotations={mockAnnotations}
+            session={null}
           />
         </TestWrapper>
       );

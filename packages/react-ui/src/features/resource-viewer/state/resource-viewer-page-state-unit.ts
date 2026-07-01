@@ -10,7 +10,7 @@ import { createMatchStateUnit } from '@semiont/sdk';
 import { createYieldStateUnit, type YieldStateUnit } from '@semiont/sdk';
 import type { SemiontClient } from '@semiont/sdk';
 import { decodeWithCharset, textExtractionOf } from '@semiont/core';
-import { isHighlight, isComment, isAssessment, isReference, isTag } from '@semiont/core';
+import { groupAnnotations } from '../../../lib/annotation-groups';
 import type { ReferencedByEntry } from '@semiont/sdk';
 
 import type { Annotation } from '@semiont/core';
@@ -85,19 +85,7 @@ export function createResourceViewerPageStateUnit(
     map((a) => a ?? []),
   );
 
-  const annotationGroups$: Observable<AnnotationGroups> = annotations$.pipe(
-    map((anns) => {
-      const groups: AnnotationGroups = { highlights: [], comments: [], assessments: [], references: [], tags: [] };
-      for (const ann of anns) {
-        if (isHighlight(ann)) groups.highlights.push(ann);
-        else if (isComment(ann)) groups.comments.push(ann);
-        else if (isAssessment(ann)) groups.assessments.push(ann);
-        else if (isReference(ann)) groups.references.push(ann);
-        else if (isTag(ann)) groups.tags.push(ann);
-      }
-      return groups;
-    }),
-  );
+  const annotationGroups$: Observable<AnnotationGroups> = annotations$.pipe(map(groupAnnotations));
 
   const entityTypes$: Observable<string[]> = client.browse.entityTypes().pipe(
     map((e) => e ?? []),

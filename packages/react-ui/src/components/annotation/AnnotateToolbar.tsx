@@ -2,8 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
-import { useSemiont } from '../../session/SemiontProvider';
-import { useObservable } from '../../hooks/useObservable';
+import type { SemiontSession } from '@semiont/sdk';
 import { getSupportedShapes } from '../../lib/media-shapes';
 import type { Annotator } from '../../lib/annotation-registry';
 import './annotations.css';
@@ -28,6 +27,9 @@ interface AnnotateToolbarProps {
 
   // Annotators for emoji lookup
   annotators: Record<string, Annotator>;
+
+  // Session — emits mark:* selection/click/shape/mode changes via its client.
+  session: SemiontSession | null;
 }
 
 interface DropdownGroupProps {
@@ -117,10 +119,10 @@ export function AnnotateToolbar({
   selectedShape = 'rectangle',
   mediaType,
   annotateMode = false,
-  annotators
+  annotators,
+  session,
 }: AnnotateToolbarProps) {
   const t = useTranslations('AnnotateToolbar');
-  const session = useObservable(useSemiont().activeSession$);
 
   // Helper to get emoji from annotators by motivation (with fallback for safety)
   const getMotivationEmoji = (motivation: SelectionMotivation): string => {
