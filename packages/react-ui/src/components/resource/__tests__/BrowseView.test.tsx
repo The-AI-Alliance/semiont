@@ -3,17 +3,15 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowseView } from '../BrowseView';
 import type { EventBus } from '@semiont/core';
+import type { SemiontClient, SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper } from '../../../test-utils';
 
 import type { Annotation, AnnotationId } from '@semiont/core';
 
-// Mock ResourceAnnotationsContext - keep this simple
-let mockNewAnnotationIds = new Set<string>();
-vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
-  useResourceAnnotations: vi.fn(() => ({
-    newAnnotationIds: mockNewAnnotationIds,
-  })),
-}));
+// BrowseView takes its `session` + `newAnnotationIds` as props now (step 1a) — no
+// ResourceAnnotationsContext / SemiontProvider reach-in. `makeSession` (below)
+// wraps the fake client so browse:click / beckon:hover land on the bus the
+// trackers listen on, and session.subscribe registers beckon:* on that bus.
 
 // Mock @semiont/core utilities. The media-type registry (`capabilitiesOf`)
 // is NOT mocked — BrowseView dispatches on the real registry's render mode,
@@ -116,34 +114,47 @@ function createEventTracker() {
   };
 }
 
+// BrowseView now takes its session as a prop. Wrap the fake client so
+// browse:click / beckon:hover emit on the SAME bus the trackers listen on, and
+// session.subscribe registers beckon:* there (mirrors test-utils' fake session).
+function makeSession(client: SemiontClient): SemiontSession {
+  return {
+    client,
+    subscribe: (channel: string, handler: (p: never) => void) => {
+      const sub = (client.bus.get(channel as never) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
+      return () => sub.unsubscribe();
+    },
+  } as unknown as SemiontSession;
+}
+
 const renderWithProviders = (
-  component: React.ReactElement,
+  component: React.ReactElement<React.ComponentProps<typeof BrowseView>>,
   options: { newAnnotationIds?: Set<string> } = {}
 ) => {
-  if (options.newAnnotationIds) {
-    mockNewAnnotationIds = options.newAnnotationIds;
-  }
-  const { SemiontWrapper } = createTestSemiontWrapper();
+  const { SemiontWrapper, client } = createTestSemiontWrapper();
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontWrapper>{children}</SemiontWrapper>
   );
-  return render(component, { wrapper: Wrapper });
+  return render(
+    React.cloneElement(component, { session: makeSession(client), newAnnotationIds: options.newAnnotationIds }),
+    { wrapper: Wrapper },
+  );
 };
 
 const renderWithEventTracking = (
-  component: React.ReactElement,
+  component: React.ReactElement<React.ComponentProps<typeof BrowseView>>,
   tracker: ReturnType<typeof createEventTracker>,
   options: { newAnnotationIds?: Set<string> } = {}
 ) => {
-  if (options.newAnnotationIds) {
-    mockNewAnnotationIds = options.newAnnotationIds;
-  }
-  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+  const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
   tracker._attach(eventBus);
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontWrapper>{children}</SemiontWrapper>
   );
-  return render(component, { wrapper: Wrapper });
+  return render(
+    React.cloneElement(component, { session: makeSession(client), newAnnotationIds: options.newAnnotationIds }),
+    { wrapper: Wrapper },
+  );
 };
 
 // Test data fixtures
@@ -179,11 +190,13 @@ describe('BrowseView Component', () => {
     hoveredAnnotationId: null,
     selectedClick: 'detail' as const,
     annotateMode: false,
+    // Placeholder — the render helpers override this with a session bound to the
+    // fake client's bus (so emits/subscriptions land where the trackers listen).
+    session: null as SemiontSession | null,
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockNewAnnotationIds = new Set();
 
     // Mock scrollIntoView for jsdom
     if (typeof Element !== 'undefined') {
@@ -499,7 +512,7 @@ describe('BrowseView Component', () => {
         tags: [],
       };
 
-      const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+      const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
       eventBus.get('beckon:hover').subscribe((payload: any) => {
         eventTracker.push({ event: 'beckon:hover', annotationId: payload?.annotationId ?? null });
       });
@@ -509,7 +522,7 @@ describe('BrowseView Component', () => {
 
       const { container } = render(
         <SemiontWrapper>
-          <BrowseView {...defaultProps} annotations={manyAnnotations} />
+          <BrowseView {...defaultProps} annotations={manyAnnotations} session={makeSession(client)} />
         </SemiontWrapper>
       );
 

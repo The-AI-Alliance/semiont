@@ -6,12 +6,10 @@ import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeTyp
 import { BrowseView } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
-import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, components } from '@semiont/core';
+import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, components, EventMap } from '@semiont/core';
 import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/core';
-import { useEventSubscriptions } from '../../contexts/useEventSubscription';
-import { useSemiont } from '../../session/SemiontProvider';
-import { useObservable } from '../../hooks/useObservable';
-import { useObservableExternalNavigation } from '../../hooks/useObservableBrowse';
+import type { SemiontSession } from '@semiont/sdk';
+import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
 import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForSelectorType } from '../../lib/media-shapes';
@@ -24,9 +22,11 @@ import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForS
  * - Automatically invalidates cache when annotations change
  * - No manual refetch needed - events handle cache invalidation
  *
- * Requirements:
- * - Must be wrapped in SemiontProvider (which owns the session's event bus)
- * - Must be wrapped in CacheContext (provides cache manager)
+ * Bring-your-own-session: the `session` (SemiontSession) and the host's
+ * navigation / panel callbacks come in as props — no SemiontProvider required.
+ * Every event it subscribes to is session-scoped (mark:*, browse:click) and
+ * reaches it via `session.subscribe`. Translations fall back to built-in English
+ * when no TranslationProvider is mounted; caching flows through `session.client.browse.*`.
  *
  * Event flow:
  *   make-meaning → EventLog → SSE → EventBus → ResourceViewer → Cache invalidation
@@ -37,6 +37,14 @@ import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForS
 interface Props {
   resource: SemiontResource & { content: string };
   annotations: AnnotationsCollection;
+  /** Session for the shown resource — its client mutates/invalidates, its bus feeds annotation events. */
+  session: SemiontSession | null;
+  /** Host-owned navigation: a resolved reference was followed. Omit for a view with no follow behavior. */
+  onOpenResource?: (resourceId: string) => void;
+  /** Host-owned panel control (annotation clicks open a panel). Omit for hosts without side panels. */
+  onOpenPanel?: (event: EventMap['panel:open']) => void;
+  /** Recently-created annotation ids to sparkle (threaded to the browse/annotate subtree). */
+  newAnnotationIds?: Set<string>;
   generatingReferenceId?: string | null;
   showLineNumbers?: boolean;
   hoverDelayMs?: number;
@@ -59,6 +67,10 @@ interface Props {
 export function ResourceViewer({
   resource,
   annotations,
+  session,
+  onOpenResource,
+  onOpenPanel,
+  newAnnotationIds,
   generatingReferenceId,
   showLineNumbers = false,
   hoverDelayMs,
@@ -66,12 +78,6 @@ export function ResourceViewer({
 }: Props) {
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
-
-  const browser = useSemiont();
-  const session = useObservable(browser.activeSession$);
-
-  // Get observable navigation for event-driven routing
-  const navigate = useObservableExternalNavigation();
 
   const { highlights, references, assessments, comments, tags } = annotations;
 
@@ -267,8 +273,8 @@ export function ResourceViewer({
     if (selectedClick === 'follow' && isReference(annotation)) {
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        // bodySource is already a bare resource ID
-        navigate(`/know/resource/${bodySource}`, { resourceId: bodySource });
+        // bodySource is already a bare resource ID — the host owns navigation
+        onOpenResource?.(bodySource);
       }
       return;
     }
@@ -293,7 +299,7 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-  }, [annotateMode, selectedClick, focusAnnotation]);
+  }, [annotateMode, selectedClick, focusAnnotation, onOpenResource]);
 
   // Annotation click coordinator - handles panel opening and scrolling
   const handleAnnotationClickEvent = useCallback(({ annotationId, motivation }: {
@@ -323,14 +329,14 @@ export function ResourceViewer({
       return;
     }
 
-    // All annotations open the unified annotations panel
+    // All annotations open the unified annotations panel — the host owns the panel.
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
-    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
-  }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, session]);
+    onOpenPanel?.({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+  }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, onOpenPanel]);
 
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues
   // IMPORTANT: All event subscriptions MUST be in a single call to maintain consistent hook order between renders
-  useEventSubscriptions({
+  useSessionEventSubscriptions(session, {
     // View mode
     'mark:mode-toggled': handleViewModeToggle,
 
@@ -390,6 +396,8 @@ export function ResourceViewer({
           showLineNumbers={showLineNumbers}
           hoverDelayMs={hoverDelayMs}
           annotateMode={annotateMode}
+          session={session}
+          newAnnotationIds={newAnnotationIds}
         />
       ) : (
         <BrowseView
@@ -400,6 +408,8 @@ export function ResourceViewer({
           selectedClick={selectedClick}
           hoverDelayMs={hoverDelayMs}
           annotateMode={annotateMode}
+          session={session}
+          newAnnotationIds={newAnnotationIds}
         />
       )}
 

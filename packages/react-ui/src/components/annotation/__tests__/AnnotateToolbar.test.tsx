@@ -7,6 +7,7 @@ import { TranslationProvider } from '../../../contexts/TranslationContext';
 import { createTestSemiontWrapper } from '../../../test-utils';
 import type { TranslationManager } from '../../../types/TranslationManager';
 import type { EventBus } from '@semiont/core';
+import type { SemiontClient, SemiontSession } from '@semiont/sdk';
 
 // Mock translations
 const messages: Record<string, Record<string, string>> = {
@@ -63,8 +64,20 @@ function createEventTracker() {
   };
 }
 
-const renderWithIntl = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
-  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+// AnnotateToolbar takes its session as a prop now (step 1b). Wrap the fake client
+// so mark:* changes emit on the SAME bus the tracker listens on.
+function makeSession(client: SemiontClient): SemiontSession {
+  return {
+    client,
+    subscribe: (channel: string, handler: (p: never) => void) => {
+      const sub = (client.bus.get(channel as never) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
+      return () => sub.unsubscribe();
+    },
+  } as unknown as SemiontSession;
+}
+
+const renderWithIntl = (component: React.ReactElement<React.ComponentProps<typeof AnnotateToolbar>>, tracker?: ReturnType<typeof createEventTracker>) => {
+  const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
   if (tracker) tracker._attach(eventBus);
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontWrapper>
@@ -73,8 +86,15 @@ const renderWithIntl = (component: React.ReactElement, tracker?: ReturnType<type
       </TranslationProvider>
     </SemiontWrapper>
   );
-  const result = render(component, { wrapper: Wrapper });
-  return { ...result, eventBus };
+  const session = makeSession(client);
+  const result = render(React.cloneElement(component, { session }), { wrapper: Wrapper });
+  // Re-inject the same session on rerender — a bare rerender would drop it (→ session:null).
+  return {
+    ...result,
+    eventBus,
+    rerender: (next: React.ReactElement<React.ComponentProps<typeof AnnotateToolbar>>) =>
+      result.rerender(React.cloneElement(next, { session })),
+  };
 };
 
 describe('AnnotateToolbar', () => {
@@ -84,7 +104,9 @@ describe('AnnotateToolbar', () => {
     onSelectionChange: vi.fn(),
     onClickChange: vi.fn(),
     annotateMode: false,
-    annotators: ANNOTATORS
+    annotators: ANNOTATORS,
+    // Placeholder — renderWithIntl overrides with a session bound to the fake bus.
+    session: null as SemiontSession | null,
   };
 
   beforeEach(() => {

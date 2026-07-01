@@ -1,23 +1,27 @@
 import { useEffect, useState } from 'react';
 import type { ResourceId } from '@semiont/core';
-import { useSemiont } from '../session/SemiontProvider';
-import { useObservable } from './useObservable';
+import type { SemiontClient } from '@semiont/sdk';
 
 export interface UseMediaTokenResult {
   token: string | undefined;
   loading: boolean;
 }
 
-export function useMediaToken(id: ResourceId): UseMediaTokenResult {
-  const semiont = useObservable(useSemiont().activeSession$)?.client;
+/**
+ * Mint (and periodically refresh) a short-lived authed media token for a
+ * resource — the query param that makes `<img>` / PDF URLs load. Takes the
+ * client explicitly (not `useSemiont()`), so a bring-your-own-session host can
+ * use it with a bare session; the batteries-included page passes `session.client`.
+ */
+export function useMediaToken(client: SemiontClient | null, id: ResourceId): UseMediaTokenResult {
   const [token, setToken] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!semiont || !id) { setLoading(false); return; }
+    if (!client || !id) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
-    semiont.auth!.mediaToken(id)
+    client.auth!.mediaToken(id)
       .then(({ token: t }) => {
         if (cancelled) return;
         setToken(t);
@@ -29,7 +33,7 @@ export function useMediaToken(id: ResourceId): UseMediaTokenResult {
       });
 
     const refreshInterval = setInterval(() => {
-      semiont.auth!.mediaToken(id)
+      client.auth!.mediaToken(id)
         .then(({ token: t }) => { if (!cancelled) setToken(t); })
         .catch(() => {});
     }, 4 * 60 * 1000);
@@ -38,7 +42,7 @@ export function useMediaToken(id: ResourceId): UseMediaTokenResult {
       cancelled = true;
       clearInterval(refreshInterval);
     };
-  }, [semiont, id]);
+  }, [client, id]);
 
   return { token, loading };
 }

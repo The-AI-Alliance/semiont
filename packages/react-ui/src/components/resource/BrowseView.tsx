@@ -1,14 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useMemo, memo, lazy, Suspense } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { annotationId as toAnnotationId } from '@semiont/core';
 import { capabilitiesOf } from '@semiont/core';
 import { createHoverHandlers } from '@semiont/sdk';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
-import { ImageViewer } from '../viewers';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
 import type { AnnotationsCollection } from '../../types/annotation-props';
 import {
@@ -20,13 +17,9 @@ import {
   toOverlayAnnotations,
 } from '../../lib/annotation-overlay';
 
-// Lazy load PDF component to avoid SSR issues with browser PDF.js loading
-const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
-
-import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
-import { useSemiont } from '../../session/SemiontProvider';
-import { useObservable } from '../../hooks/useObservable';
-import { useEventSubscriptions } from '../../contexts/useEventSubscription';
+import type { SemiontSession } from '@semiont/sdk';
+import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
+import { defaultBrowseRenderers, type BrowseMediaRenderers } from './browse-renderers';
 
 interface Props {
   content: string;
@@ -37,25 +30,13 @@ interface Props {
   selectedClick?: ClickAction;
   annotateMode: boolean;
   hoverDelayMs?: number;
+  /** Session for the shown resource — emits browse:click / beckon:hover; its bus feeds beckon events. */
+  session: SemiontSession | null;
+  /** Recently-created annotation ids to sparkle (host-provided; was ResourceAnnotationsContext). */
+  newAnnotationIds?: Set<string>;
+  /** Override the read-only media renderers (render mode → renderer); merged over the defaults. */
+  renderers?: BrowseMediaRenderers;
 }
-
-/**
- * Memoized markdown renderer — only re-renders when content changes.
- * No annotation plugins: annotations are applied as a DOM overlay after paint.
- */
-const MemoizedMarkdown = memo(function MemoizedMarkdown({
-  content,
-}: {
-  content: string;
-}) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-    >
-      {content}
-    </ReactMarkdown>
-  );
-});
 
 /**
  * View component for browsing annotated resources in read-only mode.
@@ -77,10 +58,11 @@ export const BrowseView = memo(function BrowseView({
   annotations,
   selectedClick = 'detail',
   annotateMode,
-  hoverDelayMs = 150
+  hoverDelayMs = 150,
+  session,
+  newAnnotationIds,
+  renderers,
 }: Props) {
-  const { newAnnotationIds } = useResourceAnnotations();
-  const session = useObservable(useSemiont().activeSession$);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const render = capabilitiesOf(mimeType)?.render ?? 'none';
@@ -202,94 +184,51 @@ export const BrowseView = memo(function BrowseView({
     scrollToAnnotation(annotationId ?? null, true);
   }, [scrollToAnnotation]);
 
-  useEventSubscriptions({
+  useSessionEventSubscriptions(session, {
     'beckon:hover': handleAnnotationHover,
     'beckon:focus': handleAnnotationFocus,
   });
 
-  // Route to the viewer for this media type's render mode. The switch is
-  // exhaustive over RenderMode, so every path returns.
-  switch (render) {
-    case 'text':
-      return (
-        <div className="semiont-browse-view" data-mime-type="text">
-          <AnnotateToolbar
-            selectedMotivation={null}
-            selectedClick={selectedClick}
-            showSelectionGroup={false}
-            showDeleteButton={false}
-            annotateMode={annotateMode}
-            annotators={ANNOTATORS}
-          />
-          <div ref={containerRef} className="semiont-browse-view__content">
-            <MemoizedMarkdown content={content} />
-          </div>
-        </div>
-      );
+  // Route to the media renderer for this render mode. `text`/`image`/`pdf` share
+  // the shell (toolbar + annotation-overlay container); `none` (no preview, or an
+  // unknown type) has its own metadata+download structure. Callers can override
+  // any renderer via `renderers`.
+  const mediaRenderers: BrowseMediaRenderers = { ...defaultBrowseRenderers, ...renderers };
+  const Renderer = render === 'none' ? undefined : mediaRenderers[render];
 
-    case 'pdf':
-      return (
-        <div className="semiont-browse-view" data-mime-type="pdf">
-          <AnnotateToolbar
-            selectedMotivation={null}
-            selectedClick={selectedClick}
-            showSelectionGroup={false}
-            showDeleteButton={false}
-            annotateMode={annotateMode}
-            annotators={ANNOTATORS}
-          />
-          <div ref={containerRef} className="semiont-browse-view__content">
-            <Suspense fallback={<div className="semiont-browse-view__loading">Loading PDF viewer...</div>}>
-              <PdfAnnotationCanvas
-                pdfUrl={content}
-                existingAnnotations={allAnnotations}
-                drawingMode={null}
-                selectedMotivation={null}
-              />
-            </Suspense>
-          </div>
+  if (!Renderer) {
+    return (
+      <div ref={containerRef} className="semiont-browse-view semiont-browse-view--unsupported" data-mime-type="unsupported">
+        <div className="semiont-browse-view__empty">
+          <p className="semiont-browse-view__empty-message">
+            Preview not available for {mimeType}
+          </p>
+          <a
+            href={`/api/resources/${resourceUri}`}
+            download
+            className="semiont-button semiont-button--primary"
+          >
+            Download File
+          </a>
         </div>
-      );
-
-    case 'image':
-      return (
-        <div className="semiont-browse-view" data-mime-type="image">
-          <AnnotateToolbar
-            selectedMotivation={null}
-            selectedClick={selectedClick}
-            showSelectionGroup={false}
-            showDeleteButton={false}
-            annotateMode={annotateMode}
-            annotators={ANNOTATORS}
-          />
-          <div ref={containerRef} className="semiont-browse-view__content">
-            <ImageViewer
-              imageUrl={content}
-              mimeType={mimeType}
-              alt="Resource content"
-            />
-          </div>
-        </div>
-      );
-
-    case 'none':
-      // Catalogued type with no preview (render: 'none') or an imported
-      // foreign type the registry doesn't know — same UI: metadata + download.
-      return (
-        <div ref={containerRef} className="semiont-browse-view semiont-browse-view--unsupported" data-mime-type="unsupported">
-          <div className="semiont-browse-view__empty">
-            <p className="semiont-browse-view__empty-message">
-              Preview not available for {mimeType}
-            </p>
-            <a
-              href={`/api/resources/${resourceUri}`}
-              download
-              className="semiont-button semiont-button--primary"
-            >
-              Download File
-            </a>
-          </div>
-        </div>
-      );
+      </div>
+    );
   }
+
+  return (
+    <div className="semiont-browse-view" data-mime-type={render}>
+      <AnnotateToolbar
+        selectedMotivation={null}
+        selectedClick={selectedClick}
+        showSelectionGroup={false}
+        showDeleteButton={false}
+        annotateMode={annotateMode}
+        annotators={ANNOTATORS}
+        session={session}
+      />
+      <div ref={containerRef} className="semiont-browse-view__content">
+        <Renderer content={content} mimeType={mimeType} resourceUri={resourceUri} annotations={allAnnotations} />
+      </div>
+    </div>
+  );
 });
