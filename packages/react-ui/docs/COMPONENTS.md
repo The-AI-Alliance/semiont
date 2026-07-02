@@ -20,58 +20,94 @@ All components are framework-agnostic. Components that need routing accept a `Li
 
 ### ResourceViewer
 
-Primary component for displaying resources with annotations.
+Displays a resource with its annotation overlay (highlights, references, comments, tags) for
+any media type. **Bring-your-own-session:** it takes your `SemiontSession` directly — no
+`SemiontProvider` or cache/translation context required.
 
 ```tsx
-import { ResourceViewer } from '@semiont/react-ui';
+import { ResourceViewer, useResourceLoader } from '@semiont/react-ui';
+
+const { resource, annotations } = useResourceLoader(session.client, resourceId);
 
 <ResourceViewer
-  resource={resource}
-  view="browse" // or "annotate"
-  onViewChange={(view) => setView(view)}
+  session={session}
+  resource={{ ...resource, content }}    // `content` is the host's to fetch
+  annotations={annotations}
+  onOpenResource={(id) => navigate(id)}  // host-owned nav for a followed reference
 />
 ```
 
 **Props:**
-- `resource` - Resource object from API
-- `view` - Current view mode ('browse' | 'annotate')
-- `onViewChange?` - Callback when view mode changes
+- `session` — the `SemiontSession` backing the resource (its client mutates/invalidates; its bus feeds annotation events); `null` while loading.
+- `resource` — the `ResourceDescriptor` with `content` merged in (decoded text, or a media-token URL for binary media).
+- `annotations` — grouped annotations (`useResourceLoader` returns them ready-shaped).
+- `onOpenResource?` — a resolved reference was followed (host-owned navigation).
+- `onOpenPanel?` — an annotation click requests a side panel (omit for a bare view).
+- `newAnnotationIds?`, `showLineNumbers?`, `hoverDelayMs?`, `hoveredAnnotationId?`, `generatingReferenceId?` — optional presentation / coordination hints.
 
 **Features:**
-- Tabbed interface (Browse, Annotate, History)
-- CodeMirror integration for syntax highlighting
-- Annotation overlay
-- Responsive layout
+- Browse / annotate modes (annotate mode persisted in `localStorage`), CodeMirror syntax highlighting, the annotation overlay, responsive layout.
+- Speaks the SDK bus — an annotation edit made elsewhere updates the open document with no refetch.
+
+> **Full end-to-end integration** — loading the resource, fetching text vs. binary content, and media tokens — is walked through in the SDK developer guide's *Render a resource in the browser — the embeddable viewer* recipe: [DEVELOPER-GUIDE.md](../../sdk/docs/DEVELOPER-GUIDE.md). For the batteries-included, provider-based page, see `ResourceViewerPage`.
 
 ### BrowseView
 
-Read-only resource view.
+The read-only render layer that `ResourceViewer` composes in browse mode — markdown/media
+rendering plus the annotation overlay applied over the DOM. It takes **decoded `content`** (not
+a resource object) and a `SemiontSession` for its bus. Most hosts use `ResourceViewer` rather
+than this directly.
 
 ```tsx
 import { BrowseView } from '@semiont/react-ui';
 
-<BrowseView resource={resource} />
+<BrowseView
+  content={text}
+  mimeType="text/markdown"
+  resourceUri={resource['@id']}
+  annotations={annotations}
+  annotateMode={false}
+  session={session}
+/>
 ```
+
+**Key props:** `content`, `annotations`, `annotateMode`, `session` (required); `mimeType?`, `resourceUri?`, `hoveredAnnotationId?`, `selectedClick?`, `hoverDelayMs?`, `newAnnotationIds?`, `renderers?` (override the read-only media renderers).
 
 ### AnnotateView
 
-Annotation interface for resources.
+The annotate-mode layer that `ResourceViewer` composes for creating annotations (text selection
++ drawing). Like `BrowseView` it takes decoded `content` + a `SemiontSession`, plus annotation
+UI state. Most hosts use `ResourceViewer`.
 
 ```tsx
 import { AnnotateView } from '@semiont/react-ui';
 
-<AnnotateView resource={resource} />
+<AnnotateView
+  content={text}
+  mimeType="text/markdown"
+  resourceUri={resource['@id']}
+  annotations={annotations}
+  uiState={uiState}
+  onUIStateChange={setUiState}
+  annotateMode={true}
+  session={session}
+/>
 ```
+
+**Key props:** `content`, `annotations`, `uiState`, `annotateMode`, `session` (required); `onUIStateChange?`, `editable?`, `enableWidgets?`, `getTargetResourceName?`, `generatingReferenceId?`, `showLineNumbers?`, `hoverDelayMs?`, `newAnnotationIds?`.
 
 ### AnnotationHistory
 
-Display annotation history and events.
+The resource's annotation-event history. Takes the resource id (`rUri`) and the host's
+framework-agnostic navigation primitives (`Link` + `routes`).
 
 ```tsx
 import { AnnotationHistory } from '@semiont/react-ui';
 
-<AnnotationHistory resourceId={rId} />
+<AnnotationHistory rUri={rId} Link={Link} routes={routes} />
 ```
+
+**Key props:** `rUri`, `Link`, `routes` (required); `hoveredAnnotationId?`, `onEventHover?`, `onEventClick?`.
 
 ---
 

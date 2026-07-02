@@ -272,6 +272,71 @@ sub.unsubscribe();
 await session.dispose();   // tears down the SSE connection, refresh timer, and bus
 ```
 
+## Render a resource in the browser — the embeddable viewer (`@semiont/react-ui`)
+
+Everything above is transport- and UI-agnostic SDK. When the host *is* a browser app,
+`@semiont/react-ui` ships a **bring-your-own-session** `ResourceViewer`: it renders a
+resource's content plus its annotation overlay (highlights, references, comments, tags) for
+any media type, and routes reference clicks back to your own navigation. No `SemiontProvider`,
+no cache or translation context — it consumes the same `SemiontSession` you built in recipe 1.
+
+Two hooks load from that session's client (both take the bare `session.client`, not a
+provider): `useResourceLoader` for the resource and its grouped annotations, and
+`useMediaToken` for the short-lived authed URL that image/PDF media need. The *content* is the
+host's to fetch — text via `browse.resourceRepresentation`, binary via the media-token URL —
+and handed to the viewer on the resource, so the viewer stays agnostic about how bytes arrive.
+
+```tsx
+import { useState, useEffect } from 'react';
+import { ResourceViewer, useResourceLoader, useMediaToken } from '@semiont/react-ui';
+import { resourceId, type SemiontSession } from '@semiont/sdk';
+import { capabilitiesOf, decodeWithCharset, getPrimaryMediaType } from '@semiont/core';
+
+function ResourcePane({ session, id, onOpenResource }: {
+  session: SemiontSession;
+  id: string;
+  onOpenResource: (resourceId: string) => void;   // host-owned nav for a followed reference
+}) {
+  const rid = resourceId(id);
+  const { resource, annotations, loading, error } = useResourceLoader(session.client, rid);
+
+  const mediaType = resource ? getPrimaryMediaType(resource) ?? 'text/plain' : 'text/plain';
+  const isBinary = ['image', 'pdf'].includes(capabilitiesOf(mediaType)?.render ?? '');
+
+  // Binary media loads through a short-lived authed token URL; text is fetched + decoded.
+  const { token } = useMediaToken(isBinary ? session.client : null, rid);
+  const [text, setText] = useState('');
+  useEffect(() => {
+    if (!resource || isBinary) return;
+    void session.client.browse.resourceRepresentation(rid)
+      .then(({ data, contentType }) => setText(decodeWithCharset(data, contentType)))
+      .catch(() => { /* leave empty — the viewer falls back to metadata + download */ });
+  }, [session, rid, resource, isBinary]);
+
+  const content = isBinary
+    ? (token ? `${session.client.baseUrl}/api/resources/${rid}?token=${token}` : '')
+    : text;
+
+  if (error) return <p role="alert">{error.message}</p>;
+  if (loading || !resource) return <p>Loading…</p>;
+  return (
+    <ResourceViewer
+      session={session}
+      resource={{ ...resource, content }}
+      annotations={annotations}
+      onOpenResource={onOpenResource}
+    />
+  );
+}
+```
+
+The viewer speaks the same bus as the rest of the SDK — annotation edits, hovers, and
+reference navigations flow as `mark:*` / `browse:*` / `panel:open` events on `session`'s bus,
+so an edit made elsewhere updates the open document live, with no refetch (recipe 11). Pass
+`onOpenPanel` if your shell has side panels; omit it for a bare view. For annotate mode, the
+overridable browse-renderer registry, and the batteries-included provider-based variant
+(`ResourceViewerPage`), see `@semiont/react-ui`.
+
 ## Headless (Node) vs. browser
 
 The same code runs in both — only two things differ:
@@ -291,5 +356,6 @@ surface) and the same logic serves a browser app, a Node daemon, and a one-shot 
 - **[Usage.md](./Usage.md)** — the per-namespace reference: every method, every option.
 - **[REACTIVE-MODEL.md](./REACTIVE-MODEL.md)** — return shapes, await-vs-subscribe, the bus.
 - **[STATE-UNITS.md](./STATE-UNITS.md)** — the state-unit pattern for reactive UIs.
+- **[@semiont/react-ui](../../react-ui/README.md)** — React components for browser UIs, including the embeddable `ResourceViewer` shown above.
 - **[CACHE-SEMANTICS.md](./CACHE-SEMANTICS.md)** — the read-through cache contract behind `browse.*`.
 - **`docs/protocol/`** — the protocol-level framing (the eight flows, the programmable surfaces).
