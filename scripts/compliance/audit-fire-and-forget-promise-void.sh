@@ -22,7 +22,7 @@ cd "$REPO_ROOT"
 
 # Legit ack methods — each awaits a backend HTTP round-trip and correctly returns
 # Promise<void>. Add a method name here only when it genuinely awaits a backend ack.
-ACK_ALLOWLIST='[^A-Za-z](body|addEntityType|addEntityTypes|addTagSchema|delete|archive|unarchive|logout|acceptTerms)\('
+ACK_ALLOWLIST='[^A-Za-z](body|addEntityType|addEntityTypes|addTagSchema|delete|archive|unarchive|updateEntityTypes|logout|acceptTerms)\('
 
 VIOLATIONS=$(grep -rnE ":[[:space:]]*Promise<void>" \
   packages/sdk/src/namespaces \
