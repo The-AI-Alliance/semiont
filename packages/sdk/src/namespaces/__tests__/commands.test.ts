@@ -159,6 +159,29 @@ describe('MarkNamespace', () => {
     await assertion;
   });
 
+  it('updateEntityTypes() emits mark:update-entity-types (diff payload) and resolves on -ok', async () => {
+    const mock = createMockTransport({
+      'mark:update-entity-types': () => ({ resultChannel: 'mark:update-entity-types-ok', response: {} }),
+    });
+    const m = new MarkNamespace(mock.transport, eventBus);
+    await m.updateEntityTypes(RID, ['A'], ['A', 'B']);
+    expect(mock.emitSpy).toHaveBeenCalledWith('mark:update-entity-types', expect.objectContaining({
+      resourceId: RID,
+      currentEntityTypes: ['A'],
+      updatedEntityTypes: ['A', 'B'],
+    }));
+  });
+
+  it('updateEntityTypes() REJECTS on mark:update-entity-types-failed — a tag write failure is not silently dropped', async () => {
+    const mock = createMockTransport();
+    const m = new MarkNamespace(mock.transport, eventBus);
+    const assertion = expect(m.updateEntityTypes(RID, [], ['Person'])).rejects.toThrow(/rejected/);
+    await new Promise((r) => setTimeout(r, 10));
+    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
+    (mock.transportBus.get('mark:update-entity-types-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'rejected by handler' });
+    await assertion;
+  });
+
   it('assist() returns Observable that emits on job:report-progress', async () => {
     const progress: any[] = [];
     const completed = new Promise<void>((resolve) => {

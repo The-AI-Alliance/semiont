@@ -447,23 +447,35 @@ export class Stower {
     const added = event.updatedEntityTypes.filter(et => !event.currentEntityTypes.includes(et));
     const removed = event.currentEntityTypes.filter(et => !event.updatedEntityTypes.includes(et));
 
-    for (const entityType of added) {
-      await this.kb.eventStore.appendEvent({
-        type: 'mark:entity-tag-added',
-        resourceId: resourceId(event.resourceId),
-        userId: uid,
-        version: 1,
-        payload: { entityType },
-      });
-    }
+    try {
+      for (const entityType of added) {
+        await this.kb.eventStore.appendEvent({
+          type: 'mark:entity-tag-added',
+          resourceId: resourceId(event.resourceId),
+          userId: uid,
+          version: 1,
+          payload: { entityType },
+        });
+      }
 
-    for (const entityType of removed) {
-      await this.kb.eventStore.appendEvent({
-        type: 'mark:entity-tag-removed',
-        resourceId: resourceId(event.resourceId),
-        userId: uid,
-        version: 1,
-        payload: { entityType },
+      for (const entityType of removed) {
+        await this.kb.eventStore.appendEvent({
+          type: 'mark:entity-tag-removed',
+          resourceId: resourceId(event.resourceId),
+          userId: uid,
+          version: 1,
+          payload: { entityType },
+        });
+      }
+
+      // Correlation-keyed ack for the SDK's busRequest (the persisted
+      // mark:entity-tag-* domain events remain the system-of-record signal).
+      this.eventBus.get('mark:update-entity-types-ok').next({ correlationId: event.correlationId });
+    } catch (error) {
+      this.logger.error('Failed to update entity types', { error: errField(error) });
+      this.eventBus.get('mark:update-entity-types-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }

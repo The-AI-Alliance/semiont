@@ -69,6 +69,7 @@ export const BUS_OPERATIONS = {
   'mark:delete':                         { result: 'mark:delete-ok',                 failure: 'mark:delete-failed' },
   'mark:archive':                        { result: 'mark:archive-ok',                failure: 'mark:archive-failed' },
   'mark:unarchive':                      { result: 'mark:unarchive-ok',              failure: 'mark:unarchive-failed' },
+  'mark:update-entity-types':            { result: 'mark:update-entity-types-ok',    failure: 'mark:update-entity-types-failed' },
 
   // ── MATCH ───────────────────────────────────────────────────────
   // take-1 dressed as an Observable in the SDK; no progress channel

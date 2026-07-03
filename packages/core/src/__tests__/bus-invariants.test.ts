@@ -38,6 +38,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { BRIDGED_CHANNELS } from '../bridged-channels';
+import { BUS_OPERATIONS } from '../bus-operations';
 import { PERSISTED_EVENT_TYPES } from '../persisted-events';
 
 /**
@@ -65,6 +66,7 @@ const FROZEN_BRIDGED = [
   'mark:create-ok', 'mark:create-failed',
   'mark:archive-ok', 'mark:archive-failed',
   'mark:unarchive-ok', 'mark:unarchive-failed',
+  'mark:update-entity-types-ok', 'mark:update-entity-types-failed',
   'match:search-results', 'match:search-failed',
   'gather:complete', 'gather:failed',
   'gather:resource-complete', 'gather:resource-failed',
@@ -89,6 +91,21 @@ const FROZEN_BRIDGED = [
 ];
 
 describe('bus channel-classification invariants', () => {
+  it('mark:update-entity-types is a registered operation with correlated -ok/-failed replies', () => {
+    // A resource's own entity-type classification is a confirmed backend write —
+    // registered like its sibling metadata mutations (mark:delete/archive) so the
+    // SDK's busRequest awaits the correlation-keyed reply and rejects on failure,
+    // NOT a fire-and-forget local emit whose failure has nowhere to go
+    // (.plans/bugs/BRIDGE-GAPS.md). Widened to a plain Record so this reads as a
+    // runtime registry assertion (RED before the operation is registered) rather
+    // than a compile error on a missing `as const` key.
+    const ops = BUS_OPERATIONS as Record<string, { result: string; failure: string }>;
+    expect(ops['mark:update-entity-types']).toEqual({
+      result: 'mark:update-entity-types-ok',
+      failure: 'mark:update-entity-types-failed',
+    });
+  });
+
   it('the derived BRIDGED_CHANNELS equals the frozen registry snapshot', () => {
     expect(new Set(BRIDGED_CHANNELS)).toEqual(new Set(FROZEN_BRIDGED));
     // guard against an accidental duplicate inflating the array length without

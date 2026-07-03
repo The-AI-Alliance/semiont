@@ -818,4 +818,38 @@ describe('AnnotationOperations', () => {
       ).rejects.toThrow('Annotation not found in resource');
     });
   });
+
+  describe('updateEntityTypes (Stower)', () => {
+    it('emits a correlated mark:update-entity-types-ok and appends the entity-tag events', async () => {
+      // The SDK's `mark.updateEntityTypes` is a confirmed busRequest write: it
+      // awaits this correlation-keyed reply. Before the reply was wired, the
+      // handler appended the mark:entity-tag-* events but never acked, so the
+      // request would hang to timeout (.plans/bugs/BRIDGE-GAPS.md shape).
+      const correlationId = 'uet-cid-1';
+      const ok$ = firstValueFrom(
+        eventBus.get('mark:update-entity-types-ok').pipe(
+          filter((e) => e.correlationId === correlationId),
+          take(1),
+        ),
+      );
+
+      eventBus.get('mark:update-entity-types').next({
+        correlationId,
+        _userId: 'user-1',
+        resourceId: testResourceId,
+        currentEntityTypes: [],
+        updatedEntityTypes: ['Person'],
+      });
+
+      await ok$;
+
+      const events = await testEventStore.log.getEvents(resourceId(testResourceId));
+      const added = events.filter(
+        (e) =>
+          e.type === 'mark:entity-tag-added' &&
+          (e.payload as { entityType?: string }).entityType === 'Person',
+      );
+      expect(added.length).toBeGreaterThan(0);
+    });
+  });
 });
