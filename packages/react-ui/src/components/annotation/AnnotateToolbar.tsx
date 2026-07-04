@@ -30,6 +30,10 @@ interface AnnotateToolbarProps {
 
   // Session — emits mark:* selection/click/shape/mode changes via its client.
   session: SemiontSession | null;
+
+  // Compact display form (display-only): icon-only, tight, chromeless — for inline
+  // embeds. The bar's functionality is identical; only its form changes.
+  compact?: boolean;
 }
 
 interface DropdownGroupProps {
@@ -121,6 +125,7 @@ export function AnnotateToolbar({
   annotateMode = false,
   annotators,
   session,
+  compact = false,
 }: AnnotateToolbarProps) {
   const t = useTranslations('AnnotateToolbar');
 
@@ -291,7 +296,7 @@ export function AnnotateToolbar({
   const shapeTypes = allShapeTypes.filter(st => supportedShapes.includes(st.shape));
 
   return (
-    <div className="semiont-annotate-toolbar">
+    <div className={`semiont-annotate-toolbar${compact ? ' semiont-annotate-toolbar--compact' : ''}`}>
       {/* Click Group */}
       <DropdownGroup
         label={t('clickGroup')}

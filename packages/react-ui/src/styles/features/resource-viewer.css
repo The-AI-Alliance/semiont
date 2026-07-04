@@ -111,6 +111,25 @@
   padding: 0 1.5rem; /* Move padding from parent to scrollable content */
 }
 
+/* ── Inline embed variant ────────────────────────────────────────────────────
+ * Auto-height to content, no inner scroll container, no pane chrome — the
+ * viewer drops into a chat bubble / card / list item and the HOST page
+ * scrolls. Default (no modifier) keeps the fill-the-pane behavior above. */
+.semiont-resource-viewer--inline {
+  height: auto;
+}
+
+.semiont-browse-view--inline {
+  height: auto;
+  background-color: transparent; /* the host container owns the background */
+}
+
+.semiont-browse-view--inline .semiont-browse-view__content {
+  flex: none; /* size to content, not to a pane */
+  overflow: visible; /* no inner scrollbar — the host page is the scroll context */
+  padding: 0; /* no pane gutter — the host owns spacing */
+}
+
 /* ── Markdown prose typography ──────────────────────────────────────────────
  * The global CSS reset zeroes margins/padding on all block elements and
  * removes list styles. Re-apply semantic typographic defaults scoped to the
