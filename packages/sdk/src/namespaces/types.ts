@@ -281,6 +281,16 @@ export interface MarkNamespace {
   archive(resourceId: ResourceId): Promise<void>;
   unarchive(resourceId: ResourceId): Promise<void>;
 
+  /**
+   * Replace a resource's own entity-type classification. A **diff/replace**
+   * operation: pass the resource's current types as `current` and the desired
+   * full set as `updated`. The backend folds the difference into
+   * `resource.entityTypes`, so the change surfaces in
+   * `browse.resources({ entityType })` and `getResourceEntityTypes`. Awaitable +
+   * rejects on failure, like `delete`/`archive`.
+   */
+  updateEntityTypes(resourceId: ResourceId, current: string[], updated: string[]): Promise<void>;
+
   // AI-assisted annotation (long-running; emits progress, completes with the final event)
   assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): StreamObservable<MarkAssistEvent>;
 

@@ -818,4 +818,76 @@ describe('AnnotationOperations', () => {
       ).rejects.toThrow('Annotation not found in resource');
     });
   });
+
+  describe('updateEntityTypes (Stower)', () => {
+    it('diffs the sets — appends entity-tag-added AND entity-tag-removed — then acks with a correlated -ok', async () => {
+      // The SDK's `mark.updateEntityTypes` is a confirmed busRequest write: it
+      // awaits this correlation-keyed reply. Before the reply was wired, the
+      // handler appended the mark:entity-tag-* events but never acked, so the
+      // request would hang to timeout (.plans/bugs/BRIDGE-GAPS.md shape).
+      // Passing a non-empty `current` that differs from `updated` exercises both
+      // diff branches: 'Person' is added, 'Legacy' is removed.
+      const correlationId = 'uet-cid-1';
+      const ok$ = firstValueFrom(
+        eventBus.get('mark:update-entity-types-ok').pipe(
+          filter((e) => e.correlationId === correlationId),
+          take(1),
+        ),
+      );
+
+      eventBus.get('mark:update-entity-types').next({
+        correlationId,
+        _userId: 'user-1',
+        resourceId: testResourceId,
+        currentEntityTypes: ['Legacy'],
+        updatedEntityTypes: ['Person'],
+      });
+
+      await ok$;
+
+      const events = await testEventStore.log.getEvents(resourceId(testResourceId));
+      const tag = (type: string, entityType: string) =>
+        events.some(
+          (e) => e.type === type && (e.payload as { entityType?: string }).entityType === entityType,
+        );
+      expect(tag('mark:entity-tag-added', 'Person')).toBe(true);
+      expect(tag('mark:entity-tag-removed', 'Legacy')).toBe(true);
+    });
+
+    it('routes an append failure to a correlated mark:update-entity-types-failed (not silently dropped)', async () => {
+      // The confirmed-write guarantee: if the backend write throws, the failure
+      // must come back on the correlated reply channel so the SDK's busRequest
+      // rejects — the "failure has nowhere to go" bug BRIDGE-GAPS.md removed.
+      // Isolated Stower over a KB whose eventStore.appendEvent rejects, so the
+      // catch branch runs without disturbing the shared real-KB harness.
+      const failBus = new EventBus();
+      const failingKb = {
+        eventStore: { appendEvent: vi.fn().mockRejectedValue(new Error('disk full')) },
+      } as unknown as KnowledgeBase;
+      const failStower = new Stower(failingKb, failBus, mockLogger);
+      await failStower.initialize();
+
+      const correlationId = 'uet-cid-fail';
+      const failed$ = firstValueFrom(
+        failBus.get('mark:update-entity-types-failed').pipe(
+          filter((e) => e.correlationId === correlationId),
+          take(1),
+        ),
+      );
+
+      failBus.get('mark:update-entity-types').next({
+        correlationId,
+        _userId: 'user-1',
+        resourceId: testResourceId,
+        currentEntityTypes: [],
+        updatedEntityTypes: ['Person'],
+      });
+
+      const failure = await failed$;
+      expect(failure.message).toContain('disk full');
+
+      await failStower.stop();
+      failBus.destroy();
+    });
+  });
 });

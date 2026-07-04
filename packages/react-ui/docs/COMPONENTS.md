@@ -115,33 +115,27 @@ import { AnnotationHistory } from '@semiont/react-ui';
 
 ### SignInForm
 
-Sign-in form with Google OAuth and optional credentials-based authentication.
+Sign-in form with Google OAuth and optional credentials-based auth. The sign-in callbacks
+receive the target `backendUrl` (the form can prompt for it, or you can pre-fill + lock it via
+the `backendUrl` prop).
 
 ```tsx
 import { SignInForm } from '@semiont/react-ui';
-import Link from 'next/link'; // Or your router's Link
+import Link from 'next/link'; // or your router's Link
 
 <SignInForm
-  onGoogleSignIn={async () => signIn('google')}
-  onCredentialsSignIn={async (email, password) => signIn('credentials', { email, password })}
-  showCredentialsAuth={true}
+  onGoogleSignIn={async (backendUrl) => signIn('google', { backendUrl })}
+  onCredentialsSignIn={async (backendUrl, email, password) => signIn('credentials', { backendUrl, email, password })}
+  backendUrl={lockedBackendUrl}   // optional: pre-fill + lock the backend-URL field
+  showCredentialsAuth
+  isLoading={submitting}
   error={errorMessage}
   Link={Link}
-  translations={{
-    pageTitle: 'Sign In',
-    welcomeBack: 'Welcome back to Semiont',
-    // ... other translation keys
-  }}
+  translations={strings}
 />
 ```
 
-**Props:**
-- `onGoogleSignIn` - Callback for Google OAuth sign-in
-- `onCredentialsSignIn?` - Optional callback for email/password sign-in
-- `showCredentialsAuth?` - Whether to show credentials auth form (default: false)
-- `error?` - Error message to display
-- `Link` - Link component from your router
-- `translations` - Translation strings for all UI text
+**Required:** `onGoogleSignIn(backendUrl)`, `Link`, `translations`. **Optional:** `onCredentialsSignIn(backendUrl, email, password)`, `backendUrl`, `showCredentialsAuth`, `isLoading`, `error`. The full `translations` shape (21 keys) is the exported `SignInFormProps` type.
 
 ### SignUpForm
 
@@ -204,89 +198,89 @@ import Link from 'next/link';
 
 ### WelcomePage
 
-Welcome page for new users after sign-up.
+Terms-acceptance / welcome screen for new users. Driven by an explicit `status` and
+accept/decline callbacks; the host injects its own `PageLayout`.
 
 ```tsx
 import { WelcomePage } from '@semiont/react-ui';
 import Link from 'next/link';
 
 <WelcomePage
+  status="form"            // 'loading' | 'accepted' | 'form'
+  isProcessing={processing}
+  onAccept={acceptTerms}
+  onDecline={declineTerms}
   userName={user.name}
+  PageLayout={PageLayout}
   Link={Link}
-  translations={{
-    // ... translation keys
-  }}
+  translations={strings}
 />
 ```
+
+**Required:** `status`, `isProcessing`, `onAccept`, `onDecline`, `PageLayout`, `Link`, `translations`. **Optional:** `userName`, `termsAcceptedAt`, `isNewUser`. Full shape: the exported `WelcomePageProps` type.
 
 ---
 
 ## Layout Components
 
+These compose the app chrome and are **framework-agnostic**: instead of importing
+`next/navigation` or a translation library, they take the host's primitives as props — `Link`
+(your router's link component), `routes` (a `RouteBuilder`), and translation functions (`t`,
+`tNav`, `tHome`). Wire them once from your shell. Each component's own `Props` interface is the
+source of truth for the full (and evolving) list; the essentials are below.
+
 ### PageLayout
 
-Standard page layout with header, sidebar, and content.
+The standard page shell — composes `UnifiedHeader` + `Footer` around your content. (It does
+*not* take `header` / `sidebar` slots.)
 
 ```tsx
 import { PageLayout } from '@semiont/react-ui';
 
-<PageLayout
-  header={<Header />}
-  sidebar={<Sidebar />}
-  showSidebar={true}
->
+<PageLayout Link={Link} routes={routes} t={t} tNav={tNav} tHome={tHome}>
   {content}
 </PageLayout>
 ```
 
+Also optional: `className`, `showAuthLinks`, `CookiePreferences`, `onOpenKeyboardHelp`.
+
 ### UnifiedHeader
 
-Application header with navigation and user menu.
+Application header (branding + nav + user menu). Presentation via `variant`
+(`'standalone' | 'embedded' | 'floating'`) and the `isAuthenticated` / `isAdmin` /
+`isModerator` flags. No `userName` prop — the user menu resolves identity from the session.
 
 ```tsx
-import { UnifiedHeader } from '@semiont/react-ui';
-
-<UnifiedHeader
-  showUserMenu={isAuthenticated}
-  userName={user?.name}
-/>
+<UnifiedHeader Link={Link} routes={routes} t={t} tHome={tHome} variant="standalone" isAuthenticated={isAuthenticated} />
 ```
 
 ### LeftSidebar
 
-Collapsible sidebar navigation.
+Collapsible sidebar; it manages its own collapse state (persisted to `localStorage`). `children`
+may be a render function `(isCollapsed, toggleCollapsed, navigationMenu) => ReactNode`.
 
 ```tsx
-import { LeftSidebar } from '@semiont/react-ui';
-
-<LeftSidebar isOpen={sidebarOpen} onToggle={toggleSidebar}>
-  <NavigationMenu />
+<LeftSidebar Link={Link} routes={routes} t={t} tHome={tHome} collapsible isAuthenticated={isAuthenticated}>
+  {(isCollapsed, toggle, navigationMenu) => navigationMenu(() => {})}
 </LeftSidebar>
 ```
 
 ### NavigationMenu
 
-Main navigation menu.
+The Know / Moderate / Administer nav. `isAdmin` / `isModerator` gate the privileged entries;
+`currentPath` highlights the active one.
 
 ```tsx
-import { NavigationMenu } from '@semiont/react-ui';
-
-<NavigationMenu />
+<NavigationMenu Link={Link} routes={routes} t={t} isAdmin={isAdmin} currentPath={currentPath} />
 ```
-
-**Features:**
-- Keyboard navigation
-- Active route highlighting
-- Responsive design
 
 ### Footer
 
-Application footer with links.
+Application footer; rendered for you inside `PageLayout`. Optional: `showPolicyLinks`,
+`sourceCodeUrl`, `CookiePreferences`, `onOpenKeyboardHelp`.
 
 ```tsx
-import { Footer } from '@semiont/react-ui';
-
-<Footer />
+<Footer Link={Link} routes={routes} t={t} showPolicyLinks />
 ```
 
 ---
@@ -297,36 +291,41 @@ See [ANNOTATIONS.md](ANNOTATIONS.md) for detailed annotation documentation.
 
 ### AnnotateToolbar
 
-Toolbar for annotation tools.
+The tool bar `ResourceViewer` composes in annotate mode — selection / click / shape tool state,
+driven over the session bus. Composed for you by `ResourceViewer`; use it directly only for a
+custom annotate surface.
 
 ```tsx
 import { AnnotateToolbar } from '@semiont/react-ui';
 
 <AnnotateToolbar
-  currentTool={tool}
-  onToolChange={setTool}
+  selectedMotivation={selectedMotivation}   // 'linking' | 'highlighting' | 'assessing' | 'commenting' | 'tagging' | null
+  selectedClick={selectedClick}             // 'detail' | 'follow' | 'jsonld' | 'deleting'
+  annotateMode
+  annotators={annotators}
+  session={session}
 />
 ```
 
+Optional: `showSelectionGroup`, `showDeleteButton`, `showShapeGroup`, `selectedShape`, `mediaType`. See the `AnnotateToolbarProps` interface for the rest.
+
 ### Annotation Panels
 
+The side-panel renderers for each annotation motivation. They take the **grouped annotation
+arrays + UI state** (from `useResourceLoader` / the page state unit) — not a `resourceId`; they
+render what you pass and emit edits on the session bus.
+
 ```tsx
-import {
-  HighlightPanel,
-  CommentsPanel,
-  TaggingPanel,
-  ReferencesPanel,
-  AssessmentPanel,
-  JsonLdPanel,
-  UnifiedAnnotationsPanel
-} from '@semiont/react-ui';
+import { HighlightPanel, UnifiedAnnotationsPanel } from '@semiont/react-ui';
 
-// Use specific panel
-<HighlightPanel resourceId={rId} />
+// One motivation:
+<HighlightPanel annotations={highlights} pendingAnnotation={pending} annotateMode />
 
-// Or unified panel for all annotations
-<UnifiedAnnotationsPanel resourceId={rId} />
+// All motivations in one panel:
+<UnifiedAnnotationsPanel annotations={annotations} annotators={annotators} pendingAnnotation={pending} annotateMode />
 ```
+
+Also exported: `CommentsPanel`, `TaggingPanel`, `ReferencesPanel`, `AssessmentPanel`, `JsonLdPanel`. Each panel's `Props` interface lists its state inputs.
 
 ---
 
@@ -366,20 +365,17 @@ import { KeyboardShortcutsHelpModal } from '@semiont/react-ui';
 
 ### Toolbar
 
-Customizable toolbar container.
+The panel-switcher rail — toggles the resource side panels (annotations, info, history,
+json-ld, collaboration, knowledge-base, user, settings). Not a generic container.
 
 ```tsx
 import { Toolbar } from '@semiont/react-ui';
 
-<Toolbar>
-  <Toolbar.Section>
-    <button>Action 1</button>
-    <button>Action 2</button>
-  </Toolbar.Section>
-  <Toolbar.Section align="right">
-    <button>Settings</button>
-  </Toolbar.Section>
-</Toolbar>
+<Toolbar
+  context="document"        // 'document' | 'simple'
+  activePanel={activePanel} // the open panel key, or null
+  isArchived={false}
+/>
 ```
 
 ### Toast
@@ -471,17 +467,13 @@ import { UserMenuSkeleton } from '@semiont/react-ui';
 
 ### SkipLinks
 
-Skip navigation links for keyboard users.
+Skip-navigation links for keyboard users. Takes no props — it renders the standard skip targets
+(main content, navigation).
 
 ```tsx
 import { SkipLinks } from '@semiont/react-ui';
 
-<SkipLinks
-  links={[
-    { href: '#main-content', label: 'Skip to main content' },
-    { href: '#navigation', label: 'Skip to navigation' }
-  ]}
-/>
+<SkipLinks />
 ```
 
 ---
@@ -490,13 +482,15 @@ import { SkipLinks } from '@semiont/react-ui';
 
 ### SemiontBranding
 
-Semiont logo and branding.
+Semiont logo + tagline. Takes a translation function `t` for the tagline text.
 
 ```tsx
 import { SemiontBranding } from '@semiont/react-ui';
 
-<SemiontBranding size="large" />
+<SemiontBranding t={t} size="lg" showTagline />
 ```
+
+`size` is `'sm' | 'md' | 'lg' | 'xl'`; also optional: `showTagline`, `animated`, `compactTagline`, `className`.
 
 ---
 
@@ -516,55 +510,37 @@ import { ErrorBoundary } from '@semiont/react-ui';
 
 ### CodeMirrorRenderer
 
-CodeMirror-based code viewer.
+CodeMirror-based renderer for text/markdown content with the annotation overlay (used internally
+by `BrowseView` / `AnnotateView`). Editability is controlled by `editable` (not `readOnly`), and
+it always renders markdown — there is no `language` prop.
 
 ```tsx
 import { CodeMirrorRenderer } from '@semiont/react-ui';
 
-<CodeMirrorRenderer
-  content={code}
-  language="javascript"
-  readOnly={true}
-/>
+<CodeMirrorRenderer content={text} editable={false} showLineNumbers hoverDelayMs={200} />
 ```
 
-### DetectionProgressWidget
-
-Progress indicator for entity detection.
-
-```tsx
-import { DetectionProgressWidget } from '@semiont/react-ui';
-
-<DetectionProgressWidget
-  progress={0.5}
-  status="Processing..."
-/>
-```
+`content` and `hoverDelayMs` are required; also optional: `segments`, `onTextSelect`, `onChange`, `session`, `newAnnotationIds`, `hoveredAnnotationId`, `scrollToAnnotationId`, `sourceView`, `enableWidgets`, `getTargetResourceName`, `generatingReferenceId`.
 
 ### StatusDisplay
 
-Display system status messages.
+Renders the backend-connection / auth health indicator. Takes the current auth flags (not a
+free-form status/message).
 
 ```tsx
 import { StatusDisplay } from '@semiont/react-ui';
 
-<StatusDisplay
-  status="info" // or "success", "warning", "error"
-  message="System is running normally"
-/>
+<StatusDisplay isAuthenticated={isAuthenticated} isFullyAuthenticated={isFullyAuthed} hasValidBackendToken={tokenValid} />
 ```
 
 ### ResourceTagsInline
 
-Display resource tags inline.
+Renders a resource's tags inline (read-only display).
 
 ```tsx
 import { ResourceTagsInline } from '@semiont/react-ui';
 
-<ResourceTagsInline
-  tags={['important', 'review', 'draft']}
-  onTagClick={(tag) => filterByTag(tag)}
-/>
+<ResourceTagsInline resourceId={rId} tags={['important', 'review']} isEditing={false} onUpdate={async () => {}} />
 ```
 
 ---

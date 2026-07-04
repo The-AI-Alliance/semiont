@@ -137,6 +137,11 @@ export type EventMap = {
   'mark:archive-failed': components['schemas']['CommandError'];
   'mark:unarchive-ok': { correlationId?: string };
   'mark:unarchive-failed': components['schemas']['CommandError'];
+  // update-entity-types confirmed-write reply (bridged) — correlation-keyed ack
+  // the SDK's busRequest awaits; failure routes the real outcome back rather than
+  // the old fire-and-forget silence (.plans/bugs/BRIDGE-GAPS.md).
+  'mark:update-entity-types-ok': { correlationId?: string };
+  'mark:update-entity-types-failed': components['schemas']['CommandError'];
   'mark:body-update-failed': components['schemas']['CommandError'];
 
   // UI events
@@ -479,6 +484,8 @@ export const CHANNEL_SCHEMAS = {
   'mark:archive-failed':              'CommandError',
   'mark:unarchive-ok':                null,
   'mark:unarchive-failed':            'CommandError',
+  'mark:update-entity-types-ok':      null,
+  'mark:update-entity-types-failed':  'CommandError',
   'mark:body-update-failed':          'CommandError',
   'frame:entity-type-add-ok':          null,
   'frame:entity-type-add-failed':      'CommandError',

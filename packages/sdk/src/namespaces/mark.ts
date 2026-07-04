@@ -70,6 +70,26 @@ export class MarkNamespace implements IMarkNamespace {
     );
   }
 
+  /**
+   * Replace a resource's own entity-type classification. The backend diffs
+   * `current` vs `updated` and folds the changes into `resource.entityTypes`
+   * (mark:entity-tag-added/-removed → graph consumer), so the change surfaces in
+   * `browse.resources({ entityType })` and `getResourceEntityTypes`. A
+   * **replace/diff** operation: pass the resource's current types as `current`,
+   * the desired full set as `updated`.
+   *
+   * Confirmed write (like `delete`/`archive`): awaits the backend's
+   * correlation-keyed reply and REJECTS on failure rather than fire-and-forget an
+   * emit whose failure had nowhere to go (.plans/bugs/BRIDGE-GAPS.md).
+   */
+  async updateEntityTypes(resourceId: ResourceId, current: string[], updated: string[]): Promise<void> {
+    await busRequest(
+      this.transport,
+      'mark:update-entity-types',
+      { resourceId, currentEntityTypes: current, updatedEntityTypes: updated },
+    );
+  }
+
   assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): StreamObservable<MarkAssistEvent> {
     return new StreamObservable<MarkAssistEvent>((subscriber) => {
       let done = false;
