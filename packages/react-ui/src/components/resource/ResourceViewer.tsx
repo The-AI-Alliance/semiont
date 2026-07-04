@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
-import { BrowseView } from './BrowseView';
+import { BrowseView, type ReferenceHover } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
 import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, components, EventMap } from '@semiont/core';
@@ -43,6 +43,12 @@ interface Props {
   onOpenResource?: (resourceId: string) => void;
   /** Host-owned panel control (annotation clicks open a panel). Omit for hosts without side panels. */
   onOpenPanel?: (event: EventMap['panel:open']) => void;
+  /** A content link in the rendered content was clicked — the viewer preventDefaults and delegates; it never navigates on its own. */
+  onLinkClick?: (link: { href: string; event: React.MouseEvent }) => void;
+  /** A resolved reference span is hovered (after dwell + referent descriptor resolve); `null` on leave. Host renders its own preview. */
+  onReferenceHover?: (hover: ReferenceHover | null) => void;
+  /** Inline display variant: auto-height, no inner scroll, no pane chrome (browse path). Default: fill-the-pane. */
+  inline?: boolean;
   /** Recently-created annotation ids to sparkle (threaded to the browse/annotate subtree). */
   newAnnotationIds?: Set<string>;
   generatingReferenceId?: string | null;
@@ -70,6 +76,9 @@ export function ResourceViewer({
   session,
   onOpenResource,
   onOpenPanel,
+  onLinkClick,
+  onReferenceHover,
+  inline = false,
   newAnnotationIds,
   generatingReferenceId,
   showLineNumbers = false,
@@ -376,7 +385,7 @@ export function ResourceViewer({
   }, [references]);
 
   return (
-    <div ref={documentViewerRef} className="semiont-resource-viewer">
+    <div ref={documentViewerRef} className={`semiont-resource-viewer${inline ? ' semiont-resource-viewer--inline' : ''}`}>
       {/* Content */}
       {activeView === 'annotate' ? (
         <AnnotateView
@@ -410,6 +419,9 @@ export function ResourceViewer({
           annotateMode={annotateMode}
           session={session}
           newAnnotationIds={newAnnotationIds}
+          onLinkClick={onLinkClick}
+          onReferenceHover={onReferenceHover}
+          inline={inline}
         />
       )}
 

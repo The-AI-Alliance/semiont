@@ -219,3 +219,17 @@
 }
 
 /* Popup Components */
+
+/* ── Compact display form ────────────────────────────────────────────────────
+ * Display-only variant for inline embeds: icon-only, tight, chromeless. The
+ * bar's functionality is identical — only its form changes. */
+.semiont-annotate-toolbar--compact {
+  gap: 0.375rem;
+  padding: 0.25rem 0;
+  background: transparent; /* the host container owns the background */
+  border-bottom: none;
+}
+
+.semiont-annotate-toolbar--compact .semiont-dropdown-label {
+  display: none; /* icon-only collapsed triggers; expanded menus keep labels */
+}

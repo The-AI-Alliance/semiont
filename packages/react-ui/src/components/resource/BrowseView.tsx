@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { annotationId as toAnnotationId } from '@semiont/core';
-import { capabilitiesOf } from '@semiont/core';
+import { useEffect, useRef, useCallback, useMemo, memo, type MouseEvent as ReactMouseEvent } from 'react';
+import { annotationId as toAnnotationId, resourceId as toResourceId } from '@semiont/core';
+import { capabilitiesOf, getBodySource, isResolvedReference } from '@semiont/core';
+import type { Annotation, ResourceDescriptor } from '@semiont/core';
 import { createHoverHandlers } from '@semiont/sdk';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
@@ -36,6 +37,22 @@ interface Props {
   newAnnotationIds?: Set<string>;
   /** Override the read-only media renderers (render mode → renderer); merged over the defaults. */
   renderers?: BrowseMediaRenderers;
+  /** A content link (`<a href>` in the rendered content) was clicked. The viewer preventDefaults and
+   *  delegates; it never navigates on its own. Omit → the click is still blocked (nothing happens). */
+  onLinkClick?: (link: { href: string; event: ReactMouseEvent }) => void;
+  /** A RESOLVED reference span is hovered: fires after the dwell AND the referent's cached descriptor
+   *  resolves; `null` on leave (only if a hover fired — stubs stay silent). Host renders its own preview. */
+  onReferenceHover?: (hover: ReferenceHover | null) => void;
+  /** Inline display variant: auto-height to content, no inner scroll container, no pane chrome —
+   *  drops into a chat bubble / card / list item. Default: fill-the-pane (unchanged). */
+  inline?: boolean;
+}
+
+/** Payload for `onReferenceHover` — the hovered linking annotation, its resolved referent, and where the span is. */
+export interface ReferenceHover {
+  annotation: Annotation;
+  referent: ResourceDescriptor;
+  anchorRect: DOMRect;
 }
 
 /**
@@ -62,8 +79,12 @@ export const BrowseView = memo(function BrowseView({
   session,
   newAnnotationIds,
   renderers,
+  onLinkClick,
+  onReferenceHover,
+  inline = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const inlineMod = inline ? ' semiont-browse-view--inline' : '';
 
   const render = capabilitiesOf(mimeType)?.render ?? 'none';
 
@@ -124,8 +145,50 @@ export const BrowseView = memo(function BrowseView({
       }
     };
 
+    // Reference-hover delegation (host-facing event surface): after the dwell,
+    // resolve the referent's cached descriptor and hand the host
+    // { annotation, referent, anchorRect }; `null` on leave — but only if a hover
+    // fired, so stubs stay silent. Rides the SAME dwell emitter as beckon:hover —
+    // one state machine, two consumers.
+    let hoveredElement: HTMLElement | null = null;
+    let referentSub: { unsubscribe(): void } | null = null;
+    let referenceHoverFired = false;
+
+    const startReferenceHover = (id: string) => {
+      if (!onReferenceHover) return; // no handler → no referent load
+      const annotation = allAnnotations.find(a => a.id === id);
+      if (!annotation || !isResolvedReference(annotation)) return; // stub / non-reference: fires nothing
+      const referentId = getBodySource(annotation.body);
+      const element = hoveredElement;
+      if (!referentId || !element) return;
+      referentSub?.unsubscribe();
+      referentSub = session.client.browse.resource(toResourceId(referentId)).subscribe({
+        next: (referent) => {
+          if (referent === undefined) return; // cache still loading
+          referentSub?.unsubscribe();
+          referentSub = null;
+          referenceHoverFired = true;
+          // anchorRect taken at fire time so it reflects current layout.
+          onReferenceHover({ annotation, referent, anchorRect: element.getBoundingClientRect() });
+        },
+        error: () => { referentSub = null; }, // failed load: never fires
+      });
+    };
+
+    const endReferenceHover = () => {
+      referentSub?.unsubscribe(); // leave-before-resolve: cancel, no fire
+      referentSub = null;
+      if (referenceHoverFired) {
+        referenceHoverFired = false;
+        onReferenceHover?.(null);
+      }
+    };
+
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (id) => session.client.beckon.hover(id),
+      (id) => {
+        session.client.beckon.hover(id);
+        if (id) startReferenceHover(id); else endReferenceHover();
+      },
       hoverDelayMs
     );
 
@@ -134,7 +197,10 @@ export const BrowseView = memo(function BrowseView({
       const target = e.target as HTMLElement;
       const annotationElement = target.closest('[data-annotation-id]');
       const annotationId = annotationElement?.getAttribute('data-annotation-id');
-      if (annotationId) handleMouseEnter(toAnnotationId(annotationId));
+      if (annotationId) {
+        hoveredElement = annotationElement as HTMLElement; // anchor for onReferenceHover
+        handleMouseEnter(toAnnotationId(annotationId));
+      }
     };
 
     // Single mouseout handler for the container - fires once on exit
@@ -164,8 +230,9 @@ export const BrowseView = memo(function BrowseView({
       container.removeEventListener('mouseover', handleMouseOver);
       container.removeEventListener('mouseout', handleMouseOut);
       cleanupHover();
+      referentSub?.unsubscribe(); // in-flight referent load dies with the effect
     };
-  }, [content, allAnnotations, newAnnotationIds, hoverDelayMs, session]);
+  }, [content, allAnnotations, newAnnotationIds, hoverDelayMs, session, onReferenceHover]);
 
   // Helper to scroll annotation into view with pulse effect
   const scrollToAnnotation = useCallback((annotationId: string | null, removePulse = false) => {
@@ -189,6 +256,16 @@ export const BrowseView = memo(function BrowseView({
     'beckon:focus': handleAnnotationFocus,
   });
 
+  // A content link inside the rendered output (react-markdown / HTML `<a href>`) must never navigate
+  // on its own (embedded/Electron security): always preventDefault, then delegate to the host if it cares.
+  const handleContentClick = useCallback((e: ReactMouseEvent) => {
+    const anchor = (e.target as HTMLElement).closest('a[href]');
+    if (!anchor) return;
+    e.preventDefault();
+    const href = anchor.getAttribute('href');
+    if (href) onLinkClick?.({ href, event: e });
+  }, [onLinkClick]);
+
   // Route to the media renderer for this render mode. `text`/`image`/`pdf` share
   // the shell (toolbar + annotation-overlay container); `none` (no preview, or an
   // unknown type) has its own metadata+download structure. Callers can override
@@ -198,7 +275,7 @@ export const BrowseView = memo(function BrowseView({
 
   if (!Renderer) {
     return (
-      <div ref={containerRef} className="semiont-browse-view semiont-browse-view--unsupported" data-mime-type="unsupported">
+      <div ref={containerRef} className={`semiont-browse-view semiont-browse-view--unsupported${inlineMod}`} data-mime-type="unsupported">
         <div className="semiont-browse-view__empty">
           <p className="semiont-browse-view__empty-message">
             Preview not available for {mimeType}
@@ -216,7 +293,7 @@ export const BrowseView = memo(function BrowseView({
   }
 
   return (
-    <div className="semiont-browse-view" data-mime-type={render}>
+    <div className={`semiont-browse-view${inlineMod}`} data-mime-type={render}>
       <AnnotateToolbar
         selectedMotivation={null}
         selectedClick={selectedClick}
@@ -225,8 +302,9 @@ export const BrowseView = memo(function BrowseView({
         annotateMode={annotateMode}
         annotators={ANNOTATORS}
         session={session}
+        compact={inline}
       />
-      <div ref={containerRef} className="semiont-browse-view__content">
+      <div ref={containerRef} className="semiont-browse-view__content" onClick={handleContentClick}>
         <Renderer content={content} mimeType={mimeType} resourceUri={resourceUri} annotations={allAnnotations} />
       </div>
     </div>
