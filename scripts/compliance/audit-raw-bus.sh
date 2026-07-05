@@ -33,6 +33,12 @@ set -euo pipefail
 #                                       — LocalTransport implements ITransport
 #                                          on top of EventBus (bus.get is the
 #                                          natural backing primitive there)
+#   - packages/core/src/faulty-transport.ts
+#                                       — FaultyTransport (liveness-axioms
+#                                          simulator, @semiont/core/testing)
+#                                          implements ITransport on top of
+#                                          EventBus, same as LocalTransport;
+#                                          consumed by test suites only
 #   - packages/react-ui/src/state/**    — cross-feature page state units (shell, session)
 #                                          that subscribe to bus events for
 #                                          UI workflow coordination
@@ -60,6 +66,7 @@ filter_allowlist() {
     | grep -v "^packages/http-transport/src/" \
     | grep -v "^packages/jobs/src/" \
     | grep -v "^packages/make-meaning/src/local-transport\.ts:" \
+    | grep -v "^packages/core/src/faulty-transport\.ts:" \
     | grep -v "^packages/react-ui/src/state/" \
     | grep -v "^packages/react-ui/src/features/[^/]*/state/" \
     | grep -v "^packages/react-ui/src/contexts/useEventSubscription\.ts:"
