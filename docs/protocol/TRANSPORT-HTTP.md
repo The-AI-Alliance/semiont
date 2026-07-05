@@ -214,13 +214,19 @@ The client-side `ActorStateUnit` handles three reconnect triggers:
    `DEGRADED_THRESHOLD_MS`, state enters `degraded`.
 2. **Channel-set change** (`addChannels` / `removeChannels`). A new SSE
    is opened with the updated query string and, **only once it is
-   `open`, the old one is aborted** — make-before-break (#847), so an
-   ephemeral result in flight during the swap is delivered on the still-
-   live old connection instead of dropped in a gap. Reconnects are
-   **debounced 100 ms** so React Strict Mode's mount → cleanup → mount
-   sequence collapses into one reconnect. State cycles `open →
-   reconnecting → connecting → open` without reaching `degraded` (the
-   round-trip is sub-second).
+   `open`, the old one is marked superseded and LINGERS — still
+   draining — for `LINGER_MS` (1 s) before being aborted** —
+   make-before-break (#847) plus drain (starvation fix), so an
+   ephemeral result in flight during the swap is delivered on the
+   still-live old connection instead of dropped in a gap, and replies
+   already written to the old socket but not yet read survive the
+   handoff. Reconnects are **debounced 100 ms** so React Strict Mode's
+   mount → cleanup → mount sequence collapses into one reconnect. State
+   cycles `open → reconnecting → connecting → open` without reaching
+   `degraded` (the round-trip is sub-second). A superseded connection's
+   read loop ending — naturally or via the linger abort — does NOT
+   restart the reconnect machinery; that belongs to the live connection
+   only.
 3. **Explicit `stop()` / `dispose()`.** State transitions to `closed`;
    the observable completes. No retry.
 
@@ -231,14 +237,48 @@ Consumers should NOT revalidate caches on the `reconnecting → open`
 transition — that work is driven by `bus:resume-gap`, which the server
 emits only when it genuinely can't cover the gap.
 
-**Connection handoff (make-before-break).** On a channel-set change the
-client keeps the previous connection(s) live and aborts them only after
-the new fetch resolves (#847) — closing the reconnect gap. A genuine
+**Connection handoff (make-before-break + linger-drain).** On a
+channel-set change the client keeps the previous connection(s) live
+until the new fetch resolves (#847), then supersedes them and keeps
+them **draining for `LINGER_MS` before the abort** — aborting at the
+instant of handover discarded replies already buffered on the old
+socket but not yet read by the client's read loop (the
+N-concurrent-loaders starvation,
+`.plans/bugs/concurrent-browse-resource-starvation.md`). A genuine
 disconnect or the initial connect has nothing live to preserve, so it
-aborts up front. Either way the client tracks SSE fetch controllers as a
-set and converges to a single live stream: when the newest connection
-opens it aborts every prior controller, so rapid channel-set changes
-racing each other can't accumulate orphaned streams.
+aborts up front. Either way the client tracks SSE fetch controllers as
+a set and converges to a single live stream within the drain window:
+the newest connection supersedes every prior controller, so rapid
+channel-set changes racing each other can't accumulate orphaned
+streams.
+
+### Abort discipline (drain-over-abort)
+
+`abort()` means "discard these bytes" — any buffered-but-unread event
+on the aborted stream is silently lost, and correlated replies are
+non-replayable by design (`e-*` ids). So the rule:
+
+> **A connection is retired by drain, never by a handover abort.
+> `abort()` is reserved for (a) explicit consumer cancellation and
+> (b) terminal teardown (`stop()`/`dispose()`), where no consumer
+> remains to receive the bytes.**
+
+Audit of every live `.abort()` site (2026-07-05):
+
+| Site | Class | Verdict |
+|---|---|---|
+| `actor-state-unit.ts` `disconnect()` | terminal teardown (`stop`/`dispose`) | sanctioned |
+| `actor-state-unit.ts` `connect(keepPrevious=false)` up-front abort | drop-recovery / orphan collapse — the pipe is already dead (read loop exited) or a raced orphan; resumption + the cache's bounded SWR retry cover the gap | sanctioned |
+| `actor-state-unit.ts` linger-expiry abort | the drain rule itself (drain-then-abort) | sanctioned |
+| `http-transport.ts` `sseProgressStream` unsubscribe | explicit consumer cancellation (progress is ephemeral UI feedback; the server-side operation completes regardless) | sanctioned |
+| `http-content-transport.ts` XHR `onAbort` | explicit consumer cancellation (caller's `AbortSignal`) | sanctioned |
+| `sdk/namespaces/yield.ts` upload teardown | explicit consumer cancellation (unsubscribe-before-finished is documented as cancel) | sanctioned |
+
+The one historical violator — the immediate handover abort in
+`connect(keepPrevious=true)` — was converted to linger-drain by the
+starvation fix. Any NEW `.abort()` call must be classifiable as
+consumer-cancel or terminal teardown; a lifecycle-handover abort is the
+buffered-loss bug class reintroduced.
 
 During the brief handoff overlap the same live event can arrive on both
 connections. The client dedups by event id (`seenEventIds` in the
@@ -435,6 +475,11 @@ the contract are visible.
   actor-state-unit now tracks all in-flight fetch controllers and aborts every
   previous one on new connect, closing an orphan-stream leak.
 - **2026-04-19** — connection-state machine landed.
+- **2026-07-05** — linger-drain handoff landed (starvation fix P2):
+  superseded connections drain `LINGER_MS` before abort; their read-loop
+  exit no longer restarts reconnect. New **Abort discipline
+  (drain-over-abort)** section with the site audit; the rule is the
+  contract for any future `.abort()` call.
   `actor.connected$: Observable<boolean>` replaced with
   `actor.state$: Observable<ConnectionState>` (initial / connecting /
   open / reconnecting / degraded / closed). Transitions are enforced;

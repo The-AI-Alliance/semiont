@@ -221,6 +221,18 @@ export class BrowseNamespace implements IBrowseNamespace {
           release = this.transport.subscribeToResource(rId);
         } catch {
           // Scope held by another resource — observe unscoped (degraded).
+          // Always-on warn (once per resource): silent degradation is how the
+          // starvation incident stayed invisible to a full evidence chain —
+          // see .plans/bugs/concurrent-browse-resource-starvation.md.
+          if (!this.degradedScopeWarned.has(rId)) {
+            this.degradedScopeWarned.add(rId);
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[browse DEGRADED] scope contention: observing ${rId} unscoped — its live ` +
+                `per-resource invalidations are paused until the scope frees (re-subscribe ` +
+                `re-attempts; real fix: .plans/MULTI-RESOURCE-SCOPE.md).`,
+            );
+          }
         }
         const inner = source.subscribe(subscriber);
         return () => {
@@ -232,6 +244,9 @@ export class BrowseNamespace implements IBrowseNamespace {
     }
     return scoped;
   }
+
+  /** One degradation warn per resource per namespace lifetime — signal, not spam. */
+  private readonly degradedScopeWarned = new Set<ResourceId>();
 
   // ── Live queries ────────────────────────────────────────────────────────
   //

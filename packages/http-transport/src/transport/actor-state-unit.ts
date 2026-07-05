@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, type ConnectionState, type StateUnit } from '@semiont/core';
+import { busLog, busLogEnabled, type ConnectionState, type StateUnit } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -317,6 +317,16 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
               }
               const parsed = JSON.parse(currentData) as BusEvent;
               busLog('RECV', parsed.channel, parsed.payload, parsed.scope);
+              // Drain-window forensics: an event delivered by a SUPERSEDED
+              // (lingering) connection is one that an immediate handover abort
+              // would have discarded — the loss mode of
+              // .plans/bugs/concurrent-browse-resource-starvation.md. Gated
+              // (per-event, bursty during overlap); flip bus logging on to
+              // see how real the window is.
+              if (busLogEnabled() && superseded.has(controller)) {
+                // eslint-disable-next-line no-console
+                console.debug(`[bus LINGER] ${parsed.channel} delivered on superseded connection`);
+              }
               // Tier 2: lift trace context off the SSE payload (the
               // backend's writeBusEvent puts it there). The synchronous
               // fan-out to subscribers happens inside the bus.recv span,

@@ -133,8 +133,25 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
    * comes through here — its caller sees the rejection and owns retry policy.
    */
   const runFetchSWR = (key: K): void => {
-    void runFetch(key).catch(() => {
-      void runFetch(key).catch(() => {});
+    void runFetch(key).catch((firstErr: unknown) => {
+      // Always-on breadcrumb: the pre-B14 version of this path swallowed the
+      // failure with zero trace, which is how lost replies starved silently
+      // (.plans/bugs/concurrent-browse-resource-starvation.md). Not deduped —
+      // a spamming retry line means fetches are failing repeatedly, which is
+      // itself the signal.
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[cache RETRY] SWR fetch failed for key ${String(key)}; re-issuing once (B14):`,
+        firstErr instanceof Error ? firstErr.message : firstErr,
+      );
+      void runFetch(key).catch((retryErr: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[cache IDLE] retry also failed for key ${String(key)}; going idle until the ` +
+            `next observe()/invalidate() (B14):`,
+          retryErr instanceof Error ? retryErr.message : retryErr,
+        );
+      });
     });
   };
 
