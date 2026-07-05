@@ -14,9 +14,14 @@
  *
  * The contract this pins:
  *   1. `await` of a Browse read REJECTS when the underlying fetch fails.
- *   2. `.subscribe(...)` of the same read PRESERVES B6 — it sees `undefined`
- *      (loading) and is NOT errored. The fix must surface the failure to the
- *      awaiter WITHOUT erroring live-query subscribers.
+ *   2. `.subscribe(...)` of the same read sees `undefined` (loading) through
+ *      the B14 retry chain — and when the chain EXHAUSTS on a key with no
+ *      cached value, the subscriber is ERRORED (B15) rather than left on
+ *      `undefined` forever. (Pre-B15 this file pinned "never errored"; the
+ *      liveness axioms showed that to be L1's forbidden fourth state for
+ *      value-less keys — see
+ *      .plans/bugs/valueless-key-terminal-failure-starves-observers.md.
+ *      Keys WITH a stale value keep B6 stale-beats-error: never errored.)
  *
  * No backend: a fake transport drives `busRequest` to a deterministic
  * failure-channel rejection.
@@ -120,20 +125,23 @@ describe('browse read — await semantics on fetch failure (Link 3)', () => {
     expect(outcome).toBe('rejected');
   });
 
-  it('subscribe preserves SWR on fetch failure — stays undefined, not errored (B6)', async () => {
+  it('subscribe on a value-less key: loading through the retry chain, then errored on exhaustion (B15)', async () => {
     const seen: Array<unknown> = [];
-    let errored = false;
+    const errors: unknown[] = [];
     const sub = browse.annotations(rId).subscribe({
       next: (v) => seen.push(v),
-      error: () => {
-        errored = true;
-      },
+      error: (e) => errors.push(e),
     });
 
     await delay(50);
     sub.unsubscribe();
 
+    // No value ever emitted (the store was never written — that half of B6
+    // stands)…
     expect(seen).toEqual([undefined]);
-    expect(errored).toBe(false);
+    // …but the exhausted chain's terminal failure reached the subscriber as
+    // an error notification (B15) — carrying the bus rejection, not silence.
+    expect(errors).toHaveLength(1);
+    expect((errors[0] as Error).message).toContain('boom');
   });
 });

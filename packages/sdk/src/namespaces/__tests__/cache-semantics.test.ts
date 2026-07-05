@@ -325,16 +325,22 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
   });
 
   describe('B6 — fetch failure leaves the previous state intact', () => {
-    it('observer stays undefined on first-fetch failures; guard is released', async () => {
-      // Two rejections exhaust the observe attempt + its B14 retry.
+    it('value-less key: first-fetch exhaustion errors the observer (B15); guard + marker released', async () => {
+      // Two rejections exhaust the observe attempt + its B14 retry. Post-B15
+      // the value-less terminal failure is an error notification to this
+      // key's observers — not `undefined` forever (LIVENESS-AXIOMS L1; see
+      // .plans/bugs/valueless-key-terminal-failure-starves-observers.md).
       const { browse, emitSpy, state } = createHarness({ rejectNext: 2 });
       const seen: Array<ResourceDescriptor | undefined> = [];
-      browse.resource(RID).subscribe((v) => seen.push(v));
+      const errors: unknown[] = [];
+      browse.resource(RID).subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
       await flush();
       expect(seen).toEqual([undefined]);
+      expect(errors).toHaveLength(1); // surfaced through withScope + CacheObservable
       expect(emitSpy).toHaveBeenCalledTimes(2); // attempt + B14 retry, then idle
 
-      // Guard is released: a subsequent fetch succeeds and the observer sees it.
+      // Guard + marker released: a subsequent fetch succeeds and a fresh
+      // subscription (the errored one is terminal) sees it.
       state.rejectRemaining = 0;
       browse.invalidateResourceDetail(RID);
       const val = await firstDefined(browse.resource(RID));
@@ -388,7 +394,9 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
       // Two rejections exhaust the observe attempt + its B14 retry first.
       const { browse, emitSpy, state } = createHarness({ rejectNext: 2 });
       const seen: Array<ResourceDescriptor | undefined> = [];
-      browse.resource(RID).subscribe((v) => seen.push(v));
+      // Value-less exhaustion also errors this subscriber (B15) — absorbed;
+      // this test is about the in-flight guard, not the notification.
+      browse.resource(RID).subscribe({ next: (v) => seen.push(v), error: () => {} });
       await flush(); // Attempt + B14 retry both reject; guard releases in finally.
 
       state.rejectRemaining = 0;

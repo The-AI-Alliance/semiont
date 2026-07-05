@@ -89,16 +89,29 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private readonly scopedSources = new WeakMap<Observable<unknown>, Observable<unknown>>();
 
+  /**
+   * Timeout passed to every `busRequest` this namespace issues. `undefined`
+   * means `busRequest`'s default (30 s). Injectable so the liveness
+   * properties (`.plans/LIVENESS-AXIOMS.md`) can run the real composition on
+   * deterministic virtual time — the same knob `HttpTransportConfig.timeout`
+   * provides at the HTTP layer.
+   */
+  private readonly busTimeoutMs: number | undefined;
+
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
     private readonly content: IContentTransport,
+    options?: { busTimeoutMs?: number },
   ) {
+    this.busTimeoutMs = options?.busTimeoutMs;
+
     this.resourceCache = createCache<ResourceId, ResourceDescriptor>(async (id) => {
       const result = await busRequest(
         this.transport,
         'browse:resource-requested',
         { resourceId: id },
+        this.busTimeoutMs,
       );
       return result.resource as ResourceDescriptor;
     });
@@ -116,6 +129,7 @@ export class BrowseNamespace implements IBrowseNamespace {
           limit: filters.limit ?? 100,
           offset: 0,
         },
+        this.busTimeoutMs,
       );
       // Brand the wire type (unbranded @id: string) to the SDK's ResourceDescriptor
       // (@id: ResourceId) at the boundary — same as resourceCache above.
@@ -127,6 +141,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:annotations-requested',
         { resourceId },
+        this.busTimeoutMs,
       );
     });
 
@@ -139,6 +154,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:annotation-requested',
         { resourceId, annotationId },
+        this.busTimeoutMs,
       );
       return result.annotation as Annotation;
     });
@@ -148,6 +164,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:entity-types-requested',
         {},
+        this.busTimeoutMs,
       );
       return result.entityTypes;
     });
@@ -157,6 +174,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:tag-schemas-requested',
         {},
+        this.busTimeoutMs,
       );
       return result.tagSchemas;
     });
@@ -166,6 +184,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:referenced-by-requested',
         { resourceId },
+        this.busTimeoutMs,
       );
       return result.referencedBy;
     });
@@ -175,6 +194,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:events-requested',
         { resourceId },
+        this.busTimeoutMs,
       );
       return result.events;
     });
@@ -334,6 +354,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.transport,
       'browse:events-requested',
       { resourceId },
+      this.busTimeoutMs,
     );
     return result.events;
   }
@@ -343,6 +364,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.transport,
       'browse:annotation-history-requested',
       { resourceId, annotationId },
+      this.busTimeoutMs,
     );
   }
 
@@ -366,6 +388,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.transport,
       'browse:directory-requested',
       { path: dirPath ?? '.', sort: sort ?? 'name' },
+      this.busTimeoutMs,
     );
   }
 

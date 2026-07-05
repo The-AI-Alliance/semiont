@@ -89,8 +89,12 @@ describe('Cache<K, V>', () => {
   });
 
   describe('B6 — fetch failure leaves the previous state intact', () => {
-    it('empty key stays empty after fetch failures; guard is released', async () => {
-      // Two rejections exhaust the observe attempt + its B14 retry.
+    it('empty key: store stays empty after chain exhaustion, observers are errored (B15), and invalidate + a fresh subscription recover', async () => {
+      // Two rejections exhaust the observe attempt + its B14 retry. Pre-B15
+      // this test pinned "subscriber sees only [undefined]" — the silent
+      // pending-forever state the liveness axioms forbid (L1). B15: the
+      // value-less terminal failure errors the subscriber; the STORE is
+      // still not written (that part of B6 stands — `get` stays undefined).
       const fetchFn = vi
         .fn()
         .mockRejectedValueOnce(new Error('boom'))
@@ -98,14 +102,21 @@ describe('Cache<K, V>', () => {
         .mockResolvedValueOnce('v1');
       const cache = createCache<string, string>(fetchFn);
       const seen: Array<string | undefined> = [];
-      cache.observe('k').subscribe((v) => seen.push(v));
+      const errors: unknown[] = [];
+      cache.observe('k').subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
       await flush();
       expect(seen).toEqual([undefined]);
+      expect(errors).toHaveLength(1);
+      expect((errors[0] as Error).message).toBe('boom');
+      expect(cache.get('k')).toBeUndefined(); // store untouched
 
-      // Guard released: invalidate triggers a new fetch that succeeds.
+      // Guard + marker released: invalidate triggers a new fetch that
+      // succeeds. The errored subscription is terminal (RxJS), so recovery
+      // is observed via a fresh subscription — the hook-remount shape.
       cache.invalidate('k');
       await flush();
-      expect(seen[seen.length - 1]).toBe('v1');
+      const late = await firstDefined(cache.observe('k'));
+      expect(late).toBe('v1');
     });
 
     it('previously-fresh value survives a failed refetch', async () => {
@@ -348,17 +359,19 @@ describe('Cache<K, V>', () => {
       expect(seen[seen.length - 1]).toBe('v1');
     });
 
-    it('caps at one retry: a persistently failing key goes idle, and a later observe() recovers it', async () => {
+    it('caps at one retry: a persistently failing key errors observers (B15) without a tight loop, and a later observe() recovers it', async () => {
       const fetchFn = vi.fn().mockRejectedValue(new Error('down'));
       const cache = createCache<string, string>(fetchFn);
-      cache.observe('k').subscribe(() => {});
+      const errors: unknown[] = [];
+      cache.observe('k').subscribe({ next: () => {}, error: (e) => errors.push(e) });
       await flush();
       expect(fetchFn).toHaveBeenCalledTimes(2); // attempt + one retry, then idle
+      expect(errors).toHaveLength(1); // …surfaced, not silent (B15)
       await flush();
       expect(fetchFn).toHaveBeenCalledTimes(2); // no tight loop
 
-      // Recoverable: the key is idle-empty ("empty is terminal only until an
-      // observer acts"), so a later observe() starts a fresh attempt chain.
+      // Recoverable: observe() on the failed key clears the marker and
+      // starts a fresh attempt chain — the error state is never latched.
       fetchFn.mockResolvedValueOnce('v-late');
       const v = await firstDefined(cache.observe('k'));
       expect(v).toBe('v-late');
@@ -388,6 +401,78 @@ describe('Cache<K, V>', () => {
       await expect(cache.fetch('k')).rejects.toThrow('boom');
       await flush();
       expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('B15 — terminal failure of a value-less key errors its observers', () => {
+    // Found by the LIVENESS-AXIOMS P2 property suite (L1/L2 falsified under
+    // schedule ⟨reject-emit⟩): after B14 exhaustion a value-less key's
+    // subscribers previously saw `undefined` forever — the forbidden fourth
+    // state. See .plans/bugs/valueless-key-terminal-failure-starves-observers.md.
+
+    const exhaust = () =>
+      vi.fn().mockRejectedValueOnce(new Error('lost')).mockRejectedValueOnce(new Error('lost'));
+
+    it('replays the failure to a subscriber attaching AFTER exhaustion (held observable, no observe() call)', async () => {
+      const cache = createCache<string, string>(exhaust());
+      const obs = cache.observe('k'); // starts the chain; hold the observable
+      await flush(); // chain exhausts with no subscriber attached
+      const errors: unknown[] = [];
+      obs.subscribe({ next: () => {}, error: (e) => errors.push(e) });
+      expect(errors).toHaveLength(1);
+      expect((errors[0] as Error).message).toBe('lost');
+    });
+
+    it('observe() after exhaustion clears the marker first: the new subscription waits on the fresh chain, no stale error', async () => {
+      const fetchFn = exhaust().mockResolvedValueOnce('v2');
+      const cache = createCache<string, string>(fetchFn);
+      cache.observe('k').subscribe({ next: () => {}, error: () => {} });
+      await flush(); // exhausted, marker set
+
+      const errors: unknown[] = [];
+      const seen: Array<string | undefined> = [];
+      cache.observe('k').subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
+      await flush();
+      expect(errors).toEqual([]); // marker cleared before the obs was handed out
+      expect(seen[seen.length - 1]).toBe('v2');
+    });
+
+    it('a key WITH a stale value never errors — B6 stale-beats-error is unchanged', async () => {
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce('v1')
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockRejectedValueOnce(new Error('boom'));
+      const cache = createCache<string, string>(fetchFn);
+      const errors: unknown[] = [];
+      cache.observe('k').subscribe({ next: () => {}, error: (e) => errors.push(e) });
+      await firstDefined(cache.observe('k'));
+      cache.invalidate('k'); // refetch + retry both fail — but a value exists
+      await flush();
+      expect(errors).toEqual([]);
+      expect(cache.get('k')).toBe('v1');
+    });
+
+    it('set() supersedes the failure marker', async () => {
+      const cache = createCache<string, string>(exhaust());
+      cache.observe('k').subscribe({ next: () => {}, error: () => {} });
+      await flush(); // exhausted, marker set
+      cache.set('k', 'written');
+      const v = await firstDefined(cache.observe('k'));
+      expect(v).toBe('written'); // no error replay — the write cleared it
+    });
+
+    it('a fetch() success while the marker is set clears it for future subscribers', async () => {
+      const fetchFn = exhaust().mockResolvedValueOnce('v3');
+      const cache = createCache<string, string>(fetchFn);
+      const obs = cache.observe('k'); // chain started; hold the observable
+      await flush(); // exhausted, marker set
+      await expect(cache.fetch('k')).resolves.toBe('v3'); // await path succeeds
+      const errors: unknown[] = [];
+      const seen: Array<string | undefined> = [];
+      obs.subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
+      expect(errors).toEqual([]); // success cleared the marker — no replay
+      expect(seen[seen.length - 1]).toBe('v3');
     });
   });
 
