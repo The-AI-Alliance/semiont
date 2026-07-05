@@ -19,7 +19,7 @@ Test individual components, functions, and hooks in isolation:
 - Component rendering and props handling
 - Hook behavior and state management
 - Utility function logic
-- Individual API client methods
+- Individual SDK namespace methods
 
 ### 🔗 **Integration Tests**
 Test component interactions and multi-step workflows:

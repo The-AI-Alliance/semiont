@@ -13,7 +13,7 @@ graph TB
     subgraph ui ["Human UI"]
         subgraph spa ["SPA (static)"]
             FE["React UI"]
-            API["API Client<br/>(RxJS)"]
+            API["SDK Client<br/>(RxJS)"]
             FE -->|RxJS| API
         end
 

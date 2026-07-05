@@ -21,7 +21,7 @@ Resolution can happen in two ways:
 
 Both paths result in an `mark:body-updated` event that adds the `SpecificResource` link.
 
-## Using the API Client
+## Using the SDK
 
 Resolve a reference annotation by adding a `SpecificResource` link to
 its body. The `bind` namespace issues a confirmed write over `busRequest`:

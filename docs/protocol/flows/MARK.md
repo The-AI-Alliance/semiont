@@ -25,7 +25,7 @@ Semiont creates W3C-compliant annotations through two complementary paths: **man
 
 **Supported Formats**: Currently available for text-based formats (`text/plain`, `text/markdown`). Support for images and PDFs is planned for future releases
 
-## Using the API Client
+## Using the SDK
 
 **Manual annotation** — create an annotation directly. The `mark`
 namespace emits `mark:create-request` via the bus gateway; the backend
