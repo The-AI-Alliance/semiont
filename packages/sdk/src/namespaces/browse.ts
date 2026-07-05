@@ -199,22 +199,54 @@ export class BrowseNamespace implements IBrowseNamespace {
    * ref-counts concurrent subscriptions for the same resource onto a single
    * SSE scope. Single-scope model unchanged — multi-scope is deferred (see
    * `.plans/MULTI-RESOURCE-SCOPE.md`).
+   *
+   * Scope acquisition can FAIL under that single-scope model — another
+   * resource already holds the scope, which is the normal state of affairs
+   * for N distinct-rid loaders mounted together (the embeddable-viewer
+   * "resource per chat message" pattern). That must DEGRADE, not error the
+   * live query: correlated replies are globally bridged, so the initial load
+   * and all store updates still flow unscoped; only this resource's broadcast
+   * invalidations are missed while degraded. Erroring instead starved every
+   * such subscriber silently and permanently
+   * (.plans/bugs/concurrent-browse-resource-starvation.md). Each new
+   * subscription retries acquisition, so degradation is per-subscription —
+   * once the scope frees, the next subscribe scopes normally.
    */
   private withScope<T>(rId: ResourceId, source: Observable<T | undefined>): Observable<T | undefined> {
     let scoped = this.scopedSources.get(source) as Observable<T | undefined> | undefined;
     if (!scoped) {
       scoped = new Observable<T | undefined>((subscriber) => {
-        const release = this.transport.subscribeToResource(rId);
+        let release: (() => void) | null = null;
+        try {
+          release = this.transport.subscribeToResource(rId);
+        } catch {
+          // Scope held by another resource — observe unscoped (degraded).
+          // Always-on warn (once per resource): silent degradation is how the
+          // starvation incident stayed invisible to a full evidence chain —
+          // see .plans/bugs/concurrent-browse-resource-starvation.md.
+          if (!this.degradedScopeWarned.has(rId)) {
+            this.degradedScopeWarned.add(rId);
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[browse DEGRADED] scope contention: observing ${rId} unscoped — its live ` +
+                `per-resource invalidations are paused until the scope frees (re-subscribe ` +
+                `re-attempts; real fix: .plans/MULTI-RESOURCE-SCOPE.md).`,
+            );
+          }
+        }
         const inner = source.subscribe(subscriber);
         return () => {
           inner.unsubscribe();
-          release();
+          release?.();
         };
       });
       this.scopedSources.set(source, scoped);
     }
     return scoped;
   }
+
+  /** One degradation warn per resource per namespace lifetime — signal, not spam. */
+  private readonly degradedScopeWarned = new Set<ResourceId>();
 
   // ── Live queries ────────────────────────────────────────────────────────
   //

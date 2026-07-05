@@ -33,9 +33,10 @@
  *   - No subscriber ref-counting / GC of unobserved keys (B11). Acceptable
  *     given cache lifetime == client lifetime.
  *   - No TTL / cacheTime. Entries are evicted only by explicit remove.
- *   - No retry / backoff. A failing fetch leaves the cache unchanged for
- *     *subscribers* (B6); the `fetch`/await path surfaces the rejection so
- *     the caller can retry.
+ *   - Bounded retry on the SWR paths only (B14): a failed observe/invalidate
+ *     fetch is re-issued exactly once, then the key goes idle. The
+ *     `fetch`/await path never auto-retries — it surfaces the rejection so
+ *     the caller owns retry policy.
  */
 
 import { BehaviorSubject, Observable, distinctUntilChanged, map } from 'rxjs';
@@ -117,12 +118,50 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
     return p;
   };
 
+  /**
+   * Fetch driver for the swallowed SWR paths (observe / invalidate): retry
+   * once on failure (B14), then go idle.
+   *
+   * The motivating failure is a lost one-shot reply — the busRequest timed
+   * out because its SSE result raced a connection swap
+   * (.plans/bugs/concurrent-browse-resource-starvation.md). Without a retry,
+   * every subscriber of a never-loaded key starves silently until some future
+   * observe()/invalidate() happens to act. Failures stay invisible to
+   * subscribers (B6); the retry joins any fetch another caller started in the
+   * meantime (B3), and an exhausted key is left idle-empty so the next
+   * observe()/invalidate() starts a fresh chain. The `fetch`/await path never
+   * comes through here — its caller sees the rejection and owns retry policy.
+   */
+  const runFetchSWR = (key: K): void => {
+    void runFetch(key).catch((firstErr: unknown) => {
+      // Always-on breadcrumb: the pre-B14 version of this path swallowed the
+      // failure with zero trace, which is how lost replies starved silently
+      // (.plans/bugs/concurrent-browse-resource-starvation.md). Not deduped —
+      // a spamming retry line means fetches are failing repeatedly, which is
+      // itself the signal.
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[cache RETRY] SWR fetch failed for key ${String(key)}; re-issuing once (B14):`,
+        firstErr instanceof Error ? firstErr.message : firstErr,
+      );
+      void runFetch(key).catch((retryErr: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[cache IDLE] retry also failed for key ${String(key)}; going idle until the ` +
+            `next observe()/invalidate() (B14):`,
+          retryErr instanceof Error ? retryErr.message : retryErr,
+        );
+      });
+    });
+  };
+
   return {
     observe(key: K): Observable<V | undefined> {
       if (!store$.value.has(key) && !inflight.has(key)) {
         // Subscribe path: fire-and-forget, swallow failures so a subscriber
-        // stays at its last value (B6). The awaiter's `fetch` surfaces them.
-        void runFetch(key).catch(() => {});
+        // stays at its last value (B6); one bounded retry (B14). The
+        // awaiter's `fetch` surfaces failures instead.
+        runFetchSWR(key);
       }
       // B4: return a stable Observable per key.
       let obs = obsCache.get(key);
@@ -150,10 +189,10 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
 
     invalidate(key: K): void {
       // B7: do NOT erase the value. Clear the guard (B9 orphan recovery)
-      // and trigger a fresh fetch. Observers keep seeing the stale value
-      // until the new value replaces it.
+      // and trigger a fresh fetch (with the B14 bounded retry). Observers
+      // keep seeing the stale value until the new value replaces it.
       inflight.delete(key);
-      void runFetch(key).catch(() => {});
+      runFetchSWR(key);
     },
 
     remove(key: K): void {
@@ -176,7 +215,7 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
       // keeps its stale value until its refetch resolves.
       for (const key of store$.value.keys()) {
         inflight.delete(key);
-        void runFetch(key).catch(() => {});
+        runFetchSWR(key);
       }
     },
 

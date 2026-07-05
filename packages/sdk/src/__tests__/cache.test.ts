@@ -89,9 +89,11 @@ describe('Cache<K, V>', () => {
   });
 
   describe('B6 — fetch failure leaves the previous state intact', () => {
-    it('empty key stays empty after a rejected fetch; guard is released', async () => {
+    it('empty key stays empty after fetch failures; guard is released', async () => {
+      // Two rejections exhaust the observe attempt + its B14 retry.
       const fetchFn = vi
         .fn()
+        .mockRejectedValueOnce(new Error('boom'))
         .mockRejectedValueOnce(new Error('boom'))
         .mockResolvedValueOnce('v1');
       const cache = createCache<string, string>(fetchFn);
@@ -107,9 +109,11 @@ describe('Cache<K, V>', () => {
     });
 
     it('previously-fresh value survives a failed refetch', async () => {
+      // Two rejections exhaust the invalidate refetch + its B14 retry.
       const fetchFn = vi
         .fn()
         .mockResolvedValueOnce('v1')
+        .mockRejectedValueOnce(new Error('boom'))
         .mockRejectedValueOnce(new Error('boom'));
       const cache = createCache<string, string>(fetchFn);
       await firstDefined(cache.observe('k'));
@@ -306,16 +310,84 @@ describe('Cache<K, V>', () => {
       expect(fetchFn).toHaveBeenCalledTimes(1);
     });
 
-    it('rejects on failure and leaves subscribers untouched (B6)', async () => {
+    it('rejects on failure; subscribers are never errored and recover via the B14 retry', async () => {
       const fetchFn = vi
         .fn()
         .mockRejectedValueOnce(new Error('boom'))
         .mockResolvedValueOnce('v1');
       const cache = createCache<string, string>(fetchFn);
       const seen: Array<string | undefined> = [];
-      cache.observe('k').subscribe((v) => seen.push(v));
+      const errors: unknown[] = [];
+      cache.observe('k').subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
+      // The awaiter joins the (failing) in-flight fetch and sees the rejection…
       await expect(cache.fetch('k')).rejects.toThrow('boom');
-      expect(seen).toEqual([undefined]); // subscriber stays at loading state
+      expect(errors).toEqual([]); // …but the subscriber is never errored (B6)
+      // …and the observe path's B14 retry recovers the subscriber.
+      await flush();
+      expect(seen[seen.length - 1]).toBe('v1');
+    });
+  });
+
+  describe('B14 — SWR fetch failure retries once (anti-starvation)', () => {
+    // Motivating failure: a one-shot busRequest reply lost on the wire (SSE
+    // connection swap) times out and rejects; without a bounded retry, every
+    // subscriber of a never-loaded key starves silently until some future
+    // observe()/invalidate() happens to act.
+    // See .plans/bugs/concurrent-browse-resource-starvation.md (ask 3).
+
+    it('observe path: a failed first fetch is re-issued once and subscribers recover', async () => {
+      const fetchFn = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('bus.timeout: reply lost'))
+        .mockResolvedValueOnce('v1');
+      const cache = createCache<string, string>(fetchFn);
+      const seen: Array<string | undefined> = [];
+      cache.observe('k').subscribe((v) => seen.push(v));
+      await flush();
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+      expect(seen[seen.length - 1]).toBe('v1');
+    });
+
+    it('caps at one retry: a persistently failing key goes idle, and a later observe() recovers it', async () => {
+      const fetchFn = vi.fn().mockRejectedValue(new Error('down'));
+      const cache = createCache<string, string>(fetchFn);
+      cache.observe('k').subscribe(() => {});
+      await flush();
+      expect(fetchFn).toHaveBeenCalledTimes(2); // attempt + one retry, then idle
+      await flush();
+      expect(fetchFn).toHaveBeenCalledTimes(2); // no tight loop
+
+      // Recoverable: the key is idle-empty ("empty is terminal only until an
+      // observer acts"), so a later observe() starts a fresh attempt chain.
+      fetchFn.mockResolvedValueOnce('v-late');
+      const v = await firstDefined(cache.observe('k'));
+      expect(v).toBe('v-late');
+    });
+
+    it('invalidate path: a failed SWR refetch retries once; stale value survives throughout (B6)', async () => {
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce('v1')
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValueOnce('v2');
+      const cache = createCache<string, string>(fetchFn);
+      await firstDefined(cache.observe('k'));
+      cache.invalidate('k');
+      expect(cache.get('k')).toBe('v1'); // stale value visible during refetch + retry
+      await flush();
+      expect(cache.get('k')).toBe('v2');
+      expect(fetchFn).toHaveBeenCalledTimes(3);
+    });
+
+    it('await path is untouched: fetch() rejects without auto-retry (caller owns retry policy)', async () => {
+      const fetchFn = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValueOnce('v');
+      const cache = createCache<string, string>(fetchFn);
+      await expect(cache.fetch('k')).rejects.toThrow('boom');
+      await flush();
+      expect(fetchFn).toHaveBeenCalledTimes(1);
     });
   });
 

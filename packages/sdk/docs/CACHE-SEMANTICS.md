@@ -80,7 +80,8 @@ Consequences:
    flight?" Observers get the first as `V | undefined`. The second is
    the private `fetching*` guard and is not exposed.
 3. **Empty is terminal only until an observer or invalidate acts.**
-   A permanent fetch failure does not auto-retry.
+   Each act gets one bounded retry (B14); after that the key goes idle
+   until the next act. There is no standing retry loop.
 
 ## Two consumption paths
 
@@ -210,6 +211,31 @@ A future cache primitive may add subscriber ref-counting and GC.
 For now, the full cache lifetime matches a `SemiontClient`
 instance, which matches a browser tab or a CLI process — so the
 leak is strictly bounded.
+
+### B14 — SWR fetch failure retries once (anti-starvation)
+
+A fetch triggered by the **swallowed** paths — first observation (B1),
+`invalidate` (B7/B8), `invalidateAll` — that fails MUST be re-issued
+exactly once. If the retry also fails, the key goes idle (B6 state:
+empty or stale-fresh) until the next observe/invalidate acts.
+
+Rationale: the swallowed paths hide failures from subscribers by design
+(B6), which means a lost one-shot reply — e.g. a `busRequest` whose SSE
+result raced a connection swap and timed out
+(`.plans/bugs/concurrent-browse-resource-starvation.md`) — previously
+starved every subscriber of a never-loaded key **silently and
+permanently**: no retry, no error, `undefined` forever. One bounded
+retry converts "reply lost" from permanent starvation into one slow
+load, without a standing retry loop hammering a genuinely-down backend.
+
+Boundaries:
+
+1. The `fetch(key)` await path NEVER auto-retries — its caller sees the
+   rejection and owns retry policy (unchanged).
+2. The retry joins any in-flight fetch another caller has started in the
+   meantime (B3 dedup); it never duplicates.
+3. An invalidate during a retry chain disowns it (B9) — the chain's
+   late success may still write (last-write-wins, same as B9).
 
 ## Bus-event-driven invalidation
 
@@ -403,3 +429,8 @@ changing a behavior must update both this doc and the test.
 - 2026-04-19 — initial spec, written as part of CACHE-LIBRARY.md
   Phase 1. Documents behavior as it exists after the
   `invalidateResourceDetail` SWR fix (test 04).
+- 2026-07-05 — B14 added (bounded SWR retry); lifecycle consequence 3
+  amended ("a permanent fetch failure does not auto-retry" → one retry
+  per act). Part of the concurrent-browse-resource-starvation fix
+  (ask 3): a lost one-shot reply must not permanently starve
+  subscribers.

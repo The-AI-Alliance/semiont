@@ -129,3 +129,107 @@ describe('browse live-query subscription acquires the resource scope (#847 Phase
     sub.unsubscribe();
   });
 });
+
+describe('scope contention degrades to unscoped observation (concurrent-browse-resource-starvation)', () => {
+  // HttpTransport is SINGLE-scope: `subscribeToResource` throws for a second
+  // distinct resourceId while the first is held. N distinct-rid loaders at
+  // mount (the embeddable-viewer "resource per chat message" pattern) hit
+  // that throw on loaders 2..N — and an errored subscription starves its
+  // component forever, silently. Scope acquisition failure must DEGRADE the
+  // live query to unscoped observation (correlated replies are globally
+  // bridged; only per-resource broadcast invalidations are scope-gated), not
+  // error the stream. See .plans/bugs/concurrent-browse-resource-starvation.md.
+
+  /** Fake transport with HttpTransport's single-scope contract. */
+  function makeSingleScopeTransport() {
+    const subjects = new Map<string, Subject<Record<string, unknown>>>();
+    const subjectFor = (channel: string) => {
+      let s = subjects.get(channel);
+      if (!s) {
+        s = new Subject<Record<string, unknown>>();
+        subjects.set(channel, s);
+      }
+      return s;
+    };
+
+    let active: { rId: ResourceId; refCount: number } | null = null;
+    const subscribeToResource = vi.fn((rId: ResourceId) => {
+      if (active && active.rId !== rId) {
+        throw new Error(
+          `HttpTransport already subscribed to resource ${active.rId}; ` +
+            `call the unsubscribe returned from the previous subscribeToResource before subscribing to ${rId}.`,
+        );
+      }
+      if (active) active.refCount++;
+      else active = { rId, refCount: 1 };
+      return () => {
+        if (active && --active.refCount <= 0) active = null;
+      };
+    });
+
+    const transport = {
+      baseUrl: 'http://test',
+      emit: async (channel: string, payload: Record<string, unknown>) => {
+        if (channel === 'browse:resource-requested') {
+          subjectFor('browse:resource-result').next({
+            correlationId: payload.correlationId as string,
+            response: { resource: { '@id': payload.resourceId, name: `Resource ${payload.resourceId as string}` } },
+          });
+        }
+      },
+      stream: (channel: string): Observable<Record<string, unknown>> => subjectFor(channel).asObservable(),
+      subscribeToResource,
+      bridgeInto: () => {},
+      state$: new Subject(),
+      errors$: new Subject(),
+      dispose: () => {},
+    };
+    return { transport: transport as unknown as ITransport, subscribeToResource };
+  }
+
+  const flush = () => new Promise<void>((r) => setTimeout(r, 0));
+  const rid1: ResourceId = makeResourceId('res-1');
+  const rid2: ResourceId = makeResourceId('res-2');
+
+  it('a second distinct-rid live query still delivers values when scope acquisition throws', async () => {
+    const bus = new EventBus();
+    const { transport } = makeSingleScopeTransport();
+    const browse = new BrowseNamespace(transport, bus, noopContent);
+
+    const values1: unknown[] = [];
+    const values2: unknown[] = [];
+    const errors2: unknown[] = [];
+
+    // Loader 1 acquires the single scope; loader 2's acquisition throws.
+    browse.resource(rid1).subscribe({ next: (v) => values1.push(v) });
+    browse.resource(rid2).subscribe({ next: (v) => values2.push(v), error: (e) => errors2.push(e) });
+    await flush();
+
+    expect(errors2).toEqual([]); // NOT errored by the scope contention…
+    expect(values2.filter(Boolean)).toHaveLength(1); // …and the value arrives (degraded/unscoped)
+    expect(values1.filter(Boolean)).toHaveLength(1); // loader 1 unaffected
+
+    bus.destroy();
+  });
+
+  it('degradation is per-subscription: once the scope frees, a new subscription acquires it', async () => {
+    const bus = new EventBus();
+    const { transport, subscribeToResource } = makeSingleScopeTransport();
+    const browse = new BrowseNamespace(transport, bus, noopContent);
+
+    const sub1 = browse.resource(rid1).subscribe(() => {});
+    const sub2 = browse.resource(rid2).subscribe(() => {}); // degraded (contention)
+    await flush();
+
+    sub1.unsubscribe(); // scope freed
+    sub2.unsubscribe();
+
+    // A fresh subscription for rid2 now acquires the scope normally.
+    subscribeToResource.mockClear();
+    browse.resource(rid2).subscribe(() => {});
+    expect(subscribeToResource).toHaveBeenCalledWith(rid2);
+    expect(subscribeToResource).toHaveReturned(); // no throw this time
+
+    bus.destroy();
+  });
+});

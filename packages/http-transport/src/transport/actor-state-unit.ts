@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, type ConnectionState, type StateUnit } from '@semiont/core';
+import { busLog, busLogEnabled, type ConnectionState, type StateUnit } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -27,6 +27,19 @@ export interface ActorStateUnitOptions {
 
 /** Time in the `reconnecting` state before transitioning to `degraded`. */
 export const DEGRADED_THRESHOLD_MS = 3_000;
+
+/**
+ * How long a superseded connection keeps DRAINING after a make-before-break
+ * handoff before being aborted. Aborting the old connection the instant the
+ * new one opened discarded replies already written to the old socket but not
+ * yet read by the client (a freshly-hydrating page's main thread is busy —
+ * exactly the N-concurrent-loaders-at-connect repro in
+ * .plans/bugs/concurrent-browse-resource-starvation.md). The overlap is safe:
+ * persisted ids are stable and correlated-reply ids are deterministic
+ * (`e-<channel>:<cid>`, routes/bus.ts), so `seenEventIds` dedups double
+ * delivery.
+ */
+export const LINGER_MS = 1_000;
 
 export interface ActorStateUnit extends StateUnit {
   on$<T = Record<string, unknown>>(channel: string): Observable<T>;
@@ -119,6 +132,16 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
+   * Connections retired by a make-before-break handoff. A superseded
+   * connection lingers (still draining) for LINGER_MS before its abort; its
+   * read loop ending — naturally or via that abort — must NOT drive the
+   * actor-wide reconnect logic, which belongs to the live connection only.
+   */
+  const superseded = new WeakSet<AbortController>();
+  /** Pending linger-abort timers, cleared on stop/dispose. */
+  const lingerTimers = new Set<ReturnType<typeof setTimeout>>();
+
+  /**
    * `Last-Event-ID` of the most recently delivered SSE event from the
    * server. Sent as a request header on each connect so the server can
    * replay persisted events missed during the disconnect (see
@@ -170,6 +193,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     }
     inflightControllers.clear();
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    for (const t of lingerTimers) clearTimeout(t);
+    lingerTimers.clear();
   };
 
   const connect = async (keepPrevious = false) => {
@@ -225,17 +250,26 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
       // Make-before-break handoff: the new connection is established (the
       // backend has subscribed it and any `Last-Event-ID` replay is flowing),
-      // so NOW retire the previous connection(s). Aborting only after the new
-      // fetch resolves is what closes the reconnect gap — an event in flight
-      // on the old connection during a scope change is delivered, not dropped
-      // (#847). A live event delivered by both during the overlap is deduped
-      // by id in the read loop below. Had the fetch failed, we'd have thrown
-      // above and never reached here, leaving the old connection live (no gap).
+      // so mark the previous connection(s) superseded and LINGER them — keep
+      // them draining for LINGER_MS before the abort. Aborting immediately
+      // here discarded replies already written to the old socket but not yet
+      // read (the buffered-bytes loss in
+      // .plans/bugs/concurrent-browse-resource-starvation.md); an event
+      // delivered by both connections during the overlap is deduped by id in
+      // the read loop below (persisted ids are stable; correlated-reply ids
+      // are deterministic per routes/bus.ts). Had the fetch failed, we'd have
+      // thrown above and never reached here, leaving the old connection live
+      // (no gap).
       if (keepPrevious) {
-        for (const c of previous) {
-          try { c.abort(); } catch { /* noop */ }
-          inflightControllers.delete(c);
-        }
+        for (const c of previous) superseded.add(c);
+        const lingerTimer = setTimeout(() => {
+          lingerTimers.delete(lingerTimer);
+          for (const c of previous) {
+            try { c.abort(); } catch { /* noop */ }
+            inflightControllers.delete(c);
+          }
+        }, LINGER_MS);
+        lingerTimers.add(lingerTimer);
       }
 
       transition('open');
@@ -283,6 +317,16 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
               }
               const parsed = JSON.parse(currentData) as BusEvent;
               busLog('RECV', parsed.channel, parsed.payload, parsed.scope);
+              // Drain-window forensics: an event delivered by a SUPERSEDED
+              // (lingering) connection is one that an immediate handover abort
+              // would have discarded — the loss mode of
+              // .plans/bugs/concurrent-browse-resource-starvation.md. Gated
+              // (per-event, bursty during overlap); flip bus logging on to
+              // see how real the window is.
+              if (busLogEnabled() && superseded.has(controller)) {
+                // eslint-disable-next-line no-console
+                console.debug(`[bus LINGER] ${parsed.channel} delivered on superseded connection`);
+              }
               // Tier 2: lift trace context off the SSE payload (the
               // backend's writeBusEvent puts it there). The synchronous
               // fan-out to subscribers happens inside the bus.recv span,
@@ -319,8 +363,10 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
     // If we reached here without an AbortError, the connection dropped
     // or the fetch failed. Transition to reconnecting and schedule a
-    // retry after `reconnectMs`.
-    if (running) {
+    // retry after `reconnectMs` — unless this was a SUPERSEDED (lingering)
+    // connection ending: its termination is expected teardown, not a drop
+    // of the live stream, and must not restart the reconnect machinery.
+    if (running && !superseded.has(controller)) {
       transition('reconnecting');
       reconnectTimer = setTimeout(() => {
         if (running) connect();
