@@ -21,6 +21,18 @@
  * a fresh issue otherwise — sharing rids with mounts would make the per-key
  * issue count ambiguous. The invalidate property widens the budget to 3: an
  * observe chain (≤2) plus a sanctioned invalidate chain (≤2) on one key.
+ *
+ * L4 (P4): the console-warn spy is the assertion surface, not just a
+ * silencer. Property 1 carries the per-run implication — a consumed fault on
+ * a MOUNTED rid's observe path ⇒ ≥1 breadcrumb before that run's outputs all
+ * settled ([cache RETRY] fires before the retry that gates notification).
+ * Scoped deliberately: fetch()/await-path faults have NO breadcrumb by design
+ * (the caller owns retry policy), and the invalidate property is excluded —
+ * an invalidate chain's warn can land after the bound when outputs were
+ * already notified via the stale value, so asserting there would be flaky.
+ * The three breadcrumbs are also pinned individually in the deterministic
+ * trio test at the bottom ([browse DEGRADED] can't join the implication:
+ * FaultyTransport doesn't expose the per-run scope model).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -28,10 +40,7 @@ import { filter } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { IContentTransport, ITransport } from '@semiont/core';
-import {
-  assertLivenessAxioms,
-  type FaultyTransport,
-} from '@semiont/core/testing';
+import { assertLivenessAxioms, FaultyTransport } from '@semiont/core/testing';
 import { BrowseNamespace } from '../namespaces/browse';
 
 /** Small explicit busRequest timeout — deterministic virtual time (no 30 s). */
@@ -66,8 +75,9 @@ function loaderOutputs(browse: BrowseNamespace, rid: string): Observable<unknown
 
 describe('liveness axioms over the real BrowseNamespace composition (P2)', () => {
   // The breadcrumbs ([browse DEGRADED], [cache RETRY]/[cache IDLE]) are
-  // always-on by design (L4); silence them here so property runs don't spam.
-  // P4 turns this spy into the L4 assertion (degradation ⇒ ≥1 breadcrumb).
+  // always-on by design (L4). The spy keeps property runs quiet AND is the
+  // L4 assertion surface: property 1 checks degradation ⇒ ≥1 breadcrumb
+  // per run; the trio test below pins each breadcrumb individually.
   let warnSpy: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -89,6 +99,10 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
         ['res-a'],
       ];
       let run = 0;
+      // L4 accumulator: violating runs are collected (not thrown) so a
+      // breadcrumb failure can't shadow a sharper L1/L2 diagnosis from the
+      // harness's finally block; asserted empty after the property.
+      const l4Silent: string[] = [];
 
       await assertLivenessAxioms({
         timeoutMs: TIMEOUT_MS,
@@ -97,6 +111,7 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
         makeResponse,
         setup: (transport: FaultyTransport) => {
           const rids = RID_CONFIGS[run++ % RID_CONFIGS.length]!;
+          warnSpy.mockClear(); // per-run L4 window
           const bus = new EventBus();
           const browse = new BrowseNamespace(
             transport as unknown as ITransport,
@@ -128,9 +143,36 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
             ),
           ];
 
-          return { outputs, settlements, teardown: () => bus.destroy() };
+          return {
+            outputs,
+            settlements,
+            teardown: () => {
+              // L4 — degradation ⇒ ≥1 breadcrumb. Runs after the harness's
+              // L1/L2 checks (its finally), so every mounted-rid chain that
+              // consumed a fault has already warned: [cache RETRY] precedes
+              // the retry whose outcome gates the output's notification.
+              // Quote-bounded rid match — '"res-a"' must not match the
+              // await path's '"res-await"'.
+              const observePathFaults = transport.requestLog.filter(
+                (e) =>
+                  (e.action.kind === 'drop-reply' || e.action.kind === 'reject-emit') &&
+                  rids.some((r) => e.retryKey.includes(`"${r}"`)),
+              );
+              if (observePathFaults.length > 0 && warnSpy.mock.calls.length === 0) {
+                l4Silent.push(
+                  `L4: run with mounts [${rids.join(',')}] consumed ` +
+                  `${observePathFaults.length} observe-path fault(s) ` +
+                  `(${observePathFaults.map((e) => e.action.kind).join(',')}) ` +
+                  `but emitted zero breadcrumbs — silence under degradation`,
+                );
+              }
+              bus.destroy();
+            },
+          };
         },
       });
+
+      expect(l4Silent).toEqual([]);
     },
     60_000,
   );
@@ -171,4 +213,64 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
     },
     60_000,
   );
+
+  // ── L4 trio: each breadcrumb pinned individually (deterministic) ─────────
+
+  it('L4: [cache RETRY] then [cache IDLE] fire when an SWR chain fails and exhausts', async () => {
+    // Every request drops its reply → attempt times out (RETRY warn) → the
+    // B14 re-issue also drops → exhaustion (IDLE warn) + B15 error to the
+    // value-less key's observers. scopeModel 'multi' keeps [browse DEGRADED]
+    // out of this scenario's warns.
+    const transport = new FaultyTransport({ schedule: [{ kind: 'drop-reply' }], scopeModel: 'multi', makeResponse });
+    const bus = new EventBus();
+    const browse = new BrowseNamespace(
+      transport as unknown as ITransport, bus, noopContent, { busTimeoutMs: TIMEOUT_MS },
+    );
+
+    try {
+      const outputs = loaderOutputs(browse, 'res-trio');
+      await Promise.all(outputs.map(
+        (o) => new Promise<void>((resolve) => {
+          o.subscribe({ next: () => resolve(), error: () => resolve() });
+        }),
+      ));
+
+      const warns: string[] = warnSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+      expect(warns.some((w) => w.includes('[cache RETRY]'))).toBe(true);
+      expect(warns.some((w) => w.includes('[cache IDLE]'))).toBe(true);
+      expect(warns.some((w) => w.includes('[browse DEGRADED]'))).toBe(false);
+    } finally {
+      bus.destroy();
+      transport.dispose();
+    }
+  });
+
+  it('L4: [browse DEGRADED] fires on scope contention — and the degraded loader still loads', async () => {
+    // Default single-slot-throw, healthy wire: the second distinct rid's
+    // withScope hits the contention throw, degrades to unscoped observation
+    // (warn), and BOTH loaders still deliver values — degradation is graceful
+    // AND observable, never silent (the incident's forensic gap).
+    const transport = new FaultyTransport({ makeResponse });
+    const bus = new EventBus();
+    const browse = new BrowseNamespace(
+      transport as unknown as ITransport, bus, noopContent, { busTimeoutMs: TIMEOUT_MS },
+    );
+
+    try {
+      const outputs = [...loaderOutputs(browse, 'res-one'), ...loaderOutputs(browse, 'res-two')];
+      const values = await Promise.all(outputs.map(
+        (o) => new Promise<unknown>((resolve, reject) => {
+          o.subscribe({ next: (v) => resolve(v), error: reject });
+        }),
+      ));
+
+      expect(values).toHaveLength(4);
+      values.forEach((v) => expect(v).toBeDefined());
+      const warns: string[] = warnSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+      expect(warns.some((w) => w.includes('[browse DEGRADED]'))).toBe(true);
+    } finally {
+      bus.destroy();
+      transport.dispose();
+    }
+  });
 });

@@ -19,8 +19,11 @@
  * The hand-written linger/dedup tests in actor-state-unit.test.ts stay as
  * readable anchors; this property adds the interleavings nobody named.
  *
- * P4 note: `[bus LINGER]` breadcrumbs are silenced here with a console.debug
- * spy; P4 flips that spy into the L4 assertion (degradation ⇒ ≥1 breadcrumb).
+ * L4 (P4): the property describe silences `[bus LINGER]` (bursty, expected);
+ * the dedicated L4 describe below asserts it — the gated breadcrumb fires for
+ * a superseded-connection delivery once `busLogEnabled()` is on
+ * (`globalThis.__SEMIONT_BUS_LOG__`, the existing switch), on the
+ * deterministic linger-drain scenario borrowed from the hand-written anchor.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fc from 'fast-check';
@@ -193,5 +196,66 @@ describe('L3 — delivery across lifecycle transitions (liveness axioms P3)', ()
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// ── L4 — observable degradation: the [bus LINGER] breadcrumb (liveness P4) ──
+
+describe('L4 — [bus LINGER] fires for a superseded-connection delivery', () => {
+  const busLogGlobal = globalThis as { __SEMIONT_BUS_LOG__?: boolean };
+
+  beforeEach(() => {
+    vi.useRealTimers();
+    mockFetch.mockReset();
+    // Recording spy — the assertion surface. The breadcrumb is gated behind
+    // busLogEnabled(); flip the existing runtime switch for this describe.
+    vi.spyOn(console, 'debug').mockImplementation(() => {});
+    // The gate also turns on busLog's RECV/SSE lines — keep them off stdout.
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    busLogGlobal.__SEMIONT_BUS_LOG__ = true;
+  });
+
+  afterEach(() => {
+    delete busLogGlobal.__SEMIONT_BUS_LOG__;
+    vi.mocked(console.debug).mockRestore();
+    vi.mocked(console.log).mockRestore();
+  });
+
+  it('a drain-window delivery emits the breadcrumb — degradation is never silent', async () => {
+    // The linger-drain anchor scenario (actor-state-unit.test.ts): a reply
+    // written to the OLD socket around the handover, delivered while that
+    // connection is superseded and draining. L4 asserts the delivery leaves
+    // a forensic trace — the exact evidence the starvation incident's
+    // investigation lacked.
+    const c1 = mockConn();
+    const actor = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: [CHANNEL],
+    });
+    const received: unknown[] = [];
+    actor.on$(CHANNEL).subscribe((p) => received.push(p));
+    actor.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    const c2 = mockConn({ defer: true });
+    actor.addChannels(['mark:added'], 'res-l4');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    // Handover completes; c1 is now superseded, draining.
+    c2.open();
+    await new Promise((r) => setTimeout(r, 20));
+
+    c1.sse.push(sseChunkId(
+      'bus-event',
+      JSON.stringify({ channel: CHANNEL, payload: { correlationId: 'c-l4', response: {} } }),
+      `e-${CHANNEL}:c-l4`,
+    ));
+    await vi.waitFor(() => expect(received).toHaveLength(1));
+
+    const debugs = vi.mocked(console.debug).mock.calls.map((c) => String(c[0]));
+    expect(debugs.some((d) => d.includes(`[bus LINGER] ${CHANNEL} delivered on superseded connection`))).toBe(true);
+
+    actor.dispose();
   });
 });
