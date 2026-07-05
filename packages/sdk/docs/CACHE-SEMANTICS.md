@@ -137,11 +137,16 @@ value, then the new value; never a transient `undefined`.
 
 ### B6 — Fetch failure leaves the previous state intact
 
-On failed fetch, the entry MUST NOT be cleared or marked with an
-error state. If the entry was previously `empty`, it remains
-`empty`. If it was previously `fresh`, it remains `fresh` with the
-stale value. The `fetching*` guard MUST be released in all cases
-(success, failure, cancellation) via the `finally` block.
+On failed fetch, the entry MUST NOT be cleared. If the entry was
+previously `fresh`, it remains `fresh` with the stale value
+(stale-beats-error). The `fetching*` guard MUST be released in all
+cases (success, failure, cancellation) via the `finally` block.
+
+Boundary: stale-beats-error presumes a stale value to serve. A
+previously-`empty` key stays `empty` through the B14 retry chain — but
+if that chain EXHAUSTS with the key still value-less, B15 applies: the
+terminal failure is surfaced to that key's observers as an error
+notification, not absorbed into eternal `undefined`.
 
 ### B7 — Invalidate is stale-while-revalidate
 
@@ -236,6 +241,35 @@ Boundaries:
    meantime (B3 dedup); it never duplicates.
 3. An invalidate during a retry chain disowns it (B9) — the chain's
    late success may still write (last-write-wins, same as B9).
+
+### B15 — Terminal failure of a value-less key errors its observers
+
+When the B14 retry ALSO fails and the key holds **no cached value**, the
+key is marked failed and the failure MUST be delivered to that key's
+observers as an **error notification** — never `undefined` forever:
+
+1. Subscribers attached at exhaustion time are errored (push).
+2. Subscribers attaching later see the same error (replay at subscribe
+   time), until an act clears the marker.
+3. The marker is cleared — and the key thereby returns to plain `empty`
+   — by `observe()` (which also starts a fresh attempt chain, so a
+   remount recovers), `invalidate`, `set`, `remove`, or any fetch
+   success. The error state is always retriable; nothing is latched.
+4. Keys WITH a cached value never come here — B6 stale-beats-error is
+   unchanged.
+5. An errored subscription is terminal (RxJS semantics); recovery
+   applies to subsequent subscriptions. This matches hook consumption:
+   a remount calls the live-query method again → fresh subscription.
+
+Rationale: liveness (`.plans/LIVENESS-AXIOMS.md`, axiom L1 — found by
+the P2 property suite as
+`.plans/bugs/valueless-key-terminal-failure-starves-observers.md`).
+B14 converted "reply lost" into one slow load when the retry succeeds;
+B15 covers the remaining corner — retry ALSO fails — where "idle" was
+indistinguishable from the pre-B14 permanent silent starvation for
+value-less keys. The `[cache IDLE]` breadcrumb (L4) is unchanged; B15
+adds the in-band signal consumers can actually react to
+(`useResourceLoader`'s `error` callback now fires).
 
 ## Bus-event-driven invalidation
 
@@ -434,3 +468,8 @@ changing a behavior must update both this doc and the test.
   per act). Part of the concurrent-browse-resource-starvation fix
   (ask 3): a lost one-shot reply must not permanently starve
   subscribers.
+- 2026-07-05 — B15 added (terminal failure of a value-less key errors
+  its observers, retriable); B6 narrowed to its true scope
+  (stale-beats-error requires a stale value). Driven by the
+  LIVENESS-AXIOMS P2 property suite falsifying L1/L2 against the real
+  composition (valueless-key-terminal-failure-starves-observers.md).
