@@ -40,7 +40,8 @@ const url = `${client.baseUrl}/api/resources/${resourceId}?token=${token}`;
 ```typescript
 import { useMediaToken } from '@semiont/react-ui';
 
-const { token, loading } = useMediaToken(resourceId);
+// Takes the SemiontClient explicitly; pass null to skip fetching.
+const { token, loading } = useMediaToken(client, resourceId);
 ```
 
 - The hook fetches a token on mount and then refreshes it every 4 minutes via `setInterval` — ahead of the 5-minute expiry. The 1-minute margin absorbs clock skew and request latency so a fetch in flight when the token rolls over still completes against a valid token.
@@ -53,7 +54,7 @@ const { token, loading } = useMediaToken(resourceId);
 
 ```
 ResourceViewerPage
-  → useMediaToken(resourceId)
+  → useMediaToken(client, resourceId)
       → POST /api/tokens/media  (Bearer auth, once per 4 min)
       → { token }
   → resourceUrl = `${baseUrl}/api/resources/${id}?token=${token}`

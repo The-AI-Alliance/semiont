@@ -297,7 +297,7 @@ HTTP errors from the http-transport surface as `APIError`:
 import { APIError } from '@semiont/http-transport';
 
 try {
-  await semiont.mark.annotation(resourceId, input);
+  await semiont.mark.annotation(input);
 } catch (err) {
   if (err instanceof APIError) {
     if (err.status === 401) { /* session expired */ }

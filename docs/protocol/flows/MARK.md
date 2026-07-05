@@ -34,7 +34,9 @@ intent (using the authenticated user's DID as the creator) and passes
 it to Stower.
 
 ```typescript
-const { annotationId } = await client.mark.annotation(resourceId, {
+// One argument — the wire layer derives the routing resourceId from
+// `target.source`.
+const { annotationId } = await client.mark.annotation({
   motivation: 'highlighting',
   target: {
     source: resourceId,
@@ -48,6 +50,20 @@ const { annotationId } = await client.mark.annotation(resourceId, {
   // highlighting carries no body — motivation + target is the whole
   // annotation per the W3C Web Annotation Model.
 });
+```
+
+**Resource classification** — replace a resource's own entity-type
+stamps. A confirmed write over `mark:update-entity-types` (replies
+`mark:update-entity-types-ok` / `-failed`): the backend diffs `current`
+vs `updated` and persists the changes as `mark:entity-tag-added` /
+`mark:entity-tag-removed` events, so the new classification surfaces in
+`browse.resources({ entityType })`. This stamps a resource with types
+drawn from the Frame vocabulary — it does not define new types (that is
+`frame.addEntityTypes`; see [FRAME.md](./FRAME.md)).
+
+```typescript
+// Replace/diff: pass the resource's current types and the desired full set.
+await client.mark.updateEntityTypes(resourceId, ['Draft'], ['Draft', 'Question']);
 ```
 
 **AI-assisted annotation** — long-running job that streams progress

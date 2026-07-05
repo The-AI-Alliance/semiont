@@ -294,6 +294,14 @@ await semiont.mark.delete(resourceId, annotationId);
 await semiont.mark.archive(resourceId);
 await semiont.mark.unarchive(resourceId);
 
+// Replace a resource's own entity-type classification — replace/diff:
+// pass the current types and the desired full set; the backend diffs
+// them into mark:entity-tag-added / -removed events, so the change
+// surfaces in browse.resources({ entityType }). (Stamps the resource
+// with types from the Frame vocabulary — defining the vocabulary
+// itself is frame.addEntityTypes.)
+await semiont.mark.updateEntityTypes(resourceId, ['Draft'], ['Draft', 'Question']);
+
 // AI-assisted annotation — StreamObservable<MarkAssistEvent>: subscribe
 // for progress, await for the final event.
 semiont.mark.assist(resourceId, 'linking', {

@@ -242,6 +242,14 @@ Boundaries:
 3. An invalidate during a retry chain disowns it (B9) — the chain's
    late success may still write (last-write-wins, same as B9).
 
+Liveness: B14's one-retry budget is pinned by axioms **L1/L2**
+(`.plans/LIVENESS-AXIOMS.md`) — L2's settlement bound on the swallowed
+paths is `timeoutMs × (1 + this retry)`, enforced against the real
+`BrowseNamespace` + cache + `busRequest` composition by the property
+suite ([browse-liveness.property.test.ts](../src/__tests__/browse-liveness.property.test.ts)).
+Changing the retry count is a policy change that must edit L2's budget
+visibly, not drift past it.
+
 ### B15 — Terminal failure of a value-less key errors its observers
 
 When the B14 retry ALSO fails and the key holds **no cached value**, the
