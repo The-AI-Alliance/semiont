@@ -325,13 +325,14 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
   });
 
   describe('B6 — fetch failure leaves the previous state intact', () => {
-    it('observer stays undefined on a first-fetch failure; guard is released', async () => {
-      const { browse, emitSpy, state } = createHarness({ rejectNext: 1 });
+    it('observer stays undefined on first-fetch failures; guard is released', async () => {
+      // Two rejections exhaust the observe attempt + its B14 retry.
+      const { browse, emitSpy, state } = createHarness({ rejectNext: 2 });
       const seen: Array<ResourceDescriptor | undefined> = [];
       browse.resource(RID).subscribe((v) => seen.push(v));
       await flush();
       expect(seen).toEqual([undefined]);
-      expect(emitSpy).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(2); // attempt + B14 retry, then idle
 
       // Guard is released: a subsequent fetch succeeds and the observer sees it.
       state.rejectRemaining = 0;
@@ -345,14 +346,15 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
       const first = await firstDefined(browse.resource(RID));
       expect(first).toMatchObject({ name: 'Resource res-1' });
 
-      state.rejectRemaining = 1;
+      // Two rejections exhaust the invalidate refetch + its B14 retry.
+      state.rejectRemaining = 2;
       browse.invalidateResourceDetail(RID);
       await flush();
 
       // Stale value is still served; no transient undefined.
       const latest = await firstDefined(browse.resource(RID));
       expect(latest).toMatchObject({ name: 'Resource res-1' });
-      expect(emitSpy).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(3); // initial + refetch + B14 retry
     });
   });
 
@@ -383,16 +385,17 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
     it('clears the in-flight guard before refetching (commit 845c6b24 regression)', async () => {
       // Scenario: a fetch is stuck in-flight (guard never cleared). If
       // invalidate does not clear the guard, the refetch short-circuits.
-      const { browse, emitSpy, state } = createHarness({ rejectNext: 1 });
+      // Two rejections exhaust the observe attempt + its B14 retry first.
+      const { browse, emitSpy, state } = createHarness({ rejectNext: 2 });
       const seen: Array<ResourceDescriptor | undefined> = [];
       browse.resource(RID).subscribe((v) => seen.push(v));
-      await flush(); // First fetch rejects; guard should release in finally.
+      await flush(); // Attempt + B14 retry both reject; guard releases in finally.
 
       state.rejectRemaining = 0;
       browse.invalidateResourceDetail(RID);
       const val = await firstDefined(browse.resource(RID));
       expect(val).toBeDefined();
-      expect(emitSpy).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(3); // attempt + retry + invalidate refetch
     });
   });
 

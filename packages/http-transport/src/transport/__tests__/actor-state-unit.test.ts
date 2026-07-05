@@ -615,12 +615,13 @@ describe('createActorStateUnit', () => {
 
   // ── #847 Phase 3: make-before-break reconnect ─────────────────────────
 
-  it('retires the old connection only after the new one opens (make-before-break)', async () => {
+  it('retires the old connection only after the new one opens + the drain window (make-before-break + linger)', async () => {
     // Pre-#847 a scope-change reconnect aborted the live connection up front
     // (break-before-make), opening a gap in which an in-flight ephemeral
     // result was dropped. Now the old connection stays live until the new
-    // fetch resolves, then is retired — and rapid connects still converge to
-    // a single live stream (the orphan-stream guarantee).
+    // fetch resolves, then LINGERS for LINGER_MS (draining buffered replies)
+    // before being aborted — and rapid connects still converge to a single
+    // live stream (the orphan-stream guarantee).
     const c1 = mockConn();
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
@@ -640,9 +641,44 @@ describe('createActorStateUnit', () => {
     // old one MUST remain live.
     expect(c1.aborted).toBe(false);
 
-    // Once the new connection opens, the old is retired.
+    // Once the new connection opens, the old lingers (still draining)…
     c2.open();
-    await vi.waitFor(() => expect(c1.aborted).toBe(true));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(c1.aborted).toBe(false);
+
+    // …and is aborted after the drain window — no connection leak.
+    await vi.waitFor(() => expect(c1.aborted).toBe(true), { timeout: 2_500 });
+
+    stateUnit.dispose();
+  });
+
+  it('a lingering connection ending naturally does not restart the reconnect machinery', async () => {
+    // During the drain window the superseded connection may end on its own
+    // (server teardown). That is expected — it must not transition the actor
+    // to `reconnecting` or schedule a retry connect for the live stream.
+    const c1 = mockConn();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+    });
+    const states: string[] = [];
+    stateUnit.state$.subscribe((s) => states.push(s));
+    stateUnit.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    const c2 = mockConn({ defer: true });
+    stateUnit.addChannels(['mark:added'], 'res-1');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    c2.open();
+    await vi.waitFor(() => expect(states[states.length - 1]).toBe('open'));
+
+    // The lingering old connection ends naturally mid-drain.
+    c1.sse.close();
+    await new Promise((r) => setTimeout(r, 150));
+
+    expect(states[states.length - 1]).toBe('open'); // no reconnecting blip
+    expect(mockFetch).toHaveBeenCalledTimes(2); // no retry connect scheduled
 
     stateUnit.dispose();
   });
@@ -675,9 +711,110 @@ describe('createActorStateUnit', () => {
     await vi.waitFor(() => expect(received).toHaveLength(1));
     expect(received[0]).toEqual({ correlationId: 'x', annotations: [] });
 
-    // Let the handoff complete (old retired, new open) before teardown.
+    // Let the handoff complete (old retired after the drain window) before teardown.
     c2.open();
-    await vi.waitFor(() => expect(c1.aborted).toBe(true));
+    await vi.waitFor(() => expect(c1.aborted).toBe(true), { timeout: 2_500 });
+    stateUnit.dispose();
+  });
+
+  // ── Linger-drain: replies in flight on the old connection at handover ──
+  // (.plans/bugs/concurrent-browse-resource-starvation.md — ask 1)
+
+  it('delivers a reply still in flight on the old connection after the new one opens (linger-drain)', async () => {
+    // The starvation repro: N browse requests issued on the unscoped
+    // connection; their correlated results were written to the old socket
+    // around the handover and discarded when the old connection was aborted
+    // the instant the new fetch resolved (buffered-but-unread bytes are lost
+    // on abort). The old connection must LINGER (keep draining) after
+    // handover; the id-dedup absorbs the overlap.
+    const c1 = mockConn();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['browse:resource-result'],
+    });
+    const received: unknown[] = [];
+    stateUnit.on$('browse:resource-result').subscribe((p) => received.push(p));
+    stateUnit.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    const c2 = mockConn({ defer: true });
+    stateUnit.addChannels(['mark:added'], 'res-1');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    // Handoff completes: the new connection opens.
+    c2.open();
+    await new Promise((r) => setTimeout(r, 20));
+
+    // A correlated reply the backend wrote to the old socket around the
+    // handover arrives on the OLD connection — it must still be delivered.
+    c1.sse.push(sseChunkId(
+      'bus-event',
+      JSON.stringify({ channel: 'browse:resource-result', payload: { correlationId: 'c-lost', response: {} } }),
+      'e-browse:resource-result:c-lost',
+    ));
+
+    await vi.waitFor(() => expect(received).toHaveLength(1));
+    expect(received[0]).toMatchObject({ correlationId: 'c-lost' });
+
+    stateUnit.dispose();
+  });
+
+  it('dedupes a deterministic-id reply delivered by both connections during the linger overlap', async () => {
+    // The backend stamps correlated replies with deterministic ephemeral ids
+    // (`e-<channel>:<correlationId>`, routes/bus.ts) precisely so both
+    // connections tag the same reply identically — one emission, not two.
+    const c1 = mockConn();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['browse:resource-result'],
+    });
+    const received: unknown[] = [];
+    stateUnit.on$('browse:resource-result').subscribe((p) => received.push(p));
+    stateUnit.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    const c2 = mockConn({ defer: true });
+    stateUnit.addChannels(['mark:added'], 'res-1');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    c2.open();
+    await new Promise((r) => setTimeout(r, 20));
+
+    const frame = sseChunkId(
+      'bus-event',
+      JSON.stringify({ channel: 'browse:resource-result', payload: { correlationId: 'c-dup', response: {} } }),
+      'e-browse:resource-result:c-dup',
+    );
+    c1.sse.push(frame);
+    await vi.waitFor(() => expect(received).toHaveLength(1));
+    c2.sse.push(frame);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(received).toHaveLength(1);
+
+    stateUnit.dispose();
+  });
+
+  it('collapses connect + several scope-adds into a single swap (debounced batch)', async () => {
+    // N scope-adds in one burst must produce ONE replacement connection,
+    // not a swap per call.
+    mockConn();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['browse:resource-result'],
+    });
+    stateUnit.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    mockConn();
+    stateUnit.addChannels(['mark:added'], 'res-1');
+    stateUnit.addChannels(['mark:removed'], 'res-1');
+    stateUnit.addChannels(['job:complete'], 'res-1');
+
+    await new Promise((r) => setTimeout(r, 250));
+    expect(mockFetch).toHaveBeenCalledTimes(2); // initial + exactly one swap
+
     stateUnit.dispose();
   });
 
@@ -709,9 +846,10 @@ describe('createActorStateUnit', () => {
     c1.sse.push(frame);
     await vi.waitFor(() => expect(received).toHaveLength(1));
 
-    // New connection opens (old retired); it re-delivers the same id.
+    // New connection opens (old retired after the drain window); it
+    // re-delivers the same id.
     c2.open();
-    await vi.waitFor(() => expect(c1.aborted).toBe(true));
+    await vi.waitFor(() => expect(c1.aborted).toBe(true), { timeout: 2_500 });
     c2.sse.push(frame);
 
     // Give the parser time to process the second frame; it must be deduped.
