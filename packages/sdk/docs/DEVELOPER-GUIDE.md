@@ -75,8 +75,18 @@ const docs    = await session.client.browse.resources({ entityType: 'Concept', l
 const content = await session.client.browse.resourceContent(rId);          // Promise<string>
 const types   = await session.client.browse.entityTypes();                 // string[]
 
-session.client.browse.annotations(rId).subscribe((anns) => render(anns));  // live, re-emits on change
+session.client.browse.annotations(rId).subscribe({
+  next: (anns) => render(anns),        // live, re-emits on change
+  error: (e) => showLoadFailure(e),    // initial load terminally failed — see below
+});
 ```
+
+**Pass an `error` handler.** A live query that has no loaded value yet errors its
+subscribers when the fetch chain is exhausted (the fetch plus one bounded retry) — a lost
+or failing load surfaces as an error notification, never as `undefined` forever. The state
+is retriable: a fresh `.subscribe(...)` (e.g. a component remount) starts a new attempt. A
+query that already holds a value never errors — stale-beats-error, the prior value stays
+visible through a failed refetch. → [CACHE-SEMANTICS.md](./CACHE-SEMANTICS.md) (B14–B15).
 
 Live subscriptions are how you get real-time updates: **freshness follows observation** —
 subscribing to `browse.*(rId)` acquires that resource's event scope while observed and
@@ -127,6 +137,21 @@ await session.client.mark.assist(resourceId, 'linking', { entityTypes: ['Person'
 // structured tagging:
 await session.client.mark.assist(resourceId, 'tagging', { schemaId: 'legal-irac', categories: [...] });
 ```
+
+The resource's **own** classification — the `entityTypes` stamped at creation (§5) — can
+also be changed after the fact. `mark.updateEntityTypes` is a **replace/diff** call: pass
+the resource's *current* set and the desired *full* set (not just the additions); the
+backend folds the difference into `resource.entityTypes`, so the change surfaces in
+`browse.resources({ entityType })` filters and resource metadata. Awaitable and rejects on
+failure, like `mark.delete`:
+
+```typescript
+const current = resource.entityTypes ?? [];
+await session.client.mark.updateEntityTypes(rId, current, [...current, 'Person']);
+```
+
+(Don't confuse this with `frame.addEntityTypes` (§4), which grows the KB-wide *vocabulary*
+— a different axis from one resource's tags.)
 
 ## 7. Gather context (retrieval)
 
@@ -271,6 +296,17 @@ when the session is disposed. `await` or `.catch` every call you start.
 sub.unsubscribe();
 await session.dispose();   // tears down the SSE connection, refresh timer, and bus
 ```
+
+Disposal is terminal, in both directions:
+
+- **Subscriptions you left attached complete cleanly** — your `complete` handlers fire,
+  and a request still in flight at teardown dies quietly (no late error notification, no
+  retry). Unsubscribe-before-dispose isn't needed for correctness; do it anyway for
+  tidiness.
+- **The disposed session is unusable, loudly.** Any SDK call after `dispose()` — a
+  namespace method, `session.subscribe` — **throws** (`destroyed bus`) rather than
+  silently doing nothing. That throw is a lifecycle bug in the caller made visible: keep
+  UI handlers and timers from outliving the session they capture.
 
 ## Render a resource in the browser — the embeddable viewer (`@semiont/react-ui`)
 
