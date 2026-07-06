@@ -43,15 +43,14 @@ interface Props {
   session: SemiontSession | null;
   /** Recently-created annotation ids to sparkle (host-provided; was ResourceAnnotationsContext). */
   newAnnotationIds?: Set<string>;
+  /** The bar's Mode control reports the chosen mode here (the owner applies it). */
+  onModeChange?: (mode: boolean) => void;
 }
 
 /**
  * View component for annotating resources with text selection and drawing
  *
  * @emits mark:requested - User requested to create annotation. Payload: { selector: Selector | Selector[], motivation: SelectionMotivation }
- * @subscribes mark:selection-changed - Toolbar selection changed. Payload: { motivation: string | null }
- * @subscribes mark:click-changed - Toolbar click action changed. Payload: { action: string }
- * @subscribes mark:shape-changed - Toolbar shape changed. Payload: { shape: string }
  * @subscribes beckon:hover - Annotation hovered. Payload: { annotationId: string | null }
  */
 export function AnnotateView({
@@ -69,6 +68,7 @@ export function AnnotateView({
   annotateMode,
   session,
   newAnnotationIds,
+  onModeChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -86,28 +86,27 @@ export function AnnotateView({
   const onUIStateChangeRef = useRef(onUIStateChange);
   onUIStateChangeRef.current = onUIStateChange;
 
-  // Toolbar event handlers (extracted to avoid inline arrow functions)
-  const handleToolbarSelectionChanged = useCallback(({ motivation }: { motivation: string | null }) => {
-    onUIStateChangeRef.current?.({ selectedMotivation: motivation as SelectionMotivation | null });
+  // Toolbar callbacks: the presentational bar reports chosen values; route them up
+  // through the existing onUIStateChange path (the owner applies them).
+  const handleToolbarSelectionChange = useCallback((motivation: SelectionMotivation | null) => {
+    onUIStateChangeRef.current?.({ selectedMotivation: motivation });
   }, []);
 
-  const handleToolbarClickChanged = useCallback(({ action }: { action: string }) => {
-    onUIStateChangeRef.current?.({ selectedClick: action as ClickAction });
+  const handleToolbarClickActionChange = useCallback((action: ClickAction) => {
+    onUIStateChangeRef.current?.({ selectedClick: action });
   }, []);
 
-  const handleToolbarShapeChanged = useCallback(({ shape }: { shape: string }) => {
-    onUIStateChangeRef.current?.({ selectedShape: shape as ShapeType });
+  const handleToolbarShapeChange = useCallback((shape: ShapeType) => {
+    onUIStateChangeRef.current?.({ selectedShape: shape });
   }, []);
 
   const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
     onUIStateChangeRef.current?.({ hoveredAnnotationId: annotationId });
   }, []);
 
-  // Subscribe to toolbar events and annotation hover
+  // Annotation hover (session-scoped). Toolbar preference changes flow through
+  // props/callbacks, not the bus (TOOLBAR-PREFS-AS-PROPS).
   useSessionEventSubscriptions(session, {
-    'mark:selection-changed': handleToolbarSelectionChanged,
-    'mark:click-changed': handleToolbarClickChanged,
-    'mark:shape-changed': handleToolbarShapeChanged,
     'beckon:hover': handleAnnotationHover,
   });
 
@@ -204,7 +203,10 @@ export function AnnotateView({
             mediaType={mimeType}
             annotateMode={annotateMode}
             annotators={ANNOTATORS}
-            session={session}
+            parts={['clickAction', 'mode', 'selection']}
+            onModeChange={onModeChange}
+            onClickActionChange={handleToolbarClickActionChange}
+            onSelectionChange={handleToolbarSelectionChange}
           />
           <div className="semiont-annotate-view__content">
             <CodeMirrorRenderer
@@ -234,12 +236,14 @@ export function AnnotateView({
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
-            showShapeGroup={true}
             selectedShape={selectedShape}
             mediaType={mimeType}
             annotateMode={annotateMode}
             annotators={ANNOTATORS}
-            session={session}
+            onModeChange={onModeChange}
+            onClickActionChange={handleToolbarClickActionChange}
+            onSelectionChange={handleToolbarSelectionChange}
+            onShapeChange={handleToolbarShapeChange}
           />
           <div className="semiont-annotate-view__content">
             {content && (
@@ -266,12 +270,14 @@ export function AnnotateView({
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
-            showShapeGroup={true}
             selectedShape={selectedShape}
             mediaType={mimeType}
             annotateMode={annotateMode}
             annotators={ANNOTATORS}
-            session={session}
+            onModeChange={onModeChange}
+            onClickActionChange={handleToolbarClickActionChange}
+            onSelectionChange={handleToolbarSelectionChange}
+            onShapeChange={handleToolbarShapeChange}
           />
           <div className="semiont-annotate-view__content">
             {content && (

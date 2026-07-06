@@ -5,7 +5,7 @@
  * makes `EventBus.get(channel).next(payload)` also emit a
  * `[bus EMIT] <channel> ...` line on `console.debug`. This is what
  * makes local-only fan-out signals (`beckon.hover`, `beckon.sparkle`,
- * `mark.changeShape`, etc.) visible to the e2e bus capture and to a
+ * `mark.request`, etc.) visible to the e2e bus capture and to a
  * developer's DevTools console.
  *
  * Without this, those signals were silent at the wire-log layer

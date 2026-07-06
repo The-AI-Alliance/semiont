@@ -155,10 +155,6 @@ export type EventMap = {
   'mark:assist-request': components['schemas']['MarkAssistRequestEvent'];
   'mark:assist-cancelled': void;
   'mark:progress-dismiss': void;
-  'mark:mode-toggled': void;
-  'mark:selection-changed': components['schemas']['MarkSelectionChangedEvent'];
-  'mark:click-changed': components['schemas']['MarkClickChangedEvent'];
-  'mark:shape-changed': components['schemas']['MarkShapeChangedEvent'];
 
   // ========================================================================
   // FRAME FLOW — schema-layer vocabulary (entity types; future tag schemas,
@@ -501,10 +497,6 @@ export const CHANNEL_SCHEMAS = {
   'mark:assist-request':              'MarkAssistRequestEvent',
   'mark:assist-cancelled':            null, // void
   'mark:progress-dismiss':            null, // void
-  'mark:mode-toggled':                null, // void
-  'mark:selection-changed':           'MarkSelectionChangedEvent',
-  'mark:click-changed':               'MarkClickChangedEvent',
-  'mark:shape-changed':               'MarkShapeChangedEvent',
 
   // ── BIND FLOW ───────────────────────────────────────────────────
   'bind:initiate':                    'BindInitiateCommand',

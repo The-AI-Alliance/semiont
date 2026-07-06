@@ -311,12 +311,6 @@ export interface MarkNamespace {
 
   /** Dismiss the in-progress AI-assist widget. */
   dismissProgress(): void;
-
-  // Annotate-toolbar UI state signals (local fan-out to VMs + cross-tab via bus)
-  changeSelection(motivation: Motivation | null): void;
-  changeClick(action: string): void;
-  changeShape(shape: string): void;
-  toggleMode(): void;
 }
 
 /**
