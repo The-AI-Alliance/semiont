@@ -46,6 +46,10 @@ interface Props {
   /** Inline display variant: auto-height to content, no inner scroll container, no pane chrome —
    *  drops into a chat bubble / card / list item. Default: fill-the-pane (unchanged). */
   inline?: boolean;
+  /** The bar's Mode control reports the chosen mode here (the owner applies it). */
+  onModeChange?: (mode: boolean) => void;
+  /** The bar's Click control reports the chosen action here (the owner applies it). */
+  onClickActionChange?: (action: ClickAction) => void;
 }
 
 /** Payload for `onReferenceHover` — the hovered linking annotation, its resolved referent, and where the span is. */
@@ -74,6 +78,8 @@ export const BrowseView = memo(function BrowseView({
   resourceUri,
   annotations,
   selectedClick = 'detail',
+  onModeChange,
+  onClickActionChange,
   annotateMode,
   hoverDelayMs = 150,
   session,
@@ -297,11 +303,12 @@ export const BrowseView = memo(function BrowseView({
       <AnnotateToolbar
         selectedMotivation={null}
         selectedClick={selectedClick}
-        showSelectionGroup={false}
+        parts={['clickAction', 'mode']}
         showDeleteButton={false}
         annotateMode={annotateMode}
         annotators={ANNOTATORS}
-        session={session}
+        onModeChange={onModeChange}
+        onClickActionChange={onClickActionChange}
         compact={inline}
       />
       <div ref={containerRef} className="semiont-browse-view__content" onClick={handleContentClick}>

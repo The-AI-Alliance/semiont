@@ -236,22 +236,6 @@ export class MarkNamespace implements IMarkNamespace {
     this.bus.get('mark:progress-dismiss').next(undefined);
   }
 
-  changeSelection(motivation: Motivation | null): void {
-    this.bus.get('mark:selection-changed').next({ motivation });
-  }
-
-  changeClick(action: string): void {
-    this.bus.get('mark:click-changed').next({ action });
-  }
-
-  changeShape(shape: string): void {
-    this.bus.get('mark:shape-changed').next({ shape });
-  }
-
-  toggleMode(): void {
-    this.bus.get('mark:mode-toggled').next(undefined);
-  }
-
   private async dispatchAssist(
     resourceId: ResourceId,
     motivation: Motivation,

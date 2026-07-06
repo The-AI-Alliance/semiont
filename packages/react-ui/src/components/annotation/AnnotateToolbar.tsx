@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
-import type { SemiontSession } from '@semiont/sdk';
 import { getSupportedShapes } from '../../lib/media-shapes';
 import type { Annotator } from '../../lib/annotation-registry';
 import './annotations.css';
@@ -13,12 +12,13 @@ export type SelectionMotivation = 'linking' | 'highlighting' | 'assessing' | 'co
 export type ClickAction = 'detail' | 'follow' | 'jsonld' | 'deleting';
 export type ShapeType = 'rectangle' | 'circle' | 'polygon';
 
+/** The bar's composable controls, in fixed render order. */
+export type ToolbarPart = 'clickAction' | 'mode' | 'selection' | 'shape';
+
 interface AnnotateToolbarProps {
   selectedMotivation: SelectionMotivation | null;
   selectedClick: ClickAction;
-  showSelectionGroup?: boolean;
   showDeleteButton?: boolean;
-  showShapeGroup?: boolean;
   selectedShape?: ShapeType;
   mediaType?: string | null;  // MIME type to determine supported shapes
 
@@ -28,8 +28,21 @@ interface AnnotateToolbarProps {
   // Annotators for emoji lookup
   annotators: Record<string, Annotator>;
 
-  // Session — emits mark:* selection/click/shape/mode changes via its client.
-  session: SemiontSession | null;
+  /**
+   * Which controls to render (composition over CSS hiding). Default: all four.
+   * Order is fixed (click, mode, selection, shape); shape stays media-gated.
+   */
+  parts?: ToolbarPart[];
+
+  /**
+   * Purely presentational: each control reports the chosen value via its
+   * callback; the owner (viewer instance or host) applies it. The bar holds no
+   * pref state, emits no bus events, and touches no storage.
+   */
+  onModeChange?: (mode: boolean) => void;
+  onClickActionChange?: (action: ClickAction) => void;
+  onSelectionChange?: (motivation: SelectionMotivation | null) => void;
+  onShapeChange?: (shape: ShapeType) => void;
 
   // Compact display form (display-only): icon-only, tight, chromeless — for inline
   // embeds. The bar's functionality is identical; only its form changes.
@@ -107,24 +120,23 @@ function DropdownGroup({
 }
 
 /**
- * Toolbar for annotation controls with mode, selection, click, and shape options
- *
- * @emits mark:selection-changed - Selection motivation changed. Payload: { motivation: SelectionMotivation | null }
- * @emits mark:click-changed - Click action mode changed. Payload: { action: ClickAction }
- * @emits mark:shape-changed - Drawing shape changed. Payload: { shape: ShapeType }
- * @emits mark:mode-toggled - View mode toggled between browse and annotate. Payload: undefined
+ * Toolbar for annotation controls with mode, selection, click, and shape options.
+ * Purely presentational (TOOLBAR-PREFS-AS-PROPS): renders the given values for the
+ * given `parts` and reports choices via the on*Change callbacks — no bus, no storage.
  */
 export function AnnotateToolbar({
   selectedMotivation,
   selectedClick,
-  showSelectionGroup = true,
   showDeleteButton = true,
-  showShapeGroup = false,
   selectedShape = 'rectangle',
   mediaType,
   annotateMode = false,
   annotators,
-  session,
+  parts = ['clickAction', 'mode', 'selection', 'shape'],
+  onModeChange,
+  onClickActionChange,
+  onSelectionChange,
+  onShapeChange,
   compact = false,
 }: AnnotateToolbarProps) {
   const t = useTranslations('AnnotateToolbar');
@@ -195,32 +207,28 @@ export function AnnotateToolbar({
 
   const handleSelectionClick = (motivation: SelectionMotivation | null) => {
     // If null is clicked, always deselect. Otherwise toggle.
-    if (motivation === null) {
-      session?.client.mark.changeSelection(null);
-    } else {
-      session?.client.mark.changeSelection(selectedMotivation === motivation ? null : motivation);
-    }
+    onSelectionChange?.(motivation === null ? null : (selectedMotivation === motivation ? null : motivation));
     // Close dropdown after selection
     setSelectionPinned(false);
     setSelectionHovered(false);
   };
 
   const handleClickClick = (action: ClickAction) => {
-    session?.client.mark.changeClick(action);
+    onClickActionChange?.(action);
     // Close dropdown after selection
     setClickPinned(false);
     setClickHovered(false);
   };
 
   const handleShapeClick = (shape: ShapeType) => {
-    session?.client.mark.changeShape(shape);
+    onShapeChange?.(shape);
     // Close dropdown after selection
     setShapePinned(false);
     setShapeHovered(false);
   };
 
   const handleModeToggle = () => {
-    session?.client.mark.toggleMode();
+    onModeChange?.(!annotateMode);
     setModePinned(false);
     setModeHovered(false);
   };
@@ -295,9 +303,16 @@ export function AnnotateToolbar({
   const supportedShapes = getSupportedShapes(mediaType);
   const shapeTypes = allShapeTypes.filter(st => supportedShapes.includes(st.shape));
 
+  // Part gates (fixed order: click, mode, selection, shape); shape stays media-gated.
+  const showClick = parts.includes('clickAction');
+  const showMode = parts.includes('mode');
+  const showSelection = parts.includes('selection');
+  const showShape = parts.includes('shape') && shapeTypes.length > 0;
+
   return (
     <div className={`semiont-annotate-toolbar${compact ? ' semiont-annotate-toolbar--compact' : ''}`}>
       {/* Click Group */}
+      {showClick && (
       <DropdownGroup
         label={t('clickGroup')}
         isExpanded={clickExpanded}
@@ -327,11 +342,13 @@ export function AnnotateToolbar({
           </>
         }
       />
+      )}
 
       {/* Separator */}
-      <div className="semiont-toolbar-separator" />
+      {showMode && showClick && <div className="semiont-toolbar-separator" />}
 
       {/* Mode Group */}
+      {showMode && (
       <DropdownGroup
         label={t('modeGroup')}
         isExpanded={modeExpanded}
@@ -353,12 +370,13 @@ export function AnnotateToolbar({
           </>
         }
       />
+      )}
 
       {/* Separator */}
-      {showSelectionGroup && <div className="semiont-toolbar-separator" />}
+      {showSelection && (showClick || showMode) && <div className="semiont-toolbar-separator" />}
 
       {/* Selection Group */}
-      {showSelectionGroup && (
+      {showSelection && (
         <DropdownGroup
           label={t('selectionGroup')}
           isExpanded={selectionExpanded}
@@ -401,10 +419,10 @@ export function AnnotateToolbar({
       )}
 
       {/* Separator */}
-      {showShapeGroup && <div className="semiont-toolbar-separator" />}
+      {showShape && (showClick || showMode || showSelection) && <div className="semiont-toolbar-separator" />}
 
       {/* Shape Group */}
-      {showShapeGroup && shapeTypes.length > 0 && (
+      {showShape && (
         <DropdownGroup
           label={t('shapeGroup')}
           isExpanded={shapeExpanded}

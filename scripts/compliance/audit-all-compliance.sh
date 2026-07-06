@@ -34,6 +34,11 @@ bash "$COMPLIANCE_DIR/audit-state-unit-module-state.sh"
 bash "$COMPLIANCE_DIR/audit-fire-and-forget-promise-void.sh"
 echo ""
 
+# Toolbar prefs are controlled props; persistence only in the policy layer
+echo "🎛️  Checking toolbar-pref storage stays in useToolbarPrefs()..."
+bash "$COMPLIANCE_DIR/audit-toolbar-pref-storage.sh"
+echo ""
+
 # React-UI source code
 echo "📦 Auditing packages/react-ui source..."
 cd "$REPO_ROOT/packages/react-ui"

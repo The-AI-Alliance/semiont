@@ -1,15 +1,19 @@
+/**
+ * AnnotateToolbar — purely presentational (TOOLBAR-PREFS-AS-PROPS).
+ *
+ * The bar renders the given values for the given `parts` and reports choices via
+ * the on*Change callbacks. No session, no bus events, no storage — those died with
+ * the preference channels; owners (viewer instances / hosts) apply the values.
+ */
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi, beforeEach, describe, it, expect } from 'vitest';
+import '@testing-library/jest-dom';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction } from '../AnnotateToolbar';
 import { ANNOTATORS } from '../../../lib/annotation-registry';
 import { TranslationProvider } from '../../../contexts/TranslationContext';
-import { createTestSemiontWrapper } from '../../../test-utils';
 import type { TranslationManager } from '../../../types/TranslationManager';
-import type { EventBus } from '@semiont/core';
-import type { SemiontClient, SemiontSession } from '@semiont/sdk';
 
-// Mock translations
 const messages: Record<string, Record<string, string>> = {
   AnnotateToolbar: {
     modeGroup: 'Mode',
@@ -18,6 +22,7 @@ const messages: Record<string, Record<string, string>> = {
     clickGroup: 'Click',
     selectionGroup: 'Motivation',
     shapeGroup: 'Shape',
+    none: 'None',
     linking: 'Reference',
     highlighting: 'Highlight',
     assessing: 'Assess',
@@ -29,84 +34,37 @@ const messages: Record<string, Record<string, string>> = {
     jsonld: 'JSON-LD',
     rectangle: 'Rectangle',
     circle: 'Circle',
-    polygon: 'Polygon'
-  }
+    polygon: 'Polygon',
+  },
 };
 
 const translationManager: TranslationManager = {
   t: (namespace, key) => messages[namespace]?.[key] ?? `${namespace}.${key}`,
 };
 
-// Composition-based event tracker
-interface TrackedEvent {
-  event: string;
-  payload: any;
-}
-
-function createEventTracker() {
-  const events: TrackedEvent[] = [];
-  return {
-    events,
-    clear: () => { events.length = 0; },
-    _attach(eventBus: EventBus) {
-      const trackedEvents = [
-        'mark:mode-toggled',
-        'mark:click-changed',
-        'mark:selection-changed',
-        'mark:shape-changed',
-      ] as const;
-      trackedEvents.forEach((eventName) => {
-        eventBus.get(eventName).subscribe((payload: any) => {
-          events.push({ event: eventName, payload });
-        });
-      });
-    },
-  };
-}
-
-// AnnotateToolbar takes its session as a prop now (step 1b). Wrap the fake client
-// so mark:* changes emit on the SAME bus the tracker listens on.
-function makeSession(client: SemiontClient): SemiontSession {
-  return {
-    client,
-    subscribe: (channel: string, handler: (p: never) => void) => {
-      const sub = (client.bus.get(channel as never) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
-      return () => sub.unsubscribe();
-    },
-  } as unknown as SemiontSession;
-}
-
-const renderWithIntl = (component: React.ReactElement<React.ComponentProps<typeof AnnotateToolbar>>, tracker?: ReturnType<typeof createEventTracker>) => {
-  const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
-  if (tracker) tracker._attach(eventBus);
-  const Wrapper = ({ children }: { children: React.ReactNode }) => (
-    <SemiontWrapper>
-      <TranslationProvider translationManager={translationManager}>
-        {children}
-      </TranslationProvider>
-    </SemiontWrapper>
+const renderWithIntl = (component: React.ReactElement) =>
+  render(
+    <TranslationProvider translationManager={translationManager}>
+      {component}
+    </TranslationProvider>,
   );
-  const session = makeSession(client);
-  const result = render(React.cloneElement(component, { session }), { wrapper: Wrapper });
-  // Re-inject the same session on rerender — a bare rerender would drop it (→ session:null).
-  return {
-    ...result,
-    eventBus,
-    rerender: (next: React.ReactElement<React.ComponentProps<typeof AnnotateToolbar>>) =>
-      result.rerender(React.cloneElement(next, { session })),
-  };
-};
+
+/** Hover a dropdown group open and click an option in its menu. */
+async function pick(group: string, option: string) {
+  const trigger = screen.getByLabelText(group);
+  fireEvent.mouseEnter(trigger.parentElement!);
+  await waitFor(() => {
+    const menu = screen.getByRole('menu');
+    fireEvent.click(within(menu).getByText(option));
+  });
+}
 
 describe('AnnotateToolbar', () => {
   const defaultProps = {
     selectedMotivation: null as SelectionMotivation | null,
     selectedClick: 'detail' as ClickAction,
-    onSelectionChange: vi.fn(),
-    onClickChange: vi.fn(),
     annotateMode: false,
     annotators: ANNOTATORS,
-    // Placeholder — renderWithIntl overrides with a session bound to the fake bus.
-    session: null as SemiontSession | null,
   };
 
   beforeEach(() => {
@@ -114,382 +72,166 @@ describe('AnnotateToolbar', () => {
   });
 
   describe('Rendering', () => {
-    it('renders with required props', () => {
+    it('renders the click group with the selected action', () => {
       renderWithIntl(<AnnotateToolbar {...defaultProps} />);
-      // Check for aria-labels (labels only shown when expanded)
       expect(screen.getByLabelText('Click')).toBeInTheDocument();
       expect(screen.getByText('Detail')).toBeInTheDocument();
     });
 
-    it('shows MODE group', () => {
+    it('shows the MODE group with the current mode', () => {
       renderWithIntl(<AnnotateToolbar {...defaultProps} />);
-      // Check for aria-label (label only shown when expanded)
       expect(screen.getByLabelText('Mode')).toBeInTheDocument();
       expect(screen.getByText('Browse')).toBeInTheDocument();
     });
 
-    it('shows selection group by default', () => {
+    it('shows the selection group by default (parts default: all)', () => {
       renderWithIntl(<AnnotateToolbar {...defaultProps} />);
-      // Check for aria-label (label only shown when expanded)
       expect(screen.getByLabelText('Motivation')).toBeInTheDocument();
     });
 
-    it('hides selection group when showSelectionGroup is false', () => {
-      renderWithIntl(
-        <AnnotateToolbar {...defaultProps} showSelectionGroup={false} />
-      );
-      // Check for aria-label absence
-      expect(screen.queryByLabelText('Motivation')).not.toBeInTheDocument();
-    });
-
-    it('hides delete button when showDeleteButton is false', () => {
-      renderWithIntl(
-        <AnnotateToolbar {...defaultProps} showDeleteButton={false} />
-      );
-      // Open click dropdown
+    it('hides the delete option when showDeleteButton is false', () => {
+      renderWithIntl(<AnnotateToolbar {...defaultProps} showDeleteButton={false} />);
       const clickGroup = screen.getByLabelText('Click');
-      fireEvent.mouseEnter(clickGroup);
-
-      // Delete option should not be present
+      fireEvent.mouseEnter(clickGroup.parentElement!);
       expect(screen.queryByText('Delete')).not.toBeInTheDocument();
     });
 
-    it('shows shape group when showShapeGroup is true', () => {
-      renderWithIntl(
-        <AnnotateToolbar
-          {...defaultProps}
-          showShapeGroup={true}
-          selectedShape="rectangle"
-        />
-      );
-      // Check for aria-label (label only shown when expanded)
-      expect(screen.getByLabelText('Shape')).toBeInTheDocument();
-      expect(screen.getByText('Rectangle')).toBeInTheDocument();
-    });
-  });
-
-  describe('MODE Group Interactions', () => {
-    it('displays current mode correctly', () => {
-      const { rerender } = renderWithIntl(
-        <AnnotateToolbar
-          {...defaultProps}
-          annotateMode={false}
-        />
-      );
+    it('displays the given mode across rerenders (value comes from the owner)', () => {
+      const { rerender } = renderWithIntl(<AnnotateToolbar {...defaultProps} annotateMode={false} />);
       expect(screen.getByText('Browse')).toBeInTheDocument();
-
       rerender(
-        <AnnotateToolbar
-          {...defaultProps}
-          annotateMode={true}
-        />
+        <TranslationProvider translationManager={translationManager}>
+          <AnnotateToolbar {...defaultProps} annotateMode={true} />
+        </TranslationProvider>,
       );
       expect(screen.getByText('Annotate')).toBeInTheDocument();
     });
+  });
 
-    it('expands on hover', async () => {
-      renderWithIntl(
-        <AnnotateToolbar
-          {...defaultProps}
-          annotateMode={false}
-        />
+  describe('parts composition', () => {
+    it("parts={['shape']} renders exactly the shape group", () => {
+      const { container } = renderWithIntl(
+        <AnnotateToolbar {...defaultProps} parts={['shape']} selectedShape="rectangle" />,
       );
-
-      const modeGroup = screen.getByLabelText('Mode');
-      fireEvent.mouseEnter(modeGroup);
-
-      await waitFor(() => {
-        // Find the dropdown menu by role
-        const dropdown = screen.getByRole('menu');
-        // Both options should be visible in the expanded dropdown menu
-        expect(within(dropdown).getByText('Browse')).toBeInTheDocument();
-        expect(within(dropdown).getByText('Annotate')).toBeInTheDocument();
-      });
+      expect(screen.getByLabelText('Shape')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Click')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Mode')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Motivation')).not.toBeInTheDocument();
+      // A lone part renders no separators
+      expect(container.querySelector('.semiont-toolbar-separator')).toBeNull();
     });
 
-    it('emits mark:mode-toggled event when Browse is clicked in Annotate mode', async () => {
-      const tracker = createEventTracker();
-      renderWithIntl(
-        <AnnotateToolbar
-          {...defaultProps}
-          annotateMode={true}
-        />,
-        tracker
+    it("parts={['clickAction','mode']} renders those two with one separator", () => {
+      const { container } = renderWithIntl(
+        <AnnotateToolbar {...defaultProps} parts={['clickAction', 'mode']} />,
       );
-
-      const modeGroup = screen.getByLabelText('Mode');
-      fireEvent.mouseEnter(modeGroup);
-
-      await waitFor(() => {
-        const browseButton = screen.getByText('Browse');
-        fireEvent.click(browseButton);
-      });
-
-      await waitFor(() => {
-        expect(tracker.events.some(e => e.event === 'mark:mode-toggled')).toBe(true);
-      });
+      expect(screen.getByLabelText('Click')).toBeInTheDocument();
+      expect(screen.getByLabelText('Mode')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Motivation')).not.toBeInTheDocument();
+      expect(container.querySelectorAll('.semiont-toolbar-separator')).toHaveLength(1);
     });
 
-    it('emits mark:mode-toggled event when Annotate is clicked in Browse mode', async () => {
-      const tracker = createEventTracker();
+    it('the default renders all four groups (shape media-gated: none for PDF beyond rectangle)', () => {
       renderWithIntl(
-        <AnnotateToolbar
-          {...defaultProps}
-          annotateMode={false}
-        />,
-        tracker
+        <AnnotateToolbar {...defaultProps} selectedShape="rectangle" mediaType="image/png" />,
       );
-
-      const modeGroup = screen.getByLabelText('Mode');
-      fireEvent.mouseEnter(modeGroup);
-
-      await waitFor(() => {
-        const annotateButton = screen.getByText('Annotate');
-        fireEvent.click(annotateButton);
-      });
-
-      await waitFor(() => {
-        expect(tracker.events.some(e => e.event === 'mark:mode-toggled')).toBe(true);
-      });
-    });
-
-    it('closes dropdown after selection', async () => {
-      const tracker = createEventTracker();
-      const { rerender } = renderWithIntl(
-        <AnnotateToolbar
-          {...defaultProps}
-          annotateMode={false}
-        />,
-        tracker
-      );
-
-      const modeGroup = screen.getByLabelText('Mode');
-      fireEvent.mouseEnter(modeGroup);
-
-      await waitFor(() => {
-        expect(screen.getByText('Annotate')).toBeInTheDocument();
-      });
-
-      const annotateButton = screen.getByText('Annotate');
-      fireEvent.click(annotateButton);
-
-      // Verify the event was emitted
-      await waitFor(() => {
-        expect(tracker.events.some(e => e.event === 'mark:mode-toggled')).toBe(true);
-      });
-
-      // Simulate mode change by rerendering with new mode
-      rerender(
-        <AnnotateToolbar
-          {...defaultProps}
-          annotateMode={true}
-        />
-      );
-
-      // After mode change, the collapsed content should show "Annotate"
-      // and Browse should not be in the collapsed state
-      await waitFor(() => {
-        const modeLabels = screen.getAllByText('Annotate');
-        // Should have at least the collapsed label
-        expect(modeLabels.length).toBeGreaterThanOrEqual(1);
-      });
+      expect(screen.getByLabelText('Click')).toBeInTheDocument();
+      expect(screen.getByLabelText('Mode')).toBeInTheDocument();
+      expect(screen.getByLabelText('Motivation')).toBeInTheDocument();
+      expect(screen.getByLabelText('Shape')).toBeInTheDocument();
     });
   });
 
-  describe('CLICK Group Interactions', () => {
-    it('emits mark:click-changed event when clicking an action', async () => {
-      const tracker = createEventTracker();
-      renderWithIntl(
-        <AnnotateToolbar {...defaultProps} />,
-        tracker
-      );
-
-      const clickGroup = screen.getByLabelText('Click');
-      fireEvent.mouseEnter(clickGroup);
-
-      await waitFor(() => {
-        expect(screen.getByText('Follow')).toBeInTheDocument();
-      });
-
-      tracker.clear();
-      fireEvent.click(screen.getByText('Follow'));
-      await waitFor(() => {
-        expect(tracker.events.some(e =>
-          e.event === 'mark:click-changed' && e.payload?.action === 'follow'
-        )).toBe(true);
-      });
+  describe('Mode control', () => {
+    it('reports the next mode via onModeChange when switching to Annotate', async () => {
+      const onModeChange = vi.fn();
+      renderWithIntl(<AnnotateToolbar {...defaultProps} annotateMode={false} onModeChange={onModeChange} />);
+      await pick('Mode', 'Annotate');
+      expect(onModeChange).toHaveBeenCalledWith(true);
     });
 
-    it('displays selected action', () => {
-      renderWithIntl(
-        <AnnotateToolbar {...defaultProps} selectedClick="follow" />
-      );
-      expect(screen.getByText('Follow')).toBeInTheDocument();
+    it('reports false when switching back to Browse from annotate mode', async () => {
+      const onModeChange = vi.fn();
+      renderWithIntl(<AnnotateToolbar {...defaultProps} annotateMode={true} onModeChange={onModeChange} />);
+      await pick('Mode', 'Browse');
+      expect(onModeChange).toHaveBeenCalledWith(false);
+    });
+
+    it('clicking the CURRENT mode reports nothing', async () => {
+      const onModeChange = vi.fn();
+      renderWithIntl(<AnnotateToolbar {...defaultProps} annotateMode={false} onModeChange={onModeChange} />);
+      const trigger = screen.getByLabelText('Mode');
+      fireEvent.mouseEnter(trigger.parentElement!);
+      await waitFor(() => {
+        const menu = screen.getByRole('menu');
+        fireEvent.click(within(menu).getByText('Browse')); // already in browse
+      });
+      expect(onModeChange).not.toHaveBeenCalled();
     });
   });
 
-  describe('MOTIVATION Group Interactions', () => {
-    it('emits mark:selection-changed event when clicking a motivation', async () => {
-      const tracker = createEventTracker();
-      renderWithIntl(
-        <AnnotateToolbar {...defaultProps} />,
-        tracker
-      );
-
-      const motivationGroup = screen.getByLabelText('Motivation');
-      fireEvent.mouseEnter(motivationGroup);
-
-      await waitFor(() => {
-        expect(screen.getByText('Reference')).toBeInTheDocument();
-      });
-
-      tracker.clear();
-      fireEvent.click(screen.getByText('Reference'));
-      await waitFor(() => {
-        expect(tracker.events.some(e =>
-          e.event === 'mark:selection-changed' && e.payload?.motivation === 'linking'
-        )).toBe(true);
-      });
+  describe('Click-action control', () => {
+    it('reports the chosen action via onClickActionChange', async () => {
+      const onClickActionChange = vi.fn();
+      renderWithIntl(<AnnotateToolbar {...defaultProps} onClickActionChange={onClickActionChange} />);
+      await pick('Click', 'Follow');
+      expect(onClickActionChange).toHaveBeenCalledWith('follow');
     });
 
-    it('toggles motivation on/off', async () => {
-      const tracker = createEventTracker();
-      const { rerender } = renderWithIntl(
-        <AnnotateToolbar
-          {...defaultProps}
-          selectedMotivation={null}
-        />,
-        tracker
-      );
-
-      const motivationGroup = screen.getByLabelText('Motivation');
-      fireEvent.mouseEnter(motivationGroup);
-
-      await waitFor(() => {
-        const dropdown = screen.getByRole('menu');
-        expect(within(dropdown).getByText('Highlight')).toBeInTheDocument();
-      });
-
-      const dropdown = screen.getByRole('menu');
-      tracker.clear();
-      fireEvent.click(within(dropdown).getByText('Highlight'));
-      await waitFor(() => {
-        expect(tracker.events.some(e =>
-          e.event === 'mark:selection-changed' && e.payload?.motivation === 'highlighting'
-        )).toBe(true);
-      });
-
-      // Simulate selection
-      rerender(
-        <AnnotateToolbar
-          {...defaultProps}
-          selectedMotivation="highlighting"
-        />
-      );
-
-      // Click again to deselect
-      fireEvent.mouseEnter(motivationGroup);
-      await waitFor(() => {
-        const dropdown = screen.getByRole('menu');
-        expect(within(dropdown).getByText('Highlight')).toBeInTheDocument();
-      });
-      const dropdown2 = screen.getByRole('menu');
-      tracker.clear();
-      fireEvent.click(within(dropdown2).getByText('Highlight'));
-      await waitFor(() => {
-        expect(tracker.events.some(e =>
-          e.event === 'mark:selection-changed' && e.payload?.motivation === null
-        )).toBe(true);
-      });
+    it('displays the selected action from props', () => {
+      renderWithIntl(<AnnotateToolbar {...defaultProps} selectedClick="jsonld" />);
+      expect(screen.getByText('JSON-LD')).toBeInTheDocument();
     });
   });
 
-  describe('SHAPE Group Interactions', () => {
-    it('emits mark:shape-changed event when clicking a shape', async () => {
-      const tracker = createEventTracker();
+  describe('Selection control', () => {
+    it('reports the chosen motivation', async () => {
+      const onSelectionChange = vi.fn();
+      renderWithIntl(<AnnotateToolbar {...defaultProps} onSelectionChange={onSelectionChange} />);
+      await pick('Motivation', 'Highlight');
+      expect(onSelectionChange).toHaveBeenCalledWith('highlighting');
+    });
+
+    it('re-picking the current motivation reports null (toggle off)', async () => {
+      const onSelectionChange = vi.fn();
       renderWithIntl(
-        <AnnotateToolbar
-          {...defaultProps}
-          showShapeGroup={true}
-          selectedShape="rectangle"
-        />,
-        tracker
+        <AnnotateToolbar {...defaultProps} selectedMotivation="highlighting" onSelectionChange={onSelectionChange} />,
       );
+      await pick('Motivation', 'Highlight');
+      expect(onSelectionChange).toHaveBeenCalledWith(null);
+    });
 
-      const shapeGroup = screen.getByLabelText('Shape');
-      fireEvent.mouseEnter(shapeGroup);
-
-      await waitFor(() => {
-        expect(screen.getByText('Circle')).toBeInTheDocument();
-      });
-
-      tracker.clear();
-      fireEvent.click(screen.getByText('Circle'));
-      await waitFor(() => {
-        expect(tracker.events.some(e =>
-          e.event === 'mark:shape-changed' && e.payload?.shape === 'circle'
-        )).toBe(true);
-      });
+    it('picking None reports null', async () => {
+      const onSelectionChange = vi.fn();
+      renderWithIntl(
+        <AnnotateToolbar {...defaultProps} selectedMotivation="linking" onSelectionChange={onSelectionChange} />,
+      );
+      await pick('Motivation', 'None');
+      expect(onSelectionChange).toHaveBeenCalledWith(null);
     });
   });
 
-  describe('Keyboard Interactions', () => {
-    it('closes all dropdowns on Escape key', async () => {
+  describe('Shape control', () => {
+    it('reports the chosen shape', async () => {
+      const onShapeChange = vi.fn();
       renderWithIntl(
-        <AnnotateToolbar
-          {...defaultProps}
-          annotateMode={false}
-        />
+        <AnnotateToolbar {...defaultProps} parts={['shape']} selectedShape="rectangle"
+          mediaType="image/png" onShapeChange={onShapeChange} />,
       );
-
-      // Open mode dropdown
-      const modeGroup = screen.getByLabelText('Mode');
-      fireEvent.mouseEnter(modeGroup);
-      fireEvent.click(modeGroup); // Pin it
-
-      await waitFor(() => {
-        // When expanded, dropdown menu should be visible with both options
-        const dropdown = screen.getByRole('menu');
-        expect(within(dropdown).getByText('Browse')).toBeInTheDocument();
-        expect(within(dropdown).getByText('Annotate')).toBeInTheDocument();
-      });
-
-      // Press Escape
-      fireEvent.keyDown(document, { key: 'Escape' });
-
-      // Move mouse away to complete closing
-      fireEvent.mouseLeave(modeGroup);
-
-      await waitFor(() => {
-        // After closing, dropdown menu should not be present
-        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-        // But collapsed "Browse" label should still be visible
-        expect(screen.getByText('Browse')).toBeInTheDocument();
-      });
+      await pick('Shape', 'Circle');
+      expect(onShapeChange).toHaveBeenCalledWith('circle');
     });
   });
 
-  describe('Click Outside Behavior', () => {
-    it('closes pinned dropdown when clicking outside', async () => {
+  describe('Dropdown behavior', () => {
+    it('closes all dropdowns on Escape', async () => {
       renderWithIntl(<AnnotateToolbar {...defaultProps} />);
-
-      const clickGroup = screen.getByLabelText('Click');
-      fireEvent.mouseEnter(clickGroup);
-      fireEvent.click(clickGroup); // Pin it
-
-      await waitFor(() => {
-        expect(screen.getByText('Follow')).toBeInTheDocument();
-      });
-
-      // Click outside - need to click on an element outside the dropdown
-      fireEvent.mouseDown(document.body);
-
-      // Also move mouse away to ensure hover state is cleared
-      fireEvent.mouseLeave(clickGroup);
-
-      await waitFor(() => {
-        expect(screen.queryByText('Follow')).not.toBeInTheDocument();
-      });
+      const trigger = screen.getByLabelText('Mode');
+      fireEvent.click(trigger); // pin open
+      await waitFor(() => expect(screen.getByRole('menu')).toBeInTheDocument());
+      fireEvent.keyDown(document, { key: 'Escape' });
+      fireEvent.mouseLeave(trigger.parentElement!);
+      await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
     });
   });
 });

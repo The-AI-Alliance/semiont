@@ -85,7 +85,7 @@ export class EventBus {
       // local emit on this channel produces a `[bus EMIT] <channel> ...`
       // line on `console.debug` — same shape as cross-wire emits from
       // HttpTransport. This is what makes local-only fan-out signals
-      // (`beckon.hover`, `beckon.sparkle`, `mark.changeShape`, etc.)
+      // (`beckon.hover`, `beckon.sparkle`, `mark.request`, etc.)
       // visible to the e2e bus capture and to a developer's DevTools.
       // The `busLogEnabled()` check is at first-`get` time per channel;
       // setting the flag after channels are constructed won't

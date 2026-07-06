@@ -29,6 +29,8 @@ import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import { useHoverDelay } from '../../../hooks/useHoverDelay';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
+import { useToolbarPrefs } from '../../../hooks/useToolbarPrefs';
+import { getSelectorType } from '../../../lib/media-shapes';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { createResourceViewerPageStateUnit } from '../state/resource-viewer-page-state-unit';
@@ -159,6 +161,12 @@ export function ResourceViewerPage({
   // and 'pdf' go through the media-token (binary) path. 'none'/registry-miss
   // fall to the text path harmlessly — the viewer shows metadata + download.
   const resourceMediaType = getPrimaryMediaType(resource) || 'text/plain';
+
+  // Toolbar prefs: the POLICY layer (TOOLBAR-PREFS-AS-PROPS). The page owns the
+  // Browser's global-toolbar UX — shared values, localStorage persistence — and
+  // feeds the viewer its controlled props; the components hold no pref state policy.
+  const toolbarPrefs = useToolbarPrefs(getSelectorType(resourceMediaType));
+  const annotateMode = toolbarPrefs.annotateMode;
   const renderMode = capabilitiesOf(resourceMediaType)?.render;
   const isBinary = renderMode === 'image' || renderMode === 'pdf';
 
@@ -399,13 +407,8 @@ export function ResourceViewerPage({
     }
   }, [routes.know, session]);
 
-  const handleModeToggled = useCallback(() => {
-    setAnnotateMode(prev => !prev);
-  }, []);
-
   // Event bus subscriptions (combined into single useEventSubscriptions call to prevent hook ordering issues)
   useEventSubscriptions({
-    'mark:mode-toggled': handleModeToggled,
     'mark:archive': handleResourceArchive,
     'mark:unarchive': handleResourceUnarchive,
     'yield:clone': handleResourceClone,
@@ -446,15 +449,6 @@ export function ResourceViewerPage({
   const primaryRep = getPrimaryRepresentation(resource);
   const primaryMediaType = primaryRep?.mediaType;
   const primaryByteSize = primaryRep?.byteSize;
-
-  // Annotate mode state - synced via mark:mode-toggled event from AnnotateToolbar
-  const [annotateMode, setAnnotateMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('annotateMode') === 'true';
-    }
-    return false;
-  });
-
 
   // Combine resource with content
   const resourceWithContent = { ...resource, content };
@@ -531,6 +525,14 @@ export function ResourceViewerPage({
                   session={session ?? null}
                   onOpenResource={handleViewerOpenResource}
                   onOpenPanel={handleViewerOpenPanel}
+                  annotateMode={toolbarPrefs.annotateMode}
+                  onAnnotateModeChange={toolbarPrefs.setAnnotateMode}
+                  clickAction={toolbarPrefs.clickAction}
+                  onClickActionChange={toolbarPrefs.setClickAction}
+                  selectionMotivation={toolbarPrefs.selectionMotivation}
+                  onSelectionMotivationChange={toolbarPrefs.setSelectionMotivation}
+                  shape={toolbarPrefs.shape}
+                  onShapeChange={toolbarPrefs.setShape}
                   newAnnotationIds={newAnnotationIds}
                   generatingReferenceId={generationProgress?.annotationId ?? null}
                   showLineNumbers={showLineNumbers}

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
@@ -276,8 +276,11 @@ describe('ResourceViewerPage', () => {
       expect(screen.queryByText('📦 Archived')).not.toBeInTheDocument();
     });
 
-    it('shows archived badge after mark:mode-toggled event fires', () => {
-      localStorage.setItem('annotateMode', 'false');
+    it('shows archived badge when the toolbar prefs hold annotate mode', () => {
+      // Mode is a toolbar PREF now (TOOLBAR-PREFS-AS-PROPS): the page's
+      // useToolbarPrefs() policy layer initializes from the persisted key and
+      // feeds the viewer controlled props — no mark:mode-toggled bus event.
+      localStorage.setItem('annotateMode', 'true');
       localStorage.setItem('activeToolbarPanel', 'annotations');
 
       const props = createMockProps({
@@ -289,20 +292,7 @@ describe('ResourceViewerPage', () => {
 
       renderWithProviders(<ResourceViewerPage {...props} />);
 
-      // Before toggle: annotateMode is false, so archived badge is hidden
-      expect(screen.queryByText('📦 Archived')).not.toBeInTheDocument();
-
-      // Get the handler map that ResourceViewerPage passed to useEventSubscriptions
-      const handlerMap = mockUseEventSubscriptions.mock.calls[mockUseEventSubscriptions.mock.calls.length - 1]?.[0] as Record<string, () => void>;
-      expect(handlerMap).toBeDefined();
-      expect(handlerMap['mark:mode-toggled']).toBeDefined();
-
-      // Fire the mode toggle — this is what the toolbar emits
-      act(() => {
-        handlerMap['mark:mode-toggled']();
-      });
-
-      // After toggle: annotateMode is true, so archived badge should appear
+      // annotateMode true (from the policy layer) → archived badge visible
       expect(screen.getByText('📦 Archived')).toBeInTheDocument();
 
       localStorage.clear();

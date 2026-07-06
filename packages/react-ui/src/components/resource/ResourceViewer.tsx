@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
 import { BrowseView, type ReferenceHover } from './BrowseView';
@@ -12,7 +12,6 @@ import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
-import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForSelectorType } from '../../lib/media-shapes';
 
 /**
  * ResourceViewer - Display and interact with resource content and annotations
@@ -55,19 +54,30 @@ interface Props {
   showLineNumbers?: boolean;
   hoverDelayMs?: number;
   hoveredAnnotationId?: string | null;
+  /**
+   * Toolbar preferences as controlled props (TOOLBAR-PREFS-AS-PROPS). Supply a value
+   * to own that pref: the instance renders it and reports intents via the callback —
+   * it never self-mutates, never persists, never listens to other instances. Omit for
+   * a plain uncontrolled default (false / 'detail' / 'linking' / 'rectangle').
+   * Hosts wanting the shared+persisted Browser UX compose `useToolbarPrefs()`.
+   */
+  annotateMode?: boolean;
+  onAnnotateModeChange?: (mode: boolean) => void;
+  clickAction?: ClickAction;
+  onClickActionChange?: (action: ClickAction) => void;
+  selectionMotivation?: SelectionMotivation | null;
+  onSelectionMotivationChange?: (motivation: SelectionMotivation | null) => void;
+  shape?: ShapeType;
+  onShapeChange?: (shape: ShapeType) => void;
 }
 
 /**
  * @emits mark:delete - User requested to delete annotation. Payload: { annotationId: string }
  * @emits panel:open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
  *
- * @subscribes mark:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
  * @subscribes mark:added - New annotation was added. Payload: { annotation: Annotation }
  * @subscribes mark:removed - Annotation was removed. Payload: { annotationId: string }
  * @subscribes mark:body-updated - Annotation was updated. Payload: { annotation: Annotation }
- * @subscribes mark:selection-changed - Text selection tool changed. Payload: { selection: boolean }
- * @subscribes mark:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
- * @subscribes mark:shape-changed - Drawing shape changed. Payload: { shape: string }
  * @subscribes browse:click - User clicked on annotation. Payload: { annotationId: string }
  */
 export function ResourceViewer({
@@ -83,7 +93,15 @@ export function ResourceViewer({
   generatingReferenceId,
   showLineNumbers = false,
   hoverDelayMs,
-  hoveredAnnotationId: hoveredAnnotationIdProp
+  hoveredAnnotationId: hoveredAnnotationIdProp,
+  annotateMode: annotateModeProp,
+  onAnnotateModeChange,
+  clickAction: clickActionProp,
+  onClickActionChange,
+  selectionMotivation: selectionMotivationProp,
+  onSelectionMotivationChange,
+  shape: shapeProp,
+  onShapeChange,
 }: Props) {
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
@@ -108,25 +126,16 @@ export function ResourceViewer({
 
   const mimeType = getMimeType();
 
-  // Annotate mode state - persisted in localStorage
-  const [annotateMode, setAnnotateMode] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('annotateMode') === 'true';
-    }
-    return false;
-  });
-
-  // Persist annotateMode to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('annotateMode', annotateMode.toString());
-    }
-  }, [annotateMode]);
-
-  // Event handlers (extracted to avoid inline arrow functions)
-  const handleViewModeToggle = useCallback(() => {
-    setAnnotateMode(prev => !prev);
-  }, []);
+  // Toolbar preferences (TOOLBAR-PREFS-AS-PROPS): controlled (prop supplied) or a
+  // plain uncontrolled default. Preferences are state, not events — no localStorage
+  // and no preference bus channels here; hosts wanting the shared+persisted Browser
+  // UX compose useToolbarPrefs() (the policy layer) and pass the values down.
+  const [internalAnnotateMode, setInternalAnnotateMode] = useState(false);
+  const annotateMode = annotateModeProp ?? internalAnnotateMode;
+  const changeAnnotateMode = useCallback((mode: boolean) => {
+    if (annotateModeProp === undefined) setInternalAnnotateMode(mode);
+    onAnnotateModeChange?.(mode);
+  }, [annotateModeProp, onAnnotateModeChange]);
 
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
@@ -145,74 +154,27 @@ export function ResourceViewer({
     semiont?.browse.invalidateAnnotationList(rUri);
   }, [semiont, rUri]);
 
-  // Annotation toolbar state - persisted in localStorage
-  const [selectedMotivation, setSelectedMotivation] = useState<SelectionMotivation | null>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('semiont-toolbar-selection');
-      if (stored === 'null') return null;
-      if (stored && ['linking', 'highlighting', 'assessing', 'commenting', 'tagging'].includes(stored)) {
-        return stored as SelectionMotivation;
-      }
-    }
-    return 'linking';
-  });
+  // Remaining toolbar preferences — same controlled/uncontrolled split as mode.
+  const [internalSelectionMotivation, setInternalSelectionMotivation] = useState<SelectionMotivation | null>('linking');
+  const selectedMotivation = selectionMotivationProp !== undefined ? selectionMotivationProp : internalSelectionMotivation;
+  const changeSelectionMotivation = useCallback((motivation: SelectionMotivation | null) => {
+    if (selectionMotivationProp === undefined) setInternalSelectionMotivation(motivation);
+    onSelectionMotivationChange?.(motivation);
+  }, [selectionMotivationProp, onSelectionMotivationChange]);
 
-  const [selectedClick, setSelectedClick] = useState<ClickAction>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('semiont-toolbar-click');
-      if (stored && ['detail', 'follow', 'jsonld', 'deleting'].includes(stored)) {
-        return stored as ClickAction;
-      }
-    }
-    return 'detail';
-  });
+  const [internalClickAction, setInternalClickAction] = useState<ClickAction>('detail');
+  const selectedClick = clickActionProp ?? internalClickAction;
+  const changeClickAction = useCallback((action: ClickAction) => {
+    if (clickActionProp === undefined) setInternalClickAction(action);
+    onClickActionChange?.(action);
+  }, [clickActionProp, onClickActionChange]);
 
-  // Get selector type for current media type
-  const selectorType = getSelectorType(mimeType);
-
-  // Get selected shape for this selector type
-  const [selectedShape, setSelectedShape] = useState<ShapeType>(() => {
-    return getSelectedShapeForSelectorType(selectorType);
-  });
-
-  // Toolbar event handlers (extracted to avoid inline arrow functions)
-  const handleToolbarSelectionChanged = useCallback(({ motivation }: { motivation: string | null }) => {
-    setSelectedMotivation(motivation as SelectionMotivation | null);
-  }, []);
-
-  const handleToolbarClickChanged = useCallback(({ action }: { action: string }) => {
-    setSelectedClick(action as ClickAction);
-  }, []);
-
-  const handleToolbarShapeChanged = useCallback(({ shape }: { shape: string }) => {
-    setSelectedShape(shape as ShapeType);
-  }, []);
-
-  // Persist toolbar state to localStorage
-  useEffect(() => {
-    if (selectedMotivation === null) {
-      localStorage.setItem('semiont-toolbar-selection', 'null');
-    } else {
-      localStorage.setItem('semiont-toolbar-selection', selectedMotivation);
-    }
-  }, [selectedMotivation]);
-
-  useEffect(() => {
-    localStorage.setItem('semiont-toolbar-click', selectedClick);
-  }, [selectedClick]);
-
-  // Persist shape selection per selector type
-  useEffect(() => {
-    saveSelectedShapeForSelectorType(selectorType, selectedShape);
-  }, [selectorType, selectedShape]);
-
-  // Update selected shape when selector type changes (e.g., switching between PDF and image)
-  useEffect(() => {
-    const shapeForType = getSelectedShapeForSelectorType(selectorType);
-    if (shapeForType !== selectedShape) {
-      setSelectedShape(shapeForType);
-    }
-  }, [selectorType]);
+  const [internalShape, setInternalShape] = useState<ShapeType>('rectangle');
+  const selectedShape = shapeProp ?? internalShape;
+  const changeShape = useCallback((shape: ShapeType) => {
+    if (shapeProp === undefined) setInternalShape(shape);
+    onShapeChange?.(shape);
+  }, [shapeProp, onShapeChange]);
 
   // JSON-LD view state
   const [showJsonLdView, setShowJsonLdView] = useState(false);
@@ -346,18 +308,10 @@ export function ResourceViewer({
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues
   // IMPORTANT: All event subscriptions MUST be in a single call to maintain consistent hook order between renders
   useSessionEventSubscriptions(session, {
-    // View mode
-    'mark:mode-toggled': handleViewModeToggle,
-
     // Annotation cache invalidation
     'mark:added': handleAnnotateAdded,
     'mark:removed': handleAnnotateRemoved,
     'mark:body-updated': handleAnnotateBodyUpdated,
-
-    // Toolbar state
-    'mark:selection-changed': handleToolbarSelectionChanged,
-    'mark:click-changed': handleToolbarClickChanged,
-    'mark:shape-changed': handleToolbarShapeChanged,
 
     // Annotation clicks
     'browse:click': handleAnnotationClickEvent,
@@ -395,9 +349,9 @@ export function ResourceViewer({
           annotations={annotationsCollection}
           uiState={uiState}
           onUIStateChange={(updates) => {
-            if ('selectedMotivation' in updates) setSelectedMotivation(updates.selectedMotivation!);
-            if ('selectedClick' in updates) setSelectedClick(updates.selectedClick!);
-            if ('selectedShape' in updates) setSelectedShape(updates.selectedShape!);
+            if ('selectedMotivation' in updates) changeSelectionMotivation(updates.selectedMotivation ?? null);
+            if ('selectedClick' in updates) changeClickAction(updates.selectedClick!);
+            if ('selectedShape' in updates) changeShape(updates.selectedShape!);
           }}
           enableWidgets={true}
           getTargetResourceName={getTargetResourceName}
@@ -405,6 +359,7 @@ export function ResourceViewer({
           showLineNumbers={showLineNumbers}
           hoverDelayMs={hoverDelayMs}
           annotateMode={annotateMode}
+          onModeChange={changeAnnotateMode}
           session={session}
           newAnnotationIds={newAnnotationIds}
         />
@@ -417,6 +372,8 @@ export function ResourceViewer({
           selectedClick={selectedClick}
           hoverDelayMs={hoverDelayMs}
           annotateMode={annotateMode}
+          onModeChange={changeAnnotateMode}
+          onClickActionChange={changeClickAction}
           session={session}
           newAnnotationIds={newAnnotationIds}
           onLinkClick={onLinkClick}

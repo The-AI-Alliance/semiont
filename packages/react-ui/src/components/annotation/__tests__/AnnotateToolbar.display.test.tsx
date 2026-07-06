@@ -27,7 +27,7 @@ const emptyAnnotations = { highlights: [], references: [], assessments: [], comm
 
 function fakeSession(): SemiontSession {
   return {
-    client: { browse: { click: vi.fn() }, beckon: { hover: vi.fn() }, mark: { toggleMode: vi.fn() } },
+    client: { browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
     subscribe: () => () => {},
   } as unknown as SemiontSession;
 }
