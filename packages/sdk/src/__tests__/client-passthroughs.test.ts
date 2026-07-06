@@ -20,10 +20,13 @@ import {
   baseUrl,
   resourceId,
   annotationId,
+  type AccessToken,
   type EventMap,
 } from '@semiont/core';
 
 import { SemiontClient } from '../client';
+import { SemiontSession } from '../session/semiont-session';
+import { TestStorage } from '../session/__tests__/test-storage-helpers';
 import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
 
 const TEST_BASE = baseUrl('http://test.local');
@@ -109,6 +112,71 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       client.dispose();
       expect(transport.dispose).toHaveBeenCalled();
       expect(content.dispose).toHaveBeenCalled();
+    });
+  });
+
+  // ── Bus disposal (A7-owned) ──────────────────────────────────────────────
+  //
+  // The client CONSTRUCTS its bus, so dispose() must destroy it (the
+  // A7-owned rule — same shape as BrowseNamespace's caches, B16). Pre-fix,
+  // the bus outlived the client: every subscriber stayed attached forever,
+  // silently receiving nothing (the L1 silence class), and my-chat's
+  // KB-reconnect loop leaked one bus per session cycle. Bus lifetime ==
+  // client lifetime == session lifetime — no mid-session client swap exists
+  // (verified: `SemiontSession.client` is set only at construction).
+  describe('bus disposal (A7-owned)', () => {
+    test('dispose completes client.bus subscribers', () => {
+      const events: string[] = [];
+      client.bus.get('mark:submit').subscribe({
+        next: () => events.push('next'),
+        error: () => events.push('error'),
+        complete: () => events.push('complete'),
+      });
+
+      client.dispose();
+
+      expect(events).toEqual(['complete']);
+    });
+
+    test('unsubscribe after dispose is a safe no-op', () => {
+      const sub = client.bus.get('mark:submit').subscribe(() => {});
+      client.dispose();
+      expect(() => sub.unsubscribe()).not.toThrow();
+    });
+
+    test('post-dispose bus access throws the destroyed-bus contract (loud, not silent)', () => {
+      client.dispose();
+      // Direct bus access and bus-emitting namespace methods alike: calling
+      // a disposed client is a bug, and it now says so — pre-fix it
+      // no-op'd into the leaked bus.
+      expect(() => client.bus.get('mark:submit')).toThrow(/destroyed bus/);
+      expect(() => client.mark.cancelPending()).toThrow(/destroyed bus/);
+    });
+
+    test('session.dispose() reaches the same completion through session.subscribe', async () => {
+      const session = new SemiontSession({
+        kb: {
+          id: 'kb-test',
+          label: 'Test',
+          email: 'test@example.com',
+          endpoint: { kind: 'http', host: 'test.local', port: 80, protocol: 'http' },
+        },
+        storage: new TestStorage(),
+        client,
+        token$: new BehaviorSubject<AccessToken | null>(null),
+      });
+
+      const seen: unknown[] = [];
+      const unsubscribe = session.subscribe('mark:submit', (p) => seen.push(p));
+
+      await session.dispose();
+
+      // The session's client bus is destroyed — late subscribe attempts are
+      // loud, the handler's subscription completed, and the returned
+      // unsubscribe closure is a safe no-op.
+      expect(() => session.client.bus.get('mark:submit')).toThrow(/destroyed bus/);
+      expect(() => unsubscribe()).not.toThrow();
+      expect(seen).toEqual([]);
     });
   });
 

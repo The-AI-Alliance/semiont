@@ -143,6 +143,17 @@ export class SemiontClient {
     this.browse.dispose();
     this.transport.dispose();
     this.content.dispose();
+    // Bus last (A7-owned: this client constructed it): everything upstream
+    // is already quiet — browse detached its handlers, the transport's SSE
+    // fan-in is down — so destroying now completes every remaining
+    // subscriber cleanly (session.subscribe closures, host code holding
+    // client.bus). Without this, the bus outlived the client and every
+    // subscriber stayed attached forever, silently receiving nothing — one
+    // leaked bus per session cycle under a reconnect loop. Post-dispose
+    // `bus.get()` — any bus-emitting namespace method — now throws
+    // `destroyed bus` instead of no-op'ing into the leak: calling a
+    // disposed client is a bug, and it says so.
+    this.bus.destroy();
   }
 
   /**
