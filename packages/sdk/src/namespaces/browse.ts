@@ -89,16 +89,36 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private readonly scopedSources = new WeakMap<Observable<unknown>, Observable<unknown>>();
 
+  /**
+   * Timeout passed to every `busRequest` this namespace issues. `undefined`
+   * means `busRequest`'s default (30 s). Injectable so the liveness
+   * properties (`.plans/LIVENESS-AXIOMS.md`) can run the real composition on
+   * deterministic virtual time — the same knob `HttpTransportConfig.timeout`
+   * provides at the HTTP layer.
+   */
+  private readonly busTimeoutMs: number | undefined;
+
+  /**
+   * The `subscribeToEvents()` bus subscriptions, held so `dispose()` can
+   * detach them — a disposed namespace must not react to late bus events
+   * by refetching into disposed caches (B16).
+   */
+  private readonly busSubs: Array<{ unsubscribe(): void }> = [];
+
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
     private readonly content: IContentTransport,
+    options?: { busTimeoutMs?: number },
   ) {
+    this.busTimeoutMs = options?.busTimeoutMs;
+
     this.resourceCache = createCache<ResourceId, ResourceDescriptor>(async (id) => {
       const result = await busRequest(
         this.transport,
         'browse:resource-requested',
         { resourceId: id },
+        this.busTimeoutMs,
       );
       return result.resource as ResourceDescriptor;
     });
@@ -116,6 +136,7 @@ export class BrowseNamespace implements IBrowseNamespace {
           limit: filters.limit ?? 100,
           offset: 0,
         },
+        this.busTimeoutMs,
       );
       // Brand the wire type (unbranded @id: string) to the SDK's ResourceDescriptor
       // (@id: ResourceId) at the boundary — same as resourceCache above.
@@ -127,6 +148,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:annotations-requested',
         { resourceId },
+        this.busTimeoutMs,
       );
     });
 
@@ -139,6 +161,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:annotation-requested',
         { resourceId, annotationId },
+        this.busTimeoutMs,
       );
       return result.annotation as Annotation;
     });
@@ -148,6 +171,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:entity-types-requested',
         {},
+        this.busTimeoutMs,
       );
       return result.entityTypes;
     });
@@ -157,6 +181,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:tag-schemas-requested',
         {},
+        this.busTimeoutMs,
       );
       return result.tagSchemas;
     });
@@ -166,6 +191,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:referenced-by-requested',
         { resourceId },
+        this.busTimeoutMs,
       );
       return result.referencedBy;
     });
@@ -175,6 +201,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.transport,
         'browse:events-requested',
         { resourceId },
+        this.busTimeoutMs,
       );
       return result.events;
     });
@@ -334,6 +361,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.transport,
       'browse:events-requested',
       { resourceId },
+      this.busTimeoutMs,
     );
     return result.events;
   }
@@ -343,6 +371,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.transport,
       'browse:annotation-history-requested',
       { resourceId, annotationId },
+      this.busTimeoutMs,
     );
   }
 
@@ -366,6 +395,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.transport,
       'browse:directory-requested',
       { path: dirPath ?? '.', sort: sort ?? 'name' },
+      this.busTimeoutMs,
     );
   }
 
@@ -450,7 +480,35 @@ export class BrowseNamespace implements IBrowseNamespace {
     channel: K,
     handler: (payload: EventMap[K]) => void,
   ): void {
-    (this.bus.get(channel) as { subscribe(fn: (p: EventMap[K]) => void): unknown }).subscribe(handler);
+    this.busSubs.push(
+      (this.bus.get(channel) as {
+        subscribe(fn: (p: EventMap[K]) => void): { unsubscribe(): void };
+      }).subscribe(handler),
+    );
+  }
+
+  /**
+   * Dispose the namespace: detach every bus subscription and dispose all
+   * owned caches (B16 — this namespace constructed them, so it disposes
+   * them: the A7-owned rule). Every per-key observable completes, so
+   * subscribers detach cleanly; a fetch/retry chain straddling disposal
+   * dies quietly in the cache's own disposed guard. Idempotent. Called by
+   * `SemiontClient.dispose()`.
+   */
+  dispose(): void {
+    for (const sub of this.busSubs) sub.unsubscribe();
+    this.busSubs.length = 0;
+    this.resourceCache.dispose();
+    this.resourceListCache.dispose();
+    this.annotationListCache.dispose();
+    this.annotationDetailCache.dispose();
+    this.entityTypesCache.dispose();
+    this.tagSchemasCache.dispose();
+    this.referencedByCache.dispose();
+    this.resourceEventsCache.dispose();
+    this.annotationResources.clear();
+    this.resourceListFilters.clear();
+    this.annotationListObs.clear();
   }
 
   /**

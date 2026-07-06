@@ -280,6 +280,16 @@ starvation fix. Any NEW `.abort()` call must be classifiable as
 consumer-cancel or terminal teardown; a lifecycle-handover abort is the
 buffered-loss bug class reintroduced.
 
+The rule is pinned as liveness axiom **L3**
+(`.plans/LIVENESS-AXIOMS.md`): an event written to any *live*
+connection's stream is delivered to `on$` subscribers exactly once,
+wherever a handover / reconnect / scope change lands relative to it.
+The property suite
+([actor-liveness.property.test.ts](../../packages/http-transport/src/transport/__tests__/actor-liveness.property.test.ts))
+fast-check-schedules SSE delivery against handover timing over the real
+actor; transport rewrites (e.g. MULTI-RESOURCE-SCOPE) must keep it
+green.
+
 During the brief handoff overlap the same live event can arrive on both
 connections. The client dedups by event id (`seenEventIds` in the
 actor-state-unit):

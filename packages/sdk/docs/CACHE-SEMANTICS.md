@@ -85,7 +85,7 @@ Consequences:
 
 ## Two consumption paths
 
-The cache has two read paths with different freshness semantics, and B1–B13
+The cache has two read paths with different freshness semantics, and B1–B16
 below describe the **`observe` / subscribe** path (the stale-while-revalidate
 live view). The second path:
 
@@ -137,11 +137,16 @@ value, then the new value; never a transient `undefined`.
 
 ### B6 — Fetch failure leaves the previous state intact
 
-On failed fetch, the entry MUST NOT be cleared or marked with an
-error state. If the entry was previously `empty`, it remains
-`empty`. If it was previously `fresh`, it remains `fresh` with the
-stale value. The `fetching*` guard MUST be released in all cases
-(success, failure, cancellation) via the `finally` block.
+On failed fetch, the entry MUST NOT be cleared. If the entry was
+previously `fresh`, it remains `fresh` with the stale value
+(stale-beats-error). The `fetching*` guard MUST be released in all
+cases (success, failure, cancellation) via the `finally` block.
+
+Boundary: stale-beats-error presumes a stale value to serve. A
+previously-`empty` key stays `empty` through the B14 retry chain — but
+if that chain EXHAUSTS with the key still value-less, B15 applies: the
+terminal failure is surfaced to that key's observers as an error
+notification, not absorbed into eternal `undefined`.
 
 ### B7 — Invalidate is stale-while-revalidate
 
@@ -236,6 +241,78 @@ Boundaries:
    meantime (B3 dedup); it never duplicates.
 3. An invalidate during a retry chain disowns it (B9) — the chain's
    late success may still write (last-write-wins, same as B9).
+
+Liveness: B14's one-retry budget is pinned by axioms **L1/L2**
+(`.plans/LIVENESS-AXIOMS.md`) — L2's settlement bound on the swallowed
+paths is `timeoutMs × (1 + this retry)`, enforced against the real
+`BrowseNamespace` + cache + `busRequest` composition by the property
+suite ([browse-liveness.property.test.ts](../src/__tests__/browse-liveness.property.test.ts)).
+Changing the retry count is a policy change that must edit L2's budget
+visibly, not drift past it.
+
+### B15 — Terminal failure of a value-less key errors its observers
+
+When the B14 retry ALSO fails and the key holds **no cached value**, the
+key is marked failed and the failure MUST be delivered to that key's
+observers as an **error notification** — never `undefined` forever:
+
+1. Subscribers attached at exhaustion time are errored (push).
+2. Subscribers attaching later see the same error (replay at subscribe
+   time), until an act clears the marker.
+3. The marker is cleared — and the key thereby returns to plain `empty`
+   — by `observe()` (which also starts a fresh attempt chain, so a
+   remount recovers), `invalidate`, `set`, `remove`, or any fetch
+   success. The error state is always retriable; nothing is latched.
+4. Keys WITH a cached value never come here — B6 stale-beats-error is
+   unchanged.
+5. An errored subscription is terminal (RxJS semantics); recovery
+   applies to subsequent subscriptions. This matches hook consumption:
+   a remount calls the live-query method again → fresh subscription.
+
+Rationale: liveness (`.plans/LIVENESS-AXIOMS.md`, axiom L1 — found by
+the P2 property suite as
+`.plans/bugs/valueless-key-terminal-failure-starves-observers.md`).
+B14 converted "reply lost" into one slow load when the retry succeeds;
+B15 covers the remaining corner — retry ALSO fails — where "idle" was
+indistinguishable from the pre-B14 permanent silent starvation for
+value-less keys. The `[cache IDLE]` breadcrumb (L4) is unchanged; B15
+adds the in-band signal consumers can actually react to
+(`useResourceLoader`'s `error` callback now fires).
+
+### B16 — Disposal is terminal and inert
+
+`dispose()` completes every per-key observable (subscribers receive
+`complete` and detach cleanly — `store$` AND `failure$`, the
+merge-completion edge), and stuns all later acts:
+
+1. Post-dispose `observe()` returns a stream that completes immediately
+   and issues NO fetch. `invalidate`/`invalidateAll`/`set`/`remove` are
+   no-ops. `fetch()` rejects (`Cache disposed`) without invoking the
+   fetch function — surfaced, not silent, since the await path's caller
+   owns retry policy (B14 boundary 1).
+2. A fetch/retry chain that STRADDLES disposal dies quietly at its next
+   resumption point: no B14 re-issue, no breadcrumb, no B15 push. The
+   `disposed` flag is checked at every async resumption, not just at
+   entry — and a late `failure$.next` would land on a completed subject
+   regardless (structural no-op, belt and braces).
+3. `dispose()` is idempotent.
+4. At the namespace level, `BrowseNamespace.dispose()` (called by
+   `SemiontClient.dispose()`) disposes all owned caches (A7-owned: it
+   constructed them) and detaches its bus-event subscriptions, so late
+   invalidation events cannot refetch into disposed caches.
+
+Rationale: a B14 retry straddling client teardown resolves `bus.closed`
+(`busRequest`'s disposed-bus path) — a teardown artifact, not a data
+failure. Pre-B16 the B15 push then errored observers at shutdown
+(disposal noise; it escaped as a flaky unhandled rejection in a
+make-meaning test — see `.plans/LIVENESS-AXIOMS.md`, the 2026-07-05 CI-escape
+entry). B16 makes the push structurally impossible after disposal
+instead of special-casing the `bus.closed` error code, which would have
+carved a silent exception into liveness axiom L1 (per its D1 binding:
+policy changes must edit the axiom visibly, not drift). L1 holds
+unconditionally: live client → terminal failures error observers (B15);
+disposed client → observers were completed at disposal, so none exist
+to starve.
 
 ## Bus-event-driven invalidation
 
@@ -419,7 +496,7 @@ once per `SemiontClient`.
 ## Test-parity
 
 A `cache-semantics.test.ts` in `packages/sdk/src/namespaces/__tests__/`
-asserts each of B1–B13 against the current implementation. Adding a
+asserts each of B1–B16 against the current implementation. Adding a
 new behavior here must be accompanied by a new test case referencing
 its number (`// B7 — invalidate preserves stale value`). Removing or
 changing a behavior must update both this doc and the test.
@@ -434,3 +511,8 @@ changing a behavior must update both this doc and the test.
   per act). Part of the concurrent-browse-resource-starvation fix
   (ask 3): a lost one-shot reply must not permanently starve
   subscribers.
+- 2026-07-05 — B15 added (terminal failure of a value-less key errors
+  its observers, retriable); B6 narrowed to its true scope
+  (stale-beats-error requires a stale value). Driven by the
+  LIVENESS-AXIOMS P2 property suite falsifying L1/L2 against the real
+  composition (valueless-key-terminal-failure-starves-observers.md).

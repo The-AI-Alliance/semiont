@@ -124,11 +124,20 @@ export async function busRequest<Op extends BusOperationKey>(
   // (which can happen with an in-process LocalTransport bus).
   const resultPromise = firstValueFrom(result$);
 
-  // No guard around emit: an emit rejection propagates to the caller
-  // naturally, and `result$`'s `defaultIfEmpty` guarantees `resultPromise`
-  // *resolves* (never rejects) when the bus is disposed before a reply — so it
-  // cannot leak an unhandled rejection regardless of whether anyone awaits it.
-  await bus.emit(operation as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
+  // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller — but the
+  // caller then never awaits `resultPromise`, which is already subscribed and
+  // will REJECT with `bus.timeout` at `timeoutMs` (the request never left, so
+  // no reply can save it). Detach it before rethrowing so the doomed promise
+  // can't surface later as an unhandled rejection. (`defaultIfEmpty` covers
+  // only the disposed-bus case, where the stream completes and the promise
+  // *resolves* `bus.closed`.) Found by the liveness harness's reject-emit
+  // schedules (.plans/LIVENESS-AXIOMS.md, P1).
+  try {
+    await bus.emit(operation as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
+  } catch (emitError) {
+    resultPromise.catch(() => {});
+    throw emitError;
+  }
 
   const result = await resultPromise;
   if (!result.ok) {

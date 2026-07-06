@@ -202,11 +202,12 @@ A few specific shapes are wrong and worth calling out:
 
 The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The axiom ledger and FOPL specs live in [`.plans/STATE-UNIT-AXIOMS.md`](../../../.plans/STATE-UNIT-AXIOMS.md); the harness is `assertStateUnitAxioms` in `@semiont/core/testing`, invoked once from each state unit's test file.
 
-Four enforcement tiers:
+Five enforcement tiers:
 
 | Tier | Mechanism | Rules |
 |---|---|---|
 | **Axioms** — property-based (fast-check) | `assertStateUnitAxioms`, per unit | **A5** idempotent & total dispose · **A5b** post-dispose inertness · **A6** subscribers see `complete` · **X3-runtime** instance isolation |
+| **Liveness axioms** — property-based (fast-check), composition-level | `assertLivenessAxioms` / `assertExactlyOnceDelivery` from `@semiont/core/testing`, driving `FaultyTransport` (sdk) and the mock-conn SSE harness (http-transport); ledger in [`.plans/LIVENESS-AXIOMS.md`](../../../.plans/LIVENESS-AXIOMS.md) | **L1** subscriptions never silently pend forever · **L2** every `busRequest` settles within timeout × retry budget · **L3** exactly-once delivery across handovers (drain-over-abort) · **L4** degraded modes emit breadcrumbs |
 | **Structural assertions** — single-shot | `assertStateUnitAxioms`, per unit | **A1** plain-object identity · **X1** no raw origin Subject on the surface · **A7-passed** don't dispose injected deps · **A7-owned** do dispose constructed children |
 | **Static compliance** — CI grep (`scripts/compliance/`, run by `architecture-compliance.yml`) | bash + grep | **A1-static** no `class` in state-unit files · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces |
 | **Conventions** — code review only | — | **A3-interior** internal state in Subjects · **X2** no `Promise<T>` on long-running ops · **X6** no dual bus+field exposure of the same state |

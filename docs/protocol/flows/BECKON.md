@@ -16,7 +16,7 @@ The Beckon flow is the coordination layer for user focus. When a human hovers ov
 
 Beckoning is ephemeral — it produces no persistent state and coordinates transient focus signals only. Within a browser session, it is purely a frontend concern operating on the local event bus. Cross-participant beckoning (via `semiont beckon` from the CLI or another agent) flows through the unified bus gateway (`POST /bus/emit` + `GET /bus/subscribe`), but remains stateless: signals are delivered if the participant is connected and silently dropped if not — same semantics as all other beckon events. The [Browse flow](./BROWSE.md) handles the routing of clicks and panel state changes.
 
-## Using the API Client
+## Using the SDK
 
 Attention is primarily a frontend concern — in-browser hover/click
 signals coordinate through the local event bus without touching the

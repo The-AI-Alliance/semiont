@@ -15,7 +15,7 @@ The Gather flow assembles related context around a focal annotation. The applica
 
 Gathering is triggered automatically when the Reference Resolution Wizard opens (`bind:initiate`). It runs in parallel with the wizard rendering, so context is typically ready by the time the user interacts with the wizard's first step.
 
-## Using the API Client
+## Using the SDK
 
 Gathering is a long-running operation (LLM calls + graph traversal).
 `client.gather.annotation()` returns an Observable that emits progress

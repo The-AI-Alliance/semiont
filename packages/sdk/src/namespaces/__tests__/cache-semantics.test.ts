@@ -1,7 +1,7 @@
 /**
  * Cache-semantics contract tests.
  *
- * Enumerates behaviors B1–B13 from
+ * Enumerates behaviors B1–B16 from
  * `packages/sdk/docs/CACHE-SEMANTICS.md` against `BrowseNamespace`.
  *
  * Each `describe` block is tagged with the behavior number it verifies.
@@ -217,7 +217,7 @@ function flush(): Promise<void> {
   return new Promise((r) => setTimeout(r, 0));
 }
 
-describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () => {
+describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () => {
   const RID = resourceId('res-1');
   const AID = annotationId('ann-1');
 
@@ -325,16 +325,22 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
   });
 
   describe('B6 — fetch failure leaves the previous state intact', () => {
-    it('observer stays undefined on first-fetch failures; guard is released', async () => {
-      // Two rejections exhaust the observe attempt + its B14 retry.
+    it('value-less key: first-fetch exhaustion errors the observer (B15); guard + marker released', async () => {
+      // Two rejections exhaust the observe attempt + its B14 retry. Post-B15
+      // the value-less terminal failure is an error notification to this
+      // key's observers — not `undefined` forever (LIVENESS-AXIOMS L1; see
+      // .plans/bugs/valueless-key-terminal-failure-starves-observers.md).
       const { browse, emitSpy, state } = createHarness({ rejectNext: 2 });
       const seen: Array<ResourceDescriptor | undefined> = [];
-      browse.resource(RID).subscribe((v) => seen.push(v));
+      const errors: unknown[] = [];
+      browse.resource(RID).subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
       await flush();
       expect(seen).toEqual([undefined]);
+      expect(errors).toHaveLength(1); // surfaced through withScope + CacheObservable
       expect(emitSpy).toHaveBeenCalledTimes(2); // attempt + B14 retry, then idle
 
-      // Guard is released: a subsequent fetch succeeds and the observer sees it.
+      // Guard + marker released: a subsequent fetch succeeds and a fresh
+      // subscription (the errored one is terminal) sees it.
       state.rejectRemaining = 0;
       browse.invalidateResourceDetail(RID);
       const val = await firstDefined(browse.resource(RID));
@@ -388,7 +394,9 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
       // Two rejections exhaust the observe attempt + its B14 retry first.
       const { browse, emitSpy, state } = createHarness({ rejectNext: 2 });
       const seen: Array<ResourceDescriptor | undefined> = [];
-      browse.resource(RID).subscribe((v) => seen.push(v));
+      // Value-less exhaustion also errors this subscriber (B15) — absorbed;
+      // this test is about the in-flight guard, not the notification.
+      browse.resource(RID).subscribe({ next: (v) => seen.push(v), error: () => {} });
       await flush(); // Attempt + B14 retry both reject; guard releases in finally.
 
       state.rejectRemaining = 0;
@@ -648,6 +656,64 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
       const channels = emitSpy.mock.calls.map(([ch]) => ch);
       const detailFetches = channels.filter((c) => c === 'browse:annotation-requested').length;
       expect(detailFetches).toBe(1); // just the initial observe
+    });
+  });
+
+  // B16 — disposal is terminal and inert at the namespace level. The
+  // make-meaning CI escape (.plans/LIVENESS-AXIOMS.md, 2026-07-05): a B14
+  // retry straddled client teardown, busRequest resolved `bus.closed`, and
+  // the B15 push errored a handler-less subscriber — an unhandled rejection
+  // racing worker teardown. Structural fix (finding b): BrowseNamespace owns
+  // its caches (A7-owned), so disposing it completes every per-key
+  // observable and detaches its bus handlers; the straddling failure then
+  // has no observers to error. No `bus.closed` special-casing (finding a).
+  describe('B16 — browse.dispose() completes observers; teardown failures are structural no-ops', () => {
+    it('mid-chain dispose: value-less-key subscriber completes, never errors; no post-dispose retry traffic', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        // Every fetch would fail — but dispose lands before the first
+        // failure reply, so the chain must die quietly instead of retrying.
+        const { browse, emitSpy } = createHarness({ rejectNext: 2 });
+
+        const events: string[] = [];
+        browse.resource(RID).subscribe({
+          next: (v) => { if (v !== undefined) events.push('next'); },
+          error: () => events.push('error'),
+          complete: () => events.push('complete'),
+        });
+        expect(emitSpy).toHaveBeenCalledTimes(1); // attempt 1 in flight
+
+        browse.dispose();          // teardown straddles the pending reply
+        await flush();
+        await flush();             // the -failed reply lands post-dispose
+
+        expect(events).toEqual(['complete']);     // completed at dispose — the escape's subscriber shape is safe
+        expect(emitSpy).toHaveBeenCalledTimes(1); // no B14 re-issue after dispose
+        expect(warnSpy).not.toHaveBeenCalled();   // no teardown breadcrumb noise
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('bus invalidation events arriving after dispose() trigger no fetches', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      await firstDefined(browse.resource(RID));
+      expect(emitSpy).toHaveBeenCalledTimes(1);
+
+      browse.dispose();
+      // mark:added would invalidate the annotation-list + events caches —
+      // with the namespace disposed, its bus subscriptions are detached.
+      eventBus.get('mark:added').next(fakeMarkAdded(RID, 'ann-9'));
+      await flush();
+
+      expect(emitSpy).toHaveBeenCalledTimes(1); // nothing refetched
+    });
+
+    it('dispose() is idempotent', async () => {
+      const { browse } = createHarness();
+      await firstDefined(browse.resource(RID));
+      browse.dispose();
+      expect(() => browse.dispose()).not.toThrow();
     });
   });
 });

@@ -24,7 +24,7 @@ The Yield flow creates new resources from reference annotations (motivation: `li
 
 **Supported Formats**: Currently available for text-based formats (`text/plain`, `text/markdown`). Generated resources take the requested `outputMediaType`, defaulting to `text/markdown`; the worker rejects any media type outside `text/markdown` | `text/plain`. Support for generating from annotations in images and PDFs is planned for future releases
 
-## Using the API Client
+## Using the SDK
 
 Generation is a long-running job. `client.yield.fromAnnotation()`
 returns an Observable that emits `progress` events during LLM

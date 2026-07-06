@@ -226,7 +226,7 @@ The solution is **media tokens** — short-lived JWTs scoped to a single resourc
 
 ```
 ResourceViewerPage
-  → useMediaToken(resourceId)       # auth.mediaToken(id); refreshed every 4 min
+  → useMediaToken(client, resourceId)  # auth.mediaToken(id); refreshed every 4 min
       → POST /api/tokens/media
       → { token }
   → resourceUrl = `${baseUrl}/api/resources/${id}?token=${token}`

@@ -74,7 +74,9 @@ Components don't manage tokens by hand. The `useMediaToken` hook from
 ```typescript
 import { useMediaToken } from '@semiont/react-ui';
 
-const { token, loading } = useMediaToken(resourceId);
+// Takes the SemiontClient explicitly (bring-your-own-session embedding);
+// pass null to skip fetching (e.g. for non-binary resources).
+const { token, loading } = useMediaToken(client, resourceId);
 const src = token ? `${baseUrl}/api/resources/${resourceId}?token=${token}` : undefined;
 ```
 
@@ -86,7 +88,7 @@ renders as an image (which includes `application/pdf`), so callers of
 
 ```
 ResourceViewerPage
-  → useMediaToken(resourceId)
+  → useMediaToken(client, resourceId)
       → POST /api/tokens/media   (bearer-authenticated, once per 4 min)
       → { token }
   → resourceUrl = `${baseUrl}/api/resources/${id}?token=${token}`

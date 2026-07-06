@@ -216,7 +216,14 @@ describe('SemiontClient over LocalTransport', () => {
         ).pipe(take(1));
         const observed = firstValueFrom(failed$);
 
-        h.client.browse.resource(makeResourceId('does-not-exist')).subscribe();
+        // B15 pin (CACHE-SEMANTICS / LIVENESS-AXIOMS): cache-backed observables
+        // can ERROR — a value-less key whose B14 retry exhausts pushes the
+        // terminal failure to observers. Without this handler, the push (which
+        // can land post-dispose as `bus.closed` when the retry straddles
+        // teardown) reaches RxJS reportUnhandledError and fails CI with all
+        // tests green (PR #946, run 28754440662). Same pin class as the sdk
+        // suite's pre-B15 handler-less subscriptions (LIVENESS-AXIOMS B15 log).
+        h.client.browse.resource(makeResourceId('does-not-exist')).subscribe({ error: () => {} });
 
         const ev = await observed;
         expect(ev.message).toBeTruthy();
