@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@semiont/core": "*",
-    "pdfjs-dist": "^6.0.227"
+    "pdfjs-dist": "^6.1.200"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.8",
