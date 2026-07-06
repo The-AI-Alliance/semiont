@@ -1,7 +1,7 @@
 /**
  * Contract tests for the `Cache<K, V>` primitive.
  *
- * These mirror the B1–B13 behaviors spec'd in
+ * These mirror the B1–B16 behaviors spec'd in
  * `packages/sdk/docs/CACHE-SEMANTICS.md`, but assert them against
  * the primitive directly (no BrowseNamespace, no busRequest). The
  * `cache-semantics.test.ts` suite covers the same behaviors at the
@@ -487,6 +487,82 @@ describe('Cache<K, V>', () => {
       await firstDefined(cache.observe('k'));
       cache.dispose();
       expect(seen[seen.length - 1]).toBe('COMPLETE');
+    });
+  });
+
+  // B16 — disposal is terminal and inert. Motivated by the make-meaning CI
+  // escape (.plans/LIVENESS-AXIOMS.md, 2026-07-05 entry): a B14 retry chain
+  // straddling client teardown pushed a B15 `bus.closed` error into a test's
+  // handler-less subscriber. The fix is structural (finding b): disposal
+  // completes every per-key observable and stuns all later acts — so a
+  // teardown-straddling failure has no observers to error and no retry to
+  // issue. No error-code special-casing anywhere (finding a / L1 D1 binding).
+  describe('B16 — dispose() is terminal and inert', () => {
+    it('a retry chain straddling dispose() goes quiet: no retry, no error, no breadcrumb; observers complete at dispose', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        let rejectFirst!: (e: Error) => void;
+        const fetchFn = vi
+          .fn()
+          .mockImplementationOnce(() => new Promise<string>((_, rej) => { rejectFirst = rej; }))
+          .mockRejectedValue(new Error('retry would also fail'));
+        const cache = createCache<string, string>(fetchFn);
+
+        const events: string[] = [];
+        cache.observe('k').subscribe({
+          next: (v) => { if (v !== undefined) events.push('next'); },
+          error: () => events.push('error'),
+          complete: () => events.push('complete'),
+        });
+
+        cache.dispose();                       // teardown with attempt 1 in flight
+        rejectFirst(new Error('late loss'));   // the straddling failure lands
+        await flush();
+        await flush();
+
+        expect(events).toEqual(['complete']);      // completed at dispose — never errored
+        expect(fetchFn).toHaveBeenCalledTimes(1);  // no B14 re-issue after dispose
+        expect(warnSpy).not.toHaveBeenCalled();    // no [cache RETRY]/[cache IDLE] teardown noise
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('post-dispose observe() completes immediately and issues no fetch', async () => {
+      const fetchFn = vi.fn().mockResolvedValue('v');
+      const cache = createCache<string, string>(fetchFn);
+      cache.dispose();
+
+      const events: string[] = [];
+      cache.observe('k').subscribe({
+        next: () => events.push('next'),
+        error: () => events.push('error'),
+        complete: () => events.push('complete'),
+      });
+      await flush();
+
+      expect(events).toEqual(['complete']);
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+
+    it('post-dispose invalidate()/invalidateAll()/fetch() issue no fetches; fetch() rejects', async () => {
+      const fetchFn = vi.fn().mockResolvedValue('v');
+      const cache = createCache<string, string>(fetchFn);
+      await firstDefined(cache.observe('k'));   // one real fetch, so invalidateAll has a key
+      cache.dispose();
+
+      cache.invalidate('k');
+      cache.invalidateAll();
+      await expect(cache.fetch('k')).rejects.toThrow(/disposed/);
+      await flush();
+
+      expect(fetchFn).toHaveBeenCalledTimes(1); // only the pre-dispose fetch
+    });
+
+    it('dispose() is idempotent', () => {
+      const cache = createCache<string, string>(vi.fn().mockResolvedValue('v'));
+      cache.dispose();
+      expect(() => cache.dispose()).not.toThrow();
     });
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Cache-semantics contract tests.
  *
- * Enumerates behaviors B1–B13 from
+ * Enumerates behaviors B1–B16 from
  * `packages/sdk/docs/CACHE-SEMANTICS.md` against `BrowseNamespace`.
  *
  * Each `describe` block is tagged with the behavior number it verifies.
@@ -217,7 +217,7 @@ function flush(): Promise<void> {
   return new Promise((r) => setTimeout(r, 0));
 }
 
-describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () => {
+describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () => {
   const RID = resourceId('res-1');
   const AID = annotationId('ann-1');
 
@@ -656,6 +656,64 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
       const channels = emitSpy.mock.calls.map(([ch]) => ch);
       const detailFetches = channels.filter((c) => c === 'browse:annotation-requested').length;
       expect(detailFetches).toBe(1); // just the initial observe
+    });
+  });
+
+  // B16 — disposal is terminal and inert at the namespace level. The
+  // make-meaning CI escape (.plans/LIVENESS-AXIOMS.md, 2026-07-05): a B14
+  // retry straddled client teardown, busRequest resolved `bus.closed`, and
+  // the B15 push errored a handler-less subscriber — an unhandled rejection
+  // racing worker teardown. Structural fix (finding b): BrowseNamespace owns
+  // its caches (A7-owned), so disposing it completes every per-key
+  // observable and detaches its bus handlers; the straddling failure then
+  // has no observers to error. No `bus.closed` special-casing (finding a).
+  describe('B16 — browse.dispose() completes observers; teardown failures are structural no-ops', () => {
+    it('mid-chain dispose: value-less-key subscriber completes, never errors; no post-dispose retry traffic', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        // Every fetch would fail — but dispose lands before the first
+        // failure reply, so the chain must die quietly instead of retrying.
+        const { browse, emitSpy } = createHarness({ rejectNext: 2 });
+
+        const events: string[] = [];
+        browse.resource(RID).subscribe({
+          next: (v) => { if (v !== undefined) events.push('next'); },
+          error: () => events.push('error'),
+          complete: () => events.push('complete'),
+        });
+        expect(emitSpy).toHaveBeenCalledTimes(1); // attempt 1 in flight
+
+        browse.dispose();          // teardown straddles the pending reply
+        await flush();
+        await flush();             // the -failed reply lands post-dispose
+
+        expect(events).toEqual(['complete']);     // completed at dispose — the escape's subscriber shape is safe
+        expect(emitSpy).toHaveBeenCalledTimes(1); // no B14 re-issue after dispose
+        expect(warnSpy).not.toHaveBeenCalled();   // no teardown breadcrumb noise
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('bus invalidation events arriving after dispose() trigger no fetches', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      await firstDefined(browse.resource(RID));
+      expect(emitSpy).toHaveBeenCalledTimes(1);
+
+      browse.dispose();
+      // mark:added would invalidate the annotation-list + events caches —
+      // with the namespace disposed, its bus subscriptions are detached.
+      eventBus.get('mark:added').next(fakeMarkAdded(RID, 'ann-9'));
+      await flush();
+
+      expect(emitSpy).toHaveBeenCalledTimes(1); // nothing refetched
+    });
+
+    it('dispose() is idempotent', async () => {
+      const { browse } = createHarness();
+      await firstDefined(browse.resource(RID));
+      browse.dispose();
+      expect(() => browse.dispose()).not.toThrow();
     });
   });
 });

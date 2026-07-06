@@ -85,7 +85,7 @@ Consequences:
 
 ## Two consumption paths
 
-The cache has two read paths with different freshness semantics, and B1–B13
+The cache has two read paths with different freshness semantics, and B1–B16
 below describe the **`observe` / subscribe** path (the stale-while-revalidate
 live view). The second path:
 
@@ -279,6 +279,41 @@ value-less keys. The `[cache IDLE]` breadcrumb (L4) is unchanged; B15
 adds the in-band signal consumers can actually react to
 (`useResourceLoader`'s `error` callback now fires).
 
+### B16 — Disposal is terminal and inert
+
+`dispose()` completes every per-key observable (subscribers receive
+`complete` and detach cleanly — `store$` AND `failure$`, the
+merge-completion edge), and stuns all later acts:
+
+1. Post-dispose `observe()` returns a stream that completes immediately
+   and issues NO fetch. `invalidate`/`invalidateAll`/`set`/`remove` are
+   no-ops. `fetch()` rejects (`Cache disposed`) without invoking the
+   fetch function — surfaced, not silent, since the await path's caller
+   owns retry policy (B14 boundary 1).
+2. A fetch/retry chain that STRADDLES disposal dies quietly at its next
+   resumption point: no B14 re-issue, no breadcrumb, no B15 push. The
+   `disposed` flag is checked at every async resumption, not just at
+   entry — and a late `failure$.next` would land on a completed subject
+   regardless (structural no-op, belt and braces).
+3. `dispose()` is idempotent.
+4. At the namespace level, `BrowseNamespace.dispose()` (called by
+   `SemiontClient.dispose()`) disposes all owned caches (A7-owned: it
+   constructed them) and detaches its bus-event subscriptions, so late
+   invalidation events cannot refetch into disposed caches.
+
+Rationale: a B14 retry straddling client teardown resolves `bus.closed`
+(`busRequest`'s disposed-bus path) — a teardown artifact, not a data
+failure. Pre-B16 the B15 push then errored observers at shutdown
+(disposal noise; it escaped as a flaky unhandled rejection in a
+make-meaning test — see `.plans/LIVENESS-AXIOMS.md`, the 2026-07-05 CI-escape
+entry). B16 makes the push structurally impossible after disposal
+instead of special-casing the `bus.closed` error code, which would have
+carved a silent exception into liveness axiom L1 (per its D1 binding:
+policy changes must edit the axiom visibly, not drift). L1 holds
+unconditionally: live client → terminal failures error observers (B15);
+disposed client → observers were completed at disposal, so none exist
+to starve.
+
 ## Bus-event-driven invalidation
 
 Cache entries are also invalidated by incoming bus events. The
@@ -461,7 +496,7 @@ once per `SemiontClient`.
 ## Test-parity
 
 A `cache-semantics.test.ts` in `packages/sdk/src/namespaces/__tests__/`
-asserts each of B1–B13 against the current implementation. Adding a
+asserts each of B1–B16 against the current implementation. Adding a
 new behavior here must be accompanied by a new test case referencing
 its number (`// B7 — invalidate preserves stale value`). Removing or
 changing a behavior must update both this doc and the test.

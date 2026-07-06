@@ -98,6 +98,13 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private readonly busTimeoutMs: number | undefined;
 
+  /**
+   * The `subscribeToEvents()` bus subscriptions, held so `dispose()` can
+   * detach them — a disposed namespace must not react to late bus events
+   * by refetching into disposed caches (B16).
+   */
+  private readonly busSubs: Array<{ unsubscribe(): void }> = [];
+
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
@@ -473,7 +480,35 @@ export class BrowseNamespace implements IBrowseNamespace {
     channel: K,
     handler: (payload: EventMap[K]) => void,
   ): void {
-    (this.bus.get(channel) as { subscribe(fn: (p: EventMap[K]) => void): unknown }).subscribe(handler);
+    this.busSubs.push(
+      (this.bus.get(channel) as {
+        subscribe(fn: (p: EventMap[K]) => void): { unsubscribe(): void };
+      }).subscribe(handler),
+    );
+  }
+
+  /**
+   * Dispose the namespace: detach every bus subscription and dispose all
+   * owned caches (B16 — this namespace constructed them, so it disposes
+   * them: the A7-owned rule). Every per-key observable completes, so
+   * subscribers detach cleanly; a fetch/retry chain straddling disposal
+   * dies quietly in the cache's own disposed guard. Idempotent. Called by
+   * `SemiontClient.dispose()`.
+   */
+  dispose(): void {
+    for (const sub of this.busSubs) sub.unsubscribe();
+    this.busSubs.length = 0;
+    this.resourceCache.dispose();
+    this.resourceListCache.dispose();
+    this.annotationListCache.dispose();
+    this.annotationDetailCache.dispose();
+    this.entityTypesCache.dispose();
+    this.tagSchemasCache.dispose();
+    this.referencedByCache.dispose();
+    this.resourceEventsCache.dispose();
+    this.annotationResources.clear();
+    this.resourceListFilters.clear();
+    this.annotationListObs.clear();
   }
 
   /**

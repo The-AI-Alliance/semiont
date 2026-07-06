@@ -136,6 +136,11 @@ export class SemiontClient {
   }
 
   dispose(): void {
+    // Browse first: completing its caches stops any SWR fetch/retry chain
+    // from issuing new requests into a transport that's about to go away
+    // (B16 — a chain straddling teardown must die quietly, not error
+    // observers or fire post-dispose traffic).
+    this.browse.dispose();
     this.transport.dispose();
     this.content.dispose();
   }

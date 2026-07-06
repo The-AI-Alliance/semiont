@@ -1,7 +1,7 @@
 /**
  * RxJS-native read-through cache primitive.
  *
- * Behavioral contract: packages/sdk/docs/CACHE-SEMANTICS.md (B1–B13).
+ * Behavioral contract: packages/sdk/docs/CACHE-SEMANTICS.md (B1–B16).
  *
  * Framework-agnostic: no React, no dependency on any namespace. Used by
  * `BrowseNamespace` to back its per-key stores, but equally usable from
@@ -27,7 +27,11 @@
  *   - `remove(key)`: drops the cache entry entirely (B13a). No refetch.
  *   - `set(key, value)`: write-through without a fetch (B13b).
  *   - `invalidateAll()`: per-key SWR refetch of every currently-cached entry.
- *   - `dispose()`: completes the store so observers unsubscribe.
+ *   - `dispose()`: terminal and inert (B16) — completes every per-key
+ *     observable (subscribers detach cleanly) and stuns all later acts:
+ *     no fetch, retry, breadcrumb, or B15 push may fire after disposal, so
+ *     a retry chain straddling client teardown dies quietly instead of
+ *     erroring observers (`bus.closed` disposal noise needs no special-case).
  *
  * What's deliberately out:
  *   - No subscriber ref-counting / GC of unobserved keys (B11). Acceptable
@@ -105,6 +109,15 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
   const obsCache = new Map<K, Observable<V | undefined>>();
 
   /**
+   * B16 — disposal is terminal and inert. Once set, no path may issue a
+   * fetch, retry, or failure push: a B14 chain that straddles teardown
+   * (busRequest resolving `bus.closed` mid-retry) must die quietly instead
+   * of erroring observers that dispose() just completed. Checked at every
+   * async resumption point in the SWR driver, not just at entry.
+   */
+  let disposed = false;
+
+  /**
    * B15 — terminal-failure markers for VALUE-LESS keys. Set when the B14
    * retry also fails and the store holds nothing to serve; delivered to that
    * key's observers as an error notification — pushed via `failure$` to
@@ -165,7 +178,10 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
    * comes through here — its caller sees the rejection and owns retry policy.
    */
   const runFetchSWR = (key: K): void => {
+    if (disposed) return;
     void runFetch(key).catch((firstErr: unknown) => {
+      // B16: teardown straddled the attempt — no retry, no breadcrumb noise.
+      if (disposed) return;
       // Always-on breadcrumb: the pre-B14 version of this path swallowed the
       // failure with zero trace, which is how lost replies starved silently
       // (.plans/bugs/concurrent-browse-resource-starvation.md). Not deduped —
@@ -177,6 +193,9 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
         firstErr instanceof Error ? firstErr.message : firstErr,
       );
       void runFetch(key).catch((retryErr: unknown) => {
+        // B16: teardown straddled the retry — its failure has nowhere it
+        // needs to go (observers completed at dispose).
+        if (disposed) return;
         // eslint-disable-next-line no-console
         console.warn(
           `[cache IDLE] retry also failed for key ${String(key)}; going idle until the ` +
@@ -198,7 +217,11 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
 
   return {
     observe(key: K): Observable<V | undefined> {
-      if (failures.has(key)) {
+      if (disposed) {
+        // B16: the store is completed, so any per-key observable (memoized
+        // or fresh) completes its subscribers immediately — just don't
+        // issue a fetch for a client that no longer exists.
+      } else if (failures.has(key)) {
         // B15 recovery: an observer acting on a failed key clears the marker
         // and starts a fresh attempt chain — a hook remount recovers instead
         // of replaying the stale error.
@@ -238,6 +261,9 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
     },
 
     fetch(key: K): Promise<V> {
+      // B16: surfaced, not silent — the await path's caller owns retry
+      // policy (B14 boundary 1), so it gets a rejection it can see.
+      if (disposed) return Promise.reject(new Error('Cache disposed'));
       return runFetch(key);
     },
 
@@ -250,6 +276,7 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
     },
 
     invalidate(key: K): void {
+      if (disposed) return; // B16
       // B7: do NOT erase the value. Clear the guard (B9 orphan recovery)
       // and the B15 failure marker, then trigger a fresh fetch (with the
       // B14 bounded retry). Observers keep seeing the stale value until the
@@ -260,6 +287,7 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
     },
 
     remove(key: K): void {
+      if (disposed) return; // B16
       // B13a: drop the entry. The value is gone; observers see `undefined`.
       const next = new Map(store$.value);
       next.delete(key);
@@ -269,6 +297,7 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
     },
 
     set(key: K, value: V): void {
+      if (disposed) return; // B16
       // B13b: write-through. No fetch. Atomic update. A written value
       // supersedes any B15 failure marker.
       failures.delete(key);
@@ -278,6 +307,7 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
     },
 
     invalidateAll(): void {
+      if (disposed) return; // B16
       // Per-key SWR refetch of every currently-cached entry. Each entry
       // keeps its stale value until its refetch resolves.
       for (const key of store$.value.keys()) {
@@ -287,6 +317,8 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
     },
 
     dispose(): void {
+      if (disposed) return; // idempotent (B16)
+      disposed = true;
       store$.complete();
       // Must complete alongside store$: the per-key observable is a merge,
       // and merge completes only when ALL its sources complete — leaving
