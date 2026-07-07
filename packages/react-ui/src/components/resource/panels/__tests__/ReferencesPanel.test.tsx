@@ -86,6 +86,7 @@ describe('ReferencesPanel Component', () => {
   } as any;
 
   const defaultProps = {
+    resourceId: 'res-1',
     allEntityTypes: ['Person', 'Organization', 'Location', 'Date'],
     isAssisting: false,
     progress: null,

@@ -50,6 +50,7 @@ describe('createMarkStateUnit', () => {
     stateUnit.pendingAnnotation$.subscribe(v => pend.push(v));
 
     tc.bus.get('mark:requested').next({
+      source: 'res-1',
       selector: { type: 'TextQuoteSelector', exact: 'hello' },
       motivation: 'highlighting',
     } as any);
@@ -83,7 +84,7 @@ describe('createMarkStateUnit', () => {
     const panels: string[] = [];
     tc.bus.get('panel:open').subscribe(e => panels.push(e.panel));
 
-    tc.bus.get('mark:requested').next({ selector: {}, motivation: 'highlighting' } as any);
+    tc.bus.get('mark:requested').next({ source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
     expect(panels).toEqual([]);
     stateUnit.dispose();
   });
@@ -94,7 +95,7 @@ describe('createMarkStateUnit', () => {
     const pend: unknown[] = [];
     stateUnit.pendingAnnotation$.subscribe(v => pend.push(v));
 
-    tc.bus.get('mark:requested').next({ selector: {}, motivation: 'highlighting' } as any);
+    tc.bus.get('mark:requested').next({ source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
     tc.bus.get('mark:cancel-pending').next(undefined);
     expect(pend[pend.length - 1]).toBeNull();
     stateUnit.dispose();
@@ -106,7 +107,7 @@ describe('createMarkStateUnit', () => {
     const pend: unknown[] = [];
     stateUnit.pendingAnnotation$.subscribe(v => pend.push(v));
 
-    tc.bus.get('mark:requested').next({ selector: {}, motivation: 'highlighting' } as any);
+    tc.bus.get('mark:requested').next({ source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
     tc.bus.get('mark:create-ok').next({ response: { annotationId: 'ann-1' } });
     expect(pend[pend.length - 1]).toBeNull();
     stateUnit.dispose();
@@ -122,6 +123,7 @@ describe('createMarkStateUnit', () => {
     tc.bus.get('mark:create-ok').subscribe(e => okEvents.push(e));
 
     tc.bus.get('mark:submit').next({
+      source: 'res-1',
       motivation: 'highlighting',
       selector: { type: 'TextQuoteSelector', exact: 'test' },
       body: [{ type: 'TextualBody', value: 'note' }],
@@ -140,6 +142,7 @@ describe('createMarkStateUnit', () => {
     tc.bus.get('mark:create-failed').subscribe(e => failures.push(e));
 
     tc.bus.get('mark:submit').next({
+      source: 'res-1',
       motivation: 'highlighting',
       selector: { type: 'TextQuoteSelector', exact: 'x' },
     } as any);
@@ -336,6 +339,61 @@ describe('MarkStateUnit — StateUnit axioms', () => {
         return { unit: createMarkStateUnit(tc.client, RID), teardown: () => tc.bus.destroy() };
       },
       surfaces: (u) => [u.pendingAnnotation$, u.assistingMotivation$, u.progress$],
+    });
+  });
+
+  // ── Multi-mounted units (MARK-REQUESTED-RESOURCE-SCOPE) ──────
+  // N viewers on ONE session mount N units bound to N resources. The events
+  // carry their source resource id and each unit handles only its own —
+  // without this, one submit creates N annotations on N different resources.
+
+  describe('multi-mounted units route by source resource', () => {
+    let tc: TestClient;
+    afterEach(() => { tc?.bus.destroy(); });
+
+    it('mark:requested reaches only the unit bound to its source', () => {
+      tc = withMark();
+      const unitA = createMarkStateUnit(tc.client, makeResourceId('res-a'));
+      const unitB = createMarkStateUnit(tc.client, makeResourceId('res-b'));
+      const pendA: unknown[] = [];
+      const pendB: unknown[] = [];
+      unitA.pendingAnnotation$.subscribe(v => pendA.push(v));
+      unitB.pendingAnnotation$.subscribe(v => pendB.push(v));
+
+      tc.bus.get('mark:requested').next({
+        source: 'res-a',
+        selector: { type: 'TextQuoteSelector', exact: 'hello' },
+        motivation: 'highlighting',
+      } as any);
+
+      expect(pendA[pendA.length - 1]).toEqual(expect.objectContaining({ motivation: 'highlighting' }));
+      expect(pendB[pendB.length - 1]).toBeNull(); // B never fires
+      unitA.dispose();
+      unitB.dispose();
+    });
+
+    it('one mark:submit creates exactly ONE annotation, on the source resource', async () => {
+      const annotationFn = vi.fn().mockResolvedValue({ annotationId: 'ann-1' });
+      tc = withMark({ annotation: annotationFn });
+      const unitA = createMarkStateUnit(tc.client, makeResourceId('res-a'));
+      const unitB = createMarkStateUnit(tc.client, makeResourceId('res-b'));
+
+      tc.bus.get('mark:submit').next({
+        source: 'res-a',
+        motivation: 'commenting',
+        selector: { type: 'TextQuoteSelector', exact: 'x' },
+        body: [{ type: 'TextualBody', value: 'hi' }],
+      } as any);
+
+      // Both handlers run in the same tick today (bus-wide subscribe): the
+      // double-create is visible immediately; after the fix exactly one call.
+      await vi.waitFor(() => expect(annotationFn).toHaveBeenCalled());
+      expect(annotationFn).toHaveBeenCalledTimes(1);
+      expect(annotationFn).toHaveBeenCalledWith(expect.objectContaining({
+        target: expect.objectContaining({ source: makeResourceId('res-a') }),
+      }));
+      unitA.dispose();
+      unitB.dispose();
     });
   });
 });

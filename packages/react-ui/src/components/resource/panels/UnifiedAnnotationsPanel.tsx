@@ -59,8 +59,9 @@ interface UnifiedAnnotationsPanelProps {
   referencedBy?: any[];
   referencedByLoading?: boolean;
 
-  // Resource context
-  resourceId?: string;
+  // Resource context — threaded to every per-motivation panel, which stamps it
+  // as `source` on mark:submit (multi-viewer routing).
+  resourceId: string;
   initialTab?: TabKey;
   initialTabGeneration?: number; // Generation counter for tab switching
 
@@ -244,6 +245,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
 
           // Common props for all annotation panels
           const commonProps = {
+            resourceId: props.resourceId,
             annotations,
             pendingAnnotation: props.pendingAnnotation,
             isAssisting,
@@ -268,6 +270,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
           if (activeTab === 'reference') {
             return (
               <ReferencesPanel
+                resourceId={commonProps.resourceId}
                 annotations={commonProps.annotations}
                 pendingAnnotation={commonProps.pendingAnnotation}
                 isAssisting={commonProps.isAssisting}

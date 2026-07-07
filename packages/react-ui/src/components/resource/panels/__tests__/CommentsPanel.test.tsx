@@ -141,6 +141,7 @@ const createPendingAnnotation = (exact: string) => ({
 
 describe('CommentsPanel Component', () => {
   const defaultProps = {
+    resourceId: 'res-1',
     annotations: mockComments.empty,
     pendingAnnotation: null,
   };

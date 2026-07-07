@@ -40,6 +40,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 }
 
 interface AssessmentPanelProps {
+  /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
+  resourceId: string;
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
   isAssisting?: boolean;
@@ -61,6 +63,7 @@ interface AssessmentPanelProps {
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function AssessmentPanel({
+  resourceId,
   annotations,
   pendingAnnotation,
   isAssisting = false,
@@ -151,6 +154,7 @@ export function AssessmentPanel({
         : undefined;
 
       session?.client.mark.submit({
+        source: resourceId,
         motivation: 'assessing',
         selector: pendingAnnotation.selector,
         ...(body !== undefined ? { body } : {}),

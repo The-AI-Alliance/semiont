@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import { capabilitiesOf } from '@semiont/core';
+import { capabilitiesOf, resourceId as toResourceId } from '@semiont/core';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { segmentTextWithAnnotations } from '../../lib/text-segmentation';
 import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';
@@ -28,7 +28,8 @@ export type { SelectionMotivation, ClickAction, ShapeType };
 interface Props {
   content: string;
   mimeType?: string;
-  resourceUri?: string;
+  /** The '@id' of the shown resource — stamped as `source` on mark:requested (multi-viewer routing). */
+  resourceUri: string;
   annotations: AnnotationsCollection;
   uiState: AnnotationUIState;
   onUIStateChange?: (state: Partial<AnnotationUIState>) => void;
@@ -176,7 +177,7 @@ export function AnnotateView({
         const selectors = buildTextSelectors(content, text, start, end);
         if (!selectors) return;
 
-        session?.client.mark.request(selectors, selectedMotivation);
+        session?.client.mark.request(toResourceId(resourceUri), selectors, selectedMotivation);
 
         // Clear selection after creating annotation
         selection.removeAllRanges();
@@ -190,7 +191,7 @@ export function AnnotateView({
       container.removeEventListener('mouseup', handleMouseUp);
       container.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [selectedMotivation, content]);
+  }, [selectedMotivation, content, resourceUri]);
 
   // Route to the annotation viewer for this media type's render mode.
   switch (render) {
@@ -251,6 +252,7 @@ export function AnnotateView({
               <Suspense fallback={<div className="semiont-annotate-view__loading">Loading PDF viewer...</div>}>
                 <PdfAnnotationCanvas
                   pdfUrl={content}
+                  resourceUri={resourceUri}
                   existingAnnotations={allAnnotations}
                   drawingMode={selectedMotivation ? selectedShape : null}
                   selectedMotivation={selectedMotivation}
@@ -284,6 +286,7 @@ export function AnnotateView({
             {content && (
               <SvgDrawingCanvas
                 imageUrl={content}
+                resourceUri={resourceUri}
                 existingAnnotations={allAnnotations}
                 drawingMode={selectedMotivation ? selectedShape : null}
                 selectedMotivation={selectedMotivation}
@@ -304,15 +307,13 @@ export function AnnotateView({
             <p className="semiont-annotate-view__empty-message">
               Annotation not supported for {mimeType}
             </p>
-            {resourceUri && (
-              <a
-                href={`/api/resources/${resourceUri}`}
-                download
-                className="semiont-button semiont-button--primary"
-              >
-                Download File
-              </a>
-            )}
+            <a
+              href={`/api/resources/${resourceUri}`}
+              download
+              className="semiont-button semiont-button--primary"
+            >
+              Download File
+            </a>
           </div>
         </div>
       );

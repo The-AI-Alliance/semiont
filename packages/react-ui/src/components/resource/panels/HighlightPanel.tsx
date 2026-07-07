@@ -23,6 +23,8 @@ interface PendingAnnotation {
 }
 
 interface HighlightPanelProps {
+  /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
+  resourceId: string;
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
   isAssisting?: boolean;
@@ -42,6 +44,7 @@ interface HighlightPanelProps {
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function HighlightPanel({
+  resourceId,
   annotations,
   pendingAnnotation,
   isAssisting = false,
@@ -136,6 +139,7 @@ export function HighlightPanel({
   useEffect(() => {
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
       session?.client.mark.submit({
+        source: resourceId,
         motivation: 'highlighting',
         selector: pendingAnnotation.selector,
       });

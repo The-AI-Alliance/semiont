@@ -51,8 +51,16 @@ export function createMarkStateUnit(
     pendingAnnotation$.next(pending);
   };
 
-  // Selection events → pending annotation
-  subs.push(client.bus.get('mark:requested').subscribe(handleAnnotationRequested));
+  // Selection events → pending annotation. `mark:requested` / `mark:submit`
+  // carry their source resource id and this unit handles only its own — N
+  // units on one client (multi-viewer hosts) must not cross-fire.
+  // NOTE: the `mark:select-*` quick-popup events remain unscoped — their only
+  // emitters are the Browser's single-page popups; scope them the same way if
+  // they ever grow multi-viewer emitters.
+  subs.push(client.bus.get('mark:requested').subscribe((event) => {
+    if (event.source !== resourceId) return;
+    handleAnnotationRequested({ selector: event.selector as Selector | Selector[], motivation: event.motivation });
+  }));
   subs.push(client.bus.get('mark:select-comment').subscribe((s) =>
     handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'commenting' })));
   subs.push(client.bus.get('mark:select-tag').subscribe((s) =>
@@ -65,8 +73,9 @@ export function createMarkStateUnit(
   subs.push(client.bus.get('mark:cancel-pending').subscribe(() => pendingAnnotation$.next(null)));
   subs.push(client.bus.get('mark:create-ok').subscribe(() => pendingAnnotation$.next(null)));
 
-  // CRUD bridging
+  // CRUD bridging (submit routed by source — see note above)
   subs.push(client.bus.get('mark:submit').subscribe(async (event) => {
+    if (event.source !== resourceId) return;
     try {
       const result = await client.mark.annotation({
         motivation: event.motivation,

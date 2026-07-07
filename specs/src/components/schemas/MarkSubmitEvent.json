@@ -2,6 +2,10 @@
   "type": "object",
   "description": "Emitted when a mark is submitted with its annotation body",
   "properties": {
+    "source": {
+      "type": "string",
+      "description": "The '@id' of the resource the mark belongs to (W3C target.source). Routes the submit to the state unit bound to that resource — without it, N mounted units each create the annotation (N copies on N resources)."
+    },
     "motivation": {
       "$ref": "./Motivation.json"
     },
@@ -41,5 +45,5 @@
       "description": "Optional body. Omit for annotations whose motivation alone is meaningful (e.g. highlighting) or whose user-supplied content is empty (e.g. an assessing annotation saved without comment text). Shape matches Annotation.body."
     }
   },
-  "required": ["motivation", "selector"]
+  "required": ["source", "motivation", "selector"]
 }

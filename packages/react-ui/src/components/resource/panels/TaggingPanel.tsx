@@ -39,6 +39,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 }
 
 interface TaggingPanelProps {
+  /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
+  resourceId: string;
   annotations: Annotation[];
   annotateMode?: boolean;
   isAssisting?: boolean;
@@ -62,6 +64,7 @@ interface TaggingPanelProps {
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function TaggingPanel({
+  resourceId,
   annotations,
   annotateMode = true,
   isAssisting = false,
@@ -309,6 +312,7 @@ export function TaggingPanel({
                   onChange={(e) => {
                     if (e.target.value && pendingAnnotation) {
                       session?.client.mark.submit({
+                        source: resourceId,
                         motivation: 'tagging',
                         selector: pendingAnnotation.selector,
                         body: [
