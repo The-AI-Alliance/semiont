@@ -13,18 +13,25 @@ import { capabilitiesOf } from '@semiont/core';
 export type SelectorType = 'fragment' | 'svg' | 'text';
 
 /**
- * Get supported annotation shapes for a given media type
+ * Get supported annotation shapes for a given media type.
  *
- * PDF: Only rectangles (FragmentSelector with RFC 3778 viewrect)
- * Images: All shapes (SvgSelector supports rect, circle, polygon)
+ * This set is the host-facing CONTRACT for "which shapes can this medium
+ * draw" — gate shape UI on it directly.
+ *
+ * PDF: only rectangles (FragmentSelector with RFC 3778 viewrect).
+ * Images: all shapes (SvgSelector supports rect, circle, polygon).
+ * Everything else — including text media and absent/unknown types — supports
+ * NONE: those anchor by character offsets (TextPositionSelector /
+ * TextQuoteSelector), and no selector can carry a shape. Mirrors
+ * `getSelectorType`'s 'text' fallback.
  *
  * @param mediaType - MIME type of the resource (e.g., 'application/pdf', 'image/png')
  * @returns Array of supported shape types for annotation
  */
 export function getSupportedShapes(mediaType: string | undefined | null): ShapeType[] {
   if (!mediaType) {
-    // Default: support all shapes
-    return ['rectangle', 'circle', 'polygon'];
+    // Unknown medium: don't advertise drawing capability it may not have.
+    return [];
   }
 
   // PDF only supports rectangles via FragmentSelector (RFC 3778)
@@ -38,8 +45,9 @@ export function getSupportedShapes(mediaType: string | undefined | null): ShapeT
     return ['rectangle', 'circle', 'polygon'];
   }
 
-  // Default for unknown types: all shapes
-  return ['rectangle', 'circle', 'polygon'];
+  // Text (and everything else) anchors by character offsets — there is no
+  // selector to carry a shape, so the medium supports none.
+  return [];
 }
 
 /**
