@@ -373,6 +373,12 @@ so an edit made elsewhere updates the open document live, with no refetch (recip
 overridable browse-renderer registry, and the batteries-included provider-based variant
 (`ResourceViewerPage`), see `@semiont/react-ui`.
 
+**Mounting many viewers on one session** (a chat log where every message is a resource, a
+split-pane comparison) works on this same seam: in annotate mode each viewer emits its
+creation signals scoped by `source` — the resource `'@id'` of the viewer the selection was
+made in — so a host with N viewers routes each `mark:requested` to the right one by
+`event.source === rid`, as data, not DOM heuristics.
+
 ## Headless (Node) vs. browser
 
 The same code runs in both — only two things differ:
