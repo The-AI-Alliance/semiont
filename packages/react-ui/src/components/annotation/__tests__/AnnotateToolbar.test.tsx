@@ -111,7 +111,7 @@ describe('AnnotateToolbar', () => {
   describe('parts composition', () => {
     it("parts={['shape']} renders exactly the shape group", () => {
       const { container } = renderWithIntl(
-        <AnnotateToolbar {...defaultProps} parts={['shape']} selectedShape="rectangle" />,
+        <AnnotateToolbar {...defaultProps} parts={['shape']} selectedShape="rectangle" mediaType="image/png" />,
       );
       expect(screen.getByLabelText('Shape')).toBeInTheDocument();
       expect(screen.queryByLabelText('Click')).not.toBeInTheDocument();

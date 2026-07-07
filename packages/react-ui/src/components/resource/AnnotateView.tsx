@@ -200,13 +200,14 @@ export function AnnotateView({
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
+            selectedShape={selectedShape}
             mediaType={mimeType}
             annotateMode={annotateMode}
             annotators={ANNOTATORS}
-            parts={['clickAction', 'mode', 'selection']}
             onModeChange={onModeChange}
             onClickActionChange={handleToolbarClickActionChange}
             onSelectionChange={handleToolbarSelectionChange}
+            onShapeChange={handleToolbarShapeChange}
           />
           <div className="semiont-annotate-view__content">
             <CodeMirrorRenderer

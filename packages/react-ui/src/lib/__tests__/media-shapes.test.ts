@@ -13,9 +13,10 @@ describe('media-shapes', () => {
   });
 
   describe('getSupportedShapes', () => {
-    it('returns all shapes for null/undefined mediaType', () => {
-      expect(getSupportedShapes(null)).toEqual(['rectangle', 'circle', 'polygon']);
-      expect(getSupportedShapes(undefined)).toEqual(['rectangle', 'circle', 'polygon']);
+    it('returns no shapes for null/undefined mediaType — an unknown medium must not advertise drawing', () => {
+      // Mirrors getSelectorType's 'text' fallback for absent media types.
+      expect(getSupportedShapes(null)).toEqual([]);
+      expect(getSupportedShapes(undefined)).toEqual([]);
     });
 
     it('returns only rectangle for PDF', () => {
@@ -27,8 +28,12 @@ describe('media-shapes', () => {
       expect(getSupportedShapes('image/jpeg')).toEqual(['rectangle', 'circle', 'polygon']);
     });
 
-    it('returns all shapes for unknown types', () => {
-      expect(getSupportedShapes('text/plain')).toEqual(['rectangle', 'circle', 'polygon']);
+    it('returns no shapes for text media — text anchors by character offsets', () => {
+      // The set is the host-facing contract ("which shapes can this medium
+      // draw"); text media have no selector that can carry a shape.
+      expect(getSupportedShapes('text/plain')).toEqual([]);
+      expect(getSupportedShapes('text/markdown')).toEqual([]);
+      expect(getSupportedShapes('text/html')).toEqual([]);
     });
   });
 
@@ -41,6 +46,12 @@ describe('media-shapes', () => {
     it('returns false for unsupported shapes', () => {
       expect(isShapeSupported('application/pdf', 'circle')).toBe(false);
       expect(isShapeSupported('application/pdf', 'polygon')).toBe(false);
+    });
+
+    it('is false for every shape on text media', () => {
+      expect(isShapeSupported('text/plain', 'rectangle')).toBe(false);
+      expect(isShapeSupported('text/plain', 'circle')).toBe(false);
+      expect(isShapeSupported('text/markdown', 'polygon')).toBe(false);
     });
   });
 
