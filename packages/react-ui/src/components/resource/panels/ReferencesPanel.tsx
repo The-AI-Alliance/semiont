@@ -43,6 +43,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 }
 
 interface Props {
+  /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
+  resourceId: string;
   // Generic panel props
   annotations?: Annotation[];
   isAssisting: boolean;
@@ -76,6 +78,7 @@ interface Props {
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function ReferencesPanel({
+  resourceId,
   annotations = [],
   isAssisting,
   progress,
@@ -255,6 +258,7 @@ export function ReferencesPanel({
     if (pendingAnnotation) {
       const entityType = pendingEntityTypes.join(',') || undefined;
       session?.client.mark.submit({
+        source: resourceId,
         motivation: 'linking',
         selector: pendingAnnotation.selector,
         body: entityType ? [{ type: 'TextualBody', value: entityType, purpose: 'tagging' }] : [],

@@ -295,7 +295,9 @@ export interface MarkNamespace {
   assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): StreamObservable<MarkAssistEvent>;
 
   // UI signals (fire-and-forget bus emits, local-bus fan-out)
+  /** Request a new mark on `source` — the id routes the event to the state unit bound to that resource. */
   request(
+    source: ResourceId,
     selector: components['schemas']['MarkRequestedEvent']['selector'],
     motivation: Motivation,
   ): void;

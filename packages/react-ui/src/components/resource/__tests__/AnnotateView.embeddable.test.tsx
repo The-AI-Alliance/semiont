@@ -40,7 +40,7 @@ function fakeSession(): SemiontSession {
 describe('AnnotateView — embeddable (session prop, no providers)', () => {
   it('renders (incl. the real AnnotateToolbar) fed only a session, no providers', () => {
     render(
-      <AnnotateView
+      <AnnotateView resourceUri="res-1"
         content="hello"
         mimeType="text/plain"
         annotations={emptyAnnotations}

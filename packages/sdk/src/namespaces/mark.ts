@@ -209,11 +209,13 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   request(
+    source: ResourceId,
     selector: components['schemas']['MarkRequestedEvent']['selector'],
     motivation: Motivation,
   ): void {
-    // Local emit: mark-state-unit subscribes via the local bus.
-    this.bus.get('mark:requested').next({ selector, motivation });
+    // Local emit: mark-state-unit subscribes via the local bus and routes by
+    // `source` — resource-first, like every other mark.* method.
+    this.bus.get('mark:requested').next({ source, selector, motivation });
   }
 
   requestAssist(motivation: Motivation, options: MarkAssistOptions, correlationId?: string): void {

@@ -40,6 +40,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 }
 
 interface CommentsPanelProps {
+  /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
+  resourceId: string;
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
   annotateMode?: boolean;
@@ -61,6 +63,7 @@ interface CommentsPanelProps {
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function CommentsPanel({
+  resourceId,
   annotations,
   pendingAnnotation,
   annotateMode = true,
@@ -171,6 +174,7 @@ export function CommentsPanel({
   const handleSaveNewComment = () => {
     if (newCommentText.trim() && pendingAnnotation) {
       session?.client.mark.submit({
+        source: resourceId,
         motivation: 'commenting',
         selector: pendingAnnotation.selector,
         body: [{ type: 'TextualBody', value: newCommentText, purpose: 'commenting' }],
