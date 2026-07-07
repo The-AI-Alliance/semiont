@@ -34,7 +34,7 @@
   },
   "peerDependencies": {
     "gremlin": "^3.7.4",
-    "neo4j-driver": "^6.1.0"
+    "neo4j-driver": "^6.2.0"
   },
   "peerDependenciesMeta": {
     "neo4j-driver": {
