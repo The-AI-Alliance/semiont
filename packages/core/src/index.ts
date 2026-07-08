@@ -106,6 +106,8 @@ export type {
   Selector,
   GatheredContext,
   SelectionData,
+  JobType,
+  CollaboratorEntry,
 } from './payload-types';
 
 // Event utilities

@@ -11,6 +11,7 @@ import type {
   GraphConnection,
   Motivation,
   TagSchema,
+  CollaboratorEntry,
   components,
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
@@ -40,6 +41,9 @@ const ENTITY_TYPES_KEY = '_';
 /** Sentinel key for the singleton tag-schemas cache. */
 const TAG_SCHEMAS_KEY = '_';
 
+/** Sentinel key for the singleton collaborator-directory cache. */
+const AGENTS_KEY = '_';
+
 export class BrowseNamespace implements IBrowseNamespace {
   // ── Caches, backed by the RxJS-native `Cache<K, V>` primitive ───────────
   //
@@ -64,6 +68,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly annotationResources = new Map<AnnotationId, ResourceId>();
   private readonly entityTypesCache: Cache<string, string[]>;
   private readonly tagSchemasCache: Cache<string, TagSchema[]>;
+  private readonly agentsCache: Cache<string, CollaboratorEntry[]>;
   private readonly referencedByCache: Cache<ResourceId, ReferencedByEntry[]>;
   private readonly resourceEventsCache: Cache<ResourceId, StoredEventResponse[]>;
 
@@ -184,6 +189,18 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       return result.tagSchemas;
+    });
+
+    this.agentsCache = createCache<string, CollaboratorEntry[]>(async () => {
+      const result = await busRequest(
+        this.transport,
+        'browse:agents-requested',
+        {},
+        this.busTimeoutMs,
+      );
+      // Entries pass through unreshaped: `{ agent, servesJobTypes? }` — the
+      // capability field is the point of the wrapper (COLLABORATOR-DIRECTORY P1).
+      return result.agents;
     });
 
     this.referencedByCache = createCache<ResourceId, ReferencedByEntry[]>(async (resourceId) => {
@@ -318,6 +335,18 @@ export class BrowseNamespace implements IBrowseNamespace {
     return CacheObservable.from(this.tagSchemasCache.observe(TAG_SCHEMAS_KEY), () => this.tagSchemasCache.fetch(TAG_SCHEMAS_KEY));
   }
 
+  /**
+   * The KB's collaborator directory: its declared software agents (from the
+   * KB's worker/actor config, with `servesJobTypes` capabilities) and — once
+   * Persons land — its members. KB-wide singleton, cached for the client's
+   * lifetime; no membership-change event exists, so the only refresh triggers
+   * are `bus:resume-gap` (a backend restart with a changed roster necessarily
+   * presents as an SSE gap) and a fresh `await` (which always fetches).
+   */
+  agents(): CacheObservable<CollaboratorEntry[]> {
+    return CacheObservable.from(this.agentsCache.observe(AGENTS_KEY), () => this.agentsCache.fetch(AGENTS_KEY));
+  }
+
   referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]> {
     return CacheObservable.from(this.withScope(resourceId, this.referencedByCache.observe(resourceId)), () => this.referencedByCache.fetch(resourceId));
   }
@@ -441,6 +470,10 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.tagSchemasCache.invalidate(TAG_SCHEMAS_KEY);
   }
 
+  invalidateAgents(): void {
+    this.agentsCache.invalidate(AGENTS_KEY);
+  }
+
   invalidateReferencedBy(resourceId: ResourceId): void {
     this.referencedByCache.invalidate(resourceId);
   }
@@ -504,6 +537,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.annotationDetailCache.dispose();
     this.entityTypesCache.dispose();
     this.tagSchemasCache.dispose();
+    this.agentsCache.dispose();
     this.referencedByCache.dispose();
     this.resourceEventsCache.dispose();
     this.annotationResources.clear();
@@ -576,9 +610,13 @@ export class BrowseNamespace implements IBrowseNamespace {
         for (const rId of this.resourceEventsCache.keys()) this.invalidateResourceEvents(rId);
         for (const rId of this.referencedByCache.keys()) this.invalidateReferencedBy(rId);
       }
-      // Entity-types and tag-schemas are KB-wide lists — always refetch on any gap.
+      // Entity-types, tag-schemas, and the collaborator directory are KB-wide
+      // lists — always refetch on any gap. (For the directory, a gap is its one
+      // real staleness signal: a roster change means a backend restart, which
+      // presents as an SSE gap.)
       this.invalidateEntityTypes();
       this.invalidateTagSchemas();
+      this.invalidateAgents();
     });
 
     this.on('mark:delete-ok', (event) => {

@@ -406,17 +406,27 @@ describe('BrowseNamespace', () => {
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
-    it('bus:resume-gap (no scope) → invalidates both entity types AND tag schemas', async () => {
+    it('bus:resume-gap (no scope) → invalidates the KB-wide registries: entity types, tag schemas, agents', async () => {
       // The KB-wide registries always refetch on a gap regardless of
       // whether a specific scope was named — see browse.ts subscription.
+      // Count per channel: the collaborator directory joined the block
+      // (COLLABORATOR-DIRECTORY P3), and its invalidate fires a fetch even
+      // for the never-observed key (B8) — so a flat call count would
+      // conflate the three registries.
+      const fetches = (channel: string) =>
+        emitSpy.mock.calls.filter((call: unknown[]) => call[0] === channel).length;
+
       await firstDefined(browse.entityTypes());
       await firstDefined(browse.tagSchemas());
-      expect(emitSpy).toHaveBeenCalledTimes(2);
+      expect(fetches('browse:entity-types-requested')).toBe(1);
+      expect(fetches('browse:tag-schemas-requested')).toBe(1);
 
       eventBus.get('bus:resume-gap').next({} as any);
       await firstDefined(browse.entityTypes());
       await firstDefined(browse.tagSchemas());
-      expect(emitSpy).toHaveBeenCalledTimes(4);
+      expect(fetches('browse:entity-types-requested')).toBe(2);
+      expect(fetches('browse:tag-schemas-requested')).toBe(2);
+      expect(fetches('browse:agents-requested')).toBe(1); // B8: empty-key invalidate still refetches
     });
   });
 });
