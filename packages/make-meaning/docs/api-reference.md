@@ -29,7 +29,7 @@ Read actor. Handles all deterministic KB read queries — resources, annotations
 ```typescript
 import { Browser } from '@semiont/make-meaning';
 
-const browser = new Browser(kb.views, kb, eventBus, project, logger);
+const browser = new Browser(kb.views, kb, eventBus, project, config, logger);
 await browser.initialize();
 await browser.stop();
 ```
@@ -44,6 +44,7 @@ Responds to:
 - `browse:referenced-by-requested` → emits `browse:referenced-by-result` or `browse:referenced-by-failed`
 - `browse:entity-types-requested` → emits `browse:entity-types-result` or `browse:entity-types-failed`
 - `browse:tag-schemas-requested` → emits `browse:tag-schemas-result` or `browse:tag-schemas-failed`
+- `browse:agents-requested` → emits `browse:agents-result` or `browse:agents-failed` (the collaborator directory: declared software agents with DIDs and served job types, derived from the workers/actors inference config)
 - `browse:directory-requested` → emits `browse:directory-result` or `browse:directory-failed`
 
 ### Gatherer

@@ -19,6 +19,9 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
 
   return {
     services: {
+      // The agent roster derives DID domains from publicURL's hostname
+      // (COLLABORATOR-DIRECTORY P2) — same source the workers stamp on work.
+      backend: config.services?.backend,
       graph: config.services?.graph,
       vectors: config.services?.vectors,
       embedding: config.services?.embedding,

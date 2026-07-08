@@ -6,8 +6,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EventBus, resourceId, type Logger } from '@semiont/core';
+import { firstValueFrom, race, timer, map, take } from 'rxjs';
+import { EventBus, resourceId, agentToDid, type Logger } from '@semiont/core';
 import { Browser } from '../browser';
+import type { MakeMeaningConfig } from '../config';
 
 // ── fs mock ───────────────────────────────────────────────────────────────────
 
@@ -64,6 +66,8 @@ const defaultStat = { size: 1024, mtime: new Date('2026-01-01T00:00:00Z') };
 
 const mockKb = { graph: {}, views: {} } as any;
 
+const emptyConfig: MakeMeaningConfig = { services: {} };
+
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 describe('Browser actor', () => {
@@ -79,6 +83,7 @@ describe('Browser actor', () => {
       mockKb,
       eventBus,
       { root: PROJECT_ROOT } as any,
+      emptyConfig,
       mockLogger,
     );
     await browser.initialize();
@@ -205,6 +210,7 @@ describe('Browser actor', () => {
       mockKb,
       eventBus,
       { root: PROJECT_ROOT } as any,
+      emptyConfig,
       mockLogger,
     );
     await browser.initialize();
@@ -315,7 +321,7 @@ describe('Browser actor', () => {
       mockReferencedBy = vi.fn();
       mockGetResource = vi.fn();
       const kb = { graph: { getResourceReferencedBy: mockReferencedBy, getResource: mockGetResource } } as any;
-      browser = new Browser(makeViews([]) as any, kb, eventBus, { root: PROJECT_ROOT } as any, mockLogger);
+      browser = new Browser(makeViews([]) as any, kb, eventBus, { root: PROJECT_ROOT } as any, emptyConfig, mockLogger);
       await browser.initialize();
     });
 
@@ -408,6 +414,131 @@ describe('Browser actor', () => {
       const result = await p;
       expect(result.correlationId).toBe('corr-8');
       expect(result.message).toBe('Resource lookup failed');
+    });
+  });
+
+  // ── collaborator directory (COLLABORATOR-DIRECTORY P2) ────────────────────
+
+  describe('agents directory', () => {
+    const PUBLIC_URL = 'http://localhost:4000';
+
+    // The DID the worker side stamps on generated work: domain is the backend
+    // URL's hostname (worker-main's parseBackendUrl does `parsed.hostname` on
+    // the URL it connects to) — the directory must mint the identical DIDs.
+    const did = (provider: string, model: string) =>
+      agentToDid({ domain: new URL(PUBLIC_URL).hostname, provider, model });
+
+    async function withBrowser(
+      config: MakeMeaningConfig,
+      fn: (bus: EventBus) => Promise<void>,
+    ) {
+      const bus = new EventBus();
+      const b = new Browser(makeViews([]) as any, mockKb, bus, { root: PROJECT_ROOT } as any, config, mockLogger);
+      await b.initialize();
+      try {
+        await fn(bus);
+      } finally {
+        await b.stop();
+        bus.destroy();
+      }
+    }
+
+    function requestAgents(bus: EventBus) {
+      const reply = firstValueFrom(
+        race(
+          bus.get('browse:agents-result').pipe(map((e) => ({ kind: 'result' as const, e }))),
+          bus.get('browse:agents-failed').pipe(map((e) => ({ kind: 'failed' as const, e }))),
+          timer(300).pipe(
+            map((): never => {
+              throw new Error('no browse:agents subscriber answered');
+            }),
+          ),
+        ).pipe(take(1)),
+      );
+      bus.get('browse:agents-requested').next({ correlationId: 'cid-agents' });
+      return reply;
+    }
+
+    it('answers the deduplicated software roster: worker-derivation DIDs, resolved capabilities', async () => {
+      await withBrowser(
+        {
+          services: { backend: { publicURL: PUBLIC_URL } },
+          workers: {
+            default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'secret-key-do-not-leak' },
+            generation: { type: 'anthropic', model: 'claude-sonnet-4-5' },
+          },
+          // overlaps workers.default — must dedup into one entry
+          actors: { matcher: { type: 'anthropic', model: 'claude-haiku-4-5' } },
+        },
+        async (bus) => {
+          const r = await requestAgents(bus);
+          if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
+          const agents = r.e.response.agents;
+          expect(agents).toHaveLength(2);
+
+          const entryFor = (model: string) =>
+            agents.find((a) => a.agent['@type'] === 'Software' && a.agent.model === model);
+
+          // workers.default expands to every job type not explicitly assigned
+          // elsewhere ('default' is NOT a JobType and must not appear).
+          expect(entryFor('claude-haiku-4-5')).toMatchObject({
+            agent: {
+              '@type': 'Software',
+              '@id': did('anthropic', 'claude-haiku-4-5'),
+              provider: 'anthropic',
+              model: 'claude-haiku-4-5',
+            },
+            servesJobTypes: [
+              'reference-annotation',
+              'highlight-annotation',
+              'assessment-annotation',
+              'comment-annotation',
+              'tag-annotation',
+            ],
+          });
+          expect(entryFor('claude-sonnet-4-5')).toMatchObject({
+            agent: { '@id': did('anthropic', 'claude-sonnet-4-5') },
+            servesJobTypes: ['generation'],
+          });
+
+          // credentials never leak into the directory
+          expect(JSON.stringify(r.e)).not.toContain('secret-key-do-not-leak');
+        },
+      );
+    });
+
+    it('omits servesJobTypes for an actors-only agent', async () => {
+      await withBrowser(
+        {
+          services: { backend: { publicURL: PUBLIC_URL } },
+          actors: { gatherer: { type: 'ollama', model: 'llama3' } },
+        },
+        async (bus) => {
+          const r = await requestAgents(bus);
+          if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
+          expect(r.e.response.agents).toHaveLength(1);
+          const entry = r.e.response.agents[0];
+          expect(entry.agent['@id']).toBe(did('ollama', 'llama3'));
+          expect(entry).not.toHaveProperty('servesJobTypes');
+        },
+      );
+    });
+
+    it('answers an empty roster when no workers or actors are declared', async () => {
+      await withBrowser({ services: { backend: { publicURL: PUBLIC_URL } } }, async (bus) => {
+        const r = await requestAgents(bus);
+        if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
+        expect(r.e.response.agents).toEqual([]);
+      });
+    });
+
+    it('fails naming the missing config key when services.backend is absent', async () => {
+      await withBrowser({ services: {} }, async (bus) => {
+        const r = await requestAgents(bus);
+        if (r.kind !== 'failed') throw new Error('expected failed');
+        expect(r.e.correlationId).toBe('cid-agents');
+        expect(r.e.message).toContain('services.backend.publicURL');
+      });
     });
   });
 });

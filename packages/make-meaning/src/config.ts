@@ -38,6 +38,12 @@ export interface WorkerInferenceConfig {
 /** Narrow config type — only the fields make-meaning actually reads */
 export interface MakeMeaningConfig {
   services: {
+    /**
+     * Backend service. The agent roster derives DID domains from
+     * `publicURL`'s hostname (COLLABORATOR-DIRECTORY P2) — the loader
+     * guarantees publicURL whenever the backend section exists.
+     */
+    backend?: { publicURL: string };
     graph?: GraphServiceConfig;
     vectors?: VectorsServiceConfig;
     embedding?: EmbeddingServiceConfig;
