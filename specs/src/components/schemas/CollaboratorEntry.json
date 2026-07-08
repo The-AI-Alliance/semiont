@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the job types it serves. Actor-role-only agents (gatherer/matcher) and Persons omit servesJobTypes.",
+  "properties": {
+    "agent": { "$ref": "./Agent.json" },
+    "servesJobTypes": {
+      "type": "array",
+      "items": { "$ref": "./JobType.json" },
+      "description": "Job types this agent is declared to serve (from the KB's workers.* config sections). Absent for Persons and for agents declared only under actor roles."
+    }
+  },
+  "required": ["agent"]
+}

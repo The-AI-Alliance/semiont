@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "description": "Request to browse the KB's collaborator directory (its declared Agents)",
+  "properties": {
+    "correlationId": { "type": "string" }
+  },
+  "required": ["correlationId"]
+}
