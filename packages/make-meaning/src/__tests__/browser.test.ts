@@ -420,13 +420,13 @@ describe('Browser actor', () => {
   // ── collaborator directory (COLLABORATOR-DIRECTORY P2) ────────────────────
 
   describe('agents directory', () => {
-    const PUBLIC_URL = 'http://localhost:4000';
+    // The KB's canonical identity — the value /api/tokens/agent mints worker
+    // DIDs from. The directory must mint the identical DIDs (one value, one
+    // owner; .plans/bugs/agent-did-host-skew.md).
+    const SITE_DOMAIN = 'kb.example';
 
-    // The DID the worker side stamps on generated work: domain is the backend
-    // URL's hostname (worker-main's parseBackendUrl does `parsed.hostname` on
-    // the URL it connects to) — the directory must mint the identical DIDs.
     const did = (provider: string, model: string) =>
-      agentToDid({ domain: new URL(PUBLIC_URL).hostname, provider, model });
+      agentToDid({ domain: SITE_DOMAIN, provider, model });
 
     async function withBrowser(
       config: MakeMeaningConfig,
@@ -462,7 +462,8 @@ describe('Browser actor', () => {
     it('answers the deduplicated software roster: worker-derivation DIDs, resolved capabilities', async () => {
       await withBrowser(
         {
-          services: { backend: { publicURL: PUBLIC_URL } },
+          services: {},
+          site: { domain: SITE_DOMAIN },
           workers: {
             default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'secret-key-do-not-leak' },
             generation: { type: 'anthropic', model: 'claude-sonnet-4-5' },
@@ -510,7 +511,8 @@ describe('Browser actor', () => {
     it('omits servesJobTypes for an actors-only agent', async () => {
       await withBrowser(
         {
-          services: { backend: { publicURL: PUBLIC_URL } },
+          services: {},
+          site: { domain: SITE_DOMAIN },
           actors: { gatherer: { type: 'ollama', model: 'llama3' } },
         },
         async (bus) => {
@@ -525,19 +527,19 @@ describe('Browser actor', () => {
     });
 
     it('answers an empty roster when no workers or actors are declared', async () => {
-      await withBrowser({ services: { backend: { publicURL: PUBLIC_URL } } }, async (bus) => {
+      await withBrowser({ services: {}, site: { domain: SITE_DOMAIN } }, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
         expect(r.e.response.agents).toEqual([]);
       });
     });
 
-    it('fails naming the missing config key when services.backend is absent', async () => {
+    it('fails naming the missing config key when site.domain is absent', async () => {
       await withBrowser({ services: {} }, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'failed') throw new Error('expected failed');
         expect(r.e.correlationId).toBe('cid-agents');
-        expect(r.e.message).toContain('services.backend.publicURL');
+        expect(r.e.message).toContain('site.domain');
       });
     });
   });

@@ -38,16 +38,18 @@ export interface WorkerInferenceConfig {
 /** Narrow config type — only the fields make-meaning actually reads */
 export interface MakeMeaningConfig {
   services: {
-    /**
-     * Backend service. The agent roster derives DID domains from
-     * `publicURL`'s hostname (COLLABORATOR-DIRECTORY P2) — the loader
-     * guarantees publicURL whenever the backend section exists.
-     */
-    backend?: { publicURL: string };
     graph?: GraphServiceConfig;
     vectors?: VectorsServiceConfig;
     embedding?: EmbeddingServiceConfig;
   };
+  /**
+   * The KB's canonical identity domain — the SAME value `/api/tokens/agent`
+   * mints agent DIDs from (backend `site.domain`). The agent roster consumes
+   * it verbatim, so directory DIDs and work-stamped `generator` DIDs are
+   * equal by construction; it is never derived from service topology
+   * (.plans/bugs/agent-did-host-skew.md).
+   */
+  site?: { domain: string };
   /** Per-actor inference config */
   actors?: ActorInferenceConfig;
   /** Per-worker-type inference config */

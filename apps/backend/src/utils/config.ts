@@ -19,13 +19,14 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
 
   return {
     services: {
-      // The agent roster derives DID domains from publicURL's hostname
-      // (COLLABORATOR-DIRECTORY P2) — same source the workers stamp on work.
-      backend: config.services?.backend,
       graph: config.services?.graph,
       vectors: config.services?.vectors,
       embedding: config.services?.embedding,
     },
+    // The KB's canonical identity — the agent roster mints DIDs from this,
+    // the SAME value /api/tokens/agent uses (agent-did-host-skew fix). The
+    // value, not JWTService, so make-meaning stays backend-agnostic.
+    ...(config.site?.domain ? { site: { domain: config.site.domain } } : {}),
     actors: meta?.actors,
     workers: meta?.workers,
   };

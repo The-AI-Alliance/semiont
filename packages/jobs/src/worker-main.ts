@@ -31,7 +31,7 @@ import { homedir, hostname } from 'os';
 import { join } from 'path';
 import {
   createTomlConfigLoader,
-  softwareToAgent,
+  didToAgent,
   type components,
   type EnvironmentConfig,
 } from '@semiont/core';
@@ -181,11 +181,12 @@ async function startAgentWorker(group: AgentGroup): Promise<{ session: SemiontSe
   const { protocol, host, port } = parseBackendUrl(backendBaseUrl);
   const { token: initialToken, did } = await authenticateAgent(inference.type, inference.model);
 
-  const generator: Agent = softwareToAgent({
-    domain: host,
-    provider: inference.type,
-    model: inference.model,
-  });
+  // The exchange minted this worker's canonical DID (from the backend's
+  // site.domain) and we carry it VERBATIM — never re-derive identity from
+  // the URL we happen to dial (`host` is connection topology only). One
+  // logical agent previously got two DIDs this way:
+  // .plans/bugs/agent-did-host-skew.md.
+  const generator: Agent = didToAgent(did);
 
   const kbId = `agent-${inference.type}-${inference.model}-${hostname()}`;
   const endpoint: HttpEndpoint = { kind: 'http', host, port, protocol };
