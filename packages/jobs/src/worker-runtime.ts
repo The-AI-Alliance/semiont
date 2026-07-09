@@ -1,0 +1,189 @@
+/**
+ * Worker Runtime — the importable half of the worker host.
+ *
+ * `worker-main.ts` is a process entrypoint (config at module scope,
+ * `main()` at import) and therefore untestable by construction; everything
+ * a unit test needs to reach lives here instead, fully parameterized — no
+ * module-scope env reads, no side effects at import.
+ *
+ * The load-bearing contract this module owns (and the reason it was
+ * extracted): a worker's stamped identity is the DID the
+ * `/api/tokens/agent` exchange MINTED for it, carried verbatim — never
+ * re-derived from the URL the worker happens to dial. One logical agent
+ * previously got two DIDs that way (.plans/bugs/agent-did-host-skew.md).
+ */
+
+import { startWorkerProcess } from './worker-process';
+import type { InferenceClient } from '@semiont/inference';
+import { hostname } from 'os';
+import { didToAgent, baseUrl, type components, type Logger, type AccessToken } from '@semiont/core';
+import {
+  InMemorySessionStorage,
+  SemiontClient,
+  SemiontSession,
+  kbBackendUrl,
+  setStoredSession,
+  type HttpEndpoint,
+  type KnowledgeBase,
+} from '@semiont/sdk';
+import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
+import { BehaviorSubject } from 'rxjs';
+
+type Agent = components['schemas']['Agent'];
+
+/** Shape of each resolved worker inference entry under `_metadata.workers`. */
+export type ResolvedInference = {
+  type: 'anthropic' | 'ollama';
+  model: string;
+  apiKey?: string;
+  endpoint?: string;
+  baseURL?: string;
+};
+
+/** One agent identity: an inference engine and the job types it serves. */
+export interface AgentGroup {
+  inference: ResolvedInference;
+  jobTypes: string[];
+  client: InferenceClient;
+}
+
+export interface WorkerRuntimeOptions {
+  group: AgentGroup;
+  /** The backend URL this worker dials — connection topology ONLY, never identity. */
+  backendBaseUrl: string;
+  /** Shared secret for `/api/tokens/agent`. */
+  workerSecret: string;
+  logger: Logger;
+}
+
+export function parseBackendUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
+  const parsed = new URL(url);
+  const protocol = (parsed.protocol.replace(':', '') === 'https' ? 'https' : 'http') as 'http' | 'https';
+  const host = parsed.hostname;
+  const port = parsed.port
+    ? Number(parsed.port)
+    : protocol === 'https' ? 443 : 80;
+  return { protocol, host, port };
+}
+
+/**
+ * Exchange the worker secret for this agent's JWT and its canonical DID.
+ * The DID is minted by the backend (from its `site.domain`) — the caller
+ * carries it verbatim.
+ */
+export async function authenticateAgent(opts: {
+  backendBaseUrl: string;
+  workerSecret: string;
+  provider: string;
+  model: string;
+}): Promise<{ token: string; did: string }> {
+  const { backendBaseUrl, workerSecret, provider, model } = opts;
+  if (!workerSecret) {
+    throw new Error('SEMIONT_WORKER_SECRET is required to authenticate worker agents');
+  }
+
+  const response = await fetch(`${backendBaseUrl}/api/tokens/agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: workerSecret, provider, model }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Agent authentication failed for ${provider}:${model}: ${response.status} ${response.statusText}`);
+  }
+
+  return await response.json() as { token: string; did: string };
+}
+
+export async function startAgentWorker(
+  opts: WorkerRuntimeOptions,
+): Promise<{ session: SemiontSession; dispose: () => Promise<void> }> {
+  const { group, backendBaseUrl, workerSecret, logger } = opts;
+  const { inference } = group;
+
+  const { protocol, host, port } = parseBackendUrl(backendBaseUrl);
+  const { token: initialToken, did } = await authenticateAgent({
+    backendBaseUrl,
+    workerSecret,
+    provider: inference.type,
+    model: inference.model,
+  });
+
+  // The exchange minted this worker's canonical DID (from the backend's
+  // site.domain) and we carry it VERBATIM — never re-derive identity from
+  // the URL we happen to dial (`host` is connection topology only). One
+  // logical agent previously got two DIDs this way:
+  // .plans/bugs/agent-did-host-skew.md.
+  const generator: Agent = didToAgent(did);
+
+  const kbId = `agent-${inference.type}-${inference.model}-${hostname()}`;
+  const endpoint: HttpEndpoint = { kind: 'http', host, port, protocol };
+  const kb: KnowledgeBase = {
+    id: kbId,
+    label: `${inference.type} / ${inference.model} @ ${host}`,
+    email: `agent@${host}`,
+    endpoint,
+  };
+  const storage = new InMemorySessionStorage();
+  setStoredSession(storage, kbId, { access: initialToken, refresh: '' });
+
+  const token$ = new BehaviorSubject<AccessToken | null>(null);
+  let session!: SemiontSession;
+  const transport = new HttpTransport({
+    baseUrl: baseUrl(kbBackendUrl(endpoint)),
+    token$,
+    tokenRefresher: () => session.refresh().then((t) => t ?? null),
+  });
+  const content = new HttpContentTransport(transport);
+  const client = new SemiontClient(transport, content, transport);
+  session = new SemiontSession({
+    kb,
+    storage,
+    client,
+    token$,
+    refresh: async () => {
+      try {
+        const { token } = await authenticateAgent({
+          backendBaseUrl,
+          workerSecret,
+          provider: inference.type,
+          model: inference.model,
+        });
+        return token;
+      } catch (err) {
+        logger.error('Agent token refresh failed', {
+          error: err instanceof Error ? err.message : String(err),
+          agent: did,
+        });
+        return null;
+      }
+    },
+    onError: (err) => {
+      logger.error('Session error', { code: err.code, message: err.message, agent: did });
+    },
+  });
+  await session.ready;
+
+  const adapter = startWorkerProcess({
+    session,
+    jobTypes: group.jobTypes,
+    inferenceClient: group.client,
+    generator,
+    logger,
+  });
+
+  logger.info('Agent ready', {
+    did,
+    provider: inference.type,
+    model: inference.model,
+    jobTypes: group.jobTypes,
+  });
+
+  return {
+    session,
+    dispose: async () => {
+      adapter.dispose();
+      await session.dispose();
+    },
+  };
+}
