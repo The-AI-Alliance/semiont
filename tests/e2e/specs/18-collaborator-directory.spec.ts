@@ -59,7 +59,11 @@ const JOB_TYPES = [
   'tag-annotation',
 ] as const;
 
-const DID_RE = /^did:web:([^:]+):agents:([^:]+):([^:]+)$/;
+// Host may be `host` or `host:port` (site.domain is embedded raw; the
+// read-side `didToAgent` deliberately scans from the RIGHT so host:port
+// colons don't fool it — did-utils.ts). Anchor on `:agents:` like the
+// parser does; group 1 is the whole host (incl. any port).
+const DID_RE = /^did:web:(.+):agents:([^:]+):([^:]+)$/;
 
 test.describe('collaborator directory (browse.agents)', () => {
   test('directory lists the TOML software roster and attribution DIDs are members', async () => {
