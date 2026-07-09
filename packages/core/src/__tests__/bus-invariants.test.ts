@@ -60,6 +60,7 @@ const FROZEN_BRIDGED = [
   'browse:referenced-by-result', 'browse:referenced-by-failed',
   'browse:entity-types-result', 'browse:entity-types-failed',
   'browse:tag-schemas-result', 'browse:tag-schemas-failed',
+  'browse:agents-result', 'browse:agents-failed',
   'browse:directory-result', 'browse:directory-failed',
   'browse:annotation-context-result', 'browse:annotation-context-failed',
   'mark:delete-ok', 'mark:delete-failed',

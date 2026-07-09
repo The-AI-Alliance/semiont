@@ -13,7 +13,7 @@ This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/
 Five **access actors** mediate every read and write — the bus-facing interface of the Knowledge Base:
 
 - **Stower** (write) — the single write gateway to the Knowledge Base; handles all resource and annotation mutations and job lifecycle events
-- **Browser** (read) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type and tag-schema listing, and directory browse (merging filesystem listings with KB metadata)
+- **Browser** (read) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type and tag-schema listing, the collaborator directory (the KB's declared software agents, derived from the workers/actors inference config), and directory browse (merging filesystem listings with KB metadata)
 - **Gatherer** (context assembly) — assembles gathered context for annotations (`gather:requested`) and resources (`gather:resource-requested`); searches vectors for semantically similar passages (adds `semanticContext` to `GatheredContext`)
 - **Matcher** (search/link) — context-driven candidate search with multi-source retrieval, composite structural scoring, and optional LLM semantic scoring
 - **CloneTokenManager** (yield) — manages clone token lifecycle for resource cloning
@@ -130,7 +130,7 @@ graph TB
     end
 
     BUS -->|"yield:create, yield:update, yield:mv<br/>mark:create, mark:delete, mark:update-body<br/>frame:add-entity-type, frame:add-tag-schema<br/>mark:archive, mark:unarchive, mark:update-entity-types<br/>job:start, job:complete, job:fail"| STOWER
-    BUS -->|"browse:resource-requested, browse:resources-requested<br/>browse:annotations-requested, browse:annotation-requested<br/>browse:events-requested, browse:annotation-history-requested<br/>browse:referenced-by-requested, browse:entity-types-requested<br/>browse:tag-schemas-requested, browse:directory-requested"| BROWSER
+    BUS -->|"browse:resource-requested, browse:resources-requested<br/>browse:annotations-requested, browse:annotation-requested<br/>browse:events-requested, browse:annotation-history-requested<br/>browse:referenced-by-requested, browse:entity-types-requested<br/>browse:tag-schemas-requested, browse:agents-requested<br/>browse:directory-requested"| BROWSER
     BUS -->|"gather:requested<br/>gather:resource-requested"| GATHERER
     BUS -->|"match:search-requested"| MATCHER
     BUS -->|"domain events:<br/>yield:created, yield:updated<br/>yield:representation-added<br/>mark:added, mark:removed, mark:archived"| SMELTER
@@ -138,7 +138,7 @@ graph TB
     BUS -->|"yield:clone-token-requested<br/>yield:clone-resource-requested<br/>yield:clone-create"| CTM
 
     STOWER -->|"yield:create-ok, yield:update-ok, yield:move-ok<br/>mark:delete-ok, *-failed replies<br/>(domain events are republished onto the bus<br/>by the EventStore: yield:created, mark:added, ...)"| BUS
-    BROWSER -->|"browse:resource-result, browse:resources-result<br/>browse:annotations-result, browse:annotation-result<br/>browse:events-result, browse:annotation-history-result<br/>browse:referenced-by-result, browse:entity-types-result<br/>browse:tag-schemas-result, browse:directory-result"| BUS
+    BROWSER -->|"browse:resource-result, browse:resources-result<br/>browse:annotations-result, browse:annotation-result<br/>browse:events-result, browse:annotation-history-result<br/>browse:referenced-by-result, browse:entity-types-result<br/>browse:tag-schemas-result, browse:agents-result<br/>browse:directory-result"| BUS
     GATHERER -->|"gather:complete, gather:failed<br/>gather:resource-complete, gather:resource-failed"| BUS
     MATCHER -->|"match:search-results, match:search-failed"| BUS
     CTM -->|"yield:clone-token-generated<br/>yield:clone-resource-result<br/>yield:clone-created"| BUS

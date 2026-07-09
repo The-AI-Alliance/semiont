@@ -14,6 +14,8 @@
  * - browse:referenced-by-requested — find annotations in the KB graph that reference a resource
  * - browse:entity-types-requested — list entity types from the project projection
  * - browse:tag-schemas-requested — list tag schemas from the project projection
+ * - browse:agents-requested — the collaborator directory: the KB's declared software
+ *   agents, derived from the workers + actors inference config (COLLABORATOR-DIRECTORY)
  * - browse:directory-requested — list a project directory, merging fs + ViewStorage
  */
 
@@ -34,6 +36,8 @@ import { readTagSchemasProjection } from './views/tag-schemas-reader';
 import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
 import { assembleResourceGraph } from './resource-graph';
+import type { MakeMeaningConfig } from './config';
+import { deriveAgentRoster } from './agent-roster';
 
 type DirectoryEntry = components['schemas']['DirectoryEntry'];
 type FileEntry      = components['schemas']['FileEntry'];
@@ -48,6 +52,7 @@ export class Browser {
     private kb: KnowledgeBase,
     private eventBus: EventBus,
     private project: SemiontProject,
+    private config: MakeMeaningConfig,
     logger: Logger,
   ) {
     this.logger = logger;
@@ -90,6 +95,7 @@ export class Browser {
       pipe('browse:referenced-by-requested',     (e) => this.handleReferencedBy(e)).subscribe({ error: errorHandler }),
       pipe('browse:entity-types-requested',      (e) => this.handleEntityTypes(e)).subscribe({ error: errorHandler }),
       pipe('browse:tag-schemas-requested',       (e) => this.handleTagSchemas(e)).subscribe({ error: errorHandler }),
+      pipe('browse:agents-requested',            (e) => this.handleBrowseAgents(e)).subscribe({ error: errorHandler }),
       pipe('browse:directory-requested',         (e) => this.handleBrowseDirectory(e)).subscribe({ error: errorHandler }),
     );
   }
@@ -377,6 +383,24 @@ export class Browser {
     } catch (error) {
       this.logger.error('Tag schemas read failed', { error: errField(error) });
       this.eventBus.get('browse:tag-schemas-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleBrowseAgents(event: EventMap['browse:agents-requested']): Promise<void> {
+    try {
+      // Derived per request from the config sections that route work — the
+      // declared roster, cheap enough that no caching layer is warranted.
+      const agents = deriveAgentRoster(this.config);
+      this.eventBus.get('browse:agents-result').next({
+        correlationId: event.correlationId,
+        response: { agents },
+      });
+    } catch (error) {
+      this.logger.error('Agent roster derivation failed', { error: errField(error) });
+      this.eventBus.get('browse:agents-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });

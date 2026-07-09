@@ -4,17 +4,7 @@
     "jobId": {
       "type": "string"
     },
-    "type": {
-      "type": "string",
-      "enum": [
-        "reference-annotation",
-        "generation",
-        "highlight-annotation",
-        "assessment-annotation",
-        "comment-annotation",
-        "tag-annotation"
-      ]
-    },
+    "type": { "$ref": "./JobType.json" },
     "status": {
       "type": "string",
       "enum": [

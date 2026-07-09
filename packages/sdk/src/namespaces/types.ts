@@ -40,6 +40,7 @@ import type {
   GatheredContext,
   ProgressEvent,
   TagSchema,
+  CollaboratorEntry,
   UserDID,
 } from '@semiont/core';
 
@@ -202,6 +203,13 @@ export interface BrowseNamespace {
   annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation>;
   entityTypes(): CacheObservable<string[]>;
   tagSchemas(): CacheObservable<TagSchema[]>;
+  /**
+   * The KB's collaborator directory — declared software agents (with
+   * `servesJobTypes` capabilities) plus, when Persons land, its members.
+   * KB-wide singleton; cached for the client lifetime, refreshed on
+   * `bus:resume-gap`.
+   */
+  agents(): CacheObservable<CollaboratorEntry[]>;
   referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]>;
   events(resourceId: ResourceId): CacheObservable<StoredEventResponse[]>;
 

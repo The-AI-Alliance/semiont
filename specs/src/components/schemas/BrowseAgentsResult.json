@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "Result of browsing the collaborator directory",
+  "properties": {
+    "correlationId": { "type": "string" },
+    "response": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": { "$ref": "./CollaboratorEntry.json" }
+        }
+      },
+      "required": ["agents"]
+    }
+  },
+  "required": ["correlationId", "response"]
+}

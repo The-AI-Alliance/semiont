@@ -97,6 +97,35 @@ function fakeBusResumeGap(scope: string | undefined, reason: string): EventMap['
 }
 
 /**
+ * The Browser's P2 reply, verbatim shape (.plans/COLLABORATOR-DIRECTORY.md):
+ * `{ agents: CollaboratorEntry[] }` where an entry is `{ agent, servesJobTypes? }`.
+ * One worker agent WITH capabilities, one actors-only agent WITHOUT — the sdk
+ * must pass both through unreshaped (no flattening to Agent[]).
+ */
+const MOCK_COLLABORATORS = [
+  {
+    agent: {
+      '@type': 'Software',
+      '@id': 'did:web:kb.test:agents:anthropic:claude-haiku-4-5',
+      name: 'anthropic claude-haiku-4-5',
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5',
+    },
+    servesJobTypes: ['reference-annotation', 'generation'],
+  },
+  {
+    agent: {
+      '@type': 'Software',
+      '@id': 'did:web:kb.test:agents:anthropic:claude-sonnet-4-5',
+      name: 'anthropic claude-sonnet-4-5',
+      provider: 'anthropic',
+      model: 'claude-sonnet-4-5',
+    },
+    // actors-only (gatherer/matcher): no servesJobTypes — must stay absent.
+  },
+];
+
+/**
  * Test harness: a mock ActorStateUnit whose responses are parameterized so
  * individual tests can control timing, delay, and error behavior.
  */
@@ -108,6 +137,10 @@ interface HarnessOptions {
   rejectNext?: number;
   /** State subject so tests can drive reconnect-lifecycle behavior. */
   state$?: BehaviorSubject<ConnectionState>;
+  /** Channels the harness never answers — for timeout-path tests. */
+  silentChannels?: string[];
+  /** Threaded to BrowseNamespace so timeout tests run on short real time. */
+  busTimeoutMs?: number;
 }
 
 function createHarness(opts: HarnessOptions = {}) {
@@ -117,9 +150,11 @@ function createHarness(opts: HarnessOptions = {}) {
     rejectRemaining: opts.rejectNext ?? 0,
     annotationCount: opts.annotationCountAfterReset ?? 1,
   };
+  const silentChannels = opts.silentChannels ?? [];
 
   const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
     const correlationId = payload.correlationId as string;
+    if (silentChannels.includes(channel)) return; // request swallowed — no reply ever
 
     let resultChannel: string;
     let response: Record<string, unknown>;
@@ -164,6 +199,11 @@ function createHarness(opts: HarnessOptions = {}) {
         response = { events: [], total: 0, resourceId: (payload.resourceId as string) ?? 'res-1' };
         break;
       }
+      case 'browse:agents-requested': {
+        resultChannel = 'browse:agents-result';
+        response = { agents: MOCK_COLLABORATORS };
+        break;
+      }
       default:
         return;
     }
@@ -203,7 +243,12 @@ function createHarness(opts: HarnessOptions = {}) {
   };
 
   const eventBus = new EventBus();
-  const browse = new BrowseNamespace(transport, eventBus, content);
+  const browse = new BrowseNamespace(
+    transport,
+    eventBus,
+    content,
+    opts.busTimeoutMs !== undefined ? { busTimeoutMs: opts.busTimeoutMs } : undefined,
+  );
 
   return { browse, eventBus, emitSpy, state };
 }
@@ -714,6 +759,65 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       await firstDefined(browse.resource(RID));
       browse.dispose();
       expect(() => browse.dispose()).not.toThrow();
+    });
+  });
+
+  // P3 of .plans/COLLABORATOR-DIRECTORY.md — the collaborator directory.
+  // `agents()` is the third KB-wide singleton (tagSchemas pattern): unscoped,
+  // sentinel-keyed, entries passed through UNRESHAPED (`servesJobTypes` is the
+  // field the P1 wrapper exists for — a flattening implementation must fail here).
+  describe('browse.agents() — collaborator directory', () => {
+    it('serves CollaboratorEntry[] unreshaped — servesJobTypes intact, absent stays absent — and caches (one fetch)', async () => {
+      const { browse, emitSpy } = createHarness();
+
+      const entries = await firstDefined(browse.agents());
+      expect(entries).toEqual(MOCK_COLLABORATORS);
+
+      await firstDefined(browse.agents());
+      const agentFetches = emitSpy.mock.calls.filter(([ch]) => ch === 'browse:agents-requested').length;
+      expect(agentFetches).toBe(1);
+    });
+
+    it('B16: browse.dispose() completes an agents() subscriber — the new cache is in the dispose list', async () => {
+      const { browse } = createHarness();
+      const events: string[] = [];
+      browse.agents().subscribe({
+        next: (v) => { if (v !== undefined) events.push('next'); },
+        error: () => events.push('error'),
+        complete: () => events.push('complete'),
+      });
+      await flush();
+
+      browse.dispose();
+
+      expect(events).toEqual(['next', 'complete']);
+    });
+
+    it('bus:resume-gap refetches the roster alongside the other KB-wide singletons', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      await firstDefined(browse.agents());
+
+      // The roster's one real staleness event — a backend restart with a
+      // changed TOML — necessarily presents as an SSE gap.
+      eventBus.get('bus:resume-gap').next(fakeBusResumeGap(undefined, 'retention window exceeded'));
+      await flush();
+
+      const agentFetches = emitSpy.mock.calls.filter(([ch]) => ch === 'browse:agents-requested').length;
+      expect(agentFetches).toBe(2);
+    });
+
+    it('threads busTimeoutMs: an unanswered roster request rejects bus.timeout at the configured deadline', async () => {
+      // Silence the B14 breadcrumbs this deliberately-failing chain emits.
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const { browse } = createHarness({
+          silentChannels: ['browse:agents-requested'],
+          busTimeoutMs: 60,
+        });
+        await expect(browse.agents()).rejects.toMatchObject({ code: 'bus.timeout' });
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
   });
 });

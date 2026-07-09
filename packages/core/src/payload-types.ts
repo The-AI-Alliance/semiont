@@ -20,3 +20,12 @@ export type Selector =
 
 export type GatheredContext = components['schemas']['GatheredContext'];
 export type SelectionData = components['schemas']['SelectionData'];
+export type JobType = components['schemas']['JobType'];
+
+/**
+ * One entry of the collaborator directory (`browse:agents-result`): a typed
+ * `Agent` plus, for software agents drawn from the KB's worker config, the
+ * job types it serves. Persons and actor-role-only agents omit
+ * `servesJobTypes`. See .plans/COLLABORATOR-DIRECTORY.md.
+ */
+export type CollaboratorEntry = components['schemas']['CollaboratorEntry'];

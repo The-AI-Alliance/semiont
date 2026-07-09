@@ -258,6 +258,10 @@ export type EventMap = {
   'browse:tag-schemas-result': components['schemas']['BrowseTagSchemasResult'];
   'browse:tag-schemas-failed': { correlationId: string } & components['schemas']['CommandError'];
 
+  'browse:agents-requested': components['schemas']['BrowseAgentsRequest'];
+  'browse:agents-result': components['schemas']['BrowseAgentsResult'];
+  'browse:agents-failed': { correlationId: string } & components['schemas']['CommandError'];
+
   'browse:directory-requested': components['schemas']['BrowseDirectoryRequest'];
   'browse:directory-result': components['schemas']['BrowseDirectoryResult'];
   'browse:directory-failed': { correlationId: string; path: string } & components['schemas']['CommandError'];
@@ -552,6 +556,9 @@ export const CHANNEL_SCHEMAS = {
   'browse:tag-schemas-requested':     'BrowseTagSchemasRequest',
   'browse:tag-schemas-result':        'BrowseTagSchemasResult',
   'browse:tag-schemas-failed':        null,
+  'browse:agents-requested':          'BrowseAgentsRequest',
+  'browse:agents-result':             'BrowseAgentsResult',
+  'browse:agents-failed':             null,
   'browse:directory-requested':       'BrowseDirectoryRequest',
   'browse:directory-result':          'BrowseDirectoryResult',
   'browse:directory-failed':          null, // { correlationId; path } & CommandError
