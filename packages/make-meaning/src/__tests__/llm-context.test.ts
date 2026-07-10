@@ -98,7 +98,7 @@ describe('LLM Context', () => {
     kb = { eventStore, views: eventStore.viewStorage, content: new WorkingTreeStore(project, mockLogger), graph: graphDb, projectionsDir: project.projectionsDir, graphConsumer: {} as any };
 
     // Start Stower
-    stower = new Stower(kb, eventBus, mockLogger);
+    stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();
 
     // Create a test resource

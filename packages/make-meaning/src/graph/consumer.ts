@@ -380,7 +380,11 @@ export class GraphDBConsumer {
         {
           const rid = makeResourceId(event.resourceId);
           const doc = await graphDb.getResource(rid);
-          if (doc) {
+          // Idempotent fold, mirroring the view materializer's includes-guard:
+          // duplicate -added events (stale caller diff base; historical
+          // duplicates on rebuild) must not duplicate the tag — the graph and
+          // the view are projections of one history and must agree.
+          if (doc && !(doc.entityTypes || []).includes(event.payload.entityType)) {
             await graphDb.updateResource(rid, {
               entityTypes: [...(doc.entityTypes || []), event.payload.entityType],
             });

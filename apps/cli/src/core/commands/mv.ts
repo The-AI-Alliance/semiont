@@ -115,7 +115,7 @@ export async function runMv(options: MvOptions): Promise<CommandResults> {
   const eventBus = new EventBus();
   const eventStore = createEventStore(project, eventBus, logger);
   const kb = await createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), eventBus, logger);
-  const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
+  const stower = new Stower(kb, eventBus, project, logger.child({ component: 'stower' }));
   await stower.initialize();
 
   try {

@@ -466,6 +466,93 @@ describe('GraphDBConsumer', () => {
       expect(updateArg.entityTypes).toEqual(['article']);
     });
 
+    // The -added fold must be idempotent per event, mirroring the view
+    // materializer's includes-guard — duplicate adds must not diverge the
+    // graph from the view (bugs/graph-consumer-entity-tag-add-not-idempotent.md).
+    it('entitytag.added for a tag the graph doc already has leaves a single copy', async () => {
+      const docId = resourceId(`apply-entitytag-dup-${Date.now()}`);
+
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: docId,
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+      });
+      await tick();
+
+      vi.clearAllMocks();
+      // The graph doc ALREADY carries the tag (e.g. a stale caller diff base
+      // minted a duplicate -added, or the event is a historical duplicate).
+      (graphDb.getResource as ReturnType<typeof vi.fn>).mockResolvedValue({
+        '@id': `http://localhost:4000/resources/${docId}`,
+        entityTypes: ['article', 'note'],
+      });
+
+      await eventStore.appendEvent({
+        type: 'mark:entity-tag-added',
+        resourceId: docId,
+        userId: userId('user1'),
+        version: 1,
+        payload: { entityType: 'note' },
+      });
+      await tick();
+
+      // Idempotent fold: the tag is already present — no duplicating update.
+      expect(graphDb.updateResource).not.toHaveBeenCalled();
+    });
+
+    it('the same entitytag.added delivered twice leaves a single copy', async () => {
+      const docId = resourceId(`apply-entitytag-redeliver-${Date.now()}`);
+
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: docId,
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+      });
+      await tick();
+
+      vi.clearAllMocks();
+      (graphDb.getResource as ReturnType<typeof vi.fn>).mockResolvedValue({
+        '@id': `http://localhost:4000/resources/${docId}`,
+        entityTypes: ['article'],
+      });
+
+      await eventStore.appendEvent({
+        type: 'mark:entity-tag-added',
+        resourceId: docId,
+        userId: userId('user1'),
+        version: 1,
+        payload: { entityType: 'note' },
+      });
+      await tick();
+
+      // First delivery applies…
+      expect(graphDb.updateResource).toHaveBeenCalledTimes(1);
+      expect(
+        (graphDb.updateResource as ReturnType<typeof vi.fn>).mock.calls[0][1].entityTypes,
+      ).toEqual(['article', 'note']);
+
+      // …and once the graph reflects it, redelivery of the same fact is a no-op.
+      (graphDb.getResource as ReturnType<typeof vi.fn>).mockResolvedValue({
+        '@id': `http://localhost:4000/resources/${docId}`,
+        entityTypes: ['article', 'note'],
+      });
+
+      await eventStore.appendEvent({
+        type: 'mark:entity-tag-added',
+        resourceId: docId,
+        userId: userId('user1'),
+        version: 1,
+        payload: { entityType: 'note' },
+      });
+      await tick();
+
+      expect(graphDb.updateResource).toHaveBeenCalledTimes(1);
+    });
+
     it('should handle entitytype.added (system event, no resourceId)', async () => {
       await eventStore.appendEvent({
         type: 'frame:entity-type-added',

@@ -146,7 +146,7 @@ exchangeRouter.post('/api/admin/exchange/restore', async (c) => {
 
         send({ phase: 'started', message: 'Restoring backup...' });
         const { knowledgeSystem: { kb: backupKb } } = c.get('makeMeaning');
-        const result = await importBackup(input, { eventBus, contentStore: backupKb.content });
+        const result = await importBackup(input, { eventBus, eventStore: backupKb.eventStore, contentStore: backupKb.content });
         send({
           phase: 'complete',
           result: {

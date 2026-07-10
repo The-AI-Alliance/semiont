@@ -137,7 +137,7 @@ async function createKnowledgeSystemFromConfig(
     return { ...event, annotation } as unknown as typeof event;
   });
 
-  const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
+  const stower = new Stower(kb, eventBus, project, logger.child({ component: 'stower' }));
   await stower.initialize();
 
   await bootstrapEntityTypes(eventBus, eventStore, logger.child({ component: 'entity-types-bootstrap' }));
