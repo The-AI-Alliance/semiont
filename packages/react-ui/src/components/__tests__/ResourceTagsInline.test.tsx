@@ -1,15 +1,20 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ResourceTagsInline } from '../ResourceTagsInline';
 
 describe('ResourceTagsInline', () => {
-  const mockOnUpdate = vi.fn();
+  const mockOnUpdate = vi.fn(async () => {});
   const defaultProps = {
     resourceId: 'doc-123',
     tags: ['tag1', 'tag2', 'tag3'],
     isEditing: false,
     onUpdate: mockOnUpdate,
   };
+
+  beforeEach(() => {
+    mockOnUpdate.mockClear();
+    mockOnUpdate.mockImplementation(async () => {});
+  });
 
   describe('Rendering', () => {
     it('should render tags', () => {
@@ -175,6 +180,99 @@ describe('ResourceTagsInline', () => {
       rerender(<ResourceTagsInline {...defaultProps} tags={[]} />);
 
       expect(container.firstChild).toBeNull();
+    });
+  });
+
+  // ── RESOURCE-TAGS-INLINE-EDITING: the declared contract, implemented ──
+
+  describe('Editing mode', () => {
+    it('browse mode renders no editing affordances (pins today’s rendering)', () => {
+      const { container } = render(
+        <ResourceTagsInline {...defaultProps} isEditing={false} vocabulary={['Person']} />,
+      );
+      expect(container.querySelector('button')).toBeNull();
+    });
+
+    it('renders the editor for EMPTY tags while editing (the primary tagging case)', () => {
+      const { container } = render(
+        <ResourceTagsInline {...defaultProps} tags={[]} isEditing={true} vocabulary={['Person']} />,
+      );
+      // No null short-circuit in edit mode: the strip renders with an add affordance.
+      expect(container.firstChild).not.toBeNull();
+      expect(screen.getByLabelText('Add tag')).toBeInTheDocument();
+    });
+
+    it('removing a tag commits ONCE with the full new set', async () => {
+      render(<ResourceTagsInline {...defaultProps} isEditing={true} />);
+      fireEvent.click(screen.getByLabelText('Remove tag2'));
+      await waitFor(() => expect(mockOnUpdate).toHaveBeenCalledTimes(1));
+      expect(mockOnUpdate).toHaveBeenCalledWith(['tag1', 'tag3']);
+    });
+
+    it('disabled renders the editor inert', () => {
+      render(
+        <ResourceTagsInline {...defaultProps} isEditing={true} disabled={true} vocabulary={['Person']} />,
+      );
+      fireEvent.click(screen.getByLabelText('Remove tag1'));
+      expect(mockOnUpdate).not.toHaveBeenCalled();
+      expect(screen.getByLabelText('Remove tag1')).toBeDisabled();
+      expect(screen.getByLabelText('Add tag')).toBeDisabled();
+    });
+
+    it('an in-flight onUpdate blocks a second commit', async () => {
+      let resolveUpdate!: () => void;
+      mockOnUpdate.mockImplementation(() => new Promise<void>((r) => { resolveUpdate = r; }));
+      render(<ResourceTagsInline {...defaultProps} isEditing={true} />);
+
+      fireEvent.click(screen.getByLabelText('Remove tag1'));
+      fireEvent.click(screen.getByLabelText('Remove tag2')); // while pending — must not fire
+      expect(mockOnUpdate).toHaveBeenCalledTimes(1);
+
+      resolveUpdate();
+      await waitFor(() => expect(screen.getByLabelText('Remove tag2')).not.toBeDisabled());
+      fireEvent.click(screen.getByLabelText('Remove tag2')); // settled — fires again
+      expect(mockOnUpdate).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('Vocabulary (controlled — adds are a picker, never free text)', () => {
+    it('the add affordance offers ONLY vocabulary entries minus already-applied tags', () => {
+      render(
+        <ResourceTagsInline {...defaultProps} tags={['Person']} isEditing={true}
+          vocabulary={['Person', 'Place', 'Topic']} />,
+      );
+      fireEvent.click(screen.getByLabelText('Add tag'));
+      expect(screen.getByRole('button', { name: 'Place' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Topic' })).toBeInTheDocument();
+      // Already applied → not a candidate (the chip renders as text, not a candidate button)
+      expect(screen.queryByRole('button', { name: 'Person' })).not.toBeInTheDocument();
+    });
+
+    it('picking a candidate commits the full set including the added tag', async () => {
+      render(
+        <ResourceTagsInline {...defaultProps} tags={['Person']} isEditing={true}
+          vocabulary={['Person', 'Place']} />,
+      );
+      fireEvent.click(screen.getByLabelText('Add tag'));
+      fireEvent.click(screen.getByRole('button', { name: 'Place' }));
+      await waitFor(() => expect(mockOnUpdate).toHaveBeenCalledTimes(1));
+      expect(mockOnUpdate).toHaveBeenCalledWith(['Person', 'Place']);
+    });
+
+    it('without a vocabulary the editor is REMOVAL-ONLY (no add affordance)', () => {
+      render(<ResourceTagsInline {...defaultProps} isEditing={true} />);
+      expect(screen.queryByLabelText('Add tag')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Remove tag1')).toBeInTheDocument();
+    });
+
+    it('removal is never vocabulary-gated — a stale tag not in the vocabulary is removable', async () => {
+      render(
+        <ResourceTagsInline {...defaultProps} tags={['LegacyType', 'Person']} isEditing={true}
+          vocabulary={['Person']} />,
+      );
+      fireEvent.click(screen.getByLabelText('Remove LegacyType'));
+      await waitFor(() => expect(mockOnUpdate).toHaveBeenCalledTimes(1));
+      expect(mockOnUpdate).toHaveBeenCalledWith(['Person']);
     });
   });
 });

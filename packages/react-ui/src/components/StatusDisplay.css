@@ -209,6 +209,42 @@
   font-size: var(--semiont-font-size-xs);
 }
 
+/* Editing affordances (RESOURCE-TAGS-INLINE-EDITING) */
+.semiont-resource-tag__remove {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: var(--semiont-font-size-xs);
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.semiont-resource-tag__remove:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.semiont-resource-tag__remove:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.semiont-resource-tag--add {
+  cursor: pointer;
+  background: none;
+}
+
+.semiont-resource-tag--add:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.semiont-resource-tags-inline--editing .semiont-form__entity-type-buttons {
+  margin-top: var(--semiont-spacing-xs);
+}
+
 /* Dark mode for ResourceTagsInline - Fixed to respect data-theme attribute */
 [data-theme="dark"] .semiont-resource-tags-inline {
   border-top-color: var(--semiont-color-neutral-700);
