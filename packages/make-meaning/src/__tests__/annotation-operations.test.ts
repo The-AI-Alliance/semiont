@@ -11,6 +11,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
+import { promises as fs } from 'fs';
+import { join } from 'path';
 import { AnnotationOperations } from '../annotation-operations';
 import { ResourceOperations } from '../resource-operations';
 import { resourceId, userId, EventBus, type Logger, type SupportedMediaType } from '@semiont/core';
@@ -67,6 +69,7 @@ describe('AnnotationOperations', () => {
   let stower: Stower;
   let kb: KnowledgeBase;
   let testResourceId: string;
+  let suiteProject: Awaited<ReturnType<typeof createTestProject>>['project'];
 
   async function create(
     opts: { name: string; content: Buffer; format: SupportedMediaType; language?: string; entityTypes?: string[] },
@@ -84,6 +87,7 @@ describe('AnnotationOperations', () => {
   beforeAll(async () => {
     const { project, teardown: td } = await createTestProject('annotation-ops');
     teardown = td;
+    suiteProject = project;
 
     // Initialize EventBus and stores
     eventBus = new EventBus();
@@ -93,7 +97,7 @@ describe('AnnotationOperations', () => {
     const repStore = new WorkingTreeStore(project, mockLogger);
     kb = { eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb, projectionsDir: project.projectionsDir, graphConsumer: {} as any };
 
-    stower = new Stower(kb, eventBus, mockLogger);
+    stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();
 
     // Create a test resource for annotations
@@ -827,6 +831,12 @@ describe('AnnotationOperations', () => {
       // request would hang to timeout (.plans/bugs/BRIDGE-GAPS.md shape).
       // Passing a non-empty `current` that differs from `updated` exercises both
       // diff branches: 'Person' is added, 'Legacy' is removed.
+      // The vocabulary gate requires ADDS to be registered (removals are never
+      // gated — 'Legacy' needs no registration), so register 'Person' first.
+      const systemDir = join(suiteProject.stateDir, 'projections', '__system__');
+      await fs.mkdir(systemDir, { recursive: true });
+      await fs.writeFile(join(systemDir, 'entitytypes.json'), JSON.stringify({ entityTypes: ['Person'] }));
+
       const correlationId = 'uet-cid-1';
       const ok$ = firstValueFrom(
         eventBus.get('mark:update-entity-types-ok').pipe(
@@ -864,7 +874,7 @@ describe('AnnotationOperations', () => {
       const failingKb = {
         eventStore: { appendEvent: vi.fn().mockRejectedValue(new Error('disk full')) },
       } as unknown as KnowledgeBase;
-      const failStower = new Stower(failingKb, failBus, mockLogger);
+      const failStower = new Stower(failingKb, failBus, suiteProject, mockLogger);
       await failStower.initialize();
 
       const correlationId = 'uet-cid-fail';
@@ -875,12 +885,15 @@ describe('AnnotationOperations', () => {
         ),
       );
 
+      // A REMOVAL, not an add: removals are never vocabulary-gated (the gate
+      // would otherwise reject the tag before appendEvent runs), so this still
+      // exercises the append-failure catch branch — the test's actual subject.
       failBus.get('mark:update-entity-types').next({
         correlationId,
         _userId: 'user-1',
         resourceId: testResourceId,
-        currentEntityTypes: [],
-        updatedEntityTypes: ['Person'],
+        currentEntityTypes: ['Person'],
+        updatedEntityTypes: [],
       });
 
       const failure = await failed$;

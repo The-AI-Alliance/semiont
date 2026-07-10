@@ -45,7 +45,10 @@ import { EventBus, annotationId, errField, resourceId, userId as makeUserId, gen
 import type { ResourceId } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { resolveStorageUri } from '@semiont/event-sourcing';
+import type { SemiontProject } from '@semiont/core/node';
 import type { KnowledgeBase } from './knowledge-base';
+import { readEntityTypesProjection } from './views/entity-types-reader';
+import { validateEntityTypes, entityTypesNotRegisteredMessage } from './views/projection-validators';
 
 export interface CreateResourceResult {
   resourceId: ResourceId;
@@ -59,6 +62,7 @@ export class Stower {
   constructor(
     private kb: KnowledgeBase,
     private eventBus: EventBus,
+    private project: SemiontProject,
     logger: Logger,
   ) {
     this.logger = logger;
@@ -448,6 +452,20 @@ export class Stower {
     const removed = event.currentEntityTypes.filter(et => !event.updatedEntityTypes.includes(et));
 
     try {
+      // Entity tags are a controlled vocabulary (ratified 2026-07-09): gate
+      // ADDS against the registered set with the same machinery the job path
+      // uses (job-commands.ts) — same projection read, same error message.
+      // Removals are never gated: deleting a stale/unregistered legacy tag is
+      // the cleanup path. Runs before the first append so a mixed request is
+      // all-or-nothing.
+      if (added.length > 0) {
+        const registered = await readEntityTypesProjection(this.project);
+        const result = validateEntityTypes(registered, added);
+        if (!result.ok) {
+          throw new Error(entityTypesNotRegisteredMessage(result.unknown));
+        }
+      }
+
       for (const entityType of added) {
         await this.kb.eventStore.appendEvent({
           type: 'mark:entity-tag-added',

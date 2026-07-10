@@ -143,7 +143,7 @@ describe('Tag Schemas Projection Reader', () => {
       const eventStore = createEventStore(project, eventBus, mockLogger);
       const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
       const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger);
-      const stower = new Stower(kb, eventBus, mockLogger);
+      const stower = new Stower(kb, eventBus, project, mockLogger);
       await stower.initialize();
 
       const before = await readTagSchemasProjection(project);

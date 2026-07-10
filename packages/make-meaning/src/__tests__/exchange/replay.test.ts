@@ -16,6 +16,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventBus, type ResourceId, type UserId, type AnnotationId, type PersistedEvent } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
+import type { EventStore } from '@semiont/event-sourcing';
 import { replayEventStream, type ContentBlobResolver } from '../../exchange/replay';
 
 const TEST_USER = 'did:web:localhost:users:test' as UserId;
@@ -98,11 +99,17 @@ const mockContentStore = {
   register: vi.fn().mockResolvedValue({ storageUri: 'file://test.md', checksum: 'abc123', byteSize: 100, created: new Date().toISOString() }),
 } as unknown as WorkingTreeStore;
 
+// Replay appends historical events as facts (never re-issues commands) —
+// the fake captures those appends for assertion.
+const mockAppendEvent = vi.fn().mockResolvedValue(undefined);
+const mockEventStore = { appendEvent: mockAppendEvent } as unknown as EventStore;
+
 describe('replay', () => {
   let eventBus: EventBus;
 
   beforeEach(() => {
     eventBus = new EventBus();
+    mockAppendEvent.mockClear();
   });
 
   afterEach(() => {
@@ -119,7 +126,7 @@ describe('replay', () => {
       const jsonl = entityTypeEvent('Person');
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
+      const result = await replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore);
 
       expect(result.stats.eventsReplayed).toBe(1);
       expect(result.stats.entityTypesAdded).toBe(1);
@@ -142,7 +149,7 @@ describe('replay', () => {
       });
 
       const jsonl = resourceCreatedEvent('Test Resource', 'sha256-abc');
-      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
+      const result = await replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore);
 
       expect(result.stats.eventsReplayed).toBe(1);
       expect(result.stats.resourcesCreated).toBe(1);
@@ -154,7 +161,7 @@ describe('replay', () => {
       const jsonl = resourceCreatedEvent('Test Resource', 'missing-checksum');
 
       await expect(
-        replayEventStream(jsonl, eventBus, resolver, mockContentStore)
+        replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore)
       ).rejects.toThrow(/Missing content blob/);
     });
 
@@ -166,7 +173,7 @@ describe('replay', () => {
       const jsonl = annotationAddedEvent('ann-1');
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
+      const result = await replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore);
 
       expect(result.stats.eventsReplayed).toBe(1);
       expect(result.stats.annotationsCreated).toBe(1);
@@ -189,7 +196,7 @@ describe('replay', () => {
       });
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
+      const result = await replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(1);
     });
 
@@ -206,7 +213,7 @@ describe('replay', () => {
       });
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
+      const result = await replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(1);
     });
 
@@ -222,7 +229,7 @@ describe('replay', () => {
       });
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
+      const result = await replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(1);
       expect(archiveSpy).toHaveBeenCalledOnce();
     });
@@ -239,12 +246,18 @@ describe('replay', () => {
       });
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
+      const result = await replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(1);
       expect(unarchiveSpy).toHaveBeenCalledOnce();
     });
 
-    it('replays entitytag.added through mark:update-entity-types', async () => {
+    // Replay semantics (ratified 2026-07-09): events are facts, commands are
+    // requests — replay appends the historical event verbatim and NEVER
+    // re-issues mark:update-entity-types. This excludes imports from the
+    // vocabulary gate by construction (pre-gate warts restore as the facts
+    // they are) and stops replay minting duplicate -added events from a
+    // fabricated empty diff base.
+    it('replays entitytag.added by appending the historical event verbatim', async () => {
       const updateSpy = vi.fn();
       eventBus.get('mark:update-entity-types').subscribe(updateSpy);
 
@@ -256,17 +269,22 @@ describe('replay', () => {
       });
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
+      const result = await replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(1);
-      expect(updateSpy).toHaveBeenCalledWith(
+      // the fact is copied — original user preserved, payload verbatim
+      expect(mockAppendEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          updatedEntityTypes: ['Person'],
-          currentEntityTypes: [],
+          type: 'mark:entity-tag-added',
+          resourceId: TEST_RESOURCE,
+          userId: TEST_USER,
+          payload: { entityType: 'Person' },
         })
       );
+      // no command re-issued: replay must not re-adjudicate history
+      expect(updateSpy).not.toHaveBeenCalled();
     });
 
-    it('replays entitytag.removed through mark:update-entity-types', async () => {
+    it('replays entitytag.removed by appending the historical event verbatim', async () => {
       const updateSpy = vi.fn();
       eventBus.get('mark:update-entity-types').subscribe(updateSpy);
 
@@ -278,14 +296,17 @@ describe('replay', () => {
       });
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
+      const result = await replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(1);
-      expect(updateSpy).toHaveBeenCalledWith(
+      expect(mockAppendEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          currentEntityTypes: ['Location'],
-          updatedEntityTypes: [],
+          type: 'mark:entity-tag-removed',
+          resourceId: TEST_RESOURCE,
+          userId: TEST_USER,
+          payload: { entityType: 'Location' },
         })
       );
+      expect(updateSpy).not.toHaveBeenCalled();
     });
 
     it('skips job events without error', async () => {
@@ -302,7 +323,7 @@ describe('replay', () => {
       const jsonl = lines.join('\n');
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
+      const result = await replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(4);
       expect(result.stats.resourcesCreated).toBe(0);
       expect(result.stats.annotationsCreated).toBe(0);
@@ -322,7 +343,7 @@ describe('replay', () => {
       const jsonl = lines.join('\n');
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
+      const result = await replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(2);
     });
 
@@ -352,7 +373,7 @@ describe('replay', () => {
         annotationAddedEvent('ann-1'),
       ];
 
-      const result = await replayEventStream(lines.join('\n'), eventBus, resolver, mockContentStore);
+      const result = await replayEventStream(lines.join('\n'), eventBus, mockEventStore, resolver, mockContentStore);
 
       expect(result.stats.eventsReplayed).toBe(3);
       expect(result.stats.entityTypesAdded).toBe(1);

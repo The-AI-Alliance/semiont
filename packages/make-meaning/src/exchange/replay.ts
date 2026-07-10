@@ -17,6 +17,7 @@ import { asBusRequestPrimitive } from '../bus-request-local';
 import type { components } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
 import { deriveStorageUri } from '@semiont/content';
+import type { EventStore } from '@semiont/event-sourcing';
 
 type ContentFormat = components['schemas']['ContentFormat'];
 import type { Annotation } from '@semiont/core';
@@ -50,6 +51,7 @@ const REPLAY_TIMEOUT_MS = 30_000;
 export async function replayEventStream(
   jsonl: string,
   eventBus: EventBus,
+  eventStore: EventStore,
   resolveBlob: ContentBlobResolver,
   contentStore: WorkingTreeStore,
   logger?: Logger,
@@ -66,7 +68,7 @@ export async function replayEventStream(
 
   // Replay each event
   for (const stored of storedEvents) {
-    await replayEvent(stored, eventBus, resolveBlob, contentStore, stats, logger);
+    await replayEvent(stored, eventBus, eventStore, resolveBlob, contentStore, stats, logger);
     stats.eventsReplayed++;
   }
 
@@ -76,6 +78,7 @@ export async function replayEventStream(
 async function replayEvent(
   event: PersistedEvent,
   eventBus: EventBus,
+  eventStore: EventStore,
   resolveBlob: ContentBlobResolver,
   contentStore: WorkingTreeStore,
   stats: ReplayStats,
@@ -115,7 +118,7 @@ async function replayEvent(
 
     case 'mark:entity-tag-added':
     case 'mark:entity-tag-removed':
-      await replayEntityTagChange(event, eventBus, logger);
+      await replayEntityTagChange(event, eventStore, logger);
       break;
 
     // Job events are transient — skip during replay
@@ -286,27 +289,25 @@ async function replayResourceUnarchived(
 
 async function replayEntityTagChange(
   event: PersistedEvent & { type: 'mark:entity-tag-added' | 'mark:entity-tag-removed' },
-  eventBus: EventBus,
+  eventStore: EventStore,
   logger?: Logger,
 ): Promise<void> {
-  const resourceId = event.resourceId as ResourceId;
-  const entityType = event.payload.entityType;
-
+  // Events are facts, commands are requests (ratified 2026-07-09): copy the
+  // historical fact into the target log verbatim — never re-issue
+  // mark:update-entity-types. This keeps imports outside the vocabulary gate
+  // by construction (pre-gate warts restore as the facts they are, removable
+  // via the never-gated removal path) and cannot mint duplicate -added events
+  // from a fabricated empty diff base.
+  const base = {
+    resourceId: event.resourceId as ResourceId,
+    userId: event.userId,
+    version: event.version,
+  };
   if (event.type === 'mark:entity-tag-added') {
-    eventBus.get('mark:update-entity-types').next({
-      resourceId,
-      _userId: event.userId,
-      currentEntityTypes: [],
-      updatedEntityTypes: [entityType],
-    });
+    await eventStore.appendEvent({ ...base, type: 'mark:entity-tag-added', payload: event.payload });
   } else {
-    eventBus.get('mark:update-entity-types').next({
-      resourceId,
-      _userId: event.userId,
-      currentEntityTypes: [entityType],
-      updatedEntityTypes: [],
-    });
+    await eventStore.appendEvent({ ...base, type: 'mark:entity-tag-removed', payload: event.payload });
   }
 
-  logger?.debug('Replayed entity tag change', { type: event.type, entityType });
+  logger?.debug('Replayed entity tag change', { type: event.type, entityType: event.payload.entityType });
 }
