@@ -109,26 +109,23 @@ export const BrowseView = memo(function BrowseView({
     [allAnnotations]
   );
 
-  // Cache offset map (recomputed only when content changes)
-  const offsetMapRef = useRef<Map<number, number> | null>(null);
-
-  // Build offset map after markdown DOM paints (once per content change)
+  // The two-layer overlay in ONE effect, keyed on everything it reads: the
+  // rendered content DOM (`content` re-renders it) AND the annotations.
+  // Splitting these across two effects with a ref-passed offset map silently
+  // dropped the `content` dependency — content arriving after annotations
+  // (any async-content host) painted ZERO spans until a remount. The
+  // length===0 early-return is safe: the prior run's cleanup already cleared.
   useEffect(() => {
-    if (!containerRef.current) return;
-    offsetMapRef.current = buildSourceToRenderedMap(content, containerRef.current);
-  }, [content]);
-
-  // Layer 2: overlay annotations after DOM paint
-  useEffect(() => {
-    if (!containerRef.current || !offsetMapRef.current || overlayAnnotations.length === 0) return;
+    if (!containerRef.current || overlayAnnotations.length === 0) return;
 
     const container = containerRef.current;
+    const offsetMap = buildSourceToRenderedMap(content, container);
     const textNodeIndex = buildTextNodeIndex(container);
-    const ranges = resolveAnnotationRanges(overlayAnnotations, offsetMapRef.current, textNodeIndex);
+    const ranges = resolveAnnotationRanges(overlayAnnotations, offsetMap, textNodeIndex);
     applyHighlights(ranges);
 
     return () => clearHighlights(container);
-  }, [overlayAnnotations]);
+  }, [content, overlayAnnotations]);
 
   // Attach click handler, hover handler, and animations after render
   useEffect(() => {
