@@ -50,6 +50,8 @@ interface Props {
   onModeChange?: (mode: boolean) => void;
   /** The bar's Click control reports the chosen action here (the owner applies it). */
   onClickActionChange?: (action: ClickAction) => void;
+  /** Render the built-in bar (default). false → no bar; all other seams stay live. */
+  showToolbar?: boolean;
 }
 
 /** Payload for `onReferenceHover` — the hovered linking annotation, its resolved referent, and where the span is. */
@@ -80,6 +82,7 @@ export const BrowseView = memo(function BrowseView({
   selectedClick = 'detail',
   onModeChange,
   onClickActionChange,
+  showToolbar = true,
   annotateMode,
   hoverDelayMs = 150,
   session,
@@ -300,6 +303,7 @@ export const BrowseView = memo(function BrowseView({
 
   return (
     <div className={`semiont-browse-view${inlineMod}`} data-mime-type={render}>
+      {showToolbar && (
       <AnnotateToolbar
         selectedMotivation={null}
         selectedClick={selectedClick}
@@ -311,6 +315,7 @@ export const BrowseView = memo(function BrowseView({
         onClickActionChange={onClickActionChange}
         compact={inline}
       />
+      )}
       <div ref={containerRef} className="semiont-browse-view__content" onClick={handleContentClick}>
         <Renderer content={content} mimeType={mimeType} resourceUri={resourceUri} annotations={allAnnotations} />
       </div>

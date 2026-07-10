@@ -46,6 +46,8 @@ interface Props {
   newAnnotationIds?: Set<string>;
   /** The bar's Mode control reports the chosen mode here (the owner applies it). */
   onModeChange?: (mode: boolean) => void;
+  /** Render the built-in bar (default). false → no bar; selection capture and drawing stay live. */
+  showToolbar?: boolean;
 }
 
 /**
@@ -70,6 +72,7 @@ export function AnnotateView({
   session,
   newAnnotationIds,
   onModeChange,
+  showToolbar = true,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -198,6 +201,7 @@ export function AnnotateView({
     case 'text':
       return (
         <div className="semiont-annotate-view" data-mime-type="text" ref={containerRef}>
+          {showToolbar && (
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
@@ -210,6 +214,7 @@ export function AnnotateView({
             onSelectionChange={handleToolbarSelectionChange}
             onShapeChange={handleToolbarShapeChange}
           />
+          )}
           <div className="semiont-annotate-view__content">
             <CodeMirrorRenderer
             content={content}
@@ -235,6 +240,7 @@ export function AnnotateView({
       // PDF annotation support (spatial, FragmentSelector)
       return (
         <div className="semiont-annotate-view" data-mime-type="pdf" ref={containerRef}>
+          {showToolbar && (
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
@@ -247,6 +253,7 @@ export function AnnotateView({
             onSelectionChange={handleToolbarSelectionChange}
             onShapeChange={handleToolbarShapeChange}
           />
+          )}
           <div className="semiont-annotate-view__content">
             {content && (
               <Suspense fallback={<div className="semiont-annotate-view__loading">Loading PDF viewer...</div>}>
@@ -270,6 +277,7 @@ export function AnnotateView({
       // PNG, JPEG, etc. - full annotation support
       return (
         <div className="semiont-annotate-view" data-mime-type="image" ref={containerRef}>
+          {showToolbar && (
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
@@ -282,6 +290,7 @@ export function AnnotateView({
             onSelectionChange={handleToolbarSelectionChange}
             onShapeChange={handleToolbarShapeChange}
           />
+          )}
           <div className="semiont-annotate-view__content">
             {content && (
               <SvgDrawingCanvas
