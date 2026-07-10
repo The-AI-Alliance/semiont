@@ -69,6 +69,15 @@ interface Props {
   onSelectionMotivationChange?: (motivation: SelectionMotivation | null) => void;
   shape?: ShapeType;
   onShapeChange?: (shape: ShapeType) => void;
+  /**
+   * Render the built-in AnnotateToolbar (default true — today's behavior,
+   * byte-identical). `false` → no bar at any internal site (browse + every
+   * annotate render mode), while every seam stays live: annotate-mode selection
+   * capture, image/pdf drawing, `mark.request` emission, and the controlled
+   * props. Tier-2 hosts compose their own controls from the controlled props;
+   * this makes that opt-out a contract instead of a CSS override.
+   */
+  showToolbar?: boolean;
 }
 
 /**
@@ -102,6 +111,7 @@ export function ResourceViewer({
   onSelectionMotivationChange,
   shape: shapeProp,
   onShapeChange,
+  showToolbar = true,
 }: Props) {
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
@@ -360,6 +370,7 @@ export function ResourceViewer({
           hoverDelayMs={hoverDelayMs}
           annotateMode={annotateMode}
           onModeChange={changeAnnotateMode}
+          showToolbar={showToolbar}
           session={session}
           newAnnotationIds={newAnnotationIds}
         />
@@ -374,6 +385,7 @@ export function ResourceViewer({
           annotateMode={annotateMode}
           onModeChange={changeAnnotateMode}
           onClickActionChange={changeClickAction}
+          showToolbar={showToolbar}
           session={session}
           newAnnotationIds={newAnnotationIds}
           onLinkClick={onLinkClick}
