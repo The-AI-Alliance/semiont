@@ -1,114 +1,95 @@
+/**
+ * HEADLESS-RESOURCE-CONTENT — useResourceContent is bring-your-own-client.
+ *
+ * The last provider-bound hook on the embeddable path joins the
+ * useResourceLoader/useMediaToken convention: client-first (`null` → idle),
+ * NO providers required, and errors are RETURNED, never toasted — the host
+ * decides chrome. Real decodeWithCharset over encoded bytes (no core mocks).
+ *
+ * Started RED (the old hook threw from useSemiont with no providers and took
+ * no client param) and GREEN once the de-provider lands.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
-import { BehaviorSubject } from 'rxjs';
 import '@testing-library/jest-dom';
+import { resourceId } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
+import type { SemiontClient } from '@semiont/sdk';
 import { useResourceContent } from '../useResourceContent';
 
-const mockShowError = vi.fn();
 const mockResourceRepresentation = vi.fn();
-const stableMockClient = {
+const client = {
   browse: {
     get resourceRepresentation() { return mockResourceRepresentation; },
   },
-};
-const stableMockSession = { client: stableMockClient };
-const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);
-const stableMockBrowser = { activeSession$: stableActiveSession$ };
+} as unknown as SemiontClient;
 
-vi.mock('../../components/Toast', () => ({
-  useToast: () => ({ showError: mockShowError }),
-}));
+const resource = {
+  representations: [{ mediaType: 'text/plain', byteSize: 11 }],
+} as unknown as ResourceDescriptor;
 
-vi.mock('@semiont/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/core')>();
-  return {
-    ...actual,
-  getPrimaryMediaType: vi.fn(() => 'text/plain'),
-  decodeWithCharset: vi.fn((data: string) => data),
-  };
-});
+const RID = resourceId('res-1');
+const utf8 = (s: string) => new TextEncoder().encode(s).buffer;
 
-vi.mock('../../session/SemiontProvider', async () => {
-  const actual = await vi.importActual<typeof import('../../session/SemiontProvider')>('../../session/SemiontProvider');
-  return {
-    ...actual,
-    useSemiont: () => stableMockBrowser,
-  };
-});
-
-// Minimal wrapper -- hooks under test don't need full providers
-function Wrapper({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
-}
-
-describe('useResourceContent', () => {
+describe('useResourceContent — bring-your-own-client, no providers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockResourceRepresentation.mockResolvedValue({ data: '', contentType: 'text/plain' });
+    mockResourceRepresentation.mockResolvedValue({ data: utf8(''), contentType: 'text/plain' });
   });
 
-  it('returns empty content and not loading when fetch resolves with empty data', async () => {
-    mockResourceRepresentation.mockResolvedValue({ data: '', contentType: 'text/plain' });
-
-    const { result } = renderHook(
-      () => useResourceContent('res-1' as any, { representations: [{ mediaType: 'text/plain' }] } as any),
-      { wrapper: Wrapper }
-    );
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+  it('resolves decoded content for text media (real charset decode)', async () => {
+    mockResourceRepresentation.mockResolvedValue({
+      data: utf8('Hello World'),
+      contentType: 'text/plain; charset=utf-8',
     });
 
-    expect(result.current.content).toBe('');
-  });
+    const { result } = renderHook(() => useResourceContent(client, RID, resource));
 
-  it('returns content when data is available', async () => {
-    mockResourceRepresentation.mockResolvedValue({ data: 'Hello World', contentType: 'text/plain' });
-
-    const { result } = renderHook(
-      () => useResourceContent('res-2' as any, { representations: [{ mediaType: 'text/plain' }] } as any),
-      { wrapper: Wrapper }
-    );
-
-    await waitFor(() => {
-      expect(result.current.content).toBe('Hello World');
-    });
-
+    await waitFor(() => expect(result.current.content).toBe('Hello World'));
     expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(mockResourceRepresentation).toHaveBeenCalledWith(RID);
   });
 
-  it('transitions through loading states', async () => {
+  it('transitions through a loading state', async () => {
     const loadingStates: boolean[] = [];
-    mockResourceRepresentation.mockResolvedValue({ data: 'done', contentType: 'text/plain' });
+    mockResourceRepresentation.mockResolvedValue({ data: utf8('done'), contentType: 'text/plain' });
 
-    const { result } = renderHook(
-      () => {
-        const r = useResourceContent('res-3' as any, { representations: [{ mediaType: 'text/plain' }] } as any);
-        loadingStates.push(r.loading);
-        return r;
-      },
-      { wrapper: Wrapper }
-    );
-
-    await waitFor(() => {
-      expect(result.current.content).toBe('done');
+    const { result } = renderHook(() => {
+      const r = useResourceContent(client, RID, resource);
+      loadingStates.push(r.loading);
+      return r;
     });
 
+    await waitFor(() => expect(result.current.content).toBe('done'));
     expect(loadingStates).toContain(true);
     expect(result.current.loading).toBe(false);
   });
 
-  it('calls showError when error occurs', async () => {
+  it('client=null stays idle — no fetch, not loading', () => {
+    const { result } = renderHook(() => useResourceContent(null, RID, resource));
+
+    expect(mockResourceRepresentation).not.toHaveBeenCalled();
+    expect(result.current.loading).toBe(false);
+    expect(result.current.content).toBe('');
+    expect(result.current.error).toBeNull();
+  });
+
+  it('enabled=false fetches nothing (the binary/media-token path)', () => {
+    const { result } = renderHook(() => useResourceContent(client, RID, resource, false));
+
+    expect(mockResourceRepresentation).not.toHaveBeenCalled();
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('a failing fetch RETURNS the error — nothing is toasted (no provider to toast with)', async () => {
     mockResourceRepresentation.mockRejectedValue(new Error('Network error'));
 
-    renderHook(
-      () => useResourceContent('res-4' as any, { representations: [{ mediaType: 'text/plain' }] } as any),
-      { wrapper: Wrapper }
-    );
+    const { result } = renderHook(() => useResourceContent(client, RID, resource));
 
-    await waitFor(() => {
-      expect(mockShowError).toHaveBeenCalledWith('Failed to load resource representation');
-    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBeInstanceOf(Error);
+    expect(result.current.error?.message).toBe('Network error');
+    expect(result.current.content).toBe('');
   });
 });
