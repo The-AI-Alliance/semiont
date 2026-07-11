@@ -190,7 +190,10 @@ the task framing and the model decide, and `maxTokens` is length only). `prompt`
 refining instruction that composes with `task` (task = what, prompt = how) — don't carry
 the role in `prompt` anymore. On completion the worker mints a source→derived reference
 annotation, so provenance is automatic. The generated resource id arrives on the terminal
-`complete` event.
+`complete` event. The context excerpts embedded in the generation prompt are id-labelled
+(`[<resourceId>]` / `[<resourceId>/<annotationId>]` — see the prompt walkthrough in
+[YIELD.md](../../../docs/protocol/flows/YIELD.md)), so a `prompt` asking the model to
+attribute its sources has stable handles to cite.
 
 ```typescript
 const done = await session.client.yield.fromResource(resourceId, {

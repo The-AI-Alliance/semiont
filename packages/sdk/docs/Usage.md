@@ -409,6 +409,9 @@ semiont.yield.fromAnnotation(resourceId, annotationId, {
 //               length only; it never implies structure.
 //   prompt    — refines HOW (an authoritative Instruction under the framing);
 //               task says WHAT. They compose.
+// Every context excerpt the worker embeds is id-labelled ([<resourceId>], or
+// [<resourceId>/<annotationId>] for annotation-derived passages), so prompts
+// that ask the model to attribute its sources have real handles to use.
 // The Q&A recipe: ask the question via `title`, then
 semiont.yield.fromResource(resourceId, {
   title: 'What does the appendix say about retry budgets?',

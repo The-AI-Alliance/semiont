@@ -271,7 +271,7 @@ Focus on these entity types: {comma-separated entity types}.        // when enti
 
 Annotation context:                                                 // annotation-focus (fromAnnotation)
 - Annotation motivation: {motivation}
-- Source resource: {source resource name}
+- Source resource: {source resource name} [{resourceId}]
 - Comment|Assessment: {body text}                                   // commenting/assessing annotations only
 
 Source document context:                                            // annotation-focus, when a passage is selected
@@ -280,19 +280,22 @@ Source document context:                                            // annotatio
 ---
 
 Resource context:                                                   // resource-focus (fromResource)
-- Resource: {resource name}
+- Resource: {resource name} [{resourceId}]
 - Summary: {summary}
 - Suggested references: {…}
-{capped focal + related resource content}
+{focal content, capped at 4000 chars}                               // RESOURCE_CONTENT_CAP
+[{resourceId}]                                                      // related content: one id-labelled
+{related content, capped at 4000 chars per resource}                // block per related resource
 
 Knowledge graph context:                                            // shared, from the gathered graph
-- Connected resources: {name (entity types), …}
-- This resource is cited by {N} other resources: {names}
+- Connected resources: {name (entity types) [resourceId], …}
+- This resource is cited by {N} other resources: {name [resourceId], …}
 - Related entity types in this document: {sibling entity types}
 - Relationship summary: {inferredRelationshipSummary}
 
-Related passages from the knowledge base:                           // shared, top-3 semantic matches
-- ({score}) {passage text}
+Related passages from the knowledge base:                           // shared; top-3 by score, 240 chars each
+- [{resourceId}] ({score}) {passage text}                           // [{resourceId}/{annotationId}] when the
+                                                                    // match is annotation-derived
 
 The source resource and embedded context are in {source language}.  // when sourceLanguage is set
 IMPORTANT: Write the entire resource in {language}.                 // when language is not English
@@ -320,10 +323,32 @@ canonical `sections` (markdown output). Each context section is omitted when
 its data is absent — e.g. the graph section disappears for an isolated
 annotation with no connections.
 
+**Identifier convention.** Every embedded excerpt carries a stable,
+model-visible identifier in one bracket form: `[<resourceId>]`, extended to
+`[<resourceId>/<annotationId>]` when the excerpt is annotation-derived (a
+semantic match anchored on an annotation). The label appears beside the name
+on focal/source and graph lines, as the block label on related-content
+blocks, and as the line prefix on semantic passages — which would otherwise
+be anonymous (score + snippet) despite frequently being the answer-bearing
+text. The bracket is the *text serialization* of a modality-general rule:
+every context artifact is presented with its source id in whatever channel
+its modality supports (binary artifacts in a future multi-modal context would
+carry the id as attachment metadata, not painted into pixels). This is
+input-side labelling only — it gives the model something real to attribute
+facts to (and a downstream inline-citation feature something to resolve), but
+nothing here instructs the model to emit citations. Prompt-size bounds are
+named constants in the template: related/focal content 4,000 chars per
+resource (`RESOURCE_CONTENT_CAP`), semantic passages top-3 by score at 240
+chars each (`SEMANTIC_MATCH_LIMIT`/`SEMANTIC_MATCH_CHARS`), over a gather-side
+pre-filter of ≤10 matches above 0.5 cosine. They become caller options only
+if a consumer hits the wall.
+
 The Q&A recipe (`my-chat`-style consumers): `task: 'answer'` with
 `structure: 'prose'` (or `'chat'` for speaker-labeled turns) — ask the
 question via `title`, refine with `prompt` ("cite every claim; be terse")
-instead of fighting the article framing through it.
+instead of fighting the article framing through it. Because every excerpt is
+id-labelled, a `prompt` like "name the `[resourceId]` of each source you draw
+from" is answerable.
 
 **Model Parameters**:
 - Model: Claude Sonnet 4.5
