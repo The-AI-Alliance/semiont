@@ -115,6 +115,23 @@ export interface GenerationOptions {
    * set and **fails the job** for anything it can't write — not a silent fallback.
    */
   outputMediaType?: SupportedMediaType;
+  /**
+   * What the model is asked to produce — the prompt's framing verb. Canonical
+   * values are the worker's tested framings; any other string is used VERBATIM
+   * as the lead instruction (+ a worker-side warn) — an open escape hatch, not
+   * a silent fallback. Unset ⇒ `'resource'` (article framing). `prompt` composes
+   * with it as the refining instruction (task = what, prompt = how).
+   */
+  task?: 'resource' | 'answer' | 'summary' | (string & {});
+  /**
+   * How the output is internally segmented — shape for text-bearing media,
+   * subordinate to `outputMediaType`. Canonical: `prose` (flowing paragraphs),
+   * `sections` (titled `## Section`s + `# Title`), `chat` (speaker-labeled
+   * turns). Any other string becomes a freeform "organize as: …" directive
+   * (+ worker-side warn). **Unset ⇒ NO structure directive at all** — the task
+   * framing and the model determine shape; length (`maxTokens`) never does.
+   */
+  structure?: 'prose' | 'sections' | 'chat' | (string & {});
 }
 
 /** Options for mark.assist() */

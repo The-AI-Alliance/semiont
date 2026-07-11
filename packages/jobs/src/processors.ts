@@ -488,6 +488,8 @@ export async function processGenerationJob(
     params.maxTokens,
     params.sourceLanguage,
     outputMediaType,
+    params.task,
+    params.structure,
   );
 
   onProgress(85, 'Creating resource...', 'creating');

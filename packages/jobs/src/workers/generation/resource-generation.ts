@@ -13,6 +13,22 @@ function getLanguageName(locale: string): string {
   return getLocaleEnglishName(locale) || locale;
 }
 
+// Prompt-embedding caps — bound the context fed to the model (CONTEXT-IDENTIFIERS
+// D4: named constants; promote to caller-tunable options only if a consumer
+// actually hits the wall). A fact past these bounds never reaches the model.
+const RESOURCE_CONTENT_CAP = 4000;
+const SEMANTIC_MATCH_LIMIT = 3;
+const SEMANTIC_MATCH_CHARS = 240;
+
+/**
+ * Model-visible identifier handle for an embedded excerpt — the ONE bracket
+ * convention across all context sections (CONTEXT-IDENTIFIERS D1/D2): resource id
+ * always, annotation id as a suffix when the excerpt is annotation-derived.
+ */
+function idLabel(resourceId: string, annotationId?: string): string {
+  return `[${resourceId}${annotationId ? `/${annotationId}` : ''}]`;
+}
+
 /**
  * Generate resource content using inference.
  *
@@ -35,7 +51,9 @@ export async function generateResourceFromTopic(
   temperature?: number,
   maxTokens?: number,
   sourceLanguage?: string,
-  outputMediaType: SupportedMediaType = 'text/markdown'
+  outputMediaType: SupportedMediaType = 'text/markdown',
+  task: string = 'resource',
+  structure?: string
 ): Promise<{ title: string; content: string }> {
   logger.debug('Generating resource from topic', {
     topicPreview: topic.substring(0, 100),
@@ -45,7 +63,10 @@ export async function generateResourceFromTopic(
     sourceLanguage,
     hasContext: !!context,
     temperature,
-    maxTokens
+    maxTokens,
+    outputMediaType,
+    task,
+    structure
   });
 
   // Use provided values or defaults.
@@ -90,7 +111,7 @@ export async function generateResourceFromTopic(
     if (focus.kind === 'annotation') {
       const parts: string[] = [];
       parts.push(`- Annotation motivation: ${focus.annotation.motivation}`);
-      parts.push(`- Source resource: ${focus.sourceResource.name}`);
+      parts.push(`- Source resource: ${focus.sourceResource.name} ${idLabel(mainResourceId)}`);
       // Include body text for commenting/assessing annotations
       const { motivation, body } = focus.annotation;
       if (motivation === 'commenting' || motivation === 'assessing') {
@@ -116,8 +137,7 @@ ${after ? `${after}...` : ''}
       // Resource focus — ground in the focal resource's summary, suggested
       // references, and content (omit-empty). Content is capped per resource to
       // bound prompt size; the caller already chose breadth via gather.resource.
-      const RESOURCE_CONTENT_CAP = 4000;
-      const parts = [`- Resource: ${focus.resource.name}`];
+      const parts = [`- Resource: ${focus.resource.name} ${idLabel(mainResourceId)}`];
       if (focus.summary) parts.push(`- Summary: ${focus.summary}`);
       if (focus.suggestedReferences && focus.suggestedReferences.length > 0) {
         parts.push(`- Suggested references: ${focus.suggestedReferences.join(', ')}`);
@@ -144,13 +164,13 @@ ${after ? `${after}...` : ''}
 
       if (views.connections.length > 0) {
         const connList = views.connections
-          .map(c => `${c.resourceName}${c.entityTypes.length ? ` (${c.entityTypes.join(', ')})` : ''}`)
+          .map(c => `${c.resourceName}${c.entityTypes.length ? ` (${c.entityTypes.join(', ')})` : ''} ${idLabel(c.resourceId)}`)
           .join(', ');
         parts.push(`- Connected resources: ${connList}`);
       }
 
       if (views.citedByCount > 0) {
-        const citedNames = views.citedBy.map(c => c.resourceName).join(', ');
+        const citedNames = views.citedBy.map(c => `${c.resourceName} ${idLabel(c.resourceId)}`).join(', ');
         parts.push(`- This resource is cited by ${views.citedByCount} other resource${views.citedByCount > 1 ? 's' : ''}${citedNames ? `: ${citedNames}` : ''}`);
       }
 
@@ -170,39 +190,73 @@ ${after ? `${after}...` : ''}
 
   // Build semantic context section if available — the vector matches the gather
   // flow already retrieved for the focal passage, used to ground generation (RAG).
-  // Capped at top-3 by score and truncated per passage to bound prompt cost; the
-  // gather step pre-filters to ≤10 matches above a 0.5 cosine threshold.
-  // See .plans/SEMANTIC-CONTEXT-RAG.md.
+  // Capped and truncated to bound prompt cost (see the named caps above); the
+  // gather step pre-filters to ≤10 matches above a 0.5 cosine threshold. Each
+  // passage carries its source id so the model can attribute what it uses.
+  // See .plans/SEMANTIC-CONTEXT-RAG.md + .plans/CONTEXT-IDENTIFIERS.md.
   let semanticContextSection = '';
   const similar = context?.semanticContext?.similar ?? [];
   if (similar.length > 0) {
     const lines = [...similar]
       .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
-      .map(m => `- (${m.score.toFixed(2)}) ${m.text.slice(0, 240)}`);
+      .slice(0, SEMANTIC_MATCH_LIMIT)
+      .map(m => `- ${idLabel(m.resourceId, m.annotationId)} (${m.score.toFixed(2)}) ${m.text.slice(0, SEMANTIC_MATCH_CHARS)}`);
     semanticContextSection = `\n\nRelated passages from the knowledge base:\n${lines.join('\n')}`;
   }
 
-  // Format instructions branch on the requested output media type. Markdown is the
-  // default; text/plain drops the markup scaffolding so the result is clean prose.
+  // ── Task framing (YIELD-STRUCTURE D1): canonical tasks map to tested framings;
+  // an unknown task string is used VERBATIM as the framing instruction (loud
+  // degrade — warn, never a silent fallback to 'resource').
+  let leadLine: string;
+  if (task === 'resource') {
+    leadLine = `Generate a concise, informative resource about "${topic}".`;
+  } else if (task === 'answer') {
+    leadLine = `Answer the following question directly and concisely, grounded in the provided context: "${topic}"`;
+  } else if (task === 'summary') {
+    leadLine = `Write a concise summary of "${topic}".`;
+  } else {
+    logger.warn('Unknown task — using it verbatim as the framing instruction', { task });
+    leadLine = `${task}\nTopic: "${topic}"`;
+  }
+
+  // ── Structure directive (YIELD-STRUCTURE D2/D4): emitted ONLY when the caller
+  // sets one — unset means no directive at all (the task framing and the model
+  // determine shape). Never derived from the token budget: maxTokens is length
+  // only. The forced `# Title` heading exists only under canonical 'sections'.
   const isPlainText = outputMediaType === 'text/plain';
-  const structureGuidance = !isPlainText && finalMaxTokens >= 1000
-    ? 'organized into titled sections (## Section) with well-structured paragraphs'
-    : 'organized into well-structured paragraphs';
+  let structureRequirement = '';
+  let titleRequirement = '';
+  if (structure === 'sections') {
+    structureRequirement = isPlainText
+      ? '\n- Organize the content into titled sections with well-structured paragraphs'
+      : '\n- Organize the content into titled sections (## Section) with well-structured paragraphs';
+    if (!isPlainText) {
+      titleRequirement = '\n- Start with a clear heading (# Title)';
+    }
+  } else if (structure === 'prose') {
+    structureRequirement = '\n- Write flowing, well-structured paragraphs with no section headings';
+  } else if (structure === 'chat') {
+    structureRequirement = '\n- Structure the content as a conversational chat transcript — a sequence of alternating, speaker-labeled turns (no section headings)';
+  } else if (structure) {
+    logger.warn('Unknown structure — passing it through as freeform organization guidance', { structure });
+    structureRequirement = `\n- Organize the output as: ${structure}`;
+  }
+
   const formatRequirements = isPlainText
     ? `- Write the response as plain text — no formatting markup (no #, *, backticks, headings, or links)
 - Begin with the title on its own first line`
-    : `- Start with a clear heading (# Title)
-- Use markdown formatting
+    : `- Use markdown formatting
 - Write the response as markdown`;
 
-  const prompt = `Generate a concise, informative resource about "${topic}".
-${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
-${userPrompt ? `Additional context: ${userPrompt}` : ''}${annotationSection}${contextSection}${resourceSection}${graphSection}${semanticContextSection}${sourceLanguageInstruction}${languageInstruction}
+  // The caller's prompt is an authoritative leading Instruction (YIELD-STRUCTURE D3),
+  // not background "additional context" — task = what to produce, prompt = how.
+  const prompt = `${leadLine}
+${userPrompt ? `Instruction: ${userPrompt}` : ''}
+${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}${annotationSection}${contextSection}${resourceSection}${graphSection}${semanticContextSection}${sourceLanguageInstruction}${languageInstruction}
 
 Requirements:
-- Aim for approximately ${finalMaxTokens} tokens of content, ${structureGuidance}
-- Be factual and informative
+- Aim for approximately ${finalMaxTokens} tokens of content
+- Be factual and informative${structureRequirement}${titleRequirement}
 ${formatRequirements}`;
 
   // Simple parser - just use the response directly as markdown

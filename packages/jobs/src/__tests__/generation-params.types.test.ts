@@ -17,4 +17,16 @@ describe('GenerationParams contract', () => {
     const p: GenerationParams = {};
     expect(p).toEqual({});
   });
+
+  it('task and structure accept canonical values AND arbitrary strings (open LiteralUnion)', () => {
+    // YIELD-STRUCTURE D1: '…canonical…' | (string & {}) — autocomplete for the
+    // tested set, any string as the power-user escape hatch.
+    const canonical: GenerationParams = { task: 'answer', structure: 'prose' };
+    const custom: GenerationParams = {
+      task: 'Translate the source into idiomatic French',
+      structure: 'a bulleted list of key facts',
+    };
+    expect(canonical.task).toBe('answer');
+    expect(custom.structure).toBe('a bulleted list of key facts');
+  });
 });

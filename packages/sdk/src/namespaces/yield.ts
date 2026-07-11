@@ -108,6 +108,8 @@ export class YieldNamespace implements IYieldNamespace {
       maxTokens: options.maxTokens,
       storageUri: options.storageUri,
       outputMediaType: options.outputMediaType,
+      task: options.task,
+      structure: options.structure,
       context: options.context as unknown as Record<string, unknown>,
     });
   }
@@ -138,6 +140,8 @@ export class YieldNamespace implements IYieldNamespace {
       maxTokens: options.maxTokens,
       storageUri: options.storageUri,
       outputMediaType: options.outputMediaType,
+      task: options.task,
+      structure: options.structure,
       context: options.context as unknown as Record<string, unknown>,
     });
   }

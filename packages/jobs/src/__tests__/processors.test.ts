@@ -694,11 +694,11 @@ describe('locale threading', () => {
         LOGGER,
       );
 
-      // Positional signature: topic, entityTypes, client, logger, prompt,
-      // locale, context, temperature, maxTokens, sourceLanguage, outputMediaType.
+      // Positional signature: topic, entityTypes, client, logger, prompt, locale,
+      // context, temperature, maxTokens, sourceLanguage, outputMediaType, task, structure.
       expect(generateResourceFromTopic).toHaveBeenCalledWith(
         'Topic', [], client, LOGGER, undefined, 'de', undefined,
-        undefined, undefined, 'fr', 'text/markdown',
+        undefined, undefined, 'fr', 'text/markdown', undefined, undefined,
       );
     });
   });
