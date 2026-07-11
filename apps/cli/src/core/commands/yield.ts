@@ -64,6 +64,20 @@ export const YieldOptionsSchema = ApiOptionsSchema.extend({
    * authorable / role-appropriateness rejection (MEDIA-TYPES).
    */
   outputMediaType: z.string().optional(),
+  /**
+   * Framing of the generation (delegate mode) — what the model is asked to
+   * do. Canonical: resource | answer | summary; any other string is used
+   * verbatim as the framing line (loud degrade at the worker). No default
+   * here — unset passes through as undefined.
+   */
+  task: z.string().optional(),
+  /**
+   * Shape of the generated output (delegate mode). Canonical: prose |
+   * sections | chat; any other string becomes a freeform organization
+   * instruction (loud degrade at the worker). No default — unset means the
+   * worker emits no structure directive at all (D2).
+   */
+  structure: z.string().optional(),
 }).superRefine((val, ctx) => {
   const hasUpload = val.upload.length > 0;
   const hasDelegate = val.delegate;
@@ -138,6 +152,8 @@ async function runDelegate(
         temperature: options.temperature,
         maxTokens: options.maxTokens,
         outputMediaType,
+        task: options.task,
+        structure: options.structure,
       }),
     );
     return extractResult(final);
@@ -174,6 +190,8 @@ async function runDelegate(
       temperature: options.temperature,
       maxTokens: options.maxTokens,
       outputMediaType,
+      task: options.task,
+      structure: options.structure,
     }),
   );
   return extractResult(final);
@@ -278,7 +296,8 @@ export const yieldCmd = new CommandBuilder()
     'semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md',
     'semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md --title "Paris" --language en',
     'semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md --prompt "Write a brief encyclopedia entry" --temperature 0.3',
-    'semiont yield --delegate --resource <resourceId> --storage-uri file://generated/summary.md --prompt "Summarize this document"',
+    'semiont yield --delegate --resource <resourceId> --storage-uri file://generated/summary.md --task summary',
+    'semiont yield --delegate --resource <resourceId> --storage-uri file://generated/answer.md --title "What is X?" --task answer --structure prose',
     'semiont yield --delegate --resource <resourceId> --storage-uri file://generated/translated.html --prompt "Translate to French" --language fr --output-media-type text/html',
     'NEW_ID=$(semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md --quiet | jq -r \'.resourceId\') && semiont bind <resourceId> <annotationId> "$NEW_ID"',
   )
@@ -336,6 +355,14 @@ export const yieldCmd = new CommandBuilder()
       '--output-media-type': {
         type: 'string',
         description: 'Delegate mode: media type of the generated resource (e.g. text/markdown, text/html; default: text/markdown)',
+      },
+      '--task': {
+        type: 'string',
+        description: 'Delegate mode: generation framing — resource | answer | summary, or any custom framing string (default: resource)',
+      },
+      '--structure': {
+        type: 'string',
+        description: 'Delegate mode: output shape — prose | sections | chat, or any custom organization string (default: none imposed)',
       },
     }, {
       '-n': '--name',
