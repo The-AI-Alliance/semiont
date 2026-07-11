@@ -399,11 +399,24 @@ semiont.yield.fromAnnotation(resourceId, annotationId, {
 // (no annotationId). Ground it with a resource-focus GatheredContext from
 // gather.resource. `outputMediaType` (on both methods) sets the generated resource's
 // media type — default `text/markdown`; the worker validates it.
+//
+// Output shape is caller-controlled (both methods):
+//   task      — framing: 'resource' | 'answer' | 'summary', or ANY string (used
+//               verbatim as the framing; the worker warns — loud, never silent).
+//   structure — shape: 'prose' | 'sections' | 'chat', or any string (becomes a
+//               freeform "organize as: …" directive + warn). UNSET ⇒ no structure
+//               directive at all — task framing + model decide. maxTokens is
+//               length only; it never implies structure.
+//   prompt    — refines HOW (an authoritative Instruction under the framing);
+//               task says WHAT. They compose.
+// The Q&A recipe: ask the question via `title`, then
 semiont.yield.fromResource(resourceId, {
-  title: 'Summary',
-  storageUri: 'file://generated/summary.md',
+  title: 'What does the appendix say about retry budgets?',
+  storageUri: 'file://generated/answer.md',
   context: resourceContext,
-  prompt: 'Summarize, grounding every claim in the context.',
+  task: 'answer',
+  structure: 'prose',
+  prompt: 'Cite the sections you draw from; be terse.',
   outputMediaType: 'text/markdown',
 }).subscribe({
   next: (event) => console.log(event.kind, event),

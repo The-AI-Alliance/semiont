@@ -109,19 +109,30 @@ AI content generation — creates new resources from source material and prompts
 
 ```typescript
 interface GenerationParams {
-  referenceId: AnnotationId;
-  sourceResourceId: ResourceId;
-  sourceResourceName: string;
-  annotation: Annotation;           // Full W3C Annotation
-  prompt?: string;
+  referenceId?: AnnotationId;       // Annotation-focus only (yield.fromAnnotation) — the
+                                    // unresolved reference; the worker auto-binds the new
+                                    // resource to it. Absent for resource-focus generation
+                                    // (yield.fromResource): provenance is a minted
+                                    // source→derived reference instead
+  prompt?: string;                  // Freeform refinement — rendered as an authoritative
+                                    // "Instruction:" line under the task framing
   title?: string;
   entityTypes?: EntityType[];
-  language?: string;                // Annotation body locale, e.g., 'en-US'
+  language?: string;                // Generated-content locale, e.g., 'en-US'
   sourceLanguage?: string;          // Source resource locale (BCP-47)
   context?: GatheredContext;
   temperature?: number;
-  maxTokens?: number;
+  maxTokens?: number;               // Length only — never implies structure
   storageUri?: string;
+  outputMediaType?: SupportedMediaType; // Default text/markdown; only text/markdown |
+                                    // text/plain are produced — anything else fails the job
+  task?: 'resource' | 'answer' | 'summary' | (string & {});
+                                    // Framing (what to produce). Unknown strings are used
+                                    // verbatim as the framing + a worker warn (loud degrade)
+  structure?: 'prose' | 'sections' | 'chat' | (string & {});
+                                    // Shape, subordinate to outputMediaType. Unknown strings
+                                    // become "Organize the output as: …" + warn. UNSET ⇒ no
+                                    // structure directive at all
 }
 ```
 

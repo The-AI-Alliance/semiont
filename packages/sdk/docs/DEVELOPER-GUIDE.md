@@ -182,17 +182,23 @@ annotations* `mark.assist('tagging')` writes, which `excludeEntityTypes` does no
 ## 8. Generate a derived resource
 
 `yield.fromResource` / `yield.fromAnnotation` synthesize a **new resource** from a source,
-grounded in a `GatheredContext`. The role is carried by `prompt` (translate, summarize,
-answer, …); `outputMediaType` sets the result's format (default `text/markdown`). On
-completion the worker mints a source→derived reference annotation, so provenance is automatic.
-The generated resource id arrives on the terminal `complete` event.
+grounded in a `GatheredContext`. `outputMediaType` sets the result's format (default
+`text/markdown`); under it, `task` carries the framing (`'resource' | 'answer' | 'summary'`,
+or any custom string — used verbatim, with a worker-side warn) and `structure` the shape
+(`'prose' | 'sections' | 'chat'`, or any custom string; **unset ⇒ no structure directive** —
+the task framing and the model decide, and `maxTokens` is length only). `prompt` is a
+refining instruction that composes with `task` (task = what, prompt = how) — don't carry
+the role in `prompt` anymore. On completion the worker mints a source→derived reference
+annotation, so provenance is automatic. The generated resource id arrives on the terminal
+`complete` event.
 
 ```typescript
 const done = await session.client.yield.fromResource(resourceId, {
   title: 'Summary',
   storageUri: 'file://generated/summary.md',
   context,                                   // from gather.resource — required, grounds the output
-  prompt: 'Summarize, grounding every claim in the provided context.',
+  task: 'summary',                           // the framing; 'answer' + structure: 'prose' is the Q&A recipe
+  prompt: 'Ground every claim in the provided context.',
   entityTypes: ['Concept'],
   outputMediaType: 'text/markdown',
 }).run((ev) => { if (ev.kind === 'progress') showProgress(ev.data); });

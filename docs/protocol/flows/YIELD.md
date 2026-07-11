@@ -176,7 +176,9 @@ Generation has no dedicated REST endpoint — it runs as a bus job. The SDK's `y
   title: string;              // Title of the synthesized resource; also the LLM topic
   storageUri: string;         // Where the generated content is written (file://…)
   context: GatheredContext;   // Correlated context from the Gather flow (grounds the prompt)
-  prompt?: string;            // Freeform user instructions, injected as "Additional context: …"
+  prompt?: string;            // Freeform user instructions — rendered as an authoritative
+                              // "Instruction: …" line directly under the task framing
+                              // (task = what to produce, prompt = how; they compose)
   entityTypes?: string[];     // Stamped on the synthesized resource AND injected into the
                               // prompt as a topical bias ("Focus on these entity types: …"),
                               // so `browse.resources({ entityType: … })` can later find it
@@ -187,8 +189,25 @@ Generation has no dedicated REST endpoint — it runs as a bus job. The SDK's `y
   maxTokens?: number;         // Target LLM response length in tokens (worker default 500)
   outputMediaType?: SupportedMediaType; // Output format; the worker defaults to text/markdown
                               // and fails the job for anything outside text/markdown | text/plain
+  task?: 'resource' | 'answer' | 'summary' | (string & {});
+                              // Framing — what the model is asked to DO. Canonical values map to
+                              // tested lead lines; any other string is used VERBATIM as the framing
+                              // (loud degrade: worker warns, never silently falls back). Default 'resource'
+  structure?: 'prose' | 'sections' | 'chat' | (string & {});
+                              // Shape — how text-bearing output is internally segmented; subordinate
+                              // to outputMediaType, never its peer. Unknown strings become a freeform
+                              // "Organize the output as: …" directive (+ warn). UNSET ⇒ NO structure
+                              // directive at all — the task framing and the model determine shape
 }
 ```
+
+`outputMediaType` is the one **universal** axis (it selects the modality);
+`task` and `structure` are subordinate detail under it, not co-equal axes.
+`structure` values are per-modality — `prose | sections | chat` is what shape
+means for text-bearing output; other modalities (image, audio, video) get
+their own canonical sets if/when their generators exist. Length knobs
+(`maxTokens`, and one day duration/dimensions) are a separate axis and never
+imply structure.
 
 **Dispatch responsibilities** (SDK `yield` namespace + [job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts)):
 1. Validate params and authentication
@@ -242,9 +261,13 @@ The generation prompt is enriched with graph context from the [Gather flow](./GA
 **Prompt Structure** (assembled by `generateResourceFromTopic`; every section
 below is omitted when its underlying data is absent):
 ```
-Generate a concise, informative resource about "{title}".
+{task framing}                                                      // task: 'resource' → Generate a concise, informative resource about "{title}".
+                                                                    //       'answer'   → Answer the following question directly and concisely,
+                                                                    //                    grounded in the provided context: "{title}"
+                                                                    //       'summary'  → Write a concise summary of "{title}".
+                                                                    //       any other string → used verbatim as the framing (+ Topic: "{title}", worker warns)
+Instruction: {prompt}                                               // when a freeform prompt was supplied — authoritative, directly under the framing
 Focus on these entity types: {comma-separated entity types}.        // when entityTypes is non-empty
-Additional context: {prompt}                                        // when a freeform prompt was supplied
 
 Annotation context:                                                 // annotation-focus (fromAnnotation)
 - Annotation motivation: {motivation}
@@ -275,21 +298,32 @@ The source resource and embedded context are in {source language}.  // when sour
 IMPORTANT: Write the entire resource in {language}.                 // when language is not English
 
 Requirements:
-- Aim for approximately {maxTokens} tokens of content, organized into well-structured paragraphs
+- Aim for approximately {maxTokens} tokens of content
 - Be factual and informative
-- Start with a clear heading (# Title)                              // markdown (default output)
-- Use markdown formatting
+- {structure directive}                                             // ONLY when `structure` is set:
+                                                                    //   'sections' → titled sections (## Section) + Start with a clear heading (# Title)
+                                                                    //   'prose'    → flowing paragraphs, no section headings
+                                                                    //   'chat'     → conversational transcript — alternating, speaker-labeled turns
+                                                                    //   any other string → Organize the output as: {structure} (worker warns)
+- Use markdown formatting                                           // text/plain instead: no markup; title on its own first line
 - Write the response as markdown
 ```
 
-There is no tone or length parameter. Generation is steered by the freeform
-`prompt`, the `entityTypes` bias, and the gathered context; the requested
-`maxTokens` sets the target length (and, for markdown output ≥1000 tokens, the
-prompt also asks for titled `## Section`s). When `outputMediaType` is
-`text/plain` the format requirements instead tell the model to emit plain text
-with the title on its own first line. Each context section is omitted when its
-data is absent — e.g. the graph section disappears for an isolated annotation
-with no connections.
+There is no tone parameter. Generation is steered by the `task` framing, the
+authoritative `Instruction:` line (`prompt`), the `entityTypes` bias, and the
+gathered context. `maxTokens` sets the target **length only** — it never
+implies structure. When `structure` is unset the prompt carries **no**
+structure or heading requirement at all: the task framing and the model
+determine shape (an `answer` naturally comes out prose; a `resource`
+naturally article-ish). The forced `# Title` heading exists only under
+canonical `sections` (markdown output). Each context section is omitted when
+its data is absent — e.g. the graph section disappears for an isolated
+annotation with no connections.
+
+The Q&A recipe (`my-chat`-style consumers): `task: 'answer'` with
+`structure: 'prose'` (or `'chat'` for speaker-labeled turns) — ask the
+question via `title`, refine with `prompt` ("cite every claim; be terse")
+instead of fighting the article framing through it.
 
 **Model Parameters**:
 - Model: Claude Sonnet 4.5
