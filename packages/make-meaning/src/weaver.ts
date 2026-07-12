@@ -110,7 +110,7 @@ export class Weaver {
               return from(this.processBatch(eventOrBatch));
             }
             return from(this.safeApplyEvent(eventOrBatch).then(() => {
-              this.lastProcessed.set(
+              this.noteApplied(
                 eventOrBatch.resourceId!,
                 eventOrBatch.metadata.sequenceNumber
               );
@@ -125,6 +125,16 @@ export class Weaver {
     });
 
     this.logger.info('Subscribed to global events with burst-buffered pipeline');
+  }
+
+  /**
+   * Record an applied event's sequence and signal `weave:applied` — the
+   * push half of the applied-offset barrier (GRAPH-PROJECTION-SYNC P2):
+   * `WeaveProgress` folds these signals into the map `whenApplied` awaits.
+   */
+  private noteApplied(resourceId: string, sequenceNumber: number): void {
+    this.lastProcessed.set(resourceId, sequenceNumber);
+    this.coreEventBus.get('weave:applied').next({ resourceId, sequenceNumber });
   }
 
   /**
@@ -196,7 +206,7 @@ export class Weaver {
       }
       const last = run[run.length - 1];
       if (last.resourceId) {
-        this.lastProcessed.set(last.resourceId, last.metadata.sequenceNumber);
+        this.noteApplied(last.resourceId, last.metadata.sequenceNumber);
       }
     }
 

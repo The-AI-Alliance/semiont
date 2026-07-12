@@ -17,6 +17,13 @@ import type { ResourceAnnotations, ResourceDescriptor, ResourceId, Logger } from
 export interface ResourceView {
   resource: ResourceDescriptor;
   annotations: ResourceAnnotations;
+  /**
+   * Sequence number of the last event applied to this view — the parity
+   * target the graph-projection barrier waits on (GRAPH-PROJECTION-SYNC).
+   * Absent only in view files written before the stamp existed; the
+   * startup rebuild restamps them.
+   */
+  lastSequence?: number;
 }
 
 export interface ViewStorage {

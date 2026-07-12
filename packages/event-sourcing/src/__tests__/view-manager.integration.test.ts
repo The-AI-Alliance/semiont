@@ -149,7 +149,7 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
 
     // Seed the view with a yield:created so the incremental path is taken
     const created = createdEvent(rid);
-    await manager.materializeResource(rid, created, async () => [stored(created, 1)]);
+    await manager.materializeResource(rid, stored(created, 1), async () => [stored(created, 1)]);
 
     // Fire 10 concurrent mark:added events
     const marks = Array.from({ length: 10 }, (_, i) => markAddedEvent(rid, i));
@@ -157,11 +157,12 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
 
     await Promise.all(
       marks.map((m, i) => {
-        history.push(stored(m, i + 2));
+        const s = stored(m, i + 2);
+        history.push(s);
         // getAllEvents returns the full history at call time — the incremental
         // path won't typically use it, but it's what materializeIncremental
         // needs if it decides to rebuild.
-        return manager.materializeResource(rid, m, async () => [...history]);
+        return manager.materializeResource(rid, s, async () => [...history]);
       }),
     );
 
@@ -186,7 +187,7 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
     const rid = resourceId('doc-burst');
 
     const created = createdEvent(rid);
-    await manager.materializeResource(rid, created, async () => [stored(created, 1)]);
+    await manager.materializeResource(rid, stored(created, 1), async () => [stored(created, 1)]);
 
     const mark = markAddedEvent(rid, 0);
     const progress = jobProgressEvent(rid, 100);
@@ -201,9 +202,9 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
 
     // Fire all three at once — this is the race window
     await Promise.all([
-      manager.materializeResource(rid, mark, async () => history),
-      manager.materializeResource(rid, progress, async () => history),
-      manager.materializeResource(rid, complete, async () => history),
+      manager.materializeResource(rid, stored(mark, 2), async () => history),
+      manager.materializeResource(rid, stored(progress, 3), async () => history),
+      manager.materializeResource(rid, stored(complete, 4), async () => history),
     ]);
 
     const view = await viewStorage.get(rid);
@@ -219,8 +220,8 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
     const created1 = createdEvent(rid1);
     const created2 = createdEvent(rid2);
     await Promise.all([
-      manager.materializeResource(rid1, created1, async () => [stored(created1, 1)]),
-      manager.materializeResource(rid2, created2, async () => [stored(created2, 1)]),
+      manager.materializeResource(rid1, stored(created1, 1), async () => [stored(created1, 1)]),
+      manager.materializeResource(rid2, stored(created2, 1), async () => [stored(created2, 1)]),
     ]);
 
     // Fire 5 concurrent mark:added events on each resource, interleaved
@@ -232,12 +233,14 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
 
     const all: Promise<void>[] = [];
     marks1.forEach((m, i) => {
-      hist1.push(stored(m, i + 2));
-      all.push(manager.materializeResource(rid1, m, async () => [...hist1]));
+      const s = stored(m, i + 2);
+      hist1.push(s);
+      all.push(manager.materializeResource(rid1, s, async () => [...hist1]));
     });
     marks2.forEach((m, i) => {
-      hist2.push(stored(m, i + 2));
-      all.push(manager.materializeResource(rid2, m, async () => [...hist2]));
+      const s = stored(m, i + 2);
+      hist2.push(s);
+      all.push(manager.materializeResource(rid2, s, async () => [...hist2]));
     });
 
     await Promise.all(all);
@@ -256,15 +259,16 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
     const rid = resourceId('doc-valid-json');
 
     const created = createdEvent(rid);
-    await manager.materializeResource(rid, created, async () => [stored(created, 1)]);
+    await manager.materializeResource(rid, stored(created, 1), async () => [stored(created, 1)]);
 
     const events = Array.from({ length: 20 }, (_, i) => markAddedEvent(rid, i));
     const history: StoredEvent[] = [stored(created, 1)];
 
     await Promise.all(
       events.map((e, i) => {
-        history.push(stored(e, i + 2));
-        return manager.materializeResource(rid, e, async () => [...history]);
+        const s = stored(e, i + 2);
+        history.push(s);
+        return manager.materializeResource(rid, s, async () => [...history]);
       }),
     );
 

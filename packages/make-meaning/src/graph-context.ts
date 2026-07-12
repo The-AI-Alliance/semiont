@@ -33,6 +33,14 @@ export class GraphContext {
   private static readonly PROJECTION_LAG_BACKOFF_MS = [25, 50, 100, 200];
 
   /**
+   * Bounded wait for the applied-offset barrier (GRAPH-PROJECTION-SYNC P2).
+   * The Weaver applies in tens of milliseconds when merely lagging; a
+   * barrier that hasn't woken in 500 ms means signals have stalled and the
+   * poll floor above owns the remainder.
+   */
+  private static readonly PROJECTION_BARRIER_TIMEOUT_MS = 500;
+
+  /**
    * Get all resources referencing this resource (backlinks)
    * Requires graph traversal - must use graph database
    */
@@ -90,15 +98,38 @@ export class GraphContext {
     // Read-your-writes grace for the graph projection: the view materializer
     // applies on the append path, the Weaver lags behind it (see
     // .plans/bugs/gather-resource-races-graph-projection.md). "Present in the
-    // view, absent in the graph" precisely identifies projection lag, so only
-    // that state earns a bounded retry; a resource the view doesn't know is
-    // genuinely unknown and throws on the first read.
+    // view, absent in the graph" precisely identifies projection lag; a
+    // resource the view doesn't know is genuinely unknown and throws on the
+    // first read.
     let mainDoc = await kb.graph.getResource(resourceId);
-    if (!mainDoc && await kb.views.get(resourceId)) {
-      for (const delayMs of GraphContext.PROJECTION_LAG_BACKOFF_MS) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        mainDoc = await kb.graph.getResource(resourceId);
-        if (mainDoc) break;
+    if (!mainDoc) {
+      const view = await kb.views.get(resourceId);
+      if (view) {
+        // Applied-offset barrier first (P2, D2 = push): an event-driven wake
+        // at the moment the Weaver reports parity with the view's sequence.
+        // Views without a stamp (written pre-stamp) cannot name a parity
+        // target and skip straight to the poll floor.
+        if (view.lastSequence !== undefined) {
+          try {
+            await kb.weaveProgress.whenApplied(
+              String(resourceId),
+              view.lastSequence,
+              GraphContext.PROJECTION_BARRIER_TIMEOUT_MS,
+            );
+            mainDoc = await kb.graph.getResource(resourceId);
+          } catch {
+            // Barrier timed out — signals stalled; the poll floor owns it.
+          }
+        }
+        // Bounded-poll floor (P1): the fallback when the barrier cannot
+        // engage or its signals stall.
+        if (!mainDoc) {
+          for (const delayMs of GraphContext.PROJECTION_LAG_BACKOFF_MS) {
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+            mainDoc = await kb.graph.getResource(resourceId);
+            if (mainDoc) break;
+          }
+        }
       }
     }
     if (!mainDoc) {

@@ -42,5 +42,6 @@ export async function stopKnowledgeSystem(ks: KnowledgeSystem): Promise<void> {
   await ks.cloneTokenManager.stop();
   await ks.stower.stop();
   await ks.kb.weaver.stop();
+  ks.kb.weaveProgress.dispose();
   await ks.kb.graph.disconnect();
 }
