@@ -41,7 +41,7 @@
  *
  * Use RxJS `groupBy(keyFn) + concatMap(...)` when the work arrives as an
  * **event stream** that a component subscribes to once at startup. This
- * is how `Smelter`, `GraphDBConsumer`, and `Gatherer` serialize their own
+ * is how `Smelter`, `Weaver`, and `Gatherer` serialize their own
  * per-resource work — see their implementations in `packages/make-meaning`.
  *
  * Both patterns solve the same logical problem ("serialize work per key").

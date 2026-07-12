@@ -5,9 +5,9 @@ The **Knowledge System** binds the Knowledge Base to its seven reactive actors. 
 The knowledge base itself is not an intelligent actor. It has no goals, preferences, or decisions. It never initiates an event. It is inert storage — the durable record of what intelligent actors decide. Seven reactive sub-actors serve it, in two categories:
 
 - **Five access actors** mediate every read and write: **Stower** (write), **Browser** (read), **Gatherer** (context assembly), **Matcher** (search), and **CloneTokenManager** (clone tokens). They are the bus-facing interface of the knowledge base — commands and requests in, replies out, correlated by `correlationId`.
-- **Two projection pipelines** keep the eventually-consistent read models in sync with the event log: the **Graph Consumer** (events → graph) and the **Smelter** (events → vectors). Pipelines are addressed by no one and reply to nothing; they consume already-persisted domain events.
+- **Two projection pipelines** keep the eventually-consistent read models in sync with the event log: the **Weaver** (events → graph) and the **Smelter** (events → vectors). Pipelines are addressed by no one and reply to nothing; they consume already-persisted domain events.
 
-All seven subscribe to the bus via RxJS pipelines and expose no public business methods — `initialize()` and `stop()` for lifecycle, plus a startup recovery entry point on the pipelines (`GraphDBConsumer.rebuildAll()`, `Smelter.reconcile()`). Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
+All seven subscribe to the bus via RxJS pipelines and expose no public business methods — `initialize()` and `stop()` for lifecycle, plus a startup recovery entry point on the pipelines (`Weaver.rebuildAll()`, `Smelter.reconcile()`). Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
 The third derived read model — the materialized views — is deliberately **not** pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()`, before the event is published, so subscribers get a read-your-writes guarantee that a fire-and-forget pipeline cannot provide.
 
@@ -35,13 +35,13 @@ graph TB
     BE -->|"match"| MATCHER["Matcher"]
     BE -->|"browse"| BROWSER["Browser"]
     BE -->|"clone"| CTM["CloneTokenManager"]
-    BE -->|"domain events"| GC["Graph Consumer<br/>(pipeline)"]
+    BE -->|"domain events"| WEAVER["Weaver<br/>(pipeline)"]
     BE -->|"domain events"| SMELTER["Smelter<br/>(pipeline)"]
 
     STOWER -->|append| EVENTLOG
     STOWER -->|store| CONTENT
 
-    GC -->|project| GRAPH
+    WEAVER -->|project| GRAPH
     SMELTER -->|embed| VECTORS
     CONTENT -->|read| SMELTER
 
@@ -78,7 +78,7 @@ graph TB
 
     class API,BE backend
     class DB,EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
-    class STOWER,GATHERER,MATCHER,BROWSER,CTM,GC,SMELTER worker
+    class STOWER,GATHERER,MATCHER,BROWSER,CTM,WEAVER,SMELTER worker
 
     style top fill:none,stroke:none
 ```
@@ -90,7 +90,7 @@ graph TB
 | **Event Log** | Immutable append-only log of all domain events; system of record, committed to version control | Stower appends; startup rebuilds and pipelines replay it |
 | **Materialized Views** | Denormalized projections for fast reads; materialized **synchronously on append** by the EventStore's ViewManager (read-your-writes) | Gatherer/Matcher/Browser/CloneTokenManager query by resource id |
 | **Content Store** | Working-tree files addressed by `storageUri` (documents, images, PDFs) | Stower registers; Gatherer/Browser/Smelter read |
-| **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Graph Consumer projects; Gatherer/Matcher traverse and search |
+| **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Weaver projects; Gatherer/Matcher traverse and search |
 | **Vectors** | Embedding vectors in Qdrant for semantic similarity search; eventually consistent | Smelter projects; Gatherer/Matcher search |
 
 ## The seven KB actors
@@ -117,13 +117,13 @@ The Browser is the read actor for all deterministic KB queries — resources, an
 
 The CloneTokenManager handles the clone-token lifecycle in the yield flow. On `yield:clone-token-requested` it validates the source resource and its content, then issues a short-lived token (15-minute expiry, held in an in-memory map). `yield:clone-resource-requested` validates a token and returns the source resource; `yield:clone-create` validates the token and creates the cloned resource through the normal write path. Tokens never touch durable storage — losing them on restart is harmless.
 
-### Graph Consumer (projection pipeline)
+### Weaver (projection pipeline)
 
-The Graph Consumer follows the event log and keeps the graph projection in sync. It subscribes to the graph-relevant domain events on the bus, batches bursts per resource (`groupBy(resourceId)` + adaptive burst buffering + `concatMap`), and applies them to the graph database. Because the graph is eventually consistent and rebuildable, `rebuildAll()` replays the entire event log at startup — a wiped graph volume recovers by restarting the backend. It lives on the `KnowledgeBase` record (`kb.graphConsumer`), constructed inside `createKnowledgeBase()`.
+The Weaver follows the event log and keeps the graph projection in sync. It subscribes to the graph-relevant domain events on the bus, batches bursts per resource (`groupBy(resourceId)` + adaptive burst buffering + `concatMap`), and applies them to the graph database. Because the graph is eventually consistent and rebuildable, `rebuildAll()` replays the entire event log at startup — a wiped graph volume recovers by restarting the backend. It lives on the `KnowledgeBase` record (`kb.weaver`), constructed inside `createKnowledgeBase()`.
 
 ### Smelter (projection pipeline)
 
-The Smelter is the vector projection actor. It runs in its own container (`semiont-smelter`) — not in the backend process — and reaches the backend through the unified bus, the same way workers do. Beyond the bus it has two privileged attachments: the vector store (Qdrant, direct) and the content store (the KB working tree, bind-mounted; `SEMIONT_ROOT`). When a resource is created or an annotation is added, the Smelter receives the event, reads the content from the working tree, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store. Vectors are a pure projection — nothing is written back to the event log. Because Qdrant is ephemeral, the Smelter reconciles it against the KS catalog on every startup: it lists what is indexed, lists what should be (via the `browse:*` channels), re-embeds what's missing or stale (each upsert is stamped with the embedded bytes' checksum, so content changed while the worker was down is detected), and deletes orphans — so a wiped Qdrant volume, or events missed while the worker was down, recover by restarting the smelter. The Smelter follows the same RxJS burst-buffer pattern as the Graph Consumer for per-resource ordering and batch efficiency.
+The Smelter is the vector projection actor. It runs in its own container (`semiont-smelter`) — not in the backend process — and reaches the backend through the unified bus, the same way workers do. Beyond the bus it has two privileged attachments: the vector store (Qdrant, direct) and the content store (the KB working tree, bind-mounted; `SEMIONT_ROOT`). When a resource is created or an annotation is added, the Smelter receives the event, reads the content from the working tree, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store. Vectors are a pure projection — nothing is written back to the event log. Because Qdrant is ephemeral, the Smelter reconciles it against the KS catalog on every startup: it lists what is indexed, lists what should be (via the `browse:*` channels), re-embeds what's missing or stale (each upsert is stamped with the embedded bytes' checksum, so content changed while the worker was down is detected), and deletes orphans — so a wiped Qdrant volume, or events missed while the worker was down, recover by restarting the smelter. The Smelter follows the same RxJS burst-buffer pattern as the Weaver for per-resource ordering and batch efficiency.
 
 ## See also
 

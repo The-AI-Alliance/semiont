@@ -109,12 +109,12 @@ describe('Make-Meaning Service', () => {
       expect(typeof kb.graph.disconnect).toBe('function');
     });
 
-    it('should initialize graph consumer', async () => {
+    it('should initialize Weaver', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
       const { kb } = service.knowledgeSystem;
 
-      expect(kb.graphConsumer).toBeDefined();
-      expect(typeof kb.graphConsumer.stop).toBe('function');
+      expect(kb.weaver).toBeDefined();
+      expect(typeof kb.weaver.stop).toBe('function');
     });
 
     it('should return service handle with stop method', async () => {
@@ -142,11 +142,11 @@ describe('Make-Meaning Service', () => {
       service = null;
     });
 
-    it('should stop graph consumer on service stop', async () => {
+    it('should stop Weaver on service stop', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
       const { kb } = service.knowledgeSystem;
 
-      const consumerStopSpy = vi.spyOn(kb.graphConsumer, 'stop');
+      const consumerStopSpy = vi.spyOn(kb.weaver, 'stop');
 
       await service.stop();
 
@@ -179,7 +179,7 @@ describe('Make-Meaning Service', () => {
       expect(service).toBeDefined();
       expect(kb.eventStore).toBeDefined();
       expect(kb.graph).toBeDefined();
-      expect(kb.graphConsumer).toBeDefined();
+      expect(kb.weaver).toBeDefined();
     });
 
     it('should allow multiple service instances with different directories', async () => {

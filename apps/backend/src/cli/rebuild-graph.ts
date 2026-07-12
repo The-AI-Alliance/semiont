@@ -35,16 +35,16 @@ async function rebuildGraph(rId?: string, environment?: string) {
   // Create EventBus
   const eventBus = new EventBus();
 
-  // Start make-meaning to get eventStore and graphConsumer
+  // Start make-meaning to get eventStore and weaver
   const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
-  const { knowledgeSystem: { kb: { graphConsumer: consumer } } } = makeMeaning;
+  const { knowledgeSystem: { kb: { weaver } } } = makeMeaning;
 
   if (rId) {
     // Rebuild single resource
     logger.info('Rebuilding graph for resource', { resourceId: rId });
 
     try {
-      await consumer.rebuildResource(makeResourceId(rId));
+      await weaver.rebuildResource(makeResourceId(rId));
       logger.info('Resource rebuilt successfully', { resourceId: rId });
     } catch (error) {
       logger.error('Failed to rebuild resource', {
@@ -61,11 +61,11 @@ async function rebuildGraph(rId?: string, environment?: string) {
     logger.info('Note: This clears the database and replays all events');
 
     try {
-      await consumer.rebuildAll();
+      await weaver.rebuildAll();
       logger.info('Graph rebuilt successfully');
 
       // Show health metrics
-      const health = consumer.getHealthMetrics();
+      const health = weaver.getHealthMetrics();
       logger.info('Consumer health metrics', {
         activeSubscriptions: health.subscriptions,
         resourcesProcessed: Object.keys(health.lastProcessed).length

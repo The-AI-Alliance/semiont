@@ -1,5 +1,5 @@
 /**
- * GraphDBConsumer Tests
+ * Weaver Tests
  *
  * Tests event type filtering, per-resource serialization,
  * cross-resource parallelism, event application, burst batching, and lifecycle.
@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } from 'vitest';
 import { EventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
-import { GraphDBConsumer } from '../graph/consumer';
+import { Weaver } from '../weaver';
 import { resourceId, userId, annotationId, EventBus } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
@@ -75,13 +75,13 @@ function createMockGraphDb(): GraphDatabase {
   } as unknown as GraphDatabase;
 }
 
-describe('GraphDBConsumer', () => {
+describe('Weaver', () => {
   let testDir: string;
   let project: SemiontProject;
   let eventStore: EventStore;
   let coreEventBus: EventBus;
   let graphDb: GraphDatabase;
-  let consumer: GraphDBConsumer;
+  let consumer: Weaver;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-consumer-test-${uuidv4()}`);
@@ -106,7 +106,7 @@ describe('GraphDBConsumer', () => {
 
   beforeEach(async () => {
     graphDb = createMockGraphDb();
-    consumer = new GraphDBConsumer(eventStore, graphDb, coreEventBus, mockLogger);
+    consumer = new Weaver(eventStore, graphDb, coreEventBus, mockLogger);
     await consumer.initialize();
     vi.clearAllMocks();
   });
@@ -468,7 +468,7 @@ describe('GraphDBConsumer', () => {
 
     // The -added fold must be idempotent per event, mirroring the view
     // materializer's includes-guard — duplicate adds must not diverge the
-    // graph from the view (bugs/graph-consumer-entity-tag-add-not-idempotent.md).
+    // graph from the view (bugs/weaver-entity-tag-add-not-idempotent.md).
     it('entitytag.added for a tag the graph doc already has leaves a single copy', async () => {
       const docId = resourceId(`apply-entitytag-dup-${Date.now()}`);
 
@@ -707,7 +707,7 @@ describe('GraphDBConsumer', () => {
   describe('lifecycle', () => {
     it('should unsubscribe on stop', async () => {
       const localGraphDb = createMockGraphDb();
-      const localConsumer = new GraphDBConsumer(eventStore, localGraphDb, coreEventBus, mockLogger);
+      const localConsumer = new Weaver(eventStore, localGraphDb, coreEventBus, mockLogger);
       await localConsumer.initialize();
 
       const docId = resourceId(`lifecycle-stop-${Date.now()}`);

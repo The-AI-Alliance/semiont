@@ -27,7 +27,7 @@ The **EventStore** is the single write path. It coordinates three concerns:
 - **ViewManager** — Materializes resource views and system projections from events. Supports both incremental updates on every append and a full `rebuildAll(eventLog)` for startup recovery.
 - **Core EventBus** (`@semiont/core`) — Publishes `StoredEvent` to typed channels after persistence
 
-Event publishing uses the Core EventBus from `@semiont/core`. There is no internal pub/sub system — all subscribers (GraphDBConsumer, Smelter, SSE routes) subscribe directly to typed channels on the Core EventBus.
+Event publishing uses the Core EventBus from `@semiont/core`. There is no internal pub/sub system — all subscribers (Weaver, Smelter, SSE routes) subscribe directly to typed channels on the Core EventBus.
 
 The materialized views directory is **ephemeral by design** — see the [ViewManager / ViewMaterializer](#viewmanager--viewmaterializer) section for the rebuild model and how it relates to the graph and vector consumers.
 
@@ -155,7 +155,7 @@ This makes the views layer the third leg of a symmetric pattern: the three deriv
 
 | Derived store | Rebuild method | Owned by |
 |---|---|---|
-| Graph (Neo4j) | `GraphDBConsumer.rebuildAll()` | `@semiont/make-meaning` |
+| Graph (Neo4j) | `Weaver.rebuildAll()` | `@semiont/make-meaning` |
 | Vectors (Qdrant) | `Smelter.rebuildAll()` | `@semiont/make-meaning` |
 | Materialized views | `ViewManager.rebuildAll(eventLog)` | `@semiont/event-sourcing` |
 

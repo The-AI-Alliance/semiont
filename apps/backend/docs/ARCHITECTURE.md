@@ -39,7 +39,7 @@ See [@semiont/make-meaning](../../../packages/make-meaning/) for the implementat
 2. **GraphDatabase** - Graph database connection
    - Provides relationship traversal and backlinks
    - Single connection pool shared across requests
-   - Automatically synchronized via GraphDBConsumer
+   - Automatically synchronized via Weaver
 
 3. **WorkingTreeStore** - Working-tree file content (`kb.content`)
    - The project working tree is the source of truth for file content
@@ -64,7 +64,7 @@ See [@semiont/make-meaning](../../../packages/make-meaning/) for the implementat
    - TagDetectionWorker
    - Workers connect to the KS over HTTP/SSE via WorkerStateUnit (from @semiont/http-transport), not via the in-process EventBus
 
-7. **GraphDBConsumer** - Event-to-graph synchronization
+7. **Weaver** - Event-to-graph synchronization
    - Subscribes to event store
    - Updates graph database on resource/annotation changes
    - Maintains graph consistency

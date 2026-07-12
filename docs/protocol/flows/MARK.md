@@ -554,7 +554,7 @@ Stower emits mark:created on EventBus
     ↓
 View Materializer updates Materialized Views (fast single-doc queries)
     ↓
-Graph Consumer updates Graph Database (relationship traversal - backlinks, connections)
+Weaver updates Graph Database (relationship traversal - backlinks, connections)
 ```
 
 **Storage Locations**:

@@ -4,7 +4,7 @@
 
 ## Actor Model
 
-The package owns the **Knowledge Base** and the seven actors that serve it, in two categories: five **access actors** (Stower, Browser, Gatherer, Matcher, CloneTokenManager) mediate every read and write, and two **projection pipelines** (Graph Consumer, Smelter) follow the event log to keep the eventually-consistent read models (graph, vectors) in sync. All communication flows through the **EventBus** — actors subscribe via RxJS pipelines and expose no public business methods: `initialize()` and `stop()`, plus a startup recovery entry point on the pipelines (`rebuildAll()` / `reconcile()`).
+The package owns the **Knowledge Base** and the seven actors that serve it, in two categories: five **access actors** (Stower, Browser, Gatherer, Matcher, CloneTokenManager) mediate every read and write, and two **projection pipelines** (Weaver, Smelter) follow the event log to keep the eventually-consistent read models (graph, vectors) in sync. All communication flows through the **EventBus** — actors subscribe via RxJS pipelines and expose no public business methods: `initialize()` and `stop()`, plus a startup recovery entry point on the pipelines (`rebuildAll()` / `reconcile()`).
 
 The third derived read model — the materialized views — is **not** pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()`, giving bus subscribers a read-your-writes guarantee.
 
@@ -19,7 +19,7 @@ graph TB
     BUS -->|"gather:*"| GATHERER["Gatherer"]
     BUS -->|"match:search-requested"| MATCHER["Matcher"]
     BUS -->|"domain events:<br/>yield:created, yield:updated,<br/>yield:representation-added,<br/>mark:added, mark:removed, mark:archived"| SMELTER["Smelter<br/>(pipeline, standalone process)"]
-    BUS -->|"graph-relevant<br/>domain events"| GC["Graph Consumer<br/>(pipeline)"]
+    BUS -->|"graph-relevant<br/>domain events"| WEAVER["Weaver<br/>(pipeline)"]
     BUS -->|"yield:clone-*"| CTM["CloneTokenManager"]
 
     STOWER -->|append| EVENTLOG
@@ -37,7 +37,7 @@ graph TB
         EVENTLOG -->|"materialize<br/>(sync, on append)"| VIEWS
     end
 
-    GC -->|project| GRAPH
+    WEAVER -->|project| GRAPH
 
     BROWSER -->|query| VIEWS
     BROWSER -->|search| GRAPH
@@ -71,7 +71,7 @@ graph TB
 
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
-    class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,GC,CTM worker
+    class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,WEAVER,CTM worker
     class Routes,Workers,EBC caller
 ```
 
@@ -177,11 +177,11 @@ Manages the lifecycle of temporary clone tokens for resource cloning. In-memory 
 | `yield:clone-resource-requested` | Validate token, look up source resource | `yield:clone-resource-result` / `yield:clone-resource-failed` |
 | `yield:clone-create` | Validate token, create resource via `ResourceOperations` | `yield:clone-created` / `yield:clone-create-failed` |
 
-### Graph Consumer (Projection Pipeline)
+### Weaver (Projection Pipeline)
 
-**Implementation**: [src/graph/consumer.ts](../src/graph/consumer.ts)
+**Implementation**: [src/weaver.ts](../src/weaver.ts)
 
-The `GraphDBConsumer` subscribes to all domain events and projects graph-relevant events into the graph database. It uses an RxJS pipeline with adaptive burst buffering:
+The `Weaver` subscribes to all domain events and projects graph-relevant events into the graph database. It uses an RxJS pipeline with adaptive burst buffering:
 
 ```
 EventBus (callback, fire-and-forget)
@@ -194,13 +194,13 @@ EventBus (callback, fire-and-forget)
             → Batch: processBatch() → batchCreateResources / createAnnotations
 ```
 
-It is carried on the `KnowledgeBase` record (`kb.graphConsumer`) — `createKnowledgeBase()` constructs and starts it, and calls `rebuildAll()` at startup to replay the event log, so a wiped graph volume is recoverable.
+It is carried on the `KnowledgeBase` record (`kb.weaver`) — `createKnowledgeBase()` constructs and starts it, and calls `rebuildAll()` at startup to replay the event log, so a wiped graph volume is recoverable.
 
 ### Smelter (Projection Pipeline, standalone process)
 
 **Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
 
-The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`SmelterActorStateUnit`](../src/smelter-actor-state-unit.ts) fan-in. It reads content from the KB working tree via `WorkerContentTransport` (metadata over the bus, bytes straight off disk), chunks it, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Graph Consumer, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call.
+The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`SmelterActorStateUnit`](../src/smelter-actor-state-unit.ts) fan-in. It reads content from the KB working tree via `WorkerContentTransport` (metadata over the bus, bytes straight off disk), chunks it, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Weaver, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call.
 
 | Domain Event | Handler |
 |--------------|---------|
@@ -222,13 +222,13 @@ export interface KnowledgeBase {
   views:          ViewStorage;      // Materialized Views (fast reads)
   content:        WorkingTreeStore; // Content Store (working-tree files, URI-addressed)
   graph:          GraphDatabase;    // Graph (eventually consistent)
-  graphConsumer:  GraphDBConsumer;  // Event-to-graph projection pipeline
+  weaver:  Weaver;  // Event-to-graph projection pipeline
   vectors?:       VectorStore;      // Vector index (Qdrant / memory) — optional
   projectionsDir: string;
 }
 ```
 
-The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options?)` factory instantiates `FilesystemViewStorage` and `WorkingTreeStore` once, starts the `GraphDBConsumer`, and (unless `options.skipRebuild`) rebuilds the materialized views and graph from the event log. Context modules receive `KnowledgeBase` instead of instantiating stores per call.
+The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options?)` factory instantiates `FilesystemViewStorage` and `WorkingTreeStore` once, starts the `Weaver`, and (unless `options.skipRebuild`) rebuilds the materialized views and graph from the event log. Context modules receive `KnowledgeBase` instead of instantiating stores per call.
 
 ## Operations
 
@@ -257,7 +257,7 @@ See [Job Workers](./job-workers.md) for details.
 2. GraphDatabase
 3. EventStore (with EventBus integration)
 4. VectorStore + EmbeddingProvider *(optional — Qdrant or memory, from `@semiont/vectors`)*
-5. **KnowledgeBase** (groups stores including optional vectors; starts GraphDBConsumer; rebuilds views + graph unless `skipRebuild`)
+5. **KnowledgeBase** (groups stores including optional vectors; starts Weaver; rebuilds views + graph unless `skipRebuild`)
 6. **Stower** (must start before reader actors — it handles writes they depend on)
 7. Entity type bootstrap (emits via EventBus, Stower persists)
 8. **Gatherer** (context assembly, vector semantic search; gets its own InferenceClient)

@@ -1,5 +1,5 @@
 /**
- * GraphDB Consumer
+ * Weaver
  *
  * Subscribes to resource events and updates GraphDB accordingly.
  * Makes GraphDB a projection of Event Store events (single source of truth).
@@ -12,7 +12,7 @@
  * Per-resource ordering is preserved via groupBy(resourceId) + concatMap.
  * Cross-resource parallelism is provided via mergeMap over groups.
  *
- * Burst buffer thresholds (see BATCH-GRAPH-CONSUMER-RX.md for tuning guidance):
+ * Burst buffer thresholds:
  *   BURST_WINDOW_MS  = 50   — debounce window before flushing a batch
  *   MAX_BATCH_SIZE   = 500  — force flush to bound memory
  *   IDLE_TIMEOUT_MS  = 200  — silence before returning to passthrough
@@ -33,12 +33,12 @@ import { didToAgent, burstBuffer, EventBus, errField } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import type { PersistedEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
-import { partitionByType } from '../batch-utils.js';
+import { partitionByType } from './batch-utils.js';
 
 import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 
-export class GraphDBConsumer {
+export class Weaver {
   // Event types that produce GraphDB mutations — filter everything else
   private static readonly GRAPH_RELEVANT_EVENTS: Set<PersistedEvent['type']> = new Set([
     'yield:created', 'mark:archived', 'mark:unarchived',
@@ -46,7 +46,7 @@ export class GraphDBConsumer {
     'mark:entity-tag-added', 'mark:entity-tag-removed', 'frame:entity-type-added',
   ]);
 
-  // Burst buffer thresholds — see class doc and BATCH-GRAPH-CONSUMER-RX.md
+  // Burst buffer thresholds — see class doc
   private static readonly BURST_WINDOW_MS = 50;
   private static readonly MAX_BATCH_SIZE = 500;
   private static readonly IDLE_TIMEOUT_MS = 200;
@@ -67,7 +67,7 @@ export class GraphDBConsumer {
   }
 
   async initialize() {
-    this.logger.info('GraphDB consumer initialized');
+    this.logger.info('Weaver initialized');
     await this.subscribeToGlobalEvents();
   }
 
@@ -77,7 +77,7 @@ export class GraphDBConsumer {
    */
   private async subscribeToGlobalEvents() {
     // Subscribe to each graph-relevant event type on the Core EventBus
-    for (const eventType of GraphDBConsumer.GRAPH_RELEVANT_EVENTS) {
+    for (const eventType of Weaver.GRAPH_RELEVANT_EVENTS) {
       this._globalSubscriptions.push(
         this.coreEventBus.getDomainEvent(eventType).subscribe(
           (storedEvent: StoredEvent) => this.eventSubject.next(storedEvent)
@@ -101,9 +101,9 @@ export class GraphDBConsumer {
         // Resource events: apply burst buffering per resource group
         return group.pipe(
           burstBuffer<StoredEvent>({
-            burstWindowMs: GraphDBConsumer.BURST_WINDOW_MS,
-            maxBatchSize: GraphDBConsumer.MAX_BATCH_SIZE,
-            idleTimeoutMs: GraphDBConsumer.IDLE_TIMEOUT_MS,
+            burstWindowMs: Weaver.BURST_WINDOW_MS,
+            maxBatchSize: Weaver.MAX_BATCH_SIZE,
+            idleTimeoutMs: Weaver.IDLE_TIMEOUT_MS,
           }),
           concatMap((eventOrBatch: StoredEvent | StoredEvent[]) => {
             if (Array.isArray(eventOrBatch)) {
@@ -120,7 +120,7 @@ export class GraphDBConsumer {
       })
     ).subscribe({
       error: (err) => {
-        this.logger.error('GraphDB consumer pipeline error', { error: err });
+        this.logger.error('Weaver pipeline error', { error: err });
       }
     });
 
@@ -152,7 +152,7 @@ export class GraphDBConsumer {
    * Stop the consumer, flush remaining buffered events, and unsubscribe.
    */
   async stop() {
-    this.logger.info('Stopping GraphDB consumer');
+    this.logger.info('Stopping Weaver');
 
     // Unsubscribe from event source (stops feeding the Subject)
     for (const sub of this._globalSubscriptions) sub.unsubscribe();
@@ -170,7 +170,7 @@ export class GraphDBConsumer {
     // Create a fresh Subject for potential re-initialization
     this.eventSubject = new Subject<StoredEvent>();
 
-    this.logger.info('GraphDB consumer stopped');
+    this.logger.info('Weaver stopped');
   }
 
   /**
@@ -505,6 +505,6 @@ export class GraphDBConsumer {
    */
   async shutdown(): Promise<void> {
     await this.stop();
-    this.logger.info('GraphDB consumer shut down');
+    this.logger.info('Weaver shut down');
   }
 }

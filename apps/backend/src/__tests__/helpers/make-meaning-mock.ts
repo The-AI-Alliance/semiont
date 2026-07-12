@@ -25,7 +25,7 @@ export function stubKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): Knowl
     views:          {} as KnowledgeBase['views'],
     content:        { store: vi.fn(), retrieve: vi.fn() } as unknown as KnowledgeBase['content'],
     graph:          {} as KnowledgeBase['graph'],
-    graphConsumer:  { stop: vi.fn().mockResolvedValue(undefined) } as unknown as KnowledgeBase['graphConsumer'],
+    weaver:  { stop: vi.fn().mockResolvedValue(undefined) } as unknown as KnowledgeBase['weaver'],
     projectionsDir: '',
     ...overrides,
   };

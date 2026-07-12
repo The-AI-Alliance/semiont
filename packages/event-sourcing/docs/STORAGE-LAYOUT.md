@@ -105,7 +105,7 @@ The rebuild step that makes "ephemeral" safe is `ViewManager.rebuildAll(eventLog
 2. Each resource view file under `resources/<ab>/<cd>/`.
 3. The storage-uri index entries.
 
-It is idempotent: existing files are overwritten, not appended. Running it on every startup is safe and is in fact the design — startup rebuild + live incremental update is the same pattern used by the graph (`GraphDBConsumer.rebuildAll()` + per-event consumer) and the vectors (`Smelter.rebuildAll()` + per-event smelter), giving all three derived read models the same lifecycle treatment.
+It is idempotent: existing files are overwritten, not appended. Running it on every startup is safe and is in fact the design — startup rebuild + live incremental update is the same pattern used by the graph (`Weaver.rebuildAll()` + per-event consumer) and the vectors (`Smelter.rebuildAll()` + per-event smelter), giving all three derived read models the same lifecycle treatment.
 
 If you wipe `<stateDir>` manually for debugging, the next process restart will repopulate it. The `<projectRoot>/.semiont/events/` directory is the only thing you must not delete.
 

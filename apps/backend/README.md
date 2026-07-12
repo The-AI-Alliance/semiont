@@ -284,7 +284,7 @@ const content = new WorkingTreeStore(...);  // NEVER DO THIS
     - `kb.eventStore: EventStore` - Immutable event log and materialized views
     - `kb.content: WorkingTreeStore` - Working-tree file content (`file://` URIs, SHA-256 integrity checksums)
     - `kb.graph: GraphDatabase` - Graph database for relationships and traversal
-    - `kb.graphConsumer: GraphDBConsumer` - Event-to-graph synchronization
+    - `kb.weaver: Weaver` - Event-to-graph synchronization
   - `jobQueue: JobQueue` - Background job processing
   - Inference clients are created per-actor inside make-meaning (Gatherer, Matcher) - never in backend code
   - Background workers run in a separate worker-pool process (see [Architecture](./docs/ARCHITECTURE.md))

@@ -95,7 +95,7 @@ describe('LLM Context', () => {
     // Create KnowledgeBase - share event store's view storage to avoid separate instances
     const { getGraphDatabase } = await import('@semiont/graph');
     const graphDb = await getGraphDatabase(graphConfig);
-    kb = { eventStore, views: eventStore.viewStorage, content: new WorkingTreeStore(project, mockLogger), graph: graphDb, projectionsDir: project.projectionsDir, graphConsumer: {} as any };
+    kb = { eventStore, views: eventStore.viewStorage, content: new WorkingTreeStore(project, mockLogger), graph: graphDb, projectionsDir: project.projectionsDir, weaver: {} as any };
 
     // Start Stower
     stower = new Stower(kb, eventBus, project, mockLogger);
@@ -201,7 +201,7 @@ describe('LLM Context', () => {
       await created$;
 
       // The unified context sources annotations from the graph projection; this test's kb wires no
-      // graph consumer, so add the annotation to the graph store directly.
+      // Weaver, so add the annotation to the graph store directly.
       await kb.graph.createAnnotation({
         id: annotationId('llm-graph-ann'),
         motivation: 'highlighting',

@@ -152,9 +152,9 @@ export class Stower {
       // Auto-bind: when a resource is generated from a reference annotation,
       // resolve the source reference by adding the new resource as a linking
       // body. Emit `mark:update-body`; our own handler appends the
-      // `mark:body-updated` event, and the graph consumer then updates the
+      // `mark:body-updated` event, and the Weaver then updates the
       // annotation body in the graph. Ordering is safe because we've already
-      // appended `yield:created` — by the time the graph consumer processes
+      // appended `yield:created` — by the time the Weaver processes
       // `mark:body-updated`, the target resource exists in the graph.
       if (generatedFrom) {
         this.eventBus.get('mark:update-body').next({
