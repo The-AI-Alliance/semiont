@@ -2,6 +2,7 @@
 // Used for development and testing without requiring a real graph database
 
 import { GraphDatabase } from '../interface';
+import { assertMutableResourceUpdate } from '../interface';
 import type { Logger } from '@semiont/core';
 import type {
   AnnotationCategory,
@@ -78,15 +79,13 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
 
   async updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor> {
-    // Resources are immutable - only archiving is allowed
-    if (Object.keys(input).length !== 1 || input.archived === undefined) {
-      throw new Error('Resources are immutable. Only archiving is allowed.');
-    }
+    assertMutableResourceUpdate(input);
 
     const doc = this.resources.get(String(id));
     if (!doc) throw new Error('Resource not found');
 
-    doc.archived = input.archived;
+    if (input.archived !== undefined) doc.archived = input.archived;
+    if (input.entityTypes !== undefined) doc.entityTypes = input.entityTypes;
     return doc;
   }
 
@@ -141,7 +140,9 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
   
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
-    const id = this.generateId();
+    // The caller's id is the system of record's — never mint a fresh one
+    // (the event-log id is what deletes and lookups arrive under).
+    const id = input.id;
 
     // Only linking motivation with SpecificResource or empty array (stub)
     const annotation: Annotation = {

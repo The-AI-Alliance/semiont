@@ -2,6 +2,7 @@
 // This replaces the mock in-memory implementation
 
 import { GraphDatabase } from '../interface';
+import { assertMutableResourceUpdate } from '../interface';
 import type { Logger } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getBodySource, getPrimaryRepresentation, getResourceId, getExactText } from '@semiont/core';
@@ -287,16 +288,19 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
   
   async updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor> {
-    // Resources are immutable - only archiving is allowed
-    if (Object.keys(input).length !== 1 || input.archived === undefined) {
-      throw new Error('Resources are immutable. Only archiving is allowed.');
-    }
+    assertMutableResourceUpdate(input);
 
-    await this.g!
+    let traversal = this.g!
       .V()
-      .has('Resource', 'id', id)
-      .property('archived', input.archived)
-      .next();
+      .has('Resource', 'id', id);
+    if (input.archived !== undefined) {
+      traversal = traversal.property('archived', input.archived);
+    }
+    if (input.entityTypes !== undefined) {
+      // Mirrors createResource's storage idiom: entityTypes ride as JSON.
+      traversal = traversal.property('entityTypes', JSON.stringify(input.entityTypes));
+    }
+    await traversal.next();
 
     const updatedResource = await this.getResource(id);
     if (!updatedResource) {
@@ -356,7 +360,9 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
   
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
-    const id = this.generateId();
+    // The caller's id is the system of record's — never mint a fresh one
+    // (the event-log id is what deletes and lookups arrive under).
+    const id = input.id;
 
     // Only linking motivation with SpecificResource or empty array (stub)
     const motivation = input.motivation;

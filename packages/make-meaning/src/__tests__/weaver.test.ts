@@ -19,6 +19,8 @@ import { Weaver } from '../weaver';
 import { resourceId, userId, annotationId, EventBus } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
+import { MemoryGraphDatabase } from '@semiont/graph';
+import type { StoredEvent } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -747,6 +749,182 @@ describe('Weaver', () => {
       expect(metrics.subscriptions).toBe(9); // One per GRAPH_RELEVANT_EVENTS entry
       expect(metrics.pipelineActive).toBe(true);
       expect(typeof metrics.lastProcessed).toBe('object');
+    });
+  });
+
+  describe('duplicate-delivery idempotency (WEAVER-ISOLATION P1)', () => {
+    // At-least-once delivery (SSE reconnect with Last-Event-ID replay after
+    // the split) means every fold must tolerate the same StoredEvent arriving
+    // twice. These specs push identical events straight onto the bus — the
+    // redelivery shape — against a REAL memory graph so state, not call
+    // counts alone, is the oracle.
+    let seq = 0;
+    const nextSeq = () => ++seq;
+
+    const stored = (type: string, rid: string | undefined, payload: unknown): StoredEvent => ({
+      id: uuidv4(),
+      type,
+      timestamp: new Date().toISOString(),
+      userId: userId('user-dup'),
+      ...(rid ? { resourceId: resourceId(rid) } : {}),
+      version: 1,
+      payload,
+      metadata: { sequenceNumber: nextSeq() },
+    } as unknown as StoredEvent);
+
+    const deliver = async (e: StoredEvent) => {
+      coreEventBus.getDomainEvent(e.type as Parameters<EventBus['getDomainEvent']>[0]).next(e);
+      await tick();
+    };
+
+    const createdEvent = (rid: string) =>
+      stored('yield:created', rid, { name: 'Dup Test', format: 'text/plain', contentChecksum: 'h-dup' });
+
+    const annotation = (aid: string, rid: string) => ({
+      id: annotationId(aid),
+      motivation: 'commenting',
+      target: { source: rid },
+      body: [],
+    });
+
+    beforeEach(async () => {
+      // Swap the outer mock-based consumer for one wired to a real memory
+      // graph — the outer afterEach still stops whatever `consumer` holds.
+      await consumer.stop();
+      graphDb = new MemoryGraphDatabase();
+      consumer = new Weaver(eventStore, graphDb, coreEventBus, mockLogger);
+      await consumer.initialize();
+    });
+
+    it('yield:created twice → one resource', async () => {
+      const e = createdEvent('dup-created');
+      await deliver(e);
+      await deliver(e);
+
+      const { total } = await graphDb.listResources({});
+      expect(total).toBe(1);
+    });
+
+    it('mark:added twice (sequential redelivery) → one annotation, under the event\'s own id, one create call', async () => {
+      await deliver(createdEvent('dup-add'));
+      const createSpy = vi.spyOn(graphDb, 'createAnnotation');
+
+      const e = stored('mark:added', 'dup-add', { annotation: annotation('ann-dup-1', 'dup-add') });
+      await deliver(e);
+      await deliver(e);
+
+      const { annotations } = await graphDb.listAnnotations({ resourceId: resourceId('dup-add') });
+      expect(annotations).toHaveLength(1);
+      // The graph must store the annotation under the event's id — the id is
+      // the system of record's, not the store's to mint (Neo4j already
+      // honors this; the fold and every backend must agree).
+      expect(String(annotations[0]!.id)).toBe('ann-dup-1');
+      expect(createSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('mark:added duplicated within one burst (batch path) → one annotation, one created input', async () => {
+      await deliver(createdEvent('dup-add-burst'));
+      const singleSpy = vi.spyOn(graphDb, 'createAnnotation');
+      const batchSpy = vi.spyOn(graphDb, 'createAnnotations');
+
+      const e = stored('mark:added', 'dup-add-burst', { annotation: annotation('ann-dup-burst', 'dup-add-burst') });
+      // Same event twice in the same burst window — no tick between.
+      coreEventBus.getDomainEvent('mark:added').next(e);
+      coreEventBus.getDomainEvent('mark:added').next(e);
+      await tick();
+
+      const { annotations } = await graphDb.listAnnotations({ resourceId: resourceId('dup-add-burst') });
+      expect(annotations).toHaveLength(1);
+      const createdInputs =
+        singleSpy.mock.calls.length +
+        batchSpy.mock.calls.reduce((n, [inputs]) => n + inputs.length, 0);
+      expect(createdInputs).toBe(1);
+    });
+
+    it('mark:removed twice → annotation gone, second delivery inert', async () => {
+      await deliver(createdEvent('dup-rm'));
+      await deliver(stored('mark:added', 'dup-rm', { annotation: annotation('ann-dup-rm', 'dup-rm') }));
+
+      const e = stored('mark:removed', 'dup-rm', { annotationId: 'ann-dup-rm' });
+      await deliver(e);
+      await deliver(e);
+
+      const { annotations } = await graphDb.listAnnotations({ resourceId: resourceId('dup-rm') });
+      expect(annotations).toHaveLength(0);
+    });
+
+    it('mark:archived twice → archived once, still one resource', async () => {
+      await deliver(createdEvent('dup-arch'));
+
+      const e = stored('mark:archived', 'dup-arch', {});
+      await deliver(e);
+      await deliver(e);
+
+      const doc = await graphDb.getResource(resourceId('dup-arch'));
+      expect(doc?.archived).toBe(true);
+      const { total } = await graphDb.listResources({});
+      expect(total).toBe(1);
+    });
+
+    it('mark:unarchived twice → unarchived, stable', async () => {
+      await deliver(createdEvent('dup-unarch'));
+      await deliver(stored('mark:archived', 'dup-unarch', {}));
+
+      const e = stored('mark:unarchived', 'dup-unarch', {});
+      await deliver(e);
+      await deliver(e);
+
+      const doc = await graphDb.getResource(resourceId('dup-unarch'));
+      expect(doc?.archived).toBe(false);
+    });
+
+    it('mark:body-updated (add op) twice → body item added once', async () => {
+      await deliver(createdEvent('dup-body'));
+      await deliver(stored('mark:added', 'dup-body', { annotation: annotation('ann-dup-body', 'dup-body') }));
+
+      const item = { type: 'TextualBody', value: 'dup-comment', purpose: 'commenting' };
+      const e = stored('mark:body-updated', 'dup-body', {
+        annotationId: 'ann-dup-body',
+        operations: [{ op: 'add', item }],
+      });
+      await deliver(e);
+      await deliver(e);
+
+      const ann = await graphDb.getAnnotation(annotationId('ann-dup-body'));
+      const body = Array.isArray(ann?.body) ? ann.body : ann?.body ? [ann.body] : [];
+      expect(body).toHaveLength(1);
+    });
+
+    it('mark:entity-tag-added twice → tag applied once (#974 pin)', async () => {
+      await deliver(createdEvent('dup-tag'));
+
+      const e = stored('mark:entity-tag-added', 'dup-tag', { entityType: 'DupTag' });
+      await deliver(e);
+      await deliver(e);
+
+      const doc = await graphDb.getResource(resourceId('dup-tag'));
+      expect(doc?.entityTypes).toEqual(['DupTag']);
+    });
+
+    it('mark:entity-tag-removed twice → tag gone, second delivery inert', async () => {
+      await deliver(createdEvent('dup-untag'));
+      await deliver(stored('mark:entity-tag-added', 'dup-untag', { entityType: 'DupTag' }));
+
+      const e = stored('mark:entity-tag-removed', 'dup-untag', { entityType: 'DupTag' });
+      await deliver(e);
+      await deliver(e);
+
+      const doc = await graphDb.getResource(resourceId('dup-untag'));
+      expect(doc?.entityTypes).toEqual([]);
+    });
+
+    it('frame:entity-type-added twice → one registry entry', async () => {
+      const e = stored('frame:entity-type-added', undefined, { entityType: 'DupEntityType' });
+      await deliver(e);
+      await deliver(e);
+
+      const types = await graphDb.getEntityTypes();
+      expect(types.filter((t) => t === 'DupEntityType')).toHaveLength(1);
     });
   });
 });

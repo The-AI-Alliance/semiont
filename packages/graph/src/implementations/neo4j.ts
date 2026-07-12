@@ -3,6 +3,7 @@
 
 import type { Driver, Session } from 'neo4j-driver';
 import { GraphDatabase } from '../interface';
+import { assertMutableResourceUpdate } from '../interface';
 import type { Logger } from '@semiont/core';
 import { annotationId as makeAnnotationId } from '@semiont/core';
 import type {
@@ -248,18 +249,26 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }
 
   async updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor> {
-    // Resources are immutable - only archiving is allowed
-    if (Object.keys(input).length !== 1 || input.archived === undefined) {
-      throw new Error('Resources are immutable. Only archiving is allowed.');
+    assertMutableResourceUpdate(input);
+
+    const sets: string[] = [];
+    const params: Record<string, unknown> = { id };
+    if (input.archived !== undefined) {
+      sets.push('d.archived = $archived');
+      params.archived = input.archived;
+    }
+    if (input.entityTypes !== undefined) {
+      sets.push('d.entityTypes = $entityTypes');
+      params.entityTypes = input.entityTypes;
     }
 
     const session = this.getSession();
     try {
       const result = await session.run(
         `MATCH (d:Resource {id: $id})
-         SET d.archived = $archived
+         SET ${sets.join(', ')}
          RETURN d`,
-        { id, archived: input.archived }
+        params
       );
 
       if (result.records.length === 0) {

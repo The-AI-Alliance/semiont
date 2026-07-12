@@ -35,7 +35,7 @@ import type { PersistedEvent, StoredEvent, EventOfType, ResourceId, Logger} from
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
 import { partitionByType } from './batch-utils.js';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, CreateAnnotationInternal } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 
 export class Weaver {
@@ -232,15 +232,28 @@ export class Weaver {
         break;
       }
       case 'mark:added': {
-        const inputs = events.map(e => {
+        // Same idempotent fold as the single-event path, batched: dedupe the
+        // run by annotation id, then skip ids the graph already holds — a
+        // replayed burst (at-least-once delivery) must not create doubles.
+        const byId = new Map<string, CreateAnnotationInternal>();
+        for (const e of events) {
           const event = e as EventOfType<'mark:added'>;
-          return {
+          byId.set(String(event.payload.annotation.id), {
             ...event.payload.annotation,
             creator: didToAgent(event.userId),
-          };
+          });
+        }
+        const inputs: CreateAnnotationInternal[] = [];
+        for (const [id, input] of byId) {
+          if (!(await graphDb.getAnnotation(makeAnnotationId(id)))) inputs.push(input);
+        }
+        if (inputs.length > 0) {
+          await graphDb.createAnnotations(inputs);
+        }
+        this.logger.info('Batch created annotations in graph', {
+          count: inputs.length,
+          duplicatesSkipped: events.length - inputs.length,
         });
-        await graphDb.createAnnotations(inputs);
-        this.logger.info('Batch created annotations in graph', { count: events.length });
         break;
       }
       default:
@@ -316,10 +329,20 @@ export class Weaver {
         });
         break;
 
-      case 'mark:added':
+      case 'mark:added': {
         this.logger.debug('Processing annotation.added event', {
           annotationId: event.payload.annotation.id
         });
+        // Idempotent fold: creation-by-id is not upsert on every backend, so
+        // a redelivered mark:added (at-least-once delivery) must be refused
+        // here — the same guard shape as the entity-tag fold below.
+        const annId = makeAnnotationId(event.payload.annotation.id);
+        if (await graphDb.getAnnotation(annId)) {
+          this.logger.debug('Annotation already in graph — duplicate delivery skipped', {
+            annotationId: String(annId)
+          });
+          break;
+        }
         await graphDb.createAnnotation({
           ...event.payload.annotation,
           creator: didToAgent(event.userId),
@@ -328,6 +351,7 @@ export class Weaver {
           annotationId: event.payload.annotation.id
         });
         break;
+      }
 
       case 'mark:removed':
         await graphDb.deleteAnnotation(makeAnnotationId(event.payload.annotationId));

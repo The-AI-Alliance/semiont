@@ -242,15 +242,21 @@ describe('GraphDatabase Interface Contract', () => {
       expect(annotation.motivation).toBe('linking');
     });
 
-    it('createAnnotation() should generate unique id', async () => {
+    it('createAnnotation() stores the annotation under the caller-supplied id', async () => {
+      // The id is the system of record's (the event log's), never the
+      // store's to mint — deletes and lookups arrive under it, and
+      // re-creating the same id must not multiply annotations.
       const resource = createTestResource();
       await db.createResource(resource);
 
       const input = createTestHighlight(resource['@id']);
-      const ann1 = await db.createAnnotation(input);
-      const ann2 = await db.createAnnotation(input);
+      const created = await db.createAnnotation(input);
+      await db.createAnnotation(input);
 
-      expect(ann1.id).not.toBe(ann2.id);
+      expect(String(created.id)).toBe(String(input.id));
+      expect(await db.getAnnotation(input.id)).not.toBeNull();
+      const { annotations } = await db.listAnnotations({ resourceId: resourceId(resource['@id']) });
+      expect(annotations.filter((a) => String(a.id) === String(input.id))).toHaveLength(1);
     });
 
     it('getAnnotation() should retrieve existing annotation', async () => {
