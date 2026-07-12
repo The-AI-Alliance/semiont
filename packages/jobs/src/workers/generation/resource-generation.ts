@@ -53,7 +53,8 @@ export async function generateResourceFromTopic(
   sourceLanguage?: string,
   outputMediaType: SupportedMediaType = 'text/markdown',
   task: string = 'resource',
-  structure?: string
+  structure?: string,
+  cite: boolean = false
 ): Promise<{ title: string; content: string }> {
   logger.debug('Generating resource from topic', {
     topicPreview: topic.substring(0, 100),
@@ -242,6 +243,14 @@ ${after ? `${after}...` : ''}
     structureRequirement = `\n- Organize the output as: ${structure}`;
   }
 
+  // Citation instruction (INLINE-CITATIONS): ask the model to emit [[<id>]]
+  // transport tokens next to each claim, citing only ids the context embedding
+  // shows. The worker strips the tokens and reconciles them into linking
+  // annotations — they never reach the stored content.
+  const citeRequirement = cite
+    ? '\n- Ground every claim in the provided context. Immediately after each claim, cite its source by emitting [[<id>]], where <id> is an id shown in square brackets in the context above (for a passage labeled [abc], emit [[abc]]). Cite only ids that appear in the context.'
+    : '';
+
   const formatRequirements = isPlainText
     ? `- Write the response as plain text — no formatting markup (no #, *, backticks, headings, or links)
 - Begin with the title on its own first line`
@@ -256,7 +265,7 @@ ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', '
 
 Requirements:
 - Aim for approximately ${finalMaxTokens} tokens of content
-- Be factual and informative${structureRequirement}${titleRequirement}
+- Be factual and informative${structureRequirement}${titleRequirement}${citeRequirement}
 ${formatRequirements}`;
 
   // Simple parser - just use the response directly as markdown

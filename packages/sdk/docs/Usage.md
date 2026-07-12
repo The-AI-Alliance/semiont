@@ -410,8 +410,14 @@ semiont.yield.fromAnnotation(resourceId, annotationId, {
 //   prompt    — refines HOW (an authoritative Instruction under the framing);
 //               task says WHAT. They compose.
 // Every context excerpt the worker embeds is id-labelled ([<resourceId>], or
-// [<resourceId>/<annotationId>] for annotation-derived passages), so prompts
-// that ask the model to attribute its sources have real handles to use.
+// [<resourceId>/<annotationId>] for annotation-derived passages), and
+// `cite: true` makes that actionable: the model emits [[<id>]] tokens next to
+// each claim, the worker strips them before storage and mints each as a W3C
+// linking annotation on the generated resource (claim-span target, body →
+// the cited source). Citations arrive as ordinary references — navigable in
+// the Browser — NOT inline links; ids absent from the context are dropped
+// with a warn (hallucination guard). Composes with task/structure; the
+// post-hoc mark.assist('linking') pass still works alongside it.
 // The Q&A recipe: ask the question via `title`, then
 semiont.yield.fromResource(resourceId, {
   title: 'What does the appendix say about retry budgets?',
@@ -419,7 +425,8 @@ semiont.yield.fromResource(resourceId, {
   context: resourceContext,
   task: 'answer',
   structure: 'prose',
-  prompt: 'Cite the sections you draw from; be terse.',
+  cite: true,
+  prompt: 'Be terse.',
   outputMediaType: 'text/markdown',
 }).subscribe({
   next: (event) => console.log(event.kind, event),

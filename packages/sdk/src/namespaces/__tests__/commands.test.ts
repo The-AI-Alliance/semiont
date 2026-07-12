@@ -657,6 +657,39 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
+  it('fromResource({ cite: true }) carries cite into job:create params (INLINE-CITATIONS P2)', () => {
+    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, cite: true }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
+        params: expect.objectContaining({ cite: true }),
+      }));
+      resolve();
+    }, 20));
+  });
+
+  it('fromAnnotation({ cite: true }) carries cite into job:create params', () => {
+    yld.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, cite: true }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
+        params: expect.objectContaining({ cite: true }),
+      }));
+      resolve();
+    }, 20));
+  });
+
+  it('unset cite reaches job:create as undefined — the resolver gates on presence', () => {
+    // The worker parses/strips [[..]] tokens ONLY when cite is set: double-
+    // bracketed text is legitimate content otherwise. An SDK-invented
+    // default would corrupt non-citing generations.
+    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      const call = emitSpy.mock.calls.find((c: unknown[]) => c[0] === 'job:create');
+      const params = (call![1] as { params: Record<string, unknown> }).params;
+      expect(params.cite).toBeUndefined();
+      resolve();
+    }, 20));
+  });
+
   it('fromAnnotation({ entityTypes }) carries entityTypes through into job:create params', () => {
     // Regression — see .plans/ENTITY-TYPES-GAP.md. Before the fix the
     // SDK silently dropped entityTypes between the GenerationOptions

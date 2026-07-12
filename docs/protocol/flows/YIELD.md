@@ -198,6 +198,11 @@ Generation has no dedicated REST endpoint — it runs as a bus job. The SDK's `y
                               // to outputMediaType, never its peer. Unknown strings become a freeform
                               // "Organize the output as: …" directive (+ warn). UNSET ⇒ NO structure
                               // directive at all — the task framing and the model determine shape
+  cite?: boolean;             // Inline citations: the model is instructed to emit [[<id>]] transport
+                              // tokens next to each claim; the worker strips them pre-upload and mints
+                              // each as a W3C linking annotation on the derived resource (see
+                              // "Citation convention" below). Off by default — when unset, [[…]] in
+                              // generated content is left alone as legitimate content
 }
 ```
 
@@ -308,6 +313,9 @@ Requirements:
                                                                     //   'prose'    → flowing paragraphs, no section headings
                                                                     //   'chat'     → conversational transcript — alternating, speaker-labeled turns
                                                                     //   any other string → Organize the output as: {structure} (worker warns)
+- Ground every claim … cite its source by emitting [[<id>]] …      // ONLY when `cite` is set — the model may
+                                                                    // cite only ids shown in the context above
+                                                                    // (input label [abc] → output token [[abc]])
 - Use markdown formatting                                           // text/plain instead: no markup; title on its own first line
 - Write the response as markdown
 ```
@@ -342,6 +350,30 @@ resource (`RESOURCE_CONTENT_CAP`), semantic passages top-3 by score at 240
 chars each (`SEMANTIC_MATCH_LIMIT`/`SEMANTIC_MATCH_CHARS`), over a gather-side
 pre-filter of ≤10 matches above 0.5 cosine. They become caller options only
 if a consumer hits the wall.
+
+**Citation convention** (`cite: true`). The output-side counterpart of the
+identifier convention above: the model is instructed to ground every claim
+and cite its source by emitting a **double-bracket token** — `[[<resourceId>]]`,
+or `[[<resourceId>/<annotationId>]]` when citing an annotation-derived
+passage — immediately after the claim, using only ids shown (single-bracketed)
+in the embedded context. Double-bracket *out* vs single-bracket *in* means an
+echoed input label is never misread as a citation. The tokens are
+**transport, not content**: the worker parses them, validates each id against
+the embedded context (**hallucination guard** — an id absent from the context
+is stripped with a `warn`, never minted into a link to an invented source),
+**strips them before upload** (stored content stays clean prose), and mints
+each citation as a **W3C linking annotation on the derived resource** — the
+target anchors the claim span (the sentence preceding the token, as
+`TextPositionSelector` + `TextQuoteSelector` computed against the final
+stored bytes), the body is a `SpecificResource` pointing at the cited source.
+Citations are therefore **first-class references** — navigable, rendered by
+the Browser like any other resolved reference, and edges in the knowledge
+graph — not a parallel rendering path. This *complements* the post-hoc
+`mark.assist('linking')` pass rather than replacing it. The token is only the
+*text-modality transport*: the citation itself is the annotation, which
+generalizes to other modalities (an image region, a media-fragment time
+range) with their own transports. When `cite` is unset the resolver never
+runs — `[[…]]` in generated content is left untouched as legitimate content.
 
 The Q&A recipe (`my-chat`-style consumers): `task: 'answer'` with
 `structure: 'prose'` (or `'chat'` for speaker-labeled turns) — ask the

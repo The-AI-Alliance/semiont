@@ -29,4 +29,9 @@ describe('GenerationParams contract', () => {
     expect(canonical.task).toBe('answer');
     expect(custom.structure).toBe('a bulleted list of key facts');
   });
+
+  it('accepts cite (INLINE-CITATIONS P1)', () => {
+    const p: GenerationParams = { cite: true };
+    expect(p.cite).toBe(true);
+  });
 });

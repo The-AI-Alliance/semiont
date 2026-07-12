@@ -133,6 +133,10 @@ interface GenerationParams {
                                     // Shape, subordinate to outputMediaType. Unknown strings
                                     // become "Organize the output as: …" + warn. UNSET ⇒ no
                                     // structure directive at all
+  cite?: boolean;                   // Inline citations: model emits [[<id>]] tokens; the worker
+                                    // strips them pre-upload and mints W3C linking annotations
+                                    // on the derived resource (hallucination-guarded against the
+                                    // embedded context ids). Off ⇒ resolver never runs
 }
 ```
 

@@ -12,6 +12,7 @@
 import { AnnotationDetection } from './workers/annotation-detection';
 import { extractEntities } from './workers/detection/entity-extractor';
 import { generateResourceFromTopic } from './workers/generation/resource-generation';
+import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
 import { generateAnnotationId } from '@semiont/event-sourcing';
 import { didToAgent, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
 import { reconcileSelector, type ReconciledSelector } from '@semiont/core';
@@ -457,7 +458,7 @@ export async function processGenerationJob(
   params: GenerationParams,
   onProgress: OnProgress,
   logger: Logger,
-): Promise<{ content: string; title: string; format: SupportedMediaType; result: GenerationResult }> {
+): Promise<{ content: string; title: string; format: SupportedMediaType; citations: GenerationCitation[]; result: GenerationResult }> {
   // Generation produces text only for now. Refuse any other requested media type
   // loudly (the throw propagates as job:fail) rather than silently emitting markdown
   // under a mislabeled format. Validate before the LLM call so it fails fast.
@@ -490,14 +491,28 @@ export async function processGenerationJob(
     outputMediaType,
     params.task,
     params.structure,
+    params.cite,
   );
+
+  // Under `cite`, the model emitted [[<id>]] transport tokens — resolve them:
+  // validate against the ids the context actually contained, strip from the
+  // stored content, and carry claim-span citations for the worker to mint.
+  // When cite is off, bracketed text is legitimate content — leave it alone.
+  let content = generated.content;
+  let citations: GenerationCitation[] = [];
+  if (params.cite === true) {
+    const resolved = resolveCitationTokens(content, collectContextResourceIds(params.context), logger);
+    content = resolved.content;
+    citations = resolved.citations;
+  }
 
   onProgress(85, 'Creating resource...', 'creating');
 
   return {
-    content: generated.content,
+    content,
     title: generated.title ?? title,
     format: outputMediaType,
+    citations,
     result: {
       resourceId: '' as ResourceId,
       resourceName: generated.title ?? title,

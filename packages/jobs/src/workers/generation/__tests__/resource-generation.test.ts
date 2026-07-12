@@ -523,6 +523,35 @@ describe('generateResourceFromTopic', () => {
     });
   });
 
+  // ── Inline citations (INLINE-CITATIONS P1) — the cite instruction asks the
+  // model to emit [[<id>]] transport tokens next to each claim, citing only ids
+  // shown in the embedded context. Signature tail: (..., task, structure, cite).
+
+  describe('cite instruction', () => {
+    it('cite=true instructs the model to emit [[id]] citation markers', async () => {
+      client.setResponses(['Paris is big. [[r1]]']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined,
+        makeContext({ semanticContext: [{ text: 'NEEDLE', resourceId: 'r1', score: 0.8 }] }),
+        undefined, undefined, undefined, undefined, undefined, undefined,
+        true,
+      );
+
+      const prompt = promptArg();
+      expect(prompt).toContain('[[');
+      expect(prompt).toMatch(/cite/i);
+    });
+
+    it('cite unset adds no citation instruction', async () => {
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic('Topic', [], client, LOGGER, undefined, undefined, makeContext());
+
+      expect(promptArg()).not.toContain('[[');
+    });
+  });
+
   // ── Context identifiers (CONTEXT-IDENTIFIERS P1) — every excerpt carries a
   // stable, model-visible [<resourceId>] handle; annotation-derived semantic
   // matches add /<annotationId>. Same bracket convention as related-content blocks.
