@@ -153,6 +153,30 @@ await session.client.mark.updateEntityTypes(rId, current, [...current, 'Person']
 (Don't confuse this with `frame.addEntityTypes` (§4), which grows the KB-wide *vocabulary*
 — a different axis from one resource's tags.)
 
+**Who does the work — the collaborator directory.** Before dispatching an assist pass, you
+can name the agent that will serve it: `browse.agents()` returns the KB's declared roster as
+`CollaboratorEntry[]` — each entry a W3C `Agent` plus, for software agents, the
+`servesJobTypes` it's configured to serve (both types importable from `@semiont/core`). It's
+a KB-wide live query like `entityTypes()`: cached for the client's lifetime and refreshed
+after a connection gap (a roster change means a backend restart, which always presents as
+one). Match a job type to its serving agent and you have the assignee *before* the work runs
+— and the same DID arrives back as `generator` on every annotation that work creates, so
+your dispatch-time attribution and the stored provenance agree by construction:
+
+```typescript
+import type { CollaboratorEntry, JobType } from '@semiont/core';
+
+const roster = await session.client.browse.agents();
+const linker = roster.find((e) => e.servesJobTypes?.includes('reference-annotation'));
+// linker?.agent — the Software Agent (name, provider, model, DID '@id') that will
+// serve mark.assist(rId, 'linking', …); entries without servesJobTypes are
+// actor-role agents (retrieval/search), not job workers.
+```
+
+(In React, feed any live query to `useObservable` from `@semiont/react-ui` — e.g.
+`useObservable(useMemo(() => session.client.browse.agents(), [session]))` — and the roster
+updates in place.)
+
 ## 7. Gather context (retrieval)
 
 `gather` assembles the context that grounds generation and search. **`gather.resource`** does
@@ -225,10 +249,24 @@ same options.)
 branded — pass it straight to other methods.
 
 ```typescript
-// passage highlight
+import { extractContext } from '@semiont/core';
+
+// passage anchor — position for speed, quote for robustness: pair the
+// TextPositionSelector with a TextQuoteSelector whose prefix/suffix come from
+// core's extractContext, so the anchor survives content drift and re-anchoring.
+const ctx = extractContext(text, start, end);
 const { annotationId } = await session.client.mark.annotation({
-  motivation: 'highlighting',
-  target: { source: rId, selector: [{ type: 'TextPositionSelector', start: 0, end: 11 }] },
+  motivation: 'linking',
+  target: {
+    source: rId,
+    selector: [
+      { type: 'TextPositionSelector', start, end },
+      { type: 'TextQuoteSelector', exact: text.slice(start, end),
+        ...(ctx.prefix !== undefined ? { prefix: ctx.prefix } : {}),
+        ...(ctx.suffix !== undefined ? { suffix: ctx.suffix } : {}) },
+    ],
+  },
+  body: { type: 'SpecificResource', source: targetDocId, purpose: 'linking' }, // a resolved reference
 });
 
 // whole-resource edge: claim → source
@@ -276,6 +314,28 @@ lifecycle. When you instead hold a `jobId` (e.g. handed one out-of-band), poll i
 ```typescript
 const status = await session.client.job.status(jobId);
 const final  = await session.client.job.pollUntilComplete(jobId, { onProgress: (s) => log(s.status) });
+```
+
+**Defend against silence.** A job can fail by *never starting* — e.g. the backend restarts
+with a new signing secret and rejects the emit, so no job is created, nothing streams, and
+`run()` awaits a terminal that will never come. Errors you can catch (§13); silence you have
+to time out. The pattern: race the terminal against a stall timer that **re-arms on every
+streamed event** — a long job that keeps reporting progress is never cut off, only true
+silence trips it — and on a trip, cancel the phantom job's status polling and surface an
+actionable error:
+
+```typescript
+const gen = session.client.yield.fromResource(rId, options);
+let armStall!: () => void;
+const stalled = new Promise<never>((_, reject) => {
+  let t: ReturnType<typeof setTimeout>;
+  armStall = () => { clearTimeout(t); t = setTimeout(() => {
+    session.client.job.cancelRequest('generation');       // stop the never-completing poll
+    reject(new Error('The KB went silent — reconnect and retry.'));
+  }, 90_000); };
+});
+armStall();
+const done = await Promise.race([gen.run(() => armStall()), stalled]);
 ```
 
 ## 13. Handle errors
