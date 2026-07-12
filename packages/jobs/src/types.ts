@@ -219,7 +219,8 @@ export interface DetectionResult {
  * Generation job progress
  */
 export interface YieldProgress {
-  stage: 'fetching' | 'generating' | 'creating' | 'linking';
+  /** The two real generation transitions — LLM call running, then persisting. */
+  stage: 'generating' | 'creating';
   percentage: number;
   message?: string;
 }
