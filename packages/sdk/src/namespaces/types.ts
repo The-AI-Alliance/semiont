@@ -132,6 +132,20 @@ export interface GenerationOptions {
    * framing and the model determine shape; length (`maxTokens`) never does.
    */
   structure?: 'prose' | 'sections' | 'chat' | (string & {});
+  /**
+   * Ask the generator to ground claims in the supplied `context` as it
+   * writes. Citations do NOT appear as links in the content: the model emits
+   * inline `[[<id>]]` tokens, which the worker resolves into
+   * `SpecificResource` **linking annotations on the generated resource**
+   * (anchored to the claim span) and strips before storage — stored content
+   * stays clean prose. Only ids actually present in `context` resolve;
+   * unknown ids are dropped with a worker-side warn, never a minted link
+   * (hallucination guard). Composes with `task: 'answer'` for grounded Q&A;
+   * complements — never replaces — the post-hoc `mark.assist('linking')`
+   * pass. Leave unset for content where literal `[[…]]` text is legitimate:
+   * the worker parses tokens only when this is set.
+   */
+  cite?: boolean;
 }
 
 /** Options for mark.assist() */

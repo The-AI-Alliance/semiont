@@ -110,6 +110,7 @@ export class YieldNamespace implements IYieldNamespace {
       outputMediaType: options.outputMediaType,
       task: options.task,
       structure: options.structure,
+      cite: options.cite,
       context: options.context as unknown as Record<string, unknown>,
     });
   }
@@ -142,6 +143,7 @@ export class YieldNamespace implements IYieldNamespace {
       outputMediaType: options.outputMediaType,
       task: options.task,
       structure: options.structure,
+      cite: options.cite,
       context: options.context as unknown as Record<string, unknown>,
     });
   }
