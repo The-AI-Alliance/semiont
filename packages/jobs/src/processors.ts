@@ -470,12 +470,16 @@ export async function processGenerationJob(
     );
   }
 
-  onProgress(20, 'Fetching context...', 'fetching');
-
   const title = params.title ?? 'Untitled';
   const entityTypes = (params.entityTypes ?? []).map(String);
 
-  onProgress(40, 'Generating resource...', 'generating');
+  // Generation has exactly two observable transitions: the LLM call starting
+  // ('generating') and content finalized / creation beginning ('creating').
+  // There is no fetch — context arrives pre-gathered in params. Percentages
+  // approximate the share of expected wall-clock complete at each transition
+  // (a single atomic LLM call has no measurable progress, and inference
+  // dominates the job): its start is ~5, its end ~95.
+  onProgress(5, 'Generating resource...', 'generating');
 
   const generated = await generateResourceFromTopic(
     title,
@@ -506,7 +510,7 @@ export async function processGenerationJob(
     citations = resolved.citations;
   }
 
-  onProgress(85, 'Creating resource...', 'creating');
+  onProgress(95, 'Creating resource...', 'creating');
 
   return {
     content,

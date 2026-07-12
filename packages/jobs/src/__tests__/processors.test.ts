@@ -321,9 +321,14 @@ describe('processGenerationJob', () => {
     expect(result.title).toBe('Generated Title');
     expect(result.format).toBe('text/markdown');
     expect(result.result.resourceName).toBe('Generated Title');
-    expect(progress).toHaveBeenCalledWith(20, expect.any(String), 'fetching');
-    expect(progress).toHaveBeenCalledWith(40, expect.any(String), 'generating');
-    expect(progress).toHaveBeenCalledWith(85, expect.any(String), 'creating');
+    // Honest lifecycle: generation has exactly two real transitions — the LLM
+    // call starting, and content finalized / creation beginning. No 'fetching'
+    // stage (it labeled zero work; context arrives pre-gathered in params).
+    // Percentages approximate the share of expected wall-clock complete at each
+    // transition: inference dominates, so its start is ~5 and its end ~95.
+    expect(progress).toHaveBeenCalledTimes(2);
+    expect(progress).toHaveBeenNthCalledWith(1, 5, expect.any(String), 'generating');
+    expect(progress).toHaveBeenNthCalledWith(2, 95, expect.any(String), 'creating');
   });
 
   it('falls back to request title when generator omits it', async () => {
