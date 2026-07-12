@@ -11,7 +11,7 @@
  * - Pub/sub notifications (see EventBus)
  */
 
-import { type ResourceId, type PersistedEvent, type StoredEvent, type Logger, serializePerKey } from '@semiont/core';
+import { type ResourceId, type StoredEvent, type Logger, serializePerKey } from '@semiont/core';
 import { ViewMaterializer, type ViewMaterializerConfig, type RebuildEventSource } from './views/view-materializer';
 import type { ViewStorage, ResourceView } from './storage/view-storage';
 
@@ -80,12 +80,12 @@ export class ViewManager {
    * Serialized per resource — see class doc.
    *
    * @param resourceId - Branded ResourceId (from @semiont/core)
-   * @param event - Resource event (from @semiont/core)
+   * @param event - Stored resource event (with storage metadata, from @semiont/core)
    * @param getAllEvents - Function to retrieve all events for rebuild if needed
    */
   async materializeResource(
     resourceId: ResourceId,
-    event: PersistedEvent,
+    event: StoredEvent,
     getAllEvents: () => Promise<StoredEvent[]>
   ): Promise<void> {
     await serializePerKey(String(resourceId), this.resourceChains, () =>

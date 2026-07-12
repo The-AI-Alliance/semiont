@@ -626,7 +626,7 @@ describe('ViewMaterializer', () => {
         },
       };
 
-      await materializer.materializeIncremental(rid, createEvent, async () => [
+      await materializer.materializeIncremental(rid, { ...createEvent, metadata: createEventMetadata(1) }, async () => [
         { ...createEvent, metadata: createEventMetadata(1) },
       ] as any);
 
@@ -650,7 +650,7 @@ describe('ViewMaterializer', () => {
         },
       };
 
-      await materializer.materializeIncremental(rid, addRepEvent, async () => [
+      await materializer.materializeIncremental(rid, { ...addRepEvent, metadata: createEventMetadata(2) }, async () => [
         { ...createEvent, metadata: createEventMetadata(1) },
         { ...addRepEvent, metadata: createEventMetadata(2) },
       ] as any);
@@ -682,7 +682,7 @@ describe('ViewMaterializer', () => {
         },
       };
 
-      await materializer.materializeIncremental(rid, event, async () => [
+      await materializer.materializeIncremental(rid, { ...event, metadata: createEventMetadata(1) }, async () => [
         { ...event, metadata: createEventMetadata(1) },
       ] as any);
 

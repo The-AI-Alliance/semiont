@@ -24,13 +24,15 @@ import type { VectorStore } from '@semiont/vectors';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventBus, Logger } from '@semiont/core';
 import { Weaver } from './weaver.js';
+import { createWeaveProgress, type WeaveProgress } from './weave-progress.js';
 
 export interface KnowledgeBase {
   eventStore:    EventStore;
   views:         ViewStorage;
   content:       WorkingTreeStore;
   graph:         GraphDatabase;
-  weaver: Weaver;
+  weaver:        Weaver;
+  weaveProgress: WeaveProgress;
   vectors?:      VectorStore;
   projectionsDir: string;
 }
@@ -53,6 +55,9 @@ export async function createKnowledgeBase(
     project,
     logger.child({ component: 'working-tree-store' }),
   );
+  // Fold of `weave:applied` signals — must exist before the Weaver starts
+  // applying so no early signal is missed (GRAPH-PROJECTION-SYNC P2).
+  const weaveProgress = createWeaveProgress(eventBus);
   const weaver = new Weaver(
     eventStore,
     graphDb,
@@ -72,7 +77,7 @@ export async function createKnowledgeBase(
   }
 
   const kb: KnowledgeBase = {
-    eventStore, views, content, graph: graphDb, weaver,
+    eventStore, views, content, graph: graphDb, weaver, weaveProgress,
     projectionsDir: project.projectionsDir,
   };
 

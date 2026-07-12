@@ -49,7 +49,7 @@ function createMockKb(): KnowledgeBase {
     content: {} as any,
     graph: {} as any,
     projectionsDir: '',
-      weaver: {} as any,
+      weaver: {} as any, weaveProgress: {} as any,
   };
 }
 

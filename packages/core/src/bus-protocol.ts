@@ -330,6 +330,20 @@ export type EventMap = {
   'job:cancel-failed': components['schemas']['CommandError'];
 
   // ========================================================================
+  // WEAVE FLOW — graph projection progress (GRAPH-PROJECTION-SYNC, D2 = push)
+  // ========================================================================
+
+  /**
+   * Emitted by the Weaver after applying an event (or a batch's last event)
+   * for a resource to the graph. `sequenceNumber` is the resource-stream
+   * sequence of the last applied event. Folded by `WeaveProgress`
+   * (make-meaning) into the backend-local applied map that the
+   * `whenApplied` barrier awaits. In-process signal today; crosses the
+   * bus gateway after WEAVER-ISOLATION.
+   */
+  'weave:applied': { resourceId: string; sequenceNumber: number };
+
+  // ========================================================================
   // SETTINGS (frontend-only)
   // ========================================================================
 
@@ -610,6 +624,9 @@ export const CHANNEL_SCHEMAS = {
   'settings:line-numbers-toggled':    null, // void
   'settings:locale-changed':          'SettingsLocaleChangedEvent',
   'settings:hover-delay-changed':     'SettingsHoverDelayChangedEvent',
+
+  // ── WEAVE FLOW ──────────────────────────────────────────────────
+  'weave:applied':                    null, // { resourceId; sequenceNumber }
 
   // ── SSE infrastructure ──────────────────────────────────────────
   'stream-connected':                 null, // Record<string, never>
