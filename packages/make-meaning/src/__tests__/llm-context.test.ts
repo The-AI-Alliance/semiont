@@ -95,7 +95,7 @@ describe('LLM Context', () => {
     // Create KnowledgeBase - share event store's view storage to avoid separate instances
     const { getGraphDatabase } = await import('@semiont/graph');
     const graphDb = await getGraphDatabase(graphConfig);
-    kb = { eventStore, views: eventStore.viewStorage, content: new WorkingTreeStore(project, mockLogger), graph: graphDb, projectionsDir: project.projectionsDir, weaver: {} as any, weaveProgress: {} as any };
+    kb = { eventStore, views: eventStore.viewStorage, content: new WorkingTreeStore(project, mockLogger), graph: graphDb, projectionsDir: project.projectionsDir, weaver: {} as any, weaverEvents: {} as any, weaveProgress: {} as any };
 
     // Start Stower
     stower = new Stower(kb, eventBus, project, mockLogger);

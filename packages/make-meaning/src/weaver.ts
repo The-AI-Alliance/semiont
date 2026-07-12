@@ -26,11 +26,12 @@
  * by RPC-style services.
  */
 
-import { Subject, Subscription, from } from 'rxjs';
+import { Subject, Subscription, from, type Observable } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { EventQuery, type EventStore } from '@semiont/event-sourcing';
-import { didToAgent, burstBuffer, EventBus, errField } from '@semiont/core';
+import { didToAgent, burstBuffer, errField } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
+import type { WorkerBus } from '@semiont/sdk';
 import type { PersistedEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
 import { partitionByType } from './batch-utils.js';
@@ -39,28 +40,29 @@ import type { Annotation, CreateAnnotationInternal } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 
 export class Weaver {
-  // Event types that produce GraphDB mutations — filter everything else
-  private static readonly GRAPH_RELEVANT_EVENTS: Set<PersistedEvent['type']> = new Set([
-    'yield:created', 'mark:archived', 'mark:unarchived',
-    'mark:added', 'mark:removed', 'mark:body-updated',
-    'mark:entity-tag-added', 'mark:entity-tag-removed', 'frame:entity-type-added',
-  ]);
-
   // Burst buffer thresholds — see class doc
   private static readonly BURST_WINDOW_MS = 50;
   private static readonly MAX_BATCH_SIZE = 500;
   private static readonly IDLE_TIMEOUT_MS = 200;
 
-  private _globalSubscriptions: Subscription[] = [];
+  private sourceSubscription: Subscription | null = null;
   private eventSubject = new Subject<StoredEvent>();
   private pipelineSubscription: Subscription | null = null;
   private lastProcessed: Map<string, number> = new Map();
   private readonly logger: Logger;
 
+  /**
+   * Transport-blind by construction (WEAVER-ISOLATION P2): graph-relevant
+   * events arrive as an injected `events$` (the `WeaverActorStateUnit`
+   * fan-in — channel selection lives there), and `weave:applied` leaves
+   * through the injected bus handle. In-process both ride the core
+   * EventBus via `workerBusOverEventBus`; standalone they ride the gateway.
+   */
   constructor(
     private eventStore: EventStore,
     private graphDb: GraphDatabase,
-    private coreEventBus: EventBus,
+    private events$: Observable<StoredEvent>,
+    private bus: Pick<WorkerBus, 'emit'>,
     logger: Logger,
   ) {
     this.logger = logger;
@@ -68,23 +70,13 @@ export class Weaver {
 
   async initialize() {
     this.logger.info('Weaver initialized');
-    await this.subscribeToGlobalEvents();
+    this.buildPipeline();
   }
 
   /**
-   * Subscribe globally to ALL events, pre-filter to graph-relevant types,
-   * and wire through the RxJS burst-buffered pipeline.
+   * Wire the injected event stream through the RxJS burst-buffered pipeline.
    */
-  private async subscribeToGlobalEvents() {
-    // Subscribe to each graph-relevant event type on the Core EventBus
-    for (const eventType of Weaver.GRAPH_RELEVANT_EVENTS) {
-      this._globalSubscriptions.push(
-        this.coreEventBus.getDomainEvent(eventType).subscribe(
-          (storedEvent: StoredEvent) => this.eventSubject.next(storedEvent)
-        )
-      );
-    }
-
+  private buildPipeline() {
     // Build the RxJS pipeline
     this.pipelineSubscription = this.eventSubject.pipe(
       // Split into one inner Observable per resource (system events grouped under '__system__')
@@ -124,7 +116,12 @@ export class Weaver {
       }
     });
 
-    this.logger.info('Subscribed to global events with burst-buffered pipeline');
+    // Subscribe the injected source last so nothing races the pipeline.
+    this.sourceSubscription = this.events$.subscribe(
+      (storedEvent: StoredEvent) => this.eventSubject.next(storedEvent)
+    );
+
+    this.logger.info('Subscribed to graph-relevant events with burst-buffered pipeline');
   }
 
   /**
@@ -134,7 +131,12 @@ export class Weaver {
    */
   private noteApplied(resourceId: string, sequenceNumber: number): void {
     this.lastProcessed.set(resourceId, sequenceNumber);
-    this.coreEventBus.get('weave:applied').next({ resourceId, sequenceNumber });
+    // Fire-and-forget signal: in-process the shim's emit is synchronous;
+    // over HTTP a lost signal only means a barrier timeout (the poll floor
+    // absorbs it), so a warn is the right ceiling.
+    this.bus.emit('weave:applied', { resourceId, sequenceNumber }).catch((err) => {
+      this.logger.warn('weave:applied emit failed', { resourceId, sequenceNumber, error: errField(err) });
+    });
   }
 
   /**
@@ -164,9 +166,9 @@ export class Weaver {
   async stop() {
     this.logger.info('Stopping Weaver');
 
-    // Unsubscribe from event source (stops feeding the Subject)
-    for (const sub of this._globalSubscriptions) sub.unsubscribe();
-    this._globalSubscriptions = [];
+    // Unsubscribe from the injected event source (stops feeding the Subject)
+    this.sourceSubscription?.unsubscribe();
+    this.sourceSubscription = null;
 
     // Complete the Subject — this triggers burst buffer flush of remaining events
     this.eventSubject.complete();
@@ -528,7 +530,9 @@ export class Weaver {
     pipelineActive: boolean;
   } {
     return {
-      subscriptions: this._globalSubscriptions.length,
+      // One injected source stream since WEAVER-ISOLATION P2 — channel
+      // fan-in (9 channels) lives in WeaverActorStateUnit.
+      subscriptions: this.sourceSubscription ? 1 : 0,
       lastProcessed: Object.fromEntries(this.lastProcessed),
       pipelineActive: !!this.pipelineSubscription,
     };

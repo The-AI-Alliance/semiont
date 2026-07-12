@@ -25,6 +25,8 @@ import type { SemiontProject } from '@semiont/core/node';
 import type { EventBus, Logger } from '@semiont/core';
 import { Weaver } from './weaver.js';
 import { createWeaveProgress, type WeaveProgress } from './weave-progress.js';
+import { createWeaverActorStateUnit, type WeaverActorStateUnit } from './weaver-actor-state-unit.js';
+import { workerBusOverEventBus } from './worker-bus-local.js';
 
 export interface KnowledgeBase {
   eventStore:    EventStore;
@@ -32,6 +34,7 @@ export interface KnowledgeBase {
   content:       WorkingTreeStore;
   graph:         GraphDatabase;
   weaver:        Weaver;
+  weaverEvents:  WeaverActorStateUnit;
   weaveProgress: WeaveProgress;
   vectors?:      VectorStore;
   projectionsDir: string;
@@ -58,13 +61,20 @@ export async function createKnowledgeBase(
   // Fold of `weave:applied` signals — must exist before the Weaver starts
   // applying so no early signal is missed (GRAPH-PROJECTION-SYNC P2).
   const weaveProgress = createWeaveProgress(eventBus);
+  // Transport seam (WEAVER-ISOLATION P2): the Weaver consumes the fan-in's
+  // events$ and emits through a WorkerBus — in-process both are the core
+  // EventBus behind the local shim; standalone they become the gateway.
+  const workerBus = workerBusOverEventBus(eventBus);
+  const weaverEvents = createWeaverActorStateUnit({ bus: workerBus });
   const weaver = new Weaver(
     eventStore,
     graphDb,
-    eventBus,
+    weaverEvents.events$,
+    workerBus,
     logger.child({ component: 'weaver' }),
   );
   await weaver.initialize();
+  weaverEvents.start();
 
   if (!options?.skipRebuild) {
     // Rebuild materialized views from the event log first. The Browser actor
@@ -77,7 +87,7 @@ export async function createKnowledgeBase(
   }
 
   const kb: KnowledgeBase = {
-    eventStore, views, content, graph: graphDb, weaver, weaveProgress,
+    eventStore, views, content, graph: graphDb, weaver, weaverEvents, weaveProgress,
     projectionsDir: project.projectionsDir,
   };
 

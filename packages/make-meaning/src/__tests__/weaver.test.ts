@@ -16,6 +16,8 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } 
 import { EventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
 import { Weaver } from '../weaver';
+import { createWeaverActorStateUnit, type WeaverActorStateUnit } from '../weaver-actor-state-unit';
+import { workerBusOverEventBus } from '../worker-bus-local';
 import { resourceId, userId, annotationId, EventBus } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
@@ -106,15 +108,26 @@ describe('Weaver', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
+  let weaverUnit: WeaverActorStateUnit;
+
+  const wireWeaver = async (db: GraphDatabase): Promise<Weaver> => {
+    const workerBus = workerBusOverEventBus(coreEventBus);
+    weaverUnit = createWeaverActorStateUnit({ bus: workerBus });
+    const weaver = new Weaver(eventStore, db, weaverUnit.events$, workerBus, mockLogger);
+    await weaver.initialize();
+    weaverUnit.start();
+    return weaver;
+  };
+
   beforeEach(async () => {
     graphDb = createMockGraphDb();
-    consumer = new Weaver(eventStore, graphDb, coreEventBus, mockLogger);
-    await consumer.initialize();
+    consumer = await wireWeaver(graphDb);
     vi.clearAllMocks();
   });
 
   afterEach(async () => {
     await consumer?.stop();
+    weaverUnit?.dispose();
   });
 
   describe('event type filtering', () => {
@@ -709,8 +722,11 @@ describe('Weaver', () => {
   describe('lifecycle', () => {
     it('should unsubscribe on stop', async () => {
       const localGraphDb = createMockGraphDb();
-      const localConsumer = new Weaver(eventStore, localGraphDb, coreEventBus, mockLogger);
+      const localWorkerBus = workerBusOverEventBus(coreEventBus);
+      const localUnit = createWeaverActorStateUnit({ bus: localWorkerBus });
+      const localConsumer = new Weaver(eventStore, localGraphDb, localUnit.events$, localWorkerBus, mockLogger);
       await localConsumer.initialize();
+      localUnit.start();
 
       const docId = resourceId(`lifecycle-stop-${Date.now()}`);
 
@@ -746,7 +762,7 @@ describe('Weaver', () => {
     it('should report health metrics', async () => {
       const metrics = consumer.getHealthMetrics();
 
-      expect(metrics.subscriptions).toBe(9); // One per GRAPH_RELEVANT_EVENTS entry
+      expect(metrics.subscriptions).toBe(1); // One injected source stream — channel fan-in (9) lives in WeaverActorStateUnit
       expect(metrics.pipelineActive).toBe(true);
       expect(typeof metrics.lastProcessed).toBe('object');
     });
@@ -789,11 +805,12 @@ describe('Weaver', () => {
 
     beforeEach(async () => {
       // Swap the outer mock-based consumer for one wired to a real memory
-      // graph — the outer afterEach still stops whatever `consumer` holds.
+      // graph — the outer afterEach still stops whatever `consumer` and
+      // `weaverUnit` hold.
       await consumer.stop();
+      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
-      consumer = new Weaver(eventStore, graphDb, coreEventBus, mockLogger);
-      await consumer.initialize();
+      consumer = await wireWeaver(graphDb);
     });
 
     it('yield:created twice → one resource', async () => {

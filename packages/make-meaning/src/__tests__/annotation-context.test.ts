@@ -78,7 +78,7 @@ describe('AnnotationContext', () => {
       content: new WorkingTreeStore(project, mockLogger),
       graph: mockGraphDb,
       projectionsDir: project.projectionsDir,
-      weaver: {} as any, weaveProgress: {} as any,
+      weaver: {} as any, weaverEvents: {} as any, weaveProgress: {} as any,
     };
   });
 
