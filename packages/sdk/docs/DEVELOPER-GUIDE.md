@@ -192,8 +192,10 @@ the role in `prompt` anymore. On completion the worker mints a source→derived 
 annotation, so provenance is automatic. The generated resource id arrives on the terminal
 `complete` event. The context excerpts embedded in the generation prompt are id-labelled
 (`[<resourceId>]` / `[<resourceId>/<annotationId>]` — see the prompt walkthrough in
-[YIELD.md](../../../docs/protocol/flows/YIELD.md)), so a `prompt` asking the model to
-attribute its sources has stable handles to cite.
+[YIELD.md](../../../docs/protocol/flows/YIELD.md)), and `cite: true` turns that into
+inline citations: the model's `[[<id>]]` tokens are stripped before storage and minted as
+W3C linking annotations on the generated resource (claim span → cited source) — citations
+arrive as ordinary navigable references, not links in the text.
 
 ```typescript
 const done = await session.client.yield.fromResource(resourceId, {
