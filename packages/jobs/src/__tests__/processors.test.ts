@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resourceId, annotationId, entityType } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import type { components, TagSchema } from '@semiont/core';
+import type { components, TagSchema, GatheredContext, Logger } from '@semiont/core';
 
 type Agent = components['schemas']['Agent'];
 
@@ -344,6 +344,97 @@ describe('processGenerationJob', () => {
 
     expect(result.title).toBe('Fallback Title');
     expect(result.result.resourceName).toBe('Fallback Title');
+  });
+});
+
+describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () => {
+  // The resolver runs inside processGenerationJob: parse [[<id>]] transport
+  // tokens from the generated content, validate each against the ids actually
+  // present in the embedded context (hallucination guard), STRIP the tokens
+  // from the stored content, and return claim-span citations for the worker
+  // to mint as linking annotations.
+  const CITE_CONTEXT: GatheredContext = {
+    focus: {
+      kind: 'resource',
+      resource: {
+        '@context': 'https://www.w3.org/ns/anno.jsonld',
+        '@id': 'src-1',
+        name: 'Source Doc',
+        representations: [],
+      },
+    },
+    graph: {
+      nodes: [
+        { id: 'src-1', type: 'resource', label: 'Source Doc' },
+        { id: 'ctx-9', type: 'resource', label: 'Context Doc' },
+      ],
+      edges: [],
+    },
+    metadata: {},
+  };
+
+  function makeWarnLogger(): { logger: Logger; warn: ReturnType<typeof vi.fn> } {
+    const warn = vi.fn();
+    const logger: Logger = { debug: () => {}, info: () => {}, warn, error: () => {}, child: () => logger };
+    return { logger, warn };
+  }
+
+  it('strips tokens from the content and returns claim-span citations', async () => {
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({
+      content: 'Paris is the capital of France. [[ctx-9]] It is large.',
+      title: 'T',
+    });
+
+    const r = await processGenerationJob(
+      makeInferenceClient(),
+      { title: 'T', cite: true, context: CITE_CONTEXT },
+      vi.fn(),
+      LOGGER,
+    );
+
+    expect(r.content).toBe('Paris is the capital of France. It is large.');
+    expect(r.citations).toHaveLength(1);
+    const c = r.citations[0]!;
+    expect(c.resourceId).toBe('ctx-9');
+    expect(c.exact).toBe('Paris is the capital of France.');
+    // anchor invariant: the selector must reproduce exact from the FINAL content
+    expect(r.content.substring(c.start, c.end)).toBe(c.exact);
+  });
+
+  it('drops a hallucinated id loudly — stripped, warned, no citation', async () => {
+    const { logger, warn } = makeWarnLogger();
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({
+      content: 'A bold claim. [[not-in-context]]',
+      title: 'T',
+    });
+
+    const r = await processGenerationJob(
+      makeInferenceClient(),
+      { title: 'T', cite: true, context: CITE_CONTEXT },
+      vi.fn(),
+      logger,
+    );
+
+    expect(r.content).toBe('A bold claim.');
+    expect(r.citations).toHaveLength(0);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('cite unset leaves bracketed content untouched (no accidental stripping)', async () => {
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({
+      content: 'Wiki-style [[links]] are legitimate content.',
+      title: 'T',
+    });
+
+    const r = await processGenerationJob(
+      makeInferenceClient(),
+      { title: 'T', context: CITE_CONTEXT },
+      vi.fn(),
+      LOGGER,
+    );
+
+    expect(r.content).toBe('Wiki-style [[links]] are legitimate content.');
+    expect(r.citations).toHaveLength(0);
   });
 });
 
@@ -695,10 +786,10 @@ describe('locale threading', () => {
       );
 
       // Positional signature: topic, entityTypes, client, logger, prompt, locale,
-      // context, temperature, maxTokens, sourceLanguage, outputMediaType, task, structure.
+      // context, temperature, maxTokens, sourceLanguage, outputMediaType, task, structure, cite.
       expect(generateResourceFromTopic).toHaveBeenCalledWith(
         'Topic', [], client, LOGGER, undefined, 'de', undefined,
-        undefined, undefined, 'fr', 'text/markdown', undefined, undefined,
+        undefined, undefined, 'fr', 'text/markdown', undefined, undefined, undefined,
       );
     });
   });

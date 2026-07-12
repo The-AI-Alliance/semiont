@@ -239,6 +239,7 @@ describe('handleJob orchestration', () => {
         content: '# Generated\n\nBody.',
         title: 'New Resource',
         format: 'text/markdown',
+        citations: [],
         result: { tokensUsed: 100 } as never,
       });
       const h = makeFakeSessionAndAdapter();
@@ -274,6 +275,7 @@ describe('handleJob orchestration', () => {
         content: 'body',
         title: 'T',
         format: 'text/markdown',
+        citations: [],
         result: {} as never,
       });
       const h = makeFakeSessionAndAdapter();
@@ -293,6 +295,7 @@ describe('handleJob orchestration', () => {
         content: 'body',
         title: 'T',
         format: 'text/markdown',
+        citations: [],
         result: {} as never,
       });
       const h = makeFakeSessionAndAdapter();
@@ -319,6 +322,7 @@ describe('handleJob orchestration', () => {
         content: 'body',
         title: 'T',
         format: 'text/markdown',
+        citations: [],
         result: {} as never,
       });
       const h = makeFakeSessionAndAdapter();
@@ -335,7 +339,7 @@ describe('handleJob orchestration', () => {
       // mints a navigable reference: target = the whole source resource (resource-level,
       // no selector), body = SpecificResource → the derived resource.
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'body', title: 'Derived Doc', format: 'text/markdown', result: {} as never,
+        content: 'body', title: 'Derived Doc', format: 'text/markdown', citations: [], result: {} as never,
       });
       const h = makeFakeSessionAndAdapter();
 
@@ -356,6 +360,41 @@ describe('handleJob orchestration', () => {
       const ann = (markCreate!.payload as { annotation: { target: { selector?: unknown } } }).annotation;
       expect(ann.target.selector).toBeUndefined();
 
+      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'job:complete']);
+    });
+
+    it('mints a linking annotation on the DERIVED resource for each resolved citation (INLINE-CITATIONS P1)', async () => {
+      // The processor resolved [[ctx-9]] into a claim-span citation; the worker
+      // mints it after upload (only then is the derived resourceId known):
+      // target = the derived resource + position/quote selectors for the claim,
+      // body = SpecificResource → the cited source.
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: 'Paris is the capital of France. It is large.',
+        title: 'Answer',
+        format: 'text/markdown',
+        citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+        result: {} as never,
+      });
+      const h = makeFakeSessionAndAdapter();
+
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { referenceId: 'ref-1', cite: true }));
+
+      const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
+      expect(markCreates, 'one mark:create per resolved citation').toHaveLength(1);
+      expect(markCreates[0]!.payload).toMatchObject({
+        resourceId: 'new-res-42', // the annotation lives on the DERIVED resource
+        annotation: {
+          motivation: 'linking',
+          target: {
+            source: 'new-res-42',
+            selector: [
+              { type: 'TextPositionSelector', start: 0, end: 31 },
+              { type: 'TextQuoteSelector', exact: 'Paris is the capital of France.' },
+            ],
+          },
+          body: { type: 'SpecificResource', source: 'ctx-9', purpose: 'linking' },
+        },
+      });
       expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'job:complete']);
     });
   });
@@ -464,6 +503,7 @@ describe('handleJob orchestration', () => {
         content: 'body',
         title: 'T',
         format: 'text/markdown',
+        citations: [],
         result: {} as never,
       });
       const h = makeFakeSessionAndAdapter();

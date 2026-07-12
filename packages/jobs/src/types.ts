@@ -124,6 +124,14 @@ export interface GenerationParams {
    * the model determine shape. See .plans/YIELD-STRUCTURE.md D2/D5.
    */
   structure?: 'prose' | 'sections' | 'chat' | (string & {});
+  /**
+   * Ask the model to cite: emit `[[<id>]]` transport tokens after each claim, using
+   * the ids the context embedding provides (CONTEXT-IDENTIFIERS). The worker
+   * validates each id against the embedded context (unknown ids are dropped
+   * loudly), strips the tokens from the stored content, and mints W3C linking
+   * annotations on the derived resource. See .plans/INLINE-CITATIONS.md.
+   */
+  cite?: boolean;
 }
 
 /**
