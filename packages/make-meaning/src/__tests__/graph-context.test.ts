@@ -28,7 +28,7 @@ describe('GraphContext', () => {
     content: {} as any,
     graph: mockGraphDb as any,
     projectionsDir: '',
-      weaver: {} as any,
+    weaver: {} as any,
   };
 
   it('should get backlinks for a resource', async () => {
@@ -269,6 +269,51 @@ describe('GraphContext', () => {
 
       expect(graph.nodes.find((n) => n.id === 'ann-sib')).toMatchObject({ type: 'annotation' });
       expect(graph.edges).toContainEqual({ source: 'ann-sib', target: 'res-main', type: 'annotation-of' });
+    });
+  });
+
+  describe('projection-lag grace (GRAPH-PROJECTION-SYNC P1)', () => {
+    const mainDoc = { '@id': 'res-main', name: 'Main', entityTypes: [] };
+
+    it('retries the graph read while the view has the resource, and succeeds once the Weaver catches up', async () => {
+      // The view materializer applies on the append path; the Weaver lags.
+      // "In the view, not yet in the graph" is projection lag, not a 404.
+      mockViews.get.mockReset().mockResolvedValue({ resource: mainDoc });
+      mockGraphDb.getResource
+        .mockReset()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue(mainDoc);
+      mockGraphDb.getResourceConnections.mockResolvedValue([]);
+      mockGraphDb.getResourceReferencedBy.mockResolvedValue([]);
+      mockGraphDb.getResourceAnnotations.mockResolvedValue([]);
+
+      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
+
+      expect(graph.nodes.find((n) => n.id === 'res-main')).toMatchObject({ type: 'resource', label: 'Main' });
+      expect(mockGraphDb.getResource.mock.calls.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('does not retry when the view lacks the resource — a true unknown throws on the first read', async () => {
+      mockViews.get.mockReset().mockResolvedValue(null);
+      mockGraphDb.getResource.mockReset().mockResolvedValue(null);
+
+      await expect(
+        GraphContext.buildKnowledgeGraph(resourceId('res-ghost'), mockKb),
+      ).rejects.toThrow('Resource not found');
+      expect(mockGraphDb.getResource).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives up after the bounded backoff when the graph never catches up', async () => {
+      mockViews.get.mockReset().mockResolvedValue({ resource: mainDoc });
+      mockGraphDb.getResource.mockReset().mockResolvedValue(null);
+
+      await expect(
+        GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb),
+      ).rejects.toThrow('Resource not found');
+      // Bounded: more than one attempt, but not unbounded polling.
+      expect(mockGraphDb.getResource.mock.calls.length).toBeGreaterThan(1);
+      expect(mockGraphDb.getResource.mock.calls.length).toBeLessThanOrEqual(6);
     });
   });
 });

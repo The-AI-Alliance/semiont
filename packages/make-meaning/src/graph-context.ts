@@ -25,6 +25,14 @@ type KnowledgeGraph = components['schemas']['KnowledgeGraph'];
 
 export class GraphContext {
   /**
+   * Backoff schedule for the projection-lag grace in `buildKnowledgeGraph`
+   * (GRAPH-PROJECTION-SYNC P1). Total wait is bounded at 375 ms — the Weaver
+   * applies in tens of milliseconds when merely lagging; anything slower is
+   * treated as a real miss.
+   */
+  private static readonly PROJECTION_LAG_BACKOFF_MS = [25, 50, 100, 200];
+
+  /**
    * Get all resources referencing this resource (backlinks)
    * Requires graph traversal - must use graph database
    */
@@ -79,7 +87,20 @@ export class GraphContext {
     resourceId: ResourceId,
     kb: KnowledgeBase,
   ): Promise<KnowledgeGraph> {
-    const mainDoc = await kb.graph.getResource(resourceId);
+    // Read-your-writes grace for the graph projection: the view materializer
+    // applies on the append path, the Weaver lags behind it (see
+    // .plans/bugs/gather-resource-races-graph-projection.md). "Present in the
+    // view, absent in the graph" precisely identifies projection lag, so only
+    // that state earns a bounded retry; a resource the view doesn't know is
+    // genuinely unknown and throws on the first read.
+    let mainDoc = await kb.graph.getResource(resourceId);
+    if (!mainDoc && await kb.views.get(resourceId)) {
+      for (const delayMs of GraphContext.PROJECTION_LAG_BACKOFF_MS) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        mainDoc = await kb.graph.getResource(resourceId);
+        if (mainDoc) break;
+      }
+    }
     if (!mainDoc) {
       throw new Error('Resource not found');
     }
