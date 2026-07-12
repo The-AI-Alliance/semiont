@@ -28,7 +28,7 @@ describe('GraphContext', () => {
     content: {} as any,
     graph: mockGraphDb as any,
     projectionsDir: '',
-      graphConsumer: {} as any,
+      weaver: {} as any,
   };
 
   it('should get backlinks for a resource', async () => {

@@ -2,7 +2,7 @@
  * Annotation body utilities
  *
  * These are the matcher primitives used by the `mark:body-updated` event
- * replay path (ViewMaterializer and GraphDBConsumer) to apply add/remove/
+ * replay path (ViewMaterializer and Weaver) to apply add/remove/
  * replace operations against an annotation body.
  */
 

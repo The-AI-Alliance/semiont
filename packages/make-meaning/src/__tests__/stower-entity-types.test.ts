@@ -57,7 +57,7 @@ describe('Stower mark:update-entity-types vocabulary gate', () => {
     await fs.mkdir(systemDir, { recursive: true });
     await fs.writeFile(join(systemDir, 'entitytypes.json'), JSON.stringify({ entityTypes: ['Person', 'Organization'] }));
 
-    // A resource for the tags to live on (log-level, mirrors graph-consumer tests).
+    // A resource for the tags to live on (log-level, mirrors weaver tests).
     rid = resourceId(`tags-res-${Date.now()}`);
     await eventStore.appendEvent({
       type: 'yield:created',

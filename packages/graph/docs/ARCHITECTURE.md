@@ -79,16 +79,16 @@ The graph is populated from Event Store events:
 ```mermaid
 graph LR
     API[API Request] --> ES[Event Store]
-    ES --> GC[GraphDBConsumer<br/>Event Processor]
-    GC --> GDB[Graph Database]
+    ES --> WEAVER[Weaver<br/>Event Processor]
+    WEAVER --> GDB[Graph Database]
 
-    ES -->|yield:created| GC
-    ES -->|mark:added| GC
-    ES -->|mark:entity-tag-added| GC
+    ES -->|yield:created| WEAVER
+    ES -->|mark:added| WEAVER
+    ES -->|mark:entity-tag-added| WEAVER
 
-    GC -->|createResource| GDB
-    GC -->|createAnnotation| GDB
-    GC -->|updateResource| GDB
+    WEAVER -->|createResource| GDB
+    WEAVER -->|createAnnotation| GDB
+    WEAVER -->|updateResource| GDB
 ```
 
 ### Event Processing Guarantees

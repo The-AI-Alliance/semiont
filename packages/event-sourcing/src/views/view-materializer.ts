@@ -393,7 +393,7 @@ export class ViewMaterializer {
    * Walk every event stream in the event log and materialize the corresponding
    * view from scratch. Idempotent: existing view files are overwritten.
    *
-   * Mirrors GraphDBConsumer.rebuildAll() and Smelter.rebuildAll() — this is the
+   * Mirrors Weaver.rebuildAll() and Smelter.rebuildAll() — this is the
    * recovery path that makes the ephemeral stateDir safe to wipe. The live
    * append path (EventStore.appendEvent → materializeIncremental /
    * materializeEntityTypes / materializeTagSchemas) is unchanged and runs in

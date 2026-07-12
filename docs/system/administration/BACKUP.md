@@ -122,7 +122,7 @@ Integrity of the live event log is provided by git at the commit level: when `gi
 ## What Is Excluded
 
 - **Materialized views** — Rebuilt automatically from events during restore
-- **Graph database** — Rebuilt from events by the GraphDBConsumer after restore
+- **Graph database** — Rebuilt from events by the Weaver after restore
 - **Job queue state** — Transient; jobs re-run as needed
 - **User database** — Managed separately in PostgreSQL
 - **Application configuration** — Stored in environment config files, not in the knowledge base

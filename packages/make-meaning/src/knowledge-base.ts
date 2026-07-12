@@ -8,7 +8,7 @@
  * - Materialized Views (fast single-doc queries) — via ViewStorage
  * - Content Store (working-tree files, URI-addressed) — via WorkingTreeStore
  * - Graph (eventually consistent relationship projection) — via GraphDatabase
- * - Graph Consumer (event-to-graph projection) — via GraphDBConsumer
+ * - Weaver (event-to-graph projection)
  * - Vectors (semantic search) — via VectorStore (optional, read-only)
  *
  * The Smelter (event-to-vector projection) runs as an external actor
@@ -23,14 +23,14 @@ import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventBus, Logger } from '@semiont/core';
-import { GraphDBConsumer } from './graph/consumer.js';
+import { Weaver } from './weaver.js';
 
 export interface KnowledgeBase {
   eventStore:    EventStore;
   views:         ViewStorage;
   content:       WorkingTreeStore;
   graph:         GraphDatabase;
-  graphConsumer: GraphDBConsumer;
+  weaver: Weaver;
   vectors?:      VectorStore;
   projectionsDir: string;
 }
@@ -53,26 +53,26 @@ export async function createKnowledgeBase(
     project,
     logger.child({ component: 'working-tree-store' }),
   );
-  const graphConsumer = new GraphDBConsumer(
+  const weaver = new Weaver(
     eventStore,
     graphDb,
     eventBus,
-    logger.child({ component: 'graph-consumer' }),
+    logger.child({ component: 'weaver' }),
   );
-  await graphConsumer.initialize();
+  await weaver.initialize();
 
   if (!options?.skipRebuild) {
     // Rebuild materialized views from the event log first. The Browser actor
     // reads from these views, so they must be populated before any request is
     // served. The views layer is the third derived read model alongside the
-    // graph and vectors; this call mirrors graphConsumer.rebuildAll() so
+    // graph and vectors; this call mirrors weaver.rebuildAll() so
     // that an ephemeral stateDir wipe is recoverable.
     await eventStore.views.rebuildAll(eventStore.log);
-    await graphConsumer.rebuildAll();
+    await weaver.rebuildAll();
   }
 
   const kb: KnowledgeBase = {
-    eventStore, views, content, graph: graphDb, graphConsumer,
+    eventStore, views, content, graph: graphDb, weaver,
     projectionsDir: project.projectionsDir,
   };
 

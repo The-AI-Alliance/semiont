@@ -73,7 +73,7 @@ export class MarkNamespace implements IMarkNamespace {
   /**
    * Replace a resource's own entity-type classification. The backend diffs
    * `current` vs `updated` and folds the changes into `resource.entityTypes`
-   * (mark:entity-tag-added/-removed → graph consumer), so the change surfaces in
+   * (mark:entity-tag-added/-removed → Weaver), so the change surfaces in
    * `browse.resources({ entityType })` and `getResourceEntityTypes`. A
    * **replace/diff** operation: pass the resource's current types as `current`,
    * the desired full set as `updated`.

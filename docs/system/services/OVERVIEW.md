@@ -144,7 +144,7 @@ graph LR
 - Job progress streaming
 
 ### Event Bus
-- Event Store to Graph Consumer
+- Event Store to Weaver
 - Event Store to SSE subscribers
 
 ## Health Checks

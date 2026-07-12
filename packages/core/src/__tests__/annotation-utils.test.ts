@@ -141,7 +141,7 @@ describe('@semiont/core - annotation-utils', () => {
     // ── Caller-convenience: passing a full BodyItem works too ─────────────
 
     it('accepts a full BodyItem structurally (ignores extra fields)', () => {
-      // View-materializer and graph-consumer pass `op.item` directly —
+      // View-materializer and weaver pass `op.item` directly —
       // which carries purpose and possibly other fields. This should Just
       // Work because BodyItem is structurally assignable to BodyItemIdentity.
       const body: BodyItem[] = [

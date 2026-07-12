@@ -24,7 +24,7 @@ graph TB
         BROWSER["Browser"]
         GATHERER["Gatherer"]
         MATCHER["Matcher"]
-        GC["Graph Consumer"]
+        WEAVER["Weaver"]
         VIEWS[("Materialized Views")]
     end
 
@@ -61,8 +61,8 @@ graph TB
     STOWER --- GIT
     STOWER --- VIEWS
     VIEWS --- GIT
-    GC --- GIT
-    GC --- NEO
+    WEAVER --- GIT
+    WEAVER --- NEO
     SMELTER --- QD
     BUS --- PG
     WORKERS --- OL
@@ -81,7 +81,7 @@ graph TB
     classDef service fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
 
     class BUS bus
-    class STOWER,BROWSER,GATHERER,MATCHER,GC,WORKERS,SMELTER actor
+    class STOWER,BROWSER,GATHERER,MATCHER,WEAVER,WORKERS,SMELTER actor
     class GIT,VIEWS,PG,NEO,QD store
     class SPA spa
     class OL service

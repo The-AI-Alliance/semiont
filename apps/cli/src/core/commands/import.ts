@@ -36,7 +36,7 @@ function createCliLogger(verbose: boolean): Logger {
 
 /**
  * Noop graph database for import — the graph rebuilds from events
- * after import via the GraphDBConsumer, not during import.
+ * after import via the Weaver, not during import.
  */
 function createNoopGraphDatabase(): GraphDatabase {
   const noop = async (): Promise<never> => { throw new Error('Graph not available during import'); };

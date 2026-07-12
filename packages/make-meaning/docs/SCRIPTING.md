@@ -45,7 +45,7 @@ async function main() {
 
   try {
     // Access components:
-    // makeMeaning.knowledgeSystem.kb                — Knowledge Base (eventStore, views, content, graph, graphConsumer, vectors?)
+    // makeMeaning.knowledgeSystem.kb                — Knowledge Base (eventStore, views, content, graph, weaver, vectors?)
     // makeMeaning.knowledgeSystem.stower            — Write gateway actor
     // makeMeaning.knowledgeSystem.browser           — Read actor (browse queries, directory listings)
     // makeMeaning.knowledgeSystem.gatherer          — Context assembly actor
