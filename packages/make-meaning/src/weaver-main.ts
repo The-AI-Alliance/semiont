@@ -158,6 +158,7 @@ async function main() {
   logger.info('Subscribed to graph-relevant events and rebuild commands');
 
   let catchUpState: Record<string, unknown> = { phase: 'pending' };
+  let reconcileState: Record<string, unknown> = { phase: 'pending' };
 
   const health = createServer((req, res) => {
     if (req.url === '/health') {
@@ -166,6 +167,7 @@ async function main() {
         status: 'ok',
         ...weaver.getHealthMetrics(),
         catchUp: catchUpState,
+        reconcile: reconcileState,
       }));
     } else {
       res.writeHead(404);
@@ -201,6 +203,19 @@ async function main() {
     catchUpState = { phase: 'done', summary };
   } catch (error) {
     catchUpState = { phase: 'failed', error: error instanceof Error ? error.message : String(error) };
+    throw error;
+  }
+
+  // Reconcile pass (#845): the state-diff backstop for divergence the
+  // accounting cannot witness — out-of-band mutations, wiped/rolled-back
+  // graph volumes, historical damage. Fatal on a thrown reconcile (bus
+  // unreachable); heal failures are reported in the summary, not fatal.
+  reconcileState = { phase: 'running' };
+  try {
+    const summary = await weaver.reconcile();
+    reconcileState = { phase: 'done', summary };
+  } catch (error) {
+    reconcileState = { phase: 'failed', error: error instanceof Error ? error.message : String(error) };
     throw error;
   }
 }

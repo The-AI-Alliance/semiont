@@ -135,9 +135,47 @@ describe('Weaver', () => {
     vi.clearAllMocks();
   });
 
+  // Bus responders standing in for the Browser: the Weaver's catch-up,
+  // rebuild, and reconcile paths read history and views exclusively over
+  // `browse:*` — these are their only view of the log in this harness.
+  let stopServing: (() => void) | null = null;
+
+  const serveBrowseReads = (rids: string[], annotationsByRid: Record<string, unknown[]> = {}) => {
+    const subs = [
+      coreEventBus.get('browse:resources-requested').subscribe((req: any) => {
+        coreEventBus.get('browse:resources-result').next({
+          correlationId: req.correlationId,
+          response: {
+            resources: rids.map((id) => ({
+              '@id': id, name: id, representations: [], archived: false, entityTypes: [],
+            })),
+            total: rids.length,
+          },
+        } as any);
+      }),
+      coreEventBus.get('browse:events-requested').subscribe((req: any) => {
+        void eventStore.log.getEvents(resourceId(req.resourceId)).then((events) => {
+          coreEventBus.get('browse:events-result').next({
+            correlationId: req.correlationId,
+            response: { events, total: events.length, resourceId: req.resourceId },
+          } as any);
+        });
+      }),
+      coreEventBus.get('browse:annotations-requested').subscribe((req: any) => {
+        coreEventBus.get('browse:annotations-result').next({
+          correlationId: req.correlationId,
+          response: { annotations: annotationsByRid[req.resourceId] ?? [] },
+        } as any);
+      }),
+    ];
+    stopServing = () => subs.forEach((s) => s.unsubscribe());
+  };
+
   afterEach(async () => {
     await consumer?.stop();
     weaverUnit?.dispose();
+    stopServing?.();
+    stopServing = null;
   });
 
   describe('event type filtering', () => {
@@ -781,7 +819,9 @@ describe('Weaver', () => {
 
       expect(metrics.subscriptions).toBe(1); // One injected source stream — channel fan-in (9) lives in WeaverActorStateUnit
       expect(metrics.pipelineActive).toBe(true);
-      expect(typeof metrics.lastProcessed).toBe('object');
+      // A count, deliberately not the map — the full per-resource map made
+      // /health an O(resources) payload (#845 scalability wart).
+      expect(typeof metrics.resourcesTracked).toBe('number');
     });
   });
 
@@ -970,38 +1010,6 @@ describe('Weaver', () => {
     // per-resource lanes serialize against live traffic, idempotent folds
     // absorb overlap, and noteApplied signals fire during replay so the
     // whenApplied barrier keeps working mid-recovery.
-    let stopServing: (() => void) | null = null;
-
-    const serveBrowseReads = (rids: string[]) => {
-      const subs = [
-        coreEventBus.get('browse:resources-requested').subscribe((req: any) => {
-          coreEventBus.get('browse:resources-result').next({
-            correlationId: req.correlationId,
-            response: {
-              resources: rids.map((id) => ({
-                '@id': id, name: id, representations: [], archived: false, entityTypes: [],
-              })),
-              total: rids.length,
-            },
-          } as any);
-        }),
-        coreEventBus.get('browse:events-requested').subscribe((req: any) => {
-          void eventStore.log.getEvents(resourceId(req.resourceId)).then((events) => {
-            coreEventBus.get('browse:events-result').next({
-              correlationId: req.correlationId,
-              response: { events, total: events.length, resourceId: req.resourceId },
-            } as any);
-          });
-        }),
-      ];
-      stopServing = () => subs.forEach((s) => s.unsubscribe());
-    };
-
-    afterEach(() => {
-      stopServing?.();
-      stopServing = null;
-    });
-
     it('replays events missed while down, then a second catch-up is a checkpointed no-op', async () => {
       // Down: stop the live weaver, then append events nobody hears.
       await consumer.stop();
@@ -1119,6 +1127,192 @@ describe('Weaver', () => {
       expect(deleteSpy).toHaveBeenCalledTimes(1);
       expect(clearSpy).not.toHaveBeenCalled();
       expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Rebuilt One');
+    });
+  });
+
+  describe('completeness accounting + reconcile (#845)', () => {
+    // The projection must never silently under-materialize: witnessed apply
+    // failures are counted and hold the checkpoint back (so catch-up
+    // revisits them), rebuilds that dropped events reply FAILED instead of
+    // ok, and reconcile() backstops the failures nothing witnessed —
+    // out-of-band graph mutations, wiped volumes, historical damage.
+
+    it('a failed apply counts, does not advance lastProcessed, and emits no weave:applied', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+
+      const signals: string[] = [];
+      const signalSub = coreEventBus.get('weave:applied').subscribe((s) => signals.push(s.resourceId));
+
+      vi.spyOn(graphDb, 'createResource').mockRejectedValueOnce(new Error('neo4j hiccup'));
+
+      const rid = `acct-fail-${Date.now()}`;
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Dropped', format: 'text/plain', contentChecksum: 'h-af' },
+      });
+      await tick();
+      signalSub.unsubscribe();
+
+      expect(consumer.appliedUpTo(rid)).toBeUndefined();
+      expect(consumer.getHealthMetrics().applyFailures).toBeGreaterThanOrEqual(1);
+      expect(signals).not.toContain(rid);
+    });
+
+    it('a failed batch run blocks checkpoint advance for the whole batch', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+
+      const rid = `acct-batch-${Date.now()}`;
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Batch Base', format: 'text/plain', contentChecksum: 'h-ab' },
+      });
+      await tick();
+      const seqAfterCreate = consumer.appliedUpTo(rid);
+      expect(seqAfterCreate).toBeDefined();
+
+      vi.spyOn(graphDb, 'createAnnotations').mockRejectedValueOnce(new Error('neo4j hiccup'));
+
+      // Three annotations back-to-back: burst passthrough applies the first
+      // singly, then the remaining two flush as one batched run through
+      // createAnnotations — the mocked failure.
+      const ann = (aid: string) => ({
+        id: annotationId(aid), motivation: 'commenting', target: { source: rid }, body: [],
+      });
+      const pushMark = (aid: string, seq: number) => coreEventBus.getDomainEvent('mark:added').next({
+        id: uuidv4(), type: 'mark:added', timestamp: new Date().toISOString(),
+        userId: userId('user1'), resourceId: resourceId(rid), version: 1,
+        payload: { annotation: ann(aid) }, metadata: { sequenceNumber: seq },
+      } as unknown as StoredEvent);
+      pushMark('ann-b1', 2);
+      pushMark('ann-b2', 3);
+      pushMark('ann-b3', 4);
+      await tick();
+
+      // The passthrough single advanced to 2 (honest); the batched run
+      // failed — the checkpoint must stop THERE, never skipping to 4, so
+      // catch-up revisits the dropped events.
+      expect(consumer.appliedUpTo(rid)).toBe(2);
+    });
+
+    it('weave:rebuild replies FAILED, not ok, when applies dropped events', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+
+      const rid = `acct-rebuild-${Date.now()}`;
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Will Drop', format: 'text/plain', contentChecksum: 'h-ar' },
+      });
+      await tick();
+
+      serveBrowseReads([rid]);
+      vi.spyOn(graphDb, 'createResource').mockRejectedValue(new Error('neo4j down'));
+
+      await expect(
+        busRequest(asBusRequestPrimitive(coreEventBus), 'weave:rebuild', {}),
+      ).rejects.toThrow();
+    });
+
+    it('catch-up reports failures, holds the checkpoint, and the next pass re-replays', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+
+      const rid = `acct-catchup-${Date.now()}`;
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Retry Me', format: 'text/plain', contentChecksum: 'h-ac' },
+      });
+
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+      serveBrowseReads([rid]);
+
+      // First pass: the store hiccups once — the event is counted as failed
+      // and the checkpoint must NOT advance past it.
+      vi.spyOn(graphDb, 'createResource').mockRejectedValueOnce(new Error('neo4j hiccup'));
+      const first = await consumer.catchUp();
+      expect(first.eventsFailed).toBeGreaterThanOrEqual(1);
+      expect(await graphDb.getResource(resourceId(rid))).toBeNull();
+
+      // Second pass: the store is healthy — the held-back event replays.
+      const second = await consumer.catchUp();
+      expect(second.eventsReplayed).toBeGreaterThanOrEqual(1);
+      expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Retry Me');
+    });
+
+    it('reconcile detects an out-of-band deletion and heals it from the log', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+
+      const rid = `rec-heal-${Date.now()}`;
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Healed', format: 'text/plain', contentChecksum: 'h-rh' },
+      });
+      await tick();
+      expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Healed');
+
+      // Out-of-band mutation: nothing the Weaver witnesses. The checkpoint
+      // says "applied"; only a state diff can notice.
+      await graphDb.deleteResource(resourceId(rid));
+
+      serveBrowseReads([rid]);
+      const summary = await consumer.reconcile();
+
+      expect(summary.divergent).toBe(1);
+      expect(summary.healed).toBe(1);
+      expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Healed');
+    });
+
+    it('a clean graph reconciles with zero divergence and no heals', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+
+      const rid = `rec-clean-${Date.now()}`;
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Clean', format: 'text/plain', contentChecksum: 'h-rc' },
+      });
+      await tick();
+
+      serveBrowseReads([rid]);
+      const deleteSpy = vi.spyOn(graphDb, 'deleteResource');
+      const summary = await consumer.reconcile();
+
+      expect(summary.resourcesChecked).toBe(1);
+      expect(summary.divergent).toBe(0);
+      expect(summary.healed).toBe(0);
+      expect(deleteSpy).not.toHaveBeenCalled();
     });
   });
 });
