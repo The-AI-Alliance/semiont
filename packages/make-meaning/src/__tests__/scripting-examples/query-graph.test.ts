@@ -18,7 +18,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, type SupportedMediaType, userId, resourceId as makeResourceId } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, AnnotationOperations, type MakeMeaningConfig } from '../..';
-import { Weaver } from '../../weaver';
+import { Weaver, type WeaverTiming } from '../../weaver';
+
+const PROD_TIMING: WeaverTiming = {
+  burstWindowMs: 50, maxBatchSize: 500, idleTimeoutMs: 200,
+  drainTimeoutMs: 30_000, drainPollMs: 25, drainStallPolls: 40, checkpointFlushMs: 5_000,
+};
 import { createWeaverActorStateUnit, type WeaverActorStateUnit } from '../../weaver-actor-state-unit';
 import { workerBusOverEventBus } from '../../worker-bus-local';
 import { asBusRequestPrimitive } from '../../bus-request-local';
@@ -111,6 +116,7 @@ describe('Scripting Example: Query Graph Database', () => {
       weaverUnit.rebuilds$,
       asBusRequestPrimitive(eventBus),
       new FileWeaverCheckpoint(join(testDir, 'weaver-checkpoint.json')),
+      PROD_TIMING,
       mockLogger,
     );
     await weaver.initialize();

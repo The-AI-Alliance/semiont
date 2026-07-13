@@ -20,7 +20,7 @@
 
 import { BehaviorSubject } from 'rxjs';
 import { createWeaverActorStateUnit, type WeaverActorStateUnit } from './weaver-actor-state-unit';
-import { Weaver } from './weaver';
+import { Weaver, type WeaverTiming } from './weaver';
 import { FileWeaverCheckpoint } from './weaver-checkpoint';
 import { HttpTransport } from '@semiont/http-transport';
 import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader } from '@semiont/core';
@@ -144,12 +144,24 @@ async function main() {
     bus: httpTransport.actor,
   });
 
+  // Production timings (WEAVER-AXIOMS R0 — the axiom harness runs ~1 ms).
+  const timing: WeaverTiming = {
+    burstWindowMs: 50,
+    maxBatchSize: 500,
+    idleTimeoutMs: 200,
+    drainTimeoutMs: 30_000,
+    drainPollMs: 25,
+    drainStallPolls: 40,
+    checkpointFlushMs: 5_000,
+  };
+
   const weaver = new Weaver(
     graphDb,
     actorStateUnit.events$,
     actorStateUnit.rebuilds$,
     httpTransport,
     new FileWeaverCheckpoint(checkpointPath),
+    timing,
     logger,
   );
   await weaver.initialize();
