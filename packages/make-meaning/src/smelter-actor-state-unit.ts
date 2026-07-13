@@ -1,7 +1,7 @@
 /**
  * SmelterActorStateUnit — domain-event fan-in for the Smelter worker.
  *
- * Subscribes to the six smelter-relevant channels on a shared bus and
+ * Subscribes to the nine smelter-relevant channels on a shared bus and
  * exposes them as a single typed `events$` stream. Transport-neutral —
  * the caller passes a `WorkerBus` (HTTP `ActorStateUnit` today, an in-process
  * bus shim if/when one exists). The state unit does not own the bus and does
@@ -33,8 +33,11 @@ const SMELTER_CHANNELS = [
   'yield:updated',
   'yield:representation-added',
   'mark:archived',
+  'mark:unarchived',
   'mark:added',
   'mark:removed',
+  'mark:entity-tag-added',
+  'mark:entity-tag-removed',
 ] as const;
 
 export interface SmelterActorStateUnit extends StateUnit {

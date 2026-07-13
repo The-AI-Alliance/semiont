@@ -204,7 +204,7 @@ export class Weaver {
         offset: resources.length,
         limit: Weaver.CATCHUP_PAGE_SIZE,
       });
-      resources.push(...(page.resources as ResourceDescriptor[]));
+      resources.push(...page.resources);
       if (page.resources.length === 0 || resources.length >= page.total) break;
     }
     return resources;
@@ -383,7 +383,7 @@ export class Weaver {
 
     const { annotations } = await busRequest(this.bus, 'browse:annotations-requested', { resourceId: rid });
     const graphAnnotations = await graphDb.getResourceAnnotations(makeResourceId(rid));
-    const viewIds = new Set((annotations as Annotation[]).map((a) => String(a.id)));
+    const viewIds = new Set(annotations.map((a) => String(a.id)));
     const graphIds = new Set(graphAnnotations.map((a) => String(a.id)));
     if (viewIds.size !== graphIds.size) return 'annotation-set-mismatch';
     for (const id of viewIds) {

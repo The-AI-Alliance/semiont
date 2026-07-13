@@ -8,18 +8,27 @@
  * See `.plans/SIMPLER-JSON-LD.md` (Phase 2, decision 7).
  */
 
-import type { ResourceId, components } from '@semiont/core';
+import type { Annotation, ResourceDescriptor, ResourceId } from '@semiont/core';
 import { EventQuery } from '@semiont/event-sourcing';
 import { getEntityTypes } from '@semiont/ontology';
 import type { KnowledgeBase } from './knowledge-base';
 
-type GetResourceResponse = components['schemas']['GetResourceResponse'];
-type Annotation = components['schemas']['Annotation'];
+/**
+ * `GetResourceResponse` with the domain-flavored (branded) documents the
+ * materialized views actually hold — the same shape the branded
+ * `browse:resource-result` reply declares (bus-protocol.ts). The raw OpenAPI
+ * flavor exists only at the HTTP boundary (annotation-types.ts).
+ */
+export interface ResourceGraph {
+  resource: ResourceDescriptor;
+  annotations: Annotation[];
+  entityReferences: Annotation[];
+}
 
 export async function assembleResourceGraph(
   kb: KnowledgeBase,
   resourceId: ResourceId,
-): Promise<GetResourceResponse | null> {
+): Promise<ResourceGraph | null> {
   // Materialize from the event store (matches the get-uri.ts JSON-LD path).
   const eventQuery = new EventQuery(kb.eventStore.log.storage);
   const events = await eventQuery.getResourceEvents(resourceId);

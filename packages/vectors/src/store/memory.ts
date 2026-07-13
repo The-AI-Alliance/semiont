@@ -111,14 +111,25 @@ export class MemoryVectorStore implements VectorStore {
     return this.resources.length + this.annotations.length;
   }
 
-  async listResourceChecksums(): Promise<Map<string, string | undefined>> {
-    const checksums = new Map<string, string | undefined>();
+  async updateResourceEntityTypes(resourceId: ResourceId, entityTypes: string[]): Promise<void> {
     for (const p of this.resources) {
-      if (!checksums.has(p.payload.resourceId)) {
-        checksums.set(p.payload.resourceId, p.payload.contentChecksum);
+      if (p.payload.resourceId === String(resourceId)) {
+        p.payload.entityTypes = entityTypes;
       }
     }
-    return checksums;
+  }
+
+  async listResourceStamps(): Promise<Map<string, { contentChecksum: string | undefined; entityTypes: string[] }>> {
+    const stamps = new Map<string, { contentChecksum: string | undefined; entityTypes: string[] }>();
+    for (const p of this.resources) {
+      if (!stamps.has(p.payload.resourceId)) {
+        stamps.set(p.payload.resourceId, {
+          contentChecksum: p.payload.contentChecksum,
+          entityTypes: p.payload.entityTypes ?? [],
+        });
+      }
+    }
+    return stamps;
   }
 
   async listAnnotationIds(): Promise<Set<string>> {

@@ -27,11 +27,12 @@
  * Qdrant is an ephemeral projection of the event log. `reconcile()` brings
  * it back in sync at startup — after a wiped volume, or after events missed
  * while the worker was down. It is a planner: it diffs the store against the
- * catalog (over the `browse:*` RPC channels) — both membership AND content
- * freshness, via the checksum stamped onto every resource upsert — and
+ * catalog (over the `browse:*` RPC channels) — membership, content freshness
+ * (via the checksum stamped onto every resource upsert), and tag-stamp
+ * freshness (payload-only restamps; tag edits change no bytes) — and
  * enqueues `smelt:*` work items through the same mailbox as live events, so
- * per-resource ordering holds across the two paths (axioms S1/S2/S11/S12 in
- * `.plans/SMELTER-AXIOMS.md`).
+ * per-resource ordering holds across the two paths (axioms S1/S2/S11/S12/S13
+ * in `.plans/SMELTER-AXIOMS.md`).
  */
 
 import { Observable, Subject, Subscription, from } from 'rxjs';
@@ -58,6 +59,8 @@ import type { SmelterEvent } from './smelter-actor-state-unit';
 
 export interface ReconcileSummary {
   resourcesEmbedded: number;
+  /** Tag-only drift healed by payload restamps — never embedding calls (S13). */
+  resourcesRestamped: number;
   resourceVectorsDeleted: number;
   annotationsEmbedded: number;
   annotationVectorsDeleted: number;
@@ -87,9 +90,16 @@ export interface SmelterTiming {
  * lanes and batch paths serve both kinds of input.
  */
 export interface SmelterWorkItem {
-  type: 'smelt:embed' | 'smelt:purge' | 'smelt:embed-annotation' | 'smelt:purge-annotation';
+  type: 'smelt:embed' | 'smelt:restamp' | 'smelt:purge' | 'smelt:embed-annotation' | 'smelt:purge-annotation';
   resourceId: string;
   payload: Record<string, unknown>;
+}
+
+/** Set equality over tag lists — order-insensitive, duplicate-tolerant. */
+function sameStringSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(a);
+  return b.every((t) => set.has(t));
 }
 
 export type SmelterInput = SmelterEvent | SmelterWorkItem;
@@ -265,15 +275,25 @@ export class Smelter {
       case 'mark:archived':
         await this.handleResourceArchived(event);
         break;
+      case 'mark:unarchived':
+        await this.handleResourceUnarchived(event);
+        break;
       case 'mark:added':
         await this.handleAnnotationAdded(event);
         break;
       case 'mark:removed':
         await this.handleAnnotationRemoved(event);
         break;
+      case 'mark:entity-tag-added':
+      case 'mark:entity-tag-removed':
+        await this.restampResource(event);
+        break;
       // Reconcile work items — same handlers, distinct provenance.
       case 'smelt:embed':
         await this.embedResource(event, 'Reconcile-indexed resource');
+        break;
+      case 'smelt:restamp':
+        await this.restampResource(event);
         break;
       case 'smelt:purge':
         await this.handleResourcePurge(event);
@@ -285,6 +305,22 @@ export class Smelter {
         await this.handleAnnotationRemoved(event);
         break;
     }
+  }
+
+  /**
+   * Payload-only stamp refresh: re-read the resource's CURRENT entity types
+   * (one code path — `resolveEntityTypes` — so any prior drift self-corrects
+   * on first touch) and rewrite the stamp on its existing points. Never calls
+   * the embedding provider (S13): content is unchanged by definition on every
+   * path that lands here. A resource with no points is a no-op — the stamp
+   * rides the next embed.
+   */
+  private async restampResource(event: SmelterInput): Promise<void> {
+    const rid = event.resourceId;
+    if (!rid) return;
+    const entityTypes = await this.resolveEntityTypes(rid);
+    await this.vectorStore.updateResourceEntityTypes(makeResourceId(rid), entityTypes);
+    this.logger.info('Restamped resource entity types', { resourceId: rid, entityTypes });
   }
 
   private async handleResourcePurge(event: SmelterInput): Promise<void> {
@@ -337,7 +373,7 @@ export class Smelter {
       'browse:resource-requested',
       { resourceId },
     );
-    return getResourceEntityTypes(resource as ResourceDescriptor);
+    return getResourceEntityTypes(resource);
   }
 
   private async embedResource(event: SmelterInput, logMessage: string): Promise<void> {
@@ -371,12 +407,40 @@ export class Smelter {
     this.logger.info('Deleted vectors for archived resource', { resourceId: rid });
   }
 
+  /**
+   * Restore what `handleResourceArchived` deleted, from CURRENT state: the
+   * resource's vectors (media-gated, full-replace) and its current exact-text
+   * annotations — the same catalog read `reconcile()` uses, so the live path
+   * and a restart agree (bugs/smelter-misses-unarchive.md).
+   */
+  private async handleResourceUnarchived(event: SmelterInput): Promise<void> {
+    const rid = event.resourceId;
+    if (!rid) return;
+
+    await this.embedResource(event, 'Re-embedded unarchived resource');
+
+    const { annotations } = await busRequest(
+      this.bus,
+      'browse:annotations-requested',
+      { resourceId: rid },
+    );
+    for (const annotation of annotations) {
+      await this.indexAnnotation(rid, annotation);
+    }
+  }
+
   private async handleAnnotationAdded(event: SmelterInput): Promise<void> {
     const annotation = event.payload.annotation as Annotation | undefined;
     if (!annotation?.id) return;
 
     const rid = event.resourceId;
     if (!rid) return;
+
+    await this.indexAnnotation(rid, annotation);
+  }
+
+  private async indexAnnotation(rid: string, annotation: Annotation): Promise<void> {
+    if (!annotation.id) return;
 
     const selector = getTargetSelector(annotation.target);
     const exactText = getExactText(selector);
@@ -523,7 +587,7 @@ export class Smelter {
     this._reconcileState = { phase: 'running' };
     try {
       const [indexedResources, indexedAnnotations] = await Promise.all([
-        this.vectorStore.listResourceChecksums(),
+        this.vectorStore.listResourceStamps(),
         this.vectorStore.listAnnotationIds(),
       ]);
       const resources = await this.listAllResources();
@@ -533,13 +597,17 @@ export class Smelter {
         liveResources: resources.length,
       });
 
-      // Embeddable live resources, each with the catalog's claim about its
-      // primary representation's checksum (the bytes the smelter would read).
-      const embeddable = new Map<string, string | undefined>();
+      // Embeddable live resources, each with the catalog's claims: the primary
+      // representation's checksum (the bytes the smelter would read) and the
+      // current entity-type set (the discriminator the stamps must carry).
+      const embeddable = new Map<string, { checksum: string | undefined; entityTypes: string[] }>();
       for (const resource of resources) {
         const mediaType = getPrimaryMediaType(resource);
         if (resource['@id'] && mediaType && textExtractionOf(mediaType) === 'decode') {
-          embeddable.set(resource['@id'], getPrimaryRepresentation(resource)?.checksum);
+          embeddable.set(resource['@id'], {
+            checksum: getPrimaryRepresentation(resource)?.checksum,
+            entityTypes: getResourceEntityTypes(resource),
+          });
         }
       }
 
@@ -548,13 +616,20 @@ export class Smelter {
       for (const rid of indexedResources.keys()) {
         if (!embeddable.has(rid)) work.push({ type: 'smelt:purge', resourceId: rid, payload: {} });
       }
-      for (const [rid, catalogChecksum] of embeddable) {
-        if (!indexedResources.has(rid)) {
+      for (const [rid, catalog] of embeddable) {
+        const indexed = indexedResources.get(rid);
+        if (!indexed) {
           work.push({ type: 'smelt:embed', resourceId: rid, payload: {} });
-        } else if (catalogChecksum !== undefined && indexedResources.get(rid) !== catalogChecksum) {
-          // Stale-but-present: indexed from earlier bytes (or from a pre-stamp
-          // deployment, where the stamp reads as undefined) — re-embed (S12).
+        } else if (catalog.checksum !== undefined && indexed.contentChecksum !== catalog.checksum) {
+          // Stale-but-present content: indexed from earlier bytes (or from a
+          // pre-stamp deployment, where the stamp reads as undefined) —
+          // re-embed (S12). The fresh embed re-reads the tags too.
           work.push({ type: 'smelt:embed', resourceId: rid, payload: {} });
+        } else if (!sameStringSet(indexed.entityTypes, catalog.entityTypes)) {
+          // Content current, tags drifted: tag edits change no bytes, so the
+          // checksum diff is blind to them — payload-only restamp (S13),
+          // never an embedding call.
+          work.push({ type: 'smelt:restamp', resourceId: rid, payload: {} });
         }
       }
 
@@ -591,6 +666,7 @@ export class Smelter {
 
       const summary: ReconcileSummary = {
         resourcesEmbedded: work.filter((w) => w.type === 'smelt:embed').length,
+        resourcesRestamped: work.filter((w) => w.type === 'smelt:restamp').length,
         resourceVectorsDeleted: work.filter((w) => w.type === 'smelt:purge').length,
         annotationsEmbedded: work.filter((w) => w.type === 'smelt:embed-annotation').length,
         annotationVectorsDeleted: work.filter((w) => w.type === 'smelt:purge-annotation').length,
@@ -634,7 +710,7 @@ export class Smelter {
         'browse:resources-requested',
         { archived: false, offset: all.length, limit: Smelter.RECONCILE_PAGE_SIZE },
       );
-      all.push(...(page.resources as ResourceDescriptor[]));
+      all.push(...page.resources);
       if (page.resources.length === 0 || all.length >= page.total) return all;
     }
   }

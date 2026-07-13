@@ -165,25 +165,43 @@ export class QdrantVectorStore implements VectorStore {
     return resources.count + annotations.count;
   }
 
-  async listResourceChecksums(): Promise<Map<string, string | undefined>> {
-    const checksums = new Map<string, string | undefined>();
+  async updateResourceEntityTypes(resourceId: ResourceId, entityTypes: string[]): Promise<void> {
+    // Payload-only rewrite across the resource's points — no vectors touched,
+    // no embedding involved (S13). Qdrant set_payload with a filter is a
+    // no-op when the resource has no points.
+    await this.qdrant.setPayload('resources', {
+      payload: { entityTypes },
+      filter: {
+        must: [{ key: 'resourceId', match: { value: String(resourceId) } }],
+      },
+    });
+  }
+
+  async listResourceStamps(): Promise<Map<string, { contentChecksum: string | undefined; entityTypes: string[] }>> {
+    const stamps = new Map<string, { contentChecksum: string | undefined; entityTypes: string[] }>();
     let offset: Schemas['ScrollRequest']['offset'] = undefined;
     do {
       const page = await this.qdrant.scroll('resources', {
         limit: 1000,
         offset,
-        with_payload: ['resourceId', 'contentChecksum'],
+        with_payload: ['resourceId', 'contentChecksum', 'entityTypes'],
         with_vector: false,
       });
       for (const point of page.points) {
         const rid = point.payload?.resourceId;
-        if (typeof rid !== 'string' || checksums.has(rid)) continue;
+        if (typeof rid !== 'string' || stamps.has(rid)) continue;
         const checksum = point.payload?.contentChecksum;
-        checksums.set(rid, typeof checksum === 'string' ? checksum : undefined);
+        const entityTypes = point.payload?.entityTypes;
+        stamps.set(rid, {
+          contentChecksum: typeof checksum === 'string' ? checksum : undefined,
+          entityTypes: Array.isArray(entityTypes)
+            ? entityTypes.filter((t): t is string => typeof t === 'string')
+            : [],
+        });
       }
       offset = page.next_page_offset ?? undefined;
     } while (offset !== undefined && offset !== null);
-    return checksums;
+    return stamps;
   }
 
   async listAnnotationIds(): Promise<Set<string>> {

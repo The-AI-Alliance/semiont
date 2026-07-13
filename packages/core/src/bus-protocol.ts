@@ -19,6 +19,8 @@
 
 import type { components } from './types';
 import type { AnnotationId, ResourceId } from './identifiers';
+import type { Annotation } from './annotation-types';
+import type { ResourceDescriptor } from './graph';
 import type { StoredEvent } from './event-base';
 import type { EventOfType } from './persisted-events';
 
@@ -217,21 +219,52 @@ export type EventMap = {
   // BROWSE FLOW — knowledge base reads + UI navigation
   // ========================================================================
 
-  // Reads
+  // Reads.
+  //
+  // Reply `response` payloads carry DOMAIN-flavored documents: the KS serves
+  // real, validated ids, so these declare the branded `Annotation` /
+  // `ResourceDescriptor` (annotation-types.ts / graph.ts) rather than the raw
+  // OpenAPI flavors — consumers must never need to re-brand (`as Annotation[]`)
+  // what the protocol already guarantees. Field overrides via Omit +
+  // intersection; envelope shape per .plans/REPLY-SHAPE-STANDARD.md.
   'browse:resource-requested': components['schemas']['BrowseResourceRequest'];
-  'browse:resource-result': components['schemas']['BrowseResourceResult'];
+  'browse:resource-result': {
+    correlationId: string;
+    response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {
+      resource: ResourceDescriptor;
+      annotations: Annotation[];
+      entityReferences: Annotation[];
+    };
+  };
   'browse:resource-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:resources-requested': components['schemas']['BrowseResourcesRequest'];
-  'browse:resources-result': components['schemas']['BrowseResourcesResult'];
+  'browse:resources-result': {
+    correlationId: string;
+    response: Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
+      resources: ResourceDescriptor[];
+    };
+  };
   'browse:resources-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:annotations-requested': components['schemas']['BrowseAnnotationsRequest'];
-  'browse:annotations-result': components['schemas']['BrowseAnnotationsResult'];
+  'browse:annotations-result': {
+    correlationId: string;
+    response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {
+      annotations: Annotation[];
+    };
+  };
   'browse:annotations-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:annotation-requested': components['schemas']['BrowseAnnotationRequest'];
-  'browse:annotation-result': components['schemas']['BrowseAnnotationResult'];
+  'browse:annotation-result': {
+    correlationId: string;
+    response: Omit<components['schemas']['GetAnnotationResponse'], 'annotation' | 'resource' | 'resolvedResource'> & {
+      annotation: Annotation;
+      resource: ResourceDescriptor | null;
+      resolvedResource: ResourceDescriptor | null;
+    };
+  };
   'browse:annotation-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:events-requested': components['schemas']['BrowseEventsRequest'];
