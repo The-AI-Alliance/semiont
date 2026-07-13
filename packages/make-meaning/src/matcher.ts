@@ -20,6 +20,7 @@ import { withActorSpan } from '@semiont/observability';
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
+import { resourceWithViewGrace } from './graph-read-grace';
 
 /** The annotation branch of the unified GatheredContext — the only focus the matcher serves. */
 type AnnotationFocus = Extract<GatheredContext['focus'], { kind: 'annotation' }>;
@@ -130,7 +131,12 @@ export class Matcher {
     const views = deriveViews(context.graph, mainResourceId);
     const connections = views.connections;
 
-    // 1. Multi-source candidate retrieval (parallel)
+    // 1. Multi-source candidate retrieval (parallel).
+    // The set-shaped sources (name search, entity-type listing) are
+    // eventually consistent BY DESIGN (graph-read-after-write-coverage.md,
+    // mechanism (d)): there is no key to await for "all resources matching
+    // this search", and multi-source retrieval absorbs a just-created
+    // resource missing from one source for the Weaver's ~tens-of-ms lag.
     const [nameMatches, entityTypeMatches, semanticMatches] = await Promise.all([
       this.kb.graph.searchResources(searchTerm),
       annotationEntityTypes.length > 0
@@ -141,12 +147,18 @@ export class Matcher {
       this.searchVectors(searchTerm),
     ]);
 
-    // 3. Graph neighborhood candidates — fetch full resources for connection IDs
-    const neighborResources = await Promise.all(
-      connections.map(conn =>
-        this.kb.graph.getResource(resourceId(conn.resourceId)).catch(() => null)
-      ),
+    // 3. Graph neighborhood candidates — id-keyed hydration: graph-first
+    // with view fallback (mechanism (b′)). A just-created endpoint must not
+    // be dropped while the Weaver lags; retrying here would multiply across
+    // the candidate loop, and the view already holds the descriptor.
+    const neighborResolved = await Promise.all(
+      connections.map(conn => resourceWithViewGrace(this.kb, resourceId(conn.resourceId))),
     );
+    const laggedNeighbors = neighborResolved.filter(r => r.laggedBehindView).length;
+    if (laggedNeighbors > 0) {
+      this.logger.info('[graph lag] neighborhood candidates hydrated from view', { count: laggedNeighbors });
+    }
+    const neighborResources = neighborResolved.map(r => r.resource);
 
     // Union and deduplicate by resource ID
     const candidateMap = new Map<string, {
@@ -171,12 +183,19 @@ export class Matcher {
       if (r) addCandidate(r, 'neighborhood');
     }
 
-    // Semantic matches need to be resolved to full resources from the graph
+    // Semantic matches resolve to full resources — same id-keyed hydration
+    // with view fallback (mechanism (b′)): a vector hit can precede the
+    // Weaver's apply, and dropping it would silently shrink recall.
     const semanticScores = new Map<string, number>();
+    let laggedSemantic = 0;
     for (const sm of semanticMatches) {
       semanticScores.set(sm.resourceId, sm.score);
-      const resource = await this.kb.graph.getResource(resourceId(sm.resourceId)).catch(() => null);
+      const { resource, laggedBehindView } = await resourceWithViewGrace(this.kb, resourceId(sm.resourceId));
+      if (laggedBehindView) laggedSemantic++;
       if (resource) addCandidate(resource, 'semantic');
+    }
+    if (laggedSemantic > 0) {
+      this.logger.info('[graph lag] semantic candidates hydrated from view', { count: laggedSemantic });
     }
 
     this.logger.debug('Candidate retrieval', {

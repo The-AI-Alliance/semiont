@@ -315,12 +315,18 @@ describe('Browser actor', () => {
       (eventBus as any).get('browse:referenced-by-requested').next(payload);
     }
 
+    let mockViewGet: ReturnType<typeof vi.fn>;
+
     beforeEach(async () => {
       await browser.stop();
       vi.clearAllMocks();
       mockReferencedBy = vi.fn();
       mockGetResource = vi.fn();
-      const kb = { graph: { getResourceReferencedBy: mockReferencedBy, getResource: mockGetResource } } as any;
+      mockViewGet = vi.fn().mockResolvedValue(null);
+      const kb = {
+        graph: { getResourceReferencedBy: mockReferencedBy, getResource: mockGetResource },
+        views: { get: mockViewGet },
+      } as any;
       browser = new Browser(makeViews([]) as any, kb, eventBus, { root: PROJECT_ROOT } as any, emptyConfig, mockLogger);
       await browser.initialize();
     });
@@ -343,6 +349,40 @@ describe('Browser actor', () => {
       expect(result.response.referencedBy[0]).toEqual({ id: 'anno-1', resourceName: 'Prometheus Bound', target: { source: DOC_A_URI, selector: { exact: 'Prometheus' } } });
       expect(result.response.referencedBy[1]).toEqual({ id: 'anno-2', resourceName: 'Greek Myths', target: { source: DOC_B_URI, selector: { exact: 'the Titan' } } });
       expect(mockReferencedBy).toHaveBeenCalledWith(TARGET_RESOURCE_ID, undefined);
+    });
+
+    it('hydrates a graph-lagging citer from the view — never "Untitled Resource" for a known resource', async () => {
+      // The read-after-write artifact (graph-read-after-write-coverage.md P1):
+      // the edge is woven but the citing resource's node is not yet — the
+      // view is the fresher projection and must supply the name.
+      const anno = makeAnnotation('anno-lag', DOC_B_URI, String(TARGET_RESOURCE_ID), 'the Titan');
+      mockReferencedBy.mockResolvedValue([anno]);
+      mockGetResource.mockResolvedValue(null); // graph hasn't woven the citer yet
+      mockViewGet.mockImplementation((id: any) =>
+        String(id) === DOC_B_URI
+          ? Promise.resolve({ resource: { '@id': DOC_B_URI, name: 'Greek Myths' }, annotations: {} })
+          : Promise.resolve(null),
+      );
+
+      const p = resultPromise();
+      fire({ correlationId: 'corr-lag', resourceId: TARGET_RESOURCE_ID });
+      const result = await p;
+
+      expect(result.response.referencedBy).toHaveLength(1);
+      expect(result.response.referencedBy[0].resourceName).toBe('Greek Myths');
+    });
+
+    it('a citer neither projection knows still renders the Untitled fallback', async () => {
+      const anno = makeAnnotation('anno-ghost', 'doc-ghost', String(TARGET_RESOURCE_ID));
+      mockReferencedBy.mockResolvedValue([anno]);
+      mockGetResource.mockResolvedValue(null);
+      // mockViewGet default: null
+
+      const p = resultPromise();
+      fire({ correlationId: 'corr-ghost', resourceId: TARGET_RESOURCE_ID });
+      const result = await p;
+
+      expect(result.response.referencedBy[0].resourceName).toBe('Untitled Resource');
     });
 
     it('passes motivation filter to graph query', async () => {
@@ -406,14 +446,27 @@ describe('Browser actor', () => {
       expect(result.message).toBe('Graph unavailable');
     });
 
-    it('emits referenced-by-failed when getResource throws', async () => {
+    it('a throwing citer hydration degrades that entry — the reply still succeeds', async () => {
+      // Changed contract (graph-read-after-write-coverage.md P1): one
+      // citer's store hiccup must not fail the whole references reply.
+      // resourceWithViewGrace absorbs the per-citer read error and falls
+      // back to the view (or Untitled when neither projection answers);
+      // an EDGE-QUERY failure still fails the request (spec above).
       mockReferencedBy.mockResolvedValue([makeAnnotation('anno-1', DOC_A_URI, String(TARGET_RESOURCE_ID), 'text')]);
       mockGetResource.mockRejectedValue(new Error('Resource lookup failed'));
-      const p = failedPromise();
+      mockViewGet.mockImplementation((id: any) =>
+        String(id) === DOC_A_URI
+          ? Promise.resolve({ resource: { '@id': DOC_A_URI, name: 'Prometheus Bound' }, annotations: {} })
+          : Promise.resolve(null),
+      );
+
+      const p = resultPromise();
       fire({ correlationId: 'corr-8', resourceId: TARGET_RESOURCE_ID });
       const result = await p;
+
       expect(result.correlationId).toBe('corr-8');
-      expect(result.message).toBe('Resource lookup failed');
+      expect(result.response.referencedBy).toHaveLength(1);
+      expect(result.response.referencedBy[0].resourceName).toBe('Prometheus Bound');
     });
   });
 

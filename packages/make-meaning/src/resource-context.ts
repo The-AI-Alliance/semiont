@@ -41,6 +41,10 @@ export class ResourceContext {
    */
   static async listResources(filters: ListResourcesFilters | undefined, kb: KnowledgeBase): Promise<ResourceDescriptor[]> {
     if (filters?.search) {
+      // Set-shaped graph read — eventually consistent BY DESIGN
+      // (graph-read-after-write-coverage.md, mechanism (d)): no key to
+      // await, human-timescale browse; a just-created resource appears in
+      // search after the Weaver's ~tens-of-ms apply.
       const matches = await kb.graph.searchResources(filters.search);
       const filtered = filters.archived !== undefined
         ? matches.filter((doc) => doc.archived === filters.archived)
