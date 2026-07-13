@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/smelter-main.ts'],
+  entry: ['src/index.ts', 'src/smelter-main.ts', 'src/weaver-main.ts'],
   format: ['esm'],
   dts: false,
   sourcemap: true,

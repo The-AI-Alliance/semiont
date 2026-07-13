@@ -14,6 +14,22 @@ import type {
   UpdateResourceInput,
 } from '@semiont/core';
 
+const MUTABLE_RESOURCE_FACETS = new Set<string>(['archived', 'entityTypes']);
+
+/**
+ * Resources are immutable apart from two facets: archival state, and entity
+ * tags (mutable since the controlled-vocabulary decision — the Weaver folds
+ * `mark:archived`/`mark:unarchived` and `mark:entity-tag-added`/`-removed`
+ * through `updateResource`). Every implementation validates its input with
+ * this one guard so the mutability contract cannot drift per backend.
+ */
+export function assertMutableResourceUpdate(input: UpdateResourceInput): void {
+  const keys = Object.keys(input);
+  if (keys.length === 0 || keys.some((k) => !MUTABLE_RESOURCE_FACETS.has(k))) {
+    throw new Error('Resources are immutable apart from archival state and entity tags.');
+  }
+}
+
 export interface GraphDatabase {
   // Connection management
   connect(): Promise<void>;

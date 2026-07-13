@@ -177,24 +177,23 @@ Manages the lifecycle of temporary clone tokens for resource cloning. In-memory 
 | `yield:clone-resource-requested` | Validate token, look up source resource | `yield:clone-resource-result` / `yield:clone-resource-failed` |
 | `yield:clone-create` | Validate token, create resource via `ResourceOperations` | `yield:clone-created` / `yield:clone-create-failed` |
 
-### Weaver (Projection Pipeline)
+### Weaver (Projection Pipeline, standalone process)
 
-**Implementation**: [src/weaver.ts](../src/weaver.ts)
+**Implementation**: [src/weaver.ts](../src/weaver.ts), entry point [src/weaver-main.ts](../src/weaver-main.ts)
 
-The `Weaver` subscribes to all domain events and projects graph-relevant events into the graph database. It uses an RxJS pipeline with adaptive burst buffering:
+The Weaver is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/weaver-main`, receiving graph-relevant domain events and `weave:rebuild` commands through the [`WeaverActorStateUnit`](../src/weaver-actor-state-unit.ts) fan-in (the graph projection is part of the graph stack, not the embedding process). It projects the nine graph-relevant event types into the graph database through an RxJS pipeline with adaptive burst buffering:
 
 ```
-EventBus (callback, fire-and-forget)
-  → Pre-filter: 9 graph-relevant event types
-    → Subject<StoredEvent> (callback-to-RxJS bridge)
-      → groupBy(resourceId)        — one stream per resource
-        → burstBuffer(50ms, 500, 200ms) — adaptive batching per resource
-          → concatMap               — sequential per resource
-            → Single event: applyEventToGraph()
-            → Batch: processBatch() → batchCreateResources / createAnnotations
+WeaverActorStateUnit.events$ (9 channels, StoredEvents)
+  → Subject<StoredEvent>
+    → groupBy(resourceId)        — one stream per resource
+      → burstBuffer(50ms, 500, 200ms) — adaptive batching per resource
+        → concatMap               — sequential per resource
+          → Single event: applyEventToGraph()
+          → Batch: processBatch() → batchCreateResources / createAnnotations
 ```
 
-It is carried on the `KnowledgeBase` record (`kb.weaver`) — `createKnowledgeBase()` constructs and starts it, and calls `rebuildAll()` at startup to replay the event log, so a wiped graph volume is recoverable.
+Every apply advances a per-resource high-water mark and emits a `weave:applied` signal; the backend's `WeaveProgress` fold (`kb.weaveProgress`) turns those into the `whenApplied` barrier the gatherer's graph reads use. At startup the Weaver runs a **checkpointed catch-up**: it discovers resources via `browse:resources-requested`, fetches gap events via `browse:events-requested` (its ONLY view of history — it has no event-store attachment), and replays them through the normal pipeline; a checkpoint ahead of the log (restore) triggers a per-resource rebuild. Full rebuilds are the `weave:rebuild` bus command — so a wiped graph volume recovers by command or by wiping the checkpoint and restarting.
 
 ### Smelter (Projection Pipeline, standalone process)
 
@@ -222,13 +221,13 @@ export interface KnowledgeBase {
   views:          ViewStorage;      // Materialized Views (fast reads)
   content:        WorkingTreeStore; // Content Store (working-tree files, URI-addressed)
   graph:          GraphDatabase;    // Graph (eventually consistent)
-  weaver:  Weaver;  // Event-to-graph projection pipeline
+  weaveProgress:  WeaveProgress;    // weave:applied fold — the graph-projection barrier
   vectors?:       VectorStore;      // Vector index (Qdrant / memory) — optional
   projectionsDir: string;
 }
 ```
 
-The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options?)` factory instantiates `FilesystemViewStorage` and `WorkingTreeStore` once, starts the `Weaver`, and (unless `options.skipRebuild`) rebuilds the materialized views and graph from the event log. Context modules receive `KnowledgeBase` instead of instantiating stores per call.
+The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options?)` factory instantiates `FilesystemViewStorage` and `WorkingTreeStore` once, constructs the `WeaveProgress` fold, and (unless `options.skipRebuild`) rebuilds the materialized views from the event log. The graph is NOT rebuilt here — the standalone Weaver catches up from its checkpoint. Context modules receive `KnowledgeBase` instead of instantiating stores per call.
 
 ## Operations
 
@@ -257,7 +256,7 @@ See [Job Workers](./job-workers.md) for details.
 2. GraphDatabase
 3. EventStore (with EventBus integration)
 4. VectorStore + EmbeddingProvider *(optional — Qdrant or memory, from `@semiont/vectors`)*
-5. **KnowledgeBase** (groups stores including optional vectors; starts Weaver; rebuilds views + graph unless `skipRebuild`)
+5. **KnowledgeBase** (groups stores including optional vectors; constructs the WeaveProgress fold; rebuilds views unless `skipRebuild` — the graph belongs to the standalone Weaver)
 6. **Stower** (must start before reader actors — it handles writes they depend on)
 7. Entity type bootstrap (emits via EventBus, Stower persists)
 8. **Gatherer** (context assembly, vector semantic search; gets its own InferenceClient)

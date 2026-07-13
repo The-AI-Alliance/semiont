@@ -7,7 +7,7 @@ The knowledge base itself is not an intelligent actor. It has no goals, preferen
 - **Five access actors** mediate every read and write: **Stower** (write), **Browser** (read), **Gatherer** (context assembly), **Matcher** (search), and **CloneTokenManager** (clone tokens). They are the bus-facing interface of the knowledge base — commands and requests in, replies out, correlated by `correlationId`.
 - **Two projection pipelines** keep the eventually-consistent read models in sync with the event log: the **Weaver** (events → graph) and the **Smelter** (events → vectors). Pipelines are addressed by no one and reply to nothing; they consume already-persisted domain events.
 
-All seven subscribe to the bus via RxJS pipelines and expose no public business methods — `initialize()` and `stop()` for lifecycle, plus a startup recovery entry point on the pipelines (`Weaver.rebuildAll()`, `Smelter.reconcile()`). Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
+All seven subscribe to the bus via RxJS pipelines and expose no public business methods — `initialize()` and `stop()` for lifecycle, plus a startup recovery entry point on the pipelines (`Weaver.catchUp()`, `Smelter.reconcile()`). Both pipelines run standalone (weaver-main, smelter-main): the projections are part of their stores' stacks, not of the backend process. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
 The third derived read model — the materialized views — is deliberately **not** pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()`, before the event is published, so subscribers get a read-your-writes guarantee that a fire-and-forget pipeline cannot provide.
 
@@ -119,7 +119,7 @@ The CloneTokenManager handles the clone-token lifecycle in the yield flow. On `y
 
 ### Weaver (projection pipeline)
 
-The Weaver follows the event log and keeps the graph projection in sync. It subscribes to the graph-relevant domain events on the bus, batches bursts per resource (`groupBy(resourceId)` + adaptive burst buffering + `concatMap`), and applies them to the graph database. Because the graph is eventually consistent and rebuildable, `rebuildAll()` replays the entire event log at startup — a wiped graph volume recovers by restarting the backend. It lives on the `KnowledgeBase` record (`kb.weaver`), constructed inside `createKnowledgeBase()`.
+The Weaver follows the event log and keeps the graph projection in sync. It runs in its own container (`semiont-weaver`) — not in the backend process — and reaches the backend through the unified bus, the same way workers and the smelter do; beyond the bus its single privileged attachment is the graph database. It subscribes to the graph-relevant domain events, batches bursts per resource (`groupBy(resourceId)` + adaptive burst buffering + `concatMap`), and applies them to the graph. Every apply emits a `weave:applied` signal; the backend folds these into `kb.weaveProgress`, whose `whenApplied` barrier lets graph readers wait out projection lag. On startup it runs a **checkpointed catch-up** over the `browse:*` read channels (its only view of history — no event-store attachment), replaying just the gap since its persisted checkpoint; a full rebuild is the `weave:rebuild` bus command. A wiped graph volume recovers by command, or by wiping the checkpoint and restarting the weaver.
 
 ### Smelter (projection pipeline)
 

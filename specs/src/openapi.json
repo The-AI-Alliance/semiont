@@ -450,6 +450,7 @@
       "SvgSelector": { "$ref": "components/schemas/SvgSelector.json" },
       "TagCategory": { "$ref": "components/schemas/TagCategory.json" },
       "TagSchema": { "$ref": "components/schemas/TagSchema.json" },
+      "WeaveRebuildCommand": { "$ref": "components/schemas/WeaveRebuildCommand.json" },
       "YieldCloneCreateCommand": { "$ref": "components/schemas/YieldCloneCreateCommand.json" },
       "YieldCloneCreated": { "$ref": "components/schemas/YieldCloneCreated.json" },
       "YieldCloneResourceRequest": { "$ref": "components/schemas/YieldCloneResourceRequest.json" },

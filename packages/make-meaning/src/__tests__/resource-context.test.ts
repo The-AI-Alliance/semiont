@@ -48,7 +48,7 @@ describe('ResourceContext', () => {
       content: mockRepStore,
       graph: mockGraph,
       projectionsDir: '',
-      weaver: {} as any, weaveProgress: {} as any,
+      weaveProgress: {} as any,
     };
   });
 

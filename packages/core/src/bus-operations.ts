@@ -76,6 +76,10 @@ export const BUS_OPERATIONS = {
   // take-1 dressed as an Observable in the SDK; no progress channel
   'match:search-requested':              { result: 'match:search-results',           failure: 'match:search-failed' },
 
+  // ── WEAVE ───────────────────────────────────────────────────────
+  // Graph-projection rebuild, served by the Weaver (WEAVER-ISOLATION D3)
+  'weave:rebuild':                       { result: 'weave:rebuild-ok',               failure: 'weave:rebuild-failed' },
+
   // ── YIELD ───────────────────────────────────────────────────────
   // live in-process (resource-operations.ts emits + awaits via race()); the
   // client also .on()-subscribes -ok for cache invalidation
