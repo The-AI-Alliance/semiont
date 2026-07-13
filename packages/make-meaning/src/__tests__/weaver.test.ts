@@ -18,6 +18,9 @@ import { SemiontProject } from '@semiont/core/node';
 import { Weaver } from '../weaver';
 import { createWeaverActorStateUnit, type WeaverActorStateUnit } from '../weaver-actor-state-unit';
 import { workerBusOverEventBus } from '../worker-bus-local';
+import { asBusRequestPrimitive } from '../bus-request-local';
+import { FileWeaverCheckpoint } from '../weaver-checkpoint';
+import { busRequest } from '@semiont/core';
 import { resourceId, userId, annotationId, EventBus } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
@@ -110,10 +113,18 @@ describe('Weaver', () => {
 
   let weaverUnit: WeaverActorStateUnit;
 
-  const wireWeaver = async (db: GraphDatabase): Promise<Weaver> => {
+  const wireWeaver = async (db: GraphDatabase, checkpointPath?: string): Promise<Weaver> => {
     const workerBus = workerBusOverEventBus(coreEventBus);
     weaverUnit = createWeaverActorStateUnit({ bus: workerBus });
-    const weaver = new Weaver(eventStore, db, weaverUnit.events$, workerBus, mockLogger);
+    const weaver = new Weaver(
+      eventStore,
+      db,
+      weaverUnit.events$,
+      weaverUnit.rebuilds$,
+      asBusRequestPrimitive(coreEventBus),
+      new FileWeaverCheckpoint(checkpointPath ?? join(testDir, `weaver-checkpoint-${uuidv4()}.json`)),
+      mockLogger,
+    );
     await weaver.initialize();
     weaverUnit.start();
     return weaver;
@@ -724,7 +735,15 @@ describe('Weaver', () => {
       const localGraphDb = createMockGraphDb();
       const localWorkerBus = workerBusOverEventBus(coreEventBus);
       const localUnit = createWeaverActorStateUnit({ bus: localWorkerBus });
-      const localConsumer = new Weaver(eventStore, localGraphDb, localUnit.events$, localWorkerBus, mockLogger);
+      const localConsumer = new Weaver(
+        eventStore,
+        localGraphDb,
+        localUnit.events$,
+        localUnit.rebuilds$,
+        asBusRequestPrimitive(coreEventBus),
+        new FileWeaverCheckpoint(join(testDir, `weaver-checkpoint-${uuidv4()}.json`)),
+        mockLogger,
+      );
       await localConsumer.initialize();
       localUnit.start();
 
@@ -942,6 +961,162 @@ describe('Weaver', () => {
 
       const types = await graphDb.getEntityTypes();
       expect(types.filter((t) => t === 'DupEntityType')).toHaveLength(1);
+    });
+  });
+
+  describe('checkpointed catch-up + weave:rebuild (WEAVER-ISOLATION P3)', () => {
+    // Catch-up rides EXISTING read channels: resources discovered via
+    // browse:resources-requested, gap events fetched via
+    // browse:events-requested (full StoredEvents), filtered client-side by
+    // the persisted checkpoint, then pushed through the normal pipeline —
+    // per-resource lanes serialize against live traffic, idempotent folds
+    // absorb overlap, and noteApplied signals fire during replay so the
+    // whenApplied barrier keeps working mid-recovery.
+    let stopServing: (() => void) | null = null;
+
+    const serveBrowseReads = (rids: string[]) => {
+      const subs = [
+        coreEventBus.get('browse:resources-requested').subscribe((req: any) => {
+          coreEventBus.get('browse:resources-result').next({
+            correlationId: req.correlationId,
+            response: {
+              resources: rids.map((id) => ({
+                '@id': id, name: id, representations: [], archived: false, entityTypes: [],
+              })),
+              total: rids.length,
+            },
+          } as any);
+        }),
+        coreEventBus.get('browse:events-requested').subscribe((req: any) => {
+          void eventStore.log.getEvents(resourceId(req.resourceId)).then((events) => {
+            coreEventBus.get('browse:events-result').next({
+              correlationId: req.correlationId,
+              response: { events, total: events.length, resourceId: req.resourceId },
+            } as any);
+          });
+        }),
+      ];
+      stopServing = () => subs.forEach((s) => s.unsubscribe());
+    };
+
+    afterEach(() => {
+      stopServing?.();
+      stopServing = null;
+    });
+
+    it('replays events missed while down, then a second catch-up is a checkpointed no-op', async () => {
+      // Down: stop the live weaver, then append events nobody hears.
+      await consumer.stop();
+      weaverUnit.dispose();
+
+      const rid = `catchup-${Date.now()}`;
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Missed While Down', format: 'text/plain', contentChecksum: 'h-cu' },
+      });
+      await eventStore.appendEvent({
+        type: 'mark:archived',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: {},
+      });
+
+      // Back up: wire a fresh weaver on a real graph, live first, then catch up.
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+      serveBrowseReads([rid]);
+
+      const summary = await consumer.catchUp();
+
+      const doc = await graphDb.getResource(resourceId(rid));
+      expect(doc?.name).toBe('Missed While Down');
+      expect(doc?.archived).toBe(true);
+      expect(summary.eventsReplayed).toBeGreaterThanOrEqual(2);
+
+      // Second pass: the checkpoint covers everything — nothing replays.
+      const createSpy = vi.spyOn(graphDb, 'createResource');
+      const summary2 = await consumer.catchUp();
+      expect(summary2.eventsReplayed).toBe(0);
+      expect(createSpy).not.toHaveBeenCalled();
+    });
+
+    it('a rewound log (restore) triggers a per-resource rebuild instead of trusting the checkpoint', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+
+      const rid = `rewound-${Date.now()}`;
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Restored', format: 'text/plain', contentChecksum: 'h-rw' },
+      });
+
+      // A checkpoint claiming we are FAR ahead of the log — the restore shape.
+      const checkpointPath = join(testDir, `weaver-checkpoint-${uuidv4()}.json`);
+      await new FileWeaverCheckpoint(checkpointPath).save({ [rid]: 999 });
+
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb, checkpointPath);
+      serveBrowseReads([rid]);
+
+      const summary = await consumer.catchUp();
+
+      expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Restored');
+      expect(summary.resourcesRebuilt).toBe(1);
+    });
+
+    it('weave:rebuild (full) clears and rebuilds the graph, replying ok', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+
+      const rid = `rebuild-full-${Date.now()}`;
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Rebuilt', format: 'text/plain', contentChecksum: 'h-rb' },
+      });
+      await tick();
+
+      const clearSpy = vi.spyOn(graphDb, 'clearDatabase');
+      await busRequest(asBusRequestPrimitive(coreEventBus), 'weave:rebuild', {});
+
+      expect(clearSpy).toHaveBeenCalledTimes(1);
+      expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Rebuilt');
+    });
+
+    it('weave:rebuild scoped to a resource rebuilds just that resource', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+
+      const rid = `rebuild-one-${Date.now()}`;
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Rebuilt One', format: 'text/plain', contentChecksum: 'h-r1' },
+      });
+      await tick();
+
+      const deleteSpy = vi.spyOn(graphDb, 'deleteResource');
+      const clearSpy = vi.spyOn(graphDb, 'clearDatabase');
+      await busRequest(asBusRequestPrimitive(coreEventBus), 'weave:rebuild', { resourceId: rid });
+
+      expect(deleteSpy).toHaveBeenCalledTimes(1);
+      expect(clearSpy).not.toHaveBeenCalled();
+      expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Rebuilt One');
     });
   });
 });

@@ -29,10 +29,11 @@
 import { Subject, Subscription, from, type Observable } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { EventQuery, type EventStore } from '@semiont/event-sourcing';
-import { didToAgent, burstBuffer, errField } from '@semiont/core';
+import { didToAgent, burstBuffer, errField, busRequest } from '@semiont/core';
+import type { BusRequestPrimitive, EventMap } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
-import type { WorkerBus } from '@semiont/sdk';
 import type { PersistedEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
+import type { WeaverCheckpoint } from './weaver-checkpoint.js';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
 import { partitionByType } from './batch-utils.js';
 
@@ -45,24 +46,36 @@ export class Weaver {
   private static readonly MAX_BATCH_SIZE = 500;
   private static readonly IDLE_TIMEOUT_MS = 200;
 
+  // Catch-up (WEAVER-ISOLATION P3, D1 = checkpointed replay)
+  private static readonly CATCHUP_PAGE_SIZE = 200;
+  private static readonly CATCHUP_DRAIN_TIMEOUT_MS = 30_000;
+  private static readonly CHECKPOINT_FLUSH_MS = 5_000;
+
   private sourceSubscription: Subscription | null = null;
+  private rebuildSubscription: Subscription | null = null;
   private eventSubject = new Subject<StoredEvent>();
   private pipelineSubscription: Subscription | null = null;
   private lastProcessed: Map<string, number> = new Map();
+  private checkpointDirty = false;
+  private checkpointTimer: ReturnType<typeof setInterval> | null = null;
   private readonly logger: Logger;
 
   /**
-   * Transport-blind by construction (WEAVER-ISOLATION P2): graph-relevant
-   * events arrive as an injected `events$` (the `WeaverActorStateUnit`
-   * fan-in — channel selection lives there), and `weave:applied` leaves
-   * through the injected bus handle. In-process both ride the core
-   * EventBus via `workerBusOverEventBus`; standalone they ride the gateway.
+   * Transport-blind by construction (WEAVER-ISOLATION P2/P3): graph-relevant
+   * events arrive as an injected `events$` and rebuild commands as
+   * `rebuilds$` (the `WeaverActorStateUnit` fan-in — channel selection
+   * lives there); `weave:applied` signals, rebuild replies, and the
+   * catch-up's `browse:*` reads all ride the injected `BusRequestPrimitive`.
+   * In-process everything rides the core EventBus (`workerBusOverEventBus`
+   * / `asBusRequestPrimitive`); standalone it all rides the gateway.
    */
   constructor(
     private eventStore: EventStore,
     private graphDb: GraphDatabase,
     private events$: Observable<StoredEvent>,
-    private bus: Pick<WorkerBus, 'emit'>,
+    private rebuilds$: Observable<EventMap['weave:rebuild']>,
+    private bus: BusRequestPrimitive,
+    private checkpoint: WeaverCheckpoint,
     logger: Logger,
   ) {
     this.logger = logger;
@@ -71,6 +84,18 @@ export class Weaver {
   async initialize() {
     this.logger.info('Weaver initialized');
     this.buildPipeline();
+
+    // Rebuild commands run strictly one at a time — a full rebuild must
+    // never interleave with another rebuild.
+    this.rebuildSubscription = this.rebuilds$.pipe(
+      concatMap((command) => from(this.handleRebuildCommand(command))),
+    ).subscribe({
+      error: (err) => this.logger.error('Weaver rebuild stream error', { error: errField(err) }),
+    });
+
+    this.checkpointTimer = setInterval(() => {
+      void this.flushCheckpoint();
+    }, Weaver.CHECKPOINT_FLUSH_MS);
   }
 
   /**
@@ -131,12 +156,143 @@ export class Weaver {
    */
   private noteApplied(resourceId: string, sequenceNumber: number): void {
     this.lastProcessed.set(resourceId, sequenceNumber);
+    this.checkpointDirty = true;
     // Fire-and-forget signal: in-process the shim's emit is synchronous;
     // over HTTP a lost signal only means a barrier timeout (the poll floor
     // absorbs it), so a warn is the right ceiling.
     this.bus.emit('weave:applied', { resourceId, sequenceNumber }).catch((err) => {
       this.logger.warn('weave:applied emit failed', { resourceId, sequenceNumber, error: errField(err) });
     });
+  }
+
+  private async flushCheckpoint(): Promise<void> {
+    if (!this.checkpointDirty) return;
+    this.checkpointDirty = false;
+    try {
+      await this.checkpoint.save(Object.fromEntries(this.lastProcessed));
+    } catch (error) {
+      this.checkpointDirty = true;
+      this.logger.warn('Weaver checkpoint flush failed', { error: errField(error) });
+    }
+  }
+
+  /**
+   * Checkpointed catch-up (WEAVER-ISOLATION P3, D1). Rides EXISTING read
+   * channels: resources discovered via `browse:resources-requested`
+   * (archived included — no filter), each resource's events fetched via
+   * `browse:events-requested` (full StoredEvents), filtered client-side
+   * against the persisted checkpoint, and pushed through the normal
+   * pipeline — per-resource lanes serialize against live traffic,
+   * idempotent folds (P1) absorb any overlap, and `noteApplied` fires per
+   * apply so the `whenApplied` barrier keeps working mid-recovery.
+   *
+   * A checkpoint AHEAD of a resource's log (restore rewound history) is
+   * answered with a per-resource rebuild instead of trusting the
+   * checkpoint. Call after the live subscription is attached so nothing
+   * falls in the gap.
+   */
+  async catchUp(): Promise<{ resourcesChecked: number; eventsReplayed: number; resourcesRebuilt: number }> {
+    const persisted = await this.checkpoint.load();
+    for (const [rid, seq] of Object.entries(persisted)) {
+      const current = this.lastProcessed.get(rid);
+      if (current === undefined || current < seq) this.lastProcessed.set(rid, seq);
+    }
+
+    const resources: ResourceDescriptor[] = [];
+    for (;;) {
+      const page = await busRequest(this.bus, 'browse:resources-requested', {
+        offset: resources.length,
+        limit: Weaver.CATCHUP_PAGE_SIZE,
+      });
+      resources.push(...(page.resources as ResourceDescriptor[]));
+      if (page.resources.length === 0 || resources.length >= page.total) break;
+    }
+
+    let eventsReplayed = 0;
+    let resourcesRebuilt = 0;
+    const parityTargets = new Map<string, number>();
+
+    for (const resource of resources) {
+      const rid = resource['@id'];
+      if (!rid) continue;
+
+      const reply = await busRequest(this.bus, 'browse:events-requested', { resourceId: rid });
+      const events = [...(reply.events as StoredEvent[])]
+        .sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
+      if (events.length === 0) continue;
+
+      const maxSeq = events[events.length - 1].metadata.sequenceNumber;
+      const since = this.lastProcessed.get(String(rid)) ?? 0;
+
+      if (since > maxSeq) {
+        // The log is BEHIND the checkpoint — history was rewound (restore).
+        // The checkpoint lies for this resource; rebuild it from the log.
+        this.logger.warn('Checkpoint ahead of event log — rebuilding resource', {
+          resourceId: String(rid), checkpoint: since, logMax: maxSeq,
+        });
+        this.lastProcessed.delete(String(rid));
+        await this.rebuildResource(makeResourceId(String(rid)));
+        resourcesRebuilt++;
+        continue;
+      }
+
+      const gap = events.filter((e) => e.metadata.sequenceNumber > since);
+      if (gap.length === 0) continue;
+      for (const event of gap) this.eventSubject.next(event);
+      eventsReplayed += gap.length;
+      parityTargets.set(String(rid), maxSeq);
+    }
+
+    await this.awaitParity(parityTargets, Weaver.CATCHUP_DRAIN_TIMEOUT_MS);
+    this.checkpointDirty = true;
+    await this.flushCheckpoint();
+
+    const summary = { resourcesChecked: resources.length, eventsReplayed, resourcesRebuilt };
+    this.logger.info('Weaver catch-up complete', summary);
+    return summary;
+  }
+
+  /**
+   * Wait until `lastProcessed` reaches every target sequence — the drain
+   * for catch-up's pushes through the async pipeline. Bounded: on timeout
+   * we log the laggards and proceed (the live pipeline finishes them; the
+   * whenApplied barrier and poll floor cover readers meanwhile).
+   */
+  private async awaitParity(targets: Map<string, number>, timeoutMs: number): Promise<void> {
+    if (targets.size === 0) return;
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      let pending = 0;
+      for (const [rid, seq] of targets) {
+        if ((this.lastProcessed.get(rid) ?? -1) < seq) pending++;
+      }
+      if (pending === 0) return;
+      if (Date.now() >= deadline) {
+        this.logger.warn('Weaver catch-up drain timed out; live pipeline will finish', { pending });
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+
+  private async handleRebuildCommand(command: EventMap['weave:rebuild']): Promise<void> {
+    try {
+      if (command.resourceId) {
+        await this.rebuildResource(makeResourceId(command.resourceId));
+      } else {
+        await this.rebuildAll();
+      }
+      await this.flushCheckpoint();
+      await this.bus.emit('weave:rebuild-ok', { correlationId: command.correlationId });
+    } catch (error) {
+      this.logger.error('Weaver rebuild command failed', {
+        resourceId: command.resourceId, error: errField(error),
+      });
+      await this.bus.emit('weave:rebuild-failed', {
+        correlationId: command.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /**
@@ -166,6 +322,13 @@ export class Weaver {
   async stop() {
     this.logger.info('Stopping Weaver');
 
+    if (this.checkpointTimer) {
+      clearInterval(this.checkpointTimer);
+      this.checkpointTimer = null;
+    }
+    this.rebuildSubscription?.unsubscribe();
+    this.rebuildSubscription = null;
+
     // Unsubscribe from the injected event source (stops feeding the Subject)
     this.sourceSubscription?.unsubscribe();
     this.sourceSubscription = null;
@@ -181,6 +344,8 @@ export class Weaver {
 
     // Create a fresh Subject for potential re-initialization
     this.eventSubject = new Subject<StoredEvent>();
+
+    await this.flushCheckpoint();
 
     this.logger.info('Weaver stopped');
   }
@@ -471,6 +636,12 @@ export class Weaver {
       await this.safeApplyEvent(storedEvent);
     }
 
+    if (events.length > 0) {
+      // Advance the applied mark through noteApplied so the checkpoint and
+      // the whenApplied barrier both see rebuild progress.
+      this.noteApplied(String(resourceId), Math.max(...events.map((e) => e.metadata.sequenceNumber)));
+    }
+
     this.logger.info('Resource rebuild complete', { resourceId, eventCount: events.length });
   }
 
@@ -501,6 +672,12 @@ export class Weaver {
           continue;
         }
         await this.safeApplyEvent(storedEvent);
+      }
+
+      if (events.length > 0) {
+        // Advance the applied mark through noteApplied so the checkpoint and
+        // the whenApplied barrier both see rebuild progress.
+        this.noteApplied(String(resourceId), Math.max(...events.map((e) => e.metadata.sequenceNumber)));
       }
     }
     this.logger.info('Pass 1 complete - all nodes created');

@@ -27,6 +27,9 @@ import { Weaver } from './weaver.js';
 import { createWeaveProgress, type WeaveProgress } from './weave-progress.js';
 import { createWeaverActorStateUnit, type WeaverActorStateUnit } from './weaver-actor-state-unit.js';
 import { workerBusOverEventBus } from './worker-bus-local.js';
+import { asBusRequestPrimitive } from './bus-request-local.js';
+import { FileWeaverCheckpoint } from './weaver-checkpoint.js';
+import { join } from 'path';
 
 export interface KnowledgeBase {
   eventStore:    EventStore;
@@ -70,7 +73,9 @@ export async function createKnowledgeBase(
     eventStore,
     graphDb,
     weaverEvents.events$,
-    workerBus,
+    weaverEvents.rebuilds$,
+    asBusRequestPrimitive(eventBus),
+    new FileWeaverCheckpoint(join(project.stateDir, 'weaver-checkpoint.json')),
     logger.child({ component: 'weaver' }),
   );
   await weaver.initialize();
@@ -79,11 +84,11 @@ export async function createKnowledgeBase(
   if (!options?.skipRebuild) {
     // Rebuild materialized views from the event log first. The Browser actor
     // reads from these views, so they must be populated before any request is
-    // served. The views layer is the third derived read model alongside the
-    // graph and vectors; this call mirrors weaver.rebuildAll() so
-    // that an ephemeral stateDir wipe is recoverable.
+    // served. The graph projection no longer full-rebuilds here — the Weaver
+    // catches up incrementally via its checkpoint (WEAVER-ISOLATION P3),
+    // called from startMakeMeaning once the Browser is serving the
+    // `browse:*` reads catch-up rides on.
     await eventStore.views.rebuildAll(eventStore.log);
-    await weaver.rebuildAll();
   }
 
   const kb: KnowledgeBase = {

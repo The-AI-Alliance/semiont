@@ -10,11 +10,14 @@
  *   npm run rebuild-graph <resourceId> # Rebuild specific resource
  */
 
-import { startMakeMeaning } from '@semiont/make-meaning';
+import { startMakeMeaning, asBusRequestPrimitive } from '@semiont/make-meaning';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
-import { resourceId as makeResourceId, EventBus } from '@semiont/core';
+import { EventBus, busRequest } from '@semiont/core';
 import { makeMeaningConfigFrom } from '../utils/config';
 import { initializeLogger, getLogger } from '../logger';
+
+/** Rebuilds replay full histories — allow far more than the 30 s bus default. */
+const REBUILD_TIMEOUT_MS = 10 * 60 * 1000;
 
 async function rebuildGraph(rId?: string, environment?: string) {
   const projectRoot = process.env.SEMIONT_ROOT;
@@ -35,49 +38,40 @@ async function rebuildGraph(rId?: string, environment?: string) {
   // Create EventBus
   const eventBus = new EventBus();
 
-  // Start make-meaning to get eventStore and weaver
-  const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
-  const { knowledgeSystem: { kb: { weaver } } } = makeMeaning;
+  // Start make-meaning; the explicit rebuild below makes startup catch-up
+  // redundant work, so skip it.
+  const makeMeaning = await startMakeMeaning(
+    new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger,
+    { skipRebuild: true },
+  );
+  const bus = asBusRequestPrimitive(eventBus);
 
-  if (rId) {
-    // Rebuild single resource
-    logger.info('Rebuilding graph for resource', { resourceId: rId });
-
-    try {
-      await weaver.rebuildResource(makeResourceId(rId));
+  // The rebuild is a bus command served by the Weaver (WEAVER-ISOLATION D3)
+  // — the same shape that survives the container split.
+  try {
+    if (rId) {
+      logger.info('Rebuilding graph for resource', { resourceId: rId });
+      await busRequest(bus, 'weave:rebuild', { resourceId: rId }, REBUILD_TIMEOUT_MS);
       logger.info('Resource rebuilt successfully', { resourceId: rId });
-    } catch (error) {
-      logger.error('Failed to rebuild resource', {
-        resourceId: rId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      process.exit(1);
-    }
-
-  } else {
-    // Rebuild entire graph
-    logger.info('Rebuilding entire Neo4j graph');
-    logger.info('Note: This clears the database and replays all events');
-
-    try {
-      await weaver.rebuildAll();
+    } else {
+      logger.info('Rebuilding entire graph');
+      logger.info('Note: This clears the database and replays all events');
+      await busRequest(bus, 'weave:rebuild', {}, REBUILD_TIMEOUT_MS);
       logger.info('Graph rebuilt successfully');
 
-      // Show health metrics
-      const health = weaver.getHealthMetrics();
-      logger.info('Consumer health metrics', {
+      const health = makeMeaning.knowledgeSystem.kb.weaver.getHealthMetrics();
+      logger.info('Weaver health metrics', {
         activeSubscriptions: health.subscriptions,
         resourcesProcessed: Object.keys(health.lastProcessed).length
       });
-
-    } catch (error) {
-      logger.error('Failed to rebuild graph', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      process.exit(1);
     }
+  } catch (error) {
+    logger.error('Failed to rebuild graph', {
+      ...(rId ? { resourceId: rId } : {}),
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    process.exit(1);
   }
 
   // Shutdown make-meaning

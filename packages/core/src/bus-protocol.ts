@@ -343,6 +343,15 @@ export type EventMap = {
    */
   'weave:applied': { resourceId: string; sequenceNumber: number };
 
+  // Command — rebuild the graph projection from the event log (full when
+  // resourceId is absent, one resource when present). Served by the Weaver;
+  // replaces direct `rebuildAll()`/`rebuildResource()` access, which does
+  // not survive the container split (WEAVER-ISOLATION D3). Correlated
+  // request/reply via the BUS_OPERATIONS registry.
+  'weave:rebuild': components['schemas']['WeaveRebuildCommand'];
+  'weave:rebuild-ok': { correlationId?: string };
+  'weave:rebuild-failed': { correlationId?: string; message: string };
+
   // ========================================================================
   // SETTINGS (frontend-only)
   // ========================================================================
@@ -627,6 +636,9 @@ export const CHANNEL_SCHEMAS = {
 
   // ── WEAVE FLOW ──────────────────────────────────────────────────
   'weave:applied':                    null, // { resourceId; sequenceNumber }
+  'weave:rebuild':                    'WeaveRebuildCommand',
+  'weave:rebuild-ok':                 null, // { correlationId }
+  'weave:rebuild-failed':             null, // { correlationId; message }
 
   // ── SSE infrastructure ──────────────────────────────────────────
   'stream-connected':                 null, // Record<string, never>

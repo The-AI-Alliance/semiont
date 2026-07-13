@@ -50,7 +50,7 @@ describe('createWeaverActorStateUnit', () => {
     h = fakeBus();
   });
 
-  it('extends the shared bus with all 9 graph-relevant channels on start', () => {
+  it('extends the shared bus with all 9 graph-relevant channels plus the rebuild command on start', () => {
     const unit = createWeaverActorStateUnit({ bus: h.bus });
     unit.start();
 
@@ -60,10 +60,26 @@ describe('createWeaverActorStateUnit', () => {
       'mark:added', 'mark:removed', 'mark:body-updated',
       'mark:entity-tag-added', 'mark:entity-tag-removed',
       'frame:entity-type-added',
+      'weave:rebuild',
     ]) {
       expect(h.channels.has(channel)).toBe(true);
     }
     expect(WEAVER_CHANNELS).toHaveLength(9);
+  });
+
+  it('exposes weave:rebuild commands on rebuilds$ — not mixed into events$', () => {
+    const unit = createWeaverActorStateUnit({ bus: h.bus });
+    const commands: any[] = [];
+    const events: any[] = [];
+    unit.rebuilds$.subscribe((c) => commands.push(c));
+    unit.events$.subscribe((e) => events.push(e));
+    unit.start();
+
+    const cmd = { resourceId: 'res-1', correlationId: 'corr-1' };
+    h.pushEvent('weave:rebuild', cmd);
+
+    expect(commands).toEqual([cmd]);
+    expect(events).toHaveLength(0);
   });
 
   it('passes StoredEvents through verbatim — metadata intact for the fold', () => {

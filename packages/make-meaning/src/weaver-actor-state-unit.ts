@@ -17,7 +17,7 @@
 
 import { Observable, merge } from 'rxjs';
 import type { WorkerBus } from '@semiont/sdk';
-import type { StateUnit, StoredEvent } from '@semiont/core';
+import type { EventMap, StateUnit, StoredEvent } from '@semiont/core';
 
 export const WEAVER_CHANNELS = [
   'yield:created',
@@ -31,12 +31,17 @@ export const WEAVER_CHANNELS = [
   'frame:entity-type-added',
 ] as const;
 
+/** Commands addressed to the Weaver actor — separate from the domain-event fold. */
+const WEAVER_COMMAND_CHANNELS = ['weave:rebuild'] as const;
+
 export interface WeaverActorStateUnitOptions {
   bus: WorkerBus;
 }
 
 export interface WeaverActorStateUnit extends StateUnit {
   events$: Observable<StoredEvent>;
+  /** `weave:rebuild` commands (WEAVER-ISOLATION D3) — never mixed into the fold. */
+  rebuilds$: Observable<EventMap['weave:rebuild']>;
   start(): void;
 }
 
@@ -53,12 +58,15 @@ export function createWeaverActorStateUnit(options: WeaverActorStateUnitOptions)
     ...WEAVER_CHANNELS.map((channel) => bus.on$<StoredEvent>(channel)),
   );
 
+  const rebuilds$ = bus.on$<EventMap['weave:rebuild']>('weave:rebuild');
+
   return {
     events$,
+    rebuilds$,
     start: () => {
       if (started) return;
       started = true;
-      bus.addChannels?.([...WEAVER_CHANNELS]);
+      bus.addChannels?.([...WEAVER_CHANNELS, ...WEAVER_COMMAND_CHANNELS]);
     },
     dispose: () => {
       // The bus is owned by the caller; the state unit only releases its own
