@@ -13,9 +13,11 @@
  * Cross-resource parallelism is provided via mergeMap over groups.
  *
  * Burst buffer thresholds:
- *   BURST_WINDOW_MS  = 50   — debounce window before flushing a batch
- *   MAX_BATCH_SIZE   = 500  — force flush to bound memory
- *   IDLE_TIMEOUT_MS  = 200  — silence before returning to passthrough
+ *   burstWindowMs (50 in production) — debounce window before flushing a batch
+ *   maxBatchSize  (500)              — force flush to bound memory
+ *   idleTimeoutMs (200)              — silence before returning to passthrough
+ * All timings are injected via the required `WeaverTiming` constructor param
+ * (WEAVER-AXIOMS R0) — the axiom harness runs them at ~1 ms.
  *
  * ## Per-resource serialization
  *
@@ -24,6 +26,22 @@
  * `Gatherer`, and (in a different shape) `ViewManager`. See
  * `packages/core/src/serialize-per-key.ts` for the shared primitive used
  * by RPC-style services.
+ *
+ * ## Invariants (proven, not merely intended)
+ *
+ * The pipeline holds a set of axioms verified as fast-check properties in
+ * `__tests__/weaver-axioms.test.ts` and pinned structurally by
+ * `scripts/compliance/audit-weaver-invariants.sh` — see
+ * `.plans/WEAVER-AXIOMS.md`. Load-bearing among them:
+ *   - graph ≡ reference fold over arbitrary histories (W4), and rebuild ≡
+ *     replay (W5);
+ *   - redelivery is inert (W3) — the **sequence gate** in the pipeline drops
+ *     anything at/below the applied mark, so an SSE-replayed stale event
+ *     cannot re-fold newer facet state;
+ *   - the applied mark is **monotone and never passes a failed event**
+ *     (W6/W7) — `noteApplied`'s failed-floor cap keeps the mark (and the
+ *     `weave:applied` barrier signal) honest, so catch-up always re-replays
+ *     a dropped event rather than the checkpoint hiding it.
  */
 
 import { Subject, Subscription, from, type Observable } from 'rxjs';
@@ -33,6 +51,27 @@ import type { BusRequestPrimitive, EventMap } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import type { PersistedEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
 import type { WeaverCheckpoint } from './weaver-checkpoint.js';
+
+/**
+ * Pipeline, drain, and flush timings. Required — `weaver-main` passes
+ * production values (50/500/200 burst; 30s/25ms/40 drain; 5s flush); the
+ * axiom harness passes ~1ms values so property suites run at generator
+ * speed. See `.plans/WEAVER-AXIOMS.md` (R0), mirroring SmelterTiming
+ * (SMELTER-AXIOMS D4).
+ */
+export interface WeaverTiming {
+  burstWindowMs: number;
+  maxBatchSize: number;
+  idleTimeoutMs: number;
+  /** Bounded catch-up drain (awaitParity) budget. */
+  drainTimeoutMs: number;
+  /** awaitParity poll interval. */
+  drainPollMs: number;
+  /** Consecutive unchanged-pending polls before declaring the drain stalled. */
+  drainStallPolls: number;
+  /** Dirty-checkpoint flush interval. */
+  checkpointFlushMs: number;
+}
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
 import { partitionByType } from './batch-utils.js';
 
@@ -40,21 +79,22 @@ import type { Annotation, CreateAnnotationInternal } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 
 export class Weaver {
-  // Burst buffer thresholds — see class doc
-  private static readonly BURST_WINDOW_MS = 50;
-  private static readonly MAX_BATCH_SIZE = 500;
-  private static readonly IDLE_TIMEOUT_MS = 200;
-
-  // Catch-up (WEAVER-ISOLATION P3, D1 = checkpointed replay)
+  // Catch-up paging (not timing — page size is a payload concern)
   private static readonly CATCHUP_PAGE_SIZE = 200;
-  private static readonly CATCHUP_DRAIN_TIMEOUT_MS = 30_000;
-  private static readonly CHECKPOINT_FLUSH_MS = 5_000;
 
   private sourceSubscription: Subscription | null = null;
   private rebuildSubscription: Subscription | null = null;
   private eventSubject = new Subject<StoredEvent>();
   private pipelineSubscription: Subscription | null = null;
   private lastProcessed: Map<string, number> = new Map();
+  /**
+   * Outstanding failed sequences per resource (W6). The applied mark is
+   * capped BELOW the lowest of these — a success at a later sequence must
+   * not carry the mark past an event that never landed, or the checkpoint
+   * would hide it from catch-up forever. Cleared when the event finally
+   * applies (catch-up re-replays from the capped mark).
+   */
+  private failedSeqs: Map<string, Set<number>> = new Map();
   private _applyFailures = 0;
   private checkpointDirty = false;
   private checkpointTimer: ReturnType<typeof setInterval> | null = null;
@@ -75,6 +115,7 @@ export class Weaver {
     private rebuilds$: Observable<EventMap['weave:rebuild']>,
     private bus: BusRequestPrimitive,
     private checkpoint: WeaverCheckpoint,
+    private timing: WeaverTiming,
     logger: Logger,
   ) {
     this.logger = logger;
@@ -94,7 +135,7 @@ export class Weaver {
 
     this.checkpointTimer = setInterval(() => {
       void this.flushCheckpoint();
-    }, Weaver.CHECKPOINT_FLUSH_MS);
+    }, this.timing.checkpointFlushMs);
   }
 
   /**
@@ -117,13 +158,30 @@ export class Weaver {
         // Resource events: apply burst buffering per resource group
         return group.pipe(
           burstBuffer<StoredEvent>({
-            burstWindowMs: Weaver.BURST_WINDOW_MS,
-            maxBatchSize: Weaver.MAX_BATCH_SIZE,
-            idleTimeoutMs: Weaver.IDLE_TIMEOUT_MS,
+            burstWindowMs: this.timing.burstWindowMs,
+            maxBatchSize: this.timing.maxBatchSize,
+            idleTimeoutMs: this.timing.idleTimeoutMs,
           }),
           concatMap((eventOrBatch: StoredEvent | StoredEvent[]) => {
+            // Sequence gate (WEAVER-AXIOMS W3): at-least-once delivery can
+            // redeliver an event AFTER later ones already applied (SSE
+            // replay overlapping live). Content-idempotent folds tolerate
+            // adjacent duplicates, but a DISPLACED redelivery would clobber
+            // newer facet state (a stale yield:created resets tags/archived)
+            // — so anything at or below the applied mark is skipped, never
+            // re-folded. Failed events sit above the mark and still retry.
             if (Array.isArray(eventOrBatch)) {
-              return from(this.processBatch(eventOrBatch));
+              const fresh = eventOrBatch.filter(
+                (e) => e.metadata.sequenceNumber > (this.lastProcessed.get(e.resourceId!) ?? -1),
+              );
+              if (fresh.length === 0) return from(Promise.resolve());
+              return from(this.processBatch(fresh));
+            }
+            if (
+              eventOrBatch.metadata.sequenceNumber <=
+              (this.lastProcessed.get(eventOrBatch.resourceId!) ?? -1)
+            ) {
+              return from(Promise.resolve());
             }
             return from(this.safeApplyEvent(eventOrBatch).then((applied) => {
               if (applied) {
@@ -155,14 +213,48 @@ export class Weaver {
    * push half of the applied-offset barrier (GRAPH-PROJECTION-SYNC P2):
    * `WeaveProgress` folds these signals into the map `whenApplied` awaits.
    */
+  /** Record an apply outcome for the failed-floor bookkeeping (W6). */
+  private noteOutcome(event: StoredEvent, ok: boolean): void {
+    if (!event.resourceId) return;
+    const rid = String(event.resourceId);
+    const seq = event.metadata.sequenceNumber;
+    if (ok) {
+      const set = this.failedSeqs.get(rid);
+      if (set) {
+        set.delete(seq);
+        if (set.size === 0) this.failedSeqs.delete(rid);
+      }
+    } else {
+      let set = this.failedSeqs.get(rid);
+      if (!set) {
+        set = new Set();
+        this.failedSeqs.set(rid, set);
+      }
+      set.add(seq);
+    }
+  }
+
   private noteApplied(resourceId: string, sequenceNumber: number): void {
-    this.lastProcessed.set(resourceId, sequenceNumber);
+    // Failed-floor cap (W6): the mark asserts "everything at or below me
+    // landed" — it may never reach or pass an outstanding failed sequence,
+    // however many later events succeed.
+    const failed = this.failedSeqs.get(resourceId);
+    let capped = sequenceNumber;
+    if (failed && failed.size > 0) {
+      capped = Math.min(capped, Math.min(...failed) - 1);
+    }
+    // Monotone: a lower-sequence note is always a redelivery echo — the
+    // mark (and the weave:applied signal) must never regress (W7).
+    const current = this.lastProcessed.get(resourceId);
+    if (current !== undefined && current >= capped) return;
+    this.lastProcessed.set(resourceId, capped);
     this.checkpointDirty = true;
-    // Fire-and-forget signal: in-process the shim's emit is synchronous;
-    // over HTTP a lost signal only means a barrier timeout (the poll floor
-    // absorbs it), so a warn is the right ceiling.
-    this.bus.emit('weave:applied', { resourceId, sequenceNumber }).catch((err) => {
-      this.logger.warn('weave:applied emit failed', { resourceId, sequenceNumber, error: errField(err) });
+    // Fire-and-forget signal — always the CAPPED value: the barrier must
+    // never learn a sequence the mark cannot honestly claim (W6/W7).
+    // In-process the shim's emit is synchronous; over HTTP a lost signal
+    // only means a barrier timeout (the poll floor absorbs it).
+    this.bus.emit('weave:applied', { resourceId, sequenceNumber: capped }).catch((err) => {
+      this.logger.warn('weave:applied emit failed', { resourceId, sequenceNumber: capped, error: errField(err) });
     });
   }
 
@@ -269,7 +361,7 @@ export class Weaver {
       parityTargets.set(String(rid), maxSeq);
     }
 
-    const parityPending = await this.awaitParity(parityTargets, Weaver.CATCHUP_DRAIN_TIMEOUT_MS);
+    const parityPending = await this.awaitParity(parityTargets, this.timing.drainTimeoutMs);
     this.checkpointDirty = true;
     await this.flushCheckpoint();
 
@@ -309,7 +401,7 @@ export class Weaver {
       if (pending === 0) return 0;
       stablePolls = pending === lastPending ? stablePolls + 1 : 0;
       lastPending = pending;
-      if (stablePolls >= 40) {
+      if (stablePolls >= this.timing.drainStallPolls) {
         this.logger.warn('Weaver catch-up drain stalled — reporting pending parity', { pending });
         return pending;
       }
@@ -317,7 +409,7 @@ export class Weaver {
         this.logger.warn('Weaver catch-up drain timed out; live pipeline will finish', { pending });
         return pending;
       }
-      await new Promise((resolve) => setTimeout(resolve, 25));
+      await new Promise((resolve) => setTimeout(resolve, this.timing.drainPollMs));
     }
   }
 
@@ -432,9 +524,11 @@ export class Weaver {
   private async safeApplyEvent(storedEvent: StoredEvent): Promise<boolean> {
     try {
       await this.applyEventToGraph(storedEvent);
+      this.noteOutcome(storedEvent, true);
       return true;
     } catch (error) {
       this._applyFailures++;
+      this.noteOutcome(storedEvent, false);
       this.logger.error('Failed to apply event to graph', {
         eventType: storedEvent.type,
         resourceId: storedEvent.resourceId,
@@ -493,30 +587,41 @@ export class Weaver {
     // the applied mark must never skip past events that did not land
     // (#845). Catch-up re-replays from the last clean sequence, and the
     // idempotent folds absorb the runs that did land.
-    let blocked = false;
     for (const run of runs) {
-      let runFailures = 0;
+      // Re-gate per run (W3): earlier runs in THIS batch advance the mark,
+      // so a displaced duplicate later in the same batch must drop here —
+      // the flush-time filter cannot see intra-batch advancement.
+      const live = run.filter(
+        (e) => e.metadata.sequenceNumber > (this.lastProcessed.get(e.resourceId!) ?? -1),
+      );
+      if (live.length === 0) continue;
+
       try {
-        if (run.length === 1) {
-          runFailures = (await this.safeApplyEvent(run[0])) ? 0 : 1;
+        if (live.length === 1) {
+          await this.safeApplyEvent(live[0]);
         } else {
-          runFailures = await this.applyBatchByType(run);
+          await this.applyBatchByType(live);
         }
       } catch (error) {
-        runFailures = run.length;
-        this._applyFailures += run.length;
+        this._applyFailures += live.length;
+        for (const e of live) this.noteOutcome(e, false);
         this.logger.error('Failed to process batch run', {
-          eventType: run[0].type,
-          runSize: run.length,
+          eventType: live[0].type,
+          runSize: live.length,
           error: errField(error),
         });
       }
-      if (runFailures > 0) blocked = true;
-      if (!blocked) {
-        const last = run[run.length - 1];
-        if (last.resourceId) {
-          this.noteApplied(last.resourceId, last.metadata.sequenceNumber);
-        }
+      // Always note, with the run's MAX sequence — delivery order is not
+      // sequence order under redelivery (a displaced duplicate can sit
+      // last in the run and would otherwise pin the mark below the run's
+      // true high-water; W3 counterexample, 2026-07-13). The failed-floor
+      // cap (W6) keeps a run containing failures from over-claiming.
+      const noted = live[0];
+      if (noted.resourceId) {
+        this.noteApplied(
+          String(noted.resourceId),
+          Math.max(...live.map((e) => e.metadata.sequenceNumber)),
+        );
       }
     }
 
@@ -530,8 +635,12 @@ export class Weaver {
    * Batch-optimized processing for consecutive events of the same type.
    * Uses batch graph methods where available, falls back to sequential.
    */
-  /** Returns the number of events in the run that failed to apply (#845). */
-  private async applyBatchByType(events: StoredEvent[]): Promise<number> {
+  /**
+   * Batch-optimized apply for a same-type run. Outcomes land in the
+   * failed-floor bookkeeping (`noteOutcome`); a thrown batch marks the
+   * whole run failed in `processBatch`'s catch.
+   */
+  private async applyBatchByType(events: StoredEvent[]): Promise<void> {
     const graphDb = this.ensureInitialized();
     const type = events[0].type;
 
@@ -539,8 +648,9 @@ export class Weaver {
       case 'yield:created': {
         const resources = events.map(e => this.buildResourceDescriptor(e));
         await graphDb.batchCreateResources(resources);
+        for (const e of events) this.noteOutcome(e, true);
         this.logger.info('Batch created resources in graph', { count: events.length });
-        return 0;
+        break;
       }
       case 'mark:added': {
         // Same idempotent fold as the single-event path, batched: dedupe the
@@ -561,19 +671,18 @@ export class Weaver {
         if (inputs.length > 0) {
           await graphDb.createAnnotations(inputs);
         }
+        for (const e of events) this.noteOutcome(e, true);
         this.logger.info('Batch created annotations in graph', {
           count: inputs.length,
           duplicatesSkipped: events.length - inputs.length,
         });
-        return 0;
+        break;
       }
       default: {
         // For types without batch optimization, fall back to sequential
-        let failed = 0;
         for (const event of events) {
-          if (!(await this.safeApplyEvent(event))) failed++;
+          await this.safeApplyEvent(event);
         }
-        return failed;
       }
     }
   }

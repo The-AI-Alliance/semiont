@@ -15,7 +15,19 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } from 'vitest';
 import { EventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
-import { Weaver } from '../weaver';
+import { Weaver, type WeaverTiming } from '../weaver';
+
+// Production-shaped timings: this suite's specs assume the real burst window
+// semantics (tick(350) flushes). The axiom suite runs ~1ms timings instead.
+const PROD_TIMING: WeaverTiming = {
+  burstWindowMs: 50,
+  maxBatchSize: 500,
+  idleTimeoutMs: 200,
+  drainTimeoutMs: 30_000,
+  drainPollMs: 25,
+  drainStallPolls: 40,
+  checkpointFlushMs: 5_000,
+};
 import { createWeaverActorStateUnit, type WeaverActorStateUnit } from '../weaver-actor-state-unit';
 import { workerBusOverEventBus } from '../worker-bus-local';
 import { asBusRequestPrimitive } from '../bus-request-local';
@@ -122,6 +134,7 @@ describe('Weaver', () => {
       weaverUnit.rebuilds$,
       asBusRequestPrimitive(coreEventBus),
       new FileWeaverCheckpoint(checkpointPath ?? join(testDir, `weaver-checkpoint-${uuidv4()}.json`)),
+      PROD_TIMING,
       mockLogger,
     );
     await weaver.initialize();
@@ -778,6 +791,7 @@ describe('Weaver', () => {
         localUnit.rebuilds$,
         asBusRequestPrimitive(coreEventBus),
         new FileWeaverCheckpoint(join(testDir, `weaver-checkpoint-${uuidv4()}.json`)),
+        PROD_TIMING,
         mockLogger,
       );
       await localConsumer.initialize();
