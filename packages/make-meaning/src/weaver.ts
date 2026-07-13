@@ -55,6 +55,7 @@ export class Weaver {
   private eventSubject = new Subject<StoredEvent>();
   private pipelineSubscription: Subscription | null = null;
   private lastProcessed: Map<string, number> = new Map();
+  private _applyFailures = 0;
   private checkpointDirty = false;
   private checkpointTimer: ReturnType<typeof setInterval> | null = null;
   private readonly logger: Logger;
@@ -124,11 +125,13 @@ export class Weaver {
             if (Array.isArray(eventOrBatch)) {
               return from(this.processBatch(eventOrBatch));
             }
-            return from(this.safeApplyEvent(eventOrBatch).then(() => {
-              this.noteApplied(
-                eventOrBatch.resourceId!,
-                eventOrBatch.metadata.sequenceNumber
-              );
+            return from(this.safeApplyEvent(eventOrBatch).then((applied) => {
+              if (applied) {
+                this.noteApplied(
+                  eventOrBatch.resourceId!,
+                  eventOrBatch.metadata.sequenceNumber
+                );
+              }
             }));
           })
         );
@@ -214,7 +217,17 @@ export class Weaver {
       .sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
   }
 
-  async catchUp(): Promise<{ resourcesChecked: number; eventsReplayed: number; resourcesRebuilt: number }> {
+  async catchUp(): Promise<{
+    resourcesChecked: number;
+    eventsReplayed: number;
+    resourcesRebuilt: number;
+    eventsFailed: number;
+    parityPending: number;
+  }> {
+    // Failure accounting is a window over the shared counter — concurrent
+    // live-apply failures land in the same number, which is the honest
+    // reading: they too are events the checkpoint refused to pass.
+    const failuresBefore = this._applyFailures;
     const persisted = await this.checkpoint.load();
     for (const [rid, seq] of Object.entries(persisted)) {
       const current = this.lastProcessed.get(rid);
@@ -256,46 +269,145 @@ export class Weaver {
       parityTargets.set(String(rid), maxSeq);
     }
 
-    await this.awaitParity(parityTargets, Weaver.CATCHUP_DRAIN_TIMEOUT_MS);
+    const parityPending = await this.awaitParity(parityTargets, Weaver.CATCHUP_DRAIN_TIMEOUT_MS);
     this.checkpointDirty = true;
     await this.flushCheckpoint();
 
-    const summary = { resourcesChecked: resources.length, eventsReplayed, resourcesRebuilt };
-    this.logger.info('Weaver catch-up complete', summary);
+    const summary = {
+      resourcesChecked: resources.length,
+      eventsReplayed,
+      resourcesRebuilt,
+      eventsFailed: this._applyFailures - failuresBefore,
+      parityPending,
+    };
+    if (summary.eventsFailed > 0 || summary.parityPending > 0) {
+      this.logger.error('Weaver catch-up incomplete — events failed to apply', summary);
+    } else {
+      this.logger.info('Weaver catch-up complete', summary);
+    }
     return summary;
   }
 
   /**
    * Wait until `lastProcessed` reaches every target sequence — the drain
-   * for catch-up's pushes through the async pipeline. Bounded: on timeout
-   * we log the laggards and proceed (the live pipeline finishes them; the
-   * whenApplied barrier and poll floor cover readers meanwhile).
+   * for catch-up's pushes through the async pipeline. Returns the number
+   * of targets still unreached at exit. Failed applies hold their sequence
+   * back BY DESIGN (#845), so parity may never arrive for them — once the
+   * pending set stops shrinking for ~1s we stop draining and report,
+   * rather than burning the timeout on events that will not land.
    */
-  private async awaitParity(targets: Map<string, number>, timeoutMs: number): Promise<void> {
-    if (targets.size === 0) return;
+  private async awaitParity(targets: Map<string, number>, timeoutMs: number): Promise<number> {
+    if (targets.size === 0) return 0;
     const deadline = Date.now() + timeoutMs;
+    let lastPending = -1;
+    let stablePolls = 0;
     for (;;) {
       let pending = 0;
       for (const [rid, seq] of targets) {
         if ((this.lastProcessed.get(rid) ?? -1) < seq) pending++;
       }
-      if (pending === 0) return;
+      if (pending === 0) return 0;
+      stablePolls = pending === lastPending ? stablePolls + 1 : 0;
+      lastPending = pending;
+      if (stablePolls >= 40) {
+        this.logger.warn('Weaver catch-up drain stalled — reporting pending parity', { pending });
+        return pending;
+      }
       if (Date.now() >= deadline) {
         this.logger.warn('Weaver catch-up drain timed out; live pipeline will finish', { pending });
-        return;
+        return pending;
       }
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
   }
 
+  /**
+   * State-diff audit of the graph against the catalog (#845) — the backstop
+   * for divergence nothing witnessed: out-of-band graph mutations, wiped or
+   * rolled-back volumes (post-split the checkpoint and the graph live in
+   * SEPARATE failure domains), and historical damage from old fold bugs
+   * that no future event will re-touch.
+   *
+   * Detection uses the VIEW as the cheap authority — descriptor facets plus
+   * the annotation-id set, over the same `browse:*` reads everything else
+   * rides. Healing replays the LOG (`rebuildResource`), so repairs stay
+   * log-truthful even if the view itself were wrong. V1 compares identity
+   * and facets, not annotation bodies. Heals bypass the pipeline lanes like
+   * all rebuilds — the idempotent folds make a race with live traffic
+   * benign. Run after `catchUp()`, mirroring the Smelter's
+   * subscribe → catch-up → reconcile startup order.
+   */
+  async reconcile(): Promise<{ resourcesChecked: number; divergent: number; healed: number; healFailures: number }> {
+    const resources = await this.fetchAllResources();
+    let divergent = 0;
+    let healed = 0;
+    let healFailures = 0;
+
+    for (const resource of resources) {
+      const rid = resource['@id'];
+      if (!rid) continue;
+
+      const reason = await this.divergenceOf(resource);
+      if (!reason) continue;
+
+      divergent++;
+      this.logger.warn('Reconcile divergence — healing from the log', { resourceId: String(rid), reason });
+      const result = await this.rebuildResource(makeResourceId(String(rid)));
+      if (result.eventsFailed === 0) healed++;
+      else healFailures++;
+    }
+
+    const summary = { resourcesChecked: resources.length, divergent, healed, healFailures };
+    if (divergent > 0 || healFailures > 0) {
+      this.logger.warn('Weaver reconcile found divergence', summary);
+    } else {
+      this.logger.info('Weaver reconcile complete — projection matches the catalog', summary);
+    }
+    return summary;
+  }
+
+  /** Compare one resource's graph state against its view; null = in sync. */
+  private async divergenceOf(resource: ResourceDescriptor): Promise<string | null> {
+    const graphDb = this.ensureInitialized();
+    const rid = String(resource['@id']);
+
+    const doc = await graphDb.getResource(makeResourceId(rid));
+    if (!doc) return 'missing-node';
+    if ((doc.archived ?? false) !== (resource.archived ?? false)) return 'archived-mismatch';
+
+    const docTags = [...(doc.entityTypes ?? [])].sort();
+    const viewTags = [...(resource.entityTypes ?? [])].sort();
+    if (docTags.length !== viewTags.length || docTags.some((tag, i) => tag !== viewTags[i])) {
+      return 'entity-types-mismatch';
+    }
+
+    const { annotations } = await busRequest(this.bus, 'browse:annotations-requested', { resourceId: rid });
+    const graphAnnotations = await graphDb.getResourceAnnotations(makeResourceId(rid));
+    const viewIds = new Set((annotations as Annotation[]).map((a) => String(a.id)));
+    const graphIds = new Set(graphAnnotations.map((a) => String(a.id)));
+    if (viewIds.size !== graphIds.size) return 'annotation-set-mismatch';
+    for (const id of viewIds) {
+      if (!graphIds.has(id)) return 'annotation-set-mismatch';
+    }
+
+    return null;
+  }
+
   private async handleRebuildCommand(command: EventMap['weave:rebuild']): Promise<void> {
     try {
-      if (command.resourceId) {
-        await this.rebuildResource(makeResourceId(command.resourceId));
-      } else {
-        await this.rebuildAll();
-      }
+      const result = command.resourceId
+        ? await this.rebuildResource(makeResourceId(command.resourceId))
+        : await this.rebuildAll();
       await this.flushCheckpoint();
+      if (result.eventsFailed > 0) {
+        // A rebuild that dropped events must FAIL, not claim success —
+        // silent under-materialization is the #845 failure mode.
+        await this.bus.emit('weave:rebuild-failed', {
+          correlationId: command.correlationId,
+          message: `rebuild dropped ${result.eventsFailed} event(s) — the graph is incomplete; see weaver logs`,
+        });
+        return;
+      }
       await this.bus.emit('weave:rebuild-ok', { correlationId: command.correlationId });
     } catch (error) {
       this.logger.error('Weaver rebuild command failed', {
@@ -309,19 +421,26 @@ export class Weaver {
   }
 
   /**
-   * Wrap applyEventToGraph in try/catch so one failed event doesn't kill the pipeline.
+   * Apply one event; returns true iff it landed cleanly. Failures are
+   * logged AND counted, and callers must not advance the applied mark past
+   * them — `lastProcessed`/checkpoint never skip an event that did not
+   * land (#845); catch-up re-replays from the last clean sequence.
+   *
+   * (The old pre-split `setTimeout(0)` politeness yield is gone — the
+   * Weaver owns its isolate now; there is no HTTP loop to starve.)
    */
-  private async safeApplyEvent(storedEvent: StoredEvent): Promise<void> {
-    // Yield the event loop so HTTP requests aren't starved by graph work
-    await new Promise(resolve => setTimeout(resolve, 0));
+  private async safeApplyEvent(storedEvent: StoredEvent): Promise<boolean> {
     try {
       await this.applyEventToGraph(storedEvent);
+      return true;
     } catch (error) {
+      this._applyFailures++;
       this.logger.error('Failed to apply event to graph', {
         eventType: storedEvent.type,
         resourceId: storedEvent.resourceId,
         error: errField(error),
       });
+      return false;
     }
   }
 
@@ -370,23 +489,34 @@ export class Weaver {
   private async processBatch(events: StoredEvent[]): Promise<void> {
     const runs = partitionByType(events);
 
+    // A failed run blocks checkpoint advance for the REST of the batch:
+    // the applied mark must never skip past events that did not land
+    // (#845). Catch-up re-replays from the last clean sequence, and the
+    // idempotent folds absorb the runs that did land.
+    let blocked = false;
     for (const run of runs) {
+      let runFailures = 0;
       try {
         if (run.length === 1) {
-          await this.applyEventToGraph(run[0]);
+          runFailures = (await this.safeApplyEvent(run[0])) ? 0 : 1;
         } else {
-          await this.applyBatchByType(run);
+          runFailures = await this.applyBatchByType(run);
         }
       } catch (error) {
+        runFailures = run.length;
+        this._applyFailures += run.length;
         this.logger.error('Failed to process batch run', {
           eventType: run[0].type,
           runSize: run.length,
           error: errField(error),
         });
       }
-      const last = run[run.length - 1];
-      if (last.resourceId) {
-        this.noteApplied(last.resourceId, last.metadata.sequenceNumber);
+      if (runFailures > 0) blocked = true;
+      if (!blocked) {
+        const last = run[run.length - 1];
+        if (last.resourceId) {
+          this.noteApplied(last.resourceId, last.metadata.sequenceNumber);
+        }
       }
     }
 
@@ -400,7 +530,8 @@ export class Weaver {
    * Batch-optimized processing for consecutive events of the same type.
    * Uses batch graph methods where available, falls back to sequential.
    */
-  private async applyBatchByType(events: StoredEvent[]): Promise<void> {
+  /** Returns the number of events in the run that failed to apply (#845). */
+  private async applyBatchByType(events: StoredEvent[]): Promise<number> {
     const graphDb = this.ensureInitialized();
     const type = events[0].type;
 
@@ -409,7 +540,7 @@ export class Weaver {
         const resources = events.map(e => this.buildResourceDescriptor(e));
         await graphDb.batchCreateResources(resources);
         this.logger.info('Batch created resources in graph', { count: events.length });
-        break;
+        return 0;
       }
       case 'mark:added': {
         // Same idempotent fold as the single-event path, batched: dedupe the
@@ -434,13 +565,16 @@ export class Weaver {
           count: inputs.length,
           duplicatesSkipped: events.length - inputs.length,
         });
-        break;
+        return 0;
       }
-      default:
+      default: {
         // For types without batch optimization, fall back to sequential
+        let failed = 0;
         for (const event of events) {
-          await this.applyEventToGraph(event);
+          if (!(await this.safeApplyEvent(event))) failed++;
         }
+        return failed;
+      }
     }
   }
 
@@ -632,7 +766,7 @@ export class Weaver {
    * Rebuild entire resource from events.
    * Bypasses the live pipeline — reads directly from event store.
    */
-  async rebuildResource(resourceId: ResourceId): Promise<void> {
+  async rebuildResource(resourceId: ResourceId): Promise<{ eventsApplied: number; eventsFailed: number }> {
     const graphDb = this.ensureInitialized();
     this.logger.info('Rebuilding resource from events', { resourceId });
 
@@ -644,17 +778,25 @@ export class Weaver {
 
     const events = await this.fetchResourceEvents(String(resourceId));
 
+    let eventsFailed = 0;
     for (const storedEvent of events) {
-      await this.safeApplyEvent(storedEvent);
+      if (!(await this.safeApplyEvent(storedEvent))) eventsFailed++;
     }
 
-    if (events.length > 0) {
+    if (events.length > 0 && eventsFailed === 0) {
       // Advance the applied mark through noteApplied so the checkpoint and
-      // the whenApplied barrier both see rebuild progress.
+      // the whenApplied barrier both see rebuild progress — but only for a
+      // CLEAN rebuild: a mark past dropped events would hide them (#845).
       this.noteApplied(String(resourceId), Math.max(...events.map((e) => e.metadata.sequenceNumber)));
     }
+    if (eventsFailed > 0) {
+      this.logger.error('Resource rebuild dropped events — graph incomplete for this resource', {
+        resourceId, eventsFailed,
+      });
+    }
 
-    this.logger.info('Resource rebuild complete', { resourceId, eventCount: events.length });
+    this.logger.info('Resource rebuild complete', { resourceId, eventCount: events.length, eventsFailed });
+    return { eventsApplied: events.length - eventsFailed, eventsFailed };
   }
 
   /**
@@ -662,7 +804,7 @@ export class Weaver {
    * Uses two-pass approach to ensure all resources exist before creating REFERENCES edges.
    * Bypasses the live pipeline — reads directly from event store.
    */
-  async rebuildAll(): Promise<void> {
+  async rebuildAll(): Promise<{ resources: number; eventsApplied: number; eventsFailed: number }> {
     const graphDb = this.ensureInitialized();
     this.logger.info('Rebuilding entire GraphDB from events');
     this.logger.info('Using two-pass approach: nodes first, then edges');
@@ -677,22 +819,29 @@ export class Weaver {
 
     this.logger.info('Found resources to rebuild', { count: allResourceIds.length });
 
+    // Per-resource completeness ledger (#845): the applied mark advances
+    // only for resources whose BOTH passes were clean.
+    const ledger = new Map<string, { maxSeq: number; attempted: number; failed: number }>();
+
     // PASS 1: Create all nodes (resources and annotations)
     this.logger.info('PASS 1: Creating all nodes (resources + annotations)');
     for (const resourceId of allResourceIds) {
       const events = await this.fetchResourceEvents(String(resourceId));
+      if (events.length === 0) continue;
+
+      const entry = {
+        maxSeq: Math.max(...events.map((e) => e.metadata.sequenceNumber)),
+        attempted: 0,
+        failed: 0,
+      };
+      ledger.set(String(resourceId), entry);
 
       for (const storedEvent of events) {
         if (storedEvent.type === 'mark:body-updated') {
           continue;
         }
-        await this.safeApplyEvent(storedEvent);
-      }
-
-      if (events.length > 0) {
-        // Advance the applied mark through noteApplied so the checkpoint and
-        // the whenApplied barrier both see rebuild progress.
-        this.noteApplied(String(resourceId), Math.max(...events.map((e) => e.metadata.sequenceNumber)));
+        entry.attempted++;
+        if (!(await this.safeApplyEvent(storedEvent))) entry.failed++;
       }
     }
     this.logger.info('Pass 1 complete - all nodes created');
@@ -704,13 +853,31 @@ export class Weaver {
 
       for (const storedEvent of events) {
         if (storedEvent.type === 'mark:body-updated') {
-          await this.safeApplyEvent(storedEvent);
+          const entry = ledger.get(String(resourceId));
+          if (entry) entry.attempted++;
+          if (!(await this.safeApplyEvent(storedEvent))) {
+            if (entry) entry.failed++;
+          }
         }
       }
     }
     this.logger.info('Pass 2 complete - all edges created');
 
-    this.logger.info('Rebuild complete');
+    let eventsApplied = 0;
+    let eventsFailed = 0;
+    for (const [rid, { maxSeq, attempted, failed }] of ledger) {
+      eventsApplied += attempted - failed;
+      eventsFailed += failed;
+      if (failed === 0) {
+        this.noteApplied(rid, maxSeq);
+      }
+    }
+    if (eventsFailed > 0) {
+      this.logger.error('Rebuild dropped events — graph incomplete', { eventsFailed });
+    }
+
+    this.logger.info('Rebuild complete', { resources: allResourceIds.length, eventsApplied, eventsFailed });
+    return { resources: allResourceIds.length, eventsApplied, eventsFailed };
   }
 
   /**
@@ -720,6 +887,7 @@ export class Weaver {
     subscriptions: number;
     lastProcessed: Record<string, number>;
     pipelineActive: boolean;
+    applyFailures: number;
   } {
     return {
       // One injected source stream since WEAVER-ISOLATION P2 — channel
@@ -727,6 +895,10 @@ export class Weaver {
       subscriptions: this.sourceSubscription ? 1 : 0,
       lastProcessed: Object.fromEntries(this.lastProcessed),
       pipelineActive: !!this.pipelineSubscription,
+      // Running count of applies that failed and were therefore NOT
+      // checkpointed (#845) — nonzero means the graph is missing events
+      // the live pipeline witnessed failing.
+      applyFailures: this._applyFailures,
     };
   }
 
