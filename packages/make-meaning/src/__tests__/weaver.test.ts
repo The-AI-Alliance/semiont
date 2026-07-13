@@ -117,7 +117,6 @@ describe('Weaver', () => {
     const workerBus = workerBusOverEventBus(coreEventBus);
     weaverUnit = createWeaverActorStateUnit({ bus: workerBus });
     const weaver = new Weaver(
-      eventStore,
       db,
       weaverUnit.events$,
       weaverUnit.rebuilds$,
@@ -736,7 +735,6 @@ describe('Weaver', () => {
       const localWorkerBus = workerBusOverEventBus(coreEventBus);
       const localUnit = createWeaverActorStateUnit({ bus: localWorkerBus });
       const localConsumer = new Weaver(
-        eventStore,
         localGraphDb,
         localUnit.events$,
         localUnit.rebuilds$,
@@ -1087,6 +1085,9 @@ describe('Weaver', () => {
       });
       await tick();
 
+      // Rebuild reads history over the bus — the Weaver has no event-store
+      // attachment (P4); these responders are its only view of the log.
+      serveBrowseReads([rid]);
       const clearSpy = vi.spyOn(graphDb, 'clearDatabase');
       await busRequest(asBusRequestPrimitive(coreEventBus), 'weave:rebuild', {});
 
@@ -1110,6 +1111,7 @@ describe('Weaver', () => {
       });
       await tick();
 
+      serveBrowseReads([rid]);
       const deleteSpy = vi.spyOn(graphDb, 'deleteResource');
       const clearSpy = vi.spyOn(graphDb, 'clearDatabase');
       await busRequest(asBusRequestPrimitive(coreEventBus), 'weave:rebuild', { resourceId: rid });

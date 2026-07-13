@@ -193,14 +193,6 @@ export async function startMakeMeaning(
   // (HTTP gateway, LocalTransport, future ones) gets the same contract.
   registerBusHandlers(eventBus, knowledgeSystem, jobQueue, project, logger);
 
-  // Graph catch-up (WEAVER-ISOLATION P3): checkpointed replay of whatever
-  // the Weaver missed. Runs HERE — after the Browser is serving the
-  // `browse:*` reads it rides on, and after the live subscription attached
-  // (in createKnowledgeBase), so nothing falls in the gap.
-  if (!skipRebuild) {
-    await knowledgeSystem.kb.weaver.catchUp();
-  }
-
   return {
     knowledgeSystem,
     jobQueue,

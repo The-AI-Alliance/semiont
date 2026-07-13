@@ -1,93 +1,98 @@
 #!/usr/bin/env node
 /**
- * CLI Tool: Rebuild Neo4j Graph from Events
+ * CLI Tool: Rebuild the Graph from Events
  *
- * Rebuilds the Neo4j graph database from Event Store event streams.
- * Proves that events are the source of truth and Neo4j is a projection.
+ * Emits `weave:rebuild` to the RUNNING stack's bus — the standalone Weaver
+ * (WEAVER-ISOLATION D3/D4) clears and replays the graph projection from the
+ * event log. Proves that events are the source of truth and the graph is a
+ * projection. Requires the backend and weaver to be running.
  *
  * Usage:
  *   npm run rebuild-graph              # Rebuild entire graph
  *   npm run rebuild-graph <resourceId> # Rebuild specific resource
+ *
+ * Configuration:
+ *   ~/.semiontconfig       — services.backend.publicURL
+ *   SEMIONT_WORKER_SECRET  — shared secret for the token exchange
  */
 
-import { startMakeMeaning, asBusRequestPrimitive } from '@semiont/make-meaning';
-import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
-import { EventBus, busRequest } from '@semiont/core';
-import { makeMeaningConfigFrom } from '../utils/config';
+import { BehaviorSubject } from 'rxjs';
+import { HttpTransport } from '@semiont/http-transport';
+import {
+  busRequest,
+  baseUrl as makeBaseUrl,
+  accessToken as makeAccessToken,
+  createTomlConfigLoader,
+  type AccessToken,
+} from '@semiont/core';
+import { readFileSync, existsSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
 import { initializeLogger, getLogger } from '../logger';
 
 /** Rebuilds replay full histories — allow far more than the 30 s bus default. */
 const REBUILD_TIMEOUT_MS = 10 * 60 * 1000;
 
-async function rebuildGraph(rId?: string, environment?: string) {
-  const projectRoot = process.env.SEMIONT_ROOT;
-  if (!projectRoot) {
-    throw new Error('SEMIONT_ROOT environment variable is not set');
-  }
-  // environment: --environment flag > SEMIONT_ENV > fallback
-  const env = environment ?? process.env.SEMIONT_ENV ?? 'development';
-
-  const config = loadEnvironmentConfig(projectRoot, env);
-
-  // Initialize logger
-  initializeLogger(config.logLevel);
+async function rebuildGraph(rId?: string) {
+  initializeLogger();
   const logger = getLogger();
 
-  logger.info('Rebuilding Neo4j graph from events');
+  const configPath = join(homedir(), '.semiontconfig');
+  const tomlReader = {
+    readIfExists: (p: string): string | null => existsSync(p) ? readFileSync(p, 'utf-8') : null,
+  };
+  const envConfig = createTomlConfigLoader(tomlReader, configPath, process.env)(null, 'local');
 
-  // Create EventBus
-  const eventBus = new EventBus();
+  const backendPublicURL = envConfig.services?.backend?.publicURL;
+  if (!backendPublicURL) {
+    throw new Error('services.backend.publicURL is required in ~/.semiontconfig');
+  }
 
-  // Start make-meaning; the explicit rebuild below makes startup catch-up
-  // redundant work, so skip it.
-  const makeMeaning = await startMakeMeaning(
-    new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger,
-    { skipRebuild: true },
-  );
-  const bus = asBusRequestPrimitive(eventBus);
+  const workerSecret = process.env.SEMIONT_WORKER_SECRET;
+  if (!workerSecret) {
+    throw new Error('SEMIONT_WORKER_SECRET is required to authenticate with the backend');
+  }
 
-  // The rebuild is a bus command served by the Weaver (WEAVER-ISOLATION D3)
-  // — the same shape that survives the container split.
+  const response = await fetch(`${backendPublicURL}/api/tokens/agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: workerSecret, provider: 'semiont', model: 'rebuild-graph' }),
+  });
+  if (!response.ok) {
+    throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
+  }
+  const { token } = await response.json() as { token: string };
+
+  const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(token));
+  const transport = new HttpTransport({
+    baseUrl: makeBaseUrl(backendPublicURL),
+    token$: tokenSubject,
+  });
+
   try {
     if (rId) {
       logger.info('Rebuilding graph for resource', { resourceId: rId });
-      await busRequest(bus, 'weave:rebuild', { resourceId: rId }, REBUILD_TIMEOUT_MS);
+      await busRequest(transport, 'weave:rebuild', { resourceId: rId }, REBUILD_TIMEOUT_MS);
       logger.info('Resource rebuilt successfully', { resourceId: rId });
     } else {
       logger.info('Rebuilding entire graph');
       logger.info('Note: This clears the database and replays all events');
-      await busRequest(bus, 'weave:rebuild', {}, REBUILD_TIMEOUT_MS);
+      await busRequest(transport, 'weave:rebuild', {}, REBUILD_TIMEOUT_MS);
       logger.info('Graph rebuilt successfully');
-
-      const health = makeMeaning.knowledgeSystem.kb.weaver.getHealthMetrics();
-      logger.info('Weaver health metrics', {
-        activeSubscriptions: health.subscriptions,
-        resourcesProcessed: Object.keys(health.lastProcessed).length
-      });
     }
-  } catch (error) {
-    logger.error('Failed to rebuild graph', {
-      ...(rId ? { resourceId: rId } : {}),
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    process.exit(1);
+  } finally {
+    transport.dispose();
   }
-
-  // Shutdown make-meaning
-  await makeMeaning.stop();
-  eventBus.destroy();
 
   logger.info('Rebuild graph completed');
 }
 
-// Parse command line arguments: [resourceId] [--environment <env>]
+// Parse command line arguments: [resourceId]
 const args = process.argv.slice(2);
 const envFlagIdx = args.indexOf('--environment');
-const envArg = envFlagIdx !== -1 ? args[envFlagIdx + 1] : undefined;
 const rId = args.find((_, i) => i !== envFlagIdx && i !== envFlagIdx + 1);
 
-rebuildGraph(rId, envArg)
+rebuildGraph(rId)
   .catch(err => {
     const logger = getLogger();
     logger.error('Rebuild graph failed', {

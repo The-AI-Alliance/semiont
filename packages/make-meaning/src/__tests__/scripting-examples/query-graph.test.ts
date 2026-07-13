@@ -18,6 +18,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, type SupportedMediaType, userId, resourceId as makeResourceId } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, AnnotationOperations, type MakeMeaningConfig } from '../..';
+import { Weaver } from '../../weaver';
+import { createWeaverActorStateUnit, type WeaverActorStateUnit } from '../../weaver-actor-state-unit';
+import { workerBusOverEventBus } from '../../worker-bus-local';
+import { asBusRequestPrimitive } from '../../bus-request-local';
+import { FileWeaverCheckpoint } from '../../weaver-checkpoint';
 import { deriveStorageUri } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -53,6 +58,8 @@ describe('Scripting Example: Query Graph Database', () => {
   let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
+  let weaver: Weaver;
+  let weaverUnit: WeaverActorStateUnit;
 
   async function create(
     opts: { name: string; content: Buffer; format: SupportedMediaType; language?: string },
@@ -91,9 +98,32 @@ describe('Scripting Example: Query Graph Database', () => {
 
     eventBus = new EventBus();
     makeMeaning = await startMakeMeaning(project, config, eventBus, mockLogger);
+
+    // The service no longer runs a Weaver (D4: the graph projection is part
+    // of the graph stack). A hermetic test that wants projection wires one
+    // directly against the service's own graph instance and bus — exactly
+    // what weaver-main does in a deployment.
+    const workerBus = workerBusOverEventBus(eventBus);
+    weaverUnit = createWeaverActorStateUnit({ bus: workerBus });
+    weaver = new Weaver(
+      makeMeaning.knowledgeSystem.kb.graph,
+      weaverUnit.events$,
+      weaverUnit.rebuilds$,
+      asBusRequestPrimitive(eventBus),
+      new FileWeaverCheckpoint(join(testDir, 'weaver-checkpoint.json')),
+      mockLogger,
+    );
+    await weaver.initialize();
+    weaverUnit.start();
   });
 
   afterEach(async () => {
+    // Stop the test-wired Weaver first (it consumes the bus the service owns)
+    if (weaver) {
+      await weaver.stop();
+    }
+    weaverUnit?.dispose();
+
     // Stop service
     if (makeMeaning) {
       await makeMeaning.stop();

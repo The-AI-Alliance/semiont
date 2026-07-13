@@ -8,7 +8,8 @@
  * - Materialized Views (fast single-doc queries) — via ViewStorage
  * - Content Store (working-tree files, URI-addressed) — via WorkingTreeStore
  * - Graph (eventually consistent relationship projection) — via GraphDatabase
- * - Weaver (event-to-graph projection)
+ * - WeaveProgress (weave:applied fold — the graph-projection barrier; the
+ *   Weaver itself runs standalone via @semiont/make-meaning/weaver-main)
  * - Vectors (semantic search) — via VectorStore (optional, read-only)
  *
  * The Smelter (event-to-vector projection) runs as an external actor
@@ -23,21 +24,13 @@ import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventBus, Logger } from '@semiont/core';
-import { Weaver } from './weaver.js';
 import { createWeaveProgress, type WeaveProgress } from './weave-progress.js';
-import { createWeaverActorStateUnit, type WeaverActorStateUnit } from './weaver-actor-state-unit.js';
-import { workerBusOverEventBus } from './worker-bus-local.js';
-import { asBusRequestPrimitive } from './bus-request-local.js';
-import { FileWeaverCheckpoint } from './weaver-checkpoint.js';
-import { join } from 'path';
 
 export interface KnowledgeBase {
   eventStore:    EventStore;
   views:         ViewStorage;
   content:       WorkingTreeStore;
   graph:         GraphDatabase;
-  weaver:        Weaver;
-  weaverEvents:  WeaverActorStateUnit;
   weaveProgress: WeaveProgress;
   vectors?:      VectorStore;
   projectionsDir: string;
@@ -61,25 +54,12 @@ export async function createKnowledgeBase(
     project,
     logger.child({ component: 'working-tree-store' }),
   );
-  // Fold of `weave:applied` signals — must exist before the Weaver starts
-  // applying so no early signal is missed (GRAPH-PROJECTION-SYNC P2).
+  // Fold of `weave:applied` signals. The Weaver itself is NOT constructed
+  // here (WEAVER-ISOLATION D4, refined): the graph projection is part of
+  // the graph stack, not the embedding process — `weaver-main` runs it as
+  // a standalone actor, and its signals arrive over the bus. This fold is
+  // the backend-side half, wherever the Weaver runs.
   const weaveProgress = createWeaveProgress(eventBus);
-  // Transport seam (WEAVER-ISOLATION P2): the Weaver consumes the fan-in's
-  // events$ and emits through a WorkerBus — in-process both are the core
-  // EventBus behind the local shim; standalone they become the gateway.
-  const workerBus = workerBusOverEventBus(eventBus);
-  const weaverEvents = createWeaverActorStateUnit({ bus: workerBus });
-  const weaver = new Weaver(
-    eventStore,
-    graphDb,
-    weaverEvents.events$,
-    weaverEvents.rebuilds$,
-    asBusRequestPrimitive(eventBus),
-    new FileWeaverCheckpoint(join(project.stateDir, 'weaver-checkpoint.json')),
-    logger.child({ component: 'weaver' }),
-  );
-  await weaver.initialize();
-  weaverEvents.start();
 
   if (!options?.skipRebuild) {
     // Rebuild materialized views from the event log first. The Browser actor
@@ -92,7 +72,7 @@ export async function createKnowledgeBase(
   }
 
   const kb: KnowledgeBase = {
-    eventStore, views, content, graph: graphDb, weaver, weaverEvents, weaveProgress,
+    eventStore, views, content, graph: graphDb, weaveProgress,
     projectionsDir: project.projectionsDir,
   };
 

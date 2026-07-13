@@ -28,7 +28,6 @@
 
 import { Subject, Subscription, from, type Observable } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
-import { EventQuery, type EventStore } from '@semiont/event-sourcing';
 import { didToAgent, burstBuffer, errField, busRequest } from '@semiont/core';
 import type { BusRequestPrimitive, EventMap } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
@@ -70,7 +69,6 @@ export class Weaver {
    * / `asBusRequestPrimitive`); standalone it all rides the gateway.
    */
   constructor(
-    private eventStore: EventStore,
     private graphDb: GraphDatabase,
     private events$: Observable<StoredEvent>,
     private rebuilds$: Observable<EventMap['weave:rebuild']>,
@@ -191,13 +189,12 @@ export class Weaver {
    * checkpoint. Call after the live subscription is attached so nothing
    * falls in the gap.
    */
-  async catchUp(): Promise<{ resourcesChecked: number; eventsReplayed: number; resourcesRebuilt: number }> {
-    const persisted = await this.checkpoint.load();
-    for (const [rid, seq] of Object.entries(persisted)) {
-      const current = this.lastProcessed.get(rid);
-      if (current === undefined || current < seq) this.lastProcessed.set(rid, seq);
-    }
-
+  /**
+   * The Weaver's only view of history: reads over the bus. It has no event
+   * store attachment — in-process and standalone alike, catch-up and
+   * rebuild ride `browse:resources-requested` / `browse:events-requested`.
+   */
+  private async fetchAllResources(): Promise<ResourceDescriptor[]> {
     const resources: ResourceDescriptor[] = [];
     for (;;) {
       const page = await busRequest(this.bus, 'browse:resources-requested', {
@@ -207,6 +204,24 @@ export class Weaver {
       resources.push(...(page.resources as ResourceDescriptor[]));
       if (page.resources.length === 0 || resources.length >= page.total) break;
     }
+    return resources;
+  }
+
+  /** A resource's full event history over the bus, sorted by sequence. */
+  private async fetchResourceEvents(resourceId: string): Promise<StoredEvent[]> {
+    const reply = await busRequest(this.bus, 'browse:events-requested', { resourceId });
+    return [...(reply.events as StoredEvent[])]
+      .sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
+  }
+
+  async catchUp(): Promise<{ resourcesChecked: number; eventsReplayed: number; resourcesRebuilt: number }> {
+    const persisted = await this.checkpoint.load();
+    for (const [rid, seq] of Object.entries(persisted)) {
+      const current = this.lastProcessed.get(rid);
+      if (current === undefined || current < seq) this.lastProcessed.set(rid, seq);
+    }
+
+    const resources = await this.fetchAllResources();
 
     let eventsReplayed = 0;
     let resourcesRebuilt = 0;
@@ -216,9 +231,7 @@ export class Weaver {
       const rid = resource['@id'];
       if (!rid) continue;
 
-      const reply = await busRequest(this.bus, 'browse:events-requested', { resourceId: rid });
-      const events = [...(reply.events as StoredEvent[])]
-        .sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
+      const events = await this.fetchResourceEvents(String(rid));
       if (events.length === 0) continue;
 
       const maxSeq = events[events.length - 1].metadata.sequenceNumber;
@@ -629,8 +642,7 @@ export class Weaver {
       this.logger.debug('No existing resource to delete', { resourceId });
     }
 
-    const query = new EventQuery(this.eventStore.log.storage);
-    const events = await query.getResourceEvents(resourceId);
+    const events = await this.fetchResourceEvents(String(resourceId));
 
     for (const storedEvent of events) {
       await this.safeApplyEvent(storedEvent);
@@ -657,15 +669,18 @@ export class Weaver {
 
     await graphDb.clearDatabase();
 
-    const query = new EventQuery(this.eventStore.log.storage);
-    const allResourceIds = await this.eventStore.log.getAllResourceIds();
+    // Resources are archive-only (never deleted), so the catalog's resource
+    // set matches the event log's — discovery over the bus is complete.
+    const allResourceIds = (await this.fetchAllResources())
+      .map((resource) => resource['@id'])
+      .filter((rid): rid is NonNullable<typeof rid> => !!rid);
 
     this.logger.info('Found resources to rebuild', { count: allResourceIds.length });
 
     // PASS 1: Create all nodes (resources and annotations)
     this.logger.info('PASS 1: Creating all nodes (resources + annotations)');
     for (const resourceId of allResourceIds) {
-      const events = await query.getResourceEvents(makeResourceId(resourceId as string));
+      const events = await this.fetchResourceEvents(String(resourceId));
 
       for (const storedEvent of events) {
         if (storedEvent.type === 'mark:body-updated') {
@@ -685,7 +700,7 @@ export class Weaver {
     // PASS 2: Create all edges (REFERENCES relationships)
     this.logger.info('PASS 2: Creating all REFERENCES edges');
     for (const resourceId of allResourceIds) {
-      const events = await query.getResourceEvents(makeResourceId(resourceId as string));
+      const events = await this.fetchResourceEvents(String(resourceId));
 
       for (const storedEvent of events) {
         if (storedEvent.type === 'mark:body-updated') {

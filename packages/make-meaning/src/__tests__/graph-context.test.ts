@@ -30,8 +30,6 @@ describe('GraphContext', () => {
     content: {} as any,
     graph: mockGraphDb as any,
     projectionsDir: '',
-    weaver: {} as any,
-    weaverEvents: {} as any,
     weaveProgress: mockWeaveProgress as any,
   };
 
