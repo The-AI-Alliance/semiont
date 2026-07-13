@@ -8,7 +8,7 @@
  * timeout so callers can fall back to the Phase 1 retry floor.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { EventBus } from '@semiont/core';
 import { assertStateUnitAxioms } from '@semiont/core/testing';
 import { createWeaveProgress, WeaveProgressTimeout } from '../weave-progress';
@@ -66,6 +66,29 @@ describe('WeaveProgress', () => {
 
     expect(progress.appliedUpTo('res-1')).toBe(9);
     progress.dispose();
+  });
+
+  it('evicts applied entries older than the TTL — the fold only ever serves recent applies', () => {
+    // Eviction is free correctness-wise: the barrier only engages when a
+    // graph read came back null, which cannot happen for an apply minutes
+    // old — and a missed immediate-resolve just degrades to the poll floor.
+    // Without eviction the map grows with every resource ever signaled
+    // (#845 scalability wart).
+    vi.useFakeTimers();
+    try {
+      const bus = new EventBus();
+      const progress = createWeaveProgress(bus);
+
+      bus.get('weave:applied').next({ resourceId: 'res-old', sequenceNumber: 1 });
+      vi.advanceTimersByTime(6 * 60_000);
+      bus.get('weave:applied').next({ resourceId: 'res-new', sequenceNumber: 2 });
+
+      expect(progress.appliedUpTo('res-old')).toBeUndefined();
+      expect(progress.appliedUpTo('res-new')).toBe(2);
+      progress.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('post-dispose whenApplied is inert — resolves so callers degrade to the retry floor', async () => {

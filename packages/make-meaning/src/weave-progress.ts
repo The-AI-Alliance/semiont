@@ -49,17 +49,37 @@ export interface WeaveProgress extends StateUnit {
   whenApplied(resourceId: string, sequenceNumber: number, timeoutMs: number): Promise<void>;
 }
 
+/**
+ * Entries older than this are evicted (lazily, at most one sweep per
+ * SWEEP_INTERVAL_MS). Eviction is free correctness-wise: the barrier only
+ * engages when a graph read came back null, which cannot happen for an
+ * apply minutes old — and a missed immediate-resolve merely degrades to
+ * the caller's poll floor. Without it the map grows with every resource
+ * ever signaled (#845 scalability).
+ */
+const APPLIED_TTL_MS = 5 * 60_000;
+const SWEEP_INTERVAL_MS = 60_000;
+
 export function createWeaveProgress(eventBus: EventBus): WeaveProgress {
-  const applied = new Map<string, number>();
+  const applied = new Map<string, { seq: number; at: number }>();
   const waiters = new Set<Waiter>();
   let disposed = false;
+  let lastSweep = Date.now();
 
   const subscription = eventBus.get('weave:applied').subscribe(({ resourceId, sequenceNumber }) => {
+    const now = Date.now();
+    if (now - lastSweep >= SWEEP_INTERVAL_MS) {
+      lastSweep = now;
+      for (const [rid, entry] of applied) {
+        if (now - entry.at >= APPLIED_TTL_MS) applied.delete(rid);
+      }
+    }
+
     // Monotonic fold: a stale lower signal (e.g. redelivery) never
     // regresses the high-water mark.
     const current = applied.get(resourceId);
-    if (current !== undefined && current >= sequenceNumber) return;
-    applied.set(resourceId, sequenceNumber);
+    if (current !== undefined && current.seq >= sequenceNumber) return;
+    applied.set(resourceId, { seq: sequenceNumber, at: now });
 
     for (const waiter of waiters) {
       if (waiter.resourceId === resourceId && sequenceNumber >= waiter.sequenceNumber) {
@@ -71,12 +91,12 @@ export function createWeaveProgress(eventBus: EventBus): WeaveProgress {
   });
 
   return {
-    appliedUpTo: (resourceId) => applied.get(resourceId),
+    appliedUpTo: (resourceId) => applied.get(resourceId)?.seq,
 
     whenApplied: (resourceId, sequenceNumber, timeoutMs) => {
       if (disposed) return Promise.resolve();
 
-      const current = applied.get(resourceId);
+      const current = applied.get(resourceId)?.seq;
       if (current !== undefined && current >= sequenceNumber) return Promise.resolve();
 
       return new Promise<void>((resolve, reject) => {

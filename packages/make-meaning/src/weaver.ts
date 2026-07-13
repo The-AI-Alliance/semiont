@@ -883,9 +883,14 @@ export class Weaver {
   /**
    * Get consumer health metrics.
    */
+  /** Highest applied sequence for a resource, if any — diagnostics/tests. */
+  appliedUpTo(resourceId: string): number | undefined {
+    return this.lastProcessed.get(resourceId);
+  }
+
   getHealthMetrics(): {
     subscriptions: number;
-    lastProcessed: Record<string, number>;
+    resourcesTracked: number;
     pipelineActive: boolean;
     applyFailures: number;
   } {
@@ -893,7 +898,10 @@ export class Weaver {
       // One injected source stream since WEAVER-ISOLATION P2 — channel
       // fan-in (9 channels) lives in WeaverActorStateUnit.
       subscriptions: this.sourceSubscription ? 1 : 0,
-      lastProcessed: Object.fromEntries(this.lastProcessed),
+      // A count, deliberately not the map: serializing every per-resource
+      // sequence made /health an O(resources) payload (#845 scalability).
+      // Per-resource marks are `appliedUpTo()`.
+      resourcesTracked: this.lastProcessed.size,
       pipelineActive: !!this.pipelineSubscription,
       // Running count of applies that failed and were therefore NOT
       // checkpointed (#845) — nonzero means the graph is missing events

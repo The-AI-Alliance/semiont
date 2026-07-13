@@ -819,7 +819,9 @@ describe('Weaver', () => {
 
       expect(metrics.subscriptions).toBe(1); // One injected source stream — channel fan-in (9) lives in WeaverActorStateUnit
       expect(metrics.pipelineActive).toBe(true);
-      expect(typeof metrics.lastProcessed).toBe('object');
+      // A count, deliberately not the map — the full per-resource map made
+      // /health an O(resources) payload (#845 scalability wart).
+      expect(typeof metrics.resourcesTracked).toBe('number');
     });
   });
 
@@ -1157,9 +1159,8 @@ describe('Weaver', () => {
       await tick();
       signalSub.unsubscribe();
 
-      const metrics = consumer.getHealthMetrics();
-      expect(metrics.lastProcessed[rid]).toBeUndefined();
-      expect(metrics.applyFailures).toBeGreaterThanOrEqual(1);
+      expect(consumer.appliedUpTo(rid)).toBeUndefined();
+      expect(consumer.getHealthMetrics().applyFailures).toBeGreaterThanOrEqual(1);
       expect(signals).not.toContain(rid);
     });
 
@@ -1178,7 +1179,7 @@ describe('Weaver', () => {
         payload: { name: 'Batch Base', format: 'text/plain', contentChecksum: 'h-ab' },
       });
       await tick();
-      const seqAfterCreate = consumer.getHealthMetrics().lastProcessed[rid];
+      const seqAfterCreate = consumer.appliedUpTo(rid);
       expect(seqAfterCreate).toBeDefined();
 
       vi.spyOn(graphDb, 'createAnnotations').mockRejectedValueOnce(new Error('neo4j hiccup'));
@@ -1202,7 +1203,7 @@ describe('Weaver', () => {
       // The passthrough single advanced to 2 (honest); the batched run
       // failed — the checkpoint must stop THERE, never skipping to 4, so
       // catch-up revisits the dropped events.
-      expect(consumer.getHealthMetrics().lastProcessed[rid]).toBe(2);
+      expect(consumer.appliedUpTo(rid)).toBe(2);
     });
 
     it('weave:rebuild replies FAILED, not ok, when applies dropped events', async () => {
