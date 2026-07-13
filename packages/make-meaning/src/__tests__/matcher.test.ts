@@ -461,6 +461,44 @@ describe('Matcher', () => {
       const result = await resultPromise;
       const lagging = result!.response.find((r: any) => r.name === 'Lagging Endpoint');
       expect(lagging).toBeDefined();
+      // L4 breadcrumb — degradation observable, never silent.
+      expect(mockLogger.info).toHaveBeenCalledWith('[graph lag] neighborhood candidates hydrated from view', { count: 1 });
+    });
+
+    it('hydrates a graph-lagging semantic candidate from the view instead of dropping it', async () => {
+      // Post-GREEN pin (added after the "is this done?" review — the code
+      // path was fixed alongside the neighborhood loop; this pins it
+      // independently rather than by call-shape similarity).
+      const localBus = new EventBus();
+      const viewGet = vi.fn().mockImplementation((id: unknown) =>
+        String(id) === 'res-sem'
+          ? Promise.resolve({ resource: { '@id': 'res-sem', name: 'Semantic Lag', dateCreated: '2026-07-13T00:00:00Z' }, annotations: {} })
+          : Promise.resolve(null),
+      );
+      const kbLocal = createMockKb({ viewsGet: viewGet });
+      (kbLocal as any).vectors = {
+        searchResources: vi.fn().mockResolvedValue([{ resourceId: 'res-sem', score: 0.9 }]),
+      };
+      const embeddingProvider = { embed: vi.fn().mockResolvedValue([0.1, 0.2]) } as any;
+      const localMatcher = new Matcher(kbLocal, localBus, mockLogger, noopInference, embeddingProvider);
+      await localMatcher.initialize();
+
+      try {
+        const resultPromise = localBus.get('match:search-results').pipe(take(1)).toPromise();
+        localBus.get('match:search-requested').next({
+          resourceId: 'test-resource',
+          correlationId: 'corr-sem-lag',
+          referenceId: 'ref-sem-lag',
+          context: makeContext({ selected: { before: '', text: 'something', after: '' } }),
+        });
+
+        const result = await resultPromise;
+        expect(result!.response.find((r: any) => r.name === 'Semantic Lag')).toBeDefined();
+        expect(mockLogger.info).toHaveBeenCalledWith('[graph lag] semantic candidates hydrated from view', { count: 1 });
+      } finally {
+        await localMatcher.stop();
+        localBus.destroy();
+      }
     });
 
     it('counts missing-view citers in citedByCount (P4 (ii)=A delta)', async () => {

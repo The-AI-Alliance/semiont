@@ -370,6 +370,9 @@ describe('Browser actor', () => {
 
       expect(result.response.referencedBy).toHaveLength(1);
       expect(result.response.referencedBy[0].resourceName).toBe('Greek Myths');
+      // L4: degradation is observable, never silent — the breadcrumb is
+      // part of the contract, not decoration.
+      expect(mockLogger.info).toHaveBeenCalledWith('[graph lag] citer hydrated from view', { resourceId: DOC_B_URI });
     });
 
     it('a citer neither projection knows still renders the Untitled fallback', async () => {
