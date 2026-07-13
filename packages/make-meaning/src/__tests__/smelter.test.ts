@@ -30,6 +30,7 @@ import {
   mockLogger,
   deterministicEmbed,
   createMockEmbeddingProvider,
+  makeAnnotation,
   annotationEvent,
   resourceDescriptor,
   createMockContentTransport,
@@ -209,6 +210,107 @@ describe('Smelter', () => {
   });
 });
 
+describe('Smelter mark:unarchived', () => {
+  // bugs/smelter-misses-unarchive.md — the live path must agree with what a
+  // restart's reconcile() would rebuild: unarchive restores the resource's
+  // vectors AND its current exact-text annotations' vectors.
+  it('re-embeds the resource and its current annotations after archive→unarchive', async () => {
+    const events$ = new Subject<SmelterEvent>();
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const text = 'Content that survives an archive cycle.';
+    const contentByResourceId = new Map([['res-cycle', text]]);
+    const smelter = new Smelter(
+      events$,
+      vectorStore,
+      embeddingProvider,
+      createMockContentTransport(contentByResourceId),
+      createFakeKsBus(
+        [resourceDescriptor('res-cycle', 'text/plain', calculateChecksum(text))],
+        new Map([['res-cycle', [makeAnnotation('res-cycle', 'ann-cycle', 'exact text that returns')]]]),
+      ),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    try {
+      events$.next({ type: 'yield:created', resourceId: 'res-cycle', payload: {} });
+      events$.next(annotationEvent('res-cycle', 'ann-cycle', 'exact text that returns'));
+      await tick();
+      expect((await vectorStore.listResourceStamps()).has('res-cycle')).toBe(true);
+      expect((await vectorStore.listAnnotationIds()).has('ann-cycle')).toBe(true);
+
+      // Archive deletes both — pins existing behavior.
+      events$.next({ type: 'mark:archived', resourceId: 'res-cycle', payload: {} });
+      await tick();
+      expect((await vectorStore.listResourceStamps()).has('res-cycle')).toBe(false);
+      expect((await vectorStore.listAnnotationIds()).has('ann-cycle')).toBe(false);
+
+      // Unarchive must bring both back without waiting for a restart.
+      events$.next({ type: 'mark:unarchived', resourceId: 'res-cycle', payload: {} });
+      await tick();
+      expect((await vectorStore.listResourceStamps()).has('res-cycle')).toBe(true);
+      expect((await vectorStore.listAnnotationIds()).has('ann-cycle')).toBe(true);
+    } finally {
+      smelter.stop();
+    }
+  });
+});
+
+describe('Smelter entity-tag stamps', () => {
+  // bugs/smelter-stale-entity-type-stamps.md — tag edits must reach the
+  // vector stamps without re-embedding: the stamp is the discriminator
+  // `searchResources` filters on (EXCLUDE-VECTORS), and embedding calls are
+  // the expensive external resource a tag edit must never trigger.
+  it('updates the entityTypes stamp on mark:entity-tag-added / -removed without re-embedding', async () => {
+    const events$ = new Subject<SmelterEvent>();
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const text = 'Tagged content to restamp.';
+    const descriptor = resourceDescriptor('res-tags', 'text/plain', calculateChecksum(text));
+    const smelter = new Smelter(
+      events$,
+      vectorStore,
+      embeddingProvider,
+      createMockContentTransport(new Map([['res-tags', text]])),
+      createFakeKsBus([descriptor]),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    try {
+      events$.next({ type: 'yield:created', resourceId: 'res-tags', payload: {} });
+      await tick();
+      const queryVec = deterministicEmbed(text);
+      expect((await vectorStore.searchResources(queryVec, { limit: 5 })).length).toBeGreaterThan(0);
+      const embedCallsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+      // The catalog moves on: the resource is tagged Question…
+      descriptor.entityTypes = ['Question'];
+      events$.next({ type: 'mark:entity-tag-added', resourceId: 'res-tags', payload: { entityType: 'Question' } });
+      await tick();
+
+      // …and the stamp must follow: question-exclusion recall drops it,
+      expect(await vectorStore.searchResources(queryVec, { limit: 5, filter: { excludeEntityTypes: ['Question'] } })).toEqual([]);
+      // without an embedding call (restamp ≠ re-embed).
+      expect((embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(embedCallsAfterCreate);
+
+      // Tag removed: the stamp follows back.
+      descriptor.entityTypes = [];
+      events$.next({ type: 'mark:entity-tag-removed', resourceId: 'res-tags', payload: { entityType: 'Question' } });
+      await tick();
+      expect((await vectorStore.searchResources(queryVec, { limit: 5, filter: { excludeEntityTypes: ['Question'] } })).length).toBeGreaterThan(0);
+      expect((embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(embedCallsAfterCreate);
+    } finally {
+      smelter.stop();
+    }
+  });
+});
+
 describe('Smelter.reconcile', () => {
   let vectorStore: MemoryVectorStore;
   let embeddingProvider: EmbeddingProvider;
@@ -272,6 +374,27 @@ describe('Smelter.reconcile', () => {
     expect(excluded.some((r) => r.resourceId === 'res-q')).toBe(false);
   });
 
+  it('restamps entity types that changed while the worker was down (content unchanged)', async () => {
+    const text = 'Stamped content, tags changed offline.';
+    const checksum = calculateChecksum(text);
+    contentByResourceId.set('res-restamp', text);
+    await vectorStore.upsertResourceVectors(
+      makeResourceId('res-restamp'),
+      [{ chunkIndex: 0, text, embedding: deterministicEmbed(text) }],
+      checksum,
+      ['OldTag'],
+    );
+
+    const smelter = createSmelter([resourceDescriptor('res-restamp', 'text/plain', checksum, ['Question'])]);
+    await smelter.reconcile();
+
+    const queryVec = deterministicEmbed(text);
+    // The stamp must now say Question: question-exclusion recall drops it…
+    expect(await vectorStore.searchResources(queryVec, { limit: 5, filter: { excludeEntityTypes: ['Question'] } })).toEqual([]);
+    // …and content didn't change, so nothing re-embeds (restamp ≠ re-embed).
+    expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
+  });
+
   it('leaves already-indexed resources alone', async () => {
     const text = 'Already indexed.';
     const checksum = calculateChecksum(text);
@@ -303,7 +426,7 @@ describe('Smelter.reconcile', () => {
     const summary = await smelter.reconcile();
 
     expect(summary.resourcesEmbedded).toBe(250);
-    expect((await vectorStore.listResourceChecksums()).size).toBe(250);
+    expect((await vectorStore.listResourceStamps()).size).toBe(250);
   });
 
   it('records failure state when the catalog is unreachable', async () => {

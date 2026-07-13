@@ -18,7 +18,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { EventBus as EventBusType, Logger, components } from '@semiont/core';
+import type { EventBus as EventBusType, EventMap, Logger } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { WorkingTreeStore, calculateChecksum } from '@semiont/content';
@@ -153,7 +153,9 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
   });
 
   it('serves the JSON-LD description at /resources/:id/jsonld', async () => {
-    const graph: components['schemas']['GetResourceResponse'] = {
+    // The branded reply flavor the protocol declares (bus-protocol.ts) — the
+    // fixture's ids are built with the real constructors, so it satisfies it.
+    const graph: EventMap['browse:resource-result']['response'] = {
       resource: {
         '@context': 'https://schema.org',
         '@id': makeResourceId('res-pipe-graph'),
