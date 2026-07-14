@@ -96,7 +96,7 @@
     "@testing-library/react": "^16.1.0",
     "@types/react": "^19.2.16",
     "@types/react-dom": "^19",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.10",
     "autoprefixer": "^10.5.2",
     "axe-core": "^4.12.1",
     "cssnano": "^8.0.2",

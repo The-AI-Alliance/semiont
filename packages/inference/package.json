@@ -32,7 +32,7 @@
     "@semiont/observability": "*"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.10",
     "rollup": "^4.61.0",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",

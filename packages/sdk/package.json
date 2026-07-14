@@ -39,12 +39,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/http-transport": "*",
     "@semiont/core": "*",
+    "@semiont/http-transport": "*",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.10",
     "fast-check": "^4.8.0",
     "rollup": "^4.61.0",
     "rollup-plugin-dts": "^6.4.1",
