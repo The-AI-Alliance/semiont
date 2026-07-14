@@ -314,7 +314,7 @@ export const BrowseView = memo(function BrowseView({
       />
       )}
       <div ref={containerRef} className="semiont-browse-view__content" onClick={handleContentClick}>
-        <Renderer content={content} mimeType={mimeType} resourceUri={resourceUri} annotations={allAnnotations} />
+        <Renderer content={content} mimeType={mimeType} resourceUri={resourceUri} annotations={allAnnotations} session={session} />
       </div>
     </div>
   );

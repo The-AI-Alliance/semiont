@@ -4,7 +4,8 @@ import { lazy, Suspense, memo, type ComponentType } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Annotation } from '@semiont/core';
-import { ImageViewer } from '../viewers';
+import type { SemiontSession } from '@semiont/sdk';
+import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
 
 // Lazy-load the PDF component to avoid SSR issues with browser PDF.js loading.
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
@@ -19,6 +20,13 @@ export interface MediaRendererProps {
   mimeType: string;
   resourceUri: string;
   annotations: Annotation[];
+  /**
+   * Session for interaction routing inside annotation-bearing renderers — the
+   * canvases emit clicks/hover via `session.client.browse/beckon`. Absent/null
+   * → the annotations still PAINT, but are inert (paint-only). Threaded by
+   * BrowseView's dispatch; custom renderers may ignore it.
+   */
+  session?: SemiontSession | null;
 }
 
 /** Read-only media dispatch, keyed by the registry render mode. */
@@ -33,11 +41,24 @@ export function TextBrowseRenderer({ content }: MediaRendererProps) {
   return <MemoizedMarkdown content={content} />;
 }
 
-export function ImageBrowseRenderer({ content, mimeType }: MediaRendererProps) {
-  return <ImageViewer imageUrl={content} mimeType={mimeType} alt="Resource content" />;
+export function ImageBrowseRenderer({ content, resourceUri, annotations, session }: MediaRendererProps) {
+  // The annotate-mode canvas, read-only (drawingMode=null): paints SvgSelector
+  // shapes over the image and routes click/hover via the session — the same
+  // shapes browse mode silently dropped when this was a bare ImageViewer
+  // (bugs/image-browse-renderer-drops-annotations.md).
+  return (
+    <SvgDrawingCanvas
+      imageUrl={content}
+      resourceUri={resourceUri}
+      existingAnnotations={annotations}
+      drawingMode={null}
+      selectedMotivation={null}
+      session={session}
+    />
+  );
 }
 
-export function PdfBrowseRenderer({ content, resourceUri, annotations }: MediaRendererProps) {
+export function PdfBrowseRenderer({ content, resourceUri, annotations, session }: MediaRendererProps) {
   return (
     <Suspense fallback={<div className="semiont-browse-view__loading">Loading PDF viewer...</div>}>
       <PdfAnnotationCanvas
@@ -46,6 +67,7 @@ export function PdfBrowseRenderer({ content, resourceUri, annotations }: MediaRe
         existingAnnotations={annotations}
         drawingMode={null}
         selectedMotivation={null}
+        session={session}
       />
     </Suspense>
   );

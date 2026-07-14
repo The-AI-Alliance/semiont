@@ -70,12 +70,8 @@ vi.mock('../../../lib/annotation-registry', () => ({
   },
 }));
 
-// Mock ImageViewer
-vi.mock('../../viewers', () => ({
-  ImageViewer: ({ resourceUri }: { resourceUri: string }) => (
-    <img data-testid="image-viewer" src={resourceUri} alt="Resource content" />
-  ),
-}));
+// Image browse renders the read-only SvgDrawingCanvas (real component — jsdom
+// renders its container fine; shape painting is covered by the dispatch spec).
 
 // Mock AnnotateToolbar
 vi.mock('../../annotation/AnnotateToolbar', () => ({
@@ -224,10 +220,12 @@ describe('BrowseView Component', () => {
       expect(screen.getByTestId('annotate-toolbar')).toBeInTheDocument();
     });
 
-    it('should render image viewer for image mime types', () => {
-      renderWithProviders(<BrowseView {...defaultProps} mimeType="image/png" />);
+    it('should render the read-only annotation canvas for image mime types', () => {
+      // Was a bare ImageViewer, which silently dropped the annotations prop
+      // (bugs/image-browse-renderer-drops-annotations.md).
+      const { container } = renderWithProviders(<BrowseView {...defaultProps} mimeType="image/png" />);
 
-      expect(screen.getByTestId('image-viewer')).toBeInTheDocument();
+      expect(container.querySelector('.semiont-svg-drawing-canvas')).toBeInTheDocument();
     });
 
     it('should render unsupported message for unsupported mime types', () => {
