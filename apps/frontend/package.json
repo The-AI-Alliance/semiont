@@ -82,7 +82,7 @@
     "fast-check": "^4.8.0",
     "jest-axe": "^10.0.0",
     "jsdom": "^29.1.1",
-    "msw": "^2.14.6",
+    "msw": "^2.15.0",
     "postcss": "^8.5.16",
     "tailwindcss": "^4.2.1",
     "typescript": "^6.0.2",
