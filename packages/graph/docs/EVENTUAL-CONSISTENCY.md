@@ -29,7 +29,7 @@ The bus is an RxJS subject per event type — publication is fire-and-forget fro
 
 ### Per-Resource Sequential Processing
 
-The GraphDBConsumer (`packages/make-meaning/src/graph/consumer.ts`) subscribes globally and pre-filters events to only the 9 graph-relevant types (`yield:created`, `mark:added`, etc.) before any processing. Irrelevant events (`job.*`, `detection.*`, `generation.*`) are discarded immediately.
+The Weaver (`packages/make-meaning/src/weaver.ts`) subscribes globally and pre-filters events to only the 9 graph-relevant types (`yield:created`, `mark:added`, etc.) before any processing. Irrelevant events (`job.*`, `detection.*`, `generation.*`) are discarded immediately.
 
 Relevant events are piped through an RxJS pipeline with adaptive burst buffering:
 
@@ -261,11 +261,11 @@ The graph can be rebuilt from events to fix any inconsistencies:
 
 ### Single Resource Rebuild
 
-The `GraphDBConsumer` lives in `@semiont/make-meaning` (`packages/make-meaning/src/graph/consumer.ts`) and is created by `createKnowledgeBase`:
+The `Weaver` lives in `@semiont/make-meaning` (`packages/make-meaning/src/weaver.ts`) and is created by `createKnowledgeBase`:
 
 ```typescript
-const { graphConsumer } = await createKnowledgeBase(/* ... */);
-await graphConsumer.rebuildResource(resourceId('resource-id-123'));
+const { weaver } = await createKnowledgeBase(/* ... */);
+await weaver.rebuildResource(resourceId('resource-id-123'));
 ```
 
 ### Full Graph Rebuild
@@ -288,7 +288,7 @@ The graph is one of three derived read models in the Semiont knowledge base. Eac
 
 | Derived store | Rebuild method | Owned by |
 |---|---|---|
-| Graph (Neo4j) | `GraphDBConsumer.rebuildAll()` | `@semiont/make-meaning` |
+| Graph (Neo4j) | `Weaver.rebuildAll()` | `@semiont/make-meaning` |
 | Vectors (Qdrant) | `Smelter.rebuildAll()` | `@semiont/make-meaning` |
 | Materialized views | `ViewManager.rebuildAll(eventLog)` | `@semiont/event-sourcing` |
 

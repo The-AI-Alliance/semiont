@@ -109,6 +109,29 @@ export interface GenerationParams {
    * generation coverage is text-only for now and the gap is surfaced, not hidden.
    */
   outputMediaType?: SupportedMediaType;
+  /**
+   * What the model is asked to DO — the prompt's framing verb. Canonical values map
+   * to tested framings; any other string is used verbatim as the framing instruction
+   * (loud degrade: the worker warns, never silently falls back to 'resource').
+   * Default 'resource'. See .plans/YIELD-STRUCTURE.md.
+   */
+  task?: 'resource' | 'answer' | 'summary' | (string & {});
+  /**
+   * How the output is internally segmented — text-bearing shape, subordinate to
+   * `outputMediaType` (never its peer). Canonical values map to tested guidance; any
+   * other string becomes a freeform "Organize the output as: …" instruction (loud
+   * degrade). UNSET means NO structure directive is emitted — the task framing and
+   * the model determine shape. See .plans/YIELD-STRUCTURE.md D2/D5.
+   */
+  structure?: 'prose' | 'sections' | 'chat' | (string & {});
+  /**
+   * Ask the model to cite: emit `[[<id>]]` transport tokens after each claim, using
+   * the ids the context embedding provides (CONTEXT-IDENTIFIERS). The worker
+   * validates each id against the embedded context (unknown ids are dropped
+   * loudly), strips the tokens from the stored content, and mints W3C linking
+   * annotations on the derived resource. See .plans/INLINE-CITATIONS.md.
+   */
+  cite?: boolean;
 }
 
 /**
@@ -196,7 +219,8 @@ export interface DetectionResult {
  * Generation job progress
  */
 export interface YieldProgress {
-  stage: 'fetching' | 'generating' | 'creating' | 'linking';
+  /** The two real generation transitions — LLM call running, then persisting. */
+  stage: 'generating' | 'creating';
   percentage: number;
   message?: string;
 }

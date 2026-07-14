@@ -137,7 +137,7 @@ async function createKnowledgeSystemFromConfig(
     return { ...event, annotation } as unknown as typeof event;
   });
 
-  const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
+  const stower = new Stower(kb, eventBus, project, logger.child({ component: 'stower' }));
   await stower.initialize();
 
   await bootstrapEntityTypes(eventBus, eventStore, logger.child({ component: 'entity-types-bootstrap' }));
@@ -158,7 +158,7 @@ async function createKnowledgeSystemFromConfig(
   );
   await matcher.initialize();
 
-  const browser = new Browser(kb.views, kb, eventBus, project, logger.child({ component: 'browser' }));
+  const browser = new Browser(kb.views, kb, eventBus, project, config, logger.child({ component: 'browser' }));
   await browser.initialize();
 
   const cloneTokenManager = new CloneTokenManager(kb, eventBus, logger.child({ component: 'clone-token-manager' }));

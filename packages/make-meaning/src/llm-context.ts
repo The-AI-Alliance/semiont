@@ -9,12 +9,23 @@ import { ResourceContext } from './resource-context';
 import { GraphContext } from './graph-context';
 import { generateResourceSummary, generateReferenceSuggestions } from './generation/resource-generation';
 import type { InferenceClient } from '@semiont/inference';
-import { getResourceEntityTypes, getResourceId } from '@semiont/core';
-import { resourceId as makeResourceId, type ResourceId } from '@semiont/core';
+import { getPrimaryRepresentation, getResourceEntityTypes, getResourceId } from '@semiont/core';
+import { resourceId as makeResourceId, type Logger, type ResourceId } from '@semiont/core';
 import type { GatheredContext } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
+import { SmeltProgressTimeout } from './smelt-progress';
 
 import type { ResourceDescriptor } from '@semiont/core';
+
+/**
+ * Bound on the semanticContext read-your-writes barrier (SMELTER-INDEX-SYNC
+ * D3/A4): generous in embedding terms — an external model call plus queue
+ * depth behind other work items — while nesting well inside consumer budgets
+ * (my-chat's 90s generation stall watchdog). A named constant, not a caller
+ * option, until a consumer hits the wall (the CONTEXT-IDENTIFIERS D4
+ * discipline).
+ */
+export const SMELT_SETTLE_TIMEOUT_MS = 15_000;
 
 export interface LLMContextOptions {
   depth: number;
@@ -37,7 +48,8 @@ export class LLMContext {
     resourceId: ResourceId,
     options: LLMContextOptions,
     kb: KnowledgeBase,
-    inferenceClient: InferenceClient
+    inferenceClient: InferenceClient,
+    logger: Logger,
   ): Promise<GatheredContext> {
     // Get main resource from view storage
     const mainDoc = await ResourceContext.getResourceMetadata(resourceId, kb);
@@ -104,14 +116,45 @@ export class LLMContext {
     // Semantic recall over the resource's OWN already-indexed vectors (no
     // re-embedding), excluding caller-supplied entity types. The applied filter
     // is recorded on semanticContext as build provenance. EXCLUDE-VECTORS Phase 2b.
+    //
+    // Read-your-writes barrier (SMELTER-INDEX-SYNC P2): probe first (A3) —
+    // an empty result is ambiguous (pending? never-embeddable?) — then wait
+    // for the Smelter's settled decision at exactly this content generation
+    // (D2) before concluding. Scoped to this slice alone: nothing else in
+    // the gather ever waits (D3). Timeout degrades to absent plus exactly
+    // one L4 breadcrumb; a `skipped` decision resolves immediately (D4).
     let semanticContext: GatheredContext['semanticContext'];
-    if (kb.vectors) {
+    const vectors = kb.vectors;
+    if (vectors) {
       const excludeEntityTypes = options.excludeEntityTypes ?? [];
-      const matches = await kb.vectors.searchByResource(resourceId, {
-        limit: options.maxResources,
-        scoreThreshold: 0.5,
-        ...(excludeEntityTypes.length ? { filter: { excludeEntityTypes } } : {}),
-      });
+      const search = () =>
+        vectors.searchByResource(resourceId, {
+          limit: options.maxResources,
+          scoreThreshold: 0.5,
+          ...(excludeEntityTypes.length ? { filter: { excludeEntityTypes } } : {}),
+        });
+
+      let matches = await search();
+      if (matches.length === 0) {
+        const contentChecksum = getPrimaryRepresentation(mainDoc)?.checksum;
+        if (contentChecksum) {
+          try {
+            const outcome = await kb.smeltProgress.whenSettled(resourceIdStr, contentChecksum, SMELT_SETTLE_TIMEOUT_MS);
+            if (outcome === 'indexed') {
+              matches = await search();
+            }
+            // 'skipped' | 'inert': legitimately absent — no breadcrumb.
+          } catch (error) {
+            if (!(error instanceof SmeltProgressTimeout)) throw error;
+            logger.warn('[gather DEGRADED] semanticContext absent — the vector projection did not settle within the barrier', {
+              resourceId: resourceIdStr,
+              contentChecksum,
+              timeoutMs: SMELT_SETTLE_TIMEOUT_MS,
+            });
+          }
+        }
+      }
+
       if (matches.length > 0) {
         semanticContext = {
           similar: matches.map((m) => ({

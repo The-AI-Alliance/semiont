@@ -109,12 +109,16 @@ describe('Make-Meaning Service', () => {
       expect(typeof kb.graph.disconnect).toBe('function');
     });
 
-    it('should initialize graph consumer', async () => {
+    it('should initialize WeaveProgress but no in-process Weaver (D4: standalone-only)', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
       const { kb } = service.knowledgeSystem;
 
-      expect(kb.graphConsumer).toBeDefined();
-      expect(typeof kb.graphConsumer.stop).toBe('function');
+      // The graph projection is part of the graph stack, not the embedding
+      // process — the Weaver runs via @semiont/make-meaning/weaver-main.
+      // The backend keeps only the weave:applied fold.
+      expect(kb.weaveProgress).toBeDefined();
+      expect(typeof kb.weaveProgress.whenApplied).toBe('function');
+      expect('weaver' in kb).toBe(false);
     });
 
     it('should return service handle with stop method', async () => {
@@ -142,15 +146,15 @@ describe('Make-Meaning Service', () => {
       service = null;
     });
 
-    it('should stop graph consumer on service stop', async () => {
+    it('should dispose WeaveProgress on service stop', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
       const { kb } = service.knowledgeSystem;
 
-      const consumerStopSpy = vi.spyOn(kb.graphConsumer, 'stop');
+      const disposeSpy = vi.spyOn(kb.weaveProgress, 'dispose');
 
       await service.stop();
 
-      expect(consumerStopSpy).toHaveBeenCalled();
+      expect(disposeSpy).toHaveBeenCalled();
 
       service = null;
     });
@@ -179,7 +183,7 @@ describe('Make-Meaning Service', () => {
       expect(service).toBeDefined();
       expect(kb.eventStore).toBeDefined();
       expect(kb.graph).toBeDefined();
-      expect(kb.graphConsumer).toBeDefined();
+      expect(kb.weaveProgress).toBeDefined();
     });
 
     it('should allow multiple service instances with different directories', async () => {

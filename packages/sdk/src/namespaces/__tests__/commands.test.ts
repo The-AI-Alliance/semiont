@@ -619,6 +619,77 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
+  it('fromResource({ task, structure }) carries both into job:create params (YIELD-STRUCTURE P2)', () => {
+    // The Q&A recipe the plan exists for: task frames the ask, structure
+    // forces the shape. The worker's template branches on both (P1).
+    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, task: 'answer', structure: 'prose' }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
+        params: expect.objectContaining({ task: 'answer', structure: 'prose' }),
+      }));
+      resolve();
+    }, 20));
+  });
+
+  it('fromAnnotation({ task, structure }) carries both — including an open-union custom string (D1)', () => {
+    // structure 'chat' is the third canonical; task exercises the
+    // (string & {}) escape hatch — the SDK must pass it through verbatim.
+    yld.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, task: 'translate to French', structure: 'chat' }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
+        params: expect.objectContaining({ task: 'translate to French', structure: 'chat' }),
+      }));
+      resolve();
+    }, 20));
+  });
+
+  it('unset task/structure reach job:create as undefined — the SDK invents no defaults (D2 pin)', () => {
+    // D2: unset structure ⇒ the worker emits NO structure directive. That
+    // only holds if the SDK leaves the fields untouched (undefined keys
+    // vanish at JSON serialization on the wire).
+    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      const call = emitSpy.mock.calls.find((c: unknown[]) => c[0] === 'job:create');
+      const params = (call![1] as { params: Record<string, unknown> }).params;
+      expect(params.task).toBeUndefined();
+      expect(params.structure).toBeUndefined();
+      resolve();
+    }, 20));
+  });
+
+  it('fromResource({ cite: true }) carries cite into job:create params (INLINE-CITATIONS P2)', () => {
+    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, cite: true }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
+        params: expect.objectContaining({ cite: true }),
+      }));
+      resolve();
+    }, 20));
+  });
+
+  it('fromAnnotation({ cite: true }) carries cite into job:create params', () => {
+    yld.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, cite: true }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
+        params: expect.objectContaining({ cite: true }),
+      }));
+      resolve();
+    }, 20));
+  });
+
+  it('unset cite reaches job:create as undefined — the resolver gates on presence', () => {
+    // The worker parses/strips [[..]] tokens ONLY when cite is set: double-
+    // bracketed text is legitimate content otherwise. An SDK-invented
+    // default would corrupt non-citing generations.
+    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      const call = emitSpy.mock.calls.find((c: unknown[]) => c[0] === 'job:create');
+      const params = (call![1] as { params: Record<string, unknown> }).params;
+      expect(params.cite).toBeUndefined();
+      resolve();
+    }, 20));
+  });
+
   it('fromAnnotation({ entityTypes }) carries entityTypes through into job:create params', () => {
     // Regression — see .plans/ENTITY-TYPES-GAP.md. Before the fix the
     // SDK silently dropped entityTypes between the GenerationOptions

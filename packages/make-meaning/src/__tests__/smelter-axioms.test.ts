@@ -10,7 +10,8 @@
  *
  * Current ledger: all GREEN. (S9b flipped by R2; S1 and S2 flipped by R3 —
  * reconcile became a planner whose work items flow through the mailbox;
- * S12 flipped by R5 — checksum-stamped vectors + staleness diff.)
+ * S12 flipped by R5 — checksum-stamped vectors + staleness diff; S13 flipped
+ * by R6 — payload-only tag restamps, live and via the reconcile tag diff.)
  */
 
 import { describe, it, expect } from 'vitest';
@@ -91,6 +92,8 @@ interface CatalogEntry {
   mediaType: string;
   text: string;
   annotations: { aid: string; exact: string }[];
+  /** Catalog entity types — the discriminator the stamps must track (S13). */
+  entityTypes?: string[];
 }
 
 function toCatalog(raw: { rid: string; mediaType: string; text: string; exacts: string[] }[]): CatalogEntry[] {
@@ -122,7 +125,7 @@ function eventArbFor(catalog: CatalogEntry[]): fc.Arbitrary<SmelterEvent> {
       entry: fc.constantFrom(...catalog),
       kind: fc.constantFrom(
         'yield:created', 'yield:updated', 'yield:representation-added',
-        'mark:archived', 'mark:added', 'mark:removed',
+        'mark:archived', 'mark:unarchived', 'mark:added', 'mark:removed',
       ),
       annIdx: fc.nat(2),
     })
@@ -171,6 +174,15 @@ function modelFold(catalog: CatalogEntry[], seq: SmelterEvent[]): ModelIds {
         for (const [aid, anchor] of anchorOf) if (anchor === rid) annotations.delete(aid);
         break;
       }
+      case 'mark:unarchived': {
+        const entry = byRid.get(rid);
+        if (!entry) break;
+        if (embeds(entry.mediaType)) resources.add(rid);
+        // The handler restores the CURRENT catalog annotations — including
+        // any previously removed; the catalog is the authority on unarchive.
+        for (const a of entry.annotations) annotations.add(a.aid);
+        break;
+      }
       case 'mark:added': {
         const annotation = ev.payload.annotation as { id?: string } | undefined;
         if (annotation?.id) annotations.add(annotation.id);
@@ -207,6 +219,7 @@ interface InstrumentState {
 function instrument(inner: MemoryVectorStore, state: InstrumentState): MemoryVectorStore {
   const keyOf = new Map<PropertyKey, (args: unknown[]) => string>([
     ['upsertResourceVectors', (a) => String(a[0])],
+    ['updateResourceEntityTypes', (a) => String(a[0])],
     ['deleteResourceVectors', (a) => String(a[0])],
     ['upsertAnnotationVector', (a) => String((a[2] as AnnotationPayload).resourceId)],
     ['deleteAnnotationVector', (a) => state.aidAnchor.get(String(a[0])) ?? String(a[0])],
@@ -253,6 +266,8 @@ interface Harness {
   upsertCounts: Map<string, number>;
   setText: (rid: string, text: string) => void;
   ids: () => Promise<ModelIds>;
+  /** Latest `smelt:settled` signal per resource, as emitted on the bus (S14). */
+  settledSignals: () => Map<string, { contentChecksum: string; outcome: string }>;
   settle: () => Promise<void>;
   stop: () => void;
 }
@@ -286,7 +301,7 @@ async function makeHarness(opts: {
     wrap: opts.schedule ? (p, label) => opts.schedule!.schedule(p, label) : undefined,
   });
   const bus = createFakeKsBus(
-    opts.catalog.map((e) => resourceDescriptor(e.rid, e.mediaType, calculateChecksum(e.text))),
+    opts.catalog.map((e) => resourceDescriptor(e.rid, e.mediaType, calculateChecksum(e.text), e.entityTypes ?? [])),
     new Map(opts.catalog.map((e) => [e.rid, e.annotations.map((a) => makeAnnotation(e.rid, a.aid, a.exact))])),
   );
 
@@ -306,9 +321,20 @@ async function makeHarness(opts: {
       entries.set(rid, { text, mediaType: entry?.mediaType ?? 'text/plain' });
     },
     ids: async () => ({
-      resources: [...(await inner.listResourceChecksums()).keys()].sort(),
+      resources: [...(await inner.listResourceStamps()).keys()].sort(),
       annotations: [...(await inner.listAnnotationIds())].sort(),
     }),
+    settledSignals: () => {
+      const latest = new Map<string, { contentChecksum: string; outcome: string }>();
+      for (const e of bus.emitted) {
+        if (e.channel !== 'smelt:settled') continue;
+        latest.set(String(e.payload.resourceId), {
+          contentChecksum: String(e.payload.contentChecksum),
+          outcome: String(e.payload.outcome),
+        });
+      }
+      return latest;
+    },
     settle: async (quietMs = 30, maxMs = 5000) => {
       const t0 = Date.now();
       for (;;) {
@@ -679,6 +705,92 @@ describe('Smelter axioms', () => {
         },
       ),
       { numRuns: 20 },
+    );
+  }, 30_000);
+
+  // S13 (FOPL): ∀ K, ∀ tag histories, after reconcile with no concurrent
+  // traffic, ∀ r ∈ K with gate(media(r)) ∧ r indexed:
+  //   stampTypes(S*, r) = entityTypes(r, K)
+  // — and stamp updates never invoke the embedding provider (restamp ≠
+  // re-embed). S12's sibling: tag edits change no bytes, so the checksum
+  // diff alone is blind to them.
+  it('S13: reconcile restamps tag drift without re-embedding', async () => {
+    const TAG_SETS: string[][] = [[], ['Question'], ['Person'], ['Question', 'Person']];
+    await fc.assert(
+      fc.asyncProperty(
+        nonEmptyTextCatalogArb,
+        fc.array(fc.constantFrom(...TAG_SETS), { minLength: 4, maxLength: 4 }),
+        async (catalog, newTagSets) => {
+          // Phase 1 — the worker indexes an untagged catalog, then "goes down".
+          const store = new MemoryVectorStore();
+          await store.connect();
+          const h1 = await makeHarness({ catalog, store });
+          try {
+            for (const e of catalog) h1.events$.next({ type: 'yield:created', resourceId: e.rid, payload: {} });
+            await h1.settle();
+          } finally {
+            h1.stop();
+          }
+
+          // Downtime — tags move on; content does not.
+          const catalog2 = catalog.map((e, i) => ({ ...e, entityTypes: newTagSets[i] ?? [] }));
+
+          // Phase 2 — restart: reconcile against the retagged catalog.
+          const h2 = await makeHarness({ catalog: catalog2, store });
+          try {
+            await h2.smelter.reconcile();
+            const stamps = await store.listResourceStamps();
+            for (const e of catalog2) {
+              expect([...(stamps.get(e.rid)?.entityTypes ?? [])].sort())
+                .toEqual([...(e.entityTypes ?? [])].sort());
+              // Content unchanged ⇒ zero re-embeds; the heal is payload-only.
+              expect(h2.upsertCounts.get(e.rid) ?? 0).toBe(0);
+            }
+          } finally {
+            h2.stop();
+          }
+        },
+      ),
+      { numRuns: 20 },
+    );
+  }, 30_000);
+
+  // S14 (FOPL): ∀ K, ∀ reachable r ∈ K delivered a create:
+  //   ∃! latest settled(r, checksum(r,K), outcome) ∧
+  //   outcome = indexed ⇔ gate(media(r)) ∧ text(r) non-empty, else skipped;
+  //   ∀ unreachable r (transient read failure): ∄ settled(r, ·) — an error
+  //   is not a decision (SMELTER-INDEX-SYNC A2). The projection always
+  //   states its decision; absence means only "not yet" or "failed".
+  it('S14: every decision is announced — settled(indexed|skipped) per (rid, checksum); never on failures', async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        catalogArb.filter((c) => c.length > 0).chain((catalog) =>
+          fc.tuple(fc.constant(catalog), fc.subarray(catalog.map((e) => e.rid))),
+        ),
+        async ([catalog, failed]) => {
+          const failRids = new Set(failed);
+          const h = await makeHarness({ catalog, failRids });
+          try {
+            for (const e of catalog) h.events$.next({ type: 'yield:created', resourceId: e.rid, payload: {} });
+            await h.settle();
+
+            const signals = h.settledSignals();
+            for (const e of catalog) {
+              if (failRids.has(e.rid)) {
+                expect(signals.has(e.rid)).toBe(false);
+                continue;
+              }
+              expect(signals.get(e.rid)).toEqual({
+                contentChecksum: calculateChecksum(e.text),
+                outcome: embeds(e.mediaType) ? 'indexed' : 'skipped',
+              });
+            }
+          } finally {
+            h.stop();
+          }
+        },
+      ),
+      { numRuns: 25 },
     );
   }, 30_000);
 });

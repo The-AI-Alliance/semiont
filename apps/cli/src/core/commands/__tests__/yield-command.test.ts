@@ -294,6 +294,13 @@ describe('runYield', () => {
       await expect(runYield(makeDelegateOptions({ outputMediaType: 'text/markdwn' })))
         .rejects.toThrow(/text\/markdwn/);
     });
+
+    it('passes task/structure through to yield.fromAnnotation (open-string task, canonical chat)', async () => {
+      await runYield(makeDelegateOptions({ task: 'translate to French', structure: 'chat' }));
+      const [, , opts] = mockYield.fromAnnotation.mock.calls[0];
+      expect(opts.task).toBe('translate to French');
+      expect(opts.structure).toBe('chat');
+    });
   });
 
   describe('delegate mode — resource-anchored', () => {
@@ -344,6 +351,20 @@ describe('runYield', () => {
       mockYield.fromResource.mockReset();
       mockYield.fromResource.mockReturnValueOnce(throwError(() => new Error('Derive failed')));
       await expect(runYield(makeResourceDelegateOptions())).rejects.toThrow('Derive failed');
+    });
+
+    it('passes task/structure through to yield.fromResource (the Q&A recipe)', async () => {
+      await runYield(makeResourceDelegateOptions({ task: 'answer', structure: 'prose' }));
+      const [, opts] = mockYield.fromResource.mock.calls[0];
+      expect(opts.task).toBe('answer');
+      expect(opts.structure).toBe('prose');
+    });
+
+    it('leaves task/structure undefined when the flags are unset (D2: no CLI defaults)', async () => {
+      await runYield(makeResourceDelegateOptions());
+      const [, opts] = mockYield.fromResource.mock.calls[0];
+      expect(opts.task).toBeUndefined();
+      expect(opts.structure).toBeUndefined();
     });
   });
 });

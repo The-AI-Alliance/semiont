@@ -39,6 +39,11 @@ echo "🎛️  Checking toolbar-pref storage stays in useToolbarPrefs()..."
 bash "$COMPLIANCE_DIR/audit-toolbar-pref-storage.sh"
 echo ""
 
+# Weaver structural invariants (WEAVER-AXIOMS.md G1–G5)
+echo "🕸️  Checking Weaver invariants (no event-store/fs, standalone-only, single mark/signal writer, channel↔fold sync)..."
+bash "$COMPLIANCE_DIR/audit-weaver-invariants.sh"
+echo ""
+
 # React-UI source code
 echo "📦 Auditing packages/react-ui source..."
 cd "$REPO_ROOT/packages/react-ui"

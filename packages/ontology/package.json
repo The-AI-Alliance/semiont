@@ -1,6 +1,6 @@
 {
   "name": "@semiont/ontology",
-  "version": "0.5.11",
+  "version": "0.5.12",
   "engines": {
     "node": ">=24.0.0"
   },
@@ -35,7 +35,7 @@
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   },
   "publishConfig": {
     "access": "public"

@@ -76,7 +76,7 @@ describe('ViewManager', () => {
         metadata: createEventMetadata(1),
       }]);
 
-      await manager.materializeResource(rid, event, getAllEvents);
+      await manager.materializeResource(rid, { ...event, metadata: createEventMetadata(1) }, getAllEvents);
 
       // Should call save on view storage
       expect(mockViewStorage.save).toHaveBeenCalled();
@@ -123,7 +123,7 @@ describe('ViewManager', () => {
         },
       ] as any);
 
-      await manager.materializeResource(rid, event, getAllEvents);
+      await manager.materializeResource(rid, { ...event, metadata: createEventMetadata(2) }, getAllEvents);
 
       expect(getAllEvents).toHaveBeenCalled();
       expect(mockViewStorage.save).toHaveBeenCalled();
@@ -246,9 +246,10 @@ describe('ViewManager', () => {
       // Spy on materializer method
       const materializeIncrementalSpy = vi.spyOn(manager.materializer, 'materializeIncremental');
 
-      await manager.materializeResource(rid, event, getAllEvents);
+      const storedEvent = { ...event, metadata: createEventMetadata(1) };
+      await manager.materializeResource(rid, storedEvent, getAllEvents);
 
-      expect(materializeIncrementalSpy).toHaveBeenCalledWith(rid, event, getAllEvents);
+      expect(materializeIncrementalSpy).toHaveBeenCalledWith(rid, storedEvent, getAllEvents);
     });
 
     it('should delegate to materializer for entity types', async () => {
@@ -280,6 +281,7 @@ describe('ViewManager', () => {
         format: 'text/plain' as const,
         contentChecksum: 'cs',
       },
+      metadata: createEventMetadata(1),
     });
 
     it('serializes concurrent calls for the same resource', async () => {

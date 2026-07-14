@@ -12,8 +12,10 @@
  * - cloneTokenManager: token actor — manages resource clone tokens
  *
  * These are the five access actors. Two projection-pipeline actors complete
- * the seven: the Graph Consumer (kb.graphConsumer, started by
- * createKnowledgeBase) and the Smelter (standalone process via smelter-main).
+ * the seven, and BOTH run standalone (D4: the projections are part of their
+ * stores' stacks, not of the embedding process): the Weaver (weaver-main →
+ * graph) and the Smelter (smelter-main → vectors). The backend keeps only
+ * the Weaver's `weave:applied` fold (kb.weaveProgress).
  *
  * EventBus, JobQueue, and workers are peers to KnowledgeSystem, not members.
  */
@@ -41,6 +43,6 @@ export async function stopKnowledgeSystem(ks: KnowledgeSystem): Promise<void> {
   await ks.browser.stop();
   await ks.cloneTokenManager.stop();
   await ks.stower.stop();
-  await ks.kb.graphConsumer.stop();
+  ks.kb.weaveProgress.dispose();
   await ks.kb.graph.disconnect();
 }

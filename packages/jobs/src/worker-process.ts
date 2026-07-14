@@ -328,6 +328,29 @@ async function handleJobInner(
       await emitEvent(session, 'mark:create', { annotation: provenanceRef, userId, resourceId });
     }
 
+    // Inline citations (INLINE-CITATIONS P1): the processor resolved the model's
+    // [[<id>]] transport tokens into claim-span citations against the final
+    // (token-stripped) content. Mint each as a linking annotation ON THE DERIVED
+    // resource — the target anchors the claim span, the body points at the cited
+    // source — so citations are first-class references like any other.
+    for (const citation of genResult.citations) {
+      const { annotation: citationRef } = assembleAnnotation(
+        {
+          motivation: 'linking',
+          target: {
+            source: String(newResourceId),
+            selector: [
+              { type: 'TextPositionSelector', start: citation.start, end: citation.end },
+              { type: 'TextQuoteSelector', exact: citation.exact },
+            ],
+          },
+          body: { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
+        },
+        generator,
+      );
+      await emitEvent(session, 'mark:create', { annotation: citationRef, userId, resourceId: newResourceId });
+    }
+
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result: { resourceId: newResourceId, resourceName: genResult.title } as never,

@@ -92,7 +92,7 @@ if (databaseUrlConstructed) {
 // Create global EventBus for real-time events
 const eventBus = new EventBus();
 
-// Initialize make-meaning service (job queue, workers, graph consumer).
+// Initialize make-meaning service (job queue, workers, Weaver).
 // startMakeMeaning registers all bus command handlers (annotation-assembly,
 // annotation-lookups, bind-update-body, job-commands) on the EventBus —
 // previously those were registered here in the backend. Moved into

@@ -84,7 +84,7 @@ export class ViewMaterializer {
    */
   async materializeIncremental(
     resourceId: ResourceId,
-    event: PersistedEvent,
+    event: StoredEvent,
     getAllEvents: () => Promise<StoredEvent[]>
   ): Promise<void> {
     this.logger?.info('[ViewMaterializer] Updating view for resource with event', { resourceId, eventType: event.type });
@@ -104,6 +104,9 @@ export class ViewMaterializer {
       this.applyEventToAnnotations(view.annotations, event);
       view.annotations.version++;
       view.annotations.updatedAt = event.timestamp;
+      // Parity stamp for the graph-projection barrier (GRAPH-PROJECTION-SYNC).
+      // Monotonic: an out-of-order apply never regresses the stamp.
+      view.lastSequence = Math.max(view.lastSequence ?? 0, event.metadata.sequenceNumber);
     }
 
     // Save updated view
@@ -165,7 +168,12 @@ export class ViewMaterializer {
       annotations.updatedAt = storedEvent.timestamp;
     }
 
-    return { resource, annotations };
+    const view: ResourceView = { resource, annotations };
+    if (events.length > 0) {
+      // Parity stamp for the graph-projection barrier (GRAPH-PROJECTION-SYNC).
+      view.lastSequence = events[events.length - 1].metadata.sequenceNumber;
+    }
+    return view;
   }
 
   /**
@@ -393,7 +401,7 @@ export class ViewMaterializer {
    * Walk every event stream in the event log and materialize the corresponding
    * view from scratch. Idempotent: existing view files are overwritten.
    *
-   * Mirrors GraphDBConsumer.rebuildAll() and Smelter.rebuildAll() — this is the
+   * Mirrors Weaver.rebuildAll() and Smelter.rebuildAll() — this is the
    * recovery path that makes the ephemeral stateDir safe to wipe. The live
    * append path (EventStore.appendEvent → materializeIncremental /
    * materializeEntityTypes / materializeTagSchemas) is unchanged and runs in

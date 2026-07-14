@@ -4,7 +4,7 @@
 
 ## Actor Model
 
-The package owns the **Knowledge Base** and the seven actors that serve it, in two categories: five **access actors** (Stower, Browser, Gatherer, Matcher, CloneTokenManager) mediate every read and write, and two **projection pipelines** (Graph Consumer, Smelter) follow the event log to keep the eventually-consistent read models (graph, vectors) in sync. All communication flows through the **EventBus** — actors subscribe via RxJS pipelines and expose no public business methods: `initialize()` and `stop()`, plus a startup recovery entry point on the pipelines (`rebuildAll()` / `reconcile()`).
+The package owns the **Knowledge Base** and the seven actors that serve it, in two categories: five **access actors** (Stower, Browser, Gatherer, Matcher, CloneTokenManager) mediate every read and write, and two **projection pipelines** (Weaver, Smelter) follow the event log to keep the eventually-consistent read models (graph, vectors) in sync. All communication flows through the **EventBus** — actors subscribe via RxJS pipelines and expose no public business methods: `initialize()` and `stop()`, plus a startup recovery entry point on the pipelines (`rebuildAll()` / `reconcile()`).
 
 The third derived read model — the materialized views — is **not** pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()`, giving bus subscribers a read-your-writes guarantee.
 
@@ -19,7 +19,7 @@ graph TB
     BUS -->|"gather:*"| GATHERER["Gatherer"]
     BUS -->|"match:search-requested"| MATCHER["Matcher"]
     BUS -->|"domain events:<br/>yield:created, yield:updated,<br/>yield:representation-added,<br/>mark:added, mark:removed, mark:archived"| SMELTER["Smelter<br/>(pipeline, standalone process)"]
-    BUS -->|"graph-relevant<br/>domain events"| GC["Graph Consumer<br/>(pipeline)"]
+    BUS -->|"graph-relevant<br/>domain events"| WEAVER["Weaver<br/>(pipeline)"]
     BUS -->|"yield:clone-*"| CTM["CloneTokenManager"]
 
     STOWER -->|append| EVENTLOG
@@ -37,7 +37,7 @@ graph TB
         EVENTLOG -->|"materialize<br/>(sync, on append)"| VIEWS
     end
 
-    GC -->|project| GRAPH
+    WEAVER -->|project| GRAPH
 
     BROWSER -->|query| VIEWS
     BROWSER -->|search| GRAPH
@@ -71,7 +71,7 @@ graph TB
 
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
-    class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,GC,CTM worker
+    class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,WEAVER,CTM worker
     class Routes,Workers,EBC caller
 ```
 
@@ -123,6 +123,7 @@ The read actor for the Knowledge Base. Handles deterministic, fact-based queries
 | `browse:referenced-by-requested` | Graph referenced-by lookup + resource metadata | `browse:referenced-by-result` / `browse:referenced-by-failed` |
 | `browse:entity-types-requested` | `readEntityTypesProjection()` | `browse:entity-types-result` / `browse:entity-types-failed` |
 | `browse:tag-schemas-requested` | Tag-schema projection read | `browse:tag-schemas-result` / `browse:tag-schemas-failed` |
+| `browse:agents-requested` | `deriveAgentRoster()` — the KB's declared software agents from the workers/actors inference config (COLLABORATOR-DIRECTORY) | `browse:agents-result` / `browse:agents-failed` |
 | `browse:directory-requested` | Filesystem directory listing merged with KB metadata | `browse:directory-result` / `browse:directory-failed` |
 
 #### Browse vs Match — when search belongs here vs in the Matcher
@@ -176,30 +177,29 @@ Manages the lifecycle of temporary clone tokens for resource cloning. In-memory 
 | `yield:clone-resource-requested` | Validate token, look up source resource | `yield:clone-resource-result` / `yield:clone-resource-failed` |
 | `yield:clone-create` | Validate token, create resource via `ResourceOperations` | `yield:clone-created` / `yield:clone-create-failed` |
 
-### Graph Consumer (Projection Pipeline)
+### Weaver (Projection Pipeline, standalone process)
 
-**Implementation**: [src/graph/consumer.ts](../src/graph/consumer.ts)
+**Implementation**: [src/weaver.ts](../src/weaver.ts), entry point [src/weaver-main.ts](../src/weaver-main.ts)
 
-The `GraphDBConsumer` subscribes to all domain events and projects graph-relevant events into the graph database. It uses an RxJS pipeline with adaptive burst buffering:
+The Weaver is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/weaver-main`, receiving graph-relevant domain events and `weave:rebuild` commands through the [`WeaverActorStateUnit`](../src/weaver-actor-state-unit.ts) fan-in (the graph projection is part of the graph stack, not the embedding process). It projects the nine graph-relevant event types into the graph database through an RxJS pipeline with adaptive burst buffering:
 
 ```
-EventBus (callback, fire-and-forget)
-  → Pre-filter: 9 graph-relevant event types
-    → Subject<StoredEvent> (callback-to-RxJS bridge)
-      → groupBy(resourceId)        — one stream per resource
-        → burstBuffer(50ms, 500, 200ms) — adaptive batching per resource
-          → concatMap               — sequential per resource
-            → Single event: applyEventToGraph()
-            → Batch: processBatch() → batchCreateResources / createAnnotations
+WeaverActorStateUnit.events$ (9 channels, StoredEvents)
+  → Subject<StoredEvent>
+    → groupBy(resourceId)        — one stream per resource
+      → burstBuffer(50ms, 500, 200ms) — adaptive batching per resource
+        → concatMap               — sequential per resource
+          → Single event: applyEventToGraph()
+          → Batch: processBatch() → batchCreateResources / createAnnotations
 ```
 
-It is carried on the `KnowledgeBase` record (`kb.graphConsumer`) — `createKnowledgeBase()` constructs and starts it, and calls `rebuildAll()` at startup to replay the event log, so a wiped graph volume is recoverable.
+Every apply advances a per-resource high-water mark and emits a `weave:applied` signal; the backend's `WeaveProgress` fold (`kb.weaveProgress`) turns those into the `whenApplied` barrier the gatherer's graph reads use. At startup the Weaver runs a **checkpointed catch-up**: it discovers resources via `browse:resources-requested`, fetches gap events via `browse:events-requested` (its ONLY view of history — it has no event-store attachment), and replays them through the normal pipeline; a checkpoint ahead of the log (restore) triggers a per-resource rebuild. Full rebuilds are the `weave:rebuild` bus command — so a wiped graph volume recovers by command or by wiping the checkpoint and restarting.
 
 ### Smelter (Projection Pipeline, standalone process)
 
 **Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
 
-The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`SmelterActorStateUnit`](../src/smelter-actor-state-unit.ts) fan-in. It reads content from the KB working tree via `WorkerContentTransport` (metadata over the bus, bytes straight off disk), chunks it, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Graph Consumer, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call.
+The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`SmelterActorStateUnit`](../src/smelter-actor-state-unit.ts) fan-in. It reads content from the KB working tree via `WorkerContentTransport` (metadata over the bus, bytes straight off disk), chunks it, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Weaver, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call.
 
 | Domain Event | Handler |
 |--------------|---------|
@@ -221,13 +221,13 @@ export interface KnowledgeBase {
   views:          ViewStorage;      // Materialized Views (fast reads)
   content:        WorkingTreeStore; // Content Store (working-tree files, URI-addressed)
   graph:          GraphDatabase;    // Graph (eventually consistent)
-  graphConsumer:  GraphDBConsumer;  // Event-to-graph projection pipeline
+  weaveProgress:  WeaveProgress;    // weave:applied fold — the graph-projection barrier
   vectors?:       VectorStore;      // Vector index (Qdrant / memory) — optional
   projectionsDir: string;
 }
 ```
 
-The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options?)` factory instantiates `FilesystemViewStorage` and `WorkingTreeStore` once, starts the `GraphDBConsumer`, and (unless `options.skipRebuild`) rebuilds the materialized views and graph from the event log. Context modules receive `KnowledgeBase` instead of instantiating stores per call.
+The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options?)` factory instantiates `FilesystemViewStorage` and `WorkingTreeStore` once, constructs the `WeaveProgress` fold, and (unless `options.skipRebuild`) rebuilds the materialized views from the event log. The graph is NOT rebuilt here — the standalone Weaver catches up from its checkpoint. Context modules receive `KnowledgeBase` instead of instantiating stores per call.
 
 ## Operations
 
@@ -256,7 +256,7 @@ See [Job Workers](./job-workers.md) for details.
 2. GraphDatabase
 3. EventStore (with EventBus integration)
 4. VectorStore + EmbeddingProvider *(optional — Qdrant or memory, from `@semiont/vectors`)*
-5. **KnowledgeBase** (groups stores including optional vectors; starts GraphDBConsumer; rebuilds views + graph unless `skipRebuild`)
+5. **KnowledgeBase** (groups stores including optional vectors; constructs the WeaveProgress fold; rebuilds views unless `skipRebuild` — the graph belongs to the standalone Weaver)
 6. **Stower** (must start before reader actors — it handles writes they depend on)
 7. Entity type bootstrap (emits via EventBus, Stower persists)
 8. **Gatherer** (context assembly, vector semantic search; gets its own InferenceClient)

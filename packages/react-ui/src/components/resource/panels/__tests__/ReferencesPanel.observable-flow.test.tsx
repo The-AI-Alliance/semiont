@@ -69,7 +69,7 @@ const mockRoutes = { resourceDetail: (id: string) => `/resource/${id}` } as any;
 function ObservableHarness({ source$ }: { source$: BehaviorSubject<string[]> }) {
   const entityTypes = useObservable(source$) ?? [];
   return (
-    <ReferencesPanel
+    <ReferencesPanel resourceId="res-1"
       annotations={[]}
       isAssisting={false}
       progress={null}

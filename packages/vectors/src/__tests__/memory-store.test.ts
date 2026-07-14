@@ -257,31 +257,59 @@ describe('MemoryVectorStore', () => {
   });
 
   describe('enumeration', () => {
-    it('lists distinct resource ids with their stamped checksums', async () => {
+    it('lists distinct resource ids with their stamps (checksum + entity types)', async () => {
       const vecs = await embedding.embedBatch(['alpha', 'beta']);
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'alpha', embedding: vecs[0] },
-      ], 'cs-alpha', []);
+      ], 'cs-alpha', ['Question']);
       await store.upsertResourceVectors('res-2' as ResourceId, [
         { chunkIndex: 0, text: 'beta', embedding: vecs[1] },
       ], 'cs-beta', []);
 
-      expect(await store.listResourceChecksums()).toEqual(new Map([
-        ['res-1', 'cs-alpha'],
-        ['res-2', 'cs-beta'],
+      expect(await store.listResourceStamps()).toEqual(new Map([
+        ['res-1', { contentChecksum: 'cs-alpha', entityTypes: ['Question'] }],
+        ['res-2', { contentChecksum: 'cs-beta', entityTypes: [] }],
       ]));
     });
 
-    it('re-upsert replaces the stamped checksum', async () => {
+    it('re-upsert replaces the stamps', async () => {
       const vec = await embedding.embed('gamma');
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'gamma', embedding: vec },
-      ], 'cs-old', []);
+      ], 'cs-old', ['OldTag']);
       await store.upsertResourceVectors('res-1' as ResourceId, [
         { chunkIndex: 0, text: 'gamma', embedding: vec },
-      ], 'cs-new', []);
+      ], 'cs-new', ['NewTag']);
 
-      expect((await store.listResourceChecksums()).get('res-1')).toBe('cs-new');
+      expect((await store.listResourceStamps()).get('res-1')).toEqual({
+        contentChecksum: 'cs-new',
+        entityTypes: ['NewTag'],
+      });
+    });
+
+    it('updateResourceEntityTypes restamps every point without touching vectors', async () => {
+      const vec = await embedding.embed('delta');
+      await store.upsertResourceVectors('res-1' as ResourceId, [
+        { chunkIndex: 0, text: 'delta', embedding: vec },
+      ], 'cs-delta', []);
+
+      await store.updateResourceEntityTypes('res-1' as ResourceId, ['Question']);
+
+      expect((await store.listResourceStamps()).get('res-1')).toEqual({
+        contentChecksum: 'cs-delta',
+        entityTypes: ['Question'],
+      });
+      // The stamp is the filter discriminator: exclusion now drops the resource…
+      expect(await store.searchResources(vec, { limit: 5, filter: { excludeEntityTypes: ['Question'] } })).toEqual([]);
+      // …while the vectors themselves are untouched and still searchable.
+      const results = await store.searchResources(vec, { limit: 5 });
+      expect(results).toHaveLength(1);
+      expect(results[0].score).toBeCloseTo(1.0, 3);
+    });
+
+    it('updateResourceEntityTypes on an unindexed resource is a no-op', async () => {
+      await store.updateResourceEntityTypes('res-ghost' as ResourceId, ['Question']);
+      expect((await store.listResourceStamps()).has('res-ghost')).toBe(false);
     });
   });
 

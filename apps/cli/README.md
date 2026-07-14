@@ -131,6 +131,7 @@ semiont listen resource <resourceId>
 ```bash
 semiont yield --upload ./paper.pdf
 semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://out.md
+semiont yield --delegate --resource <resourceId> --storage-uri file://answer.md --title "What is X?" --task answer --structure prose
 ```
 
 **beckon** — direct a participant's attention

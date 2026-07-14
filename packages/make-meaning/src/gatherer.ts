@@ -19,7 +19,7 @@
  *
  * `groupBy(resourceId) + concatMap(...)` is the stream-consumer flavor of
  * per-resource serialization — the same invariant enforced by `Smelter`,
- * `GraphDBConsumer`, and (in a different shape) `ViewManager`. See
+ * `Weaver`, and (in a different shape) `ViewManager`. See
  * `packages/core/src/serialize-per-key.ts` for the shared primitive used
  * by RPC-style services.
  */
@@ -134,6 +134,7 @@ export class Gatherer {
         event.options,
         this.kb,
         this.inferenceClient,
+        this.logger,
       );
 
       this.eventBus.get('gather:resource-complete').next({

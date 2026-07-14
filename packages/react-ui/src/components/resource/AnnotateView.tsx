@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import { capabilitiesOf } from '@semiont/core';
+import { capabilitiesOf, resourceId as toResourceId } from '@semiont/core';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { segmentTextWithAnnotations } from '../../lib/text-segmentation';
 import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';
@@ -28,7 +28,8 @@ export type { SelectionMotivation, ClickAction, ShapeType };
 interface Props {
   content: string;
   mimeType?: string;
-  resourceUri?: string;
+  /** The '@id' of the shown resource — stamped as `source` on mark:requested (multi-viewer routing). */
+  resourceUri: string;
   annotations: AnnotationsCollection;
   uiState: AnnotationUIState;
   onUIStateChange?: (state: Partial<AnnotationUIState>) => void;
@@ -45,6 +46,8 @@ interface Props {
   newAnnotationIds?: Set<string>;
   /** The bar's Mode control reports the chosen mode here (the owner applies it). */
   onModeChange?: (mode: boolean) => void;
+  /** Render the built-in bar (default). false → no bar; selection capture and drawing stay live. */
+  showToolbar?: boolean;
 }
 
 /**
@@ -69,6 +72,7 @@ export function AnnotateView({
   session,
   newAnnotationIds,
   onModeChange,
+  showToolbar = true,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -176,7 +180,7 @@ export function AnnotateView({
         const selectors = buildTextSelectors(content, text, start, end);
         if (!selectors) return;
 
-        session?.client.mark.request(selectors, selectedMotivation);
+        session?.client.mark.request(toResourceId(resourceUri), selectors, selectedMotivation);
 
         // Clear selection after creating annotation
         selection.removeAllRanges();
@@ -190,13 +194,14 @@ export function AnnotateView({
       container.removeEventListener('mouseup', handleMouseUp);
       container.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [selectedMotivation, content]);
+  }, [selectedMotivation, content, resourceUri]);
 
   // Route to the annotation viewer for this media type's render mode.
   switch (render) {
     case 'text':
       return (
         <div className="semiont-annotate-view" data-mime-type="text" ref={containerRef}>
+          {showToolbar && (
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
@@ -209,6 +214,7 @@ export function AnnotateView({
             onSelectionChange={handleToolbarSelectionChange}
             onShapeChange={handleToolbarShapeChange}
           />
+          )}
           <div className="semiont-annotate-view__content">
             <CodeMirrorRenderer
             content={content}
@@ -234,6 +240,7 @@ export function AnnotateView({
       // PDF annotation support (spatial, FragmentSelector)
       return (
         <div className="semiont-annotate-view" data-mime-type="pdf" ref={containerRef}>
+          {showToolbar && (
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
@@ -246,11 +253,13 @@ export function AnnotateView({
             onSelectionChange={handleToolbarSelectionChange}
             onShapeChange={handleToolbarShapeChange}
           />
+          )}
           <div className="semiont-annotate-view__content">
             {content && (
               <Suspense fallback={<div className="semiont-annotate-view__loading">Loading PDF viewer...</div>}>
                 <PdfAnnotationCanvas
                   pdfUrl={content}
+                  resourceUri={resourceUri}
                   existingAnnotations={allAnnotations}
                   drawingMode={selectedMotivation ? selectedShape : null}
                   selectedMotivation={selectedMotivation}
@@ -268,6 +277,7 @@ export function AnnotateView({
       // PNG, JPEG, etc. - full annotation support
       return (
         <div className="semiont-annotate-view" data-mime-type="image" ref={containerRef}>
+          {showToolbar && (
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
@@ -280,10 +290,12 @@ export function AnnotateView({
             onSelectionChange={handleToolbarSelectionChange}
             onShapeChange={handleToolbarShapeChange}
           />
+          )}
           <div className="semiont-annotate-view__content">
             {content && (
               <SvgDrawingCanvas
                 imageUrl={content}
+                resourceUri={resourceUri}
                 existingAnnotations={allAnnotations}
                 drawingMode={selectedMotivation ? selectedShape : null}
                 selectedMotivation={selectedMotivation}
@@ -304,15 +316,13 @@ export function AnnotateView({
             <p className="semiont-annotate-view__empty-message">
               Annotation not supported for {mimeType}
             </p>
-            {resourceUri && (
-              <a
-                href={`/api/resources/${resourceUri}`}
-                download
-                className="semiont-button semiont-button--primary"
-              >
-                Download File
-              </a>
-            )}
+            <a
+              href={`/api/resources/${resourceUri}`}
+              download
+              className="semiont-button semiont-button--primary"
+            >
+              Download File
+            </a>
           </div>
         </div>
       );

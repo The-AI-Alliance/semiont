@@ -17,44 +17,32 @@
  *   ANTHROPIC_API_KEY     — only when using Anthropic inference
  *
  * Everything else comes from ~/.semiontconfig.
+ *
+ * This file is deliberately a THIN shell: config loading, group
+ * composition, and process lifecycle (health endpoint, signals). The
+ * testable runtime — authentication, identity adoption, session/worker
+ * wiring — lives in `worker-runtime.ts`.
  */
 
-import { startWorkerProcess } from './worker-process';
+import {
+  startAgentWorker,
+  type AgentGroup,
+  type ResolvedInference,
+} from './worker-runtime';
 import {
   createInferenceClient,
-  type InferenceClient,
   type InferenceClientConfig,
 } from '@semiont/inference';
 import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
-import { homedir, hostname } from 'os';
+import { homedir } from 'os';
 import { join } from 'path';
-import {
-  createTomlConfigLoader,
-  softwareToAgent,
-  type components,
-  type EnvironmentConfig,
-} from '@semiont/core';
-import { InMemorySessionStorage, SemiontClient, SemiontSession, kbBackendUrl, setStoredSession, type HttpEndpoint, type KnowledgeBase } from '@semiont/sdk';
-import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
-import { baseUrl, type AccessToken } from '@semiont/core';
-import { BehaviorSubject } from 'rxjs';
-
-type Agent = components['schemas']['Agent'];
+import { createTomlConfigLoader, type EnvironmentConfig } from '@semiont/core';
 
 const ALL_JOB_TYPES = [
   'reference-annotation', 'generation', 'highlight-annotation',
   'assessment-annotation', 'comment-annotation', 'tag-annotation',
 ];
-
-// Shape of each resolved worker inference entry under `_metadata.workers`.
-type ResolvedInference = {
-  type: 'anthropic' | 'ollama';
-  model: string;
-  apiKey?: string;
-  endpoint?: string;
-  baseURL?: string;
-};
 
 // ── Load config via the canonical TOML loader ─────────────────────────
 
@@ -121,12 +109,6 @@ function toClientConfig(w: ResolvedInference): InferenceClientConfig {
   };
 }
 
-interface AgentGroup {
-  inference: ResolvedInference;
-  jobTypes: string[];
-  client: InferenceClient;
-}
-
 const groups = new Map<string, AgentGroup>();
 for (const jobType of ALL_JOB_TYPES) {
   const inference = resolveWorker(jobType);
@@ -141,117 +123,6 @@ for (const jobType of ALL_JOB_TYPES) {
     groups.set(key, group);
   }
   group.jobTypes.push(jobType);
-}
-
-// ── KB shape used for sessions ────────────────────────────────────────
-
-function parseBackendUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
-  const parsed = new URL(url);
-  const protocol = (parsed.protocol.replace(':', '') === 'https' ? 'https' : 'http') as 'http' | 'https';
-  const host = parsed.hostname;
-  const port = parsed.port
-    ? Number(parsed.port)
-    : protocol === 'https' ? 443 : 80;
-  return { protocol, host, port };
-}
-
-// ── Authenticate one agent identity ──────────────────────────────────
-
-async function authenticateAgent(provider: string, model: string): Promise<{ token: string; did: string }> {
-  if (!workerSecret) {
-    throw new Error('SEMIONT_WORKER_SECRET is required to authenticate worker agents');
-  }
-
-  const response = await fetch(`${backendBaseUrl}/api/tokens/agent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ secret: workerSecret, provider, model }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Agent authentication failed for ${provider}:${model}: ${response.status} ${response.statusText}`);
-  }
-
-  return await response.json() as { token: string; did: string };
-}
-
-async function startAgentWorker(group: AgentGroup): Promise<{ session: SemiontSession; dispose: () => Promise<void> }> {
-  const { inference } = group;
-
-  const { protocol, host, port } = parseBackendUrl(backendBaseUrl);
-  const { token: initialToken, did } = await authenticateAgent(inference.type, inference.model);
-
-  const generator: Agent = softwareToAgent({
-    domain: host,
-    provider: inference.type,
-    model: inference.model,
-  });
-
-  const kbId = `agent-${inference.type}-${inference.model}-${hostname()}`;
-  const endpoint: HttpEndpoint = { kind: 'http', host, port, protocol };
-  const kb: KnowledgeBase = {
-    id: kbId,
-    label: `${inference.type} / ${inference.model} @ ${host}`,
-    email: `agent@${host}`,
-    endpoint,
-  };
-  const storage = new InMemorySessionStorage();
-  setStoredSession(storage, kbId, { access: initialToken, refresh: '' });
-
-  const token$ = new BehaviorSubject<AccessToken | null>(null);
-  let session!: SemiontSession;
-  const transport = new HttpTransport({
-    baseUrl: baseUrl(kbBackendUrl(endpoint)),
-    token$,
-    tokenRefresher: () => session.refresh().then((t) => t ?? null),
-  });
-  const content = new HttpContentTransport(transport);
-  const client = new SemiontClient(transport, content, transport);
-  session = new SemiontSession({
-    kb,
-    storage,
-    client,
-    token$,
-    refresh: async () => {
-      try {
-        const { token } = await authenticateAgent(inference.type, inference.model);
-        return token;
-      } catch (err) {
-        logger.error('Agent token refresh failed', {
-          error: err instanceof Error ? err.message : String(err),
-          agent: did,
-        });
-        return null;
-      }
-    },
-    onError: (err) => {
-      logger.error('Session error', { code: err.code, message: err.message, agent: did });
-    },
-  });
-  await session.ready;
-
-  const adapter = startWorkerProcess({
-    session,
-    jobTypes: group.jobTypes,
-    inferenceClient: group.client,
-    generator,
-    logger,
-  });
-
-  logger.info('Agent ready', {
-    did,
-    provider: inference.type,
-    model: inference.model,
-    jobTypes: group.jobTypes,
-  });
-
-  return {
-    session,
-    dispose: async () => {
-      adapter.dispose();
-      await session.dispose();
-    },
-  };
 }
 
 async function main() {
@@ -269,7 +140,11 @@ async function main() {
     })),
   });
 
-  const workers = await Promise.all(Array.from(groups.values()).map(startAgentWorker));
+  const workers = await Promise.all(
+    Array.from(groups.values()).map((group) =>
+      startAgentWorker({ group, backendBaseUrl, workerSecret, logger }),
+    ),
+  );
 
   const health = createServer((req, res) => {
     if (req.url === '/health') {

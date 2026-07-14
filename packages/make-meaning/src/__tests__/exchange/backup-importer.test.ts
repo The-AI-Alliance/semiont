@@ -11,6 +11,7 @@ import { Readable, Writable } from 'node:stream';
 import type { Logger, ResourceId, UserId } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
+import type { EventStore } from '@semiont/event-sourcing';
 import { importBackup } from '../../exchange/backup-importer';
 import { writeTarGz, type TarEntry } from '../../exchange/tar';
 import { BACKUP_FORMAT } from '../../exchange/manifest';
@@ -32,6 +33,10 @@ const mockLogger: Logger = {
   error: vi.fn(),
   child: vi.fn(() => mockLogger),
 };
+
+// Replay appends historical entity-tag events as facts (never re-issues
+// commands) — the fake receives those appends.
+const mockEventStore = { appendEvent: vi.fn().mockResolvedValue(undefined) } as unknown as EventStore;
 
 function collectWritable(): { writable: Writable; promise: Promise<Buffer> } {
   const chunks: Buffer[] = [];
@@ -123,7 +128,7 @@ describe('backup-importer', () => {
       { name: '.semiont/events/__system__.jsonl', data: Buffer.from(systemEvents) },
     ]);
 
-    const result = await importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore, logger: mockLogger });
+    const result = await importBackup(bufferToReadable(archive), { eventBus, eventStore: mockEventStore, contentStore: mockContentStore, logger: mockLogger });
 
     expect(result.manifest.format).toBe(BACKUP_FORMAT);
     expect(result.stats.eventsReplayed).toBe(1);
@@ -163,7 +168,7 @@ describe('backup-importer', () => {
       { name: 'sha-content.md', data: contentBlob },
     ]);
 
-    const result = await importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore, logger: mockLogger });
+    const result = await importBackup(bufferToReadable(archive), { eventBus, eventStore: mockEventStore, contentStore: mockContentStore, logger: mockLogger });
 
     expect(result.stats.eventsReplayed).toBe(1);
     expect(result.stats.resourcesCreated).toBe(1);
@@ -197,7 +202,7 @@ describe('backup-importer', () => {
       { name: 'deadbeef1234.pdf', data: pdfContent },
     ]);
 
-    await importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore, logger: mockLogger });
+    await importBackup(bufferToReadable(archive), { eventBus, eventStore: mockEventStore, contentStore: mockContentStore, logger: mockLogger });
 
     expect(receivedChecksum).toBeDefined();
   });
@@ -208,7 +213,7 @@ describe('backup-importer', () => {
     ]);
 
     await expect(
-      importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore })
+      importBackup(bufferToReadable(archive), { eventBus, eventStore: mockEventStore, contentStore: mockContentStore })
     ).rejects.toThrow(/missing \.semiont\/manifest\.jsonl/);
   });
 
@@ -226,7 +231,7 @@ describe('backup-importer', () => {
     ]);
 
     await expect(
-      importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore })
+      importBackup(bufferToReadable(archive), { eventBus, eventStore: mockEventStore, contentStore: mockContentStore })
     ).rejects.toThrow(/expected format/);
   });
 
@@ -244,7 +249,7 @@ describe('backup-importer', () => {
     ]);
 
     await expect(
-      importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore })
+      importBackup(bufferToReadable(archive), { eventBus, eventStore: mockEventStore, contentStore: mockContentStore })
     ).rejects.toThrow(/Unsupported format version/);
   });
 
@@ -259,7 +264,7 @@ describe('backup-importer', () => {
       // Note: no .semiont/events/missing-resource.jsonl
     ]);
 
-    const result = await importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore, logger: mockLogger });
+    const result = await importBackup(bufferToReadable(archive), { eventBus, eventStore: mockEventStore, contentStore: mockContentStore, logger: mockLogger });
 
     // Should complete without error, but skip the missing stream
     expect(result.stats.eventsReplayed).toBe(0);
@@ -302,7 +307,7 @@ describe('backup-importer', () => {
       { name: 'chk1.md', data: Buffer.from('content') },
     ]);
 
-    await importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore, logger: mockLogger });
+    await importBackup(bufferToReadable(archive), { eventBus, eventStore: mockEventStore, contentStore: mockContentStore, logger: mockLogger });
 
     expect(order).toEqual(['entity-type', 'resource-created']);
   });
@@ -351,7 +356,7 @@ describe('backup-importer', () => {
       { name: 'c2.md', data: Buffer.from('doc 2 content') },
     ]);
 
-    const result = await importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore, logger: mockLogger });
+    const result = await importBackup(bufferToReadable(archive), { eventBus, eventStore: mockEventStore, contentStore: mockContentStore, logger: mockLogger });
 
     expect(result.stats.eventsReplayed).toBe(4);
     expect(result.stats.entityTypesAdded).toBe(2);

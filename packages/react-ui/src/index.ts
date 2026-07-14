@@ -44,6 +44,7 @@ export * from './hooks/useResourceLoader';
 export * from './hooks/useMediaToken';
 export * from './hooks/useSessionEventSubscriptions';
 export * from './hooks/useToolbarPrefs';
+export * from './hooks/usePendingCreation';
 
 // Session (the React layer — provider + hook + browser storage adapter).
 // All session classes (`SemiontSession`, `SemiontBrowser`, `SessionSignals`,

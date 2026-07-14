@@ -119,7 +119,7 @@ semiont rebuild --service backend --environment local
 await eventStore.rebuildAllViews();
 
 // Rebuild graph from events
-await graphConsumer.rebuildAll();
+await weaver.rebuildAll();
 ```
 
 ## Monitoring

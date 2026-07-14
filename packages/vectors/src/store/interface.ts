@@ -69,6 +69,13 @@ export interface VectorStore {
    * discriminate by kind (e.g. exclude `['Question']` from recall).
    */
   upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[]): Promise<void>;
+  /**
+   * Rewrite the `entityTypes` stamp on a resource's existing points —
+   * payload-only, no embedding involved (SMELTER-AXIOMS.md, S13: a tag edit
+   * must never trigger an embedding call). No-op when the resource has no
+   * points: the stamp rides the next embed.
+   */
+  updateResourceEntityTypes(resourceId: ResourceId, entityTypes: string[]): Promise<void>;
   upsertAnnotationVector(annotationId: AnnotationId, embedding: number[], payload: AnnotationPayload): Promise<void>;
   deleteResourceVectors(resourceId: ResourceId): Promise<void>;
   deleteAnnotationVector(annotationId: AnnotationId): Promise<void>;
@@ -104,10 +111,12 @@ export interface VectorStore {
   // KS says should exist.
   /**
    * Distinct resourceIds present in the resources collection, each with its
-   * stamped content checksum (undefined for points written before stamping
-   * existed — reconciliation treats those as stale and re-embeds them).
+   * stamps: the content checksum (undefined for points written before
+   * stamping existed — reconciliation treats those as stale and re-embeds)
+   * and the entity-type set (missing stamp reads as `[]`). Drives both the
+   * S12 content-staleness diff and the S13 tag-staleness diff.
    */
-  listResourceChecksums(): Promise<Map<string, string | undefined>>;
+  listResourceStamps(): Promise<Map<string, { contentChecksum: string | undefined; entityTypes: string[] }>>;
   /** Distinct annotationIds present in the annotations collection. */
   listAnnotationIds(): Promise<Set<string>>;
 }

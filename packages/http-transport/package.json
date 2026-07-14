@@ -1,6 +1,6 @@
 {
   "name": "@semiont/http-transport",
-  "version": "0.5.11",
+  "version": "0.5.12",
   "description": "HTTP transport adapters for the Semiont SDK",
   "type": "module",
   "main": "dist/index.js",
@@ -51,7 +51,7 @@
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   },
   "keywords": [
     "semiont",

@@ -15,14 +15,15 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { take } from 'rxjs/operators';
-import { LLMContext } from '../llm-context';
+import { LLMContext, SMELT_SETTLE_TIMEOUT_MS } from '../llm-context';
 import { ResourceOperations } from '../resource-operations';
 import { AnnotationOperations } from '../annotation-operations';
 import { resourceId, annotationId, userId, EventBus, type Logger, type SupportedMediaType } from '@semiont/core';
 import type { GraphServiceConfig, GatheredContext } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { WorkingTreeStore, deriveStorageUri } from '@semiont/content';
+import { WorkingTreeStore, deriveStorageUri, calculateChecksum } from '@semiont/content';
 import type { KnowledgeBase } from '../knowledge-base';
+import { createSmeltProgress } from '../smelt-progress';
 import { Stower } from '../stower';
 import { createTestProject } from './helpers/test-project';
 
@@ -95,10 +96,10 @@ describe('LLM Context', () => {
     // Create KnowledgeBase - share event store's view storage to avoid separate instances
     const { getGraphDatabase } = await import('@semiont/graph');
     const graphDb = await getGraphDatabase(graphConfig);
-    kb = { eventStore, views: eventStore.viewStorage, content: new WorkingTreeStore(project, mockLogger), graph: graphDb, projectionsDir: project.projectionsDir, graphConsumer: {} as any };
+    kb = { eventStore, views: eventStore.viewStorage, content: new WorkingTreeStore(project, mockLogger), graph: graphDb, projectionsDir: project.projectionsDir, weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} }, };
 
     // Start Stower
-    stower = new Stower(kb, eventBus, mockLogger);
+    stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();
 
     // Create a test resource
@@ -138,7 +139,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(resFocus(result).resource).toBeDefined();
@@ -151,7 +153,8 @@ describe('LLM Context', () => {
           resourceId('non-existent-resource'),
           { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
           kb,
-          mockClient
+          mockClient,
+          mockLogger
         )
       ).rejects.toThrow('Resource not found');
     });
@@ -161,7 +164,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       const related = result.graph.nodes.filter((n) => n.type === 'resource' && n.id !== testResourceId);
@@ -201,7 +205,7 @@ describe('LLM Context', () => {
       await created$;
 
       // The unified context sources annotations from the graph projection; this test's kb wires no
-      // graph consumer, so add the annotation to the graph store directly.
+      // Weaver, so add the annotation to the graph store directly.
       await kb.graph.createAnnotation({
         id: annotationId('llm-graph-ann'),
         motivation: 'highlighting',
@@ -213,7 +217,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       const annotationNodes = result.graph.nodes.filter((n) => n.type === 'annotation');
@@ -227,7 +232,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(result.graph).toBeDefined();
@@ -242,7 +248,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       const mainResourceNode = result.graph.nodes.find(n => n.id === testResourceId);
@@ -256,7 +263,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(resFocus(result).content?.main).toBeDefined();
@@ -268,7 +276,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(resFocus(result).content?.main).toBeUndefined();
@@ -279,7 +288,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(resFocus(result).content?.related).toBeDefined();
@@ -291,7 +301,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(resFocus(result).content?.related).toBeUndefined();
@@ -306,7 +317,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: true },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(resFocus(result).summary).toBeDefined();
@@ -318,7 +330,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(resFocus(result).summary).toBeUndefined();
@@ -329,7 +342,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: true },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(resFocus(result).summary).toBeUndefined();
@@ -347,7 +361,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(resFocus(result).suggestedReferences).toBeDefined();
@@ -359,7 +374,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(resFocus(result).suggestedReferences).toBeUndefined();
@@ -372,7 +388,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 5, includeContent: true, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       // The graph is the full neighborhood; maxResources caps the related-resource *content*
@@ -386,7 +403,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 1, includeContent: false, includeSummary: false },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(resFocus(result).resource).toBeDefined();
@@ -404,7 +422,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 2, maxResources: 50, includeContent: true, includeSummary: true },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       expect(resFocus(result).resource).toBeDefined();
@@ -428,7 +447,8 @@ describe('LLM Context', () => {
         resourceId(testResourceId),
         { depth: 1, maxResources: 20, includeContent: true, includeSummary: true },
         kb,
-        mockClient
+        mockClient,
+        mockLogger
       );
 
       // Verify all major components are present
@@ -471,7 +491,7 @@ describe('LLM Context', () => {
     }
 
     it('populates semanticContext from searchByResource', async () => {
-      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(), mockClient);
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(), mockClient, mockLogger);
       expect(ctx.semanticContext?.similar.map((s) => s.resourceId).sort()).toEqual(['r-answer', 'r-question']);
     });
 
@@ -482,6 +502,7 @@ describe('LLM Context', () => {
         { ...baseOpts, excludeEntityTypes: ['Question'] },
         kbWithVectors((o) => { seen = o; }),
         mockClient,
+        mockLogger,
       );
       expect(seen.filter.excludeEntityTypes).toEqual(['Question']);             // filter forwarded
       expect(ctx.semanticContext?.similar.map((s) => s.resourceId)).toEqual(['r-answer']); // Question omitted
@@ -489,13 +510,105 @@ describe('LLM Context', () => {
     });
 
     it('records no excludedEntityTypes when no exclusion is applied', async () => {
-      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(), mockClient);
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(), mockClient, mockLogger);
       expect(ctx.semanticContext?.excludedEntityTypes).toBeUndefined();
     });
 
     it('leaves semanticContext absent when no vector store is configured', async () => {
-      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kb, mockClient);
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kb, mockClient, mockLogger);
       expect(ctx.semanticContext).toBeUndefined();
+    });
+  });
+
+  describe('semanticContext read-your-writes barrier (SMELTER-INDEX-SYNC P2)', () => {
+    const baseOpts = { depth: 1, maxResources: 5, includeContent: false, includeSummary: false };
+    const hit = [{ id: 'r-sim#0', score: 0.9, resourceId: 'r-sim', text: 'similar text', entityTypes: [] }];
+    // The focal resource's content generation — what the barrier waits on (D2).
+    const TEST_CHECKSUM = calculateChecksum('This is test content for LLM context building.');
+
+    // A vector store that has no focal vectors until the "Smelter" applies,
+    // plus a real SmeltProgress fold on a test-driven bus: the delayed-Smelter
+    // harness ("projection-lag grace" pattern).
+    function lagKb(progressBus: EventBus, state: { indexed: boolean }): { lagged: KnowledgeBase; searches: () => number } {
+      const searchByResource = vi.fn(async () => (state.indexed ? hit : []));
+      const lagged: KnowledgeBase = {
+        ...kb,
+        smeltProgress: createSmeltProgress(progressBus),
+        vectors: { searchByResource } as unknown as KnowledgeBase['vectors'],
+      };
+      return { lagged, searches: () => searchByResource.mock.calls.length };
+    }
+
+    it('populates semanticContext once the Smelter settles — event-driven, within the barrier', async () => {
+      const progressBus = new EventBus();
+      const state = { indexed: false };
+      const { lagged } = lagKb(progressBus, state);
+
+      const pending = LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, lagged, mockClient, mockLogger);
+      setTimeout(() => {
+        state.indexed = true;
+        progressBus.get('smelt:settled').next({ resourceId: testResourceId, contentChecksum: TEST_CHECKSUM, outcome: 'indexed' });
+      }, 50);
+
+      const ctx = await pending;
+      expect(ctx.semanticContext?.similar.map((s) => s.resourceId)).toEqual(['r-sim']);
+    });
+
+    it('resolves immediately for skipped resources — no timeout tax, no re-search', async () => {
+      const progressBus = new EventBus();
+      const state = { indexed: false };
+      const { lagged, searches } = lagKb(progressBus, state);
+      progressBus.get('smelt:settled').next({ resourceId: testResourceId, contentChecksum: TEST_CHECKSUM, outcome: 'skipped' });
+
+      const started = Date.now();
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, lagged, mockClient, mockLogger);
+      expect(ctx.semanticContext).toBeUndefined();
+      expect(Date.now() - started).toBeLessThan(2000);
+      expect(searches()).toBe(1);
+    });
+
+    it('degrades on timeout: semanticContext absent + exactly one breadcrumb', async () => {
+      const progressBus = new EventBus(); // never settles
+      const state = { indexed: false };
+      const { lagged, searches } = lagKb(progressBus, state);
+      const degradeLogger: Logger = {
+        debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => degradeLogger),
+      };
+
+      // Fake only setTimeout: the barrier's timer must be advanceable while
+      // real I/O (view + graph reads in the gather prelude) still progresses.
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      try {
+        const pending = LLMContext.getResourceContext(
+          resourceId(testResourceId), baseOpts, lagged, mockClient, degradeLogger,
+        );
+        // The barrier's timer is scheduled only after the I/O prelude
+        // completes, so advance in slices with a REAL macrotask yield between
+        // them (setImmediate is unfaked) — pure microtask loops starve I/O.
+        for (let elapsed = 0; elapsed < SMELT_SETTLE_TIMEOUT_MS + 5000; elapsed += 1000) {
+          await new Promise((resolve) => setImmediate(resolve));
+          await vi.advanceTimersByTimeAsync(1000);
+        }
+        const ctx = await pending;
+
+        expect(ctx.semanticContext).toBeUndefined();
+        const breadcrumbs = (degradeLogger.warn as ReturnType<typeof vi.fn>).mock.calls
+          .filter(([message]) => String(message).includes('[gather DEGRADED]'));
+        expect(breadcrumbs).toHaveLength(1);
+        expect(searches()).toBe(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('probes before waiting — already-indexed resources never touch the barrier', async () => {
+      const progressBus = new EventBus(); // never signaled: a cold fold
+      const state = { indexed: true };
+      const { lagged, searches } = lagKb(progressBus, state);
+
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, lagged, mockClient, mockLogger);
+      expect(ctx.semanticContext?.similar.map((s) => s.resourceId)).toEqual(['r-sim']);
+      expect(searches()).toBe(1);
     });
   });
 });

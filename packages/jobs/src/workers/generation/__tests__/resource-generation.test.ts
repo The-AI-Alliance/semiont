@@ -14,7 +14,7 @@
  * P4 matcher.test.ts pattern.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MockInferenceClient } from '@semiont/inference';
 import type { GatheredContext, Logger } from '@semiont/core';
 import { generateResourceFromTopic } from '../resource-generation';
@@ -523,6 +523,116 @@ describe('generateResourceFromTopic', () => {
     });
   });
 
+  // ── Inline citations (INLINE-CITATIONS P1) — the cite instruction asks the
+  // model to emit [[<id>]] transport tokens next to each claim, citing only ids
+  // shown in the embedded context. Signature tail: (..., task, structure, cite).
+
+  describe('cite instruction', () => {
+    it('cite=true instructs the model to emit [[id]] citation markers', async () => {
+      client.setResponses(['Paris is big. [[r1]]']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined,
+        makeContext({ semanticContext: [{ text: 'NEEDLE', resourceId: 'r1', score: 0.8 }] }),
+        undefined, undefined, undefined, undefined, undefined, undefined,
+        true,
+      );
+
+      const prompt = promptArg();
+      expect(prompt).toContain('[[');
+      expect(prompt).toMatch(/cite/i);
+    });
+
+    it('cite unset adds no citation instruction', async () => {
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic('Topic', [], client, LOGGER, undefined, undefined, makeContext());
+
+      expect(promptArg()).not.toContain('[[');
+    });
+  });
+
+  // ── Context identifiers (CONTEXT-IDENTIFIERS P1) — every excerpt carries a
+  // stable, model-visible [<resourceId>] handle; annotation-derived semantic
+  // matches add /<annotationId>. Same bracket convention as related-content blocks.
+
+  describe('context identifiers', () => {
+    it('semantic passages carry their source resourceId', async () => {
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined,
+        makeContext({ semanticContext: [{ text: 'NEEDLE', resourceId: 'sem-src-1', score: 0.8 }] }),
+      );
+
+      expect(promptArg()).toContain('[sem-src-1]');
+    });
+
+    it('annotation-derived semantic passages add the annotationId as a suffix', async () => {
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined,
+        makeContext({
+          semanticContext: [{ text: 'NEEDLE', resourceId: 'sem-src-1', annotationId: 'ann-7', score: 0.8 }],
+        }),
+      );
+
+      expect(promptArg()).toContain('[sem-src-1/ann-7]');
+    });
+
+    it('graph connections carry name + [resourceId]', async () => {
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined,
+        makeContext({
+          selected: { text: 'Topic' },
+          graph: buildGraph({
+            connections: [
+              { resourceId: 'conn-1', resourceName: 'Olympus' },
+              { resourceId: 'conn-2', resourceName: 'Hera', entityTypes: ['Person'] },
+            ],
+          }),
+        }),
+      );
+
+      const prompt = promptArg();
+      expect(prompt).toContain('Olympus [conn-1]');
+      expect(prompt).toContain('Hera (Person) [conn-2]');
+    });
+
+    it('citedBy entries carry name + [resourceId]', async () => {
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined,
+        makeContext({
+          selected: { text: 'Topic' },
+          graph: buildGraph({ citedByPresent: [{ resourceId: 'cit-1', resourceName: 'Theogony' }] }),
+        }),
+      );
+
+      expect(promptArg()).toContain('Theogony [cit-1]');
+    });
+
+    it('the focal resource line carries its [@id] (resource focus)', async () => {
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic('Topic', [], client, LOGGER, undefined, undefined, makeResourceContext());
+
+      expect(promptArg()).toContain('Resource: Test Resource [test-resource]');
+    });
+
+    it('the source-resource line carries its [@id] (annotation focus)', async () => {
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic('Topic', [], client, LOGGER, undefined, undefined, makeContext());
+
+      expect(promptArg()).toContain('Source resource: Test Resource [test-resource]');
+    });
+  });
+
   // ── Resource focus (P5: focus.kind switch; full grounding is YIELD-FROM-RESOURCE) ─
 
   describe('resource focus', () => {
@@ -575,6 +685,135 @@ describe('generateResourceFromTopic', () => {
       const prompt = promptArg();
       expect(prompt).not.toContain('Summary:');
       expect(prompt).not.toContain('Resource content:');
+    });
+  });
+
+  // ── task / structure — explicit output-shape control (YIELD-STRUCTURE P1) ────
+  // Positional signature tail: (..., sourceLanguage, outputMediaType, task, structure).
+
+  describe('task framing and structure control', () => {
+    function makeWarnLogger(): { logger: Logger; warn: ReturnType<typeof vi.fn> } {
+      const warn = vi.fn();
+      const logger: Logger = { debug: () => {}, info: () => {}, warn, error: () => {}, child: () => logger };
+      return { logger, warn };
+    }
+
+    it('task "answer" leads with answer framing and, with structure unset, forces no scaffolding', async () => {
+      client.setResponses(['The answer.']);
+
+      await generateResourceFromTopic(
+        'What is the capital of France?', [], client, LOGGER,
+        undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+        'answer',
+      );
+
+      const prompt = promptArg();
+      expect(prompt).toMatch(/^Answer/);
+      expect(prompt).not.toContain('informative resource about');
+      // D2: structure unset ⇒ no structure directive, no forced heading
+      expect(prompt).not.toContain('# Title');
+      expect(prompt).not.toContain('## Section');
+    });
+
+    it('elevates the caller prompt to an Instruction, not "Additional context:"', async () => {
+      client.setResponses(['The answer.']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER,
+        'Ground every claim in the provided context',
+        undefined, undefined, undefined, undefined, undefined, undefined,
+        'answer',
+      );
+
+      const prompt = promptArg();
+      expect(prompt).toContain('Instruction: Ground every claim in the provided context');
+      expect(prompt).not.toContain('Additional context:');
+    });
+
+    it('structure "prose" beats a generous token budget (explicit beats budget)', async () => {
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER,
+        undefined, undefined, undefined, undefined, 2000, undefined, undefined,
+        undefined, 'prose',
+      );
+
+      expect(promptArg()).not.toContain('## Section');
+    });
+
+    it('structure "sections" beats a small token budget', async () => {
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER,
+        undefined, undefined, undefined, undefined, 400, undefined, undefined,
+        undefined, 'sections',
+      );
+
+      const prompt = promptArg();
+      expect(prompt).toContain('titled sections');
+      expect(prompt).toContain('# Title');
+    });
+
+    it('defaults (task and structure unset) keep the resource framing but impose NO structure directive', async () => {
+      // Declared behavior change (D2): today's template always forces # Title +
+      // a structure-guidance clause; unset now means neither is emitted.
+      client.setResponses(['# X\n\nbody']);
+
+      await generateResourceFromTopic('Topic', [], client, LOGGER);
+
+      const prompt = promptArg();
+      expect(prompt).toContain('informative resource about');
+      expect(prompt).not.toContain('# Title');
+      expect(prompt).not.toContain('organized into');
+    });
+
+    it('structure "chat" is canonical — conversational-turns guidance, no warn, no forced heading', async () => {
+      const { logger, warn } = makeWarnLogger();
+      client.setResponses(['**Q:** …\n**A:** …']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, logger,
+        undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+        undefined, 'chat',
+      );
+
+      const prompt = promptArg();
+      expect(prompt).toMatch(/conversational|chat transcript/i);
+      expect(prompt).not.toContain('Organize the output as:'); // canonical, not the unknown-string passthrough
+      expect(prompt).not.toContain('# Title');
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('an unknown task string is used verbatim as the framing instruction, with a warn', async () => {
+      const { logger, warn } = makeWarnLogger();
+      client.setResponses(['La réponse.']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, logger,
+        undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+        'Translate the source into idiomatic French',
+      );
+
+      expect(promptArg().startsWith('Translate the source into idiomatic French')).toBe(true);
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('an unknown structure string becomes a freeform organization instruction, with a warn and no forced heading', async () => {
+      const { logger, warn } = makeWarnLogger();
+      client.setResponses(['- a\n- b']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, logger,
+        undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+        undefined, 'a bulleted list of key facts',
+      );
+
+      const prompt = promptArg();
+      expect(prompt).toContain('Organize the output as: a bulleted list of key facts');
+      expect(prompt).not.toContain('# Title');
+      expect(warn).toHaveBeenCalledTimes(1);
     });
   });
 

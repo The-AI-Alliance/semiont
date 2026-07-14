@@ -12,6 +12,10 @@ export { stopKnowledgeSystem } from './knowledge-system';
 // Local transport (in-process ITransport / IContentTransport for the SemiontClient)
 export { LocalTransport, type LocalTransportConfig } from './local-transport';
 export { LocalContentTransport } from './local-content-transport';
+// In-process BusRequestPrimitive over a raw EventBus — backend-internal
+// callers (e.g. the rebuild-graph CLI's weave:rebuild) share busRequest's
+// correlated request/reply path.
+export { asBusRequestPrimitive } from './bus-request-local';
 
 // Bus command handlers — registered automatically by `startMakeMeaning`;
 // also exported individually for callers that bring their own bootstrap.

@@ -11,7 +11,7 @@
  * - Pub/sub notifications (see EventBus)
  */
 
-import { type ResourceId, type PersistedEvent, type StoredEvent, type Logger, serializePerKey } from '@semiont/core';
+import { type ResourceId, type StoredEvent, type Logger, serializePerKey } from '@semiont/core';
 import { ViewMaterializer, type ViewMaterializerConfig, type RebuildEventSource } from './views/view-materializer';
 import type { ViewStorage, ResourceView } from './storage/view-storage';
 
@@ -44,7 +44,7 @@ export interface ViewManagerConfig {
  * must block the caller until the view is written, so SSE subscribers
  * that see the subsequently-published event get the up-to-date view (a
  * read-your-writes guarantee). The RxJS stream-consumer pattern used by
- * `Smelter`, `GraphDBConsumer`, and `Gatherer` can't provide that
+ * `Smelter`, `Weaver`, and `Gatherer` can't provide that
  * guarantee because it's fire-and-forget from the publisher's perspective.
  * Both patterns solve "serialize work per resource" — see also
  * `packages/core/src/serialize-per-key.ts` for the shared primitive.
@@ -80,12 +80,12 @@ export class ViewManager {
    * Serialized per resource — see class doc.
    *
    * @param resourceId - Branded ResourceId (from @semiont/core)
-   * @param event - Resource event (from @semiont/core)
+   * @param event - Stored resource event (with storage metadata, from @semiont/core)
    * @param getAllEvents - Function to retrieve all events for rebuild if needed
    */
   async materializeResource(
     resourceId: ResourceId,
-    event: PersistedEvent,
+    event: StoredEvent,
     getAllEvents: () => Promise<StoredEvent[]>
   ): Promise<void> {
     await serializePerKey(String(resourceId), this.resourceChains, () =>
@@ -110,7 +110,7 @@ export class ViewManager {
 
   /**
    * Rebuild all materialized views from the event log on startup.
-   * Mirrors GraphDBConsumer.rebuildAll() — call this once during
+   * Mirrors Weaver.rebuildAll() — call this once during
    * createKnowledgeBase before the HTTP server begins accepting requests.
    * Idempotent: existing view files are overwritten.
    */

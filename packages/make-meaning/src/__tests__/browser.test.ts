@@ -6,8 +6,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EventBus, resourceId, type Logger } from '@semiont/core';
+import { firstValueFrom, race, timer, map, take } from 'rxjs';
+import { EventBus, resourceId, agentToDid, type Logger } from '@semiont/core';
 import { Browser } from '../browser';
+import type { MakeMeaningConfig } from '../config';
 
 // ── fs mock ───────────────────────────────────────────────────────────────────
 
@@ -64,6 +66,8 @@ const defaultStat = { size: 1024, mtime: new Date('2026-01-01T00:00:00Z') };
 
 const mockKb = { graph: {}, views: {} } as any;
 
+const emptyConfig: MakeMeaningConfig = { services: {} };
+
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 describe('Browser actor', () => {
@@ -79,6 +83,7 @@ describe('Browser actor', () => {
       mockKb,
       eventBus,
       { root: PROJECT_ROOT } as any,
+      emptyConfig,
       mockLogger,
     );
     await browser.initialize();
@@ -205,6 +210,7 @@ describe('Browser actor', () => {
       mockKb,
       eventBus,
       { root: PROJECT_ROOT } as any,
+      emptyConfig,
       mockLogger,
     );
     await browser.initialize();
@@ -309,13 +315,19 @@ describe('Browser actor', () => {
       (eventBus as any).get('browse:referenced-by-requested').next(payload);
     }
 
+    let mockViewGet: ReturnType<typeof vi.fn>;
+
     beforeEach(async () => {
       await browser.stop();
       vi.clearAllMocks();
       mockReferencedBy = vi.fn();
       mockGetResource = vi.fn();
-      const kb = { graph: { getResourceReferencedBy: mockReferencedBy, getResource: mockGetResource } } as any;
-      browser = new Browser(makeViews([]) as any, kb, eventBus, { root: PROJECT_ROOT } as any, mockLogger);
+      mockViewGet = vi.fn().mockResolvedValue(null);
+      const kb = {
+        graph: { getResourceReferencedBy: mockReferencedBy, getResource: mockGetResource },
+        views: { get: mockViewGet },
+      } as any;
+      browser = new Browser(makeViews([]) as any, kb, eventBus, { root: PROJECT_ROOT } as any, emptyConfig, mockLogger);
       await browser.initialize();
     });
 
@@ -337,6 +349,43 @@ describe('Browser actor', () => {
       expect(result.response.referencedBy[0]).toEqual({ id: 'anno-1', resourceName: 'Prometheus Bound', target: { source: DOC_A_URI, selector: { exact: 'Prometheus' } } });
       expect(result.response.referencedBy[1]).toEqual({ id: 'anno-2', resourceName: 'Greek Myths', target: { source: DOC_B_URI, selector: { exact: 'the Titan' } } });
       expect(mockReferencedBy).toHaveBeenCalledWith(TARGET_RESOURCE_ID, undefined);
+    });
+
+    it('hydrates a graph-lagging citer from the view — never "Untitled Resource" for a known resource', async () => {
+      // The read-after-write artifact (graph-read-after-write-coverage.md P1):
+      // the edge is woven but the citing resource's node is not yet — the
+      // view is the fresher projection and must supply the name.
+      const anno = makeAnnotation('anno-lag', DOC_B_URI, String(TARGET_RESOURCE_ID), 'the Titan');
+      mockReferencedBy.mockResolvedValue([anno]);
+      mockGetResource.mockResolvedValue(null); // graph hasn't woven the citer yet
+      mockViewGet.mockImplementation((id: any) =>
+        String(id) === DOC_B_URI
+          ? Promise.resolve({ resource: { '@id': DOC_B_URI, name: 'Greek Myths' }, annotations: {} })
+          : Promise.resolve(null),
+      );
+
+      const p = resultPromise();
+      fire({ correlationId: 'corr-lag', resourceId: TARGET_RESOURCE_ID });
+      const result = await p;
+
+      expect(result.response.referencedBy).toHaveLength(1);
+      expect(result.response.referencedBy[0].resourceName).toBe('Greek Myths');
+      // L4: degradation is observable, never silent — the breadcrumb is
+      // part of the contract, not decoration.
+      expect(mockLogger.info).toHaveBeenCalledWith('[graph lag] citer hydrated from view', { resourceId: DOC_B_URI });
+    });
+
+    it('a citer neither projection knows still renders the Untitled fallback', async () => {
+      const anno = makeAnnotation('anno-ghost', 'doc-ghost', String(TARGET_RESOURCE_ID));
+      mockReferencedBy.mockResolvedValue([anno]);
+      mockGetResource.mockResolvedValue(null);
+      // mockViewGet default: null
+
+      const p = resultPromise();
+      fire({ correlationId: 'corr-ghost', resourceId: TARGET_RESOURCE_ID });
+      const result = await p;
+
+      expect(result.response.referencedBy[0].resourceName).toBe('Untitled Resource');
     });
 
     it('passes motivation filter to graph query', async () => {
@@ -400,14 +449,154 @@ describe('Browser actor', () => {
       expect(result.message).toBe('Graph unavailable');
     });
 
-    it('emits referenced-by-failed when getResource throws', async () => {
+    it('a throwing citer hydration degrades that entry — the reply still succeeds', async () => {
+      // Changed contract (graph-read-after-write-coverage.md P1): one
+      // citer's store hiccup must not fail the whole references reply.
+      // resourceWithViewGrace absorbs the per-citer read error and falls
+      // back to the view (or Untitled when neither projection answers);
+      // an EDGE-QUERY failure still fails the request (spec above).
       mockReferencedBy.mockResolvedValue([makeAnnotation('anno-1', DOC_A_URI, String(TARGET_RESOURCE_ID), 'text')]);
       mockGetResource.mockRejectedValue(new Error('Resource lookup failed'));
-      const p = failedPromise();
+      mockViewGet.mockImplementation((id: any) =>
+        String(id) === DOC_A_URI
+          ? Promise.resolve({ resource: { '@id': DOC_A_URI, name: 'Prometheus Bound' }, annotations: {} })
+          : Promise.resolve(null),
+      );
+
+      const p = resultPromise();
       fire({ correlationId: 'corr-8', resourceId: TARGET_RESOURCE_ID });
       const result = await p;
+
       expect(result.correlationId).toBe('corr-8');
-      expect(result.message).toBe('Resource lookup failed');
+      expect(result.response.referencedBy).toHaveLength(1);
+      expect(result.response.referencedBy[0].resourceName).toBe('Prometheus Bound');
+    });
+  });
+
+  // ── collaborator directory (COLLABORATOR-DIRECTORY P2) ────────────────────
+
+  describe('agents directory', () => {
+    // The KB's canonical identity — the value /api/tokens/agent mints worker
+    // DIDs from. The directory must mint the identical DIDs (one value, one
+    // owner; .plans/bugs/agent-did-host-skew.md).
+    const SITE_DOMAIN = 'kb.example';
+
+    const did = (provider: string, model: string) =>
+      agentToDid({ domain: SITE_DOMAIN, provider, model });
+
+    async function withBrowser(
+      config: MakeMeaningConfig,
+      fn: (bus: EventBus) => Promise<void>,
+    ) {
+      const bus = new EventBus();
+      const b = new Browser(makeViews([]) as any, mockKb, bus, { root: PROJECT_ROOT } as any, config, mockLogger);
+      await b.initialize();
+      try {
+        await fn(bus);
+      } finally {
+        await b.stop();
+        bus.destroy();
+      }
+    }
+
+    function requestAgents(bus: EventBus) {
+      const reply = firstValueFrom(
+        race(
+          bus.get('browse:agents-result').pipe(map((e) => ({ kind: 'result' as const, e }))),
+          bus.get('browse:agents-failed').pipe(map((e) => ({ kind: 'failed' as const, e }))),
+          timer(300).pipe(
+            map((): never => {
+              throw new Error('no browse:agents subscriber answered');
+            }),
+          ),
+        ).pipe(take(1)),
+      );
+      bus.get('browse:agents-requested').next({ correlationId: 'cid-agents' });
+      return reply;
+    }
+
+    it('answers the deduplicated software roster: worker-derivation DIDs, resolved capabilities', async () => {
+      await withBrowser(
+        {
+          services: {},
+          site: { domain: SITE_DOMAIN },
+          workers: {
+            default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'secret-key-do-not-leak' },
+            generation: { type: 'anthropic', model: 'claude-sonnet-4-5' },
+          },
+          // overlaps workers.default — must dedup into one entry
+          actors: { matcher: { type: 'anthropic', model: 'claude-haiku-4-5' } },
+        },
+        async (bus) => {
+          const r = await requestAgents(bus);
+          if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
+          const agents = r.e.response.agents;
+          expect(agents).toHaveLength(2);
+
+          const entryFor = (model: string) =>
+            agents.find((a) => a.agent['@type'] === 'Software' && a.agent.model === model);
+
+          // workers.default expands to every job type not explicitly assigned
+          // elsewhere ('default' is NOT a JobType and must not appear).
+          expect(entryFor('claude-haiku-4-5')).toMatchObject({
+            agent: {
+              '@type': 'Software',
+              '@id': did('anthropic', 'claude-haiku-4-5'),
+              provider: 'anthropic',
+              model: 'claude-haiku-4-5',
+            },
+            servesJobTypes: [
+              'reference-annotation',
+              'highlight-annotation',
+              'assessment-annotation',
+              'comment-annotation',
+              'tag-annotation',
+            ],
+          });
+          expect(entryFor('claude-sonnet-4-5')).toMatchObject({
+            agent: { '@id': did('anthropic', 'claude-sonnet-4-5') },
+            servesJobTypes: ['generation'],
+          });
+
+          // credentials never leak into the directory
+          expect(JSON.stringify(r.e)).not.toContain('secret-key-do-not-leak');
+        },
+      );
+    });
+
+    it('omits servesJobTypes for an actors-only agent', async () => {
+      await withBrowser(
+        {
+          services: {},
+          site: { domain: SITE_DOMAIN },
+          actors: { gatherer: { type: 'ollama', model: 'llama3' } },
+        },
+        async (bus) => {
+          const r = await requestAgents(bus);
+          if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
+          expect(r.e.response.agents).toHaveLength(1);
+          const entry = r.e.response.agents[0];
+          expect(entry.agent['@id']).toBe(did('ollama', 'llama3'));
+          expect(entry).not.toHaveProperty('servesJobTypes');
+        },
+      );
+    });
+
+    it('answers an empty roster when no workers or actors are declared', async () => {
+      await withBrowser({ services: {}, site: { domain: SITE_DOMAIN } }, async (bus) => {
+        const r = await requestAgents(bus);
+        if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
+        expect(r.e.response.agents).toEqual([]);
+      });
+    });
+
+    it('fails naming the missing config key when site.domain is absent', async () => {
+      await withBrowser({ services: {} }, async (bus) => {
+        const r = await requestAgents(bus);
+        if (r.kind !== 'failed') throw new Error('expected failed');
+        expect(r.e.correlationId).toBe('cid-agents');
+        expect(r.e.message).toContain('site.domain');
+      });
     });
   });
 });

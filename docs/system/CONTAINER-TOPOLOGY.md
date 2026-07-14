@@ -10,7 +10,7 @@ For the actor responsibilities running inside the backend / worker / smelter con
 
 ## Multi-container layout
 
-A local deployment runs three containers of Semiont code, four if you include the frontend, or eight if you also count the infrastructure dependencies:
+A local deployment runs four containers of Semiont code, five if you include the frontend, or nine if you also count the infrastructure dependencies:
 
 ```mermaid
 graph TB
@@ -24,7 +24,6 @@ graph TB
         BROWSER["Browser"]
         GATHERER["Gatherer"]
         MATCHER["Matcher"]
-        GC["Graph Consumer"]
         VIEWS[("Materialized Views")]
     end
 
@@ -36,6 +35,10 @@ graph TB
 
     subgraph smelter_c ["semiont-smelter"]
         SMELTER["Smelter"]
+    end
+
+    subgraph weaver_c ["semiont-weaver"]
+        WEAVER["Weaver"]
     end
 
     subgraph pg_c ["semiont-postgres"]
@@ -57,12 +60,12 @@ graph TB
     SPA --- BUS
     WORKERS --- BUS
     SMELTER --- BUS
+    WEAVER --- BUS
 
     STOWER --- GIT
     STOWER --- VIEWS
     VIEWS --- GIT
-    GC --- GIT
-    GC --- NEO
+    WEAVER --- NEO
     SMELTER --- QD
     BUS --- PG
     WORKERS --- OL
@@ -81,13 +84,13 @@ graph TB
     classDef service fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
 
     class BUS bus
-    class STOWER,BROWSER,GATHERER,MATCHER,GC,WORKERS,SMELTER actor
+    class STOWER,BROWSER,GATHERER,MATCHER,WEAVER,WORKERS,SMELTER actor
     class GIT,VIEWS,PG,NEO,QD store
     class SPA spa
     class OL service
 ```
 
-The three Semiont-code backend containers communicate exclusively through the unified bus exposed by `semiont-backend` (`/bus/emit`, `/bus/subscribe`). Workers and the smelter authenticate via `POST /api/tokens/worker`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) for a JWT with `role: worker`; the existing auth middleware validates that JWT exactly as it would a user's. This split isolates long-running LLM and embedding work from the request-serving event loop — the backend stays responsive to human users while workers and the smelter run in separate V8 isolates.
+The four Semiont-code backend containers communicate exclusively through the unified bus exposed by `semiont-backend` (`/bus/emit`, `/bus/subscribe`). Workers, the smelter, and the weaver authenticate via `POST /api/tokens/agent`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a user's. This split isolates long-running LLM, embedding, and graph-projection work from the request-serving event loop — the backend stays responsive to human users while workers, the smelter, and the weaver run in separate V8 isolates.
 
 ## Unified bus and SemiontSession
 

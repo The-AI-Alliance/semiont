@@ -35,7 +35,7 @@ function createCliLogger(verbose: boolean): Logger {
 
 /**
  * Noop graph database for restore — the graph rebuilds from events
- * after restore via the GraphDBConsumer, not during restore.
+ * after restore via the Weaver, not during restore.
  */
 function createNoopGraphDatabase(): GraphDatabase {
   const noop = async (): Promise<never> => { throw new Error('Graph not available during restore'); };
@@ -112,12 +112,12 @@ export async function runRestore(options: RestoreOptions): Promise<CommandResult
   const eventBus = new EventBus();
   const eventStore = createEventStore(project, eventBus, logger);
   const kb = await createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), eventBus, logger);
-  const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
+  const stower = new Stower(kb, eventBus, project, logger.child({ component: 'stower' }));
   await stower.initialize();
 
   try {
     const input = fs.createReadStream(filePath);
-    const result = await importBackup(input, { eventBus, contentStore: kb.content, logger });
+    const result = await importBackup(input, { eventBus, eventStore, contentStore: kb.content, logger });
 
     if (!options.quiet) {
       printSuccess(

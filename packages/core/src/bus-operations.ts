@@ -42,6 +42,7 @@ export const BUS_OPERATIONS = {
   'browse:referenced-by-requested':      { result: 'browse:referenced-by-result',    failure: 'browse:referenced-by-failed' },
   'browse:entity-types-requested':       { result: 'browse:entity-types-result',     failure: 'browse:entity-types-failed' },
   'browse:tag-schemas-requested':        { result: 'browse:tag-schemas-result',      failure: 'browse:tag-schemas-failed' },
+  'browse:agents-requested':             { result: 'browse:agents-result',           failure: 'browse:agents-failed' },
   'browse:directory-requested':          { result: 'browse:directory-result',        failure: 'browse:directory-failed' },
   // dormant — backend handler complete, no client caller yet (annotation-detail capability)
   'browse:annotation-context-requested': { result: 'browse:annotation-context-result', failure: 'browse:annotation-context-failed' },
@@ -74,6 +75,10 @@ export const BUS_OPERATIONS = {
   // ── MATCH ───────────────────────────────────────────────────────
   // take-1 dressed as an Observable in the SDK; no progress channel
   'match:search-requested':              { result: 'match:search-results',           failure: 'match:search-failed' },
+
+  // ── WEAVE ───────────────────────────────────────────────────────
+  // Graph-projection rebuild, served by the Weaver (WEAVER-ISOLATION D3)
+  'weave:rebuild':                       { result: 'weave:rebuild-ok',               failure: 'weave:rebuild-failed' },
 
   // ── YIELD ───────────────────────────────────────────────────────
   // live in-process (resource-operations.ts emits + awaits via race()); the

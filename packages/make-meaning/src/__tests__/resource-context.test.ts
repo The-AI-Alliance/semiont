@@ -48,7 +48,7 @@ describe('ResourceContext', () => {
       content: mockRepStore,
       graph: mockGraph,
       projectionsDir: '',
-      graphConsumer: {} as any,
+      weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
     };
   });
 

@@ -23,6 +23,10 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
       vectors: config.services?.vectors,
       embedding: config.services?.embedding,
     },
+    // The KB's canonical identity — the agent roster mints DIDs from this,
+    // the SAME value /api/tokens/agent uses (agent-did-host-skew fix). The
+    // value, not JWTService, so make-meaning stays backend-agnostic.
+    ...(config.site?.domain ? { site: { domain: config.site.domain } } : {}),
     actors: meta?.actors,
     workers: meta?.workers,
   };

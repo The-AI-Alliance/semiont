@@ -36,7 +36,7 @@ function createCliLogger(verbose: boolean): Logger {
 
 /**
  * Noop graph database for import — the graph rebuilds from events
- * after import via the GraphDBConsumer, not during import.
+ * after import via the Weaver, not during import.
  */
 function createNoopGraphDatabase(): GraphDatabase {
   const noop = async (): Promise<never> => { throw new Error('Graph not available during import'); };
@@ -118,7 +118,7 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
   const eventBus = new EventBus();
   const eventStore = createEventStore(project, eventBus, logger);
   const kb = await createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), eventBus, logger);
-  const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
+  const stower = new Stower(kb, eventBus, project, logger.child({ component: 'stower' }));
   await stower.initialize();
 
   try {

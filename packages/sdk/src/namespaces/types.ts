@@ -40,6 +40,7 @@ import type {
   GatheredContext,
   ProgressEvent,
   TagSchema,
+  CollaboratorEntry,
   UserDID,
 } from '@semiont/core';
 
@@ -114,6 +115,37 @@ export interface GenerationOptions {
    * set and **fails the job** for anything it can't write — not a silent fallback.
    */
   outputMediaType?: SupportedMediaType;
+  /**
+   * What the model is asked to produce — the prompt's framing verb. Canonical
+   * values are the worker's tested framings; any other string is used VERBATIM
+   * as the lead instruction (+ a worker-side warn) — an open escape hatch, not
+   * a silent fallback. Unset ⇒ `'resource'` (article framing). `prompt` composes
+   * with it as the refining instruction (task = what, prompt = how).
+   */
+  task?: 'resource' | 'answer' | 'summary' | (string & {});
+  /**
+   * How the output is internally segmented — shape for text-bearing media,
+   * subordinate to `outputMediaType`. Canonical: `prose` (flowing paragraphs),
+   * `sections` (titled `## Section`s + `# Title`), `chat` (speaker-labeled
+   * turns). Any other string becomes a freeform "organize as: …" directive
+   * (+ worker-side warn). **Unset ⇒ NO structure directive at all** — the task
+   * framing and the model determine shape; length (`maxTokens`) never does.
+   */
+  structure?: 'prose' | 'sections' | 'chat' | (string & {});
+  /**
+   * Ask the generator to ground claims in the supplied `context` as it
+   * writes. Citations do NOT appear as links in the content: the model emits
+   * inline `[[<id>]]` tokens, which the worker resolves into
+   * `SpecificResource` **linking annotations on the generated resource**
+   * (anchored to the claim span) and strips before storage — stored content
+   * stays clean prose. Only ids actually present in `context` resolve;
+   * unknown ids are dropped with a worker-side warn, never a minted link
+   * (hallucination guard). Composes with `task: 'answer'` for grounded Q&A;
+   * complements — never replaces — the post-hoc `mark.assist('linking')`
+   * pass. Leave unset for content where literal `[[…]]` text is legitimate:
+   * the worker parses tokens only when this is set.
+   */
+  cite?: boolean;
 }
 
 /** Options for mark.assist() */
@@ -202,6 +234,13 @@ export interface BrowseNamespace {
   annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation>;
   entityTypes(): CacheObservable<string[]>;
   tagSchemas(): CacheObservable<TagSchema[]>;
+  /**
+   * The KB's collaborator directory — declared software agents (with
+   * `servesJobTypes` capabilities) plus, when Persons land, its members.
+   * KB-wide singleton; cached for the client lifetime, refreshed on
+   * `bus:resume-gap`.
+   */
+  agents(): CacheObservable<CollaboratorEntry[]>;
   referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]>;
   events(resourceId: ResourceId): CacheObservable<StoredEventResponse[]>;
 
@@ -295,7 +334,9 @@ export interface MarkNamespace {
   assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): StreamObservable<MarkAssistEvent>;
 
   // UI signals (fire-and-forget bus emits, local-bus fan-out)
+  /** Request a new mark on `source` — the id routes the event to the state unit bound to that resource. */
   request(
+    source: ResourceId,
     selector: components['schemas']['MarkRequestedEvent']['selector'],
     motivation: Motivation,
   ): void;

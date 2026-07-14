@@ -25,7 +25,8 @@ export function stubKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): Knowl
     views:          {} as KnowledgeBase['views'],
     content:        { store: vi.fn(), retrieve: vi.fn() } as unknown as KnowledgeBase['content'],
     graph:          {} as KnowledgeBase['graph'],
-    graphConsumer:  { stop: vi.fn().mockResolvedValue(undefined) } as unknown as KnowledgeBase['graphConsumer'],
+    weaveProgress: { dispose: vi.fn() } as unknown as KnowledgeBase['weaveProgress'],
+    smeltProgress: { settledAt: vi.fn(), whenSettled: vi.fn(async () => 'inert' as const), dispose: vi.fn() } as unknown as KnowledgeBase['smeltProgress'],
     projectionsDir: '',
     ...overrides,
   };

@@ -17,8 +17,7 @@
  *   idleTimeoutMs  — How long after the last flush before returning to passthrough.
  *                    200ms is a good default. Must be >= burstWindowMs.
  *
- * See: BATCH-GRAPH-CONSUMER-RX.md for design rationale.
- * See: packages/graph/docs/ARCHITECTURE.md for graph consumer context.
+ * See: packages/graph/docs/ARCHITECTURE.md for Weaver context.
  */
 
 import { Observable, OperatorFunction } from 'rxjs';

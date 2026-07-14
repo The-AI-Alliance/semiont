@@ -153,6 +153,30 @@ await session.client.mark.updateEntityTypes(rId, current, [...current, 'Person']
 (Don't confuse this with `frame.addEntityTypes` (§4), which grows the KB-wide *vocabulary*
 — a different axis from one resource's tags.)
 
+**Who does the work — the collaborator directory.** Before dispatching an assist pass, you
+can name the agent that will serve it: `browse.agents()` returns the KB's declared roster as
+`CollaboratorEntry[]` — each entry a W3C `Agent` plus, for software agents, the
+`servesJobTypes` it's configured to serve (both types importable from `@semiont/core`). It's
+a KB-wide live query like `entityTypes()`: cached for the client's lifetime and refreshed
+after a connection gap (a roster change means a backend restart, which always presents as
+one). Match a job type to its serving agent and you have the assignee *before* the work runs
+— and the same DID arrives back as `generator` on every annotation that work creates, so
+your dispatch-time attribution and the stored provenance agree by construction:
+
+```typescript
+import type { CollaboratorEntry, JobType } from '@semiont/core';
+
+const roster = await session.client.browse.agents();
+const linker = roster.find((e) => e.servesJobTypes?.includes('reference-annotation'));
+// linker?.agent — the Software Agent (name, provider, model, DID '@id') that will
+// serve mark.assist(rId, 'linking', …); entries without servesJobTypes are
+// actor-role agents (retrieval/search), not job workers.
+```
+
+(In React, feed any live query to `useObservable` from `@semiont/react-ui` — e.g.
+`useObservable(useMemo(() => session.client.browse.agents(), [session]))` — and the roster
+updates in place.)
+
 ## 7. Gather context (retrieval)
 
 `gather` assembles the context that grounds generation and search. **`gather.resource`** does
@@ -182,17 +206,28 @@ annotations* `mark.assist('tagging')` writes, which `excludeEntityTypes` does no
 ## 8. Generate a derived resource
 
 `yield.fromResource` / `yield.fromAnnotation` synthesize a **new resource** from a source,
-grounded in a `GatheredContext`. The role is carried by `prompt` (translate, summarize,
-answer, …); `outputMediaType` sets the result's format (default `text/markdown`). On
-completion the worker mints a source→derived reference annotation, so provenance is automatic.
-The generated resource id arrives on the terminal `complete` event.
+grounded in a `GatheredContext`. `outputMediaType` sets the result's format (default
+`text/markdown`); under it, `task` carries the framing (`'resource' | 'answer' | 'summary'`,
+or any custom string — used verbatim, with a worker-side warn) and `structure` the shape
+(`'prose' | 'sections' | 'chat'`, or any custom string; **unset ⇒ no structure directive** —
+the task framing and the model decide, and `maxTokens` is length only). `prompt` is a
+refining instruction that composes with `task` (task = what, prompt = how) — don't carry
+the role in `prompt` anymore. On completion the worker mints a source→derived reference
+annotation, so provenance is automatic. The generated resource id arrives on the terminal
+`complete` event. The context excerpts embedded in the generation prompt are id-labelled
+(`[<resourceId>]` / `[<resourceId>/<annotationId>]` — see the prompt walkthrough in
+[YIELD.md](../../../docs/protocol/flows/YIELD.md)), and `cite: true` turns that into
+inline citations: the model's `[[<id>]]` tokens are stripped before storage and minted as
+W3C linking annotations on the generated resource (claim span → cited source) — citations
+arrive as ordinary navigable references, not links in the text.
 
 ```typescript
 const done = await session.client.yield.fromResource(resourceId, {
   title: 'Summary',
   storageUri: 'file://generated/summary.md',
   context,                                   // from gather.resource — required, grounds the output
-  prompt: 'Summarize, grounding every claim in the provided context.',
+  task: 'summary',                           // the framing; 'answer' + structure: 'prose' is the Q&A recipe
+  prompt: 'Ground every claim in the provided context.',
   entityTypes: ['Concept'],
   outputMediaType: 'text/markdown',
 }).run((ev) => { if (ev.kind === 'progress') showProgress(ev.data); });
@@ -214,10 +249,24 @@ same options.)
 branded — pass it straight to other methods.
 
 ```typescript
-// passage highlight
+import { extractContext } from '@semiont/core';
+
+// passage anchor — position for speed, quote for robustness: pair the
+// TextPositionSelector with a TextQuoteSelector whose prefix/suffix come from
+// core's extractContext, so the anchor survives content drift and re-anchoring.
+const ctx = extractContext(text, start, end);
 const { annotationId } = await session.client.mark.annotation({
-  motivation: 'highlighting',
-  target: { source: rId, selector: [{ type: 'TextPositionSelector', start: 0, end: 11 }] },
+  motivation: 'linking',
+  target: {
+    source: rId,
+    selector: [
+      { type: 'TextPositionSelector', start, end },
+      { type: 'TextQuoteSelector', exact: text.slice(start, end),
+        ...(ctx.prefix !== undefined ? { prefix: ctx.prefix } : {}),
+        ...(ctx.suffix !== undefined ? { suffix: ctx.suffix } : {}) },
+    ],
+  },
+  body: { type: 'SpecificResource', source: targetDocId, purpose: 'linking' }, // a resolved reference
 });
 
 // whole-resource edge: claim → source
@@ -265,6 +314,28 @@ lifecycle. When you instead hold a `jobId` (e.g. handed one out-of-band), poll i
 ```typescript
 const status = await session.client.job.status(jobId);
 const final  = await session.client.job.pollUntilComplete(jobId, { onProgress: (s) => log(s.status) });
+```
+
+**Defend against silence.** A job can fail by *never starting* — e.g. the backend restarts
+with a new signing secret and rejects the emit, so no job is created, nothing streams, and
+`run()` awaits a terminal that will never come. Errors you can catch (§13); silence you have
+to time out. The pattern: race the terminal against a stall timer that **re-arms on every
+streamed event** — a long job that keeps reporting progress is never cut off, only true
+silence trips it — and on a trip, cancel the phantom job's status polling and surface an
+actionable error:
+
+```typescript
+const gen = session.client.yield.fromResource(rId, options);
+let armStall!: () => void;
+const stalled = new Promise<never>((_, reject) => {
+  let t: ReturnType<typeof setTimeout>;
+  armStall = () => { clearTimeout(t); t = setTimeout(() => {
+    session.client.job.cancelRequest('generation');       // stop the never-completing poll
+    reject(new Error('The KB went silent — reconnect and retry.'));
+  }, 90_000); };
+});
+armStall();
+const done = await Promise.race([gen.run(() => armStall()), stalled]);
 ```
 
 ## 13. Handle errors
@@ -372,6 +443,12 @@ so an edit made elsewhere updates the open document live, with no refetch (recip
 `onOpenPanel` if your shell has side panels; omit it for a bare view. For annotate mode, the
 overridable browse-renderer registry, and the batteries-included provider-based variant
 (`ResourceViewerPage`), see `@semiont/react-ui`.
+
+**Mounting many viewers on one session** (a chat log where every message is a resource, a
+split-pane comparison) works on this same seam: in annotate mode each viewer emits its
+creation signals scoped by `source` — the resource `'@id'` of the viewer the selection was
+made in — so a host with N viewers routes each `mark:requested` to the right one by
+`event.source === rid`, as data, not DOM heuristics.
 
 ## Headless (Node) vs. browser
 

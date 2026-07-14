@@ -14,6 +14,8 @@
  * - browse:referenced-by-requested — find annotations in the KB graph that reference a resource
  * - browse:entity-types-requested — list entity types from the project projection
  * - browse:tag-schemas-requested — list tag schemas from the project projection
+ * - browse:agents-requested — the collaborator directory: the KB's declared software
+ *   agents, derived from the workers + actors inference config (COLLABORATOR-DIRECTORY)
  * - browse:directory-requested — list a project directory, merging fs + ViewStorage
  */
 
@@ -29,11 +31,14 @@ import { getExactText, getTargetSource, getTargetSelector, getResourceEntityType
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from './knowledge-base';
+import { resourceWithViewGrace } from './graph-read-grace';
 import { readEntityTypesProjection } from './views/entity-types-reader';
 import { readTagSchemasProjection } from './views/tag-schemas-reader';
 import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
 import { assembleResourceGraph } from './resource-graph';
+import type { MakeMeaningConfig } from './config';
+import { deriveAgentRoster } from './agent-roster';
 
 type DirectoryEntry = components['schemas']['DirectoryEntry'];
 type FileEntry      = components['schemas']['FileEntry'];
@@ -48,6 +53,7 @@ export class Browser {
     private kb: KnowledgeBase,
     private eventBus: EventBus,
     private project: SemiontProject,
+    private config: MakeMeaningConfig,
     logger: Logger,
   ) {
     this.logger = logger;
@@ -90,6 +96,7 @@ export class Browser {
       pipe('browse:referenced-by-requested',     (e) => this.handleReferencedBy(e)).subscribe({ error: errorHandler }),
       pipe('browse:entity-types-requested',      (e) => this.handleEntityTypes(e)).subscribe({ error: errorHandler }),
       pipe('browse:tag-schemas-requested',       (e) => this.handleTagSchemas(e)).subscribe({ error: errorHandler }),
+      pipe('browse:agents-requested',            (e) => this.handleBrowseAgents(e)).subscribe({ error: errorHandler }),
       pipe('browse:directory-requested',         (e) => this.handleBrowseDirectory(e)).subscribe({ error: errorHandler }),
     );
   }
@@ -310,17 +317,32 @@ export class Browser {
         motivation: event.motivation || 'all',
       });
 
+      // The inbound edge query is eventually consistent BY DESIGN
+      // (graph-read-after-write-coverage.md, mechanism (d)): the racing
+      // write lives in the CITING resource's stream, so no per-resource
+      // wait key exists here — and every consumer sits behind the SDK's
+      // referencedBy cache, whose staleness window dwarfs the Weaver's
+      // ~tens-of-ms apply lag. A just-woven edge appears on the next read.
       const references = await this.kb.graph.getResourceReferencedBy(resourceId(event.resourceId), event.motivation);
 
       const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-      const resources = await Promise.all(sourceIds.map(id => this.kb.graph.getResource(resourceId(id))));
+      // Citer hydration IS id-keyed: graph-first with view fallback
+      // (mechanism (b′)) — a woven edge whose endpoint isn't woven yet must
+      // not render "Untitled Resource"; the view holds the fresher descriptor.
+      const resolved = await Promise.all(
+        sourceIds.map(id => resourceWithViewGrace(this.kb, resourceId(id))),
+      );
 
+      const docMap = new Map(
+        resolved.filter(r => r.resource !== null).map(r => [r.resource!['@id'], r.resource!]),
+      );
       for (let i = 0; i < sourceIds.length; i++) {
-        if (resources[i] === null) {
-          this.logger.warn('Referenced resource not found in graph', { resourceId: sourceIds[i] });
+        if (resolved[i].laggedBehindView) {
+          this.logger.info('[graph lag] citer hydrated from view', { resourceId: sourceIds[i] });
+        } else if (resolved[i].resource === null) {
+          this.logger.warn('Referenced resource not found in graph or view', { resourceId: sourceIds[i] });
         }
       }
-      const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc['@id'], doc]));
 
       const referencedBy = references.map(ref => {
         const targetSource = getTargetSource(ref.target);
@@ -377,6 +399,24 @@ export class Browser {
     } catch (error) {
       this.logger.error('Tag schemas read failed', { error: errField(error) });
       this.eventBus.get('browse:tag-schemas-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleBrowseAgents(event: EventMap['browse:agents-requested']): Promise<void> {
+    try {
+      // Derived per request from the config sections that route work — the
+      // declared roster, cheap enough that no caching layer is warranted.
+      const agents = deriveAgentRoster(this.config);
+      this.eventBus.get('browse:agents-result').next({
+        correlationId: event.correlationId,
+        response: { agents },
+      });
+    } catch (error) {
+      this.logger.error('Agent roster derivation failed', { error: errField(error) });
+      this.eventBus.get('browse:agents-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });

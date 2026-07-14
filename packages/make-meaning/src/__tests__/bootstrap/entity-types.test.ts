@@ -42,7 +42,7 @@ describe('Entity Types Bootstrap', () => {
     eventStore = createEventStore(project, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
     kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger);
-    stower = new Stower(kb, eventBus, mockLogger);
+    stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();
   });
 

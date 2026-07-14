@@ -56,7 +56,7 @@ describe('PdfAnnotationCanvas', () => {
 
   test('renders loading state initially', () => {
     render(
-      <PdfAnnotationCanvas
+      <PdfAnnotationCanvas resourceUri="res-1"
         pdfUrl={mockPdfUrl}
         drawingMode={null}
       />
@@ -67,7 +67,7 @@ describe('PdfAnnotationCanvas', () => {
 
   test('renders page navigation controls after loading', async () => {
     render(
-      <PdfAnnotationCanvas
+      <PdfAnnotationCanvas resourceUri="res-1"
         pdfUrl={mockPdfUrl}
         drawingMode={null}
       />
@@ -83,7 +83,7 @@ describe('PdfAnnotationCanvas', () => {
 
   test('previous button is disabled on first page', async () => {
     render(
-      <PdfAnnotationCanvas
+      <PdfAnnotationCanvas resourceUri="res-1"
         pdfUrl={mockPdfUrl}
         drawingMode={null}
       />
@@ -99,7 +99,7 @@ describe('PdfAnnotationCanvas', () => {
 
   test('next button is disabled on last page', async () => {
     render(
-      <PdfAnnotationCanvas
+      <PdfAnnotationCanvas resourceUri="res-1"
         pdfUrl={mockPdfUrl}
         drawingMode={null}
       />
@@ -144,7 +144,7 @@ describe('PdfAnnotationCanvas', () => {
     ];
 
     render(
-      <PdfAnnotationCanvas
+      <PdfAnnotationCanvas resourceUri="res-1"
         pdfUrl={mockPdfUrl}
         existingAnnotations={mockAnnotations}
         drawingMode={null}
@@ -179,7 +179,7 @@ describe('PdfAnnotationCanvas', () => {
 
   test('accepts a drawing gesture without throwing when drawing mode is active', async () => {
     render(
-      <PdfAnnotationCanvas
+      <PdfAnnotationCanvas resourceUri="res-1"
         pdfUrl={mockPdfUrl}
         drawingMode="rectangle"
         selectedMotivation="highlighting"

@@ -37,11 +37,12 @@ export function ImageBrowseRenderer({ content, mimeType }: MediaRendererProps) {
   return <ImageViewer imageUrl={content} mimeType={mimeType} alt="Resource content" />;
 }
 
-export function PdfBrowseRenderer({ content, annotations }: MediaRendererProps) {
+export function PdfBrowseRenderer({ content, resourceUri, annotations }: MediaRendererProps) {
   return (
     <Suspense fallback={<div className="semiont-browse-view__loading">Loading PDF viewer...</div>}>
       <PdfAnnotationCanvas
         pdfUrl={content}
+        resourceUri={resourceUri}
         existingAnnotations={annotations}
         drawingMode={null}
         selectedMotivation={null}

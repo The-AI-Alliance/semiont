@@ -289,13 +289,20 @@ semiont yield --upload ./paper.pdf --name "My Paper"
 semiont yield --upload ./a.md --upload ./b.md   # multiple files
 ```
 
-**Delegate mode** — delegate resource generation from annotation context to a configured worker:
+**Delegate mode** — delegate resource generation to a configured worker. With
+`--annotation`, generation is grounded in that annotation's gathered context;
+without it, in the whole source resource's context (`yield.fromResource`):
 
 ```bash
 semiont yield --delegate \
   --resource <resourceId> \
   --annotation <annotationId> \
   --storage-uri file://generated/output.md
+
+# Whole-resource Q&A — no annotation; the title is the question
+semiont yield --delegate --resource <resourceId> \
+  --storage-uri file://generated/answer.md \
+  --title "What is X?" --task answer --structure prose
 ```
 
 | Flag | Description |
@@ -304,11 +311,14 @@ semiont yield --delegate \
 | `--name <name>` | Resource name (upload mode, single file only) |
 | `--delegate` | Delegate to a configured worker; mutually exclusive with `--upload` |
 | `--resource <id>` | Source resource for delegate mode |
-| `--annotation <id>` | Source annotation for delegate mode |
+| `--annotation <id>` | Source annotation (optional — omit for whole-resource generation) |
 | `--storage-uri <uri>` | Where to store the generated output |
-| `--prompt <text>` | Override the generation prompt |
+| `--prompt <text>` | Refining instruction for generation (composes with `--task`) |
+| `--task <t>` | Generation framing — `resource` \| `answer` \| `summary`, or any custom framing string (default: `resource`) |
+| `--structure <s>` | Output shape — `prose` \| `sections` \| `chat`, or any custom organization string (default: none imposed) |
+| `--output-media-type <mt>` | Media type of the generated resource (default: `text/markdown`) |
 | `--temperature <n>` | Model temperature (0–1) |
-| `--max-tokens <n>` | Maximum tokens to generate |
+| `--max-tokens <n>` | Maximum tokens to generate (length only — never implies structure) |
 | `--context-window <n>` | Token budget for context gathering |
 
 ---

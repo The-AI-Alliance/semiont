@@ -21,6 +21,8 @@ const mockGraphDb = {
 
 const mockViews = { get: vi.fn() };
 
+const mockWeaveProgress = { whenApplied: vi.fn(), appliedUpTo: vi.fn(), dispose: vi.fn() };
+
 describe('GraphContext', () => {
   const mockKb: KnowledgeBase = {
     eventStore: {} as any,
@@ -28,7 +30,7 @@ describe('GraphContext', () => {
     content: {} as any,
     graph: mockGraphDb as any,
     projectionsDir: '',
-      graphConsumer: {} as any,
+    weaveProgress: mockWeaveProgress as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
   };
 
   it('should get backlinks for a resource', async () => {
@@ -269,6 +271,107 @@ describe('GraphContext', () => {
 
       expect(graph.nodes.find((n) => n.id === 'ann-sib')).toMatchObject({ type: 'annotation' });
       expect(graph.edges).toContainEqual({ source: 'ann-sib', target: 'res-main', type: 'annotation-of' });
+    });
+  });
+
+  describe('projection-lag grace (GRAPH-PROJECTION-SYNC P1)', () => {
+    const mainDoc = { '@id': 'res-main', name: 'Main', entityTypes: [] };
+
+    it('retries the graph read while the view has the resource, and succeeds once the Weaver catches up', async () => {
+      // The view materializer applies on the append path; the Weaver lags.
+      // "In the view, not yet in the graph" is projection lag, not a 404.
+      mockViews.get.mockReset().mockResolvedValue({ resource: mainDoc });
+      mockGraphDb.getResource
+        .mockReset()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue(mainDoc);
+      mockGraphDb.getResourceConnections.mockResolvedValue([]);
+      mockGraphDb.getResourceReferencedBy.mockResolvedValue([]);
+      mockGraphDb.getResourceAnnotations.mockResolvedValue([]);
+
+      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
+
+      expect(graph.nodes.find((n) => n.id === 'res-main')).toMatchObject({ type: 'resource', label: 'Main' });
+      expect(mockGraphDb.getResource.mock.calls.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('does not retry when the view lacks the resource — a true unknown throws on the first read', async () => {
+      mockViews.get.mockReset().mockResolvedValue(null);
+      mockGraphDb.getResource.mockReset().mockResolvedValue(null);
+
+      await expect(
+        GraphContext.buildKnowledgeGraph(resourceId('res-ghost'), mockKb),
+      ).rejects.toThrow('Resource not found');
+      expect(mockGraphDb.getResource).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives up after the bounded backoff when the graph never catches up', async () => {
+      mockViews.get.mockReset().mockResolvedValue({ resource: mainDoc });
+      mockGraphDb.getResource.mockReset().mockResolvedValue(null);
+
+      await expect(
+        GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb),
+      ).rejects.toThrow('Resource not found');
+      // Bounded: more than one attempt, but not unbounded polling.
+      expect(mockGraphDb.getResource.mock.calls.length).toBeGreaterThan(1);
+      expect(mockGraphDb.getResource.mock.calls.length).toBeLessThanOrEqual(6);
+    });
+  });
+
+  describe('applied-offset barrier (GRAPH-PROJECTION-SYNC P2, D2 = push)', () => {
+    const mainDoc = { '@id': 'res-main', name: 'Main', entityTypes: [] };
+
+    it('awaits weave:applied parity and re-reads once — zero backoff polls', async () => {
+      // The view carries its applied sequence; the barrier waits for the
+      // Weaver to report parity, then a single re-read hits. No sleep-poll
+      // iterations — the wake is event-driven.
+      mockViews.get.mockReset().mockResolvedValue({ resource: mainDoc, lastSequence: 7 });
+      mockWeaveProgress.whenApplied.mockReset().mockResolvedValue(undefined);
+      mockGraphDb.getResource
+        .mockReset()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue(mainDoc);
+      mockGraphDb.getResourceConnections.mockResolvedValue([]);
+      mockGraphDb.getResourceReferencedBy.mockResolvedValue([]);
+      mockGraphDb.getResourceAnnotations.mockResolvedValue([]);
+
+      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
+
+      expect(graph.nodes.find((n) => n.id === 'res-main')).toMatchObject({ type: 'resource' });
+      expect(mockWeaveProgress.whenApplied).toHaveBeenCalledTimes(1);
+      expect(mockWeaveProgress.whenApplied).toHaveBeenCalledWith('res-main', 7, expect.any(Number));
+      expect(mockGraphDb.getResource).toHaveBeenCalledTimes(2);
+    });
+
+    it('falls back to the bounded poll when the barrier times out', async () => {
+      mockViews.get.mockReset().mockResolvedValue({ resource: mainDoc, lastSequence: 7 });
+      mockWeaveProgress.whenApplied.mockReset().mockRejectedValue(new Error('WeaveProgressTimeout'));
+      mockGraphDb.getResource
+        .mockReset()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue(mainDoc);
+
+      const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
+
+      expect(graph.nodes.find((n) => n.id === 'res-main')).toMatchObject({ type: 'resource' });
+      expect(mockGraphDb.getResource.mock.calls.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('skips the barrier for views without a sequence stamp — straight to the poll floor', async () => {
+      // Pre-stamp view files (written before lastSequence existed) carry no
+      // parity target; the barrier cannot engage and must not block.
+      mockViews.get.mockReset().mockResolvedValue({ resource: mainDoc });
+      mockWeaveProgress.whenApplied.mockReset().mockResolvedValue(undefined);
+      mockGraphDb.getResource
+        .mockReset()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue(mainDoc);
+
+      await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
+
+      expect(mockWeaveProgress.whenApplied).not.toHaveBeenCalled();
     });
   });
 });

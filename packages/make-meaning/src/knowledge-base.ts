@@ -8,7 +8,10 @@
  * - Materialized Views (fast single-doc queries) — via ViewStorage
  * - Content Store (working-tree files, URI-addressed) — via WorkingTreeStore
  * - Graph (eventually consistent relationship projection) — via GraphDatabase
- * - Graph Consumer (event-to-graph projection) — via GraphDBConsumer
+ * - WeaveProgress (weave:applied fold — the graph-projection barrier; the
+ *   Weaver itself runs standalone via @semiont/make-meaning/weaver-main)
+ * - SmeltProgress (smelt:settled fold — the vector-projection barrier;
+ *   SMELTER-INDEX-SYNC, same standalone-actor arrangement as the Weaver)
  * - Vectors (semantic search) — via VectorStore (optional, read-only)
  *
  * The Smelter (event-to-vector projection) runs as an external actor
@@ -23,14 +26,16 @@ import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventBus, Logger } from '@semiont/core';
-import { GraphDBConsumer } from './graph/consumer.js';
+import { createWeaveProgress, type WeaveProgress } from './weave-progress.js';
+import { createSmeltProgress, type SmeltProgress } from './smelt-progress.js';
 
 export interface KnowledgeBase {
   eventStore:    EventStore;
   views:         ViewStorage;
   content:       WorkingTreeStore;
   graph:         GraphDatabase;
-  graphConsumer: GraphDBConsumer;
+  weaveProgress: WeaveProgress;
+  smeltProgress: SmeltProgress;
   vectors?:      VectorStore;
   projectionsDir: string;
 }
@@ -53,26 +58,29 @@ export async function createKnowledgeBase(
     project,
     logger.child({ component: 'working-tree-store' }),
   );
-  const graphConsumer = new GraphDBConsumer(
-    eventStore,
-    graphDb,
-    eventBus,
-    logger.child({ component: 'graph-consumer' }),
-  );
-  await graphConsumer.initialize();
+  // Fold of `weave:applied` signals. The Weaver itself is NOT constructed
+  // here (WEAVER-ISOLATION D4, refined): the graph projection is part of
+  // the graph stack, not the embedding process — `weaver-main` runs it as
+  // a standalone actor, and its signals arrive over the bus. This fold is
+  // the backend-side half, wherever the Weaver runs.
+  const weaveProgress = createWeaveProgress(eventBus);
+  // Its vector-projection sibling: fold of `smelt:settled` decision signals
+  // from the standalone Smelter, backing the gather-side read-your-writes
+  // barrier (SMELTER-INDEX-SYNC D1 = push).
+  const smeltProgress = createSmeltProgress(eventBus);
 
   if (!options?.skipRebuild) {
     // Rebuild materialized views from the event log first. The Browser actor
     // reads from these views, so they must be populated before any request is
-    // served. The views layer is the third derived read model alongside the
-    // graph and vectors; this call mirrors graphConsumer.rebuildAll() so
-    // that an ephemeral stateDir wipe is recoverable.
+    // served. The graph projection no longer full-rebuilds here — the Weaver
+    // catches up incrementally via its checkpoint (WEAVER-ISOLATION P3),
+    // called from startMakeMeaning once the Browser is serving the
+    // `browse:*` reads catch-up rides on.
     await eventStore.views.rebuildAll(eventStore.log);
-    await graphConsumer.rebuildAll();
   }
 
   const kb: KnowledgeBase = {
-    eventStore, views, content, graph: graphDb, graphConsumer,
+    eventStore, views, content, graph: graphDb, weaveProgress, smeltProgress,
     projectionsDir: project.projectionsDir,
   };
 

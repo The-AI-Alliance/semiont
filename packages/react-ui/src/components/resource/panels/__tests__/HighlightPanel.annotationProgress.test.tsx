@@ -74,7 +74,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
   describe('Detection Progress Prop Passing', () => {
     it('should pass progress to AssistSection when provided', () => {
       renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={true}
@@ -93,7 +93,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
     it('should pass null progress to AssistSection', () => {
       renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={false}
@@ -109,7 +109,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
     it('should pass undefined progress to AssistSection', () => {
       renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={false}
@@ -125,7 +125,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
     it('should keep progress visible after detection completes (isAssisting=false)', () => {
       renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={false}
@@ -146,7 +146,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
     it('should pass progress with request parameters to AssistSection', () => {
       renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={true}
@@ -172,7 +172,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
   describe('Annotate Mode Toggling', () => {
     it('should render AssistSection when annotateMode is true', () => {
       renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={false}
@@ -186,7 +186,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
     it('should NOT render AssistSection when annotateMode is false', () => {
       renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={false}
@@ -200,7 +200,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
     it('should hide progress when switching to browse mode (annotateMode=false)', () => {
       const { rerender } = renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={true}
@@ -217,7 +217,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
       // Switch to browse mode
       rerender(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={true}
@@ -238,7 +238,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
   describe('State Combinations', () => {
     it('should handle isAssisting=true with no progress (starting state)', () => {
       renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={true}
@@ -253,7 +253,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
     it('should handle isAssisting=false with progress (final state)', () => {
       renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={false}
@@ -274,7 +274,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
     it('should handle multiple progress updates', () => {
       const { rerender } = renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={true}
@@ -291,7 +291,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
       // Update to analyzing
       rerender(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={true}
@@ -309,7 +309,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
       // Update to complete
       rerender(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={false}
@@ -330,7 +330,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
   describe('Highlights List Rendering', () => {
     it('should render highlights list alongside detection progress', () => {
       renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isAssisting={true}
@@ -350,7 +350,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
     it('should show empty state when no highlights', () => {
       renderWithProviders(
-        <HighlightPanel
+        <HighlightPanel resourceId="res-1"
           annotations={[]}
           pendingAnnotation={null}
           isAssisting={false}

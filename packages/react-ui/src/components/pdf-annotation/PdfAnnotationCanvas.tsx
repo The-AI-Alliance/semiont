@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import type { Annotation } from '@semiont/core';
+import { resourceId as toResourceId } from '@semiont/core';
 import {
   getTargetSelector,
   createFragmentSelector,
@@ -48,6 +49,8 @@ function getMotivationColor(motivation: SelectionMotivation | null): { stroke: s
 
 interface PdfAnnotationCanvasProps {
   pdfUrl: string;
+  /** The '@id' of the annotated resource — stamped as `source` on mark:requested (multi-viewer routing). */
+  resourceUri: string;
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
@@ -66,6 +69,7 @@ interface PdfAnnotationCanvasProps {
  */
 export function PdfAnnotationCanvas({
   pdfUrl,
+  resourceUri,
   existingAnnotations = [],
   drawingMode,
   selectedMotivation,
@@ -319,6 +323,7 @@ export function PdfAnnotationCanvas({
     // Emit annotation:requested event with FragmentSelector
     if (selectedMotivation) {
       session.client.mark.request(
+        toResourceId(resourceUri),
         {
           type: 'FragmentSelector',
           conformsTo: 'http://tools.ietf.org/rfc/rfc3778',

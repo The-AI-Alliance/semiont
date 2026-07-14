@@ -185,6 +185,7 @@ const createPendingAnnotation = (exact: string) => ({
 
 describe('TaggingPanel Component', () => {
   const defaultProps = {
+    resourceId: 'res-1',
     annotations: mockTags.empty,
     pendingAnnotation: null,
   };

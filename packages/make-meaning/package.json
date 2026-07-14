@@ -1,6 +1,6 @@
 {
   "name": "@semiont/make-meaning",
-  "version": "0.5.11",
+  "version": "0.5.12",
   "engines": {
     "node": ">=24.0.0"
   },
@@ -16,6 +16,10 @@
     "./smelter-main": {
       "types": "./dist/smelter-main.d.ts",
       "import": "./dist/smelter-main.js"
+    },
+    "./weaver-main": {
+      "types": "./dist/weaver-main.d.ts",
+      "import": "./dist/weaver-main.js"
     }
   },
   "files": [
@@ -31,11 +35,11 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/http-transport": "*",
     "@semiont/content": "*",
     "@semiont/core": "*",
     "@semiont/event-sourcing": "*",
     "@semiont/graph": "*",
+    "@semiont/http-transport": "*",
     "@semiont/inference": "*",
     "@semiont/jobs": "*",
     "@semiont/observability": "*",
@@ -50,7 +54,7 @@
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   },
   "keywords": [
     "semantic-annotation",

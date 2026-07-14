@@ -2,7 +2,7 @@
 
 ## Actors
 
-Seven actors in two categories: five **access actors** (Stower, Browser, Gatherer, Matcher, CloneTokenManager) mediate reads and writes; two **projection pipelines** (Graph Consumer, Smelter) follow the event log.
+Seven actors in two categories: five **access actors** (Stower, Browser, Gatherer, Matcher, CloneTokenManager) mediate reads and writes; two **projection pipelines** (Weaver, Smelter) follow the event log.
 
 ### Stower
 
@@ -29,7 +29,7 @@ Read actor. Handles all deterministic KB read queries — resources, annotations
 ```typescript
 import { Browser } from '@semiont/make-meaning';
 
-const browser = new Browser(kb.views, kb, eventBus, project, logger);
+const browser = new Browser(kb.views, kb, eventBus, project, config, logger);
 await browser.initialize();
 await browser.stop();
 ```
@@ -44,6 +44,7 @@ Responds to:
 - `browse:referenced-by-requested` → emits `browse:referenced-by-result` or `browse:referenced-by-failed`
 - `browse:entity-types-requested` → emits `browse:entity-types-result` or `browse:entity-types-failed`
 - `browse:tag-schemas-requested` → emits `browse:tag-schemas-result` or `browse:tag-schemas-failed`
+- `browse:agents-requested` → emits `browse:agents-result` or `browse:agents-failed` (the collaborator directory: declared software agents with DIDs and served job types, derived from the workers/actors inference config)
 - `browse:directory-requested` → emits `browse:directory-result` or `browse:directory-failed`
 
 ### Gatherer
@@ -83,11 +84,11 @@ Responds to:
 
 Referenced-by lookups are handled by the Browser (`browse:referenced-by-requested`), not the Matcher.
 
-### Graph Consumer (projection pipeline)
+### Weaver (projection pipeline)
 
-Event-to-graph projection pipeline. Subscribes to graph-relevant domain events and applies them to the graph database with per-resource ordering and adaptive burst batching. Not exported from the package index — `createKnowledgeBase()` constructs and starts it, exposing it as `kb.graphConsumer` (`initialize()`, `stop()`, `rebuildAll()`).
+Event-to-graph projection pipeline. Subscribes to graph-relevant domain events and applies them to the graph database with per-resource ordering and adaptive burst batching. Not exported from the package index — `createKnowledgeBase()` constructs and starts it, exposing it as `kb.weaver` (`initialize()`, `stop()`, `rebuildAll()`).
 
-**Implementation**: [src/graph/consumer.ts](../src/graph/consumer.ts)
+**Implementation**: [src/weaver.ts](../src/weaver.ts)
 
 ### Smelter (projection pipeline, standalone process)
 
@@ -351,7 +352,7 @@ export interface KnowledgeBase {
   views:          ViewStorage;
   content:        WorkingTreeStore;
   graph:          GraphDatabase;
-  graphConsumer:  GraphDBConsumer;
+  weaver:  Weaver;
   vectors?:       VectorStore;   // Optional — Qdrant or memory (from @semiont/vectors)
   projectionsDir: string;
 }

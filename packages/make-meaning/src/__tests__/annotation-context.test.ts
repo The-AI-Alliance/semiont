@@ -78,7 +78,7 @@ describe('AnnotationContext', () => {
       content: new WorkingTreeStore(project, mockLogger),
       graph: mockGraphDb,
       projectionsDir: project.projectionsDir,
-      graphConsumer: {} as any,
+      weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
     };
   });
 

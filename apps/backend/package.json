@@ -1,6 +1,6 @@
 {
   "name": "semiont-backend",
-  "version": "0.5.11",
+  "version": "0.5.12",
   "engines": {
     "node": ">=24.0.0"
   },
@@ -41,7 +41,7 @@
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "argon2": "^0.44.0",
-    "hono": "^4.12.27",
+    "hono": "^4.12.28",
     "jsonwebtoken": "^9.0.2",
     "winston": "^3.19.0",
     "zod": "^4.4.3"
@@ -55,13 +55,13 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.0.0",
     "@vitest/coverage-v8": "^4.1.8",
-    "@vitest/ui": "^4.1.8",
+    "@vitest/ui": "^4.1.10",
     "fast-check": "^4.8.0",
-    "msw": "^2.14.6",
+    "msw": "^2.15.0",
     "prisma": "^7.8.0",
     "tsup": "^8.5.1",
-    "tsx": "^4.22.5",
+    "tsx": "^4.23.0",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   }
 }

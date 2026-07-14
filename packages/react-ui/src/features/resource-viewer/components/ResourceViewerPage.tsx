@@ -171,7 +171,12 @@ export function ResourceViewerPage({
   const isBinary = renderMode === 'image' || renderMode === 'pdf';
 
   // Text path: fetch and decode representation (disabled for binary — mediaToken path handles those)
-  const { content: textContent, loading: textLoading } = useResourceContent(rUri, resource, !isBinary);
+  // Headless hook returns the error; the page (chrome tier) owns the toast.
+  const { content: textContent, loading: textLoading, error: contentError } = useResourceContent(semiont ?? null, rUri, resource, !isBinary);
+
+  useEffect(() => {
+    if (contentError) showError('Failed to load resource representation');
+  }, [contentError, showError]);
 
   // Binary path: fetch short-lived media token, construct URL
   const { token: mediaToken, loading: mediaTokenLoading } = useMediaToken(semiont ?? null, rUri);

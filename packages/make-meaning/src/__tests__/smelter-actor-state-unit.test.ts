@@ -50,7 +50,7 @@ describe('createSmelterActorStateUnit', () => {
     h = fakeBus();
   });
 
-  it('extends the shared bus with all 6 smelter channels on start', () => {
+  it('extends the shared bus with all 9 smelter channels on start', () => {
     const stateUnit = createSmelterActorStateUnit({ bus: h.bus });
     stateUnit.start();
 
@@ -58,8 +58,11 @@ describe('createSmelterActorStateUnit', () => {
     expect(h.channels.has('yield:updated')).toBe(true);
     expect(h.channels.has('yield:representation-added')).toBe(true);
     expect(h.channels.has('mark:archived')).toBe(true);
+    expect(h.channels.has('mark:unarchived')).toBe(true);
     expect(h.channels.has('mark:added')).toBe(true);
     expect(h.channels.has('mark:removed')).toBe(true);
+    expect(h.channels.has('mark:entity-tag-added')).toBe(true);
+    expect(h.channels.has('mark:entity-tag-removed')).toBe(true);
 
     stateUnit.dispose();
   });

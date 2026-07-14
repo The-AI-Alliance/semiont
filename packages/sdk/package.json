@@ -1,6 +1,6 @@
 {
   "name": "@semiont/sdk",
-  "version": "0.5.11",
+  "version": "0.5.12",
   "description": "Semiont SDK — SemiontClient, namespaces, session/browser, state units, and the bus-request/cache helpers. Transport-agnostic; pair with @semiont/http-transport (HttpTransport) or @semiont/make-meaning (LocalTransport) for the wire.",
   "type": "module",
   "main": "dist/index.js",
@@ -39,8 +39,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/http-transport": "*",
     "@semiont/core": "*",
+    "@semiont/http-transport": "*",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
@@ -50,7 +50,7 @@
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   },
   "keywords": [
     "semiont",

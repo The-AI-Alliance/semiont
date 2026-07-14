@@ -19,6 +19,8 @@
 
 import type { components } from './types';
 import type { AnnotationId, ResourceId } from './identifiers';
+import type { Annotation } from './annotation-types';
+import type { ResourceDescriptor } from './graph';
 import type { StoredEvent } from './event-base';
 import type { EventOfType } from './persisted-events';
 
@@ -217,21 +219,52 @@ export type EventMap = {
   // BROWSE FLOW — knowledge base reads + UI navigation
   // ========================================================================
 
-  // Reads
+  // Reads.
+  //
+  // Reply `response` payloads carry DOMAIN-flavored documents: the KS serves
+  // real, validated ids, so these declare the branded `Annotation` /
+  // `ResourceDescriptor` (annotation-types.ts / graph.ts) rather than the raw
+  // OpenAPI flavors — consumers must never need to re-brand (`as Annotation[]`)
+  // what the protocol already guarantees. Field overrides via Omit +
+  // intersection; envelope shape per .plans/REPLY-SHAPE-STANDARD.md.
   'browse:resource-requested': components['schemas']['BrowseResourceRequest'];
-  'browse:resource-result': components['schemas']['BrowseResourceResult'];
+  'browse:resource-result': {
+    correlationId: string;
+    response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {
+      resource: ResourceDescriptor;
+      annotations: Annotation[];
+      entityReferences: Annotation[];
+    };
+  };
   'browse:resource-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:resources-requested': components['schemas']['BrowseResourcesRequest'];
-  'browse:resources-result': components['schemas']['BrowseResourcesResult'];
+  'browse:resources-result': {
+    correlationId: string;
+    response: Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
+      resources: ResourceDescriptor[];
+    };
+  };
   'browse:resources-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:annotations-requested': components['schemas']['BrowseAnnotationsRequest'];
-  'browse:annotations-result': components['schemas']['BrowseAnnotationsResult'];
+  'browse:annotations-result': {
+    correlationId: string;
+    response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {
+      annotations: Annotation[];
+    };
+  };
   'browse:annotations-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:annotation-requested': components['schemas']['BrowseAnnotationRequest'];
-  'browse:annotation-result': components['schemas']['BrowseAnnotationResult'];
+  'browse:annotation-result': {
+    correlationId: string;
+    response: Omit<components['schemas']['GetAnnotationResponse'], 'annotation' | 'resource' | 'resolvedResource'> & {
+      annotation: Annotation;
+      resource: ResourceDescriptor | null;
+      resolvedResource: ResourceDescriptor | null;
+    };
+  };
   'browse:annotation-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:events-requested': components['schemas']['BrowseEventsRequest'];
@@ -257,6 +290,10 @@ export type EventMap = {
   'browse:tag-schemas-requested': components['schemas']['BrowseTagSchemasRequest'];
   'browse:tag-schemas-result': components['schemas']['BrowseTagSchemasResult'];
   'browse:tag-schemas-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:agents-requested': components['schemas']['BrowseAgentsRequest'];
+  'browse:agents-result': components['schemas']['BrowseAgentsResult'];
+  'browse:agents-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:directory-requested': components['schemas']['BrowseDirectoryRequest'];
   'browse:directory-result': components['schemas']['BrowseDirectoryResult'];
@@ -324,6 +361,39 @@ export type EventMap = {
   // queue error instead of the old silent swallow (.plans/bugs/BRIDGE-GAPS.md).
   'job:cancel-ok': { correlationId?: string; response: { cancelled: number } };
   'job:cancel-failed': components['schemas']['CommandError'];
+
+  // ========================================================================
+  // WEAVE FLOW — graph projection progress (GRAPH-PROJECTION-SYNC, D2 = push)
+  // ========================================================================
+
+  /**
+   * Emitted by the Weaver after applying an event (or a batch's last event)
+   * for a resource to the graph. `sequenceNumber` is the resource-stream
+   * sequence of the last applied event. Folded by `WeaveProgress`
+   * (make-meaning) into the backend-local applied map that the
+   * `whenApplied` barrier awaits. In-process signal today; crosses the
+   * bus gateway after WEAVER-ISOLATION.
+   */
+  'weave:applied': { resourceId: string; sequenceNumber: number };
+
+  // Signal — the vector projection's per-resource decision report: emitted
+  // by the Smelter after indexing a resource's content ('indexed') or after
+  // deciding not to ('skipped': media gate, empty text). Keyed by the
+  // checksum of the bytes inspected — "settled at C" is read-your-writes for
+  // exactly that content. NEVER emitted on transient failures: an error is not
+  // a decision (SMELTER-INDEX-SYNC A2). Consumed by the backend-local
+  // `SmeltProgress` fold behind the gather-side barrier. This is the
+  // Smelter's single outbound signal (SMELTER-AXIOMS D3, as amended).
+  'smelt:settled': { resourceId: string; contentChecksum: string; outcome: 'indexed' | 'skipped' };
+
+  // Command — rebuild the graph projection from the event log (full when
+  // resourceId is absent, one resource when present). Served by the Weaver;
+  // replaces direct `rebuildAll()`/`rebuildResource()` access, which does
+  // not survive the container split (WEAVER-ISOLATION D3). Correlated
+  // request/reply via the BUS_OPERATIONS registry.
+  'weave:rebuild': components['schemas']['WeaveRebuildCommand'];
+  'weave:rebuild-ok': { correlationId?: string };
+  'weave:rebuild-failed': { correlationId?: string; message: string };
 
   // ========================================================================
   // SETTINGS (frontend-only)
@@ -552,6 +622,9 @@ export const CHANNEL_SCHEMAS = {
   'browse:tag-schemas-requested':     'BrowseTagSchemasRequest',
   'browse:tag-schemas-result':        'BrowseTagSchemasResult',
   'browse:tag-schemas-failed':        null,
+  'browse:agents-requested':          'BrowseAgentsRequest',
+  'browse:agents-result':             'BrowseAgentsResult',
+  'browse:agents-failed':             null,
   'browse:directory-requested':       'BrowseDirectoryRequest',
   'browse:directory-result':          'BrowseDirectoryResult',
   'browse:directory-failed':          null, // { correlationId; path } & CommandError
@@ -603,6 +676,13 @@ export const CHANNEL_SCHEMAS = {
   'settings:line-numbers-toggled':    null, // void
   'settings:locale-changed':          'SettingsLocaleChangedEvent',
   'settings:hover-delay-changed':     'SettingsHoverDelayChangedEvent',
+
+  // ── WEAVE FLOW ──────────────────────────────────────────────────
+  'weave:applied':                    null, // { resourceId; sequenceNumber }
+  'smelt:settled':                    null, // { resourceId; contentChecksum; outcome }
+  'weave:rebuild':                    'WeaveRebuildCommand',
+  'weave:rebuild-ok':                 null, // { correlationId }
+  'weave:rebuild-failed':             null, // { correlationId; message }
 
   // ── SSE infrastructure ──────────────────────────────────────────
   'stream-connected':                 null, // Record<string, never>

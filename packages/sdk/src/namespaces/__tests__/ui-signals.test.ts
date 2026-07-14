@@ -134,9 +134,10 @@ describe('UI signal wrappers', () => {
         exact: 'hello world',
       };
 
-      mark.request(selector, 'highlighting');
+      mark.request(resourceId('res-1'), selector, 'highlighting');
 
       expect(spy).toHaveBeenCalledExactlyOnceWith('mark:requested', {
+        source: resourceId('res-1'),
         selector,
         motivation: 'highlighting',
       });
@@ -226,6 +227,7 @@ describe('UI signal wrappers', () => {
       const mark = new MarkNamespace(makeMockTransport(), bus);
 
       const payload = {
+        source: 'res-1',
         motivation: 'commenting' as const,
         selector: { type: 'TextQuoteSelector' as const, exact: 'x' },
         body: [{ type: 'TextualBody' as const, value: 'hi', purpose: 'commenting' as const }],

@@ -7,7 +7,7 @@
 
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
-import { vi } from 'vitest';
+import { vi, afterEach } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
 import { SemiontClient, type SemiontBrowser } from '@semiont/sdk';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
@@ -16,6 +16,21 @@ import { TranslationProvider } from './contexts/TranslationContext';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
 import { SemiontProvider } from './session/SemiontProvider';
+
+/**
+ * Every fake browser below constructs a REAL SemiontClient over HttpTransport,
+ * and its live-query caches issue REAL fetches (localhost:4000 — no server in
+ * unit runs, so they fail). Dispose each client at test end so a fetch/retry
+ * chain straddling teardown dies in the cache's B16 disposed-guard — no retry,
+ * no `[cache RETRY]`/`[cache IDLE]` breadcrumb landing while the vitest
+ * worker's RPC is closing (the `EnvironmentTeardownError` class CI hit).
+ * Registered at module scope: every file that imports test-utils — exactly the
+ * files that create clients — gets the hook.
+ */
+const liveTestClients: SemiontClient[] = [];
+afterEach(() => {
+  for (const client of liveTestClients.splice(0)) client.dispose();
+});
 
 /**
  * Minimal fake SemiontBrowser for tests. Emits a fake session whose `client`
@@ -32,6 +47,7 @@ function createFakeBrowserForTests(
   // it as backend so `client.auth` / `client.admin` are wired for tests
   // that exercise hooks like useMediaToken.
   const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
+  liveTestClients.push(client);
   const fakeSession = {
     client,
     kb: null,

@@ -1,5 +1,5 @@
 /**
- * Shared batch utilities for event-processing actors (GraphDBConsumer, Smelter).
+ * Shared batch utilities for event-processing actors (Weaver, Smelter).
  *
  * Both actors use the same pattern: burst-buffered events arrive as a batch,
  * get partitioned into consecutive same-type runs, and each run is processed
