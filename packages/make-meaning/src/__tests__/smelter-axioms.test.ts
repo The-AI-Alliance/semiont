@@ -266,6 +266,8 @@ interface Harness {
   upsertCounts: Map<string, number>;
   setText: (rid: string, text: string) => void;
   ids: () => Promise<ModelIds>;
+  /** Latest `smelt:settled` signal per resource, as emitted on the bus (S14). */
+  settledSignals: () => Map<string, { contentChecksum: string; outcome: string }>;
   settle: () => Promise<void>;
   stop: () => void;
 }
@@ -322,6 +324,17 @@ async function makeHarness(opts: {
       resources: [...(await inner.listResourceStamps()).keys()].sort(),
       annotations: [...(await inner.listAnnotationIds())].sort(),
     }),
+    settledSignals: () => {
+      const latest = new Map<string, { contentChecksum: string; outcome: string }>();
+      for (const e of bus.emitted) {
+        if (e.channel !== 'smelt:settled') continue;
+        latest.set(String(e.payload.resourceId), {
+          contentChecksum: String(e.payload.contentChecksum),
+          outcome: String(e.payload.outcome),
+        });
+      }
+      return latest;
+    },
     settle: async (quietMs = 30, maxMs = 5000) => {
       const t0 = Date.now();
       for (;;) {
@@ -739,6 +752,45 @@ describe('Smelter axioms', () => {
         },
       ),
       { numRuns: 20 },
+    );
+  }, 30_000);
+
+  // S14 (FOPL): ∀ K, ∀ reachable r ∈ K delivered a create:
+  //   ∃! latest settled(r, checksum(r,K), outcome) ∧
+  //   outcome = indexed ⇔ gate(media(r)) ∧ text(r) non-empty, else skipped;
+  //   ∀ unreachable r (transient read failure): ∄ settled(r, ·) — an error
+  //   is not a decision (SMELTER-INDEX-SYNC A2). The projection always
+  //   states its decision; absence means only "not yet" or "failed".
+  it('S14: every decision is announced — settled(indexed|skipped) per (rid, checksum); never on failures', async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        catalogArb.filter((c) => c.length > 0).chain((catalog) =>
+          fc.tuple(fc.constant(catalog), fc.subarray(catalog.map((e) => e.rid))),
+        ),
+        async ([catalog, failed]) => {
+          const failRids = new Set(failed);
+          const h = await makeHarness({ catalog, failRids });
+          try {
+            for (const e of catalog) h.events$.next({ type: 'yield:created', resourceId: e.rid, payload: {} });
+            await h.settle();
+
+            const signals = h.settledSignals();
+            for (const e of catalog) {
+              if (failRids.has(e.rid)) {
+                expect(signals.has(e.rid)).toBe(false);
+                continue;
+              }
+              expect(signals.get(e.rid)).toEqual({
+                contentChecksum: calculateChecksum(e.text),
+                outcome: embeds(e.mediaType) ? 'indexed' : 'skipped',
+              });
+            }
+          } finally {
+            h.stop();
+          }
+        },
+      ),
+      { numRuns: 25 },
     );
   }, 30_000);
 });

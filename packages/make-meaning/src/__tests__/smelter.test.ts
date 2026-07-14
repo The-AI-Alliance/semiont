@@ -259,6 +259,76 @@ describe('Smelter mark:unarchived', () => {
   });
 });
 
+describe('Smelter smelt:settled signal', () => {
+  // SMELTER-INDEX-SYNC P1 — the settled signal is a decision report at
+  // existing decision points: 'indexed' after upsert, 'skipped' at the media
+  // gate / empty text, and NOTHING on transient failures (an error is not a
+  // decision — A2). Keyed by the checksum of the bytes inspected (D2).
+  function settledSignals(bus: { emitted: Array<{ channel: string; payload: Record<string, unknown> }> }) {
+    return bus.emitted.filter((e) => e.channel === 'smelt:settled').map((e) => e.payload);
+  }
+
+  async function harness(content: Map<string, string>, contentType = 'text/plain') {
+    const events$ = new Subject<SmelterEvent>();
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const bus = createFakeKsBus([...content.keys()].map((rid) => resourceDescriptor(rid, contentType)));
+    const smelter = new Smelter(
+      events$,
+      vectorStore,
+      embeddingProvider,
+      createMockContentTransport(content, contentType),
+      bus,
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    return { events$, smelter, bus, embeddingProvider };
+  }
+
+  it('emits indexed with the content checksum after embedding', async () => {
+    const text = 'Content whose settlement is announced.';
+    const h = await harness(new Map([['res-sig', text]]));
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-sig', payload: {} });
+      await tick();
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-sig', contentChecksum: calculateChecksum(text), outcome: 'indexed' },
+      ]);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('emits skipped (with checksum) at the media gate, without an embedding call', async () => {
+    const bytes = 'not really a zip, but gated by media type';
+    const h = await harness(new Map([['res-zip', bytes]]), 'application/zip');
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-zip', payload: {} });
+      await tick();
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-zip', contentChecksum: calculateChecksum(bytes), outcome: 'skipped' },
+      ]);
+      expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('never settles on transient failures — an error is not a decision', async () => {
+    const h = await harness(new Map());
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-unreachable', payload: {} });
+      await tick();
+      expect(settledSignals(h.bus)).toEqual([]);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+});
+
 describe('Smelter entity-tag stamps', () => {
   // bugs/smelter-stale-entity-type-stamps.md — tag edits must reach the
   // vector stamps without re-embedding: the stamp is the discriminator

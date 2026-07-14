@@ -145,11 +145,14 @@ export function createMockContentTransport(
 /**
  * BusRequestPrimitive serving the browse RPC channels from a fake catalog,
  * with the same correlationId request/reply protocol the Browser actor uses.
+ * Every emit is also recorded in `emitted` (browse requests included —
+ * filter by channel in assertions), so tests can observe the Smelter's
+ * outbound signals (`smelt:settled`).
  */
 export function createFakeKsBus(
   resources: ResourceDescriptor[],
   annotationsByResource: Map<string, Annotation[]> = new Map(),
-): BusRequestPrimitive {
+): BusRequestPrimitive & { emitted: Array<{ channel: string; payload: Record<string, unknown> }> } {
   const channels = new Map<string, Subject<Record<string, unknown>>>();
   const channel = (name: string): Subject<Record<string, unknown>> => {
     let subject = channels.get(name);
@@ -159,10 +162,13 @@ export function createFakeKsBus(
     }
     return subject;
   };
+  const emitted: Array<{ channel: string; payload: Record<string, unknown> }> = [];
 
   return {
+    emitted,
     async emit<K extends keyof EventMap>(name: K, payload: EventMap[K]): Promise<void> {
       const request = payload as Record<string, unknown>;
+      emitted.push({ channel: name as string, payload: request });
       if (name === 'browse:resources-requested') {
         const offset = (request.offset as number | undefined) ?? 0;
         const limit = (request.limit as number | undefined) ?? 50;

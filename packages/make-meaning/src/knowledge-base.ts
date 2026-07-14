@@ -10,6 +10,8 @@
  * - Graph (eventually consistent relationship projection) — via GraphDatabase
  * - WeaveProgress (weave:applied fold — the graph-projection barrier; the
  *   Weaver itself runs standalone via @semiont/make-meaning/weaver-main)
+ * - SmeltProgress (smelt:settled fold — the vector-projection barrier;
+ *   SMELTER-INDEX-SYNC, same standalone-actor arrangement as the Weaver)
  * - Vectors (semantic search) — via VectorStore (optional, read-only)
  *
  * The Smelter (event-to-vector projection) runs as an external actor
@@ -25,6 +27,7 @@ import type { VectorStore } from '@semiont/vectors';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventBus, Logger } from '@semiont/core';
 import { createWeaveProgress, type WeaveProgress } from './weave-progress.js';
+import { createSmeltProgress, type SmeltProgress } from './smelt-progress.js';
 
 export interface KnowledgeBase {
   eventStore:    EventStore;
@@ -32,6 +35,7 @@ export interface KnowledgeBase {
   content:       WorkingTreeStore;
   graph:         GraphDatabase;
   weaveProgress: WeaveProgress;
+  smeltProgress: SmeltProgress;
   vectors?:      VectorStore;
   projectionsDir: string;
 }
@@ -60,6 +64,10 @@ export async function createKnowledgeBase(
   // a standalone actor, and its signals arrive over the bus. This fold is
   // the backend-side half, wherever the Weaver runs.
   const weaveProgress = createWeaveProgress(eventBus);
+  // Its vector-projection sibling: fold of `smelt:settled` decision signals
+  // from the standalone Smelter, backing the gather-side read-your-writes
+  // barrier (SMELTER-INDEX-SYNC D1 = push).
+  const smeltProgress = createSmeltProgress(eventBus);
 
   if (!options?.skipRebuild) {
     // Rebuild materialized views from the event log first. The Browser actor
@@ -72,7 +80,7 @@ export async function createKnowledgeBase(
   }
 
   const kb: KnowledgeBase = {
-    eventStore, views, content, graph: graphDb, weaveProgress,
+    eventStore, views, content, graph: graphDb, weaveProgress, smeltProgress,
     projectionsDir: project.projectionsDir,
   };
 

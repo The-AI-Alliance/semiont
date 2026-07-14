@@ -133,7 +133,7 @@ function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
     views: { get: overrides.viewsGet ?? vi.fn().mockResolvedValue(null) } as any,
     content: {} as any,
     projectionsDir: '',
-      weaveProgress: {} as any,
+      weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
     graph: {
       searchResources: overrides.searchResources ?? vi.fn().mockResolvedValue([]),
       getResourceReferencedBy: overrides.getResourceReferencedBy ?? vi.fn().mockResolvedValue([]),

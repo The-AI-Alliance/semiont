@@ -30,7 +30,7 @@ describe('GraphContext', () => {
     content: {} as any,
     graph: mockGraphDb as any,
     projectionsDir: '',
-    weaveProgress: mockWeaveProgress as any,
+    weaveProgress: mockWeaveProgress as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
   };
 
   it('should get backlinks for a resource', async () => {

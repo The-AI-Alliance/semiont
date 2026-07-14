@@ -26,6 +26,7 @@ export function stubKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): Knowl
     content:        { store: vi.fn(), retrieve: vi.fn() } as unknown as KnowledgeBase['content'],
     graph:          {} as KnowledgeBase['graph'],
     weaveProgress: { dispose: vi.fn() } as unknown as KnowledgeBase['weaveProgress'],
+    smeltProgress: { settledAt: vi.fn(), whenSettled: vi.fn(async () => 'inert' as const), dispose: vi.fn() } as unknown as KnowledgeBase['smeltProgress'],
     projectionsDir: '',
     ...overrides,
   };
