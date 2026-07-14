@@ -29,10 +29,10 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/http-transport": "*",
     "@semiont/content": "*",
     "@semiont/core": "*",
     "@semiont/event-sourcing": "*",
+    "@semiont/http-transport": "*",
     "@semiont/inference": "*",
     "@semiont/observability": "*",
     "@semiont/sdk": "*"
@@ -43,7 +43,7 @@
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   },
   "publishConfig": {
     "access": "public"
