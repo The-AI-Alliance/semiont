@@ -212,6 +212,8 @@ export class AnnotationContext {
     const views = deriveViews(graph, String(resourceId), annotationId);
 
     // Global IDF statistic — not graph-derivable, stays in metadata (D4).
+    // Eventually consistent BY DESIGN (graph-read-after-write-coverage.md,
+    // mechanism (d)): a corpus-wide frequency is semantically stale-tolerant.
     const entityTypeStats = await kb.graph.getEntityTypeStats();
     const entityTypeFrequencies: Record<string, number> = {};
     for (const stat of entityTypeStats) {

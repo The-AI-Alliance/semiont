@@ -124,12 +124,13 @@ interface MockGraphOverrides {
   getResourceReferencedBy?: ReturnType<typeof vi.fn>;
   getResource?: ReturnType<typeof vi.fn>;
   listResources?: ReturnType<typeof vi.fn>;
+  viewsGet?: ReturnType<typeof vi.fn>;
 }
 
 function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
   return {
     eventStore: {} as any,
-    views: {} as any,
+    views: { get: overrides.viewsGet ?? vi.fn().mockResolvedValue(null) } as any,
     content: {} as any,
     projectionsDir: '',
       weaveProgress: {} as any,
@@ -241,6 +242,7 @@ describe('Matcher', () => {
     let mockSearchFn2: ReturnType<typeof vi.fn>;
     let mockListResources: ReturnType<typeof vi.fn>;
     let mockGetResource: ReturnType<typeof vi.fn>;
+    let mockViewGet: ReturnType<typeof vi.fn>;
 
     const RES_A = { '@id': 'res-a', name: 'Alpha', dateCreated: '2026-01-01T00:00:00Z' };
     const RES_B = { '@id': 'res-b', name: 'Beta', dateCreated: '2026-01-15T00:00:00Z' };
@@ -255,10 +257,12 @@ describe('Matcher', () => {
       mockSearchFn2 = vi.fn().mockResolvedValue([]);
       mockListResources = vi.fn().mockResolvedValue({ resources: [], total: 0 });
       mockGetResource = vi.fn().mockResolvedValue(null);
+      mockViewGet = vi.fn().mockResolvedValue(null);
       kb = createMockKb({
         searchResources: mockSearchFn2,
         listResources: mockListResources,
         getResource: mockGetResource,
+        viewsGet: mockViewGet,
       });
       matcher = new Matcher(kb, eventBus, mockLogger, noopInference);
       await matcher.initialize();
@@ -426,6 +430,75 @@ describe('Matcher', () => {
       expect(result!.response.length).toBeGreaterThanOrEqual(1);
       const gamma = result!.response.find((r: any) => r.name === 'Gamma');
       expect(gamma).toBeDefined();
+    });
+
+    it('hydrates a graph-lagging neighborhood candidate from the view instead of dropping it', async () => {
+      // graph-read-after-write-coverage.md P2: the connection endpoint was
+      // just created — its node isn't woven yet, but the view (the fresher
+      // projection) has the descriptor. The candidate must not be dropped.
+      mockSearchFn2.mockResolvedValue([]);
+      mockGetResource.mockResolvedValue(null); // graph lags for everyone
+      mockViewGet.mockImplementation((id: any) =>
+        String(id) === 'res-lag'
+          ? Promise.resolve({ resource: { '@id': 'res-lag', name: 'Lagging Endpoint', dateCreated: '2026-07-13T00:00:00Z' }, annotations: {} })
+          : Promise.resolve(null),
+      );
+
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
+        correlationId: 'test-corr-lag',
+        referenceId: 'ref-lag',
+        context: makeContext({
+          selected: { before: '', text: 'something', after: '' },
+          graph: buildGraph({
+            connections: [{ resourceId: 'res-lag', resourceName: 'Lagging Endpoint', bidirectional: false }],
+          }),
+        }),
+      });
+
+      const result = await resultPromise;
+      const lagging = result!.response.find((r: any) => r.name === 'Lagging Endpoint');
+      expect(lagging).toBeDefined();
+      // L4 breadcrumb — degradation observable, never silent.
+      expect(mockLogger.info).toHaveBeenCalledWith('[graph lag] neighborhood candidates hydrated from view', { count: 1 });
+    });
+
+    it('hydrates a graph-lagging semantic candidate from the view instead of dropping it', async () => {
+      // Post-GREEN pin (added after the "is this done?" review — the code
+      // path was fixed alongside the neighborhood loop; this pins it
+      // independently rather than by call-shape similarity).
+      const localBus = new EventBus();
+      const viewGet = vi.fn().mockImplementation((id: unknown) =>
+        String(id) === 'res-sem'
+          ? Promise.resolve({ resource: { '@id': 'res-sem', name: 'Semantic Lag', dateCreated: '2026-07-13T00:00:00Z' }, annotations: {} })
+          : Promise.resolve(null),
+      );
+      const kbLocal = createMockKb({ viewsGet: viewGet });
+      (kbLocal as any).vectors = {
+        searchResources: vi.fn().mockResolvedValue([{ resourceId: 'res-sem', score: 0.9 }]),
+      };
+      const embeddingProvider = { embed: vi.fn().mockResolvedValue([0.1, 0.2]) } as any;
+      const localMatcher = new Matcher(kbLocal, localBus, mockLogger, noopInference, embeddingProvider);
+      await localMatcher.initialize();
+
+      try {
+        const resultPromise = localBus.get('match:search-results').pipe(take(1)).toPromise();
+        localBus.get('match:search-requested').next({
+          resourceId: 'test-resource',
+          correlationId: 'corr-sem-lag',
+          referenceId: 'ref-sem-lag',
+          context: makeContext({ selected: { before: '', text: 'something', after: '' } }),
+        });
+
+        const result = await resultPromise;
+        expect(result!.response.find((r: any) => r.name === 'Semantic Lag')).toBeDefined();
+        expect(mockLogger.info).toHaveBeenCalledWith('[graph lag] semantic candidates hydrated from view', { count: 1 });
+      } finally {
+        await localMatcher.stop();
+        localBus.destroy();
+      }
     });
 
     it('counts missing-view citers in citedByCount (P4 (ii)=A delta)', async () => {

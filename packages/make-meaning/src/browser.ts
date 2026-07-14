@@ -31,6 +31,7 @@ import { getExactText, getTargetSource, getTargetSelector, getResourceEntityType
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from './knowledge-base';
+import { resourceWithViewGrace } from './graph-read-grace';
 import { readEntityTypesProjection } from './views/entity-types-reader';
 import { readTagSchemasProjection } from './views/tag-schemas-reader';
 import { AnnotationContext } from './annotation-context';
@@ -316,17 +317,32 @@ export class Browser {
         motivation: event.motivation || 'all',
       });
 
+      // The inbound edge query is eventually consistent BY DESIGN
+      // (graph-read-after-write-coverage.md, mechanism (d)): the racing
+      // write lives in the CITING resource's stream, so no per-resource
+      // wait key exists here — and every consumer sits behind the SDK's
+      // referencedBy cache, whose staleness window dwarfs the Weaver's
+      // ~tens-of-ms apply lag. A just-woven edge appears on the next read.
       const references = await this.kb.graph.getResourceReferencedBy(resourceId(event.resourceId), event.motivation);
 
       const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-      const resources = await Promise.all(sourceIds.map(id => this.kb.graph.getResource(resourceId(id))));
+      // Citer hydration IS id-keyed: graph-first with view fallback
+      // (mechanism (b′)) — a woven edge whose endpoint isn't woven yet must
+      // not render "Untitled Resource"; the view holds the fresher descriptor.
+      const resolved = await Promise.all(
+        sourceIds.map(id => resourceWithViewGrace(this.kb, resourceId(id))),
+      );
 
+      const docMap = new Map(
+        resolved.filter(r => r.resource !== null).map(r => [r.resource!['@id'], r.resource!]),
+      );
       for (let i = 0; i < sourceIds.length; i++) {
-        if (resources[i] === null) {
-          this.logger.warn('Referenced resource not found in graph', { resourceId: sourceIds[i] });
+        if (resolved[i].laggedBehindView) {
+          this.logger.info('[graph lag] citer hydrated from view', { resourceId: sourceIds[i] });
+        } else if (resolved[i].resource === null) {
+          this.logger.warn('Referenced resource not found in graph or view', { resourceId: sourceIds[i] });
         }
       }
-      const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc['@id'], doc]));
 
       const referencedBy = references.map(ref => {
         const targetSource = getTargetSource(ref.target);
