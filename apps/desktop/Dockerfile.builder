@@ -1,4 +1,4 @@
-FROM rust:1.96-bookworm
+FROM rust:1.97-bookworm
 
 RUN apt-get update -qq && \
     apt-get install -y -qq \
