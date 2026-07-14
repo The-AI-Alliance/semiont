@@ -134,6 +134,7 @@ export class Gatherer {
         event.options,
         this.kb,
         this.inferenceClient,
+        this.logger,
       );
 
       this.eventBus.get('gather:resource-complete').next({

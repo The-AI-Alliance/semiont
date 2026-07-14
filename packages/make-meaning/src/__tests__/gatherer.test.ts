@@ -49,7 +49,7 @@ function createMockKb(): KnowledgeBase {
     content: {} as any,
     graph: {} as any,
     projectionsDir: '',
-      weaveProgress: {} as any,
+      weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
   };
 }
 
@@ -167,6 +167,7 @@ describe('Gatherer', () => {
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
         kb,
         mockInferenceClient,
+        expect.anything(), // the gatherer's logger — breadcrumb sink for the P2 barrier
       );
     });
 

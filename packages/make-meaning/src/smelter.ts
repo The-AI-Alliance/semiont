@@ -104,9 +104,27 @@ function sameStringSet(a: string[], b: string[]): boolean {
 
 export type SmelterInput = SmelterEvent | SmelterWorkItem;
 
+const WORK_ITEM_TYPES: ReadonlySet<string> = new Set<SmelterWorkItem['type']>([
+  'smelt:embed', 'smelt:restamp', 'smelt:purge', 'smelt:embed-annotation', 'smelt:purge-annotation',
+]);
+
 function isWorkItem(input: SmelterInput): input is SmelterWorkItem {
-  return input.type.startsWith('smelt:');
+  // Literal set, not a prefix match: `smelt:settled` is the Smelter's
+  // OUTBOUND decision signal (never a mailbox input) and must not read as
+  // work (SMELTER-INDEX-SYNC A1).
+  return WORK_ITEM_TYPES.has(input.type);
 }
+
+/**
+ * Outcome of a content fetch on the embed path. `skipped` carries the
+ * checksum of the bytes inspected so the settled signal stays content-keyed
+ * (SMELTER-INDEX-SYNC D2); `unavailable` is a transient failure and MUST NOT
+ * settle — an error is not a decision (A2).
+ */
+type FetchedContent =
+  | { kind: 'text'; text: string; checksum: string }
+  | { kind: 'skipped'; checksum: string }
+  | { kind: 'unavailable' };
 
 export class Smelter {
   private static readonly RECONCILE_PAGE_SIZE = 200;
@@ -338,23 +356,39 @@ export class Smelter {
    * null (logged) when the resource doesn't decode as text, is unavailable,
    * or is empty — callers skip it.
    */
-  private async fetchEmbeddableText(resourceId: string): Promise<{ text: string; checksum: string } | null> {
+  private async fetchEmbeddableText(resourceId: string): Promise<FetchedContent> {
     try {
       // The stored representation's bytes, untouched — the content route is a
       // pure pipe now (no negotiation), so getBinary returns exactly the bytes
       // the catalog's checksum was computed from (S12; the route-side half is
-      // the backend's resource-raw-mode lemma test).
+      // the backend's resource-raw-mode lemma test). The checksum is computed
+      // before the media gate so `skipped` decisions stay content-keyed (D2).
       const { data, contentType } = await this.content.getBinary(makeResourceId(resourceId));
+      const bytes = Buffer.from(data);
+      const checksum = calculateChecksum(bytes);
       if (textExtractionOf(contentType) !== 'decode') {
         this.logger.debug('Skipping resource that does not decode as text', { resourceId, contentType });
-        return null;
+        return { kind: 'skipped', checksum };
       }
-      const bytes = Buffer.from(data);
       const text = decodeRepresentation(bytes, contentType);
-      return text.trim() ? { text, checksum: calculateChecksum(bytes) } : null;
+      return text.trim() ? { kind: 'text', text, checksum } : { kind: 'skipped', checksum };
     } catch (error) {
       this.logger.warn('Content unavailable for embedding', { resourceId, error: errField(error) });
-      return null;
+      return { kind: 'unavailable' };
+    }
+  }
+
+  /**
+   * The Smelter's single outbound signal (SMELTER-AXIOMS D3 as amended by
+   * SMELTER-INDEX-SYNC): a per-resource decision report for the barrier
+   * fold. Best-effort — waiters degrade to their bounded timeout; a signal
+   * failure must never fail the embed.
+   */
+  private async emitSettled(resourceId: string, contentChecksum: string, outcome: 'indexed' | 'skipped'): Promise<void> {
+    try {
+      await this.bus.emit('smelt:settled', { resourceId, contentChecksum, outcome });
+    } catch (error) {
+      this.logger.warn('Failed to emit smelt:settled', { resourceId, outcome, error: errField(error) });
     }
   }
 
@@ -381,10 +415,17 @@ export class Smelter {
     if (!rid) return;
 
     const fetched = await this.fetchEmbeddableText(rid);
-    if (!fetched) return;
+    if (fetched.kind === 'unavailable') return;
+    if (fetched.kind === 'skipped') {
+      await this.emitSettled(rid, fetched.checksum, 'skipped');
+      return;
+    }
 
     const chunks = chunkText(fetched.text, this.chunkingConfig);
-    if (chunks.length === 0) return;
+    if (chunks.length === 0) {
+      await this.emitSettled(rid, fetched.checksum, 'skipped');
+      return;
+    }
 
     const entityTypes = await this.resolveEntityTypes(rid);
     const embeddings = await this.embeddingProvider.embedBatch(chunks);
@@ -393,6 +434,7 @@ export class Smelter {
     }));
 
     await this.vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks, fetched.checksum, entityTypes);
+    await this.emitSettled(rid, fetched.checksum, 'indexed');
     this.logger.info(logMessage, { resourceId: rid, chunks: chunks.length });
   }
 
@@ -481,10 +523,17 @@ export class Smelter {
       if (!rid) continue;
 
       const fetched = await this.fetchEmbeddableText(rid);
-      if (!fetched) continue;
+      if (fetched.kind === 'unavailable') continue;
+      if (fetched.kind === 'skipped') {
+        await this.emitSettled(rid, fetched.checksum, 'skipped');
+        continue;
+      }
 
       const chunks = chunkText(fetched.text, this.chunkingConfig);
-      if (chunks.length === 0) continue;
+      if (chunks.length === 0) {
+        await this.emitSettled(rid, fetched.checksum, 'skipped');
+        continue;
+      }
 
       const entityTypes = await this.resolveEntityTypes(rid);
       resourceData.push({ rid: makeResourceId(rid), chunks, checksum: fetched.checksum, entityTypes });
@@ -501,6 +550,7 @@ export class Smelter {
         chunkIndex: i, text: t, embedding: allEmbeddings[offset + i],
       }));
       await this.vectorStore.upsertResourceVectors(rid, embeddingChunks, checksum, entityTypes);
+      await this.emitSettled(String(rid), checksum, 'indexed');
       this.logger.info('Batch-indexed resource', { resourceId: String(rid), chunks: chunks.length });
       offset += chunks.length;
     }
