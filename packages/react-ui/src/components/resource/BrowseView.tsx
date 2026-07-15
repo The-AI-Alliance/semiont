@@ -134,16 +134,22 @@ export const BrowseView = memo(function BrowseView({
 
     const container = containerRef.current;
 
-    // Single click handler for the container
+    // Single click handler for the container — emits browse:click for whatever
+    // annotation the click resolves, any motivation (parity with the image/PDF
+    // and annotate-mode emitters; ResourceViewer routes by click action).
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const annotationElement = target.closest('[data-annotation-id]');
       if (!annotationElement) return;
 
-      const annotationId = annotationElement.getAttribute('data-annotation-id');
-      const annotationType = annotationElement.getAttribute('data-annotation-type');
+      // Browse mode is the reading surface: a drag-select that starts and ends
+      // inside one annotated span fires click on it — suppress emission so
+      // copying text never opens or navigates.
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed) return;
 
-      if (annotationId && annotationType === 'reference') {
+      const annotationId = annotationElement.getAttribute('data-annotation-id');
+      if (annotationId) {
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
           session.client.browse.click(annotation.id, annotation.motivation);
