@@ -1,0 +1,16 @@
+# Per-package license exceptions.
+#
+# Some npm packages omit a machine-readable `license` field in package.json (so
+# the SBOM scanner reports NOASSERTION) yet ship a LICENSE file whose terms a
+# human has verified. Each entry here supplies that verified SPDX id.
+#
+# Two guardrails keep this honest:
+#   1. An exception is applied ONLY when the scanner reports no license. If a
+#      future version declares a real (possibly copyleft) license, it is detected
+#      normally and the exception does not mask it.
+#   2. The supplied SPDX id is still checked against allowlist.txt — an exception
+#      can only rescue a package TO a permissive license, never past the policy.
+#
+# Format: <package-name> <SPDX-id>   # note incl. source of truth + review date
+
+seq-queue MIT   # pkg.json omits license; bundled LICENSE is MIT (Netease/pomelo; via @semiont/backend→prisma→mysql2). Verified 2026-07-15.
