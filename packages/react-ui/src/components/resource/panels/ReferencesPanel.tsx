@@ -2,9 +2,8 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useSemiont } from '../../../session/SemiontProvider';
-import { useObservable } from '../../../hooks/useObservable';
-import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
+import type { SemiontSession } from '@semiont/sdk';
+import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { AnnotateReferencesProgressWidget } from '../../AnnotateReferencesProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
@@ -43,6 +42,10 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 }
 
 interface Props {
+  /** Session carrying the client and event bus; null renders inert. */
+  session: SemiontSession | null;
+  /** Host-owned navigation: called with the resolved resource id when a reference entry opens. */
+  onOpenResource?: (resourceId: string) => void;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
   resourceId: string;
   // Generic panel props
@@ -78,6 +81,8 @@ interface Props {
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function ReferencesPanel({
+  session,
+  onOpenResource,
   resourceId,
   annotations = [],
   isAssisting,
@@ -97,7 +102,6 @@ export function ReferencesPanel({
   sourceLanguage,
 }: Props) {
   const t = useTranslations('ReferencesPanel');
-  const session = useObservable(useSemiont().activeSession$);
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastAnnotationLog, setLastDetectionLog] = useState<Array<{ entityType: string; foundCount: number }> | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
@@ -206,7 +210,7 @@ export function ReferencesPanel({
     setTimeout(() => setFocusedAnnotationId(null), 3000);
   }, []);
 
-  useEventSubscriptions({
+  useSessionEventSubscriptions(session, {
     'browse:click': handleAnnotationClick,
   });
 
@@ -492,11 +496,12 @@ export function ReferencesPanel({
             ) : (
               sortedAnnotations.map((reference) => (
                 <ReferenceEntry
+                  session={session}
                   key={reference.id}
                   reference={reference}
                   isFocused={reference.id === focusedAnnotationId}
                   isHovered={reference.id === hoveredAnnotationId}
-                  routes={routes}
+                  onOpenResource={onOpenResource}
                   annotateMode={annotateMode}
                   isGenerating={reference.id === generatingReferenceId}
                   ref={(el) => setEntryRef(reference.id, el)}

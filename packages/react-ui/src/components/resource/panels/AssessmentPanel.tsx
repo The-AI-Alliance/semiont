@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useSemiont } from '../../../session/SemiontProvider';
-import { useObservable } from '../../../hooks/useObservable';
-import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
+import type { SemiontSession } from '@semiont/sdk';
+import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { AssessmentEntry } from './AssessmentEntry';
@@ -40,6 +39,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 }
 
 interface AssessmentPanelProps {
+  /** Session carrying the client and event bus; null renders inert. */
+  session: SemiontSession | null;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
   resourceId: string;
   annotations: Annotation[];
@@ -63,6 +64,7 @@ interface AssessmentPanelProps {
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function AssessmentPanel({
+  session,
   resourceId,
   annotations,
   pendingAnnotation,
@@ -76,7 +78,6 @@ export function AssessmentPanel({
   hoveredAnnotationId,
 }: AssessmentPanelProps) {
   const t = useTranslations('AssessmentPanel');
-  const session = useObservable(useSemiont().activeSession$);
   const [newAssessmentText, setNewAssessmentText] = useState('');
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -185,7 +186,7 @@ export function AssessmentPanel({
   }, []);
 
   // Subscribe to click events - update focused state
-  useEventSubscriptions({
+  useSessionEventSubscriptions(session, {
     'browse:click': handleAnnotationClick,
   });
 
@@ -247,6 +248,7 @@ export function AssessmentPanel({
         {/* Assist Section - only in Annotate mode and for text resources */}
         {annotateMode && (
           <AssistSection
+            session={session}
             annotationType="assessment"
             isAssisting={isAssisting}
             locale={locale}
@@ -264,6 +266,7 @@ export function AssessmentPanel({
           ) : (
             sortedAnnotations.map((assessment) => (
               <AssessmentEntry
+                session={session}
                 key={assessment.id}
                 assessment={assessment}
                 isFocused={assessment.id === focusedAnnotationId}

@@ -3,8 +3,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 import type { AnnotationId } from '@semiont/core';
 import { HOVER_DELAY_MS } from '@semiont/sdk';
-import { useSemiont } from '../session/SemiontProvider';
-import { useObservable } from './useObservable';
+import type { SemiontSession } from '@semiont/sdk';
 
 export { HOVER_DELAY_MS } from '@semiont/sdk';
 export interface HoverEmitterProps {
@@ -12,8 +11,7 @@ export interface HoverEmitterProps {
   onMouseLeave: () => void;
 }
 
-export function useHoverEmitter(annotationId: AnnotationId, hoverDelayMs: number = HOVER_DELAY_MS): HoverEmitterProps {
-  const session = useObservable(useSemiont().activeSession$);
+export function useHoverEmitter(session: SemiontSession | null, annotationId: AnnotationId, hoverDelayMs: number = HOVER_DELAY_MS): HoverEmitterProps {
   const currentHoverRef = useRef<AnnotationId | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

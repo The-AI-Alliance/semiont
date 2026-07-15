@@ -574,6 +574,8 @@ export function ResourceViewerPage({
             {/* Unified Annotations Panel */}
             {activePanel === 'annotations' && !resource.archived && (
               <UnifiedAnnotationsPanel
+                session={session ?? null}
+                onOpenResource={handleViewerOpenResource}
                 annotations={annotations}
                 annotators={ANNOTATORS}
                 annotateMode={annotateMode}
@@ -612,6 +614,7 @@ export function ResourceViewerPage({
             {/* Document Info Panel */}
             {activePanel === 'info' && (
               <ResourceInfoPanel
+                session={session ?? null}
                 resourceId={rUri}
                 documentEntityTypes={documentEntityTypes}
                 documentLocale={getLanguage(resource)}

@@ -1,8 +1,7 @@
 'use client';
 
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useSemiont } from '../../../session/SemiontProvider';
-import { useObservable } from '../../../hooks/useObservable';
+import type { SemiontSession } from '@semiont/sdk';
 import { formatLocaleDisplay } from '@semiont/core';
 import { resourceId as makeResourceId, type components } from '@semiont/core';
 import { renderAgentLabel } from './agent-label';
@@ -11,6 +10,8 @@ import './ResourceInfoPanel.css';
 type Agent = components['schemas']['Agent'];
 
 interface Props {
+  /** Session carrying the client and event bus; null renders inert. */
+  session: SemiontSession | null;
   resourceId: string;
   documentEntityTypes: string[];
   documentLocale?: string | undefined;
@@ -39,6 +40,7 @@ interface Props {
  * @emits mark:archive - Archive this resource
  */
 export function ResourceInfoPanel({
+  session,
   resourceId,
   documentEntityTypes,
   documentLocale,
@@ -54,7 +56,6 @@ export function ResourceInfoPanel({
   onGenerate,
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
-  const session = useObservable(useSemiont().activeSession$);
 
   // Single attribution surface. `wasAttributedTo` is the canonical list
   // of responsible parties; if a producer set only `generator` we

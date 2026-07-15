@@ -3,12 +3,13 @@
 import type { Ref } from 'react';
 import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/core';
-import { useSemiont } from '../../../session/SemiontProvider';
-import { useObservable } from '../../../hooks/useObservable';
+import type { SemiontSession } from '@semiont/sdk';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 import { renderAgentLabel } from './agent-label';
 
 interface HighlightEntryProps {
+  /** Session for interaction routing (browse.click etc.); the panel threads it. */
+  session: SemiontSession | null;
   highlight: Annotation;
   isFocused: boolean;
   isHovered?: boolean;
@@ -33,13 +34,13 @@ function formatRelativeTime(isoString: string): string {
 }
 
 export function HighlightEntry({
+  session,
   highlight,
   isFocused,
   isHovered = false,
   ref,
 }: HighlightEntryProps) {
-  const session = useObservable(useSemiont().activeSession$);
-  const hoverProps = useHoverEmitter(highlight.id);
+  const hoverProps = useHoverEmitter(session, highlight.id);
 
   const selectedText = getAnnotationExactText(highlight);
 

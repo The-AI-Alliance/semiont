@@ -5,7 +5,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { of } from 'rxjs';
-import { CacheObservable } from '@semiont/sdk';
+import { CacheObservable, type SemiontSession } from '@semiont/sdk';
 import { TaggingPanel } from '../TaggingPanel';
 import type { EventBus, TagSchema } from '@semiont/core';
 import { createTestSemiontWrapper } from '../../../../test-utils';
@@ -53,8 +53,8 @@ const TEST_TAG_SCHEMAS: TagSchema[] = [
   },
 ];
 
-const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
-  const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
+const renderWithEventBus = (component: React.ReactElement<{ session: SemiontSession | null }>, tracker?: ReturnType<typeof createEventTracker>) => {
+  const { SemiontWrapper, eventBus, client, session } = createTestSemiontWrapper();
   vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
     CacheObservable.from(of(TEST_TAG_SCHEMAS))
   );
@@ -62,21 +62,24 @@ const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontWrapper>{children}</SemiontWrapper>
   );
-  return render(component, { wrapper: Wrapper });
+  // The component is provider-free: the `session` prop is the only session it
+  // sees. Inject the factory session here so it is the SAME session whose
+  // client backs `eventBus` (trackers subscribe there).
+  return render(React.cloneElement(component, { session }), { wrapper: Wrapper });
 };
 
 // Variant for the empty-registry case: the cache resolves to `[]`
 // (post-bootstrap, no schemas registered). Distinct from the still-
 // loading case where the observable yields `undefined`.
-const renderWithEmptyRegistry = (component: React.ReactElement) => {
-  const { SemiontWrapper, client } = createTestSemiontWrapper();
+const renderWithEmptyRegistry = (component: React.ReactElement<{ session: SemiontSession | null }>) => {
+  const { SemiontWrapper, client, session } = createTestSemiontWrapper();
   vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
     CacheObservable.from(of([]))
   );
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontWrapper>{children}</SemiontWrapper>
   );
-  return render(component, { wrapper: Wrapper });
+  return render(React.cloneElement(component, { session }), { wrapper: Wrapper });
 };
 
 // Mock TranslationContext. The component now uses `schema.name` /
@@ -188,6 +191,11 @@ describe('TaggingPanel Component', () => {
     resourceId: 'res-1',
     annotations: mockTags.empty,
     pendingAnnotation: null,
+    // Satisfies JSX at element construction only; the render helpers always
+    // replace it (via cloneElement) with the per-test factory session. Never
+    // put a live session here — module-scope clients get disposed after the
+    // first test.
+    session: null,
   };
 
   beforeEach(() => {

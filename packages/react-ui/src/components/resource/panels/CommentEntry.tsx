@@ -4,12 +4,13 @@ import { useState, useEffect, useRef, useImperativeHandle, type Ref } from 'reac
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText, getCommentText } from '@semiont/core';
-import { useSemiont } from '../../../session/SemiontProvider';
-import { useObservable } from '../../../hooks/useObservable';
+import type { SemiontSession } from '@semiont/sdk';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 import { renderAgentLabel } from './agent-label';
 
 interface CommentEntryProps {
+  /** Session for interaction routing (browse.click etc.); the panel threads it. */
+  session: SemiontSession | null;
   comment: Annotation;
   isFocused: boolean;
   isHovered?: boolean;
@@ -35,6 +36,7 @@ function formatRelativeTime(isoString: string): string {
 }
 
 export function CommentEntry({
+  session,
   comment,
   isFocused,
   isHovered = false,
@@ -42,8 +44,7 @@ export function CommentEntry({
   ref,
 }: CommentEntryProps) {
   const t = useTranslations('CommentsPanel');
-  const session = useObservable(useSemiont().activeSession$);
-  const hoverProps = useHoverEmitter(comment.id);
+  const hoverProps = useHoverEmitter(session, comment.id);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const internalRef = useRef<HTMLDivElement>(null);
