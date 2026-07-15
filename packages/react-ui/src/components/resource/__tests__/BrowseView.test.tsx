@@ -402,12 +402,16 @@ describe('BrowseView Component', () => {
       });
     });
 
-    it('should emit browse:click only for reference annotations', async () => {
+    it('should emit browse:click for every motivation', async () => {
+      // browse:click is the platform's one "user clicked an annotation" signal;
+      // text browse mode must emit it for whatever the click resolves, matching
+      // the image/PDF/annotate emitters (BROWSE-CLICK-ALL-MOTIVATIONS.md).
       const tracker = createEventTracker();
       const annotations = {
         ...defaultProps.annotations,
         references: [createMockAnnotation('linking', 'ref-1')],
         highlights: [createMockAnnotation('highlighting', 'highlight-1')],
+        comments: [createMockAnnotation('commenting', 'comment-1')],
       };
 
       const { container } = renderWithEventTracking(
@@ -415,36 +419,61 @@ describe('BrowseView Component', () => {
         tracker
       );
 
-      const mockReferenceElement = document.createElement('span');
-      mockReferenceElement.setAttribute('data-annotation-id', 'ref-1');
-      mockReferenceElement.setAttribute('data-annotation-type', 'reference');
-
-      const mockHighlightElement = document.createElement('span');
-      mockHighlightElement.setAttribute('data-annotation-id', 'highlight-1');
-      mockHighlightElement.setAttribute('data-annotation-type', 'highlight');
-
-      const mockRefTarget = { closest: vi.fn(() => mockReferenceElement) } as any;
-      const mockHighlightTarget = { closest: vi.fn(() => mockHighlightElement) } as any;
-
       const browseContainer = container.querySelector('.semiont-browse-view__content');
 
+      const clickCases = [
+        { id: 'ref-1', type: 'reference', motivation: 'linking' },
+        { id: 'highlight-1', type: 'highlight', motivation: 'highlighting' },
+        { id: 'comment-1', type: 'comment', motivation: 'commenting' },
+      ] as const;
+
+      for (const { id, type, motivation } of clickCases) {
+        const el = document.createElement('span');
+        el.setAttribute('data-annotation-id', id);
+        el.setAttribute('data-annotation-type', type);
+        const mockTarget = { closest: vi.fn(() => el) } as unknown as EventTarget;
+
+        tracker.clear();
+        fireEvent.click(browseContainer!, { target: mockTarget });
+
+        await waitFor(() => {
+          expect(tracker.events.some(e =>
+            e.event === 'browse:click' &&
+            e.payload?.annotationId === id &&
+            e.payload?.motivation === motivation
+          )).toBe(true);
+        });
+      }
+    });
+
+    it('should not emit browse:click when the click completes a text selection', async () => {
+      // Browse mode is the reading surface: a drag-select that starts and ends
+      // inside one annotated span fires click on it. The guard applies to
+      // references too — a copy-drag inside a reference span must not emit
+      // (deliberate behavior change; previously it navigated under `follow`).
+      const tracker = createEventTracker();
+      const annotations = {
+        ...defaultProps.annotations,
+        references: [createMockAnnotation('linking', 'ref-1')],
+      };
+
+      const { container } = renderWithEventTracking(
+        <BrowseView {...defaultProps} annotations={annotations} />,
+        tracker
+      );
+
+      const el = document.createElement('span');
+      el.setAttribute('data-annotation-id', 'ref-1');
+      el.setAttribute('data-annotation-type', 'reference');
+      const mockTarget = { closest: vi.fn(() => el) } as unknown as EventTarget;
+
+      vi.spyOn(window, 'getSelection').mockReturnValue({
+        isCollapsed: false,
+      } as Selection);
+
+      const browseContainer = container.querySelector('.semiont-browse-view__content');
       tracker.clear();
-
-      // Click reference - should emit
-      fireEvent.click(browseContainer!, { target: mockRefTarget });
-
-      await waitFor(() => {
-        expect(tracker.events.some(e =>
-          e.event === 'browse:click' &&
-          e.payload?.annotationId === 'ref-1' &&
-          e.payload?.motivation === 'linking'
-        )).toBe(true);
-      });
-
-      tracker.clear();
-
-      // Click highlight - should not emit
-      fireEvent.click(browseContainer!, { target: mockHighlightTarget });
+      fireEvent.click(browseContainer!, { target: mockTarget });
 
       await new Promise(resolve => setTimeout(resolve, 50));
       expect(tracker.events.filter(e => e.event === 'browse:click').length).toBe(0);
@@ -550,13 +579,13 @@ describe('BrowseView Component', () => {
         expect(eventTracker.some(e => e.event === 'browse:click' && e.annotationId === 'ref-1')).toBe(true);
       });
 
-      // Verify highlight doesn't trigger click events
+      // Highlights emit through the same delegated handler (all motivations)
       eventTracker.length = 0; // Clear tracker
       fireEvent.click(browseContainer!, { target: mockHighlightTarget });
 
-      // Should not have any click events for highlights
-      await new Promise(resolve => setTimeout(resolve, 50));
-      expect(eventTracker.some(e => e.event === 'browse:click')).toBe(false);
+      await waitFor(() => {
+        expect(eventTracker.some(e => e.event === 'browse:click' && e.annotationId === 'highlight-1')).toBe(true);
+      });
 
       // The key insight: With event delegation, we can handle 100 annotations
       // with only container-level listeners, not 100+ individual listeners
