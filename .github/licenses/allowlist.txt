@@ -1,0 +1,33 @@
+# Permissive SPDX license allowlist for the published service images.
+#
+# The license-policy gate (.github/scripts/check-licenses.mjs) checks every
+# bundled npm dependency's SPDX license against this list and fails the publish
+# if anything is unlisted. Approved (permissive) licenses pass silently;
+# copyleft / unknown / unusual licenses trip CI and get a human review — at
+# which point either the dependency is dropped or, if the license is genuinely
+# permissive, its SPDX ID is added here with a note.
+#
+# One SPDX license ID per line. Blank lines and #-comments are ignored. A
+# trailing `*` is a prefix wildcard (e.g. `Foo-*`). Matching is case-insensitive.
+#
+# Seeded 2026-07-15 from the actual union of the four images' dependency trees
+# (`license-checker` over @semiont/cli + @semiont/backend + @semiont/jobs +
+# @semiont/make-meaning + neo4j-driver + @qdrant/js-client-rest): MIT, Apache-2.0,
+# ISC, BSD-3-Clause, BSD-2-Clause, 0BSD, Unlicense, Python-2.0, and one
+# (MIT OR CC0-1.0) dual. All permissive; no copyleft present.
+
+Apache-2.0
+MIT
+MIT-0
+ISC
+BSD-2-Clause
+BSD-3-Clause
+0BSD
+Unlicense
+Python-2.0
+CC0-1.0
+BlueOak-1.0.0
+
+# Deliberately NOT wildcarded to `BSD-*`: BSD-4-Clause carries the advertising
+# clause and should trip a review rather than pass silently. Add BSD-2/3-Clause
+# explicitly above instead.
