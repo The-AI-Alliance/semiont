@@ -98,6 +98,7 @@ export type {
   EventName,
   EmittableChannel,
   ResourceBroadcastType,
+  AnchorRect,
 } from './bus-protocol';
 export { RESOURCE_BROADCAST_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
 

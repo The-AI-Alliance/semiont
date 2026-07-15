@@ -7,6 +7,7 @@ import type {
   EventMap,
   ResourceDescriptor,
   ResourceId,
+  AnchorRect,
   AnnotationId,
   GraphConnection,
   Motivation,
@@ -430,8 +431,8 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   // ── UI signals (local bus fan-out) ────────────────────────────────────
 
-  click(annotationId: AnnotationId, motivation: Motivation): void {
-    this.bus.get('browse:click').next({ annotationId, motivation });
+  click(annotationId: AnnotationId, motivation: Motivation, anchorRect?: AnchorRect): void {
+    this.bus.get('browse:click').next({ annotationId, motivation, ...(anchorRect ? { anchorRect } : {}) });
   }
 
   navigateReference(resourceId: ResourceId): void {

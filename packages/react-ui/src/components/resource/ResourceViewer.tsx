@@ -6,7 +6,7 @@ import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeTyp
 import { BrowseView, type ReferenceHover } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
-import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, components, EventMap } from '@semiont/core';
+import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, components, EventMap, AnchorRect } from '@semiont/core';
 import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
@@ -283,9 +283,10 @@ export function ResourceViewer({
   }, [annotateMode, selectedClick, focusAnnotation, onOpenResource]);
 
   // Annotation click coordinator - handles panel opening and scrolling
-  const handleAnnotationClickEvent = useCallback(({ annotationId, motivation }: {
+  const handleAnnotationClickEvent = useCallback(({ annotationId, motivation, anchorRect }: {
     annotationId: string;
     motivation: components['schemas']['Motivation'];
+    anchorRect?: AnchorRect;
   }) => {
     // Find the annotation metadata
     const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation({ motivation } as Annotation));
@@ -311,8 +312,9 @@ export function ResourceViewer({
     }
 
     // All annotations open the unified annotations panel — the host owns the panel.
-    // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
-    onOpenPanel?.({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+    // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel.
+    // View geometry passes through untouched: the emitter owned it, the host anchors with it.
+    onOpenPanel?.({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation, ...(anchorRect ? { anchorRect } : {}) });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, onOpenPanel]);
 
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues

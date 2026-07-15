@@ -177,6 +177,65 @@ describe('PdfAnnotationCanvas', () => {
     });
   });
 
+  test('passes the annotation rect as browse.click third argument (A1 anchor)', async () => {
+    const click = vi.fn();
+    const session = {
+      client: { browse: { click }, beckon: { hover: vi.fn() } },
+    } as unknown as import('@semiont/sdk').SemiontSession;
+
+    const mockAnnotations: Annotation[] = [
+      {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        type: 'Annotation',
+        id: annotationId('ann-1'),
+        target: {
+          source: mockResourceId,
+          selector: {
+            type: 'FragmentSelector',
+            value: 'page=1&viewrect=100,200,150,100',
+            conformsTo: 'http://tools.ietf.org/rfc/rfc3778'
+          }
+        },
+        motivation: 'highlighting',
+        created: new Date().toISOString()
+      }
+    ];
+
+    render(
+      <PdfAnnotationCanvas resourceUri="res-1"
+        pdfUrl={mockPdfUrl}
+        existingAnnotations={mockAnnotations}
+        drawingMode={null}
+        session={session}
+      />
+    );
+
+    await waitFor(() => {
+      const img = document.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+      expect(img).toBeInTheDocument();
+    });
+
+    const img = document.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+    Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });
+    Object.defineProperty(img, 'clientHeight', { value: 792, configurable: true });
+    fireEvent.load(img);
+
+    await waitFor(() => {
+      const rects = document.querySelector('.semiont-pdf-annotation-canvas__svg')?.querySelectorAll('rect');
+      expect(rects?.length).toBeGreaterThan(0);
+    });
+
+    const annotationRect = document.querySelector('.semiont-pdf-annotation-canvas__svg')!.querySelector('rect')!;
+    fireEvent.click(annotationRect);
+
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(click.mock.calls[0]?.[0]).toBe('ann-1');
+    expect(click.mock.calls[0]?.[1]).toBe('highlighting');
+    const anchorRect = click.mock.calls[0]?.[2];
+    expect(anchorRect).toBeDefined();
+    expect(typeof anchorRect.width).toBe('number');
+  });
+
   test('accepts a drawing gesture without throwing when drawing mode is active', async () => {
     render(
       <PdfAnnotationCanvas resourceUri="res-1"

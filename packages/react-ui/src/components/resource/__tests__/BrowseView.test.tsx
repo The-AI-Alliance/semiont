@@ -446,6 +446,46 @@ describe('BrowseView Component', () => {
       }
     });
 
+    it('should include the clicked span rect as anchorRect', async () => {
+      // A1 anchor thread (HEADLESS-ANNOTATION-PANELS Phase 3): the emission
+      // site owns the geometry — the clicked span's viewport rect rides the
+      // event so hosts can anchor popovers. Runtime-only; no schema pin.
+      const tracker = createEventTracker();
+      const annotations = {
+        ...defaultProps.annotations,
+        highlights: [createMockAnnotation('highlighting', 'highlight-1')],
+      };
+
+      const { container } = renderWithEventTracking(
+        <BrowseView {...defaultProps} annotations={annotations} />,
+        tracker
+      );
+
+      const el = document.createElement('span');
+      el.setAttribute('data-annotation-id', 'highlight-1');
+      el.setAttribute('data-annotation-type', 'highlight');
+      const RECT: DOMRect = {
+        x: 10, y: 20, width: 30, height: 40,
+        top: 20, right: 40, bottom: 60, left: 10,
+        toJSON: () => ({}),
+      };
+      el.getBoundingClientRect = () => RECT;
+      const mockTarget = { closest: vi.fn(() => el) } as unknown as EventTarget;
+
+      const browseContainer = container.querySelector('.semiont-browse-view__content');
+      tracker.clear();
+      fireEvent.click(browseContainer!, { target: mockTarget });
+
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'browse:click' &&
+          e.payload?.annotationId === 'highlight-1' &&
+          e.payload?.anchorRect?.left === 10 &&
+          e.payload?.anchorRect?.width === 30
+        )).toBe(true);
+      });
+    });
+
     it('should not emit browse:click when the click completes a text selection', async () => {
       // Browse mode is the reading surface: a drag-select that starts and ends
       // inside one annotated span fires click on it. The guard applies to

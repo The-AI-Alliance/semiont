@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnchorRect } from '@semiont/core';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point, resourceId as toResourceId } from '@semiont/core';
+import { toViewportAnchorRect } from '../../lib/anchor-rect';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import type { SemiontSession } from '@semiont/sdk';
@@ -175,7 +176,10 @@ export function SvgDrawingCanvas({
       // This was a click, not a drag - check if we clicked an existing annotation
       if (existingAnnotations.length > 0) {
         // Find annotation at click point
-        // Note: We're checking in display coordinates
+        // Note: We're checking in display coordinates. The hit-test owns the
+        // coordinate transform — capture the hit annotation's viewport rect
+        // for the emission below (A1 anchor).
+        let hitRect: AnchorRect | undefined;
         const clickedAnnotation = existingAnnotations.find(ann => {
           if (typeof ann.target === 'string') return false;
 
@@ -201,19 +205,23 @@ export function SvgDrawingCanvas({
             const displayWidth = width * scaleX;
             const displayHeight = height * scaleY;
 
-            return (
+            const hit = (
               endPoint.x >= displayX &&
               endPoint.x <= displayX + displayWidth &&
               endPoint.y >= displayY &&
               endPoint.y <= displayY + displayHeight
             );
+            if (hit && imageRef.current) {
+              hitRect = toViewportAnchorRect(imageRef.current.getBoundingClientRect(), displayX, displayY, displayWidth, displayHeight);
+            }
+            return hit;
           }
 
           return false;
         });
 
         if (clickedAnnotation) {
-          session?.client.browse.click(clickedAnnotation.id, clickedAnnotation.motivation);
+          session?.client.browse.click(clickedAnnotation.id, clickedAnnotation.motivation, hitRect);
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);

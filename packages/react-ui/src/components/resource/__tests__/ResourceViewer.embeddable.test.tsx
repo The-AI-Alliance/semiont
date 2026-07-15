@@ -12,10 +12,11 @@
  * subtree is covered by AnnotateView.embeddable.test.tsx.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
+import { createTestSemiontWrapper } from '../../../test-utils';
 import { ResourceViewer } from '../ResourceViewer';
 
 // Minimal bring-your-own-session double: just the surface ResourceViewer + its
@@ -59,5 +60,43 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no providers)',
       />,
     );
     expect(screen.getByText('Embeddable content.')).toBeInTheDocument();
+  });
+
+  // A1 anchor thread: the viewer is a pass-through for view geometry — an
+  // anchorRect arriving on browse:click reaches the host's onOpenPanel
+  // untouched (detail routing, the default click action).
+  it('forwards the browse:click anchorRect into onOpenPanel', async () => {
+    const { session, eventBus } = createTestSemiontWrapper();
+    const onOpenPanel = vi.fn();
+
+    render(
+      <ResourceViewer
+        session={session}
+        resource={resource}
+        annotations={annotations}
+        onOpenResource={vi.fn()}
+        onOpenPanel={onOpenPanel}
+      />,
+    );
+
+    const anchorRect = {
+      x: 5, y: 6, width: 7, height: 8,
+      top: 6, right: 12, bottom: 14, left: 5,
+    };
+    act(() => {
+      eventBus.get('browse:click').next({
+        annotationId: 'ann-1',
+        motivation: 'highlighting',
+        anchorRect,
+      });
+    });
+
+    await waitFor(() => {
+      expect(onOpenPanel).toHaveBeenCalledWith(expect.objectContaining({
+        panel: 'annotations',
+        scrollToAnnotationId: 'ann-1',
+        anchorRect: expect.objectContaining({ left: 5, width: 7 }),
+      }));
+    });
   });
 });
