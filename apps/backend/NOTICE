@@ -1,0 +1,25 @@
+Semiont
+Copyright 2025-2026 The AI Alliance
+
+This product is licensed under the Apache License, Version 2.0.
+
+This product includes software developed by The AI Alliance
+(https://thealliance.ai/).
+
+This container image (semiont-backend) includes the following third-party
+components:
+
+  Alpine Linux - MIT License
+  Node.js - MIT License
+  Git - GPL-2.0-only License
+
+  npm dependencies (installed at build time from https://registry.npmjs.org):
+    @semiont/cli - Apache-2.0 License (The AI Alliance)
+    @semiont/backend - Apache-2.0 License (The AI Alliance)
+    neo4j-driver - Apache-2.0 License (Neo4j, Inc.)
+    @qdrant/js-client-rest - Apache-2.0 License (Qdrant)
+
+Each npm dependency's full license text is available in its respective
+node_modules/<package>/LICENSE file within the image, under
+/usr/local/lib/node_modules (the CLI) and
+/home/semiont/.local/share/semiont/node_modules (the backend and its peers).
