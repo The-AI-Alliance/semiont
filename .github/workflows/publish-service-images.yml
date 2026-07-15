@@ -1,0 +1,190 @@
+name: Publish Service Container Images
+
+run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-run)' || '' }}"
+
+# Builds and publishes the four backend-side service images
+# (backend · worker · smelter · weaver) from the published @semiont/* packages,
+# mirroring publish-frontend.yml's verify-npm → scan → multi-arch push → SBOM →
+# attest spine, with an added license-policy gate. Config is runtime (bind-mount);
+# the images ship config-free.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '@semiont/* version to bundle (e.g. 0.5.13, 0.5.13-build.42, latest)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (build + gate but do not push)'
+        required: false
+        type: boolean
+        default: false
+      tag_latest:
+        description: 'Also tag as :latest'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    strategy:
+      # One service's failure must not cancel the others' publishes.
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            dockerfile: apps/backend/Dockerfile
+            # The backend image drives the role through @semiont/cli and loads
+            # the service from @semiont/backend — both must exist at the version.
+            verify_packages: '@semiont/cli @semiont/backend'
+          - service: worker
+            dockerfile: packages/jobs/Dockerfile
+            verify_packages: '@semiont/jobs'
+          - service: smelter
+            dockerfile: packages/make-meaning/Dockerfile.smelter
+            verify_packages: '@semiont/make-meaning'
+          - service: weaver
+            dockerfile: packages/make-meaning/Dockerfile.weaver
+            verify_packages: '@semiont/make-meaning'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+
+      - name: Verify packages exist on npm
+        run: |
+          for pkg in ${{ matrix.verify_packages }}; do
+            npm view "${pkg}@${{ inputs.version }}" version || {
+              echo "❌ ${pkg}@${{ inputs.version }} not found on npm"
+              exit 1
+            }
+          done
+          echo "✅ ${{ matrix.service }} packages exist at ${{ inputs.version }}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine tags
+        id: tags
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          IMAGE="ghcr.io/the-ai-alliance/semiont-${{ matrix.service }}"
+          TAGS="$IMAGE:${{ inputs.version }}"
+          TAGS="$TAGS,$IMAGE:sha-$COMMIT_SHA"
+          if [ "${{ inputs.tag_latest }}" = "true" ]; then
+            TAGS="$TAGS,$IMAGE:latest"
+          fi
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+
+      # Single-platform build for scanning + SBOM. amd64 OS-package CVEs cover
+      # arm64 too since base layers share package versions, and OS/library
+      # licenses are platform-independent, so one build feeds both gates. Both
+      # builds share the GHA cache; the multi-arch rebuild below is a near-instant
+      # cache hit on amd64.
+      - name: Build image (amd64, for scan + SBOM)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          load: true
+          tags: semiont-${{ matrix.service }}:scan
+          build-args: |
+            SEMIONT_VERSION=${{ inputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: semiont-${{ matrix.service }}:scan
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+
+      # Generate the SBOM before push so it gates the publish AND is reused for
+      # the attestation below (one SBOM, two uses). Runs on dry-run too.
+      - name: Generate SBOM with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: semiont-${{ matrix.service }}:scan
+          format: spdx-json
+          output: sbom.spdx.json
+
+      # License-policy gate: every bundled npm dependency's license must be on the
+      # permissive allowlist, else the publish fails for a human review.
+      - name: License policy gate
+        run: node .github/scripts/check-licenses.mjs sbom.spdx.json .github/licenses/allowlist.txt .github/licenses/exceptions.txt
+
+      - name: Build and push Docker image
+        id: build-push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ inputs.dry_run != 'true' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            SEMIONT_VERSION=${{ inputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # SLSA build provenance via GitHub's OIDC + Sigstore, stored as an OCI
+      # attestation alongside the image in GHCR. Verify with:
+      #   gh attestation verify oci://ghcr.io/the-ai-alliance/semiont-<svc>:VERSION \
+      #     --owner The-AI-Alliance
+      - name: Attest build provenance
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest-build-provenance@v4.1.1
+        with:
+          subject-name: ${{ steps.tags.outputs.image }}
+          subject-digest: ${{ steps.build-push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest SBOM
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest-sbom@v4
+        with:
+          subject-name: ${{ steps.tags.outputs.image }}
+          subject-digest: ${{ steps.build-push.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true
+
+      - name: Summary
+        run: |
+          echo "## semiont-${{ matrix.service }} Container Image" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Bundled @semiont/* version:** ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ steps.tags.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Dry run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.tags.outputs.image }}:${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Verify supply-chain attestations:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "gh attestation verify oci://${{ steps.tags.outputs.image }}:${{ inputs.version }} \\" >> $GITHUB_STEP_SUMMARY
+          echo "  --owner The-AI-Alliance" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
