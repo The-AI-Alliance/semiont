@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnchorRect } from '@semiont/core';
 import { resourceId as toResourceId } from '@semiont/core';
+import { toViewportAnchorRect } from '../../lib/anchor-rect';
 import {
   getTargetSelector,
   createFragmentSelector,
@@ -256,6 +257,9 @@ export function PdfAnnotationCanvas({
     if (dragDistance < MIN_DRAG_DISTANCE) {
       // This was a click, not a drag - check if we clicked an existing annotation
       if (existingAnnotations.length > 0) {
+        // The hit-test owns the coordinate transform — capture the hit
+        // annotation's viewport rect for the emission below (A1 anchor).
+        let hitRect: AnchorRect | undefined;
         const clickedAnnotation = pageAnnotations.find(ann => {
           const fragmentSel = getFragmentSelector(ann.target);
           if (!fragmentSel) return false;
@@ -274,16 +278,20 @@ export function PdfAnnotationCanvas({
           const displayWidth = rect.width * scaleX;
           const displayHeight = rect.height * scaleY;
 
-          return (
+          const hit = (
             selection.endX >= displayX &&
             selection.endX <= displayX + displayWidth &&
             selection.endY >= displayY &&
             selection.endY <= displayY + displayHeight
           );
+          if (hit && imageRef.current) {
+            hitRect = toViewportAnchorRect(imageRef.current.getBoundingClientRect(), displayX, displayY, displayWidth, displayHeight);
+          }
+          return hit;
         });
 
         if (clickedAnnotation) {
-          session?.client.browse.click(clickedAnnotation.id, clickedAnnotation.motivation);
+          session?.client.browse.click(clickedAnnotation.id, clickedAnnotation.motivation, hitRect);
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -461,7 +469,7 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={() => session?.client.browse.click(ann.id, ann.motivation)}
+                      onClick={(e) => session?.client.browse.click(ann.id, ann.motivation, e.currentTarget.getBoundingClientRect())}
                       onMouseEnter={() => handleMouseEnter(ann.id)}
                       onMouseLeave={handleMouseLeave}
                     />

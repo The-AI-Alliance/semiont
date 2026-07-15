@@ -58,6 +58,24 @@ type BindUpdateBodyCommand =
  * - Commands/reads/results/UI: OpenAPI schema refs — plain strings
  * - void: UI-only signals with no payload
  */
+
+/**
+ * Viewport-space rectangle of a clicked annotation element — runtime-only
+ * view geometry riding UI events (never wire vocabulary; deliberately not in
+ * the OpenAPI schemas). Structurally satisfied by a DOM `DOMRect`, spelled
+ * out here because this package compiles without the DOM lib.
+ */
+export interface AnchorRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
 export type EventMap = {
 
   // ========================================================================
@@ -300,7 +318,7 @@ export type EventMap = {
   'browse:directory-failed': { correlationId: string; path: string } & components['schemas']['CommandError'];
 
   // UI events (session-scoped — fire on the client bus, tied to a KB)
-  'browse:click': components['schemas']['BrowseClickEvent'];
+  'browse:click': components['schemas']['BrowseClickEvent'] & { anchorRect?: AnchorRect };
   'browse:reference-navigate': components['schemas']['BrowseReferenceNavigateEvent'];
   'browse:entity-type-clicked': components['schemas']['BrowseEntityTypeClickedEvent'];
 
@@ -311,7 +329,7 @@ export type EventMap = {
   // ========================================================================
 
   'panel:toggle': components['schemas']['BrowsePanelToggleEvent'];
-  'panel:open': components['schemas']['BrowsePanelOpenEvent'];
+  'panel:open': components['schemas']['BrowsePanelOpenEvent'] & { anchorRect?: AnchorRect };
   'panel:close': void;
   'shell:sidebar-toggle': void;
   'tabs:close': components['schemas']['BrowseResourceCloseEvent'];
@@ -628,13 +646,13 @@ export const CHANNEL_SCHEMAS = {
   'browse:directory-requested':       'BrowseDirectoryRequest',
   'browse:directory-result':          'BrowseDirectoryResult',
   'browse:directory-failed':          null, // { correlationId; path } & CommandError
-  'browse:click':                     'BrowseClickEvent',
+  'browse:click':                     null, // includes runtime `anchorRect?: AnchorRect`
   'browse:reference-navigate':        'BrowseReferenceNavigateEvent',
   'browse:entity-type-clicked':       'BrowseEntityTypeClickedEvent',
 
   // ── SHELL (app-scoped UI events, fire on SemiontBrowser bus) ────
   'panel:toggle':                     'BrowsePanelToggleEvent',
-  'panel:open':                       'BrowsePanelOpenEvent',
+  'panel:open':                       null, // includes runtime `anchorRect?: AnchorRect`
   'panel:close':                      null, // void
   'shell:sidebar-toggle':             null, // void
   'tabs:close':                       'BrowseResourceCloseEvent',
