@@ -291,9 +291,10 @@ See [ANNOTATIONS.md](ANNOTATIONS.md) for detailed annotation documentation.
 
 ### AnnotateToolbar
 
-The tool bar `ResourceViewer` composes in annotate mode — selection / click / shape tool state,
-driven over the session bus. Composed for you by `ResourceViewer`; use it directly only for a
-custom annotate surface.
+The tool bar `ResourceViewer` composes in annotate mode. **Purely presentational**: each
+control reports its chosen value via a callback and the owner (viewer instance or host)
+applies it — the bar holds no pref state, emits no bus events, and touches no storage.
+Composed for you by `ResourceViewer`; use it directly only for a custom annotate surface.
 
 ```tsx
 import { AnnotateToolbar } from '@semiont/react-ui';
@@ -303,29 +304,67 @@ import { AnnotateToolbar } from '@semiont/react-ui';
   selectedClick={selectedClick}             // 'detail' | 'follow' | 'jsonld' | 'deleting'
   annotateMode
   annotators={annotators}
-  session={session}
+  onSelectionChange={setSelectedMotivation}
+  onClickActionChange={setSelectedClick}
+  onModeChange={setAnnotateMode}
 />
 ```
 
-Optional: `showSelectionGroup`, `showDeleteButton`, `showShapeGroup`, `selectedShape`, `mediaType`. See the `AnnotateToolbarProps` interface for the rest.
+Optional: `parts` (which of the four control groups to render — `'clickAction' | 'mode' | 'selection' | 'shape'`), `compact` (icon-only inline form), `selectedShape` + `onShapeChange`, `mediaType` (gates the shape group), `showDeleteButton`. See the `AnnotateToolbarProps` interface for the rest.
 
 ### Annotation Panels
 
-The side-panel renderers for each annotation motivation. They take the **grouped annotation
-arrays + UI state** (from `useResourceLoader` / the page state unit) — not a `resourceId`; they
-render what you pass and emit edits on the session bus.
+The side-panel renderers for each annotation motivation. **Bring-your-own-session**, like
+`ResourceViewer`: every panel takes a `session: SemiontSession | null` prop directly — no
+`SemiontProvider` required — plus the **grouped annotation arrays + UI state** (from
+`useResourceLoader` / the page state unit). They render what you pass, send interactions
+through the session's client, and follow `browse:click` on its bus for entry focus.
+`session={null}` renders inert (display-only).
 
 ```tsx
-import { HighlightPanel, UnifiedAnnotationsPanel } from '@semiont/react-ui';
+import { HighlightPanel } from '@semiont/react-ui';
 
-// One motivation:
-<HighlightPanel annotations={highlights} pendingAnnotation={pending} annotateMode />
-
-// All motivations in one panel:
-<UnifiedAnnotationsPanel annotations={annotations} annotators={annotators} pendingAnnotation={pending} annotateMode />
+// One motivation — no providers, just the session:
+<HighlightPanel
+  session={session}
+  resourceId={rId}
+  annotations={highlights}
+  pendingAnnotation={pending}
+  annotateMode
+/>
 ```
 
-Also exported: `CommentsPanel`, `TaggingPanel`, `ReferencesPanel`, `AssessmentPanel`, `JsonLdPanel`. Each panel's `Props` interface lists its state inputs.
+Also exported: `CommentsPanel`, `TaggingPanel`, `ReferencesPanel`, `AssessmentPanel`,
+`ResourceInfoPanel`, and `UnifiedAnnotationsPanel` (all motivations in one tabbed panel —
+additionally takes `annotators`, `Link` + `routes` for its reference-tab links, and
+`onOpenResource?` for host-owned navigation when a resolved reference is followed).
+Each panel's `Props` interface lists its state inputs. `JsonLdPanel` is the one exception
+that still reads `SemiontProvider`.
+
+### Panel Entries
+
+The per-annotation row each panel composes — exported for hosts that build their own list
+chrome around the same interaction contract: `HighlightEntry`, `ReferenceEntry`,
+`CommentEntry`, `AssessmentEntry`, `TagEntry`. Same bring-your-own-session shape.
+
+```tsx
+import { CommentEntry, ReferenceEntry } from '@semiont/react-ui';
+
+<CommentEntry session={session} comment={annotation} isFocused={false} />
+
+<ReferenceEntry
+  session={session}
+  reference={annotation}
+  isFocused={false}
+  onOpenResource={(id) => navigate(id)}  // 🔗 opens the resolved resource (host nav)
+/>
+```
+
+**The shared contract:**
+- `session`, the annotation (prop named by motivation: `highlight` / `reference` / `comment` / `assessment` / `tag`), and `isFocused` are required; `isHovered?` pulses the row, `ref?` reaches the row element.
+- Click emits `browse:click` via `session.client.browse.click(id, motivation)` — the same event the stock Browser routes to panel focus, so a host-composed list and any Semiont surface on the same session stay in sync for free.
+- Hover (debounced) emits the beckon hover signal that highlights the annotation in an open viewer on the same session.
+- `ReferenceEntry` extras: `onOpenResource?` (host navigation when the resolved reference is followed), `annotateMode?` (resolve / unlink affordances), `isGenerating?`.
 
 ---
 
