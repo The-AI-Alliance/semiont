@@ -40,10 +40,22 @@ COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=installer /usr/local/bin /usr/local/bin
 COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont /home/semiont/.local/share/semiont
 
+<<<<<<< HEAD
 # Strip npm/npx after the COPY above re-introduces them from the installer tree.
 RUN rm -rf /usr/local/lib/node_modules/npm \
            /usr/local/bin/npm \
            /usr/local/bin/npx
+=======
+# Strip npm/npx (re-introduced by the COPY above) plus the TypeScript compiler.
+# `typescript` + its native `@typescript/*` Go binaries are pulled transitively
+# via the qdrant client's dep chain but never loaded at runtime — build-only
+# baggage, and the native `tsc` carries a Go-stdlib CVE (CVE-2026-39822).
+RUN rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/bin/npm \
+           /usr/local/bin/npx && \
+    find /usr/local/lib/node_modules /home/semiont/.local/share/semiont \
+      -type d \( -name typescript -o -name '@typescript' \) -prune -exec rm -rf {} +
+>>>>>>> 6234f794 (high cve caught by vuln gate)
 
 COPY LICENSE apps/backend/NOTICE /home/semiont/
 
