@@ -11,7 +11,8 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
-import { resourceId, annotationId } from '@semiont/core';
+import { resourceId, annotationId, parseFragmentSelector } from '@semiont/core';
+import { pdfToCanvasCoordinates } from '../../../lib/pdf-coordinates';
 
 import type { Annotation } from '@semiont/core';
 
@@ -234,6 +235,82 @@ describe('PdfAnnotationCanvas', () => {
     const anchorRect = click.mock.calls[0]?.[2];
     expect(anchorRect).toBeDefined();
     expect(typeof anchorRect.width).toBe('number');
+  });
+
+  test('drawing-path hit-test emits browse.click with the annotation viewport rect', async () => {
+    // A1 anchor: in drawing mode, a sub-10px click on an existing annotation
+    // goes through the mouse-up hit-test, which owns the PDF→display
+    // coordinate transform. Expected rect computed with the same lib
+    // functions the component uses (scale is 1: display 612×792 == page).
+    const click = vi.fn();
+    const session = {
+      client: { browse: { click }, beckon: { hover: vi.fn() } },
+    } as unknown as import('@semiont/sdk').SemiontSession;
+
+    const fragmentValue = 'page=1&viewrect=100,200,150,100';
+    const mockAnnotations: Annotation[] = [
+      {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        type: 'Annotation',
+        id: annotationId('ann-hit-1'),
+        target: {
+          source: mockResourceId,
+          selector: {
+            type: 'FragmentSelector',
+            value: fragmentValue,
+            conformsTo: 'http://tools.ietf.org/rfc/rfc3778'
+          }
+        },
+        motivation: 'highlighting',
+        created: new Date().toISOString()
+      }
+    ];
+
+    render(
+      <PdfAnnotationCanvas resourceUri="res-1"
+        pdfUrl={mockPdfUrl}
+        existingAnnotations={mockAnnotations}
+        drawingMode="rectangle"
+        selectedMotivation="highlighting"
+        session={session}
+      />
+    );
+
+    await waitFor(() => {
+      const img = document.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+      expect(img).toBeInTheDocument();
+    });
+
+    const img = document.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+    Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });
+    Object.defineProperty(img, 'clientHeight', { value: 792, configurable: true });
+    fireEvent.load(img);
+
+    await waitFor(() => {
+      const rects = document.querySelector('.semiont-pdf-annotation-canvas__svg')?.querySelectorAll('rect');
+      expect(rects?.length).toBeGreaterThan(0);
+    });
+
+    const pdfCoord = parseFragmentSelector(fragmentValue)!;
+    const displayRect = pdfToCanvasCoordinates(pdfCoord, 792, 1.0);
+
+    // Sub-10px gesture at the annotation's display-rect center (image rect is
+    // zeros in jsdom, so client coordinates are display coordinates).
+    const canvasContainer = document.querySelector('.semiont-pdf-annotation-canvas__container')!;
+    const clickX = displayRect.x + displayRect.width / 2;
+    const clickY = displayRect.y + displayRect.height / 2;
+    fireEvent.mouseDown(canvasContainer, { clientX: clickX, clientY: clickY });
+    fireEvent.mouseUp(canvasContainer, { clientX: clickX, clientY: clickY });
+
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(click.mock.calls[0]?.[0]).toBe('ann-hit-1');
+    expect(click.mock.calls[0]?.[1]).toBe('highlighting');
+    expect(click.mock.calls[0]?.[2]).toMatchObject({
+      left: displayRect.x,
+      top: displayRect.y,
+      width: displayRect.width,
+      height: displayRect.height,
+    });
   });
 
   test('accepts a drawing gesture without throwing when drawing mode is active', async () => {
