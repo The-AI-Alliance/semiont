@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { cloneElement, type ReactElement } from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { of } from 'rxjs';
-import { CacheObservable } from '@semiont/sdk';
+import { CacheObservable, type SemiontSession } from '@semiont/sdk';
 import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import type { TagSchema } from '@semiont/core';
@@ -65,6 +66,17 @@ describe('TagEntry', () => {
   const defaultProps = {
     tag: createMockTag(),
     isFocused: false,
+    // Satisfies JSX at element construction only; render helpers/tests pass
+    // the real per-test factory session explicitly. Never put a live session
+    // here — module-scope clients get disposed after the first test.
+    session: null,
+  };
+
+  // The component is provider-free: hand it a fresh per-test fake session as
+  // the `session` prop. renderWithProviders still supplies translations/toasts.
+  const renderTagEntry = (element: ReactElement<{ session: SemiontSession | null }>) => {
+    const { session } = createTestSemiontWrapper();
+    return renderWithProviders(cloneElement(element, { session }));
   };
 
   beforeEach(() => {
@@ -76,13 +88,13 @@ describe('TagEntry', () => {
 
   describe('Rendering', () => {
     it('should render the category badge', () => {
-      renderWithProviders(<TagEntry {...defaultProps} />);
+      renderTagEntry(<TagEntry {...defaultProps} />);
 
       expect(screen.getByText('Entity')).toBeInTheDocument();
     });
 
     it('should render the selected text in quotes', () => {
-      renderWithProviders(<TagEntry {...defaultProps} />);
+      renderTagEntry(<TagEntry {...defaultProps} />);
 
       expect(screen.getByText(/Tagged text content/)).toBeInTheDocument();
     });
@@ -91,7 +103,7 @@ describe('TagEntry', () => {
       const longText = 'C'.repeat(200);
       mockGetAnnotationExactText.mockReturnValue(longText);
 
-      renderWithProviders(<TagEntry {...defaultProps} />);
+      renderTagEntry(<TagEntry {...defaultProps} />);
 
       expect(screen.getByText(new RegExp(`"${'C'.repeat(150)}`))).toBeInTheDocument();
       expect(screen.getByText(/\.\.\./)).toBeInTheDocument();
@@ -101,7 +113,7 @@ describe('TagEntry', () => {
       const exactText = 'D'.repeat(150);
       mockGetAnnotationExactText.mockReturnValue(exactText);
 
-      const { container } = renderWithProviders(<TagEntry {...defaultProps} />);
+      const { container } = renderTagEntry(<TagEntry {...defaultProps} />);
 
       const quote = container.querySelector('.semiont-annotation-entry__quote');
       expect(quote).toBeInTheDocument();
@@ -121,11 +133,11 @@ describe('TagEntry', () => {
       // Stub the cache to resolve immediately with the test schema —
       // exercises the rendering path without round-tripping through the
       // transport's HTTP plumbing.
-      const { SemiontWrapper, client } = createTestSemiontWrapper();
+      const { SemiontWrapper, client, session } = createTestSemiontWrapper();
       vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
         CacheObservable.from(of([NER_SCHEMA]))
       );
-      render(<TagEntry {...defaultProps} />, { wrapper: SemiontWrapper });
+      render(<TagEntry {...defaultProps} session={session} />, { wrapper: SemiontWrapper });
 
       expect(screen.getByText('Named Entity Recognition')).toBeInTheDocument();
     });
@@ -135,17 +147,17 @@ describe('TagEntry', () => {
 
       // Stub the cache to resolve to an empty list — the schema lookup
       // misses, the schema-name `<span>` is not rendered.
-      const { SemiontWrapper, client } = createTestSemiontWrapper();
+      const { SemiontWrapper, client, session } = createTestSemiontWrapper();
       vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
         CacheObservable.from(of([]))
       );
-      const { container } = render(<TagEntry {...defaultProps} />, { wrapper: SemiontWrapper });
+      const { container } = render(<TagEntry {...defaultProps} session={session} />, { wrapper: SemiontWrapper });
 
       expect(container.querySelector('.semiont-annotation-entry__meta')).not.toBeInTheDocument();
     });
 
     it('should render category badge with correct data-variant', () => {
-      const { container } = renderWithProviders(<TagEntry {...defaultProps} />);
+      const { container } = renderTagEntry(<TagEntry {...defaultProps} />);
 
       const badge = container.querySelector('.semiont-tag-badge');
       expect(badge).toBeInTheDocument();
@@ -157,12 +169,14 @@ describe('TagEntry', () => {
     it('should emit browse:click on click', async () => {
       const clickHandler = vi.fn();
 
-      const { container, eventBus } = renderWithProviders(
-        <TagEntry {...defaultProps} />,
-        { returnEventBus: true }
-      );
+      // The session prop is the only session the provider-free component
+      // sees — subscribe on the SAME factory's bus that backs it.
+      const { session, eventBus } = createTestSemiontWrapper();
+      const subscription = eventBus.get('browse:click').subscribe(clickHandler);
 
-      const subscription = eventBus!.get('browse:click').subscribe(clickHandler);
+      const { container } = renderWithProviders(
+        <TagEntry {...defaultProps} session={session} />
+      );
 
       const entry = container.firstChild as HTMLElement;
       await userEvent.click(entry);
@@ -178,7 +192,7 @@ describe('TagEntry', () => {
 
   describe('Hover state', () => {
     it('should apply pulse class when isHovered is true', () => {
-      const { container } = renderWithProviders(
+      const { container } = renderTagEntry(
         <TagEntry {...defaultProps} isHovered={true} />
       );
 
@@ -187,7 +201,7 @@ describe('TagEntry', () => {
     });
 
     it('should not apply pulse class when isHovered is false', () => {
-      const { container } = renderWithProviders(
+      const { container } = renderTagEntry(
         <TagEntry {...defaultProps} isHovered={false} />
       );
 
@@ -198,7 +212,7 @@ describe('TagEntry', () => {
 
   describe('Focus state', () => {
     it('should set data-focused to true when focused', () => {
-      const { container } = renderWithProviders(
+      const { container } = renderTagEntry(
         <TagEntry {...defaultProps} isFocused={true} />
       );
 
@@ -207,7 +221,7 @@ describe('TagEntry', () => {
     });
 
     it('should set data-type to tag', () => {
-      const { container } = renderWithProviders(<TagEntry {...defaultProps} />);
+      const { container } = renderTagEntry(<TagEntry {...defaultProps} />);
 
       const entry = container.firstChild as HTMLElement;
       expect(entry).toHaveAttribute('data-type', 'tag');

@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders } from '../../../../test-utils';
+import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
+import type { SemiontSession } from '@semiont/sdk';
 
-import type { Annotation, AnnotationId } from '@semiont/core';
+import type { Annotation, AnnotationId, EventBus } from '@semiont/core';
 
 // Mock @semiont/http-transport
 vi.mock('@semiont/core', async () => {
@@ -49,14 +50,21 @@ describe('HighlightEntry', () => {
     isFocused: false,
   };
 
+  // Created per-test: test-utils disposes every created client in a
+  // module-scope afterEach, so a module-scope session would be dead
+  // after the first test.
+  let session: SemiontSession;
+  let eventBus: EventBus;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetAnnotationExactText.mockReturnValue('This is the highlighted text');
+    ({ session, eventBus } = createTestSemiontWrapper());
   });
 
   describe('Rendering', () => {
     it('should render the selected text in quotes', () => {
-      renderWithProviders(<HighlightEntry {...defaultProps} />);
+      renderWithProviders(<HighlightEntry {...defaultProps} session={session} />);
 
       expect(screen.getByText(/This is the highlighted text/)).toBeInTheDocument();
     });
@@ -65,7 +73,7 @@ describe('HighlightEntry', () => {
       const longText = 'A'.repeat(250);
       mockGetAnnotationExactText.mockReturnValue(longText);
 
-      renderWithProviders(<HighlightEntry {...defaultProps} />);
+      renderWithProviders(<HighlightEntry {...defaultProps} session={session} />);
 
       // Should show first 200 chars followed by ellipsis
       expect(screen.getByText(new RegExp(`"${'A'.repeat(200)}`))).toBeInTheDocument();
@@ -76,7 +84,7 @@ describe('HighlightEntry', () => {
       const exactText = 'B'.repeat(200);
       mockGetAnnotationExactText.mockReturnValue(exactText);
 
-      const { container } = renderWithProviders(<HighlightEntry {...defaultProps} />);
+      const { container } = renderWithProviders(<HighlightEntry {...defaultProps} session={session} />);
 
       const quote = container.querySelector('.semiont-annotation-entry__quote');
       expect(quote).toBeInTheDocument();
@@ -84,7 +92,7 @@ describe('HighlightEntry', () => {
     });
 
     it('should show creator name', () => {
-      renderWithProviders(<HighlightEntry {...defaultProps} />);
+      renderWithProviders(<HighlightEntry {...defaultProps} session={session} />);
 
       expect(screen.getByText(/alice@example.com/)).toBeInTheDocument();
     });
@@ -94,7 +102,7 @@ describe('HighlightEntry', () => {
       delete (highlight as Record<string, unknown>).creator;
 
       renderWithProviders(
-        <HighlightEntry highlight={highlight} isFocused={false} />
+        <HighlightEntry highlight={highlight} isFocused={false} session={session} />
       );
 
       expect(screen.getByText(/Unknown/)).toBeInTheDocument();
@@ -106,7 +114,7 @@ describe('HighlightEntry', () => {
       });
 
       renderWithProviders(
-        <HighlightEntry highlight={recentHighlight} isFocused={false} />
+        <HighlightEntry highlight={recentHighlight} isFocused={false} session={session} />
       );
 
       expect(screen.getByText(/just now/)).toBeInTheDocument();
@@ -115,7 +123,7 @@ describe('HighlightEntry', () => {
     it('should not render quote section when selectedText is empty', () => {
       mockGetAnnotationExactText.mockReturnValue('');
 
-      const { container } = renderWithProviders(<HighlightEntry {...defaultProps} />);
+      const { container } = renderWithProviders(<HighlightEntry {...defaultProps} session={session} />);
 
       expect(container.querySelector('.semiont-annotation-entry__quote')).not.toBeInTheDocument();
     });
@@ -125,12 +133,14 @@ describe('HighlightEntry', () => {
     it('should emit browse:click on click', async () => {
       const clickHandler = vi.fn();
 
-      const { container, eventBus } = renderWithProviders(
-        <HighlightEntry {...defaultProps} />,
-        { returnEventBus: true }
+      // The component only sees the `session` prop now, so the assertion
+      // must subscribe on that same session's bus — not the bus of the
+      // wrapper renderWithProviders creates internally.
+      const { container } = renderWithProviders(
+        <HighlightEntry {...defaultProps} session={session} />
       );
 
-      const subscription = eventBus!.get('browse:click').subscribe(clickHandler);
+      const subscription = eventBus.get('browse:click').subscribe(clickHandler);
 
       const entry = container.firstChild as HTMLElement;
       await userEvent.click(entry);
@@ -147,7 +157,7 @@ describe('HighlightEntry', () => {
   describe('Hover state', () => {
     it('should apply pulse class when isHovered is true', () => {
       const { container } = renderWithProviders(
-        <HighlightEntry {...defaultProps} isHovered={true} />
+        <HighlightEntry {...defaultProps} isHovered={true} session={session} />
       );
 
       const entry = container.firstChild as HTMLElement;
@@ -156,7 +166,7 @@ describe('HighlightEntry', () => {
 
     it('should not apply pulse class when isHovered is false', () => {
       const { container } = renderWithProviders(
-        <HighlightEntry {...defaultProps} isHovered={false} />
+        <HighlightEntry {...defaultProps} isHovered={false} session={session} />
       );
 
       const entry = container.firstChild as HTMLElement;
@@ -167,7 +177,7 @@ describe('HighlightEntry', () => {
   describe('Focus state', () => {
     it('should set data-focused to true when focused', () => {
       const { container } = renderWithProviders(
-        <HighlightEntry {...defaultProps} isFocused={true} />
+        <HighlightEntry {...defaultProps} isFocused={true} session={session} />
       );
 
       const entry = container.firstChild as HTMLElement;
@@ -176,7 +186,7 @@ describe('HighlightEntry', () => {
 
     it('should set data-focused to false when not focused', () => {
       const { container } = renderWithProviders(
-        <HighlightEntry {...defaultProps} isFocused={false} />
+        <HighlightEntry {...defaultProps} isFocused={false} session={session} />
       );
 
       const entry = container.firstChild as HTMLElement;

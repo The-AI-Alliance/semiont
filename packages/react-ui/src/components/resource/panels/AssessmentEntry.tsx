@@ -3,8 +3,7 @@
 import type { Ref } from 'react';
 import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/core';
-import { useSemiont } from '../../../session/SemiontProvider';
-import { useObservable } from '../../../hooks/useObservable';
+import type { SemiontSession } from '@semiont/sdk';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 import { renderAgentLabel } from './agent-label';
 
@@ -17,6 +16,8 @@ interface TextualBody {
 }
 
 interface AssessmentEntryProps {
+  /** Session for interaction routing (browse.click etc.); the panel threads it. */
+  session: SemiontSession | null;
   assessment: Annotation;
   isFocused: boolean;
   isHovered?: boolean;
@@ -69,13 +70,13 @@ function getAssessmentText(annotation: Annotation): string | null {
 }
 
 export function AssessmentEntry({
+  session,
   assessment,
   isFocused,
   isHovered = false,
   ref,
 }: AssessmentEntryProps) {
-  const session = useObservable(useSemiont().activeSession$);
-  const hoverProps = useHoverEmitter(assessment.id);
+  const hoverProps = useHoverEmitter(session, assessment.id);
 
   const selectedText = getAnnotationExactText(assessment);
   const assessmentText = getAssessmentText(assessment);

@@ -14,8 +14,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { screen } from '@testing-library/react';
-import { renderWithProviders } from '../../../../test-utils';
+import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
+import type { EventBus } from '@semiont/core';
+import type { SemiontSession } from '@semiont/sdk';
 import { AssistSection } from '../AssistSection';
 
 // Mock translations
@@ -52,8 +54,16 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 }));
 
 describe('AssistSection', () => {
+  // Per-test session/bus — created in beforeEach (a module-scope factory
+  // call would hand tests a client that test-utils disposes after the
+  // first test). The `session` prop and the `eventBus` the emission
+  // tests subscribe come from the SAME factory call.
+  let session: SemiontSession;
+  let eventBus: EventBus;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    ({ session, eventBus } = createTestSemiontWrapper());
     // Clear localStorage
     if (typeof window !== 'undefined') {
       localStorage.clear();
@@ -64,6 +74,7 @@ describe('AssistSection', () => {
     it('should render progress message when progress prop provided', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={true}
           progress={{
@@ -80,6 +91,7 @@ describe('AssistSection', () => {
     it('should render progress message with sparkle icon', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={true}
           progress={{
@@ -99,6 +111,7 @@ describe('AssistSection', () => {
     it('should render request parameters when provided', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={true}
           progress={{
@@ -123,6 +136,7 @@ describe('AssistSection', () => {
     it('should hide form when progress is present', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={true}
           progress={{
@@ -141,6 +155,7 @@ describe('AssistSection', () => {
     it('should show form when progress is null', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={false}
           progress={null}
@@ -155,6 +170,7 @@ describe('AssistSection', () => {
     it('should show form when progress is undefined', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={false}
           progress={undefined}
@@ -169,6 +185,7 @@ describe('AssistSection', () => {
     it('should keep progress visible after detection completes (isAssisting=false but progress exists)', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={false}
           progress={{
@@ -190,6 +207,7 @@ describe('AssistSection', () => {
     it('should render for highlight type', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={false}
           progress={null}
@@ -202,6 +220,7 @@ describe('AssistSection', () => {
     it('should render for assessment type', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="assessment"
           isAssisting={false}
           progress={null}
@@ -214,6 +233,7 @@ describe('AssistSection', () => {
     it('should render for comment type', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="comment"
           isAssisting={false}
           progress={null}
@@ -226,6 +246,7 @@ describe('AssistSection', () => {
     it('should show tone selector for comments', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="comment"
           isAssisting={false}
           progress={null}
@@ -239,6 +260,7 @@ describe('AssistSection', () => {
     it('should show tone selector for assessments', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="assessment"
           isAssisting={false}
           progress={null}
@@ -252,6 +274,7 @@ describe('AssistSection', () => {
     it('should not show tone selector for highlights', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={false}
           progress={null}
@@ -268,16 +291,16 @@ describe('AssistSection', () => {
       const user = userEvent.setup();
       const detectionHandler = vi.fn();
 
-      const { eventBus } = renderWithProviders(
+      renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={false}
           progress={null}
-        />,
-        { returnEventBus: true }
+        />
       );
 
-      const subscription = eventBus!.get('mark:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus.get('mark:assist-request').subscribe(detectionHandler);
 
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
@@ -294,16 +317,16 @@ describe('AssistSection', () => {
       const user = userEvent.setup();
       const detectionHandler = vi.fn();
 
-      const { eventBus } = renderWithProviders(
+      renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="assessment"
           isAssisting={false}
           progress={null}
-        />,
-        { returnEventBus: true }
+        />
       );
 
-      const subscription = eventBus!.get('mark:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus.get('mark:assist-request').subscribe(detectionHandler);
 
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
@@ -320,16 +343,16 @@ describe('AssistSection', () => {
       const user = userEvent.setup();
       const detectionHandler = vi.fn();
 
-      const { eventBus } = renderWithProviders(
+      renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="comment"
           isAssisting={false}
           progress={null}
-        />,
-        { returnEventBus: true }
+        />
       );
 
-      const subscription = eventBus!.get('mark:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus.get('mark:assist-request').subscribe(detectionHandler);
 
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
@@ -346,16 +369,16 @@ describe('AssistSection', () => {
       const user = userEvent.setup();
       const detectionHandler = vi.fn();
 
-      const { eventBus } = renderWithProviders(
+      renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={false}
           progress={null}
-        />,
-        { returnEventBus: true }
+        />
       );
 
-      const subscription = eventBus!.get('mark:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus.get('mark:assist-request').subscribe(detectionHandler);
 
       const textarea = screen.getByPlaceholderText('Enter custom instructions...');
       await user.type(textarea, 'Find key concepts');
@@ -379,6 +402,7 @@ describe('AssistSection', () => {
     it('should be expanded by default', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={false}
           progress={null}
@@ -395,6 +419,7 @@ describe('AssistSection', () => {
 
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={false}
           progress={null}
@@ -413,6 +438,7 @@ describe('AssistSection', () => {
 
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={false}
           progress={null}
@@ -432,6 +458,7 @@ describe('AssistSection', () => {
     it('should handle empty progress message', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={true}
           progress={{
@@ -450,6 +477,7 @@ describe('AssistSection', () => {
     it('should handle progress without percentage', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={true}
           progress={{
@@ -466,6 +494,7 @@ describe('AssistSection', () => {
     it('should handle progress with empty requestParams array', () => {
       renderWithProviders(
         <AssistSection
+          session={session}
           annotationType="highlight"
           isAssisting={true}
           progress={{

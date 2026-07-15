@@ -9,7 +9,7 @@ import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi, afterEach } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
-import { SemiontClient, type SemiontBrowser } from '@semiont/sdk';
+import { SemiontClient, type SemiontBrowser, type SemiontSession } from '@semiont/sdk';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { baseUrl, EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
@@ -175,6 +175,8 @@ export interface RenderWithProvidersResult extends RenderResult {
   eventBus?: EventBus;
   /** App-scoped bus (the fake browser's own bus). */
   shellBus?: EventBus;
+  /** The fake session — pass as the `session` prop to provider-free components. */
+  session: SemiontSession | null;
 }
 
 /** Read the app-scoped bus stashed on the fake browser by createFakeBrowserForTests. */
@@ -216,7 +218,7 @@ export function renderWithProviders(
   const extras: Partial<RenderWithProvidersResult> = {};
   if (returnEventBus && client) extras.eventBus = busOf(client);
   if (returnShellBus) extras.shellBus = shellBusOf(fakeBrowser);
-  return Object.keys(extras).length ? { ...result, ...extras } : result;
+  return { ...result, session: fakeSession as unknown as SemiontSession | null, ...extras };
 }
 
 /**
@@ -233,6 +235,8 @@ export function createTestSemiontWrapper(apiBaseUrl: string = 'http://localhost:
   shellBus: EventBus;
   /** The fake session's client — for tests that need to spy on namespace methods. */
   client: SemiontClient;
+  /** The fake session — pass as the `session` prop to provider-free components. */
+  session: SemiontSession;
 } {
   const fakeBrowser = createFakeBrowserForTests(apiBaseUrl);
   const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client: SemiontClient } | null } }).activeSession$.getValue();
@@ -245,6 +249,7 @@ export function createTestSemiontWrapper(apiBaseUrl: string = 'http://localhost:
     eventBus: busOf(client),
     shellBus: shellBusOf(fakeBrowser)!,
     client,
+    session: fakeSession as unknown as SemiontSession,
   };
 }
 

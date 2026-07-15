@@ -161,6 +161,12 @@ import { ResourceViewer } from '@semiont/react-ui';
 - **TaggingPanel** - Tag management
 - **JsonLdPanel** - JSON-LD representation
 
+The panels and their per-annotation entry rows (`HighlightEntry`, `ReferenceEntry`,
+`CommentEntry`, `AssessmentEntry`, `TagEntry`) are **bring-your-own-session**: each takes a
+`session: SemiontSession | null` prop and needs no `SemiontProvider` (`JsonLdPanel` is the
+one exception). See [COMPONENTS.md](COMPONENTS.md#annotation-panels) for the headless usage
+and the entries' interaction contract.
+
 ---
 
 ## Annotation Registry
@@ -239,7 +245,7 @@ const annotators = withHandlers({
   }
 });
 
-<UnifiedAnnotationsPanel annotators={annotators} />
+<UnifiedAnnotationsPanel session={session} annotations={annotations} annotators={annotators} /* …state props */ />
 ```
 
 ---

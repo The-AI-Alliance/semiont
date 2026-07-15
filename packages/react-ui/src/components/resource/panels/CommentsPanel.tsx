@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useSemiont } from '../../../session/SemiontProvider';
-import { useObservable } from '../../../hooks/useObservable';
-import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
+import type { SemiontSession } from '@semiont/sdk';
+import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { CommentEntry } from './CommentEntry';
@@ -40,6 +39,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 }
 
 interface CommentsPanelProps {
+  /** Session carrying the client and event bus; null renders inert. */
+  session: SemiontSession | null;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
   resourceId: string;
   annotations: Annotation[];
@@ -63,6 +64,7 @@ interface CommentsPanelProps {
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function CommentsPanel({
+  session,
   resourceId,
   annotations,
   pendingAnnotation,
@@ -76,7 +78,6 @@ export function CommentsPanel({
   hoveredAnnotationId,
 }: CommentsPanelProps) {
   const t = useTranslations('CommentsPanel');
-  const session = useObservable(useSemiont().activeSession$);
   const [newCommentText, setNewCommentText] = useState('');
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -167,7 +168,7 @@ export function CommentsPanel({
     setTimeout(() => setFocusedAnnotationId(null), 3000);
   }, []);
 
-  useEventSubscriptions({
+  useSessionEventSubscriptions(session, {
     'browse:click': handleAnnotationClick,
   });
 
@@ -257,6 +258,7 @@ export function CommentsPanel({
         {/* Assist Section - only in Annotate mode and for text resources */}
         {annotateMode && (
           <AssistSection
+            session={session}
             annotationType="comment"
             isAssisting={isAssisting}
             locale={locale}
@@ -274,6 +276,7 @@ export function CommentsPanel({
           ) : (
             sortedAnnotations.map((comment) => (
               <CommentEntry
+                session={session}
                 key={comment.id}
                 comment={comment}
                 isFocused={comment.id === focusedAnnotationId}

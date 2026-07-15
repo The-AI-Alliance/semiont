@@ -3,7 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { EventBus } from '@semiont/core';
-import type { SemiontClient } from '@semiont/sdk';
+import type { SemiontClient, SemiontSession } from '@semiont/sdk';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
@@ -87,13 +87,15 @@ function createEventTracker() {
   };
 }
 
-const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
-  const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
+const renderWithEventBus = (component: React.ReactElement<{ session: SemiontSession | null }>, tracker?: ReturnType<typeof createEventTracker>) => {
+  const { SemiontWrapper, eventBus, client, session } = createTestSemiontWrapper();
   if (tracker) tracker._attach(eventBus, client);
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontWrapper>{children}</SemiontWrapper>
   );
-  return render(component, { wrapper: Wrapper });
+  // The component is provider-free: inject the factory session so it is the
+  // SAME session whose client the tracker spies on / whose bus it subscribes.
+  return render(React.cloneElement(component, { session }), { wrapper: Wrapper });
 };
 
 describe('ResourceInfoPanel Component', () => {
@@ -103,6 +105,11 @@ describe('ResourceInfoPanel Component', () => {
     documentLocale: undefined,
     primaryMediaType: undefined,
     primaryByteSize: undefined,
+    // Satisfies JSX at element construction only; renderWithEventBus always
+    // replaces it (via cloneElement) with the per-test factory session. Never
+    // put a live session here — module-scope clients get disposed after the
+    // first test.
+    session: null,
   };
 
   beforeEach(() => {

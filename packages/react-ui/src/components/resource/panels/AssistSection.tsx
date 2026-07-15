@@ -2,14 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useSemiont } from '../../../session/SemiontProvider';
-import { useObservable } from '../../../hooks/useObservable';
+import type { SemiontSession } from '@semiont/sdk';
 import type { Motivation, components } from '@semiont/core';
 import './AssistSection.css';
 
 type JobProgress = components['schemas']['JobProgress'];
 
 interface AssistSectionProps {
+  /** Session carrying the client and event bus; null renders inert. */
+  session: SemiontSession | null;
   annotationType: 'highlight' | 'assessment' | 'comment';
   isAssisting: boolean;
   /** User UI locale — written into the annotation body's `language` field for comment/assessment. */
@@ -34,6 +35,7 @@ interface AssistSectionProps {
  * @emits mark:progress-dismiss - Dismiss the annotation progress display
  */
 export function AssistSection({
+  session,
   annotationType,
   isAssisting,
   locale,
@@ -45,7 +47,6 @@ export function AssistSection({
                      annotationType === 'assessment' ? 'AssessmentPanel' :
                      'CommentsPanel';
   const t = useTranslations(panelName);
-  const session = useObservable(useSemiont().activeSession$);
   const [instructions, setInstructions] = useState('');
   type ToneValue = 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive' | '';
   const [tone, setTone] = useState<ToneValue>('');

@@ -1,17 +1,14 @@
 'use client';
 
 import type { Ref } from 'react';
-import type { RouteBuilder } from '../../../contexts/RoutingContext';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { Annotation } from '@semiont/core';
 import { resourceId } from '@semiont/core';
 import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
-import { useSemiont } from '../../../session/SemiontProvider';
-import { useObservable } from '../../../hooks/useObservable';
+import type { SemiontSession } from '@semiont/sdk';
 import { renderAgentLabel } from './agent-label';
-import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
 // Extended annotation type with runtime properties added by backend enrichment
@@ -21,29 +18,31 @@ interface EnrichedAnnotation extends Annotation {
 }
 
 interface ReferenceEntryProps {
+  /** Session for interaction routing (browse.click etc.); the panel threads it. */
+  session: SemiontSession | null;
   reference: Annotation;
   isFocused: boolean;
   isHovered?: boolean;
-  routes: RouteBuilder;
+  /** Host-owned navigation: called with the resolved resource id when the entry's link opens. */
+  onOpenResource?: (resourceId: string) => void;
   annotateMode?: boolean;
   isGenerating?: boolean;
   ref?: Ref<HTMLDivElement>;
 }
 
 export function ReferenceEntry({
+  session,
   reference,
   isFocused,
   isHovered = false,
-  routes,
+  onOpenResource,
   annotateMode = true,
   isGenerating = false,
   ref,
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
-  const session = useObservable(useSemiont().activeSession$);
   const semiont = session?.client;
-  const navigate = useObservableExternalNavigation();
-  const hoverProps = useHoverEmitter(reference.id);
+  const hoverProps = useHoverEmitter(session, reference.id);
 
   const selectedText = getAnnotationExactText(reference) || '';
   const isResolved = isBodyResolved(reference.body);
@@ -65,7 +64,7 @@ export function ReferenceEntry({
   const handleOpen = () => {
     if (resolvedResourceUri) {
       // resolvedResourceUri is already a bare resource ID
-      navigate(routes.resourceDetail(resolvedResourceUri), { resourceId: resolvedResourceUri });
+      onOpenResource?.(resolvedResourceUri);
     }
   };
 

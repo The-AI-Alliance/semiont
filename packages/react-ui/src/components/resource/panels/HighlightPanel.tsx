@@ -2,9 +2,8 @@
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useSemiont } from '../../../session/SemiontProvider';
-import { useObservable } from '../../../hooks/useObservable';
-import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
+import type { SemiontSession } from '@semiont/sdk';
+import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { HighlightEntry } from './HighlightEntry';
@@ -23,6 +22,8 @@ interface PendingAnnotation {
 }
 
 interface HighlightPanelProps {
+  /** Session carrying the client and event bus; null renders inert. */
+  session: SemiontSession | null;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
   resourceId: string;
   annotations: Annotation[];
@@ -44,6 +45,7 @@ interface HighlightPanelProps {
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function HighlightPanel({
+  session,
   resourceId,
   annotations,
   pendingAnnotation,
@@ -57,7 +59,6 @@ export function HighlightPanel({
 }: HighlightPanelProps) {
 
   const t = useTranslations('HighlightPanel');
-  const session = useObservable(useSemiont().activeSession$);
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -128,7 +129,7 @@ export function HighlightPanel({
     setTimeout(() => setFocusedAnnotationId(null), 3000);
   }, []);
 
-  useEventSubscriptions({
+  useSessionEventSubscriptions(session, {
     'browse:click': handleAnnotationClick,
   });
 
@@ -155,6 +156,7 @@ export function HighlightPanel({
         {/* Assist Section - only in Annotate mode and for text resources */}
         {annotateMode && (
           <AssistSection
+            session={session}
             annotationType="highlight"
             isAssisting={isAssisting}
             progress={progress}
@@ -171,6 +173,7 @@ export function HighlightPanel({
           ) : (
             sortedAnnotations.map((highlight) => (
               <HighlightEntry
+                session={session}
                 key={highlight.id}
                 highlight={highlight}
                 isFocused={highlight.id === focusedAnnotationId}

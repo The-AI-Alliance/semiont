@@ -5,12 +5,14 @@ import type { Ref } from 'react';
 import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/core';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
-import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
+import type { SemiontSession } from '@semiont/sdk';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 import { renderAgentLabel } from './agent-label';
 
 interface TagEntryProps {
+  /** Session for interaction routing (browse.click, tag schemas); the panel threads it. */
+  session: SemiontSession | null;
   tag: Annotation;
   isFocused: boolean;
   isHovered?: boolean;
@@ -18,13 +20,13 @@ interface TagEntryProps {
 }
 
 export function TagEntry({
+  session,
   tag,
   isFocused,
   isHovered = false,
   ref,
 }: TagEntryProps) {
-  const session = useObservable(useSemiont().activeSession$);
-  const hoverProps = useHoverEmitter(tag.id);
+  const hoverProps = useHoverEmitter(session, tag.id);
 
   const selectedText = getAnnotationExactText(tag);
   const category = getTagCategory(tag);

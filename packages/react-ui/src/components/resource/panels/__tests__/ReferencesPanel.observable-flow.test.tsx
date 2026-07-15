@@ -20,6 +20,7 @@ import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BehaviorSubject } from 'rxjs';
+import type { SemiontSession } from '@semiont/sdk';
 import { ReferencesPanel } from '../ReferencesPanel';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 import { useObservable } from '../../../../hooks/useObservable';
@@ -66,10 +67,11 @@ const mockRoutes = { resourceDetail: (id: string) => `/resource/${id}` } as any;
  * same hook ResourceViewerPage uses for vm.entityTypes$) and forwards
  * its value into ReferencesPanel as `allEntityTypes`.
  */
-function ObservableHarness({ source$ }: { source$: BehaviorSubject<string[]> }) {
+function ObservableHarness({ source$, session }: { source$: BehaviorSubject<string[]>; session: SemiontSession | null }) {
   const entityTypes = useObservable(source$) ?? [];
   return (
-    <ReferencesPanel resourceId="res-1"
+    <ReferencesPanel session={session}
+      resourceId="res-1"
       annotations={[]}
       isAssisting={false}
       progress={null}
@@ -85,15 +87,19 @@ function ObservableHarness({ source$ }: { source$: BehaviorSubject<string[]> }) 
   );
 }
 
-const renderWithBus = (ui: React.ReactElement) => {
-  const { SemiontWrapper } = createTestSemiontWrapper();
-  return render(<SemiontWrapper>{ui}</SemiontWrapper>);
+// Callback form so the UI is built AFTER the per-call factory runs: the
+// provider-free ReferencesPanel only sees the `session` prop, which must be
+// the fake session from this call (test-utils disposes each created client
+// in a module-scope afterEach, so no module-scope session either).
+const renderWithBus = (ui: (session: SemiontSession) => React.ReactElement) => {
+  const { SemiontWrapper, session } = createTestSemiontWrapper();
+  return render(<SemiontWrapper>{ui(session)}</SemiontWrapper>);
 };
 
 describe('Layer 5-6 — state-unit observable → useObservable → ReferencesPanel chips', () => {
   it('an observable seeded with [9 strings] renders 9 pending-reference chips', async () => {
     const source$ = new BehaviorSubject<string[]>(NINE_TYPES);
-    renderWithBus(<ObservableHarness source$={source$} />);
+    renderWithBus((session) => <ObservableHarness source$={source$} session={session} />);
 
     // Wait for useEffect in useObservable to run and commit the value.
     const chips = await screen.findAllByRole('button', { name: (_, el) =>
@@ -107,7 +113,7 @@ describe('Layer 5-6 — state-unit observable → useObservable → ReferencesPa
     // to []) first, then the 9-string array once fetch resolves. The
     // prop chain must survive this transition.
     const source$ = new BehaviorSubject<string[]>([]);
-    renderWithBus(<ObservableHarness source$={source$} />);
+    renderWithBus((session) => <ObservableHarness source$={source$} session={session} />);
 
     // Initially: no chips (the gate is allEntityTypes.length > 0).
     expect(document.querySelectorAll('.semiont-tag-selector__item').length).toBe(0);
@@ -126,7 +132,7 @@ describe('Layer 5-6 — state-unit observable → useObservable → ReferencesPa
     // to concurrent SSE streams. Same data, but multiple BehaviorSubject
     // writes. Must not clobber the render.
     const source$ = new BehaviorSubject<string[]>([]);
-    renderWithBus(<ObservableHarness source$={source$} />);
+    renderWithBus((session) => <ObservableHarness source$={source$} session={session} />);
 
     await act(async () => {
       source$.next(NINE_TYPES);
@@ -143,7 +149,7 @@ describe('Layer 5-6 — state-unit observable → useObservable → ReferencesPa
     // message the failing e2e saw. Guards against the test passing
     // trivially because of a selector bug.
     const source$ = new BehaviorSubject<string[]>([]);
-    renderWithBus(<ObservableHarness source$={source$} />);
+    renderWithBus((session) => <ObservableHarness source$={source$} session={session} />);
 
     // There are two such text nodes in the panel (pending prompt + assist
     // section), but both correspond to the same allEntityTypes=[] state.

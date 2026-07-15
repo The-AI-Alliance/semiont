@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders } from '../../../../test-utils';
+import type { ComponentProps } from 'react';
+import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import { BindNamespace } from '@semiont/sdk';
-import type { RouteBuilder } from '../../../../contexts/RoutingContext';
 
 import type { Annotation, AnnotationId } from '@semiont/core';
 
@@ -16,7 +16,6 @@ const mockGetFragmentSelector = vi.fn();
 const mockGetSvgSelector = vi.fn();
 const mockGetTargetSelector = vi.fn();
 const mockGetEntityTypes = vi.fn();
-const mockNavigate = vi.fn();
 const mockHoverProps = { onMouseEnter: vi.fn(), onMouseLeave: vi.fn() };
 
 vi.mock('@semiont/core', async () => {
@@ -38,10 +37,6 @@ vi.mock('@semiont/ontology', () => ({
 
 vi.mock('../../../../lib/resource-utils', () => ({
   getResourceIcon: vi.fn(() => '📄'),
-}));
-
-vi.mock('../../../../hooks/useObservableBrowse', () => ({
-  useObservableExternalNavigation: () => mockNavigate,
 }));
 
 vi.mock('../../../../hooks/useHoverEmitter', () => ({
@@ -71,22 +66,25 @@ const createMockReference = (overrides?: Partial<Annotation>): Annotation => ({
   ...overrides,
 });
 
-const mockRoutes: RouteBuilder = {
-  resourceDetail: vi.fn((id: string) => `/resources/${id}`),
-  userProfile: vi.fn((id: string) => `/users/${id}`),
-  search: vi.fn((query: string) => `/search?q=${query}`),
-  home: vi.fn(() => '/'),
-};
-
 describe('ReferenceEntry', () => {
-  const defaultProps = {
-    reference: createMockReference(),
-    isFocused: false,
-    routes: mockRoutes,
-  };
+  // Provider-free component: the session prop is the only session it sees.
+  // Created per-test — test-utils disposes registered clients in afterEach.
+  let session: ReturnType<typeof createTestSemiontWrapper>['session'];
+  let eventBus: ReturnType<typeof createTestSemiontWrapper>['eventBus'];
+
+  const renderEntry = (props: Partial<ComponentProps<typeof ReferenceEntry>> = {}) =>
+    renderWithProviders(
+      <ReferenceEntry
+        session={session}
+        reference={createMockReference()}
+        isFocused={false}
+        {...props}
+      />,
+    );
 
   beforeEach(() => {
     vi.clearAllMocks();
+    ({ session, eventBus } = createTestSemiontWrapper());
     mockGetAnnotationExactText.mockReturnValue('referenced text');
     mockIsBodyResolved.mockReturnValue(false);
     mockGetBodySource.mockReturnValue(null);
@@ -98,7 +96,7 @@ describe('ReferenceEntry', () => {
 
   describe('Rendering', () => {
     it('should render the selected text in quotes', () => {
-      renderWithProviders(<ReferenceEntry {...defaultProps} />);
+      renderEntry();
 
       expect(screen.getByText(/referenced text/)).toBeInTheDocument();
     });
@@ -107,7 +105,7 @@ describe('ReferenceEntry', () => {
       const longText = 'A'.repeat(150);
       mockGetAnnotationExactText.mockReturnValue(longText);
 
-      renderWithProviders(<ReferenceEntry {...defaultProps} />);
+      renderEntry();
 
       expect(screen.getByText(new RegExp(`"${'A'.repeat(100)}`))).toBeInTheDocument();
       expect(screen.getByText(/\.\.\./)).toBeInTheDocument();
@@ -116,7 +114,7 @@ describe('ReferenceEntry', () => {
     it('should show stub icon when reference is not resolved', () => {
       mockIsBodyResolved.mockReturnValue(false);
 
-      const { container } = renderWithProviders(<ReferenceEntry {...defaultProps} />);
+      const { container } = renderEntry();
 
       const icon = container.querySelector('.semiont-reference-icon');
       expect(icon).toBeInTheDocument();
@@ -127,7 +125,7 @@ describe('ReferenceEntry', () => {
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('linked-doc');
 
-      const { container } = renderWithProviders(<ReferenceEntry {...defaultProps} />);
+      const { container } = renderEntry();
 
       const icon = container.querySelector('.semiont-reference-icon');
       expect(icon).toBeInTheDocument();
@@ -137,7 +135,7 @@ describe('ReferenceEntry', () => {
     it('should show annotation type when no selected text', () => {
       mockGetAnnotationExactText.mockReturnValue('');
 
-      renderWithProviders(<ReferenceEntry {...defaultProps} />);
+      renderEntry();
 
       expect(screen.getByText('Annotation')).toBeInTheDocument();
     });
@@ -146,7 +144,7 @@ describe('ReferenceEntry', () => {
       mockGetAnnotationExactText.mockReturnValue('');
       mockGetFragmentSelector.mockReturnValue({ type: 'FragmentSelector', value: 'xywh=0,0,100,100' });
 
-      renderWithProviders(<ReferenceEntry {...defaultProps} />);
+      renderEntry();
 
       expect(screen.getByText('Fragment annotation')).toBeInTheDocument();
     });
@@ -155,7 +153,7 @@ describe('ReferenceEntry', () => {
       mockGetAnnotationExactText.mockReturnValue('');
       mockGetSvgSelector.mockReturnValue({ type: 'SvgSelector', value: '<svg/>' });
 
-      renderWithProviders(<ReferenceEntry {...defaultProps} />);
+      renderEntry();
 
       expect(screen.getByText('Image annotation')).toBeInTheDocument();
     });
@@ -170,7 +168,7 @@ describe('ReferenceEntry', () => {
         _resolvedDocumentMediaType: 'text/plain',
       };
 
-      renderWithProviders(<ReferenceEntry {...defaultProps} reference={enrichedRef as Annotation} />);
+      renderEntry({ reference: enrichedRef as Annotation });
 
       expect(screen.getByText(/My Linked Document/)).toBeInTheDocument();
     });
@@ -180,7 +178,7 @@ describe('ReferenceEntry', () => {
     it('should render entity type badges', () => {
       mockGetEntityTypes.mockReturnValue(['Person', 'Organization']);
 
-      renderWithProviders(<ReferenceEntry {...defaultProps} />);
+      renderEntry();
 
       expect(screen.getByText('Person')).toBeInTheDocument();
       expect(screen.getByText('Organization')).toBeInTheDocument();
@@ -189,7 +187,7 @@ describe('ReferenceEntry', () => {
     it('should not render entity type section when empty', () => {
       mockGetEntityTypes.mockReturnValue([]);
 
-      const { container } = renderWithProviders(<ReferenceEntry {...defaultProps} />);
+      const { container } = renderEntry();
 
       expect(container.querySelector('.semiont-annotation-entry__tags')).not.toBeInTheDocument();
     });
@@ -197,36 +195,28 @@ describe('ReferenceEntry', () => {
 
   describe('Focus and hover state', () => {
     it('should set data-focused to true when focused', () => {
-      const { container } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} isFocused={true} />
-      );
+      const { container } = renderEntry({ isFocused: true });
 
       const entry = container.firstChild as HTMLElement;
       expect(entry).toHaveAttribute('data-focused', 'true');
     });
 
     it('should set data-focused to false when not focused', () => {
-      const { container } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} isFocused={false} />
-      );
+      const { container } = renderEntry({ isFocused: false });
 
       const entry = container.firstChild as HTMLElement;
       expect(entry).toHaveAttribute('data-focused', 'false');
     });
 
     it('should apply pulse class when isHovered is true', () => {
-      const { container } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} isHovered={true} />
-      );
+      const { container } = renderEntry({ isHovered: true });
 
       const entry = container.firstChild as HTMLElement;
       expect(entry).toHaveClass('semiont-annotation-pulse');
     });
 
     it('should not apply pulse class when isHovered is false', () => {
-      const { container } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} isHovered={false} />
-      );
+      const { container } = renderEntry({ isHovered: false });
 
       const entry = container.firstChild as HTMLElement;
       expect(entry).not.toHaveClass('semiont-annotation-pulse');
@@ -237,12 +227,9 @@ describe('ReferenceEntry', () => {
     it('should emit browse:click on click', async () => {
       const clickHandler = vi.fn();
 
-      const { container, eventBus } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} />,
-        { returnEventBus: true }
-      );
+      const { container } = renderEntry();
 
-      const subscription = eventBus!.get('browse:click').subscribe(clickHandler);
+      const subscription = eventBus.get('browse:click').subscribe(clickHandler);
 
       const entry = container.firstChild as HTMLElement;
       await userEvent.click(entry);
@@ -257,24 +244,24 @@ describe('ReferenceEntry', () => {
   });
 
   describe('Status icon — resolved reference', () => {
-    it('should navigate on 🔗 icon click', async () => {
+    it('should call onOpenResource on 🔗 icon click', async () => {
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('linked-doc');
+      const onOpenResource = vi.fn();
 
-      const { container } = renderWithProviders(<ReferenceEntry {...defaultProps} />);
+      const { container } = renderEntry({ onOpenResource });
 
       const icon = container.querySelector('.semiont-reference-icon')!;
       await userEvent.click(icon);
 
-      expect(mockRoutes.resourceDetail).toHaveBeenCalledWith('linked-doc');
-      expect(mockNavigate).toHaveBeenCalledWith('/resources/linked-doc', { resourceId: 'linked-doc' });
+      expect(onOpenResource).toHaveBeenCalledWith('linked-doc');
     });
 
     it('should have clickable class when resolved', () => {
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('linked-doc');
 
-      const { container } = renderWithProviders(<ReferenceEntry {...defaultProps} />);
+      const { container } = renderEntry();
 
       const icon = container.querySelector('.semiont-reference-icon');
       expect(icon).toHaveClass('semiont-reference-icon--clickable');
@@ -284,9 +271,7 @@ describe('ReferenceEntry', () => {
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('linked-doc');
 
-      const { container } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} annotateMode={true} />
-      );
+      const { container } = renderEntry({ annotateMode: true });
 
       const unlinkButton = container.querySelector('.semiont-reference-unlink');
       expect(unlinkButton).toBeInTheDocument();
@@ -296,9 +281,7 @@ describe('ReferenceEntry', () => {
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('linked-doc');
 
-      const { container } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} annotateMode={false} />
-      );
+      const { container } = renderEntry({ annotateMode: false });
 
       const unlinkButton = container.querySelector('.semiont-reference-unlink');
       expect(unlinkButton).not.toBeInTheDocument();
@@ -310,9 +293,7 @@ describe('ReferenceEntry', () => {
 
       const bindSpy = vi.spyOn(BindNamespace.prototype, 'body').mockResolvedValue(undefined);
 
-      const { container } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} annotateMode={true} />,
-      );
+      const { container } = renderEntry({ annotateMode: true });
 
       const unlinkButton = container.querySelector('.semiont-reference-unlink')!;
       await userEvent.click(unlinkButton);
@@ -333,12 +314,9 @@ describe('ReferenceEntry', () => {
       mockGetEntityTypes.mockReturnValue(['Person']);
       const initiateHandler = vi.fn();
 
-      const { container, eventBus } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} annotateMode={true} />,
-        { returnEventBus: true }
-      );
+      const { container } = renderEntry({ annotateMode: true });
 
-      const subscription = eventBus!.get('bind:initiate').subscribe(initiateHandler);
+      const subscription = eventBus.get('bind:initiate').subscribe(initiateHandler);
 
       const icon = container.querySelector('.semiont-reference-icon')!;
       await userEvent.click(icon);
@@ -356,9 +334,7 @@ describe('ReferenceEntry', () => {
     it('should have clickable class in annotate mode', () => {
       mockIsBodyResolved.mockReturnValue(false);
 
-      const { container } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} annotateMode={true} />
-      );
+      const { container } = renderEntry({ annotateMode: true });
 
       const icon = container.querySelector('.semiont-reference-icon');
       expect(icon).toHaveClass('semiont-reference-icon--clickable');
@@ -367,9 +343,7 @@ describe('ReferenceEntry', () => {
     it('should not be clickable in browse mode', () => {
       mockIsBodyResolved.mockReturnValue(false);
 
-      const { container } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} annotateMode={false} />
-      );
+      const { container } = renderEntry({ annotateMode: false });
 
       const icon = container.querySelector('.semiont-reference-icon');
       expect(icon).not.toHaveClass('semiont-reference-icon--clickable');
@@ -379,12 +353,9 @@ describe('ReferenceEntry', () => {
       mockIsBodyResolved.mockReturnValue(false);
       const initiateHandler = vi.fn();
 
-      const { container, eventBus } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} annotateMode={false} />,
-        { returnEventBus: true }
-      );
+      const { container } = renderEntry({ annotateMode: false });
 
-      const subscription = eventBus!.get('bind:initiate').subscribe(initiateHandler);
+      const subscription = eventBus.get('bind:initiate').subscribe(initiateHandler);
 
       const icon = container.querySelector('.semiont-reference-icon')!;
       await userEvent.click(icon);
@@ -397,7 +368,7 @@ describe('ReferenceEntry', () => {
 
   describe('data-type attribute', () => {
     it('should have data-type="reference"', () => {
-      const { container } = renderWithProviders(<ReferenceEntry {...defaultProps} />);
+      const { container } = renderEntry();
 
       const entry = container.firstChild as HTMLElement;
       expect(entry).toHaveAttribute('data-type', 'reference');

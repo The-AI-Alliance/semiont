@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
-import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
+import type { SemiontSession } from '@semiont/sdk';
+import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { TagEntry } from './TagEntry';
@@ -39,6 +39,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 }
 
 interface TaggingPanelProps {
+  /** Session carrying the client and event bus; null renders inert. */
+  session: SemiontSession | null;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
   resourceId: string;
   annotations: Annotation[];
@@ -64,6 +66,7 @@ interface TaggingPanelProps {
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function TaggingPanel({
+  session,
   resourceId,
   annotations,
   annotateMode = true,
@@ -77,7 +80,6 @@ export function TaggingPanel({
   sourceLanguage,
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
-  const session = useObservable(useSemiont().activeSession$);
 
   // Subscribe to the per-KB tag-schema registry. Schemas are runtime-
   // registered by the KB at session start (see frame.addTagSchema).
@@ -129,7 +131,7 @@ export function TaggingPanel({
     setTimeout(() => setFocusedAnnotationId(null), 3000);
   }, []);
 
-  useEventSubscriptions({
+  useSessionEventSubscriptions(session, {
     'browse:click': handleAnnotationClick,
   });
 
@@ -528,6 +530,7 @@ export function TaggingPanel({
           ) : (
             sortedAnnotations.map((tag) => (
               <TagEntry
+                session={session}
                 key={tag.id}
                 tag={tag}
                 isFocused={tag.id === focusedAnnotationId}
