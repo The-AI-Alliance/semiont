@@ -14,10 +14,17 @@ Three steps: clone a KB repo → start it → connect.
 
 Not this repo — one of these:
 
-| Path | Clone |
-|---|---|
-| **Try a demo** — [semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb): public-domain literature from Project Gutenberg | `git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git` |
-| **Start a new project** — [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb): the empty template | `git clone https://github.com/The-AI-Alliance/semiont-template-kb.git` |
+**Try a demo** — [semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb), public-domain literature from Project Gutenberg:
+
+```bash
+git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
+```
+
+**Start a new project** — [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb), the empty template:
+
+```bash
+git clone https://github.com/The-AI-Alliance/semiont-template-kb.git
+```
 
 The full catalog — seven demo KBs across different domains, plus community
 knowledge bases — is in **[docs/KNOWLEDGE-BASES.md](docs/KNOWLEDGE-BASES.md)**.
