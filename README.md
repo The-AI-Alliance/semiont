@@ -55,13 +55,25 @@ For local-network access notes, supply-chain verification, the native [desktop a
 
 ## Automate
 
-Every operation in the GUI is available programmatically through three surfaces:
+Everything the browser does travels over the same event bus, and the **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how you speak it: a type-safe TypeScript client organized around the **[eight composable flows](docs/protocol/flows/README.md)** — frame, yield, mark, match, bind, gather, browse, beckon — so scripts, services, and AI agents work a knowledge base as peers of the humans in the browser:
 
-- **[Semiont SDK](packages/sdk/README.md)** — type-safe TypeScript client (`@semiont/sdk`) for scripts, embeddings, and apps.
-- **[Semiont CLI](apps/cli/README.md)** — drive Semiont from the terminal.
+```typescript
+import { SemiontClient } from '@semiont/sdk';
+
+const semiont = await SemiontClient.signInHttp({ baseUrl: 'http://localhost:4000', email, password });
+
+await semiont.mark.assist(resourceId, 'linking', { entityTypes: ['Person', 'Place'] }); // AI-detect references
+const context = await semiont.gather.resource(resourceId);                              // LLM-ready grounding
+```
+
+Start with the **[SDK Usage guide](packages/sdk/docs/Usage.md)**, then the **[Developer Guide](packages/sdk/docs/DEVELOPER-GUIDE.md)** for end-to-end recipes.
+
+Built on the SDK:
+
+- **[React components](packages/react-ui/README.md)** (`@semiont/react-ui`) — embed the resource viewer and annotation UI in your own app.
 - **[Agent Skills](docs/protocol/skills/)** — ready-made skill definitions for agentic coding assistants like Claude Code.
 
-All three are organized around **[eight composable flows](docs/protocol/flows/README.md)** — frame, yield, mark, match, bind, gather, browse, beckon — the same verbs whether driven by a human, a script, or an AI agent. See **[docs/protocol/](docs/protocol/README.md)** for the protocol overview, design tenets, and value proposition.
+There is also a **[CLI](apps/cli/README.md)** for working from the terminal. See **[docs/protocol/](docs/protocol/README.md)** for the protocol overview, design tenets, and value proposition.
 
 ## Contributing
 
