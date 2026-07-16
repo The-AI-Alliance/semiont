@@ -15,3 +15,4 @@
 
 seq-queue MIT   # pkg.json omits license; bundled LICENSE is MIT (Netease/pomelo; via @semiont/backend→prisma→mysql2). Verified 2026-07-15.
 semiont-project Apache-2.0   # not a real dep: @semiont/cli's project-scaffold template (dist/templates/package.json), name "semiont-project", no license field — first-party, covered by @semiont/cli's Apache-2.0. Verified 2026-07-16.
+qrcode-terminal Apache-2.0   # bundled by npm (backend ships npm for npx prisma). Uses the legacy `"licenses":[{"type":"Apache 2.0"}]` array + non-SPDX string, so the scanner reads NOASSERTION; bundled LICENSE is Apache-2.0. Verified 2026-07-16.
