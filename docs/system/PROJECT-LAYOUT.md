@@ -14,14 +14,12 @@ my-project/
 │   │   └── {ab}/{cd}/{resourceId}/   # Per-resource streams, sharded
 │   │       └── events-000001.jsonl
 │   ├── scripts/                      # Optional convenience scripts
-│   │   └── start.sh                  # Spin up backend + dependencies
+│   │   └── start.sh                  # Spin up the full stack (pulls published images)
 │   ├── compose/                      # Optional Docker Compose files
 │   │   └── backend.yml
-│   └── containers/                   # Optional Dockerfiles & configs
-│       ├── Dockerfile                # Backend image
-│       └── semiontconfig/            # Inference/embedding configs (TOML)
-│           ├── anthropic.toml
-│           └── ollama-gemma.toml
+│   └── semiontconfig/                # Inference/embedding configs (TOML)
+│       ├── anthropic.toml
+│       └── ollama-gemma.toml
 ├── README.md                         # Optional, but recommended
 └── <your content>                    # Resource files — any structure you choose
 ```
@@ -39,14 +37,18 @@ Two kinds of streams live under `events/`:
 - **Per-resource streams**, at `events/{ab}/{cd}/{resourceId}/events-NNNNNN.jsonl`. The two 2-character shard directories come from a Jump Consistent Hash of the resource id, keeping any single shard directory from exceeding a few thousand entries at scale.
 - **The `events/__system__/` stream**, for events that have no resource — currently `frame:entity-type-added` (registering a new global entity type) and similar project-wide facts.
 
-### `.semiont/scripts/`, `.semiont/compose/`, `.semiont/containers/` (optional)
+### `.semiont/scripts/`, `.semiont/compose/`, `.semiont/semiontconfig/` (optional)
 
 These directories are not used by Semiont itself — they are convenience infrastructure that KB authors can include so others can run the project without cloning the Semiont repo. The authoritative versions live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository, and most KBs stay in sync with it.
 
-- **`scripts/start.sh`** — one entry point that starts Neo4j, Qdrant, Ollama (if not already running), PostgreSQL, and the Semiont backend, all in containers, wiring them to the KB's `.semiont/containers/semiontconfig/{name}.toml` config of your choice.
+KB repos build no images: the Semiont services run from the published, attested
+`ghcr.io/the-ai-alliance/semiont-{backend,worker,smelter,weaver,frontend}` images
+(version selected via `SEMIONT_VERSION`, default `latest`), with the KB's config
+bind-mounted at runtime.
+
+- **`scripts/start.sh`** — one entry point that starts the infrastructure (Neo4j, Qdrant, Ollama if not already running, PostgreSQL) and the five Semiont services, all in containers, pulling the published images and bind-mounting the KB's `.semiont/semiontconfig/{name}.toml` config of your choice.
 - **`compose/backend.yml`** — Docker Compose definition for the same service stack, for environments that prefer compose over the start.sh orchestration.
-- **`containers/Dockerfile`** — builds the backend image (pulling `@semiont/backend` from npm at build time). Only the backend is KB-specific; the frontend image is shared across KBs and built from the Semiont repo itself.
-- **`containers/semiontconfig/*.toml`** — inference-provider presets the user selects at start time (e.g., `--config ollama-gemma` vs `--config anthropic`). Each file names the chat model, embedding model, and any provider-specific parameters.
+- **`semiontconfig/*.toml`** — inference-provider presets the user selects at start time (e.g., `--config ollama-gemma` vs `--config anthropic`). Each file names the chat model, embedding model, and any provider-specific parameters.
 
 ### Resource files
 
@@ -54,7 +56,7 @@ Resource files (documents, images, PDFs, etc.) live anywhere in the project root
 
 Real KBs organise their content however suits the domain. Two examples:
 
-- **[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** — public-domain literature, organised by author and work:
+- **[semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb)** — public-domain literature, organised by author and work:
   ```
   authors/Aeschylus/Four_Plays_by_Aeschylus/sections/Prologos.txt
   authors/Aeschylus/Four_Plays_by_Aeschylus/places/Scythian_steppe.md
@@ -84,13 +86,12 @@ scripts are in place:
 % find .semiont -type f | sort
 .semiont/compose/backend.yml
 .semiont/config
-.semiont/containers/Dockerfile
-.semiont/containers/semiontconfig/anthropic.toml
-.semiont/containers/semiontconfig/ollama-gemma.toml
 .semiont/events/50/fa/47488f8a27471bf16f33aba56af90d12/events-000001.jsonl
 .semiont/events/66/71/1ed8b4936cfad473c2a7b14c22a945c0/events-000001.jsonl
 .semiont/events/__system__/events-000001.jsonl
 .semiont/scripts/start.sh
+.semiont/semiontconfig/anthropic.toml
+.semiont/semiontconfig/ollama-gemma.toml
 
 % git log --oneline
 9f12ab3 Add Aeschylus resources + initial annotations
