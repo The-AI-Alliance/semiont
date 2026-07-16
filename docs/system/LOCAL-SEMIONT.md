@@ -4,7 +4,7 @@ Run Semiont locally.
 
 There are two ways to start:
 
-**Use an existing knowledge base** — clone a KB repository that already has documents and container scripts:
+**Use an existing knowledge base** — clone a KB repository that already has documents and container scripts (full catalog: [Knowledge Bases](../KNOWLEDGE-BASES.md)):
 
 ```bash
 git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
