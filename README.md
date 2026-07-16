@@ -6,33 +6,21 @@
 
 ## Quick Start
 
-### Start the browser
+You don't run Semiont from this repository. **This repo is the platform source** — it publishes the npm packages and the container images. You run Semiont from a **knowledge-base repo**: a separate, small repository holding your documents, configuration, and startup scripts, whose stack *pulls* the published, attested `ghcr.io/the-ai-alliance/semiont-*` images (KB repos build no images of their own).
 
-Install one of [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/) if you don't already have one.
+Three steps: clone a KB repo → start it → connect.
 
-Run the published browser container image (substitute `docker` or `podman` for `container` as needed):
+### 1. Clone a knowledge-base repo
 
-```bash
-container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
-```
+Not this repo — one of these:
 
-Then open **http://localhost:3000** in your web browser.
-
-For local-network access notes, supply-chain verification, the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, and frontend dev setup, see **[docs/browser/](docs/browser/README.md)**.
-
-### Start a knowledge base
-
-Clone a knowledge base and follow its README. Each KB repo contains configuration, compose files, and startup scripts under `.semiont/` — the stack pulls the published, attested `ghcr.io/the-ai-alliance/semiont-*` images and bind-mounts the KB's config at runtime (KBs build no images of their own).
-
-#### Starting from scratch
+**Starting from scratch:**
 
 | Template | Description |
 |---|---|
 | **[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)** | Empty template — start here for a new project |
 
-#### Demo KBs
-
-These ship a small corpus and a layered set of skills (ingest → mark → canonicalize → wire-edges → compose-aggregates) that demonstrate the SDK in a particular domain. The value is the *skills*, not the data — the skills are corpus-generic and work on any corpus dropped into the same directory layout.
+**Demo KBs** — each ships a small corpus and a layered set of skills (ingest → mark → canonicalize → wire-edges → compose-aggregates) that demonstrate the SDK in a particular domain. The value is the *skills*, not the data — the skills are corpus-generic and work on any corpus dropped into the same directory layout.
 
 | Knowledge Base | Domain |
 |---|---|
@@ -44,17 +32,40 @@ These ship a small corpus and a layered set of skills (ingest → mark → canon
 | **[semiont-newsroom-kb](https://github.com/The-AI-Alliance/semiont-newsroom-kb)** | Synthetic investigative-journalism documents — interview transcripts, FOIA responses, public statements |
 | **[semiont-household-kb](https://github.com/The-AI-Alliance/semiont-household-kb)** | Synthetic home-property records — service receipts, contractor emails, manuals, mortgage / insurance, HOA notices |
 
-#### Community
+**Community:**
 
 | Knowledge Base | Domain |
 |---|---|
 | **[synthetic-family](https://github.com/pingel-org/synthetic-family)** | Synthetic family history and genealogy |
 
-### Connect browser to knowledge base
+```bash
+git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
+cd semiont-gutenberg-kb
+```
 
-In the Semiont browser's Knowledge Bases panel, enter host `localhost`, port `4000`, and the email and password you provided when starting the backend.
+### 2. Start it
+
+Install one of [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/) if you don't already have one. Then, **in the KB repo**:
+
+```bash
+.semiont/scripts/start.sh --email admin@example.com --password <choose-a-password>
+```
+
+One script starts the whole stack: it pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **including the Semiont browser at http://localhost:3000**. The `--email`/`--password` you pass create the admin user you'll sign in with. See the KB's own README for prerequisites and options (inference configs, `--list-configs`, etc.).
+
+### 3. Connect
+
+Open **http://localhost:3000**. In the Semiont browser's Knowledge Bases panel, enter host `localhost`, port `4000`, and the email and password from step 2.
 
 ![Connect to knowledge base](website/assets/images/connect-kb.png)
+
+**Just the browser?** To point a Semiont browser at an already-running or remote knowledge base without cloning anything, run the published image directly (substitute `docker` or `podman` for `container` as needed):
+
+```bash
+container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
+```
+
+For local-network access notes, supply-chain verification, the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, and frontend dev setup, see **[docs/browser/](docs/browser/README.md)**.
 
 ## Automate
 
