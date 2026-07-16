@@ -10,7 +10,7 @@ For the actor responsibilities running inside the backend / worker / smelter con
 
 ## Multi-container layout
 
-A local deployment runs four containers of Semiont code, five if you include the frontend, or nine if you also count the infrastructure dependencies:
+A local deployment runs four containers of Semiont code, five if you include the frontend, or nine if you also count the infrastructure dependencies. All five Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)):
 
 ```mermaid
 graph TB

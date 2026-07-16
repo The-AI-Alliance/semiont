@@ -22,7 +22,7 @@ For local-network access notes, supply-chain verification, the native [desktop a
 
 ### Start a knowledge base
 
-Clone a knowledge base and follow its README. Each KB repo contains configuration, container definitions, and startup scripts under `.semiont/`.
+Clone a knowledge base and follow its README. Each KB repo contains configuration, compose files, and startup scripts under `.semiont/` — the stack pulls the published, attested `ghcr.io/the-ai-alliance/semiont-*` images and bind-mounts the KB's config at runtime (KBs build no images of their own).
 
 #### Starting from scratch
 

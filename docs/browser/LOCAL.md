@@ -4,17 +4,21 @@ Run the Semiont Browser locally. The browser is a static SPA that connects to a 
 
 ## Container (no npm required)
 
-Clone a knowledge base repository and run the frontend script:
+Run the published browser image directly (substitute `docker` or `podman` for `container` as needed):
 
 ```bash
-git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
-cd gutenberg-kb
-.semiont/scripts/local_frontend.sh
+container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
 ```
 
-The script builds and runs the frontend in a container. The backend must be running first (see [Local Backend Setup](../system/LOCAL-BACKEND.md)).
+The image is a static-file server with no backend config — the SPA connects
+to knowledge bases from the browser at runtime. To verify the image's
+provenance before running, see
+[Supply-chain verification](../system/administration/IMAGES.md#supply-chain-verification).
 
-The authoritative Dockerfile and script live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository under `.semiont/`.
+A KB's `.semiont/scripts/start.sh` also starts this same frontend container
+as part of the full stack (see [Local Backend Setup](../system/LOCAL-BACKEND.md)) —
+the standalone `container run` is for pointing a browser at an
+already-running KB.
 
 ## npm
 

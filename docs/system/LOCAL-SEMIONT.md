@@ -9,11 +9,19 @@ There are two ways to start:
 ```bash
 git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
 cd gutenberg-kb
-.semiont/scripts/local_backend.sh --email admin@example.com --password password  # terminal 1
-.semiont/scripts/local_frontend.sh                                                # terminal 2
+.semiont/scripts/start.sh --email admin@example.com --password password
 ```
 
-No npm required — everything runs in containers. See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for prerequisites and details. The authoritative Dockerfiles and scripts live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository under `.semiont/`.
+One script starts the whole stack — the five published Semiont images
+(backend, worker, smelter, weaver, frontend) pulled from
+`ghcr.io/the-ai-alliance/*` plus the infrastructure containers — with the
+KB's config bind-mounted at runtime. No npm required, and nothing is built
+locally: KB repos carry no Dockerfiles. See the
+[KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for
+prerequisites and details. The authoritative scripts and compose files live
+in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)
+template repository under `.semiont/`; the image inventory is in
+[Container Images](./administration/IMAGES.md).
 
 **Create a new knowledge base** — start from the template:
 
@@ -22,10 +30,10 @@ git clone https://github.com/The-AI-Alliance/semiont-template-kb.git my-kb
 cd my-kb
 ```
 
-Start the backend with Ollama for fully local inference (no API key needed):
+Start the stack with Ollama for fully local inference (no API key needed):
 
 ```bash
-.semiont/scripts/local_backend.sh --email admin@example.com --password password
+.semiont/scripts/start.sh --email admin@example.com --password password
 ```
 
 On first run, the backend container pulls the inference and embedding models from Ollama. This is a one-time download (~2-4 GB depending on the model) and may take several minutes.
@@ -34,16 +42,18 @@ To use Anthropic cloud inference instead:
 
 ```bash
 export ANTHROPIC_API_KEY=<your-api-key>
-.semiont/scripts/local_backend.sh --config anthropic --email admin@example.com --password password
+.semiont/scripts/start.sh --config anthropic --email admin@example.com --password password
 ```
 
 To see all available configs:
 
 ```bash
-.semiont/scripts/local_backend.sh --list-configs
+.semiont/scripts/start.sh --list-configs
 ```
 
-In a second terminal, start a Semiont browser using the published container image:
+The stack includes the Semiont browser (the frontend container on port
+3000) — no second terminal needed. To run just a browser against an
+already-running KB, the published image works standalone:
 
 ```bash
 container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
@@ -51,12 +61,12 @@ container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:l
 
 Want to verify image provenance before running? See [Supply-chain verification](./administration/IMAGES.md#supply-chain-verification).
 
-Or use the script from the KB template (builds locally instead of pulling):
-
-```bash
-cd my-kb
-.semiont/scripts/local_frontend.sh
-```
+**Running from source instead of published images:** build all five images
+from a monorepo working tree with
+[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) (they get the
+local-only `:local` tag, never pushed), then start the KB stack with
+`SEMIONT_VERSION=local .semiont/scripts/start.sh …` — the `local` version
+skips the registry pull.
 
 Open **http://localhost:3000** and enter **http://localhost:4000** as the knowledge base URL.
 

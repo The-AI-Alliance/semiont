@@ -12,7 +12,20 @@ Semiont publishes a release in these steps:
    `semiont-frontend` image to GHCR, run *after* the npm packages exist (it
    verifies the version on npm first). See
    [Step 1b](#step-1b-publish-the-frontend-container-image).
-3. **release:bump** — bumps the version for the next development cycle.
+3. **Publish Service Images** — a separate action
+   ([`publish-service-images.yml`](../../.github/workflows/publish-service-images.yml))
+   that pushes the four service images (`semiont-backend`, `-worker`,
+   `-smelter`, `-weaver`) to GHCR. Also run *after* the npm packages exist —
+   the images bundle the published `@semiont/*` packages at the release
+   version, gated by `npm view` per service. Same knobs as the frontend
+   image (Trivy vuln + license gates, `dry_run`, `tag_latest`, provenance +
+   SBOM attestations):
+   ```bash
+   gh workflow run publish-service-images.yml --field version=<version> --field tag_latest=true
+   ```
+   KB stacks consume these images directly — see
+   [Container Images](../system/administration/IMAGES.md).
+4. **release:bump** — bumps the version for the next development cycle.
 
 ## Step 1: Publish a Stable Release
 

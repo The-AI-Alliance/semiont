@@ -5,12 +5,26 @@ this repository.
 
 ## Overview
 
-This repo publishes **1 container image** to GitHub Container Registry
+This repo publishes **5 container images** to GitHub Container Registry
 (ghcr.io):
 
-- **semiont-frontend** — Vite + React SPA, served as a static container.
+- **semiont-frontend** — Vite + React SPA (the Semiont Browser), served as a
+  static container.
+- **semiont-backend** — the API server + unified bus gateway.
+- **semiont-worker** — the annotation/generation worker pool.
+- **semiont-smelter** — the embedding/vector pipeline actor.
+- **semiont-weaver** — the graph-projection actor.
 
-The image supports `linux/amd64` and `linux/arm64` and follows the
+Knowledge-base repositories **pull these images — they do not build their
+own**. A KB's `.semiont/` compose files reference
+`ghcr.io/the-ai-alliance/semiont-<svc>:${SEMIONT_VERSION:-latest}` and
+bind-mount per-KB TOML config at runtime; nothing KB-specific is baked into
+any image. See
+[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)
+for the canonical consuming stack (`start.sh` pulls all five and starts them
+alongside the infrastructure containers).
+
+All images support `linux/amd64` and `linux/arm64` and follow the
 unified versioning scheme managed through [`version.json`](../../../version.json).
 
 ---
@@ -25,15 +39,13 @@ served from a Node static-file server. Multi-platform: `linux/amd64`,
 
 **Pull image:**
 ```bash
-docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
+docker pull ghcr.io/the-ai-alliance/semiont-frontend:latest
 ```
 
-**Required environment variables:**
-- `SERVER_API_URL` — Backend API URL
-
-**Optional environment variables:**
-- `NEXT_PUBLIC_SITE_NAME` — Site name displayed in UI (default: `Semiont`)
-- `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` — Comma-separated list of allowed OAuth domains
+**Environment variables:** `PORT` only (default `3000`). The container is a
+static-file server with no backend config and no config mount — the SPA
+connects to knowledge bases from the *browser* at runtime (the multi-KB
+session model; see [HUMAN-UI.md](../HUMAN-UI.md)).
 
 **Documentation:** [apps/frontend/README.md](../../../apps/frontend/README.md)
 
@@ -45,25 +57,42 @@ docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
 
 ---
 
-## Backend distribution model
+## The service images
 
-The backend is **not** published as a container image from this repo.
-It ships as the `@semiont/backend` npm package via
-[`publish-npm-packages.yml`](../../../.github/workflows/publish-npm-packages.yml).
-Knowledge-base repositories that need a runtime backend container
-build their own from the npm package — see
-[`semiont-template-kb/.semiont/containers/Dockerfile.backend`](https://github.com/The-AI-Alliance/semiont-template-kb)
-for the canonical example.
+[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont)
 
-This split keeps the upstream repo's container surface minimal (one
-image, one workflow) while letting each KB repo pin its own backend
-runtime, base image, and configuration.
+The four backend-side services are published as runtime images that
+**bundle the published `@semiont/*` npm packages** at the requested version —
+the publish workflow refuses to build until the matching packages exist on
+npm (`npm view` gate), so an image version always equals the npm version it
+carries. All four run `node:24-alpine` (the frontend runs `node:26-alpine`).
+
+| Image | What runs | Bundled packages | Port | Dockerfile |
+|---|---|---|---|---|
+| `semiont-backend` | API server + bus gateway (role driven through the CLI) | `@semiont/cli`, `@semiont/backend` | 4000 | [apps/backend/Dockerfile](../../../apps/backend/Dockerfile) |
+| `semiont-worker` | annotation/generation worker pool | `@semiont/jobs` | 9090 | [packages/jobs/Dockerfile](../../../packages/jobs/Dockerfile) |
+| `semiont-smelter` | embedding/vector pipeline actor | `@semiont/make-meaning` | 9091 | [packages/make-meaning/Dockerfile.smelter](../../../packages/make-meaning/Dockerfile.smelter) |
+| `semiont-weaver` | graph-projection actor | `@semiont/make-meaning` | 9092 | [packages/make-meaning/Dockerfile.weaver](../../../packages/make-meaning/Dockerfile.weaver) |
+
+**Configuration is runtime, not build-time.** The images contain no KB
+config; consuming stacks bind-mount their per-service TOML at run time.
+This is what lets one attested image serve every knowledge base — KB repos
+carry no Dockerfiles and no image builds of their own.
+
+**Workflow:** [.github/workflows/publish-service-images.yml](../../../.github/workflows/publish-service-images.yml)
+(a matrix over the four services).
+
+**Local dev loop:** [scripts/ci/local-build.sh](../../../scripts/ci/local-build.sh)
+builds all five images from the working tree as
+`ghcr.io/the-ai-alliance/semiont-<svc>:local` (via a throwaway local
+verdaccio; never pushed). A KB stack consumes them with
+`SEMIONT_VERSION=local`, which also skips the pull.
 
 ---
 
 ## Versioning
 
-The image follows the unified versioning system managed through
+All images follow the unified versioning system managed through
 [`version.json`](../../../version.json). Every published image gets one
 or more of the following tags:
 
@@ -77,14 +106,18 @@ or more of the following tags:
 
 ### Publishing Process
 
-The image is published via the
-[`publish-frontend.yml`](../../../.github/workflows/publish-frontend.yml)
-workflow, triggered manually with the desired version. Each run:
+Two workflows publish the images, both triggered manually with the desired
+version: [`publish-frontend.yml`](../../../.github/workflows/publish-frontend.yml)
+(the frontend) and
+[`publish-service-images.yml`](../../../.github/workflows/publish-service-images.yml)
+(a matrix over backend, worker, smelter, weaver). Each run, per image:
 
-1. Verifies the matching `@semiont/frontend` npm package version exists.
-2. Builds the multi-platform image from `apps/frontend/Dockerfile`.
-3. Trivy-scans the amd64 build for `HIGH`/`CRITICAL` CVEs and fails
-   the run if any unfixed findings are present.
+1. Verifies the matching `@semiont/*` npm package version(s) exist —
+   the image bundles published packages, never the working tree.
+2. Builds the multi-platform image from the service's Dockerfile.
+3. Trivy-scans the amd64 build for `HIGH`/`CRITICAL` CVEs (and, for
+   the service images, license-policy violations) and fails the run
+   on any unfixed finding.
 4. Pushes the image to GHCR with three tags: the version, a
    `sha-{COMMIT}` tag, and (optionally) `latest`.
 5. Generates an SPDX SBOM and publishes both build-provenance and
@@ -93,18 +126,20 @@ workflow, triggered manually with the desired version. Each run:
 ### Manual publishing
 
 ```bash
-gh workflow run publish-frontend.yml --field version=0.4.22
-gh workflow run publish-frontend.yml --field version=0.4.22 --field dry_run=true
-gh workflow run publish-frontend.yml --field version=0.4.22 --field tag_latest=true
+gh workflow run publish-frontend.yml --field version=0.5.13
+gh workflow run publish-service-images.yml --field version=0.5.13
+# common flags for either workflow:
+gh workflow run publish-service-images.yml --field version=0.5.13 --field dry_run=true
+gh workflow run publish-service-images.yml --field version=0.5.13 --field tag_latest=true
 ```
 
 ---
 
 ## Supply-Chain Verification
 
-Each `semiont-frontend` image published to GHCR carries two
-cryptographic attestations stored as OCI artifacts alongside the
-image:
+Every image published to GHCR — the frontend and all four service
+images — carries two cryptographic attestations stored as OCI
+artifacts alongside the image:
 
 - **Build provenance** — SLSA-style attestation tying the image
   digest to the GitHub Actions workflow run, commit SHA, and
@@ -125,8 +160,10 @@ Requires the [GitHub CLI](https://cli.github.com/). No keys to
 manage — verification uses Sigstore's transparency log.
 
 ```bash
+# <image> is any of: semiont-frontend, semiont-backend, semiont-worker,
+# semiont-smelter, semiont-weaver
 gh attestation verify \
-  oci://ghcr.io/the-ai-alliance/semiont-frontend:VERSION \
+  oci://ghcr.io/the-ai-alliance/<image>:VERSION \
   --owner The-AI-Alliance
 ```
 
@@ -135,7 +172,7 @@ A successful verification confirms:
 1. The image digest you pulled matches the digest the workflow
    built and pushed.
 2. The image was built from `The-AI-Alliance/semiont` at a specific
-   commit, by `publish-frontend.yml`, with the inputs recorded in
+   commit, by its publish workflow, with the inputs recorded in
    the attestation.
 3. The signing certificate was issued by Sigstore's Fulcio CA to
    that workflow's OIDC identity.
@@ -151,7 +188,7 @@ inspect:
 
 ```bash
 gh attestation download \
-  oci://ghcr.io/the-ai-alliance/semiont-frontend:VERSION \
+  oci://ghcr.io/the-ai-alliance/<image>:VERSION \
   --owner The-AI-Alliance \
   --predicate-type https://spdx.dev/Document
 ```
