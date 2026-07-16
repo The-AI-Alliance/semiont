@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build all Semiont packages and publish to a local Verdaccio registry.
+# Build all Semiont packages, publish to a local Verdaccio registry, and build
+# the service/frontend container images against it, tagged
+# ghcr.io/the-ai-alliance/semiont-<svc>:local (consumed by KB start.sh/compose
+# via SEMIONT_VERSION=local; never pushed).
 # No npm required on the host — everything runs inside containers.
 #
 # Each run starts a fresh Verdaccio (no stale state), registers a user,
-# acquires an auth token, builds, and publishes.
+# acquires an auth token, builds, publishes, and builds the images.
 
 echo -e "\033[2m[$(date '+%Y-%m-%d %H:%M:%S')] local-build started\033[0m"
 
@@ -91,22 +94,27 @@ step "Container runtime: ${BOLD}$RT${RESET}"
 SKIP_BUILD=false
 PACKAGES=""
 START_FROM=""
+IMAGES="backend worker smelter weaver frontend"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
     --package) PACKAGES="$2"; shift 2 ;;
     --start-from) START_FROM="$2"; shift 2 ;;
+    --image) IMAGES="${2//,/ }"; shift 2 ;;
     -h|--help)
       echo "Usage: local-build.sh [options]"
       echo ""
       echo "Build and publish @semiont/* packages to a local Verdaccio registry,"
-      echo "then build the frontend container image."
+      echo "then build the service container images against it, tagged"
+      echo "ghcr.io/the-ai-alliance/semiont-<svc>:local (local-only, never pushed)."
       echo "No npm required on the host — everything runs inside containers."
       echo ""
       echo "Options:"
       echo "  --package <list>   Comma-separated packages to build (default: all)"
       echo "  --start-from <pkg> Skip packages before this one in the build order"
       echo "  --skip-build       Skip build, publish only (reuse previous artifacts)"
+      echo "  --image <list>     Comma-separated images to build (default:"
+      echo "                     backend,worker,smelter,weaver,frontend)"
       echo "  -h, --help         Show this help"
       echo ""
       echo "Build order:"
@@ -116,6 +124,27 @@ while [[ $# -gt 0 ]]; do
       ;;
     *) fail "Unknown argument: $1" >&2; exit 1 ;;
   esac
+done
+
+# Map an image name to its Dockerfile (the same production Dockerfiles that
+# publish-frontend.yml / publish-service-images.yml build — the only delta for
+# a local image is the registry the packages are installed from).
+image_dockerfile() {
+  case "$1" in
+    backend)  echo "apps/backend/Dockerfile" ;;
+    worker)   echo "packages/jobs/Dockerfile" ;;
+    smelter)  echo "packages/make-meaning/Dockerfile.smelter" ;;
+    weaver)   echo "packages/make-meaning/Dockerfile.weaver" ;;
+    frontend) echo "apps/frontend/Dockerfile" ;;
+    *) return 1 ;;
+  esac
+}
+
+for img in $IMAGES; do
+  if ! image_dockerfile "$img" >/dev/null; then
+    fail "Unknown image: $img (expected backend, worker, smelter, weaver, or frontend)"
+    exit 1
+  fi
 done
 
 # --- Start fresh Verdaccio ---
@@ -265,34 +294,43 @@ BUILD_REGISTRY="http://$HOST_ADDR:4873"
 
 "$SCRIPT_DIR/verdaccio-ls.sh" "$REGISTRY"
 
-# --- Build frontend container image ---
+# --- Build container images ---
+#
+# Same production Dockerfiles as the publish workflows, installed from the
+# local Verdaccio, tagged ghcr.io/the-ai-alliance/semiont-<svc>:local. The
+# :local tag is what KB start.sh / compose consume via SEMIONT_VERSION=local
+# (it skips the registry pull), and it is never pushed.
+#
+# --no-cache is required for correctness, not caution: iterating republishes
+# the SAME version to Verdaccio, so the `npm install` RUN line is byte-identical
+# and a cached layer would silently reuse the stale packages.
 
-banner "FRONTEND IMAGE"
+banner "CONTAINER IMAGES"
 
-step "Building semiont-frontend image from apps/frontend/Dockerfile..."
-$RT build --no-cache --tag semiont-frontend \
-  --build-arg NPM_REGISTRY=$BUILD_REGISTRY \
-  --file "$REPO_ROOT/apps/frontend/Dockerfile" \
-  "$REPO_ROOT"
-
-ok "semiont-frontend image built"
+for img in $IMAGES; do
+  DF=$(image_dockerfile "$img")
+  TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
+  step "Building ${TAG} from ${DF}..."
+  $RT build --no-cache --tag "$TAG" \
+    --build-arg NPM_REGISTRY="$BUILD_REGISTRY" \
+    --file "$REPO_ROOT/$DF" \
+    "$REPO_ROOT"
+  ok "$TAG built"
+done
 
 banner "DONE ✓"
 
-echo -e "${BOLD}Frontend:${RESET}"
-echo -e "  $RT run --publish 3000:3000 -it semiont-frontend"
-echo ""
-
-echo -e "${BOLD}Backend (from your KB project directory):${RESET}"
-echo ""
-echo -e "  The KB's ${DIM}.semiont/scripts/start.sh${RESET} spins up Neo4j, Qdrant, Ollama,"
-echo -e "  PostgreSQL, and the Semiont API — all wired together. Point it at"
-echo -e "  your local Verdaccio so it builds the backend from your freshly"
-echo -e "  published ${DIM}@semiont/*${RESET} packages instead of npmjs:"
+echo -e "${BOLD}Run the full stack from your KB against these images:${RESET}"
 echo ""
 echo -e "    ${BOLD}cd /path/to/your-kb${RESET}"
-echo -e "    ${BOLD}NPM_REGISTRY=$BUILD_REGISTRY ./.semiont/scripts/start.sh${RESET} \\"
+echo -e "    ${BOLD}SEMIONT_VERSION=local ./.semiont/scripts/start.sh${RESET} \\"
 echo -e "    ${BOLD}  --email admin@example.com --password password${RESET}"
+echo ""
+echo -e "  (start.sh skips the registry pull for ${DIM}local${RESET} and runs these images.)"
+echo ""
+
+echo -e "${BOLD}Or run a single image, e.g. the frontend:${RESET}"
+echo -e "  $RT run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:local"
 echo ""
 
 echo -e "${DIM}Stop Verdaccio when done:${RESET}  $RT stop $VERDACCIO_NAME"

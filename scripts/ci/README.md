@@ -10,7 +10,7 @@ No npm is required on the host for local builds.
 | `build.sh` | Install deps + build packages and apps |
 | `publish.sh` | Version stamp + stage + publish to a registry |
 | `publish-npm-apps.mjs` | Stage backend/frontend into `.npm-stage/` for publishing |
-| `local-build.sh` | Host-side wrapper: start Verdaccio + run build + publish in a container |
+| `local-build.sh` | Host-side wrapper: start Verdaccio + build + publish in a container + build the `:local` service/frontend images |
 | `verdaccio.yaml` | Verdaccio config for local registry (proxies non-@semiont packages to npmjs.com) |
 
 ## GitHub Actions
@@ -24,45 +24,29 @@ The `publish-npm-packages.yml` workflow calls `build.sh` and `publish.sh`:
 
 ## Local Development (no npm on host)
 
-Build and publish to a local Verdaccio registry, then test in KB containers:
+Build and publish to a local Verdaccio registry, build the container images
+against it, then run them from a KB. KBs don't build anything — they consume
+images (the same production Dockerfiles the publish workflows use), tagged
+`ghcr.io/the-ai-alliance/semiont-<svc>:local` (local-only, never pushed):
 
 ```bash
-# 1. Build all packages and publish to local Verdaccio
+# 1. Build all packages, publish to local Verdaccio, build all five images
+#    (backend, worker, smelter, weaver, frontend)
 ./scripts/ci/local-build.sh
 
-# 2. Build KB containers against local registry
+# 2. Run the full stack from your KB against the :local images
 cd /path/to/your-kb
-container build --tag semiont-backend \
-  --build-arg NPM_REGISTRY=http://host.docker.internal:4873 \
-  --file .semiont/containers/Dockerfile.backend .
+SEMIONT_VERSION=local ./.semiont/scripts/start.sh \
+  --email admin@example.com --password password
 
-container build --tag semiont-frontend \
-  --build-arg NPM_REGISTRY=http://host.docker.internal:4873 \
-  --file .semiont/containers/Dockerfile.frontend .
+# 3. Iterate — edit code, rebuild only what changed:
+./scripts/ci/local-build.sh --package cli,backend --image backend
+# Verdaccio restarts fresh each run; the publish step always publishes all
+# packages, and --image narrows which images are rebuilt.
 
-# 3. Run and test
-container run --publish 4000:4000 --volume $(pwd):/kb \
-  --env NEO4J_URI=... --env ANTHROPIC_API_KEY=... \
-  -it semiont-backend
-
-container run --publish 3000:3000 -it semiont-frontend
-
-# 4. Iterate — edit code, rebuild only what changed:
-./scripts/ci/local-build.sh --package cli,backend
-# Verdaccio stays running. Old versions are unpublished, new ones published.
-# Rebuild whichever KB container changed.
-
-# 5. Done for the day
+# 4. Done for the day
 container rm -f semiont-verdaccio
 ```
-
-If cached packages are causing issues:
-
-```bash
-./scripts/ci/local-build.sh --nuclear
-```
-
-This restarts Verdaccio with empty storage and does a full clean rebuild.
 
 ## local-build.sh Options
 
@@ -72,8 +56,10 @@ Usage:
 
 Options:
   --package <list>   Comma-separated packages to build (default: all)
+  --start-from <pkg> Skip packages before this one in the build order
   --skip-build       Skip build, publish only (reuse previous build artifacts)
-  --nuclear          Restart Verdaccio with empty storage before building
+  --image <list>     Comma-separated images to build
+                     (default: backend,worker,smelter,weaver,frontend)
 ```
 
 Package names for `--package`:
