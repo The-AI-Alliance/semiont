@@ -16,7 +16,17 @@
 import { startWorkerProcess } from './worker-process';
 import type { InferenceClient } from '@semiont/inference';
 import { hostname } from 'os';
-import { didToAgent, baseUrl, type components, type Logger, type AccessToken } from '@semiont/core';
+import {
+  didToAgent,
+  baseUrl,
+  retryWithBackoff,
+  isTransientFetchError,
+  STARTUP_FETCH_RETRY,
+  type RetryPolicy,
+  type components,
+  type Logger,
+  type AccessToken,
+} from '@semiont/core';
 import {
   InMemorySessionStorage,
   SemiontClient,
@@ -70,29 +80,53 @@ export function parseBackendUrl(url: string): { protocol: 'http' | 'https'; host
  * Exchange the worker secret for this agent's JWT and its canonical DID.
  * The DID is minted by the backend (from its `site.domain`) — the caller
  * carries it verbatim.
+ *
+ * Connection-level failures (`TypeError: fetch failed`) are retried with
+ * exponential backoff: the backend may be mid-restart or the container
+ * network still warming up when this process starts, and orchestration
+ * runs workers with `--rm` and no restart policy — exiting on the first
+ * failed fetch is permanent death. HTTP-level rejections (401 on a bad
+ * secret) are NOT retried; the backend is up and said no.
  */
 export async function authenticateAgent(opts: {
   backendBaseUrl: string;
   workerSecret: string;
   provider: string;
   model: string;
+  logger?: Logger;
+  retry?: RetryPolicy;
 }): Promise<{ token: string; did: string }> {
-  const { backendBaseUrl, workerSecret, provider, model } = opts;
+  const { backendBaseUrl, workerSecret, provider, model, logger, retry = STARTUP_FETCH_RETRY } = opts;
   if (!workerSecret) {
     throw new Error('SEMIONT_WORKER_SECRET is required to authenticate worker agents');
   }
 
-  const response = await fetch(`${backendBaseUrl}/api/tokens/agent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ secret: workerSecret, provider, model }),
-  });
+  return retryWithBackoff(
+    async () => {
+      const response = await fetch(`${backendBaseUrl}/api/tokens/agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: workerSecret, provider, model }),
+      });
 
-  if (!response.ok) {
-    throw new Error(`Agent authentication failed for ${provider}:${model}: ${response.status} ${response.statusText}`);
-  }
+      if (!response.ok) {
+        throw new Error(`Agent authentication failed for ${provider}:${model}: ${response.status} ${response.statusText}`);
+      }
 
-  return await response.json() as { token: string; did: string };
+      return await response.json() as { token: string; did: string };
+    },
+    isTransientFetchError,
+    retry,
+    ({ attempt, attempts, delayMs, error }) => {
+      logger?.warn('Backend unreachable, retrying agent authentication', {
+        agent: `${provider}:${model}`,
+        attempt,
+        attempts,
+        retryInMs: delayMs,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    },
+  );
 }
 
 export async function startAgentWorker(
@@ -107,6 +141,7 @@ export async function startAgentWorker(
     workerSecret,
     provider: inference.type,
     model: inference.model,
+    logger,
   });
 
   // The exchange minted this worker's canonical DID (from the backend's
@@ -148,6 +183,7 @@ export async function startAgentWorker(
           workerSecret,
           provider: inference.type,
           model: inference.model,
+          logger,
         });
         return token;
       } catch (err) {

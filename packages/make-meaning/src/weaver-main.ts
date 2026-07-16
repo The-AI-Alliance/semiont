@@ -23,7 +23,7 @@ import { createWeaverActorStateUnit, type WeaverActorStateUnit } from './weaver-
 import { Weaver, type WeaverTiming } from './weaver';
 import { FileWeaverCheckpoint } from './weaver-checkpoint';
 import { HttpTransport } from '@semiont/http-transport';
-import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader } from '@semiont/core';
+import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from '@semiont/core';
 import type { AccessToken } from '@semiont/core';
 import { getGraphDatabase } from '@semiont/graph';
 import { createServer } from 'http';
@@ -86,22 +86,42 @@ async function authenticate(): Promise<string> {
   // inference (provider, model), so it authenticates under the stable
   // identity (semiont, weaver) — DID did:web:<host>:agents:semiont:weaver —
   // and the bus stamps that onto every signal it emits.
-  const response = await fetch(`${baseUrl}/api/tokens/agent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      secret: workerSecret,
-      provider: 'semiont',
-      model: 'weaver',
-    }),
-  });
+  //
+  // Connection-level failures are retried with backoff: the backend may be
+  // mid-restart or the container network still warming up when this process
+  // starts, and orchestration runs it with `--rm` and no restart policy —
+  // exiting on the first failed fetch is permanent death. HTTP-level
+  // rejections (bad secret) are NOT retried; the backend is up and said no.
+  return retryWithBackoff(
+    async () => {
+      const response = await fetch(`${baseUrl}/api/tokens/agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          secret: workerSecret,
+          provider: 'semiont',
+          model: 'weaver',
+        }),
+      });
 
-  if (!response.ok) {
-    throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
-  }
+      if (!response.ok) {
+        throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
+      }
 
-  const { token } = await response.json() as { token: string; did: string };
-  return token;
+      const { token } = await response.json() as { token: string; did: string };
+      return token;
+    },
+    isTransientFetchError,
+    STARTUP_FETCH_RETRY,
+    ({ attempt, attempts, delayMs, error }) => {
+      logger.warn('Backend unreachable, retrying authentication', {
+        attempt,
+        attempts,
+        retryInMs: delayMs,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    },
+  );
 }
 
 // ── Main ─────────────────────────────────────────────────────────────

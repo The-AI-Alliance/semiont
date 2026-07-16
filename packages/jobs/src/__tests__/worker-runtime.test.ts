@@ -13,6 +13,9 @@ import type { Logger } from '@semiont/core';
 import { startAgentWorker, authenticateAgent, parseBackendUrl, type AgentGroup } from '../worker-runtime';
 import { startWorkerProcess } from '../worker-process';
 import type { InferenceClient } from '@semiont/inference';
+import { createServer, type Server } from 'http';
+import { once } from 'events';
+import type { AddressInfo } from 'net';
 
 vi.mock('../worker-process', () => ({
   startWorkerProcess: vi.fn(() => ({ dispose: vi.fn() })),
@@ -136,6 +139,90 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     await expect(
       authenticateAgent({ backendBaseUrl: DIAL_URL, workerSecret: '', provider: 'anthropic', model: 'm1' }),
     ).rejects.toThrow(/SEMIONT_WORKER_SECRET/);
+  });
+
+  // The blip that used to be fatal: any momentary backend unreachability
+  // at the instant the worker starts (backend restart, container-network
+  // warm-up) threw `TypeError: fetch failed` straight out of main() and
+  // killed the process — with `--rm` and no restart policy, permanently.
+  it('retries startup auth while the backend is unreachable and succeeds once it comes up', async () => {
+    // Reserve a port, then free it — the first attempts dial a closed port
+    // and fail at the connection level, exactly like a backend mid-restart.
+    const probe = createServer();
+    probe.listen(0, '127.0.0.1');
+    await once(probe, 'listening');
+    const port = (probe.address() as AddressInfo).port;
+    probe.close();
+    await once(probe, 'close');
+
+    let backend: Server | undefined;
+    const bringUp = setTimeout(() => {
+      backend = createServer((_req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ token: fakeJwt(), did: CANONICAL_DID }));
+      });
+      backend.listen(port, '127.0.0.1');
+    }, 150);
+
+    const warn = vi.fn();
+    try {
+      const result = await authenticateAgent({
+        backendBaseUrl: `http://127.0.0.1:${port}`,
+        workerSecret: 'test-secret',
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5',
+        logger: { ...noopLogger, warn } as unknown as Logger,
+        retry: { attempts: 20, initialDelayMs: 50, maxDelayMs: 100 },
+      });
+      expect(result.did).toBe(CANONICAL_DID);
+      expect(warn).toHaveBeenCalledWith(
+        'Backend unreachable, retrying agent authentication',
+        expect.objectContaining({ agent: 'anthropic:claude-haiku-4-5', attempt: expect.any(Number) }),
+      );
+    } finally {
+      clearTimeout(bringUp);
+      if (backend) {
+        backend.close();
+        await once(backend, 'close');
+      }
+    }
+  }, 15_000);
+
+  it('gives up after the retry budget when the backend never comes up', async () => {
+    const calls = { count: 0 };
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      calls.count++;
+      throw Object.assign(new TypeError('fetch failed'), {
+        cause: Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }),
+      });
+    }));
+
+    await expect(
+      authenticateAgent({
+        backendBaseUrl: DIAL_URL,
+        workerSecret: 'test-secret',
+        provider: 'anthropic',
+        model: 'm1',
+        retry: { attempts: 3, initialDelayMs: 1, maxDelayMs: 2 },
+      }),
+    ).rejects.toThrow('fetch failed');
+    expect(calls.count).toBe(3);
+  });
+
+  it('does NOT retry an HTTP-level rejection — the backend is up and said no', async () => {
+    const fetchMock = vi.fn(async () => new Response('nope', { status: 401, statusText: 'Unauthorized' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      authenticateAgent({
+        backendBaseUrl: DIAL_URL,
+        workerSecret: 'bad',
+        provider: 'anthropic',
+        model: 'm1',
+        retry: { attempts: 5, initialDelayMs: 1, maxDelayMs: 2 },
+      }),
+    ).rejects.toThrow(/401/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('parseBackendUrl keeps its connection role: host/port/protocol from the dial string', () => {
