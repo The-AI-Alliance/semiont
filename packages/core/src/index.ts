@@ -386,3 +386,8 @@ export type {
 // shared by @semiont/make-meaning (matcher) and @semiont/jobs (generation).
 export { deriveViews } from './knowledge-graph-views';
 export type { GraphViews } from './knowledge-graph-views';
+
+// Bounded retry with backoff — startup connections from long-running peers
+// (worker, smelter, weaver) to the KS.
+export { retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from './retry';
+export type { RetryPolicy, RetryAttemptInfo } from './retry';

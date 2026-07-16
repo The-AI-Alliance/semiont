@@ -21,7 +21,7 @@ import { BehaviorSubject } from 'rxjs';
 import { createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelter-actor-state-unit';
 import { Smelter } from './smelter';
 import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
-import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader } from '@semiont/core';
+import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from '@semiont/core';
 import type { AccessToken } from '@semiont/core';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/vectors';
@@ -92,22 +92,42 @@ async function authenticate(): Promise<string> {
   // agent DID onto every event it emits. Identity granularity follows
   // the embedding config; two smelters with different embedding
   // providers run as different agents.
-  const response = await fetch(`${baseUrl}/api/tokens/agent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      secret: workerSecret,
-      provider: embeddingType,
-      model: embeddingModel,
-    }),
-  });
+  //
+  // Connection-level failures are retried with backoff: the backend may be
+  // mid-restart or the container network still warming up when this process
+  // starts, and orchestration runs it with `--rm` and no restart policy —
+  // exiting on the first failed fetch is permanent death. HTTP-level
+  // rejections (bad secret) are NOT retried; the backend is up and said no.
+  return retryWithBackoff(
+    async () => {
+      const response = await fetch(`${baseUrl}/api/tokens/agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          secret: workerSecret,
+          provider: embeddingType,
+          model: embeddingModel,
+        }),
+      });
 
-  if (!response.ok) {
-    throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
-  }
+      if (!response.ok) {
+        throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
+      }
 
-  const { token } = await response.json() as { token: string; did: string };
-  return token;
+      const { token } = await response.json() as { token: string; did: string };
+      return token;
+    },
+    isTransientFetchError,
+    STARTUP_FETCH_RETRY,
+    ({ attempt, attempts, delayMs, error }) => {
+      logger.warn('Backend unreachable, retrying authentication', {
+        attempt,
+        attempts,
+        retryInMs: delayMs,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    },
+  );
 }
 
 // ── Main ─────────────────────────────────────────────────────────────
