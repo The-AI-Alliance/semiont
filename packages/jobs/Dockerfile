@@ -1,5 +1,9 @@
 # Stage 1: install (npm runs here, then is discarded).
-FROM node:26-alpine AS installer
+#
+# Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
+# qdrant client's undici@6, which @semiont/* can load transitively at connect
+# time. Keep in sync with the backend image.
+FROM node:24-alpine AS installer
 ARG NPM_REGISTRY=https://registry.npmjs.org
 ARG SEMIONT_VERSION=latest
 RUN npm config set registry $NPM_REGISTRY && \
@@ -10,9 +14,9 @@ RUN npm config set registry $NPM_REGISTRY && \
 # `node worker-main.js`, so npm is build-only baggage. Removing it also drops
 # the picomatch / glob / etc. CVE surface that ships inside npm's bundled
 # node_modules.
-FROM node:26-alpine
+FROM node:24-alpine
 # Patch base-image OS packages so alpine security fixes apply even when the
-# node:26-alpine snapshot hasn't been rebuilt against them yet.
+# node:24-alpine snapshot hasn't been rebuilt against them yet.
 RUN apk upgrade --no-cache
 
 RUN addgroup --system --gid 1001 nodejs && \
