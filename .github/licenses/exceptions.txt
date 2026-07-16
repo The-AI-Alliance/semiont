@@ -14,3 +14,4 @@
 # Format: <package-name> <SPDX-id>   # note incl. source of truth + review date
 
 seq-queue MIT   # pkg.json omits license; bundled LICENSE is MIT (Netease/pomelo; via @semiont/backend→prisma→mysql2). Verified 2026-07-15.
+semiont-project Apache-2.0   # not a real dep: @semiont/cli's project-scaffold template (dist/templates/package.json), name "semiont-project", no license field — first-party, covered by @semiont/cli's Apache-2.0. Verified 2026-07-16.
