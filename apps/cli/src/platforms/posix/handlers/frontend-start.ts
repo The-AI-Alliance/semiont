@@ -71,17 +71,11 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   }
 
   const envConfig = service.environmentConfig;
-  const frontendService = envConfig.services['frontend']! as import('@semiont/core').FrontendServiceConfig;
-  const frontendUrl = frontendService.publicURL!;
-  const oauthAllowedDomains = envConfig.site?.oauthAllowedDomains || [];
 
   const env: Record<string, string> = {
     ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined)) as Record<string, string>,
     NODE_ENV: envConfig.env?.NODE_ENV ?? 'development',
     PORT: port.toString(),
-    SEMIONT_SITE_NAME: config.siteName,
-    SEMIONT_BASE_URL: frontendUrl,
-    SEMIONT_OAUTH_ALLOWED_DOMAINS: oauthAllowedDomains.join(','),
     LOG_DIR: logsDir,
   };
 
