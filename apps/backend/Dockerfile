@@ -74,7 +74,11 @@ RUN chown semiont:nodejs /kb
 USER semiont
 
 ENV NODE_ENV=production
-ENV NODE_OPTIONS=--max-old-space-size=6144
+# Deliberately NO explicit --max-old-space-size: node:24 is cgroup-aware and
+# sizes the heap to ~half the container memory limit, making --memory /
+# mem_limit the single memory knob. A baked heap override defeats that — it
+# licensed the heap past small container limits (OOM-kill instead of GC
+# pressure) and was an unmeasured 2026-04 artifact, not a profiled need.
 EXPOSE 4000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
