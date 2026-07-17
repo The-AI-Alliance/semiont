@@ -6,7 +6,7 @@ How a Semiont deployment splits into containers, how those containers communicat
 >
 > See [PACKAGE-ARCHITECTURE.md](PACKAGE-ARCHITECTURE.md) for the package layering that defines what each container actually contains.
 
-For the actor responsibilities running inside the backend / worker / smelter containers, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md). For the SPA running in the frontend container, see [HUMAN-UI.md](HUMAN-UI.md).
+For the actor responsibilities running inside the backend / worker / smelter / weaver containers, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md). For the Semiont Browser SPA (served by the frontend container, executed in the user's web browser), see [HUMAN-UI.md](HUMAN-UI.md).
 
 ## Multi-container layout
 
@@ -23,7 +23,7 @@ graph TB
     subgraph backend_c ["semiont-backend"]
         BUS["Event Bus"]
         STOWER["Stower"]
-        BROWSER["Browser"]
+        BROWSER["Browser<br/>(browse.* reads)"]
         GATHERER["Gatherer"]
         MATCHER["Matcher"]
         VIEWS[("Materialized Views")]
@@ -126,7 +126,7 @@ Services run on different platforms, configured in `~/.semiontconfig` per enviro
 
 The currently supported platforms:
 
-- **POSIX** — Local processes (monorepo development). Each Semiont service is a Node process started directly on the host. See [platforms/POSIX.md](platforms/POSIX.md).
+- **POSIX** — Local processes (monorepo development). Each Semiont service is a Node process started directly on the host. See [platforms/POSIX.md](platforms/POSIX.md) and [LOCAL-SEMIONT.md](LOCAL-SEMIONT.md) for running Semiont locally.
 - **Container** — Docker / Podman / Apple containers. Each service is a containerized Node process; the diagram above shows this layout. This is what KB stacks use — locally via `.semiont/scripts/start.sh` (any of the three runtimes) and in **GitHub Codespaces** via `docker compose` in the devcontainer. See [platforms/Container.md](platforms/Container.md).
 - **AWS** — ECS Fargate tasks, RDS, S3, Neptune. The same containers, scheduled by ECS. See [platforms/AWS.md](platforms/AWS.md).
 
