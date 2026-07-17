@@ -43,7 +43,7 @@ function DiscoverEmptyState() {
           {t('noKnowledgeBasesHint')}
         </p>
         <p style={{ color: 'var(--semiont-color-neutral-400)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-          <a href="https://github.com/The-AI-Alliance/semiont" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--semiont-color-primary-500)' }}>{t('findKnowledgeBases')}</a>
+          <a href="https://github.com/The-AI-Alliance/semiont/blob/main/docs/KNOWLEDGE-BASES.md" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--semiont-color-primary-500)' }}>{t('findKnowledgeBases')}</a>
           {' · '}
           <a href="https://github.com/The-AI-Alliance/semiont-template-kb" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--semiont-color-primary-500)' }}>{t('createNew')}</a>
         </p>
