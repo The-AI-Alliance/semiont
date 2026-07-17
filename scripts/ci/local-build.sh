@@ -109,6 +109,11 @@ while [[ $# -gt 0 ]]; do
       echo "ghcr.io/the-ai-alliance/semiont-<svc>:local (local-only, never pushed)."
       echo "No npm required on the host — everything runs inside containers."
       echo ""
+      echo "Built images are also loaded into every other responsive container"
+      echo "engine on the machine (container/docker/podman), so any KB --runtime"
+      echo "can run them. CONTAINER_RUNTIME chooses which engine BUILDS, not"
+      echo "which engines can run the result."
+      echo ""
       echo "Options:"
       echo "  --package <list>   Comma-separated packages to build (default: all)"
       echo "  --start-from <pkg> Skip packages before this one in the build order"
@@ -307,6 +312,46 @@ BUILD_REGISTRY="http://$HOST_ADDR:4873"
 
 banner "CONTAINER IMAGES"
 
+# --- Image fan-out targets (see .plans/LOCAL-BUILD-IMAGE-FANOUT.md) ---
+#
+# The :local images land in $RT's image store, invisible to every other
+# engine — a KB started with a different --runtime then fails with
+# "semiont-<svc>:local: not found". Build once under $RT, then load each
+# built image into every OTHER responsive runtime. A fan-out failure is a
+# warning, not a build failure (the primary store is intact).
+#
+# File-based transfer only: P0 measured that `container image save` cannot
+# stream (`-o -` writes a literal file named "-"; /dev/stdout truncates the
+# archive), so pipe-less save→load via a temp file is the portable shape.
+# An installed-but-unresponsive engine (e.g. Docker Desktop not running)
+# warns once here and is skipped; an absent engine is silently ignored.
+FANOUT_RTS=""
+for rt in container docker podman; do
+  [[ "$rt" == "$RT" ]] && continue
+  command -v "$rt" >/dev/null 2>&1 || continue
+  if "$rt" image list >/dev/null 2>&1; then
+    FANOUT_RTS="$FANOUT_RTS $rt"
+  else
+    warn "$rt is installed but not responding — :local images will NOT be visible to it (start it and re-load manually: $RT image save <tag> -o /tmp/img.tar && $rt image load -i /tmp/img.tar)"
+  fi
+done
+FANOUT_FAILURES=""
+[[ -n "$FANOUT_RTS" ]] && step "Fan-out: images will also be loaded into${BOLD}$FANOUT_RTS${RESET}"
+
+fanout_image() {
+  local tag="$1" rt tmp
+  for rt in $FANOUT_RTS; do
+    tmp=$(mktemp "${TMPDIR:-/tmp}/semiont-fanout.XXXXXX")
+    if $RT image save "$tag" -o "$tmp" && "$rt" image load -i "$tmp" >/dev/null 2>&1; then
+      ok "$tag → $rt image store"
+    else
+      warn "Fan-out of $tag to $rt failed (build unaffected; manual: $RT image save $tag -o /tmp/img.tar && $rt image load -i /tmp/img.tar)"
+      FANOUT_FAILURES="$FANOUT_FAILURES $rt:$tag"
+    fi
+    rm -f "$tmp"
+  done
+}
+
 for img in $IMAGES; do
   DF=$(image_dockerfile "$img")
   TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
@@ -316,9 +361,21 @@ for img in $IMAGES; do
     --file "$REPO_ROOT/$DF" \
     "$REPO_ROOT"
   ok "$TAG built"
+  fanout_image "$TAG"
 done
 
 banner "DONE ✓"
+
+if [[ -n "$FANOUT_FAILURES" ]]; then
+  echo -e "${BOLD}Images tagged :local are in the ${RT} image store${RESET} (fan-out partially failed:${FANOUT_FAILURES// / })"
+  echo ""
+elif [[ -n "$FANOUT_RTS" ]]; then
+  echo -e "${BOLD}Images tagged :local are in every local image store:${RESET} $RT${FANOUT_RTS}"
+  echo ""
+else
+  echo -e "${BOLD}Images tagged :local are in the ${RT} image store${RESET} (no other engines detected)"
+  echo ""
+fi
 
 echo -e "${BOLD}Run the full stack from your KB against these images:${RESET}"
 echo ""

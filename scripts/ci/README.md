@@ -10,7 +10,7 @@ No npm is required on the host for local builds.
 | `build.sh` | Install deps + build packages and apps |
 | `publish.sh` | Version stamp + stage + publish to a registry |
 | `publish-npm-apps.mjs` | Stage backend/frontend into `.npm-stage/` for publishing |
-| `local-build.sh` | Host-side wrapper: start Verdaccio + build + publish in a container + build the `:local` service/frontend images |
+| `local-build.sh` | Host-side wrapper: start Verdaccio + build + publish in a container + build the `:local` service/frontend images, fanned out to every container engine on the machine |
 | `verdaccio.yaml` | Verdaccio config for local registry (proxies non-@semiont packages to npmjs.com) |
 
 ## GitHub Actions
@@ -27,7 +27,10 @@ The `publish-npm-packages.yml` workflow calls `build.sh` and `publish.sh`:
 Build and publish to a local Verdaccio registry, build the container images
 against it, then run them from a KB. KBs don't build anything — they consume
 images (the same production Dockerfiles the publish workflows use), tagged
-`ghcr.io/the-ai-alliance/semiont-<svc>:local` (local-only, never pushed):
+`ghcr.io/the-ai-alliance/semiont-<svc>:local` (local-only, never pushed).
+Built images are loaded into every responsive container engine on the machine
+(container/docker/podman), so the KB's `--runtime` choice is independent of
+who built — `CONTAINER_RUNTIME` picks the *build* engine only:
 
 ```bash
 # 1. Build all packages, publish to local Verdaccio, build all five images
