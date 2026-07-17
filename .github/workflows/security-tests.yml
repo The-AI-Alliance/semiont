@@ -55,10 +55,6 @@ jobs:
 
       - name: Build application
         run: npm run build
-        env:
-          SEMIONT_BACKEND_URL: http://localhost:4000
-          SEMIONT_SITE_NAME: Semiont Test
-          SEMIONT_OAUTH_ALLOWED_DOMAINS: example.com,test.com
 
       - name: Start application for security verification
         run: |
@@ -68,10 +64,6 @@ jobs:
           # Wait for app to start - check the root page instead of /api/health
           timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done' || echo "Frontend not ready yet, continuing..."
           sleep 5
-        env:
-          SEMIONT_BACKEND_URL: http://localhost:4000
-          SEMIONT_SITE_NAME: Semiont Test
-          SEMIONT_OAUTH_ALLOWED_DOMAINS: example.com,test.com
 
       - name: Verify no admin content leakage
         run: |
