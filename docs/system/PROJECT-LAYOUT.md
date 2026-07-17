@@ -14,7 +14,9 @@ my-project/
 │   │   └── {ab}/{cd}/{resourceId}/   # Per-resource streams, sharded
 │   │       └── events-000001.jsonl
 │   ├── scripts/                      # Optional convenience scripts
-│   │   └── start.sh                  # Spin up the full stack (pulls published images)
+│   │   ├── start.sh                  # Spin up the full stack (pulls published images)
+│   │   ├── logs.sh                   # Follow the service logs
+│   │   └── stop.sh                   # Stop the stack
 │   ├── compose/                      # Optional Docker Compose files
 │   │   └── backend.yml
 │   └── semiontconfig/                # Inference/embedding configs (TOML)
@@ -46,7 +48,9 @@ KB repos build no images: the Semiont services run from the published, attested
 (version selected via `SEMIONT_VERSION`, default `latest`), with the KB's config
 bind-mounted at runtime.
 
-- **`scripts/start.sh`** — one entry point that starts the infrastructure (Neo4j, Qdrant, Ollama if not already running, PostgreSQL) and the five Semiont services, all in containers, pulling the published images and bind-mounting the KB's `.semiont/semiontconfig/{name}.toml` config of your choice.
+- **`scripts/start.sh`** — one entry point that starts the infrastructure (Neo4j, Qdrant, Ollama if not already running, PostgreSQL) and the five Semiont services, all in containers, pulling the published images and bind-mounting the KB's `.semiont/semiontconfig/{name}.toml` config of your choice. The stack runs detached; the script prints an endpoint summary and exits.
+- **`scripts/logs.sh`** — follow all five services' logs, each line prefixed `[svc]`. Ctrl+C stops following, not the stack.
+- **`scripts/stop.sh`** — stop and remove the whole stack (services, dependencies, observability).
 - **`compose/backend.yml`** — Docker Compose definition for the same service stack, for environments that prefer compose over the start.sh orchestration.
 - **`semiontconfig/*.toml`** — inference-provider presets the user selects at start time (e.g., `--config ollama-gemma` vs `--config anthropic`). Each file names the chat model, embedding model, and any provider-specific parameters.
 
@@ -89,7 +93,9 @@ scripts are in place:
 .semiont/events/50/fa/47488f8a27471bf16f33aba56af90d12/events-000001.jsonl
 .semiont/events/66/71/1ed8b4936cfad473c2a7b14c22a945c0/events-000001.jsonl
 .semiont/events/__system__/events-000001.jsonl
+.semiont/scripts/logs.sh
 .semiont/scripts/start.sh
+.semiont/scripts/stop.sh
 .semiont/semiontconfig/anthropic.toml
 .semiont/semiontconfig/ollama-gemma.toml
 
