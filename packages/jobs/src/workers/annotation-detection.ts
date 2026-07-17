@@ -11,6 +11,7 @@
  */
 
 import type { InferenceClient, InferenceResponse } from '@semiont/inference';
+import { boundedGenerateWithMetadata } from './inference-call';
 import { MotivationPrompts } from './detection/motivation-prompts';
 import {
   MotivationParsers,
@@ -54,7 +55,7 @@ export class AnnotationDetection {
     sourceLanguage?: string
   ): Promise<CommentMatch[]> {
     const prompt = MotivationPrompts.buildCommentPrompt(content, instructions, tone, density, language, sourceLanguage);
-    const response = await client.generateTextWithMetadata(prompt, 3000, 0.4, { format: 'json' });
+    const response = await boundedGenerateWithMetadata(client, prompt, 3000, 0.4, { format: 'json' });
     assertNotTruncated(response, 'comment');
     return MotivationParsers.parseComments(response.text, content);
   }
@@ -74,7 +75,7 @@ export class AnnotationDetection {
     sourceLanguage?: string
   ): Promise<HighlightMatch[]> {
     const prompt = MotivationPrompts.buildHighlightPrompt(content, instructions, density, sourceLanguage);
-    const response = await client.generateTextWithMetadata(prompt, 2000, 0.3, { format: 'json' });
+    const response = await boundedGenerateWithMetadata(client, prompt, 2000, 0.3, { format: 'json' });
     assertNotTruncated(response, 'highlight');
     return MotivationParsers.parseHighlights(response.text, content);
   }
@@ -96,7 +97,7 @@ export class AnnotationDetection {
     sourceLanguage?: string
   ): Promise<AssessmentMatch[]> {
     const prompt = MotivationPrompts.buildAssessmentPrompt(content, instructions, tone, density, language, sourceLanguage);
-    const response = await client.generateTextWithMetadata(prompt, 3000, 0.3, { format: 'json' });
+    const response = await boundedGenerateWithMetadata(client, prompt, 3000, 0.3, { format: 'json' });
     assertNotTruncated(response, 'assessment');
     return MotivationParsers.parseAssessments(response.text, content);
   }
@@ -136,7 +137,7 @@ export class AnnotationDetection {
       sourceLanguage
     );
 
-    const response = await client.generateTextWithMetadata(prompt, 4000, 0.2, { format: 'json' });
+    const response = await boundedGenerateWithMetadata(client, prompt, 4000, 0.2, { format: 'json' });
     assertNotTruncated(response, 'tag');
     const parsedTags = MotivationParsers.parseTags(response.text);
     return MotivationParsers.validateTagOffsets(parsedTags, content, category);

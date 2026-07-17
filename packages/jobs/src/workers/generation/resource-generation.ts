@@ -7,6 +7,7 @@
 import { getLocaleEnglishName, deriveViews } from '@semiont/core';
 import type { GatheredContext, Logger, SupportedMediaType } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
+import { boundedGenerate } from '../inference-call';
 
 
 function getLanguageName(locale: string): string {
@@ -300,7 +301,7 @@ ${formatRequirements}`;
     temperature: finalTemperature,
     maxTokens: finalMaxTokens
   });
-  const response = await client.generateText(prompt, finalMaxTokens, finalTemperature);
+  const response = await boundedGenerate(client, prompt, finalMaxTokens, finalTemperature);
   logger.debug('Got response from inference', { responseLength: response.length });
 
   const result = parseResponse(response);

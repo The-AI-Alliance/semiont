@@ -10,15 +10,29 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Logger } from '@semiont/core';
-import { startAgentWorker, authenticateAgent, parseBackendUrl, type AgentGroup } from '../worker-runtime';
+import { startAgentWorker, authenticateAgent, parseBackendUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, type AgentGroup, type AgentVitals } from '../worker-runtime';
 import { startWorkerProcess } from '../worker-process';
 import type { InferenceClient } from '@semiont/inference';
 import { createServer, type Server } from 'http';
 import { once } from 'events';
 import type { AddressInfo } from 'net';
 
+const { FAKE_ADAPTER_VITALS } = vi.hoisted(() => ({
+  FAKE_ADAPTER_VITALS: {
+    lastQueuedEventAt: '2026-07-17T00:00:00.000Z',
+    lastClaimAt: null,
+    lastFinishedAt: null,
+    lastActivityAt: '2026-07-17T00:00:00.000Z',
+    activeJob: null,
+    jobsCompleted: 3,
+  },
+}));
+
 vi.mock('../worker-process', () => ({
-  startWorkerProcess: vi.fn(() => ({ dispose: vi.fn() })),
+  startWorkerProcess: vi.fn(() => ({
+    dispose: vi.fn(),
+    vitals: vi.fn(() => FAKE_ADAPTER_VITALS),
+  })),
 }));
 
 // The skew fixture: the worker DIALS a gateway IP…
@@ -228,5 +242,171 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
   it('parseBackendUrl keeps its connection role: host/port/protocol from the dial string', () => {
     expect(parseBackendUrl('http://192.168.64.1:4000')).toEqual({ protocol: 'http', host: '192.168.64.1', port: 4000 });
     expect(parseBackendUrl('https://kb.example')).toEqual({ protocol: 'https', host: 'kb.example', port: 443 });
+  });
+});
+
+describe('worker-runtime — health vitals (WORKER-LIVENESS.md P1)', () => {
+  beforeEach(() => {
+    vi.mocked(startWorkerProcess).mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('startAgentWorker exposes vitals composing agent identity with the adapter snapshot', async () => {
+    installFetchStub();
+
+    const worker = await startAgentWorker({
+      group: makeGroup(),
+      backendBaseUrl: DIAL_URL,
+      workerSecret: 'test-secret',
+      logger: noopLogger,
+    });
+
+    expect(worker.vitals()).toEqual({
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5',
+      did: CANONICAL_DID,
+      jobTypes: ['reference-annotation', 'generation'],
+      ...FAKE_ADAPTER_VITALS,
+    });
+
+    await worker.dispose();
+  });
+
+  it('buildHealthPayload stays additive and reflects vitals advancing across cycles', () => {
+    let stamp = '2026-07-17T00:00:00.000Z';
+    const fakeWorker = {
+      vitals: (): AgentVitals => ({
+        provider: 'ollama',
+        model: 'm',
+        did: 'did:web:kb.example:agents:ollama:m',
+        jobTypes: ['generation'],
+        lastQueuedEventAt: stamp,
+        lastClaimAt: null,
+        lastFinishedAt: null,
+        lastActivityAt: stamp,
+        activeJob: null,
+        jobsCompleted: 0,
+      }),
+    };
+
+    const first = buildHealthPayload([fakeWorker]);
+    // Additive: existing consumers keep reading status/agents.
+    expect(first).toMatchObject({ status: 'ok', agents: 1 });
+    expect(first.workers[0]!.lastQueuedEventAt).toBe('2026-07-17T00:00:00.000Z');
+
+    stamp = '2026-07-17T00:00:30.000Z';
+    const second = buildHealthPayload([fakeWorker]);
+    expect(second.workers[0]!.lastQueuedEventAt).toBe('2026-07-17T00:00:30.000Z');
+  });
+});
+
+describe('worker-runtime — stall watchdog (WORKER-LIVENESS.md P3)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const vitalsWith = (over: Partial<AgentVitals>): AgentVitals => ({
+    provider: 'ollama',
+    model: 'm',
+    did: 'did:web:kb.example:agents:ollama:m',
+    jobTypes: ['generation'],
+    lastQueuedEventAt: null,
+    lastClaimAt: null,
+    lastFinishedAt: null,
+    lastActivityAt: null,
+    activeJob: null,
+    jobsCompleted: 0,
+    ...over,
+  });
+
+  it('exits loudly when a processing agent shows no activity past the threshold', () => {
+    vi.useFakeTimers();
+    const exit = vi.fn();
+    const error = vi.fn();
+    const logger = { ...noopLogger, error } as unknown as Logger;
+    const stale = new Date(Date.now() - STALL_THRESHOLD_MS - 60_000).toISOString();
+    const worker = {
+      vitals: () => vitalsWith({
+        activeJob: { jobId: 'j-wedged', type: 'generation', since: stale },
+        lastActivityAt: stale,
+      }),
+    };
+
+    const watchdog = startStallWatchdog({ workers: [worker], logger, exit });
+    vi.advanceTimersByTime(STALL_CHECK_INTERVAL_MS + 1);
+
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(error).toHaveBeenCalledWith(
+      'Worker stalled — exiting for restart',
+      expect.objectContaining({ jobId: 'j-wedged', jobType: 'generation' }),
+    );
+    watchdog.dispose();
+  });
+
+  it('never fires for an idle agent, however old its timestamps', () => {
+    vi.useFakeTimers();
+    const exit = vi.fn();
+    const ancient = new Date(Date.now() - 60 * 60_000).toISOString();
+    const worker = {
+      vitals: () => vitalsWith({ lastActivityAt: ancient, lastFinishedAt: ancient }),
+    };
+
+    const watchdog = startStallWatchdog({ workers: [worker], logger: noopLogger, exit });
+    vi.advanceTimersByTime(STALL_CHECK_INTERVAL_MS * 3);
+
+    expect(exit).not.toHaveBeenCalled();
+    watchdog.dispose();
+  });
+
+  it('never fires while progress keeps activity fresh — long jobs are not duration-limited', () => {
+    vi.useFakeTimers();
+    const exit = vi.fn();
+    // Job claimed an hour ago, but activity stays one minute old at
+    // every check: a long multi-call job proving liveness between
+    // inference calls via onProgress → touchActivity.
+    const worker = {
+      vitals: () => vitalsWith({
+        activeJob: {
+          jobId: 'j-long',
+          type: 'reference-annotation',
+          since: new Date(Date.now() - 60 * 60_000).toISOString(),
+        },
+        lastActivityAt: new Date(Date.now() - 60_000).toISOString(),
+      }),
+    };
+
+    const watchdog = startStallWatchdog({ workers: [worker], logger: noopLogger, exit });
+    vi.advanceTimersByTime(STALL_CHECK_INTERVAL_MS * 5);
+
+    expect(exit).not.toHaveBeenCalled();
+    watchdog.dispose();
+  });
+
+  it('the teeth: a wedge that develops after start is caught on a later tick', () => {
+    vi.useFakeTimers();
+    const exit = vi.fn();
+    let vital = vitalsWith({}); // idle and healthy at start
+    const worker = { vitals: () => vital };
+
+    const watchdog = startStallWatchdog({ workers: [worker], logger: noopLogger, exit });
+
+    vi.advanceTimersByTime(STALL_CHECK_INTERVAL_MS);
+    expect(exit).not.toHaveBeenCalled();
+
+    // Wedge: a job is claimed, then total silence — the timestamps
+    // freeze while the clock advances past the threshold.
+    const claimedAt = new Date(Date.now()).toISOString();
+    vital = vitalsWith({
+      activeJob: { jobId: 'j-frozen', type: 'generation', since: claimedAt },
+      lastActivityAt: claimedAt,
+    });
+    vi.advanceTimersByTime(STALL_THRESHOLD_MS + STALL_CHECK_INTERVAL_MS);
+
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(exit).toHaveBeenCalledTimes(1); // interval cleared on breach — no refire
+    watchdog.dispose();
   });
 });
