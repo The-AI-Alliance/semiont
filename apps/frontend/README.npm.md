@@ -36,7 +36,7 @@ PORT=3000 semiont-frontend
 PORT=3000 node node_modules/@semiont/frontend/server.js
 ```
 
-Requires `PORT` and `SEMIONT_BACKEND_URL` environment variables to be configured.
+Requires the `PORT` environment variable to be configured.
 
 ## What's Included
 
