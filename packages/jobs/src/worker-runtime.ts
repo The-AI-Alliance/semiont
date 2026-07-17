@@ -14,6 +14,7 @@
  */
 
 import { startWorkerProcess } from './worker-process';
+import type { WorkerVitals } from './job-claim-adapter';
 import type { InferenceClient } from '@semiont/inference';
 import { hostname } from 'os';
 import {
@@ -64,6 +65,98 @@ export interface WorkerRuntimeOptions {
   /** Shared secret for `/api/tokens/agent`. */
   workerSecret: string;
   logger: Logger;
+}
+
+/** Per-agent liveness: the adapter's snapshot plus this agent's identity. */
+export interface AgentVitals extends WorkerVitals {
+  provider: string;
+  model: string;
+  did: string;
+  jobTypes: string[];
+}
+
+export interface AgentWorkerHandle {
+  session: SemiontSession;
+  vitals(): AgentVitals;
+  dispose(): Promise<void>;
+}
+
+export interface WorkerHealthPayload {
+  status: 'ok';
+  agents: number;
+  workers: AgentVitals[];
+}
+
+/**
+ * The `/health` body (WORKER-LIVENESS.md P1). Additive: existing
+ * consumers (image HEALTHCHECK, compose `service_healthy`, start.sh)
+ * keep reading `status`/`agents`; the per-agent vitals expose
+ * claim-loop progress so a stalled worker is *visible*, not just alive.
+ */
+export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVitals }>): WorkerHealthPayload {
+  return {
+    status: 'ok',
+    agents: workers.length,
+    workers: workers.map((w) => w.vitals()),
+  };
+}
+
+/**
+ * Stall watchdog (WORKER-LIVENESS.md P3) — the fail-fast line behind the
+ * inference timeout. There is no poll loop to heartbeat; the honest
+ * stall signal in this push-driven architecture is *processing without
+ * activity*: an agent holding a claimed job whose `lastActivityAt`
+ * (claim / progress / finish) has stopped advancing is wedged — the
+ * adapter ignores every announcement while `isProcessing`, so a wedged
+ * agent never recovers on its own. Silent hang → loud crash → whatever
+ * restart policy the deployment chose.
+ *
+ * Thresholds are fixed by design (no env knobs) and deliberately
+ * layered: inference timeout (10 min, P2) fires first; this watchdog
+ * (15 min) catches the failure modes nobody predicted; the backend's
+ * dead-worker janitor (30 min) re-queues the job regardless.
+ */
+export const STALL_THRESHOLD_MS = 15 * 60_000;
+export const STALL_CHECK_INTERVAL_MS = 60_000;
+
+export interface StallWatchdogOptions {
+  workers: ReadonlyArray<{ vitals(): AgentVitals }>;
+  logger: Logger;
+  /** Test seam; defaults to process.exit. */
+  exit?: (code: number) => void;
+}
+
+export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): void } {
+  const { workers, logger, exit = (code: number) => process.exit(code) } = opts;
+
+  const timer = setInterval(() => {
+    const now = Date.now();
+    for (const worker of workers) {
+      const v = worker.vitals();
+      if (!v.activeJob || !v.lastActivityAt) continue;
+
+      const silentForMs = now - Date.parse(v.lastActivityAt);
+      if (silentForMs <= STALL_THRESHOLD_MS) continue;
+
+      logger.error('Worker stalled — exiting for restart', {
+        provider: v.provider,
+        model: v.model,
+        did: v.did,
+        jobId: v.activeJob.jobId,
+        jobType: v.activeJob.type,
+        processingSince: v.activeJob.since,
+        lastActivityAt: v.lastActivityAt,
+        silentForMs,
+        thresholdMs: STALL_THRESHOLD_MS,
+      });
+      clearInterval(timer);
+      exit(1);
+      return;
+    }
+  }, STALL_CHECK_INTERVAL_MS);
+  timer.unref?.();
+
+  return { dispose: () => clearInterval(timer) };
 }
 
 export function parseBackendUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
@@ -131,7 +224,7 @@ export async function authenticateAgent(opts: {
 
 export async function startAgentWorker(
   opts: WorkerRuntimeOptions,
-): Promise<{ session: SemiontSession; dispose: () => Promise<void> }> {
+): Promise<AgentWorkerHandle> {
   const { group, backendBaseUrl, workerSecret, logger } = opts;
   const { inference } = group;
 
@@ -217,6 +310,13 @@ export async function startAgentWorker(
 
   return {
     session,
+    vitals: () => ({
+      provider: inference.type,
+      model: inference.model,
+      did,
+      jobTypes: group.jobTypes,
+      ...adapter.vitals(),
+    }),
     dispose: async () => {
       adapter.dispose();
       await session.dispose();

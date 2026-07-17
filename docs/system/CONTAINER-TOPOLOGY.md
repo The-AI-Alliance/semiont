@@ -6,28 +6,30 @@ How a Semiont deployment splits into containers, how those containers communicat
 >
 > See [PACKAGE-ARCHITECTURE.md](PACKAGE-ARCHITECTURE.md) for the package layering that defines what each container actually contains.
 
-For the actor responsibilities running inside the backend / worker / smelter containers, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md). For the SPA running in the frontend container, see [HUMAN-UI.md](HUMAN-UI.md).
+For the actor responsibilities running inside the backend / worker / smelter / weaver containers, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md). For the Semiont Browser SPA (served by the frontend container, executed in the user's web browser), see [HUMAN-UI.md](HUMAN-UI.md).
 
 ## Multi-container layout
 
-A local deployment runs four containers of Semiont code, five if you include the frontend, or nine if you also count the infrastructure dependencies. All five Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)):
+A local deployment runs four containers of Semiont code, five with the frontend, nine with the infrastructure dependencies — and ten with the Jaeger observability sidecar, which local KB stacks run **by default** (`--no-observe` skips it): the backend, worker, smelter, and weaver all export OTLP traces + metrics to it. All five Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)):
 
 ```mermaid
 graph TB
+    UB["User's Web Browser<br/>(runs the SPA)"]
+
     subgraph frontend_c ["semiont-frontend"]
-        SPA["Semiont Browser SPA<br/>(Vite + React)"]
+        SPA["Static SPA server<br/>(serves the Semiont Browser)"]
     end
 
     subgraph backend_c ["semiont-backend"]
         BUS["Event Bus"]
         STOWER["Stower"]
-        BROWSER["Browser"]
+        BROWSER["Browser<br/>(browse.* reads)"]
         GATHERER["Gatherer"]
         MATCHER["Matcher"]
         VIEWS[("Materialized Views")]
     end
 
-    GIT[("KB Git Repo")]
+    GIT[("KB Git Repo<br/>(event log + content)")]
 
     subgraph worker_c ["semiont-worker"]
         WORKERS["Worker Pool"]
@@ -54,10 +56,15 @@ graph TB
     end
 
     subgraph ol_c ["semiont-ollama"]
-        OL["Ollama"]
+        OL["Ollama<br/>(embeddings + local inference)"]
     end
 
-    SPA --- BUS
+    subgraph jag_c ["semiont-jaeger (observability)"]
+        JAG["Jaeger<br/>(OTLP traces + metrics)"]
+    end
+
+    UB --- SPA
+    UB --- BUS
     WORKERS --- BUS
     SMELTER --- BUS
     WEAVER --- BUS
@@ -65,9 +72,16 @@ graph TB
     STOWER --- GIT
     STOWER --- VIEWS
     VIEWS --- GIT
+    BROWSER --- VIEWS
+    GATHERER --- VIEWS
+    GATHERER --- GIT
     WEAVER --- NEO
     SMELTER --- QD
-    BUS --- PG
+    backend_c ---|"users / auth"| PG
+    backend_c -.- JAG
+    WORKERS -.- JAG
+    SMELTER -.- JAG
+    WEAVER -.- JAG
     WORKERS --- OL
     SMELTER --- OL
     GATHERER --- NEO
@@ -86,19 +100,21 @@ graph TB
     class BUS bus
     class STOWER,BROWSER,GATHERER,MATCHER,WEAVER,WORKERS,SMELTER actor
     class GIT,VIEWS,PG,NEO,QD store
-    class SPA spa
-    class OL service
+    class SPA,UB spa
+    class OL,JAG service
 ```
 
-The four Semiont-code backend containers communicate exclusively through the unified bus exposed by `semiont-backend` (`/bus/emit`, `/bus/subscribe`). Workers, the smelter, and the weaver authenticate via `POST /api/tokens/agent`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a user's. This split isolates long-running LLM, embedding, and graph-projection work from the request-serving event loop — the backend stays responsive to human users while workers, the smelter, and the weaver run in separate V8 isolates.
+Two reading notes on the diagram. First, the SPA *executes in the user's web browser* — `semiont-frontend` only serves its static assets; the browser then talks to the backend directly (`localhost:4000`), which is why the frontend container needs no config and no backend connection of its own. Second, the Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
+
+The worker, smelter, and weaver communicate with the backend exclusively through the unified bus it exposes (`/bus/emit`, `/bus/subscribe`). Workers, the smelter, and the weaver authenticate via `POST /api/tokens/agent`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a user's. This split isolates long-running LLM, embedding, and graph-projection work from the request-serving event loop — the backend stays responsive to human users while workers, the smelter, and the weaver run in separate V8 isolates.
 
 ## Unified bus and SemiontSession
 
-Every actor that runs Semiont code — the Semiont Browser SPA, CLI, MCP, worker pool, and smelter — is a bus participant using the same primitives in `@semiont/sdk`. The backend exposes exactly two runtime endpoints that carry domain traffic: `POST /bus/emit` and `GET /bus/subscribe` (an SSE stream with dynamic channel subscriptions and Last-Event-ID replay on reconnect). Every other HTTP route exists for auth, admin, exchange, binary content, or infrastructure — not for domain commands. Commands and domain events flow through the bus.
+Every actor that runs Semiont code — the Semiont Browser SPA, CLI, MCP, worker pool, smelter, and weaver — is a bus participant using the same primitives in `@semiont/sdk`. The backend exposes exactly two runtime endpoints that carry domain traffic: `POST /bus/emit` and `GET /bus/subscribe` (an SSE stream with dynamic channel subscriptions and Last-Event-ID replay on reconnect). Every other HTTP route exists for auth, admin, exchange, binary content, or infrastructure — not for domain commands. Commands and domain events flow through the bus.
 
 The common abstraction for "I am a Semiont actor" is `SemiontSession`, which lives in `@semiont/sdk` and carries per-KB authentication, token refresh, bus access, and cross-process state synchronization. A session is constructed against a storage adapter (`SessionStorage`): `WebBrowserStorage` in the browser, filesystem storage for CLI and MCP, in-memory storage in workers and tests. `SemiontClient` exposes namespace methods (e.g. `client.browse.resource(...)`, `client.mark.annotation(...)`) over the bus; raw `emit`/`on`/`stream` are internal to the SDK and not part of the consumer surface.
 
-A new kind of actor slots in the same way in every environment: construct a session with the right storage adapter, authenticate, subscribe to the channels it cares about, emit the commands it produces. The worker and smelter containers are the clearest demonstration — same session, same bus primitives, same authentication pattern as the frontend; just different storage and different channels.
+A new kind of actor slots in the same way in every environment: construct a session with the right storage adapter, authenticate, subscribe to the channels it cares about, emit the commands it produces. The worker, smelter, and weaver containers are the clearest demonstration — same session, same bus primitives, same authentication pattern as the frontend; just different storage and different channels. (The weaver is also the proof by induction: it was added as a standalone actor after the pattern existed, and slotted in without any new plumbing.)
 
 For the wire-level event protocol, see **[../protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md)**.
 
@@ -110,8 +126,8 @@ Services run on different platforms, configured in `~/.semiontconfig` per enviro
 
 The currently supported platforms:
 
-- **POSIX** — Local processes (development, Codespaces). Each Semiont service is a Node process started directly on the host. See [platforms/POSIX.md](platforms/POSIX.md).
-- **Container** — Docker / Podman / Apple containers. Each service is a containerized Node process; the diagram above shows this layout. See [platforms/Container.md](platforms/Container.md).
+- **POSIX** — Local processes (monorepo development). Each Semiont service is a Node process started directly on the host. See [platforms/POSIX.md](platforms/POSIX.md) and [LOCAL-SEMIONT.md](LOCAL-SEMIONT.md) for running Semiont locally.
+- **Container** — Docker / Podman / Apple containers. Each service is a containerized Node process; the diagram above shows this layout. This is what KB stacks use — locally via `.semiont/scripts/start.sh` (any of the three runtimes) and in **GitHub Codespaces** via `docker compose` in the devcontainer. See [platforms/Container.md](platforms/Container.md).
 - **AWS** — ECS Fargate tasks, RDS, S3, Neptune. The same containers, scheduled by ECS. See [platforms/AWS.md](platforms/AWS.md).
 
 These three are what the Semiont CLI knows how to provision and manage today. They share the same containers because they share the same npm packages — the difference is where the Node processes run, not what they run.
@@ -128,17 +144,19 @@ The constraint is the **port contracts** — the bus (`/bus/emit`, `/bus/subscri
 
 | Environment | Compute | Storage | Graph | Users DB |
 |-------------|---------|---------|-------|----------|
-| **Local** | Local processes | Filesystem | In-memory | PostgreSQL |
+| **Local (KB stack)** | Containers (Apple `container` / Docker / Podman) | Filesystem (KB git repo, bind-mounted) | Neo4j (container) | PostgreSQL (container) |
 | **Production (AWS)** | ECS Fargate | S3/EFS | Neptune | RDS PostgreSQL |
 
 ### Service management
 
-All services are managed through the Semiont CLI:
+Two layers, easy to conflate:
+
+- **Operator entry points.** A KB stack is driven by its repo's scripts — `.semiont/scripts/start.sh` / `logs.sh` / `stop.sh` (runtime-portable, `--runtime` to force one) — or by `docker compose` against `.semiont/compose/backend.yml` (Codespaces uses this). Operators do not invoke the Semiont CLI directly.
+- **The CLI inside the containers.** Each published image's entrypoint uses the Semiont CLI to provision and start its own service (e.g. the backend runs `semiont provision --service backend && semiont start --service backend`). Monorepo developers on the POSIX platform can drive the same CLI directly:
 
 ```bash
 semiont start --environment local
 semiont check --service all
-semiont stop --environment production
 ```
 
 See **[CLI Documentation](../../apps/cli/README.md)** and **[administration/CONFIGURATION.md](administration/CONFIGURATION.md)** for full configuration details.

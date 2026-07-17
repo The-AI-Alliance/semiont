@@ -64,8 +64,9 @@ Want to verify image provenance before running? See [Supply-chain verification](
 **Running from source instead of published images:** build all five images
 from a monorepo working tree with
 [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) (they get the
-local-only `:local` tag, never pushed), then start the KB stack with
-`SEMIONT_VERSION=local .semiont/scripts/start.sh …` — the `local` version
+local-only `:local` tag, never pushed, and are loaded into every container
+engine on the machine — any `--runtime` can run them), then start the KB stack
+with `SEMIONT_VERSION=local .semiont/scripts/start.sh …` — the `local` version
 skips the registry pull.
 
 Open **http://localhost:3000** and enter **http://localhost:4000** as the knowledge base URL.

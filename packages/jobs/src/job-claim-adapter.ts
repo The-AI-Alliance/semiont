@@ -64,6 +64,28 @@ export interface JobClaimAdapterOptions {
   jobTypes: string[];
 }
 
+/**
+ * Point-in-time liveness snapshot (WORKER-LIVENESS.md P1). The adapter
+ * is the only component that sees every announcement, claim, and finish,
+ * so its snapshot is what `/health` reports and the stall watchdog reads.
+ *
+ * There is no poll loop in this architecture — the honest signals are:
+ * `lastQueuedEventAt` (any `job:queued` received, matching or not —
+ * transport liveness; the backend re-announces pending jobs every 30s,
+ * so this advances whenever the queue is non-empty), and
+ * `lastActivityAt` (claim, progress emission, or finish — processing
+ * liveness; a job stuck mid-inference stops advancing it).
+ */
+export interface WorkerVitals {
+  lastQueuedEventAt: string | null;
+  lastClaimAt: string | null;
+  /** Last completion or failure — a failing-but-moving worker is alive. */
+  lastFinishedAt: string | null;
+  lastActivityAt: string | null;
+  activeJob: { jobId: string; type: string; since: string } | null;
+  jobsCompleted: number;
+}
+
 export interface JobClaimAdapter {
   /** Currently-claimed job, or null when idle. */
   readonly activeJob$: Observable<ActiveJob | null>;
@@ -90,6 +112,16 @@ export interface JobClaimAdapter {
   /** Signal failure of `activeJob$`. Emits on `errors$`. */
   failJob(jobId: string, error: string): void;
 
+  /** Liveness snapshot for `/health` and the stall watchdog. */
+  vitals(): WorkerVitals;
+
+  /**
+   * Record processing activity. The worker process calls this on every
+   * progress emission so a long multi-call job keeps proving liveness
+   * between inference calls.
+   */
+  touchActivity(): void;
+
   /** Release observables. Does not dispose the shared bus. */
   dispose(): void;
 }
@@ -108,6 +140,14 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
 
   let jobSubscription: { unsubscribe(): void } | null = null;
   let started = false;
+
+  // Vitals clock (epoch ms internally; rendered as ISO in snapshots).
+  let lastQueuedEventAt: number | null = null;
+  let lastClaimAt: number | null = null;
+  let lastFinishedAt: number | null = null;
+  let lastActivityAt: number | null = null;
+  let activeSince: number | null = null;
+  const iso = (t: number | null): string | null => (t === null ? null : new Date(t).toISOString());
 
   const claimJob = async (assignment: JobAssignment): Promise<ActiveJob | null> => {
     try {
@@ -154,6 +194,10 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       jobSubscription = bus
         .on$<{ jobId: string; jobType: string; resourceId: string }>('job:queued')
         .subscribe((event) => {
+          // Every announcement received — matching or not — proves the
+          // transport is alive; stamp before any filtering.
+          lastQueuedEventAt = Date.now();
+
           const jobType = event.jobType;
           if (jobTypes.length > 0 && !jobTypes.includes(jobType)) return;
           if (isProcessing$.getValue()) return;
@@ -162,6 +206,10 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
           claimJob({ jobId: event.jobId, type: jobType, resourceId: event.resourceId })
             .then((job) => {
               if (job) {
+                const now = Date.now();
+                lastClaimAt = now;
+                lastActivityAt = now;
+                activeSince = now;
                 activeJob$.next(job);
               } else {
                 isProcessing$.next(false);
@@ -180,15 +228,41 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     },
 
     completeJob: () => {
+      const now = Date.now();
+      lastFinishedAt = now;
+      lastActivityAt = now;
+      activeSince = null;
       activeJob$.next(null);
       isProcessing$.next(false);
       jobsCompleted$.next(jobsCompleted$.getValue() + 1);
     },
 
     failJob: (jid: string, error: string) => {
+      const now = Date.now();
+      lastFinishedAt = now;
+      lastActivityAt = now;
+      activeSince = null;
       activeJob$.next(null);
       isProcessing$.next(false);
       errors$.next({ jobId: jid, error });
+    },
+
+    vitals: () => {
+      const active = activeJob$.getValue();
+      return {
+        lastQueuedEventAt: iso(lastQueuedEventAt),
+        lastClaimAt: iso(lastClaimAt),
+        lastFinishedAt: iso(lastFinishedAt),
+        lastActivityAt: iso(lastActivityAt),
+        activeJob: active && activeSince !== null
+          ? { jobId: active.jobId, type: active.type, since: iso(activeSince)! }
+          : null,
+        jobsCompleted: jobsCompleted$.getValue(),
+      };
+    },
+
+    touchActivity: () => {
+      lastActivityAt = Date.now();
     },
 
     dispose: () => {

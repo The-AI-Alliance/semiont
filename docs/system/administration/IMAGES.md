@@ -85,8 +85,9 @@ carry no Dockerfiles and no image builds of their own.
 **Local dev loop:** [scripts/ci/local-build.sh](../../../scripts/ci/local-build.sh)
 builds all five images from the working tree as
 `ghcr.io/the-ai-alliance/semiont-<svc>:local` (via a throwaway local
-verdaccio; never pushed). A KB stack consumes them with
-`SEMIONT_VERSION=local`, which also skips the pull.
+verdaccio; never pushed), fanning each built image out to every other
+container engine on the machine so any `--runtime` finds them. A KB stack
+consumes them with `SEMIONT_VERSION=local`, which also skips the pull.
 
 ---
 

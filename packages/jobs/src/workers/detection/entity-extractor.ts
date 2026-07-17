@@ -1,5 +1,6 @@
 import type { InferenceClient } from '@semiont/inference';
 import { getLocaleEnglishName, isArray, isObject, isString, type Logger } from '@semiont/core';
+import { boundedGenerateWithMetadata } from '../inference-call';
 
 /**
  * Entity reference extracted from text — pre-reconciliation.
@@ -109,7 +110,8 @@ Example output:
 [{"exact":"Alice","entityType":"Person","prefix":"","suffix":" went to"},{"exact":"Paris","entityType":"Location","prefix":"went to ","suffix":" yesterday"}]`;
 
   logger.debug('Sending entity extraction request', { entityTypes: entityTypesDescription });
-  const response = await client.generateTextWithMetadata(
+  const response = await boundedGenerateWithMetadata(
+    client,
     prompt,
     4000, // Increased to handle many entities without truncation
     0.3,  // Lower temperature for more consistent extraction
