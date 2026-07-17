@@ -23,13 +23,20 @@ interface SemiontAppStackProps extends cdk.StackProps {
   // They will be imported via CloudFormation exports
 }
 
+// Topology (see docs/system/CONTAINER-TOPOLOGY.md and apps/frontend/docs/CONTAINER.md):
+// the frontend is a config-less static file server for the prebuilt Vite SPA, and the
+// user's browser connects directly to the backend origin — auth, admin, and content over
+// HTTP routes; domain traffic over the event bus (POST /bus/emit, GET /bus/subscribe SSE).
+// The two services never talk to each other, so each gets its own browser-reachable
+// HTTPS hostname on a shared ALB: `domain` serves the SPA, `api.<domain>` serves the
+// backend. No path-based API routing exists between them.
 export class SemiontAppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: SemiontAppStackProps) {
     super(scope, id, props);
 
     // Import resources from data stack using CloudFormation exports
     const dataStackName = 'SemiontDataStack';
-    
+
     // Import VPC - we need to use fromVpcAttributes since fromLookup doesn't work with tokens
     // We're using 2 AZs, so explicitly specify them
     // Note: CDK will show warnings about missing routeTableIds. These warnings can be ignored
@@ -84,12 +91,6 @@ export class SemiontAppStack extends cdk.Stack {
       cdk.Fn.importValue(`${dataStackName}-DbCredentialsSecretArn`)
     );
 
-    const appSecrets = secretsmanager.Secret.fromSecretCompleteArn(
-      this,
-      'ImportedAppSecrets',
-      cdk.Fn.importValue(`${dataStackName}-AppSecretsSecretArn`)
-    );
-
     const jwtSecret = secretsmanager.Secret.fromSecretCompleteArn(
       this,
       'ImportedJwtSecret',
@@ -108,12 +109,6 @@ export class SemiontAppStack extends cdk.Stack {
       cdk.Fn.importValue(`${dataStackName}-GoogleOAuthSecretArn`)
     );
 
-    const githubOAuth = secretsmanager.Secret.fromSecretCompleteArn(
-      this,
-      'ImportedGitHubOAuth',
-      cdk.Fn.importValue(`${dataStackName}-GitHubOAuthSecretArn`)
-    );
-
     const adminEmails = secretsmanager.Secret.fromSecretCompleteArn(
       this,
       'ImportedAdminEmails',
@@ -129,24 +124,25 @@ export class SemiontAppStack extends cdk.Stack {
     const awsCertificateArn = this.node.tryGetContext('certificateArn');
     const awsHostedZoneId = this.node.tryGetContext('hostedZoneId');
 
+    // The backend's browser-reachable origin. Users add this host in the SPA's
+    // connection panel; every API and bus call goes to it directly from the browser.
+    const apiDomainName = `api.${domainName}`;
+
     const certificateArn = new cdk.CfnParameter(this, 'CertificateArn', {
-      type: 'String', 
+      type: 'String',
       default: awsCertificateArn,
-      description: 'ACM Certificate ARN for HTTPS'
+      description: `ACM Certificate ARN for HTTPS (must cover both ${domainName} and ${apiDomainName})`
     });
 
     const hostedZoneId = new cdk.CfnParameter(this, 'HostedZoneId', {
       type: 'String',
-      default: awsHostedZoneId, 
+      default: awsHostedZoneId,
       description: 'Route53 Hosted Zone ID'
     });
 
-    // ECS Cluster with Service Connect
+    // ECS Cluster
     const cluster = new ecs.Cluster(this, 'SemiontCluster', {
       vpc,
-      defaultCloudMapNamespace: {
-        name: 'semiont.local',
-      },
     });
 
     // Enable Container Insights
@@ -166,14 +162,15 @@ export class SemiontAppStack extends cdk.Stack {
       memoryLimitMiB: 512,
       cpu: 256,
     });
-    
+
     // Frontend Task Definition
     const frontendTaskDefinition = new ecs.FargateTaskDefinition(this, 'SemiontFrontendTaskDef', {
       memoryLimitMiB: 512,
       cpu: 256,
     });
 
-    // Add EFS volume to backend task definition for uploads
+    // EFS volume for the backend's knowledge-base storage (git repo + working tree),
+    // mounted at /kb — the backend image's working directory.
     const efsVolumeConfig: ecs.EfsVolumeConfiguration = {
       fileSystemId: fileSystem.fileSystemId,
       transitEncryption: 'DISABLED',
@@ -183,7 +180,7 @@ export class SemiontAppStack extends cdk.Stack {
     };
 
     backendTaskDefinition.addVolume({
-      name: 'efs-volume',
+      name: 'kb-storage',
       efsVolumeConfiguration: efsVolumeConfig,
     });
 
@@ -196,25 +193,10 @@ export class SemiontAppStack extends cdk.Stack {
         ],
         resources: [
           dbCredentials.secretArn,
-          appSecrets.secretArn,
           jwtSecret.secretArn,
           adminPassword.secretArn,
           googleOAuth.secretArn,
           adminEmails.secretArn,
-        ],
-      })
-    );
-    
-    // IAM role for frontend tasks (minimal permissions)
-    frontendTaskDefinition.taskRole.addToPrincipalPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          'secretsmanager:GetSecretValue',
-        ],
-        resources: [
-          appSecrets.secretArn,
-          googleOAuth.secretArn,
         ],
       })
     );
@@ -258,7 +240,7 @@ export class SemiontAppStack extends cdk.Stack {
         resources: ['*'],
       })
     );
-    
+
     // Add ECS Exec permissions to frontend task role
     frontendTaskDefinition.taskRole.addToPrincipalPolicy(
       new iam.PolicyStatement({
@@ -275,11 +257,11 @@ export class SemiontAppStack extends cdk.Stack {
 
     // Get environment from context
     const environment = this.node.tryGetContext('environment') || 'production';
-    
+
     // Backend container - use ECR image or default
     const backendImageUri = this.node.tryGetContext('backendImageUri');
     const backendRepoName = `semiont-backend`;
-    const backendImage = backendImageUri 
+    const backendImage = backendImageUri
       ? ecs.ContainerImage.fromEcrRepository(
           ecr.Repository.fromRepositoryName(this, 'BackendEcrRepo', backendRepoName),
           backendImageUri.split(':')[1] || 'latest'
@@ -288,40 +270,37 @@ export class SemiontAppStack extends cdk.Stack {
           ecr.Repository.fromRepositoryName(this, 'BackendEcrRepoDefault', backendRepoName),
           'latest'
         );
-    
+
     const backendContainer = backendTaskDefinition.addContainer('semiont-backend', {
       image: backendImage,
       environment: {
         NODE_ENV: this.node.tryGetContext('nodeEnv') || 'production',
         DEPLOYMENT_VERSION: new Date().toISOString(), // Forces new task definition on every deploy
         DB_HOST: databaseEndpoint,
-        DB_PORT: '5432',
+        DB_PORT: databasePort,
         DB_NAME: databaseName,
-        PORT: '4000',
-        API_PORT: '4000',
-        CORS_ORIGIN: `https://${domainName}`,
-        FRONTEND_URL: `https://${domainName}`,
-        AWS_REGION: this.region,
-        // Configuration for OAuth
-        SITE_NAME: siteName,
-        DOMAIN: domainName,
         OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
-        SITE_DOMAIN: domainName,
-      }, 
+        AWS_REGION: this.region, // For AWS SDK clients (S3 storage, Neptune graph)
+      },
       secrets: {
         DB_USER: ecs.Secret.fromSecretsManager(dbCredentials, 'username'),
         DB_PASSWORD: ecs.Secret.fromSecretsManager(dbCredentials, 'password'),
         JWT_SECRET: ecs.Secret.fromSecretsManager(jwtSecret, 'jwtSecret'),
-        SESSION_SECRET: ecs.Secret.fromSecretsManager(appSecrets, 'sessionSecret'),
         GOOGLE_CLIENT_ID: ecs.Secret.fromSecretsManager(googleOAuth, 'clientId'),
         GOOGLE_CLIENT_SECRET: ecs.Secret.fromSecretsManager(googleOAuth, 'clientSecret'),
+        // The image bootstraps an admin user at startup when both are set.
+        // ADMIN_EMAIL expects a single address (the data stack seeds 'emails'
+        // from the site's adminEmail).
+        ADMIN_EMAIL: ecs.Secret.fromSecretsManager(adminEmails, 'emails'),
+        ADMIN_PASSWORD: ecs.Secret.fromSecretsManager(adminPassword, 'password'),
       },
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: 'semiont-backend',
         logGroup,
       }),
+      // node-based probe: the alpine images ship no curl (mirrors the image's own HEALTHCHECK)
       healthCheck: {
-        command: ['CMD-SHELL', 'curl -f http://localhost:4000/api/health || exit 1'],
+        command: ['CMD-SHELL', `node -e "require('http').get('http://localhost:4000/api/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"`],
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(5),
         retries: 3,
@@ -331,17 +310,16 @@ export class SemiontAppStack extends cdk.Stack {
 
     backendContainer.addPortMappings({
       containerPort: 4000,
-      name: 'backend',  // This name must match the portMappingName in Service Connect config
     });
 
-    // Mount EFS volume for uploads
+    // Mount EFS volume for persistent knowledge-base storage
     backendContainer.addMountPoints({
-      sourceVolume: 'efs-volume',
-      containerPath: '/app/uploads',
+      sourceVolume: 'kb-storage',
+      containerPath: '/kb',
       readOnly: false,
     });
 
-    // Frontend container - use ECR image or default  
+    // Frontend container - use ECR image or default
     const frontendImageUri = this.node.tryGetContext('frontendImageUri');
     const frontendRepoName = `semiont-frontend`;
     const frontendImage = frontendImageUri
@@ -353,38 +331,23 @@ export class SemiontAppStack extends cdk.Stack {
           ecr.Repository.fromRepositoryName(this, 'FrontendEcrRepoDefault', frontendRepoName),
           'latest'
         );
-    
+
+    // The frontend image is a static file server for the prebuilt SPA. It takes no
+    // configuration (the only variable it reads is PORT, defaulting to 3000) and no
+    // secrets — users pick their knowledge bases in the app, and tokens live in the
+    // browser's localStorage.
     const frontendContainer = frontendTaskDefinition.addContainer('semiont-frontend', {
       image: frontendImage,
       environment: {
-        NODE_ENV: this.node.tryGetContext('nodeEnv') || 'production',
         DEPLOYMENT_VERSION: new Date().toISOString(), // Forces new task definition on every deploy
-        PORT: '3000',
-        HOSTNAME: '0.0.0.0',
-        // Public environment variables (available to browser)
-        NEXT_PUBLIC_SITE_NAME: siteName,
-        NEXT_PUBLIC_DOMAIN: domainName,
-        // OAuth domains for server-side NextAuth validation
-        OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
-        // NextAuth configuration
-        NEXTAUTH_URL: `https://${domainName}`,
-        // Backend URL for server-side API calls (Service Connect DNS)
-        // Used by frontend's NextAuth and API routes for container-to-container communication
-        // This is NOT the public URL - it's the internal AWS Service Connect address
-        // Client-side browser calls use relative URLs - ALB routes to backend
-        SERVER_API_URL: 'http://backend:4000',
-      },
-      secrets: {
-        NEXTAUTH_SECRET: ecs.Secret.fromSecretsManager(appSecrets, 'nextAuthSecret'),
-        GOOGLE_CLIENT_ID: ecs.Secret.fromSecretsManager(googleOAuth, 'clientId'),
-        GOOGLE_CLIENT_SECRET: ecs.Secret.fromSecretsManager(googleOAuth, 'clientSecret'),
       },
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: 'semiont-frontend',
         logGroup,
       }),
+      // node-based probe: the alpine images ship no curl (mirrors the image's own HEALTHCHECK)
       healthCheck: {
-        command: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1'],
+        command: ['CMD-SHELL', `node -e "require('http').get('http://localhost:3000/', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"`],
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(5),
         retries: 3,
@@ -413,18 +376,9 @@ export class SemiontAppStack extends cdk.Stack {
       },
       minHealthyPercent: 100,
       maxHealthyPercent: 200,
-      serviceConnectConfiguration: {
-        services: [
-          {
-            portMappingName: 'backend',
-            dnsName: 'backend',
-            port: 4000,
-          },
-        ],
-      },
     });
 
-    // Frontend ECS Service  
+    // Frontend ECS Service
     const frontendService = new ecs.FargateService(this, 'SemiontFrontendService', {
       cluster,
       taskDefinition: frontendTaskDefinition,
@@ -441,10 +395,6 @@ export class SemiontAppStack extends cdk.Stack {
       },
       minHealthyPercent: 100,
       maxHealthyPercent: 200,
-      serviceConnectConfiguration: {
-        // Frontend is a client-only service, it discovers backend but doesn't expose itself
-        services: [],
-      },
     });
 
     // Auto Scaling for Backend
@@ -481,8 +431,9 @@ export class SemiontAppStack extends cdk.Stack {
       zoneName: rootDomain,
     });
 
-    // SSL Certificate
-    const certificate = acm.Certificate.fromCertificateArn(this, 'Certificate', 
+    // SSL Certificate — must cover both the frontend and backend hostnames
+    // (e.g. SANs for both names, or a wildcard one level above them).
+    const certificate = acm.Certificate.fromCertificateArn(this, 'Certificate',
       certificateArn.valueAsString
     );
 
@@ -491,6 +442,11 @@ export class SemiontAppStack extends cdk.Stack {
       vpc,
       internetFacing: true,
       securityGroup: albSecurityGroup,
+      // GET /bus/subscribe is a long-lived SSE stream. The backend heartbeats it
+      // every 15s, so the 60s default would work — but leave generous headroom so a
+      // replay pause or event-loop stall doesn't sever every connected client.
+      // (Streams the ALB does cut are resumed by the SDK via Last-Event-ID replay.)
+      idleTimeout: cdk.Duration.seconds(300),
     });
 
     // HTTPS Listener
@@ -500,35 +456,15 @@ export class SemiontAppStack extends cdk.Stack {
       certificates: [certificate],
     });
 
-    // NextAuth routes (Priority 10: /api/auth/* -> Frontend)
-    httpsListener.addTargets('NextAuth', {
-      port: 3000,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      targets: [frontendService],
-      conditions: [
-        elbv2.ListenerCondition.pathPatterns(['/api/auth/*']),
-      ],
-      healthCheck: {
-        path: '/',
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(10),
-        healthyThresholdCount: 2,
-        unhealthyThresholdCount: 5,
-        healthyHttpCodes: '200',
-      },
-      priority: 10,
-    });
-
-    // Backend API (Priority 20: /api/* -> Backend)
-    httpsListener.addTargets('BackendAPI', {
+    // Backend origin: everything on the api hostname — HTTP routes (auth, admin,
+    // exchange, content) and the event bus (/bus/emit, /bus/subscribe) — goes to
+    // the backend. Hostname routing means no backend path prefix list to maintain.
+    httpsListener.addTargets('Backend', {
       port: 4000,
       protocol: elbv2.ApplicationProtocol.HTTP,
       targets: [backendService],
       conditions: [
-        elbv2.ListenerCondition.pathPatterns([
-          '/api',          // API root
-          '/api/*'         // All API routes
-        ]),
+        elbv2.ListenerCondition.hostHeaders([apiDomainName]),
       ],
       healthCheck: {
         path: '/api/health',
@@ -538,10 +474,11 @@ export class SemiontAppStack extends cdk.Stack {
         unhealthyThresholdCount: 5,
         healthyHttpCodes: '200',
       },
-      priority: 20,
+      priority: 10,
     });
 
-    // Frontend target group (default action for all other paths)
+    // Frontend target group (default action): the static SPA serves every path
+    // on every other hostname.
     httpsListener.addTargets('Frontend', {
       port: 3000,
       protocol: elbv2.ApplicationProtocol.HTTP,
@@ -567,10 +504,16 @@ export class SemiontAppStack extends cdk.Stack {
       }),
     });
 
-    // Route 53 Record
-    new route53.ARecord(this, 'SemiontARecord', {
+    // Route 53 Records — one per hostname, both aliased to the ALB
+    new route53.ARecord(this, 'FrontendARecord', {
       zone: hostedZone,
-      recordName: 'wiki',
+      recordName: domainName,
+      target: route53.RecordTarget.fromAlias(new route53Targets.LoadBalancerTarget(alb)),
+    });
+
+    new route53.ARecord(this, 'BackendARecord', {
+      zone: hostedZone,
+      recordName: apiDomainName,
       target: route53.RecordTarget.fromAlias(new route53Targets.LoadBalancerTarget(alb)),
     });
 
@@ -877,7 +820,12 @@ export class SemiontAppStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'CustomDomainUrl', {
       value: `https://${domainName}`,
-      description: 'Semiont Custom Domain URL',
+      description: 'Semiont Custom Domain URL (frontend SPA)',
+    });
+
+    new cdk.CfnOutput(this, 'BackendUrl', {
+      value: `https://${apiDomainName}`,
+      description: 'Semiont Backend URL (the knowledge-base origin users add in the app)',
     });
 
     new cdk.CfnOutput(this, 'WAFWebACLArn', {

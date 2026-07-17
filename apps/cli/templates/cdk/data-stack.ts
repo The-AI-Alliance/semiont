@@ -235,7 +235,7 @@ export class SemiontDataStack extends cdk.Stack {
       preferredBackupWindow: '03:00-04:00',
       preferredMaintenanceWindow: 'sun:04:00-sun:05:00',
       deletionProtection: true,
-      iamDatabaseAuthenticationEnabled: true,
+      iamAuthEnabled: true,
       tags: [
         { key: 'Application', value: 'Semiont' },
         { key: 'Component', value: 'GraphDatabase' },
