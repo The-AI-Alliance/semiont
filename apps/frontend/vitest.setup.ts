@@ -163,10 +163,6 @@ vi.mock('@/i18n/routing', async () => {
   };
 });
 
-// Environment variables
-process.env.SEMIONT_SITE_NAME = 'Test Semiont';
-process.env.SEMIONT_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
-
 // Cleanup between tests
 afterEach(() => {
   cleanup();

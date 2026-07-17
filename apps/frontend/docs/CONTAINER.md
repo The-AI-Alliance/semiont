@@ -9,106 +9,96 @@ Production-ready Docker container images for the Semiont frontend, published to 
 ### Pull Image
 
 ```bash
-# Latest development build (recommended for testing)
-docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
+# Latest release
+docker pull ghcr.io/the-ai-alliance/semiont-frontend:latest
 
-# Specific version (recommended for production)
-docker pull ghcr.io/the-ai-alliance/semiont-frontend:0.2.26-build.123
+# Specific @semiont/frontend package version (recommended for production)
+docker pull ghcr.io/the-ai-alliance/semiont-frontend:0.5.12
 
-# Specific commit SHA (for debugging/pinning)
+# Specific git commit of the image build (for debugging/pinning)
 docker pull ghcr.io/the-ai-alliance/semiont-frontend:sha-0377abc
 ```
 
 ### Run Container
 
-**With Path-Based Routing (Recommended)**:
-
-```bash
-# Use Docker Compose with Envoy proxy
-docker-compose up -d
-
-# Routing layer routes /resources/*, /annotations/*, etc. to backend
-# Frontend makes relative URL API calls
-```
-
-**Standalone (Development Only)**:
-
 ```bash
 docker run -d \
   -p 3000:3000 \
-  -e SEMIONT_BACKEND_URL=http://backend:4000 \
   --name semiont-frontend \
-  ghcr.io/the-ai-alliance/semiont-frontend:dev
+  ghcr.io/the-ai-alliance/semiont-frontend:latest
 ```
+
+Open <http://localhost:3000> and add your knowledge base (protocol, host,
+port, then sign in) from the app's connection panel. The container itself
+takes no backend configuration — see [Configuration](#configuration).
 
 ## Configuration
 
-### Architecture: Path-Based Routing
+### Architecture: The Browser Connects, Not the Container
 
-The Semiont frontend is designed to work with **path-based routing** (implementation varies by platform):
+The frontend image is a static file server (`server.js`) for the prebuilt
+Vite SPA. It has no backend URL — at build time or at runtime — and it never
+proxies API traffic.
 
-- **Browser API calls**: Use relative URLs (`/resources/*`, `/annotations/*`, etc.)
-- **Routing layer**: Routes paths to appropriate service (frontend or backend)
-  - **Container platform**: Envoy proxy
-  - **AWS platform**: Application Load Balancer (ALB, built on Envoy)
-  - **POSIX platform**: TBD (likely nginx or similar)
-- **All API calls**: Browser makes direct requests to backend via routing layer
+Knowledge-base connections are made **in the running app, by the user**:
 
-This eliminates the need for build-time API URL configuration.
+1. Open the frontend in a browser and add a knowledge base (protocol, host,
+   port) from the connection panel.
+2. Sign in with email/password for that KB. The SDK (`@semiont/sdk`)
+   authenticates against the KB and stores a per-KB access + refresh token
+   pair in the browser's `localStorage`.
+3. The SPA then talks to that KB origin **directly from the browser** —
+   auth, admin, and content over HTTP routes; domain traffic over the event
+   bus (`POST /bus/emit`, `GET /bus/subscribe` SSE). Access tokens refresh
+   automatically before they expire.
 
-### Required Environment Variables
+Multiple knowledge bases can be configured side by side, and connections
+persist across page reloads. The backend allows cross-origin requests from
+any origin, so the only network requirement is that each KB backend is
+reachable **from the user's browser** — reachability from the frontend
+container is irrelevant. No reverse proxy or path-based routing layer is
+needed.
 
-#### Environment Variables
+### Environment Variables
 
-All `SEMIONT_*` variables are **build-time** (embedded in the JS bundle). Since the frontend is a static SPA, there are no runtime-only variables.
+The image consumes exactly one runtime variable:
 
-- **`SEMIONT_BACKEND_URL`** - Backend API URL
-  - Example: `http://backend:4000` (internal) or `https://api.example.com`
-  - **Required** for the application to function
+- **`PORT`** — port the static server listens on (default: `3000`)
 
-- **`SEMIONT_SITE_NAME`** - Site name (default: `Semiont`) — Optional
-
-- **`SEMIONT_OAUTH_ALLOWED_DOMAINS`** - Comma-separated allowed email domains — Optional
-
-- **`SEMIONT_GOOGLE_CLIENT_ID`** - Google OAuth client ID — Optional
-
-- **`SEMIONT_ENABLE_LOCAL_AUTH`** - Enable email/password sign-in — Optional
+There are no `SEMIONT_*` runtime variables: the JS bundle is prebuilt when
+the `@semiont/frontend` npm package is published, and the static server does
+no templating. Backend locations are chosen by users in the app, not by
+container configuration.
 
 ## Deployment Scenarios
 
-### Docker Compose with Routing Proxy (Recommended)
+### Docker Compose
 
 ```yaml
-version: '3.8'
-
 services:
-  envoy:
-    image: envoyproxy/envoy:v1.28-latest
-    ports:
-      - "80:80"
-    volumes:
-      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
-    depends_on:
-      - frontend
-      - backend
-
   frontend:
-    image: ghcr.io/the-ai-alliance/semiont-frontend:dev
-    environment:
-      # Build-time — embedded in JS bundle
-      SEMIONT_BACKEND_URL: http://localhost
-      SEMIONT_SITE_NAME: Semiont
-    depends_on:
-      - backend
+    image: ghcr.io/the-ai-alliance/semiont-frontend:0.5.12
+    ports:
+      - "3000:3000"
 
   backend:
-    image: ghcr.io/the-ai-alliance/semiont-backend:dev
-    # ... backend config
+    image: ghcr.io/the-ai-alliance/semiont-backend:0.5.12
+    ports:
+      - "4000:4000"   # must be reachable from the user's browser
+    # ... backend config (see the backend image docs)
 ```
 
-Browser requests go to `http://localhost/resources/123` → Envoy proxy routes to `backend:4000`
+The two containers never talk to each other, so no proxy sits between them
+and no `depends_on` is needed. The user's browser loads the SPA from
+`http://localhost:3000` and connects to the knowledge base by adding
+`http` / `localhost` / `4000` in the app's connection panel. Publishing the
+backend port to the host is what matters — a browser cannot resolve Compose
+service names like `backend`.
 
 ### Kubernetes with Ingress Controller
+
+Give the frontend and each knowledge-base backend their own
+browser-reachable origins. No path-based API routing is required:
 
 ```yaml
 apiVersion: apps/v1
@@ -121,13 +111,9 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: ghcr.io/the-ai-alliance/semiont-frontend:0.2.26-build.123
+        image: ghcr.io/the-ai-alliance/semiont-frontend:0.5.12
         ports:
         - containerPort: 3000
-        env:
-          # Build-time — embedded in JS bundle during docker build
-          - name: SEMIONT_BACKEND_URL
-            value: http://semiont-backend-service:4000
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -135,27 +121,10 @@ metadata:
   name: semiont-ingress
 spec:
   rules:
+  # The SPA — all paths serve static assets
   - host: app.example.com
     http:
       paths:
-      # Backend API routes
-      - path: /resources
-        pathType: Prefix
-        backend:
-          service:
-            name: semiont-backend-service
-            port:
-              number: 4000
-      - path: /annotations
-        pathType: Prefix
-        backend:
-          service:
-            name: semiont-backend-service
-            port:
-              number: 4000
-      # ... other backend routes
-
-      # Frontend pages (catch-all)
       - path: /
         pathType: Prefix
         backend:
@@ -163,36 +132,53 @@ spec:
             name: semiont-frontend-service
             port:
               number: 3000
+  # Each knowledge-base backend gets its own origin
+  - host: kb.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: semiont-backend-service
+            port:
+              number: 4000
 ```
 
-### AWS ECS with Application Load Balancer
+Users add `https` / `kb.example.com` / `443` in the connection panel; the
+browser then calls the backend origin directly (the backend allows
+cross-origin requests). Serve backends over HTTPS — a browser will refuse to
+call an `http://` knowledge base from an `https://` page (mixed content).
 
-The CDK stack automatically configures ALB routing rules. Frontend container only needs:
+### AWS ECS
 
-```typescript
-// In ECS task definition
-environment: {
-  // Build-time vars embedded in bundle during docker build
-  SEMIONT_BACKEND_URL: 'https://api.example.com',
-}
-```
+Run the frontend and backend as separate services, each with its own
+browser-reachable HTTPS endpoint (for example, hostname-based listener rules
+on an ALB). The frontend task definition needs **no environment variables**
+— there is no backend URL to inject. Users connect to the backend origin
+from the app's connection panel, exactly as in the other scenarios.
 
-ALB handles path-based routing (similar to Envoy configuration).
+## Building Custom Images
 
-## Build-Time Configuration
-
-### Building Custom Images
+The image is built from [`apps/frontend/Dockerfile`](../Dockerfile) in the Semiont
+repo. It installs the **published `@semiont/frontend` npm package** — it does not
+build from source — so the only build arguments are the package version and the
+npm registry. The image takes no site-specific configuration: the bundle is
+built when the npm package is published, and users pick their knowledge bases
+in the app.
 
 ```bash
-# Build with custom site name and allowed domains
+# From the semiont repo root: image pinned to a published package version
 docker build \
-  --build-arg SEMIONT_SITE_NAME="My Company" \
-  --build-arg SEMIONT_OAUTH_ALLOWED_DOMAINS=mycompany.com \
+  --build-arg SEMIONT_FRONTEND_VERSION=0.5.12 \
   -t semiont-frontend:custom \
-  -f .semiont/containers/Dockerfile.frontend .
+  -f apps/frontend/Dockerfile .
 ```
 
-**Note**: API URL is NOT needed at build time - routing handled by reverse proxy at runtime.
+Official images are published (multi-arch, Trivy-scanned, SBOM + provenance
+attested) by the `publish-frontend.yml` workflow — prefer
+`ghcr.io/the-ai-alliance/semiont-frontend` over local builds unless you are
+testing unpublished changes.
 
 ### Multi-Platform Builds
 
@@ -200,36 +186,34 @@ docker build \
 # Build for multiple architectures
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  --build-arg SEMIONT_SITE_NAME="Semiont" \
+  --build-arg SEMIONT_FRONTEND_VERSION=0.5.12 \
   -t semiont-frontend:multiarch \
-  -f .semiont/containers/Dockerfile.frontend .
+  -f apps/frontend/Dockerfile .
 ```
 
 ## Environment Variable Reference
 
 | Variable | Type | Required | Example | Description |
 |----------|------|----------|---------|-------------|
-| `SEMIONT_BACKEND_URL` | Build-time | **Yes** | `http://backend:4000` | Backend API URL |
-| `SEMIONT_SITE_NAME` | Build-time | No | `Semiont` | Site name |
-| `SEMIONT_OAUTH_ALLOWED_DOMAINS` | Build-time | No | `example.com` | Allowed email domains |
-| `SEMIONT_GOOGLE_CLIENT_ID` | Build-time | No | `xxx.apps.googleusercontent.com` | Google OAuth client ID |
-| `SEMIONT_ENABLE_LOCAL_AUTH` | Build-time | No | `true` | Enable email/password auth |
+| `SEMIONT_FRONTEND_VERSION` | Build-time | No | `0.5.12` | `@semiont/frontend` npm version to install (default `latest`) |
+| `NPM_REGISTRY` | Build-time | No | `https://registry.npmjs.org` | Registry to install from |
+| `PORT` | Runtime | No | `3000` | Port the static server listens on (default `3000`) |
 
 ## Security Best Practices
 
 ### Secrets Management
 
-**Never include secrets in the Docker image:**
+**Never include secrets in the Docker image** — the frontend needs none. It
+takes no configuration beyond `PORT`:
 
 ```bash
-# ✅ Build-time public vars (safe to embed — no secrets)
-docker build \
-  --build-arg SEMIONT_BACKEND_URL=https://api.example.com \
-  --build-arg SEMIONT_SITE_NAME="My Company" \
-  -t semiont-frontend .
+docker run -d -p 3000:3000 ghcr.io/the-ai-alliance/semiont-frontend:latest
 
 # Backend secrets (GOOGLE_CLIENT_SECRET, JWT signing key, etc.) stay in the backend container
 ```
+
+Users' knowledge-base tokens exist only in their own browsers' `localStorage`
+— they never pass through the frontend container.
 
 ### Secret Rotation
 
@@ -237,30 +221,37 @@ The frontend contains no secrets. All sensitive credentials (OAuth client secret
 
 ## Troubleshooting
 
-### "`SEMIONT_BACKEND_URL` not configured"
+### Cannot connect to a knowledge base
 
-**Problem**: API calls fail because no backend URL is embedded in the bundle
+**Problem**: Adding a KB in the connection panel fails with a network error.
 
-**Solution**: Set `SEMIONT_BACKEND_URL` at **build time**:
-
-```bash
-docker build --build-arg SEMIONT_BACKEND_URL=http://backend:4000 ...
-```
-
-### "Authentication fails with ECONNREFUSED"
-
-**Problem**: Browser cannot reach backend
+**Cause**: The KB backend must be reachable from the **user's browser**, not
+from the frontend container.
 
 **Solutions**:
-1. Verify backend is running and accessible
-2. In Docker Compose: Use service name (`http://backend:4000`)
-3. In K8s: Use service DNS (`http://semiont-backend-service:4000`)
+1. Verify the backend is running and exposed on a browser-reachable address.
+2. Docker Compose: connect to `localhost:4000` (the host-published port).
+   Compose service names like `backend` do not resolve in a browser.
+3. Kubernetes/cloud: give the backend its own browser-reachable origin
+   (Ingress host or load-balancer endpoint), and connect to that.
 
-### "API calls return 404"
+### Requests blocked as "mixed content"
 
-**Problem**: Routing not working
+**Problem**: The frontend is served over `https://`, but the knowledge base
+was added with the `http` protocol — the browser silently blocks the calls.
 
-**Solution**: Ensure routing layer is configured with correct path-based rules. For container platform, see `apps/cli/templates/envoy.yaml` for Envoy configuration reference.
+**Solution**: Serve knowledge-base backends over HTTPS in production and
+select `https` when adding the KB.
+
+### Signed out of a knowledge base unexpectedly
+
+**Problem**: A previously connected KB drops to signed-out.
+
+**Cause**: The refresh token expired, or the backend's JWT signing secret
+changed (for example, a backend restart that regenerated `JWT_SECRET`),
+which invalidates every issued token.
+
+**Solution**: Sign in to that KB again from the connection panel.
 
 ## Health Checks
 
@@ -282,43 +273,37 @@ docker logs semiont-frontend
 
 # Follow logs in real-time
 docker logs -f semiont-frontend
-
-# Filter frontend logs
-docker logs semiont-frontend 2>&1 | grep '\[Frontend'
 ```
+
+The static server logs a single startup line (`Semiont frontend listening on
+port 3000`) plus any server errors; it does not log individual requests.
 
 ## Image Tags
 
 Published images follow this tagging strategy:
 
-- **`dev`** - Latest development build (mutable, updated on every main branch push)
-- **`latest`** - Latest stable release (mutable, updated on version releases)
-- **`0.2.26-build.123`** - Specific build number (immutable)
-- **`sha-0377abc`** - Specific git commit (immutable, for debugging)
+- **`0.5.12`** - The `@semiont/frontend` npm package version baked into the image (immutable)
+- **`sha-0377abc`** - Git commit of the repo at image-publish time (immutable, for debugging)
+- **`latest`** - Most recent release (mutable, applied when a publish is marked as latest)
 
 **Recommendation**:
-- Development/staging: Use `dev` tag
-- Production: Use specific version tag (e.g., `0.2.26-build.123`)
+- Development/staging: `latest` is fine
+- Production: Pin a specific version tag (e.g., `0.5.12`)
 
 ## Architecture Notes
 
-### Routing Flow
+### Connection Flow
 
 ```
-Browser → http://localhost/resources/123
-  ↓
-Routing Layer (port 80)
-  ↓ (matches /resources/* route)
-Backend (port 4000) → returns data
-  ↓
-Routing Layer → Browser
+Browser ── GET https://app.example.com/ ─────────────▶ Frontend container (static SPA)
+Browser ── POST https://kb.example.com/api/tokens/… ─▶ KB backend (sign-in, token refresh)
+Browser ── POST /bus/emit, GET /bus/subscribe (SSE) ─▶ KB backend (domain traffic)
 ```
 
-**Routing implementations by platform:**
-- Container: Envoy proxy
-- AWS: Application Load Balancer (ALB)
-- Kubernetes: Ingress Controller (nginx, Traefik, etc.)
-- POSIX: TBD
+The frontend container serves static assets and is otherwise out of the data
+path. Every API call originates in the user's browser and goes straight to
+the knowledge-base origin the user configured in the app — across as many
+knowledge bases as the user has added.
 
 ## Related Documentation
 
@@ -339,6 +324,5 @@ For issues or questions:
 
 **Container Runtime**: Apple Container, Docker, or Podman
 **Orchestration**: Compatible with Docker Compose, Kubernetes, ECS
-**Routing**: Varies by platform (Envoy for containers, ALB for AWS, etc.)
-**Base Image**: node:22-alpine
+**Base Image**: node:26-alpine
 **Platforms**: linux/amd64, linux/arm64

@@ -66,24 +66,59 @@ export function findProjectRootOrNull(): string | null {
   }
 }
 
+// Config reads must distinguish "file absent" from "file unreadable". Under
+// Apple Container (virtiofs), mounting the same host file into another VM
+// transiently breaks existing mounts of that file (~100ms read failures), so
+// a read that throws is retried briefly before being reported as an error —
+// never silently treated as "not configured".
+const READ_RETRY_ATTEMPTS = 3;
+const READ_RETRY_DELAY_MS = 150;
+
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Read a file, returning null only if it is absent. Transient read failures
+ * are retried; if the file exists but still cannot be read, throws a
+ * ConfigurationError naming the I/O failure.
+ */
+function readFileIfExistsWithRetry(absolutePath: string): string | null {
+  let lastError: Error | undefined;
+  for (let attempt = 1; attempt <= READ_RETRY_ATTEMPTS; attempt++) {
+    if (attempt > 1) sleepSync(READ_RETRY_DELAY_MS);
+    if (!fs.existsSync(absolutePath)) return null;
+    try {
+      return fs.readFileSync(absolutePath, 'utf-8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+  throw new ConfigurationError(
+    `Failed to read ${absolutePath} after ${READ_RETRY_ATTEMPTS} attempts: ${lastError!.message}`,
+    undefined,
+    'The file exists but could not be read (possibly a transient filesystem error) — retry the command',
+    lastError
+  );
+}
+
 /**
  * Node.js file reader for TOML config loading
  */
 const nodeTomlFileReader: TomlFileReader = {
-  readIfExists: (filePath: string) => {
-    const absolutePath = path.resolve(filePath);
-    return fs.existsSync(absolutePath)
-      ? fs.readFileSync(absolutePath, 'utf-8')
-      : null;
-  },
+  readIfExists: (filePath: string) => readFileIfExistsWithRetry(path.resolve(filePath)),
 };
+
+function semiontConfigPath(): string {
+  return path.join(os.homedir(), '.semiontconfig');
+}
 
 /**
  * Load environment configuration from ~/.semiontconfig (TOML)
  */
 export function loadEnvironmentConfig(projectRoot: string | null, environment: string) {
-  const configPath = path.join(os.homedir(), '.semiontconfig');
-  return createTomlConfigLoader(nodeTomlFileReader, configPath, process.env)(projectRoot, environment);
+  return createTomlConfigLoader(nodeTomlFileReader, semiontConfigPath(), process.env)(projectRoot, environment);
 }
 
 /**
@@ -105,34 +140,20 @@ export function resolveEnvironment(explicit?: string): string {
 }
 
 function readDefaultEnvironment(): string | null {
-  const configPath = path.join(os.homedir(), '.semiontconfig');
-  try {
-    const content = fs.existsSync(configPath)
-      ? fs.readFileSync(configPath, 'utf-8')
-      : null;
-    if (!content) return null;
-    const parsed = parseToml(content) as { defaults?: { environment?: string } };
-    return parsed.defaults?.environment ?? null;
-  } catch {
-    return null;
-  }
+  const content = readFileIfExistsWithRetry(semiontConfigPath());
+  if (!content) return null;
+  const parsed = parseToml(content) as { defaults?: { environment?: string } };
+  return parsed.defaults?.environment ?? null;
 }
 
 /**
  * Get available environments from ~/.semiontconfig [environments.*] keys
  */
 export function getAvailableEnvironments(): string[] {
-  const configPath = path.join(os.homedir(), '.semiontconfig');
-  try {
-    const content = fs.existsSync(configPath)
-      ? fs.readFileSync(configPath, 'utf-8')
-      : null;
-    if (!content) return [];
-    const parsed = parseToml(content) as { environments?: Record<string, unknown> };
-    return Object.keys(parsed.environments ?? {}).sort();
-  } catch {
-    return [];
-  }
+  const content = readFileIfExistsWithRetry(semiontConfigPath());
+  if (!content) return [];
+  const parsed = parseToml(content) as { environments?: Record<string, unknown> };
+  return Object.keys(parsed.environments ?? {}).sort();
 }
 
 /**
@@ -141,8 +162,3 @@ export function getAvailableEnvironments(): string[] {
 export function isValidEnvironment(environment: string): boolean {
   return getAvailableEnvironments().includes(environment);
 }
-
-/**
- * Read the project name from .semiont/config ([project] name = "...").
- * Falls back to the basename of projectRoot if the file is absent or has no name key.
- */

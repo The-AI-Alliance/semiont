@@ -34,14 +34,6 @@ export class FrontendTestEnvironment {
   }
 
   /**
-   * Setup environment variables
-   */
-  static setupEnvironment() {
-    process.env.SEMIONT_SITE_NAME = 'Test Semiont';
-    process.env.SEMIONT_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
-  }
-
-  /**
    * Setup DOM environment
    */
   static setupDOM() {

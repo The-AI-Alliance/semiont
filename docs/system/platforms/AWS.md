@@ -10,7 +10,7 @@ Semiont's AWS deployment uses Infrastructure as Code (CDK) with a two-stack mode
 
 **Key AWS Services:**
 - **Compute**: ECS Fargate (serverless containers)
-- **Networking**: VPC, ALB, CloudFront, Route 53
+- **Networking**: VPC, ALB, Route 53
 - **Data**: RDS PostgreSQL, EFS
 - **Security**: WAF, Secrets Manager, IAM
 - **Monitoring**: CloudWatch, SNS
@@ -23,18 +23,13 @@ graph TB
         Users[Users/Browsers]
     end
 
-    subgraph "AWS Edge"
-        CF[CloudFront CDN]
-        WAF[AWS WAF]
-    end
-
     subgraph "Public Subnet"
-        ALB[Application Load Balancer]
+        ALB[Application Load Balancer<br/>WAF attached]
     end
 
     subgraph "Private Subnet"
         subgraph "ECS Fargate Cluster"
-            Frontend[Frontend Service<br/>Next.js 14]
+            Frontend[Frontend Service<br/>static SPA file server]
             Backend[Backend Service<br/>Hono API]
         end
     end
@@ -50,16 +45,12 @@ graph TB
         SNS[SNS Alerts]
     end
 
-    Users --> CF
-    CF --> WAF
-    WAF --> ALB
-    ALB -->|/auth/*| Frontend
-    ALB -->|/api/*| Backend
-    ALB -->|/*| Frontend
+    Users --> ALB
+    ALB -->|Host: api.*| Backend
+    ALB -->|default| Frontend
     Backend --> RDS
     Backend --> EFS
-    Backend --> SM
-    Frontend --> SM
+    SM -->|env injection at task launch| Backend
     Backend --> CW
     Frontend --> CW
     CW --> SNS
@@ -85,7 +76,6 @@ graph LR
         SVCS[ECS Services]
         ALB2[Load Balancer]
         WAF2[WAF Rules]
-        CF2[CloudFront]
         R53[Route 53]
         CW2[CloudWatch]
     end
@@ -117,7 +107,7 @@ graph LR
 - **Security Groups**: Network access control
 - **IAM Roles**: Service permissions
 
-**CDK Code Location**: `infrastructure/lib/data-stack.ts`
+**CDK Code Location**: `cdk/data-stack.ts` in your scaffolded project (template: `apps/cli/templates/cdk/data-stack.ts` in the Semiont repo)
 
 ### Application Stack (`SemiontAppStack`)
 
@@ -126,14 +116,13 @@ graph LR
 **Components**:
 - **ECS Fargate Cluster**: Container orchestration
 - **Dual ECS Services**: Frontend and backend containers
-- **Application Load Balancer**: Traffic routing and SSL termination
+- **Application Load Balancer**: Hostname-based traffic routing and SSL termination
 - **WAF**: Web application firewall with rate limiting
-- **CloudFront**: CDN for static assets
-- **Route 53**: DNS management
+- **Route 53**: A records for `<domain>` and `api.<domain>`, both aliased to the ALB
 - **CloudWatch**: Logging and monitoring
 - **SNS/Budgets**: Alerting and cost management
 
-**CDK Code Location**: `infrastructure/lib/app-stack.ts`
+**CDK Code Location**: `cdk/app-stack.ts` in your scaffolded project (template: `apps/cli/templates/cdk/app-stack.ts` in the Semiont repo)
 
 ### Benefits of Two-Stack Model
 
@@ -158,10 +147,9 @@ graph LR
 | Service | Purpose | Configuration |
 |---------|---------|---------------|
 | **VPC** | Virtual private cloud | Multi-AZ with 3-tier subnet design |
-| **ALB** | Application Load Balancer | SSL termination, path-based routing |
-| **Route 53** | DNS management | Hosted zone with A records |
-| **CloudFront** | CDN | Global edge caching for static assets |
-| **Certificate Manager** | SSL/TLS certificates | Auto-renewal |
+| **ALB** | Application Load Balancer | SSL termination, hostname-based routing, 300s idle timeout for SSE |
+| **Route 53** | DNS management | A records for `<domain>` and `api.<domain>` |
+| **Certificate Manager** | SSL/TLS certificates | Imported by ARN; must cover both hostnames |
 
 ### Data & Storage
 
@@ -175,7 +163,7 @@ graph LR
 
 | Service | Purpose | Configuration |
 |---------|---------|---------------|
-| **WAF** | Web Application Firewall | Rate limiting, geo-blocking |
+| **WAF** | Web Application Firewall | AWS managed rule sets, rate limiting |
 | **Security Groups** | Network firewall | Principle of least privilege |
 | **IAM** | Access management | Task execution roles |
 | **VPC Flow Logs** | Network monitoring | Optional (not enabled by default) |
@@ -191,22 +179,25 @@ graph LR
 
 ## ALB Routing Configuration
 
-We use a clean 3-rule routing pattern:
+One ALB serves both services, split by **hostname** rather than path. Route 53 publishes two A records — `<domain>` and `api.<domain>` — both aliased to the same ALB, and the ACM certificate must cover both names:
 
 ```typescript
-// Priority 10: OAuth flows handled by frontend
-ListenerCondition.pathPatterns(['/auth/*'])
+// Priority 10: everything on the api hostname goes to the backend —
+// HTTP routes (auth, admin, exchange, binary content) and the event bus
+// (POST /bus/emit, GET /bus/subscribe)
+ListenerCondition.hostHeaders([`api.${domainName}`])
 
-// Priority 20: All API calls go to backend
-ListenerCondition.pathPatterns(['/api', '/api/*'])
-
-// Default: Everything else to frontend
+// Default action: the static SPA serves every path on every other hostname
 ```
 
+The frontend is a config-less static file server for the prebuilt SPA (the only variable it reads is `PORT`); it never proxies API traffic. The user's browser connects **directly** to the backend origin (`https://api.<domain>`) — the backend allows cross-origin requests from any origin (`origin: '*'`), and per-KB tokens live in the browser's `localStorage`. The two services never talk to each other. See [CONTAINER-TOPOLOGY.md](../CONTAINER-TOPOLOGY.md) and [apps/frontend/docs/CONTAINER.md](../../../apps/frontend/docs/CONTAINER.md).
+
+The ALB's `idleTimeout` is raised to **300 seconds** because `GET /bus/subscribe` is a long-lived SSE stream. The backend heartbeats every 15s, so the 60s default would work — the headroom keeps a replay pause or event-loop stall from severing every connected client (streams the ALB does cut are resumed by the SDK via `Last-Event-ID` replay).
+
 **Benefits**:
-- **No path conflicts**: the SPA's client-side routes don't intercept backend `/api/*` routes
-- **Clear separation**: the frontend is a static SPA; the backend handles all API logic (including the OAuth credential exchange + JWT minting)
-- **Simple mental model**: Easy to understand routing rules
+- **No backend path-prefix list to maintain**: one host-header rule covers `/api/*`, `/bus/emit`, `/bus/subscribe`, and every other backend route
+- **No path conflicts**: the SPA's client-side routes can't shadow backend routes, or vice versa
+- **Clear separation**: each service has its own browser-reachable HTTPS origin
 - **Independent scaling**: Frontend and backend scale separately
 
 ## Security Architecture
@@ -220,12 +211,11 @@ ListenerCondition.pathPatterns(['/api', '/api/*'])
 
 ### WAF Protection
 
-Web Application Firewall with multiple security rules:
+Web Application Firewall (regional, associated with the ALB) with multiple security rules:
 - AWS Managed Core Rule Set (common vulnerabilities)
 - AWS Managed Known Bad Inputs protection
-- Rate limiting (100 requests per 5-minute window per IP)
-- Geo-blocking for high-risk countries
-- IP reputation filtering
+- Rate limiting (2000 requests per 5-minute window per IP)
+- An allow rule for MCP OAuth callbacks with localhost redirect targets
 - Enhanced exclusions for file uploads to prevent false positives
 
 ### Application Security
@@ -290,10 +280,9 @@ graph TB
 
 - **ECS Auto Scaling**: CPU/memory-based task scaling
   - Backend: 1-10 tasks, scales at 70% CPU or 80% memory
-  - Frontend: 1-10 tasks, scales at 70% CPU or 80% memory
+  - Frontend: 1-5 tasks, scales at 70% CPU or 80% memory
 - **ALB Distribution**: Traffic spread across healthy instances
 - **Multi-AZ Database**: High availability (optional, disabled for cost)
-- **CloudFront Caching**: Reduced origin load
 
 ### Deployment Resilience
 
@@ -346,16 +335,14 @@ All infrastructure defined in TypeScript using AWS CDK:
 - **Version Control**: All changes tracked in Git
 - **Automated Rollbacks**: CloudFormation change sets
 
-**CDK Structure**:
+**CDK Structure** (scaffolded into your project by `semiont init`, from `apps/cli/templates/` in the Semiont repo):
 ```
-infrastructure/
-├── lib/
-│   ├── data-stack.ts       # Data Stack (VPC, RDS, EFS)
-│   ├── app-stack.ts        # Application Stack (ECS, ALB, CloudFront)
-│   └── constructs/         # Reusable CDK constructs
-├── bin/
-│   └── infrastructure.ts   # CDK app entry point
-└── cdk.json                # CDK configuration
+<project-root>/
+├── cdk.json                # CDK configuration (app entry: cdk/app.ts)
+└── cdk/
+    ├── app.ts              # CDK app entry point
+    ├── data-stack.ts       # Data Stack (VPC, RDS, EFS, secrets)
+    └── app-stack.ts        # Application Stack (ECS, ALB, WAF, Route 53)
 ```
 
 ### Deployment Commands
@@ -378,15 +365,14 @@ semiont restart --service frontend  # Specific service
 semiont watch logs  # Monitor logs
 ```
 
-### Management Scripts
+### Management Operations
 
-TypeScript-based management scripts provide:
+AWS operations are built into the Semiont CLI's AWS platform handlers:
 - **Dynamic Resource Discovery**: No hardcoded ARNs
 - **Service-Specific Operations**: Frontend/backend command targeting
-- **OAuth Management**: Interactive credential setup
-- **Database Operations**: Backup and maintenance utilities
+- **Stack Provisioning**: `semiont provision` drives `cdk deploy` from the project root
 
-**Script Location**: `scripts/aws/`
+**Code Location**: `apps/cli/src/platforms/aws/` in the Semiont repo
 
 ## Cost Optimization
 
@@ -400,7 +386,6 @@ TypeScript-based management scripts provide:
 ### Operational Efficiency
 
 - **Fargate Spot**: Cost savings for non-critical workloads (future)
-- **CloudFront Caching**: Reduced ALB/ECS load
 - **Reserved Capacity**: Long-term cost reduction (future)
 - **Budget Alerts**: Proactive cost monitoring
 
@@ -413,9 +398,8 @@ TypeScript-based management scripts provide:
 | ALB | Standard load balancer | $20 |
 | NAT Gateway | Single-AZ | $35 |
 | EFS | 10GB standard | $3 |
-| CloudFront | Low traffic | $1 |
 | Route 53 | 1 hosted zone | $0.50 |
-| **Total** | | **~$90/month** |
+| **Total** | | **~$89/month** |
 
 *Costs may vary based on actual usage and region*
 
@@ -423,42 +407,52 @@ TypeScript-based management scripts provide:
 
 ### Secrets Management
 
-All secrets stored in AWS Secrets Manager:
+All secrets are created by the Data Stack in AWS Secrets Manager (CloudFormation-generated names) and shared with the App Stack via CloudFormation exports:
 
-- `semiont/${env}/database` - PostgreSQL credentials
-- `semiont/${env}/jwt-secret` - JWT signing key
-- `semiont/${env}/oauth` - OAuth client credentials
+- Database credentials (username + password)
+- JWT signing secret
+- Admin bootstrap password
+- Google OAuth client credentials
+- Admin email list
 
-**Access Pattern**:
+**Access Pattern**: ECS injects secret values into the backend container as environment variables at task launch — the application never calls the Secrets Manager API at runtime:
+
 ```typescript
-// Backend service retrieves secrets on startup
-const secrets = await secretsManager.getSecretValue({
-  SecretId: `semiont/${process.env.NODE_ENV}/database`
-}).promise();
+// cdk/app-stack.ts — backend container definition
+secrets: {
+  DB_USER: ecs.Secret.fromSecretsManager(dbCredentials, 'username'),
+  DB_PASSWORD: ecs.Secret.fromSecretsManager(dbCredentials, 'password'),
+  JWT_SECRET: ecs.Secret.fromSecretsManager(jwtSecret, 'jwtSecret'),
+  // ... GOOGLE_CLIENT_ID/SECRET, ADMIN_EMAIL, ADMIN_PASSWORD
+}
 ```
 
 ### Environment Variables
 
-Set via ECS task definitions:
+**Backend** (set via the ECS task definition):
 
-- `NODE_ENV` - Environment (development, staging, production)
-- `DATABASE_URL` - PostgreSQL connection string (from Secrets Manager)
-- `JWT_SECRET` - JWT signing key (from Secrets Manager)
-- `DATA_DIR` - EFS mount point for file storage
+- `NODE_ENV` - Runtime environment
+- `DB_HOST` / `DB_PORT` / `DB_NAME` - PostgreSQL endpoint (from Data Stack exports)
+- `DB_USER` / `DB_PASSWORD` / `JWT_SECRET` / `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` - Injected from Secrets Manager
+- `OAUTH_ALLOWED_DOMAINS` - Comma-separated OAuth email domains
+- `AWS_REGION` - For AWS SDK clients (S3 storage, Neptune graph)
+
+EFS is mounted at `/kb` (the backend image's working directory) for the knowledge-base git repo and working tree.
+
+**Frontend**: none. The image is a config-less static file server — the only variable it reads is `PORT` (default 3000). There is no backend URL to inject; users add knowledge-base origins in the app's connection panel and the browser talks to the backend directly.
 
 ## Health Checks
 
 ### ALB Health Checks
 
-- **Endpoint**: `GET /api/health`
-- **Interval**: 30 seconds
-- **Timeout**: 5 seconds
-- **Healthy threshold**: 2 consecutive successes
-- **Unhealthy threshold**: 3 consecutive failures
+Each target group has its own check (30-second interval, 10-second timeout, healthy after 2 successes, unhealthy after 5 failures):
+
+- **Backend**: `GET /api/health`
+- **Frontend**: `GET /`
 
 ### ECS Health Checks
 
-- **Container health check**: Docker HEALTHCHECK instruction
+- **Container health check**: node-based HTTP probe (the alpine images ship no curl) — 30-second interval, 5-second timeout, 3 retries, 1-minute start period
 - **Grace period**: 120 seconds for service startup
 - **Failure action**: Automatic task replacement
 
@@ -482,9 +476,10 @@ Set via ECS task definitions:
 
 2. **Infrastructure Redeployment**:
    ```bash
-   cd infrastructure
-   cdk deploy SemiontDataStack --profile production
-   cdk deploy SemiontAppStack --profile production
+   # From the project root (cdk.json lives there; stacks in cdk/)
+   npx cdk deploy SemiontDataStack
+   npx cdk deploy SemiontAppStack
+   # or equivalently: semiont provision
    ```
 
 3. **Application Rollback**:
@@ -499,7 +494,7 @@ Set via ECS task definitions:
 - **Multi-AZ RDS**: High availability for production
 - **ElastiCache**: Redis caching layer
 - **CloudFront Edge Functions**: Global compute distribution
-- **S3 for static assets**: Reduce ECS/ALB load
+- **S3 + CloudFront for the static SPA**: Reduce ECS/ALB load
 
 ### Security
 
@@ -525,7 +520,7 @@ Set via ECS task definitions:
 - Check security group rules
 
 **ALB Health Checks Failing**:
-- Verify `/api/health` endpoint responds
+- Verify the health endpoint responds (`/api/health` for the backend, `/` for the frontend)
 - Check ECS task is running
 - Review security group ingress rules
 
@@ -549,6 +544,6 @@ Set via ECS task definitions:
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2025-10-23
+**Document Version**: 1.1
+**Last Updated**: 2026-07-16
 **Target Platform**: AWS (ECS Fargate, RDS, EFS)

@@ -40,10 +40,6 @@ jobs:
         env:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=4096"
-          # Frontend environment variables
-          SEMIONT_BACKEND_URL: http://localhost:4000
-          SEMIONT_SITE_NAME: Semiont
-          SEMIONT_OAUTH_ALLOWED_DOMAINS: example.com,test.com
 
       - name: Run frontend tests
         run: |
@@ -254,9 +250,6 @@ jobs:
         env:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=4096"
-          # Frontend environment variables
-          SEMIONT_BACKEND_URL: http://localhost:4000
-          SEMIONT_SITE_NAME: Semiont
           # Backend environment variables
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-for-ci
@@ -347,9 +340,6 @@ jobs:
         env:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=4096"
-          # Frontend environment variables
-          SEMIONT_BACKEND_URL: http://localhost:4000
-          SEMIONT_SITE_NAME: Semiont
           # Backend environment variables for build
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-for-ci

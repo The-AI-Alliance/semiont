@@ -56,10 +56,6 @@ vi.mock('@/components/admin/AdminNavigation', () => ({
   AdminNavigation: () => <nav data-testid="admin-navigation">Admin Navigation</nav>,
 }));
 
-vi.mock('@/lib/env', () => ({
-  SEMIONT_SITE_NAME: 'Test Site',
-}));
-
 vi.mock('@/contexts/AuthShell', () => ({
   AuthShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));

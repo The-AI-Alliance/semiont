@@ -15,9 +15,6 @@ export default defineConfig({
       'url': path.resolve(__dirname, 'src/lib/browser-stubs/url.ts'),
     },
   },
-
-
-  envPrefix: ['VITE_', 'SEMIONT_'],
   build: {
     outDir: 'dist',
     sourcemap: true,
