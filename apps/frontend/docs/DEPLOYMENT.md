@@ -138,11 +138,7 @@ Image tagging strategy is controlled by `deployment.imageTagStrategy` in environ
         "desiredCount": 2
       },
       "url": "https://app.semiont.ai",
-      "port": 3000,
-      "env": {
-        "SEMIONT_BACKEND_URL": "http://backend-internal:4000",
-        "SEMIONT_SITE_NAME": "Semiont"
-      }
+      "port": 3000
     }
   },
   "deployment": {
@@ -155,8 +151,7 @@ Image tagging strategy is controlled by `deployment.imageTagStrategy` in environ
 
 ### Required Environment Variables
 
-**Frontend-specific**:
-- `SEMIONT_BACKEND_URL` - Backend API URL (embedded at build time; defaults to empty for relative-URL routing via Envoy)
+The frontend needs no backend-URL configuration: the SPA uses relative-URL routing via Envoy.
 
 **Important**: See [Container Guide](./CONTAINER.md) for details on build-time vs runtime environment variables.
 

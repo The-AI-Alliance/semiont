@@ -380,14 +380,7 @@ Environment variables are configured automatically based on your environment con
 }
 ```
 
-**2. Access in code** via validation schema in `src/lib/env.ts`:
-```typescript
-const envSchema = z.object({
-  SEMIONT_BACKEND_URL: z.string().url(),
-});
-```
-
-**3. Deployment**: Environment variables are set automatically during deployment based on your configuration.
+**2. Deployment**: Environment variables are set automatically during deployment based on your configuration.
 
 ## Debugging Tips
 
@@ -426,7 +419,6 @@ const envSchema = z.object({
 **Symptoms**: 404 or network errors when making API requests
 
 **Solutions**:
-- Verify `SEMIONT_BACKEND_URL` is set correctly
 - Check network tab for CORS issues
 - Ensure backend is running and accessible
 - Verify API endpoint path is correct
