@@ -1,6 +1,6 @@
 {
   "name": "@semiont/vectors",
-  "version": "0.5.13",
+  "version": "0.5.14",
   "engines": {
     "node": ">=24.0.0"
   },
