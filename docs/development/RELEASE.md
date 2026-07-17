@@ -291,8 +291,10 @@ gh workflow run release.yml
 gh run list --workflow=release.yml --limit=1
 gh run watch <run-id> --exit-status
 
-# 5. After the npm packages are live, publish the frontend container image
+# 5. After the npm packages are live, publish the container images
+#    (frontend + the four service images; the two workflows can run in parallel)
 gh workflow run publish-frontend.yml --field version=<version> --field tag_latest=true
+gh workflow run publish-service-images.yml --field version=<version> --field tag_latest=true
 
 # 6. Bump version for next development cycle
 ./scripts/release/version-bump.sh patch
@@ -336,12 +338,18 @@ npm install @semiont/frontend@dev
 ### Container Images
 
 The frontend container image is published to GHCR by
-[Step 1b](#step-1b-publish-the-frontend-container-image):
+[Step 1b](#step-1b-publish-the-frontend-container-image), and the four
+service images by `publish-service-images.yml`:
 
 ```bash
-docker pull ghcr.io/the-ai-alliance/semiont-frontend:0.5.6
 docker pull ghcr.io/the-ai-alliance/semiont-frontend:latest
+docker pull ghcr.io/the-ai-alliance/semiont-backend:latest
+docker pull ghcr.io/the-ai-alliance/semiont-worker:latest
+docker pull ghcr.io/the-ai-alliance/semiont-smelter:latest
+docker pull ghcr.io/the-ai-alliance/semiont-weaver:latest
 ```
+
+All five also carry `:<version>` (e.g. `:0.5.12`) and `:sha-<commit>` tags.
 
 
 ## Version Bump Guidelines
@@ -411,6 +419,7 @@ After releasing:
 - [ ] Verify npm packages published (including `@semiont/backend` and `@semiont/frontend`)
 - [ ] If desktop was checked, verify the desktop artifacts on the GitHub Release
 - [ ] Publish the frontend container image ([Step 1b](#step-1b-publish-the-frontend-container-image)) and confirm the `:<version>` and `:latest` tags on GHCR
+- [ ] Publish the four service images (`publish-service-images.yml`) and confirm `semiont-backend`, `semiont-worker`, `semiont-smelter`, and `semiont-weaver` carry `:<version>` and `:latest` on GHCR
 - [ ] Test installation: `npm install -g @semiont/cli@latest && semiont init && semiont provision`
 - [ ] Bump version for next cycle: `./scripts/release/version-bump.sh`
 
