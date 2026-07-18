@@ -48,7 +48,7 @@ Go module with no external dependencies. Build and test (hermetically — no Go
 on the host required):
 
 ```sh
-container run --rm -v "$(pwd)":/work -w /work/apps/launcher golang:1.24 \
+container run --rm -v "$(pwd)":/work -w /work/apps/launcher golang:1.25 \
   sh -c "go vet ./... && go test ./..."
 ```
 

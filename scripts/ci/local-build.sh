@@ -3,9 +3,11 @@ set -euo pipefail
 
 # Build all Semiont packages, publish to a local Verdaccio registry, and build
 # the service/frontend container images against it, tagged
-# ghcr.io/the-ai-alliance/semiont-<svc>:local (consumed by KB start.sh/compose
-# via SEMIONT_VERSION=local; never pushed).
-# No npm required on the host — everything runs inside containers.
+# ghcr.io/the-ai-alliance/semiont-<svc>:local (consumed by `semiont start` /
+# compose via SEMIONT_VERSION=local; never pushed). Also builds the semiont
+# launcher itself (apps/launcher/dist/semiont, a host binary) so one run
+# yields everything a fully-local stack needs.
+# No npm or Go required on the host — everything runs inside containers.
 #
 # Each run starts a fresh Verdaccio (no stale state), registers a user,
 # acquires an auth token, builds, publishes, and builds the images.
@@ -106,8 +108,9 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Build and publish @semiont/* packages to a local Verdaccio registry,"
       echo "then build the service container images against it, tagged"
-      echo "ghcr.io/the-ai-alliance/semiont-<svc>:local (local-only, never pushed)."
-      echo "No npm required on the host — everything runs inside containers."
+      echo "ghcr.io/the-ai-alliance/semiont-<svc>:local (local-only, never pushed),"
+      echo "plus the semiont launcher binary (apps/launcher/dist/semiont)."
+      echo "No npm or Go required on the host — everything runs inside containers."
       echo ""
       echo "Built images are also loaded into every other responsive container"
       echo "engine on the machine (container/docker/podman), so any KB --runtime"
@@ -303,8 +306,8 @@ BUILD_REGISTRY="http://$HOST_ADDR:4873"
 #
 # Same production Dockerfiles as the publish workflows, installed from the
 # local Verdaccio, tagged ghcr.io/the-ai-alliance/semiont-<svc>:local. The
-# :local tag is what KB start.sh / compose consume via SEMIONT_VERSION=local
-# (it skips the registry pull), and it is never pushed.
+# :local tag is what `semiont start` / compose consume via
+# SEMIONT_VERSION=local (it skips the registry pull), and it is never pushed.
 #
 # --no-cache is required for correctness, not caution: iterating republishes
 # the SAME version to Verdaccio, so the `npm install` RUN line is byte-identical
@@ -364,6 +367,40 @@ for img in $IMAGES; do
   fanout_image "$TAG"
 done
 
+# --- Build the launcher (host binary) ---
+#
+# The semiont launcher is a static Go binary that runs on the HOST and drives
+# the :local images (SEMIONT_VERSION=local semiont start). Built inside
+# golang:1.25 targeting the host platform — no Go toolchain on the host, the
+# same philosophy as the npm builds above. The Go build cache persists under
+# /tmp/semiont-gocache (/tmp, not $TMPDIR — Apple Container cannot sustain
+# mounts from /var/folders).
+
+banner "LAUNCHER"
+
+case "$(uname -s)" in
+  Darwin) LAUNCHER_GOOS=darwin ;;
+  Linux)  LAUNCHER_GOOS=linux ;;
+  *)      LAUNCHER_GOOS=linux; warn "Unrecognized host OS $(uname -s) — building a linux launcher" ;;
+esac
+case "$(uname -m)" in
+  arm64|aarch64) LAUNCHER_GOARCH=arm64 ;;
+  x86_64|amd64)  LAUNCHER_GOARCH=amd64 ;;
+  *)             LAUNCHER_GOARCH=amd64; warn "Unrecognized host arch $(uname -m) — building amd64" ;;
+esac
+
+GOCACHE_DIR=/tmp/semiont-gocache
+mkdir -p "$GOCACHE_DIR"
+step "Building the semiont launcher (${LAUNCHER_GOOS}/${LAUNCHER_GOARCH}) in golang:1.25..."
+$RT run --rm \
+  -v "$REPO_ROOT":/workspace \
+  -v "$GOCACHE_DIR":/root/.cache/go-build \
+  -w /workspace/apps/launcher \
+  -e GOOS="$LAUNCHER_GOOS" -e GOARCH="$LAUNCHER_GOARCH" -e CGO_ENABLED=0 \
+  golang:1.25 \
+  go build -o dist/semiont .
+ok "apps/launcher/dist/semiont built"
+
 banner "DONE ✓"
 
 if [[ -n "$FANOUT_FAILURES" ]]; then
@@ -380,10 +417,10 @@ fi
 echo -e "${BOLD}Run the full stack from your KB against these images:${RESET}"
 echo ""
 echo -e "    ${BOLD}cd /path/to/your-kb${RESET}"
-echo -e "    ${BOLD}SEMIONT_VERSION=local ./.semiont/scripts/start.sh${RESET} \\"
+echo -e "    ${BOLD}SEMIONT_VERSION=local $REPO_ROOT/apps/launcher/dist/semiont start${RESET} \\"
 echo -e "    ${BOLD}  --email admin@example.com --password password${RESET}"
 echo ""
-echo -e "  (start.sh skips the registry pull for ${DIM}local${RESET} and runs these images.)"
+echo -e "  (semiont start skips the registry pull for ${DIM}local${RESET} and runs these images.)"
 echo ""
 
 echo -e "${BOLD}Or run a single image, e.g. the frontend:${RESET}"
