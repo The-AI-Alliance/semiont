@@ -24,28 +24,14 @@ Commands:
   status    Report container state and application health per service
   logs      Follow the running stack's service logs
   stop      Stop the stack across all installed runtimes
+  about     What Semiont is, project links, and detected runtimes
   version   Print the launcher version
 
 Run 'semiont <command> --help' for command options.
 `)
 }
 
-// suppressHeader: the brand header stays off the machine seams — --dry-run
-// output is a consumable plan, --quiet is quiet.
-func suppressHeader(args []string) bool {
-	for _, a := range args {
-		switch a {
-		case "--quiet", "-q", "--dry-run":
-			return true
-		}
-	}
-	return false
-}
-
 func main() {
-	if !suppressHeader(os.Args[1:]) {
-		launcher.PrintPreamble()
-	}
 	if len(os.Args) < 2 {
 		usage(os.Stderr)
 		os.Exit(1)
@@ -61,6 +47,8 @@ func main() {
 		code = launcher.Logs(rest)
 	case "stop":
 		code = launcher.Stop(rest)
+	case "about":
+		code = launcher.About(rest)
 	case "version", "--version":
 		code = launcher.Version(rest)
 	case "--help", "-h", "help":

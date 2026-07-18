@@ -242,9 +242,6 @@ func TestStartDefaultBoot(t *testing.T) {
 	}
 	checkGolden(t, "start-default-boot.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"🌐 Semiont",
-		"🌎🌍 The AI Alliance",
-		"✨ Make Meaning",
 		"🚀 Semiont stack is up",
 		"http://localhost:3000",
 		"http://localhost:4000",
@@ -683,6 +680,32 @@ func TestBareFlagsHintAtStart(t *testing.T) {
 		"did you mean:  semiont start --config anthropic --force-kill-ports")
 }
 
+// --- about ---
+
+func TestAbout(t *testing.T) {
+	s := newScenario(t, "container", "docker")
+	stdout, _, code := s.run(t, "about")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d", code)
+	}
+	if !strings.HasPrefix(stdout, "Semiont 🌐\n") {
+		t.Errorf("about must begin with the Semiont title line, got:\n%s", stdout)
+	}
+	if !strings.HasSuffix(stdout, "✨ Make Meaning\n") {
+		t.Errorf("about must sign off with Make Meaning, got:\n%s", stdout)
+	}
+	mustContain(t, "stdout", stdout,
+		"The AI Alliance 🌎🌍",
+		"semantic knowledge platform",
+		"https://the-ai-alliance.github.io/semiont/",
+		"https://github.com/The-AI-Alliance/semiont",
+		"ghcr.io/the-ai-alliance",
+		"Apache-2.0",
+		"container, docker",
+		"semiont start --help",
+	)
+}
+
 // --- version ---
 
 func TestVersion(t *testing.T) {
@@ -692,9 +715,9 @@ func TestVersion(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("%s: want exit 0, got %d", arg, code)
 		}
-		// Every command opens with the brand header (dispatch prints it).
-		mustContain(t, "stdout for "+arg, stdout,
-			"🌐 Semiont",
-			"semiont dev (commit none, built unknown)")
+		// Exactly one machine-friendly line — no header, no decoration.
+		if stdout != "semiont dev (commit none, built unknown)\n" {
+			t.Errorf("stdout for %s not a bare version line:\n%s", arg, stdout)
+		}
 	}
 }

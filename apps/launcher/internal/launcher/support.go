@@ -76,24 +76,6 @@ func (u *ui) banner(s string) {
 	fmt.Printf("\n%s\n", u.bold(s))
 }
 
-// PrintPreamble prints the Semiont brand line, mirroring apps/cli's
-// getPreamble (core/io/cli-colors.ts) so the two CLIs read as one family.
-// The dispatcher prints it for every command; --quiet and --dry-run keep it
-// off the machine seams.
-func PrintPreamble() {
-	u := newUI(false)
-	version := BuildVersion
-	if version != "dev" {
-		version = "v" + version
-	}
-	fmt.Printf("%s %s | %s | %s\n",
-		u.bold("🌐 Semiont"),
-		u.dim(version),
-		u.wrap(ansiCyan, "🌎🌍 The AI Alliance"),
-		u.wrap(ansiMagenta, "✨ Make Meaning"))
-	fmt.Println(u.dim(strings.Repeat("━", 51)))
-}
-
 func (u *ui) stamp(event string) {
 	fmt.Println(u.dim(fmt.Sprintf("[%s] %s", time.Now().Format("2006-01-02 15:04:05"), event)))
 }

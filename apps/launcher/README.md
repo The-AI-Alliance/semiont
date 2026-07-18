@@ -37,6 +37,8 @@ semiont stop
   service is healthy — scriptable).
 - `semiont stop` sweeps **every** installed runtime by default, so a stack
   started under `--runtime docker` can't survive a plain stop.
+- `semiont about` shows what Semiont is, project links, the image registry,
+  and which runtimes were detected on PATH.
 - `SEMIONT_VERSION` selects the service image tag (default `latest`; the
   sentinel `local` uses locally-built `:local` images and skips pulls).
 
