@@ -56,7 +56,7 @@ jobs:
     # Go is a compiled language: the CodeQL extractor needs a real build to trace.
     - name: Setup Go
       if: matrix.language == 'go'
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6.5.0
       with:
         go-version-file: apps/launcher/go.mod
 
