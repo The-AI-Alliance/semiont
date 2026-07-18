@@ -39,6 +39,14 @@ semiont stop
   started under `--runtime docker` can't survive a plain stop.
 - `semiont about` shows what Semiont is, project links, the image registry,
   and which runtimes were detected on PATH.
+- `start`, `stop`, and `status` take `--service <name>` to act on one service
+  (any of the ten: jaeger, neo4j, qdrant, ollama, postgres, backend, worker,
+  smelter, weaver, frontend). A `--service` start rejoins the running stack's
+  worker secret automatically (recovered from a running container's env via
+  the runtime's inspect), auto-enables OTel iff Jaeger is up, and stages a
+  fresh private config copy; a `--service` stop leaves the staged configs in
+  place (the rest of the stack still mounts them); a `--service` status exits
+  0/1 on that service alone.
 - `SEMIONT_VERSION` selects the service image tag (default `latest`; the
   sentinel `local` uses locally-built `:local` images and skips pulls).
 

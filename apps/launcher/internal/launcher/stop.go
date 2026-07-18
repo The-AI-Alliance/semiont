@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const stopUsage = `Usage: semiont stop [--runtime container|docker|podman] [--dry-run]
+const stopUsage = `Usage: semiont stop [--service <name>] [--runtime container|docker|podman] [--dry-run]
 
 Stop the whole Semiont stack — services, dependencies, and observability —
 and clean up the staged config copies. Safe to run when nothing is up:
@@ -16,6 +16,11 @@ every step is a no-op then.
 
 With no --runtime, EVERY installed runtime is swept — stopping via the wrong
 runtime is a silent no-op that leaves the real stack running.
+
+With --service <name>, stop just that one service (jaeger, neo4j, qdrant,
+ollama, postgres, backend, worker, smelter, weaver, or frontend). The staged
+config copies are left in place — the rest of the stack is still mounting
+them.
 `
 
 // stopNames sweeps all ten container names in REVERSE start order —
@@ -32,6 +37,7 @@ var stopNames = []string{
 func Stop(args []string) int {
 	u := newUI(false)
 	runtime := ""
+	service := ""
 	dryRun := false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -42,6 +48,13 @@ func Stop(args []string) int {
 			}
 			runtime = args[i+1]
 			i++
+		case "--service":
+			if i+1 >= len(args) {
+				u.fail("Missing value for --service")
+				return 1
+			}
+			service = args[i+1]
+			i++
 		case "--dry-run":
 			dryRun = true
 		case "--help", "-h":
@@ -51,6 +64,19 @@ func Stop(args []string) int {
 			u.fail("Unknown argument: %s", args[i])
 			return 1
 		}
+	}
+
+	// One service, or the whole stack. With --service, the staged configs
+	// survive: the rest of the stack is still live-mounting them, and deleting
+	// backing files under a live mount is the exact failure the per-service
+	// staging exists to prevent.
+	names := stopNames
+	if service != "" {
+		if _, known := startableServices[service]; !known {
+			u.fail("Unknown --service '%s' (expected: jaeger, neo4j, qdrant, ollama, postgres, backend, worker, smelter, weaver, or frontend)", service)
+			return 1
+		}
+		names = []string{"semiont-" + service}
 	}
 
 	// Which runtimes to sweep: the requested one, or EVERY installed runtime.
@@ -77,24 +103,28 @@ func Stop(args []string) int {
 		fmt.Println("# semiont stop --dry-run — the exact runtime commands a real run would")
 		fmt.Println("# execute, in order.")
 		for _, rt := range runtimes {
-			for _, c := range stopNames {
+			for _, c := range names {
 				fmt.Println(renderCmd(rt, "stop", c))
 				fmt.Println(renderCmd(rt, "rm", c))
 			}
 		}
-		fmt.Println("# remove staged config copies: /tmp/semiont-config.*")
+		if service == "" {
+			fmt.Println("# remove staged config copies: /tmp/semiont-config.*")
+		} else {
+			fmt.Println("# staged config copies left in place (--service)")
+		}
 		return 0
 	}
 
 	// stop-then-rm: under Apple Container a stopped --rm container persists
 	// (the next `run --name` would fail with "already exists"), so rm makes
 	// this idempotent across all three states: running, stopped, absent.
-	u.log("Sweeping %d container names across %s %s", len(stopNames),
+	u.log("Sweeping %d container name(s) across %s %s", len(names),
 		strings.Join(runtimes, ", "), u.dim("(stop+rm each; exact commands: semiont stop --dry-run)"))
 	for _, rt := range runtimes {
 		t0 := time.Now()
 		removed := 0
-		for _, c := range stopNames {
+		for _, c := range names {
 			stopped := runSilent(rt, "stop", c) == nil
 			rmed := runSilent(rt, "rm", c) == nil
 			if stopped || rmed {
@@ -107,6 +137,11 @@ func Stop(args []string) int {
 		} else {
 			u.ok("%s: %d removed %s", rt, removed, elapsed)
 		}
+	}
+
+	if service != "" {
+		fmt.Printf("%s stopped (staged configs left in place; rest of the stack untouched).\n", service)
+		return 0
 	}
 
 	// Per-service config copies staged by semiont start for the bind mounts.

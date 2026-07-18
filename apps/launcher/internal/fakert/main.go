@@ -163,16 +163,27 @@ func runtimeCmd(base string, args []string) {
 	case "inspect":
 		// Scripted via FAKERT_STATE_<svc> (svc = name minus "semiont-"),
 		// e.g. FAKERT_STATE_backend=running. Unset = container not found.
+		// With FAKERT_SECRET set, the env list carries the worker secret —
+		// exercising the launcher's --service secret recovery.
 		svc := strings.TrimPrefix(args[len(args)-1], "semiont-")
 		state := os.Getenv("FAKERT_STATE_" + svc)
 		if state == "" {
 			fmt.Fprintln(os.Stderr, "Error: no such container")
 			os.Exit(1)
 		}
-		if base == "container" {
-			fmt.Printf(`[{"status":%q}]`+"\n", state)
-		} else {
+		env := "[]"
+		if s := os.Getenv("FAKERT_SECRET"); s != "" {
+			env = fmt.Sprintf(`["PATH=/usr/bin","SEMIONT_WORKER_SECRET=%s"]`, s)
+		}
+		switch {
+		case len(args) > 1 && args[1] == "-f":
+			// docker/podman status form: inspect -f {{.State.Status}} <name>
 			fmt.Println(state)
+		case base == "container":
+			fmt.Printf(`[{"configuration":{"initProcess":{"environment":%s}},"status":%q}]`+"\n", env, state)
+		default:
+			// docker/podman full form: inspect <name>
+			fmt.Printf(`[{"Config":{"Env":%s},"State":{"Status":%q}}]`+"\n", env, state)
 		}
 	case "run":
 		run(args)

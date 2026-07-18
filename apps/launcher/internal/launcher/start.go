@@ -66,6 +66,7 @@ var (
 
 type startOptions struct {
 	configName     string
+	configSet      bool // --config given explicitly (drives --service compatibility)
 	listConfigs    bool
 	adminEmail     string
 	adminPassword  string
@@ -73,9 +74,11 @@ type startOptions struct {
 	forceKillPorts bool
 	runtime        string
 	observe        bool
+	noObserveSet   bool // --no-observe given explicitly
 	quiet          bool
 	dryRun         bool
 	ollamaCache    string // "", "host", or "volume"
+	service        string // start just this one service
 }
 
 const startUsage = `Usage: semiont start [options]
@@ -87,6 +90,11 @@ the Semiont API server, worker, smelter, weaver, and the frontend
 Options:
   --config <name>       Semiontconfig to use (default: ollama-gemma)
   --list-configs        List available configs and exit
+  --service <name>      Start (restart) just this one service, leaving the rest
+                        of the stack untouched: jaeger, neo4j, qdrant, ollama,
+                        postgres, backend, worker, smelter, weaver, or frontend.
+                        Rejoins a running stack's worker secret automatically;
+                        OTel export is enabled iff Jaeger is up.
   --email <email>       Admin user email (requires --password)
   --password <pass>     Admin user password (requires --email)
   --clean-ollama        Remove the Ollama model cache volume and exit
@@ -136,6 +144,14 @@ func Start(args []string) int {
 				return 1
 			}
 			opts.configName = v
+			opts.configSet = true
+			i++
+		case "--service":
+			v, ok := needVal(i)
+			if !ok {
+				return 1
+			}
+			opts.service = v
 			i++
 		case "--list-configs":
 			opts.listConfigs = true
@@ -166,6 +182,7 @@ func Start(args []string) int {
 			i++
 		case "--no-observe":
 			opts.observe = false
+			opts.noObserveSet = true
 		case "--ollama-cache":
 			v, ok := needVal(i)
 			if !ok {
@@ -190,6 +207,35 @@ func Start(args []string) int {
 	default:
 		u.fail("Unknown --ollama-cache '%s' (expected: host or volume)", opts.ollamaCache)
 		return 1
+	}
+
+	// --service compatibility: flags that don't apply to the named service are
+	// rejected rather than silently ignored.
+	if opts.service != "" {
+		if _, known := startableServices[opts.service]; !known {
+			u.fail("Unknown --service '%s' (expected: jaeger, neo4j, qdrant, ollama, postgres, backend, worker, smelter, weaver, or frontend)", opts.service)
+			return 1
+		}
+		switch {
+		case opts.listConfigs:
+			u.fail("--list-configs cannot be combined with --service.")
+			return 1
+		case opts.cleanOllama:
+			u.fail("--clean-ollama cannot be combined with --service.")
+			return 1
+		case opts.noObserveSet:
+			u.fail("--no-observe does not apply to --service: OTel export is enabled iff Jaeger is already running.")
+			return 1
+		case (opts.adminEmail != "" || opts.adminPassword != "") && opts.service != "backend":
+			u.fail("--email/--password only apply to --service backend.")
+			return 1
+		case opts.ollamaCache != "" && opts.service != "ollama":
+			u.fail("--ollama-cache only applies to --service ollama.")
+			return 1
+		case opts.configSet && !isConfigConsumer(opts.service):
+			u.fail("--config only applies to --service backend, worker, smelter, or weaver.")
+			return 1
+		}
 	}
 
 	// Dry-run output is a machine-consumable plan; keep the narration off it.
@@ -234,12 +280,16 @@ func Start(args []string) int {
 		printConfigNames()
 		return 0
 	}
+	// Services that never read the config (infra, frontend) don't require it.
+	configNeeded := opts.service == "" || isConfigConsumer(opts.service)
 	configFile := filepath.Join(configDir, opts.configName+".toml")
-	if _, err := os.Stat(configFile); err != nil {
-		u.fail("Config not found: %s", configFile)
-		fmt.Println("Available configs:")
-		printConfigNames()
-		return 1
+	if configNeeded {
+		if _, err := os.Stat(configFile); err != nil {
+			u.fail("Config not found: %s", configFile)
+			fmt.Println("Available configs:")
+			printConfigNames()
+			return 1
+		}
 	}
 
 	rt, ok := selectRuntime(u, opts.runtime)
@@ -270,33 +320,43 @@ func Start(args []string) int {
 
 	u.banner("Semiont Local Backend")
 	u.log("Container runtime: %s", u.bold(rt))
-	u.log("Config: %s", u.bold(opts.configName))
+	if configNeeded {
+		u.log("Config: %s", u.bold(opts.configName))
+	}
 	u.log("Image version: %s", u.bold(version))
 
-	userVars, err := requiredConfigVars(configFile)
-	if err != nil {
-		u.fail("Reading %s: %v", configFile, err)
-		return 1
-	}
 	var userEnv []string
-	for _, v := range userVars {
-		if opts.dryRun {
-			userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
-			continue
-		}
-		val := os.Getenv(v)
-		if val == "" {
-			u.fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
+	if configNeeded {
+		userVars, err := requiredConfigVars(configFile)
+		if err != nil {
+			u.fail("Reading %s: %v", configFile, err)
 			return 1
 		}
-		userEnv = append(userEnv, "--env", v+"="+val)
+		for _, v := range userVars {
+			if opts.dryRun {
+				userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
+				continue
+			}
+			val := os.Getenv(v)
+			if val == "" {
+				u.fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
+				return 1
+			}
+			userEnv = append(userEnv, "--env", v+"="+val)
+		}
 	}
 
 	if opts.dryRun {
-		renderStartPlan(rt, version, opts, userEnv)
+		if opts.service != "" {
+			renderServicePlan(rt, version, opts, userEnv)
+		} else {
+			renderStartPlan(rt, version, opts, userEnv)
+		}
 		return 0
 	}
-
+	if opts.service != "" {
+		return runStartService(u, rt, version, root, configFile, opts, userEnv)
+	}
 	return runStart(u, rt, version, root, configFile, opts, userEnv)
 }
 
@@ -421,6 +481,77 @@ func pullArgs(rt, img string) []string {
 }
 
 var semiontServices = []string{"backend", "worker", "smelter", "weaver", "frontend"}
+
+// sidecarSpecs: the three make-meaning sidecars, in start order.
+var sidecarSpecs = []struct {
+	svc, label, mem, banner string
+	port                    int
+}{
+	{"worker", "Worker pool", "2G", "Starting Worker Pool", 9090},
+	{"smelter", "Smelter", "2G", "Starting Smelter", 9091},
+	{"weaver", "Weaver", "3G", "Starting Weaver", 9092},
+}
+
+// runGated: the common run-detached-then-health-gate shape.
+func runGated(u *ui, rt string, args []string, failLabel, waitLabel, url string, tries int) (time.Duration, bool) {
+	u.echoCmd(rt, args...)
+	if err := runDetached(rt, args...); err != nil {
+		u.fail("%s failed to start.", failLabel)
+		return 0, false
+	}
+	return waitForHTTP(u, waitLabel, url, tries)
+}
+
+// runBackend starts the backend and runs BOTH its gates: host-side health,
+// then container-gateway reachability — the sidecars dial addr:4000 (not
+// localhost) and fatally exit if their first backend fetch fails, so host
+// health alone doesn't prove the path they need.
+func runBackend(u *ui, rt, root, stage, addr, secret, version string, userEnv, otel, admin []string) int {
+	bArgs := backendArgs(root, stage, addr, secret, version, userEnv, otel, admin)
+	u.echoCmd(rt, bArgs...)
+	if err := runDetached(rt, bArgs...); err != nil {
+		u.fail("Backend failed to start.")
+		return 1
+	}
+	u.log("Waiting for backend health...")
+	d, ok := waitForHTTP(u, "Backend", "http://localhost:4000/api/health", 120)
+	if !ok {
+		return 1
+	}
+	u.ok("Backend healthy %s", u.dim("("+took(d)+")"))
+
+	u.log("Verifying backend reachable from containers...")
+	reachT0 := time.Now()
+	reachable := false
+	for i := 0; i < 20; i++ {
+		if runSilent(rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
+			fmt.Sprintf("wget -q -O- http://%s:4000/api/health", addr)) == nil {
+			reachable = true
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if !reachable {
+		u.fail("Backend not reachable from containers at %s:4000 within 20s.", addr)
+		return 1
+	}
+	u.ok("Backend reachable from containers %s", u.dim("("+took(time.Since(reachT0))+")"))
+	return 0
+}
+
+// runSidecar starts one make-meaning sidecar and gates on its /health.
+func runSidecar(u *ui, rt string, sc struct {
+	svc, label, mem, banner string
+	port                    int
+}, stage, addr, secret, version string, userEnv, otel []string) int {
+	args := sidecarArgs(sc.svc, sc.mem, sc.port, stage, addr, secret, version, userEnv, otel)
+	d, ok := runGated(u, rt, args, sc.label, sc.label, fmt.Sprintf("http://localhost:%d/health", sc.port), 30)
+	if !ok {
+		return 1
+	}
+	u.ok("%s healthy (http://localhost:%d) %s", sc.label, sc.port, u.dim("("+took(d)+")"))
+	return 0
+}
 
 // --- The real run ---
 
@@ -618,75 +749,25 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		admin = []string{"--env", "ADMIN_EMAIL=" + opts.adminEmail, "--env", "ADMIN_PASSWORD=" + opts.adminPassword}
 		u.log("Admin user: %s", u.bold(opts.adminEmail))
 	}
-	bArgs := backendArgs(root, stage, addr, secret, version, userEnv, otel, admin)
-	u.echoCmd(rt, bArgs...)
-	if err := runDetached(rt, bArgs...); err != nil {
-		u.fail("Backend failed to start.")
-		return 1
+	if code := runBackend(u, rt, root, stage, addr, secret, version, userEnv, otel, admin); code != 0 {
+		return code
 	}
-	u.log("Waiting for backend health...")
-	d, ok = waitForHTTP(u, "Backend", "http://localhost:4000/api/health", 120)
-	if !ok {
-		return 1
-	}
-	u.ok("Backend healthy %s", u.dim("("+took(d)+")"))
-
-	// The sidecars reach the backend from inside a container over the gateway
-	// (addr:4000), not localhost — and each fatally exits if its first backend
-	// fetch fails. The health check above is from the host, so also confirm
-	// the gateway path is reachable before starting the dependents.
-	u.log("Verifying backend reachable from containers...")
-	reachT0 := time.Now()
-	reachable := false
-	for i := 0; i < 20; i++ {
-		if runSilent(rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
-			fmt.Sprintf("wget -q -O- http://%s:4000/api/health", addr)) == nil {
-			reachable = true
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	if !reachable {
-		u.fail("Backend not reachable from containers at %s:4000 within 20s.", addr)
-		return 1
-	}
-	u.ok("Backend reachable from containers %s", u.dim("("+took(time.Since(reachT0))+")"))
 
 	// The weaver note: the graph projection is standalone-only — the backend
 	// no longer applies events to Neo4j in-process. Without the weaver the
 	// graph stays empty and every gather 404s at the buildKnowledgeGraph
 	// barrier. Its health reports readiness before catch-up completes.
-	for _, sc := range []struct {
-		svc, label, mem, banner string
-		port                    int
-	}{
-		{"worker", "Worker pool", "2G", "Starting Worker Pool", 9090},
-		{"smelter", "Smelter", "2G", "Starting Smelter", 9091},
-		{"weaver", "Weaver", "3G", "Starting Weaver", 9092},
-	} {
+	for _, sc := range sidecarSpecs {
 		u.banner(sc.banner)
-		args := sidecarArgs(sc.svc, sc.mem, sc.port, stage, addr, secret, version, userEnv, otel)
-		u.echoCmd(rt, args...)
-		if err := runDetached(rt, args...); err != nil {
-			u.fail("%s failed to start.", sc.label)
-			return 1
+		if code := runSidecar(u, rt, sc, stage, addr, secret, version, userEnv, otel); code != 0 {
+			return code
 		}
-		d, ok = waitForHTTP(u, sc.label, fmt.Sprintf("http://localhost:%d/health", sc.port), 30)
-		if !ok {
-			return 1
-		}
-		u.ok("%s healthy (http://localhost:%d) %s", sc.label, sc.port, u.dim("("+took(d)+")"))
 	}
 
 	// Frontend: a static SPA server — no config mount and no service env; the
 	// browser talks to the backend directly on localhost:4000.
 	u.banner("Starting Frontend")
-	u.echoCmd(rt, frontendArgs(version)...)
-	if err := runDetached(rt, frontendArgs(version)...); err != nil {
-		u.fail("Frontend failed to start.")
-		return 1
-	}
-	d, ok = waitForHTTP(u, "Frontend", "http://localhost:3000", 30)
+	d, ok = runGated(u, rt, frontendArgs(version), "Frontend", "Frontend", "http://localhost:3000", 30)
 	if !ok {
 		return 1
 	}

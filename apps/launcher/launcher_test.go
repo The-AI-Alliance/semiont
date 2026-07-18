@@ -496,7 +496,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 10 container names across container, docker, podman",
+		"Sweeping 10 container name(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -623,6 +623,170 @@ func TestStatusNoRuntime(t *testing.T) {
 		t.Fatalf("want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr, "No container runtime found. Install Apple Container, Docker, or Podman.")
+}
+
+// --- start --service ---
+
+func TestStartServiceWorker(t *testing.T) {
+	// Backend already running with a secret in its env; Jaeger up on 16686.
+	// Restarting the worker must rejoin the recovered secret (not the env
+	// one), auto-enable OTel, stage a fresh private config, and leave the
+	// rest of the stack untouched.
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_STATE_backend=running",
+		"FAKERT_SECRET=recovered-secret-123",
+	)
+	serveHealth(t, 16686)
+	stdout, stderr, code := s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"Restarting worker",
+		"Jaeger detected — OTel export enabled",
+		"Worker secret: (recovered from semiont-backend)",
+		"SEMIONT_WORKER_SECRET=<redacted>",
+		"🚀 worker is up",
+		"semiont status",
+	)
+	if strings.Contains(stdout, "recovered-secret-123") {
+		t.Error("recovered secret leaked into stdout")
+	}
+	argv := s.argv(t)
+	mustContain(t, "argv", argv,
+		"stop semiont-worker",
+		"rm semiont-worker",
+		"image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
+		"inspect semiont-backend",
+		"--env SEMIONT_WORKER_SECRET=recovered-secret-123",
+		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
+		"<config-stage>/worker.toml:/home/semiont/.semiontconfig:ro",
+	)
+	for _, absent := range []string{"run -d --rm --name semiont-neo4j", "run -d --rm --name semiont-backend", "semiont-frontend"} {
+		if strings.Contains(argv, absent) {
+			t.Errorf("--service worker touched the wider stack: %q in argv", absent)
+		}
+	}
+}
+
+func TestStartServiceNeo4j(t *testing.T) {
+	// Infra service: no config, no secret, no host-addr probe, no pull
+	// (pinned image) — just its own stop+rm, run, and health gate.
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "start", "--service", "neo4j")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Restarting neo4j", "🚀 neo4j is up")
+	argv := s.argv(t)
+	mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --rm --name semiont-neo4j")
+	for _, absent := range []string{"image pull", "busybox", "inspect"} {
+		if strings.Contains(argv, absent) {
+			t.Errorf("infra --service ran needless step: %q in argv", absent)
+		}
+	}
+}
+
+func TestStartServiceDryRunWorker(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, _, code := s.run(t, "start", "--service", "worker", "--dry-run")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d", code)
+	}
+	mustContain(t, "stdout", stdout,
+		"semiont start --service worker --dry-run",
+		"container stop semiont-worker",
+		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
+		"worker secret: recovered from a running Semiont container's env",
+		"<config-stage>/worker.toml",
+		"wait: http://localhost:9090/health (30s)",
+	)
+	if strings.Contains(stdout, "semiont-neo4j") {
+		t.Error("service plan leaked the wider stack")
+	}
+	// Dry run must execute nothing beyond KB-root resolution.
+	if got := s.argv(t); got != "git rev-parse --show-toplevel\n" {
+		t.Errorf("dry-run executed runtime commands:\n%s", got)
+	}
+}
+
+func TestStartServiceRejections(t *testing.T) {
+	s := newScenario(t, "container")
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"start", "--service", "bogus"}, "Unknown --service 'bogus'"},
+		{[]string{"start", "--service", "worker", "--email", "a@b.co", "--password", "password123"}, "--email/--password only apply to --service backend."},
+		{[]string{"start", "--service", "neo4j", "--config", "anthropic"}, "--config only applies to --service backend, worker, smelter, or weaver."},
+		{[]string{"start", "--service", "worker", "--no-observe"}, "--no-observe does not apply to --service"},
+		{[]string{"start", "--service", "worker", "--ollama-cache", "host"}, "--ollama-cache only applies to --service ollama."},
+		{[]string{"start", "--service", "worker", "--list-configs"}, "--list-configs cannot be combined with --service."},
+	} {
+		_, stderr, code := s.run(t, tc.args...)
+		if code != 1 {
+			t.Errorf("%v: want exit 1, got %d", tc.args, code)
+		}
+		mustContain(t, fmt.Sprintf("stderr for %v", tc.args), stderr, tc.want)
+	}
+}
+
+// --- stop --service ---
+
+func TestStopService(t *testing.T) {
+	s := newScenario(t, "container", "docker", "podman")
+	stage, err := os.MkdirTemp("/tmp", "semiont-config.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(stage) })
+	stdout, _, code := s.run(t, "stop", "--service", "weaver")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d", code)
+	}
+	mustContain(t, "stdout", stdout,
+		"Sweeping 1 container name(s) across container, docker, podman",
+		"weaver stopped (staged configs left in place; rest of the stack untouched).")
+	if strings.Contains(stdout, "Semiont stack stopped.") {
+		t.Error("--service printed the full-stack message")
+	}
+	if _, err := os.Stat(stage); err != nil {
+		t.Errorf("--service stop removed the staged configs: %v", err)
+	}
+	argv := s.argv(t)
+	for _, rt := range []string{"container", "docker", "podman"} {
+		mustContain(t, "argv", argv, rt+" stop semiont-weaver", rt+" rm semiont-weaver")
+	}
+	if strings.Contains(argv, "semiont-backend") {
+		t.Error("--service weaver touched other containers")
+	}
+}
+
+// --- status --service ---
+
+func TestStatusService(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")
+	serveHealth(t, 4000)
+	stdout, _, code := s.run(t, "status", "--service", "backend")
+	if code != 0 {
+		t.Fatalf("healthy backend: want exit 0, got %d\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "stdout", stdout, "backend", "running", "✓ http://localhost:4000/api/health")
+	for _, absent := range []string{"LOCAL HOST DIRECTORIES", "worker", "jaeger"} {
+		if strings.Contains(stdout, absent) {
+			t.Errorf("filtered status leaked %q:\n%s", absent, stdout)
+		}
+	}
+
+	// A down service — and non-core Jaeger when asked for explicitly — exits 1.
+	if _, _, code := s.run(t, "status", "--service", "worker"); code != 1 {
+		t.Errorf("down worker: want exit 1, got %d", code)
+	}
+	if _, _, code := s.run(t, "status", "--service", "jaeger"); code != 1 {
+		t.Errorf("down jaeger (explicit): want exit 1, got %d", code)
+	}
 }
 
 // --- logs ---

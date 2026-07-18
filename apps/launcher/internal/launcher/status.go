@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 )
 
-const statusUsage = `Usage: semiont status [--runtime container|docker|podman]
+const statusUsage = `Usage: semiont status [--service <name>] [--runtime container|docker|podman]
 
 Report each Semiont container's runtime state and application-level health.
 
@@ -27,6 +27,10 @@ model cache.
 
 Exit status: 0 when every core service is healthy (Jaeger is observability,
 not core), 1 otherwise.
+
+With --service <name>, report just that one service — the exit status then
+reflects that service alone (Jaeger included), making it scriptable:
+  semiont status --service backend && echo up
 `
 
 // statusServices drives the report, in user-facing-first order with each
@@ -56,6 +60,7 @@ var statusServices = []struct {
 func Status(args []string) int {
 	u := newUI(false)
 	runtime := ""
+	service := ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--runtime":
@@ -65,11 +70,24 @@ func Status(args []string) int {
 			}
 			runtime = args[i+1]
 			i++
+		case "--service":
+			if i+1 >= len(args) {
+				u.fail("Missing value for --service")
+				return 1
+			}
+			service = args[i+1]
+			i++
 		case "--help", "-h":
 			fmt.Print(statusUsage)
 			return 0
 		default:
 			u.fail("Unknown argument: %s", args[i])
+			return 1
+		}
+	}
+	if service != "" {
+		if _, known := startableServices[service]; !known {
+			u.fail("Unknown --service '%s' (expected: jaeger, neo4j, qdrant, ollama, postgres, backend, worker, smelter, weaver, or frontend)", service)
 			return 1
 		}
 	}
@@ -92,6 +110,9 @@ func Status(args []string) int {
 	fmt.Printf("  %-10s %-10s %-10s %s\n", "SERVICE", "CONTAINER", "RUNTIME", "HEALTH")
 	allCoreHealthy := true
 	for _, svc := range statusServices {
+		if service != "" && svc.name != service {
+			continue
+		}
 		state, rt := containerState(runtimes, "semiont-"+svc.name)
 		healthy := probeHealth(svc.endpoint)
 
@@ -101,7 +122,9 @@ func Status(args []string) int {
 			rt = "host"
 		}
 
-		if svc.core && !healthy {
+		// Filtered to one service, its health IS the exit status — Jaeger
+		// included: asking about it explicitly makes it the question.
+		if !healthy && (svc.core || service != "") {
 			allCoreHealthy = false
 		}
 
@@ -129,7 +152,9 @@ func Status(args []string) int {
 			svc.name, 10+utf8.RuneCountInString(stateCol)-visibleLen(stateCol), stateCol,
 			10+utf8.RuneCountInString(rt)-visibleLen(rt), rt, healthCol)
 	}
-	printHostDirs(u)
+	if service == "" {
+		printHostDirs(u)
+	}
 
 	if allCoreHealthy {
 		return 0
