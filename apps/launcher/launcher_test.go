@@ -526,6 +526,89 @@ func TestStopDryRun(t *testing.T) {
 	}
 }
 
+// --- status ---
+
+// serveHealth binds 200-answering listeners on the given fixed ports (also
+// satisfies raw TCP dials), closed on test cleanup.
+func serveHealth(t *testing.T, ports ...int) {
+	t.Helper()
+	for _, p := range ports {
+		ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p))
+		if err != nil {
+			t.Fatalf("port %d unavailable for health simulation: %v", p, err)
+		}
+		srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, "ok")
+		})}
+		go srv.Serve(ln)
+		t.Cleanup(func() { srv.Close() })
+	}
+}
+
+func TestStatusMixed(t *testing.T) {
+	// docker-only runtime; backend running+healthy, worker running but
+	// unhealthy, smelter exited, everything else absent — except a host
+	// Ollama answering with no container, which must report runtime "host".
+	s := newScenario(t, "docker")
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_STATE_backend=running",
+		"FAKERT_STATE_worker=running",
+		"FAKERT_STATE_smelter=exited",
+	)
+	serveHealth(t, 4000, 11434)
+	stdout, stderr, code := s.run(t, "status")
+	if code != 1 {
+		t.Fatalf("want exit 1 with unhealthy core services, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"SERVICE", "CONTAINER", "RUNTIME", "HEALTH",
+		"✓ http://localhost:4000/api/health",
+		"✗ http://localhost:9090/health",
+		"✗ tcp://localhost:5432",
+		"exited",
+		"host",
+	)
+	for _, line := range strings.Split(stdout, "\n") {
+		switch {
+		case strings.Contains(line, "backend"):
+			mustContain(t, "backend row", line, "running", "docker", "✓")
+		case strings.Contains(line, "worker"):
+			mustContain(t, "worker row", line, "running", "✗")
+		case strings.Contains(line, "ollama"):
+			mustContain(t, "ollama row", line, "host", "✓")
+		case strings.Contains(line, "weaver"):
+			mustContain(t, "weaver row", line, "—", "✗")
+		}
+	}
+}
+
+func TestStatusAllHealthy(t *testing.T) {
+	// Full stack running and healthy (Apple container JSON inspect path);
+	// Jaeger absent is fine — observability is optional, exit stays 0.
+	s := newScenario(t, "container")
+	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "frontend", "neo4j", "qdrant", "postgres", "ollama"} {
+		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+svc+"=running")
+	}
+	serveHealth(t, 4000, 9090, 9091, 9092, 3000, 7474, 6333, 5432, 11434)
+	stdout, stderr, code := s.run(t, "status")
+	if code != 0 {
+		t.Fatalf("want exit 0 with all core healthy, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "jaeger")
+	if strings.Contains(stdout, "✗ http://localhost:4000") {
+		t.Errorf("backend reported unhealthy:\n%s", stdout)
+	}
+}
+
+func TestStatusNoRuntime(t *testing.T) {
+	s := newScenario(t)
+	_, stderr, code := s.run(t, "status")
+	if code != 1 {
+		t.Fatalf("want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "No container runtime found. Install Apple Container, Docker, or Podman.")
+}
+
 // --- logs ---
 
 func TestLogsDiscovery(t *testing.T) {

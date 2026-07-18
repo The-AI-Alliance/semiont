@@ -154,6 +154,20 @@ func runtimeCmd(base string, args []string) {
 		name := strings.TrimPrefix(args[len(args)-1], "semiont-")
 		fmt.Println(name + " out")
 		fmt.Fprintln(os.Stderr, name+" err")
+	case "inspect":
+		// Scripted via FAKERT_STATE_<svc> (svc = name minus "semiont-"),
+		// e.g. FAKERT_STATE_backend=running. Unset = container not found.
+		svc := strings.TrimPrefix(args[len(args)-1], "semiont-")
+		state := os.Getenv("FAKERT_STATE_" + svc)
+		if state == "" {
+			fmt.Fprintln(os.Stderr, "Error: no such container")
+			os.Exit(1)
+		}
+		if base == "container" {
+			fmt.Printf(`[{"status":%q}]`+"\n", state)
+		} else {
+			fmt.Println(state)
+		}
 	case "run":
 		run(args)
 	default:

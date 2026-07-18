@@ -23,6 +23,7 @@ Run from inside a KB clone:
 
 ```sh
 semiont start --email admin@example.com --password mypassword
+semiont status
 semiont logs
 semiont stop
 ```
@@ -31,6 +32,9 @@ semiont stop
   `--no-observe`, `--force-kill-ports`, `--ollama-cache`, …).
 - `semiont start --dry-run` prints the exact runtime commands a real run would
   execute — the legibility answer to "what does this binary actually do".
+- `semiont status` reports, per service, the container state as the runtime
+  sees it and an application-level health probe (exit 0 only when every core
+  service is healthy — scriptable).
 - `semiont stop` sweeps **every** installed runtime by default, so a stack
   started under `--runtime docker` can't survive a plain stop.
 - `SEMIONT_VERSION` selects the service image tag (default `latest`; the
