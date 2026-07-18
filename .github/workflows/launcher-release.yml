@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6.5.0
         with:
           go-version-file: apps/launcher/go.mod
 
