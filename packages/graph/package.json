@@ -76,6 +76,6 @@
     "directory": "packages/graph"
   },
   "optionalDependencies": {
-    "@aws-sdk/client-neptune": "^3.1081.0"
+    "@aws-sdk/client-neptune": "^3.1086.0"
   }
 }
