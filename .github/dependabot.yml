@@ -88,6 +88,28 @@ updates:
       prefix: "tests"
       include: "scope"
 
+  # Go launcher (apps/launcher). Stdlib-only today — no third-party module deps —
+  # so this mainly covers the `go` directive/toolchain and anything added later.
+  # Reachability-aware stdlib CVE scanning is handled by govulncheck in ci.yml.
+  # NB: kept to default-days only; the semver cooldown tiers are npm-oriented.
+  - package-ecosystem: "gomod"
+    directory: "/apps/launcher"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "The-AI-Alliance/maintainers"
+    labels:
+      - "dependencies"
+      - "launcher"
+    commit-message:
+      prefix: "launcher"
+      include: "scope"
+
   # GitHub Actions dependencies
   - package-ecosystem: "github-actions"
     directory: "/"
