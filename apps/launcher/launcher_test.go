@@ -242,7 +242,10 @@ func TestStartDefaultBoot(t *testing.T) {
 	}
 	checkGolden(t, "start-default-boot.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Semiont stack is up",
+		"🌐 Semiont",
+		"🌎🌍 The AI Alliance",
+		"✨ Make Meaning",
+		"🚀 Semiont stack is up",
 		"http://localhost:3000",
 		"http://localhost:4000",
 		"http://localhost:7474",
@@ -601,9 +604,14 @@ func TestBareFlagsHintAtStart(t *testing.T) {
 
 func TestVersion(t *testing.T) {
 	s := newScenario(t)
-	stdout, _, code := s.run(t, "version")
-	if code != 0 {
-		t.Fatalf("want exit 0, got %d", code)
+	for _, arg := range []string{"version", "--version"} {
+		stdout, _, code := s.run(t, arg)
+		if code != 0 {
+			t.Fatalf("%s: want exit 0, got %d", arg, code)
+		}
+		// Every command opens with the brand header (dispatch prints it).
+		mustContain(t, "stdout for "+arg, stdout,
+			"🌐 Semiont",
+			"semiont dev (commit none, built unknown)")
 	}
-	mustContain(t, "stdout", stdout, "semiont dev (commit none, built unknown)")
 }

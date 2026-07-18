@@ -17,13 +17,14 @@ import (
 // output and the --dry-run seam stay machine-clean.
 
 const (
-	ansiBold   = "\033[1m"
-	ansiDim    = "\033[2m"
-	ansiGreen  = "\033[0;32m"
-	ansiCyan   = "\033[0;36m"
-	ansiYellow = "\033[0;33m"
-	ansiRed    = "\033[0;31m"
-	ansiReset  = "\033[0m"
+	ansiBold    = "\033[1m"
+	ansiDim     = "\033[2m"
+	ansiGreen   = "\033[0;32m"
+	ansiCyan    = "\033[0;36m"
+	ansiYellow  = "\033[0;33m"
+	ansiRed     = "\033[0;31m"
+	ansiMagenta = "\033[0;35m"
+	ansiReset   = "\033[0m"
 )
 
 type ui struct {
@@ -73,6 +74,24 @@ func (u *ui) banner(s string) {
 		return
 	}
 	fmt.Printf("\n%s\n", u.bold(s))
+}
+
+// PrintPreamble prints the Semiont brand line, mirroring apps/cli's
+// getPreamble (core/io/cli-colors.ts) so the two CLIs read as one family.
+// The dispatcher prints it for every command; --quiet and --dry-run keep it
+// off the machine seams.
+func PrintPreamble() {
+	u := newUI(false)
+	version := BuildVersion
+	if version != "dev" {
+		version = "v" + version
+	}
+	fmt.Printf("%s %s | %s | %s\n",
+		u.bold("🌐 Semiont"),
+		u.dim(version),
+		u.wrap(ansiCyan, "🌎🌍 The AI Alliance"),
+		u.wrap(ansiMagenta, "✨ Make Meaning"))
+	fmt.Println(u.dim(strings.Repeat("━", 51)))
 }
 
 func (u *ui) stamp(event string) {

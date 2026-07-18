@@ -689,7 +689,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	// this launcher deliberately does not pretend to.
 	u.stamp("semiont start: containers ready")
 	fmt.Println()
-	fmt.Println(u.wrap(ansiBold+ansiGreen, "Semiont stack is up"))
+	fmt.Println(u.wrap(ansiBold+ansiGreen, "🚀 Semiont stack is up"))
 	fmt.Println()
 	fmt.Printf("  Semiont Browser    %s\n", u.bold("http://localhost:3000"))
 	fmt.Println("  Semiont KB         http://localhost:4000")
