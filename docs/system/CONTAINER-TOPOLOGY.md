@@ -21,7 +21,7 @@ graph TB
     end
 
     subgraph backend_c ["semiont-backend"]
-        BUS["Event Bus"]
+        HTTPD["HTTP Server<br/>(Hono)"]
         STOWER["Stower"]
         BROWSER["Browser<br/>(browse.* reads)"]
         GATHERER["Gatherer"]
@@ -64,10 +64,10 @@ graph TB
     end
 
     UB --- SPA
-    UB --- BUS
-    WORKERS --- BUS
-    SMELTER --- BUS
-    WEAVER --- BUS
+    UB --- HTTPD
+    WORKERS --- HTTPD
+    SMELTER --- HTTPD
+    WEAVER --- HTTPD
 
     STOWER --- GIT
     STOWER --- VIEWS
@@ -77,7 +77,7 @@ graph TB
     GATHERER --- GIT
     WEAVER --- NEO
     SMELTER --- QD
-    backend_c ---|"users / auth"| PG
+    HTTPD ---|"users / auth"| PG
     backend_c -.- JAG
     WORKERS -.- JAG
     SMELTER -.- JAG
@@ -91,20 +91,20 @@ graph TB
     MATCHER --- QD
     MATCHER --- OL
 
-    classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
+    classDef http fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef actor fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef spa fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
     classDef service fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
 
-    class BUS bus
+    class HTTPD http
     class STOWER,BROWSER,GATHERER,MATCHER,WEAVER,WORKERS,SMELTER actor
     class GIT,VIEWS,PG,NEO,QD store
     class SPA,UB spa
     class OL,JAG service
 ```
 
-Two reading notes on the diagram. First, the SPA *executes in the user's web browser* — `semiont-frontend` only serves its static assets; the browser then talks to the backend directly (`localhost:4000`), which is why the frontend container needs no config and no backend connection of its own. Second, the Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
+Three reading notes on the diagram. First, the SPA *executes in the user's web browser* — `semiont-frontend` only serves its static assets; the browser then talks to the backend directly (`localhost:4000`), which is why the frontend container needs no config and no backend connection of its own. Second, the rectangle the external edges terminate on is the backend's **HTTP server** — a [Hono](https://hono.dev/) app on `@hono/node-server` — and every one of those edges is event-bus traffic (`POST /bus/emit`, `GET /bus/subscribe` as SSE). The bus itself is deliberately **not** a box: it is connective fabric, not a component. Those two endpoints bridge external participants onto the same in-process `EventBus` (`@semiont/core`) that the backend's own actors — Stower, Browser, Gatherer, Matcher — subscribe to directly, with no HTTP hop. Third, the Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
 
 The worker, smelter, and weaver communicate with the backend exclusively through the unified bus it exposes (`/bus/emit`, `/bus/subscribe`). Workers, the smelter, and the weaver authenticate via `POST /api/tokens/agent`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a user's. This split isolates long-running LLM, embedding, and graph-projection work from the request-serving event loop — the backend stays responsive to human users while workers, the smelter, and the weaver run in separate V8 isolates.
 
