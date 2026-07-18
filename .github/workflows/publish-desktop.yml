@@ -34,7 +34,7 @@ jobs:
         run: echo "version=$(jq -r .version version.json)" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
 
