@@ -242,15 +242,23 @@ func TestStartDefaultBoot(t *testing.T) {
 	}
 	checkGolden(t, "start-default-boot.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
+		"No prior containers",
 		"🚀 Semiont stack is up",
 		"http://localhost:3000",
 		"http://localhost:4000",
 		"http://localhost:7474",
 		"http://localhost:6333/dashboard",
 		"http://localhost:16686",
+		"semiont status",
 		"semiont logs",
 		"semiont stop",
 	)
+	// The worker secret must never reach the terminal: echoed commands
+	// redact secret-valued envs (the real argv, in the argv log, keeps it).
+	if strings.Contains(stdout, "test-worker-secret") {
+		t.Error("worker secret leaked into stdout")
+	}
+	mustContain(t, "stdout", stdout, "SEMIONT_WORKER_SECRET=<redacted>")
 }
 
 func TestStartRuntimeDockerBoot(t *testing.T) {

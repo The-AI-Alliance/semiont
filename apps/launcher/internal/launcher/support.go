@@ -80,13 +80,40 @@ func (u *ui) stamp(event string) {
 	fmt.Println(u.dim(fmt.Sprintf("[%s] %s", time.Now().Format("2006-01-02 15:04:05"), event)))
 }
 
+// echoEnvAllowlist: the --env values safe to show in echoed commands. Names
+// off this list — the worker secret, ADMIN_PASSWORD, and every user-supplied
+// config var (API keys) — are redacted in the ECHO ONLY; the real argv is
+// untouched. Terminal scrollback and CI logs are not places for credentials.
+// (Infra `-e` values like NEO4J_AUTH=neo4j/localpass stay visible: fixed,
+// well-known local-dev values the summary table prints anyway.)
+var echoEnvAllowlist = map[string]bool{
+	"BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
+	"OLLAMA_HOST": true, "POSTGRES_HOST": true,
+	"OTEL_EXPORTER_OTLP_ENDPOINT": true, "ADMIN_EMAIL": true,
+}
+
+func redactEnvArgs(args []string) []string {
+	out := make([]string, len(args))
+	copy(out, args)
+	for i := 0; i < len(out)-1; i++ {
+		if out[i] != "--env" {
+			continue
+		}
+		if name, _, ok := strings.Cut(out[i+1], "="); ok && !echoEnvAllowlist[name] {
+			out[i+1] = name + "=<redacted>"
+		}
+	}
+	return out
+}
+
 // echoCmd mirrors the scripts' run_cmd prefix: show the exact command before
-// running it (the in-terminal legibility half of the --dry-run story).
+// running it (the in-terminal legibility half of the --dry-run story) —
+// minus secret env values.
 func (u *ui) echoCmd(name string, args ...string) {
 	if u.quiet {
 		return
 	}
-	fmt.Printf("  %s\n", u.dim("$ "+name+" "+strings.Join(args, " ")))
+	fmt.Printf("  %s\n", u.dim("$ "+name+" "+strings.Join(redactEnvArgs(args), " ")))
 }
 
 // --- Subprocess helpers ---
@@ -190,16 +217,26 @@ func httpOK(url string) bool {
 	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 
-// waitForHTTP polls until a URL returns 2xx, one attempt per second.
-func waitForHTTP(u *ui, name, url string, tries int) bool {
+// took renders a wait duration for the ✓ lines.
+func took(d time.Duration) string {
+	if d < time.Second {
+		return "<1s"
+	}
+	return fmt.Sprintf("%ds", int(d.Round(time.Second).Seconds()))
+}
+
+// waitForHTTP polls until a URL returns 2xx, one attempt per second,
+// reporting how long readiness took.
+func waitForHTTP(u *ui, name, url string, tries int) (time.Duration, bool) {
+	t0 := time.Now()
 	for i := 0; i < tries; i++ {
 		if httpOK(url) {
-			return true
+			return time.Since(t0), true
 		}
 		time.Sleep(time.Second)
 	}
 	u.fail("%s did not become ready at %s within %ds.", name, url, tries)
-	return false
+	return time.Since(t0), false
 }
 
 // waitForPG waits for Postgres in two phases. Phase 1 polls the published
@@ -209,7 +246,8 @@ func waitForHTTP(u *ui, name, url string, tries int) bool {
 // temporary server listens on the unix socket only, so TCP 5432 opens only
 // when the real server is up. Phase 2 is a single container-side probe
 // confirming the gateway path the services actually dial.
-func waitForPG(u *ui, rt, host string, port, tries int) bool {
+func waitForPG(u *ui, rt, host string, port, tries int) (time.Duration, bool) {
+	t0 := time.Now()
 	up := false
 	for i := 0; i < tries; i++ {
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), time.Second)
@@ -222,11 +260,11 @@ func waitForPG(u *ui, rt, host string, port, tries int) bool {
 	}
 	if !up {
 		u.fail("PostgreSQL did not open port %d within %ds.", port, tries)
-		return false
+		return time.Since(t0), false
 	}
 	if runSilent(rt, "run", "--rm", "busybox:1.38.0", "nc", "-z", "-w", "2", host, fmt.Sprintf("%d", port)) != nil {
 		u.fail("PostgreSQL is up on localhost:%d but not reachable from containers at %s:%d.", port, host, port)
-		return false
+		return time.Since(t0), false
 	}
-	return true
+	return time.Since(t0), true
 }

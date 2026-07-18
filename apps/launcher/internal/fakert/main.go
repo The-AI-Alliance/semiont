@@ -122,10 +122,16 @@ func runtimeCmd(base string, args []string) {
 	}
 	switch args[0] {
 	case "stop":
-		killServe(args[len(args)-1])
+		// Exit like real runtimes: 0 only when the container "exists" (a
+		// serve pidfile is our existence marker), else nonzero — the
+		// launcher's preflight counts prior containers from these codes.
+		if !killServe(args[len(args)-1]) {
+			fmt.Fprintln(os.Stderr, "Error: no such container")
+			os.Exit(1)
+		}
 	case "rm":
-		// no-op; success regardless of container state (parity with the
-		// launcher treating stop/rm as idempotent best-effort)
+		fmt.Fprintln(os.Stderr, "Error: no such container")
+		os.Exit(1)
 	case "pull":
 		pull(args[len(args)-1])
 	case "image":
@@ -268,15 +274,17 @@ func busybox(args []string, joined string) {
 	}
 }
 
-func killServe(name string) {
+// killServe reaps the port listener for a named container, reporting whether
+// one existed.
+func killServe(name string) bool {
 	dir := os.Getenv("FAKERT_DIR")
 	if dir == "" {
-		return
+		return false
 	}
 	pidfile := filepath.Join(dir, "serve-"+name+".pid")
 	b, err := os.ReadFile(pidfile)
 	if err != nil {
-		return
+		return false
 	}
 	if pid, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil {
 		if p, err := os.FindProcess(pid); err == nil {
@@ -284,6 +292,7 @@ func killServe(name string) {
 		}
 	}
 	_ = os.Remove(pidfile)
+	return true
 }
 
 // serve listens on every given port, answering 200 to any HTTP request; the

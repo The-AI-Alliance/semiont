@@ -425,6 +425,7 @@ var semiontServices = []string{"backend", "worker", "smelter", "weaver", "fronte
 // --- The real run ---
 
 func runStart(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string) int {
+	t0 := time.Now()
 	// Resolve the host address for container networking. Every inter-service
 	// hop dials the HOST (hub-and-spoke over published ports), so this must be
 	// an address that reaches the host FROM INSIDE a container — and that is
@@ -455,11 +456,19 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	// exists". `rm` after `stop` (both best-effort) makes the loop idempotent
 	// across all three states: not present, running, or stopped-but-not-removed.
 	u.banner("Preflight")
+	u.log("Removing prior containers %s", u.dim(fmt.Sprintf("(stop+rm, %d names; exact commands: semiont start --dry-run)", len(preflightNames))))
+	removed := 0
 	for _, c := range preflightNames {
-		u.echoCmd(rt, "stop", c)
-		runPassthrough(rt, "stop", c)
-		u.echoCmd(rt, "rm", c)
-		runPassthrough(rt, "rm", c)
+		stopped := runSilent(rt, "stop", c) == nil
+		rmed := runSilent(rt, "rm", c) == nil
+		if stopped || rmed {
+			removed++
+		}
+	}
+	if removed == 0 {
+		u.ok("No prior containers")
+	} else {
+		u.ok("Removed %d prior container(s)", removed)
 	}
 	// Staged config copies from previous runs (semiont stop also removes
 	// these). Safe to delete only here, after the old stack's containers
@@ -543,10 +552,11 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 			u.fail("Jaeger failed to start.")
 			return 1
 		}
-		if !waitForHTTP(u, "Jaeger UI", "http://localhost:16686", 30) {
+		d, ok := waitForHTTP(u, "Jaeger UI", "http://localhost:16686", 30)
+		if !ok {
 			return 1
 		}
-		u.ok("Jaeger UI on http://localhost:16686 (OTLP collector: %s:4318)", addr)
+		u.ok("Jaeger UI on http://localhost:16686 (OTLP collector: %s:4318) %s", addr, u.dim("("+took(d)+")"))
 		otel = otelArgs(addr)
 	}
 
@@ -556,10 +566,11 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		u.fail("Neo4j failed to start.")
 		return 1
 	}
-	if !waitForHTTP(u, "Neo4j", "http://localhost:7474", 30) {
+	d, ok := waitForHTTP(u, "Neo4j", "http://localhost:7474", 30)
+	if !ok {
 		return 1
 	}
-	u.ok("Neo4j on bolt://localhost:7687 (browser: http://localhost:7474)")
+	u.ok("Neo4j on bolt://localhost:7687 (browser: http://localhost:7474) %s", u.dim("("+took(d)+")"))
 
 	u.banner("Qdrant")
 	u.echoCmd(rt, qdrantArgs()...)
@@ -567,10 +578,11 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		u.fail("Qdrant failed to start.")
 		return 1
 	}
-	if !waitForHTTP(u, "Qdrant", "http://localhost:6333/readyz", 15) {
+	d, ok = waitForHTTP(u, "Qdrant", "http://localhost:6333/readyz", 15)
+	if !ok {
 		return 1
 	}
-	u.ok("Qdrant on http://localhost:6333")
+	u.ok("Qdrant on http://localhost:6333 %s", u.dim("("+took(d)+")"))
 
 	if code := startOllama(u, rt, addr, opts); code != 0 {
 		return code
@@ -582,10 +594,11 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		u.fail("PostgreSQL failed to start.")
 		return 1
 	}
-	if !waitForPG(u, rt, addr, 5432, 20) {
+	d, ok = waitForPG(u, rt, addr, 5432, 20)
+	if !ok {
 		return 1
 	}
-	u.ok("PostgreSQL on port 5432")
+	u.ok("PostgreSQL on port 5432 %s", u.dim("("+took(d)+")"))
 
 	secret := os.Getenv("SEMIONT_WORKER_SECRET")
 	if secret == "" {
@@ -596,10 +609,10 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		}
 		secret = hex.EncodeToString(b)
 	}
-	u.log("Worker secret: %s", u.dim("(generated)"))
 
 	u.banner("Starting Backend")
 	u.log("http://localhost:4000")
+	u.log("Worker secret: %s", u.dim("(generated)"))
 	var admin []string
 	if opts.adminEmail != "" && opts.adminPassword != "" {
 		admin = []string{"--env", "ADMIN_EMAIL=" + opts.adminEmail, "--env", "ADMIN_PASSWORD=" + opts.adminPassword}
@@ -612,16 +625,18 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		return 1
 	}
 	u.log("Waiting for backend health...")
-	if !waitForHTTP(u, "Backend", "http://localhost:4000/api/health", 120) {
+	d, ok = waitForHTTP(u, "Backend", "http://localhost:4000/api/health", 120)
+	if !ok {
 		return 1
 	}
-	u.ok("Backend healthy")
+	u.ok("Backend healthy %s", u.dim("("+took(d)+")"))
 
 	// The sidecars reach the backend from inside a container over the gateway
 	// (addr:4000), not localhost — and each fatally exits if its first backend
 	// fetch fails. The health check above is from the host, so also confirm
 	// the gateway path is reachable before starting the dependents.
 	u.log("Verifying backend reachable from containers...")
+	reachT0 := time.Now()
 	reachable := false
 	for i := 0; i < 20; i++ {
 		if runSilent(rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
@@ -635,7 +650,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		u.fail("Backend not reachable from containers at %s:4000 within 20s.", addr)
 		return 1
 	}
-	u.ok("Backend reachable from containers")
+	u.ok("Backend reachable from containers %s", u.dim("("+took(time.Since(reachT0))+")"))
 
 	// The weaver note: the graph projection is standalone-only — the backend
 	// no longer applies events to Neo4j in-process. Without the weaver the
@@ -656,10 +671,11 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 			u.fail("%s failed to start.", sc.label)
 			return 1
 		}
-		if !waitForHTTP(u, sc.label, fmt.Sprintf("http://localhost:%d/health", sc.port), 30) {
+		d, ok = waitForHTTP(u, sc.label, fmt.Sprintf("http://localhost:%d/health", sc.port), 30)
+		if !ok {
 			return 1
 		}
-		u.ok("%s healthy (http://localhost:%d)", sc.label, sc.port)
+		u.ok("%s healthy (http://localhost:%d) %s", sc.label, sc.port, u.dim("("+took(d)+")"))
 	}
 
 	// Frontend: a static SPA server — no config mount and no service env; the
@@ -670,10 +686,11 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		u.fail("Frontend failed to start.")
 		return 1
 	}
-	if !waitForHTTP(u, "Frontend", "http://localhost:3000", 30) {
+	d, ok = waitForHTTP(u, "Frontend", "http://localhost:3000", 30)
+	if !ok {
 		return 1
 	}
-	u.ok("Frontend on http://localhost:3000")
+	u.ok("Frontend on http://localhost:3000 %s", u.dim("("+took(d)+")"))
 
 	// Summary; the stack runs detached and this process exits — bring the
 	// stack up, say where everything is, and get out of the way (compose up
@@ -689,7 +706,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	// this launcher deliberately does not pretend to.
 	u.stamp("semiont start: containers ready")
 	fmt.Println()
-	fmt.Println(u.wrap(ansiBold+ansiGreen, "🚀 Semiont stack is up"))
+	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 Semiont stack is up"), u.dim("("+took(time.Since(t0))+")"))
 	fmt.Println()
 	fmt.Printf("  Semiont Browser    %s\n", u.bold("http://localhost:3000"))
 	fmt.Println("  Semiont KB         http://localhost:4000")
@@ -703,6 +720,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		fmt.Printf("  Sign in at http://localhost:3000 as %s with your --password.\n", u.bold(opts.adminEmail))
 		fmt.Println()
 	}
+	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
 	fmt.Printf("  Follow logs:   %s\n", u.bold("semiont logs"))
 	fmt.Printf("  Stop stack:    %s\n", u.bold("semiont stop"))
 	fmt.Println()
@@ -776,10 +794,11 @@ func startOllama(u *ui, rt, addr string, opts startOptions) int {
 		u.fail("Ollama container failed to start.")
 		return 1
 	}
-	if !waitForHTTP(u, "Ollama", "http://localhost:11434/api/version", 30) {
+	d, ok := waitForHTTP(u, "Ollama", "http://localhost:11434/api/version", 30)
+	if !ok {
 		return 1
 	}
-	u.ok("Ollama container on http://localhost:11434 (24 GB memory)")
+	u.ok("Ollama container on http://localhost:11434 (24 GB memory) %s", u.dim("("+took(d)+")"))
 	return 0
 }
 
