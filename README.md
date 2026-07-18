@@ -51,10 +51,10 @@ Open **http://localhost:3000**. In the Semiont browser's Knowledge Bases panel, 
 
 ![Connect to knowledge base](website/assets/images/connect-kb.png)
 
-**Just the browser?** To point a Semiont browser at an already-running or remote knowledge base without cloning anything, run the published image directly (substitute `docker` or `podman` for `container` as needed):
+**Just the browser?** To point a Semiont browser at an already-running or remote knowledge base, run the frontend on its own — no clone needed, from any directory (the launcher auto-detects your container runtime and pulls the published image):
 
 ```bash
-container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
+semiont start --service frontend
 ```
 
 For local-network access notes, supply-chain verification, the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, and frontend dev setup, see **[docs/browser/](docs/browser/README.md)**.
