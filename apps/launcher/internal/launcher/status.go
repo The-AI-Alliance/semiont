@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -19,6 +20,10 @@ exited / absent — across all installed runtimes unless --runtime narrows it),
 and a host-side application health probe (the same endpoints semiont start
 gates on; a TCP dial for PostgreSQL). An Ollama serving from the host with no
 container is reported as runtime "host" — the same reuse semiont start applies.
+
+Also reports the host directories the stack touches: the launcher's
+XDG-resolved config/cache homes, the /tmp config staging, and the Ollama
+model cache.
 
 Exit status: 0 when every core service is healthy (Jaeger is observability,
 not core), 1 otherwise.
@@ -120,10 +125,50 @@ func Status(args []string) int {
 			svc.name, 10+utf8.RuneCountInString(stateCol)-visibleLen(stateCol), stateCol,
 			10+utf8.RuneCountInString(rt)-visibleLen(rt), rt, healthCol)
 	}
+	printHostDirs(u)
+
 	if allCoreHealthy {
 		return 0
 	}
 	return 1
+}
+
+// printHostDirs reports the host-side directories the stack touches: the
+// launcher's XDG-resolved config/cache homes (reserved by design — see
+// GO-LAUNCHER.md host need #1; Go maps them to XDG_* on Linux and
+// ~/Library/... on macOS), the live config staging under /tmp (never
+// $TMPDIR — Apple container cannot sustain mounts from /var/folders), and
+// the Ollama model cache a container run may share.
+func printHostDirs(u *ui) {
+	fmt.Println()
+	fmt.Println("  LOCAL HOST DIRECTORIES")
+	row := func(label, path, note string) {
+		fmt.Printf("  %-10s %s %s\n", label, path, u.dim("("+note+")"))
+	}
+	presence := func(path string) string {
+		if _, err := os.Stat(path); err == nil {
+			return "present"
+		}
+		return "absent"
+	}
+	if cfg, err := os.UserConfigDir(); err == nil {
+		p := filepath.Join(cfg, "semiont")
+		row("config", p, presence(p))
+	}
+	if cache, err := os.UserCacheDir(); err == nil {
+		p := filepath.Join(cache, "semiont")
+		row("cache", p, presence(p))
+	}
+	staged, _ := filepath.Glob("/tmp/semiont-config.*")
+	note := "none"
+	if n := len(staged); n > 0 {
+		note = fmt.Sprintf("%d present", n)
+	}
+	row("staging", "/tmp/semiont-config.*", note)
+	if home, err := os.UserHomeDir(); err == nil {
+		p := filepath.Join(home, ".ollama")
+		row("ollama", p, presence(p))
+	}
 }
 
 // visibleLen is the printed width of a string minus its ANSI escapes — needed

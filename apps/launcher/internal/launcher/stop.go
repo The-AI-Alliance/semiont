@@ -3,6 +3,9 @@ package launcher
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 const stopUsage = `Usage: semiont stop [--runtime container|docker|podman] [--dry-run]
@@ -84,15 +87,32 @@ func Stop(args []string) int {
 	// stop-then-rm: under Apple Container a stopped --rm container persists
 	// (the next `run --name` would fail with "already exists"), so rm makes
 	// this idempotent across all three states: running, stopped, absent.
+	u.log("Sweeping %d container names across %s %s", len(stopNames),
+		strings.Join(runtimes, ", "), u.dim("(stop+rm each; exact commands: semiont stop --dry-run)"))
 	for _, rt := range runtimes {
+		t0 := time.Now()
+		removed := 0
 		for _, c := range stopNames {
-			_ = runSilent(rt, "stop", c)
-			_ = runSilent(rt, "rm", c)
+			stopped := runSilent(rt, "stop", c) == nil
+			rmed := runSilent(rt, "rm", c) == nil
+			if stopped || rmed {
+				removed++
+			}
+		}
+		elapsed := u.dim("(" + took(time.Since(t0)) + ")")
+		if removed == 0 {
+			u.ok("%s: none found %s", rt, elapsed)
+		} else {
+			u.ok("%s: %d removed %s", rt, removed, elapsed)
 		}
 	}
 
 	// Per-service config copies staged by semiont start for the bind mounts.
+	staged, _ := filepath.Glob("/tmp/semiont-config.*")
 	removeStagedConfigs()
+	if len(staged) > 0 {
+		u.ok("Removed %d staged config dir(s)", len(staged))
+	}
 
 	fmt.Println("Semiont stack stopped.")
 	return 0

@@ -495,7 +495,13 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
-	mustContain(t, "stdout", stdout, "Semiont stack stopped.")
+	mustContain(t, "stdout", stdout,
+		"Sweeping 10 container names across container, docker, podman",
+		"container: none found",
+		"docker: none found",
+		"podman: none found",
+		"staged config dir(s)",
+		"Semiont stack stopped.")
 	if _, err := os.Stat(stage); !os.IsNotExist(err) {
 		t.Errorf("staged config dir %s not removed", stage)
 	}
@@ -567,6 +573,8 @@ func TestStatusMixed(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout,
 		"SERVICE", "CONTAINER", "RUNTIME", "HEALTH",
+		"LOCAL HOST DIRECTORIES",
+		"config", "cache", "staging", "/tmp/semiont-config.*",
 		"✓ http://localhost:4000/api/health",
 		"✗ http://localhost:9090/health",
 		"✗ tcp://localhost:5432",
@@ -574,6 +582,9 @@ func TestStatusMixed(t *testing.T) {
 		"host",
 	)
 	for _, line := range strings.Split(stdout, "\n") {
+		if !strings.Contains(line, "localhost") {
+			continue // service-table rows only, not the host-dirs block
+		}
 		switch {
 		case strings.Contains(line, "backend"):
 			mustContain(t, "backend row", line, "running", "docker", "✓")
