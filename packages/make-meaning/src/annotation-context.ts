@@ -206,7 +206,7 @@ export class AnnotationContext {
 
     // Build the knowledge graph for the neighborhood (full — the cap is a view concern, Q2=C).
     logger?.debug('Building knowledge graph', { resourceId });
-    const graph = await GraphContext.buildKnowledgeGraph(resourceId, kb);
+    const graph = await GraphContext.buildKnowledgeGraph(resourceId, kb, logger);
 
     // Derive the flattened views (connections / citedBy / siblings) from the graph (Q1=A).
     const views = deriveViews(graph, String(resourceId), annotationId);

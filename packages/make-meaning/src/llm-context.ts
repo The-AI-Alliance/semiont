@@ -14,18 +14,9 @@ import { resourceId as makeResourceId, type Logger, type ResourceId } from '@sem
 import type { GatheredContext } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
 import { SmeltProgressTimeout } from './smelt-progress';
+import { recordGatherDegrade } from '@semiont/observability';
 
 import type { ResourceDescriptor } from '@semiont/core';
-
-/**
- * Bound on the semanticContext read-your-writes barrier (SMELTER-INDEX-SYNC
- * D3/A4): generous in embedding terms — an external model call plus queue
- * depth behind other work items — while nesting well inside consumer budgets
- * (my-chat's 90s generation stall watchdog). A named constant, not a caller
- * option, until a consumer hits the wall (the CONTEXT-IDENTIFIERS D4
- * discipline).
- */
-export const SMELT_SETTLE_TIMEOUT_MS = 15_000;
 
 export interface LLMContextOptions {
   depth: number;
@@ -49,6 +40,15 @@ export class LLMContext {
     options: LLMContextOptions,
     kb: KnowledgeBase,
     inferenceClient: InferenceClient,
+    /**
+     * Bound on the semanticContext read-your-writes barrier
+     * (SMELTER-INDEX-SYNC D3/D5). Operator-owned deployment policy: born in
+     * `[environments.<env>.make-meaning.gather] settleTimeoutMs` (the TOML
+     * loader holds the ONE default, 15s), threaded here as a plain argument
+     * via `MakeMeaningConfig.gather` → Gatherer. Must nest inside downstream
+     * watchdogs (A4) — e.g. my-chat's 90s generation stall watchdog.
+     */
+    settleTimeoutMs: number,
     logger: Logger,
   ): Promise<GatheredContext> {
     // Get main resource from view storage
@@ -63,7 +63,7 @@ export class LLMContext {
       : undefined;
 
     // Knowledge graph (full neighborhood — resources AND annotations as nodes).
-    const graph = await GraphContext.buildKnowledgeGraph(resourceId, kb);
+    const graph = await GraphContext.buildKnowledgeGraph(resourceId, kb, logger);
 
     // Related resources for content. The cap is a view concern (Q2=C): take the first
     // (maxResources - 1) peer resource nodes, matching the previous display count.
@@ -139,17 +139,21 @@ export class LLMContext {
         const contentChecksum = getPrimaryRepresentation(mainDoc)?.checksum;
         if (contentChecksum) {
           try {
-            const outcome = await kb.smeltProgress.whenSettled(resourceIdStr, contentChecksum, SMELT_SETTLE_TIMEOUT_MS);
+            const outcome = await kb.smeltProgress.whenSettled(resourceIdStr, contentChecksum, settleTimeoutMs);
             if (outcome === 'indexed') {
               matches = await search();
             }
             // 'skipped' | 'inert': legitimately absent — no breadcrumb.
           } catch (error) {
             if (!(error instanceof SmeltProgressTimeout)) throw error;
+            // Countable AND loggable: the counter feeds fleet alerting
+            // (a rising degrade rate = the Smelter isn't keeping up); the
+            // breadcrumb carries the per-incident detail (L4).
+            recordGatherDegrade('vectors');
             logger.warn('[gather DEGRADED] semanticContext absent — the vector projection did not settle within the barrier', {
               resourceId: resourceIdStr,
               contentChecksum,
-              timeoutMs: SMELT_SETTLE_TIMEOUT_MS,
+              timeoutMs: settleTimeoutMs,
             });
           }
         }

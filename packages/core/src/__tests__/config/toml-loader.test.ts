@@ -92,6 +92,25 @@ describe('loadTomlConfig', () => {
     expect(workers?.generation?.maxTokens).toBe(16384);
   });
 
+  // The gather settle bound (SMELTER-INDEX-SYNC D5): the loader is the ONE
+  // home of the default — consuming code receives a required value and
+  // defaults nothing.
+  it('always sets _metadata.gather.settleTimeoutMs, defaulting to 15000 when absent', () => {
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
+
+    expect((config._metadata as any)?.gather).toEqual({ settleTimeoutMs: 15_000 });
+  });
+
+  it('honors an explicit make-meaning.gather.settleTimeoutMs', () => {
+    const toml = `${MINIMAL_TOML}
+[environments.local.make-meaning.gather]
+settleTimeoutMs = 45000
+`;
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+
+    expect((config._metadata as any)?.gather).toEqual({ settleTimeoutMs: 45_000 });
+  });
+
   it('resolves ${VAR} env var references', () => {
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML), { MY_API_KEY: 'sk-secret' });
 

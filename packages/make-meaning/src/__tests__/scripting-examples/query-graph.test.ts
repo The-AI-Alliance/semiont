@@ -86,6 +86,7 @@ describe('Scripting Example: Query Graph Database', () => {
     project = new SemiontProject(testDir);
 
     config = {
+      gather: { settleTimeoutMs: 15_000 },
       services: {
         graph: {
           platform: { type: 'posix' },

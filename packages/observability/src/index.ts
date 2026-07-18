@@ -234,6 +234,7 @@ let _busEmitCounter: Counter | undefined;
 let _handlerDurationHistogram: Histogram | undefined;
 let _jobOutcomeCounter: Counter | undefined;
 let _jobDurationHistogram: Histogram | undefined;
+let _gatherDegradeCounter: Counter | undefined;
 let _inferenceCallsCounter: Counter | undefined;
 let _inferenceTokensCounter: Counter | undefined;
 let _inferenceDurationHistogram: Histogram | undefined;
@@ -347,6 +348,27 @@ export function recordHandlerDuration(actor: string, channel: string, durationMs
 export function recordJobOutcome(jobType: string, outcome: 'completed' | 'failed', durationMs: number): void {
   jobOutcomeCounter().add(1, { 'job.type': jobType, 'job.outcome': outcome });
   jobDurationHistogram().record(durationMs, { 'job.type': jobType, 'job.outcome': outcome });
+}
+
+function gatherDegradeCounter(): Counter {
+  if (!_gatherDegradeCounter) {
+    _gatherDegradeCounter = meter().createCounter('semiont.gather.degraded', {
+      description: 'Gathers that degraded because an eventually-consistent projection did not catch up within its read barrier (vectors: absent semanticContext; graph: projection-lag failure). Labeled by projection.',
+    });
+  }
+  return _gatherDegradeCounter;
+}
+
+/**
+ * Record a gather degraded by a projection read barrier: `'vectors'` — the
+ * Smelter settle barrier timed out (semanticContext shipped absent);
+ * `'graph'` — the Weaver applied barrier + poll floor exhausted (projection
+ * lag surfaced as a distinct failure). Fleet-alertable counterpart of the
+ * `[gather DEGRADED]` L4 breadcrumbs — a rising rate on either label means
+ * that pipeline is not keeping up.
+ */
+export function recordGatherDegrade(projection: 'graph' | 'vectors'): void {
+  gatherDegradeCounter().add(1, { projection });
 }
 
 /** Increment the SSE subscriber gauge — call on `/bus/subscribe` open. */

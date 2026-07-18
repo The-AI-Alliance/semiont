@@ -7,8 +7,9 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { GraphContext } from '../graph-context';
-import { resourceId } from '@semiont/core';
+import { resourceId, type Logger } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
+import { WeaveProgressTimeout } from '../weave-progress';
 
 const mockGraphDb = {
   getResource: vi.fn(),
@@ -306,16 +307,37 @@ describe('GraphContext', () => {
       expect(mockGraphDb.getResource).toHaveBeenCalledTimes(1);
     });
 
-    it('gives up after the bounded backoff when the graph never catches up', async () => {
+    it('exhaustion with the view still vouching is PROJECTION LAG — honestly named, breadcrumbed, counted; never "Resource not found"', async () => {
+      // The view has the resource; the graph never catches up. Calling that
+      // "Resource not found" is a lie — it misdirects debugging at a 404 when
+      // the actual fault is a lagging/stalled Weaver. The degrade must be
+      // distinguishable (distinct error), loggable (one [gather DEGRADED]
+      // breadcrumb), and countable (recordGatherDegrade('graph')).
       mockViews.get.mockReset().mockResolvedValue({ resource: mainDoc });
+      mockGraphDb.getResource.mockReset().mockResolvedValue(null);
+      const degradeLogger: Logger = {
+        debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => degradeLogger),
+      };
+
+      await expect(
+        GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb, degradeLogger),
+      ).rejects.toThrow(/projection did not catch up/);
+      // Bounded: more than one attempt, but not unbounded polling.
+      expect(mockGraphDb.getResource.mock.calls.length).toBeGreaterThan(1);
+      expect(mockGraphDb.getResource.mock.calls.length).toBeLessThanOrEqual(6);
+      const breadcrumbs = (degradeLogger.warn as ReturnType<typeof vi.fn>).mock.calls
+        .filter(([message]) => String(message).includes('[gather DEGRADED]'));
+      expect(breadcrumbs).toHaveLength(1);
+    });
+
+    it('rethrows a non-timeout barrier failure — a broken progress fold must surface, not silently poll', async () => {
+      mockViews.get.mockReset().mockResolvedValue({ resource: mainDoc, lastSequence: 7 });
+      mockWeaveProgress.whenApplied.mockReset().mockRejectedValue(new Error('progress fold wedged'));
       mockGraphDb.getResource.mockReset().mockResolvedValue(null);
 
       await expect(
         GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb),
-      ).rejects.toThrow('Resource not found');
-      // Bounded: more than one attempt, but not unbounded polling.
-      expect(mockGraphDb.getResource.mock.calls.length).toBeGreaterThan(1);
-      expect(mockGraphDb.getResource.mock.calls.length).toBeLessThanOrEqual(6);
+      ).rejects.toThrow('progress fold wedged');
     });
   });
 
@@ -346,7 +368,10 @@ describe('GraphContext', () => {
 
     it('falls back to the bounded poll when the barrier times out', async () => {
       mockViews.get.mockReset().mockResolvedValue({ resource: mainDoc, lastSequence: 7 });
-      mockWeaveProgress.whenApplied.mockReset().mockRejectedValue(new Error('WeaveProgressTimeout'));
+      // A REAL WeaveProgressTimeout instance: the barrier discriminates by
+      // type — only its own timeout downgrades to polling (a lookalike
+      // message on a plain Error must rethrow, see the sibling test).
+      mockWeaveProgress.whenApplied.mockReset().mockRejectedValue(new WeaveProgressTimeout('res-main', 7, 500));
       mockGraphDb.getResource
         .mockReset()
         .mockResolvedValueOnce(null)

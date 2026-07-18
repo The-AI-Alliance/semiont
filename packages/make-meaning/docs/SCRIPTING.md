@@ -25,6 +25,11 @@ async function main() {
 
   // Typically loaded from your project's environment JSON
   const config: MakeMeaningConfig = {
+    // The resource-gather settle bound (semanticContext read-your-writes
+    // barrier). TOML deployments set it at
+    // [environments.<env>.make-meaning.gather]; hand-built configs state
+    // their policy explicitly — there is no in-code default.
+    gather: { settleTimeoutMs: 15_000 },
     services: {
       graph: { platform: { type: 'posix' }, type: 'memory' },
     },

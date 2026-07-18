@@ -15,9 +15,19 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
   const meta = config._metadata as (EnvironmentConfig['_metadata'] & {
     actors?: MakeMeaningConfig['actors'];
     workers?: MakeMeaningConfig['workers'];
+    gather?: MakeMeaningConfig['gather'];
   }) | undefined;
 
+  // The TOML loader always sets _metadata.gather (it owns the one default —
+  // D5). A missing value means this config bypassed the loader: fail loudly
+  // rather than default here.
+  const gather = meta?.gather;
+  if (!gather) {
+    throw new Error('make-meaning gather config missing — load config via loadEnvironmentConfig (the TOML loader owns the settleTimeoutMs default)');
+  }
+
   return {
+    gather,
     services: {
       graph: config.services?.graph,
       vectors: config.services?.vectors,

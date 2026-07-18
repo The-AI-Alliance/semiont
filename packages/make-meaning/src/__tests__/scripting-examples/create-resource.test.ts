@@ -61,6 +61,7 @@ describe('Scripting Example: Create Resource', () => {
     project = new SemiontProject(testDir);
 
     config = {
+      gather: { settleTimeoutMs: 15_000 },
       services: {
         graph: {
           platform: { type: 'posix' },

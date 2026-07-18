@@ -458,6 +458,24 @@ export class Weaver {
     return summary;
   }
 
+  /**
+   * Key-order-independent serialization for deep equality (W9-deep): two
+   * structurally equal bodies must compare equal regardless of the property
+   * order their storage backend happens to preserve.
+   */
+  private static canonicalJson(value: unknown): string {
+    if (Array.isArray(value)) {
+      return `[${value.map((v) => Weaver.canonicalJson(v)).join(',')}]`;
+    }
+    if (value !== null && typeof value === 'object') {
+      const entries = Object.entries(value as Record<string, unknown>)
+        .filter(([, v]) => v !== undefined)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+      return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${Weaver.canonicalJson(v)}`).join(',')}}`;
+    }
+    return JSON.stringify(value) ?? 'null';
+  }
+
   /** Compare one resource's graph state against its view; null = in sync. */
   private async divergenceOf(resource: ResourceDescriptor): Promise<string | null> {
     const graphDb = this.ensureInitialized();
@@ -480,6 +498,18 @@ export class Weaver {
     if (viewIds.size !== graphIds.size) return 'annotation-set-mismatch';
     for (const id of viewIds) {
       if (!graphIds.has(id)) return 'annotation-set-mismatch';
+    }
+
+    // Content depth (W9-deep): membership equality is blind to a body
+    // mutated in place — a corrupted graph doc with the right id reconciled
+    // as clean. Compare bodies canonically against the view's truth.
+    const viewById = new Map(annotations.map((a) => [String(a.id), a]));
+    for (const graphAnnotation of graphAnnotations) {
+      const viewAnnotation = viewById.get(String(graphAnnotation.id));
+      if (!viewAnnotation) continue; // set equality established above
+      if (Weaver.canonicalJson(graphAnnotation.body) !== Weaver.canonicalJson(viewAnnotation.body)) {
+        return 'annotation-body-mismatch';
+      }
     }
 
     return null;
@@ -918,7 +948,22 @@ export class Weaver {
     this.logger.info('Rebuilding entire GraphDB from events');
     this.logger.info('Using two-pass approach: nodes first, then edges');
 
+    // Frame vocabulary survives the wipe (W5-frames): frame:entity-type-added
+    // is a system event — it lives in no resource stream, so the per-resource
+    // replay below can never restore it, while clearDatabase resets the
+    // registry to the ontology baseline. Capture the live-folded registry and
+    // re-register it after the wipe. Preservation IS the honest semantics
+    // here: no weaver-readable stream exists to rebuild frames from, and the
+    // live registry is itself log-derived (folded from the bus as the events
+    // arrived).
+    const entityTypes = await graphDb.getEntityTypes();
+
     await graphDb.clearDatabase();
+
+    if (entityTypes.length > 0) {
+      await graphDb.addEntityTypes(entityTypes);
+      this.logger.info('Re-registered frame vocabulary across the wipe', { count: entityTypes.length });
+    }
 
     // Resources are archive-only (never deleted), so the catalog's resource
     // set matches the event log's — discovery over the bus is complete.

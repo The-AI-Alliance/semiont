@@ -195,6 +195,14 @@ interface EnvironmentSection {
       matcher?: { inference?: InferenceConfig };
     };
     default?: { inference?: InferenceConfig };
+    /**
+     * Resource-gather knobs. `settleTimeoutMs` bounds the semanticContext
+     * read-your-writes barrier (SMELTER-INDEX-SYNC D3/D5) — how long a gather
+     * waits for the vector projection to settle before degrading to an absent
+     * semanticContext. Must nest INSIDE downstream watchdogs (job-worker
+     * liveness, client stall watchdogs) — see SMELTER-INDEX-SYNC A4.
+     */
+    gather?: { settleTimeoutMs?: number };
   };
   workers?: Record<string, { inference?: InferenceConfig }>;
   actors?: Record<string, { inference?: InferenceConfig }>;
@@ -500,6 +508,10 @@ export function loadTomlConfig(
       projectVersion,
       ...(Object.keys(actors).length > 0 ? { actors } : {}),
       ...(Object.keys(workers).length > 0 ? { workers } : {}),
+      // Always set — the loader is the ONE home of this default (D5).
+      // Consuming code (make-meaning's gather path) receives a required
+      // value and defaults nothing.
+      gather: { settleTimeoutMs: makeMeaningSection?.gather?.settleTimeoutMs ?? 15_000 },
     },
   };
 

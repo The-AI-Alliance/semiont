@@ -43,6 +43,8 @@ export class Gatherer {
     private kb: KnowledgeBase,
     private eventBus: EventBus,
     private inferenceClient: InferenceClient,
+    /** Settle bound for the resource-gather barrier — operator-owned config (D5), threaded from `MakeMeaningConfig.gather`. */
+    private settleTimeoutMs: number,
     logger: Logger,
     private embeddingProvider?: EmbeddingProvider,
   ) {
@@ -134,6 +136,7 @@ export class Gatherer {
         event.options,
         this.kb,
         this.inferenceClient,
+        this.settleTimeoutMs,
         this.logger,
       );
 

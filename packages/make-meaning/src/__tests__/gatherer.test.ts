@@ -62,7 +62,7 @@ describe('Gatherer', () => {
     vi.clearAllMocks();
     eventBus = new EventBus();
     kb = createMockKb();
-    gatherer = new Gatherer(kb, eventBus, mockInferenceClient as any, mockLogger);
+    gatherer = new Gatherer(kb, eventBus, mockInferenceClient as any, 15_000, mockLogger);
     await gatherer.initialize();
   });
 
@@ -167,6 +167,7 @@ describe('Gatherer', () => {
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
         kb,
         mockInferenceClient,
+        15_000, // the settle bound the harness constructed the Gatherer with (D5: threaded, not defaulted)
         expect.anything(), // the gatherer's logger — breadcrumb sink for the P2 barrier
       );
     });
