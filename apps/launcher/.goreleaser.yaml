@@ -1,0 +1,60 @@
+# goreleaser config for the semiont launcher (GO-LAUNCHER.md P4).
+#
+# Channels, deliberately minimal: GitHub Release archives (darwin/linux ×
+# arm64/amd64, static) + a Homebrew tap under The-AI-Alliance, with SBOMs.
+# Provenance attestation happens in the workflow via actions/attest-build-
+# provenance (no signing entity involved — constraint 3 holds). deb/rpm are
+# demand-driven later channels off this same config. Windows = WSL2 = the
+# Linux build; no native Windows target.
+version: 2
+
+project_name: semiont-launcher
+
+builds:
+  - id: semiont
+    binary: semiont
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher.BuildVersion={{.Version}}
+      - -X github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher.BuildCommit={{.ShortCommit}}
+      - -X github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher.BuildDate={{.Date}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "semiont_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+sboms:
+  - artifacts: archive
+
+brews:
+  - name: semiont
+    repository:
+      owner: The-AI-Alliance
+      name: homebrew-semiont
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/The-AI-Alliance/semiont
+    description: "Local Semiont stack launcher — drives Apple container, Docker, or Podman"
+    license: Apache-2.0
+    test: |
+      system "#{bin}/semiont", "version"
+
+release:
+  # The launcher rides the monorepo's existing vX.Y.Z release tags — one
+  # version knob for images and launcher alike. Don't clobber the release the
+  # main pipeline already created; just attach artifacts.
+  mode: keep-existing
