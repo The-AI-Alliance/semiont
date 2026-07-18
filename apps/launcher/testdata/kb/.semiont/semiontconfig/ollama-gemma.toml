@@ -1,0 +1,83 @@
+[user]
+name = ""
+email = ""
+
+[defaults]
+environment = "local"
+
+[environments.local.backend]
+platform = "posix"
+port = 4000
+publicURL = "http://${BACKEND_HOST:-localhost}:4000"
+
+[environments.local.graph]
+platform = "external"
+type = "neo4j"
+name = "neo4j"
+uri = "bolt://${NEO4J_HOST}:7687"
+username = "neo4j"
+password = "localpass"
+database = "neo4j"
+
+[environments.local.vectors]
+type = "qdrant"
+host = "${QDRANT_HOST}"
+port = 6333
+
+[environments.local.embedding]
+platform = "external"
+type = "ollama"
+model = "nomic-embed-text"
+baseURL = "http://${OLLAMA_HOST}:11434"
+
+[environments.local.embedding.chunking]
+chunkSize = 512
+overlap = 64
+
+[environments.local.inference.ollama]
+platform = "posix"
+baseURL = "http://${OLLAMA_HOST}:11434"
+
+[environments.local.actors.gatherer.inference]
+type = "ollama"
+model = "gemma4:26b"
+
+[environments.local.actors.matcher.inference]
+type = "ollama"
+model = "gemma4:26b"
+
+[environments.local.workers.default.inference]
+type = "ollama"
+model = "gemma4:26b"
+
+[environments.local.workers.reference-annotation.inference]
+type = "ollama"
+model = "gemma4:26b"
+
+[environments.local.workers.highlight-annotation.inference]
+type = "ollama"
+model = "gemma4:e2b"
+
+[environments.local.workers.assessment-annotation.inference]
+type = "ollama"
+model = "gemma4:26b"
+
+[environments.local.workers.comment-annotation.inference]
+type = "ollama"
+model = "gemma4:e2b"
+
+[environments.local.workers.tag-annotation.inference]
+type = "ollama"
+model = "gemma4:e2b"
+
+[environments.local.workers.generation.inference]
+type = "ollama"
+model = "gemma4:26b"
+
+[environments.local.database]
+platform = "external"
+host = "${POSTGRES_HOST}"
+port = 5432
+name = "semiont"
+user = "postgres"
+password = "localpass"

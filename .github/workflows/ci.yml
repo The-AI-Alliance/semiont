@@ -346,3 +346,22 @@ jobs:
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
           SITE_DOMAIN: test.semiont.com
+
+  test-launcher:
+    name: Launcher Tests (Go)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/launcher/go.mod
+
+      - name: Vet launcher
+        run: cd apps/launcher && go vet ./...
+
+      - name: Test launcher
+        run: cd apps/launcher && go test ./...

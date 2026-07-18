@@ -1,0 +1,22 @@
+git rev-parse --show-toplevel
+container run --rm busybox:1.38.0 sh -c ip route | awk '/default/{print $3}'
+container stop semiont-jaeger
+container rm semiont-jaeger
+container stop semiont-neo4j
+container rm semiont-neo4j
+container stop semiont-qdrant
+container rm semiont-qdrant
+container stop semiont-postgres
+container rm semiont-postgres
+container stop semiont-backend
+container rm semiont-backend
+container stop semiont-worker
+container rm semiont-worker
+container stop semiont-smelter
+container rm semiont-smelter
+container stop semiont-weaver
+container rm semiont-weaver
+container stop semiont-frontend
+container rm semiont-frontend
+lsof -ti :7474
+ps -p 12345 -o comm=

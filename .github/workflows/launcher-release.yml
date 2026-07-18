@@ -1,0 +1,53 @@
+name: Launcher Release
+
+# Builds and publishes the Go launcher (apps/launcher) when a vX.Y.Z release
+# tag lands — the same one-knob versioning as the service images. Publishes
+# GitHub Release archives + the Homebrew tap, with SBOMs and provenance
+# attestation (GO-LAUNCHER.md P4).
+#
+# Requires the TAP_GITHUB_TOKEN secret: a token with write access to
+# The-AI-Alliance/homebrew-semiont, used by goreleaser to push the formula.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  goreleaser:
+    name: GoReleaser
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/launcher/go.mod
+
+      - name: Install syft (SBOM generation)
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: '~> v2'
+          args: release --clean
+          workdir: apps/launcher
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: apps/launcher/dist/*.tar.gz
