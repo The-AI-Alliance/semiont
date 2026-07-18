@@ -1,6 +1,6 @@
 {
   "name": "@semiont/http-transport",
-  "version": "0.5.14",
+  "version": "0.5.15",
   "description": "HTTP transport adapters for the Semiont SDK",
   "type": "module",
   "main": "dist/index.js",

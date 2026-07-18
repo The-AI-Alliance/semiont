@@ -1,6 +1,6 @@
 {
   "name": "@semiont/make-meaning",
-  "version": "0.5.14",
+  "version": "0.5.15",
   "engines": {
     "node": ">=24.0.0"
   },
