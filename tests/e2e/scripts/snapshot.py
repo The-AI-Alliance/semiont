@@ -26,9 +26,10 @@ Defaults:
 - ``--seconds 60`` — window size. Bump up for longer interactions.
 - ``--containers semiont-backend,semiont-worker,semiont-smelter`` —
   matches the production stack's structured-log containers. Frontend
-  is omitted (its logs are mostly unstructured Next.js stdout).
+  is omitted (its logs are mostly unstructured static-server stdout).
 - ``--jaeger-url http://192.168.64.16:16686`` — local Jaeger from
-  ``start.sh --observe``. Override for non-local stacks.
+  ``semiont start`` (on by default; ``--no-observe`` skips it).
+  Override for non-local stacks.
 - ``--max-lines-per-container 40`` — caps verbose dumps so the report
   stays scannable.
 """

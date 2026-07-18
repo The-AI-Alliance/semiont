@@ -64,10 +64,11 @@ Apple's container runtime assigns a fresh bridge IP on every
 Re-grab both the frontend and backend IP before each test run. See
 [containers.md § IP refresh](containers.md#ip-refresh).
 
-## `local-build.sh` doesn't build the backend image
+## `SEMIONT_VERSION=local` is load-bearing
 
-The build script in this repo only builds the **frontend** container
-image (and publishes `@semiont/*` packages to Verdaccio). The backend
-image is built by the KB's own `.semiont/scripts/start.sh`.
+`local-build.sh` builds all five Semiont images as local-only `:local`
+tags — but the KB stack consumes them only when started with
+`SEMIONT_VERSION=local semiont start`. Without it, the launcher pulls
+the **published** images and your local code changes are invisible.
 Forgetting this leads to "why isn't my backend code change visible?"
-confusion. See [containers.md § Rebuilding the backend](containers.md#rebuilding-the-backend).
+confusion. See [containers.md § Restarting the stack on new images](containers.md#restarting-the-stack-on-new-images).

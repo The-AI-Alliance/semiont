@@ -155,13 +155,14 @@ got console errors." Steps:
 
 ## Limitations
 
-- **Frontend not in the snapshot's container list.** Next.js stdout
-  is mostly unstructured and not timestamped, so the snapshot's
-  per-line-timestamp filter doesn't apply. For frontend errors,
-  watch the browser DevTools console (or add `bus.entries` capture
-  via a Playwright spec).
+- **Frontend not in the snapshot's container list.** The static
+  server's stdout is mostly unstructured and not timestamped, so the
+  snapshot's per-line-timestamp filter doesn't apply. For frontend
+  errors, watch the browser DevTools console (or add `bus.entries`
+  capture via a Playwright spec).
 - **Live monitoring requires the dev stack to be up** ([`containers.md`](containers.md))
-  and Jaeger to be running (`start.sh --observe`).
+  and Jaeger to be running (the `semiont start` default; `--no-observe`
+  disables it).
 - **No persistence across container restarts.** The streaming tails
   start from the moment they attach; if you restart a container
   mid-poke, restart the tails too. The snapshot reads the full

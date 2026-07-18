@@ -13,10 +13,6 @@ my-project/
 │   │   │   └── events-000001.jsonl
 │   │   └── {ab}/{cd}/{resourceId}/   # Per-resource streams, sharded
 │   │       └── events-000001.jsonl
-│   ├── scripts/                      # Optional convenience scripts
-│   │   ├── start.sh                  # Spin up the full stack (pulls published images)
-│   │   ├── logs.sh                   # Follow the service logs
-│   │   └── stop.sh                   # Stop the stack
 │   ├── compose/                      # Optional Docker Compose files
 │   │   └── backend.yml
 │   └── semiontconfig/                # Inference/embedding configs (TOML)
@@ -39,19 +35,26 @@ Two kinds of streams live under `events/`:
 - **Per-resource streams**, at `events/{ab}/{cd}/{resourceId}/events-NNNNNN.jsonl`. The two 2-character shard directories come from a Jump Consistent Hash of the resource id, keeping any single shard directory from exceeding a few thousand entries at scale.
 - **The `events/__system__/` stream**, for events that have no resource — currently `frame:entity-type-added` (registering a new global entity type) and similar project-wide facts.
 
-### `.semiont/scripts/`, `.semiont/compose/`, `.semiont/semiontconfig/` (optional)
+### `.semiont/compose/`, `.semiont/semiontconfig/` (optional)
 
-These directories are not used by Semiont itself — they are convenience infrastructure that KB authors can include so others can run the project without cloning the Semiont repo. The authoritative versions live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository, and most KBs stay in sync with it.
+These directories are not used by Semiont itself — they are convenience infrastructure so others can run the project. The authoritative versions live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository, and most KBs stay in sync with it.
+
+The stack itself is run by the host-installed
+[`semiont` launcher](../../apps/launcher/README.md)
+(`brew install the-ai-alliance/semiont/semiont`) — a single static binary,
+not a file in the KB repo. From inside the project: `semiont start` brings up
+the infrastructure (Neo4j, Qdrant, Ollama if not already running, PostgreSQL)
+and the five Semiont services, all in containers, pulling the published
+images and bind-mounting the `.semiont/semiontconfig/{name}.toml` config of
+your choice (`--config`); `semiont logs` follows all services, `[svc]`-prefixed;
+`semiont status` health-checks them; `semiont stop` removes the whole stack.
 
 KB repos build no images: the Semiont services run from the published, attested
 `ghcr.io/the-ai-alliance/semiont-{backend,worker,smelter,weaver,frontend}` images
 (version selected via `SEMIONT_VERSION`, default `latest`), with the KB's config
 bind-mounted at runtime.
 
-- **`scripts/start.sh`** — one entry point that starts the infrastructure (Neo4j, Qdrant, Ollama if not already running, PostgreSQL) and the five Semiont services, all in containers, pulling the published images and bind-mounting the KB's `.semiont/semiontconfig/{name}.toml` config of your choice. The stack runs detached; the script prints an endpoint summary and exits.
-- **`scripts/logs.sh`** — follow all five services' logs, each line prefixed `[svc]`. Ctrl+C stops following, not the stack.
-- **`scripts/stop.sh`** — stop and remove the whole stack (services, dependencies, observability).
-- **`compose/backend.yml`** — Docker Compose definition for the same service stack, for environments that prefer compose over the start.sh orchestration.
+- **`compose/backend.yml`** — Docker Compose definition for the same service stack, for environments that prefer compose over the launcher's orchestration.
 - **`semiontconfig/*.toml`** — inference-provider presets the user selects at start time (e.g., `--config ollama-gemma` vs `--config anthropic`). Each file names the chat model, embedding model, and any provider-specific parameters.
 
 ### Resource files
@@ -81,7 +84,7 @@ Machine-specific and secret state is kept in standard XDG directories, never com
 ## Example
 
 A snapshot of a real KB after two resources have been added and the template
-scripts are in place:
+scaffolding is in place:
 
 ```
 % ls -A
@@ -93,9 +96,6 @@ scripts are in place:
 .semiont/events/50/fa/47488f8a27471bf16f33aba56af90d12/events-000001.jsonl
 .semiont/events/66/71/1ed8b4936cfad473c2a7b14c22a945c0/events-000001.jsonl
 .semiont/events/__system__/events-000001.jsonl
-.semiont/scripts/logs.sh
-.semiont/scripts/start.sh
-.semiont/scripts/stop.sh
 .semiont/semiontconfig/anthropic.toml
 .semiont/semiontconfig/ollama-gemma.toml
 

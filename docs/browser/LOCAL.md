@@ -15,10 +15,10 @@ to knowledge bases from the browser at runtime. To verify the image's
 provenance before running, see
 [Supply-chain verification](../system/administration/IMAGES.md#supply-chain-verification).
 
-A KB's `.semiont/scripts/start.sh` also starts this same frontend container
-as part of the full stack (see [Local Backend Setup](../system/LOCAL-BACKEND.md)) —
-the standalone `container run` is for pointing a browser at an
-already-running KB.
+A KB's `semiont start` (the brew-installed launcher) also starts this same
+frontend container as part of the full stack (see
+[Local Backend Setup](../system/LOCAL-BACKEND.md)) — the standalone
+`container run` is for pointing a browser at an already-running KB.
 
 ## npm
 

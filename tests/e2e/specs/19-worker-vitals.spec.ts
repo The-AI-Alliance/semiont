@@ -12,7 +12,7 @@ import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
  * whether the claim loop was moving. P1 enriched the payload with
  * per-agent vitals so a stalled worker is visible, not just alive. This
  * spec pins that payload as a cross-process **contract** — the consumers
- * (image HEALTHCHECK, compose `service_healthy`, start.sh waits, and any
+ * (image HEALTHCHECK, compose `service_healthy`, `semiont start` waits, and any
  * operator's `curl :9090/health`) live outside the jobs package, so unit
  * tests on `buildHealthPayload` can't catch a regression in the
  * worker-main shell wiring that serves it. The payload shape is
@@ -52,7 +52,7 @@ import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 
 // The worker publishes its health server on port 9090 of the same host as
 // the backend in every stack shape this suite targets (compose
-// `9090:9090`, start.sh `--publish 9090:9090`) — derived from
+// `9090:9090`, `semiont start` publishing 9090) — derived from
 // E2E_BACKEND_URL rather than adding a config knob of its own.
 const WORKER_HEALTH_URL = (() => {
   const u = new URL(BACKEND_URL);

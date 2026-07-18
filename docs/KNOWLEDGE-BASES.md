@@ -5,16 +5,22 @@ holding your documents, configuration, and startup scripts — not from the
 [semiont monorepo](https://github.com/The-AI-Alliance/semiont), which is the
 platform source (it publishes the npm packages and the container images).
 
-Every KB repo shares the same shape: configuration, compose files, and
-startup scripts under `.semiont/`. Its stack *pulls* the published, attested
+Every KB repo shares the same shape: configuration, the event log, compose
+files, and inference presets under `.semiont/`. The stack is run by the
+host-installed [`semiont` launcher](https://github.com/The-AI-Alliance/semiont/tree/main/apps/launcher)
+(a single static binary), which *pulls* the published, attested
 `ghcr.io/the-ai-alliance/semiont-*` images and bind-mounts the KB's config at
 runtime — KB repos build no images of their own (see
-[Container Images](system/administration/IMAGES.md)). One script starts the
+[Container Images](system/administration/IMAGES.md)). One command starts the
 whole stack, including the Semiont browser at http://localhost:3000:
 
 ```bash
-.semiont/scripts/start.sh --email admin@example.com --password <choose-a-password>
+brew install the-ai-alliance/semiont/semiont   # once
+semiont start --email admin@example.com --password <choose-a-password>
 ```
+
+`semiont logs` follows the stack, `semiont status` health-checks it, and
+`semiont stop` tears it down.
 
 See [Local Semiont](system/LOCAL-SEMIONT.md) for the full local-run guide
 (inference configs, running from source with `SEMIONT_VERSION=local`, ports,

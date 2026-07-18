@@ -127,7 +127,7 @@ Services run on different platforms, configured in `~/.semiontconfig` per enviro
 The currently supported platforms:
 
 - **POSIX** — Local processes (monorepo development). Each Semiont service is a Node process started directly on the host. See [platforms/POSIX.md](platforms/POSIX.md) and [LOCAL-SEMIONT.md](LOCAL-SEMIONT.md) for running Semiont locally.
-- **Container** — Docker / Podman / Apple containers. Each service is a containerized Node process; the diagram above shows this layout. This is what KB stacks use — locally via `.semiont/scripts/start.sh` (any of the three runtimes) and in **GitHub Codespaces** via `docker compose` in the devcontainer. See [platforms/Container.md](platforms/Container.md).
+- **Container** — Docker / Podman / Apple containers. Each service is a containerized Node process; the diagram above shows this layout. This is what KB stacks use — locally via the host-installed `semiont` launcher (any of the three runtimes) and in **GitHub Codespaces** via `docker compose` in the devcontainer. See [platforms/Container.md](platforms/Container.md).
 - **AWS** — ECS Fargate tasks, RDS, S3, Neptune. The same containers, scheduled by ECS. See [platforms/AWS.md](platforms/AWS.md).
 
 These three are what the Semiont CLI knows how to provision and manage today. They share the same containers because they share the same npm packages — the difference is where the Node processes run, not what they run.
@@ -151,7 +151,7 @@ The constraint is the **port contracts** — the bus (`/bus/emit`, `/bus/subscri
 
 Two layers, easy to conflate:
 
-- **Operator entry points.** A KB stack is driven by its repo's scripts — `.semiont/scripts/start.sh` / `logs.sh` / `stop.sh` (runtime-portable, `--runtime` to force one) — or by `docker compose` against `.semiont/compose/backend.yml` (Codespaces uses this). Operators do not invoke the Semiont CLI directly.
+- **Operator entry points.** A KB stack is driven by the host-installed [`semiont` launcher](../../apps/launcher/README.md) — `semiont start` / `logs` / `status` / `stop` (runtime-portable, `--runtime` to force one) — or by `docker compose` against `.semiont/compose/backend.yml` (Codespaces uses this). Operators do not invoke the Semiont CLI directly.
 - **The CLI inside the containers.** Each published image's entrypoint uses the Semiont CLI to provision and start its own service (e.g. the backend runs `semiont provision --service backend && semiont start --service backend`). Monorepo developers on the POSIX platform can drive the same CLI directly:
 
 ```bash

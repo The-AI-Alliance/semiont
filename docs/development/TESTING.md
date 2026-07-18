@@ -819,12 +819,12 @@ Anything inside `@semiont/*` is published to a local Verdaccio and consumed via 
 |---|---|---|
 | `packages/react-ui`, `packages/http-transport`, `packages/core`, `packages/sdk` | `./scripts/ci/local-build.sh` | frontend container |
 | `apps/frontend` only | `./scripts/ci/local-build.sh` | frontend container |
-| `packages/make-meaning`, `event-sourcing`, anything backend-side | `./scripts/ci/local-build.sh` (republish) **and** KB `start.sh --no-cache` | backend (`start.sh` handles it) |
-| `apps/backend` | KB `start.sh --no-cache` | backend |
+| `packages/make-meaning`, `event-sourcing`, anything backend-side | `./scripts/ci/local-build.sh` (rebuilds the `:local` images) | the stack: `SEMIONT_VERSION=local semiont start` |
+| `apps/backend` | `./scripts/ci/local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
 
 Two pitfalls that have caught real time before:
 
-- **`local-build.sh` does NOT build the backend image.** It builds the frontend image and publishes packages. The backend image is built by the KB project's `.semiont/scripts/start.sh`.
+- **`SEMIONT_VERSION=local` is load-bearing.** `local-build.sh` builds all five images (and the launcher) as local-only `:local` tags — but a KB stack consumes them only when started with `SEMIONT_VERSION=local semiont start`. Without it, the launcher pulls the published images and your local changes are invisible.
 - **Apple container `--rm` is unreliable.** Stopped containers linger and conflict on next start. Wipe with `container stop $name && container rm $name` before retrying.
 
 Full step-by-step in [`tests/e2e/docs/containers.md`](../../tests/e2e/docs/containers.md).

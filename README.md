@@ -31,13 +31,19 @@ knowledge bases — is in **[docs/KNOWLEDGE-BASES.md](docs/KNOWLEDGE-BASES.md)**
 
 ### 2. Start it
 
-Install one of [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/) if you don't already have one. Then `cd` into the KB repo you just cloned — **not this repo** — and run:
+Install the `semiont` launcher — a single static binary — plus one of [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/) if you don't already have one:
 
 ```bash
-.semiont/scripts/start.sh --email admin@example.com --password <choose-a-password>
+brew install the-ai-alliance/semiont/semiont
 ```
 
-One script starts the whole stack: it pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **including the Semiont browser at http://localhost:3000**. The `--email`/`--password` you pass create the admin user you'll sign in with. See the KB's own README for prerequisites and options (inference configs, `--list-configs`, etc.).
+Then `cd` into the KB repo you just cloned — **not this repo** — and run:
+
+```bash
+semiont start --email admin@example.com --password <choose-a-password>
+```
+
+One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **including the Semiont browser at http://localhost:3000**. The `--email`/`--password` you pass create the admin user you'll sign in with. `semiont logs` follows the stack, `semiont stop` tears it down, and `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
 
 ### 3. Connect
 

@@ -123,15 +123,15 @@ semiont start --service backend
 # 3. Browse traces at http://localhost:16686
 ```
 
-### Containerized stack with `--observe`
+### Containerized stack (Jaeger on by default)
 
-The `template-kb`-style start script supports a `--observe` flag that
-brings up Jaeger as a sidecar and wires `OTEL_EXPORTER_OTLP_ENDPOINT`
-into backend / worker / smelter automatically:
+The [`semiont` launcher](../../../apps/launcher/README.md) brings up
+Jaeger as a sidecar and wires `OTEL_EXPORTER_OTLP_ENDPOINT` into
+backend / worker / smelter **by default**; pass `--no-observe` to skip
+the sidecar:
 
 ```bash
-ANTHROPIC_API_KEY=<key> NPM_REGISTRY=http://192.168.64.1:4873 \
-  ./.semiont/scripts/start.sh --observe --no-cache --config anthropic \
+ANTHROPIC_API_KEY=<key> semiont start --config anthropic \
   --email admin@example.com --password password
 ```
 

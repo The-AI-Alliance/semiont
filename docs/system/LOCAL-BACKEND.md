@@ -4,15 +4,17 @@ Run the Semiont backend locally. Both paths below use `~/.semiontconfig` for inf
 
 ## Container (no npm required)
 
-Clone a knowledge base repository and run the stack script:
+Install the [`semiont` launcher](../../apps/launcher/README.md)
+(`brew install the-ai-alliance/semiont/semiont`), clone a knowledge base
+repository, and start the stack:
 
 ```bash
 git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
 cd gutenberg-kb
-.semiont/scripts/start.sh --email admin@example.com --password password
+semiont start --email admin@example.com --password password
 ```
 
-The script pulls the published, attested Semiont service images
+The launcher pulls the published, attested Semiont service images
 (`ghcr.io/the-ai-alliance/semiont-{backend,worker,smelter,weaver,frontend}`),
 starts them alongside the infrastructure containers (Neo4j, Qdrant,
 PostgreSQL), and bind-mounts the KB's config at runtime — KB repos build no
@@ -20,12 +22,13 @@ images. Pass `--email` and `--password` to create an admin user on startup;
 `--config <name>` selects an inference config (`--list-configs` to see them);
 `SEMIONT_VERSION` pins the image version (`local` consumes images built from
 a monorepo working tree by
-[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh)).
+[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh)). `semiont
+status` / `logs` / `stop` manage the running stack.
 
 Prerequisites: a container runtime, plus `ANTHROPIC_API_KEY` when using the
 Anthropic config. See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for details.
 
-The authoritative compose files and script live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository under `.semiont/`; the image inventory and supply-chain verification are in [Container Images](./administration/IMAGES.md).
+The authoritative compose files and inference presets live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository under `.semiont/`; the image inventory and supply-chain verification are in [Container Images](./administration/IMAGES.md).
 
 ## npm
 

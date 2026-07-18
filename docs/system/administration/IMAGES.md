@@ -19,10 +19,12 @@ Knowledge-base repositories **pull these images — they do not build their
 own**. A KB's `.semiont/` compose files reference
 `ghcr.io/the-ai-alliance/semiont-<svc>:${SEMIONT_VERSION:-latest}` and
 bind-mount per-KB TOML config at runtime; nothing KB-specific is baked into
-any image. See
+any image. The consuming entry point is the host-installed
+[`semiont` launcher](../../../apps/launcher/README.md)
+(`brew install the-ai-alliance/semiont/semiont`): `semiont start` pulls all
+five and starts them alongside the infrastructure containers. See
 [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)
-for the canonical consuming stack (`start.sh` pulls all five and starts them
-alongside the infrastructure containers).
+for the canonical KB shape.
 
 All images support `linux/amd64` and `linux/arm64` and follow the
 unified versioning scheme managed through [`version.json`](../../../version.json).

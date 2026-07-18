@@ -148,27 +148,23 @@ that exactly matches the current branch's source:
 ./scripts/ci/local-build.sh
 
 # 2. From the KB project (typically ../semiont-template-kb), bring up
-#    backend / worker / smelter against the local Verdaccio. The
-#    --config anthropic flag avoids host-Ollama networking issues
-#    (see "Gotchas" below).
+#    the full stack from the :local images just built. The --config
+#    anthropic flag avoids host-Ollama networking issues (see
+#    "Gotchas" below).
 cd ../semiont-template-kb
 ANTHROPIC_API_KEY="$(op read op://OSS/Anthropic/credential)" \
-  NPM_REGISTRY=http://192.168.64.1:4873 \
-  .semiont/scripts/start.sh --observe --no-cache --config anthropic \
+  SEMIONT_VERSION=local semiont start --config anthropic \
   --email admin@example.com --password password
 
-# 3. Run the frontend container (separate — start.sh manages backend
-#    services only).
-container run -d --name semiont-frontend-e2e -p 3000:3000 semiont-frontend
-
-# 4. Grab IPs and run the e2e suite (see Quick start above).
-container ls | grep -E 'semiont-(frontend-e2e|backend)'
+# 3. Grab IPs and run the e2e suite (see Quick start above). The stack
+#    includes the frontend container on :3000.
+container ls | grep -E 'semiont-(frontend|backend)'
 ```
 
-Use `--observe` on `start.sh` to pull in a Jaeger sidecar and wire
+The launcher brings up a Jaeger sidecar **by default** and wires
 `OTEL_EXPORTER_OTLP_ENDPOINT` for backend / worker / smelter — useful
-for inspecting cross-service traces while debugging an e2e failure.
-Jaeger UI lands on http://localhost:16686.
+for inspecting cross-service traces while debugging an e2e failure
+(`--no-observe` to skip). Jaeger UI lands on http://localhost:16686.
 
 ## Gotchas
 
@@ -179,11 +175,11 @@ Jaeger UI lands on http://localhost:16686.
 - **Host Ollama needs `OLLAMA_HOST=0.0.0.0`.** Otherwise the backend
   container can't reach it. Either configure Ollama Desktop with
   `launchctl setenv OLLAMA_HOST 0.0.0.0` (and quit/relaunch), or use
-  `start.sh --config anthropic` to skip Ollama entirely.
-- **Code changes require backend image rebuild.** `start.sh --no-cache`
-  forces `npm install @semiont/backend@latest` to re-resolve deps from
-  Verdaccio. Without it, you'll run yesterday's image with today's
-  frontend.
+  `semiont start --config anthropic` to skip Ollama entirely.
+- **Code changes require rebuilding the `:local` images.** Rerun
+  `./scripts/ci/local-build.sh`, then restart the stack with
+  `SEMIONT_VERSION=local semiont start`. Without the rebuild + restart,
+  you'll run yesterday's images with today's source.
 - **SPA tracing is not currently wired.** Backend / worker / smelter
   produce traces; the frontend SPA does not. End-to-end traces
   therefore start at `bus.dispatch:*` (server-side EMIT receive)

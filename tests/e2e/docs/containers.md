@@ -1,26 +1,27 @@
 # Containers and rebuild flow
 
 The e2e harness drives the frontend **container**, which talks to the
-backend **container**, which was built against code installed from a
-local **Verdaccio** npm registry. A change to a `@semiont/*` package
-isn't visible to the tests until it's republished and the consuming
-container is rebuilt. This doc walks through that lifecycle.
+backend **container**. All five Semiont images bundle `@semiont/*`
+packages — a change to a package isn't visible to the tests until the
+images are rebuilt and the stack is restarted from them. This doc walks
+through that lifecycle.
 
 ## The moving parts
 
-| Container | What's inside | Built by |
+| Container | What's inside | Where it comes from |
 |---|---|---|
-| `semiont-verdaccio` | Local npm registry on `:4873` | `scripts/ci/local-build.sh` |
-| `semiont-frontend` | Vite-built SPA served on `:3000` | `scripts/ci/local-build.sh` (via `apps/frontend/Dockerfile`) |
-| `semiont-backend` | Node process running `@semiont/backend` on `:4000` | KB's `.semiont/scripts/start.sh` |
-| `semiont-worker`, `semiont-smelter` | Background job workers | KB's `.semiont/scripts/start.sh` |
-| plus: `semiont-neo4j`, `semiont-qdrant`, `semiont-ollama`, `semiont-postgres` | Storage + inference | KB's `.semiont/scripts/start.sh` |
+| `semiont-frontend` | Vite-built SPA served on `:3000` | published image, or `:local` via `scripts/ci/local-build.sh` |
+| `semiont-backend` | `@semiont/backend` on `:4000` | published image, or `:local` via `scripts/ci/local-build.sh` |
+| `semiont-worker`, `semiont-smelter`, `semiont-weaver` | Background workers / pipeline actors | published images, or `:local` via `scripts/ci/local-build.sh` |
+| plus: `semiont-neo4j`, `semiont-qdrant`, `semiont-ollama`, `semiont-postgres` | Storage + inference | started by `semiont start` |
 
-**Key fact:** `scripts/ci/local-build.sh` (in this repo) only builds
-the **frontend** image and publishes `@semiont/*` packages to
-Verdaccio. It does **not** build the backend image. The backend image
-is built by the KB's own `start.sh`, which `npm install`s
-`@semiont/backend` from `$NPM_REGISTRY`.
+**Key fact:** `scripts/ci/local-build.sh` (in this repo) publishes the
+`@semiont/*` packages to a throwaway local Verdaccio and builds **all
+five** Semiont images from them as local-only `:local` tags (plus the
+launcher binary). KB repos build nothing — the stack consumes the
+`:local` images only when started with `SEMIONT_VERSION=local semiont
+start`; without that, the launcher pulls the published images and your
+local changes are invisible.
 
 So the "full rebuild" flow depends on what changed:
 
@@ -28,8 +29,8 @@ So the "full rebuild" flow depends on what changed:
 |---|---|---|
 | `packages/react-ui`, `packages/http-transport`, `packages/core` | `local-build.sh` | frontend |
 | `apps/frontend` only | `local-build.sh` | frontend |
-| `packages/make-meaning`, `packages/event-sourcing`, etc. — anything the backend imports | `local-build.sh` (republishes) **and** KB `start.sh --no-cache` | backend (start.sh handles it) |
-| `apps/backend` | KB `start.sh --no-cache` | backend |
+| `packages/make-meaning`, `packages/event-sourcing`, etc. — anything the backend imports | `local-build.sh` (rebuilds the `:local` images) | the stack: `SEMIONT_VERSION=local semiont start` |
+| `apps/backend` | `local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
 
 ## Apple container CLI primer
 
@@ -48,7 +49,8 @@ container inspect <name>                  # JSON dump — mounts, env, IP, etc.
 
 Use `container logs -f semiont-backend` when diagnosing a failing test
 — the backend's structured logs often reveal whether a bus handler
-actually ran.
+actually ran. (`semiont logs`, from the KB directory, follows all
+services at once with `[svc]` prefixes.)
 
 ## <a name="ip-refresh"></a>IP refresh after every restart
 
@@ -64,76 +66,49 @@ browser is dialing a dead address.
 container ls | grep -E 'semiont-(frontend|backend)'    # do this EVERY time
 ```
 
-## Publishing packages to Verdaccio
+## Building the `:local` images
 
 ```sh
-./scripts/ci/local-build.sh --package <list>
+./scripts/ci/local-build.sh                 # everything
+./scripts/ci/local-build.sh --package <list>  # narrow the package set
+./scripts/ci/local-build.sh --image <list>    # narrow the image set
 ```
 
-`--help` lists the full package set. The order is:
-`http-transport, ontology, core, content, event-sourcing, graph,
-inference, jobs, make-meaning, react-ui, backend, frontend, cli`. The
-flag takes a comma-separated subset.
-
-The script:
+`--help` lists the full package set. The script:
 
 1. Starts a fresh `semiont-verdaccio` container on `:4873`.
-2. Builds each package in a node:24-alpine container.
-3. Publishes to Verdaccio.
-4. Builds `semiont-frontend:latest` with `NPM_REGISTRY` pointing at
-   Verdaccio, so the frontend installs the freshly-published
-   packages.
+2. Builds each package in a node:24-alpine container and publishes it
+   to Verdaccio.
+3. Builds the five Semiont images against Verdaccio, tagged
+   `ghcr.io/the-ai-alliance/semiont-<svc>:local` (never pushed), and
+   loads them into every container engine on the machine.
+4. Builds the launcher binary to `apps/launcher/dist/semiont`.
 
-Output ends with a `DONE ✓` banner. Leave the Verdaccio container up
-— the backend rebuild needs it. Stop it manually when done:
-`container stop semiont-verdaccio`.
+Output ends with a `DONE ✓` banner. `--no-cache` matters when you
+republish the **same package version**: the `npm install` layer is
+cached by version, so a same-version republish is invisible without it.
 
-## Rebuilding the frontend
+## Restarting the stack on new images
 
-After `local-build.sh` (which already built the image), swap the
-container:
-
-```sh
-container ls | grep semiont-frontend    # note the current id
-container stop <id>
-container run --detach --publish 3000:3000 --name semiont-frontend semiont-frontend:latest
-```
-
-Then re-grab the frontend IP and re-run e2e (see
-[IP refresh](#ip-refresh)).
-
-## Rebuilding the backend
-
-The backend is run from the KB project directory, not this repo. For
-the template KB:
+The stack is run from the KB project directory, not this repo. For the
+template KB:
 
 ```sh
 cd /path/to/semiont-template-kb
-export NPM_REGISTRY=http://192.168.64.1:4873
-# start.sh reads ANTHROPIC_API_KEY from env when --config anthropic.
+# semiont start reads ANTHROPIC_API_KEY from env when --config anthropic.
 # Source your secrets first if it's not already exported.
-.semiont/scripts/start.sh \
+SEMIONT_VERSION=local semiont start \
   --config anthropic \
   --email admin@example.com \
-  --password password \
-  --no-cache
+  --password password
 ```
 
 The `ollama-gemma` config avoids the API-key requirement if you only
 need to exercise non-inference paths.
 
-- `NPM_REGISTRY` points at the local Verdaccio (which
-  `local-build.sh` leaves running). Without it, `start.sh` installs
-  `@semiont/backend` from npmjs and your local changes are invisible.
-- `--no-cache` forces a fresh image build. Without it, the
-  `npm install` layer is cached and the new package versions are
-  skipped.
-- `.semiont/scripts/start.sh` builds `semiont-backend`,
-  `semiont-worker`, and `semiont-smelter`, then starts them together
-  with the storage + inference containers.
-
-Running `start.sh` will stop and recreate the backend container, so
-its IP will change — re-grab it before re-running e2e.
+`semiont start` stops and recreates the running containers, so their
+IPs change — re-grab them before re-running e2e (see
+[IP refresh](#ip-refresh)).
 
 ## Playwright image tag must match `@playwright/test`
 
