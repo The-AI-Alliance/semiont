@@ -1,11 +1,11 @@
 ---
 layout: default
-title: Semiont - Semantic Wiki for Humans and AI
+title: Semiont - Trusted AI Knowledge Bases for Humans and AI Agents
 ---
 
 ## Semiont
 
-**Semiont is an open-source semantic wiki where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
+**Semiont is an open, source-grounded semantic knowledge platform for building and maintaining trusted AI knowledge bases and context layers. It gives humans and AI agents a shared workspace and architecture to annotate, connect, enrich, and govern domain knowledge for accurate applications, agents, and workflows.**
 
 ![Semiont screenshot](assets/images/semiont-2026-03-10.png)
 
@@ -13,7 +13,7 @@ Most organizations sit on vast document collections that are searchable but not 
 
 That wiki becomes infrastructure. Use it to power semantic search and contextual recommendations in your products. Feed it to RAG pipelines so your AI assistants answer from verified, cited sources instead of hallucinating. Automate compliance checks by querying relationships across regulatory documents. Surface hidden connections across research portfolios that would take analysts months to find manually. Every annotation your team creates — or your agents produce — compounds into an asset that makes the next query smarter, the next review faster, and the next product feature possible.
 
-Self-hosted, so your data stays on your infrastructure. Inference runs on **[Anthropic](https://www.anthropic.com/)** (cloud) or **[Ollama](https://ollama.com/)** (fully local) — mix providers per worker to balance cost, capability, and privacy. Built on the W3C Web Annotation standard — portable, interoperable, and sovereign.
+Self-hosted, so your data stays on your infrastructure — and simple to run: one brew-installed launcher starts the whole stack from published, cryptographically attested container images. Inference runs on **[Anthropic](https://www.anthropic.com/)** (cloud) or **[Ollama](https://ollama.com/)** (fully local) — mix providers per worker to balance cost, capability, and privacy. Built on the W3C Web Annotation standard — portable, interoperable, and sovereign.
 
 ### Why Semiont?
 
@@ -23,7 +23,7 @@ Self-hosted, so your data stays on your infrastructure. Inference runs on **[Ant
 
 ### Core Tenets
 
-**Peer Collaboration** — Humans and AI agents are architectural equals. Every operation flows through the same API, event bus, and event-sourced storage regardless of who initiates it. Any workflow can be performed manually, automated by an agent, or done collaboratively — through the GUI, the [CLI](https://github.com/The-AI-Alliance/semiont/tree/main/apps/cli), the [TypeScript SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk), or [agent skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/skills) for agentic coding assistants.
+**Peer Collaboration** — Humans and AI agents are architectural equals. Every operation flows through the same API, event bus, and event-sourced storage regardless of who initiates it. Any workflow can be performed manually, automated by an agent, or done collaboratively — through the GUI, the [TypeScript SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk), [agent skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills) for agentic coding assistants, or the [CLI](https://github.com/The-AI-Alliance/semiont/tree/main/apps/cli).
 
 **Document-Grounded Knowledge** — Knowledge is always anchored to source documents. Annotations point into specific passages; references link documents to each other. The knowledge graph is a projection of these grounded relationships, not a replacement for the original material.
 
@@ -51,19 +51,27 @@ Humans and AI agents work as peers through eight composable workflows:
 
 ## Get Started
 
-Clone the empty template and start the backend — no npm or Node.js required:
+Three steps — no npm or Node.js required. Install the `semiont` launcher (a single static binary) and a container runtime ([Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/)):
 
 ```bash
-git clone https://github.com/The-AI-Alliance/semiont-template-kb.git my-kb
-cd my-kb
-export ANTHROPIC_API_KEY=<your-api-key>
-.semiont/scripts/local_backend.sh --email admin@example.com --password password
+brew install the-ai-alliance/semiont/semiont
 ```
 
-Or explore a pre-populated knowledge base:
+Clone a knowledge-base repo — the empty template for a new project, or a pre-populated demo — and start it:
 
-- **[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** — Public domain literature from Project Gutenberg
-- **[synthetic-family](https://github.com/pingel-org/synthetic-family)** — Synthetic family dataset for testing and exploration
+```bash
+git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
+cd semiont-gutenberg-kb
+semiont start --email admin@example.com --password <choose-a-password>
+```
+
+One command brings up the whole stack from published, attested container images — including the Semiont browser. Open **http://localhost:3000** and sign in with the credentials you chose.
+
+Explore the knowledge bases:
+
+- **[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)** — Empty template; start here for a new project
+- **[semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb)** — Public-domain literature from Project Gutenberg
+- **[Full catalog](https://github.com/The-AI-Alliance/semiont/blob/main/docs/KNOWLEDGE-BASES.md)** — seven demo KBs across different domains, plus community knowledge bases
 
 See the **[Quick Start](https://github.com/The-AI-Alliance/semiont#quick-start)** for full setup instructions.
 
