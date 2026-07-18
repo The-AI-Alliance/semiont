@@ -25,7 +25,19 @@ Semiont publishes a release in these steps:
    ```
    KB stacks consume these images directly — see
    [Container Images](../system/administration/IMAGES.md).
-4. **release:bump** — bumps the version for the next development cycle.
+4. **Launcher Release** — a separate action
+   ([`launcher-release.yml`](../../.github/workflows/launcher-release.yml))
+   that publishes the `semiont` launcher (the host binary that runs KB
+   stacks): goreleaser builds darwin/linux × arm64/amd64 static binaries,
+   attaches them (with checksums + SBOMs) to the GitHub Release, attests
+   provenance, and pushes the Homebrew formula to
+   `The-AI-Alliance/homebrew-semiont`. Unlike the image workflows it takes
+   **no version input** — dispatch it **from the tag ref**:
+   ```bash
+   gh workflow run launcher-release.yml --ref v<version>
+   ```
+   See [Step 1c](#step-1c-publish-the-launcher-homebrew--binaries).
+5. **release:bump** — bumps the version for the next development cycle.
 
 ## Step 1: Publish a Stable Release
 
@@ -105,6 +117,54 @@ This pushes to GHCR:
 - `ghcr.io/the-ai-alliance/semiont-frontend:sha-<commit>`
 - `ghcr.io/the-ai-alliance/semiont-frontend:latest` (only when `tag_latest=true`)
 
+
+## Step 1c: Publish the Launcher (Homebrew + binaries)
+
+The `semiont` launcher ([`apps/launcher`](../../apps/launcher)) ships from a
+separate **Launcher Release** action (`launcher-release.yml`). It is pure Go —
+it does not depend on the npm packages — so it can run any time after the tag
+exists, in parallel with the image workflows.
+
+Two things make it different from the image workflows:
+
+- **No version input.** goreleaser derives the version from the tag the
+  workflow checks out — so dispatch it **from the tag ref**, not a branch.
+- **It will not auto-trigger.** It declares `on: push: tags`, but the Release
+  workflow pushes the tag with the workflow-scoped `GITHUB_TOKEN`, and GitHub
+  suppresses workflow triggers from those events — the manual dispatch is the
+  expected path.
+
+### From the command line
+
+```bash
+gh workflow run launcher-release.yml --ref v<version>
+```
+
+(From the UI: **Actions** > **Launcher Release** > **Run workflow**, and pick
+the **tag** `v<version>` in the branch/tag dropdown.)
+
+### What it publishes
+
+- `semiont_<version>_{darwin,linux}_{arm64,amd64}.tar.gz` + `checksums.txt`
+  + SBOMs, attached to the existing GitHub Release (`mode: keep-existing` —
+  it never clobbers the release the main pipeline created)
+- Build-provenance attestation for the archives
+  (`gh attestation verify <archive> -R The-AI-Alliance/semiont`)
+- `Formula/semiont.rb` pushed to the
+  [`homebrew-semiont`](https://github.com/The-AI-Alliance/homebrew-semiont)
+  tap, so users get this version via
+  `brew install the-ai-alliance/semiont/semiont`
+
+### One-time prerequisites (already configured)
+
+- The public tap repo `The-AI-Alliance/homebrew-semiont` (initialized with a
+  `main` branch).
+- The `TAP_GITHUB_TOKEN` Actions secret on this repo: a fine-grained PAT
+  scoped to only the tap repo with **Contents: Read and write** — goreleaser
+  uses it to push the formula (the built-in `GITHUB_TOKEN` cannot write to
+  another repo). If formula pushes start failing with 401/403, this token has
+  expired or been revoked — mint a replacement and `gh secret set
+  TAP_GITHUB_TOKEN --repo The-AI-Alliance/semiont`.
 
 ## Step 2: Bump Version for Next Cycle
 
@@ -296,6 +356,10 @@ gh run watch <run-id> --exit-status
 gh workflow run publish-frontend.yml --field version=<version> --field tag_latest=true
 gh workflow run publish-service-images.yml --field version=<version> --field tag_latest=true
 
+# 5b. Publish the launcher — dispatched FROM THE TAG (no version input);
+#     independent of npm, so it can run in parallel with the image workflows
+gh workflow run launcher-release.yml --ref v<version>
+
 # 6. Bump version for next development cycle
 ./scripts/release/version-bump.sh patch
 ```
@@ -351,6 +415,19 @@ docker pull ghcr.io/the-ai-alliance/semiont-weaver:latest
 
 All five also carry `:<version>` (e.g. `:0.5.12`) and `:sha-<commit>` tags.
 
+### Launcher (Homebrew tap + release binaries)
+
+Published by [Step 1c](#step-1c-publish-the-launcher-homebrew--binaries):
+
+```bash
+brew install the-ai-alliance/semiont/semiont
+semiont version   # semiont <version> (commit <sha>, built <date>)
+```
+
+Direct downloads (macOS/Linux, arm64/amd64) live on the GitHub Release as
+`semiont_<version>_<os>_<arch>.tar.gz`, with `checksums.txt`, SBOMs, and
+provenance attestations.
+
 
 ## Version Bump Guidelines
 
@@ -404,6 +481,38 @@ git push origin v0.4.9
 gh workflow run release.yml
 ```
 
+## Operational Notes
+
+Hard-won checks from running this process:
+
+- **Gate the trigger.** Before `gh workflow run release.yml`, verify: CI is
+  `success` on `origin/main`'s **exact HEAD** (not just the latest run), the
+  local tree matches origin, `version.json` is correct, and `v<version>` does
+  not already exist on origin.
+- **A new publishable package needs a one-time seed.** OIDC trusted publishing
+  can't create a package: seed it manually at the prior version, configure the
+  trusted publisher (repo + `publish-npm-packages.yml`, no environment), then
+  release. Skipping this aborts the fail-fast publish mid-list — a partial
+  release (`publish.sh` publishes in `version.json` order and stops on error;
+  re-running after a fix skips already-published versions).
+- **Verify artifacts, not workflow exit codes.** Confirm `dist-tags.latest` on
+  the registry for every published package, the desktop assets on the Release,
+  and the image tags in the run log (the "Determine tags" step lists tags that
+  were never pushed if a later gate fails).
+- **Image workflows run in parallel, after npm.** `publish-frontend.yml` and
+  `publish-service-images.yml` both gate on the npm version existing and take
+  the version as an input — so they're unaffected by the next-cycle bump.
+  `publish-desktop.yml` instead reads `version.json`: re-run desktop **before**
+  bumping, or re-run the failed jobs of the original (version-pinned) release
+  run.
+- **The launcher workflow's version comes from the ref, not an input.**
+  Dispatching `launcher-release.yml` from a *branch* makes goreleaser fail (or
+  stamp the wrong version) — always `--ref v<version>`. Because it's pinned to
+  the tag, it too is unaffected by the next-cycle bump and can be re-run any
+  time.
+- **The bump is safe once the tag job completes** — everything downstream is
+  pinned to the tagged commit or takes the version as an input.
+
 ## Release Checklist
 
 Before releasing:
@@ -420,6 +529,8 @@ After releasing:
 - [ ] If desktop was checked, verify the desktop artifacts on the GitHub Release
 - [ ] Publish the frontend container image ([Step 1b](#step-1b-publish-the-frontend-container-image)) and confirm the `:<version>` and `:latest` tags on GHCR
 - [ ] Publish the four service images (`publish-service-images.yml`) and confirm `semiont-backend`, `semiont-worker`, `semiont-smelter`, and `semiont-weaver` carry `:<version>` and `:latest` on GHCR
+- [ ] Publish the launcher ([Step 1c](#step-1c-publish-the-launcher-homebrew--binaries), dispatched `--ref v<version>`) and confirm the four `semiont_<version>_*.tar.gz` archives on the GitHub Release and the updated formula in [`homebrew-semiont`](https://github.com/The-AI-Alliance/homebrew-semiont)
+- [ ] Test launcher installation: `brew install the-ai-alliance/semiont/semiont && semiont version` (upgrades: `brew upgrade semiont`). Note the next item's npm CLI also installs a `semiont` bin — a known, deliberately unresolved collision; `which semiont` tells you which one PATH picked
 - [ ] Test installation: `npm install -g @semiont/cli@latest && semiont init && semiont provision`
 - [ ] Bump version for next cycle: `./scripts/release/version-bump.sh`
 
