@@ -365,3 +365,11 @@ jobs:
 
       - name: Test launcher
         run: cd apps/launcher && go test ./...
+
+      # The launcher has no third-party module deps, so its CVE exposure is the Go
+      # stdlib/toolchain compiled into the shipped binary (distributed via Homebrew).
+      # govulncheck scans stdlib + deps and reports only vulns reachable from our code.
+      - name: Vulnerability scan launcher (govulncheck)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          cd apps/launcher && govulncheck ./...

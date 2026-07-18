@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'javascript-typescript' ]
+        language: [ 'javascript-typescript', 'go' ]
 
     steps:
     - name: Checkout repository
@@ -40,15 +40,29 @@ jobs:
         # Override default CodeQL config with custom queries for better security coverage
         config-file: ./.github/codeql/codeql-config.yml
 
+    # JS/TS extraction wants node_modules resolved; irrelevant for the Go matrix leg.
     - name: Setup Node.js
+      if: matrix.language == 'javascript-typescript'
       uses: actions/setup-node@v4
       with:
         node-version: '24'
         cache: 'npm'
 
     - name: Install all dependencies
+      if: matrix.language == 'javascript-typescript'
       run: npm ci --include=optional
       continue-on-error: true
+
+    # Go is a compiled language: the CodeQL extractor needs a real build to trace.
+    - name: Setup Go
+      if: matrix.language == 'go'
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: apps/launcher/go.mod
+
+    - name: Build launcher for CodeQL extraction
+      if: matrix.language == 'go'
+      run: cd apps/launcher && go build ./...
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4.37.0

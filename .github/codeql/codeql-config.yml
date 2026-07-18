@@ -12,6 +12,8 @@ paths:
   - apps/frontend/src
   - apps/backend/src
   - apps/cli/src
+  # Go launcher — module root, not a src/ dir (main.go + internal/)
+  - apps/launcher
   - packages/http-transport/src
   - packages/core/src
   - packages/content/src
@@ -28,6 +30,7 @@ paths:
   - packages/sdk/src
 
 paths-ignore:
+  - apps/launcher/testdata
   - apps/frontend/node_modules
   - apps/backend/node_modules
   - "**/node_modules"
