@@ -72,6 +72,26 @@ describe('Make-Meaning Service', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
+  describe('A4 nesting assertion (gather barrier budgets vs the worker stall watchdog)', () => {
+    it('rejects a settle bound that cannot degrade before the stall watchdog fails fast', async () => {
+      const { STALL_THRESHOLD_MS } = await import('@semiont/jobs');
+      const badConfig: MakeMeaningConfig = {
+        ...config,
+        gather: { settleTimeoutMs: STALL_THRESHOLD_MS }, // ≥ the watchdog: the worker dies before the gather degrades
+      };
+      await expect(startMakeMeaning(project, badConfig, eventBus, mockLogger)).rejects.toThrow(
+        /settleTimeoutMs.*stall watchdog/,
+      );
+    });
+
+    it('rejects a non-positive settle bound', async () => {
+      const badConfig: MakeMeaningConfig = { ...config, gather: { settleTimeoutMs: 0 } };
+      await expect(startMakeMeaning(project, badConfig, eventBus, mockLogger)).rejects.toThrow(
+        /settleTimeoutMs must be a positive/,
+      );
+    });
+  });
+
   describe('initialization', () => {
     it('should initialize job queue', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);

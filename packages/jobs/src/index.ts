@@ -77,3 +77,9 @@ export { AnnotationDetection } from './workers/annotation-detection';
 
 // Generation utilities
 export { generateResourceFromTopic } from './workers/generation/resource-generation';
+
+// Worker liveness bounds (WORKER-LIVENESS P3). STALL_THRESHOLD_MS also
+// participates in the A4 nesting assertion at make-meaning's composition
+// root: gather read-barrier budgets must degrade before this watchdog
+// fails fast.
+export { STALL_THRESHOLD_MS } from './worker-runtime';

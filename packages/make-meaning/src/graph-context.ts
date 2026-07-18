@@ -26,22 +26,32 @@ import type { ResourceDescriptor } from '@semiont/core';
 // hand-written local twins were deleted — this is the one canonical type definition.
 type KnowledgeGraph = components['schemas']['KnowledgeGraph'];
 
-export class GraphContext {
-  /**
-   * Backoff schedule for the projection-lag grace in `buildKnowledgeGraph`
-   * (GRAPH-PROJECTION-SYNC P1). Total wait is bounded at 375 ms — the Weaver
-   * applies in tens of milliseconds when merely lagging; anything slower is
-   * treated as a real miss.
-   */
-  private static readonly PROJECTION_LAG_BACKOFF_MS = [25, 50, 100, 200];
+/**
+ * Backoff schedule for the projection-lag grace in `buildKnowledgeGraph`
+ * (GRAPH-PROJECTION-SYNC P1). Total wait is bounded at 375 ms — the Weaver
+ * applies in tens of milliseconds when merely lagging; anything slower is
+ * treated as a real miss.
+ */
+const PROJECTION_LAG_BACKOFF_MS = [25, 50, 100, 200];
 
-  /**
-   * Bounded wait for the applied-offset barrier (GRAPH-PROJECTION-SYNC P2).
-   * The Weaver applies in tens of milliseconds when merely lagging; a
-   * barrier that hasn't woken in 500 ms means signals have stalled and the
-   * poll floor above owns the remainder.
-   */
-  private static readonly PROJECTION_BARRIER_TIMEOUT_MS = 500;
+/**
+ * Bounded wait for the applied-offset barrier (GRAPH-PROJECTION-SYNC P2).
+ * The Weaver applies in tens of milliseconds when merely lagging; a
+ * barrier that hasn't woken in 500 ms means signals have stalled and the
+ * poll floor above owns the remainder.
+ */
+const PROJECTION_BARRIER_TIMEOUT_MS = 500;
+
+/**
+ * Worst-case graph-barrier spend inside one gather (applied barrier + full
+ * poll floor). Participates in the A4 nesting assertion at the composition
+ * root (`service.ts`): this budget plus the settle bound must degrade
+ * gracefully BEFORE the job-worker stall watchdog fails fast.
+ */
+export const GRAPH_BARRIER_BUDGET_MS =
+  PROJECTION_BARRIER_TIMEOUT_MS + PROJECTION_LAG_BACKOFF_MS.reduce((a, b) => a + b, 0);
+
+export class GraphContext {
 
   /**
    * Get all resources referencing this resource (backlinks)
@@ -119,7 +129,7 @@ export class GraphContext {
             await kb.weaveProgress.whenApplied(
               String(resourceId),
               view.lastSequence,
-              GraphContext.PROJECTION_BARRIER_TIMEOUT_MS,
+              PROJECTION_BARRIER_TIMEOUT_MS,
             );
             mainDoc = await kb.graph.getResource(resourceId);
           } catch (error) {
@@ -132,7 +142,7 @@ export class GraphContext {
         // Bounded-poll floor (P1): the fallback when the barrier cannot
         // engage or its signals stall.
         if (!mainDoc) {
-          for (const delayMs of GraphContext.PROJECTION_LAG_BACKOFF_MS) {
+          for (const delayMs of PROJECTION_LAG_BACKOFF_MS) {
             await new Promise((resolve) => setTimeout(resolve, delayMs));
             mainDoc = await kb.graph.getResource(resourceId);
             if (mainDoc) break;
@@ -148,7 +158,7 @@ export class GraphContext {
           logger?.warn('[gather DEGRADED] graph projection did not catch up — resource present in views, absent in graph', {
             resourceId: String(resourceId),
             lastSequence: view.lastSequence,
-            barrierTimeoutMs: GraphContext.PROJECTION_BARRIER_TIMEOUT_MS,
+            barrierTimeoutMs: PROJECTION_BARRIER_TIMEOUT_MS,
           });
           throw new Error(
             `Graph projection did not catch up for ${String(resourceId)} — present in views, absent in graph (Weaver lag, not a missing resource)`,

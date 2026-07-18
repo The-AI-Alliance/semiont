@@ -5,7 +5,7 @@
  *   const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
  */
 
-import { FsJobQueue, type JobQueue } from '@semiont/jobs';
+import { FsJobQueue, STALL_THRESHOLD_MS, type JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
 import type { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, jobId } from '@semiont/core';
@@ -16,6 +16,7 @@ import { mergeMap } from 'rxjs/operators';
 import { createInferenceClient } from '@semiont/inference';
 import { getGraphDatabase } from '@semiont/graph';
 import { createKnowledgeBase } from './knowledge-base';
+import { GRAPH_BARRIER_BUDGET_MS } from './graph-context';
 import { Gatherer } from './gatherer';
 import { Matcher } from './matcher';
 import { Stower } from './stower';
@@ -180,6 +181,24 @@ export async function startMakeMeaning(
 ): Promise<MakeMeaningService> {
   if (!config.services?.graph) {
     throw new Error('services.graph is required for make-meaning service');
+  }
+
+  // A4 nesting (SMELTER-INDEX-SYNC): the gather's worst-case read-barrier
+  // spend — the settle bound plus the graph barrier budget — must degrade
+  // gracefully BEFORE the job-worker stall watchdog fails fast; a barrier
+  // that outlives the watchdog gets the worker killed instead of a thin
+  // context. Enforced here because both bounds are visible at this
+  // composition root; tighter EXTERNAL watchdogs (e.g. my-chat's 90s
+  // generation stall) are not importable and remain documented on the
+  // config field.
+  if (!Number.isFinite(config.gather.settleTimeoutMs) || config.gather.settleTimeoutMs <= 0) {
+    throw new Error(`gather.settleTimeoutMs must be a positive number of milliseconds, got ${config.gather.settleTimeoutMs}`);
+  }
+  if (config.gather.settleTimeoutMs + GRAPH_BARRIER_BUDGET_MS >= STALL_THRESHOLD_MS) {
+    throw new Error(
+      `gather.settleTimeoutMs (${config.gather.settleTimeoutMs}ms) plus the graph barrier budget (${GRAPH_BARRIER_BUDGET_MS}ms) ` +
+      `must nest inside the job-worker stall watchdog (${STALL_THRESHOLD_MS}ms) — lower settleTimeoutMs (A4)`,
+    );
   }
 
   const skipRebuild = options?.skipRebuild ?? (process.env.SEMIONT_SKIP_REBUILD === 'true');

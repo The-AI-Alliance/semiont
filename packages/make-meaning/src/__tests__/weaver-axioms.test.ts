@@ -218,15 +218,15 @@ describe('W5 — rebuild ≡ replay', () => {
     );
   });
 
-  // ∀ σ: RB(σ) ≡ fold(σ) INCLUDING the entity-type registry. KNOWN false
-  // (found by this axiom's first run, 2026-07-13): `frame:entity-type-added`
-  // is a system event — it lives in no resource stream, so rebuildAll never
-  // replays it, while clearDatabase wiped the registry back to the ontology
-  // baseline. Consequence: `weave:rebuild` DROPS custom entity types.
-  // No bus read serves system events today; flips when one exists (or when
-  // rebuild preserves/re-registers the registry). Ledgered in
-  // WEAVER-AXIOMS.md; tracked on #845.
-  it.fails('W5-frames: rebuild restores frame-added entity types', async () => {
+  // ∀ σ: RB(σ) ≡ fold(σ) INCLUDING the entity-type registry. Was RED
+  // 2026-07-13 → 2026-07-18: `frame:entity-type-added` is a system event —
+  // it lives in no resource stream, so the per-resource replay can never
+  // restore it, while clearDatabase wiped the registry back to the ontology
+  // baseline. GREEN via the preserve-and-re-register arm (the ledgered
+  // alternative): rebuildAll captures the live-folded registry before the
+  // wipe and re-registers it after — the live registry is itself log-derived,
+  // and no weaver-readable stream exists to rebuild frames from.
+  it('W5-frames: rebuild restores frame-added entity types', async () => {
     const rig = await buildWeaverRig();
     const history = [
       storedEvent('yield:created', 'res-f', {
@@ -519,10 +519,12 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
     );
   });
 
-  // KNOWN v1 boundary: annotation bodies are outside the detectable class —
-  // a corrupted-in-place body reconciles as clean. Flips when #845's
-  // deep-equality checkbox lands.
-  it.fails('W9-deep: reconcile detects in-place annotation body corruption', async () => {
+  // Was RED (v1 boundary) → GREEN 2026-07-18: reconcile's divergenceOf now
+  // compares annotation BODIES canonically (key-order-independent) against
+  // the view's truth, so a corrupted-in-place body reads as
+  // 'annotation-body-mismatch' and heals from the log — membership equality
+  // alone was blind to it (#845 deep-equality checkbox).
+  it('W9-deep: reconcile detects in-place annotation body corruption', async () => {
     const rig = await buildWeaverRig();
     const rid = 'res-deep';
     const history = [
