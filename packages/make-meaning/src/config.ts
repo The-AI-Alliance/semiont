@@ -37,6 +37,14 @@ export interface WorkerInferenceConfig {
 
 /** Narrow config type — only the fields make-meaning actually reads */
 export interface MakeMeaningConfig {
+  /**
+   * Resource-gather policy. `settleTimeoutMs` bounds the semanticContext
+   * read-your-writes barrier (SMELTER-INDEX-SYNC D3/D5) — REQUIRED: the TOML
+   * loader owns the one default (15s at `[environments.<env>.make-meaning.gather]`);
+   * hand-built configs (scripts, tests) state their policy explicitly. Must
+   * nest inside downstream watchdogs (A4).
+   */
+  gather: { settleTimeoutMs: number };
   services: {
     graph?: GraphServiceConfig;
     vectors?: VectorsServiceConfig;

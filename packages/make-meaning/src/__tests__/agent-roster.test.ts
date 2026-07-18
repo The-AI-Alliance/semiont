@@ -23,6 +23,7 @@ describe('deriveAgentRoster — DID domain is site.domain (the mint), never topo
     // this pins the one remaining source.
     const config: MakeMeaningConfig = {
       services: {},
+      gather: { settleTimeoutMs: 15_000 },
       site: { domain: 'kb.example' }, // the KB's identity — the exchange's mint value
       workers: WORKERS,
     };
@@ -38,6 +39,7 @@ describe('deriveAgentRoster — DID domain is site.domain (the mint), never topo
   it('throws loudly without site.domain — no topology fallback', () => {
     const config: MakeMeaningConfig = {
       services: {},
+      gather: { settleTimeoutMs: 15_000 },
       workers: WORKERS,
     };
 
@@ -47,6 +49,7 @@ describe('deriveAgentRoster — DID domain is site.domain (the mint), never topo
   it('carries a ported site.domain verbatim — byte-equal with the exchange mint', () => {
     const config: MakeMeaningConfig = {
       services: {},
+      gather: { settleTimeoutMs: 15_000 },
       site: { domain: 'localhost:4000' },
       workers: WORKERS,
     };

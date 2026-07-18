@@ -43,6 +43,7 @@ describe('Make-Meaning Service', () => {
     eventBus = new EventBus();
 
     config = {
+      gather: { settleTimeoutMs: 15_000 },
       services: {
         graph: {
           platform: { type: 'posix' },

@@ -12,8 +12,11 @@ import type {
   components,
 } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes, getTargetSource, resourceId as createResourceId } from '@semiont/core';
+import type { Logger } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
+import { recordGatherDegrade } from '@semiont/observability';
 import type { KnowledgeBase } from './knowledge-base';
+import { WeaveProgressTimeout } from './weave-progress';
 
 import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
@@ -94,6 +97,8 @@ export class GraphContext {
   static async buildKnowledgeGraph(
     resourceId: ResourceId,
     kb: KnowledgeBase,
+    /** Breadcrumb sink for the projection-lag degrade path; the degrade counter fires regardless. */
+    logger?: Logger,
   ): Promise<KnowledgeGraph> {
     // Read-your-writes grace for the graph projection: the view materializer
     // applies on the append path, the Weaver lags behind it (see
@@ -117,8 +122,11 @@ export class GraphContext {
               GraphContext.PROJECTION_BARRIER_TIMEOUT_MS,
             );
             mainDoc = await kb.graph.getResource(resourceId);
-          } catch {
-            // Barrier timed out — signals stalled; the poll floor owns it.
+          } catch (error) {
+            // Only the barrier's own timeout downgrades to the poll floor —
+            // any other failure is a broken progress fold and must surface,
+            // not silently degrade into polling.
+            if (!(error instanceof WeaveProgressTimeout)) throw error;
           }
         }
         // Bounded-poll floor (P1): the fallback when the barrier cannot
@@ -129,6 +137,22 @@ export class GraphContext {
             mainDoc = await kb.graph.getResource(resourceId);
             if (mainDoc) break;
           }
+        }
+        if (!mainDoc) {
+          // Exhausted with the view still vouching for the resource: this is
+          // PROJECTION LAG, not absence — saying "Resource not found" here
+          // would misdirect debugging at a 404 when the fault is a lagging or
+          // stalled Weaver. Countable (fleet alerting) + loggable (incident
+          // detail) + honestly named (the error says which subsystem).
+          recordGatherDegrade('graph');
+          logger?.warn('[gather DEGRADED] graph projection did not catch up — resource present in views, absent in graph', {
+            resourceId: String(resourceId),
+            lastSequence: view.lastSequence,
+            barrierTimeoutMs: GraphContext.PROJECTION_BARRIER_TIMEOUT_MS,
+          });
+          throw new Error(
+            `Graph projection did not catch up for ${String(resourceId)} — present in views, absent in graph (Weaver lag, not a missing resource)`,
+          );
         }
       }
     }

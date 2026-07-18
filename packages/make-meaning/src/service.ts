@@ -145,6 +145,7 @@ async function createKnowledgeSystemFromConfig(
   const gatherer = new Gatherer(
     kb, eventBus,
     createInferenceClient(resolveActorInference(config, 'gatherer'), logger.child({ component: 'inference-client-gatherer' })),
+    config.gather.settleTimeoutMs,
     logger.child({ component: 'gatherer' }),
     embeddingProvider,
   );

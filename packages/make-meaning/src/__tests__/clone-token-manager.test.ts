@@ -47,6 +47,7 @@ describe('CloneTokenManager format selection', () => {
     const project = new SemiontProject(testDir);
 
     const config: MakeMeaningConfig = {
+      gather: { settleTimeoutMs: 15_000 },
       services: {
         graph: { platform: { type: 'posix' }, type: 'memory' },
       },
