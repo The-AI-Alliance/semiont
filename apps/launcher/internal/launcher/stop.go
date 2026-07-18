@@ -18,12 +18,14 @@ With no --runtime, EVERY installed runtime is swept — stopping via the wrong
 runtime is a silent no-op that leaves the real stack running.
 `
 
-// stopNames sweeps all ten container names — services first, then
-// dependencies, then observability.
+// stopNames sweeps all ten container names in REVERSE start order —
+// dependents before their dependencies, so nothing spends teardown alive
+// with its upstream already gone (start brings up jaeger → neo4j → qdrant →
+// ollama → postgres → backend → worker → smelter → weaver → frontend).
 var stopNames = []string{
-	"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver",
-	"semiont-frontend", "semiont-neo4j", "semiont-qdrant", "semiont-postgres",
-	"semiont-ollama", "semiont-jaeger",
+	"semiont-frontend", "semiont-weaver", "semiont-smelter", "semiont-worker",
+	"semiont-backend", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
+	"semiont-neo4j", "semiont-jaeger",
 }
 
 // Stop implements `semiont stop` — the port of the fleet's stop.sh.
