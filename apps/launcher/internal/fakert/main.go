@@ -125,7 +125,7 @@ func runtimeCmd(base string, args []string) {
 		// Exit like real runtimes: 0 only when the container "exists" (a
 		// serve pidfile is our existence marker), else nonzero — the
 		// launcher's preflight counts prior containers from these codes.
-		if !killServe(args[len(args)-1]) {
+		if !killServe(handleName(args[len(args)-1])) {
 			fmt.Fprintln(os.Stderr, "Error: no such container")
 			os.Exit(1)
 		}
@@ -157,7 +157,7 @@ func runtimeCmd(base string, args []string) {
 			fmt.Println("semiont-backend")
 		}
 	case "logs":
-		name := strings.TrimPrefix(args[len(args)-1], "semiont-")
+		name := strings.TrimPrefix(handleName(args[len(args)-1]), "semiont-")
 		fmt.Println(name + " out")
 		fmt.Fprintln(os.Stderr, name+" err")
 	case "inspect":
@@ -165,7 +165,7 @@ func runtimeCmd(base string, args []string) {
 		// e.g. FAKERT_STATE_backend=running. Unset = container not found.
 		// With FAKERT_SECRET set, the env list carries the worker secret —
 		// exercising the launcher's --service secret recovery.
-		svc := strings.TrimPrefix(args[len(args)-1], "semiont-")
+		svc := strings.TrimPrefix(handleName(args[len(args)-1]), "semiont-")
 		state := os.Getenv("FAKERT_STATE_" + svc)
 		if state == "" {
 			fmt.Fprintln(os.Stderr, "Error: no such container")
@@ -246,7 +246,19 @@ func run(args []string) {
 				[]byte(strconv.Itoa(cmd.Process.Pid)), 0o644)
 		}
 	}
-	fmt.Println("0123456789ab") // container id, discarded by the launcher
+	// The container identifier the runtime reports — name-derived so tests
+	// can assert id-based stop/status flows ("fid-semiont-backend").
+	if name != "" {
+		fmt.Println("fid-" + name)
+	} else {
+		fmt.Println("0123456789ab")
+	}
+}
+
+// handleName resolves a launcher-supplied handle (container name or the
+// fid-<name> identifier run -d reported) back to the container name.
+func handleName(arg string) string {
+	return strings.TrimPrefix(arg, "fid-")
 }
 
 func busybox(args []string, joined string) {

@@ -44,6 +44,15 @@ var roles = map[string]roleSpec{
 
 const roleList = "backend, worker, smelter, weaver, frontend, db, graph, vectors, inference, or traces"
 
+// roleByContainer inverts the roles table (container name → role).
+var roleByContainer = func() map[string]string {
+	m := make(map[string]string, len(roles))
+	for r, s := range roles {
+		m[s.container] = r
+	}
+	return m
+}()
+
 // roleTitle is the detail-bearing display form: the role, with the product
 // in parens when there is one ("graph (Neo4j)").
 func roleTitle(role string) string {
@@ -230,22 +239,40 @@ func runStartService(u *ui, rt, version, root, configFile string, opts startOpti
 	}
 
 	var d time.Duration
+	var id string
+	var img string
+	hostReuse := false
 	ok := false
 	switch svc {
 	case "traces":
-		d, ok = runGated(u, rt, tracesArgs(), "traces (Jaeger)", "traces (Jaeger UI)", "http://localhost:16686", 30)
+		args := tracesArgs()
+		img = args[len(args)-1]
+		id, d, ok = runGated(u, rt, args, "traces (Jaeger)", "traces (Jaeger UI)", "http://localhost:16686", 30)
 	case "graph":
-		d, ok = runGated(u, rt, graphArgs(), "graph (Neo4j)", "graph (Neo4j)", "http://localhost:7474", 30)
+		args := graphArgs()
+		img = args[len(args)-1]
+		id, d, ok = runGated(u, rt, args, "graph (Neo4j)", "graph (Neo4j)", "http://localhost:7474", 30)
 	case "vectors":
-		d, ok = runGated(u, rt, vectorsArgs(), "vectors (Qdrant)", "vectors (Qdrant)", "http://localhost:6333/readyz", 15)
+		args := vectorsArgs()
+		img = args[len(args)-1]
+		id, d, ok = runGated(u, rt, args, "vectors (Qdrant)", "vectors (Qdrant)", "http://localhost:6333/readyz", 15)
 	case "inference":
-		if code := startInference(u, rt, addr, opts); code != 0 {
+		var code int
+		id, hostReuse, code = startInference(u, rt, addr, opts)
+		if code != 0 {
 			return code
+		}
+		if !hostReuse {
+			img = "ollama/ollama"
 		}
 		ok = true
 	case "db":
-		u.echoCmd(rt, dbArgs()...)
-		if err := runDetached(rt, dbArgs()...); err != nil {
+		args := dbArgs()
+		img = args[len(args)-1]
+		u.echoCmd(rt, args...)
+		var err error
+		id, err = runDetached(rt, args...)
+		if err != nil {
 			u.fail("db (PostgreSQL) failed to start.")
 			return 1
 		}
@@ -255,21 +282,28 @@ func runStartService(u *ui, rt, version, root, configFile string, opts startOpti
 		if opts.adminEmail != "" && opts.adminPassword != "" {
 			admin = []string{"--env", "ADMIN_EMAIL=" + opts.adminEmail, "--env", "ADMIN_PASSWORD=" + opts.adminPassword}
 		}
-		if code := runBackend(u, rt, root, stage, addr, secret, version, userEnv, otel, admin); code != 0 {
+		var code int
+		id, code = runBackend(u, rt, root, stage, addr, secret, version, userEnv, otel, admin)
+		if code != 0 {
 			return code
 		}
+		img = image("backend", version)
 		ok = true
 	case "worker", "smelter", "weaver":
 		for _, sc := range sidecarSpecs {
 			if sc.svc == svc {
-				if code := runSidecar(u, rt, sc, stage, addr, secret, version, userEnv, otel); code != 0 {
+				var code int
+				id, code = runSidecar(u, rt, sc, stage, addr, secret, version, userEnv, otel)
+				if code != 0 {
 					return code
 				}
+				img = image(svc, version)
 			}
 		}
 		ok = true
 	case "frontend":
-		d, ok = runGated(u, rt, frontendArgs(version), "Frontend", "Frontend", "http://localhost:3000", 30)
+		img = image("frontend", version)
+		id, d, ok = runGated(u, rt, frontendArgs(version), "Frontend", "Frontend", "http://localhost:3000", 30)
 	}
 	if !ok {
 		return 1
@@ -277,6 +311,14 @@ func runStartService(u *ui, rt, version, root, configFile string, opts startOpti
 	if d > 0 {
 		u.ok("%s healthy %s", svc, u.dim("("+took(d)+")"))
 	}
+
+	// Update the belief record: this service's entry replaces its predecessor;
+	// the rest of the record (untouched services) stands.
+	st := loadState()
+	if st == nil {
+		st = &stackState{Runtime: rt, Version: version, Services: map[string]serviceState{}}
+	}
+	st.recordService(svc, id, img, hostReuse)
 
 	fmt.Println()
 	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 "+svc+" is up"), u.dim("("+took(time.Since(t0))+")"))

@@ -66,17 +66,11 @@ func Stop(args []string) int {
 		}
 	}
 
-	// One service, or the whole stack. With --service, the staged configs
-	// survive: the rest of the stack is still live-mounting them, and deleting
-	// backing files under a live mount is the exact failure the per-service
-	// staging exists to prevent.
-	names := stopNames
 	if service != "" {
 		if _, known := roles[service]; !known {
 			u.fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
-		names = []string{roles[service].container}
 	}
 
 	// Which runtimes to sweep: the requested one, or EVERY installed runtime.
@@ -84,6 +78,12 @@ func Stop(args []string) int {
 	// all runtimes structurally kills the classic trap: a bare `semiont stop`
 	// after `semiont start --runtime docker` picking a different runtime,
 	// reporting success, and leaving the real stack running.
+	// The recorded stack state (when present) says which runtime started the
+	// stack and what identifiers it reported — stop computes its work from
+	// those instead of a blind every-runtime name sweep. An explicit
+	// --runtime overrides; no record (older launcher, other machine) falls
+	// back to the historical sweep.
+	st := loadState()
 	var runtimes []string
 	if runtime != "" {
 		if !onPath(runtime) {
@@ -91,19 +91,54 @@ func Stop(args []string) int {
 			return 1
 		}
 		runtimes = []string{runtime}
+	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
+		runtimes = []string{st.Runtime}
+		u.log("Using recorded stack state %s", u.dim("("+st.Runtime+" per "+statePath()+")"))
 	} else {
+		st = nil // ignore an unusable record; sweep by name
 		runtimes = installedRuntimes()
 	}
 	if len(runtimes) == 0 {
 		u.fail("No container runtime found. Install Apple Container, Docker, or Podman.")
 		return 1
 	}
+	// Identifiers come from the record only when sweeping exactly the
+	// recorded runtime — IDs are runtime-specific.
+	useState := st != nil && (runtime == "" || runtime == st.Runtime)
+
+	// One service, or the whole stack (reverse-start order). With a record: a
+	// host-reuse inference entry means no container exists — skip it; a
+	// recorded ID is the sharper handle than the name.
+	targets := func() []string {
+		names := stopNames
+		if service != "" {
+			names = []string{roles[service].container}
+		}
+		if !useState {
+			return names
+		}
+		out := make([]string, 0, len(names))
+		for _, c := range names {
+			role := roleByContainer[c]
+			if e, ok := st.Services[role]; ok {
+				if e.HostReuse {
+					continue
+				}
+				if e.ID != "" {
+					out = append(out, e.ID)
+					continue
+				}
+			}
+			out = append(out, c)
+		}
+		return out
+	}()
 
 	if dryRun {
 		fmt.Println("# semiont stop --dry-run — the exact runtime commands a real run would")
 		fmt.Println("# execute, in order.")
 		for _, rt := range runtimes {
-			for _, c := range names {
+			for _, c := range targets {
 				fmt.Println(renderCmd(rt, "stop", c))
 				fmt.Println(renderCmd(rt, "rm", c))
 			}
@@ -119,12 +154,12 @@ func Stop(args []string) int {
 	// stop-then-rm: under Apple Container a stopped --rm container persists
 	// (the next `run --name` would fail with "already exists"), so rm makes
 	// this idempotent across all three states: running, stopped, absent.
-	u.log("Sweeping %d container name(s) across %s %s", len(names),
+	u.log("Sweeping %d container(s) across %s %s", len(targets),
 		strings.Join(runtimes, ", "), u.dim("(stop+rm each; exact commands: semiont stop --dry-run)"))
 	for _, rt := range runtimes {
 		t0 := time.Now()
 		removed := 0
-		for _, c := range names {
+		for _, c := range targets {
 			stopped := runSilent(rt, "stop", c) == nil
 			rmed := runSilent(rt, "rm", c) == nil
 			if stopped || rmed {
@@ -140,6 +175,11 @@ func Stop(args []string) int {
 	}
 
 	if service != "" {
+		// The record forgets this one service; the rest of it stands.
+		if useState {
+			delete(st.Services, service)
+			saveState(st)
+		}
 		fmt.Printf("%s stopped (staged configs left in place; rest of the stack untouched).\n", service)
 		return 0
 	}
@@ -150,6 +190,7 @@ func Stop(args []string) int {
 	if len(staged) > 0 {
 		u.ok("Removed %d staged config dir(s)", len(staged))
 	}
+	removeState()
 
 	fmt.Println("Semiont stack stopped.")
 	return 0

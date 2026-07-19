@@ -14,6 +14,7 @@ package main_test
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
@@ -497,7 +498,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 10 container name(s) across container, docker, podman",
+		"Sweeping 10 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -661,6 +662,111 @@ func TestInvocationLog(t *testing.T) {
 	}
 }
 
+// --- stack state record ---
+
+// statePathFor mirrors the launcher's statePath for the scenario's fake HOME.
+func statePathFor(home string) string {
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Application Support", "semiont", "stack.json")
+	}
+	return filepath.Join(home, ".local", "state", "semiont", "stack.json")
+}
+
+// TestStackStateLifecycle drives boot → status → stop --service → stop and
+// asserts the belief record steers every step: identifiers recorded at start,
+// status and stop querying only the recorded runtime by ID, per-service stop
+// forgetting one entry, full stop forgetting the record.
+func TestStackStateLifecycle(t *testing.T) {
+	s := newScenario(t, "container", "docker", "podman")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("boot: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// The record: runtime + all ten services with runtime-reported IDs.
+	b, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatalf("stack.json not written: %v", err)
+	}
+	var st struct {
+		Schema   int    `json:"schema"`
+		Runtime  string `json:"runtime"`
+		Services map[string]struct {
+			Container string `json:"container"`
+			ID        string `json:"id"`
+			Image     string `json:"image"`
+		} `json:"services"`
+	}
+	if err := json.Unmarshal(b, &st); err != nil {
+		t.Fatalf("stack.json not valid JSON: %v\n%s", err, b)
+	}
+	if st.Schema != 1 || st.Runtime != "container" {
+		t.Errorf("schema/runtime: got %d/%q", st.Schema, st.Runtime)
+	}
+	for _, role := range []string{"traces", "graph", "vectors", "inference", "db", "backend", "worker", "smelter", "weaver", "frontend"} {
+		e, ok := st.Services[role]
+		if !ok {
+			t.Errorf("service %q missing from record", role)
+			continue
+		}
+		if e.ID != "fid-"+e.Container {
+			t.Errorf("%s: id %q not the runtime-reported identifier", role, e.ID)
+		}
+		if e.Image == "" {
+			t.Errorf("%s: image not recorded", role)
+		}
+	}
+
+	preStatus := s.argv(t)
+	if _, _, code := s.run(t, "status"); code != 0 {
+		t.Errorf("status on healthy stack: exit %d", code)
+	}
+	statusArgv := strings.TrimPrefix(s.argv(t), preStatus)
+	mustContain(t, "status argv", statusArgv, "container inspect fid-semiont-backend")
+	for _, bad := range []string{"docker inspect", "podman inspect"} {
+		if strings.Contains(statusArgv, bad) {
+			t.Errorf("status queried a non-recorded runtime: %q", bad)
+		}
+	}
+
+	// Per-service stop: weaver forgotten, record survives.
+	preStop := s.argv(t)
+	stdout, _, code := s.run(t, "stop", "--service", "weaver")
+	if code != 0 {
+		t.Fatalf("stop --service weaver: exit %d", code)
+	}
+	mustContain(t, "stdout", stdout, "Using recorded stack state")
+	stopArgv := strings.TrimPrefix(s.argv(t), preStop)
+	mustContain(t, "per-service stop argv", stopArgv, "container stop fid-semiont-weaver")
+	if strings.Contains(stopArgv, "docker stop") {
+		t.Error("per-service stop swept a non-recorded runtime")
+	}
+	b, _ = os.ReadFile(statePathFor(s.home))
+	if strings.Contains(string(b), `"weaver"`) {
+		t.Error("weaver entry not forgotten after stop --service")
+	}
+	if !strings.Contains(string(b), `"backend"`) {
+		t.Error("record lost other services on per-service stop")
+	}
+
+	// Full stop: recorded runtime only, by ID; record removed.
+	preFull := s.argv(t)
+	stdout, _, code = s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	mustContain(t, "stdout", stdout, "Using recorded stack state", "Semiont stack stopped.")
+	fullArgv := strings.TrimPrefix(s.argv(t), preFull)
+	mustContain(t, "full stop argv", fullArgv, "container stop fid-semiont-backend", "container rm fid-semiont-frontend")
+	for _, bad := range []string{"docker stop", "podman stop"} {
+		if strings.Contains(fullArgv, bad) {
+			t.Errorf("state-driven stop swept a non-recorded runtime: %q", bad)
+		}
+	}
+	if _, err := os.Stat(statePathFor(s.home)); !os.IsNotExist(err) {
+		t.Error("stack.json survived a full stop")
+	}
+}
+
 // --- start --service ---
 
 func TestStartServiceWorker(t *testing.T) {
@@ -800,7 +906,7 @@ func TestStopService(t *testing.T) {
 		t.Fatalf("want exit 0, got %d", code)
 	}
 	mustContain(t, "stdout", stdout,
-		"Sweeping 1 container name(s) across container, docker, podman",
+		"Sweeping 1 container(s) across container, docker, podman",
 		"weaver stopped (staged configs left in place; rest of the stack untouched).")
 	if strings.Contains(stdout, "Semiont stack stopped.") {
 		t.Error("--service printed the full-stack message")

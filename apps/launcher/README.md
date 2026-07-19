@@ -44,6 +44,15 @@ semiont stop
   semiont` on macOS, `$XDG_STATE_HOME/semiont` (default
   `~/.local/state/semiont`) on Linux. `semiont status` lists the dir under
   LOCAL HOST DIRECTORIES. Logging is best-effort — it never blocks a command.
+- `start` records what it believes the stack IS — the runtime, and each
+  service's container name, runtime-reported ID, and image — in `stack.json`
+  in the launcher's state home (`~/Library/Application Support/semiont` on
+  macOS, `$XDG_STATE_HOME/semiont` on Linux). `stop` and `status` compute
+  their work from those identifiers: they target the recorded runtime by ID
+  (no more blind every-runtime name sweep), skip a host-reused Ollama, and a
+  full `stop` forgets the record. No record (older launcher, another
+  machine's stack) falls back to the historical name sweep; the record is
+  belief — `status` still verifies every claim against the runtime.
 - `start`, `stop`, and `status` take `--service <name>` to act on one service
   (any of the ten, named by role: backend, worker, smelter, weaver, frontend,
   db, graph, vectors, inference, traces — the concrete products PostgreSQL,

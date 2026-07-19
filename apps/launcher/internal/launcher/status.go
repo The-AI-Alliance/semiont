@@ -94,6 +94,11 @@ func Status(args []string) int {
 		}
 	}
 
+	// The recorded stack state (when present) narrows the query to the
+	// runtime that actually started the stack, and supplies the identifiers
+	// the runtime reported at start — the record is belief; every claim below
+	// is still verified against the runtime and the health endpoints.
+	st := loadState()
 	var runtimes []string
 	if runtime != "" {
 		if !onPath(runtime) {
@@ -101,7 +106,14 @@ func Status(args []string) int {
 			return 1
 		}
 		runtimes = []string{runtime}
+		if st != nil && runtime != st.Runtime {
+			st = nil // record is about a different runtime's stack
+		}
+	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
+		runtimes = []string{st.Runtime}
+		u.log("Using recorded stack state %s", u.dim("("+st.Runtime+" per "+statePath()+")"))
 	} else {
+		st = nil
 		runtimes = installedRuntimes()
 	}
 	if len(runtimes) == 0 {
@@ -115,7 +127,15 @@ func Status(args []string) int {
 		if service != "" && svc.name != service {
 			continue
 		}
-		state, rt := containerState(runtimes, roles[svc.name].container)
+		// Query by the recorded identifier when we have one; the container
+		// name is the fallback handle.
+		handle := roles[svc.name].container
+		if st != nil {
+			if e, ok := st.Services[svc.name]; ok && e.ID != "" {
+				handle = e.ID
+			}
+		}
+		state, rt := containerState(runtimes, handle)
 		healthy := probeHealth(svc.endpoint)
 
 		// Host Ollama reuse: no container, but the endpoint answers — that is
@@ -192,6 +212,9 @@ func printHostDirs(u *ui) {
 	}
 	if p := logDir(); p != "" {
 		row("logs", p, presence(p))
+	}
+	if p := statePath(); p != "" {
+		row("state", p, presence(p))
 	}
 	staged, _ := filepath.Glob("/tmp/semiont-config.*")
 	note := "none"
