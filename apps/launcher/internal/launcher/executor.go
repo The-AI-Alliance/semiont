@@ -65,9 +65,11 @@ const (
 // --- live ---
 
 type liveExec struct {
-	u  *ui
-	rt string
-	st *stackState
+	u       *ui
+	rt      string
+	st      *stackState
+	version string // SEMIONT_VERSION, for records created lazily (--service mode)
+	root    string // KB root, ditto ("" for root-free services)
 }
 
 func (x *liveExec) stopRm(name string) bool {
@@ -266,10 +268,13 @@ func (x *liveExec) ollamaVolume(opts startOptions) string {
 }
 
 func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
-	if x.st == nil { // --service mode: load-or-create
+	if x.st == nil { // --service mode: load, or create with full metadata
 		x.st = loadState()
 		if x.st == nil {
-			x.st = &stackState{Runtime: x.rt, Services: map[string]serviceState{}}
+			x.st = &stackState{
+				Runtime: x.rt, KBRoot: x.root, KBDid: loadKBIdentity(x.root).didWeb(),
+				Version: x.version, Services: map[string]serviceState{},
+			}
 		}
 	}
 	x.st.recordService(role, id, image, provided, endpoint, driver)

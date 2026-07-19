@@ -175,7 +175,7 @@ func serviceSecret(u *ui, rt string) (string, bool) {
 // absent no-ops, which launch nothing).
 func runStartService(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
 	t0 := time.Now()
-	x := &liveExec{u: u, rt: rt}
+	x := &liveExec{u: u, rt: rt, version: version, root: root}
 	if code := flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv}); code != 0 {
 		return code
 	}

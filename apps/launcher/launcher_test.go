@@ -1301,6 +1301,18 @@ func TestStartServiceWorker(t *testing.T) {
 			t.Errorf("--service worker touched the wider stack: %q in argv", absent)
 		}
 	}
+
+	// A record created lazily by a --service start carries full metadata,
+	// not just the runtime (regression guard: the executor refactor briefly
+	// dropped these).
+	b, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatalf("stack.json not written: %v", err)
+	}
+	mustContain(t, "stack.json", string(b),
+		`"imageVersion": "latest"`,
+		`"kbRoot": "`+s.kb+`"`,
+		`"kbDid": "did:web:example.github.io:test-kb"`)
 }
 
 func TestStartServiceGraph(t *testing.T) {
