@@ -16,19 +16,38 @@ Semiont uses a two-layer TOML configuration model, analogous to Git's `~/.gitcon
 | Scope | Path | Committed? | Content |
 |---|---|---|---|
 | Global | `~/.semiontconfig` | No | All environment config: services, ports, URLs, credentials, inference |
-| Project | `.semiont/config` | Yes | Project name only |
+| Project | `.semiont/config` | Yes | Project identity: name, git sync, site identity (did:web) |
 | Secrets | `$XDG_CONFIG_HOME/semiont/secrets` | No | JWT secret (mode 0600) |
 
 ### `.semiont/config` (project-local, committed)
 
-Created by `semiont init`. Contains only the project name:
+Created by `semiont init`. The project's committed identity card:
 
 ```toml
 [project]
-name = "my-semiont-project"
+name = "My Knowledge Base"
+version = "0.1.0"
+
+[git]
+sync = true                # backend stages event-log writes with git
+
+[site]
+# Permanent did:web identity for everything this KB mints (stamped into the
+# committed event log). Names the repo, not a deployment — a committed
+# literal, never env-templated, never a machine address.
+domain = "example.github.io:my-kb"    # ⇔ did:web:example.github.io:my-kb
+siteName = "My Knowledge Base"
+adminEmail = ""
+oauthAllowedDomains = ["example.com"]
 ```
 
-Everything else lives in `~/.semiontconfig`, keyed to this name.
+`[site] domain` is identity, not addressing: it names the repository in
+did:web's colon-path form and must stay stable across deployments (the same
+invariant that keeps `BACKEND_HOST` off the backend container — `publicURL`
+derivation). The `semiont` launcher parses this file for display and its
+roots registry (`roots.json` records each root's did:web and siteName);
+environment wiring stays in `~/.semiontconfig` / the KB's
+`.semiont/semiontconfig/` variants, keyed to the project name.
 
 ### `~/.semiontconfig` (user-global, never committed)
 

@@ -69,6 +69,11 @@ var driverCatalog = map[string]map[string]driverSpec{
 	"inference": {
 		"ollama": {image: "ollama/ollama", display: "Ollama", defaultPort: 11434, portLabel: "Ollama"},
 	},
+	// traces is launcher-owned (no config section yet) — catalog entry
+	// carries the display name for status's TECH column.
+	"traces": {
+		"jaeger": {image: "jaegertracing/all-in-one:1.76.0", display: "Jaeger", defaultPort: 16686, portLabel: "Jaeger UI"},
+	},
 }
 
 // driverDisplay: the product name behind a role's selected driver.

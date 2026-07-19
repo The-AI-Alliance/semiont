@@ -344,7 +344,14 @@ func runStartService(u *ui, rt, version, root, configFile string, opts startOpti
 	if hostReuse {
 		provided = providedHost
 	}
-	st.recordService(svc, id, img, provided, serviceEndpoint(svc, plan))
+	driver := ""
+	if plan != nil {
+		driver = plan.Roles[svc].Driver
+	}
+	if svc == "traces" {
+		driver = "jaeger"
+	}
+	st.recordService(svc, id, img, provided, serviceEndpoint(svc, plan), driver)
 
 	fmt.Println()
 	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 "+svc+" is up"), u.dim("("+took(time.Since(t0))+")"))

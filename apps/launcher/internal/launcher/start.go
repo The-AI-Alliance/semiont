@@ -735,7 +735,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 			return 1
 		}
 		u.ok("traces — Jaeger UI on http://localhost:16686 (OTLP collector: %s:4318) %s", addr, u.dim("("+took(d)+")"))
-		st.recordService("traces", id, args[len(args)-1], providedLauncher, "http://localhost:16686")
+		st.recordService("traces", id, args[len(args)-1], providedLauncher, "http://localhost:16686", "jaeger")
 		otel = otelArgs(addr)
 	}
 
@@ -752,15 +752,15 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		}
 		u.ok("graph — bolt://localhost:%d (browser: http://localhost:%d) %s",
 			graphRP.Port, auxPort, u.dim("("+took(d)+")"))
-		st.recordService("graph", id, graphRP.Image, providedLauncher, fmt.Sprintf("http://localhost:%d", auxPort))
+		st.recordService("graph", id, graphRP.Image, providedLauncher, fmt.Sprintf("http://localhost:%d", auxPort), graphRP.Driver)
 	case obligationAbsent:
 		u.log("graph — not configured; skipping")
-		st.recordService("graph", "", "", providedNone, "")
+		st.recordService("graph", "", "", providedNone, "", "")
 	default:
 		if !verifyExternal(u, "graph", graphRP) {
 			return 1
 		}
-		st.recordService("graph", "", "", providedExternal, fmt.Sprintf("tcp:%s:%d", graphRP.Address, graphRP.Port))
+		st.recordService("graph", "", "", providedExternal, fmt.Sprintf("tcp:%s:%d", graphRP.Address, graphRP.Port), graphRP.Driver)
 	}
 
 	vecRP := plan.Roles["vectors"]
@@ -774,15 +774,15 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 			return 1
 		}
 		u.ok("vectors — http://localhost:%d %s", vecRP.Port, u.dim("("+took(d)+")"))
-		st.recordService("vectors", id, vecRP.Image, providedLauncher, fmt.Sprintf("http://localhost:%d/readyz", vecRP.Port))
+		st.recordService("vectors", id, vecRP.Image, providedLauncher, fmt.Sprintf("http://localhost:%d/readyz", vecRP.Port), vecRP.Driver)
 	case obligationAbsent:
 		u.log("vectors — not configured; skipping")
-		st.recordService("vectors", "", "", providedNone, "")
+		st.recordService("vectors", "", "", providedNone, "", "")
 	default:
 		if !verifyExternal(u, "vectors", vecRP) {
 			return 1
 		}
-		st.recordService("vectors", "", "", providedExternal, fmt.Sprintf("http://%s:%d/readyz", vecRP.Address, vecRP.Port))
+		st.recordService("vectors", "", "", providedExternal, fmt.Sprintf("http://%s:%d/readyz", vecRP.Address, vecRP.Port), vecRP.Driver)
 	}
 
 	infRP := plan.Roles["inference"]
@@ -798,17 +798,17 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 			infImage = infRP.Image
 			infProvided = providedLauncher
 		}
-		st.recordService("inference", infID, infImage, infProvided, fmt.Sprintf("http://localhost:%d/api/version", infRP.Port))
+		st.recordService("inference", infID, infImage, infProvided, fmt.Sprintf("http://localhost:%d/api/version", infRP.Port), infRP.Driver)
 	case obligationExternal:
 		u.banner("Inference (" + driverDisplay("inference", infRP.Driver) + ")")
 		if !verifyExternal(u, "inference", infRP) {
 			return 1
 		}
-		st.recordService("inference", "", "", providedExternal, fmt.Sprintf("http://%s:%d/api/version", infRP.Address, infRP.Port))
+		st.recordService("inference", "", "", providedExternal, fmt.Sprintf("http://%s:%d/api/version", infRP.Address, infRP.Port), infRP.Driver)
 	case obligationAbsent:
 		u.banner("Inference")
 		u.log("inference — not referenced by the config; skipping")
-		st.recordService("inference", "", "", providedNone, "")
+		st.recordService("inference", "", "", providedNone, "", "")
 	}
 
 	dbRP := plan.Roles["database"]
@@ -828,15 +828,15 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 			return 1
 		}
 		u.ok("database — %s on port %d %s", driverDisplay("database", dbRP.Driver), dbRP.Port, u.dim("("+took(d)+")"))
-		st.recordService("database", id, dbRP.Image, providedLauncher, fmt.Sprintf("tcp:localhost:%d", dbRP.Port))
+		st.recordService("database", id, dbRP.Image, providedLauncher, fmt.Sprintf("tcp:localhost:%d", dbRP.Port), dbRP.Driver)
 	case obligationAbsent:
 		u.log("database — not configured; skipping")
-		st.recordService("database", "", "", providedNone, "")
+		st.recordService("database", "", "", providedNone, "", "")
 	default:
 		if !verifyExternal(u, "database", dbRP) {
 			return 1
 		}
-		st.recordService("database", "", "", providedExternal, fmt.Sprintf("tcp:%s:%d", dbRP.Address, dbRP.Port))
+		st.recordService("database", "", "", providedExternal, fmt.Sprintf("tcp:%s:%d", dbRP.Address, dbRP.Port), dbRP.Driver)
 	}
 
 	secret := os.Getenv("SEMIONT_WORKER_SECRET")
@@ -861,7 +861,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	if code != 0 {
 		return code
 	}
-	st.recordService("backend", backendID, image("backend", version), providedLauncher, fmt.Sprintf("http://localhost:%d/api/health", plan.BackendPort))
+	st.recordService("backend", backendID, image("backend", version), providedLauncher, fmt.Sprintf("http://localhost:%d/api/health", plan.BackendPort), "")
 
 	// The weaver note: the graph projection is standalone-only — the backend
 	// no longer applies events to Neo4j in-process. Without the weaver the
@@ -873,7 +873,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		if code != 0 {
 			return code
 		}
-		st.recordService(sc.svc, scID, image(sc.svc, version), providedLauncher, fmt.Sprintf("http://localhost:%d/health", sc.port))
+		st.recordService(sc.svc, scID, image(sc.svc, version), providedLauncher, fmt.Sprintf("http://localhost:%d/health", sc.port), "")
 	}
 
 	// Frontend: a static SPA server — no config mount and no service env; the
@@ -884,7 +884,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		return 1
 	}
 	u.ok("Frontend on http://localhost:3000 %s", u.dim("("+took(feD)+")"))
-	st.recordService("frontend", feID, image("frontend", version), providedLauncher, "http://localhost:3000")
+	st.recordService("frontend", feID, image("frontend", version), providedLauncher, "http://localhost:3000", "")
 
 	// Summary; the stack runs detached and this process exits — bring the
 	// stack up, say where everything is, and get out of the way (compose up

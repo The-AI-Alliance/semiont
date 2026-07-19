@@ -29,6 +29,7 @@ type serviceState struct {
 	ID        string    `json:"id,omitempty"`        // identifier the runtime printed at run -d
 	Image     string    `json:"image,omitempty"`     // full image ref
 	Provided  string    `json:"provided,omitempty"`  // schema 2: launcher|host|external|none
+	Driver    string    `json:"driver,omitempty"`    // config `type` (infra roles)
 	Endpoint  string    `json:"endpoint,omitempty"`  // health probe: http(s) URL or tcp:<host>:<port>
 	HostReuse bool      `json:"hostReuse,omitempty"` // schema 1 (read-compat only; no longer written)
 	StartedAt time.Time `json:"startedAt"`
@@ -140,12 +141,13 @@ func removeState() {
 
 // recordService updates one service's entry and saves. provided says who
 // provides the role; endpoint is the health probe status should use.
-func (st *stackState) recordService(role, id, image, provided, endpoint string) {
+func (st *stackState) recordService(role, id, image, provided, endpoint, driver string) {
 	e := serviceState{
 		ID:        id,
 		Image:     image,
 		Provided:  provided,
 		Endpoint:  endpoint,
+		Driver:    driver,
 		StartedAt: time.Now().UTC(),
 	}
 	if provided == providedLauncher {

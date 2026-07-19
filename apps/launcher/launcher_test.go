@@ -587,7 +587,8 @@ func TestStatusMixed(t *testing.T) {
 		t.Fatalf("want exit 1 with unhealthy core services, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout,
-		"SERVICE", "CONTAINER", "RUNTIME", "HEALTH",
+		"SERVICE", "TECH", "CONTAINER", "RUNTIME", "HEALTH",
+		"PostgreSQL", "Neo4j", "Qdrant", "Ollama", "Jaeger",
 		"SEMIONT ROOTS",
 		"(discovered from cwd)",
 		"LOCAL HOST DIRECTORIES",
@@ -730,7 +731,7 @@ func TestStartExternalGraphBoot(t *testing.T) {
 	}
 	for _, line := range strings.Split(stdout, "\n") {
 		if strings.Contains(line, "graph") && strings.Contains(line, "tcp://") {
-			mustContain(t, "graph status row", line, "external", "✓", "tcp://127.0.0.1:7777")
+			mustContain(t, "graph status row", line, "Neo4j", "external", "✓", "tcp://127.0.0.1:7777")
 		}
 	}
 

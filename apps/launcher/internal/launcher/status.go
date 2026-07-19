@@ -121,7 +121,7 @@ func Status(args []string) int {
 		return 1
 	}
 
-	fmt.Printf("  %-10s %-10s %-10s %s\n", "SERVICE", "CONTAINER", "RUNTIME", "HEALTH")
+	fmt.Printf("  %-10s %-12s %-10s %-10s %s\n", "SERVICE", "TECH", "CONTAINER", "RUNTIME", "HEALTH")
 	allCoreHealthy := true
 	for _, svc := range statusServices {
 		if service != "" && svc.name != service {
@@ -146,8 +146,26 @@ func Status(args []string) int {
 
 		// Not referenced by the config: no probe, no exit-status impact.
 		if rec != nil && rec.Provided == providedNone {
-			fmt.Printf("  %-10s %-10s %-10s %s\n", svc.name, "—", "—", u.dim("not configured"))
+			fmt.Printf("  %-10s %-12s %-10s %-10s %s\n", svc.name, "—", "—", "—", u.dim("not configured"))
 			continue
+		}
+
+		// TECH: the concrete product behind the role. Infra roles: the
+		// recorded driver (survives config changes since start), falling back
+		// to the static product for records that predate the driver field.
+		// Semiont services (no product of their own): the recorded image tag
+		// — which doubles as the running version.
+		tech := roles[svc.name].product
+		switch {
+		case rec != nil && rec.Driver != "":
+			tech = driverDisplay(svc.name, rec.Driver)
+		case rec != nil && tech == "" && rec.Image != "":
+			if i := strings.LastIndex(rec.Image, ":"); i >= 0 {
+				tech = rec.Image[i+1:]
+			}
+		}
+		if tech == "" {
+			tech = "—"
 		}
 
 		state, rt := "", ""
@@ -197,8 +215,8 @@ func Status(args []string) int {
 		if healthy {
 			healthCol = u.wrap(ansiGreen, "✓") + " " + u.dim(label)
 		}
-		fmt.Printf("  %-10s %-*s %-*s %s\n",
-			svc.name, 10+utf8.RuneCountInString(stateCol)-visibleLen(stateCol), stateCol,
+		fmt.Printf("  %-10s %-12s %-*s %-*s %s\n",
+			svc.name, tech, 10+utf8.RuneCountInString(stateCol)-visibleLen(stateCol), stateCol,
 			10+utf8.RuneCountInString(rt)-visibleLen(rt), rt, healthCol)
 	}
 	if service == "" {
