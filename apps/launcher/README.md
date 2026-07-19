@@ -79,6 +79,17 @@ semiont stop
   `--dry-run` record nothing, so a typo'd name never becomes the default.
   The preference is per-user-per-machine — which config you run depends on
   your API keys, so it lives in the XDG registry, never in the KB repo.
+- **`--runtime` is sticky machine-wide** (a top-level `runtime` field in
+  `roots.json` — stacks are singleton-per-machine, so unlike `--config` the
+  preference isn't per-KB): an explicit `--runtime` on a successful start is
+  recorded; later bare starts use it (`Container runtime: docker (recorded
+  from last start; override with --runtime)`). Selection is three-tiered — a
+  live stack's `stack.json` record always wins (rejoin what exists), then the
+  recorded preference, then auto-detect (`container` → `docker` → `podman`).
+  Ambiguous auto-detect names the alternatives (`auto-detected; also on
+  PATH: docker`); implicit picks record nothing; a preference naming a
+  runtime that's no longer on PATH warns and falls back to auto-detect —
+  only an explicit flag naming a missing runtime is an error.
 - `start` records what it believes the stack IS — the runtime, and each
   service's container name, runtime-reported ID, and image — in `stack.json`
   in the launcher's state home (`~/Library/Application Support/semiont` on

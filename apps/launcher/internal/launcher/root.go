@@ -59,8 +59,10 @@ func resolveKBRoot() (path, source string, err error) {
 // entry; entries survive stops. A vanished path is annotated when observed,
 // not silently dropped — an unmounted volume may come back. This registry is
 // the substrate for multi-root support, for `--root <name>` selection, and
-// for per-KB sticky preferences (config): per-user-per-machine facts that
-// belong beside the KB, never inside it.
+// for sticky preferences: per-KB ones (config) live on the root's entry,
+// machine-wide ones (runtime — stacks are singleton-per-machine today) live
+// at the top level. Per-user-per-machine facts belong beside the KB, never
+// inside it.
 
 type rootEntry struct {
 	Path        string    `json:"path"`
@@ -72,8 +74,9 @@ type rootEntry struct {
 }
 
 type rootsRegistry struct {
-	Schema int         `json:"schema"`
-	Roots  []rootEntry `json:"roots"`
+	Schema  int         `json:"schema"`
+	Runtime string      `json:"runtime,omitempty"` // sticky --runtime: what a successful start last used explicitly
+	Roots   []rootEntry `json:"roots"`
 }
 
 func rootsPath() string {
@@ -145,6 +148,16 @@ func registerRootUse(path string, fullStart bool, config string) {
 		}
 		reg.Roots = append(reg.Roots, e)
 	}
+	saveRoots(reg)
+}
+
+// saveRoots writes the registry atomically. Best-effort, like every registry
+// touch: trouble here never fails the command.
+func saveRoots(reg rootsRegistry) {
+	p := rootsPath()
+	if p == "" {
+		return
+	}
 	if reg.Schema == 0 {
 		reg.Schema = 1
 	}
@@ -160,6 +173,19 @@ func registerRootUse(path string, fullStart bool, config string) {
 		return
 	}
 	_ = os.Rename(tmp, p)
+}
+
+// recordRuntimePref stores the machine-wide sticky runtime — callers pass it
+// only after a start SUCCEEDED with an explicit --runtime. Unlike the config
+// preference it needs no root: `--service frontend --runtime docker` is a
+// legitimate rootless start and still expresses the choice.
+func recordRuntimePref(rt string) {
+	reg := loadRoots()
+	if reg.Runtime == rt {
+		return
+	}
+	reg.Runtime = rt
+	saveRoots(reg)
 }
 
 // recordedConfig returns the KB's sticky config preference — the name a

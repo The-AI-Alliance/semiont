@@ -1358,6 +1358,79 @@ func TestStartPrefersRecordedRuntime(t *testing.T) {
 	}
 }
 
+func TestRuntimeStickiness(t *testing.T) {
+	// A successful start with an explicit --runtime records it machine-wide
+	// (top-level in roots.json); later bare starts use it with provenance.
+	// Ambiguous auto-detect names the alternatives; implicit picks record
+	// nothing; a live stack's record still outranks the preference; a
+	// preference naming an uninstalled runtime falls back with a warning.
+	s := newScenario(t, "container", "docker")
+
+	// Ambiguous auto-detect is transparent, and records nothing.
+	stdout, stderr, code := s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("auto start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "auto stdout", stdout,
+		"Container runtime: container",
+		"auto-detected; also on PATH: docker — override with --runtime")
+	if b, _ := os.ReadFile(rootsPathFor(s.home)); strings.Contains(string(b), `"runtime"`) {
+		t.Errorf("implicit auto-detect must not record a runtime preference:\n%s", b)
+	}
+
+	// Explicit --runtime docker on a successful start records the preference.
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.killServes()
+	if _, stderr, code := s.run(t, "start", "--service", "worker", "--runtime", "docker"); code != 0 {
+		t.Fatalf("docker start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "roots.json", string(b), `"runtime": "docker"`)
+
+	// A bare start now prefers docker, saying why.
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.killServes()
+	stdout, stderr, code = s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("sticky start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "sticky stdout", stdout,
+		"Container runtime: docker", "recorded from last start; override with --runtime")
+
+	// A live stack's record outranks the preference: rejoin what exists.
+	s.killServes()
+	writeStackState(t, s, "container")
+	stdout, stderr, code = s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("record-bound start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "record-bound stdout", stdout, "Using recorded stack's runtime: container")
+	if strings.Contains(stdout, "recorded from last start; override with --runtime") {
+		t.Errorf("banner claimed sticky provenance while the stack record chose:\n%s", stdout)
+	}
+
+	// A preference naming an uninstalled runtime warns and auto-detects.
+	s.killServes()
+	if err := os.Remove(statePathFor(s.home)); err != nil {
+		t.Fatal(err)
+	}
+	reg := fmt.Sprintf(`{"schema":1,"runtime":"podman","roots":[{"path":%q,"lastUsed":"2026-07-19T00:00:00Z"}]}`, s.kb)
+	if err := os.WriteFile(rootsPathFor(s.home), []byte(reg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code = s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("stale-pref start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stale-pref stdout", stdout,
+		"Recorded runtime preference 'podman'", "not on PATH — auto-detecting",
+		"Container runtime: container")
+}
+
 // --- start --service ---
 
 func TestStartServiceWorker(t *testing.T) {

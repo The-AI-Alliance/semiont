@@ -72,7 +72,10 @@ Options:
   --password <pass>     Admin user password (requires --email)
   --clean-ollama        Remove the Ollama model cache volume and exit
   --force-kill-ports    Kill any non-Semiont process holding a needed port
-  --runtime <name>      Container runtime: container, docker, or podman (default: first found)
+  --runtime <name>      Container runtime: container, docker, or podman
+                        (default: the machine's recorded preference — the
+                        --runtime a successful start last used, kept in
+                        roots.json — else the first found on PATH)
   --no-observe          Skip the Jaeger sidecar (OTel traces + metrics run by default)
   --ollama-cache <c>    Model cache when starting an Ollama container: 'host'
                         (~/.ollama) or 'volume' (named volume) — skips the prompt
@@ -339,20 +342,53 @@ func Start(args []string) int {
 		}
 	}
 
-	rt, ok := selectRuntime(u, opts.runtime)
+	// Runtime selection, three tiers: a live stack's record (correctness —
+	// rejoin what exists, below), then the machine-wide sticky preference
+	// (the --runtime a successful start last used, roots.json), then
+	// auto-detect. Only an EXPLICIT flag naming a missing runtime is an
+	// error; a recorded preference that vanished from PATH just falls back.
+	requested, rtSticky := opts.runtime, false
+	if requested == "" {
+		if rec := loadRoots().Runtime; rec != "" {
+			if onPath(rec) {
+				requested, rtSticky = rec, true
+			} else if !opts.dryRun { // keep the dry-run seam machine-clean
+				u.warn("Recorded runtime preference '%s' (per %s) is not on PATH — auto-detecting.", rec, rootsPath())
+			}
+		}
+	}
+	rt, ok := selectRuntime(u, requested)
 	if !ok {
 		return 1
 	}
+	rtFrom := ""
+	switch {
+	case rtSticky:
+		rtFrom = "recorded from last start; override with --runtime"
+	case opts.runtime == "":
+		// Ambiguous auto-detect owns its choice: name the alternatives.
+		if found := installedRuntimes(); len(found) > 1 {
+			others := make([]string, 0, len(found)-1)
+			for _, f := range found {
+				if f != rt {
+					others = append(others, f)
+				}
+			}
+			rtFrom = "auto-detected; also on PATH: " + strings.Join(others, ", ") + " — override with --runtime"
+		}
+	}
 	// The record binds a running stack to its runtime. Implicit selection
 	// prefers it (a bare `start --service worker` must rejoin the stack that
-	// exists, not whatever auto-detect finds first); an EXPLICIT mismatch on
-	// a non-dry-run refuses rather than orphan the recorded stack — start's
-	// preflight would erase its record and delete staged configs out from
-	// under its live mounts. A record whose runtime is no longer installed is
-	// stale (that stack cannot be running) and doesn't bind anything.
+	// exists, not whatever auto-detect — or the sticky preference — says);
+	// an EXPLICIT mismatch on a non-dry-run refuses rather than orphan the
+	// recorded stack — start's preflight would erase its record and delete
+	// staged configs out from under its live mounts. A record whose runtime
+	// is no longer installed is stale (that stack cannot be running) and
+	// doesn't bind anything.
 	if recSt := loadState(); recSt != nil && recSt.Runtime != "" && recSt.Runtime != rt && onPath(recSt.Runtime) {
 		if opts.runtime == "" {
 			rt = recSt.Runtime
+			rtFrom = ""
 			u.log("Using recorded stack's runtime: %s %s", u.bold(rt), u.dim("(per "+statePath()+")"))
 		} else if !opts.dryRun {
 			u.fail("A recorded stack is running under %s (per %s).", recSt.Runtime, statePath())
@@ -388,7 +424,11 @@ func Start(args []string) int {
 			u.log("KB: %s %s", u.bold(ident.SiteName), u.dim(ident.didWeb()))
 		}
 	}
-	u.log("Container runtime: %s", u.bold(rt))
+	if rtFrom != "" {
+		u.log("Container runtime: %s %s", u.bold(rt), u.dim("("+rtFrom+")"))
+	} else {
+		u.log("Container runtime: %s", u.bold(rt))
+	}
 	if configNeeded {
 		if configFrom != "" {
 			u.log("Config: %s %s", u.bold(opts.configName), u.dim("("+configFrom+")"))
@@ -425,17 +465,23 @@ func Start(args []string) int {
 		}
 		return 0
 	}
-	// Record the sticky config only when this start SUCCEEDED with an
-	// explicit --config: the preference is "what I actually run", so a
-	// typo'd name or an unlaunchable config never becomes the default.
+	// Record sticky preferences only when this start SUCCEEDED with the
+	// explicit flag: preferences are "what I actually run", so a typo'd
+	// name or an unlaunchable choice never becomes the default. Implicit
+	// picks (auto-detect, the preferences themselves) record nothing.
 	code := 0
 	if opts.service != "" {
 		code = runStartService(u, rt, version, root, configFile, opts, userEnv, plan)
 	} else {
 		code = runStart(u, rt, version, root, configFile, opts, userEnv, plan)
 	}
-	if code == 0 && opts.configSet {
-		registerRootUse(root, false, opts.configName)
+	if code == 0 {
+		if opts.configSet {
+			registerRootUse(root, false, opts.configName)
+		}
+		if opts.runtime != "" {
+			recordRuntimePref(opts.runtime)
+		}
 	}
 	return code
 }
