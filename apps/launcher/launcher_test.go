@@ -97,6 +97,14 @@ func mkKB(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
+	// The KB's committed identity card (.semiont/config).
+	b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".semiont", "config"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	return root
 }
 
@@ -248,6 +256,7 @@ func TestStartDefaultBoot(t *testing.T) {
 	}
 	checkGolden(t, "start-default-boot.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
+		"KB: Test Knowledge Base did:web:example.github.io:test-kb",
 		"No prior containers",
 		"🚀 Semiont stack is up",
 		"http://localhost:3000",
@@ -896,6 +905,9 @@ func TestRootsRegistryAndRootFlag(t *testing.T) {
 	if len(reg.Roots) != 1 || reg.Roots[0].Path != s.kb {
 		t.Fatalf("registry contents: %s", b)
 	}
+	mustContain(t, "roots.json", string(b),
+		`"did": "did:web:example.github.io:test-kb"`,
+		`"siteName": "Test Knowledge Base"`)
 	if reg.Roots[0].LastStarted != "" {
 		t.Error("--service start must not stamp lastStarted (full start only)")
 	}
@@ -923,9 +935,10 @@ func TestRootsRegistryAndRootFlag(t *testing.T) {
 		t.Errorf("dry-run mutated the registry:\n%s", after)
 	}
 
-	// status shows the registered root.
+	// status shows the registered root, with its did:web identity line.
 	stdout, _, _ = s.run(t, "status")
-	mustContain(t, "status stdout", stdout, "SEMIONT ROOTS", s.kb, "last used ")
+	mustContain(t, "status stdout", stdout, "SEMIONT ROOTS", s.kb, "last used ",
+		"did:web:example.github.io:test-kb — Test Knowledge Base")
 }
 
 func TestRootFlagErrors(t *testing.T) {

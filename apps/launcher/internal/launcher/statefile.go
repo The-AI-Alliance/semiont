@@ -40,6 +40,7 @@ type stackState struct {
 	Launcher  string                  `json:"launcherVersion"`
 	Runtime   string                  `json:"runtime"`
 	KBRoot    string                  `json:"kbRoot,omitempty"`
+	KBDid     string                  `json:"kbDid,omitempty"` // did:web from .semiont/config
 	Config    string                  `json:"config,omitempty"`
 	Version   string                  `json:"imageVersion,omitempty"`
 	HostAddr  string                  `json:"hostAddr,omitempty"`

@@ -359,6 +359,11 @@ func Start(args []string) int {
 	}
 
 	u.banner("Semiont Local Backend")
+	if rootNeeded {
+		if ident := loadKBIdentity(root); ident != nil && ident.SiteName != "" {
+			u.log("KB: %s %s", u.bold(ident.SiteName), u.dim(ident.didWeb()))
+		}
+	}
 	u.log("Container runtime: %s", u.bold(rt))
 	if configNeeded {
 		u.log("Config: %s", u.bold(opts.configName))
@@ -697,7 +702,8 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	// reports. Saved after every service so a failed start still leaves an
 	// accurate partial record for stop/status to work from.
 	st := &stackState{
-		Runtime: rt, KBRoot: root, Config: opts.configName, Version: version,
+		Runtime: rt, KBRoot: root, KBDid: loadKBIdentity(root).didWeb(),
+		Config: opts.configName, Version: version,
 		HostAddr: addr, Stage: stage, Services: map[string]serviceState{},
 	}
 

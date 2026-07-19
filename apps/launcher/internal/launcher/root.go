@@ -62,6 +62,8 @@ func resolveKBRoot() (path, source string, err error) {
 
 type rootEntry struct {
 	Path        string    `json:"path"`
+	Did         string    `json:"did,omitempty"`      // did:web identity from .semiont/config [site] domain
+	SiteName    string    `json:"siteName,omitempty"` // human label — kept here so even a missing root stays identifiable
 	LastUsed    time.Time `json:"lastUsed"`
 	LastStarted time.Time `json:"lastStarted,omitzero"` // last full-stack start
 }
@@ -108,6 +110,8 @@ func registerRootUse(path string, fullStart bool) {
 	}
 	reg := loadRoots()
 	now := time.Now().UTC()
+	// Identity refreshes on every use — the KB's .semiont/config can change.
+	ident := loadKBIdentity(path)
 	found := false
 	for i := range reg.Roots {
 		if reg.Roots[i].Path == path {
@@ -115,11 +119,18 @@ func registerRootUse(path string, fullStart bool) {
 			if fullStart {
 				reg.Roots[i].LastStarted = now
 			}
+			if ident != nil {
+				reg.Roots[i].Did = ident.didWeb()
+				reg.Roots[i].SiteName = ident.SiteName
+			}
 			found = true
 		}
 	}
 	if !found {
-		e := rootEntry{Path: path, LastUsed: now}
+		e := rootEntry{Path: path, LastUsed: now, Did: ident.didWeb()}
+		if ident != nil {
+			e.SiteName = ident.SiteName
+		}
 		if fullStart {
 			e.LastStarted = now
 		}

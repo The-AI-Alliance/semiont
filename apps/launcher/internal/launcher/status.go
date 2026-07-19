@@ -255,8 +255,26 @@ func printRoots(u *ui, st *stackState) {
 		fmt.Printf("  %s\n", u.dim("(none — cd into a KB clone, set SEMIONT_ROOT, or start with --root)"))
 		return
 	}
+	// Identity per root: the registry's stored did/siteName (survives the
+	// path vanishing), refreshed by a live read when the root is present.
+	reg := loadRoots()
 	for _, p := range order {
 		fmt.Printf("  %s %s\n", p, u.dim("("+strings.Join(labels[p], "; ")+")"))
+		did, site := "", ""
+		for _, e := range reg.Roots {
+			if e.Path == p {
+				did, site = e.Did, e.SiteName
+			}
+		}
+		if ident := loadKBIdentity(p); ident != nil {
+			did, site = ident.didWeb(), ident.SiteName
+		}
+		switch {
+		case did != "" && site != "":
+			fmt.Printf("    %s %s\n", u.dim(did), u.dim("— "+site))
+		case did != "":
+			fmt.Printf("    %s\n", u.dim(did))
+		}
 	}
 }
 
