@@ -73,12 +73,18 @@ func serviceNeedsAddr(svc string) bool {
 // container's env via the runtime's inspect — restarting one service rejoins
 // the incumbent stack's secret instead of minting a fresh one (which would
 // silently break sidecar↔backend auth). Returns the secret and the container
-// it came from, or "".
-func recoverWorkerSecret(rt string) (string, string) {
+// it came from — and, crucially, whether any Semiont container was SEEN at
+// all: "seen but unreadable" is the brittle-parse failure mode (a runtime
+// inspect-schema change) and must be loud, never silently degraded to a
+// generated secret.
+func recoverWorkerSecret(rt string) (secret, from, seen string) {
 	for _, c := range []string{"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver"} {
 		out, err := capture(rt, "inspect", c)
 		if err != nil || out == "" {
 			continue
+		}
+		if seen == "" {
+			seen = c
 		}
 		var entries []map[string]any
 		if json.Unmarshal([]byte(out), &entries) != nil || len(entries) == 0 {
@@ -86,11 +92,11 @@ func recoverWorkerSecret(rt string) (string, string) {
 		}
 		for _, env := range inspectEnv(entries[0]) {
 			if v, ok := strings.CutPrefix(env, "SEMIONT_WORKER_SECRET="); ok && v != "" {
-				return v, c
+				return v, c, seen
 			}
 		}
 	}
-	return "", ""
+	return "", "", seen
 }
 
 // inspectEnv digs the env list out of one inspect entry, wherever the
@@ -131,15 +137,29 @@ func inspectEnv(entry map[string]any) []string {
 
 // serviceSecret resolves the worker secret for a --service start: a running
 // stack's secret wins (rejoin, don't break), then the environment, then a
-// fresh one (nothing running to disagree with).
+// fresh one — but ONLY when no Semiont container was seen at all. A
+// container that exists yet yields no secret means the inspect parse broke
+// (or the container is genuinely secret-less); generating there would
+// silently break backend↔sidecar auth, so it fails loudly instead.
 func serviceSecret(u *ui, rt string) (string, bool) {
-	if s, from := recoverWorkerSecret(rt); s != "" {
+	s, from, seen := recoverWorkerSecret(rt)
+	if s != "" {
 		u.log("Worker secret: %s", u.dim("(recovered from "+from+")"))
 		return s, true
 	}
 	if s := os.Getenv("SEMIONT_WORKER_SECRET"); s != "" {
+		if seen != "" {
+			u.warn("A Semiont container (%s) exists but its worker secret could not be read from `%s inspect` — using $SEMIONT_WORKER_SECRET; if it doesn't match the running stack's secret, sidecar auth will fail.", seen, rt)
+		}
 		u.log("Worker secret: %s", u.dim("(from environment)"))
 		return s, true
+	}
+	if seen != "" {
+		u.fail("A Semiont container (%s) exists but its worker secret could not be recovered from `%s inspect` — the runtime's inspect schema may have changed.", seen, rt)
+		fmt.Fprintln(os.Stderr, "  Generating a new secret would silently break backend↔sidecar auth. Either:")
+		fmt.Fprintln(os.Stderr, "    - set SEMIONT_WORKER_SECRET to the running stack's secret, or")
+		fmt.Fprintln(os.Stderr, "    - restart the whole stack:  semiont start")
+		return "", false
 	}
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {

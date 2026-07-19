@@ -109,15 +109,16 @@ func mkKB(t *testing.T) string {
 }
 
 type scenario struct {
-	shim      string
-	kb        string // also FAKERT_GIT_ROOT unless gitRoot overridden
-	noGitRoot bool
-	cwd       string // launcher working dir; defaults to kb
-	home      string
-	fakertDir string
-	log       string
-	extraEnv  []string
-	stdin     string
+	shim           string
+	kb             string // also FAKERT_GIT_ROOT unless gitRoot overridden
+	noGitRoot      bool
+	noWorkerSecret bool   // drop SEMIONT_WORKER_SECRET from the env
+	cwd            string // launcher working dir; defaults to kb
+	home           string
+	fakertDir      string
+	log            string
+	extraEnv       []string
+	stdin          string
 }
 
 func newScenario(t *testing.T, runtimes ...string) *scenario {
@@ -166,7 +167,9 @@ func (s *scenario) env() []string {
 		"HOME=" + s.home,
 		"FAKERT_LOG=" + s.log,
 		"FAKERT_DIR=" + s.fakertDir,
-		"SEMIONT_WORKER_SECRET=test-worker-secret",
+	}
+	if !s.noWorkerSecret {
+		env = append(env, "SEMIONT_WORKER_SECRET=test-worker-secret")
 	}
 	if !s.noGitRoot {
 		env = append(env, "FAKERT_GIT_ROOT="+s.kb)
@@ -1356,6 +1359,38 @@ func TestStartServiceRejections(t *testing.T) {
 		}
 		mustContain(t, fmt.Sprintf("stderr for %v", tc.args), stderr, tc.want)
 	}
+}
+
+func TestStartServiceSecretUnreadableIsLoud(t *testing.T) {
+	// A Semiont container EXISTS but yields no secret (the inspect-schema
+	// break case): without an explicit $SEMIONT_WORKER_SECRET the restart
+	// fails with instructions — never a silently generated secret that would
+	// break sidecar auth.
+	s := newScenario(t, "container")
+	s.noWorkerSecret = true
+	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running") // no FAKERT_SECRET
+	_, stderr, code := s.run(t, "start", "--service", "worker")
+	if code != 1 {
+		t.Fatalf("want exit 1, got %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stderr", stderr,
+		"worker secret could not be recovered",
+		"inspect schema may have changed",
+		"set SEMIONT_WORKER_SECRET",
+		"semiont start")
+
+	// With an explicit env secret: proceeds, but warns about the mismatch
+	// risk instead of pretending recovery worked.
+	s.noWorkerSecret = false
+	serveHealth(t, 9090)
+	stdout, stderr2, code := s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("env-secret path: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr2)
+	}
+	mustContain(t, "stdout+stderr", stdout+stderr2,
+		"exists but its worker secret could not be read",
+		"using $SEMIONT_WORKER_SECRET",
+		"Worker secret: (from environment)")
 }
 
 // --- stop --service ---
