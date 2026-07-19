@@ -42,6 +42,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 			removed++
 		}
 	}
+	x.sweepStray(preflightNames)
 	x.sweepStaging()
 	x.pause()
 	if removed == 0 {
@@ -50,7 +51,8 @@ func flowFullStart(x executor, fc flowCtx) int {
 		x.say(sayOK, "Removed %d prior container(s)", removed)
 	}
 
-	if !x.portChecks(planPortChecks(fc.plan, fc.opts.observe), fc.opts.forceKillPorts) {
+	checks := planPortChecks(fc.plan, fc.opts.observe)
+	if !x.portChecks(checks) {
 		return 1
 	}
 	x.say(sayOK, "Required ports are free")
@@ -60,6 +62,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return 1
 	}
 	x.initStack(fc.root, fc.opts.configName, fc.version, addr, stage)
+	x.recordPorts(checks)
 
 	x.banner("Pulling Images")
 	if fc.version == "local" {
@@ -261,9 +264,10 @@ func flowInference(x executor, fc flowCtx, rp rolePlan, addr string) int {
 			x.say(sayLog, "No host Ollama detected — starting container...")
 			x.stopEcho("semiont-ollama")
 			x.pause()
-			if !x.portCheck(portNeed{rp.Port, "Ollama"}, fc.opts.forceKillPorts) {
+			if !x.portCheck(portNeed{rp.Port, "Ollama"}) {
 				return 1
 			}
+			x.recordPorts([]portNeed{{rp.Port, "Ollama"}})
 			volume := x.ollamaVolume(fc.opts)
 			args := providedRunArgs("inference", rp, "-m", "24G", "-v", volume+":/root/.ollama")
 			id, ok := x.runDetached(args)
@@ -360,9 +364,10 @@ func flowOneService(x executor, fc flowCtx) int {
 				ports = append(append([]portNeed{}, spec.auxPorts...), portNeed{rp.Port, spec.portLabel})
 			}
 		}
-		if !x.portChecks(ports, fc.opts.forceKillPorts) {
+		if !x.portChecks(ports) {
 			return 1
 		}
+		x.recordPorts(ports)
 	}
 
 	addr := ""

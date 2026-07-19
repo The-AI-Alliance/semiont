@@ -61,3 +61,4 @@ podman rm semiont-neo4j
 podman stop semiont-jaeger
 podman rm semiont-jaeger
 # remove staged config copies: /tmp/semiont-config.*
+# wait until the stack's ports are released; report any still-held holder

@@ -29,14 +29,25 @@ semiont stop
 ```
 
 - `semiont start --help` lists all flags (`--config`, `--runtime`,
-  `--no-observe`, `--force-kill-ports`, `--ollama-cache`, …).
+  `--no-observe`, `--ollama-cache`, …).
 - `semiont start --dry-run` prints the exact runtime commands a real run would
   execute — the legibility answer to "what does this binary actually do".
 - `semiont status` reports, per service, the container state as the runtime
   sees it and an application-level health probe (exit 0 only when every core
   service is healthy — scriptable).
 - `semiont stop` sweeps **every** installed runtime by default, so a stack
-  started under `--runtime docker` can't survive a plain stop.
+  started under `--runtime docker` can't survive a plain stop. Stop's job
+  isn't done until the ports are actually free: `start` records the host
+  ports the stack claimed (`ports` in `stack.json`), and `stop` polls them
+  after teardown (runtimes release published ports asynchronously), then
+  reports any survivor with its PID and process name — never kills it, since
+  after the sweeps a holder is provably not a Semiont container. `start`'s
+  preflight likewise name-sweeps `semiont-*` under every installed runtime,
+  so a held port at check time means a genuinely foreign process; the error
+  names it and suggests the `kill` for you to run yourself. (There is
+  deliberately no `--force-kill-ports`-style option: the launcher owns
+  everything named `semiont-*` across every runtime it can see, and never
+  signals anything else.)
 - `semiont about` shows what Semiont is, project links, the image registry,
   and which runtimes were detected on PATH.
 - Every invocation is logged (invoke + exit lines, with `--password` values

@@ -360,7 +360,7 @@ func TestStartPortConflict(t *testing.T) {
 	}
 	mustContain(t, "stderr", stderr,
 		"Port 7474 (needed for Neo4j HTTP) is held by 12345 (node).",
-		"--force-kill-ports")
+		"This is not a Semiont container. Stop it and re-run (e.g. kill 12345).")
 	checkGolden(t, "start-port-conflict.argv", s.argv(t))
 }
 
@@ -1209,7 +1209,9 @@ func TestStackStateLifecycle(t *testing.T) {
 		t.Error("record lost other services on per-service stop")
 	}
 
-	// Full stop: recorded runtime only, by ID; record removed.
+	// Full stop: the recorded runtime is torn down by ID; the other
+	// installed runtimes get the belt-and-braces stray name-sweep (never
+	// by the record's IDs — those are runtime-specific); record removed.
 	preFull := s.argv(t)
 	stdout, _, code = s.run(t, "stop")
 	if code != 0 {
@@ -1217,10 +1219,12 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout, "Using recorded stack state", "Semiont stack stopped.")
 	fullArgv := strings.TrimPrefix(s.argv(t), preFull)
-	mustContain(t, "full stop argv", fullArgv, "container stop fid-semiont-backend", "container rm fid-semiont-frontend")
-	for _, bad := range []string{"docker stop", "podman stop"} {
+	mustContain(t, "full stop argv", fullArgv,
+		"container stop fid-semiont-backend", "container rm fid-semiont-frontend",
+		"docker stop semiont-backend", "podman stop semiont-backend")
+	for _, bad := range []string{"docker stop fid-", "podman stop fid-"} {
 		if strings.Contains(fullArgv, bad) {
-			t.Errorf("state-driven stop swept a non-recorded runtime: %q", bad)
+			t.Errorf("stray sweep used the recorded runtime's IDs: %q", bad)
 		}
 	}
 	if _, err := os.Stat(statePathFor(s.home)); !os.IsNotExist(err) {
@@ -1269,11 +1273,15 @@ func TestStopSchema1Compat(t *testing.T) {
 	}
 	argv := s.argv(t)
 	mustContain(t, "argv", argv, "container stop fid-semiont-backend")
-	if strings.Contains(argv, "ollama") {
+	// hostReuse steers the RECORDED runtime's targeted teardown: the host
+	// process is never stopped there. The stray name-sweep under docker
+	// legitimately includes semiont-ollama — a stray container there is not
+	// the host process — but must never use the record's runtime-specific IDs.
+	if strings.Contains(argv, "container stop semiont-ollama") {
 		t.Errorf("schema-1 hostReuse not honored:\n%s", argv)
 	}
-	if strings.Contains(argv, "docker stop") {
-		t.Errorf("recorded runtime not honored:\n%s", argv)
+	if strings.Contains(argv, "docker stop fid-") {
+		t.Errorf("stray sweep used the recorded runtime's IDs:\n%s", argv)
 	}
 }
 
@@ -1352,8 +1360,12 @@ func TestStartPrefersRecordedRuntime(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stdout", stdout, "docker pull ghcr.io/the-ai-alliance/semiont-backend:latest")
-	if strings.Contains(stdout, "container stop semiont-") {
+	mustContain(t, "stdout", stdout,
+		"docker pull ghcr.io/the-ai-alliance/semiont-backend:latest",
+		"docker run -d --rm --name semiont-backend")
+	// The main flow must plan against docker; `container` may appear only in
+	// the cross-runtime stray sweep, never as the launching runtime.
+	if strings.Contains(stdout, "container run -d") {
 		t.Errorf("dry-run planned against auto-detected runtime, not the recorded one:\n%s", stdout)
 	}
 }
@@ -1429,6 +1441,89 @@ func TestRuntimeStickiness(t *testing.T) {
 	mustContain(t, "stale-pref stdout", stdout,
 		"Recorded runtime preference 'podman'", "not on PATH — auto-detecting",
 		"Container runtime: container")
+}
+
+func TestStartPreflightSweepsAllRuntimes(t *testing.T) {
+	// The full-start preflight name-sweeps semiont-* under every OTHER
+	// installed runtime too — after it, a port holder is provably foreign.
+	s := newScenario(t, "container", "docker")
+	s.extraEnv = append(s.extraEnv, "FAKERT_NSLOOKUP=ok")
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"# sweep stray Semiont containers under docker:",
+		"docker stop semiont-backend", "docker rm semiont-backend")
+}
+
+func TestStopSweepsStrayRuntimes(t *testing.T) {
+	// A bare record-driven stop also name-sweeps the other installed
+	// runtimes — strays there hold ports the record knows nothing about.
+	s := newScenario(t, "container", "docker")
+	if _, stderr, code := s.run(t, "start", "--service", "worker"); code != 0 {
+		t.Fatalf("worker start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, stderr, code := s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stop stdout", stdout, "Using recorded stack state")
+	log, err := os.ReadFile(s.log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, "argv log", string(log),
+		"docker stop semiont-backend", "docker rm semiont-backend")
+
+	// An explicit --runtime keeps its narrow meaning: no cross-runtime sweep.
+	s.killServes()
+	if _, _, code := s.run(t, "start", "--service", "worker", "--runtime", "container"); code != 0 {
+		t.Fatal("restart failed")
+	}
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
+		t.Fatal("narrow stop failed")
+	}
+	log, _ = os.ReadFile(s.log)
+	if strings.Contains(string(log), "docker stop") {
+		t.Errorf("explicit --runtime must not sweep other runtimes:\n%s", log)
+	}
+}
+
+func TestStopVerifiesPortsReleased(t *testing.T) {
+	// Stop records the stack's claimed ports at start, then verifies their
+	// release after teardown: a survivor is reported with its holder (never
+	// killed), and a clean release is announced.
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start", "--service", "worker"); code != 0 {
+		t.Fatalf("worker start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json", string(b), `"ports"`, "9090")
+
+	// Happy path: ports free → clean announcement.
+	stdout, _, code := s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	mustContain(t, "stop stdout", stdout, "All stack ports released")
+
+	// A foreign holder on a claimed port is reported, not killed; stop
+	// still exits 0 — its own work succeeded.
+	s.killServes()
+	if _, _, code := s.run(t, "start", "--service", "worker"); code != 0 {
+		t.Fatal("restart failed")
+	}
+	s.extraEnv = append(s.extraEnv, "FAKERT_LSOF_9090=777", "FAKERT_PS_777=node")
+	stdout, _, code = s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop with held port: exit %d", code)
+	}
+	mustContain(t, "stop stdout", stdout,
+		"Port 9090 is still held by 777 (node)", "the next start will fail on it")
 }
 
 // --- start --service ---
@@ -1724,13 +1819,13 @@ func TestLogsRuntimeNotOnPath(t *testing.T) {
 func TestBareFlagsHintAtStart(t *testing.T) {
 	// start.sh muscle memory: flags without a subcommand get a pointed hint.
 	s := newScenario(t, "container")
-	_, stderr, code := s.run(t, "--config", "anthropic", "--force-kill-ports")
+	_, stderr, code := s.run(t, "--config", "anthropic", "--no-observe")
 	if code != 1 {
 		t.Fatalf("want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr,
 		"Unknown command: --config",
-		"did you mean:  semiont start --config anthropic --force-kill-ports")
+		"did you mean:  semiont start --config anthropic --no-observe")
 }
 
 // --- about ---

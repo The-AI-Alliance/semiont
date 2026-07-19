@@ -84,6 +84,12 @@ func Stop(args []string) int {
 	// --runtime overrides; no record (older launcher, other machine) falls
 	// back to the historical sweep.
 	st := loadState()
+	// The ports this stack claimed, captured before the record may be
+	// discarded below — release verification reads them after the sweep.
+	recordedPorts := []int(nil)
+	if st != nil {
+		recordedPorts = st.Ports
+	}
 	var runtimes []string
 	if runtime != "" {
 		if !onPath(runtime) {
@@ -140,11 +146,31 @@ func Stop(args []string) int {
 		return out
 	}()
 
+	// A bare full stop that used the record ALSO name-sweeps every other
+	// installed runtime: strays there (an older launcher, a hand-erased
+	// record) hold ports the record knows nothing about. Idempotent no-ops
+	// when clean; explicit --runtime keeps its narrow meaning.
+	strayRuntimes := []string(nil)
+	if runtime == "" && useState && service == "" {
+		for _, rt := range installedRuntimes() {
+			if rt != runtimes[0] {
+				strayRuntimes = append(strayRuntimes, rt)
+			}
+		}
+	}
+
 	if dryRun {
 		fmt.Println("# semiont stop --dry-run — the exact runtime commands a real run would")
 		fmt.Println("# execute, in order.")
 		for _, rt := range runtimes {
 			for _, c := range targets {
+				fmt.Println(renderCmd(rt, "stop", c))
+				fmt.Println(renderCmd(rt, "rm", c))
+			}
+		}
+		for _, rt := range strayRuntimes {
+			fmt.Println("# sweep stray Semiont containers under " + rt + ":")
+			for _, c := range stopNames {
 				fmt.Println(renderCmd(rt, "stop", c))
 				fmt.Println(renderCmd(rt, "rm", c))
 			}
@@ -156,6 +182,7 @@ func Stop(args []string) int {
 			fmt.Println("# staged config copies and stack.json left in place (recorded stack is under " + st.Runtime + ")")
 		default:
 			fmt.Println("# remove staged config copies: /tmp/semiont-config.*")
+			fmt.Println("# wait until the stack's ports are released; report any still-held holder")
 		}
 		return 0
 	}
@@ -182,6 +209,20 @@ func Stop(args []string) int {
 			u.ok("%s: none found %s", rt, elapsed)
 		} else {
 			u.ok("%s: %d removed %s", rt, removed, elapsed)
+		}
+	}
+	for _, rt := range strayRuntimes {
+		removed := 0
+		for _, c := range stopNames {
+			stopped := runSilent(rt, "stop", c) == nil
+			rmed := runSilent(rt, "rm", c) == nil
+			if stopped || rmed {
+				removed++
+			}
+		}
+		totalRemoved += removed
+		if removed > 0 {
+			u.warn("%s: %d stray container(s) removed (not in the record).", rt, removed)
 		}
 	}
 
@@ -221,8 +262,50 @@ func Stop(args []string) int {
 		fmt.Println("No Semiont containers found — nothing to stop.")
 		return 0
 	}
+	ports := recordedPorts
+	if len(ports) == 0 {
+		ports = fiatPorts
+	}
+	verifyPortsReleased(u, ports)
 	fmt.Println("Semiont stack stopped.")
 	return 0
+}
+
+// fiatPorts: the launcher-owned ports every stack claims regardless of
+// config — the release-verification fallback when no record captured the
+// stack's exact claims (older launcher's record, name-sweep path).
+var fiatPorts = []int{3000, 9090, 9091, 9092, 16686, 4318}
+
+// verifyPortsReleased: stop's job isn't done until the ports are actually
+// free — runtimes release published ports asynchronously (Apple container's
+// forwarders especially), and a start right after a stop must not trip over
+// them. Poll briefly to absorb lazy teardown, then REPORT any survivor with
+// its holder. Never kills: after the sweeps above, a holder is provably not
+// a Semiont container.
+func verifyPortsReleased(u *ui, ports []int) {
+	deadline := time.Now().Add(3 * time.Second)
+	var held []int
+	for {
+		held = held[:0]
+		for _, p := range ports {
+			if out, err := capture("lsof", "-ti", fmt.Sprintf(":%d", p)); err == nil && out != "" {
+				held = append(held, p)
+			}
+		}
+		if len(held) == 0 || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if len(held) == 0 {
+		u.ok("All stack ports released")
+		return
+	}
+	for _, p := range held {
+		out, _ := capture("lsof", "-ti", fmt.Sprintf(":%d", p))
+		u.warn("Port %d is still held by %s — not a Semiont container; the next start will fail on it.",
+			p, describeProcs(strings.Fields(out)))
+	}
 }
 
 // Version implements `semiont version`.

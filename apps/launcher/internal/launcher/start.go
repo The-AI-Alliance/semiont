@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -37,7 +36,6 @@ type startOptions struct {
 	adminEmail     string
 	adminPassword  string
 	cleanOllama    bool
-	forceKillPorts bool
 	runtime        string
 	observe        bool
 	noObserveSet   bool // --no-observe given explicitly
@@ -71,7 +69,6 @@ Options:
   --email <email>       Admin user email (requires --password)
   --password <pass>     Admin user password (requires --email)
   --clean-ollama        Remove the Ollama model cache volume and exit
-  --force-kill-ports    Kill any non-Semiont process holding a needed port
   --runtime <name>      Container runtime: container, docker, or podman
                         (default: the machine's recorded preference — the
                         --runtime a successful start last used, kept in
@@ -164,8 +161,6 @@ func Start(args []string) int {
 			i++
 		case "--clean-ollama":
 			opts.cleanOllama = true
-		case "--force-kill-ports":
-			opts.forceKillPorts = true
 		case "--runtime":
 			v, ok := needVal(i)
 			if !ok {
@@ -692,16 +687,26 @@ func removeStagedConfigs() {
 	}
 }
 
-// requirePortFree fails (or, with force, kills and re-verifies) when a TCP
-// port is already held, naming the offending process(es). lsof -ti prints one
-// PID per line when several processes hold a port (parent+child servers,
-// SO_REUSEPORT), so everything here iterates over all of them.
-func requirePortFree(u *ui, port int, service string, forceKill bool) bool {
+// requirePortFree fails when a TCP port is already held, naming the
+// offending process(es). By this point every semiont-* container has been
+// swept under every installed runtime, so a holder is provably foreign —
+// the launcher never signals it; killing it is the user's call, per
+// incident. lsof -ti prints one PID per line when several processes hold a
+// port (parent+child servers, SO_REUSEPORT), so everything here iterates
+// over all of them.
+func requirePortFree(u *ui, port int, service string) bool {
 	out, err := capture("lsof", "-ti", fmt.Sprintf(":%d", port))
 	if err != nil || out == "" {
 		return true
 	}
 	pids := strings.Fields(out)
+	u.fail("Port %d (needed for %s) is held by %s.", port, service, describeProcs(pids))
+	fmt.Fprintln(os.Stderr, "  This is not a Semiont container. Stop it and re-run (e.g. kill "+strings.Join(pids, " ")+").")
+	return false
+}
+
+// describeProcs renders "pid (comm), pid (comm)" for a set of PIDs.
+func describeProcs(pids []string) string {
 	procs := make([]string, 0, len(pids))
 	for _, p := range pids {
 		comm, err := capture("ps", "-p", p, "-o", "comm=")
@@ -710,22 +715,5 @@ func requirePortFree(u *ui, port int, service string, forceKill bool) bool {
 		}
 		procs = append(procs, fmt.Sprintf("%s (%s)", p, comm))
 	}
-	desc := strings.Join(procs, ", ")
-	if forceKill {
-		u.warn("Port %d (needed for %s) held by %s — killing (--force-kill-ports).", port, service, desc)
-		for _, p := range pids {
-			if pid, err := strconv.Atoi(p); err == nil {
-				_ = syscall.Kill(pid, syscall.SIGTERM)
-			}
-		}
-		time.Sleep(time.Second)
-		if out, err := capture("lsof", "-ti", fmt.Sprintf(":%d", port)); err == nil && out != "" {
-			u.fail("Port %d still held after kill (%s).", port, strings.Join(strings.Fields(out), " "))
-			return false
-		}
-		return true
-	}
-	u.fail("Port %d (needed for %s) is held by %s.", port, service, desc)
-	fmt.Fprintln(os.Stderr, "  Stop the conflicting process and re-run, or pass --force-kill-ports.")
-	return false
+	return strings.Join(procs, ", ")
 }
