@@ -44,6 +44,19 @@ semiont stop
   semiont` on macOS, `$XDG_STATE_HOME/semiont` (default
   `~/.local/state/semiont`) on Linux. `semiont status` lists the dir under
   LOCAL HOST DIRECTORIES. Logging is best-effort — it never blocks a command.
+- KB-root discovery matches the npm CLI (`SEMIONT_ROOT`, analogous to
+  `GIT_DIR`): the override is strict (invalid values error, never fall back),
+  else the root is found by walking up from cwd for `.semiont/`. git is not
+  part of discovery — the must-be-a-git-clone invariant applies only where
+  `/kb` is mounted (full start, `--service backend`); sidecars need only the
+  `.semiont/` tree. `semiont status` reports the root(s) in a SEMIONT ROOTS
+  section (plural-shaped: multiple roots are on the roadmap).
+- The launcher remembers every root a real start used in `roots.json` (beside
+  `stack.json`; entries survive stops, vanished paths are flagged not
+  dropped). `semiont start --root <path|name>` selects a root explicitly — a
+  directory, or the basename of a registered root — winning over
+  `SEMIONT_ROOT` and cwd discovery; the SEMIONT ROOTS status section lists
+  the registry with last-used annotations.
 - `start` records what it believes the stack IS — the runtime, and each
   service's container name, runtime-reported ID, and image — in `stack.json`
   in the launcher's state home (`~/Library/Application Support/semiont` on

@@ -1,1 +1,1 @@
-git rev-parse --show-toplevel
+git -C <kb-root> rev-parse --show-toplevel

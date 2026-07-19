@@ -104,6 +104,7 @@ type scenario struct {
 	shim      string
 	kb        string // also FAKERT_GIT_ROOT unless gitRoot overridden
 	noGitRoot bool
+	cwd       string // launcher working dir; defaults to kb
 	home      string
 	fakertDir string
 	log       string
@@ -171,6 +172,9 @@ func (s *scenario) run(t *testing.T, args ...string) (stdout, stderr string, cod
 	defer cancel()
 	cmd := exec.CommandContext(ctx, launcherBin, args...)
 	cmd.Dir = s.kb
+	if s.cwd != "" {
+		cmd.Dir = s.cwd
+	}
 	cmd.Env = s.env()
 	cmd.Stdin = strings.NewReader(s.stdin)
 	var out, errb strings.Builder
@@ -468,7 +472,7 @@ func TestStartDryRunDefault(t *testing.T) {
 	}
 	checkGolden(t, "start-dryrun-default.txt", stdout)
 	// Dry run must execute nothing beyond KB-root resolution.
-	if got := s.argv(t); got != "git rev-parse --show-toplevel\n" {
+	if got := s.argv(t); got != "git -C <kb-root> rev-parse --show-toplevel\n" {
 		t.Errorf("dry run executed external commands:\n%s", got)
 	}
 }
@@ -575,6 +579,8 @@ func TestStatusMixed(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout,
 		"SERVICE", "CONTAINER", "RUNTIME", "HEALTH",
+		"SEMIONT ROOTS",
+		"(discovered from cwd)",
 		"LOCAL HOST DIRECTORIES",
 		"config", "cache", "staging", "/tmp/semiont-config.*",
 		"✓ http://localhost:4000/api/health",
@@ -660,6 +666,154 @@ func TestInvocationLog(t *testing.T) {
 	if strings.Contains(log, "supersecretpw") {
 		t.Error("password leaked into the invocation log")
 	}
+}
+
+// --- SEMIONT_ROOT / KB-root discovery ---
+
+func TestSemiontRootOverride(t *testing.T) {
+	// From an unrelated directory, SEMIONT_ROOT selects the KB — GIT_DIR
+	// style. The git-clone invariant then runs against the override.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir() // not a KB
+	s.extraEnv = append(s.extraEnv, "SEMIONT_ROOT="+s.kb)
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if got := s.argv(t); got != "git -C <kb-root> rev-parse --show-toplevel\n" {
+		t.Errorf("unexpected argv:\n%s", got)
+	}
+}
+
+func TestSemiontRootInvalid(t *testing.T) {
+	// Strict, matching apps/cli: an invalid override is an error, never
+	// silently ignored in favor of discovery.
+	s := newScenario(t, "container")
+	for _, tc := range []struct{ root, want string }{
+		{filepath.Join(t.TempDir(), "nope"), "points to non-existent directory"},
+		{t.TempDir(), "does not contain a .semiont/ directory"},
+	} {
+		s.extraEnv = []string{"SEMIONT_ROOT=" + tc.root}
+		_, stderr, code := s.run(t, "start", "--dry-run")
+		if code != 1 {
+			t.Errorf("SEMIONT_ROOT=%s: want exit 1, got %d", tc.root, code)
+		}
+		mustContain(t, "stderr", stderr, tc.want)
+	}
+}
+
+func TestRootWalkUpFromSubdir(t *testing.T) {
+	// Discovery walks up from cwd looking for .semiont/ — a KB subdirectory
+	// resolves to the KB root (parity with the old git-rev-parse behavior).
+	s := newScenario(t, "container")
+	sub := filepath.Join(s.kb, "docs", "deep")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s.cwd = sub
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+}
+
+func TestRootNotFound(t *testing.T) {
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	s.noGitRoot = true
+	_, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 1 {
+		t.Fatalf("want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"no .semiont/ directory found in the current directory or any parent",
+		"cd into a KB clone, or set SEMIONT_ROOT")
+}
+
+// --- roots registry + --root ---
+
+func rootsPathFor(home string) string {
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Application Support", "semiont", "roots.json")
+	}
+	return filepath.Join(home, ".local", "state", "semiont", "roots.json")
+}
+
+func TestRootsRegistryAndRootFlag(t *testing.T) {
+	// A real start registers its root; --root then selects by basename from
+	// anywhere; --dry-run reads but never writes the registry.
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start", "--service", "worker"); code != 0 {
+		t.Fatalf("worker start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, err := os.ReadFile(rootsPathFor(s.home))
+	if err != nil {
+		t.Fatalf("roots.json not written: %v", err)
+	}
+	var reg struct {
+		Schema int `json:"schema"`
+		Roots  []struct {
+			Path        string `json:"path"`
+			LastStarted string `json:"lastStarted"`
+		} `json:"roots"`
+	}
+	if err := json.Unmarshal(b, &reg); err != nil {
+		t.Fatalf("roots.json invalid: %v\n%s", err, b)
+	}
+	if len(reg.Roots) != 1 || reg.Roots[0].Path != s.kb {
+		t.Fatalf("registry contents: %s", b)
+	}
+	if reg.Roots[0].LastStarted != "" {
+		t.Error("--service start must not stamp lastStarted (full start only)")
+	}
+
+	// --root by registered basename, from an unrelated cwd.
+	s.killServes()
+	s.cwd = t.TempDir()
+	stdout, stderr, code := s.run(t, "start", "--dry-run", "--root", filepath.Base(s.kb))
+	if code != 0 {
+		t.Fatalf("--root by name: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+
+	// --root by path works without any registry.
+	if _, _, code := s.run(t, "start", "--dry-run", "--root", s.kb); code != 0 {
+		t.Errorf("--root by path: exit %d", code)
+	}
+
+	// Registry unchanged by the dry-runs.
+	after, _ := os.ReadFile(rootsPathFor(s.home))
+	var regAfter struct {
+		Roots []struct{} `json:"roots"`
+	}
+	_ = json.Unmarshal(after, &regAfter)
+	if len(regAfter.Roots) != 1 {
+		t.Errorf("dry-run mutated the registry:\n%s", after)
+	}
+
+	// status shows the registered root.
+	stdout, _, _ = s.run(t, "status")
+	mustContain(t, "status stdout", stdout, "SEMIONT ROOTS", s.kb, "last used ")
+}
+
+func TestRootFlagErrors(t *testing.T) {
+	s := newScenario(t, "container")
+	for _, tc := range []struct{ arg, want string }{
+		{filepath.Join(t.TempDir(), "nope", "deep"), "--root points to non-existent directory"},
+		{t.TempDir(), "--root does not contain a .semiont/ directory"},
+		{"unregistered-name", "no roots are registered yet"},
+	} {
+		_, stderr, code := s.run(t, "start", "--dry-run", "--root", tc.arg)
+		if code != 1 {
+			t.Errorf("--root %s: want exit 1, got %d", tc.arg, code)
+		}
+		mustContain(t, "stderr for --root "+tc.arg, stderr, tc.want)
+	}
+	// Inapplicable service.
+	_, stderr, code := s.run(t, "start", "--service", "frontend", "--root", s.kb)
+	if code != 1 {
+		t.Errorf("--root with frontend: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "--root only applies to")
 }
 
 // --- stack state record ---
@@ -840,11 +994,12 @@ func TestStartServiceFrontendNoClone(t *testing.T) {
 		t.Fatalf("want exit 0 outside a clone, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "Restarting frontend", "🚀 frontend is up")
-	// A config consumer still requires the clone.
-	if _, stderr, code := s.run(t, "start", "--service", "worker"); code != 1 {
-		t.Errorf("worker outside a clone: want exit 1, got %d", code)
+	// The git-clone invariant is scoped to /kb-mount flows: backend still
+	// requires a clone; a sidecar needs only the .semiont/ tree.
+	if _, stderr, code := s.run(t, "start", "--service", "backend"); code != 1 {
+		t.Errorf("backend without git: want exit 1, got %d", code)
 	} else {
-		mustContain(t, "stderr", stderr, "must run inside a git clone")
+		mustContain(t, "stderr", stderr, "must be a git clone")
 	}
 }
 
@@ -865,9 +1020,10 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 	if strings.Contains(stdout, "semiont-neo4j") {
 		t.Error("service plan leaked the wider stack")
 	}
-	// Dry run must execute nothing beyond KB-root resolution.
-	if got := s.argv(t); got != "git rev-parse --show-toplevel\n" {
-		t.Errorf("dry-run executed runtime commands:\n%s", got)
+	// Dry run must execute nothing: worker needs only .semiont/ discovery
+	// (pure Go), not the git-clone invariant (that's /kb-mount flows).
+	if got := s.argv(t); got != "" {
+		t.Errorf("dry-run executed commands:\n%s", got)
 	}
 }
 
@@ -934,7 +1090,7 @@ func TestStatusService(t *testing.T) {
 		t.Fatalf("healthy backend: want exit 0, got %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "stdout", stdout, "backend", "running", "✓ http://localhost:4000/api/health")
-	for _, absent := range []string{"LOCAL HOST DIRECTORIES", "worker", "traces"} {
+	for _, absent := range []string{"LOCAL HOST DIRECTORIES", "SEMIONT ROOTS", "worker", "traces"} {
 		if strings.Contains(stdout, absent) {
 			t.Errorf("filtered status leaked %q:\n%s", absent, stdout)
 		}
