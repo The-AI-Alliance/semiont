@@ -74,9 +74,10 @@ type rootEntry struct {
 }
 
 type rootsRegistry struct {
-	Schema  int         `json:"schema"`
-	Runtime string      `json:"runtime,omitempty"` // sticky --runtime: what a successful start last used explicitly
-	Roots   []rootEntry `json:"roots"`
+	Schema  int                  `json:"schema"`
+	Runtime string               `json:"runtime,omitempty"` // sticky --runtime: what a successful start last used explicitly
+	Secrets map[string]secretRef `json:"secrets,omitempty"` // env var → {provider, path} POINTERS (never values)
+	Roots   []rootEntry          `json:"roots"`
 }
 
 func rootsPath() string {

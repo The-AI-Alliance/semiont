@@ -31,6 +31,22 @@ semiont stop
 
 - `semiont start --help` lists all flags (`--config`, `--runtime`,
   `--no-observe`, `--ollama-cache`, …).
+- **`semiont secret` registers where config secrets come from** — pointers,
+  never values. `semiont secret set ANTHROPIC_API_KEY` walks an interactive
+  provider-then-path flow (or pass the source directly:
+  `… set ANTHROPIC_API_KEY op://OSS/Anthropic/credential`); either form
+  stores `{provider, path}` in `roots.json`
+  (verified with one read at set time, value discarded); every later start
+  that needs the var announces the reach (`ANTHROPIC_API_KEY: reading from
+  1Password (op read op://…) — expect an authorization prompt`) and reads it
+  fresh — no secret value is ever persisted, echoed, or logged. The URI
+  scheme selects the provider (only `op://`, the 1Password CLI, today; the
+  registry is built for more). The launcher constructs the invocation itself
+  from the stored path — no stored shell text is ever executed. `op` missing
+  from PATH fails early and clearly. And the standing escape hatch needs no
+  1Password at all: **exporting the variable always wins** — a plain
+  `ANTHROPIC_API_KEY=… semiont start` behaves exactly as it always has.
+  `--dry-run` reaches for nothing (plan shows `<env:VAR>` placeholders).
 - `semiont useradd` creates or updates users in the RUNNING stack: the
   launcher execs the in-container Semiont CLI's `useradd` inside the backend
   container (record-driven runtime + container ID, name-scan fallback) and

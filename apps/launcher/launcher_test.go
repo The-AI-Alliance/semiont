@@ -347,7 +347,8 @@ func TestStartMissingEnvVar(t *testing.T) {
 		t.Fatalf("want exit 1, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stderr", stderr,
-		"Config 'anthropic' references ${ANTHROPIC_API_KEY} but it is not set in the environment.")
+		"Config 'anthropic' references ${ANTHROPIC_API_KEY} but it is not set in the environment.",
+		"register a secret source once:  semiont secret set ANTHROPIC_API_KEY")
 	checkGolden(t, "start-missing-env.argv", s.argv(t))
 }
 
@@ -742,6 +743,229 @@ func TestUseradd(t *testing.T) {
 		t.Error("useradd --help should exit 0")
 	}
 	mustContain(t, "help", stdout, "--generate-password", "--admin", "--upsert")
+}
+
+// --- secret sources ---
+
+func TestSecretCommand(t *testing.T) {
+	// `semiont secret` stores POINTERS (provider + path) in roots.json —
+	// never a value. set verifies with one read (discarded); list shows
+	// pointers; rm forgets.
+	s := newScenario(t, "container", "op")
+
+	stdout, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential")
+	if code != 0 {
+		t.Fatalf("secret set: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "set stdout", stdout,
+		"Verifying: op read op://OSS/Anthropic/credential",
+		"expect an authorization prompt",
+		"pointer stored, never the value")
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "op read op://OSS/Anthropic/credential")
+	b, _ := os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "roots.json", string(b), `"provider": "op"`, `"path": "OSS/Anthropic/credential"`)
+	if strings.Contains(string(b), "fake-op-secret") {
+		t.Fatalf("secret VALUE persisted to roots.json:\n%s", b)
+	}
+	if strings.Contains(stdout, "fake-op-secret") {
+		t.Errorf("secret value printed by set:\n%s", stdout)
+	}
+
+	stdout, _, code = s.run(t, "secret", "list")
+	if code != 0 {
+		t.Fatalf("secret list: exit %d", code)
+	}
+	mustContain(t, "list stdout", stdout,
+		"ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential", "the environment always wins")
+
+	// Unknown scheme rejected; verification failure stores nothing.
+	if _, stderr, code := s.run(t, "secret", "set", "X", "vault://a/b"); code != 1 {
+		t.Error("unknown scheme should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "Unknown secret provider 'vault'")
+	}
+	s.extraEnv = append(s.extraEnv, "FAKERT_OP_FAIL=1")
+	if _, stderr, code := s.run(t, "secret", "set", "OTHER_KEY", "op://a/b/c"); code != 1 {
+		t.Error("failed verification should fail set")
+	} else {
+		mustContain(t, "stderr", stderr, "Verification failed")
+	}
+	b, _ = os.ReadFile(rootsPathFor(s.home))
+	if strings.Contains(string(b), "a/b/c") {
+		t.Errorf("failed verification still stored the source:\n%s", b)
+	}
+
+	// rm forgets; a second rm is an honest error.
+	if _, _, code := s.run(t, "secret", "rm", "ANTHROPIC_API_KEY"); code != 0 {
+		t.Fatal("secret rm failed")
+	}
+	b, _ = os.ReadFile(rootsPathFor(s.home))
+	if strings.Contains(string(b), "Anthropic/credential") {
+		t.Errorf("rm left the source behind:\n%s", b)
+	}
+	if _, _, code := s.run(t, "secret", "rm", "ANTHROPIC_API_KEY"); code != 1 {
+		t.Error("rm of an absent source should fail")
+	}
+}
+
+func TestSecretSetInteractive(t *testing.T) {
+	// `secret set <VAR>` with no source URI walks the provider registry
+	// interactively: pick a provider (the lone installed one is the
+	// default), then the path in the provider's own shape.
+	s := newScenario(t, "container", "op")
+
+	// Empty provider input takes the default; a pasted full URI as the
+	// path is tolerated.
+	s.stdin = "\nop://OSS/Anthropic/credential\n"
+	stdout, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY")
+	if code != 0 {
+		t.Fatalf("interactive set: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"Registering a secret source for ANTHROPIC_API_KEY",
+		"op — 1Password",
+		"Provider [op]:",
+		"Path (<vault>/<item>/<field>):",
+		"pointer stored, never the value")
+	b, _ := os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "roots.json", string(b), `"path": "OSS/Anthropic/credential"`)
+	if strings.Contains(string(b), "fake-op-secret") {
+		t.Fatalf("secret VALUE persisted:\n%s", b)
+	}
+
+	// An unknown provider name is a clean failure.
+	s.stdin = "vault\n"
+	if _, stderr, code := s.run(t, "secret", "set", "X"); code != 1 {
+		t.Error("unknown interactive provider should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "Unknown secret provider 'vault'")
+	}
+
+	// An empty path is a clean failure.
+	s.stdin = "op\n\n"
+	if _, stderr, code := s.run(t, "secret", "set", "X"); code != 1 {
+		t.Error("empty path should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "A path is required.")
+	}
+}
+
+func TestSecretSetInteractiveWithoutProvider(t *testing.T) {
+	// No provider CLI installed: the picker says so per provider, and
+	// choosing one fails the early PATH test with the escape hatch.
+	s := newScenario(t, "container") // no "op" shim
+	s.stdin = "op\n"
+	stdout, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY")
+	if code != 1 {
+		t.Fatalf("want exit 1, got %d", code)
+	}
+	mustContain(t, "stdout", stdout, "op — 1Password", "('op' not on PATH)")
+	mustContain(t, "stderr", stderr,
+		"'op' (1Password CLI) is not on PATH",
+		"the environment always wins")
+}
+
+func TestSecretSetRequiresProviderOnPath(t *testing.T) {
+	// The clear, early PATH test: no op binary, no set — with the escape
+	// hatch spelled out.
+	s := newScenario(t, "container") // deliberately no "op" shim
+	_, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/x/y")
+	if code != 1 {
+		t.Fatalf("want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"'op' (1Password CLI) is not on PATH",
+		"the environment always wins")
+}
+
+func TestStartResolvesSecret(t *testing.T) {
+	// A registered source feeds start: announced BEFORE the reach, resolved
+	// fresh, injected into the container argv (redacted in echoes). Dry-run
+	// reaches for nothing; the environment always wins over the source.
+	s := newScenario(t, "container", "op")
+	if _, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+		t.Fatalf("secret set: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	stdout, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic")
+	if code != 0 {
+		t.Fatalf("start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"ANTHROPIC_API_KEY: reading from 1Password (op read op://OSS/Anthropic/credential)",
+		"expect an authorization prompt")
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "--env ANTHROPIC_API_KEY=fake-op-secret")
+	if strings.Contains(stdout, "fake-op-secret") {
+		t.Errorf("resolved secret leaked into the echoed output:\n%s", stdout)
+	}
+
+	// Dry-run must not reach into the vault: with the provider failing, the
+	// plan still renders, with the placeholder.
+	s.killServes()
+	s.extraEnv = append(s.extraEnv, "FAKERT_OP_FAIL=1")
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code = s.run(t, "start", "--dry-run", "--config", "anthropic")
+	if code != 0 {
+		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "dry-run stdout", stdout, "ANTHROPIC_API_KEY=<env:ANTHROPIC_API_KEY>")
+	log, _ = os.ReadFile(s.log)
+	if strings.Contains(string(log), "op read") {
+		t.Errorf("dry-run reached into the vault:\n%s", log)
+	}
+
+	// A failing reach is a pointed failure naming the fix and the hatch.
+	_, stderr, code = s.run(t, "start", "--service", "worker", "--config", "anthropic")
+	if code != 1 {
+		t.Fatalf("failing op: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"`op read op://OSS/Anthropic/credential` failed",
+		"the environment always wins")
+
+	// The environment always wins: with op still failing, an exported var
+	// starts fine and op is never invoked.
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=from-env")
+	stdout, stderr, code = s.run(t, "start", "--service", "worker", "--config", "anthropic")
+	if code != 0 {
+		t.Fatalf("env-wins start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ = os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "--env ANTHROPIC_API_KEY=from-env")
+	if strings.Contains(string(log), "op read") {
+		t.Errorf("op invoked although the environment provided the value:\n%s", log)
+	}
+	if strings.Contains(stdout, "reading from 1Password") {
+		t.Errorf("announced a reach that must not happen:\n%s", stdout)
+	}
+}
+
+func TestStartSecretProviderMissing(t *testing.T) {
+	// A registered source whose provider CLI is missing fails early and
+	// clearly, before anything launches — with the escape hatch named.
+	s := newScenario(t, "container") // no "op" shim
+	reg := `{"schema":1,"secrets":{"ANTHROPIC_API_KEY":{"provider":"op","path":"OSS/x/y"}},"roots":[]}`
+	p := rootsPathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(reg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic")
+	if code != 1 {
+		t.Fatalf("want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"'op' (1Password CLI) is not on PATH",
+		"the environment always wins")
 }
 
 // --- config-driven boots (LAUNCHER-CONFIG-SYNC P2) ---

@@ -22,6 +22,7 @@ Local Semiont stack launcher — drives your container runtime
 Commands:
   start     Start the local Semiont stack
   useradd   Create or update a user in the running stack
+  secret    Register where config secrets come from (pointers, never values)
   status    Report container state and application health per service
   logs      Follow the running stack's service logs
   stop      Stop the stack across all installed runtimes
@@ -46,6 +47,8 @@ func main() {
 		code = launcher.Start(rest)
 	case "useradd":
 		code = launcher.Useradd(rest)
+	case "secret":
+		code = launcher.Secret(rest)
 	case "status":
 		code = launcher.Status(rest)
 	case "logs":

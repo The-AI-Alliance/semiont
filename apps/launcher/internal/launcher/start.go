@@ -399,9 +399,13 @@ func Start(args []string) int {
 
 	// User env vars (API keys the config references, extracted by
 	// loadConfig's single parse) are demanded only where a Semiont service
-	// will consume the config — never for infra restarts.
+	// will consume the config — never for infra restarts. The environment
+	// always wins; a registered secret source (semiont secret) is consulted
+	// only for vars the environment doesn't provide, with the reach
+	// announced BEFORE it happens. Dry-run reaches for nothing.
 	var userEnv []string
 	if opts.service == "" || isConfigConsumer(opts.service) {
+		secrets := loadRoots().Secrets
 		for _, v := range userVars {
 			if opts.dryRun {
 				userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
@@ -409,7 +413,24 @@ func Start(args []string) int {
 			}
 			val := os.Getenv(v)
 			if val == "" {
+				if ref, ok := secrets[v]; ok {
+					if !requireProviderBin(u, ref) {
+						return 1
+					}
+					u.log("%s: reading from %s (%s) %s", u.bold(v),
+						secretProviders[ref.Provider].display, refCommand(ref),
+						u.dim("— expect an authorization prompt"))
+					var err error
+					if val, err = resolveSecret(ref); err != nil {
+						u.fail("%s: %v.", v, err)
+						fmt.Fprintf(os.Stderr, "  Fix the source (semiont secret set %s ...), or export %s yourself — the environment always wins.\n", v, v)
+						return 1
+					}
+				}
+			}
+			if val == "" {
 				u.fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
+				fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont secret set %s\n", v)
 				return 1
 			}
 			userEnv = append(userEnv, "--env", v+"="+val)
