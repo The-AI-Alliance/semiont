@@ -89,7 +89,7 @@ export interface WorkerHealthPayload {
 
 /**
  * The `/health` body (WORKER-LIVENESS.md P1). Additive: existing
- * consumers (image HEALTHCHECK, compose `service_healthy`, start.sh)
+ * consumers (image HEALTHCHECK, compose `service_healthy`, `semiont start`)
  * keep reading `status`/`agents`; the per-agent vitals expose
  * claim-loop progress so a stalled worker is *visible*, not just alive.
  */
