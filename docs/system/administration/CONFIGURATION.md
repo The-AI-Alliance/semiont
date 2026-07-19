@@ -7,7 +7,9 @@ Semiont uses a two-layer TOML configuration model, analogous to Git's `~/.gitcon
 > launch plan from a KB's `.semiont/semiontconfig/*.toml`: per dependency role
 > (`graph`, `vectors`, `database`, `inference`/`embedding`) it reads `type`,
 > the address/port, and credentials to decide whether to launch a container,
-> verify an external endpoint, or reuse a host process. The launcher reads only
+> verify an external endpoint, or reuse a host process — plus an optional
+> `image` key per role section to override its default container image. The
+> launcher reads only
 > those keys and ignores the rest; this document remains the schema's source of
 > truth. See `apps/launcher/README.md` and `.plans/LAUNCHER-CONFIG-SYNC.md`.
 

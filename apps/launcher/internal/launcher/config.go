@@ -93,6 +93,7 @@ type graphCfg struct {
 	URI      string `toml:"uri"`
 	Username string `toml:"username"`
 	Password string `toml:"password"`
+	Image    string `toml:"image"` // optional: override the catalog's default image
 }
 
 type vectorsCfg struct {
@@ -100,6 +101,7 @@ type vectorsCfg struct {
 	Type     string `toml:"type"`
 	Host     string `toml:"host"`
 	Port     int    `toml:"port"`
+	Image    string `toml:"image"` // optional: override the catalog's default image
 }
 
 type embeddingCfg struct {
@@ -113,6 +115,7 @@ type providerCfg struct {
 	Endpoint string `toml:"endpoint"`
 	BaseURL  string `toml:"baseURL"`
 	APIKey   string `toml:"apiKey"`
+	Image    string `toml:"image"` // optional (ollama): override the catalog's default image
 }
 
 type databaseCfg struct {
@@ -123,6 +126,7 @@ type databaseCfg struct {
 	Name     string `toml:"name"`
 	User     string `toml:"user"`
 	Password string `toml:"password"`
+	Image    string `toml:"image"` // optional: override the catalog's default image
 }
 
 type bindingCfg struct {

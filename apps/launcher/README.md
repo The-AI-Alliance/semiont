@@ -54,7 +54,9 @@ semiont stop
   stop, shown as "external" in status); `platform = "posix"` → host-process
   reuse; section absent / unreferenced → nothing launched, "not configured"
   in status. Moving `database.port` moves the publish/checks/gates with it;
-  inference runs only when the config references ollama. `--dry-run` renders
+  inference runs only when the config references ollama. An optional `image`
+  key per role section overrides the catalog's default image — a KB can pin
+  or upgrade an infra image without a launcher release. `--dry-run` renders
   the derived plan.
 - KB-root discovery matches the npm CLI (`SEMIONT_ROOT`, analogous to
   `GIT_DIR`): the override is strict (invalid values error, never fall back),
