@@ -154,10 +154,26 @@ func serviceSecret(u *ui, rt string) (string, bool) {
 // runStartService is `semiont start --service <name>`: one service's slice of
 // the full-start flow — its own stop+rm, port checks, pull, fresh private
 // config copy, run, and health gate. The rest of the stack is untouched.
-func runStartService(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string) int {
+func runStartService(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
 	t0 := time.Now()
 	svc := opts.service
 	cname := roles[svc].container
+
+	// The config decides whether this role is the launcher's to (re)start.
+	// A role someone else provides is a no-op, not an error (P0 q5): warn,
+	// exit 0.
+	if plan != nil {
+		if rp, ok := plan.Roles[svc]; ok {
+			switch rp.Obligation {
+			case obligationExternal:
+				u.warn("%s is externally provided per %s (%s:%d); nothing to launch.", svc, configFile, rp.Address, rp.Port)
+				return 0
+			case obligationAbsent:
+				u.warn("%s is not referenced by %s; nothing to launch.", svc, configFile)
+				return 0
+			}
+		}
+	}
 
 	u.banner("Restarting " + roleTitle(svc))
 
@@ -249,41 +265,47 @@ func runStartService(u *ui, rt, version, root, configFile string, opts startOpti
 		img = args[len(args)-1]
 		id, d, ok = runGated(u, rt, args, "traces (Jaeger)", "traces (Jaeger UI)", "http://localhost:16686", 30)
 	case "graph":
-		args := graphArgs()
-		img = args[len(args)-1]
-		id, d, ok = runGated(u, rt, args, "graph (Neo4j)", "graph (Neo4j)", "http://localhost:7474", 30)
+		rp := plan.Roles[svc]
+		args := providedRunArgs("graph", rp)
+		img = rp.Image
+		id, d, ok = runGated(u, rt, args, "graph ("+driverDisplay("graph", rp.Driver)+")", "graph ("+driverDisplay("graph", rp.Driver)+")",
+			fmt.Sprintf("http://localhost:%d", plan.AuxPorts("graph")[0].port), 30)
 	case "vectors":
-		args := vectorsArgs()
-		img = args[len(args)-1]
-		id, d, ok = runGated(u, rt, args, "vectors (Qdrant)", "vectors (Qdrant)", "http://localhost:6333/readyz", 15)
+		rp := plan.Roles[svc]
+		args := providedRunArgs("vectors", rp)
+		img = rp.Image
+		id, d, ok = runGated(u, rt, args, "vectors ("+driverDisplay("vectors", rp.Driver)+")", "vectors ("+driverDisplay("vectors", rp.Driver)+")",
+			fmt.Sprintf("http://localhost:%d/readyz", rp.Port), 15)
 	case "inference":
+		rp := plan.Roles[svc]
 		var code int
-		id, hostReuse, code = startInference(u, rt, addr, opts)
+		id, hostReuse, code = startInference(u, rt, addr, opts, rp)
 		if code != 0 {
 			return code
 		}
 		if !hostReuse {
-			img = "ollama/ollama"
+			img = rp.Image
 		}
 		ok = true
 	case "database":
-		args := dbArgs()
-		img = args[len(args)-1]
+		rp := plan.Roles[svc]
+		args := providedRunArgs("database", rp)
+		img = rp.Image
 		u.echoCmd(rt, args...)
 		var err error
 		id, err = runDetached(rt, args...)
 		if err != nil {
-			u.fail("database (PostgreSQL) failed to start.")
+			u.fail("database (%s) failed to start.", driverDisplay("database", rp.Driver))
 			return 1
 		}
-		d, ok = waitForPG(u, rt, addr, 5432, 20)
+		d, ok = waitForPG(u, rt, addr, rp.Port, 20)
 	case "backend":
 		var admin []string
 		if opts.adminEmail != "" && opts.adminPassword != "" {
 			admin = []string{"--env", "ADMIN_EMAIL=" + opts.adminEmail, "--env", "ADMIN_PASSWORD=" + opts.adminPassword}
 		}
 		var code int
-		id, code = runBackend(u, rt, root, stage, addr, secret, version, userEnv, otel, admin)
+		id, code = runBackend(u, rt, root, stage, addr, secret, version, plan.BackendPort, userEnv, otel, admin)
 		if code != 0 {
 			return code
 		}
@@ -328,7 +350,7 @@ func runStartService(u *ui, rt, version, root, configFile string, opts startOpti
 
 // renderServicePlan is --dry-run for --service: the one service's slice of
 // the plan, conditionals as comments (matching renderStartPlan's style).
-func renderServicePlan(rt, version string, opts startOptions, userEnv []string) {
+func renderServicePlan(rt, version string, opts startOptions, userEnv []string, plan *launchPlan) {
 	const addr = "<host-addr>"
 	const stage = "<config-stage>"
 	svc := opts.service
@@ -337,14 +359,28 @@ func renderServicePlan(rt, version string, opts startOptions, userEnv []string) 
 
 	c("semiont start --service %s --dry-run — the exact runtime commands a real", svc)
 	c("run would execute, in order. Values known only at runtime appear as <placeholders>.")
+	if plan != nil {
+		if rp, ok := plan.Roles[svc]; ok && (rp.Obligation == obligationExternal || rp.Obligation == obligationAbsent) {
+			renderRolePlan(rt, svc, plan, opts, c, p)
+			return
+		}
+	}
 	if svc != "inference" {
 		p("stop", roles[svc].container)
 		p("rm", roles[svc].container)
-		ports := make([]string, 0, 2)
-		for _, pc := range roles[svc].ports {
-			ports = append(ports, fmt.Sprintf("%d", pc.port))
-		}
-		if len(ports) > 0 {
+		if rp, ok := plan.Roles[svc]; ok && rp.Obligation == obligationProvided {
+			spec := driverCatalog[svc][rp.Driver]
+			ports := make([]string, 0, 2)
+			for _, ap := range spec.auxPorts {
+				ports = append(ports, fmt.Sprintf("%d", ap.port))
+			}
+			ports = append(ports, fmt.Sprintf("%d", rp.Port))
+			c("require free ports: %s", strings.Join(ports, " "))
+		} else if len(roles[svc].ports) > 0 {
+			ports := make([]string, 0, 2)
+			for _, pc := range roles[svc].ports {
+				ports = append(ports, fmt.Sprintf("%d", pc.port))
+			}
 			c("require free ports: %s", strings.Join(ports, " "))
 		}
 	}
@@ -365,32 +401,16 @@ func renderServicePlan(rt, version string, opts startOptions, userEnv []string) 
 	case "traces":
 		p(tracesArgs()...)
 		c("wait: http://localhost:16686 (30s)")
-	case "graph":
-		p(graphArgs()...)
-		c("wait: http://localhost:7474 (30s)")
-	case "vectors":
-		p(vectorsArgs()...)
-		c("wait: http://localhost:6333/readyz (15s)")
-	case "inference":
-		c("probe: host Ollama at http://localhost:11434/api/version")
-		c(`if present — probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:11434/api/version" — and use it`, rt)
-		c("else:")
-		p("stop", "semiont-ollama")
-		c("require free port: 11434")
-		p(inferenceArgs("<ollama-volume>")...)
-		c("wait: http://localhost:11434/api/version (30s)")
-	case "database":
-		p(dbArgs()...)
-		c("wait: tcp localhost:5432 (20s)")
-		c("probe: %s run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432", rt)
+	case "graph", "vectors", "inference", "database":
+		renderRolePlan(rt, svc, plan, opts, c, p)
 	case "backend":
 		var admin []string
 		if opts.adminEmail != "" {
 			admin = []string{"--env", "ADMIN_EMAIL=" + opts.adminEmail, "--env", "ADMIN_PASSWORD=<admin-password>"}
 		}
-		p(backendArgs("<kb-root>", stage, addr, "<worker-secret>", version, userEnv, otel, admin)...)
-		c("wait: http://localhost:4000/api/health (120s)")
-		c(`probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:4000/api/health" (up to 20 tries)`, rt)
+		p(backendArgs("<kb-root>", stage, addr, "<worker-secret>", version, plan.BackendPort, userEnv, otel, admin)...)
+		c("wait: http://localhost:%d/api/health (120s)", plan.BackendPort)
+		c(`probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:%d/api/health" (up to 20 tries)`, rt, plan.BackendPort)
 	case "worker", "smelter", "weaver":
 		for _, sc := range sidecarSpecs {
 			if sc.svc == svc {

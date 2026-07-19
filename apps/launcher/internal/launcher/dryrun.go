@@ -24,7 +24,7 @@ func renderCmd(rt string, args ...string) string {
 // real `semiont start` would execute, with probe-derived values as
 // placeholders. This is the legibility replacement for reading the old bash —
 // and the extraction seam for the stack-parity gate.
-func renderStartPlan(rt, version string, opts startOptions, userEnv []string) {
+func renderStartPlan(rt, version string, opts startOptions, userEnv []string, plan *launchPlan) {
 	const addr = "<host-addr>"
 	const stage = "<config-stage>"
 	p := func(args ...string) { fmt.Println(renderCmd(rt, args...)) }
@@ -45,11 +45,9 @@ func renderStartPlan(rt, version string, opts startOptions, userEnv []string) {
 		p("rm", name)
 	}
 	c("remove staged config copies: /tmp/semiont-config.*")
-	ports := make([]string, 0, len(portChecks))
-	for _, pc := range portChecks {
-		if pc.observe && !opts.observe {
-			continue
-		}
+	checks := planPortChecks(plan, opts.observe)
+	ports := make([]string, 0, len(checks))
+	for _, pc := range checks {
 		ports = append(ports, fmt.Sprintf("%d", pc.port))
 	}
 	c("require free ports: %s", strings.Join(ports, " "))
@@ -69,39 +67,18 @@ func renderStartPlan(rt, version string, opts startOptions, userEnv []string) {
 		c("wait: http://localhost:16686 (30s)")
 		otel = otelArgs(addr)
 	}
-	p(graphArgs()...)
-	c("wait: http://localhost:7474 (30s)")
-	p(vectorsArgs()...)
-	c("wait: http://localhost:6333/readyz (15s)")
-
-	c("probe: host Ollama at http://localhost:11434/api/version")
-	c(`if present — probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:11434/api/version" — and use it`, rt)
-	c("else:")
-	p("stop", "semiont-ollama")
-	c("require free port: 11434")
-	volume := "<ollama-volume>"
-	switch opts.ollamaCache {
-	case "host":
-		if home, err := os.UserHomeDir(); err == nil {
-			volume = filepath.Join(home, ".ollama")
-		}
-	case "volume":
-		volume = "semiont-ollama-models"
-	}
-	p(inferenceArgs(volume)...)
-	c("wait: http://localhost:11434/api/version (30s)")
-
-	p(dbArgs()...)
-	c("wait: tcp localhost:5432 (20s)")
-	c("probe: %s run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432", rt)
+	renderRolePlan(rt, "graph", plan, opts, c, p)
+	renderRolePlan(rt, "vectors", plan, opts, c, p)
+	renderRolePlan(rt, "inference", plan, opts, c, p)
+	renderRolePlan(rt, "database", plan, opts, c, p)
 
 	var admin []string
 	if opts.adminEmail != "" {
 		admin = []string{"--env", "ADMIN_EMAIL=" + opts.adminEmail, "--env", "ADMIN_PASSWORD=<admin-password>"}
 	}
-	p(backendArgs("<kb-root>", stage, addr, "<worker-secret>", version, userEnv, otel, admin)...)
-	c("wait: http://localhost:4000/api/health (120s)")
-	c(`probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:4000/api/health" (up to 20 tries)`, rt)
+	p(backendArgs("<kb-root>", stage, addr, "<worker-secret>", version, plan.BackendPort, userEnv, otel, admin)...)
+	c("wait: http://localhost:%d/api/health (120s)", plan.BackendPort)
+	c(`probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:%d/api/health" (up to 20 tries)`, rt, plan.BackendPort)
 
 	for _, sc := range []struct {
 		svc, mem string
@@ -112,4 +89,48 @@ func renderStartPlan(rt, version string, opts startOptions, userEnv []string) {
 	}
 	p(frontendArgs(version)...)
 	c("wait: http://localhost:3000 (30s)")
+}
+
+// renderRolePlan renders one dependency role's slice of the plan, obligations
+// as comments (matching the plan style: conditionals stay legible).
+func renderRolePlan(rt, role string, plan *launchPlan, opts startOptions, c func(string, ...any), p func(...string)) {
+	rp := plan.Roles[role]
+	switch rp.Obligation {
+	case obligationAbsent:
+		c("%s: not referenced by the config — nothing to launch", role)
+	case obligationExternal:
+		c("%s: externally provided at %s:%d — verify reachability, launch nothing", role, rp.Address, rp.Port)
+	case obligationHostProcess:
+		if role != "inference" {
+			c("%s: host process at localhost:%d — verify reachability, launch nothing", role, rp.Port)
+			return
+		}
+		c("probe: host Ollama at http://localhost:%d/api/version", rp.Port)
+		c(`if present — probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:%d/api/version" — and use it`, rt, rp.Port)
+		c("else:")
+		p("stop", "semiont-ollama")
+		c("require free port: %d", rp.Port)
+		volume := "<ollama-volume>"
+		switch opts.ollamaCache {
+		case "host":
+			if home, err := os.UserHomeDir(); err == nil {
+				volume = filepath.Join(home, ".ollama")
+			}
+		case "volume":
+			volume = "semiont-ollama-models"
+		}
+		p(providedRunArgs("inference", rp, "-m", "24G", "-v", volume+":/root/.ollama")...)
+		c("wait: http://localhost:%d/api/version (30s)", rp.Port)
+	case obligationProvided:
+		p(providedRunArgs(role, rp)...)
+		switch role {
+		case "graph":
+			c("wait: http://localhost:%d (30s)", plan.AuxPorts("graph")[0].port)
+		case "vectors":
+			c("wait: http://localhost:%d/readyz (15s)", rp.Port)
+		case "database":
+			c("wait: tcp localhost:%d (20s)", rp.Port)
+			c("probe: %s run --rm busybox:1.38.0 nc -z -w 2 <host-addr> %d", rt, rp.Port)
+		}
+	}
 }

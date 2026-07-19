@@ -45,26 +45,88 @@ type launchPlan struct {
 }
 
 // driverSpec: what the config does NOT declare about a driver — the
-// launcher-side analogue of the containers' driver selection.
+// launcher-side analogue of the containers' driver selection. defaultPort is
+// both the config default AND the container-side listen port: a config that
+// moves a port moves the HOST side only (publish host:containerDefault).
 type driverSpec struct {
 	image       string
+	display     string // product name for banners/messages
 	defaultPort int
+	portLabel   string // primary port's name in conflict errors
 	auxPorts    []portNeed
 }
 
 var driverCatalog = map[string]map[string]driverSpec{
 	"graph": {
-		"neo4j": {image: "neo4j:5.26.28-community", defaultPort: 7687, auxPorts: []portNeed{{7474, "Neo4j HTTP"}}},
+		"neo4j": {image: "neo4j:5.26.28-community", display: "Neo4j", defaultPort: 7687, portLabel: "Neo4j Bolt", auxPorts: []portNeed{{7474, "Neo4j HTTP"}}},
 	},
 	"vectors": {
-		"qdrant": {image: "qdrant/qdrant:v1.18.3", defaultPort: 6333},
+		"qdrant": {image: "qdrant/qdrant:v1.18.3", display: "Qdrant", defaultPort: 6333, portLabel: "Qdrant"},
 	},
 	"database": {
-		"postgres": {image: "postgres:15.18-alpine", defaultPort: 5432},
+		"postgres": {image: "postgres:15.18-alpine", display: "PostgreSQL", defaultPort: 5432, portLabel: "PostgreSQL"},
 	},
 	"inference": {
-		"ollama": {image: "ollama/ollama", defaultPort: 11434},
+		"ollama": {image: "ollama/ollama", display: "Ollama", defaultPort: 11434, portLabel: "Ollama"},
 	},
+}
+
+// driverDisplay: the product name behind a role's selected driver.
+func driverDisplay(role, driver string) string {
+	if s, ok := driverCatalog[role][driver]; ok {
+		return s.display
+	}
+	return driver
+}
+
+// providedRunArgs builds the `run -d` argv for a launcher-provided role from
+// its plan: aux ports first (byte-parity with the historical builders), then
+// the primary publish (host side from config, container side the driver
+// default), driver extras (inference's memory/volume), config-derived env,
+// image.
+func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
+	spec := driverCatalog[role][rp.Driver]
+	a := []string{"run", "-d", "--rm", "--name", roles[role].container}
+	for _, ap := range spec.auxPorts {
+		a = append(a, "-p", fmt.Sprintf("%d:%d", ap.port, ap.port))
+	}
+	a = append(a, "-p", fmt.Sprintf("%d:%d", rp.Port, spec.defaultPort))
+	a = append(a, extra...)
+	for _, e := range rp.Env {
+		a = append(a, "-e", e)
+	}
+	return append(a, rp.Image)
+}
+
+// planPortChecks: the must-be-free ports, derived from the plan — only roles
+// the launcher actually provides claim ports. Order preserves the historical
+// check order (graph aux, graph, vectors, database, backend, sidecars,
+// frontend, traces-when-observing).
+func planPortChecks(plan *launchPlan, observe bool) []portNeed {
+	var checks []portNeed
+	addRole := func(role string) {
+		rp := plan.Roles[role]
+		if rp.Obligation != obligationProvided {
+			return
+		}
+		spec := driverCatalog[role][rp.Driver]
+		checks = append(checks, spec.auxPorts...)
+		checks = append(checks, portNeed{rp.Port, spec.portLabel})
+	}
+	addRole("graph")
+	addRole("vectors")
+	addRole("database")
+	checks = append(checks,
+		portNeed{plan.BackendPort, "Backend"},
+		portNeed{9090, "Worker"},
+		portNeed{9091, "Smelter"},
+		portNeed{9092, "Weaver"},
+		portNeed{3000, "Frontend"},
+	)
+	if observe {
+		checks = append(checks, portNeed{16686, "Jaeger UI"}, portNeed{4318, "Jaeger OTLP"})
+	}
+	return checks
 }
 
 func knownDrivers(role string) string {

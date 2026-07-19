@@ -668,6 +668,96 @@ func TestInvocationLog(t *testing.T) {
 	}
 }
 
+// --- config-driven boots (LAUNCHER-CONFIG-SYNC P2) ---
+
+// writeKBConfig drops a variant semiontconfig into the scenario's KB.
+func writeKBConfig(t *testing.T, s *scenario, name, body string) {
+	t.Helper()
+	head := "[defaults]\nenvironment = \"local\"\n\n[environments.local.backend]\nplatform = \"posix\"\nport = 4000\n\n"
+	p := filepath.Join(s.kb, ".semiont", "semiontconfig", name+".toml")
+	if err := os.WriteFile(p, []byte(head+body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+const stdVectors = "[environments.local.vectors]\ntype = \"qdrant\"\nhost = \"${QDRANT_HOST}\"\nport = 6333\n\n"
+const stdEmbedding = "[environments.local.embedding]\ntype = \"ollama\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"
+const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\npassword = \"localpass\"\n\n"
+const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\npassword = \"localpass\"\n\n"
+
+func TestStartExternalGraphBoot(t *testing.T) {
+	// graph at a literal address: verify reachability, launch no container,
+	// claim no graph ports.
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "external-graph",
+		"[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://127.0.0.1:7777\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
+			stdVectors+stdEmbedding+stdDatabase)
+	serveHealth(t, 7777)
+	stdout, stderr, code := s.run(t, "start", "--config", "external-graph")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"graph — externally provided at 127.0.0.1:7777 (reachable)",
+		"🚀 Semiont stack is up")
+	argv := s.argv(t)
+	for _, absent := range []string{"run -d --rm --name semiont-neo4j", "NEO4J_AUTH", "lsof -ti :7474"} {
+		if strings.Contains(argv, absent) {
+			t.Errorf("external graph still touched %q in argv", absent)
+		}
+	}
+}
+
+func TestStartMovedDBPortBoot(t *testing.T) {
+	// database.port moves the HOST side of the publish; container side stays
+	// the driver default, and every check/gate follows the config.
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "moved-db",
+		stdGraph+stdVectors+stdEmbedding+
+			"[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5433\nname = \"semiont\"\nuser = \"postgres\"\npassword = \"localpass\"\n\n")
+	stdout, stderr, code := s.run(t, "start", "--config", "moved-db")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "database — PostgreSQL on port 5433")
+	mustContain(t, "argv", s.argv(t), "-p 5433:5432", "nc -z -w 2 192.168.64.1 5433")
+}
+
+func TestStartNoInferenceBoot(t *testing.T) {
+	// A config that references no ollama anywhere: the launcher launches no
+	// inference at all — derived fact, not folklore.
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "no-ollama",
+		stdGraph+stdVectors+stdDatabase+
+			"[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"https://api.anthropic.com\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n"+
+			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+	stdout, stderr, code := s.run(t, "start", "--config", "no-ollama")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "inference — not referenced by the config; skipping")
+	if argv := s.argv(t); strings.Contains(argv, "ollama") {
+		t.Errorf("no-ollama config still touched ollama:\n%s", argv)
+	}
+}
+
+func TestStartServiceExternalIsNoop(t *testing.T) {
+	// P0 q5: --service on an externally-provided role warns and exits 0.
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "external-graph",
+		"[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://graph.example.com:7687\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
+			stdVectors+stdEmbedding+stdDatabase)
+	stdout, stderr, code := s.run(t, "start", "--service", "graph", "--config", "external-graph")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout+stderr", stdout+stderr, "graph is externally provided per", "graph.example.com:7687", "nothing to launch")
+	if argv := s.argv(t); strings.Contains(argv, "semiont-neo4j") {
+		t.Errorf("no-op still touched the container:\n%s", argv)
+	}
+}
+
 // --- SEMIONT_ROOT / KB-root discovery ---
 
 func TestSemiontRootOverride(t *testing.T) {
@@ -813,7 +903,7 @@ func TestRootFlagErrors(t *testing.T) {
 	if code != 1 {
 		t.Errorf("--root with frontend: want exit 1, got %d", code)
 	}
-	mustContain(t, "stderr", stderr, "--root only applies to")
+	mustContain(t, "stderr", stderr, "--root only applies to services that read the KB config")
 }
 
 // --- stack state record ---
@@ -1035,7 +1125,7 @@ func TestStartServiceRejections(t *testing.T) {
 	}{
 		{[]string{"start", "--service", "bogus"}, "Unknown --service 'bogus'"},
 		{[]string{"start", "--service", "worker", "--email", "a@b.co", "--password", "password123"}, "--email/--password only apply to --service backend."},
-		{[]string{"start", "--service", "graph", "--config", "anthropic"}, "--config only applies to --service backend, worker, smelter, or weaver."},
+		{[]string{"start", "--service", "frontend", "--config", "anthropic"}, "--config does not apply to --service frontend"},
 		{[]string{"start", "--service", "worker", "--no-observe"}, "--no-observe does not apply to --service"},
 		{[]string{"start", "--service", "worker", "--ollama-cache", "host"}, "--ollama-cache only applies to --service inference."},
 		{[]string{"start", "--service", "worker", "--list-configs"}, "--list-configs cannot be combined with --service."},
