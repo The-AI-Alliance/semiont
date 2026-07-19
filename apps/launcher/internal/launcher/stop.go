@@ -95,6 +95,9 @@ func Stop(args []string) int {
 		runtimes = []string{st.Runtime}
 		u.log("Using recorded stack state %s", u.dim("("+st.Runtime+" per "+statePath()+")"))
 	} else {
+		if st == nil && runtime == "" && !dryRun {
+			u.log("No recorded stack %s — sweeping all installed runtimes by name.", u.dim("(stack.json absent)"))
+		}
 		st = nil // ignore an unusable record; sweep by name
 		runtimes = installedRuntimes()
 	}
@@ -162,6 +165,7 @@ func Stop(args []string) int {
 	// this idempotent across all three states: running, stopped, absent.
 	u.log("Sweeping %d container(s) across %s %s", len(targets),
 		strings.Join(runtimes, ", "), u.dim("(stop+rm each; exact commands: semiont stop --dry-run)"))
+	totalRemoved := 0
 	for _, rt := range runtimes {
 		t0 := time.Now()
 		removed := 0
@@ -172,6 +176,7 @@ func Stop(args []string) int {
 				removed++
 			}
 		}
+		totalRemoved += removed
 		elapsed := u.dim("(" + took(time.Since(t0)) + ")")
 		if removed == 0 {
 			u.ok("%s: none found %s", rt, elapsed)
@@ -210,6 +215,12 @@ func Stop(args []string) int {
 	}
 	removeState()
 
+	// Say what actually happened: a stop that found nothing anywhere (the
+	// second stop in a row) is a no-op, not a teardown.
+	if totalRemoved == 0 && len(staged) == 0 {
+		fmt.Println("No Semiont containers found — nothing to stop.")
+		return 0
+	}
 	fmt.Println("Semiont stack stopped.")
 	return 0
 }

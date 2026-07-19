@@ -1149,6 +1149,27 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 }
 
+func TestStopTwiceIsHonest(t *testing.T) {
+	// A stop with no record, no containers, and no staging says so — it
+	// doesn't claim to have stopped a stack that wasn't there.
+	removeStale, _ := filepath.Glob("/tmp/semiont-config.*")
+	for _, d := range removeStale {
+		os.RemoveAll(d) // suite-order leftovers from boot tests
+	}
+	s := newScenario(t, "container", "docker")
+	stdout, _, code := s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "stdout", stdout,
+		"No recorded stack",
+		"sweeping all installed runtimes by name",
+		"No Semiont containers found — nothing to stop.")
+	if strings.Contains(stdout, "Semiont stack stopped.") {
+		t.Errorf("no-op stop overstated:\n%s", stdout)
+	}
+}
+
 func TestStopSchema1Compat(t *testing.T) {
 	// A schema-1 stack.json (hostReuse flag, no provided field) still steers
 	// stop: host-reused inference is skipped, launcher containers stop by ID.
