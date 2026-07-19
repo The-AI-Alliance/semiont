@@ -79,6 +79,7 @@ type startOptions struct {
 	dryRun         bool
 	ollamaCache    string // "", "host", or "volume"
 	service        string // start just this one service
+	root           string // --root: KB root by path or registered basename
 }
 
 const startUsage = `Usage: semiont start [options]
@@ -90,6 +91,10 @@ the frontend (http://localhost:3000) — all in containers.
 Options:
   --config <name>       Semiontconfig to use (default: ollama-gemma)
   --list-configs        List available configs and exit
+  --root <path|name>    KB root to start: a directory (must contain .semiont/)
+                        or the basename of a registered root (roots register on
+                        every real start; see semiont status). Wins over
+                        SEMIONT_ROOT and cwd discovery.
   --service <name>      Start (restart) just this one service, leaving the rest
                         of the stack untouched: backend, worker, smelter, weaver,
                         frontend, db, graph, vectors, inference, or traces.
@@ -106,6 +111,16 @@ Options:
   --dry-run             Print the exact runtime commands a run would execute, then exit
   --quiet, -q           Suppress informational output
   --help, -h            Show this help
+
+Environment:
+  SEMIONT_ROOT          KB root override, analogous to GIT_DIR: skip discovery
+                        and use this path (must contain .semiont/; invalid
+                        values are an error, never ignored). Default: walk up
+                        from the current directory looking for .semiont/.
+  SEMIONT_VERSION       Image tag to run (default: latest; 'local' uses
+                        locally-built :local images and skips the pull)
+  SEMIONT_WORKER_SECRET Shared backend/sidecar secret (default: generated per
+                        run; --service rejoins the running stack's secret)
 
 Examples:
   # Fully local with Ollama (default, no API key needed)
@@ -152,6 +167,13 @@ func Start(args []string) int {
 				return 1
 			}
 			opts.service = v
+			i++
+		case "--root":
+			v, ok := needVal(i)
+			if !ok {
+				return 1
+			}
+			opts.root = v
 			i++
 		case "--list-configs":
 			opts.listConfigs = true
@@ -235,6 +257,9 @@ func Start(args []string) int {
 		case opts.configSet && !isConfigConsumer(opts.service):
 			u.fail("--config only applies to --service backend, worker, smelter, or weaver.")
 			return 1
+		case opts.root != "" && !isConfigConsumer(opts.service):
+			u.fail("--root only applies to full start or --service backend, worker, smelter, or weaver (this service uses no KB root).")
+			return 1
 		}
 	}
 
@@ -244,26 +269,42 @@ func Start(args []string) int {
 		u.stamp("semiont start")
 	}
 
-	// Resolve the KB root. A git clone is required — the backend versions the
-	// event log via git — so fail with instructions rather than git's opaque
-	// "not a repository" fatal when someone used GitHub's "Download ZIP" (or
-	// has no git at all). Deliberately after arg parsing so --help works
-	// anywhere. Exception: a --service target that never touches the repo
-	// (infra, frontend — no /kb mount, no config) runs from anywhere, so
-	// "just the browser" needs no clone at all.
+	// Resolve the KB root: SEMIONT_ROOT override (strict), else walk up from
+	// cwd for .semiont/ — deliberately after arg parsing so --help works
+	// anywhere. Only flows that read the config need a root at all; only
+	// flows that mount /kb (full start, --service backend) must additionally
+	// be a git clone — the backend versions the event log via git. A
+	// --service target that touches neither (infra, frontend) runs from
+	// anywhere: "just the browser" needs no clone at all.
 	rootNeeded := opts.service == "" || isConfigConsumer(opts.service)
 	root := ""
 	if rootNeeded {
 		var err error
-		root, err = capture("git", "rev-parse", "--show-toplevel")
-		if err != nil || root == "" {
-			u.fail("This must run inside a git clone of the KB (the backend versions the event log via git).")
-			fmt.Fprintln(os.Stderr, "  If you used GitHub's 'Download ZIP', clone the repository instead:  git clone <repo-url>")
+		if opts.root != "" {
+			// --root wins over SEMIONT_ROOT and discovery: a path is
+			// validated directly, anything else resolves via the registry.
+			root, err = resolveRootArg(opts.root)
+		} else {
+			root, _, err = resolveKBRoot()
+		}
+		if err != nil {
+			u.fail("%v", err)
+			fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT / pass --root.")
 			return 1
+		}
+		if opts.service == "" || opts.service == "backend" {
+			if !requireGitClone(u, root) {
+				return 1
+			}
 		}
 		if err := os.Chdir(root); err != nil {
 			u.fail("Cannot enter KB root %s: %v", root, err)
 			return 1
+		}
+		// The registry remembers every root a real run used (dry-run is a
+		// machine seam and mutates nothing).
+		if !opts.dryRun {
+			registerRootUse(root, opts.service == "")
 		}
 	}
 

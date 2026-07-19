@@ -1,4 +1,4 @@
-git rev-parse --show-toplevel
+git -C <kb-root> rev-parse --show-toplevel
 docker run --rm busybox:1.38.0 nslookup host.docker.internal
 docker stop semiont-jaeger
 docker rm semiont-jaeger

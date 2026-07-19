@@ -39,7 +39,7 @@ who built — `CONTAINER_RUNTIME` picks the *build* engine only:
 
 # 2. Run the full stack from your KB against the :local images
 cd /path/to/your-kb
-SEMIONT_VERSION=local ./.semiont/scripts/start.sh \
+SEMIONT_VERSION=local semiont start \
   --email admin@example.com --password password
 
 # 3. Iterate — edit code, rebuild only what changed:

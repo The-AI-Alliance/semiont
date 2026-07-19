@@ -74,6 +74,10 @@ func logArgv(base string, args []string) {
 }
 
 func git(args []string) {
+	// Accept the -C <dir> form; behavior is driven by FAKERT_GIT_ROOT alone.
+	if len(args) >= 2 && args[0] == "-C" {
+		args = args[2:]
+	}
 	if len(args) >= 2 && args[0] == "rev-parse" && args[1] == "--show-toplevel" {
 		root := os.Getenv("FAKERT_GIT_ROOT")
 		if root == "" {

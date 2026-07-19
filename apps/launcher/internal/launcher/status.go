@@ -175,6 +175,7 @@ func Status(args []string) int {
 			10+utf8.RuneCountInString(rt)-visibleLen(rt), rt, healthCol)
 	}
 	if service == "" {
+		printRoots(u, st)
 		printHostDirs(u)
 	}
 
@@ -182,6 +183,54 @@ func Status(args []string) int {
 		return 0
 	}
 	return 1
+}
+
+// printRoots reports the Semiont roots: every registered root (roots.json —
+// the launcher's memory of roots it has actually used), merged with the one
+// resolvable from here (SEMIONT_ROOT or cwd discovery) and the running
+// stack's, each annotated with everything true about it. Vanished paths are
+// flagged, not hidden.
+func printRoots(u *ui, st *stackState) {
+	fmt.Println()
+	fmt.Println("  SEMIONT ROOTS")
+	order := []string{}
+	labels := map[string][]string{}
+	add := func(path, label string) {
+		if _, ok := labels[path]; !ok {
+			order = append(order, path)
+		}
+		labels[path] = append(labels[path], label)
+	}
+
+	if path, source, err := resolveKBRoot(); err == nil {
+		label := "discovered from cwd"
+		if source == "SEMIONT_ROOT" {
+			label = "SEMIONT_ROOT"
+		}
+		add(path, label)
+	} else if os.Getenv("SEMIONT_ROOT") != "" {
+		// Strictness without failing the report: an invalid override is
+		// surfaced, not silently ignored.
+		fmt.Printf("  %s\n", u.wrap(ansiYellow, fmt.Sprintf("⚠ %v", err)))
+	}
+	if st != nil && st.KBRoot != "" {
+		add(st.KBRoot, "running stack")
+	}
+	for _, e := range loadRoots().Roots {
+		if _, err := os.Stat(e.Path); err != nil {
+			add(e.Path, "missing")
+			continue
+		}
+		add(e.Path, "last used "+e.LastUsed.Format("2006-01-02"))
+	}
+
+	if len(order) == 0 {
+		fmt.Printf("  %s\n", u.dim("(none — cd into a KB clone, set SEMIONT_ROOT, or start with --root)"))
+		return
+	}
+	for _, p := range order {
+		fmt.Printf("  %s %s\n", p, u.dim("("+strings.Join(labels[p], "; ")+")"))
+	}
 }
 
 // printHostDirs reports the host-side directories the stack touches: the
