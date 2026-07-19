@@ -52,6 +52,8 @@ func main() {
 		psCmd(os.Args[1:])
 	case "pgrep":
 		os.Exit(1)
+	case "op":
+		opCmd(os.Args[1:])
 	case "container", "docker", "podman":
 		runtimeCmd(base, os.Args[1:])
 	default:
@@ -104,6 +106,24 @@ func lsof(args []string) {
 	for _, p := range strings.Fields(pids) {
 		fmt.Println(p)
 	}
+}
+
+// opCmd fakes the 1Password CLI: the launcher calls `op read op://<path>`.
+// FAKERT_OP_FAIL fails the read; FAKERT_OP_VALUE overrides the output.
+func opCmd(args []string) {
+	if len(args) != 2 || args[0] != "read" || !strings.HasPrefix(args[1], "op://") {
+		fmt.Fprintf(os.Stderr, "fakert op: unscripted args %v\n", args)
+		os.Exit(64)
+	}
+	if os.Getenv("FAKERT_OP_FAIL") != "" {
+		fmt.Fprintln(os.Stderr, "[ERROR] authorization denied")
+		os.Exit(1)
+	}
+	v := os.Getenv("FAKERT_OP_VALUE")
+	if v == "" {
+		v = "fake-op-secret"
+	}
+	fmt.Println(v)
 }
 
 func psCmd(args []string) {
@@ -164,6 +184,14 @@ func runtimeCmd(base string, args []string) {
 		name := strings.TrimPrefix(handleName(args[len(args)-1]), "semiont-")
 		fmt.Println(name + " out")
 		fmt.Fprintln(os.Stderr, name+" err")
+	case "exec":
+		// The launcher's useradd bridge: exec <handle> semiont useradd <args…>.
+		// FAKERT_EXEC_FAIL models the in-container CLI failing.
+		if os.Getenv("FAKERT_EXEC_FAIL") != "" {
+			fmt.Fprintln(os.Stderr, "Error: useradd failed")
+			os.Exit(1)
+		}
+		fmt.Println("fakert exec ok")
 	case "inspect":
 		// Scripted via FAKERT_STATE_<svc> (svc = name minus "semiont-"),
 		// e.g. FAKERT_STATE_backend=running. Unset = container not found.

@@ -58,19 +58,26 @@ func resolveKBRoot() (path, source string, err error) {
 // memory of every KB root it has actually used: real start flows upsert an
 // entry; entries survive stops. A vanished path is annotated when observed,
 // not silently dropped — an unmounted volume may come back. This registry is
-// the substrate for multi-root support and for `--root <name>` selection.
+// the substrate for multi-root support, for `--root <name>` selection, and
+// for sticky preferences: per-KB ones (config) live on the root's entry,
+// machine-wide ones (runtime — stacks are singleton-per-machine today) live
+// at the top level. Per-user-per-machine facts belong beside the KB, never
+// inside it.
 
 type rootEntry struct {
 	Path        string    `json:"path"`
 	Did         string    `json:"did,omitempty"`      // did:web identity from .semiont/config [site] domain
 	SiteName    string    `json:"siteName,omitempty"` // human label — kept here so even a missing root stays identifiable
+	Config      string    `json:"config,omitempty"`   // sticky --config: what a successful start last used explicitly
 	LastUsed    time.Time `json:"lastUsed"`
 	LastStarted time.Time `json:"lastStarted,omitzero"` // last full-stack start
 }
 
 type rootsRegistry struct {
-	Schema int         `json:"schema"`
-	Roots  []rootEntry `json:"roots"`
+	Schema  int                  `json:"schema"`
+	Runtime string               `json:"runtime,omitempty"` // sticky --runtime: what a successful start last used explicitly
+	Secrets map[string]secretRef `json:"secrets,omitempty"` // env var → {provider, path} POINTERS (never values)
+	Roots   []rootEntry          `json:"roots"`
 }
 
 func rootsPath() string {
@@ -99,8 +106,11 @@ func loadRoots() rootsRegistry {
 }
 
 // registerRootUse upserts a root into the registry. Best-effort: registry
-// trouble never fails the command. fullStart additionally stamps LastStarted.
-func registerRootUse(path string, fullStart bool) {
+// trouble never fails the command. fullStart additionally stamps LastStarted;
+// a non-empty config records the KB's sticky --config preference (callers
+// pass it only after the start SUCCEEDED with an explicit --config — a typo'd
+// or unlaunchable config must never become the default).
+func registerRootUse(path string, fullStart bool, config string) {
 	p := rootsPath()
 	if p == "" {
 		return
@@ -119,6 +129,9 @@ func registerRootUse(path string, fullStart bool) {
 			if fullStart {
 				reg.Roots[i].LastStarted = now
 			}
+			if config != "" {
+				reg.Roots[i].Config = config
+			}
 			if ident != nil {
 				reg.Roots[i].Did = ident.didWeb()
 				reg.Roots[i].SiteName = ident.SiteName
@@ -127,7 +140,7 @@ func registerRootUse(path string, fullStart bool) {
 		}
 	}
 	if !found {
-		e := rootEntry{Path: path, LastUsed: now, Did: ident.didWeb()}
+		e := rootEntry{Path: path, LastUsed: now, Did: ident.didWeb(), Config: config}
 		if ident != nil {
 			e.SiteName = ident.SiteName
 		}
@@ -135,6 +148,16 @@ func registerRootUse(path string, fullStart bool) {
 			e.LastStarted = now
 		}
 		reg.Roots = append(reg.Roots, e)
+	}
+	saveRoots(reg)
+}
+
+// saveRoots writes the registry atomically. Best-effort, like every registry
+// touch: trouble here never fails the command.
+func saveRoots(reg rootsRegistry) {
+	p := rootsPath()
+	if p == "" {
+		return
 	}
 	if reg.Schema == 0 {
 		reg.Schema = 1
@@ -151,6 +174,33 @@ func registerRootUse(path string, fullStart bool) {
 		return
 	}
 	_ = os.Rename(tmp, p)
+}
+
+// recordRuntimePref stores the machine-wide sticky runtime — callers pass it
+// only after a start SUCCEEDED with an explicit --runtime. Unlike the config
+// preference it needs no root: `--service frontend --runtime docker` is a
+// legitimate rootless start and still expresses the choice.
+func recordRuntimePref(rt string) {
+	reg := loadRoots()
+	if reg.Runtime == rt {
+		return
+	}
+	reg.Runtime = rt
+	saveRoots(reg)
+}
+
+// recordedConfig returns the KB's sticky config preference — the name a
+// successful start last passed as --config for this root ("" when none).
+func recordedConfig(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	for _, e := range loadRoots().Roots {
+		if e.Path == path {
+			return e.Config
+		}
+	}
+	return ""
 }
 
 // resolveRootArg resolves a `--root` value: an existing directory path is

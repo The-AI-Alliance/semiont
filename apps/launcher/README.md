@@ -22,21 +22,57 @@ no language runtime bleeds onto your host. Besides the launcher you need only
 Run from inside a KB clone:
 
 ```sh
-semiont start --email admin@example.com --password mypassword
+semiont start
+semiont useradd --email admin@example.com --password mypassword --admin
 semiont status
 semiont logs
 semiont stop
 ```
 
 - `semiont start --help` lists all flags (`--config`, `--runtime`,
-  `--no-observe`, `--force-kill-ports`, `--ollama-cache`, …).
+  `--no-observe`, `--ollama-cache`, …).
+- **`semiont secret` registers where config secrets come from** — pointers,
+  never values. `semiont secret set ANTHROPIC_API_KEY` walks an interactive
+  provider-then-path flow (or pass the source directly:
+  `… set ANTHROPIC_API_KEY op://OSS/Anthropic/credential`); either form
+  stores `{provider, path}` in `roots.json`
+  (verified with one read at set time, value discarded); every later start
+  that needs the var announces the reach (`ANTHROPIC_API_KEY: reading from
+  1Password (op read op://…) — expect an authorization prompt`) and reads it
+  fresh — no secret value is ever persisted, echoed, or logged. The URI
+  scheme selects the provider (only `op://`, the 1Password CLI, today; the
+  registry is built for more). The launcher constructs the invocation itself
+  from the stored path — no stored shell text is ever executed. `op` missing
+  from PATH fails early and clearly. And the standing escape hatch needs no
+  1Password at all: **exporting the variable always wins** — a plain
+  `ANTHROPIC_API_KEY=… semiont start` behaves exactly as it always has.
+  `--dry-run` reaches for nothing (plan shows `<env:VAR>` placeholders).
+- `semiont useradd` creates or updates users in the RUNNING stack: the
+  launcher execs the in-container Semiont CLI's `useradd` inside the backend
+  container (record-driven runtime + container ID, name-scan fallback) and
+  passes every flag through verbatim (`--admin`, `--generate-password`,
+  `--update`, `--upsert`, …). This replaced `start --email/--password`: the
+  admin password used to ride into the backend container as an env var,
+  readable via `inspect` for the stack's whole lifetime — now it exists only
+  in one exec's argv, redacted in the echoed command and the invocation log.
 - `semiont start --dry-run` prints the exact runtime commands a real run would
   execute — the legibility answer to "what does this binary actually do".
 - `semiont status` reports, per service, the container state as the runtime
   sees it and an application-level health probe (exit 0 only when every core
   service is healthy — scriptable).
 - `semiont stop` sweeps **every** installed runtime by default, so a stack
-  started under `--runtime docker` can't survive a plain stop.
+  started under `--runtime docker` can't survive a plain stop. Stop's job
+  isn't done until the ports are actually free: `start` records the host
+  ports the stack claimed (`ports` in `stack.json`), and `stop` polls them
+  after teardown (runtimes release published ports asynchronously), then
+  reports any survivor with its PID and process name — never kills it, since
+  after the sweeps a holder is provably not a Semiont container. `start`'s
+  preflight likewise name-sweeps `semiont-*` under every installed runtime,
+  so a held port at check time means a genuinely foreign process; the error
+  names it and suggests the `kill` for you to run yourself. (There is
+  deliberately no `--force-kill-ports`-style option: the launcher owns
+  everything named `semiont-*` across every runtime it can see, and never
+  signals anything else.)
 - `semiont about` shows what Semiont is, project links, the image registry,
   and which runtimes were detected on PATH.
 - Every invocation is logged (invoke + exit lines, with `--password` values
@@ -71,6 +107,25 @@ semiont stop
   directory, or the basename of a registered root — winning over
   `SEMIONT_ROOT` and cwd discovery; the SEMIONT ROOTS status section lists
   the registry with last-used annotations.
+- **`--config` is sticky per KB**: a successful start with an explicit
+  `--config` records the name on the root's `roots.json` entry, and later
+  starts without the flag use it (banner says `Config: anthropic (recorded
+  from last start; override with --config)`; status shows it under SEMIONT
+  ROOTS). An explicit flag always wins and re-records; failed starts and
+  `--dry-run` record nothing, so a typo'd name never becomes the default.
+  The preference is per-user-per-machine — which config you run depends on
+  your API keys, so it lives in the XDG registry, never in the KB repo.
+- **`--runtime` is sticky machine-wide** (a top-level `runtime` field in
+  `roots.json` — stacks are singleton-per-machine, so unlike `--config` the
+  preference isn't per-KB): an explicit `--runtime` on a successful start is
+  recorded; later bare starts use it (`Container runtime: docker (recorded
+  from last start; override with --runtime)`). Selection is three-tiered — a
+  live stack's `stack.json` record always wins (rejoin what exists), then the
+  recorded preference, then auto-detect (`container` → `docker` → `podman`).
+  Ambiguous auto-detect names the alternatives (`auto-detected; also on
+  PATH: docker`); implicit picks record nothing; a preference naming a
+  runtime that's no longer on PATH warns and falls back to auto-detect —
+  only an explicit flag naming a missing runtime is an error.
 - `start` records what it believes the stack IS — the runtime, and each
   service's container name, runtime-reported ID, and image — in `stack.json`
   in the launcher's state home (`~/Library/Application Support/semiont` on

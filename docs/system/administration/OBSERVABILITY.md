@@ -131,8 +131,7 @@ backend / worker / smelter **by default**; pass `--no-observe` to skip
 the sidecar:
 
 ```bash
-ANTHROPIC_API_KEY=<key> semiont start --config anthropic \
-  --email admin@example.com --password password
+ANTHROPIC_API_KEY=<key> semiont start --config anthropic
 ```
 
 Use this for development / e2e workflows where you want to inspect

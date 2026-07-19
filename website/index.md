@@ -62,7 +62,8 @@ Clone a knowledge-base repo — the empty template for a new project, or a pre-p
 ```bash
 git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
 cd semiont-gutenberg-kb
-semiont start --email admin@example.com --password <choose-a-password>
+semiont start
+semiont useradd --email admin@example.com --password <choose-a-password> --admin
 ```
 
 One command brings up the whole stack from published, attested container images — including the Semiont browser. Open **http://localhost:3000** and sign in with the credentials you chose.

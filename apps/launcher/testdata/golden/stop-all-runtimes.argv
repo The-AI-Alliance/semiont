@@ -58,3 +58,9 @@ podman stop semiont-neo4j
 podman rm semiont-neo4j
 podman stop semiont-jaeger
 podman rm semiont-jaeger
+lsof -ti :3000
+lsof -ti :9090
+lsof -ti :9091
+lsof -ti :9092
+lsof -ti :16686
+lsof -ti :4318

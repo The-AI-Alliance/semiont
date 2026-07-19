@@ -7,10 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -28,16 +26,11 @@ var preflightNames = []string{
 	"semiont-frontend",
 }
 
-var emailRe = regexp.MustCompile(`^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$`)
-
 type startOptions struct {
 	configName     string
 	configSet      bool // --config given explicitly (drives --service compatibility)
 	listConfigs    bool
-	adminEmail     string
-	adminPassword  string
 	cleanOllama    bool
-	forceKillPorts bool
 	runtime        string
 	observe        bool
 	noObserveSet   bool // --no-observe given explicitly
@@ -55,7 +48,9 @@ Start a local Semiont stack — graph (Neo4j), vectors (Qdrant), inference
 the frontend (http://localhost:3000) — all in containers.
 
 Options:
-  --config <name>       Semiontconfig to use (default: ollama-gemma)
+  --config <name>       Semiontconfig to use (default: this KB's recorded
+                        preference — the --config a successful start last
+                        used, kept in roots.json — else ollama-gemma)
   --list-configs        List available configs and exit
   --root <path|name>    KB root to start: a directory (must contain .semiont/)
                         or the basename of a registered root (roots register on
@@ -66,11 +61,11 @@ Options:
                         frontend, database, graph, vectors, inference, or traces.
                         Rejoins a running stack's worker secret automatically;
                         OTel export is enabled iff traces (Jaeger) is up.
-  --email <email>       Admin user email (requires --password)
-  --password <pass>     Admin user password (requires --email)
   --clean-ollama        Remove the Ollama model cache volume and exit
-  --force-kill-ports    Kill any non-Semiont process holding a needed port
-  --runtime <name>      Container runtime: container, docker, or podman (default: first found)
+  --runtime <name>      Container runtime: container, docker, or podman
+                        (default: the machine's recorded preference — the
+                        --runtime a successful start last used, kept in
+                        roots.json — else the first found on PATH)
   --no-observe          Skip the Jaeger sidecar (OTel traces + metrics run by default)
   --ollama-cache <c>    Model cache when starting an Ollama container: 'host'
                         (~/.ollama) or 'volume' (named volume) — skips the prompt
@@ -90,11 +85,14 @@ Environment:
 
 Examples:
   # Fully local with Ollama (default, no API key needed)
-  semiont start --email admin@example.com --password password
+  semiont start
 
   # Anthropic cloud inference
   export ANTHROPIC_API_KEY=<your-key>
-  semiont start --config anthropic --email admin@example.com --password password
+  semiont start --config anthropic
+
+  # First admin user, once the stack is up
+  semiont useradd --email admin@example.com --password <pass> --admin
 
   # See available configs
   semiont start --list-configs
@@ -143,24 +141,8 @@ func Start(args []string) int {
 			i++
 		case "--list-configs":
 			opts.listConfigs = true
-		case "--email":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.adminEmail = v
-			i++
-		case "--password":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.adminPassword = v
-			i++
 		case "--clean-ollama":
 			opts.cleanOllama = true
-		case "--force-kill-ports":
-			opts.forceKillPorts = true
 		case "--runtime":
 			v, ok := needVal(i)
 			if !ok {
@@ -213,9 +195,6 @@ func Start(args []string) int {
 			return 1
 		case opts.noObserveSet:
 			u.fail("--no-observe does not apply to --service: OTel export is enabled iff traces (Jaeger) is already running.")
-			return 1
-		case (opts.adminEmail != "" || opts.adminPassword != "") && opts.service != "backend":
-			u.fail("--email/--password only apply to --service backend.")
 			return 1
 		case opts.ollamaCache != "" && opts.service != "inference":
 			u.fail("--ollama-cache only applies to --service inference.")
@@ -273,24 +252,21 @@ func Start(args []string) int {
 			return 1
 		}
 		// The registry remembers every root a real run used (dry-run is a
-		// machine seam and mutates nothing).
+		// machine seam and mutates nothing). The sticky config is recorded
+		// separately, only after the start succeeds.
 		if !opts.dryRun {
-			registerRootUse(root, opts.service == "")
+			registerRootUse(root, opts.service == "", "")
 		}
 	}
 
-	if opts.adminEmail != "" || opts.adminPassword != "" {
-		if opts.adminEmail == "" || opts.adminPassword == "" {
-			u.fail("--email and --password must be provided together.")
-			return 1
-		}
-		if !emailRe.MatchString(opts.adminEmail) {
-			u.fail("Invalid --email: '%s'", opts.adminEmail)
-			return 1
-		}
-		if len(opts.adminPassword) < 8 {
-			u.fail("--password must be at least 8 characters.")
-			return 1
+	// Sticky config: with no explicit --config, this KB's recorded
+	// preference (roots.json) wins over the built-in fallback. Dry-run
+	// reads it too — the plan must mirror what a real run would do.
+	configFrom := ""
+	if configNeeded && !opts.configSet {
+		if rec := recordedConfig(root); rec != "" {
+			opts.configName = rec
+			configFrom = "recorded from last start; override with --config"
 		}
 	}
 
@@ -305,6 +281,9 @@ func Start(args []string) int {
 	if configNeeded {
 		if _, err := os.Stat(configFile); err != nil {
 			u.fail("Config not found: %s", configFile)
+			if configFrom != "" {
+				fmt.Fprintf(os.Stderr, "  ('%s' is this KB's recorded preference; pass --config to pick another — a successful start re-records it.)\n", opts.configName)
+			}
 			fmt.Println("Available configs:")
 			printConfigNames()
 			return 1
@@ -322,20 +301,53 @@ func Start(args []string) int {
 		}
 	}
 
-	rt, ok := selectRuntime(u, opts.runtime)
+	// Runtime selection, three tiers: a live stack's record (correctness —
+	// rejoin what exists, below), then the machine-wide sticky preference
+	// (the --runtime a successful start last used, roots.json), then
+	// auto-detect. Only an EXPLICIT flag naming a missing runtime is an
+	// error; a recorded preference that vanished from PATH just falls back.
+	requested, rtSticky := opts.runtime, false
+	if requested == "" {
+		if rec := loadRoots().Runtime; rec != "" {
+			if onPath(rec) {
+				requested, rtSticky = rec, true
+			} else if !opts.dryRun { // keep the dry-run seam machine-clean
+				u.warn("Recorded runtime preference '%s' (per %s) is not on PATH — auto-detecting.", rec, rootsPath())
+			}
+		}
+	}
+	rt, ok := selectRuntime(u, requested)
 	if !ok {
 		return 1
 	}
+	rtFrom := ""
+	switch {
+	case rtSticky:
+		rtFrom = "recorded from last start; override with --runtime"
+	case opts.runtime == "":
+		// Ambiguous auto-detect owns its choice: name the alternatives.
+		if found := installedRuntimes(); len(found) > 1 {
+			others := make([]string, 0, len(found)-1)
+			for _, f := range found {
+				if f != rt {
+					others = append(others, f)
+				}
+			}
+			rtFrom = "auto-detected; also on PATH: " + strings.Join(others, ", ") + " — override with --runtime"
+		}
+	}
 	// The record binds a running stack to its runtime. Implicit selection
 	// prefers it (a bare `start --service worker` must rejoin the stack that
-	// exists, not whatever auto-detect finds first); an EXPLICIT mismatch on
-	// a non-dry-run refuses rather than orphan the recorded stack — start's
-	// preflight would erase its record and delete staged configs out from
-	// under its live mounts. A record whose runtime is no longer installed is
-	// stale (that stack cannot be running) and doesn't bind anything.
+	// exists, not whatever auto-detect — or the sticky preference — says);
+	// an EXPLICIT mismatch on a non-dry-run refuses rather than orphan the
+	// recorded stack — start's preflight would erase its record and delete
+	// staged configs out from under its live mounts. A record whose runtime
+	// is no longer installed is stale (that stack cannot be running) and
+	// doesn't bind anything.
 	if recSt := loadState(); recSt != nil && recSt.Runtime != "" && recSt.Runtime != rt && onPath(recSt.Runtime) {
 		if opts.runtime == "" {
 			rt = recSt.Runtime
+			rtFrom = ""
 			u.log("Using recorded stack's runtime: %s %s", u.bold(rt), u.dim("(per "+statePath()+")"))
 		} else if !opts.dryRun {
 			u.fail("A recorded stack is running under %s (per %s).", recSt.Runtime, statePath())
@@ -371,17 +383,29 @@ func Start(args []string) int {
 			u.log("KB: %s %s", u.bold(ident.SiteName), u.dim(ident.didWeb()))
 		}
 	}
-	u.log("Container runtime: %s", u.bold(rt))
+	if rtFrom != "" {
+		u.log("Container runtime: %s %s", u.bold(rt), u.dim("("+rtFrom+")"))
+	} else {
+		u.log("Container runtime: %s", u.bold(rt))
+	}
 	if configNeeded {
-		u.log("Config: %s", u.bold(opts.configName))
+		if configFrom != "" {
+			u.log("Config: %s %s", u.bold(opts.configName), u.dim("("+configFrom+")"))
+		} else {
+			u.log("Config: %s", u.bold(opts.configName))
+		}
 	}
 	u.log("Image version: %s", u.bold(version))
 
 	// User env vars (API keys the config references, extracted by
 	// loadConfig's single parse) are demanded only where a Semiont service
-	// will consume the config — never for infra restarts.
+	// will consume the config — never for infra restarts. The environment
+	// always wins; a registered secret source (semiont secret) is consulted
+	// only for vars the environment doesn't provide, with the reach
+	// announced BEFORE it happens. Dry-run reaches for nothing.
 	var userEnv []string
 	if opts.service == "" || isConfigConsumer(opts.service) {
+		secrets := loadRoots().Secrets
 		for _, v := range userVars {
 			if opts.dryRun {
 				userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
@@ -389,7 +413,24 @@ func Start(args []string) int {
 			}
 			val := os.Getenv(v)
 			if val == "" {
+				if ref, ok := secrets[v]; ok {
+					if !requireProviderBin(u, ref) {
+						return 1
+					}
+					u.log("%s: reading from %s (%s) %s", u.bold(v),
+						secretProviders[ref.Provider].display, refCommand(ref),
+						u.dim("— expect an authorization prompt"))
+					var err error
+					if val, err = resolveSecret(ref); err != nil {
+						u.fail("%s: %v.", v, err)
+						fmt.Fprintf(os.Stderr, "  Fix the source (semiont secret set %s ...), or export %s yourself — the environment always wins.\n", v, v)
+						return 1
+					}
+				}
+			}
+			if val == "" {
 				u.fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
+				fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont secret set %s\n", v)
 				return 1
 			}
 			userEnv = append(userEnv, "--env", v+"="+val)
@@ -404,10 +445,25 @@ func Start(args []string) int {
 		}
 		return 0
 	}
+	// Record sticky preferences only when this start SUCCEEDED with the
+	// explicit flag: preferences are "what I actually run", so a typo'd
+	// name or an unlaunchable choice never becomes the default. Implicit
+	// picks (auto-detect, the preferences themselves) record nothing.
+	code := 0
 	if opts.service != "" {
-		return runStartService(u, rt, version, root, configFile, opts, userEnv, plan)
+		code = runStartService(u, rt, version, root, configFile, opts, userEnv, plan)
+	} else {
+		code = runStart(u, rt, version, root, configFile, opts, userEnv, plan)
 	}
-	return runStart(u, rt, version, root, configFile, opts, userEnv, plan)
+	if code == 0 {
+		if opts.configSet {
+			registerRootUse(root, false, opts.configName)
+		}
+		if opts.runtime != "" {
+			recordRuntimePref(opts.runtime)
+		}
+	}
+	return code
 }
 
 func printConfigNames() {
@@ -430,8 +486,10 @@ func tracesArgs() []string {
 
 // backendArgs: the backend takes the four dependency hosts but must NOT
 // receive BACKEND_HOST (publicURL derives from it; see the DID/site.domain
-// history before ever changing this).
-func backendArgs(kbRoot, stage, addr, secret, version string, port int, userEnv, otel, admin []string) []string {
+// history before ever changing this). Admin seeding deliberately does NOT
+// ride in here — `semiont useradd` execs the in-container CLI instead, so
+// no password ever sits in the container's inspectable env.
+func backendArgs(kbRoot, stage, addr, secret, version string, port int, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--rm", "--name", "semiont-backend",
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", "8G",
 		"--volume", kbRoot + ":/kb",
@@ -444,7 +502,6 @@ func backendArgs(kbRoot, stage, addr, secret, version string, port int, userEnv,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "OLLAMA_HOST="+addr,
 		"--env", "SEMIONT_WORKER_SECRET="+secret)
-	a = append(a, admin...)
 	return append(a, image("backend", version))
 }
 
@@ -527,10 +584,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		fmt.Println("  Jaeger UI          http://localhost:16686")
 	}
 	fmt.Println()
-	if opts.adminEmail != "" {
-		fmt.Printf("  Sign in at http://localhost:3000 as %s with your --password.\n", u.bold(opts.adminEmail))
-		fmt.Println()
-	}
+	fmt.Printf("  Add a user:    %s\n", u.bold("semiont useradd --email <email> --password <pass> --admin"))
 	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
 	fmt.Printf("  Follow logs:   %s\n", u.bold("semiont logs"))
 	fmt.Printf("  Stop stack:    %s\n", u.bold("semiont stop"))
@@ -616,16 +670,26 @@ func removeStagedConfigs() {
 	}
 }
 
-// requirePortFree fails (or, with force, kills and re-verifies) when a TCP
-// port is already held, naming the offending process(es). lsof -ti prints one
-// PID per line when several processes hold a port (parent+child servers,
-// SO_REUSEPORT), so everything here iterates over all of them.
-func requirePortFree(u *ui, port int, service string, forceKill bool) bool {
+// requirePortFree fails when a TCP port is already held, naming the
+// offending process(es). By this point every semiont-* container has been
+// swept under every installed runtime, so a holder is provably foreign —
+// the launcher never signals it; killing it is the user's call, per
+// incident. lsof -ti prints one PID per line when several processes hold a
+// port (parent+child servers, SO_REUSEPORT), so everything here iterates
+// over all of them.
+func requirePortFree(u *ui, port int, service string) bool {
 	out, err := capture("lsof", "-ti", fmt.Sprintf(":%d", port))
 	if err != nil || out == "" {
 		return true
 	}
 	pids := strings.Fields(out)
+	u.fail("Port %d (needed for %s) is held by %s.", port, service, describeProcs(pids))
+	fmt.Fprintln(os.Stderr, "  This is not a Semiont container. Stop it and re-run (e.g. kill "+strings.Join(pids, " ")+").")
+	return false
+}
+
+// describeProcs renders "pid (comm), pid (comm)" for a set of PIDs.
+func describeProcs(pids []string) string {
 	procs := make([]string, 0, len(pids))
 	for _, p := range pids {
 		comm, err := capture("ps", "-p", p, "-o", "comm=")
@@ -634,22 +698,5 @@ func requirePortFree(u *ui, port int, service string, forceKill bool) bool {
 		}
 		procs = append(procs, fmt.Sprintf("%s (%s)", p, comm))
 	}
-	desc := strings.Join(procs, ", ")
-	if forceKill {
-		u.warn("Port %d (needed for %s) held by %s — killing (--force-kill-ports).", port, service, desc)
-		for _, p := range pids {
-			if pid, err := strconv.Atoi(p); err == nil {
-				_ = syscall.Kill(pid, syscall.SIGTERM)
-			}
-		}
-		time.Sleep(time.Second)
-		if out, err := capture("lsof", "-ti", fmt.Sprintf(":%d", port)); err == nil && out != "" {
-			u.fail("Port %d still held after kill (%s).", port, strings.Join(strings.Fields(out), " "))
-			return false
-		}
-		return true
-	}
-	u.fail("Port %d (needed for %s) is held by %s.", port, service, desc)
-	fmt.Fprintln(os.Stderr, "  Stop the conflicting process and re-run, or pass --force-kill-ports.")
-	return false
+	return strings.Join(procs, ", ")
 }

@@ -153,8 +153,8 @@ that exactly matches the current branch's source:
 #    "Gotchas" below).
 cd ../semiont-template-kb
 ANTHROPIC_API_KEY="$(op read op://OSS/Anthropic/credential)" \
-  SEMIONT_VERSION=local semiont start --config anthropic \
-  --email admin@example.com --password password
+  SEMIONT_VERSION=local semiont start --config anthropic
+semiont useradd --email admin@example.com --password password --admin
 
 # 3. Grab IPs and run the e2e suite (see Quick start above). The stack
 #    includes the frontend container on :3000.

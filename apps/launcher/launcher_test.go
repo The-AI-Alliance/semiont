@@ -13,6 +13,7 @@
 package main_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -346,7 +347,8 @@ func TestStartMissingEnvVar(t *testing.T) {
 		t.Fatalf("want exit 1, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stderr", stderr,
-		"Config 'anthropic' references ${ANTHROPIC_API_KEY} but it is not set in the environment.")
+		"Config 'anthropic' references ${ANTHROPIC_API_KEY} but it is not set in the environment.",
+		"register a secret source once:  semiont secret set ANTHROPIC_API_KEY")
 	checkGolden(t, "start-missing-env.argv", s.argv(t))
 }
 
@@ -359,7 +361,7 @@ func TestStartPortConflict(t *testing.T) {
 	}
 	mustContain(t, "stderr", stderr,
 		"Port 7474 (needed for Neo4j HTTP) is held by 12345 (node).",
-		"--force-kill-ports")
+		"This is not a Semiont container. Stop it and re-run (e.g. kill 12345).")
 	checkGolden(t, "start-port-conflict.argv", s.argv(t))
 }
 
@@ -396,15 +398,15 @@ func TestStartUnknownArg(t *testing.T) {
 }
 
 func TestStartCredentialValidation(t *testing.T) {
+	// Admin seeding moved to `semiont useradd` (the exec bridge); start no
+	// longer knows these flags at all.
 	s := newScenario(t, "container")
 	for _, tc := range []struct {
 		args []string
 		want string
 	}{
-		{[]string{"start", "--email", "a@b.co"}, "--email and --password must be provided together."},
-		{[]string{"start", "--password", "longenough"}, "--email and --password must be provided together."},
-		{[]string{"start", "--email", "not-an-email", "--password", "longenough"}, "Invalid --email"},
-		{[]string{"start", "--email", "a@b.co", "--password", "short"}, "--password must be at least 8 characters."},
+		{[]string{"start", "--email", "a@b.co"}, "Unknown argument: --email"},
+		{[]string{"start", "--password", "longenough"}, "Unknown argument: --password"},
 	} {
 		_, stderr, code := s.run(t, tc.args...)
 		if code != 1 {
@@ -661,8 +663,10 @@ func TestInvocationLog(t *testing.T) {
 	if _, _, code := s.run(t, "version"); code != 0 {
 		t.Fatalf("version: exit %d", code)
 	}
-	// A failing run with a password: logged with the value redacted.
-	if _, _, code := s.run(t, "start", "--service", "worker", "--email", "a@b.co", "--password", "supersecretpw"); code != 1 {
+	// A failing run with a password: logged with the value redacted
+	// (useradd with no running backend fails, and is the launcher's one
+	// password-carrying command).
+	if _, _, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "supersecretpw"); code != 1 {
 		t.Fatalf("rejection run: want exit 1, got %d", code)
 	}
 	b, err := os.ReadFile(invLogPath(s.home))
@@ -673,12 +677,295 @@ func TestInvocationLog(t *testing.T) {
 	mustContain(t, "invocation log", log,
 		"invoke semiont version (version dev",
 		"exit 0 semiont version",
-		"invoke semiont start --service worker --email a@b.co --password <redacted>",
-		"exit 1 semiont start --service worker",
+		"invoke semiont useradd --email a@b.co --password <redacted>",
+		"exit 1 semiont useradd",
 	)
 	if strings.Contains(log, "supersecretpw") {
 		t.Error("password leaked into the invocation log")
 	}
+}
+
+// --- useradd ---
+
+func TestUseradd(t *testing.T) {
+	// useradd is a thin exec bridge: launcher finds the stack's runtime and
+	// backend handle, execs the in-container CLI's useradd, and passes every
+	// flag through verbatim.
+	s := newScenario(t, "container", "docker")
+
+	// No running backend anywhere: pointed failure.
+	_, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123")
+	if code != 1 {
+		t.Fatalf("no-backend useradd: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"useradd needs a running backend", "semiont start")
+
+	// Name-scan fallback: the runtime whose listing shows semiont-backend.
+	s.extraEnv = append(s.extraEnv, "FAKERT_STACK_RUNTIME=docker")
+	stdout, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123", "--admin")
+	if code != 0 {
+		t.Fatalf("useradd: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log),
+		"docker exec semiont-backend semiont useradd --email a@b.co --password password123 --admin")
+	// The echoed command redacts the password; the real argv (above) is intact.
+	mustContain(t, "stdout", stdout, "--password <redacted>")
+	if strings.Contains(stdout, "password123") {
+		t.Errorf("password leaked into the echoed command:\n%s", stdout)
+	}
+
+	// Record-driven: recorded runtime + container ID beat the name scan.
+	writeStackState(t, s, "container")
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := s.run(t, "useradd", "--email", "b@c.co", "--generate-password"); code != 0 {
+		t.Fatalf("record-driven useradd: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ = os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log),
+		"container exec fid-semiont-backend semiont useradd --email b@c.co --generate-password")
+
+	// The in-container CLI failing surfaces as a launcher failure.
+	s.extraEnv = append(s.extraEnv, "FAKERT_EXEC_FAIL=1")
+	if _, stderr, code := s.run(t, "useradd", "--email", "c@d.co", "--password", "password123"); code != 1 {
+		t.Fatalf("exec failure: want exit 1, got %d\nstderr:\n%s", code, stderr)
+	}
+
+	// Bare useradd prints usage and fails; --help succeeds.
+	if _, _, code := s.run(t, "useradd"); code != 1 {
+		t.Error("bare useradd should exit 1")
+	}
+	stdout, _, code = s.run(t, "useradd", "--help")
+	if code != 0 {
+		t.Error("useradd --help should exit 0")
+	}
+	mustContain(t, "help", stdout, "--generate-password", "--admin", "--upsert")
+}
+
+// --- secret sources ---
+
+func TestSecretCommand(t *testing.T) {
+	// `semiont secret` stores POINTERS (provider + path) in roots.json —
+	// never a value. set verifies with one read (discarded); list shows
+	// pointers; rm forgets.
+	s := newScenario(t, "container", "op")
+
+	stdout, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential")
+	if code != 0 {
+		t.Fatalf("secret set: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "set stdout", stdout,
+		"Verifying: op read op://OSS/Anthropic/credential",
+		"expect an authorization prompt",
+		"pointer stored, never the value")
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "op read op://OSS/Anthropic/credential")
+	b, _ := os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "roots.json", string(b), `"provider": "op"`, `"path": "OSS/Anthropic/credential"`)
+	if strings.Contains(string(b), "fake-op-secret") {
+		t.Fatalf("secret VALUE persisted to roots.json:\n%s", b)
+	}
+	if strings.Contains(stdout, "fake-op-secret") {
+		t.Errorf("secret value printed by set:\n%s", stdout)
+	}
+
+	stdout, _, code = s.run(t, "secret", "list")
+	if code != 0 {
+		t.Fatalf("secret list: exit %d", code)
+	}
+	mustContain(t, "list stdout", stdout,
+		"ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential", "the environment always wins")
+
+	// Unknown scheme rejected; verification failure stores nothing.
+	if _, stderr, code := s.run(t, "secret", "set", "X", "vault://a/b"); code != 1 {
+		t.Error("unknown scheme should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "Unknown secret provider 'vault'")
+	}
+	s.extraEnv = append(s.extraEnv, "FAKERT_OP_FAIL=1")
+	if _, stderr, code := s.run(t, "secret", "set", "OTHER_KEY", "op://a/b/c"); code != 1 {
+		t.Error("failed verification should fail set")
+	} else {
+		mustContain(t, "stderr", stderr, "Verification failed")
+	}
+	b, _ = os.ReadFile(rootsPathFor(s.home))
+	if strings.Contains(string(b), "a/b/c") {
+		t.Errorf("failed verification still stored the source:\n%s", b)
+	}
+
+	// rm forgets; a second rm is an honest error.
+	if _, _, code := s.run(t, "secret", "rm", "ANTHROPIC_API_KEY"); code != 0 {
+		t.Fatal("secret rm failed")
+	}
+	b, _ = os.ReadFile(rootsPathFor(s.home))
+	if strings.Contains(string(b), "Anthropic/credential") {
+		t.Errorf("rm left the source behind:\n%s", b)
+	}
+	if _, _, code := s.run(t, "secret", "rm", "ANTHROPIC_API_KEY"); code != 1 {
+		t.Error("rm of an absent source should fail")
+	}
+}
+
+func TestSecretSetInteractive(t *testing.T) {
+	// `secret set <VAR>` with no source URI walks the provider registry
+	// interactively: pick a provider (the lone installed one is the
+	// default), then the path in the provider's own shape.
+	s := newScenario(t, "container", "op")
+
+	// Empty provider input takes the default; a pasted full URI as the
+	// path is tolerated.
+	s.stdin = "\nop://OSS/Anthropic/credential\n"
+	stdout, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY")
+	if code != 0 {
+		t.Fatalf("interactive set: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"Registering a secret source for ANTHROPIC_API_KEY",
+		"op — 1Password",
+		"Provider [op]:",
+		"Path (<vault>/<item>/<field>):",
+		"pointer stored, never the value")
+	b, _ := os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "roots.json", string(b), `"path": "OSS/Anthropic/credential"`)
+	if strings.Contains(string(b), "fake-op-secret") {
+		t.Fatalf("secret VALUE persisted:\n%s", b)
+	}
+
+	// An unknown provider name is a clean failure.
+	s.stdin = "vault\n"
+	if _, stderr, code := s.run(t, "secret", "set", "X"); code != 1 {
+		t.Error("unknown interactive provider should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "Unknown secret provider 'vault'")
+	}
+
+	// An empty path is a clean failure.
+	s.stdin = "op\n\n"
+	if _, stderr, code := s.run(t, "secret", "set", "X"); code != 1 {
+		t.Error("empty path should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "A path is required.")
+	}
+}
+
+func TestSecretSetInteractiveWithoutProvider(t *testing.T) {
+	// No provider CLI installed: the picker says so per provider, and
+	// choosing one fails the early PATH test with the escape hatch.
+	s := newScenario(t, "container") // no "op" shim
+	s.stdin = "op\n"
+	stdout, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY")
+	if code != 1 {
+		t.Fatalf("want exit 1, got %d", code)
+	}
+	mustContain(t, "stdout", stdout, "op — 1Password", "('op' not on PATH)")
+	mustContain(t, "stderr", stderr,
+		"'op' (1Password CLI) is not on PATH",
+		"the environment always wins")
+}
+
+func TestSecretSetRequiresProviderOnPath(t *testing.T) {
+	// The clear, early PATH test: no op binary, no set — with the escape
+	// hatch spelled out.
+	s := newScenario(t, "container") // deliberately no "op" shim
+	_, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/x/y")
+	if code != 1 {
+		t.Fatalf("want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"'op' (1Password CLI) is not on PATH",
+		"the environment always wins")
+}
+
+func TestStartResolvesSecret(t *testing.T) {
+	// A registered source feeds start: announced BEFORE the reach, resolved
+	// fresh, injected into the container argv (redacted in echoes). Dry-run
+	// reaches for nothing; the environment always wins over the source.
+	s := newScenario(t, "container", "op")
+	if _, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+		t.Fatalf("secret set: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	stdout, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic")
+	if code != 0 {
+		t.Fatalf("start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"ANTHROPIC_API_KEY: reading from 1Password (op read op://OSS/Anthropic/credential)",
+		"expect an authorization prompt")
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "--env ANTHROPIC_API_KEY=fake-op-secret")
+	if strings.Contains(stdout, "fake-op-secret") {
+		t.Errorf("resolved secret leaked into the echoed output:\n%s", stdout)
+	}
+
+	// Dry-run must not reach into the vault: with the provider failing, the
+	// plan still renders, with the placeholder.
+	s.killServes()
+	s.extraEnv = append(s.extraEnv, "FAKERT_OP_FAIL=1")
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code = s.run(t, "start", "--dry-run", "--config", "anthropic")
+	if code != 0 {
+		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "dry-run stdout", stdout, "ANTHROPIC_API_KEY=<env:ANTHROPIC_API_KEY>")
+	log, _ = os.ReadFile(s.log)
+	if strings.Contains(string(log), "op read") {
+		t.Errorf("dry-run reached into the vault:\n%s", log)
+	}
+
+	// A failing reach is a pointed failure naming the fix and the hatch.
+	_, stderr, code = s.run(t, "start", "--service", "worker", "--config", "anthropic")
+	if code != 1 {
+		t.Fatalf("failing op: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"`op read op://OSS/Anthropic/credential` failed",
+		"the environment always wins")
+
+	// The environment always wins: with op still failing, an exported var
+	// starts fine and op is never invoked.
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=from-env")
+	stdout, stderr, code = s.run(t, "start", "--service", "worker", "--config", "anthropic")
+	if code != 0 {
+		t.Fatalf("env-wins start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ = os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "--env ANTHROPIC_API_KEY=from-env")
+	if strings.Contains(string(log), "op read") {
+		t.Errorf("op invoked although the environment provided the value:\n%s", log)
+	}
+	if strings.Contains(stdout, "reading from 1Password") {
+		t.Errorf("announced a reach that must not happen:\n%s", stdout)
+	}
+}
+
+func TestStartSecretProviderMissing(t *testing.T) {
+	// A registered source whose provider CLI is missing fails early and
+	// clearly, before anything launches — with the escape hatch named.
+	s := newScenario(t, "container") // no "op" shim
+	reg := `{"schema":1,"secrets":{"ANTHROPIC_API_KEY":{"provider":"op","path":"OSS/x/y"}},"roots":[]}`
+	p := rootsPathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(reg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic")
+	if code != 1 {
+		t.Fatalf("want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"'op' (1Password CLI) is not on PATH",
+		"the environment always wins")
 }
 
 // --- config-driven boots (LAUNCHER-CONFIG-SYNC P2) ---
@@ -990,6 +1277,84 @@ func TestRootFlagErrors(t *testing.T) {
 	mustContain(t, "stderr", stderr, "--root only applies to services that read the KB config")
 }
 
+func TestConfigStickiness(t *testing.T) {
+	// A successful start with an explicit --config records it per-KB in
+	// roots.json; later starts without --config use it (with provenance in
+	// the banner); an explicit flag always wins and re-records; failed
+	// starts and dry-runs record nothing.
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+
+	// Successful explicit --config records the preference.
+	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+		t.Fatalf("worker start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "roots.json", string(b), `"config": "anthropic"`)
+
+	// A bare start now uses it, and the banner says where it came from.
+	s.killServes()
+	stdout, stderr, code := s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("sticky start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "sticky start stdout", stdout,
+		"Config: anthropic", "recorded from last start; override with --config")
+
+	// --dry-run reads the preference (only the anthropic config references
+	// ${ANTHROPIC_API_KEY}, so its placeholder appearing proves which config
+	// drove the plan) but never writes the registry.
+	before, _ := os.ReadFile(rootsPathFor(s.home))
+	stdout, stderr, code = s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "dry-run stdout", stdout, "ANTHROPIC_API_KEY=<env:ANTHROPIC_API_KEY>")
+	after, _ := os.ReadFile(rootsPathFor(s.home))
+	if !bytes.Equal(before, after) {
+		t.Errorf("dry-run mutated the registry:\n%s", after)
+	}
+
+	// An explicit flag wins over the recorded preference and re-records.
+	s.killServes()
+	stdout, stderr, code = s.run(t, "start", "--service", "worker", "--config", "ollama-gemma")
+	if code != 0 {
+		t.Fatalf("override start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "override stdout", stdout, "Config: ollama-gemma")
+	if strings.Contains(stdout, "recorded from last start") {
+		t.Errorf("explicit --config must not claim registry provenance:\n%s", stdout)
+	}
+	b, _ = os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "roots.json after override", string(b), `"config": "ollama-gemma"`)
+
+	// A typo'd --config fails before launching and records nothing.
+	s.killServes()
+	if _, _, code := s.run(t, "start", "--service", "worker", "--config", "nope"); code != 1 {
+		t.Fatalf("bogus config: want exit 1, got %d", code)
+	}
+	b, _ = os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "roots.json after bogus config", string(b), `"config": "ollama-gemma"`)
+
+	// status surfaces the sticky config on the root's identity lines.
+	stdout, _, _ = s.run(t, "status")
+	mustContain(t, "status stdout", stdout, "config: ollama-gemma (used when --config is omitted)")
+
+	// A recorded preference whose file has since vanished fails with the
+	// provenance spelled out.
+	reg := fmt.Sprintf(`{"schema":1,"roots":[{"path":%q,"config":"gone","lastUsed":"2026-07-19T00:00:00Z"}]}`, s.kb)
+	if err := os.WriteFile(rootsPathFor(s.home), []byte(reg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code = s.run(t, "start", "--service", "worker")
+	if code != 1 {
+		t.Fatalf("vanished recorded config: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"Config not found: .semiont/semiontconfig/gone.toml",
+		"'gone' is this KB's recorded preference")
+}
+
 func TestLogsService(t *testing.T) {
 	// --service reaches ANY role's logs — infra included (record-less stack:
 	// discovery by name-scan, follow by container name).
@@ -1130,7 +1495,9 @@ func TestStackStateLifecycle(t *testing.T) {
 		t.Error("record lost other services on per-service stop")
 	}
 
-	// Full stop: recorded runtime only, by ID; record removed.
+	// Full stop: the recorded runtime is torn down by ID; the other
+	// installed runtimes get the belt-and-braces stray name-sweep (never
+	// by the record's IDs — those are runtime-specific); record removed.
 	preFull := s.argv(t)
 	stdout, _, code = s.run(t, "stop")
 	if code != 0 {
@@ -1138,14 +1505,37 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout, "Using recorded stack state", "Semiont stack stopped.")
 	fullArgv := strings.TrimPrefix(s.argv(t), preFull)
-	mustContain(t, "full stop argv", fullArgv, "container stop fid-semiont-backend", "container rm fid-semiont-frontend")
-	for _, bad := range []string{"docker stop", "podman stop"} {
+	mustContain(t, "full stop argv", fullArgv,
+		"container stop fid-semiont-backend", "container rm fid-semiont-frontend",
+		"docker stop semiont-backend", "podman stop semiont-backend")
+	for _, bad := range []string{"docker stop fid-", "podman stop fid-"} {
 		if strings.Contains(fullArgv, bad) {
-			t.Errorf("state-driven stop swept a non-recorded runtime: %q", bad)
+			t.Errorf("stray sweep used the recorded runtime's IDs: %q", bad)
 		}
 	}
 	if _, err := os.Stat(statePathFor(s.home)); !os.IsNotExist(err) {
 		t.Error("stack.json survived a full stop")
+	}
+}
+
+func TestStopTwiceIsHonest(t *testing.T) {
+	// A stop with no record, no containers, and no staging says so — it
+	// doesn't claim to have stopped a stack that wasn't there.
+	removeStale, _ := filepath.Glob("/tmp/semiont-config.*")
+	for _, d := range removeStale {
+		os.RemoveAll(d) // suite-order leftovers from boot tests
+	}
+	s := newScenario(t, "container", "docker")
+	stdout, _, code := s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "stdout", stdout,
+		"No recorded stack",
+		"sweeping all installed runtimes by name",
+		"No Semiont containers found — nothing to stop.")
+	if strings.Contains(stdout, "Semiont stack stopped.") {
+		t.Errorf("no-op stop overstated:\n%s", stdout)
 	}
 }
 
@@ -1169,11 +1559,15 @@ func TestStopSchema1Compat(t *testing.T) {
 	}
 	argv := s.argv(t)
 	mustContain(t, "argv", argv, "container stop fid-semiont-backend")
-	if strings.Contains(argv, "ollama") {
+	// hostReuse steers the RECORDED runtime's targeted teardown: the host
+	// process is never stopped there. The stray name-sweep under docker
+	// legitimately includes semiont-ollama — a stray container there is not
+	// the host process — but must never use the record's runtime-specific IDs.
+	if strings.Contains(argv, "container stop semiont-ollama") {
 		t.Errorf("schema-1 hostReuse not honored:\n%s", argv)
 	}
-	if strings.Contains(argv, "docker stop") {
-		t.Errorf("recorded runtime not honored:\n%s", argv)
+	if strings.Contains(argv, "docker stop fid-") {
+		t.Errorf("stray sweep used the recorded runtime's IDs:\n%s", argv)
 	}
 }
 
@@ -1252,10 +1646,170 @@ func TestStartPrefersRecordedRuntime(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stdout", stdout, "docker pull ghcr.io/the-ai-alliance/semiont-backend:latest")
-	if strings.Contains(stdout, "container stop semiont-") {
+	mustContain(t, "stdout", stdout,
+		"docker pull ghcr.io/the-ai-alliance/semiont-backend:latest",
+		"docker run -d --rm --name semiont-backend")
+	// The main flow must plan against docker; `container` may appear only in
+	// the cross-runtime stray sweep, never as the launching runtime.
+	if strings.Contains(stdout, "container run -d") {
 		t.Errorf("dry-run planned against auto-detected runtime, not the recorded one:\n%s", stdout)
 	}
+}
+
+func TestRuntimeStickiness(t *testing.T) {
+	// A successful start with an explicit --runtime records it machine-wide
+	// (top-level in roots.json); later bare starts use it with provenance.
+	// Ambiguous auto-detect names the alternatives; implicit picks record
+	// nothing; a live stack's record still outranks the preference; a
+	// preference naming an uninstalled runtime falls back with a warning.
+	s := newScenario(t, "container", "docker")
+
+	// Ambiguous auto-detect is transparent, and records nothing.
+	stdout, stderr, code := s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("auto start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "auto stdout", stdout,
+		"Container runtime: container",
+		"auto-detected; also on PATH: docker — override with --runtime")
+	if b, _ := os.ReadFile(rootsPathFor(s.home)); strings.Contains(string(b), `"runtime"`) {
+		t.Errorf("implicit auto-detect must not record a runtime preference:\n%s", b)
+	}
+
+	// Explicit --runtime docker on a successful start records the preference.
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.killServes()
+	if _, stderr, code := s.run(t, "start", "--service", "worker", "--runtime", "docker"); code != 0 {
+		t.Fatalf("docker start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "roots.json", string(b), `"runtime": "docker"`)
+
+	// A bare start now prefers docker, saying why.
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.killServes()
+	stdout, stderr, code = s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("sticky start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "sticky stdout", stdout,
+		"Container runtime: docker", "recorded from last start; override with --runtime")
+
+	// A live stack's record outranks the preference: rejoin what exists.
+	s.killServes()
+	writeStackState(t, s, "container")
+	stdout, stderr, code = s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("record-bound start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "record-bound stdout", stdout, "Using recorded stack's runtime: container")
+	if strings.Contains(stdout, "recorded from last start; override with --runtime") {
+		t.Errorf("banner claimed sticky provenance while the stack record chose:\n%s", stdout)
+	}
+
+	// A preference naming an uninstalled runtime warns and auto-detects.
+	s.killServes()
+	if err := os.Remove(statePathFor(s.home)); err != nil {
+		t.Fatal(err)
+	}
+	reg := fmt.Sprintf(`{"schema":1,"runtime":"podman","roots":[{"path":%q,"lastUsed":"2026-07-19T00:00:00Z"}]}`, s.kb)
+	if err := os.WriteFile(rootsPathFor(s.home), []byte(reg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code = s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("stale-pref start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stale-pref stdout", stdout,
+		"Recorded runtime preference 'podman'", "not on PATH — auto-detecting",
+		"Container runtime: container")
+}
+
+func TestStartPreflightSweepsAllRuntimes(t *testing.T) {
+	// The full-start preflight name-sweeps semiont-* under every OTHER
+	// installed runtime too — after it, a port holder is provably foreign.
+	s := newScenario(t, "container", "docker")
+	s.extraEnv = append(s.extraEnv, "FAKERT_NSLOOKUP=ok")
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"# sweep stray Semiont containers under docker:",
+		"docker stop semiont-backend", "docker rm semiont-backend")
+}
+
+func TestStopSweepsStrayRuntimes(t *testing.T) {
+	// A bare record-driven stop also name-sweeps the other installed
+	// runtimes — strays there hold ports the record knows nothing about.
+	s := newScenario(t, "container", "docker")
+	if _, stderr, code := s.run(t, "start", "--service", "worker"); code != 0 {
+		t.Fatalf("worker start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, stderr, code := s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stop stdout", stdout, "Using recorded stack state")
+	log, err := os.ReadFile(s.log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, "argv log", string(log),
+		"docker stop semiont-backend", "docker rm semiont-backend")
+
+	// An explicit --runtime keeps its narrow meaning: no cross-runtime sweep.
+	s.killServes()
+	if _, _, code := s.run(t, "start", "--service", "worker", "--runtime", "container"); code != 0 {
+		t.Fatal("restart failed")
+	}
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
+		t.Fatal("narrow stop failed")
+	}
+	log, _ = os.ReadFile(s.log)
+	if strings.Contains(string(log), "docker stop") {
+		t.Errorf("explicit --runtime must not sweep other runtimes:\n%s", log)
+	}
+}
+
+func TestStopVerifiesPortsReleased(t *testing.T) {
+	// Stop records the stack's claimed ports at start, then verifies their
+	// release after teardown: a survivor is reported with its holder (never
+	// killed), and a clean release is announced.
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start", "--service", "worker"); code != 0 {
+		t.Fatalf("worker start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json", string(b), `"ports"`, "9090")
+
+	// Happy path: ports free → clean announcement.
+	stdout, _, code := s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	mustContain(t, "stop stdout", stdout, "All stack ports released")
+
+	// A foreign holder on a claimed port is reported, not killed; stop
+	// still exits 0 — its own work succeeded.
+	s.killServes()
+	if _, _, code := s.run(t, "start", "--service", "worker"); code != 0 {
+		t.Fatal("restart failed")
+	}
+	s.extraEnv = append(s.extraEnv, "FAKERT_LSOF_9090=777", "FAKERT_PS_777=node")
+	stdout, _, code = s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop with held port: exit %d", code)
+	}
+	mustContain(t, "stop stdout", stdout,
+		"Port 9090 is still held by 777 (node)", "the next start will fail on it")
 }
 
 // --- start --service ---
@@ -1383,7 +1937,6 @@ func TestStartServiceRejections(t *testing.T) {
 		want string
 	}{
 		{[]string{"start", "--service", "bogus"}, "Unknown --service 'bogus'"},
-		{[]string{"start", "--service", "worker", "--email", "a@b.co", "--password", "password123"}, "--email/--password only apply to --service backend."},
 		{[]string{"start", "--service", "frontend", "--config", "anthropic"}, "--config does not apply to --service frontend"},
 		{[]string{"start", "--service", "worker", "--no-observe"}, "--no-observe does not apply to --service"},
 		{[]string{"start", "--service", "worker", "--ollama-cache", "host"}, "--ollama-cache only applies to --service inference."},
@@ -1551,13 +2104,13 @@ func TestLogsRuntimeNotOnPath(t *testing.T) {
 func TestBareFlagsHintAtStart(t *testing.T) {
 	// start.sh muscle memory: flags without a subcommand get a pointed hint.
 	s := newScenario(t, "container")
-	_, stderr, code := s.run(t, "--config", "anthropic", "--force-kill-ports")
+	_, stderr, code := s.run(t, "--config", "anthropic", "--no-observe")
 	if code != 1 {
 		t.Fatalf("want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr,
 		"Unknown command: --config",
-		"did you mean:  semiont start --config anthropic --force-kill-ports")
+		"did you mean:  semiont start --config anthropic --no-observe")
 }
 
 // --- about ---

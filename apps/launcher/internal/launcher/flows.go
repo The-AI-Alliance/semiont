@@ -42,6 +42,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 			removed++
 		}
 	}
+	x.sweepStray(preflightNames)
 	x.sweepStaging()
 	x.pause()
 	if removed == 0 {
@@ -50,7 +51,8 @@ func flowFullStart(x executor, fc flowCtx) int {
 		x.say(sayOK, "Removed %d prior container(s)", removed)
 	}
 
-	if !x.portChecks(planPortChecks(fc.plan, fc.opts.observe), fc.opts.forceKillPorts) {
+	checks := planPortChecks(fc.plan, fc.opts.observe)
+	if !x.portChecks(checks) {
 		return 1
 	}
 	x.say(sayOK, "Required ports are free")
@@ -60,6 +62,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return 1
 	}
 	x.initStack(fc.root, fc.opts.configName, fc.version, addr, stage)
+	x.recordPorts(checks)
 
 	x.banner("Pulling Images")
 	if fc.version == "local" {
@@ -113,12 +116,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	x.banner("Starting Backend")
 	x.say(sayLog, "http://localhost:%d", fc.plan.BackendPort)
 	x.say(sayLog, "Worker secret: %s", x.dim("(generated)"))
-	var admin []string
-	if fc.opts.adminEmail != "" && fc.opts.adminPassword != "" {
-		admin = []string{"--env", "ADMIN_EMAIL=" + fc.opts.adminEmail, "--env", "ADMIN_PASSWORD=" + x.val(fc.opts.adminPassword, "<admin-password>")}
-		x.say(sayLog, "Admin user: %s", x.bold(fc.opts.adminEmail))
-	}
-	if code := flowBackend(x, fc, addr, stage, secret, admin, otel); code != 0 {
+	if code := flowBackend(x, fc, addr, stage, secret, otel); code != 0 {
 		return code
 	}
 
@@ -261,9 +259,10 @@ func flowInference(x executor, fc flowCtx, rp rolePlan, addr string) int {
 			x.say(sayLog, "No host Ollama detected — starting container...")
 			x.stopEcho("semiont-ollama")
 			x.pause()
-			if !x.portCheck(portNeed{rp.Port, "Ollama"}, fc.opts.forceKillPorts) {
+			if !x.portCheck(portNeed{rp.Port, "Ollama"}) {
 				return 1
 			}
+			x.recordPorts([]portNeed{{rp.Port, "Ollama"}})
 			volume := x.ollamaVolume(fc.opts)
 			args := providedRunArgs("inference", rp, "-m", "24G", "-v", volume+":/root/.ollama")
 			id, ok := x.runDetached(args)
@@ -284,9 +283,9 @@ func flowInference(x executor, fc flowCtx, rp rolePlan, addr string) int {
 // flowBackend: run + host-side health gate + container-gateway reachability
 // gate (the sidecars dial addr:port and fatally exit if their first backend
 // fetch fails — host health alone doesn't prove the path they need).
-func flowBackend(x executor, fc flowCtx, addr, stage, secret string, admin, otel []string) int {
+func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
 	port := fc.plan.BackendPort
-	bArgs := backendArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, fc.version, port, fc.userEnv, otel, admin)
+	bArgs := backendArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, fc.version, port, fc.userEnv, otel)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Backend failed to start.")
@@ -360,9 +359,10 @@ func flowOneService(x executor, fc flowCtx) int {
 				ports = append(append([]portNeed{}, spec.auxPorts...), portNeed{rp.Port, spec.portLabel})
 			}
 		}
-		if !x.portChecks(ports, fc.opts.forceKillPorts) {
+		if !x.portChecks(ports) {
 			return 1
 		}
+		x.recordPorts(ports)
 	}
 
 	addr := ""
@@ -439,11 +439,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			return code
 		}
 	case "backend":
-		var admin []string
-		if fc.opts.adminEmail != "" && fc.opts.adminPassword != "" {
-			admin = []string{"--env", "ADMIN_EMAIL=" + fc.opts.adminEmail, "--env", "ADMIN_PASSWORD=" + x.val(fc.opts.adminPassword, "<admin-password>")}
-		}
-		if code := flowBackend(x, fc, addr, stage, secret, admin, otel); code != 0 {
+		if code := flowBackend(x, fc, addr, stage, secret, otel); code != 0 {
 			return code
 		}
 	case "worker", "smelter", "weaver":

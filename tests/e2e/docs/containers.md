@@ -97,10 +97,8 @@ template KB:
 cd /path/to/semiont-template-kb
 # semiont start reads ANTHROPIC_API_KEY from env when --config anthropic.
 # Source your secrets first if it's not already exported.
-SEMIONT_VERSION=local semiont start \
-  --config anthropic \
-  --email admin@example.com \
-  --password password
+SEMIONT_VERSION=local semiont start --config anthropic
+semiont useradd --email admin@example.com --password password --admin
 ```
 
 The `ollama-gemma` config avoids the API-key requirement if you only

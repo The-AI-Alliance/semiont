@@ -19,12 +19,14 @@ import (
 
 type executor interface {
 	// --- effects ---
-	stopRm(name string) bool // teardown; reports whether anything existed
-	pause()                  // the settle sleep after teardown
-	sweepStaging()           // /tmp/semiont-config.* removal (+ state forget)
-	portChecks(ports []portNeed, forceKill bool) bool
-	portCheck(p portNeed, forceKill bool) bool // singular wording in plan mode
-	stopEcho(name string)                      // the echoed best-effort stop (ollama teardown)
+	stopRm(name string) bool   // teardown; reports whether anything existed
+	sweepStray(names []string) // stop+rm the names under every OTHER installed runtime
+	pause()                    // the settle sleep after teardown
+	sweepStaging()             // /tmp/semiont-config.* removal (+ state forget)
+	portChecks(ports []portNeed) bool
+	portCheck(p portNeed) bool     // singular wording in plan mode
+	recordPorts(ports []portNeed)  // note claimed host ports in the belief record
+	stopEcho(name string)          // the echoed best-effort stop (ollama teardown)
 	hostOllamaReachable(addr string, port int) bool
 	stageAll(configFile string) (string, bool)           // per-service config copies; returns stage dir
 	stageOne(svc, configFile string) (string, bool)      // one service's fresh private copy
@@ -78,10 +80,32 @@ func (x *liveExec) stopRm(name string) bool {
 	return stopped || rmed
 }
 
+// sweepStray: the cross-runtime belt-and-braces — after this, no semiont-*
+// container exists under ANY installed runtime, so a port holder at check
+// time is provably foreign. Idempotent no-ops when clean.
+func (x *liveExec) sweepStray(names []string) {
+	for _, rt := range installedRuntimes() {
+		if rt == x.rt {
+			continue
+		}
+		removed := 0
+		for _, c := range names {
+			stopped := runSilent(rt, "stop", c) == nil
+			rmed := runSilent(rt, "rm", c) == nil
+			if stopped || rmed {
+				removed++
+			}
+		}
+		if removed > 0 {
+			x.u.warn("Removed %d stray Semiont container(s) under %s.", removed, rt)
+		}
+	}
+}
+
 func (x *liveExec) pause() { time.Sleep(time.Second) }
 
-func (x *liveExec) portCheck(p portNeed, forceKill bool) bool {
-	return requirePortFree(x.u, p.port, p.label, forceKill)
+func (x *liveExec) portCheck(p portNeed) bool {
+	return requirePortFree(x.u, p.port, p.label)
 }
 
 func (x *liveExec) stopEcho(name string) {
@@ -122,13 +146,42 @@ func (x *liveExec) sweepStaging() {
 	removeState()
 }
 
-func (x *liveExec) portChecks(ports []portNeed, forceKill bool) bool {
+func (x *liveExec) portChecks(ports []portNeed) bool {
 	for _, pc := range ports {
-		if !requirePortFree(x.u, pc.port, pc.label, forceKill) {
+		if !requirePortFree(x.u, pc.port, pc.label) {
 			return false
 		}
 	}
 	return true
+}
+
+// recordPorts appends the host ports this start claims to the belief record
+// — stop's release verification reads them back. Lazy-inits the record the
+// same way record() does (--service mode).
+func (x *liveExec) recordPorts(ports []portNeed) {
+	if len(ports) == 0 {
+		return
+	}
+	if x.st == nil {
+		x.st = loadState()
+		if x.st == nil {
+			x.st = &stackState{
+				Runtime: x.rt, KBRoot: x.root, KBDid: loadKBIdentity(x.root).didWeb(),
+				Version: x.version, Services: map[string]serviceState{},
+			}
+		}
+	}
+	have := make(map[int]bool, len(x.st.Ports))
+	for _, p := range x.st.Ports {
+		have[p] = true
+	}
+	for _, p := range ports {
+		if !have[p.port] {
+			x.st.Ports = append(x.st.Ports, p.port)
+			have[p.port] = true
+		}
+	}
+	saveState(x.st)
 }
 
 func (x *liveExec) stageDir() (string, bool) {
@@ -314,7 +367,20 @@ func (x *planExec) stopRm(name string) bool   { x.p("stop", name); x.p("rm", nam
 func (x *planExec) pause()                    {}
 func (x *planExec) sweepStaging()             { x.c("remove staged config copies: /tmp/semiont-config.*") }
 
-func (x *planExec) portChecks(ports []portNeed, _ bool) bool {
+func (x *planExec) sweepStray(names []string) {
+	for _, rt := range installedRuntimes() {
+		if rt == x.rt {
+			continue
+		}
+		x.c("sweep stray Semiont containers under %s:", rt)
+		for _, c := range names {
+			fmt.Println(renderCmd(rt, "stop", c))
+			fmt.Println(renderCmd(rt, "rm", c))
+		}
+	}
+}
+
+func (x *planExec) portChecks(ports []portNeed) bool {
 	if len(ports) == 0 {
 		return true
 	}
@@ -361,10 +427,12 @@ func (x *planExec) waitPG(addr string, port, tries int) (time.Duration, bool) {
 
 func (x *planExec) probeTCP(string, rolePlan) bool { return true }
 
-func (x *planExec) portCheck(p portNeed, _ bool) bool {
+func (x *planExec) portCheck(p portNeed) bool {
 	x.c("require free port: %d", p.port)
 	return true
 }
+
+func (x *planExec) recordPorts([]portNeed) {}
 
 func (x *planExec) stopEcho(name string) { x.p("stop", name) }
 

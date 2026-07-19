@@ -46,6 +46,7 @@ type stackState struct {
 	Version   string                  `json:"imageVersion,omitempty"`
 	HostAddr  string                  `json:"hostAddr,omitempty"`
 	Stage     string                  `json:"configStage,omitempty"`
+	Ports     []int                   `json:"ports,omitempty"` // host ports this stack claimed — stop verifies their release
 	Services  map[string]serviceState `json:"services"`
 }
 
