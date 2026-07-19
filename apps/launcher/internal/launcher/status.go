@@ -111,7 +111,11 @@ func Status(args []string) int {
 		}
 	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
 		runtimes = []string{st.Runtime}
-		u.log("Using recorded stack state %s", u.dim("("+st.Runtime+" per "+statePath()+")"))
+		note := st.Runtime
+		if st.Version != "" {
+			note += "; images " + st.Version
+		}
+		u.log("Using recorded stack state %s", u.dim("("+note+"; "+statePath()+")"))
 	} else {
 		st = nil
 		runtimes = installedRuntimes()
@@ -150,19 +154,14 @@ func Status(args []string) int {
 			continue
 		}
 
-		// TECH: the concrete product behind the role. Infra roles: the
-		// recorded driver (survives config changes since start), falling back
-		// to the static product for records that predate the driver field.
-		// Semiont services (no product of their own): the recorded image tag
-		// — which doubles as the running version.
+		// TECH: the concrete product behind an infra role — the recorded
+		// driver (survives config changes since start), falling back to the
+		// static product for records that predate the driver field. Semiont
+		// services stay blank: the role name already says what they are, and
+		// their image version is stack-level (shown once in the header line).
 		tech := roles[svc.name].product
-		switch {
-		case rec != nil && rec.Driver != "":
+		if rec != nil && rec.Driver != "" {
 			tech = driverDisplay(svc.name, rec.Driver)
-		case rec != nil && tech == "" && rec.Image != "":
-			if i := strings.LastIndex(rec.Image, ":"); i >= 0 {
-				tech = rec.Image[i+1:]
-			}
 		}
 		if tech == "" {
 			tech = "—"

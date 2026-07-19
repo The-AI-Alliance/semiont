@@ -1026,9 +1026,11 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 
 	preStatus := s.argv(t)
-	if _, _, code := s.run(t, "status"); code != 0 {
+	statusOut, _, code := s.run(t, "status")
+	if code != 0 {
 		t.Errorf("status on healthy stack: exit %d", code)
 	}
+	mustContain(t, "status header", statusOut, "images latest")
 	statusArgv := strings.TrimPrefix(s.argv(t), preStatus)
 	mustContain(t, "status argv", statusArgv, "container inspect fid-semiont-backend")
 	for _, bad := range []string{"docker inspect", "podman inspect"} {
