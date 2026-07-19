@@ -963,6 +963,50 @@ func TestRootFlagErrors(t *testing.T) {
 	mustContain(t, "stderr", stderr, "--root only applies to services that read the KB config")
 }
 
+func TestLogsService(t *testing.T) {
+	// --service reaches ANY role's logs — infra included (record-less stack:
+	// discovery by name-scan, follow by container name).
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_STACK_RUNTIME=container")
+	stdout, stderr, code := s.run(t, "logs", "--service", "graph")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Following graph —", "[graph] neo4j out", "[graph] neo4j err")
+	mustContain(t, "argv", s.argv(t), "container logs --follow semiont-neo4j")
+}
+
+func TestLogsRecordAware(t *testing.T) {
+	// With a record: no name-scan probes, recorded runtime + IDs drive the
+	// follow; a host-provided role explains itself instead of failing weirdly.
+	s := newScenario(t, "container", "docker")
+	writeStackState(t, s, "container")
+	stdout, _, code := s.run(t, "logs", "--service", "backend")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "stdout", stdout, "Using recorded stack state", "[backend]")
+	argv := s.argv(t)
+	mustContain(t, "argv", argv, "container logs --follow fid-semiont-backend")
+	for _, absent := range []string{"container list", "docker ps"} {
+		if strings.Contains(argv, absent) {
+			t.Errorf("record-aware logs still name-scanned: %q", absent)
+		}
+	}
+
+	// Host-provided inference: no container logs, pointed message.
+	v2 := `{"schema":2,"runtime":"container","services":{
+	  "inference":{"provided":"host","endpoint":"http://localhost:11434/api/version","startedAt":"2026-07-19T00:00:00Z"}}}`
+	if err := os.WriteFile(statePathFor(s.home), []byte(v2), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "logs", "--service", "inference")
+	if code != 1 {
+		t.Errorf("host-provided logs: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "inference is provided by a host process — no container logs")
+}
+
 // --- stack state record ---
 
 // statePathFor mirrors the launcher's statePath for the scenario's fake HOME.

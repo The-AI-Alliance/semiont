@@ -11,13 +11,19 @@ import (
 	"syscall"
 )
 
-const logsUsage = `Usage: semiont logs [--runtime container|docker|podman]
+const logsUsage = `Usage: semiont logs [--service <name>] [--runtime container|docker|podman]
 
 Follow the Semiont service logs, one [svc]-prefixed stream per service.
 Ctrl+C stops *following* — it does not stop the stack (that's semiont stop).
 
-Pass the same --runtime you started with; default is the runtime actually
-running the stack.
+By default follows the five Semiont services (backend, worker, smelter,
+weaver, frontend). With --service <name>, follow any ONE service including
+the infrastructure roles: backend, worker, smelter, weaver, frontend,
+database, graph, vectors, inference, or traces.
+
+The runtime and container identities come from the recorded stack state when
+present (--runtime overrides); otherwise the stack is discovered by
+name-scan.
 `
 
 var logServices = []string{"backend", "worker", "smelter", "weaver", "frontend"}
@@ -26,6 +32,7 @@ var logServices = []string{"backend", "worker", "smelter", "weaver", "frontend"}
 func Logs(args []string) int {
 	u := newUI(false)
 	runtime := ""
+	service := ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--runtime":
@@ -35,6 +42,13 @@ func Logs(args []string) int {
 			}
 			runtime = args[i+1]
 			i++
+		case "--service":
+			if i+1 >= len(args) {
+				u.fail("Missing value for --service")
+				return 1
+			}
+			service = args[i+1]
+			i++
 		case "--help", "-h":
 			fmt.Print(logsUsage)
 			return 0
@@ -43,7 +57,17 @@ func Logs(args []string) int {
 			return 1
 		}
 	}
+	if service != "" {
+		if _, known := roles[service]; !known {
+			u.fail("Unknown --service '%s' (expected: %s)", service, roleList)
+			return 1
+		}
+	}
 
+	// The record supplies the runtime and container identities; --runtime
+	// overrides, and a record about a different runtime doesn't apply. No
+	// record: the historical name-scan discovery.
+	st := loadState()
 	rt := ""
 	if runtime != "" {
 		if !onPath(runtime) {
@@ -51,7 +75,14 @@ func Logs(args []string) int {
 			return 1
 		}
 		rt = runtime
+		if st != nil && st.Runtime != runtime {
+			st = nil
+		}
+	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
+		rt = st.Runtime
+		u.log("Using recorded stack state %s", u.dim("("+rt+" per "+statePath()+")"))
 	} else {
+		st = nil
 		rt = stackRuntime()
 	}
 	if rt == "" {
@@ -60,7 +91,44 @@ func Logs(args []string) int {
 		return 1
 	}
 
-	fmt.Println("Following backend · worker · smelter · weaver · frontend — Ctrl+C stops following (semiont stop stops the stack)")
+	// handle: recorded runtime-issued ID when we have one, container name
+	// otherwise. Roles someone else provides have no container to follow.
+	handleFor := func(svc string) (string, bool) {
+		if st != nil {
+			if e, ok := st.Services[svc]; ok {
+				switch e.Provided {
+				case providedHost:
+					u.fail("%s is provided by a host process — no container logs (check the host service's own logs).", svc)
+					return "", false
+				case providedExternal:
+					u.fail("%s is externally provided (%s) — no local container logs.", svc, e.Endpoint)
+					return "", false
+				case providedNone:
+					u.fail("%s is not referenced by the running stack's config — nothing to follow.", svc)
+					return "", false
+				}
+				if e.ID != "" {
+					return e.ID, true
+				}
+			}
+		}
+		return roles[svc].container, true
+	}
+
+	follow := logServices
+	if service != "" {
+		follow = []string{service}
+	}
+	targets := make(map[string]string, len(follow)) // svc → handle
+	for _, svc := range follow {
+		h, ok := handleFor(svc)
+		if !ok {
+			return 1
+		}
+		targets[svc] = h
+	}
+
+	fmt.Printf("Following %s — Ctrl+C stops following (semiont stop stops the stack)\n", strings.Join(follow, " · "))
 
 	// One follower per service; each container's stderr is kept in-stream —
 	// crash traces and uncaught exceptions land there, and they're exactly
@@ -68,8 +136,8 @@ func Logs(args []string) int {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	var cmds []*exec.Cmd
-	for _, svc := range logServices {
-		cmd := exec.Command(rt, "logs", "--follow", "semiont-"+svc)
+	for _, svc := range follow {
+		cmd := exec.Command(rt, "logs", "--follow", targets[svc])
 		stdout, err1 := cmd.StdoutPipe()
 		stderr, err2 := cmd.StderrPipe()
 		if err1 != nil || err2 != nil {
