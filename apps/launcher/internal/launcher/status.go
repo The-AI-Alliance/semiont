@@ -127,20 +127,43 @@ func Status(args []string) int {
 		if service != "" && svc.name != service {
 			continue
 		}
-		// Query by the recorded identifier when we have one; the container
-		// name is the fallback handle.
+		// The record supplies the identifier, the endpoint, and who provides
+		// the role; the runtime and the probe stay the ground truth.
 		handle := roles[svc.name].container
+		endpoint := svc.endpoint
+		var rec *serviceState
 		if st != nil {
-			if e, ok := st.Services[svc.name]; ok && e.ID != "" {
-				handle = e.ID
+			if e, ok := st.Services[svc.name]; ok {
+				rec = &e
+				if e.ID != "" {
+					handle = e.ID
+				}
+				if e.Endpoint != "" {
+					endpoint = e.Endpoint
+				}
 			}
 		}
-		state, rt := containerState(runtimes, handle)
-		healthy := probeHealth(svc.endpoint)
 
-		// Host Ollama reuse: no container, but the endpoint answers — that is
-		// a healthy configuration, not a gap.
-		if svc.name == "inference" && state == "" && healthy {
+		// Not referenced by the config: no probe, no exit-status impact.
+		if rec != nil && rec.Provided == providedNone {
+			fmt.Printf("  %-10s %-10s %-10s %s\n", svc.name, "—", "—", u.dim("not configured"))
+			continue
+		}
+
+		state, rt := "", ""
+		switch {
+		case rec != nil && rec.Provided == providedExternal:
+			rt = "external"
+		case rec != nil && rec.Provided == providedHost:
+			rt = "host"
+		default:
+			state, rt = containerState(runtimes, handle)
+		}
+		healthy := probeHealth(endpoint)
+
+		// Host Ollama reuse heuristic for record-less stacks: no container,
+		// but the endpoint answers — a healthy configuration, not a gap.
+		if svc.name == "inference" && rec == nil && state == "" && healthy {
 			rt = "host"
 		}
 
@@ -162,9 +185,13 @@ func Status(args []string) int {
 		if rt == "" {
 			rt = u.dim("—")
 		}
-		label := svc.endpoint
-		if port, ok := strings.CutPrefix(label, "tcp:"); ok {
-			label = "tcp://localhost:" + port
+		label := endpoint
+		if rest, ok := strings.CutPrefix(label, "tcp:"); ok {
+			if strings.Contains(rest, ":") {
+				label = "tcp://" + rest
+			} else {
+				label = "tcp://localhost:" + rest
+			}
 		}
 		healthCol := u.wrap(ansiRed, "✗") + " " + u.dim(label)
 		if healthy {
@@ -330,8 +357,12 @@ func containerState(runtimes []string, name string) (state, rt string) {
 // probeHealth runs one host-side application probe: 2xx for http endpoints,
 // an accepted dial for tcp ones.
 func probeHealth(endpoint string) bool {
-	if port, ok := strings.CutPrefix(endpoint, "tcp:"); ok {
-		conn, err := net.DialTimeout("tcp", "localhost:"+port, time.Second)
+	if rest, ok := strings.CutPrefix(endpoint, "tcp:"); ok {
+		addr := rest
+		if !strings.Contains(rest, ":") {
+			addr = "localhost:" + rest
+		}
+		conn, err := net.DialTimeout("tcp", addr, time.Second)
 		if err != nil {
 			return false
 		}

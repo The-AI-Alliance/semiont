@@ -706,6 +706,34 @@ func TestStartExternalGraphBoot(t *testing.T) {
 			t.Errorf("external graph still touched %q in argv", absent)
 		}
 	}
+
+	// The record knows graph is external; status shows it and probes the real
+	// endpoint; stop leaves it alone.
+	b, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, "stack.json", string(b), `"provided": "external"`, "tcp:127.0.0.1:7777")
+
+	stdout, _, code = s.run(t, "status")
+	if code != 0 {
+		t.Errorf("status: exit %d\n%s", code, stdout)
+	}
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.Contains(line, "graph") && strings.Contains(line, "tcp://") {
+			mustContain(t, "graph status row", line, "external", "✓", "tcp://127.0.0.1:7777")
+		}
+	}
+
+	preStop := s.argv(t)
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	stopArgv := strings.TrimPrefix(s.argv(t), preStop)
+	if strings.Contains(stopArgv, "semiont-neo4j") {
+		t.Errorf("stop touched the external graph:\n%s", stopArgv)
+	}
+	mustContain(t, "stop argv", stopArgv, "stop fid-semiont-backend")
 }
 
 func TestStartMovedDBPortBoot(t *testing.T) {
@@ -739,6 +767,21 @@ func TestStartNoInferenceBoot(t *testing.T) {
 	mustContain(t, "stdout", stdout, "inference — not referenced by the config; skipping")
 	if argv := s.argv(t); strings.Contains(argv, "ollama") {
 		t.Errorf("no-ollama config still touched ollama:\n%s", argv)
+	}
+
+	// status: inference reads "not configured", exits healthy without it;
+	// stop never touches an ollama container.
+	stdout, _, code = s.run(t, "status")
+	if code != 0 {
+		t.Errorf("status: exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "status stdout", stdout, "not configured")
+	preStop := s.argv(t)
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	if stopArgv := strings.TrimPrefix(s.argv(t), preStop); strings.Contains(stopArgv, "ollama") {
+		t.Errorf("stop touched ollama:\n%s", stopArgv)
 	}
 }
 
@@ -938,12 +981,14 @@ func TestStackStateLifecycle(t *testing.T) {
 			Container string `json:"container"`
 			ID        string `json:"id"`
 			Image     string `json:"image"`
+			Provided  string `json:"provided"`
+			Endpoint  string `json:"endpoint"`
 		} `json:"services"`
 	}
 	if err := json.Unmarshal(b, &st); err != nil {
 		t.Fatalf("stack.json not valid JSON: %v\n%s", err, b)
 	}
-	if st.Schema != 1 || st.Runtime != "container" {
+	if st.Schema != 2 || st.Runtime != "container" {
 		t.Errorf("schema/runtime: got %d/%q", st.Schema, st.Runtime)
 	}
 	for _, role := range []string{"traces", "graph", "vectors", "inference", "database", "backend", "worker", "smelter", "weaver", "frontend"} {
@@ -957,6 +1002,12 @@ func TestStackStateLifecycle(t *testing.T) {
 		}
 		if e.Image == "" {
 			t.Errorf("%s: image not recorded", role)
+		}
+		if e.Provided != "launcher" {
+			t.Errorf("%s: provided = %q, want launcher", role, e.Provided)
+		}
+		if e.Endpoint == "" {
+			t.Errorf("%s: endpoint not recorded", role)
 		}
 	}
 
@@ -1008,6 +1059,34 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	if _, err := os.Stat(statePathFor(s.home)); !os.IsNotExist(err) {
 		t.Error("stack.json survived a full stop")
+	}
+}
+
+func TestStopSchema1Compat(t *testing.T) {
+	// A schema-1 stack.json (hostReuse flag, no provided field) still steers
+	// stop: host-reused inference is skipped, launcher containers stop by ID.
+	s := newScenario(t, "container", "docker")
+	v1 := `{"schema":1,"runtime":"container","services":{
+	  "backend":{"container":"semiont-backend","id":"fid-semiont-backend","startedAt":"2026-07-18T00:00:00Z"},
+	  "inference":{"container":"semiont-ollama","hostReuse":true,"startedAt":"2026-07-18T00:00:00Z"}}}`
+	p := statePathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(v1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, code := s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop: exit %d\n%s", code, stdout)
+	}
+	argv := s.argv(t)
+	mustContain(t, "argv", argv, "container stop fid-semiont-backend")
+	if strings.Contains(argv, "ollama") {
+		t.Errorf("schema-1 hostReuse not honored:\n%s", argv)
+	}
+	if strings.Contains(argv, "docker stop") {
+		t.Errorf("recorded runtime not honored:\n%s", argv)
 	}
 }
 

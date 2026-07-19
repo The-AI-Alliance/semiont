@@ -340,7 +340,11 @@ func runStartService(u *ui, rt, version, root, configFile string, opts startOpti
 	if st == nil {
 		st = &stackState{Runtime: rt, Version: version, Services: map[string]serviceState{}}
 	}
-	st.recordService(svc, id, img, hostReuse)
+	provided := providedLauncher
+	if hostReuse {
+		provided = providedHost
+	}
+	st.recordService(svc, id, img, provided, serviceEndpoint(svc, plan))
 
 	fmt.Println()
 	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 "+svc+" is up"), u.dim("("+took(time.Since(t0))+")"))
@@ -422,4 +426,32 @@ func renderServicePlan(rt, version string, opts startOptions, userEnv []string, 
 		p(frontendArgs(version)...)
 		c("wait: http://localhost:3000 (30s)")
 	}
+}
+
+// serviceEndpoint: the health endpoint status should probe for a service the
+// launcher just (re)started. plan is nil only for frontend/traces (config-free).
+func serviceEndpoint(svc string, plan *launchPlan) string {
+	switch svc {
+	case "traces":
+		return "http://localhost:16686"
+	case "frontend":
+		return "http://localhost:3000"
+	case "backend":
+		return fmt.Sprintf("http://localhost:%d/api/health", plan.BackendPort)
+	case "worker":
+		return "http://localhost:9090/health"
+	case "smelter":
+		return "http://localhost:9091/health"
+	case "weaver":
+		return "http://localhost:9092/health"
+	case "graph":
+		return fmt.Sprintf("http://localhost:%d", plan.AuxPorts("graph")[0].port)
+	case "vectors":
+		return fmt.Sprintf("http://localhost:%d/readyz", plan.Roles[svc].Port)
+	case "inference":
+		return fmt.Sprintf("http://localhost:%d/api/version", plan.Roles[svc].Port)
+	case "database":
+		return fmt.Sprintf("tcp:localhost:%d", plan.Roles[svc].Port)
+	}
+	return ""
 }

@@ -121,7 +121,10 @@ func Stop(args []string) int {
 		for _, c := range names {
 			role := roleByContainer[c]
 			if e, ok := st.Services[role]; ok {
-				if e.HostReuse {
+				// Only containers this launcher started are ours to stop:
+				// host processes, external endpoints, and unreferenced roles
+				// have nothing to sweep.
+				if e.Provided != "" && e.Provided != providedLauncher {
 					continue
 				}
 				if e.ID != "" {

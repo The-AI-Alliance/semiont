@@ -44,6 +44,18 @@ semiont stop
   semiont` on macOS, `$XDG_STATE_HOME/semiont` (default
   `~/.local/state/semiont`) on Linux. `semiont status` lists the dir under
   LOCAL HOST DIRECTORIES. Logging is best-effort — it never blocks a command.
+- **The launcher derives its work from the KB's semiontconfig TOML** — the
+  same file the Semiont containers read (see
+  `docs/system/administration/CONFIGURATION.md`). Per dependency role
+  (graph, vectors, database, inference) the config decides the obligation:
+  an address on a launcher-injected `${*_HOST}` var → the launcher provides
+  a container (driver by `type`, credentials/ports from the config); any
+  other address → externally provided (verified, never launched, skipped by
+  stop, shown as "external" in status); `platform = "posix"` → host-process
+  reuse; section absent / unreferenced → nothing launched, "not configured"
+  in status. Moving `database.port` moves the publish/checks/gates with it;
+  inference runs only when the config references ollama. `--dry-run` renders
+  the derived plan.
 - KB-root discovery matches the npm CLI (`SEMIONT_ROOT`, analogous to
   `GIT_DIR`): the override is strict (invalid values error, never fall back),
   else the root is found by walking up from cwd for `.semiont/`. git is not
