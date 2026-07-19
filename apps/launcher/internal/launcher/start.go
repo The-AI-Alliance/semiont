@@ -85,7 +85,7 @@ type startOptions struct {
 const startUsage = `Usage: semiont start [options]
 
 Start a local Semiont stack — graph (Neo4j), vectors (Qdrant), inference
-(Ollama), db (PostgreSQL), the Semiont backend, worker, smelter, weaver, and
+(Ollama), database (PostgreSQL), the Semiont backend, worker, smelter, weaver, and
 the frontend (http://localhost:3000) — all in containers.
 
 Options:
@@ -97,7 +97,7 @@ Options:
                         SEMIONT_ROOT and cwd discovery.
   --service <name>      Start (restart) just this one service, leaving the rest
                         of the stack untouched: backend, worker, smelter, weaver,
-                        frontend, db, graph, vectors, inference, or traces.
+                        frontend, database, graph, vectors, inference, or traces.
                         Rejoins a running stack's worker secret automatically;
                         OTel export is enabled iff traces (Jaeger) is up.
   --email <email>       Admin user email (requires --password)
@@ -778,20 +778,20 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	}
 	st.recordService("inference", infID, infImage, hostReuse)
 
-	u.banner("DB (PostgreSQL)")
+	u.banner("Database (PostgreSQL)")
 	args = dbArgs()
 	u.echoCmd(rt, args...)
 	id, err = runDetached(rt, args...)
 	if err != nil {
-		u.fail("db (PostgreSQL) failed to start.")
+		u.fail("database (PostgreSQL) failed to start.")
 		return 1
 	}
 	d, ok = waitForPG(u, rt, addr, 5432, 20)
 	if !ok {
 		return 1
 	}
-	u.ok("db — PostgreSQL on port 5432 %s", u.dim("("+took(d)+")"))
-	st.recordService("db", id, args[len(args)-1], false)
+	u.ok("database — PostgreSQL on port 5432 %s", u.dim("("+took(d)+")"))
+	st.recordService("database", id, args[len(args)-1], false)
 
 	secret := os.Getenv("SEMIONT_WORKER_SECRET")
 	if secret == "" {

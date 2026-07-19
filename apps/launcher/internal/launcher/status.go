@@ -29,14 +29,14 @@ Exit status: 0 when every core service is healthy (Jaeger is observability,
 not core), 1 otherwise.
 
 With --service <name>, report just that one service (backend, worker,
-smelter, weaver, frontend, db, graph, vectors, inference, or traces) — the
+smelter, weaver, frontend, database, graph, vectors, inference, or traces) — the
 exit status then reflects that service alone (traces included), making it
 scriptable:
   semiont status --service backend && echo up
 `
 
 // statusServices drives the report, in user-facing-first order with each
-// service beside its primary store (backend→db, worker→inference,
+// service beside its primary store (backend→database, worker→inference,
 // weaver→graph, smelter→vectors), observability last. Deliberately unrelated
 // to start/stop ordering (which is dependency order). Names are the abstract
 // roles; the roles table maps them to containers. Health probes are
@@ -48,7 +48,7 @@ var statusServices = []struct {
 }{
 	{"frontend", "http://localhost:3000", true},
 	{"backend", "http://localhost:4000/api/health", true},
-	{"db", "tcp:5432", true},
+	{"database", "tcp:5432", true},
 	{"worker", "http://localhost:9090/health", true},
 	{"inference", "http://localhost:11434/api/version", true},
 	{"weaver", "http://localhost:9092/health", true},

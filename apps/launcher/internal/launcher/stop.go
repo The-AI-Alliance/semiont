@@ -18,7 +18,7 @@ With no --runtime, EVERY installed runtime is swept — stopping via the wrong
 runtime is a silent no-op that leaves the real stack running.
 
 With --service <name>, stop just that one service (backend, worker, smelter,
-weaver, frontend, db, graph, vectors, inference, or traces). The staged
+weaver, frontend, database, graph, vectors, inference, or traces). The staged
 config copies are left in place — the rest of the stack is still mounting
 them.
 `

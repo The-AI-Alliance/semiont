@@ -12,7 +12,7 @@ import (
 )
 
 // The launcher's primary vocabulary is the ROLE a container plays in the
-// stack: db, graph, vectors, inference, traces — plus Semiont's own services
+// stack: database, graph, vectors, inference, traces — plus Semiont's own services
 // by name. The concrete product behind an infra role (PostgreSQL, Neo4j, …)
 // and its image string are DETAIL, shown where there's room for it (banners,
 // echoed argv, error messages); container names and config env vars stay at
@@ -34,7 +34,7 @@ var roles = map[string]roleSpec{
 	"graph":     {"Neo4j", "semiont-neo4j", []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}}},
 	"vectors":   {"Qdrant", "semiont-qdrant", []portNeed{{6333, "Qdrant"}}},
 	"inference": {"Ollama", "semiont-ollama", nil},
-	"db":        {"PostgreSQL", "semiont-postgres", []portNeed{{5432, "PostgreSQL"}}},
+	"database":  {"PostgreSQL", "semiont-postgres", []portNeed{{5432, "PostgreSQL"}}},
 	"backend":   {"", "semiont-backend", []portNeed{{4000, "Backend"}}},
 	"worker":    {"", "semiont-worker", []portNeed{{9090, "Worker"}}},
 	"smelter":   {"", "semiont-smelter", []portNeed{{9091, "Smelter"}}},
@@ -42,7 +42,7 @@ var roles = map[string]roleSpec{
 	"frontend":  {"", "semiont-frontend", []portNeed{{3000, "Frontend"}}},
 }
 
-const roleList = "backend, worker, smelter, weaver, frontend, db, graph, vectors, inference, or traces"
+const roleList = "backend, worker, smelter, weaver, frontend, database, graph, vectors, inference, or traces"
 
 // roleByContainer inverts the roles table (container name → role).
 var roleByContainer = func() map[string]string {
@@ -67,7 +67,7 @@ func isConfigConsumer(svc string) bool {
 }
 
 func serviceNeedsAddr(svc string) bool {
-	return isConfigConsumer(svc) || svc == "db" || svc == "inference"
+	return isConfigConsumer(svc) || svc == "database" || svc == "inference"
 }
 
 // recoverWorkerSecret pulls SEMIONT_WORKER_SECRET out of a running Semiont
@@ -266,14 +266,14 @@ func runStartService(u *ui, rt, version, root, configFile string, opts startOpti
 			img = "ollama/ollama"
 		}
 		ok = true
-	case "db":
+	case "database":
 		args := dbArgs()
 		img = args[len(args)-1]
 		u.echoCmd(rt, args...)
 		var err error
 		id, err = runDetached(rt, args...)
 		if err != nil {
-			u.fail("db (PostgreSQL) failed to start.")
+			u.fail("database (PostgreSQL) failed to start.")
 			return 1
 		}
 		d, ok = waitForPG(u, rt, addr, 5432, 20)
@@ -379,7 +379,7 @@ func renderServicePlan(rt, version string, opts startOptions, userEnv []string) 
 		c("require free port: 11434")
 		p(inferenceArgs("<ollama-volume>")...)
 		c("wait: http://localhost:11434/api/version (30s)")
-	case "db":
+	case "database":
 		p(dbArgs()...)
 		c("wait: tcp localhost:5432 (20s)")
 		c("probe: %s run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432", rt)

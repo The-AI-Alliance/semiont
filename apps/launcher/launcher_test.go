@@ -856,7 +856,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	if st.Schema != 1 || st.Runtime != "container" {
 		t.Errorf("schema/runtime: got %d/%q", st.Schema, st.Runtime)
 	}
-	for _, role := range []string{"traces", "graph", "vectors", "inference", "db", "backend", "worker", "smelter", "weaver", "frontend"} {
+	for _, role := range []string{"traces", "graph", "vectors", "inference", "database", "backend", "worker", "smelter", "weaver", "frontend"} {
 		e, ok := st.Services[role]
 		if !ok {
 			t.Errorf("service %q missing from record", role)

@@ -68,7 +68,7 @@ semiont stop
   belief — `status` still verifies every claim against the runtime.
 - `start`, `stop`, and `status` take `--service <name>` to act on one service
   (any of the ten, named by role: backend, worker, smelter, weaver, frontend,
-  db, graph, vectors, inference, traces — the concrete products PostgreSQL,
+  database, graph, vectors, inference, traces — the concrete products PostgreSQL,
   Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start rejoins the running stack's
   worker secret automatically (recovered from a running container's env via
   the runtime's inspect), auto-enables OTel iff Jaeger is up, and stages a
