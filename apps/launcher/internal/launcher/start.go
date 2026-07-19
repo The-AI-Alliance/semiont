@@ -55,7 +55,9 @@ Start a local Semiont stack — graph (Neo4j), vectors (Qdrant), inference
 the frontend (http://localhost:3000) — all in containers.
 
 Options:
-  --config <name>       Semiontconfig to use (default: ollama-gemma)
+  --config <name>       Semiontconfig to use (default: this KB's recorded
+                        preference — the --config a successful start last
+                        used, kept in roots.json — else ollama-gemma)
   --list-configs        List available configs and exit
   --root <path|name>    KB root to start: a directory (must contain .semiont/)
                         or the basename of a registered root (roots register on
@@ -273,9 +275,21 @@ func Start(args []string) int {
 			return 1
 		}
 		// The registry remembers every root a real run used (dry-run is a
-		// machine seam and mutates nothing).
+		// machine seam and mutates nothing). The sticky config is recorded
+		// separately, only after the start succeeds.
 		if !opts.dryRun {
-			registerRootUse(root, opts.service == "")
+			registerRootUse(root, opts.service == "", "")
+		}
+	}
+
+	// Sticky config: with no explicit --config, this KB's recorded
+	// preference (roots.json) wins over the built-in fallback. Dry-run
+	// reads it too — the plan must mirror what a real run would do.
+	configFrom := ""
+	if configNeeded && !opts.configSet {
+		if rec := recordedConfig(root); rec != "" {
+			opts.configName = rec
+			configFrom = "recorded from last start; override with --config"
 		}
 	}
 
@@ -305,6 +319,9 @@ func Start(args []string) int {
 	if configNeeded {
 		if _, err := os.Stat(configFile); err != nil {
 			u.fail("Config not found: %s", configFile)
+			if configFrom != "" {
+				fmt.Fprintf(os.Stderr, "  ('%s' is this KB's recorded preference; pass --config to pick another — a successful start re-records it.)\n", opts.configName)
+			}
 			fmt.Println("Available configs:")
 			printConfigNames()
 			return 1
@@ -373,7 +390,11 @@ func Start(args []string) int {
 	}
 	u.log("Container runtime: %s", u.bold(rt))
 	if configNeeded {
-		u.log("Config: %s", u.bold(opts.configName))
+		if configFrom != "" {
+			u.log("Config: %s %s", u.bold(opts.configName), u.dim("("+configFrom+")"))
+		} else {
+			u.log("Config: %s", u.bold(opts.configName))
+		}
 	}
 	u.log("Image version: %s", u.bold(version))
 
@@ -404,10 +425,19 @@ func Start(args []string) int {
 		}
 		return 0
 	}
+	// Record the sticky config only when this start SUCCEEDED with an
+	// explicit --config: the preference is "what I actually run", so a
+	// typo'd name or an unlaunchable config never becomes the default.
+	code := 0
 	if opts.service != "" {
-		return runStartService(u, rt, version, root, configFile, opts, userEnv, plan)
+		code = runStartService(u, rt, version, root, configFile, opts, userEnv, plan)
+	} else {
+		code = runStart(u, rt, version, root, configFile, opts, userEnv, plan)
 	}
-	return runStart(u, rt, version, root, configFile, opts, userEnv, plan)
+	if code == 0 && opts.configSet {
+		registerRootUse(root, false, opts.configName)
+	}
+	return code
 }
 
 func printConfigNames() {

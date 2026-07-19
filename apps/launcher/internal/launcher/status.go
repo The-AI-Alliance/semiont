@@ -277,10 +277,10 @@ func printRoots(u *ui, st *stackState) {
 	reg := loadRoots()
 	for _, p := range order {
 		fmt.Printf("  %s %s\n", p, u.dim("("+strings.Join(labels[p], "; ")+")"))
-		did, site := "", ""
+		did, site, cfg := "", "", ""
 		for _, e := range reg.Roots {
 			if e.Path == p {
-				did, site = e.Did, e.SiteName
+				did, site, cfg = e.Did, e.SiteName, e.Config
 			}
 		}
 		if ident := loadKBIdentity(p); ident != nil {
@@ -291,6 +291,9 @@ func printRoots(u *ui, st *stackState) {
 			fmt.Printf("    %s %s\n", u.dim(did), u.dim("— "+site))
 		case did != "":
 			fmt.Printf("    %s\n", u.dim(did))
+		}
+		if cfg != "" {
+			fmt.Printf("    %s\n", u.dim("config: "+cfg+" (used when --config is omitted)"))
 		}
 	}
 }

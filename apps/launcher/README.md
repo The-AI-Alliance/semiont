@@ -71,6 +71,14 @@ semiont stop
   directory, or the basename of a registered root — winning over
   `SEMIONT_ROOT` and cwd discovery; the SEMIONT ROOTS status section lists
   the registry with last-used annotations.
+- **`--config` is sticky per KB**: a successful start with an explicit
+  `--config` records the name on the root's `roots.json` entry, and later
+  starts without the flag use it (banner says `Config: anthropic (recorded
+  from last start; override with --config)`; status shows it under SEMIONT
+  ROOTS). An explicit flag always wins and re-records; failed starts and
+  `--dry-run` record nothing, so a typo'd name never becomes the default.
+  The preference is per-user-per-machine — which config you run depends on
+  your API keys, so it lives in the XDG registry, never in the KB repo.
 - `start` records what it believes the stack IS — the runtime, and each
   service's container name, runtime-reported ID, and image — in `stack.json`
   in the launcher's state home (`~/Library/Application Support/semiont` on

@@ -58,12 +58,15 @@ func resolveKBRoot() (path, source string, err error) {
 // memory of every KB root it has actually used: real start flows upsert an
 // entry; entries survive stops. A vanished path is annotated when observed,
 // not silently dropped — an unmounted volume may come back. This registry is
-// the substrate for multi-root support and for `--root <name>` selection.
+// the substrate for multi-root support, for `--root <name>` selection, and
+// for per-KB sticky preferences (config): per-user-per-machine facts that
+// belong beside the KB, never inside it.
 
 type rootEntry struct {
 	Path        string    `json:"path"`
 	Did         string    `json:"did,omitempty"`      // did:web identity from .semiont/config [site] domain
 	SiteName    string    `json:"siteName,omitempty"` // human label — kept here so even a missing root stays identifiable
+	Config      string    `json:"config,omitempty"`   // sticky --config: what a successful start last used explicitly
 	LastUsed    time.Time `json:"lastUsed"`
 	LastStarted time.Time `json:"lastStarted,omitzero"` // last full-stack start
 }
@@ -99,8 +102,11 @@ func loadRoots() rootsRegistry {
 }
 
 // registerRootUse upserts a root into the registry. Best-effort: registry
-// trouble never fails the command. fullStart additionally stamps LastStarted.
-func registerRootUse(path string, fullStart bool) {
+// trouble never fails the command. fullStart additionally stamps LastStarted;
+// a non-empty config records the KB's sticky --config preference (callers
+// pass it only after the start SUCCEEDED with an explicit --config — a typo'd
+// or unlaunchable config must never become the default).
+func registerRootUse(path string, fullStart bool, config string) {
 	p := rootsPath()
 	if p == "" {
 		return
@@ -119,6 +125,9 @@ func registerRootUse(path string, fullStart bool) {
 			if fullStart {
 				reg.Roots[i].LastStarted = now
 			}
+			if config != "" {
+				reg.Roots[i].Config = config
+			}
 			if ident != nil {
 				reg.Roots[i].Did = ident.didWeb()
 				reg.Roots[i].SiteName = ident.SiteName
@@ -127,7 +136,7 @@ func registerRootUse(path string, fullStart bool) {
 		}
 	}
 	if !found {
-		e := rootEntry{Path: path, LastUsed: now, Did: ident.didWeb()}
+		e := rootEntry{Path: path, LastUsed: now, Did: ident.didWeb(), Config: config}
 		if ident != nil {
 			e.SiteName = ident.SiteName
 		}
@@ -151,6 +160,20 @@ func registerRootUse(path string, fullStart bool) {
 		return
 	}
 	_ = os.Rename(tmp, p)
+}
+
+// recordedConfig returns the KB's sticky config preference — the name a
+// successful start last passed as --config for this root ("" when none).
+func recordedConfig(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	for _, e := range loadRoots().Roots {
+		if e.Path == path {
+			return e.Config
+		}
+	}
+	return ""
 }
 
 // resolveRootArg resolves a `--root` value: an existing directory path is

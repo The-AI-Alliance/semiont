@@ -13,6 +13,7 @@
 package main_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -988,6 +989,84 @@ func TestRootFlagErrors(t *testing.T) {
 		t.Errorf("--root with frontend: want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr, "--root only applies to services that read the KB config")
+}
+
+func TestConfigStickiness(t *testing.T) {
+	// A successful start with an explicit --config records it per-KB in
+	// roots.json; later starts without --config use it (with provenance in
+	// the banner); an explicit flag always wins and re-records; failed
+	// starts and dry-runs record nothing.
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+
+	// Successful explicit --config records the preference.
+	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+		t.Fatalf("worker start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "roots.json", string(b), `"config": "anthropic"`)
+
+	// A bare start now uses it, and the banner says where it came from.
+	s.killServes()
+	stdout, stderr, code := s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("sticky start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "sticky start stdout", stdout,
+		"Config: anthropic", "recorded from last start; override with --config")
+
+	// --dry-run reads the preference (only the anthropic config references
+	// ${ANTHROPIC_API_KEY}, so its placeholder appearing proves which config
+	// drove the plan) but never writes the registry.
+	before, _ := os.ReadFile(rootsPathFor(s.home))
+	stdout, stderr, code = s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "dry-run stdout", stdout, "ANTHROPIC_API_KEY=<env:ANTHROPIC_API_KEY>")
+	after, _ := os.ReadFile(rootsPathFor(s.home))
+	if !bytes.Equal(before, after) {
+		t.Errorf("dry-run mutated the registry:\n%s", after)
+	}
+
+	// An explicit flag wins over the recorded preference and re-records.
+	s.killServes()
+	stdout, stderr, code = s.run(t, "start", "--service", "worker", "--config", "ollama-gemma")
+	if code != 0 {
+		t.Fatalf("override start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "override stdout", stdout, "Config: ollama-gemma")
+	if strings.Contains(stdout, "recorded from last start") {
+		t.Errorf("explicit --config must not claim registry provenance:\n%s", stdout)
+	}
+	b, _ = os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "roots.json after override", string(b), `"config": "ollama-gemma"`)
+
+	// A typo'd --config fails before launching and records nothing.
+	s.killServes()
+	if _, _, code := s.run(t, "start", "--service", "worker", "--config", "nope"); code != 1 {
+		t.Fatalf("bogus config: want exit 1, got %d", code)
+	}
+	b, _ = os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "roots.json after bogus config", string(b), `"config": "ollama-gemma"`)
+
+	// status surfaces the sticky config on the root's identity lines.
+	stdout, _, _ = s.run(t, "status")
+	mustContain(t, "status stdout", stdout, "config: ollama-gemma (used when --config is omitted)")
+
+	// A recorded preference whose file has since vanished fails with the
+	// provenance spelled out.
+	reg := fmt.Sprintf(`{"schema":1,"roots":[{"path":%q,"config":"gone","lastUsed":"2026-07-19T00:00:00Z"}]}`, s.kb)
+	if err := os.WriteFile(rootsPathFor(s.home), []byte(reg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code = s.run(t, "start", "--service", "worker")
+	if code != 1 {
+		t.Fatalf("vanished recorded config: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"Config not found: .semiont/semiontconfig/gone.toml",
+		"'gone' is this KB's recorded preference")
 }
 
 func TestLogsService(t *testing.T) {
