@@ -11,23 +11,46 @@ import (
 	"time"
 )
 
-// startableServices: everything `start --service` accepts, with the ports it
-// must have free. Ollama is listed with no ports — startOllama owns its port
-// check (a host instance may make the container unnecessary).
-var startableServices = map[string][]struct {
+// The launcher's primary vocabulary is the ROLE a container plays in the
+// stack: db, graph, vectors, inference, traces — plus Semiont's own services
+// by name. The concrete product behind an infra role (PostgreSQL, Neo4j, …)
+// and its image string are DETAIL, shown where there's room for it (banners,
+// echoed argv, error messages); container names and config env vars stay at
+// the wire level (semiont-postgres, NEO4J_HOST) — they're shared contracts
+// with compose and the running fleet.
+type portNeed struct {
 	port  int
 	label string
-}{
-	"jaeger":   {{16686, "Jaeger UI"}, {4318, "Jaeger OTLP"}},
-	"neo4j":    {{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}},
-	"qdrant":   {{6333, "Qdrant"}},
-	"ollama":   {},
-	"postgres": {{5432, "PostgreSQL"}},
-	"backend":  {{4000, "Backend"}},
-	"worker":   {{9090, "Worker"}},
-	"smelter":  {{9091, "Smelter"}},
-	"weaver":   {{9092, "Weaver"}},
-	"frontend": {{3000, "Frontend"}},
+}
+
+type roleSpec struct {
+	product   string // concrete product behind an infra role; "" = a Semiont service
+	container string
+	ports     []portNeed // must-be-free ports (inference: owned by startInference)
+}
+
+var roles = map[string]roleSpec{
+	"traces":    {"Jaeger", "semiont-jaeger", []portNeed{{16686, "Jaeger UI"}, {4318, "Jaeger OTLP"}}},
+	"graph":     {"Neo4j", "semiont-neo4j", []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}}},
+	"vectors":   {"Qdrant", "semiont-qdrant", []portNeed{{6333, "Qdrant"}}},
+	"inference": {"Ollama", "semiont-ollama", nil},
+	"db":        {"PostgreSQL", "semiont-postgres", []portNeed{{5432, "PostgreSQL"}}},
+	"backend":   {"", "semiont-backend", []portNeed{{4000, "Backend"}}},
+	"worker":    {"", "semiont-worker", []portNeed{{9090, "Worker"}}},
+	"smelter":   {"", "semiont-smelter", []portNeed{{9091, "Smelter"}}},
+	"weaver":    {"", "semiont-weaver", []portNeed{{9092, "Weaver"}}},
+	"frontend":  {"", "semiont-frontend", []portNeed{{3000, "Frontend"}}},
+}
+
+const roleList = "backend, worker, smelter, weaver, frontend, db, graph, vectors, inference, or traces"
+
+// roleTitle is the detail-bearing display form: the role, with the product
+// in parens when there is one ("graph (Neo4j)").
+func roleTitle(role string) string {
+	if p := roles[role].product; p != "" {
+		return role + " (" + p + ")"
+	}
+	return role
 }
 
 func isConfigConsumer(svc string) bool {
@@ -35,7 +58,7 @@ func isConfigConsumer(svc string) bool {
 }
 
 func serviceNeedsAddr(svc string) bool {
-	return isConfigConsumer(svc) || svc == "postgres" || svc == "ollama"
+	return isConfigConsumer(svc) || svc == "db" || svc == "inference"
 }
 
 // recoverWorkerSecret pulls SEMIONT_WORKER_SECRET out of a running Semiont
@@ -125,20 +148,21 @@ func serviceSecret(u *ui, rt string) (string, bool) {
 func runStartService(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string) int {
 	t0 := time.Now()
 	svc := opts.service
-	cname := "semiont-" + svc
+	cname := roles[svc].container
 
-	u.banner("Restarting " + svc)
+	u.banner("Restarting " + roleTitle(svc))
 
 	// The service's own teardown (idempotent across running/stopped/absent) —
-	// except ollama, whose start path owns this (host reuse may skip it).
-	if svc != "ollama" {
+	// except inference, whose start path owns this (a host Ollama may make
+	// the container unnecessary).
+	if svc != "inference" {
 		stopped := runSilent(rt, "stop", cname) == nil
 		rmed := runSilent(rt, "rm", cname) == nil
 		if stopped || rmed {
 			u.log("Removed prior %s container", svc)
 			time.Sleep(time.Second)
 		}
-		for _, pc := range startableServices[svc] {
+		for _, pc := range roles[svc].ports {
 			if !requirePortFree(u, pc.port, pc.label, opts.forceKillPorts) {
 				return 1
 			}
@@ -208,21 +232,21 @@ func runStartService(u *ui, rt, version, root, configFile string, opts startOpti
 	var d time.Duration
 	ok := false
 	switch svc {
-	case "jaeger":
-		d, ok = runGated(u, rt, jaegerArgs(), "Jaeger", "Jaeger UI", "http://localhost:16686", 30)
-	case "neo4j":
-		d, ok = runGated(u, rt, neo4jArgs(), "Neo4j", "Neo4j", "http://localhost:7474", 30)
-	case "qdrant":
-		d, ok = runGated(u, rt, qdrantArgs(), "Qdrant", "Qdrant", "http://localhost:6333/readyz", 15)
-	case "ollama":
-		if code := startOllama(u, rt, addr, opts); code != 0 {
+	case "traces":
+		d, ok = runGated(u, rt, tracesArgs(), "traces (Jaeger)", "traces (Jaeger UI)", "http://localhost:16686", 30)
+	case "graph":
+		d, ok = runGated(u, rt, graphArgs(), "graph (Neo4j)", "graph (Neo4j)", "http://localhost:7474", 30)
+	case "vectors":
+		d, ok = runGated(u, rt, vectorsArgs(), "vectors (Qdrant)", "vectors (Qdrant)", "http://localhost:6333/readyz", 15)
+	case "inference":
+		if code := startInference(u, rt, addr, opts); code != 0 {
 			return code
 		}
 		ok = true
-	case "postgres":
-		u.echoCmd(rt, postgresArgs()...)
-		if err := runDetached(rt, postgresArgs()...); err != nil {
-			u.fail("PostgreSQL failed to start.")
+	case "db":
+		u.echoCmd(rt, dbArgs()...)
+		if err := runDetached(rt, dbArgs()...); err != nil {
+			u.fail("db (PostgreSQL) failed to start.")
 			return 1
 		}
 		d, ok = waitForPG(u, rt, addr, 5432, 20)
@@ -271,11 +295,11 @@ func renderServicePlan(rt, version string, opts startOptions, userEnv []string) 
 
 	c("semiont start --service %s --dry-run — the exact runtime commands a real", svc)
 	c("run would execute, in order. Values known only at runtime appear as <placeholders>.")
-	if svc != "ollama" {
-		p("stop", "semiont-"+svc)
-		p("rm", "semiont-"+svc)
+	if svc != "inference" {
+		p("stop", roles[svc].container)
+		p("rm", roles[svc].container)
 		ports := make([]string, 0, 2)
-		for _, pc := range startableServices[svc] {
+		for _, pc := range roles[svc].ports {
 			ports = append(ports, fmt.Sprintf("%d", pc.port))
 		}
 		if len(ports) > 0 {
@@ -296,25 +320,25 @@ func renderServicePlan(rt, version string, opts startOptions, userEnv []string) 
 		c("stage a fresh private config copy under <config-stage>: %s.toml", svc)
 	}
 	switch svc {
-	case "jaeger":
-		p(jaegerArgs()...)
+	case "traces":
+		p(tracesArgs()...)
 		c("wait: http://localhost:16686 (30s)")
-	case "neo4j":
-		p(neo4jArgs()...)
+	case "graph":
+		p(graphArgs()...)
 		c("wait: http://localhost:7474 (30s)")
-	case "qdrant":
-		p(qdrantArgs()...)
+	case "vectors":
+		p(vectorsArgs()...)
 		c("wait: http://localhost:6333/readyz (15s)")
-	case "ollama":
+	case "inference":
 		c("probe: host Ollama at http://localhost:11434/api/version")
 		c(`if present — probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:11434/api/version" — and use it`, rt)
 		c("else:")
 		p("stop", "semiont-ollama")
 		c("require free port: 11434")
-		p(ollamaArgs("<ollama-volume>")...)
+		p(inferenceArgs("<ollama-volume>")...)
 		c("wait: http://localhost:11434/api/version (30s)")
-	case "postgres":
-		p(postgresArgs()...)
+	case "db":
+		p(dbArgs()...)
 		c("wait: tcp localhost:5432 (20s)")
 		c("probe: %s run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432", rt)
 	case "backend":

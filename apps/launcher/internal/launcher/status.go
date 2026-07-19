@@ -28,32 +28,34 @@ model cache.
 Exit status: 0 when every core service is healthy (Jaeger is observability,
 not core), 1 otherwise.
 
-With --service <name>, report just that one service — the exit status then
-reflects that service alone (Jaeger included), making it scriptable:
+With --service <name>, report just that one service (backend, worker,
+smelter, weaver, frontend, db, graph, vectors, inference, or traces) — the
+exit status then reflects that service alone (traces included), making it
+scriptable:
   semiont status --service backend && echo up
 `
 
 // statusServices drives the report, in user-facing-first order with each
-// service beside its primary store (backend→PostgreSQL, worker→Ollama
-// inference, weaver→Neo4j graph, smelter→Qdrant vectors), observability
-// last. Deliberately unrelated to start/stop ordering (which is dependency
-// order). Health probes are host-side: the same endpoints start's health
-// gates poll.
+// service beside its primary store (backend→db, worker→inference,
+// weaver→graph, smelter→vectors), observability last. Deliberately unrelated
+// to start/stop ordering (which is dependency order). Names are the abstract
+// roles; the roles table maps them to containers. Health probes are
+// host-side: the same endpoints start's health gates poll.
 var statusServices = []struct {
-	name     string // display + container-name suffix
+	name     string // abstract role (keys the roles table)
 	endpoint string // http(s) URL, or "tcp:<port>"
 	core     bool   // counted toward the exit status
 }{
 	{"frontend", "http://localhost:3000", true},
 	{"backend", "http://localhost:4000/api/health", true},
-	{"postgres", "tcp:5432", true},
+	{"db", "tcp:5432", true},
 	{"worker", "http://localhost:9090/health", true},
-	{"ollama", "http://localhost:11434/api/version", true},
+	{"inference", "http://localhost:11434/api/version", true},
 	{"weaver", "http://localhost:9092/health", true},
-	{"neo4j", "http://localhost:7474", true},
+	{"graph", "http://localhost:7474", true},
 	{"smelter", "http://localhost:9091/health", true},
-	{"qdrant", "http://localhost:6333/readyz", true},
-	{"jaeger", "http://localhost:16686", false},
+	{"vectors", "http://localhost:6333/readyz", true},
+	{"traces", "http://localhost:16686", false},
 }
 
 // Status implements `semiont status`.
@@ -86,8 +88,8 @@ func Status(args []string) int {
 		}
 	}
 	if service != "" {
-		if _, known := startableServices[service]; !known {
-			u.fail("Unknown --service '%s' (expected: jaeger, neo4j, qdrant, ollama, postgres, backend, worker, smelter, weaver, or frontend)", service)
+		if _, known := roles[service]; !known {
+			u.fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
 	}
@@ -113,12 +115,12 @@ func Status(args []string) int {
 		if service != "" && svc.name != service {
 			continue
 		}
-		state, rt := containerState(runtimes, "semiont-"+svc.name)
+		state, rt := containerState(runtimes, roles[svc.name].container)
 		healthy := probeHealth(svc.endpoint)
 
 		// Host Ollama reuse: no container, but the endpoint answers — that is
 		// a healthy configuration, not a gap.
-		if svc.name == "ollama" && state == "" && healthy {
+		if svc.name == "inference" && state == "" && healthy {
 			rt = "host"
 		}
 
@@ -196,7 +198,7 @@ func printHostDirs(u *ui) {
 	row("staging", "/tmp/semiont-config.*", note)
 	if home, err := os.UserHomeDir(); err == nil {
 		p := filepath.Join(home, ".ollama")
-		row("ollama", p, presence(p))
+		row("inference", p, presence(p))
 	}
 }
 

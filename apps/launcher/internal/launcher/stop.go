@@ -17,8 +17,8 @@ every step is a no-op then.
 With no --runtime, EVERY installed runtime is swept — stopping via the wrong
 runtime is a silent no-op that leaves the real stack running.
 
-With --service <name>, stop just that one service (jaeger, neo4j, qdrant,
-ollama, postgres, backend, worker, smelter, weaver, or frontend). The staged
+With --service <name>, stop just that one service (backend, worker, smelter,
+weaver, frontend, db, graph, vectors, inference, or traces). The staged
 config copies are left in place — the rest of the stack is still mounting
 them.
 `
@@ -72,11 +72,11 @@ func Stop(args []string) int {
 	// staging exists to prevent.
 	names := stopNames
 	if service != "" {
-		if _, known := startableServices[service]; !known {
-			u.fail("Unknown --service '%s' (expected: jaeger, neo4j, qdrant, ollama, postgres, backend, worker, smelter, weaver, or frontend)", service)
+		if _, known := roles[service]; !known {
+			u.fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
-		names = []string{"semiont-" + service}
+		names = []string{roles[service].container}
 	}
 
 	// Which runtimes to sweep: the requested one, or EVERY installed runtime.

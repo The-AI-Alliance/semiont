@@ -303,7 +303,7 @@ func TestStartHostOllamaBoot(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	checkGolden(t, "start-host-ollama-boot.argv", s.argv(t))
-	mustContain(t, "stdout", stdout, "Using host Ollama at http://localhost:11434")
+	mustContain(t, "stdout", stdout, "inference — using host Ollama at http://localhost:11434")
 }
 
 func TestStartLocalVersionBoot(t *testing.T) {
@@ -590,8 +590,8 @@ func TestStatusMixed(t *testing.T) {
 			mustContain(t, "backend row", line, "running", "docker", "✓")
 		case strings.Contains(line, "worker"):
 			mustContain(t, "worker row", line, "running", "✗")
-		case strings.Contains(line, "ollama"):
-			mustContain(t, "ollama row", line, "host", "✓")
+		case strings.Contains(line, "inference"):
+			mustContain(t, "inference row", line, "host", "✓")
 		case strings.Contains(line, "weaver"):
 			mustContain(t, "weaver row", line, "—", "✗")
 		}
@@ -610,7 +610,7 @@ func TestStatusAllHealthy(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("want exit 0 with all core healthy, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "jaeger")
+	mustContain(t, "stdout", stdout, "traces")
 	if strings.Contains(stdout, "✗ http://localhost:4000") {
 		t.Errorf("backend reported unhealthy:\n%s", stdout)
 	}
@@ -670,21 +670,39 @@ func TestStartServiceWorker(t *testing.T) {
 	}
 }
 
-func TestStartServiceNeo4j(t *testing.T) {
+func TestStartServiceGraph(t *testing.T) {
 	// Infra service: no config, no secret, no host-addr probe, no pull
 	// (pinned image) — just its own stop+rm, run, and health gate.
 	s := newScenario(t, "container")
-	stdout, stderr, code := s.run(t, "start", "--service", "neo4j")
+	stdout, stderr, code := s.run(t, "start", "--service", "graph")
 	if code != 0 {
 		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting neo4j", "🚀 neo4j is up")
+	mustContain(t, "stdout", stdout, "Restarting graph (Neo4j)", "🚀 graph is up")
 	argv := s.argv(t)
 	mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --rm --name semiont-neo4j")
 	for _, absent := range []string{"image pull", "busybox", "inspect"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("infra --service ran needless step: %q in argv", absent)
 		}
+	}
+}
+
+func TestStartServiceFrontendNoClone(t *testing.T) {
+	// "Just the browser": --service targets that never touch the repo run
+	// without a KB clone (the main README's no-clone use case).
+	s := newScenario(t, "container")
+	s.noGitRoot = true
+	stdout, stderr, code := s.run(t, "start", "--service", "frontend")
+	if code != 0 {
+		t.Fatalf("want exit 0 outside a clone, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Restarting frontend", "🚀 frontend is up")
+	// A config consumer still requires the clone.
+	if _, stderr, code := s.run(t, "start", "--service", "worker"); code != 1 {
+		t.Errorf("worker outside a clone: want exit 1, got %d", code)
+	} else {
+		mustContain(t, "stderr", stderr, "must run inside a git clone")
 	}
 }
 
@@ -719,9 +737,9 @@ func TestStartServiceRejections(t *testing.T) {
 	}{
 		{[]string{"start", "--service", "bogus"}, "Unknown --service 'bogus'"},
 		{[]string{"start", "--service", "worker", "--email", "a@b.co", "--password", "password123"}, "--email/--password only apply to --service backend."},
-		{[]string{"start", "--service", "neo4j", "--config", "anthropic"}, "--config only applies to --service backend, worker, smelter, or weaver."},
+		{[]string{"start", "--service", "graph", "--config", "anthropic"}, "--config only applies to --service backend, worker, smelter, or weaver."},
 		{[]string{"start", "--service", "worker", "--no-observe"}, "--no-observe does not apply to --service"},
-		{[]string{"start", "--service", "worker", "--ollama-cache", "host"}, "--ollama-cache only applies to --service ollama."},
+		{[]string{"start", "--service", "worker", "--ollama-cache", "host"}, "--ollama-cache only applies to --service inference."},
 		{[]string{"start", "--service", "worker", "--list-configs"}, "--list-configs cannot be combined with --service."},
 	} {
 		_, stderr, code := s.run(t, tc.args...)
@@ -774,7 +792,7 @@ func TestStatusService(t *testing.T) {
 		t.Fatalf("healthy backend: want exit 0, got %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "stdout", stdout, "backend", "running", "✓ http://localhost:4000/api/health")
-	for _, absent := range []string{"LOCAL HOST DIRECTORIES", "worker", "jaeger"} {
+	for _, absent := range []string{"LOCAL HOST DIRECTORIES", "worker", "traces"} {
 		if strings.Contains(stdout, absent) {
 			t.Errorf("filtered status leaked %q:\n%s", absent, stdout)
 		}
@@ -784,8 +802,8 @@ func TestStatusService(t *testing.T) {
 	if _, _, code := s.run(t, "status", "--service", "worker"); code != 1 {
 		t.Errorf("down worker: want exit 1, got %d", code)
 	}
-	if _, _, code := s.run(t, "status", "--service", "jaeger"); code != 1 {
-		t.Errorf("down jaeger (explicit): want exit 1, got %d", code)
+	if _, _, code := s.run(t, "status", "--service", "traces"); code != 1 {
+		t.Errorf("down traces (explicit): want exit 1, got %d", code)
 	}
 }
 

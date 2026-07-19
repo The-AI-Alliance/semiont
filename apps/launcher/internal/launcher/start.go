@@ -83,18 +83,18 @@ type startOptions struct {
 
 const startUsage = `Usage: semiont start [options]
 
-Start a local Semiont stack with Neo4j, Qdrant, Ollama, PostgreSQL,
-the Semiont API server, worker, smelter, weaver, and the frontend
-(http://localhost:3000) — all in containers.
+Start a local Semiont stack — graph (Neo4j), vectors (Qdrant), inference
+(Ollama), db (PostgreSQL), the Semiont backend, worker, smelter, weaver, and
+the frontend (http://localhost:3000) — all in containers.
 
 Options:
   --config <name>       Semiontconfig to use (default: ollama-gemma)
   --list-configs        List available configs and exit
   --service <name>      Start (restart) just this one service, leaving the rest
-                        of the stack untouched: jaeger, neo4j, qdrant, ollama,
-                        postgres, backend, worker, smelter, weaver, or frontend.
+                        of the stack untouched: backend, worker, smelter, weaver,
+                        frontend, db, graph, vectors, inference, or traces.
                         Rejoins a running stack's worker secret automatically;
-                        OTel export is enabled iff Jaeger is up.
+                        OTel export is enabled iff traces (Jaeger) is up.
   --email <email>       Admin user email (requires --password)
   --password <pass>     Admin user password (requires --email)
   --clean-ollama        Remove the Ollama model cache volume and exit
@@ -212,8 +212,8 @@ func Start(args []string) int {
 	// --service compatibility: flags that don't apply to the named service are
 	// rejected rather than silently ignored.
 	if opts.service != "" {
-		if _, known := startableServices[opts.service]; !known {
-			u.fail("Unknown --service '%s' (expected: jaeger, neo4j, qdrant, ollama, postgres, backend, worker, smelter, weaver, or frontend)", opts.service)
+		if _, known := roles[opts.service]; !known {
+			u.fail("Unknown --service '%s' (expected: %s)", opts.service, roleList)
 			return 1
 		}
 		switch {
@@ -224,13 +224,13 @@ func Start(args []string) int {
 			u.fail("--clean-ollama cannot be combined with --service.")
 			return 1
 		case opts.noObserveSet:
-			u.fail("--no-observe does not apply to --service: OTel export is enabled iff Jaeger is already running.")
+			u.fail("--no-observe does not apply to --service: OTel export is enabled iff traces (Jaeger) is already running.")
 			return 1
 		case (opts.adminEmail != "" || opts.adminPassword != "") && opts.service != "backend":
 			u.fail("--email/--password only apply to --service backend.")
 			return 1
-		case opts.ollamaCache != "" && opts.service != "ollama":
-			u.fail("--ollama-cache only applies to --service ollama.")
+		case opts.ollamaCache != "" && opts.service != "inference":
+			u.fail("--ollama-cache only applies to --service inference.")
 			return 1
 		case opts.configSet && !isConfigConsumer(opts.service):
 			u.fail("--config only applies to --service backend, worker, smelter, or weaver.")
@@ -248,16 +248,23 @@ func Start(args []string) int {
 	// event log via git — so fail with instructions rather than git's opaque
 	// "not a repository" fatal when someone used GitHub's "Download ZIP" (or
 	// has no git at all). Deliberately after arg parsing so --help works
-	// anywhere.
-	root, err := capture("git", "rev-parse", "--show-toplevel")
-	if err != nil || root == "" {
-		u.fail("This must run inside a git clone of the KB (the backend versions the event log via git).")
-		fmt.Fprintln(os.Stderr, "  If you used GitHub's 'Download ZIP', clone the repository instead:  git clone <repo-url>")
-		return 1
-	}
-	if err := os.Chdir(root); err != nil {
-		u.fail("Cannot enter KB root %s: %v", root, err)
-		return 1
+	// anywhere. Exception: a --service target that never touches the repo
+	// (infra, frontend — no /kb mount, no config) runs from anywhere, so
+	// "just the browser" needs no clone at all.
+	rootNeeded := opts.service == "" || isConfigConsumer(opts.service)
+	root := ""
+	if rootNeeded {
+		var err error
+		root, err = capture("git", "rev-parse", "--show-toplevel")
+		if err != nil || root == "" {
+			u.fail("This must run inside a git clone of the KB (the backend versions the event log via git).")
+			fmt.Fprintln(os.Stderr, "  If you used GitHub's 'Download ZIP', clone the repository instead:  git clone <repo-url>")
+			return 1
+		}
+		if err := os.Chdir(root); err != nil {
+			u.fail("Cannot enter KB root %s: %v", root, err)
+			return 1
+		}
 	}
 
 	if opts.adminEmail != "" || opts.adminPassword != "" {
@@ -395,29 +402,29 @@ func image(svc, version string) string {
 	return fmt.Sprintf("%s/semiont-%s:%s", imageRegistry, svc, version)
 }
 
-func jaegerArgs() []string {
+func tracesArgs() []string {
 	return []string{"run", "-d", "--rm", "--name", "semiont-jaeger",
 		"-p", "16686:16686", "-p", "4318:4318", "jaegertracing/all-in-one:1.76.0"}
 }
 
-func neo4jArgs() []string {
+func graphArgs() []string {
 	return []string{"run", "-d", "--rm", "--name", "semiont-neo4j",
 		"-p", "7474:7474", "-p", "7687:7687",
 		"-e", "NEO4J_AUTH=neo4j/localpass", "-e", "NEO4J_ACCEPT_LICENSE_AGREEMENT=yes",
 		"neo4j:5.26.28-community"}
 }
 
-func qdrantArgs() []string {
+func vectorsArgs() []string {
 	return []string{"run", "-d", "--rm", "--name", "semiont-qdrant",
 		"-p", "6333:6333", "qdrant/qdrant:v1.18.3"}
 }
 
-func ollamaArgs(volume string) []string {
+func inferenceArgs(volume string) []string {
 	return []string{"run", "-d", "--rm", "--name", "semiont-ollama",
 		"-p", "11434:11434", "-m", "24G", "-v", volume + ":/root/.ollama", "ollama/ollama"}
 }
 
-func postgresArgs() []string {
+func dbArgs() []string {
 	return []string{"run", "-d", "--rm", "--name", "semiont-postgres",
 		"-p", "5432:5432", "-e", "POSTGRES_PASSWORD=localpass", "-e", "POSTGRES_DB=semiont",
 		"postgres:15.18-alpine"}
@@ -677,59 +684,59 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	// push OTLP traces + metrics to it over one endpoint env var.
 	var otel []string
 	if opts.observe {
-		u.banner("Jaeger")
-		u.echoCmd(rt, jaegerArgs()...)
-		if err := runDetached(rt, jaegerArgs()...); err != nil {
-			u.fail("Jaeger failed to start.")
+		u.banner("Traces (Jaeger)")
+		u.echoCmd(rt, tracesArgs()...)
+		if err := runDetached(rt, tracesArgs()...); err != nil {
+			u.fail("traces (Jaeger) failed to start.")
 			return 1
 		}
-		d, ok := waitForHTTP(u, "Jaeger UI", "http://localhost:16686", 30)
+		d, ok := waitForHTTP(u, "traces (Jaeger)", "http://localhost:16686", 30)
 		if !ok {
 			return 1
 		}
-		u.ok("Jaeger UI on http://localhost:16686 (OTLP collector: %s:4318) %s", addr, u.dim("("+took(d)+")"))
+		u.ok("traces — Jaeger UI on http://localhost:16686 (OTLP collector: %s:4318) %s", addr, u.dim("("+took(d)+")"))
 		otel = otelArgs(addr)
 	}
 
-	u.banner("Neo4j")
-	u.echoCmd(rt, neo4jArgs()...)
-	if err := runDetached(rt, neo4jArgs()...); err != nil {
-		u.fail("Neo4j failed to start.")
+	u.banner("Graph (Neo4j)")
+	u.echoCmd(rt, graphArgs()...)
+	if err := runDetached(rt, graphArgs()...); err != nil {
+		u.fail("graph (Neo4j) failed to start.")
 		return 1
 	}
-	d, ok := waitForHTTP(u, "Neo4j", "http://localhost:7474", 30)
+	d, ok := waitForHTTP(u, "graph (Neo4j)", "http://localhost:7474", 30)
 	if !ok {
 		return 1
 	}
-	u.ok("Neo4j on bolt://localhost:7687 (browser: http://localhost:7474) %s", u.dim("("+took(d)+")"))
+	u.ok("graph — bolt://localhost:7687 (browser: http://localhost:7474) %s", u.dim("("+took(d)+")"))
 
-	u.banner("Qdrant")
-	u.echoCmd(rt, qdrantArgs()...)
-	if err := runDetached(rt, qdrantArgs()...); err != nil {
-		u.fail("Qdrant failed to start.")
+	u.banner("Vectors (Qdrant)")
+	u.echoCmd(rt, vectorsArgs()...)
+	if err := runDetached(rt, vectorsArgs()...); err != nil {
+		u.fail("vectors (Qdrant) failed to start.")
 		return 1
 	}
-	d, ok = waitForHTTP(u, "Qdrant", "http://localhost:6333/readyz", 15)
+	d, ok = waitForHTTP(u, "vectors (Qdrant)", "http://localhost:6333/readyz", 15)
 	if !ok {
 		return 1
 	}
-	u.ok("Qdrant on http://localhost:6333 %s", u.dim("("+took(d)+")"))
+	u.ok("vectors — http://localhost:6333 %s", u.dim("("+took(d)+")"))
 
-	if code := startOllama(u, rt, addr, opts); code != 0 {
+	if code := startInference(u, rt, addr, opts); code != 0 {
 		return code
 	}
 
-	u.banner("PostgreSQL")
-	u.echoCmd(rt, postgresArgs()...)
-	if err := runDetached(rt, postgresArgs()...); err != nil {
-		u.fail("PostgreSQL failed to start.")
+	u.banner("DB (PostgreSQL)")
+	u.echoCmd(rt, dbArgs()...)
+	if err := runDetached(rt, dbArgs()...); err != nil {
+		u.fail("db (PostgreSQL) failed to start.")
 		return 1
 	}
 	d, ok = waitForPG(u, rt, addr, 5432, 20)
 	if !ok {
 		return 1
 	}
-	u.ok("PostgreSQL on port 5432 %s", u.dim("("+took(d)+")"))
+	u.ok("db — PostgreSQL on port 5432 %s", u.dim("("+took(d)+")"))
 
 	secret := os.Getenv("SEMIONT_WORKER_SECRET")
 	if secret == "" {
@@ -808,14 +815,14 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	return 0
 }
 
-// startOllama reuses a host Ollama when one is serving 11434 and reachable
+// startInference reuses a host Ollama when one is serving 11434 and reachable
 // from containers; otherwise starts the semiont-ollama container.
-func startOllama(u *ui, rt, addr string, opts startOptions) int {
-	u.banner("Ollama")
+func startInference(u *ui, rt, addr string, opts startOptions) int {
+	u.banner("Inference (Ollama)")
 	if httpOK("http://localhost:11434/api/version") {
 		if runSilent(rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
 			fmt.Sprintf("wget -q -O- http://%s:11434/api/version", addr)) == nil {
-			u.ok("Using host Ollama at http://localhost:11434")
+			u.ok("inference — using host Ollama at http://localhost:11434")
 			return 0
 		}
 		fmt.Println()
@@ -870,16 +877,16 @@ func startOllama(u *ui, rt, addr string, opts startOptions) int {
 		}
 	}
 
-	u.echoCmd(rt, ollamaArgs(volume)...)
-	if err := runDetached(rt, ollamaArgs(volume)...); err != nil {
+	u.echoCmd(rt, inferenceArgs(volume)...)
+	if err := runDetached(rt, inferenceArgs(volume)...); err != nil {
 		u.fail("Ollama container failed to start.")
 		return 1
 	}
-	d, ok := waitForHTTP(u, "Ollama", "http://localhost:11434/api/version", 30)
+	d, ok := waitForHTTP(u, "inference (Ollama)", "http://localhost:11434/api/version", 30)
 	if !ok {
 		return 1
 	}
-	u.ok("Ollama container on http://localhost:11434 (24 GB memory) %s", u.dim("("+took(d)+")"))
+	u.ok("inference — Ollama container on http://localhost:11434 (24 GB memory) %s", u.dim("("+took(d)+")"))
 	return 0
 }
 

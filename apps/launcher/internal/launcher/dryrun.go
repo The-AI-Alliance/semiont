@@ -65,13 +65,13 @@ func renderStartPlan(rt, version string, opts startOptions, userEnv []string) {
 
 	var otel []string
 	if opts.observe {
-		p(jaegerArgs()...)
+		p(tracesArgs()...)
 		c("wait: http://localhost:16686 (30s)")
 		otel = otelArgs(addr)
 	}
-	p(neo4jArgs()...)
+	p(graphArgs()...)
 	c("wait: http://localhost:7474 (30s)")
-	p(qdrantArgs()...)
+	p(vectorsArgs()...)
 	c("wait: http://localhost:6333/readyz (15s)")
 
 	c("probe: host Ollama at http://localhost:11434/api/version")
@@ -88,10 +88,10 @@ func renderStartPlan(rt, version string, opts startOptions, userEnv []string) {
 	case "volume":
 		volume = "semiont-ollama-models"
 	}
-	p(ollamaArgs(volume)...)
+	p(inferenceArgs(volume)...)
 	c("wait: http://localhost:11434/api/version (30s)")
 
-	p(postgresArgs()...)
+	p(dbArgs()...)
 	c("wait: tcp localhost:5432 (20s)")
 	c("probe: %s run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432", rt)
 

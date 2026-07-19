@@ -40,8 +40,9 @@ semiont stop
 - `semiont about` shows what Semiont is, project links, the image registry,
   and which runtimes were detected on PATH.
 - `start`, `stop`, and `status` take `--service <name>` to act on one service
-  (any of the ten: jaeger, neo4j, qdrant, ollama, postgres, backend, worker,
-  smelter, weaver, frontend). A `--service` start rejoins the running stack's
+  (any of the ten, named by role: backend, worker, smelter, weaver, frontend,
+  db, graph, vectors, inference, traces — the concrete products PostgreSQL,
+  Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start rejoins the running stack's
   worker secret automatically (recovered from a running container's env via
   the runtime's inspect), auto-enables OTel iff Jaeger is up, and stages a
   fresh private config copy; a `--service` stop leaves the staged configs in
