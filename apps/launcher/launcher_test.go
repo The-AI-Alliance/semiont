@@ -14,6 +14,7 @@ package main_test
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
@@ -22,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -303,7 +305,7 @@ func TestStartHostOllamaBoot(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	checkGolden(t, "start-host-ollama-boot.argv", s.argv(t))
-	mustContain(t, "stdout", stdout, "Using host Ollama at http://localhost:11434")
+	mustContain(t, "stdout", stdout, "inference — using host Ollama at http://localhost:11434")
 }
 
 func TestStartLocalVersionBoot(t *testing.T) {
@@ -496,7 +498,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 10 container names across container, docker, podman",
+		"Sweeping 10 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -590,8 +592,8 @@ func TestStatusMixed(t *testing.T) {
 			mustContain(t, "backend row", line, "running", "docker", "✓")
 		case strings.Contains(line, "worker"):
 			mustContain(t, "worker row", line, "running", "✗")
-		case strings.Contains(line, "ollama"):
-			mustContain(t, "ollama row", line, "host", "✓")
+		case strings.Contains(line, "inference"):
+			mustContain(t, "inference row", line, "host", "✓")
 		case strings.Contains(line, "weaver"):
 			mustContain(t, "weaver row", line, "—", "✗")
 		}
@@ -610,7 +612,7 @@ func TestStatusAllHealthy(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("want exit 0 with all core healthy, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "jaeger")
+	mustContain(t, "stdout", stdout, "traces")
 	if strings.Contains(stdout, "✗ http://localhost:4000") {
 		t.Errorf("backend reported unhealthy:\n%s", stdout)
 	}
@@ -623,6 +625,328 @@ func TestStatusNoRuntime(t *testing.T) {
 		t.Fatalf("want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr, "No container runtime found. Install Apple Container, Docker, or Podman.")
+}
+
+// --- invocation log ---
+
+// invLogPath mirrors the launcher's logDir for the scenario's fake HOME.
+func invLogPath(home string) string {
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Logs", "semiont", "launcher.log")
+	}
+	return filepath.Join(home, ".local", "state", "semiont", "launcher.log")
+}
+
+func TestInvocationLog(t *testing.T) {
+	s := newScenario(t)
+	if _, _, code := s.run(t, "version"); code != 0 {
+		t.Fatalf("version: exit %d", code)
+	}
+	// A failing run with a password: logged with the value redacted.
+	if _, _, code := s.run(t, "start", "--service", "worker", "--email", "a@b.co", "--password", "supersecretpw"); code != 1 {
+		t.Fatalf("rejection run: want exit 1, got %d", code)
+	}
+	b, err := os.ReadFile(invLogPath(s.home))
+	if err != nil {
+		t.Fatalf("invocation log not written: %v", err)
+	}
+	log := string(b)
+	mustContain(t, "invocation log", log,
+		"invoke semiont version (version dev",
+		"exit 0 semiont version",
+		"invoke semiont start --service worker --email a@b.co --password <redacted>",
+		"exit 1 semiont start --service worker",
+	)
+	if strings.Contains(log, "supersecretpw") {
+		t.Error("password leaked into the invocation log")
+	}
+}
+
+// --- stack state record ---
+
+// statePathFor mirrors the launcher's statePath for the scenario's fake HOME.
+func statePathFor(home string) string {
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Application Support", "semiont", "stack.json")
+	}
+	return filepath.Join(home, ".local", "state", "semiont", "stack.json")
+}
+
+// TestStackStateLifecycle drives boot → status → stop --service → stop and
+// asserts the belief record steers every step: identifiers recorded at start,
+// status and stop querying only the recorded runtime by ID, per-service stop
+// forgetting one entry, full stop forgetting the record.
+func TestStackStateLifecycle(t *testing.T) {
+	s := newScenario(t, "container", "docker", "podman")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("boot: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// The record: runtime + all ten services with runtime-reported IDs.
+	b, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatalf("stack.json not written: %v", err)
+	}
+	var st struct {
+		Schema   int    `json:"schema"`
+		Runtime  string `json:"runtime"`
+		Services map[string]struct {
+			Container string `json:"container"`
+			ID        string `json:"id"`
+			Image     string `json:"image"`
+		} `json:"services"`
+	}
+	if err := json.Unmarshal(b, &st); err != nil {
+		t.Fatalf("stack.json not valid JSON: %v\n%s", err, b)
+	}
+	if st.Schema != 1 || st.Runtime != "container" {
+		t.Errorf("schema/runtime: got %d/%q", st.Schema, st.Runtime)
+	}
+	for _, role := range []string{"traces", "graph", "vectors", "inference", "db", "backend", "worker", "smelter", "weaver", "frontend"} {
+		e, ok := st.Services[role]
+		if !ok {
+			t.Errorf("service %q missing from record", role)
+			continue
+		}
+		if e.ID != "fid-"+e.Container {
+			t.Errorf("%s: id %q not the runtime-reported identifier", role, e.ID)
+		}
+		if e.Image == "" {
+			t.Errorf("%s: image not recorded", role)
+		}
+	}
+
+	preStatus := s.argv(t)
+	if _, _, code := s.run(t, "status"); code != 0 {
+		t.Errorf("status on healthy stack: exit %d", code)
+	}
+	statusArgv := strings.TrimPrefix(s.argv(t), preStatus)
+	mustContain(t, "status argv", statusArgv, "container inspect fid-semiont-backend")
+	for _, bad := range []string{"docker inspect", "podman inspect"} {
+		if strings.Contains(statusArgv, bad) {
+			t.Errorf("status queried a non-recorded runtime: %q", bad)
+		}
+	}
+
+	// Per-service stop: weaver forgotten, record survives.
+	preStop := s.argv(t)
+	stdout, _, code := s.run(t, "stop", "--service", "weaver")
+	if code != 0 {
+		t.Fatalf("stop --service weaver: exit %d", code)
+	}
+	mustContain(t, "stdout", stdout, "Using recorded stack state")
+	stopArgv := strings.TrimPrefix(s.argv(t), preStop)
+	mustContain(t, "per-service stop argv", stopArgv, "container stop fid-semiont-weaver")
+	if strings.Contains(stopArgv, "docker stop") {
+		t.Error("per-service stop swept a non-recorded runtime")
+	}
+	b, _ = os.ReadFile(statePathFor(s.home))
+	if strings.Contains(string(b), `"weaver"`) {
+		t.Error("weaver entry not forgotten after stop --service")
+	}
+	if !strings.Contains(string(b), `"backend"`) {
+		t.Error("record lost other services on per-service stop")
+	}
+
+	// Full stop: recorded runtime only, by ID; record removed.
+	preFull := s.argv(t)
+	stdout, _, code = s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	mustContain(t, "stdout", stdout, "Using recorded stack state", "Semiont stack stopped.")
+	fullArgv := strings.TrimPrefix(s.argv(t), preFull)
+	mustContain(t, "full stop argv", fullArgv, "container stop fid-semiont-backend", "container rm fid-semiont-frontend")
+	for _, bad := range []string{"docker stop", "podman stop"} {
+		if strings.Contains(fullArgv, bad) {
+			t.Errorf("state-driven stop swept a non-recorded runtime: %q", bad)
+		}
+	}
+	if _, err := os.Stat(statePathFor(s.home)); !os.IsNotExist(err) {
+		t.Error("stack.json survived a full stop")
+	}
+}
+
+// --- start --service ---
+
+func TestStartServiceWorker(t *testing.T) {
+	// Backend already running with a secret in its env; Jaeger up on 16686.
+	// Restarting the worker must rejoin the recovered secret (not the env
+	// one), auto-enable OTel, stage a fresh private config, and leave the
+	// rest of the stack untouched.
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_STATE_backend=running",
+		"FAKERT_SECRET=recovered-secret-123",
+	)
+	serveHealth(t, 16686)
+	stdout, stderr, code := s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"Restarting worker",
+		"Jaeger detected — OTel export enabled",
+		"Worker secret: (recovered from semiont-backend)",
+		"SEMIONT_WORKER_SECRET=<redacted>",
+		"🚀 worker is up",
+		"semiont status",
+	)
+	if strings.Contains(stdout, "recovered-secret-123") {
+		t.Error("recovered secret leaked into stdout")
+	}
+	argv := s.argv(t)
+	mustContain(t, "argv", argv,
+		"stop semiont-worker",
+		"rm semiont-worker",
+		"image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
+		"inspect semiont-backend",
+		"--env SEMIONT_WORKER_SECRET=recovered-secret-123",
+		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
+		"<config-stage>/worker.toml:/home/semiont/.semiontconfig:ro",
+	)
+	for _, absent := range []string{"run -d --rm --name semiont-neo4j", "run -d --rm --name semiont-backend", "semiont-frontend"} {
+		if strings.Contains(argv, absent) {
+			t.Errorf("--service worker touched the wider stack: %q in argv", absent)
+		}
+	}
+}
+
+func TestStartServiceGraph(t *testing.T) {
+	// Infra service: no config, no secret, no host-addr probe, no pull
+	// (pinned image) — just its own stop+rm, run, and health gate.
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "start", "--service", "graph")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Restarting graph (Neo4j)", "🚀 graph is up")
+	argv := s.argv(t)
+	mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --rm --name semiont-neo4j")
+	for _, absent := range []string{"image pull", "busybox", "inspect"} {
+		if strings.Contains(argv, absent) {
+			t.Errorf("infra --service ran needless step: %q in argv", absent)
+		}
+	}
+}
+
+func TestStartServiceFrontendNoClone(t *testing.T) {
+	// "Just the browser": --service targets that never touch the repo run
+	// without a KB clone (the main README's no-clone use case).
+	s := newScenario(t, "container")
+	s.noGitRoot = true
+	stdout, stderr, code := s.run(t, "start", "--service", "frontend")
+	if code != 0 {
+		t.Fatalf("want exit 0 outside a clone, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Restarting frontend", "🚀 frontend is up")
+	// A config consumer still requires the clone.
+	if _, stderr, code := s.run(t, "start", "--service", "worker"); code != 1 {
+		t.Errorf("worker outside a clone: want exit 1, got %d", code)
+	} else {
+		mustContain(t, "stderr", stderr, "must run inside a git clone")
+	}
+}
+
+func TestStartServiceDryRunWorker(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, _, code := s.run(t, "start", "--service", "worker", "--dry-run")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d", code)
+	}
+	mustContain(t, "stdout", stdout,
+		"semiont start --service worker --dry-run",
+		"container stop semiont-worker",
+		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
+		"worker secret: recovered from a running Semiont container's env",
+		"<config-stage>/worker.toml",
+		"wait: http://localhost:9090/health (30s)",
+	)
+	if strings.Contains(stdout, "semiont-neo4j") {
+		t.Error("service plan leaked the wider stack")
+	}
+	// Dry run must execute nothing beyond KB-root resolution.
+	if got := s.argv(t); got != "git rev-parse --show-toplevel\n" {
+		t.Errorf("dry-run executed runtime commands:\n%s", got)
+	}
+}
+
+func TestStartServiceRejections(t *testing.T) {
+	s := newScenario(t, "container")
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"start", "--service", "bogus"}, "Unknown --service 'bogus'"},
+		{[]string{"start", "--service", "worker", "--email", "a@b.co", "--password", "password123"}, "--email/--password only apply to --service backend."},
+		{[]string{"start", "--service", "graph", "--config", "anthropic"}, "--config only applies to --service backend, worker, smelter, or weaver."},
+		{[]string{"start", "--service", "worker", "--no-observe"}, "--no-observe does not apply to --service"},
+		{[]string{"start", "--service", "worker", "--ollama-cache", "host"}, "--ollama-cache only applies to --service inference."},
+		{[]string{"start", "--service", "worker", "--list-configs"}, "--list-configs cannot be combined with --service."},
+	} {
+		_, stderr, code := s.run(t, tc.args...)
+		if code != 1 {
+			t.Errorf("%v: want exit 1, got %d", tc.args, code)
+		}
+		mustContain(t, fmt.Sprintf("stderr for %v", tc.args), stderr, tc.want)
+	}
+}
+
+// --- stop --service ---
+
+func TestStopService(t *testing.T) {
+	s := newScenario(t, "container", "docker", "podman")
+	stage, err := os.MkdirTemp("/tmp", "semiont-config.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(stage) })
+	stdout, _, code := s.run(t, "stop", "--service", "weaver")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d", code)
+	}
+	mustContain(t, "stdout", stdout,
+		"Sweeping 1 container(s) across container, docker, podman",
+		"weaver stopped (staged configs left in place; rest of the stack untouched).")
+	if strings.Contains(stdout, "Semiont stack stopped.") {
+		t.Error("--service printed the full-stack message")
+	}
+	if _, err := os.Stat(stage); err != nil {
+		t.Errorf("--service stop removed the staged configs: %v", err)
+	}
+	argv := s.argv(t)
+	for _, rt := range []string{"container", "docker", "podman"} {
+		mustContain(t, "argv", argv, rt+" stop semiont-weaver", rt+" rm semiont-weaver")
+	}
+	if strings.Contains(argv, "semiont-backend") {
+		t.Error("--service weaver touched other containers")
+	}
+}
+
+// --- status --service ---
+
+func TestStatusService(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")
+	serveHealth(t, 4000)
+	stdout, _, code := s.run(t, "status", "--service", "backend")
+	if code != 0 {
+		t.Fatalf("healthy backend: want exit 0, got %d\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "stdout", stdout, "backend", "running", "✓ http://localhost:4000/api/health")
+	for _, absent := range []string{"LOCAL HOST DIRECTORIES", "worker", "traces"} {
+		if strings.Contains(stdout, absent) {
+			t.Errorf("filtered status leaked %q:\n%s", absent, stdout)
+		}
+	}
+
+	// A down service — and non-core Jaeger when asked for explicitly — exits 1.
+	if _, _, code := s.run(t, "status", "--service", "worker"); code != 1 {
+		t.Errorf("down worker: want exit 1, got %d", code)
+	}
+	if _, _, code := s.run(t, "status", "--service", "traces"); code != 1 {
+		t.Errorf("down traces (explicit): want exit 1, got %d", code)
+	}
 }
 
 // --- logs ---

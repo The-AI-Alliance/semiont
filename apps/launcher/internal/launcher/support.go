@@ -142,13 +142,15 @@ func runVisible(name string, args ...string) error {
 	return cmd.Run()
 }
 
-// runDetached runs a `run -d` service start: stdout (the container id) is
-// discarded as the scripts did with `> /dev/null`, stderr stays visible so a
-// failed start is diagnosable.
-func runDetached(name string, args ...string) error {
+// runDetached runs a `run -d` service start: stdout — the container
+// identifier the runtime prints — is captured and returned (recorded in
+// stack.json); stderr stays visible so a failed start is diagnosable.
+func runDetached(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
-	cmd.Stdout, cmd.Stderr = io.Discard, os.Stderr
-	return cmd.Run()
+	var out strings.Builder
+	cmd.Stdout, cmd.Stderr = &out, os.Stderr
+	err := cmd.Run()
+	return strings.TrimSpace(out.String()), err
 }
 
 // capture runs a command returning trimmed stdout, stderr discarded.

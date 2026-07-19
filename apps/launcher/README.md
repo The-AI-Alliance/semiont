@@ -39,6 +39,29 @@ semiont stop
   started under `--runtime docker` can't survive a plain stop.
 - `semiont about` shows what Semiont is, project links, the image registry,
   and which runtimes were detected on PATH.
+- Every invocation is logged (invoke + exit lines, with `--password` values
+  redacted) to `launcher.log` in the launcher's log home: `~/Library/Logs/
+  semiont` on macOS, `$XDG_STATE_HOME/semiont` (default
+  `~/.local/state/semiont`) on Linux. `semiont status` lists the dir under
+  LOCAL HOST DIRECTORIES. Logging is best-effort — it never blocks a command.
+- `start` records what it believes the stack IS — the runtime, and each
+  service's container name, runtime-reported ID, and image — in `stack.json`
+  in the launcher's state home (`~/Library/Application Support/semiont` on
+  macOS, `$XDG_STATE_HOME/semiont` on Linux). `stop` and `status` compute
+  their work from those identifiers: they target the recorded runtime by ID
+  (no more blind every-runtime name sweep), skip a host-reused Ollama, and a
+  full `stop` forgets the record. No record (older launcher, another
+  machine's stack) falls back to the historical name sweep; the record is
+  belief — `status` still verifies every claim against the runtime.
+- `start`, `stop`, and `status` take `--service <name>` to act on one service
+  (any of the ten, named by role: backend, worker, smelter, weaver, frontend,
+  db, graph, vectors, inference, traces — the concrete products PostgreSQL,
+  Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start rejoins the running stack's
+  worker secret automatically (recovered from a running container's env via
+  the runtime's inspect), auto-enables OTel iff Jaeger is up, and stages a
+  fresh private config copy; a `--service` stop leaves the staged configs in
+  place (the rest of the stack still mounts them); a `--service` status exits
+  0/1 on that service alone.
 - `SEMIONT_VERSION` selects the service image tag (default `latest`; the
   sentinel `local` uses locally-built `:local` images and skips pulls).
 

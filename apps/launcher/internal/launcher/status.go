@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 )
 
-const statusUsage = `Usage: semiont status [--runtime container|docker|podman]
+const statusUsage = `Usage: semiont status [--service <name>] [--runtime container|docker|podman]
 
 Report each Semiont container's runtime state and application-level health.
 
@@ -27,31 +27,42 @@ model cache.
 
 Exit status: 0 when every core service is healthy (Jaeger is observability,
 not core), 1 otherwise.
+
+With --service <name>, report just that one service (backend, worker,
+smelter, weaver, frontend, db, graph, vectors, inference, or traces) — the
+exit status then reflects that service alone (traces included), making it
+scriptable:
+  semiont status --service backend && echo up
 `
 
-// statusServices drives the report, in stack order. Health probes are
+// statusServices drives the report, in user-facing-first order with each
+// service beside its primary store (backend→db, worker→inference,
+// weaver→graph, smelter→vectors), observability last. Deliberately unrelated
+// to start/stop ordering (which is dependency order). Names are the abstract
+// roles; the roles table maps them to containers. Health probes are
 // host-side: the same endpoints start's health gates poll.
 var statusServices = []struct {
-	name     string // display + container-name suffix
+	name     string // abstract role (keys the roles table)
 	endpoint string // http(s) URL, or "tcp:<port>"
 	core     bool   // counted toward the exit status
 }{
-	{"backend", "http://localhost:4000/api/health", true},
-	{"worker", "http://localhost:9090/health", true},
-	{"smelter", "http://localhost:9091/health", true},
-	{"weaver", "http://localhost:9092/health", true},
 	{"frontend", "http://localhost:3000", true},
-	{"neo4j", "http://localhost:7474", true},
-	{"qdrant", "http://localhost:6333/readyz", true},
-	{"postgres", "tcp:5432", true},
-	{"ollama", "http://localhost:11434/api/version", true},
-	{"jaeger", "http://localhost:16686", false},
+	{"backend", "http://localhost:4000/api/health", true},
+	{"db", "tcp:5432", true},
+	{"worker", "http://localhost:9090/health", true},
+	{"inference", "http://localhost:11434/api/version", true},
+	{"weaver", "http://localhost:9092/health", true},
+	{"graph", "http://localhost:7474", true},
+	{"smelter", "http://localhost:9091/health", true},
+	{"vectors", "http://localhost:6333/readyz", true},
+	{"traces", "http://localhost:16686", false},
 }
 
 // Status implements `semiont status`.
 func Status(args []string) int {
 	u := newUI(false)
 	runtime := ""
+	service := ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--runtime":
@@ -61,6 +72,13 @@ func Status(args []string) int {
 			}
 			runtime = args[i+1]
 			i++
+		case "--service":
+			if i+1 >= len(args) {
+				u.fail("Missing value for --service")
+				return 1
+			}
+			service = args[i+1]
+			i++
 		case "--help", "-h":
 			fmt.Print(statusUsage)
 			return 0
@@ -69,7 +87,18 @@ func Status(args []string) int {
 			return 1
 		}
 	}
+	if service != "" {
+		if _, known := roles[service]; !known {
+			u.fail("Unknown --service '%s' (expected: %s)", service, roleList)
+			return 1
+		}
+	}
 
+	// The recorded stack state (when present) narrows the query to the
+	// runtime that actually started the stack, and supplies the identifiers
+	// the runtime reported at start — the record is belief; every claim below
+	// is still verified against the runtime and the health endpoints.
+	st := loadState()
 	var runtimes []string
 	if runtime != "" {
 		if !onPath(runtime) {
@@ -77,7 +106,14 @@ func Status(args []string) int {
 			return 1
 		}
 		runtimes = []string{runtime}
+		if st != nil && runtime != st.Runtime {
+			st = nil // record is about a different runtime's stack
+		}
+	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
+		runtimes = []string{st.Runtime}
+		u.log("Using recorded stack state %s", u.dim("("+st.Runtime+" per "+statePath()+")"))
 	} else {
+		st = nil
 		runtimes = installedRuntimes()
 	}
 	if len(runtimes) == 0 {
@@ -88,16 +124,29 @@ func Status(args []string) int {
 	fmt.Printf("  %-10s %-10s %-10s %s\n", "SERVICE", "CONTAINER", "RUNTIME", "HEALTH")
 	allCoreHealthy := true
 	for _, svc := range statusServices {
-		state, rt := containerState(runtimes, "semiont-"+svc.name)
+		if service != "" && svc.name != service {
+			continue
+		}
+		// Query by the recorded identifier when we have one; the container
+		// name is the fallback handle.
+		handle := roles[svc.name].container
+		if st != nil {
+			if e, ok := st.Services[svc.name]; ok && e.ID != "" {
+				handle = e.ID
+			}
+		}
+		state, rt := containerState(runtimes, handle)
 		healthy := probeHealth(svc.endpoint)
 
 		// Host Ollama reuse: no container, but the endpoint answers — that is
 		// a healthy configuration, not a gap.
-		if svc.name == "ollama" && state == "" && healthy {
+		if svc.name == "inference" && state == "" && healthy {
 			rt = "host"
 		}
 
-		if svc.core && !healthy {
+		// Filtered to one service, its health IS the exit status — Jaeger
+		// included: asking about it explicitly makes it the question.
+		if !healthy && (svc.core || service != "") {
 			allCoreHealthy = false
 		}
 
@@ -125,7 +174,9 @@ func Status(args []string) int {
 			svc.name, 10+utf8.RuneCountInString(stateCol)-visibleLen(stateCol), stateCol,
 			10+utf8.RuneCountInString(rt)-visibleLen(rt), rt, healthCol)
 	}
-	printHostDirs(u)
+	if service == "" {
+		printHostDirs(u)
+	}
 
 	if allCoreHealthy {
 		return 0
@@ -159,6 +210,12 @@ func printHostDirs(u *ui) {
 		p := filepath.Join(cache, "semiont")
 		row("cache", p, presence(p))
 	}
+	if p := logDir(); p != "" {
+		row("logs", p, presence(p))
+	}
+	if p := statePath(); p != "" {
+		row("state", p, presence(p))
+	}
 	staged, _ := filepath.Glob("/tmp/semiont-config.*")
 	note := "none"
 	if n := len(staged); n > 0 {
@@ -167,7 +224,7 @@ func printHostDirs(u *ui) {
 	row("staging", "/tmp/semiont-config.*", note)
 	if home, err := os.UserHomeDir(); err == nil {
 		p := filepath.Join(home, ".ollama")
-		row("ollama", p, presence(p))
+		row("inference", p, presence(p))
 	}
 }
 

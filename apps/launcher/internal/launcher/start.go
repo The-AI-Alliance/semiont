@@ -66,6 +66,7 @@ var (
 
 type startOptions struct {
 	configName     string
+	configSet      bool // --config given explicitly (drives --service compatibility)
 	listConfigs    bool
 	adminEmail     string
 	adminPassword  string
@@ -73,20 +74,27 @@ type startOptions struct {
 	forceKillPorts bool
 	runtime        string
 	observe        bool
+	noObserveSet   bool // --no-observe given explicitly
 	quiet          bool
 	dryRun         bool
 	ollamaCache    string // "", "host", or "volume"
+	service        string // start just this one service
 }
 
 const startUsage = `Usage: semiont start [options]
 
-Start a local Semiont stack with Neo4j, Qdrant, Ollama, PostgreSQL,
-the Semiont API server, worker, smelter, weaver, and the frontend
-(http://localhost:3000) — all in containers.
+Start a local Semiont stack — graph (Neo4j), vectors (Qdrant), inference
+(Ollama), db (PostgreSQL), the Semiont backend, worker, smelter, weaver, and
+the frontend (http://localhost:3000) — all in containers.
 
 Options:
   --config <name>       Semiontconfig to use (default: ollama-gemma)
   --list-configs        List available configs and exit
+  --service <name>      Start (restart) just this one service, leaving the rest
+                        of the stack untouched: backend, worker, smelter, weaver,
+                        frontend, db, graph, vectors, inference, or traces.
+                        Rejoins a running stack's worker secret automatically;
+                        OTel export is enabled iff traces (Jaeger) is up.
   --email <email>       Admin user email (requires --password)
   --password <pass>     Admin user password (requires --email)
   --clean-ollama        Remove the Ollama model cache volume and exit
@@ -136,6 +144,14 @@ func Start(args []string) int {
 				return 1
 			}
 			opts.configName = v
+			opts.configSet = true
+			i++
+		case "--service":
+			v, ok := needVal(i)
+			if !ok {
+				return 1
+			}
+			opts.service = v
 			i++
 		case "--list-configs":
 			opts.listConfigs = true
@@ -166,6 +182,7 @@ func Start(args []string) int {
 			i++
 		case "--no-observe":
 			opts.observe = false
+			opts.noObserveSet = true
 		case "--ollama-cache":
 			v, ok := needVal(i)
 			if !ok {
@@ -192,6 +209,35 @@ func Start(args []string) int {
 		return 1
 	}
 
+	// --service compatibility: flags that don't apply to the named service are
+	// rejected rather than silently ignored.
+	if opts.service != "" {
+		if _, known := roles[opts.service]; !known {
+			u.fail("Unknown --service '%s' (expected: %s)", opts.service, roleList)
+			return 1
+		}
+		switch {
+		case opts.listConfigs:
+			u.fail("--list-configs cannot be combined with --service.")
+			return 1
+		case opts.cleanOllama:
+			u.fail("--clean-ollama cannot be combined with --service.")
+			return 1
+		case opts.noObserveSet:
+			u.fail("--no-observe does not apply to --service: OTel export is enabled iff traces (Jaeger) is already running.")
+			return 1
+		case (opts.adminEmail != "" || opts.adminPassword != "") && opts.service != "backend":
+			u.fail("--email/--password only apply to --service backend.")
+			return 1
+		case opts.ollamaCache != "" && opts.service != "inference":
+			u.fail("--ollama-cache only applies to --service inference.")
+			return 1
+		case opts.configSet && !isConfigConsumer(opts.service):
+			u.fail("--config only applies to --service backend, worker, smelter, or weaver.")
+			return 1
+		}
+	}
+
 	// Dry-run output is a machine-consumable plan; keep the narration off it.
 	u = newUI(opts.quiet || opts.dryRun)
 	if !opts.dryRun {
@@ -202,16 +248,23 @@ func Start(args []string) int {
 	// event log via git — so fail with instructions rather than git's opaque
 	// "not a repository" fatal when someone used GitHub's "Download ZIP" (or
 	// has no git at all). Deliberately after arg parsing so --help works
-	// anywhere.
-	root, err := capture("git", "rev-parse", "--show-toplevel")
-	if err != nil || root == "" {
-		u.fail("This must run inside a git clone of the KB (the backend versions the event log via git).")
-		fmt.Fprintln(os.Stderr, "  If you used GitHub's 'Download ZIP', clone the repository instead:  git clone <repo-url>")
-		return 1
-	}
-	if err := os.Chdir(root); err != nil {
-		u.fail("Cannot enter KB root %s: %v", root, err)
-		return 1
+	// anywhere. Exception: a --service target that never touches the repo
+	// (infra, frontend — no /kb mount, no config) runs from anywhere, so
+	// "just the browser" needs no clone at all.
+	rootNeeded := opts.service == "" || isConfigConsumer(opts.service)
+	root := ""
+	if rootNeeded {
+		var err error
+		root, err = capture("git", "rev-parse", "--show-toplevel")
+		if err != nil || root == "" {
+			u.fail("This must run inside a git clone of the KB (the backend versions the event log via git).")
+			fmt.Fprintln(os.Stderr, "  If you used GitHub's 'Download ZIP', clone the repository instead:  git clone <repo-url>")
+			return 1
+		}
+		if err := os.Chdir(root); err != nil {
+			u.fail("Cannot enter KB root %s: %v", root, err)
+			return 1
+		}
 	}
 
 	if opts.adminEmail != "" || opts.adminPassword != "" {
@@ -234,12 +287,16 @@ func Start(args []string) int {
 		printConfigNames()
 		return 0
 	}
+	// Services that never read the config (infra, frontend) don't require it.
+	configNeeded := opts.service == "" || isConfigConsumer(opts.service)
 	configFile := filepath.Join(configDir, opts.configName+".toml")
-	if _, err := os.Stat(configFile); err != nil {
-		u.fail("Config not found: %s", configFile)
-		fmt.Println("Available configs:")
-		printConfigNames()
-		return 1
+	if configNeeded {
+		if _, err := os.Stat(configFile); err != nil {
+			u.fail("Config not found: %s", configFile)
+			fmt.Println("Available configs:")
+			printConfigNames()
+			return 1
+		}
 	}
 
 	rt, ok := selectRuntime(u, opts.runtime)
@@ -270,33 +327,43 @@ func Start(args []string) int {
 
 	u.banner("Semiont Local Backend")
 	u.log("Container runtime: %s", u.bold(rt))
-	u.log("Config: %s", u.bold(opts.configName))
+	if configNeeded {
+		u.log("Config: %s", u.bold(opts.configName))
+	}
 	u.log("Image version: %s", u.bold(version))
 
-	userVars, err := requiredConfigVars(configFile)
-	if err != nil {
-		u.fail("Reading %s: %v", configFile, err)
-		return 1
-	}
 	var userEnv []string
-	for _, v := range userVars {
-		if opts.dryRun {
-			userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
-			continue
-		}
-		val := os.Getenv(v)
-		if val == "" {
-			u.fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
+	if configNeeded {
+		userVars, err := requiredConfigVars(configFile)
+		if err != nil {
+			u.fail("Reading %s: %v", configFile, err)
 			return 1
 		}
-		userEnv = append(userEnv, "--env", v+"="+val)
+		for _, v := range userVars {
+			if opts.dryRun {
+				userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
+				continue
+			}
+			val := os.Getenv(v)
+			if val == "" {
+				u.fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
+				return 1
+			}
+			userEnv = append(userEnv, "--env", v+"="+val)
+		}
 	}
 
 	if opts.dryRun {
-		renderStartPlan(rt, version, opts, userEnv)
+		if opts.service != "" {
+			renderServicePlan(rt, version, opts, userEnv)
+		} else {
+			renderStartPlan(rt, version, opts, userEnv)
+		}
 		return 0
 	}
-
+	if opts.service != "" {
+		return runStartService(u, rt, version, root, configFile, opts, userEnv)
+	}
 	return runStart(u, rt, version, root, configFile, opts, userEnv)
 }
 
@@ -335,29 +402,29 @@ func image(svc, version string) string {
 	return fmt.Sprintf("%s/semiont-%s:%s", imageRegistry, svc, version)
 }
 
-func jaegerArgs() []string {
+func tracesArgs() []string {
 	return []string{"run", "-d", "--rm", "--name", "semiont-jaeger",
 		"-p", "16686:16686", "-p", "4318:4318", "jaegertracing/all-in-one:1.76.0"}
 }
 
-func neo4jArgs() []string {
+func graphArgs() []string {
 	return []string{"run", "-d", "--rm", "--name", "semiont-neo4j",
 		"-p", "7474:7474", "-p", "7687:7687",
 		"-e", "NEO4J_AUTH=neo4j/localpass", "-e", "NEO4J_ACCEPT_LICENSE_AGREEMENT=yes",
 		"neo4j:5.26.28-community"}
 }
 
-func qdrantArgs() []string {
+func vectorsArgs() []string {
 	return []string{"run", "-d", "--rm", "--name", "semiont-qdrant",
 		"-p", "6333:6333", "qdrant/qdrant:v1.18.3"}
 }
 
-func ollamaArgs(volume string) []string {
+func inferenceArgs(volume string) []string {
 	return []string{"run", "-d", "--rm", "--name", "semiont-ollama",
 		"-p", "11434:11434", "-m", "24G", "-v", volume + ":/root/.ollama", "ollama/ollama"}
 }
 
-func postgresArgs() []string {
+func dbArgs() []string {
 	return []string{"run", "-d", "--rm", "--name", "semiont-postgres",
 		"-p", "5432:5432", "-e", "POSTGRES_PASSWORD=localpass", "-e", "POSTGRES_DB=semiont",
 		"postgres:15.18-alpine"}
@@ -422,6 +489,81 @@ func pullArgs(rt, img string) []string {
 
 var semiontServices = []string{"backend", "worker", "smelter", "weaver", "frontend"}
 
+// sidecarSpecs: the three make-meaning sidecars, in start order.
+var sidecarSpecs = []struct {
+	svc, label, mem, banner string
+	port                    int
+}{
+	{"worker", "Worker pool", "2G", "Starting Worker Pool", 9090},
+	{"smelter", "Smelter", "2G", "Starting Smelter", 9091},
+	{"weaver", "Weaver", "3G", "Starting Weaver", 9092},
+}
+
+// runGated: the common run-detached-then-health-gate shape. Returns the
+// container identifier the runtime printed (recorded in stack.json).
+func runGated(u *ui, rt string, args []string, failLabel, waitLabel, url string, tries int) (string, time.Duration, bool) {
+	u.echoCmd(rt, args...)
+	id, err := runDetached(rt, args...)
+	if err != nil {
+		u.fail("%s failed to start.", failLabel)
+		return "", 0, false
+	}
+	d, ok := waitForHTTP(u, waitLabel, url, tries)
+	return id, d, ok
+}
+
+// runBackend starts the backend and runs BOTH its gates: host-side health,
+// then container-gateway reachability — the sidecars dial addr:4000 (not
+// localhost) and fatally exit if their first backend fetch fails, so host
+// health alone doesn't prove the path they need.
+func runBackend(u *ui, rt, root, stage, addr, secret, version string, userEnv, otel, admin []string) (string, int) {
+	bArgs := backendArgs(root, stage, addr, secret, version, userEnv, otel, admin)
+	u.echoCmd(rt, bArgs...)
+	id, err := runDetached(rt, bArgs...)
+	if err != nil {
+		u.fail("Backend failed to start.")
+		return "", 1
+	}
+	u.log("Waiting for backend health...")
+	d, ok := waitForHTTP(u, "Backend", "http://localhost:4000/api/health", 120)
+	if !ok {
+		return "", 1
+	}
+	u.ok("Backend healthy %s", u.dim("("+took(d)+")"))
+
+	u.log("Verifying backend reachable from containers...")
+	reachT0 := time.Now()
+	reachable := false
+	for i := 0; i < 20; i++ {
+		if runSilent(rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
+			fmt.Sprintf("wget -q -O- http://%s:4000/api/health", addr)) == nil {
+			reachable = true
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if !reachable {
+		u.fail("Backend not reachable from containers at %s:4000 within 20s.", addr)
+		return "", 1
+	}
+	u.ok("Backend reachable from containers %s", u.dim("("+took(time.Since(reachT0))+")"))
+	return id, 0
+}
+
+// runSidecar starts one make-meaning sidecar and gates on its /health.
+func runSidecar(u *ui, rt string, sc struct {
+	svc, label, mem, banner string
+	port                    int
+}, stage, addr, secret, version string, userEnv, otel []string) (string, int) {
+	args := sidecarArgs(sc.svc, sc.mem, sc.port, stage, addr, secret, version, userEnv, otel)
+	id, d, ok := runGated(u, rt, args, sc.label, sc.label, fmt.Sprintf("http://localhost:%d/health", sc.port), 30)
+	if !ok {
+		return "", 1
+	}
+	u.ok("%s healthy (http://localhost:%d) %s", sc.label, sc.port, u.dim("("+took(d)+")"))
+	return id, 0
+}
+
 // --- The real run ---
 
 func runStart(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string) int {
@@ -473,8 +615,10 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	// Staged config copies from previous runs (semiont stop also removes
 	// these). Safe to delete only here, after the old stack's containers
 	// (which mounted them) are stopped — this run's own staging is created
-	// below, after this sweep.
+	// below, after this sweep. The recorded stack state describes the stack
+	// the sweep just destroyed — forget it; this run re-records as it goes.
 	removeStagedConfigs()
+	removeState()
 	time.Sleep(time.Second)
 
 	for _, pc := range portChecks {
@@ -525,6 +669,14 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		}
 	}
 
+	// The belief record: what this run starts, identified by what the runtime
+	// reports. Saved after every service so a failed start still leaves an
+	// accurate partial record for stop/status to work from.
+	st := &stackState{
+		Runtime: rt, KBRoot: root, Config: opts.configName, Version: version,
+		HostAddr: addr, Stage: stage, Services: map[string]serviceState{},
+	}
+
 	// Pull explicitly, up front, so a bad version/registry fails before any
 	// dep containers start — a `run` alone reuses a cached :latest forever.
 	u.banner("Pulling Images")
@@ -546,59 +698,59 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	// push OTLP traces + metrics to it over one endpoint env var.
 	var otel []string
 	if opts.observe {
-		u.banner("Jaeger")
-		u.echoCmd(rt, jaegerArgs()...)
-		if err := runDetached(rt, jaegerArgs()...); err != nil {
-			u.fail("Jaeger failed to start.")
-			return 1
-		}
-		d, ok := waitForHTTP(u, "Jaeger UI", "http://localhost:16686", 30)
+		u.banner("Traces (Jaeger)")
+		args := tracesArgs()
+		id, d, ok := runGated(u, rt, args, "traces (Jaeger)", "traces (Jaeger)", "http://localhost:16686", 30)
 		if !ok {
 			return 1
 		}
-		u.ok("Jaeger UI on http://localhost:16686 (OTLP collector: %s:4318) %s", addr, u.dim("("+took(d)+")"))
+		u.ok("traces — Jaeger UI on http://localhost:16686 (OTLP collector: %s:4318) %s", addr, u.dim("("+took(d)+")"))
+		st.recordService("traces", id, args[len(args)-1], false)
 		otel = otelArgs(addr)
 	}
 
-	u.banner("Neo4j")
-	u.echoCmd(rt, neo4jArgs()...)
-	if err := runDetached(rt, neo4jArgs()...); err != nil {
-		u.fail("Neo4j failed to start.")
-		return 1
-	}
-	d, ok := waitForHTTP(u, "Neo4j", "http://localhost:7474", 30)
+	u.banner("Graph (Neo4j)")
+	args := graphArgs()
+	id, d, ok := runGated(u, rt, args, "graph (Neo4j)", "graph (Neo4j)", "http://localhost:7474", 30)
 	if !ok {
 		return 1
 	}
-	u.ok("Neo4j on bolt://localhost:7687 (browser: http://localhost:7474) %s", u.dim("("+took(d)+")"))
+	u.ok("graph — bolt://localhost:7687 (browser: http://localhost:7474) %s", u.dim("("+took(d)+")"))
+	st.recordService("graph", id, args[len(args)-1], false)
 
-	u.banner("Qdrant")
-	u.echoCmd(rt, qdrantArgs()...)
-	if err := runDetached(rt, qdrantArgs()...); err != nil {
-		u.fail("Qdrant failed to start.")
-		return 1
-	}
-	d, ok = waitForHTTP(u, "Qdrant", "http://localhost:6333/readyz", 15)
+	u.banner("Vectors (Qdrant)")
+	args = vectorsArgs()
+	id, d, ok = runGated(u, rt, args, "vectors (Qdrant)", "vectors (Qdrant)", "http://localhost:6333/readyz", 15)
 	if !ok {
 		return 1
 	}
-	u.ok("Qdrant on http://localhost:6333 %s", u.dim("("+took(d)+")"))
+	u.ok("vectors — http://localhost:6333 %s", u.dim("("+took(d)+")"))
+	st.recordService("vectors", id, args[len(args)-1], false)
 
-	if code := startOllama(u, rt, addr, opts); code != 0 {
+	infID, hostReuse, code := startInference(u, rt, addr, opts)
+	if code != 0 {
 		return code
 	}
+	infImage := ""
+	if !hostReuse {
+		infImage = "ollama/ollama"
+	}
+	st.recordService("inference", infID, infImage, hostReuse)
 
-	u.banner("PostgreSQL")
-	u.echoCmd(rt, postgresArgs()...)
-	if err := runDetached(rt, postgresArgs()...); err != nil {
-		u.fail("PostgreSQL failed to start.")
+	u.banner("DB (PostgreSQL)")
+	args = dbArgs()
+	u.echoCmd(rt, args...)
+	id, err = runDetached(rt, args...)
+	if err != nil {
+		u.fail("db (PostgreSQL) failed to start.")
 		return 1
 	}
 	d, ok = waitForPG(u, rt, addr, 5432, 20)
 	if !ok {
 		return 1
 	}
-	u.ok("PostgreSQL on port 5432 %s", u.dim("("+took(d)+")"))
+	u.ok("db — PostgreSQL on port 5432 %s", u.dim("("+took(d)+")"))
+	st.recordService("db", id, args[len(args)-1], false)
 
 	secret := os.Getenv("SEMIONT_WORKER_SECRET")
 	if secret == "" {
@@ -618,79 +770,35 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		admin = []string{"--env", "ADMIN_EMAIL=" + opts.adminEmail, "--env", "ADMIN_PASSWORD=" + opts.adminPassword}
 		u.log("Admin user: %s", u.bold(opts.adminEmail))
 	}
-	bArgs := backendArgs(root, stage, addr, secret, version, userEnv, otel, admin)
-	u.echoCmd(rt, bArgs...)
-	if err := runDetached(rt, bArgs...); err != nil {
-		u.fail("Backend failed to start.")
-		return 1
+	backendID, code := runBackend(u, rt, root, stage, addr, secret, version, userEnv, otel, admin)
+	if code != 0 {
+		return code
 	}
-	u.log("Waiting for backend health...")
-	d, ok = waitForHTTP(u, "Backend", "http://localhost:4000/api/health", 120)
-	if !ok {
-		return 1
-	}
-	u.ok("Backend healthy %s", u.dim("("+took(d)+")"))
-
-	// The sidecars reach the backend from inside a container over the gateway
-	// (addr:4000), not localhost — and each fatally exits if its first backend
-	// fetch fails. The health check above is from the host, so also confirm
-	// the gateway path is reachable before starting the dependents.
-	u.log("Verifying backend reachable from containers...")
-	reachT0 := time.Now()
-	reachable := false
-	for i := 0; i < 20; i++ {
-		if runSilent(rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
-			fmt.Sprintf("wget -q -O- http://%s:4000/api/health", addr)) == nil {
-			reachable = true
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	if !reachable {
-		u.fail("Backend not reachable from containers at %s:4000 within 20s.", addr)
-		return 1
-	}
-	u.ok("Backend reachable from containers %s", u.dim("("+took(time.Since(reachT0))+")"))
+	st.recordService("backend", backendID, image("backend", version), false)
 
 	// The weaver note: the graph projection is standalone-only — the backend
 	// no longer applies events to Neo4j in-process. Without the weaver the
 	// graph stays empty and every gather 404s at the buildKnowledgeGraph
 	// barrier. Its health reports readiness before catch-up completes.
-	for _, sc := range []struct {
-		svc, label, mem, banner string
-		port                    int
-	}{
-		{"worker", "Worker pool", "2G", "Starting Worker Pool", 9090},
-		{"smelter", "Smelter", "2G", "Starting Smelter", 9091},
-		{"weaver", "Weaver", "3G", "Starting Weaver", 9092},
-	} {
+	for _, sc := range sidecarSpecs {
 		u.banner(sc.banner)
-		args := sidecarArgs(sc.svc, sc.mem, sc.port, stage, addr, secret, version, userEnv, otel)
-		u.echoCmd(rt, args...)
-		if err := runDetached(rt, args...); err != nil {
-			u.fail("%s failed to start.", sc.label)
-			return 1
+		scID, code := runSidecar(u, rt, sc, stage, addr, secret, version, userEnv, otel)
+		if code != 0 {
+			return code
 		}
-		d, ok = waitForHTTP(u, sc.label, fmt.Sprintf("http://localhost:%d/health", sc.port), 30)
-		if !ok {
-			return 1
-		}
-		u.ok("%s healthy (http://localhost:%d) %s", sc.label, sc.port, u.dim("("+took(d)+")"))
+		st.recordService(sc.svc, scID, image(sc.svc, version), false)
 	}
 
 	// Frontend: a static SPA server — no config mount and no service env; the
 	// browser talks to the backend directly on localhost:4000.
 	u.banner("Starting Frontend")
-	u.echoCmd(rt, frontendArgs(version)...)
-	if err := runDetached(rt, frontendArgs(version)...); err != nil {
-		u.fail("Frontend failed to start.")
-		return 1
-	}
-	d, ok = waitForHTTP(u, "Frontend", "http://localhost:3000", 30)
+	var feID string
+	feID, d, ok = runGated(u, rt, frontendArgs(version), "Frontend", "Frontend", "http://localhost:3000", 30)
 	if !ok {
 		return 1
 	}
 	u.ok("Frontend on http://localhost:3000 %s", u.dim("("+took(d)+")"))
+	st.recordService("frontend", feID, image("frontend", version), false)
 
 	// Summary; the stack runs detached and this process exits — bring the
 	// stack up, say where everything is, and get out of the way (compose up
@@ -727,15 +835,15 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	return 0
 }
 
-// startOllama reuses a host Ollama when one is serving 11434 and reachable
+// startInference reuses a host Ollama when one is serving 11434 and reachable
 // from containers; otherwise starts the semiont-ollama container.
-func startOllama(u *ui, rt, addr string, opts startOptions) int {
-	u.banner("Ollama")
+func startInference(u *ui, rt, addr string, opts startOptions) (id string, hostReuse bool, code int) {
+	u.banner("Inference (Ollama)")
 	if httpOK("http://localhost:11434/api/version") {
 		if runSilent(rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
 			fmt.Sprintf("wget -q -O- http://%s:11434/api/version", addr)) == nil {
-			u.ok("Using host Ollama at http://localhost:11434")
-			return 0
+			u.ok("inference — using host Ollama at http://localhost:11434")
+			return "", true, 0
 		}
 		fmt.Println()
 		u.warn("Ollama is running on the host but not reachable from containers.")
@@ -754,7 +862,7 @@ func startOllama(u *ui, rt, addr string, opts startOptions) int {
 		fmt.Println("   (If launchctl doesn't stick, quit Ollama Desktop entirely and run")
 		fmt.Printf("    %s from a terminal.)\n", u.bold("OLLAMA_HOST=0.0.0.0:11434 ollama serve"))
 		fmt.Println()
-		return 1
+		return "", false, 1
 	}
 
 	u.log("No host Ollama detected — starting container...")
@@ -762,7 +870,7 @@ func startOllama(u *ui, rt, addr string, opts startOptions) int {
 	runPassthrough(rt, "stop", "semiont-ollama")
 	time.Sleep(time.Second)
 	if !requirePortFree(u, 11434, "Ollama", opts.forceKillPorts) {
-		return 1
+		return "", false, 1
 	}
 
 	home, _ := os.UserHomeDir()
@@ -789,17 +897,18 @@ func startOllama(u *ui, rt, addr string, opts startOptions) int {
 		}
 	}
 
-	u.echoCmd(rt, ollamaArgs(volume)...)
-	if err := runDetached(rt, ollamaArgs(volume)...); err != nil {
+	u.echoCmd(rt, inferenceArgs(volume)...)
+	id, err := runDetached(rt, inferenceArgs(volume)...)
+	if err != nil {
 		u.fail("Ollama container failed to start.")
-		return 1
+		return "", false, 1
 	}
-	d, ok := waitForHTTP(u, "Ollama", "http://localhost:11434/api/version", 30)
+	d, ok := waitForHTTP(u, "inference (Ollama)", "http://localhost:11434/api/version", 30)
 	if !ok {
-		return 1
+		return "", false, 1
 	}
-	u.ok("Ollama container on http://localhost:11434 (24 GB memory) %s", u.dim("("+took(d)+")"))
-	return 0
+	u.ok("inference — Ollama container on http://localhost:11434 (24 GB memory) %s", u.dim("("+took(d)+")"))
+	return id, false, 0
 }
 
 // promptShareCache asks whether to mount ~/.ollama, auto-yes after 10s (and
