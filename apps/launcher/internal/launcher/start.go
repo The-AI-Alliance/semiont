@@ -336,6 +336,23 @@ func Start(args []string) int {
 	if !ok {
 		return 1
 	}
+	// The record binds a running stack to its runtime. Implicit selection
+	// prefers it (a bare `start --service worker` must rejoin the stack that
+	// exists, not whatever auto-detect finds first); an EXPLICIT mismatch on
+	// a non-dry-run refuses rather than orphan the recorded stack — start's
+	// preflight would erase its record and delete staged configs out from
+	// under its live mounts. A record whose runtime is no longer installed is
+	// stale (that stack cannot be running) and doesn't bind anything.
+	if recSt := loadState(); recSt != nil && recSt.Runtime != "" && recSt.Runtime != rt && onPath(recSt.Runtime) {
+		if opts.runtime == "" {
+			rt = recSt.Runtime
+			u.log("Using recorded stack's runtime: %s %s", u.bold(rt), u.dim("(per "+statePath()+")"))
+		} else if !opts.dryRun {
+			u.fail("A recorded stack is running under %s (per %s).", recSt.Runtime, statePath())
+			fmt.Fprintln(os.Stderr, "  Stop it first (semiont stop), or start with --runtime "+recSt.Runtime+".")
+			return 1
+		}
+	}
 
 	if opts.cleanOllama {
 		u.log("Removing Ollama model cache volume...")

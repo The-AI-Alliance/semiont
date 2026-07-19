@@ -1106,6 +1106,87 @@ func TestStopSchema1Compat(t *testing.T) {
 	}
 }
 
+// writeStackState plants a schema-2 stack.json for the scenario.
+func writeStackState(t *testing.T, s *scenario, runtime string) {
+	t.Helper()
+	st := `{"schema":2,"runtime":"` + runtime + `","services":{
+	  "backend":{"container":"semiont-backend","id":"fid-semiont-backend","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}}`
+	p := statePathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(st), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestStopRuntimeMismatchKeepsRecordAndStaging(t *testing.T) {
+	// stop --runtime <other> must not delete the recorded stack's staged
+	// configs (live mounts!) or its record — the real stack may be running.
+	s := newScenario(t, "container", "docker")
+	writeStackState(t, s, "container")
+	stage, err := os.MkdirTemp("/tmp", "semiont-config.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(stage) })
+
+	stdout, stderr, code := s.run(t, "stop", "--runtime", "docker")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout+stderr", stdout+stderr,
+		"Recorded stack (under container) left untouched",
+		"Swept docker only")
+	if _, err := os.Stat(stage); err != nil {
+		t.Error("staged configs deleted under the recorded stack's live mounts")
+	}
+	if _, err := os.Stat(statePathFor(s.home)); err != nil {
+		t.Error("stack.json erased by a mismatched-runtime stop")
+	}
+	argv := s.argv(t)
+	mustContain(t, "argv", argv, "docker stop semiont-frontend")
+	if strings.Contains(argv, "container stop") {
+		t.Errorf("mismatched stop touched the recorded runtime:\n%s", argv)
+	}
+}
+
+func TestStartRefusesRecordedRuntimeMismatch(t *testing.T) {
+	// An explicit --runtime that mismatches a live record refuses: preflight
+	// would orphan the recorded stack, erase its record, and delete staging
+	// under its mounts.
+	s := newScenario(t, "container", "docker")
+	writeStackState(t, s, "docker")
+	for _, args := range [][]string{
+		{"start", "--runtime", "container"},
+		{"start", "--service", "worker", "--runtime", "container"},
+	} {
+		_, stderr, code := s.run(t, args...)
+		if code != 1 {
+			t.Errorf("%v: want exit 1, got %d", args, code)
+		}
+		mustContain(t, "stderr", stderr,
+			"A recorded stack is running under docker",
+			"Stop it first (semiont stop), or start with --runtime docker.")
+	}
+}
+
+func TestStartPrefersRecordedRuntime(t *testing.T) {
+	// Implicit runtime selection follows the record, not auto-detect order —
+	// a bare restart must rejoin the stack that exists.
+	s := newScenario(t, "container", "docker")
+	s.extraEnv = append(s.extraEnv, "FAKERT_NSLOOKUP=ok")
+	writeStackState(t, s, "docker")
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stdout", stdout, "docker pull ghcr.io/the-ai-alliance/semiont-backend:latest")
+	if strings.Contains(stdout, "container stop semiont-") {
+		t.Errorf("dry-run planned against auto-detected runtime, not the recorded one:\n%s", stdout)
+	}
+}
+
 // --- start --service ---
 
 func TestStartServiceWorker(t *testing.T) {
