@@ -524,397 +524,33 @@ func pullArgs(rt, img string) []string {
 var semiontServices = []string{"backend", "worker", "smelter", "weaver", "frontend"}
 
 // sidecarSpecs: the three make-meaning sidecars, in start order.
-var sidecarSpecs = []struct {
+type sidecarSpec struct {
 	svc, label, mem, banner string
 	port                    int
-}{
+}
+
+var sidecarSpecs = []sidecarSpec{
 	{"worker", "Worker pool", "2G", "Starting Worker Pool", 9090},
 	{"smelter", "Smelter", "2G", "Starting Smelter", 9091},
 	{"weaver", "Weaver", "3G", "Starting Weaver", 9092},
 }
 
-// runGated: the common run-detached-then-health-gate shape. Returns the
-// container identifier the runtime printed (recorded in stack.json).
-func runGated(u *ui, rt string, args []string, failLabel, waitLabel, url string, tries int) (string, time.Duration, bool) {
-	u.echoCmd(rt, args...)
-	id, err := runDetached(rt, args...)
-	if err != nil {
-		u.fail("%s failed to start.", failLabel)
-		return "", 0, false
-	}
-	d, ok := waitForHTTP(u, waitLabel, url, tries)
-	return id, d, ok
-}
-
-// runBackend starts the backend and runs BOTH its gates: host-side health,
-// then container-gateway reachability — the sidecars dial addr:4000 (not
-// localhost) and fatally exit if their first backend fetch fails, so host
-// health alone doesn't prove the path they need.
-func runBackend(u *ui, rt, root, stage, addr, secret, version string, port int, userEnv, otel, admin []string) (string, int) {
-	bArgs := backendArgs(root, stage, addr, secret, version, port, userEnv, otel, admin)
-	u.echoCmd(rt, bArgs...)
-	id, err := runDetached(rt, bArgs...)
-	if err != nil {
-		u.fail("Backend failed to start.")
-		return "", 1
-	}
-	u.log("Waiting for backend health...")
-	d, ok := waitForHTTP(u, "Backend", fmt.Sprintf("http://localhost:%d/api/health", port), 120)
-	if !ok {
-		return "", 1
-	}
-	u.ok("Backend healthy %s", u.dim("("+took(d)+")"))
-
-	u.log("Verifying backend reachable from containers...")
-	reachT0 := time.Now()
-	reachable := false
-	for i := 0; i < 20; i++ {
-		if runSilent(rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
-			fmt.Sprintf("wget -q -O- http://%s:%d/api/health", addr, port)) == nil {
-			reachable = true
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	if !reachable {
-		u.fail("Backend not reachable from containers at %s:%d within 20s.", addr, port)
-		return "", 1
-	}
-	u.ok("Backend reachable from containers %s", u.dim("("+took(time.Since(reachT0))+")"))
-	return id, 0
-}
-
-// runSidecar starts one make-meaning sidecar and gates on its /health.
-func runSidecar(u *ui, rt string, sc struct {
-	svc, label, mem, banner string
-	port                    int
-}, stage, addr, secret, version string, userEnv, otel []string) (string, int) {
-	args := sidecarArgs(sc.svc, sc.mem, sc.port, stage, addr, secret, version, userEnv, otel)
-	id, d, ok := runGated(u, rt, args, sc.label, sc.label, fmt.Sprintf("http://localhost:%d/health", sc.port), 30)
-	if !ok {
-		return "", 1
-	}
-	u.ok("%s healthy (http://localhost:%d) %s", sc.label, sc.port, u.dim("("+took(d)+")"))
-	return id, 0
-}
-
 // --- The real run ---
 
-// verifyExternal confirms an externally-provided role is reachable at its
-// configured address — the launcher launches nothing but refuses to bring up
-// dependents against a dead dependency.
-func verifyExternal(u *ui, role string, rp rolePlan) bool {
-	addr := fmt.Sprintf("%s:%d", rp.Address, rp.Port)
-	conn, err := netDialTimeout(addr)
-	if err != nil {
-		u.fail("%s is externally provided at %s but unreachable: %v", role, addr, err)
-		return false
-	}
-	conn.Close()
-	u.ok("%s — externally provided at %s %s", role, addr, u.dim("(reachable)"))
-	return true
-}
-
+// runStart: the live full start — flowFullStart with liveExec, plus the
+// live-only bookends (timing stamp, summary table).
 func runStart(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
 	t0 := time.Now()
-	// Resolve the host address for container networking. Every inter-service
-	// hop dials the HOST (hub-and-spoke over published ports), so this must be
-	// an address that reaches the host FROM INSIDE a container — and that is
-	// runtime-specific:
-	//   - Apple container: one VM per container; the default gateway on the
-	//     shared bridge IS the Mac host. The gateway probe is correct.
-	//   - Docker Desktop (mac/win): the bridge gateway is internal to Docker's
-	//     Linux VM and does NOT reach the host (measured: host Ollama on
-	//     0.0.0.0 was unreachable at 172.17.0.1). The injected DNS name
-	//     host.docker.internal does. Docker on Linux injects no such name by
-	//     default — there the bridge gateway DOES reach host-published ports,
-	//     so the gateway probe is the fallback.
-	//   - podman: same pattern with host.containers.internal.
-	// Probe, don't assume.
-	addr := resolveHostAddr(rt)
-	if addr == "" {
-		u.fail("Could not determine host address for container networking.")
-		fmt.Fprintln(os.Stderr, "  Neither the runtime's host alias nor the default-gateway probe returned a result.")
-		return 1
-	}
-	u.log("Host address: %s", u.dim(addr))
-
-	// Preflight: stop prior Semiont containers, verify required ports are
-	// free — up front so a conflict surfaces before any image work.
-	//
-	// `stop` only halts a running container; under Apple Container the stopped
-	// instance persists and the next `run --name <c>` fails with "already
-	// exists". `rm` after `stop` (both best-effort) makes the loop idempotent
-	// across all three states: not present, running, or stopped-but-not-removed.
-	u.banner("Preflight")
-	u.log("Removing prior containers %s", u.dim(fmt.Sprintf("(stop+rm, %d names; exact commands: semiont start --dry-run)", len(preflightNames))))
-	removed := 0
-	for _, c := range preflightNames {
-		stopped := runSilent(rt, "stop", c) == nil
-		rmed := runSilent(rt, "rm", c) == nil
-		if stopped || rmed {
-			removed++
-		}
-	}
-	if removed == 0 {
-		u.ok("No prior containers")
-	} else {
-		u.ok("Removed %d prior container(s)", removed)
-	}
-	// Staged config copies from previous runs (semiont stop also removes
-	// these). Safe to delete only here, after the old stack's containers
-	// (which mounted them) are stopped — this run's own staging is created
-	// below, after this sweep. The recorded stack state describes the stack
-	// the sweep just destroyed — forget it; this run re-records as it goes.
-	removeStagedConfigs()
-	removeState()
-	time.Sleep(time.Second)
-
-	for _, pc := range planPortChecks(plan, opts.observe) {
-		if !requirePortFree(u, pc.port, pc.label, opts.forceKillPorts) {
-			return 1
-		}
-	}
-	u.ok("Required ports are free")
-
-	// Stage per-service config copies — each service gets its OWN copy to
-	// mount; do not "simplify" this back to one shared file. Under Apple
-	// Container (one VM per container, each with its own virtiofs share),
-	// mounting the same host file into a second VM transiently breaks existing
-	// mounts of that file in other VMs (measured: a 50ms-interval read loop
-	// showed ~100ms of read failures exactly when another container mounted
-	// the same file). The backend is the victim: its CMD re-reads
-	// ~/.semiontconfig across several CLI invocations while the sidecars
-	// launch and mount theirs, and the CLI treats an unreadable config as
-	// "not configured" — a shared file intermittently killed a healthy backend
-	// mid-chain. Private copies mean no host file is ever mounted twice.
-	//
-	// docker/podman don't need this, but the copies are harmless there, so one
-	// code path serves all runtimes. The staging dir deliberately outlives
-	// this process — the running containers mount these copies; semiont stop
-	// (and the next run's preflight sweep) removes it.
-	//
-	// The staging dir MUST be under /tmp, not $TMPDIR: Apple Container cannot
-	// sustain mounts from /var/folders (macOS's per-user private temp) — the
-	// first read succeeds, then every subsequent read fails (measured: 1 ok /
-	// 29 fail over 30s, vs 30/30 ok from /tmp).
-	stage, err := os.MkdirTemp("/tmp", "semiont-config.")
-	if err != nil {
-		u.fail("Cannot create config staging dir: %v", err)
-		return 1
-	}
-	cfg, err := os.ReadFile(configFile)
-	if err != nil {
-		u.fail("Reading %s: %v", configFile, err)
-		return 1
-	}
-	for _, svc := range []string{"backend", "worker", "smelter", "weaver"} {
-		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), cfg, 0o644); err != nil {
-			u.fail("Staging config for %s: %v", svc, err)
-			return 1
-		}
-	}
-
-	// The belief record: what this run starts, identified by what the runtime
-	// reports. Saved after every service so a failed start still leaves an
-	// accurate partial record for stop/status to work from.
-	st := &stackState{
-		Runtime: rt, KBRoot: root, KBDid: loadKBIdentity(root).didWeb(),
-		Config: opts.configName, Version: version,
-		HostAddr: addr, Stage: stage, Services: map[string]serviceState{},
-	}
-
-	// Pull explicitly, up front, so a bad version/registry fails before any
-	// dep containers start — a `run` alone reuses a cached :latest forever.
-	u.banner("Pulling Images")
-	if version == "local" {
-		u.log("Using locally-built %s images (skipping pull)", u.bold(":local"))
-	} else {
-		for _, svc := range semiontServices {
-			args := pullArgs(rt, image(svc, version))
-			u.echoCmd(rt, args...)
-			if err := runVisible(rt, args...); err != nil {
-				u.fail("Pull failed: %s", image(svc, version))
-				return 1
-			}
-		}
-		u.ok("Images pulled")
-	}
-
-	// Jaeger — on by default (skip with --no-observe): the Semiont processes
-	// push OTLP traces + metrics to it over one endpoint env var.
-	var otel []string
-	if opts.observe {
-		u.banner("Traces (Jaeger)")
-		args := tracesArgs()
-		id, d, ok := runGated(u, rt, args, "traces (Jaeger)", "traces (Jaeger)", "http://localhost:16686", 30)
-		if !ok {
-			return 1
-		}
-		u.ok("traces — Jaeger UI on http://localhost:16686 (OTLP collector: %s:4318) %s", addr, u.dim("("+took(d)+")"))
-		st.recordService("traces", id, args[len(args)-1], providedLauncher, "http://localhost:16686", "jaeger")
-		otel = otelArgs(addr)
-	}
-
-	graphRP := plan.Roles["graph"]
-	u.banner("Graph (" + driverDisplay("graph", graphRP.Driver) + ")")
-	switch graphRP.Obligation {
-	case obligationProvided:
-		args := providedRunArgs("graph", graphRP)
-		auxPort := plan.AuxPorts("graph")[0].port
-		id, d, ok := runGated(u, rt, args, "graph ("+driverDisplay("graph", graphRP.Driver)+")", "graph ("+driverDisplay("graph", graphRP.Driver)+")",
-			fmt.Sprintf("http://localhost:%d", auxPort), 30)
-		if !ok {
-			return 1
-		}
-		u.ok("graph — bolt://localhost:%d (browser: http://localhost:%d) %s",
-			graphRP.Port, auxPort, u.dim("("+took(d)+")"))
-		st.recordService("graph", id, graphRP.Image, providedLauncher, fmt.Sprintf("http://localhost:%d", auxPort), graphRP.Driver)
-	case obligationAbsent:
-		u.log("graph — not configured; skipping")
-		st.recordService("graph", "", "", providedNone, "", "")
-	default:
-		if !verifyExternal(u, "graph", graphRP) {
-			return 1
-		}
-		st.recordService("graph", "", "", providedExternal, fmt.Sprintf("tcp:%s:%d", graphRP.Address, graphRP.Port), graphRP.Driver)
-	}
-
-	vecRP := plan.Roles["vectors"]
-	u.banner("Vectors (" + driverDisplay("vectors", vecRP.Driver) + ")")
-	switch vecRP.Obligation {
-	case obligationProvided:
-		args := providedRunArgs("vectors", vecRP)
-		id, d, ok := runGated(u, rt, args, "vectors ("+driverDisplay("vectors", vecRP.Driver)+")", "vectors ("+driverDisplay("vectors", vecRP.Driver)+")",
-			fmt.Sprintf("http://localhost:%d/readyz", vecRP.Port), 15)
-		if !ok {
-			return 1
-		}
-		u.ok("vectors — http://localhost:%d %s", vecRP.Port, u.dim("("+took(d)+")"))
-		st.recordService("vectors", id, vecRP.Image, providedLauncher, fmt.Sprintf("http://localhost:%d/readyz", vecRP.Port), vecRP.Driver)
-	case obligationAbsent:
-		u.log("vectors — not configured; skipping")
-		st.recordService("vectors", "", "", providedNone, "", "")
-	default:
-		if !verifyExternal(u, "vectors", vecRP) {
-			return 1
-		}
-		st.recordService("vectors", "", "", providedExternal, fmt.Sprintf("http://%s:%d/readyz", vecRP.Address, vecRP.Port), vecRP.Driver)
-	}
-
-	infRP := plan.Roles["inference"]
-	switch infRP.Obligation {
-	case obligationHostProcess:
-		infID, hostReuse, code := startInference(u, rt, addr, opts, infRP)
-		if code != 0 {
-			return code
-		}
-		infImage := ""
-		infProvided := providedHost
-		if !hostReuse {
-			infImage = infRP.Image
-			infProvided = providedLauncher
-		}
-		st.recordService("inference", infID, infImage, infProvided, fmt.Sprintf("http://localhost:%d/api/version", infRP.Port), infRP.Driver)
-	case obligationExternal:
-		u.banner("Inference (" + driverDisplay("inference", infRP.Driver) + ")")
-		if !verifyExternal(u, "inference", infRP) {
-			return 1
-		}
-		st.recordService("inference", "", "", providedExternal, fmt.Sprintf("http://%s:%d/api/version", infRP.Address, infRP.Port), infRP.Driver)
-	case obligationAbsent:
-		u.banner("Inference")
-		u.log("inference — not referenced by the config; skipping")
-		st.recordService("inference", "", "", providedNone, "", "")
-	}
-
-	dbRP := plan.Roles["database"]
-	u.banner("Database (" + driverDisplay("database", dbRP.Driver) + ")")
-	switch dbRP.Obligation {
-	case obligationProvided:
-		args := providedRunArgs("database", dbRP)
-		u.echoCmd(rt, args...)
-		var id string
-		id, err = runDetached(rt, args...)
-		if err != nil {
-			u.fail("database (%s) failed to start.", driverDisplay("database", dbRP.Driver))
-			return 1
-		}
-		d, ok := waitForPG(u, rt, addr, dbRP.Port, 20)
-		if !ok {
-			return 1
-		}
-		u.ok("database — %s on port %d %s", driverDisplay("database", dbRP.Driver), dbRP.Port, u.dim("("+took(d)+")"))
-		st.recordService("database", id, dbRP.Image, providedLauncher, fmt.Sprintf("tcp:localhost:%d", dbRP.Port), dbRP.Driver)
-	case obligationAbsent:
-		u.log("database — not configured; skipping")
-		st.recordService("database", "", "", providedNone, "", "")
-	default:
-		if !verifyExternal(u, "database", dbRP) {
-			return 1
-		}
-		st.recordService("database", "", "", providedExternal, fmt.Sprintf("tcp:%s:%d", dbRP.Address, dbRP.Port), dbRP.Driver)
-	}
-
-	secret := os.Getenv("SEMIONT_WORKER_SECRET")
-	if secret == "" {
-		b := make([]byte, 32)
-		if _, err := rand.Read(b); err != nil {
-			u.fail("Generating worker secret: %v", err)
-			return 1
-		}
-		secret = hex.EncodeToString(b)
-	}
-
-	u.banner("Starting Backend")
-	u.log("http://localhost:%d", plan.BackendPort)
-	u.log("Worker secret: %s", u.dim("(generated)"))
-	var admin []string
-	if opts.adminEmail != "" && opts.adminPassword != "" {
-		admin = []string{"--env", "ADMIN_EMAIL=" + opts.adminEmail, "--env", "ADMIN_PASSWORD=" + opts.adminPassword}
-		u.log("Admin user: %s", u.bold(opts.adminEmail))
-	}
-	backendID, code := runBackend(u, rt, root, stage, addr, secret, version, plan.BackendPort, userEnv, otel, admin)
-	if code != 0 {
+	x := &liveExec{u: u, rt: rt}
+	if code := flowFullStart(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv}); code != 0 {
 		return code
 	}
-	st.recordService("backend", backendID, image("backend", version), providedLauncher, fmt.Sprintf("http://localhost:%d/api/health", plan.BackendPort), "")
-
-	// The weaver note: the graph projection is standalone-only — the backend
-	// no longer applies events to Neo4j in-process. Without the weaver the
-	// graph stays empty and every gather 404s at the buildKnowledgeGraph
-	// barrier. Its health reports readiness before catch-up completes.
-	for _, sc := range sidecarSpecs {
-		u.banner(sc.banner)
-		scID, code := runSidecar(u, rt, sc, stage, addr, secret, version, userEnv, otel)
-		if code != 0 {
-			return code
-		}
-		st.recordService(sc.svc, scID, image(sc.svc, version), providedLauncher, fmt.Sprintf("http://localhost:%d/health", sc.port), "")
-	}
-
-	// Frontend: a static SPA server — no config mount and no service env; the
-	// browser talks to the backend directly on localhost:4000.
-	u.banner("Starting Frontend")
-	feID, feD, feOK := runGated(u, rt, frontendArgs(version), "Frontend", "Frontend", "http://localhost:3000", 30)
-	if !feOK {
-		return 1
-	}
-	u.ok("Frontend on http://localhost:3000 %s", u.dim("("+took(feD)+")"))
-	st.recordService("frontend", feID, image("frontend", version), providedLauncher, "http://localhost:3000", "")
 
 	// Summary; the stack runs detached and this process exits — bring the
-	// stack up, say where everything is, and get out of the way (compose up
-	// -d / supabase start style). Logs and teardown are explicit follow-up
-	// commands, not a resident supervisor. URLs are printed bare because
-	// terminals auto-link plain URLs; OSC 8 support is uneven.
-	//
-	// Restart story, honestly: these containers run --rm with NO restart
-	// policy (docker forbids --rm + --restart, and Apple `container` has no
-	// restart policies) — a crashed service stays down until you rerun
-	// `semiont start`. Services fail FAST by design; a dead container is the
-	// visible, diagnosable signal. The compose path adds `restart: on-failure`;
-	// this launcher deliberately does not pretend to.
+	// stack up, say where everything is, and get out of the way. These
+	// containers run --rm with NO restart policy; a crashed service stays
+	// down until you rerun semiont start (fail-fast is the design; the
+	// compose path adds restart: on-failure).
 	u.stamp("semiont start: containers ready")
 	fmt.Println()
 	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 Semiont stack is up"), u.dim("("+took(time.Since(t0))+")"))
@@ -938,81 +574,41 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	return 0
 }
 
-// startInference reuses a host Ollama when one is serving 11434 and reachable
-// from containers; otherwise starts the semiont-ollama container.
-func startInference(u *ui, rt, addr string, opts startOptions, rp rolePlan) (id string, hostReuse bool, code int) {
-	u.banner("Inference (" + driverDisplay("inference", rp.Driver) + ")")
-	if httpOK(fmt.Sprintf("http://localhost:%d/api/version", rp.Port)) {
-		if runSilent(rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
-			fmt.Sprintf("wget -q -O- http://%s:%d/api/version", addr, rp.Port)) == nil {
-			u.ok("inference — using host Ollama at http://localhost:%d", rp.Port)
-			return "", true, 0
-		}
-		fmt.Println()
-		u.warn("Ollama is running on the host but not reachable from containers.")
-		fmt.Printf("   The backend runs in a container and needs Ollama at %s:%d.\n", addr, rp.Port)
-		fmt.Println()
-		if runSilent("pgrep", "-f", "Ollama.app/Contents") == nil {
-			fmt.Println("   Detected: Ollama Desktop app")
-		} else if runSilent("pgrep", "-f", "ollama serve") == nil {
-			fmt.Println("   Detected: ollama serve daemon")
-		}
-		fmt.Println()
-		fmt.Println("   Fix: configure Ollama to listen on all interfaces:")
-		fmt.Printf("     %s\n", u.bold("launchctl setenv OLLAMA_HOST 0.0.0.0"))
-		fmt.Println("   Then fully quit Ollama Desktop from the menu bar and relaunch it.")
-		fmt.Println()
-		fmt.Println("   (If launchctl doesn't stick, quit Ollama Desktop entirely and run")
-		fmt.Printf("    %s from a terminal.)\n", u.bold("OLLAMA_HOST=0.0.0.0:11434 ollama serve"))
-		fmt.Println()
-		return "", false, 1
+// fullStartSecret: $SEMIONT_WORKER_SECRET or freshly generated.
+func fullStartSecret(u *ui) (string, bool) {
+	if secret := os.Getenv("SEMIONT_WORKER_SECRET"); secret != "" {
+		return secret, true
 	}
-
-	u.log("No host Ollama detected — starting container...")
-	u.echoCmd(rt, "stop", "semiont-ollama")
-	runPassthrough(rt, "stop", "semiont-ollama")
-	time.Sleep(time.Second)
-	if !requirePortFree(u, rp.Port, "Ollama", opts.forceKillPorts) {
-		return "", false, 1
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		u.fail("Generating worker secret: %v", err)
+		return "", false
 	}
+	return hex.EncodeToString(b), true
+}
 
+// chooseOllamaVolume: --ollama-cache override, else the ~/.ollama share
+// prompt (auto-yes in 10s), else the named volume.
+func chooseOllamaVolume(u *ui, opts startOptions) string {
 	home, _ := os.UserHomeDir()
-	volume := ""
 	switch opts.ollamaCache {
 	case "host":
-		volume = filepath.Join(home, ".ollama")
 		u.log("Using host model cache.")
+		return filepath.Join(home, ".ollama")
 	case "volume":
-		volume = "semiont-ollama-models"
 		u.log("Using named volume semiont-ollama-models for model cache.")
-	default:
-		if home != "" {
-			if _, err := os.Stat(filepath.Join(home, ".ollama")); err == nil {
-				if promptShareCache(home) {
-					volume = filepath.Join(home, ".ollama")
-					u.log("Using host model cache.")
-				}
+		return "semiont-ollama-models"
+	}
+	if home != "" {
+		if _, err := os.Stat(filepath.Join(home, ".ollama")); err == nil {
+			if promptShareCache(home) {
+				u.log("Using host model cache.")
+				return filepath.Join(home, ".ollama")
 			}
 		}
-		if volume == "" {
-			volume = "semiont-ollama-models"
-			u.log("Using named volume semiont-ollama-models for model cache.")
-		}
 	}
-
-	args := providedRunArgs("inference", rp, "-m", "24G", "-v", volume+":/root/.ollama")
-	u.echoCmd(rt, args...)
-	id, err := runDetached(rt, args...)
-	if err != nil {
-		u.fail("Ollama container failed to start.")
-		return "", false, 1
-	}
-	d, ok := waitForHTTP(u, "inference (Ollama)", fmt.Sprintf("http://localhost:%d/api/version", rp.Port), 30)
-	if !ok {
-		return "", false, 1
-	}
-	u.ok("inference — Ollama container on http://localhost:%d (24 GB memory) %s", rp.Port, u.dim("("+took(d)+")"))
-	return id, false, 0
+	u.log("Using named volume semiont-ollama-models for model cache.")
+	return "semiont-ollama-models"
 }
 
 // promptShareCache asks whether to mount ~/.ollama, auto-yes after 10s (and
