@@ -16,11 +16,22 @@ import (
 // by an older launcher). The record is belief, not ground truth: status
 // still verifies every claim against the runtime and the health endpoints.
 
+// Provided values (schema 2): who provides this role.
+const (
+	providedLauncher = "launcher" // a container this launcher started
+	providedHost     = "host"     // a host process (reused, not launched)
+	providedExternal = "external" // config-declared external endpoint
+	providedNone     = "none"     // not referenced by the config
+)
+
 type serviceState struct {
-	Container string    `json:"container"`           // container name
+	Container string    `json:"container,omitempty"` // container name (launcher-provided only)
 	ID        string    `json:"id,omitempty"`        // identifier the runtime printed at run -d
 	Image     string    `json:"image,omitempty"`     // full image ref
-	HostReuse bool      `json:"hostReuse,omitempty"` // inference served by a host Ollama, no container
+	Provided  string    `json:"provided,omitempty"`  // schema 2: launcher|host|external|none
+	Driver    string    `json:"driver,omitempty"`    // config `type` (infra roles)
+	Endpoint  string    `json:"endpoint,omitempty"`  // health probe: http(s) URL or tcp:<host>:<port>
+	HostReuse bool      `json:"hostReuse,omitempty"` // schema 1 (read-compat only; no longer written)
 	StartedAt time.Time `json:"startedAt"`
 }
 
@@ -30,6 +41,7 @@ type stackState struct {
 	Launcher  string                  `json:"launcherVersion"`
 	Runtime   string                  `json:"runtime"`
 	KBRoot    string                  `json:"kbRoot,omitempty"`
+	KBDid     string                  `json:"kbDid,omitempty"` // did:web from .semiont/config
 	Config    string                  `json:"config,omitempty"`
 	Version   string                  `json:"imageVersion,omitempty"`
 	HostAddr  string                  `json:"hostAddr,omitempty"`
@@ -81,6 +93,18 @@ func loadState() *stackState {
 	if json.Unmarshal(b, &st) != nil || st.Services == nil {
 		return nil
 	}
+	// Schema 1 read-compat: hostReuse was the only non-launcher marker.
+	if st.Schema < 2 {
+		for role, e := range st.Services {
+			if e.Provided == "" {
+				e.Provided = providedLauncher
+				if e.HostReuse {
+					e.Provided = providedHost
+				}
+				st.Services[role] = e
+			}
+		}
+	}
 	return &st
 }
 
@@ -93,9 +117,7 @@ func saveState(st *stackState) {
 	}
 	st.UpdatedAt = time.Now().UTC()
 	st.Launcher = BuildVersion
-	if st.Schema == 0 {
-		st.Schema = 1
-	}
+	st.Schema = 2
 	b, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
 		return
@@ -117,14 +139,20 @@ func removeState() {
 	}
 }
 
-// recordService updates one service's entry and saves.
-func (st *stackState) recordService(role, id, image string, hostReuse bool) {
-	st.Services[role] = serviceState{
-		Container: roles[role].container,
+// recordService updates one service's entry and saves. provided says who
+// provides the role; endpoint is the health probe status should use.
+func (st *stackState) recordService(role, id, image, provided, endpoint, driver string) {
+	e := serviceState{
 		ID:        id,
 		Image:     image,
-		HostReuse: hostReuse,
+		Provided:  provided,
+		Endpoint:  endpoint,
+		Driver:    driver,
 		StartedAt: time.Now().UTC(),
 	}
+	if provided == providedLauncher {
+		e.Container = roles[role].container
+	}
+	st.Services[role] = e
 	saveState(st)
 }

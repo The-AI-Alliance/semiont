@@ -29,14 +29,14 @@ Exit status: 0 when every core service is healthy (Jaeger is observability,
 not core), 1 otherwise.
 
 With --service <name>, report just that one service (backend, worker,
-smelter, weaver, frontend, db, graph, vectors, inference, or traces) — the
+smelter, weaver, frontend, database, graph, vectors, inference, or traces) — the
 exit status then reflects that service alone (traces included), making it
 scriptable:
   semiont status --service backend && echo up
 `
 
 // statusServices drives the report, in user-facing-first order with each
-// service beside its primary store (backend→db, worker→inference,
+// service beside its primary store (backend→database, worker→inference,
 // weaver→graph, smelter→vectors), observability last. Deliberately unrelated
 // to start/stop ordering (which is dependency order). Names are the abstract
 // roles; the roles table maps them to containers. Health probes are
@@ -48,7 +48,7 @@ var statusServices = []struct {
 }{
 	{"frontend", "http://localhost:3000", true},
 	{"backend", "http://localhost:4000/api/health", true},
-	{"db", "tcp:5432", true},
+	{"database", "tcp:5432", true},
 	{"worker", "http://localhost:9090/health", true},
 	{"inference", "http://localhost:11434/api/version", true},
 	{"weaver", "http://localhost:9092/health", true},
@@ -111,7 +111,11 @@ func Status(args []string) int {
 		}
 	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
 		runtimes = []string{st.Runtime}
-		u.log("Using recorded stack state %s", u.dim("("+st.Runtime+" per "+statePath()+")"))
+		note := st.Runtime
+		if st.Version != "" {
+			note += "; images " + st.Version
+		}
+		u.log("Using recorded stack state %s", u.dim("("+note+"; "+statePath()+")"))
 	} else {
 		st = nil
 		runtimes = installedRuntimes()
@@ -121,26 +125,62 @@ func Status(args []string) int {
 		return 1
 	}
 
-	fmt.Printf("  %-10s %-10s %-10s %s\n", "SERVICE", "CONTAINER", "RUNTIME", "HEALTH")
+	fmt.Printf("  %-10s %-12s %-10s %-10s %s\n", "SERVICE", "TECH", "CONTAINER", "RUNTIME", "HEALTH")
 	allCoreHealthy := true
 	for _, svc := range statusServices {
 		if service != "" && svc.name != service {
 			continue
 		}
-		// Query by the recorded identifier when we have one; the container
-		// name is the fallback handle.
+		// The record supplies the identifier, the endpoint, and who provides
+		// the role; the runtime and the probe stay the ground truth.
 		handle := roles[svc.name].container
+		endpoint := svc.endpoint
+		var rec *serviceState
 		if st != nil {
-			if e, ok := st.Services[svc.name]; ok && e.ID != "" {
-				handle = e.ID
+			if e, ok := st.Services[svc.name]; ok {
+				rec = &e
+				if e.ID != "" {
+					handle = e.ID
+				}
+				if e.Endpoint != "" {
+					endpoint = e.Endpoint
+				}
 			}
 		}
-		state, rt := containerState(runtimes, handle)
-		healthy := probeHealth(svc.endpoint)
 
-		// Host Ollama reuse: no container, but the endpoint answers — that is
-		// a healthy configuration, not a gap.
-		if svc.name == "inference" && state == "" && healthy {
+		// Not referenced by the config: no probe, no exit-status impact.
+		if rec != nil && rec.Provided == providedNone {
+			fmt.Printf("  %-10s %-12s %-10s %-10s %s\n", svc.name, "—", "—", "—", u.dim("not configured"))
+			continue
+		}
+
+		// TECH: the concrete product behind an infra role — the recorded
+		// driver (survives config changes since start), falling back to the
+		// static product for records that predate the driver field. Semiont
+		// services stay blank: the role name already says what they are, and
+		// their image version is stack-level (shown once in the header line).
+		tech := roles[svc.name].product
+		if rec != nil && rec.Driver != "" {
+			tech = driverDisplay(svc.name, rec.Driver)
+		}
+		if tech == "" {
+			tech = "—"
+		}
+
+		state, rt := "", ""
+		switch {
+		case rec != nil && rec.Provided == providedExternal:
+			rt = "external"
+		case rec != nil && rec.Provided == providedHost:
+			rt = "host"
+		default:
+			state, rt = containerState(runtimes, handle)
+		}
+		healthy := probeHealth(endpoint)
+
+		// Host Ollama reuse heuristic for record-less stacks: no container,
+		// but the endpoint answers — a healthy configuration, not a gap.
+		if svc.name == "inference" && rec == nil && state == "" && healthy {
 			rt = "host"
 		}
 
@@ -162,16 +202,20 @@ func Status(args []string) int {
 		if rt == "" {
 			rt = u.dim("—")
 		}
-		label := svc.endpoint
-		if port, ok := strings.CutPrefix(label, "tcp:"); ok {
-			label = "tcp://localhost:" + port
+		label := endpoint
+		if rest, ok := strings.CutPrefix(label, "tcp:"); ok {
+			if strings.Contains(rest, ":") {
+				label = "tcp://" + rest
+			} else {
+				label = "tcp://localhost:" + rest
+			}
 		}
 		healthCol := u.wrap(ansiRed, "✗") + " " + u.dim(label)
 		if healthy {
 			healthCol = u.wrap(ansiGreen, "✓") + " " + u.dim(label)
 		}
-		fmt.Printf("  %-10s %-*s %-*s %s\n",
-			svc.name, 10+utf8.RuneCountInString(stateCol)-visibleLen(stateCol), stateCol,
+		fmt.Printf("  %-10s %-12s %-*s %-*s %s\n",
+			svc.name, tech, 10+utf8.RuneCountInString(stateCol)-visibleLen(stateCol), stateCol,
 			10+utf8.RuneCountInString(rt)-visibleLen(rt), rt, healthCol)
 	}
 	if service == "" {
@@ -228,8 +272,26 @@ func printRoots(u *ui, st *stackState) {
 		fmt.Printf("  %s\n", u.dim("(none — cd into a KB clone, set SEMIONT_ROOT, or start with --root)"))
 		return
 	}
+	// Identity per root: the registry's stored did/siteName (survives the
+	// path vanishing), refreshed by a live read when the root is present.
+	reg := loadRoots()
 	for _, p := range order {
 		fmt.Printf("  %s %s\n", p, u.dim("("+strings.Join(labels[p], "; ")+")"))
+		did, site := "", ""
+		for _, e := range reg.Roots {
+			if e.Path == p {
+				did, site = e.Did, e.SiteName
+			}
+		}
+		if ident := loadKBIdentity(p); ident != nil {
+			did, site = ident.didWeb(), ident.SiteName
+		}
+		switch {
+		case did != "" && site != "":
+			fmt.Printf("    %s %s\n", u.dim(did), u.dim("— "+site))
+		case did != "":
+			fmt.Printf("    %s\n", u.dim(did))
+		}
 	}
 }
 
@@ -330,8 +392,12 @@ func containerState(runtimes []string, name string) (state, rt string) {
 // probeHealth runs one host-side application probe: 2xx for http endpoints,
 // an accepted dial for tcp ones.
 func probeHealth(endpoint string) bool {
-	if port, ok := strings.CutPrefix(endpoint, "tcp:"); ok {
-		conn, err := net.DialTimeout("tcp", "localhost:"+port, time.Second)
+	if rest, ok := strings.CutPrefix(endpoint, "tcp:"); ok {
+		addr := rest
+		if !strings.Contains(rest, ":") {
+			addr = "localhost:" + rest
+		}
+		conn, err := net.DialTimeout("tcp", addr, time.Second)
 		if err != nil {
 			return false
 		}

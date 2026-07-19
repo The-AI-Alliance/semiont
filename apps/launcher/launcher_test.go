@@ -97,6 +97,14 @@ func mkKB(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
+	// The KB's committed identity card (.semiont/config).
+	b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".semiont", "config"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	return root
 }
 
@@ -248,6 +256,7 @@ func TestStartDefaultBoot(t *testing.T) {
 	}
 	checkGolden(t, "start-default-boot.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
+		"KB: Test Knowledge Base did:web:example.github.io:test-kb",
 		"No prior containers",
 		"🚀 Semiont stack is up",
 		"http://localhost:3000",
@@ -578,7 +587,8 @@ func TestStatusMixed(t *testing.T) {
 		t.Fatalf("want exit 1 with unhealthy core services, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout,
-		"SERVICE", "CONTAINER", "RUNTIME", "HEALTH",
+		"SERVICE", "TECH", "CONTAINER", "RUNTIME", "HEALTH",
+		"PostgreSQL", "Neo4j", "Qdrant", "Ollama", "Jaeger",
 		"SEMIONT ROOTS",
 		"(discovered from cwd)",
 		"LOCAL HOST DIRECTORIES",
@@ -665,6 +675,139 @@ func TestInvocationLog(t *testing.T) {
 	)
 	if strings.Contains(log, "supersecretpw") {
 		t.Error("password leaked into the invocation log")
+	}
+}
+
+// --- config-driven boots (LAUNCHER-CONFIG-SYNC P2) ---
+
+// writeKBConfig drops a variant semiontconfig into the scenario's KB.
+func writeKBConfig(t *testing.T, s *scenario, name, body string) {
+	t.Helper()
+	head := "[defaults]\nenvironment = \"local\"\n\n[environments.local.backend]\nplatform = \"posix\"\nport = 4000\n\n"
+	p := filepath.Join(s.kb, ".semiont", "semiontconfig", name+".toml")
+	if err := os.WriteFile(p, []byte(head+body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+const stdVectors = "[environments.local.vectors]\ntype = \"qdrant\"\nhost = \"${QDRANT_HOST}\"\nport = 6333\n\n"
+const stdEmbedding = "[environments.local.embedding]\ntype = \"ollama\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"
+const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\npassword = \"localpass\"\n\n"
+const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\npassword = \"localpass\"\n\n"
+
+func TestStartExternalGraphBoot(t *testing.T) {
+	// graph at a literal address: verify reachability, launch no container,
+	// claim no graph ports.
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "external-graph",
+		"[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://127.0.0.1:7777\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
+			stdVectors+stdEmbedding+stdDatabase)
+	serveHealth(t, 7777)
+	stdout, stderr, code := s.run(t, "start", "--config", "external-graph")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"graph — externally provided at 127.0.0.1:7777 (reachable)",
+		"🚀 Semiont stack is up")
+	argv := s.argv(t)
+	for _, absent := range []string{"run -d --rm --name semiont-neo4j", "NEO4J_AUTH", "lsof -ti :7474"} {
+		if strings.Contains(argv, absent) {
+			t.Errorf("external graph still touched %q in argv", absent)
+		}
+	}
+
+	// The record knows graph is external; status shows it and probes the real
+	// endpoint; stop leaves it alone.
+	b, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, "stack.json", string(b), `"provided": "external"`, "tcp:127.0.0.1:7777")
+
+	stdout, _, code = s.run(t, "status")
+	if code != 0 {
+		t.Errorf("status: exit %d\n%s", code, stdout)
+	}
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.Contains(line, "graph") && strings.Contains(line, "tcp://") {
+			mustContain(t, "graph status row", line, "Neo4j", "external", "✓", "tcp://127.0.0.1:7777")
+		}
+	}
+
+	preStop := s.argv(t)
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	stopArgv := strings.TrimPrefix(s.argv(t), preStop)
+	if strings.Contains(stopArgv, "semiont-neo4j") {
+		t.Errorf("stop touched the external graph:\n%s", stopArgv)
+	}
+	mustContain(t, "stop argv", stopArgv, "stop fid-semiont-backend")
+}
+
+func TestStartMovedDBPortBoot(t *testing.T) {
+	// database.port moves the HOST side of the publish; container side stays
+	// the driver default, and every check/gate follows the config.
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "moved-db",
+		stdGraph+stdVectors+stdEmbedding+
+			"[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5433\nname = \"semiont\"\nuser = \"postgres\"\npassword = \"localpass\"\n\n")
+	stdout, stderr, code := s.run(t, "start", "--config", "moved-db")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "database — PostgreSQL on port 5433")
+	mustContain(t, "argv", s.argv(t), "-p 5433:5432", "nc -z -w 2 192.168.64.1 5433")
+}
+
+func TestStartNoInferenceBoot(t *testing.T) {
+	// A config that references no ollama anywhere: the launcher launches no
+	// inference at all — derived fact, not folklore.
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "no-ollama",
+		stdGraph+stdVectors+stdDatabase+
+			"[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"https://api.anthropic.com\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n"+
+			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+	stdout, stderr, code := s.run(t, "start", "--config", "no-ollama")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "inference — not referenced by the config; skipping")
+	if argv := s.argv(t); strings.Contains(argv, "ollama") {
+		t.Errorf("no-ollama config still touched ollama:\n%s", argv)
+	}
+
+	// status: inference reads "not configured", exits healthy without it;
+	// stop never touches an ollama container.
+	stdout, _, code = s.run(t, "status")
+	if code != 0 {
+		t.Errorf("status: exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "status stdout", stdout, "not configured")
+	preStop := s.argv(t)
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	if stopArgv := strings.TrimPrefix(s.argv(t), preStop); strings.Contains(stopArgv, "ollama") {
+		t.Errorf("stop touched ollama:\n%s", stopArgv)
+	}
+}
+
+func TestStartServiceExternalIsNoop(t *testing.T) {
+	// P0 q5: --service on an externally-provided role warns and exits 0.
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "external-graph",
+		"[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://graph.example.com:7687\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
+			stdVectors+stdEmbedding+stdDatabase)
+	stdout, stderr, code := s.run(t, "start", "--service", "graph", "--config", "external-graph")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout+stderr", stdout+stderr, "graph is externally provided per", "graph.example.com:7687", "nothing to launch")
+	if argv := s.argv(t); strings.Contains(argv, "semiont-neo4j") {
+		t.Errorf("no-op still touched the container:\n%s", argv)
 	}
 }
 
@@ -763,6 +906,9 @@ func TestRootsRegistryAndRootFlag(t *testing.T) {
 	if len(reg.Roots) != 1 || reg.Roots[0].Path != s.kb {
 		t.Fatalf("registry contents: %s", b)
 	}
+	mustContain(t, "roots.json", string(b),
+		`"did": "did:web:example.github.io:test-kb"`,
+		`"siteName": "Test Knowledge Base"`)
 	if reg.Roots[0].LastStarted != "" {
 		t.Error("--service start must not stamp lastStarted (full start only)")
 	}
@@ -790,9 +936,10 @@ func TestRootsRegistryAndRootFlag(t *testing.T) {
 		t.Errorf("dry-run mutated the registry:\n%s", after)
 	}
 
-	// status shows the registered root.
+	// status shows the registered root, with its did:web identity line.
 	stdout, _, _ = s.run(t, "status")
-	mustContain(t, "status stdout", stdout, "SEMIONT ROOTS", s.kb, "last used ")
+	mustContain(t, "status stdout", stdout, "SEMIONT ROOTS", s.kb, "last used ",
+		"did:web:example.github.io:test-kb — Test Knowledge Base")
 }
 
 func TestRootFlagErrors(t *testing.T) {
@@ -813,7 +960,7 @@ func TestRootFlagErrors(t *testing.T) {
 	if code != 1 {
 		t.Errorf("--root with frontend: want exit 1, got %d", code)
 	}
-	mustContain(t, "stderr", stderr, "--root only applies to")
+	mustContain(t, "stderr", stderr, "--root only applies to services that read the KB config")
 }
 
 // --- stack state record ---
@@ -848,15 +995,17 @@ func TestStackStateLifecycle(t *testing.T) {
 			Container string `json:"container"`
 			ID        string `json:"id"`
 			Image     string `json:"image"`
+			Provided  string `json:"provided"`
+			Endpoint  string `json:"endpoint"`
 		} `json:"services"`
 	}
 	if err := json.Unmarshal(b, &st); err != nil {
 		t.Fatalf("stack.json not valid JSON: %v\n%s", err, b)
 	}
-	if st.Schema != 1 || st.Runtime != "container" {
+	if st.Schema != 2 || st.Runtime != "container" {
 		t.Errorf("schema/runtime: got %d/%q", st.Schema, st.Runtime)
 	}
-	for _, role := range []string{"traces", "graph", "vectors", "inference", "db", "backend", "worker", "smelter", "weaver", "frontend"} {
+	for _, role := range []string{"traces", "graph", "vectors", "inference", "database", "backend", "worker", "smelter", "weaver", "frontend"} {
 		e, ok := st.Services[role]
 		if !ok {
 			t.Errorf("service %q missing from record", role)
@@ -868,12 +1017,20 @@ func TestStackStateLifecycle(t *testing.T) {
 		if e.Image == "" {
 			t.Errorf("%s: image not recorded", role)
 		}
+		if e.Provided != "launcher" {
+			t.Errorf("%s: provided = %q, want launcher", role, e.Provided)
+		}
+		if e.Endpoint == "" {
+			t.Errorf("%s: endpoint not recorded", role)
+		}
 	}
 
 	preStatus := s.argv(t)
-	if _, _, code := s.run(t, "status"); code != 0 {
+	statusOut, _, code := s.run(t, "status")
+	if code != 0 {
 		t.Errorf("status on healthy stack: exit %d", code)
 	}
+	mustContain(t, "status header", statusOut, "images latest")
 	statusArgv := strings.TrimPrefix(s.argv(t), preStatus)
 	mustContain(t, "status argv", statusArgv, "container inspect fid-semiont-backend")
 	for _, bad := range []string{"docker inspect", "podman inspect"} {
@@ -918,6 +1075,34 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	if _, err := os.Stat(statePathFor(s.home)); !os.IsNotExist(err) {
 		t.Error("stack.json survived a full stop")
+	}
+}
+
+func TestStopSchema1Compat(t *testing.T) {
+	// A schema-1 stack.json (hostReuse flag, no provided field) still steers
+	// stop: host-reused inference is skipped, launcher containers stop by ID.
+	s := newScenario(t, "container", "docker")
+	v1 := `{"schema":1,"runtime":"container","services":{
+	  "backend":{"container":"semiont-backend","id":"fid-semiont-backend","startedAt":"2026-07-18T00:00:00Z"},
+	  "inference":{"container":"semiont-ollama","hostReuse":true,"startedAt":"2026-07-18T00:00:00Z"}}}`
+	p := statePathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(v1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, code := s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop: exit %d\n%s", code, stdout)
+	}
+	argv := s.argv(t)
+	mustContain(t, "argv", argv, "container stop fid-semiont-backend")
+	if strings.Contains(argv, "ollama") {
+		t.Errorf("schema-1 hostReuse not honored:\n%s", argv)
+	}
+	if strings.Contains(argv, "docker stop") {
+		t.Errorf("recorded runtime not honored:\n%s", argv)
 	}
 }
 
@@ -1035,7 +1220,7 @@ func TestStartServiceRejections(t *testing.T) {
 	}{
 		{[]string{"start", "--service", "bogus"}, "Unknown --service 'bogus'"},
 		{[]string{"start", "--service", "worker", "--email", "a@b.co", "--password", "password123"}, "--email/--password only apply to --service backend."},
-		{[]string{"start", "--service", "graph", "--config", "anthropic"}, "--config only applies to --service backend, worker, smelter, or weaver."},
+		{[]string{"start", "--service", "frontend", "--config", "anthropic"}, "--config does not apply to --service frontend"},
 		{[]string{"start", "--service", "worker", "--no-observe"}, "--no-observe does not apply to --service"},
 		{[]string{"start", "--service", "worker", "--ollama-cache", "host"}, "--ollama-cache only applies to --service inference."},
 		{[]string{"start", "--service", "worker", "--list-configs"}, "--list-configs cannot be combined with --service."},

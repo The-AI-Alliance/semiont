@@ -18,7 +18,7 @@ With no --runtime, EVERY installed runtime is swept — stopping via the wrong
 runtime is a silent no-op that leaves the real stack running.
 
 With --service <name>, stop just that one service (backend, worker, smelter,
-weaver, frontend, db, graph, vectors, inference, or traces). The staged
+weaver, frontend, database, graph, vectors, inference, or traces). The staged
 config copies are left in place — the rest of the stack is still mounting
 them.
 `
@@ -121,7 +121,10 @@ func Stop(args []string) int {
 		for _, c := range names {
 			role := roleByContainer[c]
 			if e, ok := st.Services[role]; ok {
-				if e.HostReuse {
+				// Only containers this launcher started are ours to stop:
+				// host processes, external endpoints, and unreferenced roles
+				// have nothing to sweep.
+				if e.Provided != "" && e.Provided != providedLauncher {
 					continue
 				}
 				if e.ID != "" {

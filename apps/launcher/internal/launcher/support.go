@@ -209,6 +209,11 @@ func selectRuntime(u *ui, requested string) (string, bool) {
 
 var healthClient = &http.Client{Timeout: 2 * time.Second}
 
+// netDialTimeout: one TCP reachability check (external-role verification).
+func netDialTimeout(addr string) (net.Conn, error) {
+	return net.DialTimeout("tcp", addr, 3*time.Second)
+}
+
 func httpOK(url string) bool {
 	resp, err := healthClient.Get(url)
 	if err != nil {
