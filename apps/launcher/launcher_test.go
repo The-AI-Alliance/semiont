@@ -397,15 +397,15 @@ func TestStartUnknownArg(t *testing.T) {
 }
 
 func TestStartCredentialValidation(t *testing.T) {
+	// Admin seeding moved to `semiont useradd` (the exec bridge); start no
+	// longer knows these flags at all.
 	s := newScenario(t, "container")
 	for _, tc := range []struct {
 		args []string
 		want string
 	}{
-		{[]string{"start", "--email", "a@b.co"}, "--email and --password must be provided together."},
-		{[]string{"start", "--password", "longenough"}, "--email and --password must be provided together."},
-		{[]string{"start", "--email", "not-an-email", "--password", "longenough"}, "Invalid --email"},
-		{[]string{"start", "--email", "a@b.co", "--password", "short"}, "--password must be at least 8 characters."},
+		{[]string{"start", "--email", "a@b.co"}, "Unknown argument: --email"},
+		{[]string{"start", "--password", "longenough"}, "Unknown argument: --password"},
 	} {
 		_, stderr, code := s.run(t, tc.args...)
 		if code != 1 {
@@ -662,8 +662,10 @@ func TestInvocationLog(t *testing.T) {
 	if _, _, code := s.run(t, "version"); code != 0 {
 		t.Fatalf("version: exit %d", code)
 	}
-	// A failing run with a password: logged with the value redacted.
-	if _, _, code := s.run(t, "start", "--service", "worker", "--email", "a@b.co", "--password", "supersecretpw"); code != 1 {
+	// A failing run with a password: logged with the value redacted
+	// (useradd with no running backend fails, and is the launcher's one
+	// password-carrying command).
+	if _, _, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "supersecretpw"); code != 1 {
 		t.Fatalf("rejection run: want exit 1, got %d", code)
 	}
 	b, err := os.ReadFile(invLogPath(s.home))
@@ -674,12 +676,72 @@ func TestInvocationLog(t *testing.T) {
 	mustContain(t, "invocation log", log,
 		"invoke semiont version (version dev",
 		"exit 0 semiont version",
-		"invoke semiont start --service worker --email a@b.co --password <redacted>",
-		"exit 1 semiont start --service worker",
+		"invoke semiont useradd --email a@b.co --password <redacted>",
+		"exit 1 semiont useradd",
 	)
 	if strings.Contains(log, "supersecretpw") {
 		t.Error("password leaked into the invocation log")
 	}
+}
+
+// --- useradd ---
+
+func TestUseradd(t *testing.T) {
+	// useradd is a thin exec bridge: launcher finds the stack's runtime and
+	// backend handle, execs the in-container CLI's useradd, and passes every
+	// flag through verbatim.
+	s := newScenario(t, "container", "docker")
+
+	// No running backend anywhere: pointed failure.
+	_, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123")
+	if code != 1 {
+		t.Fatalf("no-backend useradd: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"useradd needs a running backend", "semiont start")
+
+	// Name-scan fallback: the runtime whose listing shows semiont-backend.
+	s.extraEnv = append(s.extraEnv, "FAKERT_STACK_RUNTIME=docker")
+	stdout, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123", "--admin")
+	if code != 0 {
+		t.Fatalf("useradd: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log),
+		"docker exec semiont-backend semiont useradd --email a@b.co --password password123 --admin")
+	// The echoed command redacts the password; the real argv (above) is intact.
+	mustContain(t, "stdout", stdout, "--password <redacted>")
+	if strings.Contains(stdout, "password123") {
+		t.Errorf("password leaked into the echoed command:\n%s", stdout)
+	}
+
+	// Record-driven: recorded runtime + container ID beat the name scan.
+	writeStackState(t, s, "container")
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := s.run(t, "useradd", "--email", "b@c.co", "--generate-password"); code != 0 {
+		t.Fatalf("record-driven useradd: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ = os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log),
+		"container exec fid-semiont-backend semiont useradd --email b@c.co --generate-password")
+
+	// The in-container CLI failing surfaces as a launcher failure.
+	s.extraEnv = append(s.extraEnv, "FAKERT_EXEC_FAIL=1")
+	if _, stderr, code := s.run(t, "useradd", "--email", "c@d.co", "--password", "password123"); code != 1 {
+		t.Fatalf("exec failure: want exit 1, got %d\nstderr:\n%s", code, stderr)
+	}
+
+	// Bare useradd prints usage and fails; --help succeeds.
+	if _, _, code := s.run(t, "useradd"); code != 1 {
+		t.Error("bare useradd should exit 1")
+	}
+	stdout, _, code = s.run(t, "useradd", "--help")
+	if code != 0 {
+		t.Error("useradd --help should exit 0")
+	}
+	mustContain(t, "help", stdout, "--generate-password", "--admin", "--upsert")
 }
 
 // --- config-driven boots (LAUNCHER-CONFIG-SYNC P2) ---
@@ -1651,7 +1713,6 @@ func TestStartServiceRejections(t *testing.T) {
 		want string
 	}{
 		{[]string{"start", "--service", "bogus"}, "Unknown --service 'bogus'"},
-		{[]string{"start", "--service", "worker", "--email", "a@b.co", "--password", "password123"}, "--email/--password only apply to --service backend."},
 		{[]string{"start", "--service", "frontend", "--config", "anthropic"}, "--config does not apply to --service frontend"},
 		{[]string{"start", "--service", "worker", "--no-observe"}, "--no-observe does not apply to --service"},
 		{[]string{"start", "--service", "worker", "--ollama-cache", "host"}, "--ollama-cache only applies to --service inference."},

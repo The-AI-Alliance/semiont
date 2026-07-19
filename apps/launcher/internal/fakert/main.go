@@ -164,6 +164,14 @@ func runtimeCmd(base string, args []string) {
 		name := strings.TrimPrefix(handleName(args[len(args)-1]), "semiont-")
 		fmt.Println(name + " out")
 		fmt.Fprintln(os.Stderr, name+" err")
+	case "exec":
+		// The launcher's useradd bridge: exec <handle> semiont useradd <args…>.
+		// FAKERT_EXEC_FAIL models the in-container CLI failing.
+		if os.Getenv("FAKERT_EXEC_FAIL") != "" {
+			fmt.Fprintln(os.Stderr, "Error: useradd failed")
+			os.Exit(1)
+		}
+		fmt.Println("fakert exec ok")
 	case "inspect":
 		// Scripted via FAKERT_STATE_<svc> (svc = name minus "semiont-"),
 		// e.g. FAKERT_STATE_backend=running. Unset = container not found.

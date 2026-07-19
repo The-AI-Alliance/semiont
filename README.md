@@ -40,10 +40,11 @@ brew install the-ai-alliance/semiont/semiont
 Then `cd` into the KB repo you just cloned — **not this repo** — and run:
 
 ```bash
-semiont start --email admin@example.com --password <choose-a-password>
+semiont start
+semiont useradd --email admin@example.com --password <choose-a-password> --admin
 ```
 
-One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **including the Semiont browser at http://localhost:3000**. The `--email`/`--password` you pass create the admin user you'll sign in with. `semiont logs` follows the stack, `semiont stop` tears it down, and `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
+One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **including the Semiont browser at http://localhost:3000**. `semiont useradd` then creates the admin user you'll sign in with. `semiont logs` follows the stack, `semiont stop` tears it down, and `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
 
 ### 3. Connect
 

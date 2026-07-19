@@ -81,21 +81,27 @@ func (u *ui) stamp(event string) {
 }
 
 // echoEnvAllowlist: the --env values safe to show in echoed commands. Names
-// off this list — the worker secret, ADMIN_PASSWORD, and every user-supplied
-// config var (API keys) — are redacted in the ECHO ONLY; the real argv is
-// untouched. Terminal scrollback and CI logs are not places for credentials.
-// (Infra `-e` values like NEO4J_AUTH=neo4j/localpass stay visible: fixed,
+// off this list — the worker secret and every user-supplied config var (API
+// keys) — are redacted in the ECHO ONLY; the real argv is untouched.
+// Terminal scrollback and CI logs are not places for credentials. (Infra
+// `-e` values like NEO4J_AUTH=neo4j/localpass stay visible: fixed,
 // well-known local-dev values the summary table prints anyway.)
 var echoEnvAllowlist = map[string]bool{
 	"BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
 	"OLLAMA_HOST": true, "POSTGRES_HOST": true,
-	"OTEL_EXPORTER_OTLP_ENDPOINT": true, "ADMIN_EMAIL": true,
+	"OTEL_EXPORTER_OTLP_ENDPOINT": true,
 }
 
+// redactEnvArgs also redacts the value after a bare --password flag — the
+// useradd exec bridge carries one in its echoed argv.
 func redactEnvArgs(args []string) []string {
 	out := make([]string, len(args))
 	copy(out, args)
 	for i := 0; i < len(out)-1; i++ {
+		if out[i] == "--password" {
+			out[i+1] = "<redacted>"
+			continue
+		}
 		if out[i] != "--env" {
 			continue
 		}

@@ -22,7 +22,6 @@ import (
 var injectedVars = map[string]bool{
 	"BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
 	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "SEMIONT_WORKER_SECRET": true,
-	"ADMIN_EMAIL": true, "ADMIN_PASSWORD": true,
 }
 
 var envRefRe = regexp.MustCompile(`\$\{[A-Z_][A-Z0-9_]*\}`)

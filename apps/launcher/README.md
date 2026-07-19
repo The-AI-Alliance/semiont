@@ -22,7 +22,8 @@ no language runtime bleeds onto your host. Besides the launcher you need only
 Run from inside a KB clone:
 
 ```sh
-semiont start --email admin@example.com --password mypassword
+semiont start
+semiont useradd --email admin@example.com --password mypassword --admin
 semiont status
 semiont logs
 semiont stop
@@ -30,6 +31,14 @@ semiont stop
 
 - `semiont start --help` lists all flags (`--config`, `--runtime`,
   `--no-observe`, `--ollama-cache`, …).
+- `semiont useradd` creates or updates users in the RUNNING stack: the
+  launcher execs the in-container Semiont CLI's `useradd` inside the backend
+  container (record-driven runtime + container ID, name-scan fallback) and
+  passes every flag through verbatim (`--admin`, `--generate-password`,
+  `--update`, `--upsert`, …). This replaced `start --email/--password`: the
+  admin password used to ride into the backend container as an env var,
+  readable via `inspect` for the stack's whole lifetime — now it exists only
+  in one exec's argv, redacted in the echoed command and the invocation log.
 - `semiont start --dry-run` prints the exact runtime commands a real run would
   execute — the legibility answer to "what does this binary actually do".
 - `semiont status` reports, per service, the container state as the runtime

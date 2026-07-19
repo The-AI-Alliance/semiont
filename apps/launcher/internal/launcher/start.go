@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -27,14 +26,10 @@ var preflightNames = []string{
 	"semiont-frontend",
 }
 
-var emailRe = regexp.MustCompile(`^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$`)
-
 type startOptions struct {
 	configName     string
 	configSet      bool // --config given explicitly (drives --service compatibility)
 	listConfigs    bool
-	adminEmail     string
-	adminPassword  string
 	cleanOllama    bool
 	runtime        string
 	observe        bool
@@ -66,8 +61,6 @@ Options:
                         frontend, database, graph, vectors, inference, or traces.
                         Rejoins a running stack's worker secret automatically;
                         OTel export is enabled iff traces (Jaeger) is up.
-  --email <email>       Admin user email (requires --password)
-  --password <pass>     Admin user password (requires --email)
   --clean-ollama        Remove the Ollama model cache volume and exit
   --runtime <name>      Container runtime: container, docker, or podman
                         (default: the machine's recorded preference — the
@@ -92,11 +85,14 @@ Environment:
 
 Examples:
   # Fully local with Ollama (default, no API key needed)
-  semiont start --email admin@example.com --password password
+  semiont start
 
   # Anthropic cloud inference
   export ANTHROPIC_API_KEY=<your-key>
-  semiont start --config anthropic --email admin@example.com --password password
+  semiont start --config anthropic
+
+  # First admin user, once the stack is up
+  semiont useradd --email admin@example.com --password <pass> --admin
 
   # See available configs
   semiont start --list-configs
@@ -145,20 +141,6 @@ func Start(args []string) int {
 			i++
 		case "--list-configs":
 			opts.listConfigs = true
-		case "--email":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.adminEmail = v
-			i++
-		case "--password":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.adminPassword = v
-			i++
 		case "--clean-ollama":
 			opts.cleanOllama = true
 		case "--runtime":
@@ -213,9 +195,6 @@ func Start(args []string) int {
 			return 1
 		case opts.noObserveSet:
 			u.fail("--no-observe does not apply to --service: OTel export is enabled iff traces (Jaeger) is already running.")
-			return 1
-		case (opts.adminEmail != "" || opts.adminPassword != "") && opts.service != "backend":
-			u.fail("--email/--password only apply to --service backend.")
 			return 1
 		case opts.ollamaCache != "" && opts.service != "inference":
 			u.fail("--ollama-cache only applies to --service inference.")
@@ -288,21 +267,6 @@ func Start(args []string) int {
 		if rec := recordedConfig(root); rec != "" {
 			opts.configName = rec
 			configFrom = "recorded from last start; override with --config"
-		}
-	}
-
-	if opts.adminEmail != "" || opts.adminPassword != "" {
-		if opts.adminEmail == "" || opts.adminPassword == "" {
-			u.fail("--email and --password must be provided together.")
-			return 1
-		}
-		if !emailRe.MatchString(opts.adminEmail) {
-			u.fail("Invalid --email: '%s'", opts.adminEmail)
-			return 1
-		}
-		if len(opts.adminPassword) < 8 {
-			u.fail("--password must be at least 8 characters.")
-			return 1
 		}
 	}
 
@@ -501,8 +465,10 @@ func tracesArgs() []string {
 
 // backendArgs: the backend takes the four dependency hosts but must NOT
 // receive BACKEND_HOST (publicURL derives from it; see the DID/site.domain
-// history before ever changing this).
-func backendArgs(kbRoot, stage, addr, secret, version string, port int, userEnv, otel, admin []string) []string {
+// history before ever changing this). Admin seeding deliberately does NOT
+// ride in here — `semiont useradd` execs the in-container CLI instead, so
+// no password ever sits in the container's inspectable env.
+func backendArgs(kbRoot, stage, addr, secret, version string, port int, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--rm", "--name", "semiont-backend",
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", "8G",
 		"--volume", kbRoot + ":/kb",
@@ -515,7 +481,6 @@ func backendArgs(kbRoot, stage, addr, secret, version string, port int, userEnv,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "OLLAMA_HOST="+addr,
 		"--env", "SEMIONT_WORKER_SECRET="+secret)
-	a = append(a, admin...)
 	return append(a, image("backend", version))
 }
 
@@ -598,10 +563,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		fmt.Println("  Jaeger UI          http://localhost:16686")
 	}
 	fmt.Println()
-	if opts.adminEmail != "" {
-		fmt.Printf("  Sign in at http://localhost:3000 as %s with your --password.\n", u.bold(opts.adminEmail))
-		fmt.Println()
-	}
+	fmt.Printf("  Add a user:    %s\n", u.bold("semiont useradd --email <email> --password <pass> --admin"))
 	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
 	fmt.Printf("  Follow logs:   %s\n", u.bold("semiont logs"))
 	fmt.Printf("  Stop stack:    %s\n", u.bold("semiont stop"))

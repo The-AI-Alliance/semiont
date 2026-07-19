@@ -16,7 +16,8 @@ brew install the-ai-alliance/semiont/semiont
 ```bash
 git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
 cd gutenberg-kb
-semiont start --email admin@example.com --password password
+semiont start
+semiont useradd --email admin@example.com --password password --admin
 ```
 
 One command starts the whole stack — the five published Semiont images
@@ -41,7 +42,8 @@ cd my-kb
 Start the stack with Ollama for fully local inference (no API key needed):
 
 ```bash
-semiont start --email admin@example.com --password password
+semiont start
+semiont useradd --email admin@example.com --password password --admin
 ```
 
 On first run, the backend container pulls the inference and embedding models from Ollama. This is a one-time download (~2-4 GB depending on the model) and may take several minutes.
@@ -50,7 +52,7 @@ To use Anthropic cloud inference instead:
 
 ```bash
 export ANTHROPIC_API_KEY=<your-api-key>
-semiont start --config anthropic --email admin@example.com --password password
+semiont start --config anthropic
 ```
 
 To see all available configs:

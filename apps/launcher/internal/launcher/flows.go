@@ -116,12 +116,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	x.banner("Starting Backend")
 	x.say(sayLog, "http://localhost:%d", fc.plan.BackendPort)
 	x.say(sayLog, "Worker secret: %s", x.dim("(generated)"))
-	var admin []string
-	if fc.opts.adminEmail != "" && fc.opts.adminPassword != "" {
-		admin = []string{"--env", "ADMIN_EMAIL=" + fc.opts.adminEmail, "--env", "ADMIN_PASSWORD=" + x.val(fc.opts.adminPassword, "<admin-password>")}
-		x.say(sayLog, "Admin user: %s", x.bold(fc.opts.adminEmail))
-	}
-	if code := flowBackend(x, fc, addr, stage, secret, admin, otel); code != 0 {
+	if code := flowBackend(x, fc, addr, stage, secret, otel); code != 0 {
 		return code
 	}
 
@@ -288,9 +283,9 @@ func flowInference(x executor, fc flowCtx, rp rolePlan, addr string) int {
 // flowBackend: run + host-side health gate + container-gateway reachability
 // gate (the sidecars dial addr:port and fatally exit if their first backend
 // fetch fails — host health alone doesn't prove the path they need).
-func flowBackend(x executor, fc flowCtx, addr, stage, secret string, admin, otel []string) int {
+func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
 	port := fc.plan.BackendPort
-	bArgs := backendArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, fc.version, port, fc.userEnv, otel, admin)
+	bArgs := backendArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, fc.version, port, fc.userEnv, otel)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Backend failed to start.")
@@ -444,11 +439,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			return code
 		}
 	case "backend":
-		var admin []string
-		if fc.opts.adminEmail != "" && fc.opts.adminPassword != "" {
-			admin = []string{"--env", "ADMIN_EMAIL=" + fc.opts.adminEmail, "--env", "ADMIN_PASSWORD=" + x.val(fc.opts.adminPassword, "<admin-password>")}
-		}
-		if code := flowBackend(x, fc, addr, stage, secret, admin, otel); code != 0 {
+		if code := flowBackend(x, fc, addr, stage, secret, otel); code != 0 {
 			return code
 		}
 	case "worker", "smelter", "weaver":
