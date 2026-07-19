@@ -199,17 +199,21 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if port == 0 {
 			port = spec.defaultPort
 		}
+		img := spec.image
+		if g.Image != "" {
+			img = g.Image
+		}
 		rp := rolePlan{Role: "graph", Driver: g.Type, Port: port}
 		switch {
 		case g.Platform == "posix":
 			rp.Obligation = obligationHostProcess
-			rp.Image = spec.image
+			rp.Image = img
 		case classify(host, "NEO4J_HOST") == obligationProvided:
 			if g.Username == "" || g.Password == "" {
 				return nil, secErr("graph", "missing required key %q (needed to provision the container)", "username/password")
 			}
 			rp.Obligation = obligationProvided
-			rp.Image = spec.image
+			rp.Image = img
 			rp.Env = []string{"NEO4J_AUTH=" + g.Username + "/" + g.Password, "NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"}
 		default:
 			rp.Obligation = obligationExternal
@@ -241,6 +245,9 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if classify(v.Host, "QDRANT_HOST") == obligationProvided {
 			rp.Obligation = obligationProvided
 			rp.Image = spec.image
+			if v.Image != "" {
+				rp.Image = v.Image
+			}
 		} else {
 			rp.Obligation = obligationExternal
 			rp.Address = v.Host
@@ -277,6 +284,9 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			}
 			rp.Obligation = obligationProvided
 			rp.Image = spec.image
+			if d.Image != "" {
+				rp.Image = d.Image
+			}
 			rp.Env = []string{"POSTGRES_PASSWORD=" + d.Password, "POSTGRES_DB=" + d.Name}
 			// POSTGRES_USER only when it departs from the image default —
 			// keeps derivation byte-identical with today's argv.
@@ -321,7 +331,11 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if port == 0 {
 			port = spec.defaultPort
 		}
-		rp := rolePlan{Role: "inference", Driver: "ollama", Port: port, Image: spec.image}
+		img := spec.image
+		if p, ok := env.Inference["ollama"]; ok && p.Image != "" {
+			img = p.Image
+		}
+		rp := rolePlan{Role: "inference", Driver: "ollama", Port: port, Image: img}
 		if host == "${OLLAMA_HOST}" {
 			rp.Obligation = obligationHostProcess
 		} else {

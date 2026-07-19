@@ -146,10 +146,13 @@ func Stop(args []string) int {
 				fmt.Println(renderCmd(rt, "rm", c))
 			}
 		}
-		if service == "" {
-			fmt.Println("# remove staged config copies: /tmp/semiont-config.*")
-		} else {
+		switch {
+		case service != "":
 			fmt.Println("# staged config copies left in place (--service)")
+		case st != nil && !useState:
+			fmt.Println("# staged config copies and stack.json left in place (recorded stack is under " + st.Runtime + ")")
+		default:
+			fmt.Println("# remove staged config copies: /tmp/semiont-config.*")
 		}
 		return 0
 	}
@@ -184,6 +187,18 @@ func Stop(args []string) int {
 			saveState(st)
 		}
 		fmt.Printf("%s stopped (staged configs left in place; rest of the stack untouched).\n", service)
+		return 0
+	}
+
+	// Shared-artifact cleanup is safe only when this sweep actually covered
+	// the recorded stack (or no record exists): with an explicit --runtime
+	// that mismatches the record, the REAL stack may still be running — its
+	// staged configs are live mounts (deleting them under a running backend
+	// is the measured Apple-container failure this staging exists to
+	// prevent), and its record still describes reality.
+	if st != nil && !useState {
+		u.warn("Recorded stack (under %s) left untouched — staged configs and stack.json kept.", st.Runtime)
+		fmt.Printf("Swept %s only. Run semiont stop (without --runtime) to tear down the recorded stack.\n", strings.Join(runtimes, ", "))
 		return 0
 	}
 

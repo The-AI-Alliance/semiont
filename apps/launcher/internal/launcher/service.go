@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -26,7 +25,7 @@ type portNeed struct {
 type roleSpec struct {
 	product   string // concrete product behind an infra role; "" = a Semiont service
 	container string
-	ports     []portNeed // must-be-free ports (inference: owned by startInference)
+	ports     []portNeed // must-be-free ports (inference: owned by flowInference)
 }
 
 var roles = map[string]roleSpec{
@@ -74,12 +73,18 @@ func serviceNeedsAddr(svc string) bool {
 // container's env via the runtime's inspect — restarting one service rejoins
 // the incumbent stack's secret instead of minting a fresh one (which would
 // silently break sidecar↔backend auth). Returns the secret and the container
-// it came from, or "".
-func recoverWorkerSecret(rt string) (string, string) {
+// it came from — and, crucially, whether any Semiont container was SEEN at
+// all: "seen but unreadable" is the brittle-parse failure mode (a runtime
+// inspect-schema change) and must be loud, never silently degraded to a
+// generated secret.
+func recoverWorkerSecret(rt string) (secret, from, seen string) {
 	for _, c := range []string{"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver"} {
 		out, err := capture(rt, "inspect", c)
 		if err != nil || out == "" {
 			continue
+		}
+		if seen == "" {
+			seen = c
 		}
 		var entries []map[string]any
 		if json.Unmarshal([]byte(out), &entries) != nil || len(entries) == 0 {
@@ -87,11 +92,11 @@ func recoverWorkerSecret(rt string) (string, string) {
 		}
 		for _, env := range inspectEnv(entries[0]) {
 			if v, ok := strings.CutPrefix(env, "SEMIONT_WORKER_SECRET="); ok && v != "" {
-				return v, c
+				return v, c, seen
 			}
 		}
 	}
-	return "", ""
+	return "", "", seen
 }
 
 // inspectEnv digs the env list out of one inspect entry, wherever the
@@ -132,15 +137,29 @@ func inspectEnv(entry map[string]any) []string {
 
 // serviceSecret resolves the worker secret for a --service start: a running
 // stack's secret wins (rejoin, don't break), then the environment, then a
-// fresh one (nothing running to disagree with).
+// fresh one — but ONLY when no Semiont container was seen at all. A
+// container that exists yet yields no secret means the inspect parse broke
+// (or the container is genuinely secret-less); generating there would
+// silently break backend↔sidecar auth, so it fails loudly instead.
 func serviceSecret(u *ui, rt string) (string, bool) {
-	if s, from := recoverWorkerSecret(rt); s != "" {
+	s, from, seen := recoverWorkerSecret(rt)
+	if s != "" {
 		u.log("Worker secret: %s", u.dim("(recovered from "+from+")"))
 		return s, true
 	}
 	if s := os.Getenv("SEMIONT_WORKER_SECRET"); s != "" {
+		if seen != "" {
+			u.warn("A Semiont container (%s) exists but its worker secret could not be read from `%s inspect` — using $SEMIONT_WORKER_SECRET; if it doesn't match the running stack's secret, sidecar auth will fail.", seen, rt)
+		}
 		u.log("Worker secret: %s", u.dim("(from environment)"))
 		return s, true
+	}
+	if seen != "" {
+		u.fail("A Semiont container (%s) exists but its worker secret could not be recovered from `%s inspect` — the runtime's inspect schema may have changed.", seen, rt)
+		fmt.Fprintln(os.Stderr, "  Generating a new secret would silently break backend↔sidecar auth. Either:")
+		fmt.Fprintln(os.Stderr, "    - set SEMIONT_WORKER_SECRET to the running stack's secret, or")
+		fmt.Fprintln(os.Stderr, "    - restart the whole stack:  semiont start")
+		return "", false
 	}
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -151,288 +170,32 @@ func serviceSecret(u *ui, rt string) (string, bool) {
 	return hex.EncodeToString(b), true
 }
 
-// runStartService is `semiont start --service <name>`: one service's slice of
-// the full-start flow — its own stop+rm, port checks, pull, fresh private
-// config copy, run, and health gate. The rest of the stack is untouched.
+// runStartService: the live `start --service` — flowOneService with
+// liveExec, plus the live-only rocket summary (skipped for the external/
+// absent no-ops, which launch nothing).
 func runStartService(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
 	t0 := time.Now()
-	svc := opts.service
-	cname := roles[svc].container
-
-	// The config decides whether this role is the launcher's to (re)start.
-	// A role someone else provides is a no-op, not an error (P0 q5): warn,
-	// exit 0.
+	x := &liveExec{u: u, rt: rt, version: version, root: root}
+	if code := flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv}); code != 0 {
+		return code
+	}
 	if plan != nil {
-		if rp, ok := plan.Roles[svc]; ok {
-			switch rp.Obligation {
-			case obligationExternal:
-				u.warn("%s is externally provided per %s (%s:%d); nothing to launch.", svc, configFile, rp.Address, rp.Port)
-				return 0
-			case obligationAbsent:
-				u.warn("%s is not referenced by %s; nothing to launch.", svc, configFile)
-				return 0
-			}
+		if rp, ok := plan.Roles[opts.service]; ok && (rp.Obligation == obligationExternal || rp.Obligation == obligationAbsent) {
+			return 0
 		}
 	}
-
-	u.banner("Restarting " + roleTitle(svc))
-
-	// The service's own teardown (idempotent across running/stopped/absent) —
-	// except inference, whose start path owns this (a host Ollama may make
-	// the container unnecessary).
-	if svc != "inference" {
-		stopped := runSilent(rt, "stop", cname) == nil
-		rmed := runSilent(rt, "rm", cname) == nil
-		if stopped || rmed {
-			u.log("Removed prior %s container", svc)
-			time.Sleep(time.Second)
-		}
-		for _, pc := range roles[svc].ports {
-			if !requirePortFree(u, pc.port, pc.label, opts.forceKillPorts) {
-				return 1
-			}
-		}
-	}
-
-	addr := ""
-	if serviceNeedsAddr(svc) {
-		addr = resolveHostAddr(rt)
-		if addr == "" {
-			u.fail("Could not determine host address for container networking.")
-			return 1
-		}
-		u.log("Host address: %s", u.dim(addr))
-	}
-
-	// Pull the image for Semiont services (infra images are pinned tags, same
-	// as full start: their run pulls on first use and the cache stays valid).
-	if isConfigConsumer(svc) || svc == "frontend" {
-		if version != "local" {
-			args := pullArgs(rt, image(svc, version))
-			u.echoCmd(rt, args...)
-			if err := runVisible(rt, args...); err != nil {
-				u.fail("Pull failed: %s", image(svc, version))
-				return 1
-			}
-		}
-	}
-
-	// Observability is auto-detected, not flagged: if Jaeger is up, the
-	// restarted service points at it like the rest of the stack does.
-	var otel []string
-	if isConfigConsumer(svc) && httpOK("http://localhost:16686") {
-		otel = otelArgs(addr)
-		u.log("Jaeger detected — OTel export enabled")
-	}
-
-	secret := ""
-	stage := ""
-	if isConfigConsumer(svc) {
-		var ok bool
-		if secret, ok = serviceSecret(u, rt); !ok {
-			return 1
-		}
-		// A FRESH private staging dir for this service only: the running
-		// containers keep mounting their existing copies, and a new file is by
-		// definition not mounted anywhere else (the Apple-container same-file
-		// double-mount race cannot trigger). Swept by the next full
-		// start/stop.
-		var err error
-		stage, err = os.MkdirTemp("/tmp", "semiont-config.")
-		if err != nil {
-			u.fail("Cannot create config staging dir: %v", err)
-			return 1
-		}
-		cfg, err := os.ReadFile(configFile)
-		if err != nil {
-			u.fail("Reading %s: %v", configFile, err)
-			return 1
-		}
-		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), cfg, 0o644); err != nil {
-			u.fail("Staging config for %s: %v", svc, err)
-			return 1
-		}
-	}
-
-	var d time.Duration
-	var id string
-	var img string
-	hostReuse := false
-	ok := false
-	switch svc {
-	case "traces":
-		args := tracesArgs()
-		img = args[len(args)-1]
-		id, d, ok = runGated(u, rt, args, "traces (Jaeger)", "traces (Jaeger UI)", "http://localhost:16686", 30)
-	case "graph":
-		rp := plan.Roles[svc]
-		args := providedRunArgs("graph", rp)
-		img = rp.Image
-		id, d, ok = runGated(u, rt, args, "graph ("+driverDisplay("graph", rp.Driver)+")", "graph ("+driverDisplay("graph", rp.Driver)+")",
-			fmt.Sprintf("http://localhost:%d", plan.AuxPorts("graph")[0].port), 30)
-	case "vectors":
-		rp := plan.Roles[svc]
-		args := providedRunArgs("vectors", rp)
-		img = rp.Image
-		id, d, ok = runGated(u, rt, args, "vectors ("+driverDisplay("vectors", rp.Driver)+")", "vectors ("+driverDisplay("vectors", rp.Driver)+")",
-			fmt.Sprintf("http://localhost:%d/readyz", rp.Port), 15)
-	case "inference":
-		rp := plan.Roles[svc]
-		var code int
-		id, hostReuse, code = startInference(u, rt, addr, opts, rp)
-		if code != 0 {
-			return code
-		}
-		if !hostReuse {
-			img = rp.Image
-		}
-		ok = true
-	case "database":
-		rp := plan.Roles[svc]
-		args := providedRunArgs("database", rp)
-		img = rp.Image
-		u.echoCmd(rt, args...)
-		var err error
-		id, err = runDetached(rt, args...)
-		if err != nil {
-			u.fail("database (%s) failed to start.", driverDisplay("database", rp.Driver))
-			return 1
-		}
-		d, ok = waitForPG(u, rt, addr, rp.Port, 20)
-	case "backend":
-		var admin []string
-		if opts.adminEmail != "" && opts.adminPassword != "" {
-			admin = []string{"--env", "ADMIN_EMAIL=" + opts.adminEmail, "--env", "ADMIN_PASSWORD=" + opts.adminPassword}
-		}
-		var code int
-		id, code = runBackend(u, rt, root, stage, addr, secret, version, plan.BackendPort, userEnv, otel, admin)
-		if code != 0 {
-			return code
-		}
-		img = image("backend", version)
-		ok = true
-	case "worker", "smelter", "weaver":
-		for _, sc := range sidecarSpecs {
-			if sc.svc == svc {
-				var code int
-				id, code = runSidecar(u, rt, sc, stage, addr, secret, version, userEnv, otel)
-				if code != 0 {
-					return code
-				}
-				img = image(svc, version)
-			}
-		}
-		ok = true
-	case "frontend":
-		img = image("frontend", version)
-		id, d, ok = runGated(u, rt, frontendArgs(version), "Frontend", "Frontend", "http://localhost:3000", 30)
-	}
-	if !ok {
-		return 1
-	}
-	if d > 0 {
-		u.ok("%s healthy %s", svc, u.dim("("+took(d)+")"))
-	}
-
-	// Update the belief record: this service's entry replaces its predecessor;
-	// the rest of the record (untouched services) stands.
-	st := loadState()
-	if st == nil {
-		st = &stackState{Runtime: rt, Version: version, Services: map[string]serviceState{}}
-	}
-	provided := providedLauncher
-	if hostReuse {
-		provided = providedHost
-	}
-	driver := ""
-	if plan != nil {
-		driver = plan.Roles[svc].Driver
-	}
-	if svc == "traces" {
-		driver = "jaeger"
-	}
-	st.recordService(svc, id, img, provided, serviceEndpoint(svc, plan), driver)
-
 	fmt.Println()
-	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 "+svc+" is up"), u.dim("("+took(time.Since(t0))+")"))
+	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 "+opts.service+" is up"), u.dim("("+took(time.Since(t0))+")"))
 	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
 	return 0
 }
 
-// renderServicePlan is --dry-run for --service: the one service's slice of
-// the plan, conditionals as comments (matching renderStartPlan's style).
+// renderServicePlan is --dry-run for --service: the same flow, plan mode.
 func renderServicePlan(rt, version string, opts startOptions, userEnv []string, plan *launchPlan) {
-	const addr = "<host-addr>"
-	const stage = "<config-stage>"
-	svc := opts.service
-	p := func(args ...string) { fmt.Println(renderCmd(rt, args...)) }
-	c := func(format string, a ...any) { fmt.Printf("# "+format+"\n", a...) }
-
-	c("semiont start --service %s --dry-run — the exact runtime commands a real", svc)
-	c("run would execute, in order. Values known only at runtime appear as <placeholders>.")
-	if plan != nil {
-		if rp, ok := plan.Roles[svc]; ok && (rp.Obligation == obligationExternal || rp.Obligation == obligationAbsent) {
-			renderRolePlan(rt, svc, plan, opts, c, p)
-			return
-		}
-	}
-	if svc != "inference" {
-		p("stop", roles[svc].container)
-		p("rm", roles[svc].container)
-		if rp, ok := plan.Roles[svc]; ok && rp.Obligation == obligationProvided {
-			spec := driverCatalog[svc][rp.Driver]
-			ports := make([]string, 0, 2)
-			for _, ap := range spec.auxPorts {
-				ports = append(ports, fmt.Sprintf("%d", ap.port))
-			}
-			ports = append(ports, fmt.Sprintf("%d", rp.Port))
-			c("require free ports: %s", strings.Join(ports, " "))
-		} else if len(roles[svc].ports) > 0 {
-			ports := make([]string, 0, 2)
-			for _, pc := range roles[svc].ports {
-				ports = append(ports, fmt.Sprintf("%d", pc.port))
-			}
-			c("require free ports: %s", strings.Join(ports, " "))
-		}
-	}
-	if isConfigConsumer(svc) || svc == "frontend" {
-		if version == "local" {
-			c("SEMIONT_VERSION=local — using locally-built :local images (no pull)")
-		} else {
-			p(pullArgs(rt, image(svc, version))...)
-		}
-	}
-	var otel []string
-	if isConfigConsumer(svc) {
-		c("probe: Jaeger at http://localhost:16686 — if running, add --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318")
-		c("worker secret: recovered from a running Semiont container's env (inspect), else $SEMIONT_WORKER_SECRET, else generated")
-		c("stage a fresh private config copy under <config-stage>: %s.toml", svc)
-	}
-	switch svc {
-	case "traces":
-		p(tracesArgs()...)
-		c("wait: http://localhost:16686 (30s)")
-	case "graph", "vectors", "inference", "database":
-		renderRolePlan(rt, svc, plan, opts, c, p)
-	case "backend":
-		var admin []string
-		if opts.adminEmail != "" {
-			admin = []string{"--env", "ADMIN_EMAIL=" + opts.adminEmail, "--env", "ADMIN_PASSWORD=<admin-password>"}
-		}
-		p(backendArgs("<kb-root>", stage, addr, "<worker-secret>", version, plan.BackendPort, userEnv, otel, admin)...)
-		c("wait: http://localhost:%d/api/health (120s)", plan.BackendPort)
-		c(`probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:%d/api/health" (up to 20 tries)`, rt, plan.BackendPort)
-	case "worker", "smelter", "weaver":
-		for _, sc := range sidecarSpecs {
-			if sc.svc == svc {
-				p(sidecarArgs(sc.svc, sc.mem, sc.port, stage, addr, "<worker-secret>", version, userEnv, otel)...)
-				c("wait: http://localhost:%d/health (30s)", sc.port)
-			}
-		}
-	case "frontend":
-		p(frontendArgs(version)...)
-		c("wait: http://localhost:3000 (30s)")
-	}
+	x := &planExec{rt: rt}
+	x.c("semiont start --service %s --dry-run — the exact runtime commands a real", opts.service)
+	x.c("run would execute, in order. Values known only at runtime appear as <placeholders>.")
+	flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: "<kb-root>", configFile: opts.configName, userEnv: userEnv})
 }
 
 // serviceEndpoint: the health endpoint status should probe for a service the

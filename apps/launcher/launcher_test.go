@@ -109,15 +109,16 @@ func mkKB(t *testing.T) string {
 }
 
 type scenario struct {
-	shim      string
-	kb        string // also FAKERT_GIT_ROOT unless gitRoot overridden
-	noGitRoot bool
-	cwd       string // launcher working dir; defaults to kb
-	home      string
-	fakertDir string
-	log       string
-	extraEnv  []string
-	stdin     string
+	shim           string
+	kb             string // also FAKERT_GIT_ROOT unless gitRoot overridden
+	noGitRoot      bool
+	noWorkerSecret bool   // drop SEMIONT_WORKER_SECRET from the env
+	cwd            string // launcher working dir; defaults to kb
+	home           string
+	fakertDir      string
+	log            string
+	extraEnv       []string
+	stdin          string
 }
 
 func newScenario(t *testing.T, runtimes ...string) *scenario {
@@ -166,7 +167,9 @@ func (s *scenario) env() []string {
 		"HOME=" + s.home,
 		"FAKERT_LOG=" + s.log,
 		"FAKERT_DIR=" + s.fakertDir,
-		"SEMIONT_WORKER_SECRET=test-worker-secret",
+	}
+	if !s.noWorkerSecret {
+		env = append(env, "SEMIONT_WORKER_SECRET=test-worker-secret")
 	}
 	if !s.noGitRoot {
 		env = append(env, "FAKERT_GIT_ROOT="+s.kb)
@@ -811,6 +814,30 @@ func TestStartServiceExternalIsNoop(t *testing.T) {
 	}
 }
 
+func TestServiceBackendPortFollowsConfig(t *testing.T) {
+	// --service backend port-claims the CONFIG's backend port, not a static
+	// 4000 (the last vestige of the pre-config-sync port table).
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "moved-backend",
+		stdGraph+stdVectors+stdEmbedding+stdDatabase)
+	// writeKBConfig's header pins backend.port = 4000; rewrite it to 4001.
+	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "moved-backend.toml")
+	b, _ := os.ReadFile(p)
+	if err := os.WriteFile(p, []byte(strings.Replace(string(b), "port = 4000", "port = 4001", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, code := s.run(t, "start", "--service", "backend", "--config", "moved-backend", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "stdout", stdout,
+		"require free ports: 4001",
+		"wait: http://localhost:4001/api/health (120s)")
+	if strings.Contains(stdout, "4000") {
+		t.Errorf("static backend port leaked into the plan:\n%s", stdout)
+	}
+}
+
 // --- SEMIONT_ROOT / KB-root discovery ---
 
 func TestSemiontRootOverride(t *testing.T) {
@@ -963,6 +990,50 @@ func TestRootFlagErrors(t *testing.T) {
 	mustContain(t, "stderr", stderr, "--root only applies to services that read the KB config")
 }
 
+func TestLogsService(t *testing.T) {
+	// --service reaches ANY role's logs — infra included (record-less stack:
+	// discovery by name-scan, follow by container name).
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_STACK_RUNTIME=container")
+	stdout, stderr, code := s.run(t, "logs", "--service", "graph")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Following graph —", "[graph] neo4j out", "[graph] neo4j err")
+	mustContain(t, "argv", s.argv(t), "container logs --follow semiont-neo4j")
+}
+
+func TestLogsRecordAware(t *testing.T) {
+	// With a record: no name-scan probes, recorded runtime + IDs drive the
+	// follow; a host-provided role explains itself instead of failing weirdly.
+	s := newScenario(t, "container", "docker")
+	writeStackState(t, s, "container")
+	stdout, _, code := s.run(t, "logs", "--service", "backend")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "stdout", stdout, "Using recorded stack state", "[backend]")
+	argv := s.argv(t)
+	mustContain(t, "argv", argv, "container logs --follow fid-semiont-backend")
+	for _, absent := range []string{"container list", "docker ps"} {
+		if strings.Contains(argv, absent) {
+			t.Errorf("record-aware logs still name-scanned: %q", absent)
+		}
+	}
+
+	// Host-provided inference: no container logs, pointed message.
+	v2 := `{"schema":2,"runtime":"container","services":{
+	  "inference":{"provided":"host","endpoint":"http://localhost:11434/api/version","startedAt":"2026-07-19T00:00:00Z"}}}`
+	if err := os.WriteFile(statePathFor(s.home), []byte(v2), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "logs", "--service", "inference")
+	if code != 1 {
+		t.Errorf("host-provided logs: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "inference is provided by a host process — no container logs")
+}
+
 // --- stack state record ---
 
 // statePathFor mirrors the launcher's statePath for the scenario's fake HOME.
@@ -1106,6 +1177,87 @@ func TestStopSchema1Compat(t *testing.T) {
 	}
 }
 
+// writeStackState plants a schema-2 stack.json for the scenario.
+func writeStackState(t *testing.T, s *scenario, runtime string) {
+	t.Helper()
+	st := `{"schema":2,"runtime":"` + runtime + `","services":{
+	  "backend":{"container":"semiont-backend","id":"fid-semiont-backend","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}}`
+	p := statePathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(st), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestStopRuntimeMismatchKeepsRecordAndStaging(t *testing.T) {
+	// stop --runtime <other> must not delete the recorded stack's staged
+	// configs (live mounts!) or its record — the real stack may be running.
+	s := newScenario(t, "container", "docker")
+	writeStackState(t, s, "container")
+	stage, err := os.MkdirTemp("/tmp", "semiont-config.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(stage) })
+
+	stdout, stderr, code := s.run(t, "stop", "--runtime", "docker")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout+stderr", stdout+stderr,
+		"Recorded stack (under container) left untouched",
+		"Swept docker only")
+	if _, err := os.Stat(stage); err != nil {
+		t.Error("staged configs deleted under the recorded stack's live mounts")
+	}
+	if _, err := os.Stat(statePathFor(s.home)); err != nil {
+		t.Error("stack.json erased by a mismatched-runtime stop")
+	}
+	argv := s.argv(t)
+	mustContain(t, "argv", argv, "docker stop semiont-frontend")
+	if strings.Contains(argv, "container stop") {
+		t.Errorf("mismatched stop touched the recorded runtime:\n%s", argv)
+	}
+}
+
+func TestStartRefusesRecordedRuntimeMismatch(t *testing.T) {
+	// An explicit --runtime that mismatches a live record refuses: preflight
+	// would orphan the recorded stack, erase its record, and delete staging
+	// under its mounts.
+	s := newScenario(t, "container", "docker")
+	writeStackState(t, s, "docker")
+	for _, args := range [][]string{
+		{"start", "--runtime", "container"},
+		{"start", "--service", "worker", "--runtime", "container"},
+	} {
+		_, stderr, code := s.run(t, args...)
+		if code != 1 {
+			t.Errorf("%v: want exit 1, got %d", args, code)
+		}
+		mustContain(t, "stderr", stderr,
+			"A recorded stack is running under docker",
+			"Stop it first (semiont stop), or start with --runtime docker.")
+	}
+}
+
+func TestStartPrefersRecordedRuntime(t *testing.T) {
+	// Implicit runtime selection follows the record, not auto-detect order —
+	// a bare restart must rejoin the stack that exists.
+	s := newScenario(t, "container", "docker")
+	s.extraEnv = append(s.extraEnv, "FAKERT_NSLOOKUP=ok")
+	writeStackState(t, s, "docker")
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stdout", stdout, "docker pull ghcr.io/the-ai-alliance/semiont-backend:latest")
+	if strings.Contains(stdout, "container stop semiont-") {
+		t.Errorf("dry-run planned against auto-detected runtime, not the recorded one:\n%s", stdout)
+	}
+}
+
 // --- start --service ---
 
 func TestStartServiceWorker(t *testing.T) {
@@ -1149,6 +1301,18 @@ func TestStartServiceWorker(t *testing.T) {
 			t.Errorf("--service worker touched the wider stack: %q in argv", absent)
 		}
 	}
+
+	// A record created lazily by a --service start carries full metadata,
+	// not just the runtime (regression guard: the executor refactor briefly
+	// dropped these).
+	b, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatalf("stack.json not written: %v", err)
+	}
+	mustContain(t, "stack.json", string(b),
+		`"imageVersion": "latest"`,
+		`"kbRoot": "`+s.kb+`"`,
+		`"kbDid": "did:web:example.github.io:test-kb"`)
 }
 
 func TestStartServiceGraph(t *testing.T) {
@@ -1231,6 +1395,38 @@ func TestStartServiceRejections(t *testing.T) {
 		}
 		mustContain(t, fmt.Sprintf("stderr for %v", tc.args), stderr, tc.want)
 	}
+}
+
+func TestStartServiceSecretUnreadableIsLoud(t *testing.T) {
+	// A Semiont container EXISTS but yields no secret (the inspect-schema
+	// break case): without an explicit $SEMIONT_WORKER_SECRET the restart
+	// fails with instructions — never a silently generated secret that would
+	// break sidecar auth.
+	s := newScenario(t, "container")
+	s.noWorkerSecret = true
+	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running") // no FAKERT_SECRET
+	_, stderr, code := s.run(t, "start", "--service", "worker")
+	if code != 1 {
+		t.Fatalf("want exit 1, got %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stderr", stderr,
+		"worker secret could not be recovered",
+		"inspect schema may have changed",
+		"set SEMIONT_WORKER_SECRET",
+		"semiont start")
+
+	// With an explicit env secret: proceeds, but warns about the mismatch
+	// risk instead of pretending recovery worked.
+	s.noWorkerSecret = false
+	serveHealth(t, 9090)
+	stdout, stderr2, code := s.run(t, "start", "--service", "worker")
+	if code != 0 {
+		t.Fatalf("env-secret path: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr2)
+	}
+	mustContain(t, "stdout+stderr", stdout+stderr2,
+		"exists but its worker secret could not be read",
+		"using $SEMIONT_WORKER_SECRET",
+		"Worker secret: (from environment)")
 }
 
 // --- stop --service ---

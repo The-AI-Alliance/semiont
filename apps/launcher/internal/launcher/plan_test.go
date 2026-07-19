@@ -16,7 +16,7 @@ import (
 
 func loadFixtureEnv(t *testing.T, name string) (*envConfig, string) {
 	t.Helper()
-	env, envName, err := loadConfig(filepath.Join("..", "..", "testdata", "kb", ".semiont", "semiontconfig", name))
+	env, envName, _, err := loadConfig(filepath.Join("..", "..", "testdata", "kb", ".semiont", "semiontconfig", name))
 	if err != nil {
 		t.Fatalf("loading fixture %s: %v", name, err)
 	}
@@ -92,7 +92,7 @@ model = "claude-sonnet-4-5-20250929"
 
 func mustDerive(t *testing.T, path string) *launchPlan {
 	t.Helper()
-	env, envName, err := loadConfig(path)
+	env, envName, _, err := loadConfig(path)
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
@@ -134,7 +134,7 @@ func checkRole(t *testing.T, plan *launchPlan, role string, want rolePlan) {
 func TestDerivePlanTemplateConfigs(t *testing.T) {
 	for _, name := range []string{"ollama-gemma.toml", "anthropic.toml"} {
 		t.Run(name, func(t *testing.T) {
-			env, envName, err := loadConfig(filepath.Join("..", "..", "testdata", "kb", ".semiont", "semiontconfig", name))
+			env, envName, _, err := loadConfig(filepath.Join("..", "..", "testdata", "kb", ".semiont", "semiontconfig", name))
 			if err != nil {
 				t.Fatalf("loadConfig: %v", err)
 			}
@@ -223,7 +223,7 @@ func TestDerivePlanUnknownType(t *testing.T) {
 type = "janusgraph"
 uri = "bolt://${NEO4J_HOST}:7687"
 `})
-	env, envName, err := loadConfig(p)
+	env, envName, _, err := loadConfig(p)
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
@@ -239,7 +239,7 @@ type = "neo4j"
 username = "neo4j"
 password = "localpass"
 `})
-	env, envName, err := loadConfig(p)
+	env, envName, _, err := loadConfig(p)
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
@@ -250,10 +250,90 @@ password = "localpass"
 }
 
 func TestLoadConfigErrors(t *testing.T) {
-	if _, _, err := loadConfig(writeVariant(t, "not [ valid toml")); err == nil {
+	if _, _, _, err := loadConfig(writeVariant(t, "not [ valid toml")); err == nil {
 		t.Error("invalid TOML must error")
 	}
-	if _, _, err := loadConfig(writeVariant(t, "[defaults]\nenvironment = \"prod\"\n")); err == nil || !strings.Contains(err.Error(), "prod") {
+	if _, _, _, err := loadConfig(writeVariant(t, "[defaults]\nenvironment = \"prod\"\n")); err == nil || !strings.Contains(err.Error(), "prod") {
 		t.Errorf("missing environment block must name it, got: %v", err)
+	}
+}
+
+func TestRequiredVarsFromParse(t *testing.T) {
+	p := writeVariant(t, `[defaults]
+environment = "local"
+
+[environments.local.backend]
+platform = "posix"
+port = 4000
+
+[environments.local.inference.anthropic]
+platform = "external"
+# commented-out refs are not requirements: apiKey = "${PHANTOM_KEY}"
+apiKey = "${ANTHROPIC_API_KEY}"
+
+[environments.local.graph]
+type = "neo4j"
+uri = "bolt://${NEO4J_HOST}:7687"
+username = "neo4j"
+password = "localpass"
+
+[environments.other.database]
+host = "${OTHER_ENV_VAR}"
+`)
+	_, _, vars, err := loadConfig(p)
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	got := strings.Join(vars, ",")
+	if got != "ANTHROPIC_API_KEY,OTHER_ENV_VAR" {
+		t.Errorf("required vars: got %q — want the real ref and the other-environment ref, minus injected (${NEO4J_HOST}) and comment phantoms (${PHANTOM_KEY})", got)
+	}
+}
+
+func TestDerivePlanImageOverride(t *testing.T) {
+	// The config's optional image key wins over the catalog default — a KB
+	// can pin or upgrade an infra image without a launcher release.
+	p := variantConfig(t, map[string]string{
+		"graph": `[environments.local.graph]
+type = "neo4j"
+uri = "bolt://${NEO4J_HOST}:7687"
+username = "neo4j"
+password = "localpass"
+image = "neo4j:6.0.1-community"
+`,
+		"database": `[environments.local.database]
+host = "${POSTGRES_HOST}"
+name = "semiont"
+password = "localpass"
+image = "postgres:17.2-alpine"
+`,
+	})
+	plan := mustDerive(t, p)
+	if got := plan.Roles["graph"].Image; got != "neo4j:6.0.1-community" {
+		t.Errorf("graph image: got %q", got)
+	}
+	if got := plan.Roles["database"].Image; got != "postgres:17.2-alpine" {
+		t.Errorf("database image: got %q", got)
+	}
+	// Unset override: catalog default (the parity everything else relies on).
+	if got := plan.Roles["vectors"].Image; got != "qdrant/qdrant:v1.18.3" {
+		t.Errorf("vectors default image: got %q", got)
+	}
+	// The override flows into the argv the runtime sees.
+	args := providedRunArgs("graph", plan.Roles["graph"])
+	if args[len(args)-1] != "neo4j:6.0.1-community" {
+		t.Errorf("run argv image: got %q", args[len(args)-1])
+	}
+}
+
+func TestDerivePlanInferenceImageOverride(t *testing.T) {
+	p := variantConfig(t, map[string]string{"inference": `[environments.local.inference.ollama]
+platform = "posix"
+baseURL = "http://${OLLAMA_HOST}:11434"
+image = "ollama/ollama:0.9.5"
+`})
+	plan := mustDerive(t, p)
+	if got := plan.Roles["inference"].Image; got != "ollama/ollama:0.9.5" {
+		t.Errorf("inference image: got %q", got)
 	}
 }
