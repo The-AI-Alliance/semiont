@@ -32,8 +32,10 @@ Run 'semiont <command> --help' for command options.
 }
 
 func main() {
+	logExit := launcher.LogInvocation(os.Args[1:])
 	if len(os.Args) < 2 {
 		usage(os.Stderr)
+		logExit(1)
 		os.Exit(1)
 	}
 	cmd, rest := os.Args[1], os.Args[2:]
@@ -64,5 +66,6 @@ func main() {
 		usage(os.Stderr)
 		code = 1
 	}
+	logExit(code)
 	os.Exit(code)
 }

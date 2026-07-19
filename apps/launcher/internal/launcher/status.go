@@ -190,6 +190,9 @@ func printHostDirs(u *ui) {
 		p := filepath.Join(cache, "semiont")
 		row("cache", p, presence(p))
 	}
+	if p := logDir(); p != "" {
+		row("logs", p, presence(p))
+	}
 	staged, _ := filepath.Glob("/tmp/semiont-config.*")
 	note := "none"
 	if n := len(staged); n > 0 {

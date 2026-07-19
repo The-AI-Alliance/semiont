@@ -39,6 +39,11 @@ semiont stop
   started under `--runtime docker` can't survive a plain stop.
 - `semiont about` shows what Semiont is, project links, the image registry,
   and which runtimes were detected on PATH.
+- Every invocation is logged (invoke + exit lines, with `--password` values
+  redacted) to `launcher.log` in the launcher's log home: `~/Library/Logs/
+  semiont` on macOS, `$XDG_STATE_HOME/semiont` (default
+  `~/.local/state/semiont`) on Linux. `semiont status` lists the dir under
+  LOCAL HOST DIRECTORIES. Logging is best-effort — it never blocks a command.
 - `start`, `stop`, and `status` take `--service <name>` to act on one service
   (any of the ten, named by role: backend, worker, smelter, weaver, frontend,
   db, graph, vectors, inference, traces — the concrete products PostgreSQL,

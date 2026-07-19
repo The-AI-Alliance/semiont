@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -623,6 +624,41 @@ func TestStatusNoRuntime(t *testing.T) {
 		t.Fatalf("want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr, "No container runtime found. Install Apple Container, Docker, or Podman.")
+}
+
+// --- invocation log ---
+
+// invLogPath mirrors the launcher's logDir for the scenario's fake HOME.
+func invLogPath(home string) string {
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Logs", "semiont", "launcher.log")
+	}
+	return filepath.Join(home, ".local", "state", "semiont", "launcher.log")
+}
+
+func TestInvocationLog(t *testing.T) {
+	s := newScenario(t)
+	if _, _, code := s.run(t, "version"); code != 0 {
+		t.Fatalf("version: exit %d", code)
+	}
+	// A failing run with a password: logged with the value redacted.
+	if _, _, code := s.run(t, "start", "--service", "worker", "--email", "a@b.co", "--password", "supersecretpw"); code != 1 {
+		t.Fatalf("rejection run: want exit 1, got %d", code)
+	}
+	b, err := os.ReadFile(invLogPath(s.home))
+	if err != nil {
+		t.Fatalf("invocation log not written: %v", err)
+	}
+	log := string(b)
+	mustContain(t, "invocation log", log,
+		"invoke semiont version (version dev",
+		"exit 0 semiont version",
+		"invoke semiont start --service worker --email a@b.co --password <redacted>",
+		"exit 1 semiont start --service worker",
+	)
+	if strings.Contains(log, "supersecretpw") {
+		t.Error("password leaked into the invocation log")
+	}
 }
 
 // --- start --service ---
