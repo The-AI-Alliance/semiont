@@ -814,6 +814,30 @@ func TestStartServiceExternalIsNoop(t *testing.T) {
 	}
 }
 
+func TestServiceBackendPortFollowsConfig(t *testing.T) {
+	// --service backend port-claims the CONFIG's backend port, not a static
+	// 4000 (the last vestige of the pre-config-sync port table).
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "moved-backend",
+		stdGraph+stdVectors+stdEmbedding+stdDatabase)
+	// writeKBConfig's header pins backend.port = 4000; rewrite it to 4001.
+	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "moved-backend.toml")
+	b, _ := os.ReadFile(p)
+	if err := os.WriteFile(p, []byte(strings.Replace(string(b), "port = 4000", "port = 4001", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, code := s.run(t, "start", "--service", "backend", "--config", "moved-backend", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "stdout", stdout,
+		"require free ports: 4001",
+		"wait: http://localhost:4001/api/health (120s)")
+	if strings.Contains(stdout, "4000") {
+		t.Errorf("static backend port leaked into the plan:\n%s", stdout)
+	}
+}
+
 // --- SEMIONT_ROOT / KB-root discovery ---
 
 func TestSemiontRootOverride(t *testing.T) {

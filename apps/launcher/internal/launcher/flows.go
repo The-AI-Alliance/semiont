@@ -347,10 +347,14 @@ func flowOneService(x executor, fc flowCtx) int {
 			x.say(sayLog, "Removed prior %s container", svc)
 			x.pause()
 		}
-		// Port claims follow the plan (config-driven ports) for planned
-		// roles; static role ports otherwise (frontend, traces).
+		// Port claims follow the plan for config-owned ports (dependency
+		// roles, backend); the static role table covers only the
+		// launcher-fiat ports (sidecars, frontend, traces).
 		ports := roles[svc].ports
-		if fc.plan != nil {
+		switch {
+		case svc == "backend" && fc.plan != nil:
+			ports = []portNeed{{fc.plan.BackendPort, "Backend"}}
+		case fc.plan != nil:
 			if rp, ok := fc.plan.Roles[svc]; ok && rp.Obligation == obligationProvided {
 				spec := driverCatalog[svc][rp.Driver]
 				ports = append(append([]portNeed{}, spec.auxPorts...), portNeed{rp.Port, spec.portLabel})
