@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -29,19 +28,7 @@ var preflightNames = []string{
 	"semiont-frontend",
 }
 
-// The config TOMLs reference env vars as ${VAR} (required) or ${VAR:-default}
-// (optional); only the required form is matched here. These are the ones the
-// launcher injects itself and never demands from the user.
-var injectedVars = map[string]bool{
-	"BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
-	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "SEMIONT_WORKER_SECRET": true,
-	"ADMIN_EMAIL": true, "ADMIN_PASSWORD": true,
-}
-
-var (
-	envRefRe = regexp.MustCompile(`\$\{[A-Z_][A-Z0-9_]*\}`)
-	emailRe  = regexp.MustCompile(`^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$`)
-)
+var emailRe = regexp.MustCompile(`^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$`)
 
 type startOptions struct {
 	configName     string
@@ -314,6 +301,7 @@ func Start(args []string) int {
 	}
 	configFile := filepath.Join(configDir, opts.configName+".toml")
 	var plan *launchPlan
+	var userVars []string
 	if configNeeded {
 		if _, err := os.Stat(configFile); err != nil {
 			u.fail("Config not found: %s", configFile)
@@ -321,11 +309,13 @@ func Start(args []string) int {
 			printConfigNames()
 			return 1
 		}
-		envCfg, envName, err := loadConfig(configFile)
+		var uv []string
+		envCfg, envName, uv, err := loadConfig(configFile)
 		if err != nil {
 			u.fail("%v", err)
 			return 1
 		}
+		userVars = uv
 		if plan, err = derivePlan(envCfg, envName, configFile); err != nil {
 			u.fail("%v", err)
 			return 1
@@ -387,15 +377,11 @@ func Start(args []string) int {
 	}
 	u.log("Image version: %s", u.bold(version))
 
-	// User env vars (API keys the config references) are demanded only where
-	// a Semiont service will consume the config — never for infra restarts.
+	// User env vars (API keys the config references, extracted by
+	// loadConfig's single parse) are demanded only where a Semiont service
+	// will consume the config — never for infra restarts.
 	var userEnv []string
 	if opts.service == "" || isConfigConsumer(opts.service) {
-		userVars, err := requiredConfigVars(configFile)
-		if err != nil {
-			u.fail("Reading %s: %v", configFile, err)
-			return 1
-		}
 		for _, v := range userVars {
 			if opts.dryRun {
 				userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
@@ -429,28 +415,6 @@ func printConfigNames() {
 	for _, f := range files {
 		fmt.Printf("  %s\n", strings.TrimSuffix(filepath.Base(f), ".toml"))
 	}
-}
-
-// requiredConfigVars extracts the sorted set of required ${VAR} references
-// from a config file, minus the launcher-injected ones.
-func requiredConfigVars(configFile string) ([]string, error) {
-	b, err := os.ReadFile(configFile)
-	if err != nil {
-		return nil, err
-	}
-	set := map[string]bool{}
-	for _, m := range envRefRe.FindAllString(string(b), -1) {
-		name := strings.TrimSuffix(strings.TrimPrefix(m, "${"), "}")
-		if !injectedVars[name] {
-			set[name] = true
-		}
-	}
-	names := make([]string, 0, len(set))
-	for n := range set {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	return names, nil
 }
 
 // --- Command builders (shared by the real run and --dry-run) ---
