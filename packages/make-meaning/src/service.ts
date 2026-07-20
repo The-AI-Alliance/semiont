@@ -88,6 +88,40 @@ async function createJobQueue(
   return { jobQueue, jobStatusSubscription };
 }
 
+// Startup dependency connects are BOUNDED. Docker's `restart: on-failure`
+// only rescues a process that EXITS; an unbounded await on a slow dependency
+// hangs forever and the container sits unhealthy indefinitely. Observed live
+// on a Codespaces resume (2026-07-20): all ten containers restart at once and
+// `depends_on` does not apply — it governs `compose up`, not daemon-driven
+// restarts — so the backend can reach these connects before Neo4j/Qdrant/
+// Ollama are listening. Failing fast turns an unrecoverable hang into a crash
+// the restart policy retries until the dependency is up.
+export const STARTUP_CONNECT_TIMEOUT_MS = 60_000;
+
+export async function withStartupTimeout<T>(what: string, work: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `${what} did not become available within ${STARTUP_CONNECT_TIMEOUT_MS / 1000}s. ` +
+                  `Exiting so the container restart policy can retry — it is normal for a dependency ` +
+                  `to be slow when every service restarts at once.`,
+              ),
+            ),
+          STARTUP_CONNECT_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 async function createKnowledgeSystemFromConfig(
   project: SemiontProject,
   config: MakeMeaningConfig,
@@ -96,7 +130,12 @@ async function createKnowledgeSystemFromConfig(
   skipRebuild?: boolean,
 ): Promise<KnowledgeSystem> {
   const graphConfig = config.services!.graph!;
-  const graphDb   = await getGraphDatabase(graphConfig);
+  // Each connect is announced before it is attempted: when one of them does
+  // hang, the last line in the log names the culprit. Diagnosing the
+  // 2026-07-20 hang took a live investigation precisely because these three
+  // steps were silent.
+  logger.info('Connecting to graph database', { type: graphConfig.type });
+  const graphDb = await withStartupTimeout('Graph database', getGraphDatabase(graphConfig));
   const eventStore = createEventStoreCore(project, eventBus, logger.child({ component: 'event-store' }));
 
   // Initialize vector search if both vectors and embedding services are configured
@@ -106,13 +145,21 @@ async function createKnowledgeSystemFromConfig(
   const embeddingConfig = config.services.embedding;
   if (vectorsConfig && embeddingConfig) {
     const { createVectorStore, createEmbeddingProvider } = await import('@semiont/vectors');
-    embeddingProvider = await createEmbeddingProvider(embeddingConfig);
-    vectorStore = await createVectorStore({
-      type: vectorsConfig.type ?? 'qdrant',
-      host: vectorsConfig.host,
-      port: vectorsConfig.port,
-      dimensions: embeddingProvider.dimensions(),
-    });
+    logger.info('Connecting to embedding provider', { type: embeddingConfig.type, model: embeddingConfig.model });
+    embeddingProvider = await withStartupTimeout(
+      'Embedding provider',
+      createEmbeddingProvider(embeddingConfig),
+    );
+    logger.info('Connecting to vector store', { type: vectorsConfig.type ?? 'qdrant' });
+    vectorStore = await withStartupTimeout(
+      'Vector store',
+      createVectorStore({
+        type: vectorsConfig.type ?? 'qdrant',
+        host: vectorsConfig.host,
+        port: vectorsConfig.port,
+        dimensions: embeddingProvider.dimensions(),
+      }),
+    );
     logger.info('Vector search initialized', {
       store: vectorsConfig.type,
       embedding: embeddingConfig.type,

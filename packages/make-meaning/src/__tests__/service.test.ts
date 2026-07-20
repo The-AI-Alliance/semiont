@@ -233,3 +233,56 @@ describe('Make-Meaning Service', () => {
 
   });
 });
+
+// The 2026-07-20 startup-hang fix (withStartupTimeout) wrapped the three
+// dependency connects and announced each one. The helper is unit-tested in
+// startup-timeout.test.ts; THIS exercises the call sites — hermetically,
+// because a memory vector store connects in-process and the Ollama embedding
+// provider makes no network call until first embed.
+describe('startup dependency connects', () => {
+  const mockLogger: Logger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    child: vi.fn(() => mockLogger),
+  };
+
+  it('announces and bounds each connect, and initializes vector search', async () => {
+    const testDir = join(tmpdir(), `semiont-test-connects-${uuidv4()}`);
+    await fs.mkdir(testDir, { recursive: true });
+    const project = new SemiontProject(testDir);
+    const eventBus = new EventBus();
+    const config: MakeMeaningConfig = {
+      gather: { settleTimeoutMs: 15_000 },
+      services: {
+        graph: { platform: { type: 'posix' }, type: 'memory' },
+        vectors: { platform: { type: 'posix' }, type: 'memory' },
+        embedding: { platform: { type: 'external' }, type: 'ollama', model: 'nomic-embed-text' },
+      },
+      actors: {
+        gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+        matcher: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+      },
+      workers: {
+        default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+      },
+    };
+
+    const service = await startMakeMeaning(project, config, eventBus, mockLogger);
+    try {
+      // Each connect is announced BEFORE it is attempted — when one hangs,
+      // the last log line names the culprit (the property the live
+      // investigation lacked).
+      const infos = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
+      expect(infos).toContain('Connecting to graph database');
+      expect(infos).toContain('Connecting to embedding provider');
+      expect(infos).toContain('Connecting to vector store');
+      expect(infos).toContain('Vector search initialized');
+    } finally {
+      await service.stop();
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+});
+

@@ -135,6 +135,15 @@ func newScenario(t *testing.T, runtimes ...string) *scenario {
 	return s
 }
 
+func (s *scenario) mustLog(t *testing.T) []byte {
+	t.Helper()
+	b, err := os.ReadFile(s.log)
+	if err != nil {
+		t.Fatalf("argv log: %v", err)
+	}
+	return b
+}
+
 // killServes reaps the detached port listeners fakert spawned for `run -d`,
 // waiting for each to actually die — the next test rebinds the same fixed
 // ports, and a merely-signalled process can still hold them for a beat.
@@ -259,6 +268,35 @@ func TestStartDefaultBoot(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	checkGolden(t, "start-default-boot.argv", s.argv(t))
+	// embedding is a ROLE, like any other. It has no container of its own —
+	// the config declares it external, served here by the same Ollama the
+	// inference role provides — and an external role participates in status
+	// while supporting no start/stop. So: a row, runtime "external", and no
+	// container in the record.
+	rec, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json", string(rec), `"embedding"`)
+	if strings.Contains(string(rec), `"container": "semiont-embedding"`) {
+		t.Errorf("embedding recorded a container it does not own:\n%s", rec)
+	}
+	// An ollama embedding is served by the SAME Ollama the inference role
+	// provides, so it must report the same provider — describing one process
+	// two ways ("host" here, "external" there) is the bug this pins.
+	var doc struct {
+		Stacks map[string]struct {
+			Services map[string]struct {
+				Provided string `json:"provided"`
+			} `json:"services"`
+		} `json:"stacks"`
+	}
+	if err := json.Unmarshal(rec, &doc); err != nil {
+		t.Fatalf("stack.json: %v", err)
+	}
+	svcs := doc.Stacks["local"].Services
+	if got, want := svcs["embedding"].Provided, svcs["inference"].Provided; got != want {
+		t.Errorf("embedding provider %q != inference provider %q — same Ollama, two answers", got, want)
+	}
+	sstdout, _, _ := s.run(t, "status")
+	mustContain(t, "status", sstdout, "embedding (Ollama)")
 	mustContain(t, "stdout", stdout,
 		"KB: Test Knowledge Base did:web:example.github.io:test-kb",
 		"No prior containers",
@@ -587,23 +625,38 @@ func TestStatusMixed(t *testing.T) {
 		"FAKERT_STATE_smelter=exited",
 	)
 	serveHealth(t, 4000, 11434)
+	// The default report covers every stack, so its exit says only that
+	// status ran; --root/--service are the health-coded forms.
 	stdout, stderr, code := s.run(t, "status")
-	if code != 1 {
-		t.Fatalf("want exit 1 with unhealthy core services, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	if code != 0 {
+		t.Fatalf("default status should exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if _, _, code := s.run(t, "status", "--service", "worker"); code != 1 {
+		t.Errorf("--service names one stack, so it must exit on health; got %d", code)
 	}
 	mustContain(t, "stdout", stdout,
-		"SERVICE", "TECH", "CONTAINER", "RUNTIME", "HEALTH",
+		"SERVICE", "STATE", "RUNTIME", "HEALTH",
+		"LOCAL STACK", "database (PostgreSQL)", // tech rides in the SERVICE cell now
 		"PostgreSQL", "Neo4j", "Qdrant", "Ollama", "Jaeger",
-		"SEMIONT ROOTS",
+		"LOCAL ROOTS",
 		"(discovered from cwd)",
-		"LOCAL HOST DIRECTORIES",
-		"config", "cache", "staging", "/tmp/semiont-config.*",
 		"✓ http://localhost:4000/api/health",
 		"✗ http://localhost:9090/health",
 		"✗ tcp://localhost:5432",
 		"exited",
 		"host",
 	)
+	// LAUNCHER PATHS describes the launcher, not any KB — asked for, not shown.
+	if strings.Contains(stdout, "LAUNCHER PATHS") {
+		t.Errorf("default status printed LAUNCHER PATHS without --verbose:\n%s", stdout)
+	}
+	vstdout, _, vcode := s.run(t, "status", "--verbose")
+	if vcode != 0 {
+		t.Fatalf("status --verbose: exit %d", vcode)
+	}
+	mustContain(t, "verbose stdout", vstdout,
+		"LAUNCHER PATHS", "config", "cache", "staging", "/tmp/semiont-config.*")
+
 	for _, line := range strings.Split(stdout, "\n") {
 		if !strings.Contains(line, "localhost") {
 			continue // service-table rows only, not the host-dirs block
@@ -1405,6 +1458,228 @@ func TestCodespaceCredentialFailureShowsGhError(t *testing.T) {
 	}
 }
 
+func TestUseraddCodespace(t *testing.T) {
+	// useradd reaches a codespace stack over ssh → docker exec, and quotes
+	// every argument: the remote side is a SHELL, unlike the local path.
+	s := newCodespaceScenario(t)
+	writeCodespaceState(t, s)
+
+	// A password full of shell metacharacters must arrive INTACT — and must
+	// not become shell syntax on the way.
+	nasty := "p a$s'w\"o`rd;rm -rf /"
+	stdout, stderr, code := s.run(t, "useradd", "--email", "alice@example.com",
+		"--password", nasty, "--name", "A $NAME with spaces", "--admin")
+	if code != 0 {
+		t.Fatalf("codespace useradd: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	// fakert echoes the exact remote command line the shell would receive.
+	if !strings.Contains(stdout, "remote-cmd: ") {
+		t.Fatalf("no remote command echoed:\n%s", stdout)
+	}
+	remote := stdout[strings.Index(stdout, "remote-cmd: "):]
+	remote = remote[:strings.IndexByte(remote, '\n')]
+	mustContain(t, "remote command", remote,
+		"docker exec semiont-backend semiont useradd",
+		"'alice@example.com'", "'--admin'")
+	// The dangerous fragment must be inside quotes, never bare syntax.
+	if strings.Contains(remote, "; rm -rf /") || strings.Contains(remote, ";rm -rf / ") {
+		t.Fatalf("password escaped its quoting into shell syntax:\n%s", remote)
+	}
+	// The ECHOED command must be the command actually run — same quoting,
+	// with only the password swapped. Anything else prints a line that would
+	// behave differently if pasted ($NAME expanding, spaces splitting).
+	echoed := stdout[strings.Index(stdout, "$ gh"):]
+	echoed = echoed[:strings.IndexByte(echoed, '\n')]
+	mustContain(t, "echoed command", echoed,
+		"'--password' '<redacted>'", // redacted, but still quoted like the real one
+		"'alice@example.com'", "'--admin'")
+	if strings.Contains(echoed, "rm -rf") {
+		t.Errorf("password leaked into the echoed command:\n%s", echoed)
+	}
+	// The old bug was echoing RAW args, which would expand $NAME and split
+	// on spaces if pasted. The quoted form is the tell.
+	mustContain(t, "echoed command", echoed, "'A $NAME with spaces'")
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "gh codespace ssh -c fake-cs-1 --")
+
+	// --repo targets a specific codespace stack.
+	if _, stderr, code := s.run(t, "useradd", "--repo", csRepo, "--email", "b@c.co", "--generate-password"); code != 0 {
+		t.Fatalf("--repo useradd: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "useradd", "--repo", "no/such", "--email", "b@c.co"); code != 1 {
+		t.Error("unknown --repo should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "No codespace stack recorded for no/such")
+	}
+}
+
+func TestUseraddAmbiguousStacks(t *testing.T) {
+	// Local + codespace recorded: useradd must NOT silently pick local —
+	// writing a user into the wrong KB is not a silent-default decision.
+	s := newCodespaceScenario(t)
+	p := statePathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	both := `{"schema":3,"stacks":{` +
+		`"local":{"runtime":"container","services":{"backend":{"container":"semiont-backend","id":"fid-semiont-backend","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},` +
+		`"codespace:` + csRepo + `":{"runtime":"codespace","codespace":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001,"services":{}}}}`
+	if err := os.WriteFile(p, []byte(both), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123")
+	if code != 1 {
+		t.Fatalf("ambiguous useradd: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "Multiple stacks are recorded",
+		"semiont useradd --runtime container", "semiont useradd --repo "+csRepo)
+
+	// Naming the codespace resolves it; the local stack is reachable by
+	// simply omitting --repo is NOT true here, so it must still refuse —
+	// but --repo works.
+	if _, stderr, code := s.run(t, "useradd", "--repo", csRepo, "--email", "a@b.co", "--password", "password123"); code != 0 {
+		t.Fatalf("--repo disambiguation: exit %d\nstderr:\n%s", code, stderr)
+	}
+}
+
+func TestCodespaceWithoutGh(t *testing.T) {
+	// A missing gh must be NAMED, never inferred from downstream symptoms —
+	// and --dry-run must still render, since a plan reaches for nothing.
+	noGh := func(t *testing.T) *scenario {
+		t.Helper()
+		return newScenario(t, "container") // deliberately no "gh" shim
+	}
+
+	// --dry-run works with no gh installed at all.
+	s := noGh(t)
+	s.cwd = t.TempDir()
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo, "--dry-run")
+	if code != 0 {
+		t.Fatalf("dry-run must not need gh: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "dry-run stdout", stdout, "gh codespace create --repo "+csRepo)
+
+	// A real start says so plainly.
+	_, stderr, code = s.run(t, "start", "--runtime", "codespace", "--repo", csRepo)
+	if code != 1 {
+		t.Fatalf("start without gh: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "'gh' is not on PATH", "https://cli.github.com")
+
+	// stop names the cause instead of failing opaquely.
+	s2 := noGh(t)
+	writeCodespaceState(t, s2)
+	_, stderr, code = s2.run(t, "stop", "--repo", csRepo)
+	if code != 1 {
+		t.Fatalf("stop without gh: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "stopping a codespace stack needs the GitHub CLI", "'gh' is not on PATH")
+
+	// status must NOT call a live codespace deleted just because it cannot ask.
+	s3 := noGh(t)
+	writeCodespaceState(t, s3)
+	stdout, stderr, code = s3.run(t, "status", "--repo", csRepo)
+	if code != 1 {
+		t.Fatalf("status --repo without gh: want exit 1, got %d", code)
+	}
+	all := stdout + stderr
+	// The overview form must also refuse to call it deleted.
+	ov, _, _ := s3.run(t, "status")
+	mustContain(t, "overview", ov, "state unknown — gh unavailable")
+	mustContain(t, "status output", all,
+		"Could not ask GitHub about this codespace",
+		"it may well be running")
+	if strings.Contains(all, "deleted?") || strings.Contains(all, "no longer exists") {
+		t.Errorf("an unqueryable codespace was reported as deleted:\n%s", all)
+	}
+	if strings.Contains(all, "semiont stop --delete") {
+		t.Errorf("suggested discarding the record of a possibly-live codespace:\n%s", all)
+	}
+}
+
+// writeCodespaceState plants a codespace-only record set.
+func writeCodespaceState(t *testing.T, s *scenario) {
+	t.Helper()
+	p := statePathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"schema":3,"stacks":{"codespace:` + csRepo + `":{"runtime":"codespace",` +
+		`"codespace":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001,"ports":[4001],"services":{}}}}`
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCodespaceDidIsRecordedNotInferred(t *testing.T) {
+	// did:web is the permanent identity in the committed event log, so the
+	// remote-KB line must show only what was READ from the clone whose origin
+	// named this repo — never a did matched by directory name, which would
+	// attach one fork's identity to another's.
+	s := newCodespaceScenario(t) // cwd is a KB clone with a .semiont/config
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json", string(b), `"kbDid": "did:web:example.github.io:test-kb"`)
+	stdout, _, _ := s.run(t, "status")
+	mustContain(t, "status", stdout, "did:web:example.github.io:test-kb")
+
+	// A --repo-only create has no clone to read — so it learns the identity
+	// from the codespace itself, over the ssh it is already making for the
+	// credentials. What must never happen is a did matched by name.
+	s2 := newCodespaceScenario(t)
+	s2.cwd = t.TempDir()
+	if _, stderr, code := s2.run(t, "start", "--runtime", "codespace", "--repo", "other/bar"); code != 0 {
+		t.Fatalf("repo-only create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ = os.ReadFile(statePathFor(s2.home))
+	mustContain(t, "stack.json", string(b), `"kbDid": "did:web:example.com:remote-kb"`)
+	stdout, _, _ = s2.run(t, "status")
+	mustContain(t, "status", stdout, "did:web:example.com:remote-kb")
+}
+
+func TestCodespaceDidRefreshConfirmsAndReportsDrift(t *testing.T) {
+	// The recorded did is a CLAIM about which KB a codespace runs. --refresh
+	// re-reads it over ssh; a disagreement is reported, never silently
+	// overwritten, because did:web is the permanent identity stamped into the
+	// committed event log and the interesting fact is that the two differ.
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	repo := "pingel-org/foo-kb"
+
+	// Agreement: the remote config matches what the clone recorded.
+	s.extraEnv = append(s.extraEnv, "FAKERT_GH_KBCONFIG=[site]\ndomain = \"example.github.io:test-kb\"\n")
+	stdout, stderr, code := s.run(t, "status", "--repo", repo, "--refresh")
+	if code != 0 {
+		t.Fatalf("refresh: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "refresh", stdout+stderr, "KB identity confirmed", "did:web:example.github.io:test-kb")
+
+	// Drift: the codespace now answers with a different identity.
+	s.extraEnv[len(s.extraEnv)-1] = "FAKERT_GH_KBCONFIG=[site]\ndomain = \"elsewhere.org:other-kb\"\n"
+	stdout, stderr, _ = s.run(t, "status", "--repo", repo, "--refresh")
+	mustContain(t, "drift", stdout+stderr,
+		"does not match the record", "did:web:example.github.io:test-kb", "did:web:elsewhere.org:other-kb")
+	b, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json is unchanged by drift", string(b), `"kbDid": "did:web:example.github.io:test-kb"`)
+
+	// A stopped codespace is NOT woken to satisfy a reporting command.
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	before, _ := os.ReadFile(s.log)
+	stdout, stderr, _ = s.run(t, "status", "--repo", repo, "--refresh")
+	mustContain(t, "refresh on stopped", stdout+stderr, "would wake this codespace")
+	after, _ := os.ReadFile(s.log)
+	if strings.Contains(strings.TrimPrefix(string(after), string(before)), "codespace ssh") {
+		t.Errorf("status --refresh ssh-ed into a stopped codespace, waking it:\n%s",
+			strings.TrimPrefix(string(after), string(before)))
+	}
+}
+
 func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	s := newCodespaceScenario(t)
 	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
@@ -1461,26 +1736,33 @@ func TestCodespaceStatus(t *testing.T) {
 	// forward, credentials read fresh.
 	s.extraEnv = append(s.extraEnv,
 		`FAKERT_GH_CS_LIST=[{"name":"fake-cs-1","state":"Available","repository":"pingel-org/foo-kb"}]`)
+	// The default report LISTS remote repos; it no longer drills into one.
 	stdout, _, code := s.run(t, "status")
 	if code != 0 {
 		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "status stdout", stdout,
-		"STACKS",
+		"LOCAL STACK", "REMOTE KNOWLEDGE BASES", csRepo, "codespace fake-cs-1", "LOCAL ROOTS")
+
+	// --repo names ONE stack: full detail, health-coded, credentials fresh.
+	stdout, _, code = s.run(t, "status", "--repo", csRepo)
+	if code != 0 {
+		t.Fatalf("status --repo: exit %d\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "status --repo stdout", stdout,
 		"CODESPACE", "fake-cs-1", csRepo, "(state: Available)",
 		"re-establishing",
 		"KB", "healthy", "http://localhost:4000/api/health",
 		"run inside the codespace via compose",
-		"admin@example.com", "fake-admin-pw",
-		"SEMIONT ROOTS")
+		"admin@example.com", "fake-admin-pw")
 
 	// Stopped: honest stopped-but-existing, scriptably unhealthy.
 	s.killServes()
 	s.extraEnv = append(s.extraEnv[:len(s.extraEnv)-1],
 		`FAKERT_GH_CS_LIST=[{"name":"fake-cs-1","state":"Shutdown","repository":"pingel-org/foo-kb"}]`)
-	stdout, _, code = s.run(t, "status")
+	stdout, _, code = s.run(t, "status", "--repo", csRepo)
 	if code != 1 {
-		t.Fatalf("stopped status: want exit 1, got %d\n%s", code, stdout)
+		t.Fatalf("stopped status --repo: want exit 1, got %d\n%s", code, stdout)
 	}
 	mustContain(t, "stopped status stdout", stdout,
 		"(state: Shutdown)", "stopped — state and credentials persist", "semiont start")
@@ -1525,18 +1807,19 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	}
 	mustContain(t, "local plan stdout", stdout, "container run -d --rm --name semiont-backend")
 
-	// useradd refuses: the admin was generated at creation.
-	_, stderr, code = s2.run(t, "useradd", "--email", "a@b.co", "--password", "password123")
-	if code != 1 {
-		t.Fatalf("useradd on codespace: want exit 1, got %d", code)
+	// useradd now WORKS against a codespace stack (the generated admin is
+	// only the FIRST user; everything after it is useradd's job).
+	if _, stderr, code := s2.run(t, "useradd", "--email", "a@b.co", "--password", "password123"); code != 0 {
+		t.Fatalf("useradd on codespace: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stderr", stderr, "generated at creation", "semiont status")
 
 	// status --service and stop --service don't apply.
-	if _, stderr, code := s2.run(t, "status", "--service", "backend"); code != 1 {
-		t.Error("status --service on codespace should fail")
+	// --repo and --root/--service name different stacks; combining them is
+	// a contradiction, not a silent preference.
+	if _, stderr, code := s2.run(t, "status", "--repo", csRepo, "--service", "backend"); code != 1 {
+		t.Error("--repo with --service should fail")
 	} else {
-		mustContain(t, "stderr", stderr, "--service does not apply to a codespace stack")
+		mustContain(t, "stderr", stderr, "--repo names a remote stack")
 	}
 	if _, stderr, code := s2.run(t, "stop", "--service", "worker"); code != 1 {
 		t.Error("stop --service on codespace should fail")
@@ -1640,10 +1923,9 @@ func TestMultiStackCodespaces(t *testing.T) {
 		t.Fatalf("fleet status: exit %d\n%s", code, stdout)
 	}
 	mustContain(t, "status stdout", stdout,
-		"STACKS",
-		"codespace  "+csRepo+"  fake-cs-1", "KB localhost:4000",
-		"codespace  other/bar  bar-cs-1", "KB localhost:4001",
-		"semiont status --repo <owner/name>")
+		"REMOTE KNOWLEDGE BASES",
+		csRepo, "codespace fake-cs-1", "http://localhost:4000",
+		"other/bar", "codespace bar-cs-1", "http://localhost:4001")
 
 	// --repo details one stack, probing ITS port.
 	stdout, _, code = s.run(t, "status", "--repo", "other/bar")
@@ -1779,9 +2061,12 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 	mustContain(t, "stderr", stderr, "Multiple stacks are recorded",
 		"semiont stop --runtime container", "semiont stop --repo "+csRepo)
 
-	// useradd targets the LOCAL backend when one exists.
-	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123"); code != 0 {
-		t.Fatalf("useradd: exit %d\nstderr:\n%s", code, stderr)
+	// useradd will not GUESS between stacks; --runtime names the local one.
+	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123"); code != 1 {
+		t.Fatalf("ambiguous useradd should refuse, got %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "useradd", "--runtime", "container", "--email", "a@b.co", "--password", "password123"); code != 0 {
+		t.Fatalf("useradd --runtime: exit %d\nstderr:\n%s", code, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log), "container exec fid-semiont-backend semiont useradd")
@@ -1881,8 +2166,10 @@ func TestStartMovedDBPortBoot(t *testing.T) {
 }
 
 func TestStartNoInferenceBoot(t *testing.T) {
-	// A config that references no ollama anywhere: the launcher launches no
-	// inference at all — derived fact, not folklore.
+	// A config that references no ollama anywhere: nothing local is launched
+	// for inference — but its Claude-bound worker means inference IS
+	// configured, as an external SaaS role. "Not referenced" was the old
+	// ollama/inference conflation's answer.
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "no-ollama",
 		stdGraph+stdVectors+stdDatabase+
@@ -1893,7 +2180,7 @@ func TestStartNoInferenceBoot(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "inference — not referenced by the config; skipping")
+	mustContain(t, "stdout", stdout, "inference — Anthropic is remote SaaS; nothing to launch")
 	if argv := s.argv(t); strings.Contains(argv, "ollama") {
 		t.Errorf("no-ollama config still touched ollama:\n%s", argv)
 	}
@@ -1904,7 +2191,9 @@ func TestStartNoInferenceBoot(t *testing.T) {
 	if code != 0 {
 		t.Errorf("status: exit %d\n%s", code, stdout)
 	}
-	mustContain(t, "status stdout", stdout, "not configured")
+	// embedding is absent here → "not configured"; inference is the external
+	// Anthropic row.
+	mustContain(t, "status stdout", stdout, "not configured", "inference (Anthropic)", "external")
 	preStop := s.argv(t)
 	if _, _, code := s.run(t, "stop"); code != 0 {
 		t.Fatalf("stop: exit %d", code)
@@ -2081,7 +2370,7 @@ func TestRootsRegistryAndRootFlag(t *testing.T) {
 
 	// status shows the registered root, with its did:web identity line.
 	stdout, _, _ = s.run(t, "status")
-	mustContain(t, "status stdout", stdout, "SEMIONT ROOTS", s.kb, "last used ",
+	mustContain(t, "status stdout", stdout, "LOCAL ROOTS", s.kb, "last used ",
 		"did:web:example.github.io:test-kb — Test Knowledge Base")
 }
 
@@ -2851,6 +3140,279 @@ func TestStopService(t *testing.T) {
 
 // --- status --service ---
 
+func TestEmbeddingIsAnExternalRole(t *testing.T) {
+	// embedding is a role, and its platform is external — so it participates
+	// in status but supports no start/stop. Nothing about that is special to
+	// embedding: it is what "external" means for any role.
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// stop --service embedding: coherent request, nothing to stop, exit 0 —
+	// and crucially NO stop/rm of an empty container name.
+	before, _ := os.ReadFile(s.log)
+	stdout, _, code := s.run(t, "stop", "--service", "embedding")
+	if code != 0 {
+		t.Fatalf("stop --service embedding: want exit 0, got %d", code)
+	}
+	mustContain(t, "stop stdout", stdout, "externally provided", "nothing to stop")
+	after, _ := os.ReadFile(s.log)
+	for _, line := range strings.Split(strings.TrimPrefix(string(after), string(before)), "\n") {
+		if strings.Contains(line, "stop ") || strings.Contains(line, "rm ") {
+			t.Errorf("stop --service embedding swept a container: %q", line)
+		}
+	}
+
+	// The whole stack still stops, and embedding contributes no target.
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Errorf("stop: exit %d", code)
+	}
+	log, _ := os.ReadFile(s.log)
+	if strings.Contains(string(log), "semiont-embedding") {
+		t.Errorf("stop targeted a container embedding does not own:\n%s", log)
+	}
+}
+
+func TestStopThenStartStaysLocal(t *testing.T) {
+	// The sequence the launcher itself prescribes, from a real incident
+	// (2026-07-20): stop the local stack, then start it again. `stop` forgets
+	// the local record by design, and the codespace-resume convenience used
+	// to key on nothing more than "no local record" — so this bare start
+	// flipped to the cloud, swept the local containers in its preflight, and
+	// woke a paid codespace. Standing in a KB clone must always mean local.
+	s := newCodespaceScenario(t) // cwd IS a KB clone; a codespace is recorded
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("codespace start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// A local stack, then stop it — leaving exactly the state that misfired:
+	// a codespace record present, no local record.
+	if _, stderr, code := s.run(t, "start", "--runtime", "container"); code != 0 {
+		t.Fatalf("local start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, _, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
+		t.Errorf("stop --runtime container: exit %d", code)
+	}
+
+	before, _ := os.ReadFile(s.log)
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("bare start after stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if strings.Contains(stdout+stderr, "codespace") {
+		t.Errorf("bare start inside a KB clone went to the cloud:\n%s\n%s", stdout, stderr)
+	}
+	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	if strings.Contains(fresh, "gh codespace") {
+		t.Errorf("bare start inside a KB clone reached for gh:\n%s", fresh)
+	}
+	if !strings.Contains(fresh, "run -d") {
+		t.Errorf("bare start launched no local containers:\n%s", fresh)
+	}
+}
+
+func TestBareResumeUsesRecordedRepoNotCwd(t *testing.T) {
+	// Characterization, not a fix: outside any KB clone a bare start resumes
+	// the RECORDED stack's repo, even when the cwd's git origin names a
+	// different one. startCodespace's identity ladder already did this; the
+	// 2026-07-20 incident adopted the wrong repo only because the branch fired
+	// INSIDE a clone, where the ladder legitimately prefers the clone's origin
+	// (see TestStopThenStartStaysLocal for the actual fix). Pinned so that
+	// preference can never leak out to the no-clone case.
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("codespace start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop")
+	}
+
+	// Move outside any KB clone, into a directory whose git origin names a
+	// DIFFERENT repo than the recorded stack.
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_ORIGIN=git@github.com:someone/unrelated.git")
+	before := s.mustLog(t)
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("bare resume: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if strings.Contains(stdout+stderr, "someone/unrelated") {
+		t.Errorf("bare resume targeted the cwd's repo, not the recorded stack:\n%s\n%s", stdout, stderr)
+	}
+	mustContain(t, "the codespace branch actually fired", stdout+stderr, "Using recorded stack's runtime")
+	mustContain(t, "resume names the recorded repo", stdout+stderr, csRepo)
+	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	if strings.Contains(fresh, "someone/unrelated") {
+		t.Errorf("gh was pointed at the cwd's repo:\n%s", fresh)
+	}
+}
+
+func TestStartPullsMissingOllamaModels(t *testing.T) {
+	// The launcher brings Ollama up but used to leave its models to chance:
+	// a configured model that was never pulled stayed invisible until a
+	// worker reached for it mid-job and failed. Start now pulls what the
+	// config asks Ollama to serve — and only that.
+	pulls := func(s *scenario) string {
+		b, _ := os.ReadFile(filepath.Join(s.fakertDir, "ollama-pulls"))
+		return string(b)
+	}
+
+	// One model already present, one absent: pull exactly the absent one.
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_OLLAMA_TAGS=gemma4:26b")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	got := pulls(s)
+	if !strings.Contains(got, "gemma4:e2b") || !strings.Contains(got, "nomic-embed-text") {
+		t.Errorf("did not pull the missing models; pulled:\n%s", got)
+	}
+	if strings.Contains(got, "gemma4:26b") {
+		t.Errorf("re-pulled a model Ollama already had:\n%s", got)
+	}
+	s.killServes() // else this fake Ollama looks like a HOST one to the next case
+
+	// Ollama unlistable: we know NOTHING, so pull nothing. Blindly pulling
+	// would re-download gigabytes the user already has.
+	s2 := newScenario(t, "container")
+	s2.extraEnv = append(s2.extraEnv, "FAKERT_OLLAMA_UNLISTABLE=1")
+	if _, stderr, code := s2.run(t, "start"); code != 0 {
+		t.Fatalf("start (unlistable): exit %d\nstderr:\n%s", code, stderr)
+	}
+	if got := pulls(s2); got != "" {
+		t.Errorf("pulled while Ollama was unlistable — unknown is not missing:\n%s", got)
+	}
+	s2.killServes()
+
+	// A failed pull warns but does not fail the stack: the rest is healthy
+	// and the user may prefer to pull by hand.
+	s3 := newScenario(t, "container")
+	s3.extraEnv = append(s3.extraEnv, "FAKERT_OLLAMA_TAGS=", "FAKERT_OLLAMA_PULL_FAILS=1")
+	stdout, stderr, code := s3.run(t, "start")
+	if code != 0 {
+		t.Fatalf("a failed model pull must not fail the stack: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "warning", stdout+stderr, "Could not pull", "ollama pull")
+}
+
+func TestRemoteModelsAreNeverCheckedAgainstOllama(t *testing.T) {
+	// The anthropic config runs every actor and worker on Claude while its
+	// embedding runs on Ollama. The inference row's driver is therefore
+	// "ollama" (that Ollama exists only to serve the embedding) but its
+	// models are all remote. Checking them against Ollama reported
+	// "MISSING — ollama pull claude-sonnet-4-5-…", advice that cannot work
+	// (observed 2026-07-20).
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_OLLAMA_TAGS=nomic-embed-text:latest",
+		"ANTHROPIC_API_KEY=test-key")
+	if _, stderr, code := s.run(t, "start", "--config", "anthropic"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// Nothing remote may be pulled.
+	pulls, _ := os.ReadFile(filepath.Join(s.fakertDir, "ollama-pulls"))
+	if strings.Contains(string(pulls), "claude") {
+		t.Errorf("tried to pull a Claude into Ollama:\n%s", pulls)
+	}
+
+	stdout, _, _ := s.run(t, "status")
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.Contains(line, "claude") {
+			if strings.Contains(line, "MISSING") || strings.Contains(line, "ollama pull") {
+				t.Errorf("a remote model was checked against Ollama: %q", strings.TrimSpace(line))
+			}
+			if !strings.Contains(line, "remote") {
+				t.Errorf("a remote model was not marked remote: %q", strings.TrimSpace(line))
+			}
+		}
+	}
+	// The rows say who really does what: inference is Anthropic (external —
+	// Claude performs it), and the local Ollama belongs to embedding, the
+	// role it exists to serve.
+	mustContain(t, "inference row", stdout, "inference (Anthropic)", "external")
+	mustContain(t, "embedding row", stdout, "embedding (Ollama)")
+	if strings.Contains(stdout, "inference (Ollama)") {
+		t.Errorf("inference row named Ollama under an all-Claude config:\n%s", stdout)
+	}
+	// The ollama-served embedding still gets a real install state.
+	mustContain(t, "embedding model", stdout, "nomic-embed-text")
+
+	// And stop still finds the embedding-owned Ollama container — the one
+	// hazard of moving ownership off the inference role.
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	if !strings.Contains(string(log), "stop fid-semiont-ollama") && !strings.Contains(string(log), "stop semiont-ollama") {
+		t.Errorf("stop never targeted the embedding-owned Ollama container:\n%s", log)
+	}
+}
+
+// serveAnthropicModels: a fake /v1/models on a local port, listing exactly
+// the given ids. Reached via the config's [inference.anthropic] endpoint —
+// the same override a proxy would use, so no launcher test-mode exists.
+func serveAnthropicModels(t *testing.T, port int, ids ...string) {
+	t.Helper()
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("port %d unavailable for models API simulation: %v", port, err)
+	}
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Header.Get("x-api-key") == "" || r.Header.Get("anthropic-version") == "" {
+			http.Error(w, "missing headers", 401)
+			return
+		}
+		type m struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"display_name"`
+			CreatedAt   string `json:"created_at"`
+			MaxInput    int    `json:"max_input_tokens"`
+		}
+		var data []m
+		for _, id := range ids {
+			data = append(data, m{ID: id, DisplayName: "Claude " + id, CreatedAt: "2025-09-29T00:00:00Z", MaxInput: 200000})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+	})}
+	go srv.Serve(ln)
+	t.Cleanup(func() { srv.Close() })
+}
+
+func TestRemoteModelMetadataAndAvailability(t *testing.T) {
+	// /v1/models is the remote analog of Ollama's /api/tags: identity
+	// metadata for listed models, and — the actionable part — a configured
+	// model NOT listed for this key (withdrawn, or a typo) is called out at
+	// start and marked in status, instead of surfacing as a failed job.
+	serveAnthropicModels(t, 41435, "claude-sonnet-4-5-20250929") // haiku deliberately absent
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "anthropic-meta",
+		stdGraph+stdVectors+stdDatabase+
+			"[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:41435\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n"+
+			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
+			"[environments.local.workers.tag.inference]\ntype = \"anthropic\"\nmodel = \"claude-haiku-4-5-20251001\"\n\n")
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+	stdout, stderr, code := s.run(t, "start", "--config", "anthropic-meta")
+	if code != 0 {
+		t.Fatalf("start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "start warning", stdout+stderr,
+		"claude-haiku-4-5-20251001 is not listed for this API key")
+
+	// status renders recorded metadata without the key in its env…
+	stdout, _, _ = s.run(t, "status")
+	mustContain(t, "status", stdout,
+		"Claude claude-sonnet-4-5-20250929", "200K ctx", "2025-09", "remote",
+		"NOT AVAILABLE")
+	// …and never fabricates an install state for a remote model.
+	if strings.Contains(stdout, "ollama pull claude") {
+		t.Errorf("remote model offered an ollama pull:\n%s", stdout)
+	}
+}
+
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")
@@ -2860,7 +3422,7 @@ func TestStatusService(t *testing.T) {
 		t.Fatalf("healthy backend: want exit 0, got %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "stdout", stdout, "backend", "running", "✓ http://localhost:4000/api/health")
-	for _, absent := range []string{"LOCAL HOST DIRECTORIES", "SEMIONT ROOTS", "worker", "traces"} {
+	for _, absent := range []string{"LOCAL ROOTS", "worker", "traces"} {
 		if strings.Contains(stdout, absent) {
 			t.Errorf("filtered status leaked %q:\n%s", absent, stdout)
 		}
@@ -2872,6 +3434,12 @@ func TestStatusService(t *testing.T) {
 	}
 	if _, _, code := s.run(t, "status", "--service", "traces"); code != 1 {
 		t.Errorf("down traces (explicit): want exit 1, got %d", code)
+	}
+	// --service narrows to one service; --verbose must not smuggle the
+	// launcher's own paths back into that answer.
+	vstdout, _, _ := s.run(t, "status", "--service", "backend", "--verbose")
+	if strings.Contains(vstdout, "LAUNCHER PATHS") {
+		t.Errorf("--service --verbose leaked LAUNCHER PATHS:\n%s", vstdout)
 	}
 }
 

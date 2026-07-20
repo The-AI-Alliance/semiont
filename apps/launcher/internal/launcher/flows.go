@@ -8,6 +8,7 @@ package launcher
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -22,11 +23,16 @@ type flowCtx struct {
 
 var depRoleTitles = map[string]string{
 	"graph": "Graph", "vectors": "Vectors", "database": "Database",
+	"embedding": "Embedding",
 }
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
-// pulls → traces → graph → vectors → inference → database → backend →
-// sidecars → frontend.
+// pulls → traces → graph → vectors → inference → embedding → database →
+// backend → sidecars → frontend.
+//
+// embedding follows inference deliberately: an ollama-typed embedding is
+// served BY the Ollama inference just brought up, so probing it any earlier
+// would dial a port nothing is listening on yet.
 func flowFullStart(x executor, fc flowCtx) int {
 	addr, ok := x.resolveAddr()
 	if !ok {
@@ -104,6 +110,9 @@ func flowFullStart(x executor, fc flowCtx) int {
 	if code := flowInferenceRole(x, fc, addr); code != 0 {
 		return code
 	}
+	if code := flowDepRole(x, "embedding", fc, addr); code != 0 {
+		return code
+	}
 	if code := flowDepRole(x, "database", fc, addr); code != 0 {
 		return code
 	}
@@ -151,6 +160,12 @@ func flowFullStart(x executor, fc flowCtx) int {
 // database, obligation-dispatched.
 func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	rp := fc.plan.Roles[role]
+	// An embedding that OWNS the local Ollama (all-remote bindings — nothing
+	// else runs it) is the same host-process dance inference runs when the
+	// bindings are ollama-typed; only the owning role differs.
+	if role == "embedding" && rp.Obligation == obligationHostProcess {
+		return flowOllama(x, fc, "embedding", rp, addr)
+	}
 	disp := driverDisplay(role, rp.Driver)
 	x.banner(depRoleTitles[role] + " (" + disp + ")")
 	switch rp.Obligation {
@@ -200,17 +215,57 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		if !x.probeTCP(role, rp) {
 			return 1
 		}
-		x.record(role, "", "", providedExternal, externalEndpoint(role, rp), rp.Driver)
+		// A role sharing another's Ollama reports how that Ollama is
+		// provided, not a flat "external" — same process, same answer.
+		provided := providedExternal
+		if rp.SharesOllamaWith != "" {
+			if p := x.providerOf(rp.SharesOllamaWith); p != "" {
+				provided = p
+			}
+		}
+		x.record(role, "", "", provided, externalEndpoint(role, rp), rp.Driver)
 	}
 	return 0
+}
+
+// saasBase reconstructs the https origin from a SaaS role plan. Port 443 is
+// the real world; any other port is a test or proxy endpoint, spoken plainly.
+func saasBase(rp rolePlan) string {
+	if rp.Port == 443 {
+		return "https://" + rp.Address
+	}
+	return fmt.Sprintf("http://%s:%d", rp.Address, rp.Port)
+}
+
+// envValue digs VAR=value out of the resolved user env.
+func envValue(env []string, name string) string {
+	for _, e := range env {
+		if v, ok := strings.CutPrefix(e, name+"="); ok {
+			return v
+		}
+	}
+	return ""
 }
 
 // externalEndpoint: the status probe for an externally-provided role.
 func externalEndpoint(role string, rp rolePlan) string {
 	switch role {
+	case "embedding":
+		// An ollama-served embedding answers Ollama's own version endpoint;
+		// Voyage is HTTPS SaaS whose API needs a key, so reachability is all
+		// a credential-free probe can honestly assert — a TCP dial.
+		if rp.Driver == "ollama" {
+			return fmt.Sprintf("http://%s:%d/api/version", rp.Address, rp.Port)
+		}
+		return fmt.Sprintf("tcp:%s:%d", rp.Address, rp.Port)
 	case "vectors":
 		return fmt.Sprintf("http://%s:%d/readyz", rp.Address, rp.Port)
 	case "inference":
+		// Only an Ollama answers Ollama's version endpoint; a remote SaaS
+		// provider (anthropic) gets a bare reachability dial.
+		if rp.Driver != "ollama" {
+			return fmt.Sprintf("tcp:%s:%d", rp.Address, rp.Port)
+		}
 		return fmt.Sprintf("http://%s:%d/api/version", rp.Address, rp.Port)
 	default: // graph, database: not HTTP — TCP dial
 		return fmt.Sprintf("tcp:%s:%d", rp.Address, rp.Port)
@@ -218,14 +273,30 @@ func externalEndpoint(role string, rp rolePlan) string {
 }
 
 // flowInferenceRole: obligation dispatch for inference (the host-process
-// dance lives in flowInference).
+// dance lives in flowOllama).
 func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 	rp := fc.plan.Roles["inference"]
 	switch rp.Obligation {
 	case obligationHostProcess:
-		return flowInference(x, fc, rp, addr)
+		return flowOllama(x, fc, "inference", rp, addr)
 	case obligationExternal:
 		x.banner("Inference (" + driverDisplay("inference", rp.Driver) + ")")
+		if rp.Driver != "ollama" {
+			// Remote SaaS (Anthropic): nothing to launch, and a start-time
+			// TCP dial proves nothing a job won't discover — the API key is
+			// the real gate. Recorded so status carries the honest row.
+			x.say(sayLog, "inference — %s is remote SaaS; nothing to launch", driverDisplay("inference", rp.Driver))
+			x.note("inference: remote SaaS (%s) at %s:%d — nothing to launch or probe", rp.Driver, rp.Address, rp.Port)
+			x.record("inference", "", "", providedExternal, externalEndpoint("inference", rp), rp.Driver)
+			// One free GET while the key is in hand: /v1/models metadata,
+			// and — the actionable part — whether each configured model is
+			// LISTED for this key. anthropic only; other SaaS providers can
+			// join when their driver knows a models endpoint.
+			if rp.Driver == "anthropic" {
+				x.verifyRemoteModels("inference", saasBase(rp), envValue(fc.userEnv, "ANTHROPIC_API_KEY"), rp.Models)
+			}
+			return 0
+		}
 		x.note("inference: externally provided at %s:%d — verify reachability, launch nothing", rp.Address, rp.Port)
 		if !x.probeTCP("inference", rp) {
 			return 1
@@ -240,10 +311,16 @@ func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 	return 0
 }
 
-// flowInference: host-Ollama reuse when serving and reachable from
-// containers; else the semiont-ollama container with the model-cache choice.
-func flowInference(x executor, fc flowCtx, rp rolePlan, addr string) int {
-	x.banner("Inference (" + driverDisplay("inference", rp.Driver) + ")")
+// flowOllama: host-Ollama reuse when serving and reachable from containers;
+// else the semiont-ollama container with the model-cache choice. role names
+// the OWNER — "inference" when the bindings run through Ollama, "embedding"
+// when Ollama exists solely to serve embeddings (all-remote bindings).
+func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) int {
+	title := "Inference"
+	if role != "inference" {
+		title = depRoleTitles[role]
+	}
+	x.banner(title + " (" + driverDisplay(role, rp.Driver) + ")")
 	x.note("probe: host Ollama at http://localhost:%d/api/version", rp.Port)
 	x.note(`if present — probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://%s:%d/api/version" — and use it`, x.rtName(), addr, rp.Port)
 	return x.either(probeHostOllama(rp.Port),
@@ -251,8 +328,9 @@ func flowInference(x executor, fc flowCtx, rp rolePlan, addr string) int {
 			if !x.hostOllamaReachable(addr, rp.Port) {
 				return 1
 			}
-			x.say(sayOK, "inference — using host Ollama at http://localhost:%d", rp.Port)
-			x.record("inference", "", "", providedHost, fmt.Sprintf("http://localhost:%d/api/version", rp.Port), rp.Driver)
+			x.say(sayOK, "%s — using host Ollama at http://localhost:%d", role, rp.Port)
+			x.record(role, "", "", providedHost, fmt.Sprintf("http://localhost:%d/api/version", rp.Port), rp.Driver)
+			x.ensureModels(fmt.Sprintf("http://localhost:%d", rp.Port), fc.plan.OllamaModels)
 			return 0
 		},
 		func() int {
@@ -264,18 +342,26 @@ func flowInference(x executor, fc flowCtx, rp rolePlan, addr string) int {
 			}
 			x.recordPorts([]portNeed{{rp.Port, "Ollama"}})
 			volume := x.ollamaVolume(fc.opts)
-			args := providedRunArgs("inference", rp, "-m", "24G", "-v", volume+":/root/.ollama")
+			// The container is semiont-ollama whichever role owns it — the
+			// process is the same; only the accounting differs.
+			args := ollamaRunArgs(rp, "-m", "24G", "-v", volume+":/root/.ollama")
 			id, ok := x.runDetached(args)
 			if !ok {
 				x.say(sayFail, "Ollama container failed to start.")
 				return 1
 			}
-			d, ok := x.waitHTTP("inference (Ollama)", fmt.Sprintf("http://localhost:%d/api/version", rp.Port), 30)
+			d, ok := x.waitHTTP(role+" (Ollama)", fmt.Sprintf("http://localhost:%d/api/version", rp.Port), 30)
 			if !ok {
 				return 1
 			}
-			x.say(sayOK, "inference — Ollama container on http://localhost:%d (24 GB memory) %s", rp.Port, x.dim("("+took(d)+")"))
-			x.record("inference", id, rp.Image, providedLauncher, fmt.Sprintf("http://localhost:%d/api/version", rp.Port), rp.Driver)
+			x.say(sayOK, "%s — Ollama container on http://localhost:%d (24 GB memory) %s", role, rp.Port, x.dim("("+took(d)+")"))
+			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("http://localhost:%d/api/version", rp.Port), rp.Driver)
+			if roles[role].container == "" {
+				// embedding owns this launch: record the container it ran,
+				// or stop could never find it.
+				x.noteContainer(role, "semiont-ollama")
+			}
+			x.ensureModels(fmt.Sprintf("http://localhost:%d", rp.Port), fc.plan.OllamaModels)
 			return 0
 		})
 }
@@ -423,7 +509,14 @@ func flowOneService(x executor, fc flowCtx) int {
 		}
 		x.record(svc, id, rp.Image, providedLauncher, serviceEndpoint(svc, fc.plan), rp.Driver)
 	case "inference":
-		if code := flowInference(x, fc, fc.plan.Roles[svc], addr); code != 0 {
+		if code := flowInferenceRole(x, fc, addr); code != 0 {
+			return code
+		}
+	case "embedding":
+		// An external role has nothing to start — the same reason `--service
+		// embedding` still verifies and reports: status is the whole of what
+		// the launcher can do for it.
+		if code := flowDepRole(x, "embedding", fc, addr); code != 0 {
 			return code
 		}
 	case "backend":

@@ -122,6 +122,10 @@ func git(args []string) {
 //	FAKERT_GH_CREATE_FAILS  N leading 503 failures before create succeeds (cursor file)
 //	FAKERT_GH_SSH_FAIL      ssh fails with the no-sshd error
 //	FAKERT_GH_ADMIN         admin.json content for `ssh -- cat .devcontainer/admin.json`
+//	FAKERT_GH_KBCONFIG      .semiont/config content for `ssh -- cat .semiont/config`
+//	FAKERT_OLLAMA_TAGS      models the fake Ollama already has (comma separated)
+//	FAKERT_OLLAMA_UNLISTABLE  /api/tags fails — "unknown", which must not pull
+//	FAKERT_OLLAMA_PULL_FAILS  /api/pull answers with an error
 //
 // `codespace ports forward A:B …` binds every host port and parks (the fake
 // dev tunnel), writing a serve pidfile so killServes reaps it.
@@ -195,7 +199,7 @@ func ghCodespace(args []string, joined string) {
 		if body == "" {
 			body = "[" + strings.Join(createdCodespaces(), ",") + "]"
 		}
-		fmt.Println(applyWakes(body))
+		fmt.Println(applyStateEvents(body))
 	case "create":
 		if n := os.Getenv("FAKERT_GH_CREATE_FAILS"); n != "" {
 			// Countdown via cursor file: each failing attempt burns one.
@@ -244,7 +248,15 @@ func ghCodespace(args []string, joined string) {
 		}
 		serve(ports)
 	case "stop", "delete":
-		// ok — argv log is the observable
+		// argv log is the observable, but state must follow too: a stopped
+		// codespace reports Shutdown until something wakes it, exactly as
+		// GitHub does. Without this the fake stays Available forever and
+		// tests can't tell a wake-avoiding command from a waking one.
+		for i, a := range args {
+			if a == "-c" && i+1 < len(args) {
+				recordState(args[i+1], "Shutdown")
+			}
+		}
 	case "ssh":
 		if os.Getenv("FAKERT_GH_SSH_FAIL") != "" {
 			fmt.Fprintln(os.Stderr, "failed to start SSH server")
@@ -255,15 +267,9 @@ func ghCodespace(args []string, joined string) {
 			// The wake probe: connecting is what resumes a codespace, so
 			// record it — subsequent `list` calls must report it Available,
 			// exactly as GitHub does.
-			if dir := os.Getenv("FAKERT_DIR"); dir != "" {
-				f, err := os.OpenFile(filepath.Join(dir, "woken"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-				if err == nil {
-					for i, a := range args {
-						if a == "-c" && i+1 < len(args) {
-							fmt.Fprintln(f, args[i+1])
-						}
-					}
-					f.Close()
+			for i, a := range args {
+				if a == "-c" && i+1 < len(args) {
+					recordState(args[i+1], "Available")
 				}
 			}
 		case strings.Contains(joined, "admin.json"):
@@ -272,6 +278,19 @@ func ghCodespace(args []string, joined string) {
 				body = `{"email":"admin@example.com","password":"fake-admin-pw"}`
 			}
 			fmt.Println(body)
+		case strings.Contains(joined, ".semiont/config"):
+			// The KB's committed identity card, as the codespace holds it.
+			// FAKERT_GH_KBCONFIG overrides so a test can stage DRIFT — a
+			// remote did that disagrees with the recorded one.
+			body := os.Getenv("FAKERT_GH_KBCONFIG")
+			if body == "" {
+				body = "[site]\ndomain = \"example.com:remote-kb\"\n"
+			}
+			fmt.Println(body)
+		case strings.Contains(joined, "docker exec"):
+			// The remote side is a SHELL, so echo back what the shell would
+			// actually receive — that is what proves quoting works.
+			fmt.Println("remote-cmd: " + args[len(args)-1])
 		case strings.Contains(joined, "docker logs"):
 			name := strings.TrimPrefix(args[len(args)-1], "semiont-")
 			fmt.Println(name + " out")
@@ -519,12 +538,28 @@ func createdCodespaces() []string {
 // scripted initial state — a stopped codespace that something connected to
 // really does come back, and a fake that never transitions would let the
 // launcher wait forever (it did, until this was added).
-func applyWakes(body string) string {
+// recordState appends a state transition for a codespace. The file is an
+// ordered log, not a set: stop-then-wake and wake-then-stop must differ.
+func recordState(name, state string) {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return
+	}
+	f, err := os.OpenFile(filepath.Join(dir, "cs-states"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(f, "%s %s\n", name, state)
+	f.Close()
+}
+
+// applyStateEvents replays that log over a listing, last write winning.
+func applyStateEvents(body string) string {
 	dir := os.Getenv("FAKERT_DIR")
 	if dir == "" {
 		return body
 	}
-	b, err := os.ReadFile(filepath.Join(dir, "woken"))
+	b, err := os.ReadFile(filepath.Join(dir, "cs-states"))
 	if err != nil {
 		return body
 	}
@@ -532,10 +567,14 @@ func applyWakes(body string) string {
 	if json.Unmarshal([]byte(body), &entries) != nil {
 		return body
 	}
-	for _, name := range strings.Fields(string(b)) {
+	for _, line := range strings.Split(string(b), "\n") {
+		f := strings.Fields(line)
+		if len(f) != 2 {
+			continue
+		}
 		for _, e := range entries {
-			if e["name"] == name {
-				e["state"] = "Available"
+			if e["name"] == f[0] {
+				e["state"] = f[1]
 			}
 		}
 	}
@@ -634,7 +673,45 @@ func serve(ports []string) {
 		}
 		go func() {
 			_ = http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				fmt.Fprintln(w, "ok")
+				// A fake Ollama, so model checks and pulls are exercisable.
+				// FAKERT_OLLAMA_TAGS lists the models it already has (comma
+				// separated); every pull is appended to a log the test reads.
+				switch r.URL.Path {
+				case "/api/tags":
+					if os.Getenv("FAKERT_OLLAMA_UNLISTABLE") != "" {
+						http.Error(w, "nope", 500)
+						return
+					}
+					var ms []map[string]any
+					for _, n := range strings.Split(os.Getenv("FAKERT_OLLAMA_TAGS"), ",") {
+						if n = strings.TrimSpace(n); n != "" {
+							ms = append(ms, map[string]any{"name": n, "size": 1 << 30})
+						}
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"models": ms})
+				case "/api/ps":
+					_ = json.NewEncoder(w).Encode(map[string]any{"models": []any{}})
+				case "/api/pull":
+					body, _ := io.ReadAll(r.Body)
+					var req struct {
+						Model string `json:"model"`
+					}
+					_ = json.Unmarshal(body, &req)
+					if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+						if f, err := os.OpenFile(filepath.Join(dir, "ollama-pulls"),
+							os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
+							fmt.Fprintln(f, req.Model)
+							f.Close()
+						}
+					}
+					if os.Getenv("FAKERT_OLLAMA_PULL_FAILS") != "" {
+						_ = json.NewEncoder(w).Encode(map[string]any{"error": "no such model"})
+						return
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+				default:
+					fmt.Fprintln(w, "ok")
+				}
 			}))
 			close(done)
 		}()

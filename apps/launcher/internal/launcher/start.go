@@ -303,16 +303,25 @@ func Start(args []string) int {
 	// Codespace placement dispatches before anything local: no root
 	// discovery (the record replaces the clone), no config load, no local
 	// preflight. Explicit --runtime codespace; or, implicitly, a bare start
-	// on a machine whose ONLY recorded stack(s) are codespaces — one resumes
-	// (rejoin what exists), several must be named. A local record wins the
-	// bare start (codespace stacks coexist; only the lens contends, dropped
-	// below).
+	// on a machine whose ONLY recorded stack(s) are codespaces.
 	if opts.runtime == "codespace" {
 		return startCodespace(u, opts)
 	}
 	if opts.runtime == "" {
 		ss := loadStackSet()
-		if cs := codespaceStacks(ss); ss.Stacks["local"] == nil && len(cs) > 0 {
+		// STANDING IN A KB CLONE IS AN EXPLICIT LOCAL CONTEXT — never flip a
+		// bare start to the cloud from inside one.
+		//
+		// This branch used to require only "no local record", which `stop`
+		// creates by design: it forgets the local stack. So the sequence the
+		// launcher itself prescribes — stop --runtime container, then start —
+		// silently became a codespace start, killed the local stack in its
+		// preflight, and woke a paid cloud machine (observed 2026-07-20).
+		// The convenience this serves is resuming a codespace from ANYWHERE;
+		// a directory that resolves to a KB root is the one place it must not
+		// apply.
+		_, _, rootErr := resolveKBRoot()
+		if cs := codespaceStacks(ss); rootErr != nil && ss.Stacks["local"] == nil && len(cs) > 0 {
 			if len(cs) > 1 {
 				u.fail("%d codespace stacks are recorded — say which:", len(cs))
 				for _, c := range cs {
@@ -325,7 +334,10 @@ func Start(args []string) int {
 				fmt.Fprintln(os.Stderr, "  Install the GitHub CLI, or forget the stack:  semiont stop --delete")
 				return 1
 			}
-			u.log("Using recorded stack's runtime: %s %s", u.bold("codespace"), u.dim("(per "+statePath()+")"))
+			// Name the stack being resumed: the repo IS the identity, and the
+			// resolution itself lives in startCodespace's ladder.
+			u.log("Using recorded stack's runtime: %s %s", u.bold("codespace"),
+				u.dim("(per "+statePath()+" — "+cs[0].Repo+")"))
 			return startCodespace(u, opts)
 		}
 	}
@@ -705,7 +717,7 @@ var sidecarSpecs = []sidecarSpec{
 // live-only bookends (timing stamp, summary table).
 func runStart(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
 	t0 := time.Now()
-	x := &liveExec{u: u, rt: rt}
+	x := &liveExec{u: u, rt: rt, plan: plan}
 	if code := flowFullStart(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv}); code != 0 {
 		return code
 	}

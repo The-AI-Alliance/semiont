@@ -60,9 +60,11 @@ var repoSlugRe = regexp.MustCompile(`^[\w.-]+/[\w.-]+$`)
 // local-start parity as the contract: preflight, create-or-resume, forward,
 // health-gate, summary-and-exit.
 func startCodespace(u *ui, opts startOptions) int {
-	if !onPath("gh") {
-		u.fail("--runtime codespace needs the GitHub CLI, and 'gh' is not on PATH.")
-		fmt.Fprintln(os.Stderr, "  Install it: https://cli.github.com  (then: gh auth login)")
+	// gh is the earliest failure of all — check it before any git or
+	// registry work, so a missing CLI never surfaces as a confusing
+	// downstream error. The one exception is --dry-run: a plan reaches for
+	// nothing and must render on a machine that never installed gh.
+	if !opts.dryRun && !requireGh(u, "--runtime codespace") {
 		return 1
 	}
 
@@ -77,12 +79,12 @@ func startCodespace(u *ui, opts startOptions) int {
 	// stacks may be recorded at once): --repo → root's origin (create-path
 	// convenience) → the lone recorded codespace stack (bare resume works
 	// from any directory). Several recorded and nothing named → say which.
-	repo := opts.repo
+	repo, repoDid := opts.repo, ""
 	cs := codespaceStacks(ss)
 	if repo == "" {
 		if _, _, err := resolveKBRoot(); err == nil || opts.root != "" {
 			var code int
-			if repo, code = repoFromRoot(u, opts); code != 0 {
+			if repo, repoDid, code = repoFromRoot(u, opts); code != 0 {
 				return code
 			}
 		} else if len(cs) == 1 {
@@ -236,7 +238,13 @@ func startCodespace(u *ui, opts startOptions) int {
 	newSt := &stackState{
 		Runtime: "codespace", Codespace: name, Repo: repo,
 		ForwardPID: pid, ForwardPort: kbPort, Ports: []int{kbPort},
+		KBDid:    repoDid,
 		Services: map[string]serviceState{},
+	}
+	// A --repo-only start has no clone to read an identity from; don't drop
+	// one we learned earlier.
+	if newSt.KBDid == "" && st != nil {
+		newSt.KBDid = st.KBDid
 	}
 	saveStack(newSt)
 
@@ -250,6 +258,10 @@ func startCodespace(u *ui, opts startOptions) int {
 	u.ok("KB healthy %s", u.dim("("+took(d)+")"))
 
 	creds := fetchAdminCreds(u, name)
+	// Free piggyback: the stack is up and we are already ssh-ing. Only fires
+	// when nothing is recorded — a --repo-only start (no clone to read) has
+	// no other way to ever learn this.
+	reconcileDid(u, newSt, false)
 
 	fmt.Println()
 	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 Semiont KB is up in codespace "+name), u.dim("("+took(d)+" to healthy)"))
@@ -281,7 +293,7 @@ func startCodespace(u *ui, opts startOptions) int {
 
 // repoFromRoot: the create-path convenience — resolve the KB root as usual
 // and read the slug from its origin remote.
-func repoFromRoot(u *ui, opts startOptions) (string, int) {
+func repoFromRoot(u *ui, opts startOptions) (slug string, did string, code int) {
 	var root string
 	var err error
 	if opts.root != "" {
@@ -292,26 +304,30 @@ func repoFromRoot(u *ui, opts startOptions) (string, int) {
 	if err != nil {
 		u.fail("%v", err)
 		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a KB clone (its origin supplies the repo).")
-		return "", 1
+		return "", "", 1
 	}
 	origin, err := capture("git", "-C", root, "remote", "get-url", "origin")
 	if err != nil || origin == "" {
 		u.fail("Cannot read the origin remote of %s.", root)
 		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>.")
-		return "", 1
+		return "", "", 1
 	}
 	slug, ok := parseGitHubSlug(origin)
 	if !ok {
 		u.fail("The origin of %s is not a GitHub repo (%s) — codespaces are GitHub-only.", root, origin)
 		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a GitHub clone.")
-		return "", 1
+		return "", "", 1
 	}
+	// This clone IS the repo we are about to launch, so its committed
+	// .semiont/config carries that KB's real did:web. Captured here and
+	// recorded, so status never has to guess an identity from a filename.
+	did = loadKBIdentity(root).didWeb()
 	// Pushed-state honesty: locally an uncommitted config edit is live via
 	// the /kb bind mount; in a codespace it silently doesn't exist.
 	if out, err := capture("git", "-C", root, "status", "--porcelain"); err == nil && out != "" {
 		u.warn("%s has uncommitted changes — the codespace runs %s as PUSHED; they don't travel.", root, slug)
 	}
-	return slug, 0
+	return slug, did, 0
 }
 
 // parseGitHubSlug: owner/name from either remote form —
@@ -612,6 +628,64 @@ func fetchAdminCreds(u *ui, name string) *adminCreds {
 	return &c
 }
 
+// reconcileDid keeps a codespace stack's recorded did:web honest against the
+// KB actually running there, by reading .semiont/config over the same ssh
+// channel the credentials use.
+//
+// It reaches out in exactly two situations, because an ssh WAKES a stopped
+// codespace — which costs money and ~20 seconds, and no reporting command may
+// do that as a side effect. So callers must only call this when the codespace
+// is already Available, and then:
+//
+//   - nothing recorded (force false): read once and keep it. This is the only
+//     way a --repo-only stack — no local clone anywhere — ever learns its
+//     identity, and it costs one round trip that buys something permanent.
+//   - force (status --refresh): read even when recorded, to catch drift.
+//
+// A mismatch is reported, never silently overwritten. did:web is the
+// permanent identity stamped into the KB's committed event log; if the
+// codespace now answers with a different one, the interesting fact is that
+// the two disagree — the record is a claim about which KB this is, and
+// replacing it without a word would erase the evidence.
+func reconcileDid(u *ui, st *stackState, force bool) {
+	if st.KBDid != "" && !force {
+		return
+	}
+	remote, ok := fetchRemoteDid(u, st.Codespace)
+	if !ok || remote == "" {
+		return
+	}
+	switch {
+	case st.KBDid == "":
+		st.KBDid = remote
+		saveStack(st)
+		u.ok("Recorded KB identity %s", u.dim(remote))
+	case st.KBDid == remote:
+		u.ok("KB identity confirmed %s", u.dim(remote))
+	default:
+		u.warn("This codespace's KB identity does not match the record.")
+		fmt.Fprintf(os.Stderr, "    recorded: %s\n", st.KBDid)
+		fmt.Fprintf(os.Stderr, "    running:  %s\n", remote)
+		fmt.Fprintln(os.Stderr, "    The codespace is running a different KB than when the record was made")
+		fmt.Fprintln(os.Stderr, "    (a re-created codespace, or an edited .semiont/config). Nothing was")
+		fmt.Fprintln(os.Stderr, "    changed here — forget the stale record with: semiont stop --repo "+st.Repo+" --delete")
+	}
+}
+
+// fetchRemoteDid reads the codespace's committed identity card. Same shape
+// and same absolute-glob path discipline as fetchAdminCreds: `gh codespace
+// ssh` lands in /home/vscode, not the workspace.
+func fetchRemoteDid(u *ui, name string) (string, bool) {
+	const cfgPath = "/workspaces/*/.semiont/config"
+	u.log("Reading KB identity %s", u.dim("(gh codespace ssh -c "+name+" -- cat "+cfgPath+")"))
+	out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", cfgPath)
+	if err != nil {
+		u.warn("Could not read .semiont/config over ssh — identity left as recorded.")
+		return "", false
+	}
+	return parseKBIdentity([]byte(out)).didWeb(), true
+}
+
 // renderCodespacePlan is --dry-run for the codespace placement: the gh
 // commands a real run would execute. Reaches for nothing.
 func renderCodespacePlan(opts startOptions, repo, recorded string) {
@@ -643,6 +717,9 @@ func renderCodespacePlan(opts startOptions, repo, recorded string) {
 // a stopped codespace still exists (state, credentials, billing identity).
 // --delete destroys and forgets. Both kill the recorded forward first.
 func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int {
+	if !dryRun && !requireGh(u, "stopping a codespace stack") {
+		return 1
+	}
 	if service != "" {
 		u.fail("--service does not apply to a codespace stack (compose owns the services inside).")
 		return 1
@@ -703,11 +780,18 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 // gh, health through the forwards (re-established if the recorded one
 // died), credentials read fresh, and a LOCAL section that doesn't pretend
 // the remote VM's directories are here.
-func statusCodespace(u *ui, st *stackState) int {
+func statusCodespace(u *ui, st *stackState, refresh bool) int {
 	fmt.Println()
 	fmt.Println("  CODESPACE")
-	state := "unknown"
-	if instances, err := ghCodespaceList(st.Repo); err == nil {
+	// Distinguish three different things that all used to look alike:
+	// GitHub says it's gone, GitHub says it's not ready, and we could not
+	// ask at all. Only the first justifies telling anyone to delete a record.
+	state := ""
+	if !onPath("gh") {
+		state = "unqueryable"
+	} else if instances, err := ghCodespaceList(st.Repo); err != nil {
+		state = "unqueryable"
+	} else {
 		state = "deleted"
 		for _, c := range instances {
 			if c.Name == st.Codespace {
@@ -716,7 +800,19 @@ func statusCodespace(u *ui, st *stackState) int {
 		}
 	}
 	fmt.Printf("  %s  %s %s\n", u.bold(st.Codespace), st.Repo, u.dim("(state: "+state+")"))
+	// --refresh needs an ssh, and an ssh to a stopped codespace WAKES it —
+	// resuming compute billing from a command the user ran to look, not to
+	// launch. Say so and skip rather than do it quietly.
+	if refresh && state != "Available" {
+		u.warn("--refresh needs to ssh in, which would wake this codespace (state: %s) — skipped.", state)
+		fmt.Fprintln(os.Stderr, "  Resume it first, then refresh:  semiont start --runtime codespace --repo "+st.Repo)
+	}
 	switch state {
+	case "unqueryable":
+		u.warn("Could not ask GitHub about this codespace (is 'gh' installed and authenticated?) — it may well be running.")
+		fmt.Fprintln(os.Stderr, "  Check directly:  gh codespace list")
+		printRoots(u, st)
+		return 1
 	case "deleted":
 		u.warn("The recorded codespace no longer exists — forget the record with: semiont stop --delete")
 		printRoots(u, st)
@@ -767,6 +863,9 @@ func statusCodespace(u *ui, st *stackState) int {
 	if creds := fetchAdminCreds(u, st.Codespace); creds != nil {
 		fmt.Printf("  Connect (Host localhost, Port %d) as %s / %s\n", st.ForwardPort, u.bold(creds.Email), u.bold(creds.Password))
 	}
+	// Available, and already ssh-ing for the credentials above: backfill a
+	// missing identity for free, or re-verify a recorded one on --refresh.
+	reconcileDid(u, st, refresh)
 
 	fmt.Println()
 	fmt.Println("  LOCAL")
@@ -814,14 +913,22 @@ func dropCollidingForwards(u *ui, needs []portNeed) {
 	}
 }
 
-// printStacksOverview: the fleet view — every recorded stack, its state,
-// and which codespace holds the lens. One gh list serves all of them.
-func printStacksOverview(u *ui, local *stackState, cs []*stackState) {
+// printRemoteKBs: the REMOTE KNOWLEDGE BASES section — codespace-hosted KBs this
+// machine knows about. A repo is the durable thing (the identity); the
+// codespace instance and its state are status layered on it, which is why
+// the repo leads each entry and the instance name is a dimmed detail.
+func printRemoteKBs(u *ui, cs []*stackState) {
 	fmt.Println()
-	fmt.Println("  STACKS")
+	fmt.Println("  REMOTE KNOWLEDGE BASES")
+	if len(cs) == 0 {
+		fmt.Printf("  %s\n", u.dim("(none — semiont start --runtime codespace --repo <owner>/<name>)"))
+		return
+	}
 	states := map[string]string{}
+	ghQueried := false
 	if onPath("gh") {
 		if out, err := capture("gh", "codespace", "list", "--json", "name,state,repository"); err == nil {
+			ghQueried = true
 			var all []codespaceInstance
 			if json.Unmarshal([]byte(out), &all) == nil {
 				for _, c := range all {
@@ -830,19 +937,39 @@ func printStacksOverview(u *ui, local *stackState, cs []*stackState) {
 			}
 		}
 	}
-	if local != nil {
-		fmt.Printf("  local      %s %s\n", local.KBRoot, u.dim("("+local.Runtime+")"))
-	}
 	for _, c := range cs {
+		fmt.Printf("  %s\n", u.bold(c.Repo))
+		// ONLY the did recorded at creation, read from the very clone whose
+		// origin named this repo. Matching a local root by directory name
+		// would attach one fork's identity to another's — and did:web is the
+		// permanent identity stamped into the committed event log, so a wrong
+		// one is worse than none.
+		if c.KBDid != "" {
+			fmt.Printf("    %s\n", u.dim(c.KBDid))
+		}
 		state := states[c.Codespace]
-		if state == "" {
-			state = "deleted?"
+		switch {
+		case state == "" && !ghQueried:
+			state = "state unknown — gh unavailable"
+		case state == "":
+			state = "not listed by GitHub"
 		}
-		fwd := ""
-		if forwardAlive(c.ForwardPID, c.ForwardPort) {
-			fwd = "  " + u.bold(fmt.Sprintf("KB localhost:%d", c.ForwardPort))
+		fmt.Printf("    %s %s\n", u.dim("codespace "+c.Codespace), u.dim("("+state+")"))
+		// Status layered on top: where its KB is reachable, or what to run.
+		switch {
+		case forwardAlive(c.ForwardPID, c.ForwardPort):
+			mark := u.wrap(ansiRed, "✗")
+			if httpOK(fmt.Sprintf("http://localhost:%d/api/health", c.ForwardPort)) {
+				mark = u.wrap(ansiGreen, "✓")
+			}
+			fmt.Printf("    KB %s  %s\n", mark, u.dim(fmt.Sprintf("http://localhost:%d", c.ForwardPort)))
+		case state == "Available":
+			fmt.Printf("    %s\n", u.dim("not forwarded — semiont start --runtime codespace --repo "+c.Repo))
+		case state == "Shutdown":
+			fmt.Printf("    %s\n", u.dim("stopped (storage still bills) — resume: semiont start --runtime codespace --repo "+c.Repo))
+		default:
+			fmt.Printf("    %s\n", u.dim("details: semiont status --repo "+c.Repo))
 		}
-		fmt.Printf("  codespace  %s  %s %s%s\n", c.Repo, c.Codespace, u.dim("("+state+")"), fwd)
 	}
 }
 
@@ -851,6 +978,17 @@ func printStacksOverview(u *ui, local *stackState, cs []*stackState) {
 func captureBoth(name string, args ...string) (string, error) {
 	out, err := exec.Command(name, args...).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
+}
+
+// requireGh: one message for every codespace path that needs the CLI, so a
+// missing gh is never inferred from downstream symptoms.
+func requireGh(u *ui, what string) bool {
+	if onPath("gh") {
+		return true
+	}
+	u.fail("%s needs the GitHub CLI, and 'gh' is not on PATH.", what)
+	fmt.Fprintln(os.Stderr, "  Install it: https://cli.github.com  (then: gh auth login)")
+	return false
 }
 
 // forwardProcAlive: is the recorded PID still OUR forward PROCESS? A bare

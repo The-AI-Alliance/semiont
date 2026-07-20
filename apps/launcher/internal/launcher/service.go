@@ -33,6 +33,11 @@ var roles = map[string]roleSpec{
 	"graph":     {"Neo4j", "semiont-neo4j", []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}}},
 	"vectors":   {"Qdrant", "semiont-qdrant", []portNeed{{6333, "Qdrant"}}},
 	"inference": {"Ollama", "semiont-ollama", nil},
+	// embedding is a role with no container of its own: its platform is
+	// always "external" in practice — either the Ollama the inference role
+	// already provides, or a remote SaaS (Voyage). Like every external role
+	// it participates in status but supports no start/stop.
+	"embedding": {"", "", nil},
 	"database":  {"PostgreSQL", "semiont-postgres", []portNeed{{5432, "PostgreSQL"}}},
 	"backend":   {"", "semiont-backend", []portNeed{{4000, "Backend"}}},
 	"worker":    {"", "semiont-worker", []portNeed{{9090, "Worker"}}},
@@ -41,12 +46,18 @@ var roles = map[string]roleSpec{
 	"frontend":  {"", "semiont-frontend", []portNeed{{3000, "Frontend"}}},
 }
 
-const roleList = "backend, worker, smelter, weaver, frontend, database, graph, vectors, inference, or traces"
+const roleList = "backend, worker, smelter, weaver, frontend, database, graph, vectors, inference, embedding, or traces"
 
 // roleByContainer inverts the roles table (container name → role).
 var roleByContainer = func() map[string]string {
 	m := make(map[string]string, len(roles))
 	for r, s := range roles {
+		// Container-less roles (embedding) must not be indexed: mapping ""
+		// would hand that role back for every unmatched lookup, and stop
+		// would then believe a container it cannot name belongs to it.
+		if s.container == "" {
+			continue
+		}
 		m[s.container] = r
 	}
 	return m
@@ -175,7 +186,7 @@ func serviceSecret(u *ui, rt string) (string, bool) {
 // absent no-ops, which launch nothing).
 func runStartService(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
 	t0 := time.Now()
-	x := &liveExec{u: u, rt: rt, version: version, root: root}
+	x := &liveExec{u: u, rt: rt, version: version, root: root, plan: plan}
 	if code := flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv}); code != 0 {
 		return code
 	}

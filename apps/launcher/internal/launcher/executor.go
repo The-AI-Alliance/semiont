@@ -32,9 +32,9 @@ type executor interface {
 	stageOne(svc, configFile string) (string, bool)      // one service's fresh private copy
 	initStack(root, config, version, addr, stage string) // begin the belief record
 	pull(img string) bool
-	runDetached(args []string) (string, bool) // echo + run -d; returns runtime-reported id
-	waitHTTP(label, url string, tries int) (time.Duration, bool)
-	waitPG(addr string, port, tries int) (time.Duration, bool)
+	runDetached(args []string) (string, bool)                      // echo + run -d; returns runtime-reported id
+	waitHTTP(label, url string, seconds int) (time.Duration, bool) // wall-clock budget, not attempts
+	waitPG(addr string, port, seconds int) (time.Duration, bool)
 	probeTCP(role string, rp rolePlan) bool // external-role reachability
 	backendReachable(addr string, port int) bool
 	resolveAddr() (string, bool) // container→host address ("<host-addr>" in plan mode)
@@ -44,7 +44,11 @@ type executor interface {
 	workerSecret() (string, bool)          // full start: env or generated
 	ollamaVolume(opts startOptions) string // model-cache choice (prompt is live-only)
 	record(role, id, image, provided, endpoint, driver string)
-	val(live, plan string) string // mode-scoped value (kb root, admin password)
+	providerOf(role string) string                              // how an already-recorded role was provided
+	noteContainer(role, container string)                       // stamp a launched container on a container-less role
+	verifyRemoteModels(role, base, key string, models []string) // record /v1/models metadata; warn on unlisted
+	ensureModels(base string, models []string)                  // pull configured ollama models that are absent
+	val(live, plan string) string                               // mode-scoped value (kb root, admin password)
 	rtName() string
 
 	// --- decoration ---
@@ -72,6 +76,10 @@ type liveExec struct {
 	st      *stackState
 	version string // SEMIONT_VERSION, for records created lazily (--service mode)
 	root    string // KB root, ditto ("" for root-free services)
+	// plan lets record() stamp each role's configured models without every
+	// flow having to pass them; models are config truth, so they belong to
+	// the record the same way the driver does.
+	plan *launchPlan
 }
 
 func (x *liveExec) stopRm(name string) bool {
@@ -256,12 +264,12 @@ func (x *liveExec) runDetached(args []string) (string, bool) {
 	return id, true
 }
 
-func (x *liveExec) waitHTTP(label, url string, tries int) (time.Duration, bool) {
-	return waitForHTTP(x.u, label, url, tries)
+func (x *liveExec) waitHTTP(label, url string, seconds int) (time.Duration, bool) {
+	return waitForHTTP(x.u, label, url, seconds)
 }
 
-func (x *liveExec) waitPG(addr string, port, tries int) (time.Duration, bool) {
-	return waitForPG(x.u, x.rt, addr, port, tries)
+func (x *liveExec) waitPG(addr string, port, seconds int) (time.Duration, bool) {
+	return waitForPG(x.u, x.rt, addr, port, seconds)
 }
 
 func (x *liveExec) probeTCP(role string, rp rolePlan) bool {
@@ -330,7 +338,74 @@ func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
 			}
 		}
 	}
-	x.st.recordService(role, id, image, provided, endpoint, driver)
+	var models, ollamaServed []string
+	if x.plan != nil {
+		models = x.plan.Roles[role].Models
+		ollamaServed = x.plan.Roles[role].OllamaServed
+	}
+	x.st.recordService(role, id, image, provided, endpoint, driver, models, ollamaServed)
+}
+
+// providerOf reads back how an earlier step in THIS run resolved a role.
+// The host-Ollama-vs-container decision is made at runtime, not in the plan,
+// so a role sharing that Ollama can only learn the answer here.
+func (x *liveExec) providerOf(role string) string {
+	if x.st == nil {
+		return ""
+	}
+	return x.st.Services[role].Provided
+}
+
+// noteContainer marks a container-less role (embedding) as the OWNER of a
+// container it launched itself — the shared Ollama under all-remote
+// bindings. Only the launching flow may call this; it is what stop's
+// ownership checks key on.
+func (x *liveExec) noteContainer(role, container string) {
+	if x.st == nil {
+		return
+	}
+	e, ok := x.st.Services[role]
+	if !ok {
+		return
+	}
+	e.Container = container
+	x.st.Services[role] = e
+	saveStack(x.st)
+}
+
+// verifyRemoteModels records what /v1/models says about the configured
+// models — and says out loud when one is NOT listed for this key (withdrawn,
+// or a typo'd id): the remote analog of a MISSING ollama model, and today's
+// only warning before a job fails on it.
+func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
+	if key == "" || x.st == nil {
+		return
+	}
+	listed, found := fetchAnthropicModels(base, key)
+	if !found {
+		x.u.log("Model metadata: %s", x.u.dim("("+base+"/v1/models did not answer — skipping; status will show plain 'remote')"))
+		return
+	}
+	metas := map[string]remoteModelMeta{}
+	for _, m := range models {
+		if meta, ok := listed[m]; ok {
+			metas[m] = meta
+			continue
+		}
+		metas[m] = remoteModelMeta{Available: false}
+		x.u.warn("Model %s is not listed for this API key — withdrawn, or a typo'd id? Jobs bound to it will fail.", m)
+	}
+	e, ok := x.st.Services[role]
+	if !ok {
+		return
+	}
+	e.RemoteModels = metas
+	x.st.Services[role] = e
+	saveStack(x.st)
+}
+
+func (x *liveExec) ensureModels(base string, models []string) {
+	ensureOllamaModels(x.u, base, models)
 }
 
 func (x *liveExec) val(live, _ string) string { return live }
@@ -414,13 +489,13 @@ func (x *planExec) runDetached(args []string) (string, bool) {
 	return "", true
 }
 
-func (x *planExec) waitHTTP(_, url string, tries int) (time.Duration, bool) {
-	x.c("wait: %s (%ds)", url, tries)
+func (x *planExec) waitHTTP(_, url string, seconds int) (time.Duration, bool) {
+	x.c("wait: %s (%ds)", url, seconds)
 	return 0, true
 }
 
-func (x *planExec) waitPG(addr string, port, tries int) (time.Duration, bool) {
-	x.c("wait: tcp localhost:%d (%ds)", port, tries)
+func (x *planExec) waitPG(addr string, port, seconds int) (time.Duration, bool) {
+	x.c("wait: tcp localhost:%d (%ds)", port, seconds)
 	x.c("probe: %s run --rm busybox:1.38.0 nc -z -w 2 %s %d", x.rt, addr, port)
 	return 0, true
 }
@@ -488,6 +563,27 @@ func (x *planExec) ollamaVolume(opts startOptions) string {
 }
 
 func (x *planExec) record(_, _, _, _, _, _ string) {}
+
+// --dry-run records nothing, so there is nothing to read back.
+func (x *planExec) providerOf(string) string { return "" }
+
+// --dry-run records nothing, so ownership notes have nowhere to land.
+func (x *planExec) noteContainer(string, string) {}
+
+// --dry-run reaches for nothing; name the query a real run would make.
+func (x *planExec) verifyRemoteModels(role, base, _ string, models []string) {
+	if len(models) > 0 {
+		x.c("query %s/v1/models (x-api-key from env) — metadata + availability for: %s", base, strings.Join(models, ", "))
+	}
+}
+
+// --dry-run reaches for nothing: which models are ABSENT is a runtime fact,
+// so the plan can only name what would be checked.
+func (x *planExec) ensureModels(base string, models []string) {
+	if len(models) > 0 {
+		x.c("ensure ollama models present at %s (pull each missing one): %s", base, strings.Join(models, ", "))
+	}
+}
 
 func (x *planExec) val(_, plan string) string { return plan }
 func (x *planExec) rtName() string            { return x.rt }

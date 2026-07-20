@@ -91,11 +91,12 @@ semiont stop
   `KB localhost:<port>`) and details the lone forwarded stack (`--repo`
   details any); bare `logs` follows the local stack, else the lone
   codespace; bare `stop` refuses to guess — `--repo <owner/name>` targets a
-  codespace stack, `--runtime` the local one. `useradd` targets the local
-  backend when one exists. Schema 1/2 single-stack records migrate on read.
+  codespace stack, `--runtime` the local one — and `useradd` follows the same
+  rule. Schema 1/2 single-stack records migrate on read.
 - Codespace admin credentials are generated inside the codespace at
   creation; `start` and `status` read them fresh over ssh and display them —
-  never stored, never logged (`useradd` refuses and points at `status`).
+  never stored, never logged. Those are the FIRST admin; `useradd --repo`
+  handles every user after it.
   Preflights fail fast with fixes: `gh` missing/unauthenticated, the
   `codespace` scope, the `ANTHROPIC_API_KEY` Codespaces user secret, and the
   VM class. The machine list GitHub returns for a repo is filtered by the
@@ -110,16 +111,48 @@ semiont stop
 - `semiont useradd` creates or updates users in the RUNNING stack: the
   launcher execs the in-container Semiont CLI's `useradd` inside the backend
   container (record-driven runtime + container ID, name-scan fallback) and
-  passes every flag through verbatim (`--admin`, `--generate-password`,
-  `--update`, `--upsert`, …). This replaced `start --email/--password`: the
+  passes every other flag through verbatim (`--admin`, `--generate-password`,
+  `--update`, `--upsert`, …). It works against **codespace stacks too** —
+  one hop further out, `gh codespace ssh -- docker exec …` — with every
+  argument shell-quoted, because that remote side runs through a shell
+  (the local `exec` path does not, so a password with spaces or `$` is only
+  a hazard on the codespace route). A codespace generates its FIRST admin at
+  creation, so `useradd` there is for everything after: more users, role
+  grants, password changes. With several stacks recorded it refuses to
+  guess — `--repo <owner/name>` picks a codespace stack, `--runtime` the
+  local one (the same vocabulary `stop` uses). This replaced `start --email/--password`: the
   admin password used to ride into the backend container as an env var,
   readable via `inspect` for the stack's whole lifetime — now it exists only
   in one exec's argv, redacted in the echoed command and the invocation log.
 - `semiont start --dry-run` prints the exact runtime commands a real run would
   execute — the legibility answer to "what does this binary actually do".
-- `semiont status` reports, per service, the container state as the runtime
-  sees it and an application-level health probe (exit 0 only when every core
-  service is healthy — scriptable).
+- **`semiont status` reports in three layers** — LOCAL STACK (the one stack
+  running here, headed by the root it belongs to and its did:web), LOCAL
+  ROOTS, REMOTE KNOWLEDGE BASES (codespace-hosted KBs, their state, and each
+  KB's local port). `--verbose` adds LAUNCHER PATHS — the launcher's own
+  config, cache, log, state, staging and model-cache paths, which describe the
+  tool rather than any KB. Roots and KBs are the durable
+  things; a stack is status layered on one of them. Per service it
+  shows the container STATE as the runtime sees it plus a host-side health
+  probe, with the concrete product in the service cell (`database
+  (PostgreSQL)`). **A role's platform decides which verbs it has, and a role
+  need not run here.** `embedding` is a role like any other; its platform is
+  external in both shapes — `type = "ollama"` is served by the same Ollama the
+  `inference` role provides, `type = "voyage"` is remote SaaS — so it appears
+  in status (runtime `external`) and supports no start/stop, exactly as an
+  anthropic-typed `inference` or an external `graph` does. A KB with no
+  `[embedding]` section gets a `not configured` row rather than silence.
+  **Exit status:** the default report spans several stacks,
+  so it exits 0 whenever status itself ran — to script health, name one
+  stack: `--root <path|name>`, `--repo <owner/name>`, or `--service <name>`.
+- **A codespace KB's `did:web` is recorded, never inferred.** It is read from
+  the clone whose origin named the repo, or — for a `--repo`-only start with
+  no clone anywhere — from the codespace itself, over the ssh `start` and
+  `status` already make for the admin credentials. `status --repo <owner/name>
+  --refresh` re-reads it to confirm; a disagreement is reported, never
+  silently overwritten. **No reporting command ever wakes a stopped
+  codespace** (an ssh would, resuming compute billing), so `--refresh` on a
+  stopped one says so and skips.
 - `semiont stop` sweeps **every** installed runtime by default, so a stack
   started under `--runtime docker` can't survive a plain stop. Stop's job
   isn't done until the ports are actually free: `start` records the host
@@ -138,19 +171,62 @@ semiont stop
 - Every invocation is logged (invoke + exit lines, with `--password` values
   redacted) to `launcher.log` in the launcher's log home: `~/Library/Logs/
   semiont` on macOS, `$XDG_STATE_HOME/semiont` (default
-  `~/.local/state/semiont`) on Linux. `semiont status` lists the dir under
-  LOCAL HOST DIRECTORIES. Logging is best-effort — it never blocks a command.
+  `~/.local/state/semiont`) on Linux. `semiont status --verbose` lists the dir
+  under LAUNCHER PATHS. Logging is best-effort — it never blocks a command.
 - **The launcher derives its work from the KB's semiontconfig TOML** — the
   same file the Semiont containers read (see
   `docs/system/administration/CONFIGURATION.md`). Per dependency role
-  (graph, vectors, database, inference) the config decides the obligation:
+  (graph, vectors, database, inference, embedding) the config decides the
+  obligation — the launcher's name for the npm CLI's `platform`:
   an address on a launcher-injected `${*_HOST}` var → the launcher provides
   a container (driver by `type`, credentials/ports from the config); any
   other address → externally provided (verified, never launched, skipped by
   stop, shown as "external" in status); `platform = "posix"` → host-process
   reuse; section absent / unreferenced → nothing launched, "not configured"
-  in status. Moving `database.port` moves the publish/checks/gates with it;
-  inference runs only when the config references ollama. An optional `image`
+  in status. **The inference driver is who performs inference per the
+  bindings, not which process the launcher runs**: any ollama-typed binding →
+  the local-Ollama shape (host-process dance, container fallback); all-remote
+  bindings (Claude throughout) → `inference (Anthropic)`, an external SaaS
+  role that launches nothing. In that second shape the local Ollama the
+  config still needs exists solely for the embedding, so **embedding owns
+  it** — the row reads `embedding (Ollama)` with the host/container runtime,
+  the model pulls ride on it, and its launched container is embedding's to
+  stop. With ollama bindings, embedding instead rides the inference role's
+  Ollama and reports the same provider — one process is never described two
+  ways. `type = "voyage"` is remote SaaS; either way embedding has a status
+  row and start/stop belongs to whatever provides it.
+- **The inference and embedding rows list their models.** Which models a stack
+  uses is config truth, recorded at start (the union of `actors.*` and
+  `workers.*` inference models, and `embedding.model`); whether each is pulled
+  is verified live against Ollama's `/api/tags` and `/api/ps`, with size,
+  parameter count and quantization. **Nothing in the launcher pulls models**, so
+  a model that was never pulled is otherwise invisible until a worker reaches
+  for it mid-job and fails. **`semiont start` now pulls them**: after Ollama is
+  up it lists what is installed and pulls each configured model that is
+  absent, over Ollama's HTTP API (one path for both a host process and the
+  launcher's container — no `ollama` CLI needed on PATH). Only models Ollama
+  can actually serve are pulled: ollama-typed bindings plus an ollama
+  embedding, never a Claude. If Ollama cannot be listed, NOTHING is pulled —
+  unknown is not missing, and re-downloading gigabytes a user already has is
+  the worse error. A failed pull warns and leaves the stack running rather
+  than aborting it. Status still marks anything absent `MISSING` with the
+  `ollama pull` to fix it. **Remote (Anthropic) models get the same treatment
+  through `/v1/models`**: while the API key is in hand at start, one GET
+  records each configured model's display name, release month, and context
+  window — and warns when a model is NOT listed for that key (withdrawn, or a
+  typo'd id), the remote analog of MISSING and today's only signal before a
+  job fails on it. Status renders the recorded metadata, refreshing it live
+  only when `ANTHROPIC_API_KEY` is already in its environment — status never
+  resolves secrets. NO costs: Anthropic exposes no price list programmatically
+  (the pricing page is docs-only; actual spend needs the org-level Admin API,
+  a different credential — see GO-LAUNCHER.md follow-ups). An unreachable Ollama reads `unknown`, never `missing`: ignorance
+  and a finding are different answers. Untagged config names are matched
+  against Ollama's `:latest` form. Remote models (Claude, Voyage) list as
+  `remote` — there is nothing to install.
+  Moving `database.port` moves the publish/checks/gates with it;
+  a local Ollama runs only when the config references ollama — owned by
+  inference when the bindings use it, by embedding when only the embedding
+  does. An optional `image`
   key per role section overrides the catalog's default image — a KB can pin
   or upgrade an infra image without a launcher release. `--dry-run` renders
   the derived plan.
@@ -159,13 +235,13 @@ semiont stop
   else the root is found by walking up from cwd for `.semiont/`. git is not
   part of discovery — the must-be-a-git-clone invariant applies only where
   `/kb` is mounted (full start, `--service backend`); sidecars need only the
-  `.semiont/` tree. `semiont status` reports the root(s) in a SEMIONT ROOTS
-  section (plural-shaped: multiple roots are on the roadmap).
+  `.semiont/` tree. `semiont status` reports the root(s) in its LOCAL ROOTS
+  section.
 - The launcher remembers every root a real start used in `roots.json` (beside
   `stack.json`; entries survive stops, vanished paths are flagged not
   dropped). `semiont start --root <path|name>` selects a root explicitly — a
   directory, or the basename of a registered root — winning over
-  `SEMIONT_ROOT` and cwd discovery; the SEMIONT ROOTS status section lists
+  `SEMIONT_ROOT` and cwd discovery; the LOCAL ROOTS status section lists
   the registry with last-used annotations.
 - **`--config` is sticky per KB**: a successful start with an explicit
   `--config` records the name on the root's `roots.json` entry, and later

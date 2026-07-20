@@ -31,14 +31,27 @@ const (
 )
 
 type serviceState struct {
-	Container string    `json:"container,omitempty"` // container name (launcher-provided only)
-	ID        string    `json:"id,omitempty"`        // identifier the runtime printed at run -d
-	Image     string    `json:"image,omitempty"`     // full image ref
-	Provided  string    `json:"provided,omitempty"`  // schema 2: launcher|host|external|none
-	Driver    string    `json:"driver,omitempty"`    // config `type` (infra roles)
-	Endpoint  string    `json:"endpoint,omitempty"`  // health probe: http(s) URL or tcp:<host>:<port>
-	HostReuse bool      `json:"hostReuse,omitempty"` // schema 1 (read-compat only; no longer written)
-	StartedAt time.Time `json:"startedAt"`
+	Container string   `json:"container,omitempty"` // container name (launcher-provided only)
+	ID        string   `json:"id,omitempty"`        // identifier the runtime printed at run -d
+	Image     string   `json:"image,omitempty"`     // full image ref
+	Provided  string   `json:"provided,omitempty"`  // schema 2: launcher|host|external|none
+	Driver    string   `json:"driver,omitempty"`    // config `type` (infra roles)
+	Models    []string `json:"models,omitempty"`    // models this role uses, per the config it started with
+	// OllamaServed: the subset of Models that Ollama serves — the only ones
+	// with an install state. Deliberately NOT omitempty: an EMPTY set ("this
+	// role's models are all remote") must stay distinguishable on read from an
+	// ABSENT field ("record predates this field"), and omitempty collapses
+	// both to nil. That collapse is what let an all-Claude inference row fall
+	// back to its ollama driver and report MISSING.
+	OllamaServed []string `json:"ollamaServed"`
+	// RemoteModels: /v1/models metadata for SaaS-served models, keyed by id,
+	// recorded at start (the key is in hand then; status never reaches for
+	// secrets). Availability means "as of that start" — status refreshes it
+	// live only when the key happens to be in its environment.
+	RemoteModels map[string]remoteModelMeta `json:"remoteModels,omitempty"`
+	Endpoint     string                     `json:"endpoint,omitempty"`  // health probe: http(s) URL or tcp:<host>:<port>
+	HostReuse    bool                       `json:"hostReuse,omitempty"` // schema 1 (read-compat only; no longer written)
+	StartedAt    time.Time                  `json:"startedAt"`
 }
 
 type stackState struct {
@@ -218,17 +231,25 @@ func forgetStack(key string) {
 
 // recordService updates one service's entry and saves. provided says who
 // provides the role; endpoint is the health probe status should use.
-func (st *stackState) recordService(role, id, image, provided, endpoint, driver string) {
+func (st *stackState) recordService(role, id, image, provided, endpoint, driver string, models, ollamaServed []string) {
 	e := serviceState{
-		ID:        id,
-		Image:     image,
-		Provided:  provided,
-		Endpoint:  endpoint,
-		Driver:    driver,
-		StartedAt: time.Now().UTC(),
+		ID:           id,
+		Image:        image,
+		Provided:     provided,
+		Endpoint:     endpoint,
+		Driver:       driver,
+		Models:       models,
+		OllamaServed: ollamaServed,
+		StartedAt:    time.Now().UTC(),
 	}
 	if provided == providedLauncher {
 		e.Container = roles[role].container
+		// A container-less role (embedding) gets NO container here even when
+		// provided reads "launcher" — that value may be INHERITED from the
+		// role that runs its Ollama (SharesOllamaWith), and stamping a
+		// container it does not own would let `stop --service embedding`
+		// sweep inference's Ollama. Ownership is explicit: only the flow that
+		// actually launched the container records one (noteContainer).
 	}
 	st.Services[role] = e
 	saveStack(st)
