@@ -1006,6 +1006,7 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"Reading admin credentials",
 		"Semiont KB is up in codespace fake-cs-1",
 		"Semiont KB         http://localhost:4000",
+		"Semiont Browser    semiont start --service frontend", // not forwarded — runs locally
 		"admin@example.com", "fake-admin-pw",
 		"local uncommitted changes don't travel",
 		"Halt billing:")

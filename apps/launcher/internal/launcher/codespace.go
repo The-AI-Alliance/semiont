@@ -219,6 +219,15 @@ func startCodespace(u *ui, opts startOptions) int {
 	fmt.Println()
 	fmt.Printf("  Semiont KB         %s %s\n", u.bold(fmt.Sprintf("http://localhost:%d", kbPort)),
 		u.dim("(add Host localhost, Port "+fmt.Sprintf("%d", kbPort)+" in the browser's Knowledge Bases panel)"))
+	// The browser is NOT forwarded — only the KB is. It runs locally and
+	// connects to any number of KBs, cloud or local; without this pointer a
+	// codespace-only user has no browser at all.
+	if httpOK("http://localhost:3000") {
+		fmt.Printf("  Semiont Browser    %s %s\n", u.bold("http://localhost:3000"), u.dim("(already running)"))
+	} else {
+		fmt.Printf("  Semiont Browser    %s %s\n", u.bold("semiont start --service frontend"),
+			u.dim("(runs locally; one browser works any number of KBs)"))
+	}
 	fmt.Println()
 	fmt.Printf("  %s\n", u.dim("Runs "+repo+" as pushed — local uncommitted changes don't travel."))
 	if creds != nil {
