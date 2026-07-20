@@ -602,14 +602,23 @@ func TestStatusMixed(t *testing.T) {
 		"PostgreSQL", "Neo4j", "Qdrant", "Ollama", "Jaeger",
 		"LOCAL ROOTS",
 		"(discovered from cwd)",
-		"LAUNCHER PATHS",
-		"config", "cache", "staging", "/tmp/semiont-config.*",
 		"✓ http://localhost:4000/api/health",
 		"✗ http://localhost:9090/health",
 		"✗ tcp://localhost:5432",
 		"exited",
 		"host",
 	)
+	// LAUNCHER PATHS describes the launcher, not any KB — asked for, not shown.
+	if strings.Contains(stdout, "LAUNCHER PATHS") {
+		t.Errorf("default status printed LAUNCHER PATHS without --verbose:\n%s", stdout)
+	}
+	vstdout, _, vcode := s.run(t, "status", "--verbose")
+	if vcode != 0 {
+		t.Fatalf("status --verbose: exit %d", vcode)
+	}
+	mustContain(t, "verbose stdout", vstdout,
+		"LAUNCHER PATHS", "config", "cache", "staging", "/tmp/semiont-config.*")
+
 	for _, line := range strings.Split(stdout, "\n") {
 		if !strings.Contains(line, "localhost") {
 			continue // service-table rows only, not the host-dirs block
@@ -3098,7 +3107,7 @@ func TestStatusService(t *testing.T) {
 		t.Fatalf("healthy backend: want exit 0, got %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "stdout", stdout, "backend", "running", "✓ http://localhost:4000/api/health")
-	for _, absent := range []string{"LAUNCHER PATHS", "LOCAL ROOTS", "worker", "traces"} {
+	for _, absent := range []string{"LOCAL ROOTS", "worker", "traces"} {
 		if strings.Contains(stdout, absent) {
 			t.Errorf("filtered status leaked %q:\n%s", absent, stdout)
 		}
@@ -3110,6 +3119,12 @@ func TestStatusService(t *testing.T) {
 	}
 	if _, _, code := s.run(t, "status", "--service", "traces"); code != 1 {
 		t.Errorf("down traces (explicit): want exit 1, got %d", code)
+	}
+	// --service narrows to one service; --verbose must not smuggle the
+	// launcher's own paths back into that answer.
+	vstdout, _, _ := s.run(t, "status", "--service", "backend", "--verbose")
+	if strings.Contains(vstdout, "LAUNCHER PATHS") {
+		t.Errorf("--service --verbose leaked LAUNCHER PATHS:\n%s", vstdout)
 	}
 }
 

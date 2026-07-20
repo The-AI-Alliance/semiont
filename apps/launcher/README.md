@@ -129,7 +129,9 @@ semiont stop
 - **`semiont status` reports in three layers** — LOCAL STACK (the one stack
   running here, headed by the root it belongs to and its did:web), LOCAL
   ROOTS, REMOTE KNOWLEDGE BASES (codespace-hosted KBs, their state, and each
-  KB's local port), then LAUNCHER PATHS. Roots and KBs are the durable
+  KB's local port). `--verbose` adds LAUNCHER PATHS — the launcher's own
+  config, cache, log, state, staging and model-cache paths, which describe the
+  tool rather than any KB. Roots and KBs are the durable
   things; a stack is status layered on one of them. Per service it
   shows the container STATE as the runtime sees it plus a host-side health
   probe, with the concrete product in the service cell (`database
@@ -162,8 +164,8 @@ semiont stop
 - Every invocation is logged (invoke + exit lines, with `--password` values
   redacted) to `launcher.log` in the launcher's log home: `~/Library/Logs/
   semiont` on macOS, `$XDG_STATE_HOME/semiont` (default
-  `~/.local/state/semiont`) on Linux. `semiont status` lists the dir under
-  LOCAL HOST DIRECTORIES. Logging is best-effort — it never blocks a command.
+  `~/.local/state/semiont`) on Linux. `semiont status --verbose` lists the dir
+  under LAUNCHER PATHS. Logging is best-effort — it never blocks a command.
 - **The launcher derives its work from the KB's semiontconfig TOML** — the
   same file the Semiont containers read (see
   `docs/system/administration/CONFIGURATION.md`). Per dependency role
@@ -183,13 +185,13 @@ semiont stop
   else the root is found by walking up from cwd for `.semiont/`. git is not
   part of discovery — the must-be-a-git-clone invariant applies only where
   `/kb` is mounted (full start, `--service backend`); sidecars need only the
-  `.semiont/` tree. `semiont status` reports the root(s) in a SEMIONT ROOTS
-  section (plural-shaped: multiple roots are on the roadmap).
+  `.semiont/` tree. `semiont status` reports the root(s) in its LOCAL ROOTS
+  section.
 - The launcher remembers every root a real start used in `roots.json` (beside
   `stack.json`; entries survive stops, vanished paths are flagged not
   dropped). `semiont start --root <path|name>` selects a root explicitly — a
   directory, or the basename of a registered root — winning over
-  `SEMIONT_ROOT` and cwd discovery; the SEMIONT ROOTS status section lists
+  `SEMIONT_ROOT` and cwd discovery; the LOCAL ROOTS status section lists
   the registry with last-used annotations.
 - **`--config` is sticky per KB**: a successful start with an explicit
   `--config` records the name on the root's `roots.json` entry, and later

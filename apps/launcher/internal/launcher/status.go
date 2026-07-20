@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 )
 
-const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name> [--refresh]] [--service <name>] [--runtime container|docker|podman]
+const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name> [--refresh]] [--service <name>] [--runtime container|docker|podman] [--verbose]
 
 Reports what this machine knows about, in three layers:
 
@@ -19,6 +19,11 @@ Reports what this machine knows about, in three layers:
   LOCAL ROOTS    every KB clone the launcher has used (roots.json)
   REMOTE KNOWLEDGE BASES
                  codespace-hosted KBs, their state, and their KB port
+
+--verbose adds LAUNCHER PATHS: the launcher's own config, cache, log, state,
+staging and model-cache paths on this host. They describe the tool, not any
+KB, and change only when the launcher itself does — so they are asked for
+rather than shown.
 
 For every local service: the container state as the runtime reports it
 (running / exited / absent — across all installed runtimes unless --runtime
@@ -75,6 +80,7 @@ func Status(args []string) int {
 	u := newUI(false)
 	runtime, service, repoFlag, rootFlag := "", "", "", ""
 	refresh := false
+	verbose := false
 	for i := 0; i < len(args); i++ {
 		need := func() (string, bool) {
 			if i+1 >= len(args) {
@@ -114,6 +120,8 @@ func Status(args []string) int {
 			i++
 		case "--refresh":
 			refresh = true
+		case "--verbose", "-v":
+			verbose = true
 		case "--help", "-h":
 			fmt.Print(statusUsage)
 			return 0
@@ -181,7 +189,7 @@ func Status(args []string) int {
 	if service == "" && rootFlag == "" {
 		printRemoteKBs(u, cs)
 	}
-	if service == "" {
+	if service == "" && verbose {
 		printLauncherPaths(u)
 	}
 
@@ -410,8 +418,11 @@ func printRoots(u *ui, st *stackState) {
 	}
 }
 
-// printLauncherPaths reports the host-side paths the stack touches (paths, not
-// "directories" — the state entry is a file). They are: the
+// printLauncherPaths reports the host-side paths the stack touches, under
+// --verbose only: they describe the LAUNCHER, not any KB, and change only
+// when the launcher itself does — so the everyday report leads with roots
+// and stacks instead. (Paths, not
+// "directories" — the state entry is a file.) They are: the
 // launcher's XDG-resolved config/cache homes (reserved by design — see
 // GO-LAUNCHER.md host need #1; Go maps them to XDG_* on Linux and
 // ~/Library/... on macOS), the live config staging under /tmp (never
