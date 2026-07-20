@@ -31,11 +31,13 @@ container run -d --rm --name semiont-qdrant -p 6333:6333 qdrant/qdrant:v1.18.3
 # wait: http://localhost:6333/readyz (15s)
 # probe: host Ollama at http://localhost:11434/api/version
 # if present — probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:11434/api/version" — and use it
+# ensure ollama models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # else:
 container stop semiont-ollama
 # require free port: 11434
 container run -d --rm --name semiont-ollama -p 11434:11434 -m 24G -v <ollama-volume>:/root/.ollama ollama/ollama
 # wait: http://localhost:11434/api/version (30s)
+# ensure ollama models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # embedding: externally provided at localhost:11434 — verify reachability, launch nothing
 container run -d --rm --name semiont-postgres -p 5432:5432 -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
 # wait: tcp localhost:5432 (20s)

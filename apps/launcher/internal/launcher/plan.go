@@ -44,6 +44,12 @@ type rolePlan struct {
 type launchPlan struct {
 	Roles       map[string]rolePlan
 	BackendPort int
+	// OllamaModels: every model this config asks OLLAMA to serve — the
+	// ollama-typed actor/worker bindings plus an ollama embedding. Distinct
+	// from the per-role Models (which list what a role uses whoever serves
+	// it): only these can be pulled, and pulling a Claude into Ollama is not
+	// a thing.
+	OllamaModels []string
 }
 
 // driverSpec: what the config does NOT declare about a driver — the
@@ -83,6 +89,32 @@ var driverCatalog = map[string]map[string]driverSpec{
 	"traces": {
 		"jaeger": {image: "jaegertracing/all-in-one:1.76.0", display: "Jaeger", defaultPort: 16686, portLabel: "Jaeger UI"},
 	},
+}
+
+// ollamaModels: the models this config asks Ollama to serve — bindings whose
+// inference type is ollama, plus an ollama-typed embedding. These are exactly
+// the models a "pull" is defined for.
+func ollamaModels(env *envConfig) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(m string) {
+		if m != "" && !seen[m] {
+			seen[m] = true
+			out = append(out, m)
+		}
+	}
+	for _, bindings := range []map[string]bindingCfg{env.Actors, env.Workers} {
+		for _, b := range bindings {
+			if b.Inference.Type == "ollama" {
+				add(b.Inference.Model)
+			}
+		}
+	}
+	if env.Embedding != nil && env.Embedding.Type == "ollama" {
+		add(env.Embedding.Model)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // bindingModels: every model the config's actors and workers bind for
@@ -193,7 +225,7 @@ func parseHostPort(s string) (host string, port int) {
 
 // derivePlan maps the selected environment to per-role launch obligations.
 func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
-	plan := &launchPlan{Roles: map[string]rolePlan{}, BackendPort: 4000}
+	plan := &launchPlan{Roles: map[string]rolePlan{}, BackendPort: 4000, OllamaModels: ollamaModels(env)}
 	if env.Backend != nil && env.Backend.Port != 0 {
 		plan.BackendPort = env.Backend.Port
 	}

@@ -3243,6 +3243,54 @@ func TestBareResumeUsesRecordedRepoNotCwd(t *testing.T) {
 	}
 }
 
+func TestStartPullsMissingOllamaModels(t *testing.T) {
+	// The launcher brings Ollama up but used to leave its models to chance:
+	// a configured model that was never pulled stayed invisible until a
+	// worker reached for it mid-job and failed. Start now pulls what the
+	// config asks Ollama to serve — and only that.
+	pulls := func(s *scenario) string {
+		b, _ := os.ReadFile(filepath.Join(s.fakertDir, "ollama-pulls"))
+		return string(b)
+	}
+
+	// One model already present, one absent: pull exactly the absent one.
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_OLLAMA_TAGS=gemma4:26b")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	got := pulls(s)
+	if !strings.Contains(got, "gemma4:e2b") || !strings.Contains(got, "nomic-embed-text") {
+		t.Errorf("did not pull the missing models; pulled:\n%s", got)
+	}
+	if strings.Contains(got, "gemma4:26b") {
+		t.Errorf("re-pulled a model Ollama already had:\n%s", got)
+	}
+	s.killServes() // else this fake Ollama looks like a HOST one to the next case
+
+	// Ollama unlistable: we know NOTHING, so pull nothing. Blindly pulling
+	// would re-download gigabytes the user already has.
+	s2 := newScenario(t, "container")
+	s2.extraEnv = append(s2.extraEnv, "FAKERT_OLLAMA_UNLISTABLE=1")
+	if _, stderr, code := s2.run(t, "start"); code != 0 {
+		t.Fatalf("start (unlistable): exit %d\nstderr:\n%s", code, stderr)
+	}
+	if got := pulls(s2); got != "" {
+		t.Errorf("pulled while Ollama was unlistable — unknown is not missing:\n%s", got)
+	}
+	s2.killServes()
+
+	// A failed pull warns but does not fail the stack: the rest is healthy
+	// and the user may prefer to pull by hand.
+	s3 := newScenario(t, "container")
+	s3.extraEnv = append(s3.extraEnv, "FAKERT_OLLAMA_TAGS=", "FAKERT_OLLAMA_PULL_FAILS=1")
+	stdout, stderr, code := s3.run(t, "start")
+	if code != 0 {
+		t.Fatalf("a failed model pull must not fail the stack: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "warning", stdout+stderr, "Could not pull", "ollama pull")
+}
+
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")

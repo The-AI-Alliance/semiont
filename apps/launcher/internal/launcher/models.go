@@ -146,3 +146,99 @@ func ollamaBase(endpoint string) string {
 	}
 	return "http://localhost:11434"
 }
+
+// --- pulling ---
+
+// ensureOllamaModels pulls any configured model Ollama does not already
+// have. It runs over Ollama's HTTP API rather than the `ollama` CLI or a
+// `<runtime> exec`, so ONE path covers both placements — a host process and
+// the launcher's own container answer the same endpoint, and no CLI needs to
+// be on PATH.
+//
+// A model that cannot be listed is never pulled: when Ollama does not answer
+// we know nothing, and blindly pulling would re-download gigabytes a user
+// already has. Same rule status keeps — unknown is not missing.
+func ensureOllamaModels(u *ui, base string, models []string) bool {
+	if len(models) == 0 {
+		return true
+	}
+	facts := fetchModelFacts(base)
+	if !facts.found {
+		u.warn("Could not list Ollama's models at %s — skipping model checks.", base)
+		return true // not fatal: the stack runs, status will report what it finds
+	}
+	var missing []string
+	for _, m := range models {
+		if _, ok := facts.installed[normalizeModel(m)]; !ok {
+			missing = append(missing, m)
+		}
+	}
+	if len(missing) == 0 {
+		u.ok("Models present %s", u.dim("("+strings.Join(models, ", ")+")"))
+		return true
+	}
+	u.log("Pulling %d missing model(s): %s", len(missing), u.bold(strings.Join(missing, ", ")))
+	for _, m := range missing {
+		if !pullOllamaModel(u, base, m) {
+			// A failed pull is NOT fatal to the stack: the other services are
+			// fine and the user may prefer to pull by hand. Say plainly what
+			// will break, and let status keep reporting it MISSING.
+			u.warn("Could not pull %s — jobs that use it will fail until it is present (ollama pull %s).", m, m)
+		}
+	}
+	return true
+}
+
+// pullOllamaModel streams POST /api/pull, reporting progress at intervals
+// rather than per line: a multi-gigabyte pull emits thousands of updates, and
+// the launcher's output is a log, not a TTY canvas.
+func pullOllamaModel(u *ui, base, model string) bool {
+	body, _ := json.Marshal(map[string]any{"model": model, "stream": true})
+	req, err := http.NewRequest("POST", base+"/api/pull", strings.NewReader(string(body)))
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Content-Type", "application/json")
+	// No client timeout: a cold pull of a 20GB model legitimately runs for
+	// many minutes. The stream itself is the liveness signal.
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		u.warn("pull %s: %v", model, err)
+		return false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		u.warn("pull %s: Ollama answered %s", model, resp.Status)
+		return false
+	}
+	t0 := time.Now()
+	dec := json.NewDecoder(resp.Body)
+	lastReport := time.Now()
+	ok := false
+	for {
+		var ev struct {
+			Status    string `json:"status"`
+			Total     int64  `json:"total"`
+			Completed int64  `json:"completed"`
+			Error     string `json:"error"`
+		}
+		if err := dec.Decode(&ev); err != nil {
+			break
+		}
+		if ev.Error != "" {
+			u.warn("pull %s: %s", model, ev.Error)
+			return false
+		}
+		if ev.Status == "success" {
+			ok = true
+		}
+		if ev.Total > 0 && time.Since(lastReport) > 5*time.Second {
+			lastReport = time.Now()
+			u.log("  %s %s", model, u.dim(fmt.Sprintf("%d%% of %s", ev.Completed*100/ev.Total, humanSize(ev.Total))))
+		}
+	}
+	if ok {
+		u.ok("Pulled %s %s", model, u.dim("("+took(time.Since(t0))+")"))
+	}
+	return ok
+}

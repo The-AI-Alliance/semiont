@@ -197,8 +197,16 @@ semiont stop
   is verified live against Ollama's `/api/tags` and `/api/ps`, with size,
   parameter count and quantization. **Nothing in the launcher pulls models**, so
   a model that was never pulled is otherwise invisible until a worker reaches
-  for it mid-job and fails — status marks it `MISSING` with the `ollama pull`
-  to fix it. An unreachable Ollama reads `unknown`, never `missing`: ignorance
+  for it mid-job and fails. **`semiont start` now pulls them**: after Ollama is
+  up it lists what is installed and pulls each configured model that is
+  absent, over Ollama's HTTP API (one path for both a host process and the
+  launcher's container — no `ollama` CLI needed on PATH). Only models Ollama
+  can actually serve are pulled: ollama-typed bindings plus an ollama
+  embedding, never a Claude. If Ollama cannot be listed, NOTHING is pulled —
+  unknown is not missing, and re-downloading gigabytes a user already has is
+  the worse error. A failed pull warns and leaves the stack running rather
+  than aborting it. Status still marks anything absent `MISSING` with the
+  `ollama pull` to fix it. An unreachable Ollama reads `unknown`, never `missing`: ignorance
   and a finding are different answers. Untagged config names are matched
   against Ollama's `:latest` form. Remote models (Claude, Voyage) list as
   `remote` — there is nothing to install.

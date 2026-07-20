@@ -44,8 +44,9 @@ type executor interface {
 	workerSecret() (string, bool)          // full start: env or generated
 	ollamaVolume(opts startOptions) string // model-cache choice (prompt is live-only)
 	record(role, id, image, provided, endpoint, driver string)
-	providerOf(role string) string // how an already-recorded role was provided
-	val(live, plan string) string  // mode-scoped value (kb root, admin password)
+	providerOf(role string) string             // how an already-recorded role was provided
+	ensureModels(base string, models []string) // pull configured ollama models that are absent
+	val(live, plan string) string              // mode-scoped value (kb root, admin password)
 	rtName() string
 
 	// --- decoration ---
@@ -352,6 +353,10 @@ func (x *liveExec) providerOf(role string) string {
 	return x.st.Services[role].Provided
 }
 
+func (x *liveExec) ensureModels(base string, models []string) {
+	ensureOllamaModels(x.u, base, models)
+}
+
 func (x *liveExec) val(live, _ string) string { return live }
 func (x *liveExec) rtName() string            { return x.rt }
 func (x *liveExec) dim(s string) string       { return x.u.dim(s) }
@@ -510,6 +515,14 @@ func (x *planExec) record(_, _, _, _, _, _ string) {}
 
 // --dry-run records nothing, so there is nothing to read back.
 func (x *planExec) providerOf(string) string { return "" }
+
+// --dry-run reaches for nothing: which models are ABSENT is a runtime fact,
+// so the plan can only name what would be checked.
+func (x *planExec) ensureModels(base string, models []string) {
+	if len(models) > 0 {
+		x.c("ensure ollama models present at %s (pull each missing one): %s", base, strings.Join(models, ", "))
+	}
+}
 
 func (x *planExec) val(_, plan string) string { return plan }
 func (x *planExec) rtName() string            { return x.rt }

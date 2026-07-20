@@ -123,6 +123,9 @@ func git(args []string) {
 //	FAKERT_GH_SSH_FAIL      ssh fails with the no-sshd error
 //	FAKERT_GH_ADMIN         admin.json content for `ssh -- cat .devcontainer/admin.json`
 //	FAKERT_GH_KBCONFIG      .semiont/config content for `ssh -- cat .semiont/config`
+//	FAKERT_OLLAMA_TAGS      models the fake Ollama already has (comma separated)
+//	FAKERT_OLLAMA_UNLISTABLE  /api/tags fails — "unknown", which must not pull
+//	FAKERT_OLLAMA_PULL_FAILS  /api/pull answers with an error
 //
 // `codespace ports forward A:B …` binds every host port and parks (the fake
 // dev tunnel), writing a serve pidfile so killServes reaps it.
@@ -670,7 +673,45 @@ func serve(ports []string) {
 		}
 		go func() {
 			_ = http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				fmt.Fprintln(w, "ok")
+				// A fake Ollama, so model checks and pulls are exercisable.
+				// FAKERT_OLLAMA_TAGS lists the models it already has (comma
+				// separated); every pull is appended to a log the test reads.
+				switch r.URL.Path {
+				case "/api/tags":
+					if os.Getenv("FAKERT_OLLAMA_UNLISTABLE") != "" {
+						http.Error(w, "nope", 500)
+						return
+					}
+					var ms []map[string]any
+					for _, n := range strings.Split(os.Getenv("FAKERT_OLLAMA_TAGS"), ",") {
+						if n = strings.TrimSpace(n); n != "" {
+							ms = append(ms, map[string]any{"name": n, "size": 1 << 30})
+						}
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"models": ms})
+				case "/api/ps":
+					_ = json.NewEncoder(w).Encode(map[string]any{"models": []any{}})
+				case "/api/pull":
+					body, _ := io.ReadAll(r.Body)
+					var req struct {
+						Model string `json:"model"`
+					}
+					_ = json.Unmarshal(body, &req)
+					if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+						if f, err := os.OpenFile(filepath.Join(dir, "ollama-pulls"),
+							os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
+							fmt.Fprintln(f, req.Model)
+							f.Close()
+						}
+					}
+					if os.Getenv("FAKERT_OLLAMA_PULL_FAILS") != "" {
+						_ = json.NewEncoder(w).Encode(map[string]any{"error": "no such model"})
+						return
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+				default:
+					fmt.Fprintln(w, "ok")
+				}
 			}))
 			close(done)
 		}()

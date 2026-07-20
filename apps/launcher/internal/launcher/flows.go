@@ -277,6 +277,7 @@ func flowInference(x executor, fc flowCtx, rp rolePlan, addr string) int {
 			}
 			x.say(sayOK, "inference — using host Ollama at http://localhost:%d", rp.Port)
 			x.record("inference", "", "", providedHost, fmt.Sprintf("http://localhost:%d/api/version", rp.Port), rp.Driver)
+			x.ensureModels(fmt.Sprintf("http://localhost:%d", rp.Port), fc.plan.OllamaModels)
 			return 0
 		},
 		func() int {
@@ -300,6 +301,7 @@ func flowInference(x executor, fc flowCtx, rp rolePlan, addr string) int {
 			}
 			x.say(sayOK, "inference — Ollama container on http://localhost:%d (24 GB memory) %s", rp.Port, x.dim("("+took(d)+")"))
 			x.record("inference", id, rp.Image, providedLauncher, fmt.Sprintf("http://localhost:%d/api/version", rp.Port), rp.Driver)
+			x.ensureModels(fmt.Sprintf("http://localhost:%d", rp.Port), fc.plan.OllamaModels)
 			return 0
 		})
 }

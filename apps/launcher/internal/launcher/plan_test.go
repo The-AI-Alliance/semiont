@@ -185,6 +185,16 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 				Image: "ollama/ollama", Port: 11434,
 				Models: wantModels,
 			})
+			// Only what OLLAMA can serve is pullable — the anthropic config's
+			// Claude models are not in this list even though its inference
+			// role is ollama-driven.
+			wantPull := []string{"gemma4:26b", "gemma4:e2b", "nomic-embed-text"}
+			if name == "anthropic.toml" {
+				wantPull = []string{"nomic-embed-text"}
+			}
+			if strings.Join(plan.OllamaModels, ",") != strings.Join(wantPull, ",") {
+				t.Errorf("ollama models: got %v want %v", plan.OllamaModels, wantPull)
+			}
 			if plan.BackendPort != 4000 {
 				t.Errorf("backend port: got %d want 4000", plan.BackendPort)
 			}
