@@ -2166,8 +2166,10 @@ func TestStartMovedDBPortBoot(t *testing.T) {
 }
 
 func TestStartNoInferenceBoot(t *testing.T) {
-	// A config that references no ollama anywhere: the launcher launches no
-	// inference at all — derived fact, not folklore.
+	// A config that references no ollama anywhere: nothing local is launched
+	// for inference — but its Claude-bound worker means inference IS
+	// configured, as an external SaaS role. "Not referenced" was the old
+	// ollama/inference conflation's answer.
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "no-ollama",
 		stdGraph+stdVectors+stdDatabase+
@@ -2178,7 +2180,7 @@ func TestStartNoInferenceBoot(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "inference — not referenced by the config; skipping")
+	mustContain(t, "stdout", stdout, "inference — Anthropic is remote SaaS; nothing to launch")
 	if argv := s.argv(t); strings.Contains(argv, "ollama") {
 		t.Errorf("no-ollama config still touched ollama:\n%s", argv)
 	}
@@ -2189,7 +2191,9 @@ func TestStartNoInferenceBoot(t *testing.T) {
 	if code != 0 {
 		t.Errorf("status: exit %d\n%s", code, stdout)
 	}
-	mustContain(t, "status stdout", stdout, "not configured")
+	// embedding is absent here → "not configured"; inference is the external
+	// Anthropic row.
+	mustContain(t, "status stdout", stdout, "not configured", "inference (Anthropic)", "external")
 	preStop := s.argv(t)
 	if _, _, code := s.run(t, "stop"); code != 0 {
 		t.Fatalf("stop: exit %d", code)
