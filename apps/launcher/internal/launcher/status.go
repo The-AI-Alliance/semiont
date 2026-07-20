@@ -359,11 +359,14 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 
 		// The models this role was started with, indented beneath it.
 		if rec != nil && len(rec.Models) > 0 {
-			if rec.Driver == "ollama" && !factsFetched {
+			// Only reach for Ollama when this row actually has models it
+			// serves — an all-remote row must not probe it at all.
+			needsFacts := len(rec.OllamaServed) > 0 || (rec.OllamaServed == nil && rec.Driver == "ollama")
+			if needsFacts && !factsFetched {
 				facts = fetchModelFacts(ollamaBase(rec.Endpoint))
 				factsFetched = true
 			}
-			printModels(u, rec.Models, rec.Driver, facts)
+			printModels(u, rec.Models, rec.OllamaServed, rec.Driver, facts)
 		}
 	}
 	return healthy, 0

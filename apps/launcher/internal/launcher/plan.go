@@ -37,7 +37,8 @@ type rolePlan struct {
 	Address          string   // external host, for reachability probes
 	Port             int      // primary port (config, else driver default)
 	SharesOllamaWith string   // role under which the launcher runs the Ollama this one uses
-	Models           []string // models this role serves, from the config (sorted, deduped)
+	Models           []string // models this role uses, whoever serves them (sorted, deduped)
+	OllamaServed     []string // the subset of Models that OLLAMA serves — the only ones with an install state
 	Env              []string // container env derived from config (creds)
 }
 
@@ -94,6 +95,24 @@ var driverCatalog = map[string]map[string]driverSpec{
 // ollamaModels: the models this config asks Ollama to serve — bindings whose
 // inference type is ollama, plus an ollama-typed embedding. These are exactly
 // the models a "pull" is defined for.
+func ollamaBindingModels(env *envConfig) []string {
+	seen := map[string]bool{}
+	// Non-nil even when empty: "no ollama-served models here" is a real
+	// answer that must survive a round trip through the record, distinct
+	// from "this record predates the field".
+	out := []string{}
+	for _, bindings := range []map[string]bindingCfg{env.Actors, env.Workers} {
+		for _, b := range bindings {
+			if b.Inference.Type == "ollama" && b.Inference.Model != "" && !seen[b.Inference.Model] {
+				seen[b.Inference.Model] = true
+				out = append(out, b.Inference.Model)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 func ollamaModels(env *envConfig) []string {
 	seen := map[string]bool{}
 	var out []string
@@ -424,6 +443,10 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		}
 		if e.Model != "" {
 			rp.Models = []string{e.Model}
+			rp.OllamaServed = []string{}
+			if e.Type == "ollama" {
+				rp.OllamaServed = []string{e.Model}
+			}
 		}
 		plan.Roles["embedding"] = rp
 	}
@@ -465,6 +488,10 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		}
 		rp := rolePlan{Role: "inference", Driver: "ollama", Port: port, Image: img}
 		rp.Models = bindingModels(env)
+		// Only the ollama-typed bindings have an install state. A Claude in
+		// this list is served by Anthropic and must never be checked against
+		// — let alone "pulled" into — Ollama.
+		rp.OllamaServed = ollamaBindingModels(env)
 		if host == "${OLLAMA_HOST}" {
 			rp.Obligation = obligationHostProcess
 		} else {

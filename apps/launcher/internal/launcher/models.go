@@ -108,9 +108,27 @@ func humanSize(n int64) string {
 // printModels renders one role's configured models beneath its row. Remote
 // providers (Anthropic, Voyage) have nothing to install, so they get the name
 // and an honest "remote" rather than a fabricated install state.
-func printModels(u *ui, models []string, driver string, facts modelFacts) {
+func printModels(u *ui, models, ollamaServed []string, driver string, facts modelFacts) {
+	// Which models have an install state at all is PER MODEL, not per row: a
+	// config can point its workers at Anthropic while its embedding runs on
+	// Ollama, and the inference row then lists Claude models under a driver
+	// of "ollama". Checking those against Ollama reported them MISSING and
+	// advised `ollama pull claude-…` — nonsense (observed 2026-07-20).
+	//
+	// A nil ollamaServed is a record written before this field existed; fall
+	// back to the row's driver so those keep rendering as they did.
+	served := map[string]bool{}
+	for _, m := range ollamaServed {
+		served[m] = true
+	}
+	isOllama := func(m string) bool {
+		if ollamaServed == nil {
+			return driver == "ollama"
+		}
+		return served[m]
+	}
 	for _, m := range models {
-		if driver != "ollama" {
+		if !isOllama(m) {
 			fmt.Printf("      %-24s %-28s %s\n", m, "", u.dim("remote"))
 			continue
 		}

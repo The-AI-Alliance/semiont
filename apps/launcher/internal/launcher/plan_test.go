@@ -124,6 +124,9 @@ func checkRole(t *testing.T, plan *launchPlan, role string, want rolePlan) {
 	if strings.Join(got.Models, " ") != strings.Join(want.Models, " ") {
 		t.Errorf("%s models: got %v want %v", role, got.Models, want.Models)
 	}
+	if strings.Join(got.OllamaServed, " ") != strings.Join(want.OllamaServed, " ") {
+		t.Errorf("%s ollama-served: got %v want %v", role, got.OllamaServed, want.OllamaServed)
+	}
 	if strings.Join(got.Env, " ") != strings.Join(want.Env, " ") {
 		t.Errorf("%s env: got %v want %v", role, got.Env, want.Env)
 	}
@@ -160,7 +163,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			checkRole(t, plan, "embedding", rolePlan{
 				Obligation: obligationExternal, Driver: "ollama",
 				Address: "localhost", Port: 11434,
-				Models: []string{"nomic-embed-text"},
+				Models: []string{"nomic-embed-text"}, OllamaServed: []string{"nomic-embed-text"},
 			})
 			checkRole(t, plan, "database", rolePlan{
 				Obligation: obligationProvided, Driver: "postgres",
@@ -180,10 +183,17 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			if name == "anthropic.toml" {
 				wantModels = []string{"claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929"}
 			}
+			// A Claude has no install state: it is served by Anthropic, so it
+			// must never be checked against — or "pulled" into — Ollama, even
+			// though this role's driver IS ollama.
+			wantServed := wantModels
+			if name == "anthropic.toml" {
+				wantServed = nil
+			}
 			checkRole(t, plan, "inference", rolePlan{
 				Obligation: obligationHostProcess, Driver: "ollama",
 				Image: "ollama/ollama", Port: 11434,
-				Models: wantModels,
+				Models: wantModels, OllamaServed: wantServed,
 			})
 			// Only what OLLAMA can serve is pullable — the anthropic config's
 			// Claude models are not in this list even though its inference
@@ -260,7 +270,7 @@ model = "voyage-3"
 	checkRole(t, vp, "embedding", rolePlan{
 		Obligation: obligationExternal, Driver: "voyage",
 		Address: "api.voyageai.com", Port: 443,
-		Models: []string{"voyage-3"},
+		Models: []string{"voyage-3"}, // voyage is remote: nothing to install
 	})
 	// And a voyage embedding must not drag Ollama in: nothing else in this
 	// config references it.

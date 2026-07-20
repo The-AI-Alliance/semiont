@@ -336,11 +336,12 @@ func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
 			}
 		}
 	}
-	var models []string
+	var models, ollamaServed []string
 	if x.plan != nil {
 		models = x.plan.Roles[role].Models
+		ollamaServed = x.plan.Roles[role].OllamaServed
 	}
-	x.st.recordService(role, id, image, provided, endpoint, driver, models)
+	x.st.recordService(role, id, image, provided, endpoint, driver, models, ollamaServed)
 }
 
 // providerOf reads back how an earlier step in THIS run resolved a role.

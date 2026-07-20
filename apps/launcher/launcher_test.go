@@ -3291,6 +3291,41 @@ func TestStartPullsMissingOllamaModels(t *testing.T) {
 	mustContain(t, "warning", stdout+stderr, "Could not pull", "ollama pull")
 }
 
+func TestRemoteModelsAreNeverCheckedAgainstOllama(t *testing.T) {
+	// The anthropic config runs every actor and worker on Claude while its
+	// embedding runs on Ollama. The inference row's driver is therefore
+	// "ollama" (that Ollama exists only to serve the embedding) but its
+	// models are all remote. Checking them against Ollama reported
+	// "MISSING — ollama pull claude-sonnet-4-5-…", advice that cannot work
+	// (observed 2026-07-20).
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_OLLAMA_TAGS=nomic-embed-text:latest",
+		"ANTHROPIC_API_KEY=test-key")
+	if _, stderr, code := s.run(t, "start", "--config", "anthropic"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// Nothing remote may be pulled.
+	pulls, _ := os.ReadFile(filepath.Join(s.fakertDir, "ollama-pulls"))
+	if strings.Contains(string(pulls), "claude") {
+		t.Errorf("tried to pull a Claude into Ollama:\n%s", pulls)
+	}
+
+	stdout, _, _ := s.run(t, "status")
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.Contains(line, "claude") {
+			if strings.Contains(line, "MISSING") || strings.Contains(line, "ollama pull") {
+				t.Errorf("a remote model was checked against Ollama: %q", strings.TrimSpace(line))
+			}
+			if !strings.Contains(line, "remote") {
+				t.Errorf("a remote model was not marked remote: %q", strings.TrimSpace(line))
+			}
+		}
+	}
+	// The ollama-served embedding still gets a real install state.
+	mustContain(t, "embedding model", stdout, "nomic-embed-text")
+}
+
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")
