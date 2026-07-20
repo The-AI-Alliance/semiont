@@ -11,7 +11,12 @@ import (
 	"unicode/utf8"
 )
 
-const statusUsage = `Usage: semiont status [--service <name>] [--runtime container|docker|podman]
+const statusUsage = `Usage: semiont status [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>]
+
+With codespace stacks recorded, status opens with a STACKS overview (every
+recorded stack, its state, and each forwarded KB's local port), then details
+the lone forwarded stack — or the local one; with several forwarded, the
+overview stands and --repo details a specific codespace stack.
 
 Report each Semiont container's runtime state and application-level health.
 
@@ -63,6 +68,7 @@ func Status(args []string) int {
 	u := newUI(false)
 	runtime := ""
 	service := ""
+	repoFlag := ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--runtime":
@@ -71,6 +77,13 @@ func Status(args []string) int {
 				return 1
 			}
 			runtime = args[i+1]
+			i++
+		case "--repo":
+			if i+1 >= len(args) {
+				u.fail("Missing value for --repo")
+				return 1
+			}
+			repoFlag = args[i+1]
 			i++
 		case "--service":
 			if i+1 >= len(args) {
@@ -98,13 +111,49 @@ func Status(args []string) int {
 	// runtime that actually started the stack, and supplies the identifiers
 	// the runtime reported at start — the record is belief; every claim below
 	// is still verified against the runtime and the health endpoints.
-	st := loadState()
-	if st != nil && st.Runtime == "codespace" && runtime == "" {
+	ss := loadStackSet()
+	cs := codespaceStacks(ss)
+	st := ss.Stacks["local"]
+	// Codespace stacks: --repo targets one for detail; otherwise the STACKS
+	// overview shows the fleet, with detail for the lens holder (the stack
+	// localhost currently points at) or the lone codespace when no local
+	// stack exists.
+	if repoFlag != "" {
+		target := ss.Stacks["codespace:"+repoFlag]
+		if target == nil {
+			u.fail("No codespace stack recorded for %s.", repoFlag)
+			return 1
+		}
 		if service != "" {
 			u.fail("--service does not apply to a codespace stack; semiont status reports it whole.")
 			return 1
 		}
-		return statusCodespace(u, st)
+		return statusCodespace(u, target)
+	}
+	if len(cs) > 0 && runtime == "" {
+		printStacksOverview(u, st, cs)
+		fwd := forwardedStacks(cs)
+		var target *stackState
+		switch {
+		case len(fwd) == 1:
+			target = fwd[0]
+		case len(fwd) == 0 && st == nil && len(cs) == 1:
+			target = cs[0]
+		}
+		if target != nil {
+			if service != "" {
+				u.fail("--service does not apply to a codespace stack; semiont status reports it whole.")
+				return 1
+			}
+			return statusCodespace(u, target)
+		}
+		if st == nil {
+			fmt.Println()
+			fmt.Printf("  Details: %s\n", u.bold("semiont status --repo <owner/name>"))
+			return 0
+		}
+		// A local stack exists: detail it below (several forwarded
+		// codespaces stay overview-level — --repo details one).
 	}
 	var runtimes []string
 	if runtime != "" {

@@ -194,8 +194,10 @@ func ghCodespace(args []string, joined string) {
 				}
 			}
 		}
-		if dir := os.Getenv("FAKERT_DIR"); dir != "" {
-			_ = os.WriteFile(filepath.Join(dir, "serve-gh-forward.pid"),
+		// Pidfile per forward (keyed by local port): several forwards run
+		// concurrently — one per codespace stack's KB.
+		if dir := os.Getenv("FAKERT_DIR"); dir != "" && len(ports) > 0 {
+			_ = os.WriteFile(filepath.Join(dir, "serve-gh-forward-"+ports[0]+".pid"),
 				[]byte(strconv.Itoa(os.Getpid())), 0o644)
 		}
 		serve(ports)
@@ -264,6 +266,19 @@ func psCmd(args []string) {
 	// The launcher calls `ps -p <pid> -o comm=`.
 	if len(args) == 4 && args[0] == "-p" && args[2] == "-o" && args[3] == "comm=" {
 		comm := os.Getenv("FAKERT_PS_" + args[1])
+		if comm == "" {
+			// A pid matching one of our own serve pidfiles IS the fake gh
+			// forward — report it as gh, the comm the real forward has
+			// (the launcher's forwardAlive depends on this).
+			if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+				files, _ := filepath.Glob(filepath.Join(dir, "serve-*.pid"))
+				for _, f := range files {
+					if b, err := os.ReadFile(f); err == nil && strings.TrimSpace(string(b)) == args[1] {
+						comm = "gh"
+					}
+				}
+			}
+		}
 		if comm == "" {
 			comm = "fakeproc"
 		}

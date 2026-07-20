@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const stopUsage = `Usage: semiont stop [--service <name>] [--runtime container|docker|podman] [--delete] [--dry-run]
+const stopUsage = `Usage: semiont stop [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>] [--delete] [--dry-run]
 
 Stop the whole Semiont stack — services, dependencies, and observability —
 and clean up the staged config copies. Safe to run when nothing is up:
@@ -26,6 +26,9 @@ A CODESPACE stack (started with --runtime codespace) stops with
 'gh codespace stop': billing halts, state and credentials persist, and the
 record is kept — resume with semiont start. --delete destroys the codespace
 (state and all) and forgets the record; it applies only to codespace stacks.
+With several stacks recorded (local + codespaces), a bare stop refuses and
+lists them: --repo <owner/name> targets a codespace stack, --runtime targets
+the local one.
 `
 
 // stopNames sweeps all ten container names in REVERSE start order —
@@ -43,6 +46,7 @@ func Stop(args []string) int {
 	u := newUI(false)
 	runtime := ""
 	service := ""
+	repo := ""
 	dryRun := false
 	del := false
 	for i := 0; i < len(args); i++ {
@@ -60,6 +64,13 @@ func Stop(args []string) int {
 				return 1
 			}
 			service = args[i+1]
+			i++
+		case "--repo":
+			if i+1 >= len(args) {
+				u.fail("Missing value for --repo")
+				return 1
+			}
+			repo = args[i+1]
 			i++
 		case "--delete":
 			del = true
@@ -91,15 +102,37 @@ func Stop(args []string) int {
 	// those instead of a blind every-runtime name sweep. An explicit
 	// --runtime overrides; no record (older launcher, other machine) falls
 	// back to the historical sweep.
-	st := loadState()
+	ss := loadStackSet()
+	cs := codespaceStacks(ss)
+	st := ss.Stacks["local"]
 
-	// A codespace stack dispatches to its own teardown (gh codespace
-	// stop/delete); an explicit --runtime keeps its narrow local meaning —
-	// the existing flow then honestly reports the codespace record as
-	// untouched. --delete means nothing for local stacks (stop+rm already
-	// destroys them).
-	if st != nil && st.Runtime == "codespace" && runtime == "" {
-		return stopCodespace(u, st, service, del, dryRun)
+	// Codespace stacks: --repo targets one; a bare stop resolves only when
+	// unambiguous (destructive commands don't guess among stacks). An
+	// explicit --runtime keeps its narrow local meaning. --delete means
+	// nothing for local stacks (stop+rm already destroys them).
+	if repo != "" {
+		target := ss.Stacks["codespace:"+repo]
+		if target == nil {
+			u.fail("No codespace stack recorded for %s.", repo)
+			for _, c := range cs {
+				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
+			}
+			return 1
+		}
+		return stopCodespace(u, target, service, del, dryRun)
+	}
+	if runtime == "" && len(cs) > 0 {
+		if st == nil && len(cs) == 1 {
+			return stopCodespace(u, cs[0], service, del, dryRun)
+		}
+		u.fail("Multiple stacks are recorded — say which:")
+		if st != nil {
+			fmt.Fprintf(os.Stderr, "    semiont stop --runtime %s   (the local stack)\n", st.Runtime)
+		}
+		for _, c := range cs {
+			fmt.Fprintf(os.Stderr, "    semiont stop --repo %s\n", c.Repo)
+		}
+		return 1
 	}
 	if del {
 		u.fail("--delete only applies to a codespace stack (a local stop already removes the containers).")
@@ -252,7 +285,7 @@ func Stop(args []string) int {
 		// The record forgets this one service; the rest of it stands.
 		if useState {
 			delete(st.Services, service)
-			saveState(st)
+			saveStack(st)
 		}
 		fmt.Printf("%s stopped (staged configs left in place; rest of the stack untouched).\n", service)
 		return 0
@@ -276,7 +309,7 @@ func Stop(args []string) int {
 	if len(staged) > 0 {
 		u.ok("Removed %d staged config dir(s)", len(staged))
 	}
-	removeState()
+	forgetStack("local")
 
 	// Say what actually happened: a stop that found nothing anywhere (the
 	// second stop in a row) is a no-op, not a teardown.

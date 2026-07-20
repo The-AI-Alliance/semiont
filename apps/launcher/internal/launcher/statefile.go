@@ -5,16 +5,22 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
+	"strings"
 	"time"
 )
 
-// The launcher records what it believes the current stack IS — which runtime
-// started it, and each service's container name, runtime-reported ID, and
-// image — in stack.json under the XDG state home. stop and status compute
-// their work from these identifiers (falling back to the historical
-// all-runtimes name sweep only when no record exists, e.g. a stack started
-// by an older launcher). The record is belief, not ground truth: status
-// still verifies every claim against the runtime and the health endpoints.
+// The launcher records what it believes each stack IS in stack.json under
+// the XDG state home. Schema 3 is a KEYED COLLECTION: the machine's one
+// LOCAL stack under "local" (fixed ports and container names keep it
+// singleton), plus one entry per codespace stack under "codespace:<repo>" —
+// codespace stacks don't collide in the cloud, so many may run at once,
+// each forwarding its KB on its own local port (4000, else allocated above
+// it); local ports are the only contention point. stop and status compute their
+// work from these identifiers (falling back to the historical all-runtimes
+// name sweep only when no record exists). The record is belief, not ground
+// truth: status still verifies every claim against the runtime, gh, and
+// the health endpoints. Schema 1/2 single-stack files are migrated on read.
 
 // Provided values (schema 2): who provides this role.
 const (
@@ -36,21 +42,21 @@ type serviceState struct {
 }
 
 type stackState struct {
-	Schema     int                     `json:"schema"`
-	UpdatedAt  time.Time               `json:"updatedAt"`
-	Launcher   string                  `json:"launcherVersion"`
-	Runtime    string                  `json:"runtime"`
-	KBRoot     string                  `json:"kbRoot,omitempty"`
-	KBDid      string                  `json:"kbDid,omitempty"` // did:web from .semiont/config
-	Config     string                  `json:"config,omitempty"`
-	Version    string                  `json:"imageVersion,omitempty"`
-	HostAddr   string                  `json:"hostAddr,omitempty"`
-	Stage      string                  `json:"configStage,omitempty"`
-	Ports      []int                   `json:"ports,omitempty"`      // host ports this stack claimed — stop verifies their release
-	Codespace  string                  `json:"codespace,omitempty"`  // runtime "codespace": the instance name (a PID — never user input)
-	Repo       string                  `json:"repo,omitempty"`       // runtime "codespace": owner/name slug (the user-facing identity)
-	ForwardPID int                     `json:"forwardPid,omitempty"` // runtime "codespace": the detached `gh codespace ports forward`
-	Services   map[string]serviceState `json:"services"`
+	Schema      int                     `json:"schema,omitempty"` // legacy single-stack files only (read-compat)
+	UpdatedAt   time.Time               `json:"updatedAt"`
+	Runtime     string                  `json:"runtime"`
+	KBRoot      string                  `json:"kbRoot,omitempty"`
+	KBDid       string                  `json:"kbDid,omitempty"` // did:web from .semiont/config
+	Config      string                  `json:"config,omitempty"`
+	Version     string                  `json:"imageVersion,omitempty"`
+	HostAddr    string                  `json:"hostAddr,omitempty"`
+	Stage       string                  `json:"configStage,omitempty"`
+	Ports       []int                   `json:"ports,omitempty"`       // host ports this stack claimed — stop verifies their release
+	Codespace   string                  `json:"codespace,omitempty"`   // runtime "codespace": the instance name (a PID — never user input)
+	Repo        string                  `json:"repo,omitempty"`        // runtime "codespace": owner/name slug (the user-facing identity)
+	ForwardPID  int                     `json:"forwardPid,omitempty"`  // runtime "codespace": the detached `gh codespace ports forward`
+	ForwardPort int                     `json:"forwardPort,omitempty"` // runtime "codespace": this stack's local KB port (4000, or allocated above)
+	Services    map[string]serviceState `json:"services"`
 }
 
 // stateDir is the launcher's XDG state home: ~/Library/Application Support/
@@ -82,23 +88,57 @@ func statePath() string {
 	return filepath.Join(dir, "stack.json")
 }
 
-// loadState returns the recorded stack state, or nil when none exists (or it
-// is unreadable/corrupt — treated as no record, never as an error).
-func loadState() *stackState {
+// stackSet is the on-disk shape (schema 3): every recorded stack, keyed.
+type stackSet struct {
+	Schema    int                    `json:"schema"`
+	UpdatedAt time.Time              `json:"updatedAt"`
+	Launcher  string                 `json:"launcherVersion"`
+	Stacks    map[string]*stackState `json:"stacks"`
+}
+
+// stackKey: "local" for the machine's one local stack, "codespace:<repo>"
+// per codespace stack (the repo is the user-facing identity there).
+func stackKey(st *stackState) string {
+	if st.Runtime == "codespace" {
+		return "codespace:" + st.Repo
+	}
+	return "local"
+}
+
+// loadStackSet returns every recorded stack (never nil; empty when no file).
+// Schema 1/2 single-stack files migrate in memory — the next save writes
+// schema 3.
+func loadStackSet() *stackSet {
+	ss := &stackSet{Schema: 3, Stacks: map[string]*stackState{}}
 	p := statePath()
 	if p == "" {
-		return nil
+		return ss
 	}
 	b, err := os.ReadFile(p)
 	if err != nil {
-		return nil
+		return ss
 	}
+	var probe struct {
+		Schema int             `json:"schema"`
+		Stacks json.RawMessage `json:"stacks"`
+	}
+	if json.Unmarshal(b, &probe) != nil {
+		return ss
+	}
+	if probe.Stacks != nil {
+		var full stackSet
+		if json.Unmarshal(b, &full) == nil && full.Stacks != nil {
+			full.Schema = 3
+			return &full
+		}
+		return ss
+	}
+	// Legacy single-stack file (schema 1/2).
 	var st stackState
 	if json.Unmarshal(b, &st) != nil || st.Services == nil {
-		return nil
+		return ss
 	}
-	// Schema 1 read-compat: hostReuse was the only non-launcher marker.
-	if st.Schema < 2 {
+	if probe.Schema < 2 { // schema 1: hostReuse was the only non-launcher marker
 		for role, e := range st.Services {
 			if e.Provided == "" {
 				e.Provided = providedLauncher
@@ -109,20 +149,43 @@ func loadState() *stackState {
 			}
 		}
 	}
-	return &st
+	ss.Stacks[stackKey(&st)] = &st
+	return ss
 }
 
-// saveState writes the record atomically (temp + rename). Best-effort: a
-// failure to record belief never fails the command that formed it.
-func saveState(st *stackState) {
+// loadLocalState: the machine's one local stack record, or nil.
+func loadLocalState() *stackState {
+	return loadStackSet().Stacks["local"]
+}
+
+// codespaceStacks: every recorded codespace stack, sorted by repo.
+func codespaceStacks(ss *stackSet) []*stackState {
+	var out []*stackState
+	for k, st := range ss.Stacks {
+		if strings.HasPrefix(k, "codespace:") {
+			out = append(out, st)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Repo < out[j].Repo })
+	return out
+}
+
+// saveStackSet writes the collection atomically (temp + rename); an empty
+// set removes the file — "no record" stays a clean, observable state.
+// Best-effort: a failure to record belief never fails the command.
+func saveStackSet(ss *stackSet) {
 	p := statePath()
 	if p == "" {
 		return
 	}
-	st.UpdatedAt = time.Now().UTC()
-	st.Launcher = BuildVersion
-	st.Schema = 2
-	b, err := json.MarshalIndent(st, "", "  ")
+	if len(ss.Stacks) == 0 {
+		_ = os.Remove(p)
+		return
+	}
+	ss.Schema = 3
+	ss.UpdatedAt = time.Now().UTC()
+	ss.Launcher = BuildVersion
+	b, err := json.MarshalIndent(ss, "", "  ")
 	if err != nil {
 		return
 	}
@@ -136,11 +199,21 @@ func saveState(st *stackState) {
 	_ = os.Rename(tmp, p)
 }
 
-// removeState forgets the stack (full stop).
-func removeState() {
-	if p := statePath(); p != "" {
-		_ = os.Remove(p)
-	}
+// saveStack upserts one stack into the collection.
+func saveStack(st *stackState) {
+	st.UpdatedAt = time.Now().UTC()
+	st.Schema = 0 // schema lives on the set now
+	ss := loadStackSet()
+	ss.Stacks[stackKey(st)] = st
+	saveStackSet(ss)
+}
+
+// forgetStack removes one stack from the collection (full local stop,
+// codespace delete). Other stacks' records survive.
+func forgetStack(key string) {
+	ss := loadStackSet()
+	delete(ss.Stacks, key)
+	saveStackSet(ss)
 }
 
 // recordService updates one service's entry and saves. provided says who
@@ -158,5 +231,5 @@ func (st *stackState) recordService(role, id, image, provided, endpoint, driver 
 		e.Container = roles[role].container
 	}
 	st.Services[role] = e
-	saveState(st)
+	saveStack(st)
 }

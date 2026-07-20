@@ -143,7 +143,7 @@ func (x *liveExec) hostOllamaReachable(addr string, port int) bool {
 
 func (x *liveExec) sweepStaging() {
 	removeStagedConfigs()
-	removeState()
+	forgetStack("local") // codespace stacks' records are not ours to erase
 }
 
 func (x *liveExec) portChecks(ports []portNeed) bool {
@@ -163,7 +163,7 @@ func (x *liveExec) recordPorts(ports []portNeed) {
 		return
 	}
 	if x.st == nil {
-		x.st = loadState()
+		x.st = loadLocalState()
 		if x.st == nil {
 			x.st = &stackState{
 				Runtime: x.rt, KBRoot: x.root, KBDid: loadKBIdentity(x.root).didWeb(),
@@ -181,7 +181,7 @@ func (x *liveExec) recordPorts(ports []portNeed) {
 			have[p.port] = true
 		}
 	}
-	saveState(x.st)
+	saveStack(x.st)
 }
 
 func (x *liveExec) stageDir() (string, bool) {
@@ -322,7 +322,7 @@ func (x *liveExec) ollamaVolume(opts startOptions) string {
 
 func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
 	if x.st == nil { // --service mode: load, or create with full metadata
-		x.st = loadState()
+		x.st = loadLocalState()
 		if x.st == nil {
 			x.st = &stackState{
 				Runtime: x.rt, KBRoot: x.root, KBDid: loadKBIdentity(x.root).didWeb(),

@@ -20,11 +20,37 @@ import (
 // orchestrates the outside only (create, wait, forward, credentials,
 // lifecycle) by shelling out to `gh`, which owns auth and the tunnel client.
 
-// forwardPorts: the local ports the detached `gh codespace ports forward`
-// binds — browser, backend, and the three sidecar vitals.
-var forwardPorts = []portNeed{
-	{3000, "Frontend"}, {4000, "Backend"},
-	{9090, "Worker"}, {9091, "Smelter"}, {9092, "Weaver"},
+// The KB (backend, remote port 4000) is the ONLY port a codespace stack
+// forwards: the browser's Knowledge Bases panel connects to KBs by
+// host/port, so one browser works N codespace KBs at once — each stack gets
+// its own local port, canonical 4000 when free, else the lowest free above
+// it. Browser, sidecars, and infra stay inside the codespace (compose).
+const kbRemotePort = 4000
+
+// allocateKBPort picks this stack's local KB port: 4000, or the lowest
+// free port above it — skipping every port other recorded stacks claim
+// (local stack's port checks, other codespaces' forwards) and live holders.
+func allocateKBPort(ss *stackSet, repo string) int {
+	used := map[int]bool{}
+	if local := ss.Stacks["local"]; local != nil {
+		for _, p := range local.Ports {
+			used[p] = true
+		}
+	}
+	for _, c := range codespaceStacks(ss) {
+		if c.Repo != repo && c.ForwardPort != 0 {
+			used[c.ForwardPort] = true
+		}
+	}
+	for port := kbRemotePort; ; port++ {
+		if used[port] {
+			continue
+		}
+		if out, err := capture("lsof", "-ti", fmt.Sprintf(":%d", port)); err == nil && out != "" {
+			continue
+		}
+		return port
+	}
 }
 
 var repoSlugRe = regexp.MustCompile(`^[\w.-]+/[\w.-]+$`)
@@ -39,40 +65,50 @@ func startCodespace(u *ui, opts startOptions) int {
 		return 1
 	}
 
-	// A recorded LOCAL stack binds exactly like a recorded runtime mismatch:
-	// proceeding would leave it orphaned behind a codespace record.
-	st := loadState()
-	if st != nil && st.Runtime != "" && st.Runtime != "codespace" {
+	// A recorded LOCAL stack owns the real local ports the forward needs —
+	// that stack must stop first (codespace stacks, by contrast, coexist).
+	ss := loadStackSet()
+	if local := ss.Stacks["local"]; local != nil && local.Runtime != "" {
 		if !opts.dryRun {
-			u.fail("A recorded stack is running under %s (per %s).", st.Runtime, statePath())
-			fmt.Fprintln(os.Stderr, "  Stop it first (semiont stop).")
+			u.fail("The local stack is running under %s (per %s) — it holds the ports the forward needs.", local.Runtime, statePath())
+			fmt.Fprintln(os.Stderr, "  Stop it first (semiont stop --runtime "+local.Runtime+").")
 			return 1
 		}
-		st = nil
 	}
 
-	// Identity ladder: record → --repo → root's origin (create-path
-	// convenience only — a recorded codespace stack never touches root
-	// discovery, so bare resume works from any directory).
-	name, repo := "", ""
-	if st != nil && st.Runtime == "codespace" {
-		name, repo = st.Codespace, st.Repo
-		if opts.repo != "" && opts.repo != repo {
-			u.fail("The recorded codespace stack is for %s (per %s).", repo, statePath())
-			fmt.Fprintln(os.Stderr, "  Stop it first (semiont stop, or semiont stop --delete), then start --repo "+opts.repo+".")
-			return 1
-		}
-	} else {
-		repo = opts.repo
-		if repo == "" {
+	// Identity ladder, repo-first (the repo IS the identity; many codespace
+	// stacks may be recorded at once): --repo → root's origin (create-path
+	// convenience) → the lone recorded codespace stack (bare resume works
+	// from any directory). Several recorded and nothing named → say which.
+	repo := opts.repo
+	cs := codespaceStacks(ss)
+	if repo == "" {
+		if _, _, err := resolveKBRoot(); err == nil || opts.root != "" {
 			var code int
 			if repo, code = repoFromRoot(u, opts); code != 0 {
 				return code
 			}
-		} else if !repoSlugRe.MatchString(repo) {
-			u.fail("--repo must be owner/name, got '%s'.", repo)
+		} else if len(cs) == 1 {
+			repo = cs[0].Repo
+		} else if len(cs) > 1 {
+			u.fail("%d codespace stacks are recorded — say which:", len(cs))
+			for _, c := range cs {
+				fmt.Fprintf(os.Stderr, "    semiont start --runtime codespace --repo %s\n", c.Repo)
+			}
+			return 1
+		} else {
+			u.fail("No KB clone here and no codespace stack recorded.")
+			fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a KB clone (its origin supplies the repo).")
 			return 1
 		}
+	} else if !repoSlugRe.MatchString(repo) {
+		u.fail("--repo must be owner/name, got '%s'.", repo)
+		return 1
+	}
+	st := ss.Stacks["codespace:"+repo]
+	name := ""
+	if st != nil {
+		name = st.Codespace
 	}
 
 	if opts.dryRun {
@@ -146,14 +182,14 @@ func startCodespace(u *ui, opts startOptions) int {
 		}
 	}
 
-	// The forward is the only thing binding LOCAL ports; check them like any
-	// other start would (foreign holders fail with names — never killed).
-	for _, p := range forwardPorts {
-		if !requirePortFree(u, p.port, p.label+" (forward)") {
-			return 1
-		}
+	// One KB port per stack — other codespaces' forwards keep running;
+	// concurrency is the point. Allocation dodges every recorded claim and
+	// live holder, so nothing needs displacing.
+	kbPort := allocateKBPort(ss, repo)
+	if !requirePortFree(u, kbPort, "KB (forward)") {
+		return 1
 	}
-	pid, code := spawnForward(u, name)
+	pid, code := spawnForward(u, name, kbPort)
 	if code != 0 {
 		return code
 	}
@@ -161,40 +197,38 @@ func startCodespace(u *ui, opts startOptions) int {
 	// The record binds the stack to its executor before the health gate —
 	// belief, verified by status; a failed wait leaves an honest record.
 	newSt := &stackState{
-		Runtime: "codespace", Codespace: name, Repo: repo, ForwardPID: pid,
+		Runtime: "codespace", Codespace: name, Repo: repo,
+		ForwardPID: pid, ForwardPort: kbPort, Ports: []int{kbPort},
 		Services: map[string]serviceState{},
 	}
-	for _, p := range forwardPorts {
-		newSt.Ports = append(newSt.Ports, p.port)
-	}
-	saveState(newSt)
+	saveStack(newSt)
 
 	// Health, not VM state, is readiness ("Available ≠ hooks finished" —
 	// on a fresh create the devcontainer hooks run minutes past Available).
 	u.log("Waiting for the stack %s", u.dim("(a fresh create runs devcontainer hooks — image and model pulls take minutes)"))
-	d, ok := waitForHTTP(u, "Backend (through the forward)", "http://localhost:4000/api/health", 600)
+	d, ok := waitForHTTP(u, "KB (through the forward)", fmt.Sprintf("http://localhost:%d/api/health", kbPort), 600)
 	if !ok {
 		return 1
 	}
-	u.ok("Backend healthy %s", u.dim("("+took(d)+")"))
+	u.ok("KB healthy %s", u.dim("("+took(d)+")"))
 
 	creds := fetchAdminCreds(u, name)
 
 	fmt.Println()
-	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 Semiont stack is up in codespace "+name), u.dim("("+took(d)+" to healthy)"))
+	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 Semiont KB is up in codespace "+name), u.dim("("+took(d)+" to healthy)"))
 	fmt.Println()
-	fmt.Printf("  Semiont Browser    %s\n", u.bold("http://localhost:3000"))
-	fmt.Println("  Semiont KB         http://localhost:4000")
+	fmt.Printf("  Semiont KB         %s %s\n", u.bold(fmt.Sprintf("http://localhost:%d", kbPort)),
+		u.dim("(add Host localhost, Port "+fmt.Sprintf("%d", kbPort)+" in the browser's Knowledge Bases panel)"))
 	fmt.Println()
 	fmt.Printf("  %s\n", u.dim("Runs "+repo+" as pushed — local uncommitted changes don't travel."))
 	if creds != nil {
-		fmt.Printf("  Sign in at http://localhost:3000 as %s / %s %s\n",
+		fmt.Printf("  Connect as %s / %s %s\n",
 			u.bold(creds.Email), u.bold(creds.Password), u.dim("(generated at creation; never stored by the launcher)"))
 	}
 	fmt.Println()
 	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
-	fmt.Printf("  Follow logs:   %s\n", u.bold("semiont logs"))
-	fmt.Printf("  Halt billing:  %s %s\n", u.bold("semiont stop"), u.dim("(state persists; semiont stop --delete destroys)"))
+	fmt.Printf("  Follow logs:   %s %s\n", u.bold("semiont logs --repo "+repo), u.dim("(bare logs when unambiguous)"))
+	fmt.Printf("  Halt billing:  %s %s\n", u.bold("semiont stop --repo "+repo), u.dim("(state persists; --delete destroys)"))
 	fmt.Println()
 	return 0
 }
@@ -337,15 +371,13 @@ func createCodespace(u *ui, repo string, opts startOptions) (string, int) {
 	}
 }
 
-// spawnForward starts the detached dev-tunnel forward — a long-lived
-// process the bring-up-and-exit launcher deliberately leaves behind, PID
-// recorded in stack.json (status re-establishes it, stop kills it).
-func spawnForward(u *ui, name string) (int, int) {
-	args := []string{"codespace", "ports", "forward"}
-	for _, p := range forwardPorts {
-		args = append(args, fmt.Sprintf("%d:%d", p.port, p.port))
-	}
-	args = append(args, "-c", name)
+// spawnForward starts the detached dev-tunnel forward for this stack's KB
+// port — a long-lived process the bring-up-and-exit launcher deliberately
+// leaves behind, PID + port recorded (status re-establishes it, stop kills
+// it). Each codespace stack runs its own.
+func spawnForward(u *ui, name string, kbPort int) (int, int) {
+	args := []string{"codespace", "ports", "forward",
+		fmt.Sprintf("%d:%d", kbPort, kbRemotePort), "-c", name}
 	u.echoCmd("gh", args...)
 	cmd := exec.Command("gh", args...)
 	cmd.Stdout, cmd.Stderr = nil, nil
@@ -403,12 +435,8 @@ func renderCodespacePlan(opts startOptions, repo, recorded string) {
 		}
 		fmt.Println("gh codespace create --repo " + repo + " --machine " + machine + "   # only when none exists (503-aware retry)")
 	}
-	fwd := []string{"gh", "codespace", "ports", "forward"}
-	for _, p := range forwardPorts {
-		fwd = append(fwd, fmt.Sprintf("%d:%d", p.port, p.port))
-	}
-	fmt.Println(strings.Join(append(fwd, "-c", "<codespace>"), " ") + "   # detached; pid recorded")
-	fmt.Println("# wait: http://localhost:4000/api/health (600s)")
+	fmt.Println("gh codespace ports forward <kb-port>:4000 -c <codespace>   # detached; pid + port recorded (4000, else lowest free above)")
+	fmt.Println("# wait: http://localhost:<kb-port>/api/health (600s)")
 	fmt.Println("gh codespace ssh -c <codespace> -- cat .devcontainer/admin.json   # credentials (displayed, never stored)")
 }
 
@@ -435,7 +463,10 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 		}
 		return 0
 	}
-	if forwardAlive(st.ForwardPID) {
+	// Verify port release only when THIS stack held the lens — another
+	// codespace's live forward legitimately holds the same local ports.
+	hadLens := forwardAlive(st.ForwardPID)
+	if hadLens {
 		u.log("Stopping the port forward %s", u.dim(fmt.Sprintf("(pid %d)", st.ForwardPID)))
 		_ = syscall.Kill(st.ForwardPID, syscall.SIGTERM)
 	}
@@ -446,8 +477,10 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 			u.fail("Delete failed: %s", strings.TrimSpace(out))
 			return 1
 		}
-		removeState()
-		verifyPortsReleased(u, st.Ports)
+		forgetStack("codespace:" + st.Repo)
+		if hadLens {
+			verifyPortsReleased(u, st.Ports)
+		}
 		fmt.Println("Codespace deleted — stack, state, and credentials destroyed.")
 		return 0
 	}
@@ -458,8 +491,10 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 		return 1
 	}
 	st.ForwardPID = 0
-	saveState(st)
-	verifyPortsReleased(u, st.Ports)
+	saveStack(st)
+	if hadLens {
+		verifyPortsReleased(u, st.Ports)
+	}
 	fmt.Println("Codespace stopped — billing halted; state and credentials persist.")
 	fmt.Println("  Resume:   semiont start")
 	fmt.Println("  Destroy:  semiont stop --delete")
@@ -497,54 +532,113 @@ func statusCodespace(u *ui, st *stackState) int {
 	}
 
 	if !forwardAlive(st.ForwardPID) {
-		u.log("Recorded port forward is not running — re-establishing")
-		if pid, code := spawnForward(u, st.Codespace); code == 0 {
+		u.log("Recorded KB forward is not running — re-establishing")
+		if st.ForwardPort == 0 {
+			st.ForwardPort = allocateKBPort(loadStackSet(), st.Repo)
+		}
+		if pid, code := spawnForward(u, st.Codespace, st.ForwardPort); code == 0 {
 			st.ForwardPID = pid
-			saveState(st)
+			saveStack(st)
 		}
 	}
 
 	fmt.Println()
-	fmt.Println("  SERVICE     HEALTH (through the forward)")
-	healthy := true
-	for _, p := range []struct{ svc, url string }{
-		{"frontend", "http://localhost:3000"},
-		{"backend", "http://localhost:4000/api/health"},
-		{"worker", "http://localhost:9090/health"},
-		{"smelter", "http://localhost:9091/health"},
-		{"weaver", "http://localhost:9092/health"},
-	} {
-		ok := false
-		for i := 0; i < 10; i++ { // a just-respawned forward needs a beat
-			if httpOK(p.url) {
-				ok = true
-				break
-			}
-			time.Sleep(200 * time.Millisecond)
+	url := fmt.Sprintf("http://localhost:%d/api/health", st.ForwardPort)
+	healthy := false
+	for i := 0; i < 10; i++ { // a just-respawned forward needs a beat
+		if httpOK(url) {
+			healthy = true
+			break
 		}
-		mark := u.wrap(ansiGreen, "healthy")
-		if !ok {
-			mark = u.wrap(ansiRed, "unreachable")
-			healthy = false
-		}
-		fmt.Printf("  %-10s  %s  %s\n", p.svc, mark, u.dim(p.url))
+		time.Sleep(200 * time.Millisecond)
 	}
-	fmt.Printf("  %s\n", u.dim("(infra — database, graph, vectors, inference, traces — runs inside the codespace via compose)"))
+	mark := u.wrap(ansiGreen, "healthy")
+	if !healthy {
+		mark = u.wrap(ansiRed, "unreachable")
+	}
+	fmt.Printf("  KB          %s  %s\n", mark, u.dim(url))
+	fmt.Printf("  %s\n", u.dim("(browser, sidecars, and infra run inside the codespace via compose)"))
 
 	if creds := fetchAdminCreds(u, st.Codespace); creds != nil {
-		fmt.Printf("  Sign in at http://localhost:3000 as %s / %s\n", u.bold(creds.Email), u.bold(creds.Password))
+		fmt.Printf("  Connect (Host localhost, Port %d) as %s / %s\n", st.ForwardPort, u.bold(creds.Email), u.bold(creds.Password))
 	}
 
 	fmt.Println()
 	fmt.Println("  LOCAL")
 	fmt.Printf("  state      %s\n", statePath())
-	fmt.Printf("  forward    pid %d %s\n", st.ForwardPID, u.dim("(ports 3000 4000 9090 9091 9092)"))
+	fmt.Printf("  forward    pid %d %s\n", st.ForwardPID, u.dim(fmt.Sprintf("(KB localhost:%d → codespace:%d)", st.ForwardPort, kbRemotePort)))
 
 	printRoots(u, st)
 	if healthy {
 		return 0
 	}
 	return 1
+}
+
+// forwardedStacks: every codespace stack with a live KB forward — any
+// number may be forwarded at once, each on its own local port.
+func forwardedStacks(cs []*stackState) []*stackState {
+	var out []*stackState
+	for _, c := range cs {
+		if forwardAlive(c.ForwardPID) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// dropCollidingForwards kills codespace forwards squatting on ports a local
+// start is about to claim — and only those; forwards on allocated offset
+// ports keep running (concurrent KBs are the point). A dropped forward is a
+// view, not a stack: nothing stops in the cloud (announced, with the
+// re-attach command — which will re-allocate around the local stack).
+func dropCollidingForwards(u *ui, needs []portNeed) {
+	claimed := map[int]bool{}
+	for _, p := range needs {
+		claimed[p.port] = true
+	}
+	for _, st := range codespaceStacks(loadStackSet()) {
+		if forwardAlive(st.ForwardPID) && claimed[st.ForwardPort] {
+			u.warn("Dropping %s's KB forward on port %d — the local stack needs it; the codespace keeps running (re-attach: semiont start --runtime codespace --repo %s).",
+				st.Repo, st.ForwardPort, st.Repo)
+			_ = syscall.Kill(st.ForwardPID, syscall.SIGTERM)
+			st.ForwardPID = 0
+			saveStack(st)
+			time.Sleep(200 * time.Millisecond) // let the bind release
+		}
+	}
+}
+
+// printStacksOverview: the fleet view — every recorded stack, its state,
+// and which codespace holds the lens. One gh list serves all of them.
+func printStacksOverview(u *ui, local *stackState, cs []*stackState) {
+	fmt.Println()
+	fmt.Println("  STACKS")
+	states := map[string]string{}
+	if onPath("gh") {
+		if out, err := capture("gh", "codespace", "list", "--json", "name,state,repository"); err == nil {
+			var all []codespaceInstance
+			if json.Unmarshal([]byte(out), &all) == nil {
+				for _, c := range all {
+					states[c.Name] = c.State
+				}
+			}
+		}
+	}
+	if local != nil {
+		fmt.Printf("  local      %s %s\n", local.KBRoot, u.dim("("+local.Runtime+")"))
+	}
+	for _, c := range cs {
+		state := states[c.Codespace]
+		if state == "" {
+			state = "deleted?"
+		}
+		fwd := ""
+		if forwardAlive(c.ForwardPID) {
+			fwd = "  " + u.bold(fmt.Sprintf("KB localhost:%d", c.ForwardPort))
+		}
+		fmt.Printf("  codespace  %s  %s %s%s\n", c.Repo, c.Codespace, u.dim("("+state+")"), fwd)
+	}
 }
 
 // captureBoth: trimmed stdout+stderr combined — gh writes diagnostics (auth

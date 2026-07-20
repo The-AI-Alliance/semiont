@@ -172,17 +172,9 @@ func capture(name string, args ...string) (string, error) {
 
 // runtimeOrder is the auto-detect order; on a Mac with several installed,
 // Apple `container` wins. "codespace" is a placement value, never
-// auto-detected and never sticky — it dispatches before selection.
+// auto-detected and never sticky — it dispatches before selection, and its
+// stacks live under their own keys in the record set.
 var runtimeOrder = []string{"container", "docker", "podman"}
-
-// recordBinds: does a recorded runtime still bind subsequent commands? A
-// local runtime binds while its CLI is installed (uninstalled ⇒ that stack
-// cannot be running ⇒ the record is stale). A codespace stack lives on
-// GitHub's machine — it binds regardless of local tooling; erasing its
-// record would orphan knowledge of a possibly-running, billable VM.
-func recordBinds(rt string) bool {
-	return rt == "codespace" || onPath(rt)
-}
 
 func onPath(name string) bool {
 	_, err := exec.LookPath(name)

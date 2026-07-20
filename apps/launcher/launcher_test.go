@@ -971,7 +971,7 @@ func TestStartSecretProviderMissing(t *testing.T) {
 // --- codespace placement (CODESPACE-KB-LAUNCH.md §2) ---
 
 const csRepo = "pingel-org/foo-kb"
-const csSecretRepos = `{"total_count":1,"repositories":[{"full_name":"pingel-org/foo-kb"}]}`
+const csSecretRepos = `{"total_count":2,"repositories":[{"full_name":"pingel-org/foo-kb"},{"full_name":"other/bar"}]}`
 
 func newCodespaceScenario(t *testing.T) *scenario {
 	s := newScenario(t, "container", "gh")
@@ -997,20 +997,22 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"gh api user/codespaces/secrets/ANTHROPIC_API_KEY/repositories",
 		"gh codespace list --json name,state,repository",
 		"gh codespace create --repo "+csRepo+" --machine premiumLinux",
-		"gh codespace ports forward 3000:3000 4000:4000 9090:9090 9091:9091 9092:9092 -c fake-cs-1",
+		"gh codespace ports forward 4000:4000 -c fake-cs-1",
 		"gh codespace ssh -c fake-cs-1 -- cat .devcontainer/admin.json")
 	mustContain(t, "stdout", stdout,
 		"KB repo: "+csRepo,
 		"uncommitted changes", "as PUSHED",
 		"Creating codespace for "+csRepo,
 		"Reading admin credentials",
-		"Semiont stack is up in codespace fake-cs-1",
+		"Semiont KB is up in codespace fake-cs-1",
+		"Semiont KB         http://localhost:4000",
 		"admin@example.com", "fake-admin-pw",
 		"local uncommitted changes don't travel",
 		"Halt billing:")
 	b, _ := os.ReadFile(statePathFor(s.home))
 	mustContain(t, "stack.json", string(b),
-		`"runtime": "codespace"`, `"codespace": "fake-cs-1"`, `"repo": "pingel-org/foo-kb"`, `"forwardPid"`)
+		`"runtime": "codespace"`, `"codespace": "fake-cs-1"`, `"repo": "pingel-org/foo-kb"`,
+		`"forwardPid"`, `"forwardPort": 4000`)
 	if strings.Contains(string(b), "fake-admin-pw") {
 		t.Fatalf("credentials persisted to stack.json:\n%s", b)
 	}
@@ -1047,13 +1049,27 @@ func TestCodespaceBareResumeRootless(t *testing.T) {
 		t.Errorf("resume attempted root discovery:\n%s", log)
 	}
 
-	// --repo mismatch against the record refuses.
+	// A different --repo is not a mismatch — it's a SECOND stack: codespace
+	// stacks coexist, keyed by repo.
 	s.killServes()
-	_, stderr, code = s.run(t, "start", "--runtime", "codespace", "--repo", "other/bar")
-	if code != 1 {
-		t.Fatalf("repo mismatch: want exit 1, got %d", code)
+	stdout, stderr, code = s.run(t, "start", "--runtime", "codespace", "--repo", "other/bar")
+	if code != 0 {
+		t.Fatalf("second repo: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stderr", stderr, "recorded codespace stack is for "+csRepo)
+	b, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json", string(b), "codespace:"+csRepo, "codespace:other/bar",
+		`"forwardPort": 4001`) // foo's recorded 4000 stays reserved for its re-attach
+
+	// With several codespace stacks and none forwarded, a bare start must
+	// be told which.
+	s.killServes()
+	_, stderr, code = s.run(t, "start")
+	if code != 1 {
+		t.Fatalf("ambiguous bare start: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"2 codespace stacks are recorded",
+		"--repo "+csRepo, "--repo other/bar")
 }
 
 func TestCodespaceAdoptAndDisambiguate(t *testing.T) {
@@ -1201,10 +1217,11 @@ func TestCodespaceStatus(t *testing.T) {
 		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "status stdout", stdout,
+		"STACKS",
 		"CODESPACE", "fake-cs-1", csRepo, "(state: Available)",
 		"re-establishing",
-		"backend", "healthy",
-		"runs inside the codespace via compose",
+		"KB", "healthy", "http://localhost:4000/api/health",
+		"run inside the codespace via compose",
 		"admin@example.com", "fake-admin-pw",
 		"SEMIONT ROOTS")
 
@@ -1228,19 +1245,21 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("local record + codespace start: want exit 1, got %d", code)
 	}
-	mustContain(t, "stderr", stderr, "A recorded stack is running under container")
+	mustContain(t, "stderr", stderr, "The local stack is running under container")
 
 	s2 := newCodespaceScenario(t)
 	if _, _, code := s2.run(t, "start", "--runtime", "codespace"); code != 0 {
 		t.Fatal("create failed")
 	}
 	s2.killServes()
-	_, stderr, code = s2.run(t, "start", "--runtime", "container")
-	if code != 1 {
-		t.Fatalf("codespace record + local start: want exit 1, got %d", code)
+	// A codespace stack no longer blocks a local start — they coexist (the
+	// dry-run proves the local plan renders; only the lens would contend,
+	// and it's dropped live).
+	stdout, stderr, code := s2.run(t, "start", "--runtime", "container", "--dry-run")
+	if code != 0 {
+		t.Fatalf("codespace record + local dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stderr", stderr,
-		"A recorded stack is running under codespace", "--runtime codespace")
+	mustContain(t, "local plan stdout", stdout, "container run -d --rm --name semiont-backend")
 
 	// useradd refuses: the admin was generated at creation.
 	_, stderr, code = s2.run(t, "useradd", "--email", "a@b.co", "--password", "password123")
@@ -1314,6 +1333,148 @@ func TestCodespaceDryRunAndLogs(t *testing.T) {
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log),
 		"gh codespace ssh -c fake-cs-1 -- docker logs --follow semiont-backend")
+}
+
+func TestMultiStackCodespaces(t *testing.T) {
+	// Many codespace stacks run CONCURRENTLY, each forwarding its KB on its
+	// own local port — one browser works them all via the Knowledge Bases
+	// panel. Nothing switches; nothing drops.
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("foo start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// foo's forward stays alive; bar allocates the next KB port.
+	s.extraEnv = append(s.extraEnv, "FAKERT_GH_CS_NAME=bar-cs-1")
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", "other/bar")
+	if code != 0 {
+		t.Fatalf("bar start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "bar stdout", stdout, "Semiont KB         http://localhost:4001")
+	if strings.Contains(stdout, "Switching") || strings.Contains(stdout, "Dropping") {
+		t.Errorf("concurrent start disturbed the other stack's forward:\n%s", stdout)
+	}
+	b, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json", string(b),
+		"codespace:"+csRepo, "codespace:other/bar", `"codespace": "bar-cs-1"`,
+		`"forwardPort": 4000`, `"forwardPort": 4001`)
+	// BOTH KBs are reachable at once — the point of all of this.
+	for _, url := range []string{"http://localhost:4000/api/health", "http://localhost:4001/api/health"} {
+		resp, err := http.Get(url)
+		if err != nil || resp.StatusCode != 200 {
+			t.Fatalf("concurrent KB %s not reachable: %v", url, err)
+		}
+		resp.Body.Close()
+	}
+
+	// Fleet status: overview shows both with their KB ports; with several
+	// forwarded there is no single detail target — the pointer says so.
+	s.extraEnv = append(s.extraEnv,
+		`FAKERT_GH_CS_LIST=[{"name":"fake-cs-1","state":"Available","repository":"pingel-org/foo-kb"},{"name":"bar-cs-1","state":"Available","repository":"other/bar"}]`)
+	stdout, _, code = s.run(t, "status")
+	if code != 0 {
+		t.Fatalf("fleet status: exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "status stdout", stdout,
+		"STACKS",
+		"codespace  "+csRepo+"  fake-cs-1", "KB localhost:4000",
+		"codespace  other/bar  bar-cs-1", "KB localhost:4001",
+		"semiont status --repo <owner/name>")
+
+	// --repo details one stack, probing ITS port.
+	stdout, _, code = s.run(t, "status", "--repo", "other/bar")
+	if code != 0 {
+		t.Fatalf("detail status: exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "detail stdout", stdout,
+		"bar-cs-1  other/bar", "KB", "healthy", "http://localhost:4001/api/health")
+
+	// Bare logs can't guess between two forwarded stacks; --repo can.
+	_, stderr, code = s.run(t, "logs", "--service", "backend")
+	if code != 1 {
+		t.Fatalf("ambiguous logs: want exit 1, got %d", code)
+	}
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, code := s.run(t, "logs", "--repo", "other/bar", "--service", "backend"); code != 0 {
+		t.Fatal("targeted logs failed")
+	}
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "gh codespace ssh -c bar-cs-1")
+
+	// A bare stop refuses to guess among stacks.
+	_, stderr, code = s.run(t, "stop")
+	if code != 1 {
+		t.Fatalf("ambiguous stop: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "Multiple stacks are recorded",
+		"semiont stop --repo "+csRepo, "semiont stop --repo other/bar")
+
+	// stop --repo targets exactly one; the other stack keeps its forward.
+	stdout, stderr, code = s.run(t, "stop", "--repo", csRepo)
+	if code != 0 {
+		t.Fatalf("targeted stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ = os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "gh codespace stop -c fake-cs-1")
+	if resp, err := http.Get("http://localhost:4001/api/health"); err != nil || resp.StatusCode != 200 {
+		t.Fatalf("bar's forward died with foo's stop: %v", err)
+	} else {
+		resp.Body.Close()
+	}
+	b, _ = os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json", string(b), "codespace:"+csRepo, "codespace:other/bar")
+
+	// stop --repo --delete forgets only that stack.
+	if _, _, code := s.run(t, "stop", "--repo", "other/bar", "--delete"); code != 0 {
+		t.Fatal("targeted delete failed")
+	}
+	b, _ = os.ReadFile(statePathFor(s.home))
+	if strings.Contains(string(b), "other/bar") {
+		t.Errorf("deleted stack still recorded:\n%s", b)
+	}
+	mustContain(t, "stack.json", string(b), "codespace:"+csRepo)
+}
+
+func TestMultiStackLocalPlusCodespace(t *testing.T) {
+	// A local stack and codespace stacks coexist in the record set: verbs
+	// that can't guess refuse with selectors; useradd targets the local
+	// backend; a targeted local stop leaves the codespace records alone.
+	s := newCodespaceScenario(t)
+	set := `{"schema":3,"stacks":{
+	  "local":{"runtime":"container","services":{"backend":{"container":"semiont-backend","id":"fid-semiont-backend","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},
+	  "codespace:pingel-org/foo-kb":{"runtime":"codespace","codespace":"fake-cs-1","repo":"pingel-org/foo-kb","ports":[3000,4000,9090,9091,9092],"services":{}}}}`
+	p := statePathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(set), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, stderr, code := s.run(t, "stop")
+	if code != 1 {
+		t.Fatalf("ambiguous stop: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "Multiple stacks are recorded",
+		"semiont stop --runtime container", "semiont stop --repo "+csRepo)
+
+	// useradd targets the LOCAL backend when one exists.
+	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123"); code != 0 {
+		t.Fatalf("useradd: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "container exec fid-semiont-backend semiont useradd")
+
+	// A targeted local stop consumes the local record only.
+	if _, stderr, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
+		t.Fatalf("local stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(statePathFor(s.home))
+	if strings.Contains(string(b), `"local"`) {
+		t.Errorf("local stack survived its targeted stop:\n%s", b)
+	}
+	mustContain(t, "stack.json", string(b), "codespace:"+csRepo)
 }
 
 // --- config-driven boots (LAUNCHER-CONFIG-SYNC P2) ---
@@ -1772,8 +1933,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stack.json not written: %v", err)
 	}
-	var st struct {
-		Schema   int    `json:"schema"`
+	type recordedStack struct {
 		Runtime  string `json:"runtime"`
 		Services map[string]struct {
 			Container string `json:"container"`
@@ -1783,11 +1943,19 @@ func TestStackStateLifecycle(t *testing.T) {
 			Endpoint  string `json:"endpoint"`
 		} `json:"services"`
 	}
-	if err := json.Unmarshal(b, &st); err != nil {
+	var set struct {
+		Schema int                      `json:"schema"`
+		Stacks map[string]recordedStack `json:"stacks"`
+	}
+	if err := json.Unmarshal(b, &set); err != nil {
 		t.Fatalf("stack.json not valid JSON: %v\n%s", err, b)
 	}
-	if st.Schema != 2 || st.Runtime != "container" {
-		t.Errorf("schema/runtime: got %d/%q", st.Schema, st.Runtime)
+	st, ok := set.Stacks["local"]
+	if !ok {
+		t.Fatalf("no 'local' stack in the record set:\n%s", b)
+	}
+	if set.Schema != 3 || st.Runtime != "container" {
+		t.Errorf("schema/runtime: got %d/%q", set.Schema, st.Runtime)
 	}
 	for _, role := range []string{"traces", "graph", "vectors", "inference", "database", "backend", "worker", "smelter", "weaver", "frontend"} {
 		e, ok := st.Services[role]

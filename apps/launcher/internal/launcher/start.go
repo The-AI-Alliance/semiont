@@ -280,13 +280,24 @@ func Start(args []string) int {
 
 	// Codespace placement dispatches before anything local: no root
 	// discovery (the record replaces the clone), no config load, no local
-	// preflight. Explicit --runtime codespace, or a recorded codespace stack
-	// binding an implicit start (rejoin what exists, as with any record).
+	// preflight. Explicit --runtime codespace; or, implicitly, a bare start
+	// on a machine whose ONLY recorded stack(s) are codespaces — one resumes
+	// (rejoin what exists), several must be named. A local record wins the
+	// bare start (codespace stacks coexist; only the lens contends, dropped
+	// below).
 	if opts.runtime == "codespace" {
 		return startCodespace(u, opts)
 	}
 	if opts.runtime == "" {
-		if recSt := loadState(); recSt != nil && recSt.Runtime == "codespace" {
+		ss := loadStackSet()
+		if cs := codespaceStacks(ss); ss.Stacks["local"] == nil && len(cs) > 0 {
+			if len(cs) > 1 {
+				u.fail("%d codespace stacks are recorded — say which:", len(cs))
+				for _, c := range cs {
+					fmt.Fprintf(os.Stderr, "    semiont start --runtime codespace --repo %s\n", c.Repo)
+				}
+				return 1
+			}
 			if !onPath("gh") {
 				u.fail("A codespace stack is recorded (per %s) but 'gh' is not on PATH.", statePath())
 				fmt.Fprintln(os.Stderr, "  Install the GitHub CLI, or forget the stack:  semiont stop --delete")
@@ -429,7 +440,7 @@ func Start(args []string) int {
 	// staged configs out from under its live mounts. A record whose runtime
 	// is no longer installed is stale (that stack cannot be running) and
 	// doesn't bind anything.
-	if recSt := loadState(); recSt != nil && recSt.Runtime != "" && recSt.Runtime != rt && recordBinds(recSt.Runtime) {
+	if recSt := loadLocalState(); recSt != nil && recSt.Runtime != "" && recSt.Runtime != rt && onPath(recSt.Runtime) {
 		if opts.runtime == "" {
 			rt = recSt.Runtime
 			rtFrom = ""
@@ -530,6 +541,20 @@ func Start(args []string) int {
 		}
 		return 0
 	}
+	// A codespace KB forward may squat on a port this start claims (a
+	// forward is a view, not a stack — dropping one stops nothing in the
+	// cloud). Only colliding forwards drop; concurrent KBs on allocated
+	// ports keep running.
+	if !opts.dryRun {
+		var needs []portNeed
+		if opts.service != "" {
+			needs = servicePortNeeds(opts.service, plan) // nil-plan-safe (frontend, traces)
+		} else {
+			needs = planPortChecks(plan, opts.observe) // full start always has a plan
+		}
+		dropCollidingForwards(u, needs)
+	}
+
 	// Record sticky preferences only when this start SUCCEEDED with the
 	// explicit flag: preferences are "what I actually run", so a typo'd
 	// name or an unlaunchable choice never becomes the default. Implicit

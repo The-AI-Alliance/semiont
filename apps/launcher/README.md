@@ -54,14 +54,31 @@ semiont stop
   clone's origin, or `--repo owner/name` from anywhere, needed only at
   creation: the stack record carries it afterwards, so a bare `semiont
   start` resumes the recorded codespace from any directory, and `status` /
-  `logs` / `stop` dispatch off the record as always. The launcher keeps at
+  `logs` / `stop` dispatch off the records as always. The launcher keeps at
   most one codespace per repo (it adopts and resumes what exists — the
   codespace *name* is a PID, shown by status, input only via `--codespace`
   when raw `gh` left several). `semiont stop` maps to `gh codespace stop` —
   billing halts, state and credentials persist, the record is kept; `semiont
-  stop --delete` destroys and forgets. Port forwards (3000/4000 + sidecar
-  vitals) run as a recorded detached process that `status` re-establishes
-  and `stop` ends. Admin credentials are generated inside the codespace at
+  stop --delete` destroys and forgets.
+- **Many codespace stacks run concurrently — each forwards its KB on its
+  own local port.** The record store (`stack.json`, schema 3) is a keyed
+  collection: the machine's one local stack (fixed ports and container
+  names keep it singleton) plus one entry per codespace repo. Each
+  codespace stack forwards exactly ONE port — its KB (remote 4000) — on
+  local 4000 when free, else the lowest free port above it (4001, …), so a
+  single browser's Knowledge Bases panel works N codespace KBs at once
+  (Host localhost, Port 400x each; browser, sidecars, and infra stay inside
+  the codespace). Forwards are recorded detached processes: `status`
+  re-establishes a dead one, `stop --repo` ends its own, and a LOCAL start
+  drops only forwards squatting on ports it actually claims — concurrent
+  KBs on allocated ports keep running. With several stacks recorded:
+  `status` opens with a STACKS fleet overview (each stack's state and
+  `KB localhost:<port>`) and details the lone forwarded stack (`--repo`
+  details any); bare `logs` follows the local stack, else the lone
+  codespace; bare `stop` refuses to guess — `--repo <owner/name>` targets a
+  codespace stack, `--runtime` the local one. `useradd` targets the local
+  backend when one exists. Schema 1/2 single-stack records migrate on read.
+- Codespace admin credentials are generated inside the codespace at
   creation; `start` and `status` read them fresh over ssh and display them —
   never stored, never logged (`useradd` refuses and points at `status`).
   Preflights fail fast with fixes: `gh` missing/unauthenticated, the

@@ -346,19 +346,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			x.say(sayLog, "Removed prior %s container", svc)
 			x.pause()
 		}
-		// Port claims follow the plan for config-owned ports (dependency
-		// roles, backend); the static role table covers only the
-		// launcher-fiat ports (sidecars, frontend, traces).
-		ports := roles[svc].ports
-		switch {
-		case svc == "backend" && fc.plan != nil:
-			ports = []portNeed{{fc.plan.BackendPort, "Backend"}}
-		case fc.plan != nil:
-			if rp, ok := fc.plan.Roles[svc]; ok && rp.Obligation == obligationProvided {
-				spec := driverCatalog[svc][rp.Driver]
-				ports = append(append([]portNeed{}, spec.auxPorts...), portNeed{rp.Port, spec.portLabel})
-			}
-		}
+		ports := servicePortNeeds(svc, fc.plan)
 		if !x.portChecks(ports) {
 			return 1
 		}
@@ -466,4 +454,21 @@ func flowOneService(x executor, fc flowCtx) int {
 		x.say(sayOK, "%s healthy %s", svc, x.dim("("+took(d)+")"))
 	}
 	return 0
+}
+
+// servicePortNeeds: one service's must-be-free ports. Claims follow the
+// plan for config-owned ports (dependency roles, backend); the static role
+// table covers only the launcher-fiat ports (sidecars, frontend, traces).
+func servicePortNeeds(svc string, plan *launchPlan) []portNeed {
+	ports := roles[svc].ports
+	switch {
+	case svc == "backend" && plan != nil:
+		ports = []portNeed{{plan.BackendPort, "Backend"}}
+	case plan != nil:
+		if rp, ok := plan.Roles[svc]; ok && rp.Obligation == obligationProvided {
+			spec := driverCatalog[svc][rp.Driver]
+			ports = append(append([]portNeed{}, spec.auxPorts...), portNeed{rp.Port, spec.portLabel})
+		}
+	}
+	return ports
 }
