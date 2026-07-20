@@ -781,8 +781,7 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 // died), credentials read fresh, and a LOCAL section that doesn't pretend
 // the remote VM's directories are here.
 func statusCodespace(u *ui, st *stackState, refresh bool) int {
-	fmt.Println()
-	fmt.Println("  CODESPACE")
+	u.section("CODESPACE")
 	// Distinguish three different things that all used to look alike:
 	// GitHub says it's gone, GitHub says it's not ready, and we could not
 	// ask at all. Only the first justifies telling anyone to delete a record.
@@ -867,8 +866,7 @@ func statusCodespace(u *ui, st *stackState, refresh bool) int {
 	// missing identity for free, or re-verify a recorded one on --refresh.
 	reconcileDid(u, st, refresh)
 
-	fmt.Println()
-	fmt.Println("  LOCAL")
+	u.section("LOCAL")
 	fmt.Printf("  state      %s\n", statePath())
 	fmt.Printf("  forward    pid %d %s\n", st.ForwardPID, u.dim(fmt.Sprintf("(KB localhost:%d → codespace:%d)", st.ForwardPort, kbRemotePort)))
 
@@ -918,8 +916,7 @@ func dropCollidingForwards(u *ui, needs []portNeed) {
 // codespace instance and its state are status layered on it, which is why
 // the repo leads each entry and the instance name is a dimmed detail.
 func printRemoteKBs(u *ui, cs []*stackState) {
-	fmt.Println()
-	fmt.Println("  REMOTE KNOWLEDGE BASES")
+	u.section("REMOTE KNOWLEDGE BASES")
 	if len(cs) == 0 {
 		fmt.Printf("  %s\n", u.dim("(none — semiont start --runtime codespace --repo <owner>/<name>)"))
 		return

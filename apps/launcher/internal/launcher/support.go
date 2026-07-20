@@ -76,6 +76,14 @@ func (u *ui) banner(s string) {
 	fmt.Printf("\n%s\n", u.bold(s))
 }
 
+// section renders a status-report section header: bold, flush left, ruled —
+// the three top-level groupings (LOCAL STACK / LOCAL ROOTS / REMOTE KNOWLEDGE
+// BASES, plus LAUNCHER PATHS under --verbose) must be findable at a glance in
+// a report whose content lines are all indented and dense.
+func (u *ui) section(title string) {
+	fmt.Printf("\n%s\n%s\n", u.bold(title), u.dim(strings.Repeat("─", 60)))
+}
+
 func (u *ui) stamp(event string) {
 	fmt.Println(u.dim(fmt.Sprintf("[%s] %s", time.Now().Format("2006-01-02 15:04:05"), event)))
 }

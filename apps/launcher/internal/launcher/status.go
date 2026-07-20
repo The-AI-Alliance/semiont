@@ -211,8 +211,7 @@ func Status(args []string) int {
 // service is healthy, plus a nonzero code if status itself could not run.
 func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bool, code int) {
 	if service == "" {
-		fmt.Println()
-		fmt.Println("  LOCAL STACK")
+		u.section("LOCAL STACK")
 	}
 
 	var runtimes []string
@@ -397,8 +396,7 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 // stack's, each annotated with everything true about it. Vanished paths are
 // flagged, not hidden.
 func printRoots(u *ui, st *stackState) {
-	fmt.Println()
-	fmt.Println("  LOCAL ROOTS")
+	u.section("LOCAL ROOTS")
 	order := []string{}
 	labels := map[string][]string{}
 	add := func(path, label string) {
@@ -476,8 +474,7 @@ func printRoots(u *ui, st *stackState) {
 // $TMPDIR — Apple container cannot sustain mounts from /var/folders), and
 // the Ollama model cache a container run may share.
 func printLauncherPaths(u *ui) {
-	fmt.Println()
-	fmt.Println("  LAUNCHER PATHS")
+	u.section("LAUNCHER PATHS")
 	row := func(label, path, note string) {
 		fmt.Printf("  %-10s %s %s\n", label, path, u.dim("("+note+")"))
 	}
