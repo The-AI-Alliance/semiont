@@ -60,9 +60,11 @@ var repoSlugRe = regexp.MustCompile(`^[\w.-]+/[\w.-]+$`)
 // local-start parity as the contract: preflight, create-or-resume, forward,
 // health-gate, summary-and-exit.
 func startCodespace(u *ui, opts startOptions) int {
-	if !onPath("gh") {
-		u.fail("--runtime codespace needs the GitHub CLI, and 'gh' is not on PATH.")
-		fmt.Fprintln(os.Stderr, "  Install it: https://cli.github.com  (then: gh auth login)")
+	// gh is the earliest failure of all — check it before any git or
+	// registry work, so a missing CLI never surfaces as a confusing
+	// downstream error. The one exception is --dry-run: a plan reaches for
+	// nothing and must render on a machine that never installed gh.
+	if !opts.dryRun && !requireGh(u, "--runtime codespace") {
 		return 1
 	}
 
@@ -643,6 +645,9 @@ func renderCodespacePlan(opts startOptions, repo, recorded string) {
 // a stopped codespace still exists (state, credentials, billing identity).
 // --delete destroys and forgets. Both kill the recorded forward first.
 func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int {
+	if !dryRun && !requireGh(u, "stopping a codespace stack") {
+		return 1
+	}
 	if service != "" {
 		u.fail("--service does not apply to a codespace stack (compose owns the services inside).")
 		return 1
@@ -706,8 +711,15 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 func statusCodespace(u *ui, st *stackState) int {
 	fmt.Println()
 	fmt.Println("  CODESPACE")
-	state := "unknown"
-	if instances, err := ghCodespaceList(st.Repo); err == nil {
+	// Distinguish three different things that all used to look alike:
+	// GitHub says it's gone, GitHub says it's not ready, and we could not
+	// ask at all. Only the first justifies telling anyone to delete a record.
+	state := ""
+	if !onPath("gh") {
+		state = "unqueryable"
+	} else if instances, err := ghCodespaceList(st.Repo); err != nil {
+		state = "unqueryable"
+	} else {
 		state = "deleted"
 		for _, c := range instances {
 			if c.Name == st.Codespace {
@@ -717,6 +729,11 @@ func statusCodespace(u *ui, st *stackState) int {
 	}
 	fmt.Printf("  %s  %s %s\n", u.bold(st.Codespace), st.Repo, u.dim("(state: "+state+")"))
 	switch state {
+	case "unqueryable":
+		u.warn("Could not ask GitHub about this codespace (is 'gh' installed and authenticated?) — it may well be running.")
+		fmt.Fprintln(os.Stderr, "  Check directly:  gh codespace list")
+		printRoots(u, st)
+		return 1
 	case "deleted":
 		u.warn("The recorded codespace no longer exists — forget the record with: semiont stop --delete")
 		printRoots(u, st)
@@ -820,8 +837,10 @@ func printStacksOverview(u *ui, local *stackState, cs []*stackState) {
 	fmt.Println()
 	fmt.Println("  STACKS")
 	states := map[string]string{}
+	ghQueried := false
 	if onPath("gh") {
 		if out, err := capture("gh", "codespace", "list", "--json", "name,state,repository"); err == nil {
+			ghQueried = true
 			var all []codespaceInstance
 			if json.Unmarshal([]byte(out), &all) == nil {
 				for _, c := range all {
@@ -836,7 +855,13 @@ func printStacksOverview(u *ui, local *stackState, cs []*stackState) {
 	for _, c := range cs {
 		state := states[c.Codespace]
 		if state == "" {
+			// Empty means either GitHub does not list it, or we never got
+			// to ask. Guessing "deleted?" at a live codespace (and then
+			// suggesting --delete) is the wrong half of that.
 			state = "deleted?"
+			if !ghQueried {
+				state = "state unknown — gh unavailable"
+			}
 		}
 		fwd := ""
 		if forwardAlive(c.ForwardPID, c.ForwardPort) {
@@ -851,6 +876,17 @@ func printStacksOverview(u *ui, local *stackState, cs []*stackState) {
 func captureBoth(name string, args ...string) (string, error) {
 	out, err := exec.Command(name, args...).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
+}
+
+// requireGh: one message for every codespace path that needs the CLI, so a
+// missing gh is never inferred from downstream symptoms.
+func requireGh(u *ui, what string) bool {
+	if onPath("gh") {
+		return true
+	}
+	u.fail("%s needs the GitHub CLI, and 'gh' is not on PATH.", what)
+	fmt.Fprintln(os.Stderr, "  Install it: https://cli.github.com  (then: gh auth login)")
+	return false
 }
 
 // forwardProcAlive: is the recorded PID still OUR forward PROCESS? A bare

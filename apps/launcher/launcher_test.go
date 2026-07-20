@@ -1405,6 +1405,73 @@ func TestCodespaceCredentialFailureShowsGhError(t *testing.T) {
 	}
 }
 
+func TestCodespaceWithoutGh(t *testing.T) {
+	// A missing gh must be NAMED, never inferred from downstream symptoms —
+	// and --dry-run must still render, since a plan reaches for nothing.
+	noGh := func(t *testing.T) *scenario {
+		t.Helper()
+		return newScenario(t, "container") // deliberately no "gh" shim
+	}
+
+	// --dry-run works with no gh installed at all.
+	s := noGh(t)
+	s.cwd = t.TempDir()
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo, "--dry-run")
+	if code != 0 {
+		t.Fatalf("dry-run must not need gh: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "dry-run stdout", stdout, "gh codespace create --repo "+csRepo)
+
+	// A real start says so plainly.
+	_, stderr, code = s.run(t, "start", "--runtime", "codespace", "--repo", csRepo)
+	if code != 1 {
+		t.Fatalf("start without gh: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "'gh' is not on PATH", "https://cli.github.com")
+
+	// stop names the cause instead of failing opaquely.
+	s2 := noGh(t)
+	writeCodespaceState(t, s2)
+	_, stderr, code = s2.run(t, "stop", "--repo", csRepo)
+	if code != 1 {
+		t.Fatalf("stop without gh: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "stopping a codespace stack needs the GitHub CLI", "'gh' is not on PATH")
+
+	// status must NOT call a live codespace deleted just because it cannot ask.
+	s3 := noGh(t)
+	writeCodespaceState(t, s3)
+	stdout, stderr, code = s3.run(t, "status")
+	if code != 1 {
+		t.Fatalf("status without gh: want exit 1, got %d", code)
+	}
+	all := stdout + stderr
+	mustContain(t, "status output", all,
+		"state unknown — gh unavailable",
+		"Could not ask GitHub about this codespace",
+		"it may well be running")
+	if strings.Contains(all, "deleted?") || strings.Contains(all, "no longer exists") {
+		t.Errorf("an unqueryable codespace was reported as deleted:\n%s", all)
+	}
+	if strings.Contains(all, "semiont stop --delete") {
+		t.Errorf("suggested discarding the record of a possibly-live codespace:\n%s", all)
+	}
+}
+
+// writeCodespaceState plants a codespace-only record set.
+func writeCodespaceState(t *testing.T, s *scenario) {
+	t.Helper()
+	p := statePathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"schema":3,"stacks":{"codespace:` + csRepo + `":{"runtime":"codespace",` +
+		`"codespace":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001,"ports":[4001],"services":{}}}}`
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	s := newCodespaceScenario(t)
 	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
