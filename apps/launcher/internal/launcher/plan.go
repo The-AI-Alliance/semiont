@@ -77,6 +77,9 @@ var driverCatalog = map[string]map[string]driverSpec{
 	},
 	"inference": {
 		"ollama": {image: "ollama/ollama", display: "Ollama", defaultPort: 11434, portLabel: "Ollama"},
+		// Remote SaaS: no image (nothing to launch), port is TLS. The row it
+		// yields is external — participates in status, no start/stop.
+		"anthropic": {display: "Anthropic", defaultPort: 443},
 	},
 	// embedding drivers carry no image: the launcher never provides this
 	// role. ollama means the inference role's Ollama also serves embeddings;
@@ -136,6 +139,30 @@ func ollamaModels(env *envConfig) []string {
 	return out
 }
 
+// remoteInferenceDriver: the (sorted-first) non-ollama provider type the
+// bindings name. With one remote provider — the real case — this is it; a
+// hypothetical mixed-remote config gets the alphabetically first, and its
+// models still all list (bindingModels is unfiltered).
+func remoteInferenceDriver(env *envConfig) string {
+	set := map[string]bool{}
+	for _, bindings := range []map[string]bindingCfg{env.Actors, env.Workers} {
+		for _, b := range bindings {
+			if t := b.Inference.Type; t != "" && t != "ollama" {
+				set[t] = true
+			}
+		}
+	}
+	types := make([]string, 0, len(set))
+	for t := range set {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+	if len(types) == 0 {
+		return ""
+	}
+	return types[0]
+}
+
 // bindingModels: every model the config's actors and workers bind for
 // inference, sorted and deduped. Deliberately NOT filtered by provider type:
 // these are the models this stack performs inference with, whoever serves
@@ -179,6 +206,18 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 	for _, e := range rp.Env {
 		a = append(a, "-e", e)
 	}
+	return append(a, rp.Image)
+}
+
+// ollamaRunArgs: the semiont-ollama `run -d` argv. Separate from
+// providedRunArgs because the OWNING role varies (inference, or embedding
+// when the bindings are all-remote) while the container, image and port
+// shape do not — roles[owner].container would be wrong for embedding.
+func ollamaRunArgs(rp rolePlan, extra ...string) []string {
+	spec := driverCatalog["inference"]["ollama"]
+	a := []string{"run", "-d", "--rm", "--name", "semiont-ollama"}
+	a = append(a, "-p", fmt.Sprintf("%d:%d", rp.Port, spec.defaultPort))
+	a = append(a, extra...)
 	return append(a, rp.Image)
 }
 
@@ -251,6 +290,18 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	secErr := func(section, format string, a ...any) error {
 		return fmt.Errorf("%s: [environments.%s.%s] %s", path, envName, section, fmt.Sprintf(format, a...))
 	}
+	// bindingsUseOllama: does any actor/worker perform inference through the
+	// local Ollama? This decides who owns that Ollama (inference vs
+	// embedding) and what the inference role IS.
+	bindingsUseOllama := false
+	for _, bindings := range []map[string]bindingCfg{env.Actors, env.Workers} {
+		for _, b := range bindings {
+			if b.Inference.Type == "ollama" {
+				bindingsUseOllama = true
+			}
+		}
+	}
+
 	// classify: an address that is exactly the launcher-injected var means
 	// "the launcher provides this"; anything else is externally provided.
 	//
@@ -407,13 +458,14 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if !ok {
 			return nil, secErr("embedding", "unknown type %q (known drivers: %s)", e.Type, knownDrivers("embedding"))
 		}
-		host, port := parseHostPort(e.BaseURL)
+		rawHost, port := parseHostPort(e.BaseURL)
 		if port == 0 {
 			port = spec.defaultPort
 		}
 		// ${OLLAMA_HOST} is the launcher-injected address of the machine
 		// hosting Ollama; the probe runs ON that machine, so it dials
 		// localhost. A voyage config usually names no baseURL at all.
+		host := rawHost
 		switch {
 		case host == "" && e.Type == "voyage":
 			host = "api.voyageai.com"
@@ -426,21 +478,6 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			Role: "embedding", Obligation: obligationExternal,
 			Driver: e.Type, Address: host, Port: port,
 		}
-		// An ollama embedding is served by the local Ollama, so it is
-		// provided however that Ollama is: a host process, or the launcher's
-		// own container. Reporting it "external" while that same process
-		// reports "host" would describe one process two ways.
-		//
-		// This does NOT mean embedding derives from inference. The anthropic
-		// config is the counterexample — inference is Anthropic there, while
-		// embedding is ollama. What it names is the role the launcher
-		// currently runs OLLAMA under, which is "inference" only because that
-		// role doubles as the Ollama launcher (`ollamaUsed` is set by this
-		// very embedding check). Untangle that conflation — see
-		// GO-LAUNCHER.md — and this must follow Ollama, not the role name.
-		if e.Type == "ollama" && host == "localhost" {
-			rp.SharesOllamaWith = "inference"
-		}
 		if e.Model != "" {
 			rp.Models = []string{e.Model}
 			rp.OllamaServed = []string{}
@@ -448,25 +485,65 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 				rp.OllamaServed = []string{e.Model}
 			}
 		}
+		// WHO runs the local Ollama an ollama embedding needs? If any actor/
+		// worker binding is ollama-typed, the inference role runs it and the
+		// embedding rides along (SharesOllamaWith names that, so both rows
+		// report the one process the same way). If NO binding is — the
+		// anthropic config: Claude does the inference, Ollama exists solely
+		// for embeddings — then EMBEDDING owns the host-process dance itself,
+		// and the inference role is free to be what it really is: Anthropic.
+		if e.Type == "ollama" && rawHost == "${OLLAMA_HOST}" {
+			if bindingsUseOllama {
+				rp.SharesOllamaWith = "inference"
+			} else {
+				rp.Obligation = obligationHostProcess
+				rp.Address = ""
+				rp.Image = spec.image
+				if rp.Image == "" {
+					rp.Image = driverCatalog["inference"]["ollama"].image
+				}
+				if p, ok := env.Inference["ollama"]; ok && p.Image != "" {
+					rp.Image = p.Image
+				}
+			}
+		}
 		plan.Roles["embedding"] = rp
 	}
 
-	// inference — needed iff the config references ollama (embedding, or any
-	// actor/worker binding); the anthropic provider is remote SaaS, nothing
-	// for the launcher to run. Address ${OLLAMA_HOST} means the host-process-
-	// preferred dance (probe host Ollama, container fallback) — the config's
-	// inference.ollama.platform = "posix" made explicit.
-	ollamaUsed := env.Embedding != nil && env.Embedding.Type == "ollama"
-	for _, bindings := range []map[string]bindingCfg{env.Actors, env.Workers} {
-		for _, b := range bindings {
-			if b.Inference.Type == "ollama" {
-				ollamaUsed = true
+	// inference — the driver is WHO PERFORMS INFERENCE per the bindings, not
+	// which process the launcher happens to run. Any ollama-typed binding →
+	// the local-Ollama shape (host-process dance / external per address).
+	// All-remote bindings (anthropic) → an external SaaS role: participates
+	// in status, launches nothing — even when an Ollama runs locally for the
+	// embedding, because that Ollama is the embedding's (see above). No
+	// bindings at all → not configured.
+	switch {
+	case !bindingsUseOllama && len(bindingModels(env)) > 0:
+		driver := remoteInferenceDriver(env)
+		host, port := "", 0
+		if p, ok := env.Inference[driver]; ok && p.Endpoint != "" {
+			host, port = parseHostPort(p.Endpoint)
+			if port == 0 && strings.HasPrefix(p.Endpoint, "https://") {
+				port = 443
 			}
 		}
-	}
-	if !ollamaUsed {
+		if host == "" && driver == "anthropic" {
+			host = "api.anthropic.com"
+		}
+		if port == 0 {
+			port = driverCatalog["inference"][driver].defaultPort
+		}
+		if port == 0 {
+			port = 443 // an unknown remote provider is still TLS SaaS
+		}
+		plan.Roles["inference"] = rolePlan{
+			Role: "inference", Obligation: obligationExternal,
+			Driver: driver, Address: host, Port: port,
+			Models: bindingModels(env), OllamaServed: []string{},
+		}
+	case !bindingsUseOllama:
 		plan.Roles["inference"] = rolePlan{Role: "inference", Obligation: obligationAbsent}
-	} else {
+	default:
 		spec := driverCatalog["inference"]["ollama"]
 		baseURL := ""
 		if env.Embedding != nil && env.Embedding.Type == "ollama" {

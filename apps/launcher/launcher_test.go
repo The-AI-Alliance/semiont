@@ -3322,8 +3322,26 @@ func TestRemoteModelsAreNeverCheckedAgainstOllama(t *testing.T) {
 			}
 		}
 	}
+	// The rows say who really does what: inference is Anthropic (external —
+	// Claude performs it), and the local Ollama belongs to embedding, the
+	// role it exists to serve.
+	mustContain(t, "inference row", stdout, "inference (Anthropic)", "external")
+	mustContain(t, "embedding row", stdout, "embedding (Ollama)")
+	if strings.Contains(stdout, "inference (Ollama)") {
+		t.Errorf("inference row named Ollama under an all-Claude config:\n%s", stdout)
+	}
 	// The ollama-served embedding still gets a real install state.
 	mustContain(t, "embedding model", stdout, "nomic-embed-text")
+
+	// And stop still finds the embedding-owned Ollama container — the one
+	// hazard of moving ownership off the inference role.
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	if !strings.Contains(string(log), "stop fid-semiont-ollama") && !strings.Contains(string(log), "stop semiont-ollama") {
+		t.Errorf("stop never targeted the embedding-owned Ollama container:\n%s", log)
+	}
 }
 
 func TestStatusService(t *testing.T) {

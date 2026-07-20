@@ -239,6 +239,12 @@ func (st *stackState) recordService(role, id, image, provided, endpoint, driver 
 	}
 	if provided == providedLauncher {
 		e.Container = roles[role].container
+		// A container-less role (embedding) gets NO container here even when
+		// provided reads "launcher" — that value may be INHERITED from the
+		// role that runs its Ollama (SharesOllamaWith), and stamping a
+		// container it does not own would let `stop --service embedding`
+		// sweep inference's Ollama. Ownership is explicit: only the flow that
+		// actually launched the container records one (noteContainer).
 	}
 	st.Services[role] = e
 	saveStack(st)

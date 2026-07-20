@@ -157,14 +157,23 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 				Obligation: obligationProvided, Driver: "qdrant",
 				Image: "qdrant/qdrant:v1.18.3", Port: 6333,
 			})
-			// embedding is a role like any other — external in both shapes:
-			// here ollama, served by the very Ollama the inference role
-			// provides (hence localhost:11434, and no container of its own).
-			checkRole(t, plan, "embedding", rolePlan{
-				Obligation: obligationExternal, Driver: "ollama",
-				Address: "localhost", Port: 11434,
-				Models: []string{"nomic-embed-text"}, OllamaServed: []string{"nomic-embed-text"},
-			})
+			// embedding: with ollama-typed bindings, the inference role runs
+			// the Ollama and embedding rides along (external + shares). With
+			// all-remote bindings, embedding OWNS the host-process dance —
+			// that Ollama exists for it alone.
+			if name == "anthropic.toml" {
+				checkRole(t, plan, "embedding", rolePlan{
+					Obligation: obligationHostProcess, Driver: "ollama",
+					Image: "ollama/ollama", Port: 11434,
+					Models: []string{"nomic-embed-text"}, OllamaServed: []string{"nomic-embed-text"},
+				})
+			} else {
+				checkRole(t, plan, "embedding", rolePlan{
+					Obligation: obligationExternal, Driver: "ollama",
+					Address: "localhost", Port: 11434,
+					Models: []string{"nomic-embed-text"}, OllamaServed: []string{"nomic-embed-text"},
+				})
+			}
 			checkRole(t, plan, "database", rolePlan{
 				Obligation: obligationProvided, Driver: "postgres",
 				Image: "postgres:15.18-alpine", Port: 5432,
@@ -173,28 +182,27 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			// Both templates use ollama embedding, so inference is needed in
 			// both — host-process preferred with container fallback (the
 			// config's platform="posix" made explicit).
-			// The models each config performs inference with. anthropic.toml
-			// is the telling one: its inference role is DRIVEN by ollama —
-			// launched solely because the embedding needs it — while every
-			// model it lists is a Claude. That is the inference/Ollama
-			// conflation (shelved, GO-LAUNCHER.md) made visible rather than
-			// silent, and this expectation pins it as observed behavior.
-			wantModels := []string{"gemma4:26b", "gemma4:e2b"}
+			// The inference driver is WHO PERFORMS INFERENCE per the
+			// bindings, not which process the launcher runs. ollama-gemma
+			// binds ollama → the local-Ollama shape. anthropic binds Claude
+			// throughout → an external SaaS role; the Ollama that config
+			// still needs exists solely for the embedding, and the embedding
+			// owns it (asserted below).
 			if name == "anthropic.toml" {
-				wantModels = []string{"claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929"}
+				checkRole(t, plan, "inference", rolePlan{
+					Obligation: obligationExternal, Driver: "anthropic",
+					Address: "api.anthropic.com", Port: 443,
+					Models:       []string{"claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929"},
+					OllamaServed: []string{},
+				})
+			} else {
+				m := []string{"gemma4:26b", "gemma4:e2b"}
+				checkRole(t, plan, "inference", rolePlan{
+					Obligation: obligationHostProcess, Driver: "ollama",
+					Image: "ollama/ollama", Port: 11434,
+					Models: m, OllamaServed: m,
+				})
 			}
-			// A Claude has no install state: it is served by Anthropic, so it
-			// must never be checked against — or "pulled" into — Ollama, even
-			// though this role's driver IS ollama.
-			wantServed := wantModels
-			if name == "anthropic.toml" {
-				wantServed = nil
-			}
-			checkRole(t, plan, "inference", rolePlan{
-				Obligation: obligationHostProcess, Driver: "ollama",
-				Image: "ollama/ollama", Port: 11434,
-				Models: wantModels, OllamaServed: wantServed,
-			})
 			// Only what OLLAMA can serve is pullable — the anthropic config's
 			// Claude models are not in this list even though its inference
 			// role is ollama-driven.
@@ -258,6 +266,14 @@ func TestDerivePlanNoOllamaAnywhere(t *testing.T) {
 	// No [embedding] section: the role still exists, reported absent — the
 	// same "not configured" shape every unreferenced role gets.
 	checkRole(t, plan, "embedding", rolePlan{Obligation: obligationAbsent})
+	// The fixture's worker binds Claude, so inference is a configured
+	// EXTERNAL role — "absent" would be the old drag-in logic's answer.
+	checkRole(t, plan, "inference", rolePlan{
+		Obligation: obligationExternal, Driver: "anthropic",
+		Address: "api.anthropic.com", Port: 443,
+		Models:       []string{"claude-sonnet-4-5-20250929"},
+		OllamaServed: []string{},
+	})
 
 	// voyage: remote SaaS. Still external, still a role — the platform is
 	// what differs, not its standing. No baseURL is normal there, so the
@@ -272,12 +288,14 @@ model = "voyage-3"
 		Address: "api.voyageai.com", Port: 443,
 		Models: []string{"voyage-3"}, // voyage is remote: nothing to install
 	})
-	// And a voyage embedding must not drag Ollama in: nothing else in this
-	// config references it.
-	checkRole(t, vp, "inference", rolePlan{Obligation: obligationAbsent})
-	if got := plan.Roles["inference"]; got.Obligation != obligationAbsent {
-		t.Errorf("no-ollama config: got %+v", got)
-	}
+	// A voyage embedding must not drag Ollama in — and with the fixture's
+	// Claude-bound worker, inference is the same external-Anthropic role.
+	checkRole(t, vp, "inference", rolePlan{
+		Obligation: obligationExternal, Driver: "anthropic",
+		Address: "api.anthropic.com", Port: 443,
+		Models:       []string{"claude-sonnet-4-5-20250929"},
+		OllamaServed: []string{},
+	})
 }
 
 func TestDerivePlanUnknownType(t *testing.T) {
@@ -389,13 +407,35 @@ image = "postgres:17.2-alpine"
 }
 
 func TestDerivePlanInferenceImageOverride(t *testing.T) {
+	// Replacing the inference section drops the fixture's Claude worker too,
+	// so NO bindings remain: inference is not configured, and the Ollama the
+	// embedding still needs is the embedding's own — the image override
+	// follows the Ollama, wherever it lives.
 	p := variantConfig(t, map[string]string{"inference": `[environments.local.inference.ollama]
 platform = "posix"
 baseURL = "http://${OLLAMA_HOST}:11434"
 image = "ollama/ollama:0.9.5"
 `})
 	plan := mustDerive(t, p)
-	if got := plan.Roles["inference"].Image; got != "ollama/ollama:0.9.5" {
+	if got := plan.Roles["inference"].Obligation; got != obligationAbsent {
+		t.Errorf("no bindings: inference should be absent, got %v", got)
+	}
+	if got := plan.Roles["embedding"].Image; got != "ollama/ollama:0.9.5" {
+		t.Errorf("embedding (ollama owner) image: got %q", got)
+	}
+	// And with an ollama-typed WORKER added back, the override lands on
+	// inference — the role that owns the Ollama then.
+	p2 := variantConfig(t, map[string]string{"inference": `[environments.local.inference.ollama]
+platform = "posix"
+baseURL = "http://${OLLAMA_HOST}:11434"
+image = "ollama/ollama:0.9.5"
+
+[environments.local.workers.default.inference]
+type = "ollama"
+model = "gemma4:26b"
+`})
+	plan2 := mustDerive(t, p2)
+	if got := plan2.Roles["inference"].Image; got != "ollama/ollama:0.9.5" {
 		t.Errorf("inference image: got %q", got)
 	}
 }

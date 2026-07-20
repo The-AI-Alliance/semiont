@@ -183,14 +183,18 @@ semiont stop
   other address → externally provided (verified, never launched, skipped by
   stop, shown as "external" in status); `platform = "posix"` → host-process
   reuse; section absent / unreferenced → nothing launched, "not configured"
-  in status. embedding is never launched — `type = "ollama"` is served by the
-  Ollama the inference role provides, `type = "voyage"` is remote SaaS — so it
-  has a status row and no start/stop, which is what external means for every
-  role, not a special case. An ollama embedding reports how the local Ollama
-  is provided (`host`, or the runtime) rather than a flat "external" that would
-  describe one process two different ways — note this is about Ollama, not
-  about inference: the anthropic config pairs Anthropic inference with ollama
-  embedding.
+  in status. **The inference driver is who performs inference per the
+  bindings, not which process the launcher runs**: any ollama-typed binding →
+  the local-Ollama shape (host-process dance, container fallback); all-remote
+  bindings (Claude throughout) → `inference (Anthropic)`, an external SaaS
+  role that launches nothing. In that second shape the local Ollama the
+  config still needs exists solely for the embedding, so **embedding owns
+  it** — the row reads `embedding (Ollama)` with the host/container runtime,
+  the model pulls ride on it, and its launched container is embedding's to
+  stop. With ollama bindings, embedding instead rides the inference role's
+  Ollama and reports the same provider — one process is never described two
+  ways. `type = "voyage"` is remote SaaS; either way embedding has a status
+  row and start/stop belongs to whatever provides it.
 - **The inference and embedding rows list their models.** Which models a stack
   uses is config truth, recorded at start (the union of `actors.*` and
   `workers.*` inference models, and `embedding.model`); whether each is pulled
@@ -211,7 +215,9 @@ semiont stop
   against Ollama's `:latest` form. Remote models (Claude, Voyage) list as
   `remote` — there is nothing to install.
   Moving `database.port` moves the publish/checks/gates with it;
-  inference runs only when the config references ollama. An optional `image`
+  a local Ollama runs only when the config references ollama — owned by
+  inference when the bindings use it, by embedding when only the embedding
+  does. An optional `image`
   key per role section overrides the catalog's default image — a KB can pin
   or upgrade an infra image without a launcher release. `--dry-run` renders
   the derived plan.

@@ -45,6 +45,7 @@ type executor interface {
 	ollamaVolume(opts startOptions) string // model-cache choice (prompt is live-only)
 	record(role, id, image, provided, endpoint, driver string)
 	providerOf(role string) string             // how an already-recorded role was provided
+	noteContainer(role, container string)      // stamp a launched container on a container-less role
 	ensureModels(base string, models []string) // pull configured ollama models that are absent
 	val(live, plan string) string              // mode-scoped value (kb root, admin password)
 	rtName() string
@@ -354,6 +355,23 @@ func (x *liveExec) providerOf(role string) string {
 	return x.st.Services[role].Provided
 }
 
+// noteContainer marks a container-less role (embedding) as the OWNER of a
+// container it launched itself — the shared Ollama under all-remote
+// bindings. Only the launching flow may call this; it is what stop's
+// ownership checks key on.
+func (x *liveExec) noteContainer(role, container string) {
+	if x.st == nil {
+		return
+	}
+	e, ok := x.st.Services[role]
+	if !ok {
+		return
+	}
+	e.Container = container
+	x.st.Services[role] = e
+	saveStack(x.st)
+}
+
 func (x *liveExec) ensureModels(base string, models []string) {
 	ensureOllamaModels(x.u, base, models)
 }
@@ -516,6 +534,9 @@ func (x *planExec) record(_, _, _, _, _, _ string) {}
 
 // --dry-run records nothing, so there is nothing to read back.
 func (x *planExec) providerOf(string) string { return "" }
+
+// --dry-run records nothing, so ownership notes have nowhere to land.
+func (x *planExec) noteContainer(string, string) {}
 
 // --dry-run reaches for nothing: which models are ABSENT is a runtime fact,
 // so the plan can only name what would be checked.

@@ -85,17 +85,25 @@ func Stop(args []string) int {
 		}
 	}
 
+	// serviceContainer: the container --service targets. Usually the roles
+	// table's; a container-less role (embedding) normally has nothing to
+	// stop — UNLESS it launched the shared Ollama itself (all-remote
+	// bindings), in which case the record names the container it ran.
+	serviceContainer := ""
 	if service != "" {
 		if _, known := roles[service]; !known {
 			u.fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
-		// An external role owns no container, so there is nothing here to
-		// stop — and falling through would sweep the empty container name,
-		// which is not a no-op the way a real absent name is. Not an error:
-		// the role exists and the request is coherent, it just has no
-		// stoppable part.
-		if roles[service].container == "" {
+		serviceContainer = roles[service].container
+		if serviceContainer == "" {
+			if st := loadLocalState(); st != nil {
+				if e, ok := st.Services[service]; ok && e.Provided == providedLauncher && e.Container != "" {
+					serviceContainer = e.Container
+				}
+			}
+		}
+		if serviceContainer == "" {
 			u.log("%s is externally provided — nothing to stop.", service)
 			fmt.Fprintf(os.Stdout, "  %s\n", u.dim("(external roles participate in status; start and stop belong to whatever provides them)"))
 			return 0
@@ -186,7 +194,7 @@ func Stop(args []string) int {
 	targets := func() []string {
 		names := stopNames
 		if service != "" {
-			names = []string{roles[service].container}
+			names = []string{serviceContainer}
 		}
 		if !useState {
 			return names
@@ -199,6 +207,20 @@ func Stop(args []string) int {
 				// host processes, external endpoints, and unreferenced roles
 				// have nothing to sweep.
 				if e.Provided != "" && e.Provided != providedLauncher {
+					// …unless a container-less role launched this very
+					// container under its own account: an embedding-owned
+					// semiont-ollama while inference is external Anthropic.
+					// Skipping here would leak a running Ollama past stop.
+					for _, e2 := range st.Services {
+						if e2.Container == c && e2.Provided == providedLauncher {
+							if e2.ID != "" {
+								out = append(out, e2.ID)
+							} else {
+								out = append(out, c)
+							}
+							break
+						}
+					}
 					continue
 				}
 				if e.ID != "" {
