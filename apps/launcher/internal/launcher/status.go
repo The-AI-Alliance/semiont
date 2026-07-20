@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 )
 
-const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name>] [--service <name>] [--runtime container|docker|podman]
+const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name> [--refresh]] [--service <name>] [--runtime container|docker|podman]
 
 Reports what this machine knows about, in three layers:
 
@@ -35,6 +35,10 @@ health, name ONE stack:
   semiont status --service backend     && echo backend-up
 
 Those forms exit 0 only when the named stack (or service) is healthy.
+
+status never wakes a stopped codespace. --refresh (with --repo) re-reads that
+KB's did:web identity over ssh to confirm the recorded one — it is skipped,
+with a note, unless the codespace is already running.
 `
 
 // statusServices drives the report, in user-facing-first order with each
@@ -70,6 +74,7 @@ var statusServices = []struct {
 func Status(args []string) int {
 	u := newUI(false)
 	runtime, service, repoFlag, rootFlag := "", "", "", ""
+	refresh := false
 	for i := 0; i < len(args); i++ {
 		need := func() (string, bool) {
 			if i+1 >= len(args) {
@@ -107,6 +112,8 @@ func Status(args []string) int {
 			}
 			service = v
 			i++
+		case "--refresh":
+			refresh = true
 		case "--help", "-h":
 			fmt.Print(statusUsage)
 			return 0
@@ -125,6 +132,10 @@ func Status(args []string) int {
 		u.fail("--repo names a remote stack; --root/--service name the local one.")
 		return 1
 	}
+	if refresh && repoFlag == "" {
+		u.fail("--refresh re-reads ONE remote KB's identity over ssh — name it with --repo <owner/name>.")
+		return 1
+	}
 
 	ss := loadStackSet()
 	cs := codespaceStacks(ss)
@@ -140,7 +151,7 @@ func Status(args []string) int {
 			}
 			return 1
 		}
-		return statusCodespace(u, target)
+		return statusCodespace(u, target, refresh)
 	}
 
 	// --root: assert the local stack belongs to that root before reporting it.

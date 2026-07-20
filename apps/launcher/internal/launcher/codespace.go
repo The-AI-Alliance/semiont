@@ -258,6 +258,10 @@ func startCodespace(u *ui, opts startOptions) int {
 	u.ok("KB healthy %s", u.dim("("+took(d)+")"))
 
 	creds := fetchAdminCreds(u, name)
+	// Free piggyback: the stack is up and we are already ssh-ing. Only fires
+	// when nothing is recorded — a --repo-only start (no clone to read) has
+	// no other way to ever learn this.
+	reconcileDid(u, newSt, false)
 
 	fmt.Println()
 	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 Semiont KB is up in codespace "+name), u.dim("("+took(d)+" to healthy)"))
@@ -624,6 +628,64 @@ func fetchAdminCreds(u *ui, name string) *adminCreds {
 	return &c
 }
 
+// reconcileDid keeps a codespace stack's recorded did:web honest against the
+// KB actually running there, by reading .semiont/config over the same ssh
+// channel the credentials use.
+//
+// It reaches out in exactly two situations, because an ssh WAKES a stopped
+// codespace — which costs money and ~20 seconds, and no reporting command may
+// do that as a side effect. So callers must only call this when the codespace
+// is already Available, and then:
+//
+//   - nothing recorded (force false): read once and keep it. This is the only
+//     way a --repo-only stack — no local clone anywhere — ever learns its
+//     identity, and it costs one round trip that buys something permanent.
+//   - force (status --refresh): read even when recorded, to catch drift.
+//
+// A mismatch is reported, never silently overwritten. did:web is the
+// permanent identity stamped into the KB's committed event log; if the
+// codespace now answers with a different one, the interesting fact is that
+// the two disagree — the record is a claim about which KB this is, and
+// replacing it without a word would erase the evidence.
+func reconcileDid(u *ui, st *stackState, force bool) {
+	if st.KBDid != "" && !force {
+		return
+	}
+	remote, ok := fetchRemoteDid(u, st.Codespace)
+	if !ok || remote == "" {
+		return
+	}
+	switch {
+	case st.KBDid == "":
+		st.KBDid = remote
+		saveStack(st)
+		u.ok("Recorded KB identity %s", u.dim(remote))
+	case st.KBDid == remote:
+		u.ok("KB identity confirmed %s", u.dim(remote))
+	default:
+		u.warn("This codespace's KB identity does not match the record.")
+		fmt.Fprintf(os.Stderr, "    recorded: %s\n", st.KBDid)
+		fmt.Fprintf(os.Stderr, "    running:  %s\n", remote)
+		fmt.Fprintln(os.Stderr, "    The codespace is running a different KB than when the record was made")
+		fmt.Fprintln(os.Stderr, "    (a re-created codespace, or an edited .semiont/config). Nothing was")
+		fmt.Fprintln(os.Stderr, "    changed here — forget the stale record with: semiont stop --repo "+st.Repo+" --delete")
+	}
+}
+
+// fetchRemoteDid reads the codespace's committed identity card. Same shape
+// and same absolute-glob path discipline as fetchAdminCreds: `gh codespace
+// ssh` lands in /home/vscode, not the workspace.
+func fetchRemoteDid(u *ui, name string) (string, bool) {
+	const cfgPath = "/workspaces/*/.semiont/config"
+	u.log("Reading KB identity %s", u.dim("(gh codespace ssh -c "+name+" -- cat "+cfgPath+")"))
+	out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", cfgPath)
+	if err != nil {
+		u.warn("Could not read .semiont/config over ssh — identity left as recorded.")
+		return "", false
+	}
+	return parseKBIdentity([]byte(out)).didWeb(), true
+}
+
 // renderCodespacePlan is --dry-run for the codespace placement: the gh
 // commands a real run would execute. Reaches for nothing.
 func renderCodespacePlan(opts startOptions, repo, recorded string) {
@@ -718,7 +780,7 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 // gh, health through the forwards (re-established if the recorded one
 // died), credentials read fresh, and a LOCAL section that doesn't pretend
 // the remote VM's directories are here.
-func statusCodespace(u *ui, st *stackState) int {
+func statusCodespace(u *ui, st *stackState, refresh bool) int {
 	fmt.Println()
 	fmt.Println("  CODESPACE")
 	// Distinguish three different things that all used to look alike:
@@ -738,6 +800,13 @@ func statusCodespace(u *ui, st *stackState) int {
 		}
 	}
 	fmt.Printf("  %s  %s %s\n", u.bold(st.Codespace), st.Repo, u.dim("(state: "+state+")"))
+	// --refresh needs an ssh, and an ssh to a stopped codespace WAKES it —
+	// resuming compute billing from a command the user ran to look, not to
+	// launch. Say so and skip rather than do it quietly.
+	if refresh && state != "Available" {
+		u.warn("--refresh needs to ssh in, which would wake this codespace (state: %s) — skipped.", state)
+		fmt.Fprintln(os.Stderr, "  Resume it first, then refresh:  semiont start --runtime codespace --repo "+st.Repo)
+	}
 	switch state {
 	case "unqueryable":
 		u.warn("Could not ask GitHub about this codespace (is 'gh' installed and authenticated?) — it may well be running.")
@@ -794,6 +863,9 @@ func statusCodespace(u *ui, st *stackState) int {
 	if creds := fetchAdminCreds(u, st.Codespace); creds != nil {
 		fmt.Printf("  Connect (Host localhost, Port %d) as %s / %s\n", st.ForwardPort, u.bold(creds.Email), u.bold(creds.Password))
 	}
+	// Available, and already ssh-ing for the credentials above: backfill a
+	// missing identity for free, or re-verify a recorded one on --refresh.
+	reconcileDid(u, st, refresh)
 
 	fmt.Println()
 	fmt.Println("  LOCAL")

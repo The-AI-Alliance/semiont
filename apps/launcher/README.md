@@ -136,6 +136,14 @@ semiont stop
   (PostgreSQL)`). **Exit status:** the default report spans several stacks,
   so it exits 0 whenever status itself ran — to script health, name one
   stack: `--root <path|name>`, `--repo <owner/name>`, or `--service <name>`.
+- **A codespace KB's `did:web` is recorded, never inferred.** It is read from
+  the clone whose origin named the repo, or — for a `--repo`-only start with
+  no clone anywhere — from the codespace itself, over the ssh `start` and
+  `status` already make for the admin credentials. `status --repo <owner/name>
+  --refresh` re-reads it to confirm; a disagreement is reported, never
+  silently overwritten. **No reporting command ever wakes a stopped
+  codespace** (an ssh would, resuming compute billing), so `--refresh` on a
+  stopped one says so and skips.
 - `semiont stop` sweeps **every** installed runtime by default, so a stack
   started under `--runtime docker` can't survive a plain stop. Stop's job
   isn't done until the ports are actually free: `start` records the host

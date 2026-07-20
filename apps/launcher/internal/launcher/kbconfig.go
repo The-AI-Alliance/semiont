@@ -38,6 +38,13 @@ func loadKBIdentity(root string) *kbIdentity {
 	if err != nil {
 		return nil
 	}
+	return parseKBIdentity(b)
+}
+
+// parseKBIdentity is the same read with the file already in hand — the
+// codespace path gets these bytes over ssh rather than off this disk, and
+// must interpret them identically.
+func parseKBIdentity(b []byte) *kbIdentity {
 	var raw struct {
 		Project struct {
 			Name    string `toml:"name"`

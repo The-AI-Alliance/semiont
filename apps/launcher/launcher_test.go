@@ -1578,20 +1578,58 @@ func TestCodespaceDidIsRecordedNotInferred(t *testing.T) {
 	stdout, _, _ := s.run(t, "status")
 	mustContain(t, "status", stdout, "did:web:example.github.io:test-kb")
 
-	// A --repo-only create has no clone to read: no did recorded, and the
-	// status line simply omits it rather than guessing.
+	// A --repo-only create has no clone to read — so it learns the identity
+	// from the codespace itself, over the ssh it is already making for the
+	// credentials. What must never happen is a did matched by name.
 	s2 := newCodespaceScenario(t)
 	s2.cwd = t.TempDir()
 	if _, stderr, code := s2.run(t, "start", "--runtime", "codespace", "--repo", "other/bar"); code != 0 {
 		t.Fatalf("repo-only create: exit %d\nstderr:\n%s", code, stderr)
 	}
 	b, _ = os.ReadFile(statePathFor(s2.home))
-	if strings.Contains(string(b), "kbDid") {
-		t.Errorf("recorded a did for a stack with no clone to read one from:\n%s", b)
-	}
+	mustContain(t, "stack.json", string(b), `"kbDid": "did:web:example.com:remote-kb"`)
 	stdout, _, _ = s2.run(t, "status")
-	if strings.Contains(stdout, "did:web") {
-		t.Errorf("status invented a did for a --repo-only stack:\n%s", stdout)
+	mustContain(t, "status", stdout, "did:web:example.com:remote-kb")
+}
+
+func TestCodespaceDidRefreshConfirmsAndReportsDrift(t *testing.T) {
+	// The recorded did is a CLAIM about which KB a codespace runs. --refresh
+	// re-reads it over ssh; a disagreement is reported, never silently
+	// overwritten, because did:web is the permanent identity stamped into the
+	// committed event log and the interesting fact is that the two differ.
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	repo := "pingel-org/foo-kb"
+
+	// Agreement: the remote config matches what the clone recorded.
+	s.extraEnv = append(s.extraEnv, "FAKERT_GH_KBCONFIG=[site]\ndomain = \"example.github.io:test-kb\"\n")
+	stdout, stderr, code := s.run(t, "status", "--repo", repo, "--refresh")
+	if code != 0 {
+		t.Fatalf("refresh: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "refresh", stdout+stderr, "KB identity confirmed", "did:web:example.github.io:test-kb")
+
+	// Drift: the codespace now answers with a different identity.
+	s.extraEnv[len(s.extraEnv)-1] = "FAKERT_GH_KBCONFIG=[site]\ndomain = \"elsewhere.org:other-kb\"\n"
+	stdout, stderr, _ = s.run(t, "status", "--repo", repo, "--refresh")
+	mustContain(t, "drift", stdout+stderr,
+		"does not match the record", "did:web:example.github.io:test-kb", "did:web:elsewhere.org:other-kb")
+	b, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json is unchanged by drift", string(b), `"kbDid": "did:web:example.github.io:test-kb"`)
+
+	// A stopped codespace is NOT woken to satisfy a reporting command.
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	before, _ := os.ReadFile(s.log)
+	stdout, stderr, _ = s.run(t, "status", "--repo", repo, "--refresh")
+	mustContain(t, "refresh on stopped", stdout+stderr, "would wake this codespace")
+	after, _ := os.ReadFile(s.log)
+	if strings.Contains(strings.TrimPrefix(string(after), string(before)), "codespace ssh") {
+		t.Errorf("status --refresh ssh-ed into a stopped codespace, waking it:\n%s",
+			strings.TrimPrefix(string(after), string(before)))
 	}
 }
 
