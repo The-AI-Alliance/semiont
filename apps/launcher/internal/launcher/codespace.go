@@ -106,7 +106,7 @@ func startCodespace(u *ui, opts startOptions) int {
 		return 1
 	}
 	st := ss.Stacks["codespace:"+repo]
-	name := ""
+	name, created := "", false
 	if st != nil {
 		name = st.Codespace
 	}
@@ -145,6 +145,7 @@ func startCodespace(u *ui, opts startOptions) int {
 			if name, code = createCodespace(u, repo, opts); code != 0 {
 				return code
 			}
+			created = true
 		case len(instances) == 1:
 			name = instances[0].Name
 			u.log("Found existing codespace for %s: %s %s", repo, u.bold(name),
@@ -180,6 +181,13 @@ func startCodespace(u *ui, opts startOptions) int {
 			_ = syscall.Kill(st.ForwardPID, syscall.SIGTERM)
 			time.Sleep(200 * time.Millisecond)
 		}
+	}
+
+	// --machine only chooses hardware at creation. Resuming or adopting an
+	// existing codespace can't change its VM class, so say so rather than
+	// letting the flag look effective.
+	if opts.machine != "" && !created {
+		u.warn("--machine %s ignored: %s already exists and keeps the class it was created with.", opts.machine, name)
 	}
 
 	// One KB port per stack — other codespaces' forwards keep running;
@@ -351,12 +359,85 @@ func ghCodespaceList(repo string) ([]codespaceInstance, error) {
 	return mine, nil
 }
 
+type codespaceMachine struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	CPUs        int    `json:"cpus"`
+	MemoryBytes int64  `json:"memory_in_bytes"`
+}
+
+// availableMachines: the machine classes GitHub offers THIS user for THIS
+// repo. Verified 2026-07-20: the list is filtered by the devcontainer's
+// `hostRequirements` — a repo declaring 4c/16gb is not offered the 2-core
+// class, while a repo with no devcontainer is. So anything in this list is
+// adequate by the KB's OWN declaration, which is what makes falling back to
+// another class safe rather than reckless (an undersized VM would fail
+// slowly, at the health gate, after minutes of pulls).
+func availableMachines(repo string) ([]codespaceMachine, string, error) {
+	out, err := captureBoth("gh", "api", "/repos/"+repo+"/codespaces/machines")
+	if err != nil {
+		return nil, out, err
+	}
+	var resp struct {
+		Machines []codespaceMachine `json:"machines"`
+	}
+	if json.Unmarshal([]byte(out), &resp) != nil {
+		return nil, out, fmt.Errorf("unexpected response")
+	}
+	return resp.Machines, out, nil
+}
+
+// chooseMachine resolves the VM class for a create. An EXPLICIT request must
+// actually be available — never substitute for something the user asked for
+// by name. Implicitly: premiumLinux when offered (the recipe's verified
+// choice), else the largest available by cores, announced with the reason —
+// premium-then-largest rather than always-largest, so an account with
+// largePremiumLinux isn't silently upgraded to a costlier VM.
+func chooseMachine(u *ui, repo, requested string) (string, int) {
+	machines, raw, err := availableMachines(repo)
+	if err != nil {
+		u.fail("Could not list machine classes for %s: %s", repo, strings.TrimSpace(raw))
+		fmt.Fprintln(os.Stderr, "  Likely causes: the account has no Codespaces access, or an org policy restricts machine types.")
+		return "", 1
+	}
+	if len(machines) == 0 {
+		u.fail("GitHub offers no machine classes for %s.", repo)
+		fmt.Fprintln(os.Stderr, "  Likely causes: an org policy restricts machine types, or the devcontainer's hostRequirements exceed every class available to you.")
+		return "", 1
+	}
+	if requested != "" {
+		for _, m := range machines {
+			if m.Name == requested {
+				return requested, 0
+			}
+		}
+		u.fail("--machine %s is not available to you for %s. Available:", requested, repo)
+		for _, m := range machines {
+			fmt.Fprintf(os.Stderr, "    %-20s %s\n", m.Name, m.DisplayName)
+		}
+		return "", 1
+	}
+	for _, m := range machines {
+		if m.Name == "premiumLinux" {
+			return m.Name, 0
+		}
+	}
+	best := machines[0]
+	for _, m := range machines[1:] {
+		if m.CPUs > best.CPUs || (m.CPUs == best.CPUs && m.MemoryBytes > best.MemoryBytes) {
+			best = m
+		}
+	}
+	u.warn("premiumLinux isn't available to you for %s — using %s (%s).", repo, best.Name, best.DisplayName)
+	return best.Name, 0
+}
+
 // createCodespace with the §1 503-aware backoff: GitHub-side incidents are
 // retried (bounded), everything else fails with the CLI's own words.
 func createCodespace(u *ui, repo string, opts startOptions) (string, int) {
-	machine := opts.machine
-	if machine == "" {
-		machine = "premiumLinux"
+	machine, code := chooseMachine(u, repo, opts.machine)
+	if code != 0 {
+		return "", code
 	}
 	u.log("Creating codespace for %s %s", u.bold(repo), u.dim("(--machine "+machine+"; ~4 min to Available, hooks run minutes past it)"))
 	u.echoCmd("gh", "codespace", "create", "--repo", repo, "--machine", machine)
@@ -440,7 +521,11 @@ func renderCodespacePlan(opts startOptions, repo, recorded string) {
 		fmt.Println("gh codespace list --json name,state,repository   # adopt-or-create decision for " + repo)
 		machine := opts.machine
 		if machine == "" {
-			machine = "premiumLinux"
+			machine = "<machine>"
+			fmt.Println("gh api /repos/" + repo + "/codespaces/machines   # preflight: classes available for this repo (hostRequirements-filtered)")
+			fmt.Println("# <machine> = premiumLinux when available, else the largest offered")
+		} else {
+			fmt.Println("gh api /repos/" + repo + "/codespaces/machines   # preflight: verify --machine " + machine + " is available")
 		}
 		fmt.Println("gh codespace create --repo " + repo + " --machine " + machine + "   # only when none exists (503-aware retry)")
 	}

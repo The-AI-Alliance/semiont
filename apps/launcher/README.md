@@ -89,7 +89,14 @@ semiont stop
   creation; `start` and `status` read them fresh over ssh and display them —
   never stored, never logged (`useradd` refuses and points at `status`).
   Preflights fail fast with fixes: `gh` missing/unauthenticated, the
-  `codespace` scope, and the `ANTHROPIC_API_KEY` Codespaces user secret.
+  `codespace` scope, the `ANTHROPIC_API_KEY` Codespaces user secret, and the
+  VM class. The machine list GitHub returns for a repo is filtered by the
+  devcontainer's `hostRequirements`, so anything offered is adequate by the
+  KB's own declaration — `--machine` defaults to `premiumLinux` when your
+  account can use it and otherwise falls back to the largest it can,
+  announced with the reason; an explicit `--machine` that isn't available is
+  a hard error listing what is (never a silent substitution), and on a
+  resume the flag is called out as inert rather than looking effective.
   Codespace placement is never sticky — every codespace start says
   `--runtime codespace` (or rides an existing record).
 - `semiont useradd` creates or updates users in the RUNNING stack: the

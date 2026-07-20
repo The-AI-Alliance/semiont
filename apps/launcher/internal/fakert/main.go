@@ -138,6 +138,22 @@ func ghCmd(args []string) {
 		fmt.Println("github.com")
 		fmt.Println("  ✓ Logged in to github.com")
 		fmt.Println("  - Token scopes: " + scopes)
+	case len(args) >= 2 && args[0] == "api" && strings.Contains(args[1], "/codespaces/machines"):
+		// Shape mirrors the real endpoint (captured 2026-07-20). The default
+		// is what a hostRequirements-declaring KB actually offers: GitHub
+		// filters the 2-core class out.
+		body := os.Getenv("FAKERT_GH_MACHINES")
+		switch body {
+		case "ERROR":
+			fmt.Fprintln(os.Stderr, "gh: Not Found (HTTP 404)")
+			os.Exit(1)
+		case "":
+			body = `{"machines":[` +
+				`{"name":"standardLinux32gb","display_name":"4 cores, 16 GB RAM, 32 GB storage","cpus":4,"memory_in_bytes":17179869184},` +
+				`{"name":"premiumLinux","display_name":"8 cores, 32 GB RAM, 64 GB storage","cpus":8,"memory_in_bytes":34359738368},` +
+				`{"name":"largePremiumLinux","display_name":"16 cores, 64 GB RAM, 128 GB storage","cpus":16,"memory_in_bytes":68719476736}],"total_count":3}`
+		}
+		fmt.Println(body)
 	case len(args) >= 2 && args[0] == "api" && strings.Contains(args[1], "/codespaces/secrets/"):
 		if os.Getenv("FAKERT_GH_SECRET_404") != "" {
 			fmt.Fprintln(os.Stderr, "gh: Not Found (HTTP 404)")

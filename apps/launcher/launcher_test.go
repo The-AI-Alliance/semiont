@@ -1157,6 +1157,118 @@ func TestCodespacePreflights(t *testing.T) {
 	mustContain(t, "stderr", stderr, "'gh' is not on PATH", "https://cli.github.com")
 }
 
+func TestCodespaceMachinePreflight(t *testing.T) {
+	// The machine list is preflighted on the CREATE path and is
+	// hostRequirements-filtered by GitHub, so anything in it is adequate:
+	// premiumLinux when offered, else the largest — announced. An explicit
+	// --machine must actually be available; we never substitute for it.
+	only := func(names ...string) string {
+		all := map[string]string{
+			"standardLinux32gb": `{"name":"standardLinux32gb","display_name":"4 cores, 16 GB RAM, 32 GB storage","cpus":4,"memory_in_bytes":17179869184}`,
+			"premiumLinux":      `{"name":"premiumLinux","display_name":"8 cores, 32 GB RAM, 64 GB storage","cpus":8,"memory_in_bytes":34359738368}`,
+			"largePremiumLinux": `{"name":"largePremiumLinux","display_name":"16 cores, 64 GB RAM, 128 GB storage","cpus":16,"memory_in_bytes":68719476736}`,
+		}
+		parts := []string{}
+		for _, n := range names {
+			parts = append(parts, all[n])
+		}
+		return "FAKERT_GH_MACHINES={\"machines\":[" + strings.Join(parts, ",") + "]}"
+	}
+
+	// Default: premium is offered, so premium is used — silently.
+	s := newCodespaceScenario(t)
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code != 0 {
+		t.Fatalf("default: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log),
+		"gh api /repos/"+csRepo+"/codespaces/machines",
+		"gh codespace create --repo "+csRepo+" --machine premiumLinux")
+	if strings.Contains(stdout, "isn't available") {
+		t.Errorf("announced a fallback that did not happen:\n%s", stdout)
+	}
+
+	// No premium: fall back to the largest offered, announced with the reason.
+	s2 := newCodespaceScenario(t)
+	s2.extraEnv = append(s2.extraEnv, only("standardLinux32gb"))
+	stdout, stderr, code = s2.run(t, "start", "--runtime", "codespace")
+	if code != 0 {
+		t.Fatalf("fallback: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "fallback stdout", stdout,
+		"premiumLinux isn't available to you for "+csRepo,
+		"using standardLinux32gb (4 cores, 16 GB RAM, 32 GB storage)")
+	log, _ = os.ReadFile(s2.log)
+	mustContain(t, "argv log", string(log), "--machine standardLinux32gb")
+
+	// Largest wins the fallback, not merely the first offered.
+	s3 := newCodespaceScenario(t)
+	s3.extraEnv = append(s3.extraEnv, only("standardLinux32gb", "largePremiumLinux"))
+	if _, stderr, code := s3.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("largest: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ = os.ReadFile(s3.log)
+	mustContain(t, "argv log", string(log), "--machine largePremiumLinux")
+
+	// Explicit and available: used, no announcement.
+	s4 := newCodespaceScenario(t)
+	stdout, stderr, code = s4.run(t, "start", "--runtime", "codespace", "--machine", "standardLinux32gb")
+	if code != 0 {
+		t.Fatalf("explicit: exit %d\nstderr:\n%s", code, stderr)
+	}
+	log, _ = os.ReadFile(s4.log)
+	mustContain(t, "argv log", string(log), "--machine standardLinux32gb")
+	if strings.Contains(stdout, "isn't available") {
+		t.Errorf("explicit available should not announce:\n%s", stdout)
+	}
+
+	// Explicit and NOT available: hard fail listing what is, by display name
+	// — never silently substituted.
+	s5 := newCodespaceScenario(t)
+	s5.extraEnv = append(s5.extraEnv, only("standardLinux32gb"))
+	_, stderr, code = s5.run(t, "start", "--runtime", "codespace", "--machine", "largePremiumLinux")
+	if code != 1 {
+		t.Fatalf("explicit unavailable: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"--machine largePremiumLinux is not available to you for "+csRepo,
+		"standardLinux32gb", "4 cores, 16 GB RAM, 32 GB storage")
+	if l, _ := os.ReadFile(s5.log); strings.Contains(string(l), "codespace create") {
+		t.Errorf("created despite an unavailable machine:\n%s", l)
+	}
+
+	// Empty list and API error both fail with causes, before any create.
+	for _, tc := range []struct{ env, want string }{
+		{`FAKERT_GH_MACHINES={"machines":[]}`, "offers no machine classes"},
+		{"FAKERT_GH_MACHINES=ERROR", "Could not list machine classes"},
+	} {
+		sx := newCodespaceScenario(t)
+		sx.extraEnv = append(sx.extraEnv, tc.env)
+		_, stderr, code := sx.run(t, "start", "--runtime", "codespace")
+		if code != 1 {
+			t.Errorf("%s: want exit 1, got %d", tc.env, code)
+		}
+		mustContain(t, "stderr for "+tc.env, stderr, tc.want)
+	}
+}
+
+func TestCodespaceMachineInertOnResume(t *testing.T) {
+	// --machine chooses hardware at creation only; on a resume it can't
+	// change anything, so it is called out rather than looking effective.
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.killServes()
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace", "--machine", "largePremiumLinux")
+	if code != 0 {
+		t.Fatalf("resume: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "resume stdout", stdout,
+		"--machine largePremiumLinux ignored", "keeps the class it was created with")
+}
+
 func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	s := newCodespaceScenario(t)
 	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
@@ -1312,7 +1424,8 @@ func TestCodespaceDryRunAndLogs(t *testing.T) {
 		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "dry-run stdout", stdout,
-		"gh codespace create --repo "+csRepo+" --machine premiumLinux",
+		"gh api /repos/"+csRepo+"/codespaces/machines",
+		"gh codespace create --repo "+csRepo+" --machine <machine>",
 		"gh codespace ports forward",
 		"cat .devcontainer/admin.json")
 	if log, _ := os.ReadFile(s.log); strings.Contains(string(log), "gh ") {

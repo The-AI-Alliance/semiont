@@ -80,7 +80,9 @@ Options:
                         KB clone's origin remote; the record remembers it)
   --codespace <name>    Codespace placement: disambiguate when the repo has
                         several codespaces (the launcher itself makes one)
-  --machine <class>     Codespace placement: VM class (default: premiumLinux)
+  --machine <class>     Codespace placement: VM class (default: premiumLinux
+                        when your account can use it for the repo, else the
+                        largest it can; only applies when creating)
   --no-observe          Skip the Jaeger sidecar (OTel traces + metrics run by default)
   --ollama-cache <c>    Model cache when starting an Ollama container: 'host'
                         (~/.ollama) or 'volume' (named volume) — skips the prompt
