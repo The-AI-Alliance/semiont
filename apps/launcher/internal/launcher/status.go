@@ -16,8 +16,9 @@ const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/n
 Reports what this machine knows about, in three layers:
 
   LOCAL STACK    the one stack running here, and the root it belongs to
-  REMOTE REPOS   codespace-hosted KBs, their state, and their KB port
   LOCAL ROOTS    every KB clone the launcher has used (roots.json)
+  REMOTE KNOWLEDGE BASES
+                 codespace-hosted KBs, their state, and their KB port
 
 For every local service: the container state as the runtime reports it
 (running / exited / absent — across all installed runtimes unless --runtime
@@ -163,12 +164,14 @@ func Status(args []string) int {
 	if code != 0 {
 		return code
 	}
-	if service == "" && rootFlag == "" {
-		printRemoteRepos(u, cs)
-	}
 	if service == "" {
 		printRoots(u, st)
-		printHostPaths(u)
+	}
+	if service == "" && rootFlag == "" {
+		printRemoteKBs(u, cs)
+	}
+	if service == "" {
+		printLauncherPaths(u)
 	}
 
 	// Naming ONE stack makes the exit its health; the default report covers
@@ -379,6 +382,11 @@ func printRoots(u *ui, st *stackState) {
 		if ident := loadKBIdentity(p); ident != nil {
 			did, site = ident.didWeb(), ident.SiteName
 		}
+		// LOCAL STACK already printed this root's identity directly above;
+		// repeating it here is noise.
+		if st != nil && st.KBRoot == p {
+			did, site = "", ""
+		}
 		switch {
 		case did != "" && site != "":
 			fmt.Printf("    %s %s\n", u.dim(did), u.dim("— "+site))
@@ -391,16 +399,16 @@ func printRoots(u *ui, st *stackState) {
 	}
 }
 
-// printHostPaths reports the host-side paths the stack touches (paths, not
+// printLauncherPaths reports the host-side paths the stack touches (paths, not
 // "directories" — the state entry is a file). They are: the
 // launcher's XDG-resolved config/cache homes (reserved by design — see
 // GO-LAUNCHER.md host need #1; Go maps them to XDG_* on Linux and
 // ~/Library/... on macOS), the live config staging under /tmp (never
 // $TMPDIR — Apple container cannot sustain mounts from /var/folders), and
 // the Ollama model cache a container run may share.
-func printHostPaths(u *ui) {
+func printLauncherPaths(u *ui) {
 	fmt.Println()
-	fmt.Println("  LOCAL HOST PATHS")
+	fmt.Println("  LAUNCHER PATHS")
 	row := func(label, path, note string) {
 		fmt.Printf("  %-10s %s %s\n", label, path, u.dim("("+note+")"))
 	}

@@ -602,7 +602,7 @@ func TestStatusMixed(t *testing.T) {
 		"PostgreSQL", "Neo4j", "Qdrant", "Ollama", "Jaeger",
 		"LOCAL ROOTS",
 		"(discovered from cwd)",
-		"LOCAL HOST PATHS",
+		"LAUNCHER PATHS",
 		"config", "cache", "staging", "/tmp/semiont-config.*",
 		"✓ http://localhost:4000/api/health",
 		"✗ http://localhost:9090/health",
@@ -1564,6 +1564,37 @@ func writeCodespaceState(t *testing.T, s *scenario) {
 	}
 }
 
+func TestCodespaceDidIsRecordedNotInferred(t *testing.T) {
+	// did:web is the permanent identity in the committed event log, so the
+	// remote-KB line must show only what was READ from the clone whose origin
+	// named this repo — never a did matched by directory name, which would
+	// attach one fork's identity to another's.
+	s := newCodespaceScenario(t) // cwd is a KB clone with a .semiont/config
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json", string(b), `"kbDid": "did:web:example.github.io:test-kb"`)
+	stdout, _, _ := s.run(t, "status")
+	mustContain(t, "status", stdout, "did:web:example.github.io:test-kb")
+
+	// A --repo-only create has no clone to read: no did recorded, and the
+	// status line simply omits it rather than guessing.
+	s2 := newCodespaceScenario(t)
+	s2.cwd = t.TempDir()
+	if _, stderr, code := s2.run(t, "start", "--runtime", "codespace", "--repo", "other/bar"); code != 0 {
+		t.Fatalf("repo-only create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ = os.ReadFile(statePathFor(s2.home))
+	if strings.Contains(string(b), "kbDid") {
+		t.Errorf("recorded a did for a stack with no clone to read one from:\n%s", b)
+	}
+	stdout, _, _ = s2.run(t, "status")
+	if strings.Contains(stdout, "did:web") {
+		t.Errorf("status invented a did for a --repo-only stack:\n%s", stdout)
+	}
+}
+
 func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	s := newCodespaceScenario(t)
 	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
@@ -1626,7 +1657,7 @@ func TestCodespaceStatus(t *testing.T) {
 		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "status stdout", stdout,
-		"LOCAL STACK", "REMOTE REPOS", csRepo, "codespace fake-cs-1", "LOCAL ROOTS")
+		"LOCAL STACK", "REMOTE KNOWLEDGE BASES", csRepo, "codespace fake-cs-1", "LOCAL ROOTS")
 
 	// --repo names ONE stack: full detail, health-coded, credentials fresh.
 	stdout, _, code = s.run(t, "status", "--repo", csRepo)
@@ -1807,7 +1838,7 @@ func TestMultiStackCodespaces(t *testing.T) {
 		t.Fatalf("fleet status: exit %d\n%s", code, stdout)
 	}
 	mustContain(t, "status stdout", stdout,
-		"REMOTE REPOS",
+		"REMOTE KNOWLEDGE BASES",
 		csRepo, "codespace fake-cs-1", "http://localhost:4000",
 		"other/bar", "codespace bar-cs-1", "http://localhost:4001")
 
@@ -3029,7 +3060,7 @@ func TestStatusService(t *testing.T) {
 		t.Fatalf("healthy backend: want exit 0, got %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "stdout", stdout, "backend", "running", "✓ http://localhost:4000/api/health")
-	for _, absent := range []string{"LOCAL HOST PATHS", "LOCAL ROOTS", "worker", "traces"} {
+	for _, absent := range []string{"LAUNCHER PATHS", "LOCAL ROOTS", "worker", "traces"} {
 		if strings.Contains(stdout, absent) {
 			t.Errorf("filtered status leaked %q:\n%s", absent, stdout)
 		}

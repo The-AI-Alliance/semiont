@@ -127,10 +127,10 @@ semiont stop
 - `semiont start --dry-run` prints the exact runtime commands a real run would
   execute — the legibility answer to "what does this binary actually do".
 - **`semiont status` reports in three layers** — LOCAL STACK (the one stack
-  running here, headed by the root it belongs to and its did:web), REMOTE
-  REPOS (codespace-hosted KBs, their state, and each KB's local port), then
-  LOCAL ROOTS and LOCAL HOST PATHS beneath both. Roots and repos are the
-  durable things; a stack is status layered on one of them. Per service it
+  running here, headed by the root it belongs to and its did:web), LOCAL
+  ROOTS, REMOTE KNOWLEDGE BASES (codespace-hosted KBs, their state, and each
+  KB's local port), then LAUNCHER PATHS. Roots and KBs are the durable
+  things; a stack is status layered on one of them. Per service it
   shows the container STATE as the runtime sees it plus a host-side health
   probe, with the concrete product in the service cell (`database
   (PostgreSQL)`). **Exit status:** the default report spans several stacks,

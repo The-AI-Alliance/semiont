@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
@@ -80,12 +79,12 @@ func startCodespace(u *ui, opts startOptions) int {
 	// stacks may be recorded at once): --repo → root's origin (create-path
 	// convenience) → the lone recorded codespace stack (bare resume works
 	// from any directory). Several recorded and nothing named → say which.
-	repo := opts.repo
+	repo, repoDid := opts.repo, ""
 	cs := codespaceStacks(ss)
 	if repo == "" {
 		if _, _, err := resolveKBRoot(); err == nil || opts.root != "" {
 			var code int
-			if repo, code = repoFromRoot(u, opts); code != 0 {
+			if repo, repoDid, code = repoFromRoot(u, opts); code != 0 {
 				return code
 			}
 		} else if len(cs) == 1 {
@@ -239,7 +238,13 @@ func startCodespace(u *ui, opts startOptions) int {
 	newSt := &stackState{
 		Runtime: "codespace", Codespace: name, Repo: repo,
 		ForwardPID: pid, ForwardPort: kbPort, Ports: []int{kbPort},
+		KBDid:    repoDid,
 		Services: map[string]serviceState{},
+	}
+	// A --repo-only start has no clone to read an identity from; don't drop
+	// one we learned earlier.
+	if newSt.KBDid == "" && st != nil {
+		newSt.KBDid = st.KBDid
 	}
 	saveStack(newSt)
 
@@ -284,7 +289,7 @@ func startCodespace(u *ui, opts startOptions) int {
 
 // repoFromRoot: the create-path convenience — resolve the KB root as usual
 // and read the slug from its origin remote.
-func repoFromRoot(u *ui, opts startOptions) (string, int) {
+func repoFromRoot(u *ui, opts startOptions) (slug string, did string, code int) {
 	var root string
 	var err error
 	if opts.root != "" {
@@ -295,26 +300,30 @@ func repoFromRoot(u *ui, opts startOptions) (string, int) {
 	if err != nil {
 		u.fail("%v", err)
 		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a KB clone (its origin supplies the repo).")
-		return "", 1
+		return "", "", 1
 	}
 	origin, err := capture("git", "-C", root, "remote", "get-url", "origin")
 	if err != nil || origin == "" {
 		u.fail("Cannot read the origin remote of %s.", root)
 		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>.")
-		return "", 1
+		return "", "", 1
 	}
 	slug, ok := parseGitHubSlug(origin)
 	if !ok {
 		u.fail("The origin of %s is not a GitHub repo (%s) — codespaces are GitHub-only.", root, origin)
 		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a GitHub clone.")
-		return "", 1
+		return "", "", 1
 	}
+	// This clone IS the repo we are about to launch, so its committed
+	// .semiont/config carries that KB's real did:web. Captured here and
+	// recorded, so status never has to guess an identity from a filename.
+	did = loadKBIdentity(root).didWeb()
 	// Pushed-state honesty: locally an uncommitted config edit is live via
 	// the /kb bind mount; in a codespace it silently doesn't exist.
 	if out, err := capture("git", "-C", root, "status", "--porcelain"); err == nil && out != "" {
 		u.warn("%s has uncommitted changes — the codespace runs %s as PUSHED; they don't travel.", root, slug)
 	}
-	return slug, 0
+	return slug, did, 0
 }
 
 // parseGitHubSlug: owner/name from either remote form —
@@ -832,13 +841,13 @@ func dropCollidingForwards(u *ui, needs []portNeed) {
 	}
 }
 
-// printRemoteRepos: the REMOTE REPOS section — codespace-hosted KBs this
+// printRemoteKBs: the REMOTE KNOWLEDGE BASES section — codespace-hosted KBs this
 // machine knows about. A repo is the durable thing (the identity); the
 // codespace instance and its state are status layered on it, which is why
 // the repo leads each entry and the instance name is a dimmed detail.
-func printRemoteRepos(u *ui, cs []*stackState) {
+func printRemoteKBs(u *ui, cs []*stackState) {
 	fmt.Println()
-	fmt.Println("  REMOTE REPOS")
+	fmt.Println("  REMOTE KNOWLEDGE BASES")
 	if len(cs) == 0 {
 		fmt.Printf("  %s\n", u.dim("(none — semiont start --runtime codespace --repo <owner>/<name>)"))
 		return
@@ -856,15 +865,15 @@ func printRemoteRepos(u *ui, cs []*stackState) {
 			}
 		}
 	}
-	reg := loadRoots()
 	for _, c := range cs {
 		fmt.Printf("  %s\n", u.bold(c.Repo))
-		// Identity, when a local clone of the same repo taught us its did:web.
-		for _, e := range reg.Roots {
-			if e.Did != "" && strings.EqualFold(filepath.Base(e.Path), filepath.Base(c.Repo)) {
-				fmt.Printf("    %s %s\n", u.dim(e.Did), u.dim("— "+e.SiteName))
-				break
-			}
+		// ONLY the did recorded at creation, read from the very clone whose
+		// origin named this repo. Matching a local root by directory name
+		// would attach one fork's identity to another's — and did:web is the
+		// permanent identity stamped into the committed event log, so a wrong
+		// one is worse than none.
+		if c.KBDid != "" {
+			fmt.Printf("    %s\n", u.dim(c.KBDid))
 		}
 		state := states[c.Codespace]
 		switch {
