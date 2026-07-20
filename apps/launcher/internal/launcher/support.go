@@ -252,15 +252,29 @@ func took(d time.Duration) string {
 
 // waitForHTTP polls until a URL returns 2xx, one attempt per second,
 // reporting how long readiness took.
-func waitForHTTP(u *ui, name, url string, tries int) (time.Duration, bool) {
+// waitForHTTP polls until the endpoint answers or the budget expires. The
+// budget is WALL-CLOCK SECONDS, enforced against a deadline — not a count of
+// attempts.
+//
+// It used to be a count, with the failure message printing that count as if
+// it were seconds. Each failing attempt costs the health client's 2s timeout
+// plus the 1s pacing sleep, so a "600s" wait could legitimately run past
+// 1800s; one was observed in the launcher's own log taking 1346s while
+// claiming 600. A deadline makes the number honest, and the message reports
+// the time actually spent so it can never drift from reality again.
+func waitForHTTP(u *ui, name, url string, seconds int) (time.Duration, bool) {
 	t0 := time.Now()
-	for i := 0; i < tries; i++ {
+	deadline := t0.Add(time.Duration(seconds) * time.Second)
+	for {
 		if httpOK(url) {
 			return time.Since(t0), true
 		}
+		if !time.Now().Before(deadline) {
+			break
+		}
 		time.Sleep(time.Second)
 	}
-	u.fail("%s did not become ready at %s within %ds.", name, url, tries)
+	u.fail("%s did not become ready at %s within %ds (waited %s).", name, url, seconds, took(time.Since(t0)))
 	return time.Since(t0), false
 }
 
@@ -271,20 +285,26 @@ func waitForHTTP(u *ui, name, url string, tries int) (time.Duration, bool) {
 // temporary server listens on the unix socket only, so TCP 5432 opens only
 // when the real server is up. Phase 2 is a single container-side probe
 // confirming the gateway path the services actually dial.
-func waitForPG(u *ui, rt, host string, port, tries int) (time.Duration, bool) {
+func waitForPG(u *ui, rt, host string, port, seconds int) (time.Duration, bool) {
 	t0 := time.Now()
+	deadline := t0.Add(time.Duration(seconds) * time.Second)
 	up := false
-	for i := 0; i < tries; i++ {
+	// Same deadline discipline as waitForHTTP: the 1s dial timeout plus the
+	// 1s sleep made the old attempt count overstate the budget too.
+	for {
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), time.Second)
 		if err == nil {
 			conn.Close()
 			up = true
 			break
 		}
+		if !time.Now().Before(deadline) {
+			break
+		}
 		time.Sleep(time.Second)
 	}
 	if !up {
-		u.fail("PostgreSQL did not open port %d within %ds.", port, tries)
+		u.fail("PostgreSQL did not open port %d within %ds (waited %s).", port, seconds, took(time.Since(t0)))
 		return time.Since(t0), false
 	}
 	if runSilent(rt, "run", "--rm", "busybox:1.38.0", "nc", "-z", "-w", "2", host, fmt.Sprintf("%d", port)) != nil {
