@@ -1436,6 +1436,61 @@ func TestMultiStackCodespaces(t *testing.T) {
 	mustContain(t, "stack.json", string(b), "codespace:"+csRepo)
 }
 
+func TestFrontendPort(t *testing.T) {
+	// --port moves the browser (the one flag-movable port): publish
+	// <p>:3000, warn about frontendURL-configured backends, record the
+	// moved endpoint so status and stop follow it.
+	s := newScenario(t, "container")
+	s.noGitRoot = true // "just the browser" needs no clone
+	stdout, stderr, code := s.run(t, "start", "--service", "frontend", "--port", "3001")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "--publish 3001:3000")
+	mustContain(t, "stdout", stdout,
+		"Browser on port 3001", "may reject this origin",
+		"🚀 frontend is up")
+	b, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json", string(b), `"endpoint": "http://localhost:3001"`)
+
+	// status probes the recorded endpoint, not the static 3000.
+	stdout, _, code = s.run(t, "status", "--service", "frontend")
+	if code != 0 {
+		t.Fatalf("status: exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "status stdout", stdout, "http://localhost:3001")
+
+	// Default port stays 3000, no warning.
+	s.killServes()
+	stdout, _, code = s.run(t, "start", "--service", "frontend")
+	if code != 0 {
+		t.Fatal("default-port frontend failed")
+	}
+	if strings.Contains(stdout, "may reject this origin") {
+		t.Errorf("default port warned:\n%s", stdout)
+	}
+
+	// Scoping: frontend-only, and never with codespace placement.
+	for _, tc := range []struct{ args []string }{
+		{[]string{"start", "--port", "3001"}},
+		{[]string{"start", "--service", "worker", "--port", "3001"}},
+		{[]string{"start", "--runtime", "codespace", "--port", "3001"}},
+	} {
+		if _, stderr, code := s.run(t, tc.args...); code != 1 {
+			t.Errorf("%v: want exit 1, got %d", tc.args, code)
+		} else {
+			mustContain(t, fmt.Sprintf("stderr for %v", tc.args), stderr,
+				"--port only applies to --service frontend")
+		}
+	}
+	if _, stderr, code := s.run(t, "start", "--service", "frontend", "--port", "notaport"); code != 1 {
+		t.Error("bad port value should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "Invalid --port")
+	}
+}
+
 func TestMultiStackLocalPlusCodespace(t *testing.T) {
 	// A local stack and codespace stacks coexist in the record set: verbs
 	// that can't guess refuse with selectors; useradd targets the local

@@ -39,6 +39,7 @@ type startOptions struct {
 	ollamaCache  string // "", "host", or "volume"
 	service      string // start just this one service
 	root         string // --root: KB root by path or registered basename
+	port         int    // --port: browser port (--service frontend only; every other port is config-owned)
 	repo         string // --repo: owner/name (codespace placement only)
 	csName       string // --codespace: instance disambiguator (codespace placement only)
 	machine      string // --machine: VM class (codespace placement only)
@@ -64,6 +65,9 @@ Options:
                         frontend, database, graph, vectors, inference, or traces.
                         Rejoins a running stack's worker secret automatically;
                         OTel export is enabled iff traces (Jaeger) is up.
+  --port <n>            Browser port (--service frontend only; default 3000).
+                        The one port a flag may move — every other port
+                        belongs to the KB's config
   --clean-ollama        Remove the Ollama model cache volume and exit
   --runtime <name>      Container runtime: container, docker, or podman
                         (default: the machine's recorded preference — the
@@ -149,6 +153,18 @@ func Start(args []string) int {
 				return 1
 			}
 			opts.root = v
+			i++
+		case "--port":
+			v, ok := needVal(i)
+			if !ok {
+				return 1
+			}
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 || n > 65535 {
+				u.fail("Invalid --port '%s' (expected 1-65535).", v)
+				return 1
+			}
+			opts.port = n
 			i++
 		case "--repo":
 			v, ok := needVal(i)
@@ -240,6 +256,10 @@ func Start(args []string) int {
 		}
 	} else if opts.repo != "" || opts.csName != "" || opts.machine != "" {
 		u.fail("--repo/--codespace/--machine only apply to --runtime codespace.")
+		return 1
+	}
+	if opts.port != 0 && (opts.service != "frontend" || opts.runtime == "codespace") {
+		u.fail("--port only applies to --service frontend — every other port belongs to the KB's config (and a codespace forwards only its KB, on an allocated port).")
 		return 1
 	}
 
@@ -548,7 +568,7 @@ func Start(args []string) int {
 	if !opts.dryRun {
 		var needs []portNeed
 		if opts.service != "" {
-			needs = servicePortNeeds(opts.service, plan) // nil-plan-safe (frontend, traces)
+			needs = servicePortNeeds(opts.service, plan, opts) // nil-plan-safe (frontend, traces)
 		} else {
 			needs = planPortChecks(plan, opts.observe) // full start always has a plan
 		}
@@ -634,9 +654,20 @@ func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string,
 	return append(a, image(svc, version))
 }
 
-func frontendArgs(version string) []string {
+// frontendArgs: the browser publishes on the chosen host port (default
+// 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
+// may move — it's absent from the config and nothing in the stack dials it.
+func frontendArgs(version string, port int) []string {
 	return []string{"run", "-d", "--rm", "--name", "semiont-frontend",
-		"--memory", "1G", "--publish", "3000:3000", image("frontend", version)}
+		"--memory", "1G", "--publish", fmt.Sprintf("%d:3000", port), image("frontend", version)}
+}
+
+// browserPort: the frontend's host port — --port, else 3000.
+func browserPort(opts startOptions) int {
+	if opts.port != 0 {
+		return opts.port
+	}
+	return 3000
 }
 
 func otelArgs(addr string) []string {

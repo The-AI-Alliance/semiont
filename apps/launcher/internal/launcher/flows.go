@@ -132,7 +132,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 
 	// Frontend: a static SPA server — no config mount and no service env.
 	x.banner("Starting Frontend")
-	args := frontendArgs(fc.version)
+	args := frontendArgs(fc.version, 3000)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Frontend failed to start.")
@@ -346,7 +346,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			x.say(sayLog, "Removed prior %s container", svc)
 			x.pause()
 		}
-		ports := servicePortNeeds(svc, fc.plan)
+		ports := servicePortNeeds(svc, fc.plan, fc.opts)
 		if !x.portChecks(ports) {
 			return 1
 		}
@@ -439,16 +439,20 @@ func flowOneService(x executor, fc flowCtx) int {
 			}
 		}
 	case "frontend":
-		args := frontendArgs(fc.version)
+		bp := browserPort(fc.opts)
+		if bp != 3000 {
+			x.say(sayWarn, "Browser on port %d: backends configured with frontendURL http://localhost:3000 may reject this origin (OAuth redirects / CORS).", bp)
+		}
+		args := frontendArgs(fc.version, bp)
 		id, ok := x.runDetached(args)
 		if !ok {
 			x.say(sayFail, "Frontend failed to start.")
 			return 1
 		}
-		if d, ok = x.waitHTTP("Frontend", "http://localhost:3000", 30); !ok {
+		if d, ok = x.waitHTTP("Frontend", fmt.Sprintf("http://localhost:%d", bp), 30); !ok {
 			return 1
 		}
-		x.record(svc, id, image("frontend", fc.version), providedLauncher, serviceEndpoint(svc, fc.plan), "")
+		x.record(svc, id, image("frontend", fc.version), providedLauncher, fmt.Sprintf("http://localhost:%d", bp), "")
 	}
 	if d > 0 {
 		x.say(sayOK, "%s healthy %s", svc, x.dim("("+took(d)+")"))
@@ -459,9 +463,11 @@ func flowOneService(x executor, fc flowCtx) int {
 // servicePortNeeds: one service's must-be-free ports. Claims follow the
 // plan for config-owned ports (dependency roles, backend); the static role
 // table covers only the launcher-fiat ports (sidecars, frontend, traces).
-func servicePortNeeds(svc string, plan *launchPlan) []portNeed {
+func servicePortNeeds(svc string, plan *launchPlan, opts startOptions) []portNeed {
 	ports := roles[svc].ports
 	switch {
+	case svc == "frontend" && opts.port != 0:
+		ports = []portNeed{{opts.port, "Frontend"}}
 	case svc == "backend" && plan != nil:
 		ports = []portNeed{{plan.BackendPort, "Backend"}}
 	case plan != nil:

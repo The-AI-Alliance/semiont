@@ -31,6 +31,13 @@ semiont stop
 
 - `semiont start --help` lists all flags (`--config`, `--runtime`,
   `--no-observe`, `--ollama-cache`, …).
+- `semiont start --service frontend --port <n>` moves the browser — the ONE
+  port a flag may move (it's absent from the KB config and nothing in the
+  stack dials it; every other port belongs to the config, and a codespace
+  forwards only its KB on an allocated port). Move, not multiply: the
+  browser restarts on the chosen port, the record carries the endpoint, and
+  status/stop follow it. A non-3000 port warns that backends configured
+  with `frontendURL http://localhost:3000` may reject the origin.
 - **`semiont secret` registers where config secrets come from** — pointers,
   never values. `semiont secret set ANTHROPIC_API_KEY` walks an interactive
   provider-then-path flow (or pass the source directly:
