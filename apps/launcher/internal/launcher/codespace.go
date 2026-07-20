@@ -137,7 +137,15 @@ func startCodespace(u *ui, opts startOptions) int {
 		case len(instances) == 0:
 			if !secretOK {
 				u.fail("ANTHROPIC_API_KEY is not a Codespaces user secret selected for %s — the stack would come up with inference dead, silently.", repo)
-				fmt.Fprintln(os.Stderr, "  Fix:  gh secret set ANTHROPIC_API_KEY --user --app codespaces   (then select the repo)")
+				// A codespace can't reach your local provider, so the
+				// value must live in GitHub too. When a source is
+				// registered, name the one command that bridges it.
+				if ref, ok := loadRoots().Secrets["ANTHROPIC_API_KEY"]; ok {
+					fmt.Fprintf(os.Stderr, "  You have a local source registered (%s). Push its current value:\n", refDisplay(ref))
+					fmt.Fprintf(os.Stderr, "    semiont secret push ANTHROPIC_API_KEY --repo %s\n", repo)
+				} else {
+					fmt.Fprintln(os.Stderr, "  Fix:  gh secret set ANTHROPIC_API_KEY --user --app codespaces   (then select the repo)")
+				}
 				fmt.Fprintln(os.Stderr, "  Check:  gh api user/codespaces/secrets/ANTHROPIC_API_KEY/repositories")
 				return 1
 			}

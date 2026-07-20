@@ -879,6 +879,123 @@ func TestSecretSetRequiresProviderOnPath(t *testing.T) {
 		"the environment always wins")
 }
 
+func TestSecretPush(t *testing.T) {
+	// A codespace runs on GitHub's machine and can't reach the local
+	// provider, so `secret push` copies the CURRENT value into GitHub's
+	// Codespaces user secrets — resolved fresh, handed over on STDIN (never
+	// argv), and unioned into the existing repo selection.
+	s := newScenario(t, "container", "op", "gh")
+	if _, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+		t.Fatalf("secret set: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// Existing selection must survive: gh's --repos REPLACES the list.
+	s.extraEnv = append(s.extraEnv,
+		`FAKERT_GH_SECRET_REPOS={"total_count":1,"repositories":[{"full_name":"other/already-had-it"}]}`)
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "secret", "push", "ANTHROPIC_API_KEY", "--repo", "pingel-org/foo-kb")
+	if code != 0 {
+		t.Fatalf("push: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "push stdout", stdout,
+		"reading from 1Password", "expect an authorization prompt",
+		"is now a Codespaces user secret",
+		"other/already-had-it, pingel-org/foo-kb", // union, not replacement
+		"never stored locally")
+
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log),
+		"gh secret set ANTHROPIC_API_KEY --user --app codespaces --repos other/already-had-it,pingel-org/foo-kb")
+	// The value must NEVER appear in argv (ps-readable) — only on stdin.
+	if strings.Contains(string(log), "fake-op-secret") {
+		t.Fatalf("secret value leaked into argv:\n%s", log)
+	}
+	if strings.Contains(stdout, "fake-op-secret") {
+		t.Errorf("secret value echoed to the terminal:\n%s", stdout)
+	}
+	stdin, err := os.ReadFile(filepath.Join(s.fakertDir, "secret-set-stdin"))
+	if err != nil || strings.TrimSpace(string(stdin)) != "fake-op-secret" {
+		t.Fatalf("value did not reach gh on stdin: %q (%v)", stdin, err)
+	}
+	// Nor into roots.json or the invocation log.
+	if b, _ := os.ReadFile(rootsPathFor(s.home)); strings.Contains(string(b), "fake-op-secret") {
+		t.Error("secret value persisted to roots.json")
+	}
+	if b, _ := os.ReadFile(invLogPath(s.home)); strings.Contains(string(b), "fake-op-secret") {
+		t.Error("secret value reached the invocation log")
+	}
+
+	// Already-selected repo isn't duplicated.
+	s2 := newScenario(t, "container", "op", "gh")
+	if _, _, code := s2.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+		t.Fatal("set failed")
+	}
+	s2.extraEnv = append(s2.extraEnv,
+		`FAKERT_GH_SECRET_REPOS={"total_count":1,"repositories":[{"full_name":"pingel-org/foo-kb"}]}`)
+	if err := os.Truncate(s2.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, code := s2.run(t, "secret", "push", "ANTHROPIC_API_KEY", "--repo", "pingel-org/foo-kb"); code != 0 {
+		t.Fatal("push failed")
+	}
+	log, _ = os.ReadFile(s2.log)
+	mustContain(t, "argv log", string(log), "--repos pingel-org/foo-kb")
+	if strings.Contains(string(log), "foo-kb,pingel-org/foo-kb") {
+		t.Errorf("repo duplicated in the selection:\n%s", log)
+	}
+
+	// Failure paths: no registered source, bad slug, gh rejecting the write.
+	s3 := newScenario(t, "container", "op", "gh")
+	if _, stderr, code := s3.run(t, "secret", "push", "NOPE_KEY", "--repo", "a/b"); code != 1 {
+		t.Error("push without a source should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "No secret source registered for NOPE_KEY",
+			"semiont secret set NOPE_KEY")
+	}
+	if _, stderr, code := s3.run(t, "secret", "push", "ANTHROPIC_API_KEY", "--repo", "notaslug"); code != 1 {
+		t.Error("bad slug should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "--repo must be owner/name")
+	}
+	if _, _, code := s3.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+		t.Fatal("set failed")
+	}
+	s3.extraEnv = append(s3.extraEnv, "FAKERT_GH_SECRET_SET_FAIL=1")
+	if _, stderr, code := s3.run(t, "secret", "push", "ANTHROPIC_API_KEY", "--repo", "a/b"); code != 1 {
+		t.Error("gh failure should fail the push")
+	} else {
+		mustContain(t, "stderr", stderr, "Could not set the Codespaces user secret")
+	}
+}
+
+func TestCodespaceSecretMissingPointsAtPush(t *testing.T) {
+	// The create-path secret preflight names the ONE command that fixes it
+	// when a local source is registered — and the generic gh hint otherwise.
+	s := newCodespaceScenario(t)
+	s.extraEnv = append(s.extraEnv, "FAKERT_GH_SECRET_404=1")
+	_, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code != 1 {
+		t.Fatalf("want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "gh secret set ANTHROPIC_API_KEY --user --app codespaces")
+
+	s2 := newScenario(t, "container", "op", "gh")
+	if _, _, code := s2.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+		t.Fatal("set failed")
+	}
+	s2.extraEnv = append(s2.extraEnv,
+		"FAKERT_GIT_ORIGIN=git@github.com:"+csRepo+".git", "FAKERT_GH_SECRET_404=1")
+	_, stderr, code = s2.run(t, "start", "--runtime", "codespace")
+	if code != 1 {
+		t.Fatalf("want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"You have a local source registered (op://OSS/Anthropic/credential)",
+		"semiont secret push ANTHROPIC_API_KEY --repo "+csRepo)
+}
+
 func TestStartResolvesSecret(t *testing.T) {
 	// A registered source feeds start: announced BEFORE the reach, resolved
 	// fresh, injected into the container argv (redacted in echoes). Dry-run

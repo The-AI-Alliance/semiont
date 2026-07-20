@@ -27,6 +27,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -164,6 +165,17 @@ func ghCmd(args []string) {
 			body = `{"total_count":0,"repositories":[]}`
 		}
 		fmt.Println(body)
+	case len(args) >= 2 && args[0] == "secret" && args[1] == "set":
+		// gh reads the value from stdin when --body is absent. Record it so
+		// tests can assert the secret travelled by stdin, never argv.
+		val, _ := io.ReadAll(os.Stdin)
+		if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+			_ = os.WriteFile(filepath.Join(dir, "secret-set-stdin"), val, 0o600)
+		}
+		if os.Getenv("FAKERT_GH_SECRET_SET_FAIL") != "" {
+			fmt.Fprintln(os.Stderr, "gh: HTTP 403 (missing scope)")
+			os.Exit(1)
+		}
 	case args[0] == "codespace":
 		ghCodespace(args[1:], joined)
 	default:

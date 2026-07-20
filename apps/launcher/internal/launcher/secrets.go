@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -109,6 +110,10 @@ Commands:
   set <VAR> [<scheme>://<path>]   Register a source (verified with one read
                                   now). With no source given, an interactive
                                   flow picks the provider and path.
+  push <VAR> --repo <owner/name>  Copy the registered secret's CURRENT value
+                                  into your GitHub Codespaces user secrets and
+                                  select that repo — for codespace stacks,
+                                  which cannot reach your local provider.
   list                            Show registered sources (pointers, never values)
   rm <VAR>                        Forget a source
 
@@ -117,6 +122,7 @@ Providers (the URI scheme picks one):
 Examples:
   semiont secret set ANTHROPIC_API_KEY
   semiont secret set ANTHROPIC_API_KEY op://OSS/Anthropic/credential
+  semiont secret push ANTHROPIC_API_KEY --repo The-AI-Alliance/my-kb
   semiont secret rm ANTHROPIC_API_KEY
 `
 }
@@ -143,6 +149,12 @@ func Secret(args []string) int {
 			u.fail("Usage: semiont secret set <VAR> [<scheme>://<path>]")
 			return 1
 		}
+	case "push":
+		if len(args) != 4 || args[2] != "--repo" {
+			u.fail("Usage: semiont secret push <VAR> --repo <owner/name>")
+			return 1
+		}
+		return secretPush(u, args[1], args[3])
 	case "list":
 		reg := loadRoots()
 		if len(reg.Secrets) == 0 {
@@ -183,6 +195,92 @@ func Secret(args []string) int {
 		fmt.Print(secretUsage())
 		return 1
 	}
+}
+
+// secretPush copies a registered secret's CURRENT value into GitHub's
+// Codespaces user secrets. A codespace runs on GitHub's machine and cannot
+// reach your local provider, so the value has to live there too — this is
+// the one place the launcher moves a secret rather than merely pointing at
+// one. Discipline holds anyway: resolved fresh and announced, handed to `gh`
+// on STDIN (never argv, where ps could read it), encrypted by gh before it
+// leaves the machine, and never written to disk or logs by us.
+//
+// The repo selection is a UNION, never a replacement: pushing for one repo
+// must not silently revoke the secret from every other repo already using it.
+func secretPush(u *ui, name, repo string) int {
+	if !repoSlugRe.MatchString(repo) {
+		u.fail("--repo must be owner/name, got '%s'.", repo)
+		return 1
+	}
+	ref, ok := loadRoots().Secrets[name]
+	if !ok {
+		u.fail("No secret source registered for %s — nothing to push.", name)
+		fmt.Fprintf(os.Stderr, "  Register one first:  semiont secret set %s\n", name)
+		return 1
+	}
+	if !requireProviderBin(u, ref) {
+		return 1
+	}
+	if !onPath("gh") {
+		u.fail("'gh' is not on PATH — needed to write GitHub Codespaces secrets.")
+		fmt.Fprintln(os.Stderr, "  Install it: https://cli.github.com")
+		return 1
+	}
+	p := secretProviders[ref.Provider]
+	u.log("%s: reading from %s (%s) %s", u.bold(name), p.display, refCommand(ref),
+		u.dim("— expect an authorization prompt"))
+	val, err := resolveSecret(ref)
+	if err != nil {
+		u.fail("%s: %v.", name, err)
+		return 1
+	}
+
+	// Union with whatever repos already have access — `gh secret set --repos`
+	// REPLACES the selection, so sending only this repo would revoke every
+	// other one silently.
+	all := currentSecretRepos(name)
+	selected := false
+	for _, r := range all {
+		if strings.EqualFold(r, repo) {
+			selected = true
+			break
+		}
+	}
+	if !selected {
+		all = append(all, repo)
+	}
+	args := []string{"secret", "set", name, "--user", "--app", "codespaces", "--repos", strings.Join(all, ",")}
+	u.echoCmd("gh", args...) // the value is on stdin — nothing here to redact
+	if err := runWithStdin("gh", val, args...); err != nil {
+		u.fail("Could not set the Codespaces user secret (see gh's output above).")
+		fmt.Fprintln(os.Stderr, "  If gh reports a missing scope, grant it and retry.")
+		return 1
+	}
+	u.ok("%s is now a Codespaces user secret, selected for %s %s", u.bold(name), strings.Join(all, ", "),
+		u.dim("(value read fresh from "+refDisplay(ref)+"; never stored locally)"))
+	return 0
+}
+
+// currentSecretRepos: the repos already selected for a Codespaces user
+// secret (empty when the secret does not exist yet).
+func currentSecretRepos(name string) []string {
+	out, err := capture("gh", "api", "user/codespaces/secrets/"+name+"/repositories")
+	if err != nil {
+		return nil
+	}
+	var resp struct {
+		Repositories []struct {
+			FullName string `json:"full_name"`
+		} `json:"repositories"`
+	}
+	if json.Unmarshal([]byte(out), &resp) != nil {
+		return nil
+	}
+	names := make([]string, 0, len(resp.Repositories))
+	for _, r := range resp.Repositories {
+		names = append(names, r.FullName)
+	}
+	return names
 }
 
 func secretSet(u *ui, name, uri string) int {

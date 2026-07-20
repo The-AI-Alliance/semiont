@@ -54,6 +54,14 @@ semiont stop
   1Password at all: **exporting the variable always wins** — a plain
   `ANTHROPIC_API_KEY=… semiont start` behaves exactly as it always has.
   `--dry-run` reaches for nothing (plan shows `<env:VAR>` placeholders).
+  `semiont secret push <VAR> --repo <owner/name>` is the one place a value
+  *moves*: a codespace runs on GitHub's machine and can't reach your local
+  provider, so this copies the current value into your GitHub Codespaces user
+  secrets. Same discipline — resolved fresh and announced, handed to `gh` on
+  **stdin** so it never appears in argv (where `ps` could read it), encrypted
+  by `gh` before it leaves the machine, never written to disk or logs by us.
+  The repo selection is a **union**, never a replacement, so pushing for one
+  repo can't silently revoke the secret from others already using it.
 - **`semiont start --runtime codespace` runs the same stack on a
   GitHub-hosted machine** (the KB's devcontainer + compose own the inside;
   the launcher orchestrates the outside via `gh`, which is required on PATH
