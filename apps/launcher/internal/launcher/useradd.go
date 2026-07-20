@@ -165,22 +165,38 @@ func useraddCodespace(u *ui, st *stackState, args []string) int {
 	if !requireGh(u, "useradd against a codespace stack") {
 		return 1
 	}
-	remote := "docker exec semiont-backend semiont useradd"
-	for _, a := range args {
-		remote += " " + shellQuote(a)
-	}
+	// Build the remote command ONCE, and echo that same string — the
+	// launcher's echoed lines are meant to be the exact command it runs (the
+	// same contract --dry-run keeps). Echoing the pre-quoting args instead
+	// would print something that behaves differently if pasted: $VARs would
+	// expand and values with spaces would split.
+	remote := remoteUseraddCmd(args, false)
 	sshArgs := []string{"codespace", "ssh", "-c", st.Codespace, "--", remote}
-	// The echo redacts --password inside the composed remote command, which
-	// redactEnvArgs cannot see through — do it on the pre-quoted args.
 	u.log("useradd on %s %s", u.bold(st.Repo), u.dim("(codespace "+st.Codespace+")"))
-	u.echoCmd("gh", append([]string{"codespace", "ssh", "-c", st.Codespace, "--",
-		"docker exec semiont-backend semiont useradd"}, redactEnvArgs(args)...)...)
+	// echoCmd's --password redaction can't see inside a composed string, so
+	// the redacted variant is composed the same way instead.
+	u.echoCmd("gh", "codespace", "ssh", "-c", st.Codespace, "--", remoteUseraddCmd(args, true))
 	if err := runVisible("gh", sshArgs...); err != nil {
 		u.fail("useradd failed inside the codespace's backend (see output above).")
 		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status --repo "+st.Repo)
 		return 1
 	}
 	return 0
+}
+
+// remoteUseraddCmd composes the command the codespace's shell will run. With
+// redact set, the --password VALUE is replaced before quoting, so the echoed
+// string is otherwise identical to the real one.
+func remoteUseraddCmd(args []string, redact bool) string {
+	cmd := "docker exec semiont-backend semiont useradd"
+	for i, a := range args {
+		v := a
+		if redact && i > 0 && args[i-1] == "--password" {
+			v = "<redacted>"
+		}
+		cmd += " " + shellQuote(v)
+	}
+	return cmd
 }
 
 // shellQuote wraps a value for a POSIX shell: single quotes protect

@@ -1414,7 +1414,8 @@ func TestUseraddCodespace(t *testing.T) {
 	// A password full of shell metacharacters must arrive INTACT — and must
 	// not become shell syntax on the way.
 	nasty := "p a$s'w\"o`rd;rm -rf /"
-	stdout, stderr, code := s.run(t, "useradd", "--email", "alice@example.com", "--password", nasty, "--admin")
+	stdout, stderr, code := s.run(t, "useradd", "--email", "alice@example.com",
+		"--password", nasty, "--name", "A $NAME with spaces", "--admin")
 	if code != 0 {
 		t.Fatalf("codespace useradd: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -1431,13 +1432,20 @@ func TestUseraddCodespace(t *testing.T) {
 	if strings.Contains(remote, "; rm -rf /") || strings.Contains(remote, ";rm -rf / ") {
 		t.Fatalf("password escaped its quoting into shell syntax:\n%s", remote)
 	}
-	// And the echoed line must not show the password at all.
-	if strings.Contains(stdout, "rm -rf") && strings.Contains(stdout, "$ gh") {
-		echoed := stdout[strings.Index(stdout, "$ gh"):]
-		if strings.Contains(echoed[:min(len(echoed), 200)], "rm -rf") {
-			t.Errorf("password leaked into the echoed command:\n%s", echoed)
-		}
+	// The ECHOED command must be the command actually run — same quoting,
+	// with only the password swapped. Anything else prints a line that would
+	// behave differently if pasted ($NAME expanding, spaces splitting).
+	echoed := stdout[strings.Index(stdout, "$ gh"):]
+	echoed = echoed[:strings.IndexByte(echoed, '\n')]
+	mustContain(t, "echoed command", echoed,
+		"'--password' '<redacted>'", // redacted, but still quoted like the real one
+		"'alice@example.com'", "'--admin'")
+	if strings.Contains(echoed, "rm -rf") {
+		t.Errorf("password leaked into the echoed command:\n%s", echoed)
 	}
+	// The old bug was echoing RAW args, which would expand $NAME and split
+	// on spaces if pasted. The quoted form is the tell.
+	mustContain(t, "echoed command", echoed, "'A $NAME with spaces'")
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log), "gh codespace ssh -c fake-cs-1 --")
 
