@@ -587,16 +587,22 @@ func TestStatusMixed(t *testing.T) {
 		"FAKERT_STATE_smelter=exited",
 	)
 	serveHealth(t, 4000, 11434)
+	// The default report covers every stack, so its exit says only that
+	// status ran; --root/--service are the health-coded forms.
 	stdout, stderr, code := s.run(t, "status")
-	if code != 1 {
-		t.Fatalf("want exit 1 with unhealthy core services, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	if code != 0 {
+		t.Fatalf("default status should exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if _, _, code := s.run(t, "status", "--service", "worker"); code != 1 {
+		t.Errorf("--service names one stack, so it must exit on health; got %d", code)
 	}
 	mustContain(t, "stdout", stdout,
-		"SERVICE", "TECH", "CONTAINER", "RUNTIME", "HEALTH",
+		"SERVICE", "STATE", "RUNTIME", "HEALTH",
+		"LOCAL STACK", "database (PostgreSQL)", // tech rides in the SERVICE cell now
 		"PostgreSQL", "Neo4j", "Qdrant", "Ollama", "Jaeger",
-		"SEMIONT ROOTS",
+		"LOCAL ROOTS",
 		"(discovered from cwd)",
-		"LOCAL HOST DIRECTORIES",
+		"LOCAL HOST PATHS",
 		"config", "cache", "staging", "/tmp/semiont-config.*",
 		"✓ http://localhost:4000/api/health",
 		"✗ http://localhost:9090/health",
@@ -1525,13 +1531,15 @@ func TestCodespaceWithoutGh(t *testing.T) {
 	// status must NOT call a live codespace deleted just because it cannot ask.
 	s3 := noGh(t)
 	writeCodespaceState(t, s3)
-	stdout, stderr, code = s3.run(t, "status")
+	stdout, stderr, code = s3.run(t, "status", "--repo", csRepo)
 	if code != 1 {
-		t.Fatalf("status without gh: want exit 1, got %d", code)
+		t.Fatalf("status --repo without gh: want exit 1, got %d", code)
 	}
 	all := stdout + stderr
+	// The overview form must also refuse to call it deleted.
+	ov, _, _ := s3.run(t, "status")
+	mustContain(t, "overview", ov, "state unknown — gh unavailable")
 	mustContain(t, "status output", all,
-		"state unknown — gh unavailable",
 		"Could not ask GitHub about this codespace",
 		"it may well be running")
 	if strings.Contains(all, "deleted?") || strings.Contains(all, "no longer exists") {
@@ -1612,26 +1620,33 @@ func TestCodespaceStatus(t *testing.T) {
 	// forward, credentials read fresh.
 	s.extraEnv = append(s.extraEnv,
 		`FAKERT_GH_CS_LIST=[{"name":"fake-cs-1","state":"Available","repository":"pingel-org/foo-kb"}]`)
+	// The default report LISTS remote repos; it no longer drills into one.
 	stdout, _, code := s.run(t, "status")
 	if code != 0 {
 		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "status stdout", stdout,
-		"STACKS",
+		"LOCAL STACK", "REMOTE REPOS", csRepo, "codespace fake-cs-1", "LOCAL ROOTS")
+
+	// --repo names ONE stack: full detail, health-coded, credentials fresh.
+	stdout, _, code = s.run(t, "status", "--repo", csRepo)
+	if code != 0 {
+		t.Fatalf("status --repo: exit %d\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "status --repo stdout", stdout,
 		"CODESPACE", "fake-cs-1", csRepo, "(state: Available)",
 		"re-establishing",
 		"KB", "healthy", "http://localhost:4000/api/health",
 		"run inside the codespace via compose",
-		"admin@example.com", "fake-admin-pw",
-		"SEMIONT ROOTS")
+		"admin@example.com", "fake-admin-pw")
 
 	// Stopped: honest stopped-but-existing, scriptably unhealthy.
 	s.killServes()
 	s.extraEnv = append(s.extraEnv[:len(s.extraEnv)-1],
 		`FAKERT_GH_CS_LIST=[{"name":"fake-cs-1","state":"Shutdown","repository":"pingel-org/foo-kb"}]`)
-	stdout, _, code = s.run(t, "status")
+	stdout, _, code = s.run(t, "status", "--repo", csRepo)
 	if code != 1 {
-		t.Fatalf("stopped status: want exit 1, got %d\n%s", code, stdout)
+		t.Fatalf("stopped status --repo: want exit 1, got %d\n%s", code, stdout)
 	}
 	mustContain(t, "stopped status stdout", stdout,
 		"(state: Shutdown)", "stopped — state and credentials persist", "semiont start")
@@ -1683,10 +1698,12 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	}
 
 	// status --service and stop --service don't apply.
-	if _, stderr, code := s2.run(t, "status", "--service", "backend"); code != 1 {
-		t.Error("status --service on codespace should fail")
+	// --repo and --root/--service name different stacks; combining them is
+	// a contradiction, not a silent preference.
+	if _, stderr, code := s2.run(t, "status", "--repo", csRepo, "--service", "backend"); code != 1 {
+		t.Error("--repo with --service should fail")
 	} else {
-		mustContain(t, "stderr", stderr, "--service does not apply to a codespace stack")
+		mustContain(t, "stderr", stderr, "--repo names a remote stack")
 	}
 	if _, stderr, code := s2.run(t, "stop", "--service", "worker"); code != 1 {
 		t.Error("stop --service on codespace should fail")
@@ -1790,10 +1807,9 @@ func TestMultiStackCodespaces(t *testing.T) {
 		t.Fatalf("fleet status: exit %d\n%s", code, stdout)
 	}
 	mustContain(t, "status stdout", stdout,
-		"STACKS",
-		"codespace  "+csRepo+"  fake-cs-1", "KB localhost:4000",
-		"codespace  other/bar  bar-cs-1", "KB localhost:4001",
-		"semiont status --repo <owner/name>")
+		"REMOTE REPOS",
+		csRepo, "codespace fake-cs-1", "http://localhost:4000",
+		"other/bar", "codespace bar-cs-1", "http://localhost:4001")
 
 	// --repo details one stack, probing ITS port.
 	stdout, _, code = s.run(t, "status", "--repo", "other/bar")
@@ -2234,7 +2250,7 @@ func TestRootsRegistryAndRootFlag(t *testing.T) {
 
 	// status shows the registered root, with its did:web identity line.
 	stdout, _, _ = s.run(t, "status")
-	mustContain(t, "status stdout", stdout, "SEMIONT ROOTS", s.kb, "last used ",
+	mustContain(t, "status stdout", stdout, "LOCAL ROOTS", s.kb, "last used ",
 		"did:web:example.github.io:test-kb — Test Knowledge Base")
 }
 
@@ -3013,7 +3029,7 @@ func TestStatusService(t *testing.T) {
 		t.Fatalf("healthy backend: want exit 0, got %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "stdout", stdout, "backend", "running", "✓ http://localhost:4000/api/health")
-	for _, absent := range []string{"LOCAL HOST DIRECTORIES", "SEMIONT ROOTS", "worker", "traces"} {
+	for _, absent := range []string{"LOCAL HOST PATHS", "LOCAL ROOTS", "worker", "traces"} {
 		if strings.Contains(stdout, absent) {
 			t.Errorf("filtered status leaked %q:\n%s", absent, stdout)
 		}

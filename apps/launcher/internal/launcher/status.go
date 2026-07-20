@@ -11,33 +11,29 @@ import (
 	"unicode/utf8"
 )
 
-const statusUsage = `Usage: semiont status [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>]
+const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name>] [--service <name>] [--runtime container|docker|podman]
 
-With codespace stacks recorded, status opens with a STACKS overview (every
-recorded stack, its state, and each forwarded KB's local port), then details
-the lone forwarded stack — or the local one; with several forwarded, the
-overview stands and --repo details a specific codespace stack.
+Reports what this machine knows about, in three layers:
 
-Report each Semiont container's runtime state and application-level health.
+  LOCAL STACK    the one stack running here, and the root it belongs to
+  REMOTE REPOS   codespace-hosted KBs, their state, and their KB port
+  LOCAL ROOTS    every KB clone the launcher has used (roots.json)
 
-For every service: the container state as the runtime reports it (running /
-exited / absent — across all installed runtimes unless --runtime narrows it),
-and a host-side application health probe (the same endpoints semiont start
-gates on; a TCP dial for PostgreSQL). An Ollama serving from the host with no
-container is reported as runtime "host" — the same reuse semiont start applies.
+For every local service: the container state as the runtime reports it
+(running / exited / absent — across all installed runtimes unless --runtime
+narrows it), and a host-side application health probe (the same endpoints
+semiont start gates on; a TCP dial for PostgreSQL). An Ollama serving from
+the host with no container is reported as runtime "host".
 
-Also reports the host directories the stack touches: the launcher's
-XDG-resolved config/cache homes, the /tmp config staging, and the Ollama
-model cache.
+Exit status: the default multi-stack report exits 0 whenever status itself
+ran — with several stacks, one code cannot speak for all of them. To script
+health, name ONE stack:
 
-Exit status: 0 when every core service is healthy (Jaeger is observability,
-not core), 1 otherwise.
+  semiont status --root <path|name>    && echo local-up
+  semiont status --repo <owner/name>   && echo remote-up
+  semiont status --service backend     && echo backend-up
 
-With --service <name>, report just that one service (backend, worker,
-smelter, weaver, frontend, database, graph, vectors, inference, or traces) — the
-exit status then reflects that service alone (traces included), making it
-scriptable:
-  semiont status --service backend && echo up
+Those forms exit 0 only when the named stack (or service) is healthy.
 `
 
 // statusServices drives the report, in user-facing-first order with each
@@ -64,33 +60,51 @@ var statusServices = []struct {
 }
 
 // Status implements `semiont status`.
+//
+// Layout follows the concepts, not the machinery: LOCAL ROOTS and REMOTE
+// REPOS are the durable things a user owns; a stack is transient status
+// layered on one of them (a local stack belongs to zero or one local root).
+// So the report always opens with LOCAL STACK — present or not — then REMOTE
+// REPOS, then the registries beneath both.
 func Status(args []string) int {
 	u := newUI(false)
-	runtime := ""
-	service := ""
-	repoFlag := ""
+	runtime, service, repoFlag, rootFlag := "", "", "", ""
 	for i := 0; i < len(args); i++ {
+		need := func() (string, bool) {
+			if i+1 >= len(args) {
+				u.fail("Missing value for %s", args[i])
+				return "", false
+			}
+			return args[i+1], true
+		}
 		switch args[i] {
 		case "--runtime":
-			if i+1 >= len(args) {
-				u.fail("Missing value for --runtime")
+			v, ok := need()
+			if !ok {
 				return 1
 			}
-			runtime = args[i+1]
+			runtime = v
 			i++
 		case "--repo":
-			if i+1 >= len(args) {
-				u.fail("Missing value for --repo")
+			v, ok := need()
+			if !ok {
 				return 1
 			}
-			repoFlag = args[i+1]
+			repoFlag = v
+			i++
+		case "--root":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			rootFlag = v
 			i++
 		case "--service":
-			if i+1 >= len(args) {
-				u.fail("Missing value for --service")
+			v, ok := need()
+			if !ok {
 				return 1
 			}
-			service = args[i+1]
+			service = v
 			i++
 		case "--help", "-h":
 			fmt.Print(statusUsage)
@@ -106,89 +120,128 @@ func Status(args []string) int {
 			return 1
 		}
 	}
+	if repoFlag != "" && (rootFlag != "" || service != "") {
+		u.fail("--repo names a remote stack; --root/--service name the local one.")
+		return 1
+	}
 
-	// The recorded stack state (when present) narrows the query to the
-	// runtime that actually started the stack, and supplies the identifiers
-	// the runtime reported at start — the record is belief; every claim below
-	// is still verified against the runtime and the health endpoints.
 	ss := loadStackSet()
 	cs := codespaceStacks(ss)
 	st := ss.Stacks["local"]
-	// Codespace stacks: --repo targets one for detail; otherwise the STACKS
-	// overview shows the fleet, with detail for the lens holder (the stack
-	// localhost currently points at) or the lone codespace when no local
-	// stack exists.
+
+	// --repo: one remote stack, health-coded for scripting.
 	if repoFlag != "" {
 		target := ss.Stacks["codespace:"+repoFlag]
 		if target == nil {
 			u.fail("No codespace stack recorded for %s.", repoFlag)
-			return 1
-		}
-		if service != "" {
-			u.fail("--service does not apply to a codespace stack; semiont status reports it whole.")
+			for _, c := range cs {
+				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
+			}
 			return 1
 		}
 		return statusCodespace(u, target)
 	}
-	if len(cs) > 0 && runtime == "" {
-		printStacksOverview(u, st, cs)
-		fwd := forwardedStacks(cs)
-		var target *stackState
-		switch {
-		case len(fwd) == 1:
-			target = fwd[0]
-		case len(fwd) == 0 && st == nil && len(cs) == 1:
-			target = cs[0]
-		}
-		if target != nil {
-			if service != "" {
-				u.fail("--service does not apply to a codespace stack; semiont status reports it whole.")
-				return 1
-			}
-			return statusCodespace(u, target)
+
+	// --root: assert the local stack belongs to that root before reporting it.
+	if rootFlag != "" {
+		want, err := resolveRootArg(rootFlag)
+		if err != nil {
+			u.fail("%v", err)
+			return 1
 		}
 		if st == nil {
-			fmt.Println()
-			fmt.Printf("  Details: %s\n", u.bold("semiont status --repo <owner/name>"))
+			u.fail("No local stack is running (root %s).", want)
+			return 1
+		}
+		if st.KBRoot != "" && st.KBRoot != want {
+			u.fail("The local stack belongs to %s, not %s.", st.KBRoot, want)
+			return 1
+		}
+	}
+
+	healthy, code := printLocalStack(u, st, runtime, service)
+	if code != 0 {
+		return code
+	}
+	if service == "" && rootFlag == "" {
+		printRemoteRepos(u, cs)
+	}
+	if service == "" {
+		printRoots(u, st)
+		printHostPaths(u)
+	}
+
+	// Naming ONE stack makes the exit its health; the default report covers
+	// several stacks at once, where a single code cannot speak for all of
+	// them — there it only says that status itself ran.
+	if service != "" || rootFlag != "" {
+		if healthy {
 			return 0
 		}
-		// A local stack exists: detail it below (several forwarded
-		// codespaces stay overview-level — --repo details one).
+		return 1
 	}
+	return 0
+}
+
+// printLocalStack renders the LOCAL STACK section: the root it belongs to,
+// its provenance, and the service table. Returns whether every counted
+// service is healthy, plus a nonzero code if status itself could not run.
+func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bool, code int) {
+	if service == "" {
+		fmt.Println()
+		fmt.Println("  LOCAL STACK")
+	}
+
 	var runtimes []string
-	if runtime != "" {
+	switch {
+	case runtime != "":
 		if !onPath(runtime) {
 			fmt.Fprintf(os.Stderr, "--runtime %s requested, but '%s' is not on PATH.\n", runtime, runtime)
-			return 1
+			return false, 1
 		}
 		runtimes = []string{runtime}
 		if st != nil && runtime != st.Runtime {
-			st = nil // record is about a different runtime's stack
+			st = nil // the record describes a different runtime's stack
 		}
-	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
+	case st != nil && st.Runtime != "" && onPath(st.Runtime):
 		runtimes = []string{st.Runtime}
-		note := st.Runtime
-		if st.Version != "" {
-			note += "; images " + st.Version
-		}
-		u.log("Using recorded stack state %s", u.dim("("+note+"; "+statePath()+")"))
-	} else {
+	default:
 		st = nil
 		runtimes = installedRuntimes()
 	}
 	if len(runtimes) == 0 {
 		u.fail("No container runtime found. Install Apple Container, Docker, or Podman.")
-		return 1
+		return false, 1
 	}
 
-	fmt.Printf("  %-10s %-12s %-10s %-10s %s\n", "SERVICE", "TECH", "CONTAINER", "RUNTIME", "HEALTH")
-	allCoreHealthy := true
+	// Identity first: a stack is status layered on a root, so name the root
+	// (and its did:web) before the services. Provenance is dimmed detail, not
+	// narration wedged between sections.
+	if service == "" {
+		if st != nil && st.KBRoot != "" {
+			fmt.Printf("  %s\n", st.KBRoot)
+			if ident := loadKBIdentity(st.KBRoot); ident != nil && ident.SiteName != "" {
+				fmt.Printf("    %s %s\n", u.dim(ident.didWeb()), u.dim("— "+ident.SiteName))
+			}
+		} else if st == nil {
+			fmt.Printf("  %s\n", u.dim("(no recorded stack — services below are discovered by name)"))
+		}
+		if st != nil {
+			note := st.Runtime
+			if st.Version != "" {
+				note += " · images " + st.Version
+			}
+			fmt.Printf("    %s\n", u.dim(note+" · "+statePath()))
+		}
+		fmt.Println()
+	}
+
+	fmt.Printf("  %-22s %-10s %-10s %s\n", "SERVICE", "STATE", "RUNTIME", "HEALTH")
+	healthy = true
 	for _, svc := range statusServices {
 		if service != "" && svc.name != service {
 			continue
 		}
-		// The record supplies the identifier, the endpoint, and who provides
-		// the role; the runtime and the probe stay the ground truth.
 		handle := roles[svc.name].container
 		endpoint := svc.endpoint
 		var rec *serviceState
@@ -204,23 +257,21 @@ func Status(args []string) int {
 			}
 		}
 
-		// Not referenced by the config: no probe, no exit-status impact.
-		if rec != nil && rec.Provided == providedNone {
-			fmt.Printf("  %-10s %-12s %-10s %-10s %s\n", svc.name, "—", "—", "—", u.dim("not configured"))
-			continue
-		}
-
-		// TECH: the concrete product behind an infra role — the recorded
-		// driver (survives config changes since start), falling back to the
-		// static product for records that predate the driver field. Semiont
-		// services stay blank: the role name already says what they are, and
-		// their image version is stack-level (shown once in the header line).
+		// The concrete product rides in the SERVICE cell — "database
+		// (PostgreSQL)" — rather than a column that is an em-dash for every
+		// Semiont service.
+		label := svc.name
 		tech := roles[svc.name].product
 		if rec != nil && rec.Driver != "" {
 			tech = driverDisplay(svc.name, rec.Driver)
 		}
-		if tech == "" {
-			tech = "—"
+		if tech != "" {
+			label += " (" + tech + ")"
+		}
+
+		if rec != nil && rec.Provided == providedNone {
+			fmt.Printf("  %-22s %-10s %-10s %s\n", label, "—", "—", u.dim("not configured"))
+			continue
 		}
 
 		state, rt := "", ""
@@ -232,18 +283,12 @@ func Status(args []string) int {
 		default:
 			state, rt = containerState(runtimes, handle)
 		}
-		healthy := probeHealth(endpoint)
-
-		// Host Ollama reuse heuristic for record-less stacks: no container,
-		// but the endpoint answers — a healthy configuration, not a gap.
-		if svc.name == "inference" && rec == nil && state == "" && healthy {
+		isHealthy := probeHealth(endpoint)
+		if svc.name == "inference" && rec == nil && state == "" && isHealthy {
 			rt = "host"
 		}
-
-		// Filtered to one service, its health IS the exit status — Jaeger
-		// included: asking about it explicitly makes it the question.
-		if !healthy && (svc.core || service != "") {
-			allCoreHealthy = false
+		if !isHealthy && (svc.core || service != "") {
+			healthy = false
 		}
 
 		stateCol := state
@@ -252,37 +297,29 @@ func Status(args []string) int {
 			stateCol = u.wrap(ansiGreen, state)
 		case state == "":
 			stateCol = u.dim("—")
-		default: // exited / stopped / created / unknown
+		default:
 			stateCol = u.wrap(ansiYellow, state)
 		}
 		if rt == "" {
 			rt = u.dim("—")
 		}
-		label := endpoint
-		if rest, ok := strings.CutPrefix(label, "tcp:"); ok {
+		probe := endpoint
+		if rest, ok := strings.CutPrefix(probe, "tcp:"); ok {
 			if strings.Contains(rest, ":") {
-				label = "tcp://" + rest
+				probe = "tcp://" + rest
 			} else {
-				label = "tcp://localhost:" + rest
+				probe = "tcp://localhost:" + rest
 			}
 		}
-		healthCol := u.wrap(ansiRed, "✗") + " " + u.dim(label)
-		if healthy {
-			healthCol = u.wrap(ansiGreen, "✓") + " " + u.dim(label)
+		healthCol := u.wrap(ansiRed, "✗") + " " + u.dim(probe)
+		if isHealthy {
+			healthCol = u.wrap(ansiGreen, "✓") + " " + u.dim(probe)
 		}
-		fmt.Printf("  %-10s %-12s %-*s %-*s %s\n",
-			svc.name, tech, 10+utf8.RuneCountInString(stateCol)-visibleLen(stateCol), stateCol,
+		fmt.Printf("  %-22s %-*s %-*s %s\n",
+			label, 10+utf8.RuneCountInString(stateCol)-visibleLen(stateCol), stateCol,
 			10+utf8.RuneCountInString(rt)-visibleLen(rt), rt, healthCol)
 	}
-	if service == "" {
-		printRoots(u, st)
-		printHostDirs(u)
-	}
-
-	if allCoreHealthy {
-		return 0
-	}
-	return 1
+	return healthy, 0
 }
 
 // printRoots reports the Semiont roots: every registered root (roots.json —
@@ -292,7 +329,7 @@ func Status(args []string) int {
 // flagged, not hidden.
 func printRoots(u *ui, st *stackState) {
 	fmt.Println()
-	fmt.Println("  SEMIONT ROOTS")
+	fmt.Println("  LOCAL ROOTS")
 	order := []string{}
 	labels := map[string][]string{}
 	add := func(path, label string) {
@@ -354,15 +391,16 @@ func printRoots(u *ui, st *stackState) {
 	}
 }
 
-// printHostDirs reports the host-side directories the stack touches: the
+// printHostPaths reports the host-side paths the stack touches (paths, not
+// "directories" — the state entry is a file). They are: the
 // launcher's XDG-resolved config/cache homes (reserved by design — see
 // GO-LAUNCHER.md host need #1; Go maps them to XDG_* on Linux and
 // ~/Library/... on macOS), the live config staging under /tmp (never
 // $TMPDIR — Apple container cannot sustain mounts from /var/folders), and
 // the Ollama model cache a container run may share.
-func printHostDirs(u *ui) {
+func printHostPaths(u *ui) {
 	fmt.Println()
-	fmt.Println("  LOCAL HOST DIRECTORIES")
+	fmt.Println("  LOCAL HOST PATHS")
 	row := func(label, path, note string) {
 		fmt.Printf("  %-10s %s %s\n", label, path, u.dim("("+note+")"))
 	}

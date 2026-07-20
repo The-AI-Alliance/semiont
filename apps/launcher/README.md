@@ -126,9 +126,16 @@ semiont stop
   in one exec's argv, redacted in the echoed command and the invocation log.
 - `semiont start --dry-run` prints the exact runtime commands a real run would
   execute — the legibility answer to "what does this binary actually do".
-- `semiont status` reports, per service, the container state as the runtime
-  sees it and an application-level health probe (exit 0 only when every core
-  service is healthy — scriptable).
+- **`semiont status` reports in three layers** — LOCAL STACK (the one stack
+  running here, headed by the root it belongs to and its did:web), REMOTE
+  REPOS (codespace-hosted KBs, their state, and each KB's local port), then
+  LOCAL ROOTS and LOCAL HOST PATHS beneath both. Roots and repos are the
+  durable things; a stack is status layered on one of them. Per service it
+  shows the container STATE as the runtime sees it plus a host-side health
+  probe, with the concrete product in the service cell (`database
+  (PostgreSQL)`). **Exit status:** the default report spans several stacks,
+  so it exits 0 whenever status itself ran — to script health, name one
+  stack: `--root <path|name>`, `--repo <owner/name>`, or `--service <name>`.
 - `semiont stop` sweeps **every** installed runtime by default, so a stack
   started under `--runtime docker` can't survive a plain stop. Stop's job
   isn't done until the ports are actually free: `start` records the host

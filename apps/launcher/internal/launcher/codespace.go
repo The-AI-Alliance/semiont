@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
@@ -831,11 +832,17 @@ func dropCollidingForwards(u *ui, needs []portNeed) {
 	}
 }
 
-// printStacksOverview: the fleet view — every recorded stack, its state,
-// and which codespace holds the lens. One gh list serves all of them.
-func printStacksOverview(u *ui, local *stackState, cs []*stackState) {
+// printRemoteRepos: the REMOTE REPOS section — codespace-hosted KBs this
+// machine knows about. A repo is the durable thing (the identity); the
+// codespace instance and its state are status layered on it, which is why
+// the repo leads each entry and the instance name is a dimmed detail.
+func printRemoteRepos(u *ui, cs []*stackState) {
 	fmt.Println()
-	fmt.Println("  STACKS")
+	fmt.Println("  REMOTE REPOS")
+	if len(cs) == 0 {
+		fmt.Printf("  %s\n", u.dim("(none — semiont start --runtime codespace --repo <owner>/<name>)"))
+		return
+	}
 	states := map[string]string{}
 	ghQueried := false
 	if onPath("gh") {
@@ -849,25 +856,39 @@ func printStacksOverview(u *ui, local *stackState, cs []*stackState) {
 			}
 		}
 	}
-	if local != nil {
-		fmt.Printf("  local      %s %s\n", local.KBRoot, u.dim("("+local.Runtime+")"))
-	}
+	reg := loadRoots()
 	for _, c := range cs {
-		state := states[c.Codespace]
-		if state == "" {
-			// Empty means either GitHub does not list it, or we never got
-			// to ask. Guessing "deleted?" at a live codespace (and then
-			// suggesting --delete) is the wrong half of that.
-			state = "deleted?"
-			if !ghQueried {
-				state = "state unknown — gh unavailable"
+		fmt.Printf("  %s\n", u.bold(c.Repo))
+		// Identity, when a local clone of the same repo taught us its did:web.
+		for _, e := range reg.Roots {
+			if e.Did != "" && strings.EqualFold(filepath.Base(e.Path), filepath.Base(c.Repo)) {
+				fmt.Printf("    %s %s\n", u.dim(e.Did), u.dim("— "+e.SiteName))
+				break
 			}
 		}
-		fwd := ""
-		if forwardAlive(c.ForwardPID, c.ForwardPort) {
-			fwd = "  " + u.bold(fmt.Sprintf("KB localhost:%d", c.ForwardPort))
+		state := states[c.Codespace]
+		switch {
+		case state == "" && !ghQueried:
+			state = "state unknown — gh unavailable"
+		case state == "":
+			state = "not listed by GitHub"
 		}
-		fmt.Printf("  codespace  %s  %s %s%s\n", c.Repo, c.Codespace, u.dim("("+state+")"), fwd)
+		fmt.Printf("    %s %s\n", u.dim("codespace "+c.Codespace), u.dim("("+state+")"))
+		// Status layered on top: where its KB is reachable, or what to run.
+		switch {
+		case forwardAlive(c.ForwardPID, c.ForwardPort):
+			mark := u.wrap(ansiRed, "✗")
+			if httpOK(fmt.Sprintf("http://localhost:%d/api/health", c.ForwardPort)) {
+				mark = u.wrap(ansiGreen, "✓")
+			}
+			fmt.Printf("    KB %s  %s\n", mark, u.dim(fmt.Sprintf("http://localhost:%d", c.ForwardPort)))
+		case state == "Available":
+			fmt.Printf("    %s\n", u.dim("not forwarded — semiont start --runtime codespace --repo "+c.Repo))
+		case state == "Shutdown":
+			fmt.Printf("    %s\n", u.dim("stopped (storage still bills) — resume: semiont start --runtime codespace --repo "+c.Repo))
+		default:
+			fmt.Printf("    %s\n", u.dim("details: semiont status --repo "+c.Repo))
+		}
 	}
 }
 
