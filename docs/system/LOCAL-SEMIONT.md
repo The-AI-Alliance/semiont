@@ -1,6 +1,8 @@
 # Local Semiont
 
-Run Semiont locally.
+Run Semiont locally. (Don't want the stack on your own machine? The same
+launcher can place it in a GitHub Codespace instead — see
+[Knowledge Bases](../KNOWLEDGE-BASES.md).)
 
 There are two ways to start:
 
@@ -112,3 +114,5 @@ As an alternative to the container image, Semiont ships a native desktop app for
 - [Project Layout](./PROJECT-LAYOUT.md) — Directory structure, XDG paths, and git integration
 - [Configuration Guide](./administration/CONFIGURATION.md) — Full configuration reference
 - [Services Overview](./services/OVERVIEW.md) — Service catalog and runtime layout
+- [Knowledge Bases](../KNOWLEDGE-BASES.md) — KB repos, and running a stack in a GitHub Codespace instead of locally
+- [`semiont` launcher](../../apps/launcher/README.md) — every flag, the stack record, secret sources, codespace placement

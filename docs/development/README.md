@@ -15,7 +15,10 @@ Where the code lives, how it builds, and how to start working on Semiont itself.
 
 ## Get a workstation
 
-**GitHub Codespaces** (one-click, fastest):
+**GitHub Codespaces** (one-click, fastest) — a workstation for hacking on the
+monorepo itself. (Running a *knowledge base* in a codespace is a different
+thing: see [Knowledge Bases](../KNOWLEDGE-BASES.md) and the launcher's
+`--runtime codespace`.)
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
 
