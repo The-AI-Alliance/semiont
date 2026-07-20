@@ -127,24 +127,33 @@ func printModels(u *ui, models, ollamaServed []string, driver string, facts mode
 		}
 		return served[m]
 	}
+	// The name column fits the longest model in THIS list — fixed 24 made
+	// every longer name (claude-sonnet-4-5-20250929) push its own line's
+	// status over by its own overflow, so nothing lined up.
+	w := 24
+	for _, m := range models {
+		if len(m) > w {
+			w = len(m)
+		}
+	}
 	for _, m := range models {
 		if !isOllama(m) {
-			fmt.Printf("      %-24s %-28s %s\n", m, "", u.dim("remote"))
+			fmt.Printf("      %-*s %-28s %s\n", w, m, "", u.dim("remote"))
 			continue
 		}
 		key := normalizeModel(m)
 		switch {
 		case !facts.found:
-			fmt.Printf("      %-24s %s\n", m, u.dim("unknown — Ollama unreachable"))
+			fmt.Printf("      %-*s %s\n", w, m, u.dim("unknown — Ollama unreachable"))
 		case facts.loaded[key]:
-			fmt.Printf("      %-24s %s  %s\n", m, u.dim(modelMeta(facts.installed[key])), u.wrap(ansiGreen, "loaded"))
+			fmt.Printf("      %-*s %s  %s\n", w, m, u.dim(modelMeta(facts.installed[key])), u.wrap(ansiGreen, "loaded"))
 		default:
 			im, ok := facts.installed[key]
 			if !ok {
-				fmt.Printf("      %-24s %s\n", m, u.wrap(ansiRed, "MISSING")+u.dim(" — ollama pull "+m))
+				fmt.Printf("      %-*s %s\n", w, m, u.wrap(ansiRed, "MISSING")+u.dim(" — ollama pull "+m))
 				continue
 			}
-			fmt.Printf("      %-24s %s  %s\n", m, u.dim(modelMeta(im)), u.dim("installed"))
+			fmt.Printf("      %-*s %s  %s\n", w, m, u.dim(modelMeta(im)), u.dim("installed"))
 		}
 	}
 }
