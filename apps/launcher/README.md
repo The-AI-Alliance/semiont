@@ -210,7 +210,16 @@ semiont stop
   unknown is not missing, and re-downloading gigabytes a user already has is
   the worse error. A failed pull warns and leaves the stack running rather
   than aborting it. Status still marks anything absent `MISSING` with the
-  `ollama pull` to fix it. An unreachable Ollama reads `unknown`, never `missing`: ignorance
+  `ollama pull` to fix it. **Remote (Anthropic) models get the same treatment
+  through `/v1/models`**: while the API key is in hand at start, one GET
+  records each configured model's display name, release month, and context
+  window — and warns when a model is NOT listed for that key (withdrawn, or a
+  typo'd id), the remote analog of MISSING and today's only signal before a
+  job fails on it. Status renders the recorded metadata, refreshing it live
+  only when `ANTHROPIC_API_KEY` is already in its environment — status never
+  resolves secrets. NO costs: Anthropic exposes no price list programmatically
+  (the pricing page is docs-only; actual spend needs the org-level Admin API,
+  a different credential — see GO-LAUNCHER.md follow-ups). An unreachable Ollama reads `unknown`, never `missing`: ignorance
   and a finding are different answers. Untagged config names are matched
   against Ollama's `:latest` form. Remote models (Claude, Voyage) list as
   `remote` — there is nothing to install.

@@ -8,6 +8,7 @@ package launcher
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -227,6 +228,25 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	return 0
 }
 
+// saasBase reconstructs the https origin from a SaaS role plan. Port 443 is
+// the real world; any other port is a test or proxy endpoint, spoken plainly.
+func saasBase(rp rolePlan) string {
+	if rp.Port == 443 {
+		return "https://" + rp.Address
+	}
+	return fmt.Sprintf("http://%s:%d", rp.Address, rp.Port)
+}
+
+// envValue digs VAR=value out of the resolved user env.
+func envValue(env []string, name string) string {
+	for _, e := range env {
+		if v, ok := strings.CutPrefix(e, name+"="); ok {
+			return v
+		}
+	}
+	return ""
+}
+
 // externalEndpoint: the status probe for an externally-provided role.
 func externalEndpoint(role string, rp rolePlan) string {
 	switch role {
@@ -268,6 +288,13 @@ func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 			x.say(sayLog, "inference — %s is remote SaaS; nothing to launch", driverDisplay("inference", rp.Driver))
 			x.note("inference: remote SaaS (%s) at %s:%d — nothing to launch or probe", rp.Driver, rp.Address, rp.Port)
 			x.record("inference", "", "", providedExternal, externalEndpoint("inference", rp), rp.Driver)
+			// One free GET while the key is in hand: /v1/models metadata,
+			// and — the actionable part — whether each configured model is
+			// LISTED for this key. anthropic only; other SaaS providers can
+			// join when their driver knows a models endpoint.
+			if rp.Driver == "anthropic" {
+				x.verifyRemoteModels("inference", saasBase(rp), envValue(fc.userEnv, "ANTHROPIC_API_KEY"), rp.Models)
+			}
 			return 0
 		}
 		x.note("inference: externally provided at %s:%d — verify reachability, launch nothing", rp.Address, rp.Port)

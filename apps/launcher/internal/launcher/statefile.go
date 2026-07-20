@@ -43,10 +43,15 @@ type serviceState struct {
 	// ABSENT field ("record predates this field"), and omitempty collapses
 	// both to nil. That collapse is what let an all-Claude inference row fall
 	// back to its ollama driver and report MISSING.
-	OllamaServed []string  `json:"ollamaServed"`
-	Endpoint     string    `json:"endpoint,omitempty"`  // health probe: http(s) URL or tcp:<host>:<port>
-	HostReuse    bool      `json:"hostReuse,omitempty"` // schema 1 (read-compat only; no longer written)
-	StartedAt    time.Time `json:"startedAt"`
+	OllamaServed []string `json:"ollamaServed"`
+	// RemoteModels: /v1/models metadata for SaaS-served models, keyed by id,
+	// recorded at start (the key is in hand then; status never reaches for
+	// secrets). Availability means "as of that start" — status refreshes it
+	// live only when the key happens to be in its environment.
+	RemoteModels map[string]remoteModelMeta `json:"remoteModels,omitempty"`
+	Endpoint     string                     `json:"endpoint,omitempty"`  // health probe: http(s) URL or tcp:<host>:<port>
+	HostReuse    bool                       `json:"hostReuse,omitempty"` // schema 1 (read-compat only; no longer written)
+	StartedAt    time.Time                  `json:"startedAt"`
 }
 
 type stackState struct {

@@ -44,10 +44,11 @@ type executor interface {
 	workerSecret() (string, bool)          // full start: env or generated
 	ollamaVolume(opts startOptions) string // model-cache choice (prompt is live-only)
 	record(role, id, image, provided, endpoint, driver string)
-	providerOf(role string) string             // how an already-recorded role was provided
-	noteContainer(role, container string)      // stamp a launched container on a container-less role
-	ensureModels(base string, models []string) // pull configured ollama models that are absent
-	val(live, plan string) string              // mode-scoped value (kb root, admin password)
+	providerOf(role string) string                              // how an already-recorded role was provided
+	noteContainer(role, container string)                       // stamp a launched container on a container-less role
+	verifyRemoteModels(role, base, key string, models []string) // record /v1/models metadata; warn on unlisted
+	ensureModels(base string, models []string)                  // pull configured ollama models that are absent
+	val(live, plan string) string                               // mode-scoped value (kb root, admin password)
 	rtName() string
 
 	// --- decoration ---
@@ -372,6 +373,37 @@ func (x *liveExec) noteContainer(role, container string) {
 	saveStack(x.st)
 }
 
+// verifyRemoteModels records what /v1/models says about the configured
+// models — and says out loud when one is NOT listed for this key (withdrawn,
+// or a typo'd id): the remote analog of a MISSING ollama model, and today's
+// only warning before a job fails on it.
+func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
+	if key == "" || x.st == nil {
+		return
+	}
+	listed, found := fetchAnthropicModels(base, key)
+	if !found {
+		x.u.log("Model metadata: %s", x.u.dim("("+base+"/v1/models did not answer — skipping; status will show plain 'remote')"))
+		return
+	}
+	metas := map[string]remoteModelMeta{}
+	for _, m := range models {
+		if meta, ok := listed[m]; ok {
+			metas[m] = meta
+			continue
+		}
+		metas[m] = remoteModelMeta{Available: false}
+		x.u.warn("Model %s is not listed for this API key — withdrawn, or a typo'd id? Jobs bound to it will fail.", m)
+	}
+	e, ok := x.st.Services[role]
+	if !ok {
+		return
+	}
+	e.RemoteModels = metas
+	x.st.Services[role] = e
+	saveStack(x.st)
+}
+
 func (x *liveExec) ensureModels(base string, models []string) {
 	ensureOllamaModels(x.u, base, models)
 }
@@ -537,6 +569,13 @@ func (x *planExec) providerOf(string) string { return "" }
 
 // --dry-run records nothing, so ownership notes have nowhere to land.
 func (x *planExec) noteContainer(string, string) {}
+
+// --dry-run reaches for nothing; name the query a real run would make.
+func (x *planExec) verifyRemoteModels(role, base, _ string, models []string) {
+	if len(models) > 0 {
+		x.c("query %s/v1/models (x-api-key from env) — metadata + availability for: %s", base, strings.Join(models, ", "))
+	}
+}
 
 // --dry-run reaches for nothing: which models are ABSENT is a runtime fact,
 // so the plan can only name what would be checked.

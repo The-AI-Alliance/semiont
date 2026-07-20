@@ -3348,6 +3348,71 @@ func TestRemoteModelsAreNeverCheckedAgainstOllama(t *testing.T) {
 	}
 }
 
+// serveAnthropicModels: a fake /v1/models on a local port, listing exactly
+// the given ids. Reached via the config's [inference.anthropic] endpoint —
+// the same override a proxy would use, so no launcher test-mode exists.
+func serveAnthropicModels(t *testing.T, port int, ids ...string) {
+	t.Helper()
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("port %d unavailable for models API simulation: %v", port, err)
+	}
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Header.Get("x-api-key") == "" || r.Header.Get("anthropic-version") == "" {
+			http.Error(w, "missing headers", 401)
+			return
+		}
+		type m struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"display_name"`
+			CreatedAt   string `json:"created_at"`
+			MaxInput    int    `json:"max_input_tokens"`
+		}
+		var data []m
+		for _, id := range ids {
+			data = append(data, m{ID: id, DisplayName: "Claude " + id, CreatedAt: "2025-09-29T00:00:00Z", MaxInput: 200000})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+	})}
+	go srv.Serve(ln)
+	t.Cleanup(func() { srv.Close() })
+}
+
+func TestRemoteModelMetadataAndAvailability(t *testing.T) {
+	// /v1/models is the remote analog of Ollama's /api/tags: identity
+	// metadata for listed models, and — the actionable part — a configured
+	// model NOT listed for this key (withdrawn, or a typo) is called out at
+	// start and marked in status, instead of surfacing as a failed job.
+	serveAnthropicModels(t, 41435, "claude-sonnet-4-5-20250929") // haiku deliberately absent
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "anthropic-meta",
+		stdGraph+stdVectors+stdDatabase+
+			"[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:41435\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n"+
+			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
+			"[environments.local.workers.tag.inference]\ntype = \"anthropic\"\nmodel = \"claude-haiku-4-5-20251001\"\n\n")
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+	stdout, stderr, code := s.run(t, "start", "--config", "anthropic-meta")
+	if code != 0 {
+		t.Fatalf("start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "start warning", stdout+stderr,
+		"claude-haiku-4-5-20251001 is not listed for this API key")
+
+	// status renders recorded metadata without the key in its env…
+	stdout, _, _ = s.run(t, "status")
+	mustContain(t, "status", stdout,
+		"Claude claude-sonnet-4-5-20250929", "200K ctx", "2025-09", "remote",
+		"NOT AVAILABLE")
+	// …and never fabricates an install state for a remote model.
+	if strings.Contains(stdout, "ollama pull claude") {
+		t.Errorf("remote model offered an ollama pull:\n%s", stdout)
+	}
+}
+
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")

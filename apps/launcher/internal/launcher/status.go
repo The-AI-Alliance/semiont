@@ -366,7 +366,26 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 				facts = fetchModelFacts(ollamaBase(rec.Endpoint))
 				factsFetched = true
 			}
-			printModels(u, rec.Models, rec.OllamaServed, rec.Driver, facts)
+			remote := rec.RemoteModels
+			// Live refresh ONLY when the key is already in this process's
+			// environment — status never resolves secrets (no op reads, no
+			// prompts). Availability can drift after start (a model
+			// withdrawn mid-flight), so fresher is better when it is free.
+			if rec.Driver == "anthropic" && len(rec.Models) > 0 {
+				if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
+					if live, ok := fetchAnthropicModels(anthropicBase(rec.Endpoint), key); ok {
+						remote = map[string]remoteModelMeta{}
+						for _, m := range rec.Models {
+							if meta, listed := live[m]; listed {
+								remote[m] = meta
+							} else {
+								remote[m] = remoteModelMeta{Available: false}
+							}
+						}
+					}
+				}
+			}
+			printModels(u, rec.Models, rec.OllamaServed, rec.Driver, facts, remote)
 		}
 	}
 	return healthy, 0

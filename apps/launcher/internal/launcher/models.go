@@ -108,7 +108,7 @@ func humanSize(n int64) string {
 // printModels renders one role's configured models beneath its row. Remote
 // providers (Anthropic, Voyage) have nothing to install, so they get the name
 // and an honest "remote" rather than a fabricated install state.
-func printModels(u *ui, models, ollamaServed []string, driver string, facts modelFacts) {
+func printModels(u *ui, models, ollamaServed []string, driver string, facts modelFacts, remote map[string]remoteModelMeta) {
 	// Which models have an install state at all is PER MODEL, not per row: a
 	// config can point its workers at Anthropic while its embedding runs on
 	// Ollama, and the inference row then lists Claude models under a driver
@@ -138,7 +138,19 @@ func printModels(u *ui, models, ollamaServed []string, driver string, facts mode
 	}
 	for _, m := range models {
 		if !isOllama(m) {
-			fmt.Printf("      %-*s %-28s %s\n", w, m, "", u.dim("remote"))
+			// With recorded /v1/models metadata: identity, release, context
+			// window, and whether this key can see the model at all — the
+			// remote analog of MISSING. Without it (older record, fetch
+			// failed): a plain "remote", never a fabricated verdict.
+			if meta, ok := remote[m]; ok {
+				if !meta.Available {
+					fmt.Printf("      %-*s %s\n", w, m, u.wrap(ansiRed, "NOT AVAILABLE")+u.dim(" — not listed for this API key (withdrawn, or a typo'd id?)"))
+					continue
+				}
+				fmt.Printf("      %-*s %s  %s\n", w, m, u.dim(remoteMetaLine(meta)), u.dim("remote"))
+				continue
+			}
+			fmt.Printf("      %-*s %-43s %s\n", w, m, "", u.dim("remote"))
 			continue
 		}
 		key := normalizeModel(m)
@@ -268,4 +280,87 @@ func pullOllamaModel(u *ui, base, model string) bool {
 		u.ok("Pulled %s %s", model, u.dim("("+took(time.Since(t0))+")"))
 	}
 	return ok
+}
+
+// --- remote (Anthropic) model metadata ---
+
+// remoteModelMeta is what /v1/models says about one model: identity and
+// capacity, and whether this key can see it at all. NO pricing — Anthropic
+// exposes none programmatically (the price list is a docs page; actual spend
+// needs the org-level Admin API, a different credential).
+type remoteModelMeta struct {
+	DisplayName string `json:"displayName,omitempty"`
+	Released    string `json:"released,omitempty"` // yyyy-mm from created_at
+	MaxInput    int    `json:"maxInput,omitempty"` // context window, tokens
+	Available   bool   `json:"available"`          // listed for THIS key
+}
+
+// fetchAnthropicModels asks {base}/v1/models what this key can use. Returns
+// found=false when the endpoint could not be consulted — callers must then
+// show nothing rather than "unavailable": ignorance is not a finding, the
+// same rule the Ollama probes keep.
+func fetchAnthropicModels(base, key string) (map[string]remoteModelMeta, bool) {
+	req, err := http.NewRequest("GET", base+"/v1/models?limit=1000", nil)
+	if err != nil {
+		return nil, false
+	}
+	req.Header.Set("x-api-key", key)
+	req.Header.Set("anthropic-version", "2023-06-01")
+	c := &http.Client{Timeout: 3 * time.Second}
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, false
+	}
+	var body struct {
+		Data []struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"display_name"`
+			CreatedAt   string `json:"created_at"`
+			MaxInput    int    `json:"max_input_tokens"`
+		} `json:"data"`
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil || json.Unmarshal(b, &body) != nil {
+		return nil, false
+	}
+	out := make(map[string]remoteModelMeta, len(body.Data))
+	for _, m := range body.Data {
+		released := ""
+		if len(m.CreatedAt) >= 7 {
+			released = m.CreatedAt[:7]
+		}
+		out[m.ID] = remoteModelMeta{
+			DisplayName: m.DisplayName, Released: released,
+			MaxInput: m.MaxInput, Available: true,
+		}
+	}
+	return out, true
+}
+
+// anthropicBase reconstructs the API origin from the recorded reachability
+// endpoint (tcp:host:port). Port 443 is the real world; anything else is a
+// test or proxy endpoint reached over plain http.
+func anthropicBase(endpoint string) string {
+	rest, ok := strings.CutPrefix(endpoint, "tcp:")
+	if !ok {
+		return "https://api.anthropic.com"
+	}
+	if host, cut := strings.CutSuffix(rest, ":443"); cut {
+		return "https://" + host
+	}
+	return "http://" + rest
+}
+
+// remoteMetaLine renders one remote model's metadata cell, shaped like the
+// Ollama meta cell (fixed widths so the block aligns).
+func remoteMetaLine(m remoteModelMeta) string {
+	ctx := ""
+	if m.MaxInput > 0 {
+		ctx = fmt.Sprintf("%dK ctx", m.MaxInput/1000)
+	}
+	return fmt.Sprintf("%-22s %8s  %-9s", m.DisplayName, m.Released, ctx)
 }
