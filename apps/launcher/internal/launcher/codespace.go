@@ -576,9 +576,11 @@ type adminCreds struct {
 // fetchAdminCreds reads the §1 credentials — generated once at post-create
 // INSIDE the codespace. Mirror image of `semiont secret` (an output, not an
 // input) but same discipline: announced before the reach, read fresh,
-// displayed on purpose, never persisted or logged. An unreadable admin.json
-// (the pre-sshd-feature gap) degrades with the fix named — never blocks a
-// healthy stack.
+// displayed on purpose, never persisted or logged. A failed read degrades
+// (returns nil, caller omits the line) rather than blocking a healthy stack;
+// the usual cause is setup still finishing, the rare one a devcontainer
+// predating the sshd feature — so report gh's OWN words instead of guessing
+// between them.
 func fetchAdminCreds(u *ui, name string) *adminCreds {
 	// ABSOLUTE (globbed) path: `gh codespace ssh` lands in /home/vscode, not
 	// the workspace, so the relative form the recipe used silently fails
@@ -586,14 +588,20 @@ func fetchAdminCreds(u *ui, name string) *adminCreds {
 	// not depend on the workspace directory's name. Found live 2026-07-20.
 	const credPath = "/workspaces/*/.devcontainer/admin.json"
 	u.log("Reading admin credentials %s", u.dim("(gh codespace ssh -c "+name+" -- cat "+credPath+" — generated at creation, never stored locally)"))
-	out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", credPath)
+	// captureBoth, not capture: gh reports WHY on stderr, and discarding it
+	// forces this code to guess between causes out loud. Show what gh said.
+	out, err := captureBoth("gh", "codespace", "ssh", "-c", name, "--", "cat", credPath)
 	if err != nil {
-		// Two very different causes; naming only the rare one (as this
-		// message used to) misdiagnoses the common case out loud.
 		u.warn("Could not read admin credentials over ssh yet.")
-		fmt.Println("    Usually this means setup is still finishing inside the codespace (sshd comes up with it) —")
-		fmt.Println("    semiont status re-reads them. If it persists, the devcontainer may predate the sshd feature:")
-		fmt.Println("    recreate from current main, or read them in the codespace terminal: cat .devcontainer/admin.json")
+		if msg := strings.TrimSpace(out); msg != "" {
+			for _, line := range strings.Split(msg, "\n") {
+				fmt.Println("    gh: " + line)
+			}
+		}
+		fmt.Println("    Usually setup is still finishing inside the codespace (sshd comes up with it) —")
+		fmt.Println("    semiont status re-reads them. If it persists, the devcontainer may predate the")
+		fmt.Println("    sshd feature: recreate from current main, or open the codespace and read")
+		fmt.Println("    .devcontainer/admin.json from its terminal (which starts in the workspace).")
 		return nil
 	}
 	var c adminCreds

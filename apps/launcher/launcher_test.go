@@ -1386,6 +1386,25 @@ func TestCodespaceMachineInertOnResume(t *testing.T) {
 		"--machine largePremiumLinux ignored", "keeps the class it was created with")
 }
 
+func TestCodespaceCredentialFailureShowsGhError(t *testing.T) {
+	// A failed credentials read must report what gh SAID, not guess between
+	// causes in prose — and must not block an otherwise healthy stack.
+	s := newCodespaceScenario(t)
+	s.extraEnv = append(s.extraEnv, "FAKERT_GH_SSH_FAIL=1")
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code != 0 {
+		t.Fatalf("an unreadable admin.json must not fail the start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"Could not read admin credentials over ssh yet",
+		"gh: failed to start SSH server", // gh's own words, surfaced
+		"Usually setup is still finishing",
+		"Semiont KB is up in codespace") // stack still reported up
+	if strings.Contains(stdout, "Connect as ") {
+		t.Errorf("printed credentials it never read:\n%s", stdout)
+	}
+}
+
 func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	s := newCodespaceScenario(t)
 	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
