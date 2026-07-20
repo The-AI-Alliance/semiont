@@ -23,6 +23,23 @@ semiont useradd --email admin@example.com --password <choose-a-password> --admin
 `semiont logs` follows the stack, `semiont status` health-checks it, and
 `semiont stop` tears it down.
 
+**Or run it on GitHub's machine instead of yours.** The same launcher places
+a KB stack in a **GitHub Codespace** — one command creates (or resumes) the
+codespace, waits for the stack to answer, forwards the KB to your machine,
+and prints the admin credentials generated inside it:
+
+```bash
+semiont start --runtime codespace --repo The-AI-Alliance/semiont-template-kb
+semiont start --service frontend    # the browser runs locally
+```
+
+Only the KB is forwarded, each stack on its own local port, so one local
+browser works several cloud KBs at once via its Knowledge Bases panel.
+`semiont status` shows the fleet; `semiont stop --repo <owner/name>` halts
+billing (state persists) and `--delete` destroys the codespace. Prerequisites
+(the `gh` CLI and an `ANTHROPIC_API_KEY` Codespaces user secret) are in each
+KB's README; the raw `gh` recipe is kept there too as the no-launcher path.
+
 See [Local Semiont](system/LOCAL-SEMIONT.md) for the full local-run guide
 (inference configs, running from source with `SEMIONT_VERSION=local`, ports,
 troubleshooting pointers).

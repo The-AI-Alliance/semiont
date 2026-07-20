@@ -2,6 +2,8 @@
 
 Run the Semiont backend locally. Both paths below use `~/.semiontconfig` for inference providers, database credentials, graph, and vector store settings — see the **[Configuration Guide](./administration/CONFIGURATION.md)**.
 
+For a stack on GitHub's machine rather than your own, the launcher's codespace placement (`semiont start --runtime codespace`) is covered in **[Knowledge Bases](../KNOWLEDGE-BASES.md)**.
+
 ## Container (no npm required)
 
 Install the [`semiont` launcher](../../apps/launcher/README.md)

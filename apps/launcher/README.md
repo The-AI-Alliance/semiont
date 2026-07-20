@@ -31,6 +31,13 @@ semiont stop
 
 - `semiont start --help` lists all flags (`--config`, `--runtime`,
   `--no-observe`, `--ollama-cache`, …).
+- `semiont start --service frontend --port <n>` moves the browser — the ONE
+  port a flag may move (it's absent from the KB config and nothing in the
+  stack dials it; every other port belongs to the config, and a codespace
+  forwards only its KB on an allocated port). Move, not multiply: the
+  browser restarts on the chosen port, the record carries the endpoint, and
+  status/stop follow it. A non-3000 port warns that backends configured
+  with `frontendURL http://localhost:3000` may reject the origin.
 - **`semiont secret` registers where config secrets come from** — pointers,
   never values. `semiont secret set ANTHROPIC_API_KEY` walks an interactive
   provider-then-path flow (or pass the source directly:
@@ -47,6 +54,59 @@ semiont stop
   1Password at all: **exporting the variable always wins** — a plain
   `ANTHROPIC_API_KEY=… semiont start` behaves exactly as it always has.
   `--dry-run` reaches for nothing (plan shows `<env:VAR>` placeholders).
+  `semiont secret push <VAR> --repo <owner/name>` is the one place a value
+  *moves*: a codespace runs on GitHub's machine and can't reach your local
+  provider, so this copies the current value into your GitHub Codespaces user
+  secrets. Same discipline — resolved fresh and announced, handed to `gh` on
+  **stdin** so it never appears in argv (where `ps` could read it), encrypted
+  by `gh` before it leaves the machine, never written to disk or logs by us.
+  The repo selection is a **union**, never a replacement, so pushing for one
+  repo can't silently revoke the secret from others already using it.
+- **`semiont start --runtime codespace` runs the same stack on a
+  GitHub-hosted machine** (the KB's devcontainer + compose own the inside;
+  the launcher orchestrates the outside via `gh`, which is required on PATH
+  for this placement only). The REPO is the identity — derived from the KB
+  clone's origin, or `--repo owner/name` from anywhere, needed only at
+  creation: the stack record carries it afterwards, so a bare `semiont
+  start` resumes the recorded codespace from any directory, and `status` /
+  `logs` / `stop` dispatch off the records as always. The launcher keeps at
+  most one codespace per repo (it adopts and resumes what exists — the
+  codespace *name* is a PID, shown by status, input only via `--codespace`
+  when raw `gh` left several). `semiont stop` maps to `gh codespace stop` —
+  billing halts, state and credentials persist, the record is kept; `semiont
+  stop --delete` destroys and forgets.
+- **Many codespace stacks run concurrently — each forwards its KB on its
+  own local port.** The record store (`stack.json`, schema 3) is a keyed
+  collection: the machine's one local stack (fixed ports and container
+  names keep it singleton) plus one entry per codespace repo. Each
+  codespace stack forwards exactly ONE port — its KB (remote 4000) — on
+  local 4000 when free, else the lowest free port above it (4001, …), so a
+  single browser's Knowledge Bases panel works N codespace KBs at once
+  (Host localhost, Port 400x each; browser, sidecars, and infra stay inside
+  the codespace). Forwards are recorded detached processes: `status`
+  re-establishes a dead one, `stop --repo` ends its own, and a LOCAL start
+  drops only forwards squatting on ports it actually claims — concurrent
+  KBs on allocated ports keep running. With several stacks recorded:
+  `status` opens with a STACKS fleet overview (each stack's state and
+  `KB localhost:<port>`) and details the lone forwarded stack (`--repo`
+  details any); bare `logs` follows the local stack, else the lone
+  codespace; bare `stop` refuses to guess — `--repo <owner/name>` targets a
+  codespace stack, `--runtime` the local one. `useradd` targets the local
+  backend when one exists. Schema 1/2 single-stack records migrate on read.
+- Codespace admin credentials are generated inside the codespace at
+  creation; `start` and `status` read them fresh over ssh and display them —
+  never stored, never logged (`useradd` refuses and points at `status`).
+  Preflights fail fast with fixes: `gh` missing/unauthenticated, the
+  `codespace` scope, the `ANTHROPIC_API_KEY` Codespaces user secret, and the
+  VM class. The machine list GitHub returns for a repo is filtered by the
+  devcontainer's `hostRequirements`, so anything offered is adequate by the
+  KB's own declaration — `--machine` defaults to `premiumLinux` when your
+  account can use it and otherwise falls back to the largest it can,
+  announced with the reason; an explicit `--machine` that isn't available is
+  a hard error listing what is (never a silent substitution), and on a
+  resume the flag is called out as inert rather than looking effective.
+  Codespace placement is never sticky — every codespace start says
+  `--runtime codespace` (or rides an existing record).
 - `semiont useradd` creates or updates users in the RUNNING stack: the
   launcher execs the in-container Semiont CLI's `useradd` inside the backend
   container (record-driven runtime + container ID, name-scan fallback) and

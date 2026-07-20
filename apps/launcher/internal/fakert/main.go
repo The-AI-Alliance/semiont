@@ -26,7 +26,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -54,6 +56,8 @@ func main() {
 		os.Exit(1)
 	case "op":
 		opCmd(os.Args[1:])
+	case "gh":
+		ghCmd(os.Args[1:])
 	case "container", "docker", "podman":
 		runtimeCmd(base, os.Args[1:])
 	default:
@@ -89,8 +93,197 @@ func git(args []string) {
 		fmt.Println(root)
 		return
 	}
+	if len(args) >= 3 && args[0] == "remote" && args[1] == "get-url" && args[2] == "origin" {
+		if o := os.Getenv("FAKERT_GIT_ORIGIN"); o != "" {
+			fmt.Println(o)
+			return
+		}
+		fmt.Fprintln(os.Stderr, "error: No such remote 'origin'")
+		os.Exit(2)
+	}
+	if len(args) >= 2 && args[0] == "status" && args[1] == "--porcelain" {
+		if os.Getenv("FAKERT_GIT_DIRTY") != "" {
+			fmt.Println(" M .semiont/semiontconfig/anthropic.toml")
+		}
+		return
+	}
 	fmt.Fprintf(os.Stderr, "fakert git: unscripted args %v\n", args)
 	os.Exit(64)
+}
+
+// ghCmd fakes the GitHub CLI for the codespace flows. Scripted via:
+//
+//	FAKERT_GH_SCOPES        auth-status scopes list (default "'codespace', 'repo'")
+//	FAKERT_GH_AUTH_FAIL     `gh auth status` fails (not logged in)
+//	FAKERT_GH_SECRET_404    the ANTHROPIC_API_KEY secret does not exist
+//	FAKERT_GH_SECRET_REPOS  JSON body for …/secrets/…/repositories (default: empty selection)
+//	FAKERT_GH_CS_LIST       JSON array for `codespace list` (default [])
+//	FAKERT_GH_CS_NAME       name printed by `codespace create` (default "fake-cs-1")
+//	FAKERT_GH_CREATE_FAILS  N leading 503 failures before create succeeds (cursor file)
+//	FAKERT_GH_SSH_FAIL      ssh fails with the no-sshd error
+//	FAKERT_GH_ADMIN         admin.json content for `ssh -- cat .devcontainer/admin.json`
+//
+// `codespace ports forward A:B …` binds every host port and parks (the fake
+// dev tunnel), writing a serve pidfile so killServes reaps it.
+func ghCmd(args []string) {
+	joined := strings.Join(args, " ")
+	switch {
+	case len(args) >= 2 && args[0] == "auth" && args[1] == "status":
+		if os.Getenv("FAKERT_GH_AUTH_FAIL") != "" {
+			fmt.Fprintln(os.Stderr, "You are not logged into any GitHub hosts.")
+			os.Exit(1)
+		}
+		scopes := os.Getenv("FAKERT_GH_SCOPES")
+		if scopes == "" {
+			scopes = "'codespace', 'repo'"
+		}
+		fmt.Println("github.com")
+		fmt.Println("  ✓ Logged in to github.com")
+		fmt.Println("  - Token scopes: " + scopes)
+	case len(args) >= 2 && args[0] == "api" && strings.Contains(args[1], "/codespaces/machines"):
+		// Shape mirrors the real endpoint (captured 2026-07-20). The default
+		// is what a hostRequirements-declaring KB actually offers: GitHub
+		// filters the 2-core class out.
+		body := os.Getenv("FAKERT_GH_MACHINES")
+		switch body {
+		case "ERROR":
+			fmt.Fprintln(os.Stderr, "gh: Not Found (HTTP 404)")
+			os.Exit(1)
+		case "":
+			body = `{"machines":[` +
+				`{"name":"standardLinux32gb","display_name":"4 cores, 16 GB RAM, 32 GB storage","cpus":4,"memory_in_bytes":17179869184},` +
+				`{"name":"premiumLinux","display_name":"8 cores, 32 GB RAM, 64 GB storage","cpus":8,"memory_in_bytes":34359738368},` +
+				`{"name":"largePremiumLinux","display_name":"16 cores, 64 GB RAM, 128 GB storage","cpus":16,"memory_in_bytes":68719476736}],"total_count":3}`
+		}
+		fmt.Println(body)
+	case len(args) >= 2 && args[0] == "api" && strings.Contains(args[1], "/codespaces/secrets/"):
+		if os.Getenv("FAKERT_GH_SECRET_404") != "" {
+			fmt.Fprintln(os.Stderr, "gh: Not Found (HTTP 404)")
+			os.Exit(1)
+		}
+		body := os.Getenv("FAKERT_GH_SECRET_REPOS")
+		if body == "" {
+			body = `{"total_count":0,"repositories":[]}`
+		}
+		fmt.Println(body)
+	case len(args) >= 2 && args[0] == "secret" && args[1] == "set":
+		// gh reads the value from stdin when --body is absent. Record it so
+		// tests can assert the secret travelled by stdin, never argv.
+		val, _ := io.ReadAll(os.Stdin)
+		if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+			_ = os.WriteFile(filepath.Join(dir, "secret-set-stdin"), val, 0o600)
+		}
+		if os.Getenv("FAKERT_GH_SECRET_SET_FAIL") != "" {
+			fmt.Fprintln(os.Stderr, "gh: HTTP 403 (missing scope)")
+			os.Exit(1)
+		}
+	case args[0] == "codespace":
+		ghCodespace(args[1:], joined)
+	default:
+		fmt.Fprintf(os.Stderr, "fakert gh: unscripted args %v\n", args)
+		os.Exit(64)
+	}
+}
+
+func ghCodespace(args []string, joined string) {
+	switch args[0] {
+	case "list":
+		// Explicit scripting wins; otherwise reflect what THIS fake has
+		// created, as real gh would — a created codespace must show up
+		// (and reach Available) or callers that wait for it hang.
+		body := os.Getenv("FAKERT_GH_CS_LIST")
+		if body == "" {
+			body = "[" + strings.Join(createdCodespaces(), ",") + "]"
+		}
+		fmt.Println(applyWakes(body))
+	case "create":
+		if n := os.Getenv("FAKERT_GH_CREATE_FAILS"); n != "" {
+			// Countdown via cursor file: each failing attempt burns one.
+			f := filepath.Join(os.Getenv("FAKERT_DIR"), "gh-create-fails")
+			left, _ := strconv.Atoi(n)
+			if b, err := os.ReadFile(f); err == nil {
+				left, _ = strconv.Atoi(strings.TrimSpace(string(b)))
+			}
+			if left > 0 {
+				_ = os.WriteFile(f, []byte(strconv.Itoa(left-1)), 0o644)
+				fmt.Fprintln(os.Stderr, "HTTP 503: No server is currently available (https://api.github.com/user/codespaces)")
+				os.Exit(1)
+			}
+		}
+		name := os.Getenv("FAKERT_GH_CS_NAME")
+		if name == "" {
+			name = "fake-cs-1"
+		}
+		repo := ""
+		for i, a := range args {
+			if a == "--repo" && i+1 < len(args) {
+				repo = args[i+1]
+			}
+		}
+		recordCreated(name, repo)
+		fmt.Println(name)
+	case "ports":
+		// forward: bind host ports, park like a dev tunnel. Pidfile so the
+		// harness's killServes reaps the parked process between tests.
+		// Real gh takes <codespacePort>:<localPort> and listens on the
+		// LOCAL one. Modelling this correctly is what would have caught the
+		// reversed-argument bug found live on 2026-07-20.
+		var ports []string
+		for _, a := range args {
+			if pair := strings.SplitN(a, ":", 2); len(pair) == 2 {
+				if _, err := strconv.Atoi(pair[1]); err == nil {
+					ports = append(ports, pair[1])
+				}
+			}
+		}
+		// Pidfile per forward (keyed by local port): several forwards run
+		// concurrently — one per codespace stack's KB.
+		if dir := os.Getenv("FAKERT_DIR"); dir != "" && len(ports) > 0 {
+			_ = os.WriteFile(filepath.Join(dir, "serve-gh-forward-"+ports[0]+".pid"),
+				[]byte(strconv.Itoa(os.Getpid())), 0o644)
+		}
+		serve(ports)
+	case "stop", "delete":
+		// ok — argv log is the observable
+	case "ssh":
+		if os.Getenv("FAKERT_GH_SSH_FAIL") != "" {
+			fmt.Fprintln(os.Stderr, "failed to start SSH server")
+			os.Exit(1)
+		}
+		switch {
+		case strings.HasSuffix(strings.TrimSpace(joined), "true"):
+			// The wake probe: connecting is what resumes a codespace, so
+			// record it — subsequent `list` calls must report it Available,
+			// exactly as GitHub does.
+			if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+				f, err := os.OpenFile(filepath.Join(dir, "woken"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+				if err == nil {
+					for i, a := range args {
+						if a == "-c" && i+1 < len(args) {
+							fmt.Fprintln(f, args[i+1])
+						}
+					}
+					f.Close()
+				}
+			}
+		case strings.Contains(joined, "admin.json"):
+			body := os.Getenv("FAKERT_GH_ADMIN")
+			if body == "" {
+				body = `{"email":"admin@example.com","password":"fake-admin-pw"}`
+			}
+			fmt.Println(body)
+		case strings.Contains(joined, "docker logs"):
+			name := strings.TrimPrefix(args[len(args)-1], "semiont-")
+			fmt.Println(name + " out")
+			fmt.Fprintln(os.Stderr, name+" err")
+		default:
+			fmt.Fprintf(os.Stderr, "fakert gh ssh: unscripted %v\n", args)
+			os.Exit(64)
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "fakert gh codespace: unscripted %v\n", args)
+		os.Exit(64)
+	}
 }
 
 func lsof(args []string) {
@@ -130,6 +323,19 @@ func psCmd(args []string) {
 	// The launcher calls `ps -p <pid> -o comm=`.
 	if len(args) == 4 && args[0] == "-p" && args[2] == "-o" && args[3] == "comm=" {
 		comm := os.Getenv("FAKERT_PS_" + args[1])
+		if comm == "" {
+			// A pid matching one of our own serve pidfiles IS the fake gh
+			// forward — report it as gh, the comm the real forward has
+			// (the launcher's forwardAlive depends on this).
+			if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+				files, _ := filepath.Glob(filepath.Join(dir, "serve-*.pid"))
+				for _, f := range files {
+					if b, err := os.ReadFile(f); err == nil && strings.TrimSpace(string(b)) == args[1] {
+						comm = "gh"
+					}
+				}
+			}
+		}
 		if comm == "" {
 			comm = "fakeproc"
 		}
@@ -285,6 +491,72 @@ func run(args []string) {
 	} else {
 		fmt.Println("0123456789ab")
 	}
+}
+
+// createdCodespaces: JSON objects for every codespace this fake created,
+// reported Available (the real API reaches Available on its own).
+func createdCodespaces() []string {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return nil
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "created-codespaces"))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		nameRepo := strings.SplitN(line, " ", 2)
+		if len(nameRepo) != 2 {
+			continue
+		}
+		out = append(out, fmt.Sprintf(`{"name":%q,"state":"Available","repository":%q}`, nameRepo[0], nameRepo[1]))
+	}
+	return out
+}
+
+// applyWakes reports a woken codespace as Available regardless of the
+// scripted initial state — a stopped codespace that something connected to
+// really does come back, and a fake that never transitions would let the
+// launcher wait forever (it did, until this was added).
+func applyWakes(body string) string {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return body
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "woken"))
+	if err != nil {
+		return body
+	}
+	var entries []map[string]any
+	if json.Unmarshal([]byte(body), &entries) != nil {
+		return body
+	}
+	for _, name := range strings.Fields(string(b)) {
+		for _, e := range entries {
+			if e["name"] == name {
+				e["state"] = "Available"
+			}
+		}
+	}
+	out, err := json.Marshal(entries)
+	if err != nil {
+		return body
+	}
+	return string(out)
+}
+
+func recordCreated(name, repo string) {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return
+	}
+	f, err := os.OpenFile(filepath.Join(dir, "created-codespaces"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s %s\n", name, repo)
 }
 
 // handleName resolves a launcher-supplied handle (container name or the

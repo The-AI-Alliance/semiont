@@ -57,6 +57,15 @@ func Useradd(args []string) int {
 		return 1
 	}
 
+	// The §1 asymmetry: a codespace stack generated its admin at creation —
+	// the job is to READ those credentials, not mint users from here. With
+	// a LOCAL stack alongside, useradd targets it as usual.
+	if ss := loadStackSet(); ss.Stacks["local"] == nil && len(codespaceStacks(ss)) > 0 {
+		u.fail("The recorded stack(s) run in codespaces; their admin credentials were generated at creation.")
+		fmt.Fprintln(os.Stderr, "  semiont status shows them (read from the codespace's .devcontainer/admin.json).")
+		return 1
+	}
+
 	rt, handle := backendHandle()
 	if rt == "" {
 		u.fail("useradd needs a running backend, and none was found under any installed runtime.")
@@ -77,7 +86,7 @@ func Useradd(args []string) int {
 // that runtime is installed), else the name under whichever runtime's
 // listing shows semiont-backend.
 func backendHandle() (rt, handle string) {
-	if st := loadState(); st != nil && st.Runtime != "" && onPath(st.Runtime) {
+	if st := loadLocalState(); st != nil && st.Runtime != "" && onPath(st.Runtime) {
 		if e, ok := st.Services["backend"]; ok && e.Provided == providedLauncher {
 			if e.ID != "" {
 				return st.Runtime, e.ID

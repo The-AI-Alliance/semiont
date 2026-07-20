@@ -55,7 +55,8 @@ Open **http://localhost:3000**. In the Semiont browser's Knowledge Bases panel, 
 **Just the browser?** To point a Semiont browser at an already-running or remote knowledge base, run the frontend on its own — no clone needed, from any directory (the launcher auto-detects your container runtime and pulls the published image):
 
 ```bash
-semiont start --service frontend
+semiont start --service frontend            # http://localhost:3000
+semiont start --service frontend --port 3001   # 3000 busy? move the browser
 ```
 
 For local-network access notes, supply-chain verification, the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, and frontend dev setup, see **[docs/browser/](docs/browser/README.md)**.

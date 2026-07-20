@@ -159,6 +159,16 @@ func runDetached(name string, args ...string) (string, error) {
 	return strings.TrimSpace(out.String()), err
 }
 
+// runWithStdin feeds input on stdin and shows stderr — for handing a secret
+// value to a subprocess without it ever appearing in argv (where any process
+// on the machine could read it via ps).
+func runWithStdin(name, input string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Stdin = strings.NewReader(input)
+	cmd.Stdout, cmd.Stderr = io.Discard, os.Stderr
+	return cmd.Run()
+}
+
 // capture runs a command returning trimmed stdout, stderr discarded.
 func capture(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
@@ -171,7 +181,9 @@ func capture(name string, args ...string) (string, error) {
 // --- Runtime selection ---
 
 // runtimeOrder is the auto-detect order; on a Mac with several installed,
-// Apple `container` wins.
+// Apple `container` wins. "codespace" is a placement value, never
+// auto-detected and never sticky — it dispatches before selection, and its
+// stacks live under their own keys in the record set.
 var runtimeOrder = []string{"container", "docker", "podman"}
 
 func onPath(name string) bool {

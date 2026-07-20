@@ -27,18 +27,22 @@ var preflightNames = []string{
 }
 
 type startOptions struct {
-	configName     string
-	configSet      bool // --config given explicitly (drives --service compatibility)
-	listConfigs    bool
-	cleanOllama    bool
-	runtime        string
-	observe        bool
-	noObserveSet   bool // --no-observe given explicitly
-	quiet          bool
-	dryRun         bool
-	ollamaCache    string // "", "host", or "volume"
-	service        string // start just this one service
-	root           string // --root: KB root by path or registered basename
+	configName   string
+	configSet    bool // --config given explicitly (drives --service compatibility)
+	listConfigs  bool
+	cleanOllama  bool
+	runtime      string
+	observe      bool
+	noObserveSet bool // --no-observe given explicitly
+	quiet        bool
+	dryRun       bool
+	ollamaCache  string // "", "host", or "volume"
+	service      string // start just this one service
+	root         string // --root: KB root by path or registered basename
+	port         int    // --port: browser port (--service frontend only; every other port is config-owned)
+	repo         string // --repo: owner/name (codespace placement only)
+	csName       string // --codespace: instance disambiguator (codespace placement only)
+	machine      string // --machine: VM class (codespace placement only)
 }
 
 const startUsage = `Usage: semiont start [options]
@@ -61,11 +65,24 @@ Options:
                         frontend, database, graph, vectors, inference, or traces.
                         Rejoins a running stack's worker secret automatically;
                         OTel export is enabled iff traces (Jaeger) is up.
+  --port <n>            Browser port (--service frontend only; default 3000).
+                        The one port a flag may move — every other port
+                        belongs to the KB's config
   --clean-ollama        Remove the Ollama model cache volume and exit
   --runtime <name>      Container runtime: container, docker, or podman
                         (default: the machine's recorded preference — the
                         --runtime a successful start last used, kept in
-                        roots.json — else the first found on PATH)
+                        roots.json — else the first found on PATH). Or
+                        'codespace': run the stack on a GitHub-hosted
+                        machine via gh (never sticky; a recorded codespace
+                        stack resumes on a bare start)
+  --repo <owner/name>   Codespace placement: the GitHub repo (default: the
+                        KB clone's origin remote; the record remembers it)
+  --codespace <name>    Codespace placement: disambiguate when the repo has
+                        several codespaces (the launcher itself makes one)
+  --machine <class>     Codespace placement: VM class (default: premiumLinux
+                        when your account can use it for the repo, else the
+                        largest it can; only applies when creating)
   --no-observe          Skip the Jaeger sidecar (OTel traces + metrics run by default)
   --ollama-cache <c>    Model cache when starting an Ollama container: 'host'
                         (~/.ollama) or 'volume' (named volume) — skips the prompt
@@ -139,6 +156,39 @@ func Start(args []string) int {
 			}
 			opts.root = v
 			i++
+		case "--port":
+			v, ok := needVal(i)
+			if !ok {
+				return 1
+			}
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 || n > 65535 {
+				u.fail("Invalid --port '%s' (expected 1-65535).", v)
+				return 1
+			}
+			opts.port = n
+			i++
+		case "--repo":
+			v, ok := needVal(i)
+			if !ok {
+				return 1
+			}
+			opts.repo = v
+			i++
+		case "--codespace":
+			v, ok := needVal(i)
+			if !ok {
+				return 1
+			}
+			opts.csName = v
+			i++
+		case "--machine":
+			v, ok := needVal(i)
+			if !ok {
+				return 1
+			}
+			opts.machine = v
+			i++
 		case "--list-configs":
 			opts.listConfigs = true
 		case "--clean-ollama":
@@ -179,6 +229,42 @@ func Start(args []string) int {
 		return 1
 	}
 
+	// Codespace placement: the codespace-only flags are rejected elsewhere,
+	// and the local-only knobs are rejected on a codespace start — nothing
+	// is silently ignored, per the flag-scoping pattern.
+	if opts.runtime == "codespace" {
+		switch {
+		case opts.service != "":
+			u.fail("--service does not apply to --runtime codespace (compose owns the services inside).")
+			return 1
+		case opts.configSet:
+			u.fail("--config does not apply to --runtime codespace (the codespace runs its committed config).")
+			return 1
+		case opts.noObserveSet:
+			u.fail("--no-observe does not apply to --runtime codespace (the observe profile is composed inside).")
+			return 1
+		case opts.ollamaCache != "":
+			u.fail("--ollama-cache does not apply to --runtime codespace.")
+			return 1
+		case opts.cleanOllama:
+			u.fail("--clean-ollama does not apply to --runtime codespace.")
+			return 1
+		case opts.listConfigs:
+			u.fail("--list-configs does not apply to --runtime codespace.")
+			return 1
+		case opts.root != "" && opts.repo != "":
+			u.fail("--root and --repo are contradictory (one derives the repo from a clone, the other bypasses clones).")
+			return 1
+		}
+	} else if opts.repo != "" || opts.csName != "" || opts.machine != "" {
+		u.fail("--repo/--codespace/--machine only apply to --runtime codespace.")
+		return 1
+	}
+	if opts.port != 0 && (opts.service != "frontend" || opts.runtime == "codespace") {
+		u.fail("--port only applies to --service frontend — every other port belongs to the KB's config (and a codespace forwards only its KB, on an allocated port).")
+		return 1
+	}
+
 	// --service compatibility: flags that don't apply to the named service are
 	// rejected rather than silently ignored.
 	if opts.service != "" {
@@ -212,6 +298,36 @@ func Start(args []string) int {
 	u = newUI(opts.quiet || opts.dryRun)
 	if !opts.dryRun {
 		u.stamp("semiont start")
+	}
+
+	// Codespace placement dispatches before anything local: no root
+	// discovery (the record replaces the clone), no config load, no local
+	// preflight. Explicit --runtime codespace; or, implicitly, a bare start
+	// on a machine whose ONLY recorded stack(s) are codespaces — one resumes
+	// (rejoin what exists), several must be named. A local record wins the
+	// bare start (codespace stacks coexist; only the lens contends, dropped
+	// below).
+	if opts.runtime == "codespace" {
+		return startCodespace(u, opts)
+	}
+	if opts.runtime == "" {
+		ss := loadStackSet()
+		if cs := codespaceStacks(ss); ss.Stacks["local"] == nil && len(cs) > 0 {
+			if len(cs) > 1 {
+				u.fail("%d codespace stacks are recorded — say which:", len(cs))
+				for _, c := range cs {
+					fmt.Fprintf(os.Stderr, "    semiont start --runtime codespace --repo %s\n", c.Repo)
+				}
+				return 1
+			}
+			if !onPath("gh") {
+				u.fail("A codespace stack is recorded (per %s) but 'gh' is not on PATH.", statePath())
+				fmt.Fprintln(os.Stderr, "  Install the GitHub CLI, or forget the stack:  semiont stop --delete")
+				return 1
+			}
+			u.log("Using recorded stack's runtime: %s %s", u.bold("codespace"), u.dim("(per "+statePath()+")"))
+			return startCodespace(u, opts)
+		}
 	}
 
 	// Resolve the KB root: SEMIONT_ROOT override (strict), else walk up from
@@ -308,7 +424,9 @@ func Start(args []string) int {
 	// error; a recorded preference that vanished from PATH just falls back.
 	requested, rtSticky := opts.runtime, false
 	if requested == "" {
-		if rec := loadRoots().Runtime; rec != "" {
+		// "codespace" can never be a sticky preference (we never write it);
+		// a hand-edited registry saying so is ignored, not obeyed.
+		if rec := loadRoots().Runtime; rec != "" && rec != "codespace" {
 			if onPath(rec) {
 				requested, rtSticky = rec, true
 			} else if !opts.dryRun { // keep the dry-run seam machine-clean
@@ -344,7 +462,7 @@ func Start(args []string) int {
 	// staged configs out from under its live mounts. A record whose runtime
 	// is no longer installed is stale (that stack cannot be running) and
 	// doesn't bind anything.
-	if recSt := loadState(); recSt != nil && recSt.Runtime != "" && recSt.Runtime != rt && onPath(recSt.Runtime) {
+	if recSt := loadLocalState(); recSt != nil && recSt.Runtime != "" && recSt.Runtime != rt && onPath(recSt.Runtime) {
 		if opts.runtime == "" {
 			rt = recSt.Runtime
 			rtFrom = ""
@@ -445,6 +563,20 @@ func Start(args []string) int {
 		}
 		return 0
 	}
+	// A codespace KB forward may squat on a port this start claims (a
+	// forward is a view, not a stack — dropping one stops nothing in the
+	// cloud). Only colliding forwards drop; concurrent KBs on allocated
+	// ports keep running.
+	if !opts.dryRun {
+		var needs []portNeed
+		if opts.service != "" {
+			needs = servicePortNeeds(opts.service, plan, opts) // nil-plan-safe (frontend, traces)
+		} else {
+			needs = planPortChecks(plan, opts.observe) // full start always has a plan
+		}
+		dropCollidingForwards(u, needs)
+	}
+
 	// Record sticky preferences only when this start SUCCEEDED with the
 	// explicit flag: preferences are "what I actually run", so a typo'd
 	// name or an unlaunchable choice never becomes the default. Implicit
@@ -524,9 +656,20 @@ func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string,
 	return append(a, image(svc, version))
 }
 
-func frontendArgs(version string) []string {
+// frontendArgs: the browser publishes on the chosen host port (default
+// 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
+// may move — it's absent from the config and nothing in the stack dials it.
+func frontendArgs(version string, port int) []string {
 	return []string{"run", "-d", "--rm", "--name", "semiont-frontend",
-		"--memory", "1G", "--publish", "3000:3000", image("frontend", version)}
+		"--memory", "1G", "--publish", fmt.Sprintf("%d:3000", port), image("frontend", version)}
+}
+
+// browserPort: the frontend's host port — --port, else 3000.
+func browserPort(opts startOptions) int {
+	if opts.port != 0 {
+		return opts.port
+	}
+	return 3000
 }
 
 func otelArgs(addr string) []string {

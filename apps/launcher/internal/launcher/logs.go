@@ -11,7 +11,12 @@ import (
 	"syscall"
 )
 
-const logsUsage = `Usage: semiont logs [--service <name>] [--runtime container|docker|podman]
+const logsUsage = `Usage: semiont logs [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>]
+
+A bare invocation follows the lone forwarded codespace stack (when no local
+stack exists), else the local stack, else the lone recorded codespace; with
+several codespace stacks, say which. --repo targets a codespace stack
+explicitly; --runtime targets a local runtime.
 
 Follow the Semiont service logs, one [svc]-prefixed stream per service.
 Ctrl+C stops *following* — it does not stop the stack (that's semiont stop).
@@ -33,6 +38,7 @@ func Logs(args []string) int {
 	u := newUI(false)
 	runtime := ""
 	service := ""
+	repoFlag := ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--runtime":
@@ -41,6 +47,13 @@ func Logs(args []string) int {
 				return 1
 			}
 			runtime = args[i+1]
+			i++
+		case "--repo":
+			if i+1 >= len(args) {
+				u.fail("Missing value for --repo")
+				return 1
+			}
+			repoFlag = args[i+1]
 			i++
 		case "--service":
 			if i+1 >= len(args) {
@@ -67,9 +80,24 @@ func Logs(args []string) int {
 	// The record supplies the runtime and container identities; --runtime
 	// overrides, and a record about a different runtime doesn't apply. No
 	// record: the historical name-scan discovery.
-	st := loadState()
+	ss := loadStackSet()
+	cs := codespaceStacks(ss)
+	st := ss.Stacks["local"]
 	rt := ""
-	if runtime != "" {
+	csName := ""
+	if repoFlag != "" {
+		target := ss.Stacks["codespace:"+repoFlag]
+		if target == nil {
+			u.fail("No codespace stack recorded for %s.", repoFlag)
+			return 1
+		}
+		if !onPath("gh") {
+			fmt.Fprintln(os.Stderr, "'gh' is not on PATH.")
+			return 1
+		}
+		csName = target.Codespace
+		st = nil
+	} else if runtime != "" {
 		if !onPath(runtime) {
 			fmt.Fprintf(os.Stderr, "--runtime %s requested, but '%s' is not on PATH.\n", runtime, runtime)
 			return 1
@@ -78,14 +106,38 @@ func Logs(args []string) int {
 		if st != nil && st.Runtime != runtime {
 			st = nil
 		}
+	} else if fwd := forwardedStacks(cs); len(fwd) == 1 && st == nil {
+		// Read-only commands look at what you're looking at: the lone
+		// forwarded codespace stack wins a bare invocation. Logs ride ssh,
+		// by wire-level container name (the shared contract with compose).
+		if !onPath("gh") {
+			fmt.Fprintln(os.Stderr, "A codespace stack is forwarded but 'gh' is not on PATH.")
+			return 1
+		}
+		csName = fwd[0].Codespace
+		u.log("Using the forwarded codespace stack %s", u.dim("("+csName+" per "+statePath()+")"))
 	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
 		rt = st.Runtime
 		u.log("Using recorded stack state %s", u.dim("("+rt+" per "+statePath()+")"))
+	} else if len(cs) == 1 {
+		if !onPath("gh") {
+			fmt.Fprintln(os.Stderr, "A codespace stack is recorded but 'gh' is not on PATH.")
+			return 1
+		}
+		csName = cs[0].Codespace
+		st = nil
+		u.log("Using recorded codespace stack %s", u.dim("("+csName+" per "+statePath()+")"))
+	} else if len(cs) > 1 {
+		fmt.Fprintln(os.Stderr, "Multiple codespace stacks are recorded — say which:  semiont logs --repo <owner/name>")
+		for _, c := range cs {
+			fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
+		}
+		return 1
 	} else {
 		st = nil
 		rt = stackRuntime()
 	}
-	if rt == "" {
+	if rt == "" && csName == "" {
 		fmt.Fprintln(os.Stderr, "No running Semiont stack found in any runtime (container/docker/podman).")
 		fmt.Fprintln(os.Stderr, "Start one with semiont start, or pass --runtime explicitly.")
 		return 1
@@ -121,6 +173,10 @@ func Logs(args []string) int {
 	}
 	targets := make(map[string]string, len(follow)) // svc → handle
 	for _, svc := range follow {
+		if csName != "" { // codespace: wire-level names, no per-service record
+			targets[svc] = roles[svc].container
+			continue
+		}
 		h, ok := handleFor(svc)
 		if !ok {
 			return 1
@@ -137,7 +193,12 @@ func Logs(args []string) int {
 	var wg sync.WaitGroup
 	var cmds []*exec.Cmd
 	for _, svc := range follow {
-		cmd := exec.Command(rt, "logs", "--follow", targets[svc])
+		var cmd *exec.Cmd
+		if csName != "" {
+			cmd = exec.Command("gh", "codespace", "ssh", "-c", csName, "--", "docker", "logs", "--follow", targets[svc])
+		} else {
+			cmd = exec.Command(rt, "logs", "--follow", targets[svc])
+		}
 		stdout, err1 := cmd.StdoutPipe()
 		stderr, err2 := cmd.StderrPipe()
 		if err1 != nil || err2 != nil {
