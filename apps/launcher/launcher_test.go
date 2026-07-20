@@ -135,6 +135,15 @@ func newScenario(t *testing.T, runtimes ...string) *scenario {
 	return s
 }
 
+func (s *scenario) mustLog(t *testing.T) []byte {
+	t.Helper()
+	b, err := os.ReadFile(s.log)
+	if err != nil {
+		t.Fatalf("argv log: %v", err)
+	}
+	return b
+}
+
 // killServes reaps the detached port listeners fakert spawned for `run -d`,
 // waiting for each to actually die — the next test rebinds the same fixed
 // ports, and a merely-signalled process can still hold them for a beat.
@@ -259,6 +268,35 @@ func TestStartDefaultBoot(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	checkGolden(t, "start-default-boot.argv", s.argv(t))
+	// embedding is a ROLE, like any other. It has no container of its own —
+	// the config declares it external, served here by the same Ollama the
+	// inference role provides — and an external role participates in status
+	// while supporting no start/stop. So: a row, runtime "external", and no
+	// container in the record.
+	rec, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json", string(rec), `"embedding"`)
+	if strings.Contains(string(rec), `"container": "semiont-embedding"`) {
+		t.Errorf("embedding recorded a container it does not own:\n%s", rec)
+	}
+	// An ollama embedding is served by the SAME Ollama the inference role
+	// provides, so it must report the same provider — describing one process
+	// two ways ("host" here, "external" there) is the bug this pins.
+	var doc struct {
+		Stacks map[string]struct {
+			Services map[string]struct {
+				Provided string `json:"provided"`
+			} `json:"services"`
+		} `json:"stacks"`
+	}
+	if err := json.Unmarshal(rec, &doc); err != nil {
+		t.Fatalf("stack.json: %v", err)
+	}
+	svcs := doc.Stacks["local"].Services
+	if got, want := svcs["embedding"].Provided, svcs["inference"].Provided; got != want {
+		t.Errorf("embedding provider %q != inference provider %q — same Ollama, two answers", got, want)
+	}
+	sstdout, _, _ := s.run(t, "status")
+	mustContain(t, "status", sstdout, "embedding (Ollama)")
 	mustContain(t, "stdout", stdout,
 		"KB: Test Knowledge Base did:web:example.github.io:test-kb",
 		"No prior containers",
@@ -3097,6 +3135,113 @@ func TestStopService(t *testing.T) {
 }
 
 // --- status --service ---
+
+func TestEmbeddingIsAnExternalRole(t *testing.T) {
+	// embedding is a role, and its platform is external — so it participates
+	// in status but supports no start/stop. Nothing about that is special to
+	// embedding: it is what "external" means for any role.
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// stop --service embedding: coherent request, nothing to stop, exit 0 —
+	// and crucially NO stop/rm of an empty container name.
+	before, _ := os.ReadFile(s.log)
+	stdout, _, code := s.run(t, "stop", "--service", "embedding")
+	if code != 0 {
+		t.Fatalf("stop --service embedding: want exit 0, got %d", code)
+	}
+	mustContain(t, "stop stdout", stdout, "externally provided", "nothing to stop")
+	after, _ := os.ReadFile(s.log)
+	for _, line := range strings.Split(strings.TrimPrefix(string(after), string(before)), "\n") {
+		if strings.Contains(line, "stop ") || strings.Contains(line, "rm ") {
+			t.Errorf("stop --service embedding swept a container: %q", line)
+		}
+	}
+
+	// The whole stack still stops, and embedding contributes no target.
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Errorf("stop: exit %d", code)
+	}
+	log, _ := os.ReadFile(s.log)
+	if strings.Contains(string(log), "semiont-embedding") {
+		t.Errorf("stop targeted a container embedding does not own:\n%s", log)
+	}
+}
+
+func TestStopThenStartStaysLocal(t *testing.T) {
+	// The sequence the launcher itself prescribes, from a real incident
+	// (2026-07-20): stop the local stack, then start it again. `stop` forgets
+	// the local record by design, and the codespace-resume convenience used
+	// to key on nothing more than "no local record" — so this bare start
+	// flipped to the cloud, swept the local containers in its preflight, and
+	// woke a paid codespace. Standing in a KB clone must always mean local.
+	s := newCodespaceScenario(t) // cwd IS a KB clone; a codespace is recorded
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("codespace start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// A local stack, then stop it — leaving exactly the state that misfired:
+	// a codespace record present, no local record.
+	if _, stderr, code := s.run(t, "start", "--runtime", "container"); code != 0 {
+		t.Fatalf("local start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, _, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
+		t.Errorf("stop --runtime container: exit %d", code)
+	}
+
+	before, _ := os.ReadFile(s.log)
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("bare start after stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if strings.Contains(stdout+stderr, "codespace") {
+		t.Errorf("bare start inside a KB clone went to the cloud:\n%s\n%s", stdout, stderr)
+	}
+	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	if strings.Contains(fresh, "gh codespace") {
+		t.Errorf("bare start inside a KB clone reached for gh:\n%s", fresh)
+	}
+	if !strings.Contains(fresh, "run -d") {
+		t.Errorf("bare start launched no local containers:\n%s", fresh)
+	}
+}
+
+func TestBareResumeUsesRecordedRepoNotCwd(t *testing.T) {
+	// Characterization, not a fix: outside any KB clone a bare start resumes
+	// the RECORDED stack's repo, even when the cwd's git origin names a
+	// different one. startCodespace's identity ladder already did this; the
+	// 2026-07-20 incident adopted the wrong repo only because the branch fired
+	// INSIDE a clone, where the ladder legitimately prefers the clone's origin
+	// (see TestStopThenStartStaysLocal for the actual fix). Pinned so that
+	// preference can never leak out to the no-clone case.
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("codespace start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop")
+	}
+
+	// Move outside any KB clone, into a directory whose git origin names a
+	// DIFFERENT repo than the recorded stack.
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_ORIGIN=git@github.com:someone/unrelated.git")
+	before := s.mustLog(t)
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("bare resume: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if strings.Contains(stdout+stderr, "someone/unrelated") {
+		t.Errorf("bare resume targeted the cwd's repo, not the recorded stack:\n%s\n%s", stdout, stderr)
+	}
+	mustContain(t, "the codespace branch actually fired", stdout+stderr, "Using recorded stack's runtime")
+	mustContain(t, "resume names the recorded repo", stdout+stderr, csRepo)
+	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	if strings.Contains(fresh, "someone/unrelated") {
+		t.Errorf("gh was pointed at the cwd's repo:\n%s", fresh)
+	}
+}
 
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")

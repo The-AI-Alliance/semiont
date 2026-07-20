@@ -62,6 +62,7 @@ var statusServices = []struct {
 	{"database", "tcp:5432", true},
 	{"worker", "http://localhost:9090/health", true},
 	{"inference", "http://localhost:11434/api/version", true},
+	{"embedding", "http://localhost:11434/api/version", true},
 	{"weaver", "http://localhost:9092/health", true},
 	{"graph", "http://localhost:7474", true},
 	{"smelter", "http://localhost:9091/health", true},
@@ -260,6 +261,10 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 
 	fmt.Printf("  %-22s %-10s %-10s %s\n", "SERVICE", "STATE", "RUNTIME", "HEALTH")
 	healthy = true
+	// Fetched once, lazily: the inference and embedding model rows both read
+	// it, and a stack with no ollama-served models never asks at all.
+	var facts modelFacts
+	factsFetched := false
 	for _, svc := range statusServices {
 		if service != "" && svc.name != service {
 			continue
@@ -302,6 +307,17 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 			rt = "external"
 		case rec != nil && rec.Provided == providedHost:
 			rt = "host"
+		case handle == "":
+			// A container-less role (embedding) has nothing to inspect. Never
+			// ask the runtime with an empty name: today Apple container
+			// answers [] and docker errors, but either could just as well
+			// answer with EVERY container and be read as this role running.
+			// STATE stays blank — the role owns no container state — but the
+			// RUNTIME column still names where its provider runs.
+			rt = "external"
+			if rec != nil && rec.Provided == providedLauncher && len(runtimes) == 1 {
+				rt = runtimes[0]
+			}
 		default:
 			state, rt = containerState(runtimes, handle)
 		}
@@ -340,6 +356,15 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 		fmt.Printf("  %-22s %-*s %-*s %s\n",
 			label, 10+utf8.RuneCountInString(stateCol)-visibleLen(stateCol), stateCol,
 			10+utf8.RuneCountInString(rt)-visibleLen(rt), rt, healthCol)
+
+		// The models this role was started with, indented beneath it.
+		if rec != nil && len(rec.Models) > 0 {
+			if rec.Driver == "ollama" && !factsFetched {
+				facts = fetchModelFacts(ollamaBase(rec.Endpoint))
+				factsFetched = true
+			}
+			printModels(u, rec.Models, rec.Driver, facts)
+		}
 	}
 	return healthy, 0
 }

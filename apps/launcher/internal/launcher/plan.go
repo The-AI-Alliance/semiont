@@ -30,13 +30,15 @@ func (o obligation) String() string {
 }
 
 type rolePlan struct {
-	Role       string
-	Obligation obligation
-	Driver     string   // config `type` (catalog key)
-	Image      string   // catalog, for provided/host-fallback launches
-	Address    string   // external host, for reachability probes
-	Port       int      // primary port (config, else driver default)
-	Env        []string // container env derived from config (creds)
+	Role             string
+	Obligation       obligation
+	Driver           string   // config `type` (catalog key)
+	Image            string   // catalog, for provided/host-fallback launches
+	Address          string   // external host, for reachability probes
+	Port             int      // primary port (config, else driver default)
+	SharesOllamaWith string   // role under which the launcher runs the Ollama this one uses
+	Models           []string // models this role serves, from the config (sorted, deduped)
+	Env              []string // container env derived from config (creds)
 }
 
 type launchPlan struct {
@@ -69,11 +71,37 @@ var driverCatalog = map[string]map[string]driverSpec{
 	"inference": {
 		"ollama": {image: "ollama/ollama", display: "Ollama", defaultPort: 11434, portLabel: "Ollama"},
 	},
+	// embedding drivers carry no image: the launcher never provides this
+	// role. ollama means the inference role's Ollama also serves embeddings;
+	// voyage is remote SaaS reached over TLS.
+	"embedding": {
+		"ollama": {display: "Ollama", defaultPort: 11434, portLabel: "Ollama"},
+		"voyage": {display: "Voyage", defaultPort: 443, portLabel: "Voyage"},
+	},
 	// traces is launcher-owned (no config section yet) — catalog entry
 	// carries the display name for status's TECH column.
 	"traces": {
 		"jaeger": {image: "jaegertracing/all-in-one:1.76.0", display: "Jaeger", defaultPort: 16686, portLabel: "Jaeger UI"},
 	},
+}
+
+// bindingModels: every model the config's actors and workers bind for
+// inference, sorted and deduped. Deliberately NOT filtered by provider type:
+// these are the models this stack performs inference with, whoever serves
+// them — a mixed config lists all of them.
+func bindingModels(env *envConfig) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, bindings := range []map[string]bindingCfg{env.Actors, env.Workers} {
+		for _, b := range bindings {
+			if m := b.Inference.Model; m != "" && !seen[m] {
+				seen[m] = true
+				out = append(out, m)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // driverDisplay: the product name behind a role's selected driver.
@@ -174,6 +202,17 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	}
 	// classify: an address that is exactly the launcher-injected var means
 	// "the launcher provides this"; anything else is externally provided.
+	//
+	// This DELIBERATELY ignores the section's own `platform` key (adjudicated
+	// 2026-07-20), which is read only for the posix case below. The fleet's
+	// configs declare platform = "external" on graph/vectors/database while
+	// pointing at ${NEO4J_HOST}/${QDRANT_HOST}/${POSTGRES_HOST} — addresses
+	// the launcher itself injects — so honoring the declaration would stop
+	// launching Neo4j, Qdrant and PostgreSQL for every KB in the fleet.
+	// Reading it there is not a latent bug to fix: "external" in those files
+	// means external to the backend PROCESS, not "someone else runs it".
+	// Until that word means one thing in both places, the address shape is
+	// the authority. See GO-LAUNCHER.md follow-ups.
 	classify := func(host, injectedVar string) obligation {
 		if host == "${"+injectedVar+"}" {
 			return obligationProvided
@@ -300,6 +339,63 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		plan.Roles["database"] = rp
 	}
 
+	// embedding — a role the launcher never launches. Its platform is
+	// external in both shapes: ollama means the inference role's Ollama also
+	// serves embeddings (same process, same port — which is why embedding has
+	// no container of its own and never contends for a port), voyage means
+	// remote SaaS. Absent means the KB declares no embedding at all, which
+	// status reports as "not configured" exactly as it does for any other
+	// unreferenced role.
+	if e := env.Embedding; e == nil {
+		plan.Roles["embedding"] = rolePlan{Role: "embedding", Obligation: obligationAbsent}
+	} else {
+		if e.Type == "" {
+			return nil, secErr("embedding", "missing required key %q", "type")
+		}
+		spec, ok := driverCatalog["embedding"][e.Type]
+		if !ok {
+			return nil, secErr("embedding", "unknown type %q (known drivers: %s)", e.Type, knownDrivers("embedding"))
+		}
+		host, port := parseHostPort(e.BaseURL)
+		if port == 0 {
+			port = spec.defaultPort
+		}
+		// ${OLLAMA_HOST} is the launcher-injected address of the machine
+		// hosting Ollama; the probe runs ON that machine, so it dials
+		// localhost. A voyage config usually names no baseURL at all.
+		switch {
+		case host == "" && e.Type == "voyage":
+			host = "api.voyageai.com"
+		case strings.HasPrefix(host, "${"):
+			host = "localhost"
+		case host == "":
+			return nil, secErr("embedding", "missing required key %q", "baseURL")
+		}
+		rp := rolePlan{
+			Role: "embedding", Obligation: obligationExternal,
+			Driver: e.Type, Address: host, Port: port,
+		}
+		// An ollama embedding is served by the local Ollama, so it is
+		// provided however that Ollama is: a host process, or the launcher's
+		// own container. Reporting it "external" while that same process
+		// reports "host" would describe one process two ways.
+		//
+		// This does NOT mean embedding derives from inference. The anthropic
+		// config is the counterexample — inference is Anthropic there, while
+		// embedding is ollama. What it names is the role the launcher
+		// currently runs OLLAMA under, which is "inference" only because that
+		// role doubles as the Ollama launcher (`ollamaUsed` is set by this
+		// very embedding check). Untangle that conflation — see
+		// GO-LAUNCHER.md — and this must follow Ollama, not the role name.
+		if e.Type == "ollama" && host == "localhost" {
+			rp.SharesOllamaWith = "inference"
+		}
+		if e.Model != "" {
+			rp.Models = []string{e.Model}
+		}
+		plan.Roles["embedding"] = rp
+	}
+
 	// inference — needed iff the config references ollama (embedding, or any
 	// actor/worker binding); the anthropic provider is remote SaaS, nothing
 	// for the launcher to run. Address ${OLLAMA_HOST} means the host-process-
@@ -336,6 +432,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			img = p.Image
 		}
 		rp := rolePlan{Role: "inference", Driver: "ollama", Port: port, Image: img}
+		rp.Models = bindingModels(env)
 		if host == "${OLLAMA_HOST}" {
 			rp.Obligation = obligationHostProcess
 		} else {

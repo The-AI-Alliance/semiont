@@ -135,7 +135,14 @@ semiont stop
   things; a stack is status layered on one of them. Per service it
   shows the container STATE as the runtime sees it plus a host-side health
   probe, with the concrete product in the service cell (`database
-  (PostgreSQL)`). **Exit status:** the default report spans several stacks,
+  (PostgreSQL)`). **A role's platform decides which verbs it has, and a role
+  need not run here.** `embedding` is a role like any other; its platform is
+  external in both shapes — `type = "ollama"` is served by the same Ollama the
+  `inference` role provides, `type = "voyage"` is remote SaaS — so it appears
+  in status (runtime `external`) and supports no start/stop, exactly as an
+  anthropic-typed `inference` or an external `graph` does. A KB with no
+  `[embedding]` section gets a `not configured` row rather than silence.
+  **Exit status:** the default report spans several stacks,
   so it exits 0 whenever status itself ran — to script health, name one
   stack: `--root <path|name>`, `--repo <owner/name>`, or `--service <name>`.
 - **A codespace KB's `did:web` is recorded, never inferred.** It is read from
@@ -169,13 +176,33 @@ semiont stop
 - **The launcher derives its work from the KB's semiontconfig TOML** — the
   same file the Semiont containers read (see
   `docs/system/administration/CONFIGURATION.md`). Per dependency role
-  (graph, vectors, database, inference) the config decides the obligation:
+  (graph, vectors, database, inference, embedding) the config decides the
+  obligation — the launcher's name for the npm CLI's `platform`:
   an address on a launcher-injected `${*_HOST}` var → the launcher provides
   a container (driver by `type`, credentials/ports from the config); any
   other address → externally provided (verified, never launched, skipped by
   stop, shown as "external" in status); `platform = "posix"` → host-process
   reuse; section absent / unreferenced → nothing launched, "not configured"
-  in status. Moving `database.port` moves the publish/checks/gates with it;
+  in status. embedding is never launched — `type = "ollama"` is served by the
+  Ollama the inference role provides, `type = "voyage"` is remote SaaS — so it
+  has a status row and no start/stop, which is what external means for every
+  role, not a special case. An ollama embedding reports how the local Ollama
+  is provided (`host`, or the runtime) rather than a flat "external" that would
+  describe one process two different ways — note this is about Ollama, not
+  about inference: the anthropic config pairs Anthropic inference with ollama
+  embedding.
+- **The inference and embedding rows list their models.** Which models a stack
+  uses is config truth, recorded at start (the union of `actors.*` and
+  `workers.*` inference models, and `embedding.model`); whether each is pulled
+  is verified live against Ollama's `/api/tags` and `/api/ps`, with size,
+  parameter count and quantization. **Nothing in the launcher pulls models**, so
+  a model that was never pulled is otherwise invisible until a worker reaches
+  for it mid-job and fails — status marks it `MISSING` with the `ollama pull`
+  to fix it. An unreachable Ollama reads `unknown`, never `missing`: ignorance
+  and a finding are different answers. Untagged config names are matched
+  against Ollama's `:latest` form. Remote models (Claude, Voyage) list as
+  `remote` — there is nothing to install.
+  Moving `database.port` moves the publish/checks/gates with it;
   inference runs only when the config references ollama. An optional `image`
   key per role section overrides the catalog's default image — a KB can pin
   or upgrade an infra image without a launcher release. `--dry-run` renders

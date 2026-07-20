@@ -90,6 +90,16 @@ func Stop(args []string) int {
 			u.fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
+		// An external role owns no container, so there is nothing here to
+		// stop — and falling through would sweep the empty container name,
+		// which is not a no-op the way a real absent name is. Not an error:
+		// the role exists and the request is coherent, it just has no
+		// stoppable part.
+		if roles[service].container == "" {
+			u.log("%s is externally provided — nothing to stop.", service)
+			fmt.Fprintf(os.Stdout, "  %s\n", u.dim("(external roles participate in status; start and stop belong to whatever provides them)"))
+			return 0
+		}
 	}
 
 	// Which runtimes to sweep: the requested one, or EVERY installed runtime.

@@ -106,6 +106,7 @@ type vectorsCfg struct {
 type embeddingCfg struct {
 	Platform string `toml:"platform"`
 	Type     string `toml:"type"`
+	Model    string `toml:"model"`
 	BaseURL  string `toml:"baseURL"`
 }
 

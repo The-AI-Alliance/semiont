@@ -22,11 +22,16 @@ type flowCtx struct {
 
 var depRoleTitles = map[string]string{
 	"graph": "Graph", "vectors": "Vectors", "database": "Database",
+	"embedding": "Embedding",
 }
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
-// pulls → traces → graph → vectors → inference → database → backend →
-// sidecars → frontend.
+// pulls → traces → graph → vectors → inference → embedding → database →
+// backend → sidecars → frontend.
+//
+// embedding follows inference deliberately: an ollama-typed embedding is
+// served BY the Ollama inference just brought up, so probing it any earlier
+// would dial a port nothing is listening on yet.
 func flowFullStart(x executor, fc flowCtx) int {
 	addr, ok := x.resolveAddr()
 	if !ok {
@@ -102,6 +107,9 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return code
 	}
 	if code := flowInferenceRole(x, fc, addr); code != 0 {
+		return code
+	}
+	if code := flowDepRole(x, "embedding", fc, addr); code != 0 {
 		return code
 	}
 	if code := flowDepRole(x, "database", fc, addr); code != 0 {
@@ -200,7 +208,15 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		if !x.probeTCP(role, rp) {
 			return 1
 		}
-		x.record(role, "", "", providedExternal, externalEndpoint(role, rp), rp.Driver)
+		// A role sharing another's Ollama reports how that Ollama is
+		// provided, not a flat "external" — same process, same answer.
+		provided := providedExternal
+		if rp.SharesOllamaWith != "" {
+			if p := x.providerOf(rp.SharesOllamaWith); p != "" {
+				provided = p
+			}
+		}
+		x.record(role, "", "", provided, externalEndpoint(role, rp), rp.Driver)
 	}
 	return 0
 }
@@ -208,6 +224,14 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 // externalEndpoint: the status probe for an externally-provided role.
 func externalEndpoint(role string, rp rolePlan) string {
 	switch role {
+	case "embedding":
+		// An ollama-served embedding answers Ollama's own version endpoint;
+		// Voyage is HTTPS SaaS whose API needs a key, so reachability is all
+		// a credential-free probe can honestly assert — a TCP dial.
+		if rp.Driver == "ollama" {
+			return fmt.Sprintf("http://%s:%d/api/version", rp.Address, rp.Port)
+		}
+		return fmt.Sprintf("tcp:%s:%d", rp.Address, rp.Port)
 	case "vectors":
 		return fmt.Sprintf("http://%s:%d/readyz", rp.Address, rp.Port)
 	case "inference":
@@ -424,6 +448,13 @@ func flowOneService(x executor, fc flowCtx) int {
 		x.record(svc, id, rp.Image, providedLauncher, serviceEndpoint(svc, fc.plan), rp.Driver)
 	case "inference":
 		if code := flowInference(x, fc, fc.plan.Roles[svc], addr); code != 0 {
+			return code
+		}
+	case "embedding":
+		// An external role has nothing to start — the same reason `--service
+		// embedding` still verifies and reports: status is the whole of what
+		// the launcher can do for it.
+		if code := flowDepRole(x, "embedding", fc, addr); code != 0 {
 			return code
 		}
 	case "backend":

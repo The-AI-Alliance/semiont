@@ -44,7 +44,8 @@ type executor interface {
 	workerSecret() (string, bool)          // full start: env or generated
 	ollamaVolume(opts startOptions) string // model-cache choice (prompt is live-only)
 	record(role, id, image, provided, endpoint, driver string)
-	val(live, plan string) string // mode-scoped value (kb root, admin password)
+	providerOf(role string) string // how an already-recorded role was provided
+	val(live, plan string) string  // mode-scoped value (kb root, admin password)
 	rtName() string
 
 	// --- decoration ---
@@ -72,6 +73,10 @@ type liveExec struct {
 	st      *stackState
 	version string // SEMIONT_VERSION, for records created lazily (--service mode)
 	root    string // KB root, ditto ("" for root-free services)
+	// plan lets record() stamp each role's configured models without every
+	// flow having to pass them; models are config truth, so they belong to
+	// the record the same way the driver does.
+	plan *launchPlan
 }
 
 func (x *liveExec) stopRm(name string) bool {
@@ -330,7 +335,21 @@ func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
 			}
 		}
 	}
-	x.st.recordService(role, id, image, provided, endpoint, driver)
+	var models []string
+	if x.plan != nil {
+		models = x.plan.Roles[role].Models
+	}
+	x.st.recordService(role, id, image, provided, endpoint, driver, models)
+}
+
+// providerOf reads back how an earlier step in THIS run resolved a role.
+// The host-Ollama-vs-container decision is made at runtime, not in the plan,
+// so a role sharing that Ollama can only learn the answer here.
+func (x *liveExec) providerOf(role string) string {
+	if x.st == nil {
+		return ""
+	}
+	return x.st.Services[role].Provided
 }
 
 func (x *liveExec) val(live, _ string) string { return live }
@@ -488,6 +507,9 @@ func (x *planExec) ollamaVolume(opts startOptions) string {
 }
 
 func (x *planExec) record(_, _, _, _, _, _ string) {}
+
+// --dry-run records nothing, so there is nothing to read back.
+func (x *planExec) providerOf(string) string { return "" }
 
 func (x *planExec) val(_, plan string) string { return plan }
 func (x *planExec) rtName() string            { return x.rt }

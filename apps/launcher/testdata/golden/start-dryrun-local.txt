@@ -36,6 +36,7 @@ container stop semiont-ollama
 # require free port: 11434
 container run -d --rm --name semiont-ollama -p 11434:11434 -m 24G -v <ollama-volume>:/root/.ollama ollama/ollama
 # wait: http://localhost:11434/api/version (30s)
+# embedding: externally provided at localhost:11434 — verify reachability, launch nothing
 container run -d --rm --name semiont-postgres -p 5432:5432 -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
 # wait: tcp localhost:5432 (20s)
 # probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432

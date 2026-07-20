@@ -121,6 +121,9 @@ func checkRole(t *testing.T, plan *launchPlan, role string, want rolePlan) {
 	if got.Port != want.Port {
 		t.Errorf("%s port: got %d want %d", role, got.Port, want.Port)
 	}
+	if strings.Join(got.Models, " ") != strings.Join(want.Models, " ") {
+		t.Errorf("%s models: got %v want %v", role, got.Models, want.Models)
+	}
 	if strings.Join(got.Env, " ") != strings.Join(want.Env, " ") {
 		t.Errorf("%s env: got %v want %v", role, got.Env, want.Env)
 	}
@@ -151,6 +154,14 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 				Obligation: obligationProvided, Driver: "qdrant",
 				Image: "qdrant/qdrant:v1.18.3", Port: 6333,
 			})
+			// embedding is a role like any other — external in both shapes:
+			// here ollama, served by the very Ollama the inference role
+			// provides (hence localhost:11434, and no container of its own).
+			checkRole(t, plan, "embedding", rolePlan{
+				Obligation: obligationExternal, Driver: "ollama",
+				Address: "localhost", Port: 11434,
+				Models: []string{"nomic-embed-text"},
+			})
 			checkRole(t, plan, "database", rolePlan{
 				Obligation: obligationProvided, Driver: "postgres",
 				Image: "postgres:15.18-alpine", Port: 5432,
@@ -159,9 +170,20 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			// Both templates use ollama embedding, so inference is needed in
 			// both — host-process preferred with container fallback (the
 			// config's platform="posix" made explicit).
+			// The models each config performs inference with. anthropic.toml
+			// is the telling one: its inference role is DRIVEN by ollama —
+			// launched solely because the embedding needs it — while every
+			// model it lists is a Claude. That is the inference/Ollama
+			// conflation (shelved, GO-LAUNCHER.md) made visible rather than
+			// silent, and this expectation pins it as observed behavior.
+			wantModels := []string{"gemma4:26b", "gemma4:e2b"}
+			if name == "anthropic.toml" {
+				wantModels = []string{"claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929"}
+			}
 			checkRole(t, plan, "inference", rolePlan{
 				Obligation: obligationHostProcess, Driver: "ollama",
 				Image: "ollama/ollama", Port: 11434,
+				Models: wantModels,
 			})
 			if plan.BackendPort != 4000 {
 				t.Errorf("backend port: got %d want 4000", plan.BackendPort)
@@ -213,6 +235,26 @@ func TestDerivePlanNoOllamaAnywhere(t *testing.T) {
 	// No embedding section and no ollama-typed binding: inference is absent —
 	// the launcher launches Ollama only when the config references it.
 	plan := mustDerive(t, variantConfig(t, map[string]string{"embedding": ""}))
+	// No [embedding] section: the role still exists, reported absent — the
+	// same "not configured" shape every unreferenced role gets.
+	checkRole(t, plan, "embedding", rolePlan{Obligation: obligationAbsent})
+
+	// voyage: remote SaaS. Still external, still a role — the platform is
+	// what differs, not its standing. No baseURL is normal there, so the
+	// driver's own host and TLS port stand in.
+	vp := mustDerive(t, variantConfig(t, map[string]string{"embedding": `[environments.local.embedding]
+platform = "external"
+type = "voyage"
+model = "voyage-3"
+`}))
+	checkRole(t, vp, "embedding", rolePlan{
+		Obligation: obligationExternal, Driver: "voyage",
+		Address: "api.voyageai.com", Port: 443,
+		Models: []string{"voyage-3"},
+	})
+	// And a voyage embedding must not drag Ollama in: nothing else in this
+	// config references it.
+	checkRole(t, vp, "inference", rolePlan{Obligation: obligationAbsent})
 	if got := plan.Roles["inference"]; got.Obligation != obligationAbsent {
 		t.Errorf("no-ollama config: got %+v", got)
 	}
