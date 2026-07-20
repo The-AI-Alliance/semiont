@@ -1405,6 +1405,82 @@ func TestCodespaceCredentialFailureShowsGhError(t *testing.T) {
 	}
 }
 
+func TestUseraddCodespace(t *testing.T) {
+	// useradd reaches a codespace stack over ssh → docker exec, and quotes
+	// every argument: the remote side is a SHELL, unlike the local path.
+	s := newCodespaceScenario(t)
+	writeCodespaceState(t, s)
+
+	// A password full of shell metacharacters must arrive INTACT — and must
+	// not become shell syntax on the way.
+	nasty := "p a$s'w\"o`rd;rm -rf /"
+	stdout, stderr, code := s.run(t, "useradd", "--email", "alice@example.com", "--password", nasty, "--admin")
+	if code != 0 {
+		t.Fatalf("codespace useradd: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	// fakert echoes the exact remote command line the shell would receive.
+	if !strings.Contains(stdout, "remote-cmd: ") {
+		t.Fatalf("no remote command echoed:\n%s", stdout)
+	}
+	remote := stdout[strings.Index(stdout, "remote-cmd: "):]
+	remote = remote[:strings.IndexByte(remote, '\n')]
+	mustContain(t, "remote command", remote,
+		"docker exec semiont-backend semiont useradd",
+		"'alice@example.com'", "'--admin'")
+	// The dangerous fragment must be inside quotes, never bare syntax.
+	if strings.Contains(remote, "; rm -rf /") || strings.Contains(remote, ";rm -rf / ") {
+		t.Fatalf("password escaped its quoting into shell syntax:\n%s", remote)
+	}
+	// And the echoed line must not show the password at all.
+	if strings.Contains(stdout, "rm -rf") && strings.Contains(stdout, "$ gh") {
+		echoed := stdout[strings.Index(stdout, "$ gh"):]
+		if strings.Contains(echoed[:min(len(echoed), 200)], "rm -rf") {
+			t.Errorf("password leaked into the echoed command:\n%s", echoed)
+		}
+	}
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "gh codespace ssh -c fake-cs-1 --")
+
+	// --repo targets a specific codespace stack.
+	if _, stderr, code := s.run(t, "useradd", "--repo", csRepo, "--email", "b@c.co", "--generate-password"); code != 0 {
+		t.Fatalf("--repo useradd: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "useradd", "--repo", "no/such", "--email", "b@c.co"); code != 1 {
+		t.Error("unknown --repo should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "No codespace stack recorded for no/such")
+	}
+}
+
+func TestUseraddAmbiguousStacks(t *testing.T) {
+	// Local + codespace recorded: useradd must NOT silently pick local —
+	// writing a user into the wrong KB is not a silent-default decision.
+	s := newCodespaceScenario(t)
+	p := statePathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	both := `{"schema":3,"stacks":{` +
+		`"local":{"runtime":"container","services":{"backend":{"container":"semiont-backend","id":"fid-semiont-backend","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},` +
+		`"codespace:` + csRepo + `":{"runtime":"codespace","codespace":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001,"services":{}}}}`
+	if err := os.WriteFile(p, []byte(both), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123")
+	if code != 1 {
+		t.Fatalf("ambiguous useradd: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "Multiple stacks are recorded",
+		"semiont useradd --runtime container", "semiont useradd --repo "+csRepo)
+
+	// Naming the codespace resolves it; the local stack is reachable by
+	// simply omitting --repo is NOT true here, so it must still refuse —
+	// but --repo works.
+	if _, stderr, code := s.run(t, "useradd", "--repo", csRepo, "--email", "a@b.co", "--password", "password123"); code != 0 {
+		t.Fatalf("--repo disambiguation: exit %d\nstderr:\n%s", code, stderr)
+	}
+}
+
 func TestCodespaceWithoutGh(t *testing.T) {
 	// A missing gh must be NAMED, never inferred from downstream symptoms —
 	// and --dry-run must still render, since a plan reaches for nothing.
@@ -1592,12 +1668,11 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	}
 	mustContain(t, "local plan stdout", stdout, "container run -d --rm --name semiont-backend")
 
-	// useradd refuses: the admin was generated at creation.
-	_, stderr, code = s2.run(t, "useradd", "--email", "a@b.co", "--password", "password123")
-	if code != 1 {
-		t.Fatalf("useradd on codespace: want exit 1, got %d", code)
+	// useradd now WORKS against a codespace stack (the generated admin is
+	// only the FIRST user; everything after it is useradd's job).
+	if _, stderr, code := s2.run(t, "useradd", "--email", "a@b.co", "--password", "password123"); code != 0 {
+		t.Fatalf("useradd on codespace: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stderr", stderr, "generated at creation", "semiont status")
 
 	// status --service and stop --service don't apply.
 	if _, stderr, code := s2.run(t, "status", "--service", "backend"); code != 1 {
@@ -1846,9 +1921,12 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 	mustContain(t, "stderr", stderr, "Multiple stacks are recorded",
 		"semiont stop --runtime container", "semiont stop --repo "+csRepo)
 
-	// useradd targets the LOCAL backend when one exists.
-	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123"); code != 0 {
-		t.Fatalf("useradd: exit %d\nstderr:\n%s", code, stderr)
+	// useradd will not GUESS between stacks; --runtime names the local one.
+	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123"); code != 1 {
+		t.Fatalf("ambiguous useradd should refuse, got %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "useradd", "--runtime", "container", "--email", "a@b.co", "--password", "password123"); code != 0 {
+		t.Fatalf("useradd --runtime: exit %d\nstderr:\n%s", code, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log), "container exec fid-semiont-backend semiont useradd")

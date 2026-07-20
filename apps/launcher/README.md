@@ -91,11 +91,12 @@ semiont stop
   `KB localhost:<port>`) and details the lone forwarded stack (`--repo`
   details any); bare `logs` follows the local stack, else the lone
   codespace; bare `stop` refuses to guess — `--repo <owner/name>` targets a
-  codespace stack, `--runtime` the local one. `useradd` targets the local
-  backend when one exists. Schema 1/2 single-stack records migrate on read.
+  codespace stack, `--runtime` the local one — and `useradd` follows the same
+  rule. Schema 1/2 single-stack records migrate on read.
 - Codespace admin credentials are generated inside the codespace at
   creation; `start` and `status` read them fresh over ssh and display them —
-  never stored, never logged (`useradd` refuses and points at `status`).
+  never stored, never logged. Those are the FIRST admin; `useradd --repo`
+  handles every user after it.
   Preflights fail fast with fixes: `gh` missing/unauthenticated, the
   `codespace` scope, the `ANTHROPIC_API_KEY` Codespaces user secret, and the
   VM class. The machine list GitHub returns for a repo is filtered by the
@@ -110,8 +111,16 @@ semiont stop
 - `semiont useradd` creates or updates users in the RUNNING stack: the
   launcher execs the in-container Semiont CLI's `useradd` inside the backend
   container (record-driven runtime + container ID, name-scan fallback) and
-  passes every flag through verbatim (`--admin`, `--generate-password`,
-  `--update`, `--upsert`, …). This replaced `start --email/--password`: the
+  passes every other flag through verbatim (`--admin`, `--generate-password`,
+  `--update`, `--upsert`, …). It works against **codespace stacks too** —
+  one hop further out, `gh codespace ssh -- docker exec …` — with every
+  argument shell-quoted, because that remote side runs through a shell
+  (the local `exec` path does not, so a password with spaces or `$` is only
+  a hazard on the codespace route). A codespace generates its FIRST admin at
+  creation, so `useradd` there is for everything after: more users, role
+  grants, password changes. With several stacks recorded it refuses to
+  guess — `--repo <owner/name>` picks a codespace stack, `--runtime` the
+  local one (the same vocabulary `stop` uses). This replaced `start --email/--password`: the
   admin password used to ride into the backend container as an env var,
   readable via `inspect` for the stack's whole lifetime — now it exists only
   in one exec's argv, redacted in the echoed command and the invocation log.

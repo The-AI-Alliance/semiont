@@ -272,6 +272,10 @@ func ghCodespace(args []string, joined string) {
 				body = `{"email":"admin@example.com","password":"fake-admin-pw"}`
 			}
 			fmt.Println(body)
+		case strings.Contains(joined, "docker exec"):
+			// The remote side is a SHELL, so echo back what the shell would
+			// actually receive — that is what proves quoting works.
+			fmt.Println("remote-cmd: " + args[len(args)-1])
 		case strings.Contains(joined, "docker logs"):
 			name := strings.TrimPrefix(args[len(args)-1], "semiont-")
 			fmt.Println(name + " out")
