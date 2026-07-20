@@ -99,6 +99,13 @@ func Status(args []string) int {
 	// the runtime reported at start — the record is belief; every claim below
 	// is still verified against the runtime and the health endpoints.
 	st := loadState()
+	if st != nil && st.Runtime == "codespace" && runtime == "" {
+		if service != "" {
+			u.fail("--service does not apply to a codespace stack; semiont status reports it whole.")
+			return 1
+		}
+		return statusCodespace(u, st)
+	}
 	var runtimes []string
 	if runtime != "" {
 		if !onPath(runtime) {

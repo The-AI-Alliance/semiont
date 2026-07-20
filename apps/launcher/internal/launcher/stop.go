@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const stopUsage = `Usage: semiont stop [--service <name>] [--runtime container|docker|podman] [--dry-run]
+const stopUsage = `Usage: semiont stop [--service <name>] [--runtime container|docker|podman] [--delete] [--dry-run]
 
 Stop the whole Semiont stack — services, dependencies, and observability —
 and clean up the staged config copies. Safe to run when nothing is up:
@@ -21,6 +21,11 @@ With --service <name>, stop just that one service (backend, worker, smelter,
 weaver, frontend, database, graph, vectors, inference, or traces). The staged
 config copies are left in place — the rest of the stack is still mounting
 them.
+
+A CODESPACE stack (started with --runtime codespace) stops with
+'gh codespace stop': billing halts, state and credentials persist, and the
+record is kept — resume with semiont start. --delete destroys the codespace
+(state and all) and forgets the record; it applies only to codespace stacks.
 `
 
 // stopNames sweeps all ten container names in REVERSE start order —
@@ -39,6 +44,7 @@ func Stop(args []string) int {
 	runtime := ""
 	service := ""
 	dryRun := false
+	del := false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--runtime":
@@ -55,6 +61,8 @@ func Stop(args []string) int {
 			}
 			service = args[i+1]
 			i++
+		case "--delete":
+			del = true
 		case "--dry-run":
 			dryRun = true
 		case "--help", "-h":
@@ -84,6 +92,20 @@ func Stop(args []string) int {
 	// --runtime overrides; no record (older launcher, other machine) falls
 	// back to the historical sweep.
 	st := loadState()
+
+	// A codespace stack dispatches to its own teardown (gh codespace
+	// stop/delete); an explicit --runtime keeps its narrow local meaning —
+	// the existing flow then honestly reports the codespace record as
+	// untouched. --delete means nothing for local stacks (stop+rm already
+	// destroys them).
+	if st != nil && st.Runtime == "codespace" && runtime == "" {
+		return stopCodespace(u, st, service, del, dryRun)
+	}
+	if del {
+		u.fail("--delete only applies to a codespace stack (a local stop already removes the containers).")
+		return 1
+	}
+
 	// The ports this stack claimed, captured before the record may be
 	// discarded below — release verification reads them after the sweep.
 	recordedPorts := []int(nil)

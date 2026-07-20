@@ -968,6 +968,354 @@ func TestStartSecretProviderMissing(t *testing.T) {
 		"the environment always wins")
 }
 
+// --- codespace placement (CODESPACE-KB-LAUNCH.md §2) ---
+
+const csRepo = "pingel-org/foo-kb"
+const csSecretRepos = `{"total_count":1,"repositories":[{"full_name":"pingel-org/foo-kb"}]}`
+
+func newCodespaceScenario(t *testing.T) *scenario {
+	s := newScenario(t, "container", "gh")
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_GIT_ORIGIN=git@github.com:"+csRepo+".git",
+		"FAKERT_GH_SECRET_REPOS="+csSecretRepos,
+	)
+	return s
+}
+
+func TestCodespaceStartCreates(t *testing.T) {
+	// The whole §1 recipe as one command, from a KB clone: preflights,
+	// create, detached forward, health through it, credentials displayed.
+	s := newCodespaceScenario(t)
+	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_DIRTY=1")
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log),
+		"gh auth status",
+		"gh api user/codespaces/secrets/ANTHROPIC_API_KEY/repositories",
+		"gh codespace list --json name,state,repository",
+		"gh codespace create --repo "+csRepo+" --machine premiumLinux",
+		"gh codespace ports forward 3000:3000 4000:4000 9090:9090 9091:9091 9092:9092 -c fake-cs-1",
+		"gh codespace ssh -c fake-cs-1 -- cat .devcontainer/admin.json")
+	mustContain(t, "stdout", stdout,
+		"KB repo: "+csRepo,
+		"uncommitted changes", "as PUSHED",
+		"Creating codespace for "+csRepo,
+		"Reading admin credentials",
+		"Semiont stack is up in codespace fake-cs-1",
+		"admin@example.com", "fake-admin-pw",
+		"local uncommitted changes don't travel",
+		"Halt billing:")
+	b, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json", string(b),
+		`"runtime": "codespace"`, `"codespace": "fake-cs-1"`, `"repo": "pingel-org/foo-kb"`, `"forwardPid"`)
+	if strings.Contains(string(b), "fake-admin-pw") {
+		t.Fatalf("credentials persisted to stack.json:\n%s", b)
+	}
+	// Placement is never sticky: no machine-wide runtime preference written.
+	if rb, err := os.ReadFile(rootsPathFor(s.home)); err == nil && strings.Contains(string(rb), `"runtime": "codespace"`) {
+		t.Errorf("codespace recorded as sticky runtime:\n%s", rb)
+	}
+}
+
+func TestCodespaceBareResumeRootless(t *testing.T) {
+	// After a create, a BARE `semiont start` from any directory resumes the
+	// recorded codespace: no --repo, no clone, no root discovery, no create.
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.killServes()
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	s.cwd = t.TempDir() // rootless: nothing resembling a KB here
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("bare resume: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"Using recorded stack's runtime: codespace",
+		"Resuming recorded codespace fake-cs-1")
+	log, _ := os.ReadFile(s.log)
+	if strings.Contains(string(log), "codespace create") {
+		t.Errorf("resume created a new codespace:\n%s", log)
+	}
+	if strings.Contains(string(log), "rev-parse") {
+		t.Errorf("resume attempted root discovery:\n%s", log)
+	}
+
+	// --repo mismatch against the record refuses.
+	s.killServes()
+	_, stderr, code = s.run(t, "start", "--runtime", "codespace", "--repo", "other/bar")
+	if code != 1 {
+		t.Fatalf("repo mismatch: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "recorded codespace stack is for "+csRepo)
+}
+
+func TestCodespaceAdoptAndDisambiguate(t *testing.T) {
+	// No record, the repo already has a codespace (another machine, or a
+	// deleted record): adopt it, announced — never create a second.
+	s := newCodespaceScenario(t)
+	s.cwd = t.TempDir() // no clone anywhere in sight
+	s.extraEnv = append(s.extraEnv,
+		`FAKERT_GH_CS_LIST=[{"name":"old-cs","state":"Shutdown","repository":"pingel-org/foo-kb"}]`)
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo)
+	if code != 0 {
+		t.Fatalf("adopt: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Found existing codespace for "+csRepo+": old-cs", "resuming, not creating")
+	log, _ := os.ReadFile(s.log)
+	if strings.Contains(string(log), "codespace create") {
+		t.Errorf("adopt created:\n%s", log)
+	}
+
+	// Several codespaces: fail listing them; --codespace disambiguates (the
+	// one corner where the name is ever input).
+	s2 := newCodespaceScenario(t)
+	s2.cwd = t.TempDir()
+	s2.extraEnv = append(s2.extraEnv,
+		`FAKERT_GH_CS_LIST=[{"name":"cs-a","state":"Available","repository":"pingel-org/foo-kb"},{"name":"cs-b","state":"Shutdown","repository":"pingel-org/foo-kb"}]`)
+	_, stderr, code = s2.run(t, "start", "--runtime", "codespace", "--repo", csRepo)
+	if code != 1 {
+		t.Fatalf("several: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "has 2 codespaces", "cs-a", "cs-b", "--codespace <name>")
+	stdout, stderr, code = s2.run(t, "start", "--runtime", "codespace", "--repo", csRepo, "--codespace", "cs-b")
+	if code != 0 {
+		t.Fatalf("disambiguated: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(statePathFor(s2.home))
+	mustContain(t, "stack.json", string(b), `"codespace": "cs-b"`)
+}
+
+func TestCodespaceCreate503Retry(t *testing.T) {
+	// §1's GitHub-side incident: 503s are retried with backoff, then the
+	// create proceeds.
+	s := newCodespaceScenario(t)
+	s.extraEnv = append(s.extraEnv, "FAKERT_GH_CREATE_FAILS=2")
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "GitHub returned 503", "retrying")
+	log, _ := os.ReadFile(s.log)
+	if n := strings.Count(string(log), "gh codespace create"); n != 3 {
+		t.Errorf("want 3 create attempts, got %d:\n%s", n, log)
+	}
+}
+
+func TestCodespacePreflights(t *testing.T) {
+	// §1's silent/late failures become first-second failures — each with
+	// the fix spelled out.
+	for _, tc := range []struct {
+		name string
+		env  []string
+		want []string
+	}{
+		{"scope", []string{"FAKERT_GH_SCOPES='repo'"},
+			[]string{"missing the 'codespace' scope", "gh auth refresh -h github.com -s codespace"}},
+		{"auth", []string{"FAKERT_GH_AUTH_FAIL=1"},
+			[]string{"gh is not authenticated", "gh auth login"}},
+		{"secret", []string{"FAKERT_GH_SECRET_404=1"},
+			[]string{"ANTHROPIC_API_KEY is not a Codespaces user secret", "gh secret set ANTHROPIC_API_KEY"}},
+	} {
+		s := newCodespaceScenario(t)
+		s.extraEnv = append(s.extraEnv, tc.env...)
+		_, stderr, code := s.run(t, "start", "--runtime", "codespace")
+		if code != 1 {
+			t.Errorf("%s: want exit 1, got %d", tc.name, code)
+		}
+		mustContain(t, tc.name+" stderr", stderr, tc.want...)
+	}
+	// gh absent entirely: the earliest failure of all.
+	s := newScenario(t, "container")
+	_, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code != 1 {
+		t.Fatalf("no gh: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "'gh' is not on PATH", "https://cli.github.com")
+}
+
+func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// stop: gh codespace stop, forward killed, record KEPT (the codespace
+	// still exists — state and credentials persist).
+	stdout, stderr, code := s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stop stdout", stdout, "billing halted", "state and credentials persist", "semiont stop --delete")
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "gh codespace stop -c fake-cs-1")
+	b, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatal("stop forgot a codespace record that still mirrors an existing codespace")
+	}
+	mustContain(t, "stack.json after stop", string(b), `"codespace": "fake-cs-1"`)
+	if strings.Contains(string(b), `"forwardPid"`) {
+		t.Errorf("stop left a dead forward pid recorded:\n%s", b)
+	}
+
+	// stop --delete: destroy and forget.
+	stdout, stderr, code = s.run(t, "stop", "--delete")
+	if code != 0 {
+		t.Fatalf("delete: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "delete stdout", stdout, "deleted", "destroyed")
+	log, _ = os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "gh codespace delete -c fake-cs-1 --force")
+	if _, err := os.Stat(statePathFor(s.home)); !os.IsNotExist(err) {
+		t.Error("stack.json survived stop --delete")
+	}
+
+	// --delete is codespace-only.
+	writeStackState(t, s, "container")
+	_, stderr, code = s.run(t, "stop", "--delete")
+	if code != 1 {
+		t.Fatalf("--delete on local record: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "--delete only applies to a codespace stack")
+}
+
+func TestCodespaceStatus(t *testing.T) {
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.killServes() // forward dead: status must re-establish it
+
+	// Available: identity line, healthy table through the respawned
+	// forward, credentials read fresh.
+	s.extraEnv = append(s.extraEnv,
+		`FAKERT_GH_CS_LIST=[{"name":"fake-cs-1","state":"Available","repository":"pingel-org/foo-kb"}]`)
+	stdout, _, code := s.run(t, "status")
+	if code != 0 {
+		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "status stdout", stdout,
+		"CODESPACE", "fake-cs-1", csRepo, "(state: Available)",
+		"re-establishing",
+		"backend", "healthy",
+		"runs inside the codespace via compose",
+		"admin@example.com", "fake-admin-pw",
+		"SEMIONT ROOTS")
+
+	// Stopped: honest stopped-but-existing, scriptably unhealthy.
+	s.killServes()
+	s.extraEnv = append(s.extraEnv[:len(s.extraEnv)-1],
+		`FAKERT_GH_CS_LIST=[{"name":"fake-cs-1","state":"Shutdown","repository":"pingel-org/foo-kb"}]`)
+	stdout, _, code = s.run(t, "status")
+	if code != 1 {
+		t.Fatalf("stopped status: want exit 1, got %d\n%s", code, stdout)
+	}
+	mustContain(t, "stopped status stdout", stdout,
+		"(state: Shutdown)", "stopped — state and credentials persist", "semiont start")
+}
+
+func TestCodespaceGuardsAndScoping(t *testing.T) {
+	// Cross-placement guards: a recorded stack of either kind binds.
+	s := newCodespaceScenario(t)
+	writeStackState(t, s, "container")
+	_, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code != 1 {
+		t.Fatalf("local record + codespace start: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "A recorded stack is running under container")
+
+	s2 := newCodespaceScenario(t)
+	if _, _, code := s2.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatal("create failed")
+	}
+	s2.killServes()
+	_, stderr, code = s2.run(t, "start", "--runtime", "container")
+	if code != 1 {
+		t.Fatalf("codespace record + local start: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr,
+		"A recorded stack is running under codespace", "--runtime codespace")
+
+	// useradd refuses: the admin was generated at creation.
+	_, stderr, code = s2.run(t, "useradd", "--email", "a@b.co", "--password", "password123")
+	if code != 1 {
+		t.Fatalf("useradd on codespace: want exit 1, got %d", code)
+	}
+	mustContain(t, "stderr", stderr, "generated at creation", "semiont status")
+
+	// status --service and stop --service don't apply.
+	if _, stderr, code := s2.run(t, "status", "--service", "backend"); code != 1 {
+		t.Error("status --service on codespace should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "--service does not apply to a codespace stack")
+	}
+	if _, stderr, code := s2.run(t, "stop", "--service", "worker"); code != 1 {
+		t.Error("stop --service on codespace should fail")
+	} else {
+		mustContain(t, "stderr", stderr, "--service does not apply to a codespace stack")
+	}
+
+	// Flag scoping: codespace-only flags need the placement; contradictions
+	// and local-only knobs are rejected.
+	s3 := newScenario(t, "container")
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"start", "--repo", "a/b"}, "--repo/--codespace/--machine only apply to --runtime codespace"},
+		{[]string{"start", "--machine", "basicLinux"}, "--repo/--codespace/--machine only apply to --runtime codespace"},
+		{[]string{"start", "--runtime", "codespace", "--root", "x", "--repo", "a/b"}, "--root and --repo are contradictory"},
+		{[]string{"start", "--runtime", "codespace", "--service", "worker"}, "--service does not apply to --runtime codespace"},
+		{[]string{"start", "--runtime", "codespace", "--config", "anthropic"}, "--config does not apply to --runtime codespace"},
+	} {
+		_, stderr, code := s3.run(t, tc.args...)
+		if code != 1 {
+			t.Errorf("%v: want exit 1, got %d", tc.args, code)
+		}
+		mustContain(t, fmt.Sprintf("stderr for %v", tc.args), stderr, tc.want)
+	}
+}
+
+func TestCodespaceDryRunAndLogs(t *testing.T) {
+	// Dry-run renders the gh plan and reaches for nothing — no gh calls, no
+	// record, no registry.
+	s := newCodespaceScenario(t)
+	s.cwd = t.TempDir()
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo, "--dry-run")
+	if code != 0 {
+		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "dry-run stdout", stdout,
+		"gh codespace create --repo "+csRepo+" --machine premiumLinux",
+		"gh codespace ports forward",
+		"cat .devcontainer/admin.json")
+	if log, _ := os.ReadFile(s.log); strings.Contains(string(log), "gh ") {
+		t.Errorf("dry-run invoked gh:\n%s", log)
+	}
+	if _, err := os.Stat(statePathFor(s.home)); !os.IsNotExist(err) {
+		t.Error("dry-run wrote a stack record")
+	}
+
+	// logs on a codespace record ride ssh, by wire-level container name.
+	if _, _, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo); code != 0 {
+		t.Fatal("create failed")
+	}
+	stdout, stderr, code = s.run(t, "logs", "--service", "backend")
+	if code != 0 {
+		t.Fatalf("logs: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "logs stdout", stdout, "[backend] backend out")
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log),
+		"gh codespace ssh -c fake-cs-1 -- docker logs --follow semiont-backend")
+}
+
 // --- config-driven boots (LAUNCHER-CONFIG-SYNC P2) ---
 
 // writeKBConfig drops a variant semiontconfig into the scenario's KB.

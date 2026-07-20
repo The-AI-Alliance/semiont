@@ -24,9 +24,9 @@ type executor interface {
 	pause()                    // the settle sleep after teardown
 	sweepStaging()             // /tmp/semiont-config.* removal (+ state forget)
 	portChecks(ports []portNeed) bool
-	portCheck(p portNeed) bool     // singular wording in plan mode
-	recordPorts(ports []portNeed)  // note claimed host ports in the belief record
-	stopEcho(name string)          // the echoed best-effort stop (ollama teardown)
+	portCheck(p portNeed) bool    // singular wording in plan mode
+	recordPorts(ports []portNeed) // note claimed host ports in the belief record
+	stopEcho(name string)         // the echoed best-effort stop (ollama teardown)
 	hostOllamaReachable(addr string, port int) bool
 	stageAll(configFile string) (string, bool)           // per-service config copies; returns stage dir
 	stageOne(svc, configFile string) (string, bool)      // one service's fresh private copy

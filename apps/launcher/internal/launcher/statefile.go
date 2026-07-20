@@ -36,18 +36,21 @@ type serviceState struct {
 }
 
 type stackState struct {
-	Schema    int                     `json:"schema"`
-	UpdatedAt time.Time               `json:"updatedAt"`
-	Launcher  string                  `json:"launcherVersion"`
-	Runtime   string                  `json:"runtime"`
-	KBRoot    string                  `json:"kbRoot,omitempty"`
-	KBDid     string                  `json:"kbDid,omitempty"` // did:web from .semiont/config
-	Config    string                  `json:"config,omitempty"`
-	Version   string                  `json:"imageVersion,omitempty"`
-	HostAddr  string                  `json:"hostAddr,omitempty"`
-	Stage     string                  `json:"configStage,omitempty"`
-	Ports     []int                   `json:"ports,omitempty"` // host ports this stack claimed — stop verifies their release
-	Services  map[string]serviceState `json:"services"`
+	Schema     int                     `json:"schema"`
+	UpdatedAt  time.Time               `json:"updatedAt"`
+	Launcher   string                  `json:"launcherVersion"`
+	Runtime    string                  `json:"runtime"`
+	KBRoot     string                  `json:"kbRoot,omitempty"`
+	KBDid      string                  `json:"kbDid,omitempty"` // did:web from .semiont/config
+	Config     string                  `json:"config,omitempty"`
+	Version    string                  `json:"imageVersion,omitempty"`
+	HostAddr   string                  `json:"hostAddr,omitempty"`
+	Stage      string                  `json:"configStage,omitempty"`
+	Ports      []int                   `json:"ports,omitempty"`      // host ports this stack claimed — stop verifies their release
+	Codespace  string                  `json:"codespace,omitempty"`  // runtime "codespace": the instance name (a PID — never user input)
+	Repo       string                  `json:"repo,omitempty"`       // runtime "codespace": owner/name slug (the user-facing identity)
+	ForwardPID int                     `json:"forwardPid,omitempty"` // runtime "codespace": the detached `gh codespace ports forward`
+	Services   map[string]serviceState `json:"services"`
 }
 
 // stateDir is the launcher's XDG state home: ~/Library/Application Support/

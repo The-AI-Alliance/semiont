@@ -181,6 +181,9 @@ func saveRoots(reg rootsRegistry) {
 // preference it needs no root: `--service frontend --runtime docker` is a
 // legitimate rootless start and still expresses the choice.
 func recordRuntimePref(rt string) {
+	if rt == "codespace" { // placement, not preference: never sticky (billable VMs)
+		return
+	}
 	reg := loadRoots()
 	if reg.Runtime == rt {
 		return

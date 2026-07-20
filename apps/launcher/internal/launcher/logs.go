@@ -69,6 +69,7 @@ func Logs(args []string) int {
 	// record: the historical name-scan discovery.
 	st := loadState()
 	rt := ""
+	csName := ""
 	if runtime != "" {
 		if !onPath(runtime) {
 			fmt.Fprintf(os.Stderr, "--runtime %s requested, but '%s' is not on PATH.\n", runtime, runtime)
@@ -78,6 +79,15 @@ func Logs(args []string) int {
 		if st != nil && st.Runtime != runtime {
 			st = nil
 		}
+	} else if st != nil && st.Runtime == "codespace" {
+		// Codespace stack: logs ride ssh, by wire-level container name (the
+		// shared contract with compose inside the codespace).
+		if !onPath("gh") {
+			fmt.Fprintln(os.Stderr, "A codespace stack is recorded but 'gh' is not on PATH.")
+			return 1
+		}
+		csName = st.Codespace
+		u.log("Using recorded codespace stack %s", u.dim("("+csName+" per "+statePath()+")"))
 	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
 		rt = st.Runtime
 		u.log("Using recorded stack state %s", u.dim("("+rt+" per "+statePath()+")"))
@@ -85,7 +95,7 @@ func Logs(args []string) int {
 		st = nil
 		rt = stackRuntime()
 	}
-	if rt == "" {
+	if rt == "" && csName == "" {
 		fmt.Fprintln(os.Stderr, "No running Semiont stack found in any runtime (container/docker/podman).")
 		fmt.Fprintln(os.Stderr, "Start one with semiont start, or pass --runtime explicitly.")
 		return 1
@@ -121,6 +131,10 @@ func Logs(args []string) int {
 	}
 	targets := make(map[string]string, len(follow)) // svc → handle
 	for _, svc := range follow {
+		if csName != "" { // codespace: wire-level names, no per-service record
+			targets[svc] = roles[svc].container
+			continue
+		}
 		h, ok := handleFor(svc)
 		if !ok {
 			return 1
@@ -137,7 +151,12 @@ func Logs(args []string) int {
 	var wg sync.WaitGroup
 	var cmds []*exec.Cmd
 	for _, svc := range follow {
-		cmd := exec.Command(rt, "logs", "--follow", targets[svc])
+		var cmd *exec.Cmd
+		if csName != "" {
+			cmd = exec.Command("gh", "codespace", "ssh", "-c", csName, "--", "docker", "logs", "--follow", targets[svc])
+		} else {
+			cmd = exec.Command(rt, "logs", "--follow", targets[svc])
+		}
 		stdout, err1 := cmd.StdoutPipe()
 		stderr, err2 := cmd.StderrPipe()
 		if err1 != nil || err2 != nil {

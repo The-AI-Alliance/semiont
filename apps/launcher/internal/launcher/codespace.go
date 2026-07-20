@@ -1,0 +1,567 @@
+package launcher
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"regexp"
+	"strings"
+	"syscall"
+	"time"
+)
+
+// codespace.go — the "codespace" placement value on the runtime axis
+// (.plans/CODESPACE-KB-LAUNCH.md §2). The REPO is the user-facing identity;
+// the codespace NAME is a PID (shown by status, input only via the
+// --codespace disambiguation corner). The launcher keeps at most ONE
+// codespace per repo: it resumes what exists, and creates only when nothing
+// does. Inside the codespace the stack stays on compose — the launcher
+// orchestrates the outside only (create, wait, forward, credentials,
+// lifecycle) by shelling out to `gh`, which owns auth and the tunnel client.
+
+// forwardPorts: the local ports the detached `gh codespace ports forward`
+// binds — browser, backend, and the three sidecar vitals.
+var forwardPorts = []portNeed{
+	{3000, "Frontend"}, {4000, "Backend"},
+	{9090, "Worker"}, {9091, "Smelter"}, {9092, "Weaver"},
+}
+
+var repoSlugRe = regexp.MustCompile(`^[\w.-]+/[\w.-]+$`)
+
+// startCodespace is the whole §1 recipe as one blocking command, with
+// local-start parity as the contract: preflight, create-or-resume, forward,
+// health-gate, summary-and-exit.
+func startCodespace(u *ui, opts startOptions) int {
+	if !onPath("gh") {
+		u.fail("--runtime codespace needs the GitHub CLI, and 'gh' is not on PATH.")
+		fmt.Fprintln(os.Stderr, "  Install it: https://cli.github.com  (then: gh auth login)")
+		return 1
+	}
+
+	// A recorded LOCAL stack binds exactly like a recorded runtime mismatch:
+	// proceeding would leave it orphaned behind a codespace record.
+	st := loadState()
+	if st != nil && st.Runtime != "" && st.Runtime != "codespace" {
+		if !opts.dryRun {
+			u.fail("A recorded stack is running under %s (per %s).", st.Runtime, statePath())
+			fmt.Fprintln(os.Stderr, "  Stop it first (semiont stop).")
+			return 1
+		}
+		st = nil
+	}
+
+	// Identity ladder: record → --repo → root's origin (create-path
+	// convenience only — a recorded codespace stack never touches root
+	// discovery, so bare resume works from any directory).
+	name, repo := "", ""
+	if st != nil && st.Runtime == "codespace" {
+		name, repo = st.Codespace, st.Repo
+		if opts.repo != "" && opts.repo != repo {
+			u.fail("The recorded codespace stack is for %s (per %s).", repo, statePath())
+			fmt.Fprintln(os.Stderr, "  Stop it first (semiont stop, or semiont stop --delete), then start --repo "+opts.repo+".")
+			return 1
+		}
+	} else {
+		repo = opts.repo
+		if repo == "" {
+			var code int
+			if repo, code = repoFromRoot(u, opts); code != 0 {
+				return code
+			}
+		} else if !repoSlugRe.MatchString(repo) {
+			u.fail("--repo must be owner/name, got '%s'.", repo)
+			return 1
+		}
+	}
+
+	if opts.dryRun {
+		renderCodespacePlan(opts, repo, name)
+		return 0
+	}
+
+	u.log("KB repo: %s %s", u.bold(repo), u.dim("(codespace placement — the stack runs on a GitHub-hosted machine)"))
+
+	// Preflights, early and loud — §1's silent/late failures become
+	// first-second failures.
+	if code := preflightGhScope(u); code != 0 {
+		return code
+	}
+	secretOK := codespacesSecretSelected(repo)
+
+	if name == "" {
+		// No record: the cloud is the source of truth — adopt what exists,
+		// create only when the repo truly has no codespace.
+		instances, err := ghCodespaceList(repo)
+		if err != nil {
+			u.fail("Could not list codespaces (`gh codespace list`): %v", err)
+			return 1
+		}
+		switch {
+		case len(instances) == 0:
+			if !secretOK {
+				u.fail("ANTHROPIC_API_KEY is not a Codespaces user secret selected for %s — the stack would come up with inference dead, silently.", repo)
+				fmt.Fprintln(os.Stderr, "  Fix:  gh secret set ANTHROPIC_API_KEY --user --app codespaces   (then select the repo)")
+				fmt.Fprintln(os.Stderr, "  Check:  gh api user/codespaces/secrets/ANTHROPIC_API_KEY/repositories")
+				return 1
+			}
+			var code int
+			if name, code = createCodespace(u, repo, opts); code != 0 {
+				return code
+			}
+		case len(instances) == 1:
+			name = instances[0].Name
+			u.log("Found existing codespace for %s: %s %s", repo, u.bold(name),
+				u.dim("(state: "+instances[0].State+") — resuming, not creating"))
+		default:
+			if opts.csName != "" {
+				for _, c := range instances {
+					if c.Name == opts.csName {
+						name = c.Name
+					}
+				}
+				if name == "" {
+					u.fail("--codespace '%s' is not among %s's codespaces.", opts.csName, repo)
+					return 1
+				}
+			} else {
+				u.fail("%s has %d codespaces — the launcher manages at most one per repo.", repo, len(instances))
+				for _, c := range instances {
+					fmt.Fprintf(os.Stderr, "    %s  (%s)\n", c.Name, c.State)
+				}
+				fmt.Fprintln(os.Stderr, "  Pick one with --codespace <name>, or delete extras:  gh codespace delete -c <name>")
+				return 1
+			}
+		}
+	} else {
+		u.log("Resuming recorded codespace %s %s", u.bold(name), u.dim("("+repo+")"))
+		if !secretOK {
+			u.warn("ANTHROPIC_API_KEY is not selected for %s in the Codespaces user secrets — inference may be dead inside the stack.", repo)
+		}
+		// A dead recorded forward is normal here; a live one means the
+		// stack is already reachable and respawning would fail the binds.
+		if forwardAlive(st.ForwardPID) {
+			_ = syscall.Kill(st.ForwardPID, syscall.SIGTERM)
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+
+	// The forward is the only thing binding LOCAL ports; check them like any
+	// other start would (foreign holders fail with names — never killed).
+	for _, p := range forwardPorts {
+		if !requirePortFree(u, p.port, p.label+" (forward)") {
+			return 1
+		}
+	}
+	pid, code := spawnForward(u, name)
+	if code != 0 {
+		return code
+	}
+
+	// The record binds the stack to its executor before the health gate —
+	// belief, verified by status; a failed wait leaves an honest record.
+	newSt := &stackState{
+		Runtime: "codespace", Codespace: name, Repo: repo, ForwardPID: pid,
+		Services: map[string]serviceState{},
+	}
+	for _, p := range forwardPorts {
+		newSt.Ports = append(newSt.Ports, p.port)
+	}
+	saveState(newSt)
+
+	// Health, not VM state, is readiness ("Available ≠ hooks finished" —
+	// on a fresh create the devcontainer hooks run minutes past Available).
+	u.log("Waiting for the stack %s", u.dim("(a fresh create runs devcontainer hooks — image and model pulls take minutes)"))
+	d, ok := waitForHTTP(u, "Backend (through the forward)", "http://localhost:4000/api/health", 600)
+	if !ok {
+		return 1
+	}
+	u.ok("Backend healthy %s", u.dim("("+took(d)+")"))
+
+	creds := fetchAdminCreds(u, name)
+
+	fmt.Println()
+	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 Semiont stack is up in codespace "+name), u.dim("("+took(d)+" to healthy)"))
+	fmt.Println()
+	fmt.Printf("  Semiont Browser    %s\n", u.bold("http://localhost:3000"))
+	fmt.Println("  Semiont KB         http://localhost:4000")
+	fmt.Println()
+	fmt.Printf("  %s\n", u.dim("Runs "+repo+" as pushed — local uncommitted changes don't travel."))
+	if creds != nil {
+		fmt.Printf("  Sign in at http://localhost:3000 as %s / %s %s\n",
+			u.bold(creds.Email), u.bold(creds.Password), u.dim("(generated at creation; never stored by the launcher)"))
+	}
+	fmt.Println()
+	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
+	fmt.Printf("  Follow logs:   %s\n", u.bold("semiont logs"))
+	fmt.Printf("  Halt billing:  %s %s\n", u.bold("semiont stop"), u.dim("(state persists; semiont stop --delete destroys)"))
+	fmt.Println()
+	return 0
+}
+
+// repoFromRoot: the create-path convenience — resolve the KB root as usual
+// and read the slug from its origin remote.
+func repoFromRoot(u *ui, opts startOptions) (string, int) {
+	var root string
+	var err error
+	if opts.root != "" {
+		root, err = resolveRootArg(opts.root)
+	} else {
+		root, _, err = resolveKBRoot()
+	}
+	if err != nil {
+		u.fail("%v", err)
+		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a KB clone (its origin supplies the repo).")
+		return "", 1
+	}
+	origin, err := capture("git", "-C", root, "remote", "get-url", "origin")
+	if err != nil || origin == "" {
+		u.fail("Cannot read the origin remote of %s.", root)
+		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>.")
+		return "", 1
+	}
+	slug, ok := parseGitHubSlug(origin)
+	if !ok {
+		u.fail("The origin of %s is not a GitHub repo (%s) — codespaces are GitHub-only.", root, origin)
+		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a GitHub clone.")
+		return "", 1
+	}
+	// Pushed-state honesty: locally an uncommitted config edit is live via
+	// the /kb bind mount; in a codespace it silently doesn't exist.
+	if out, err := capture("git", "-C", root, "status", "--porcelain"); err == nil && out != "" {
+		u.warn("%s has uncommitted changes — the codespace runs %s as PUSHED; they don't travel.", root, slug)
+	}
+	return slug, 0
+}
+
+// parseGitHubSlug: owner/name from either remote form —
+// git@github.com:owner/name(.git) or https://github.com/owner/name(.git).
+func parseGitHubSlug(origin string) (string, bool) {
+	s := origin
+	switch {
+	case strings.HasPrefix(s, "git@github.com:"):
+		s = strings.TrimPrefix(s, "git@github.com:")
+	case strings.HasPrefix(s, "https://github.com/"):
+		s = strings.TrimPrefix(s, "https://github.com/")
+	case strings.HasPrefix(s, "ssh://git@github.com/"):
+		s = strings.TrimPrefix(s, "ssh://git@github.com/")
+	default:
+		return "", false
+	}
+	s = strings.TrimSuffix(strings.TrimSuffix(s, "/"), ".git")
+	if !repoSlugRe.MatchString(s) {
+		return "", false
+	}
+	return s, true
+}
+
+// preflightGhScope: §1 precondition 1 — the scope gap otherwise surfaces
+// later as a misleading "must have admin rights to Repository".
+func preflightGhScope(u *ui) int {
+	out, err := captureBoth("gh", "auth", "status")
+	if err != nil {
+		u.fail("gh is not authenticated.")
+		fmt.Fprintln(os.Stderr, "  Run:  gh auth login")
+		return 1
+	}
+	if !strings.Contains(out, "codespace") {
+		u.fail("The gh token is missing the 'codespace' scope (it surfaces later as a misleading admin-rights error).")
+		fmt.Fprintln(os.Stderr, "  Grant it:  gh auth refresh -h github.com -s codespace")
+		return 1
+	}
+	return 0
+}
+
+// codespacesSecretSelected: §1 precondition 2 — ANTHROPIC_API_KEY as a
+// Codespaces user secret with the repo selected. Without it the stack comes
+// up with inference dead, silently.
+func codespacesSecretSelected(repo string) bool {
+	out, err := capture("gh", "api", "user/codespaces/secrets/ANTHROPIC_API_KEY/repositories")
+	if err != nil {
+		return false
+	}
+	return strings.Contains(out, `"`+repo+`"`) || strings.Contains(out, `"full_name":"`+repo+`"`) ||
+		strings.Contains(out, `"full_name": "`+repo+`"`)
+}
+
+type codespaceInstance struct {
+	Name       string `json:"name"`
+	State      string `json:"state"`
+	Repository string `json:"repository"`
+}
+
+func ghCodespaceList(repo string) ([]codespaceInstance, error) {
+	out, err := capture("gh", "codespace", "list", "--json", "name,state,repository")
+	if err != nil {
+		return nil, err
+	}
+	var all []codespaceInstance
+	if err := json.Unmarshal([]byte(out), &all); err != nil {
+		return nil, fmt.Errorf("unexpected `gh codespace list` output: %v", err)
+	}
+	var mine []codespaceInstance
+	for _, c := range all {
+		if strings.EqualFold(c.Repository, repo) {
+			mine = append(mine, c)
+		}
+	}
+	return mine, nil
+}
+
+// createCodespace with the §1 503-aware backoff: GitHub-side incidents are
+// retried (bounded), everything else fails with the CLI's own words.
+func createCodespace(u *ui, repo string, opts startOptions) (string, int) {
+	machine := opts.machine
+	if machine == "" {
+		machine = "premiumLinux"
+	}
+	u.log("Creating codespace for %s %s", u.bold(repo), u.dim("(--machine "+machine+"; ~4 min to Available, hooks run minutes past it)"))
+	u.echoCmd("gh", "codespace", "create", "--repo", repo, "--machine", machine)
+	for attempt := 1; ; attempt++ {
+		out, err := captureBoth("gh", "codespace", "create", "--repo", repo, "--machine", machine)
+		if err == nil {
+			lines := strings.Fields(out)
+			if len(lines) == 0 {
+				u.fail("`gh codespace create` printed no codespace name.")
+				return "", 1
+			}
+			return lines[len(lines)-1], 0
+		}
+		if strings.Contains(out, "503") && attempt < 5 {
+			u.warn("GitHub returned 503 (their side — attempt %d/5); retrying in %ds...", attempt, attempt*2)
+			time.Sleep(time.Duration(attempt*2) * time.Second)
+			continue
+		}
+		u.fail("Create failed: %s", strings.TrimSpace(out))
+		return "", 1
+	}
+}
+
+// spawnForward starts the detached dev-tunnel forward — a long-lived
+// process the bring-up-and-exit launcher deliberately leaves behind, PID
+// recorded in stack.json (status re-establishes it, stop kills it).
+func spawnForward(u *ui, name string) (int, int) {
+	args := []string{"codespace", "ports", "forward"}
+	for _, p := range forwardPorts {
+		args = append(args, fmt.Sprintf("%d:%d", p.port, p.port))
+	}
+	args = append(args, "-c", name)
+	u.echoCmd("gh", args...)
+	cmd := exec.Command("gh", args...)
+	cmd.Stdout, cmd.Stderr = nil, nil
+	if err := cmd.Start(); err != nil {
+		u.fail("Could not start the port forward: %v", err)
+		return 0, 1
+	}
+	pid := cmd.Process.Pid
+	_ = cmd.Process.Release()
+	u.log("Port forward running %s", u.dim(fmt.Sprintf("(detached, pid %d — recorded; semiont stop ends it)", pid)))
+	return pid, 0
+}
+
+type adminCreds struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// fetchAdminCreds reads the §1 credentials — generated once at post-create
+// INSIDE the codespace. Mirror image of `semiont secret` (an output, not an
+// input) but same discipline: announced before the reach, read fresh,
+// displayed on purpose, never persisted or logged. An unreadable admin.json
+// (the pre-sshd-feature gap) degrades with the fix named — never blocks a
+// healthy stack.
+func fetchAdminCreds(u *ui, name string) *adminCreds {
+	u.log("Reading admin credentials %s", u.dim("(gh codespace ssh -c "+name+" -- cat .devcontainer/admin.json — generated at creation, never stored locally)"))
+	out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", ".devcontainer/admin.json")
+	if err != nil {
+		u.warn("Could not read credentials over ssh (a codespace created before the devcontainer sshd feature?).")
+		fmt.Println("    Recreate from current main to fix, or read them from the codespace terminal: cat .devcontainer/admin.json")
+		return nil
+	}
+	var c adminCreds
+	if json.Unmarshal([]byte(out), &c) != nil || c.Email == "" {
+		u.warn("admin.json was unreadable; see the codespace's .devcontainer/admin.json directly.")
+		return nil
+	}
+	return &c
+}
+
+// renderCodespacePlan is --dry-run for the codespace placement: the gh
+// commands a real run would execute. Reaches for nothing.
+func renderCodespacePlan(opts startOptions, repo, recorded string) {
+	fmt.Println("# semiont start --runtime codespace --dry-run — the gh commands a real run")
+	fmt.Println("# would execute, in order. Values known only at runtime appear as <placeholders>.")
+	fmt.Println(`gh auth status                                   # preflight: 'codespace' scope`)
+	fmt.Println("gh api user/codespaces/secrets/ANTHROPIC_API_KEY/repositories   # preflight: secret selected for " + repo)
+	if recorded != "" {
+		fmt.Println("# recorded codespace: " + recorded + " — resume (no create)")
+	} else {
+		fmt.Println("gh codespace list --json name,state,repository   # adopt-or-create decision for " + repo)
+		machine := opts.machine
+		if machine == "" {
+			machine = "premiumLinux"
+		}
+		fmt.Println("gh codespace create --repo " + repo + " --machine " + machine + "   # only when none exists (503-aware retry)")
+	}
+	fwd := []string{"gh", "codespace", "ports", "forward"}
+	for _, p := range forwardPorts {
+		fwd = append(fwd, fmt.Sprintf("%d:%d", p.port, p.port))
+	}
+	fmt.Println(strings.Join(append(fwd, "-c", "<codespace>"), " ") + "   # detached; pid recorded")
+	fmt.Println("# wait: http://localhost:4000/api/health (600s)")
+	fmt.Println("gh codespace ssh -c <codespace> -- cat .devcontainer/admin.json   # credentials (displayed, never stored)")
+}
+
+// stopCodespace: `semiont stop` for a codespace stack. Stop halts billing
+// and KEEPS the record — the rule is that the record mirrors existence, and
+// a stopped codespace still exists (state, credentials, billing identity).
+// --delete destroys and forgets. Both kill the recorded forward first.
+func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int {
+	if service != "" {
+		u.fail("--service does not apply to a codespace stack (compose owns the services inside).")
+		return 1
+	}
+	if dryRun {
+		fmt.Println("# semiont stop --dry-run — the exact commands a real run would execute.")
+		if st.ForwardPID != 0 {
+			fmt.Printf("# kill the recorded port forward (pid %d)\n", st.ForwardPID)
+		}
+		if del {
+			fmt.Println("gh codespace delete -c " + st.Codespace + " --force")
+			fmt.Println("# forget stack.json (the codespace no longer exists)")
+		} else {
+			fmt.Println("gh codespace stop -c " + st.Codespace)
+			fmt.Println("# keep stack.json (the codespace still exists — state and credentials persist)")
+		}
+		return 0
+	}
+	if forwardAlive(st.ForwardPID) {
+		u.log("Stopping the port forward %s", u.dim(fmt.Sprintf("(pid %d)", st.ForwardPID)))
+		_ = syscall.Kill(st.ForwardPID, syscall.SIGTERM)
+	}
+	if del {
+		u.log("Deleting codespace %s %s", u.bold(st.Codespace), u.dim("("+st.Repo+" — destroys its state and credentials)"))
+		u.echoCmd("gh", "codespace", "delete", "-c", st.Codespace, "--force")
+		if out, err := captureBoth("gh", "codespace", "delete", "-c", st.Codespace, "--force"); err != nil {
+			u.fail("Delete failed: %s", strings.TrimSpace(out))
+			return 1
+		}
+		removeState()
+		verifyPortsReleased(u, st.Ports)
+		fmt.Println("Codespace deleted — stack, state, and credentials destroyed.")
+		return 0
+	}
+	u.log("Stopping codespace %s %s", u.bold(st.Codespace), u.dim("("+st.Repo+" — billing halts; state persists)"))
+	u.echoCmd("gh", "codespace", "stop", "-c", st.Codespace)
+	if out, err := captureBoth("gh", "codespace", "stop", "-c", st.Codespace); err != nil {
+		u.fail("Stop failed: %s", strings.TrimSpace(out))
+		return 1
+	}
+	st.ForwardPID = 0
+	saveState(st)
+	verifyPortsReleased(u, st.Ports)
+	fmt.Println("Codespace stopped — billing halted; state and credentials persist.")
+	fmt.Println("  Resume:   semiont start")
+	fmt.Println("  Destroy:  semiont stop --delete")
+	return 0
+}
+
+// statusCodespace: `semiont status` for a codespace stack — VM state from
+// gh, health through the forwards (re-established if the recorded one
+// died), credentials read fresh, and a LOCAL section that doesn't pretend
+// the remote VM's directories are here.
+func statusCodespace(u *ui, st *stackState) int {
+	fmt.Println()
+	fmt.Println("  CODESPACE")
+	state := "unknown"
+	if instances, err := ghCodespaceList(st.Repo); err == nil {
+		state = "deleted"
+		for _, c := range instances {
+			if c.Name == st.Codespace {
+				state = c.State
+			}
+		}
+	}
+	fmt.Printf("  %s  %s %s\n", u.bold(st.Codespace), st.Repo, u.dim("(state: "+state+")"))
+	switch state {
+	case "deleted":
+		u.warn("The recorded codespace no longer exists — forget the record with: semiont stop --delete")
+		printRoots(u, st)
+		return 1
+	case "Available":
+	default:
+		fmt.Printf("  %s\n", u.dim("stopped — state and credentials persist; billing halted"))
+		fmt.Printf("  Resume:   %s\n", u.bold("semiont start"))
+		printRoots(u, st)
+		return 1
+	}
+
+	if !forwardAlive(st.ForwardPID) {
+		u.log("Recorded port forward is not running — re-establishing")
+		if pid, code := spawnForward(u, st.Codespace); code == 0 {
+			st.ForwardPID = pid
+			saveState(st)
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("  SERVICE     HEALTH (through the forward)")
+	healthy := true
+	for _, p := range []struct{ svc, url string }{
+		{"frontend", "http://localhost:3000"},
+		{"backend", "http://localhost:4000/api/health"},
+		{"worker", "http://localhost:9090/health"},
+		{"smelter", "http://localhost:9091/health"},
+		{"weaver", "http://localhost:9092/health"},
+	} {
+		ok := false
+		for i := 0; i < 10; i++ { // a just-respawned forward needs a beat
+			if httpOK(p.url) {
+				ok = true
+				break
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+		mark := u.wrap(ansiGreen, "healthy")
+		if !ok {
+			mark = u.wrap(ansiRed, "unreachable")
+			healthy = false
+		}
+		fmt.Printf("  %-10s  %s  %s\n", p.svc, mark, u.dim(p.url))
+	}
+	fmt.Printf("  %s\n", u.dim("(infra — database, graph, vectors, inference, traces — runs inside the codespace via compose)"))
+
+	if creds := fetchAdminCreds(u, st.Codespace); creds != nil {
+		fmt.Printf("  Sign in at http://localhost:3000 as %s / %s\n", u.bold(creds.Email), u.bold(creds.Password))
+	}
+
+	fmt.Println()
+	fmt.Println("  LOCAL")
+	fmt.Printf("  state      %s\n", statePath())
+	fmt.Printf("  forward    pid %d %s\n", st.ForwardPID, u.dim("(ports 3000 4000 9090 9091 9092)"))
+
+	printRoots(u, st)
+	if healthy {
+		return 0
+	}
+	return 1
+}
+
+// captureBoth: trimmed stdout+stderr combined — gh writes diagnostics (auth
+// status, HTTP errors) to stderr.
+func captureBoth(name string, args ...string) (string, error) {
+	out, err := exec.Command(name, args...).CombinedOutput()
+	return strings.TrimSpace(string(out)), err
+}
+
+// forwardAlive: is the recorded forward PID still OUR forward? A bare
+// liveness signal is not enough — PIDs get reused, and trusting (or worse,
+// SIGTERMing) a recycled PID hits an unrelated process. The PID counts only
+// if it is alive AND running gh.
+func forwardAlive(pid int) bool {
+	if pid == 0 || syscall.Kill(pid, 0) != nil {
+		return false
+	}
+	comm, err := capture("ps", "-p", fmt.Sprintf("%d", pid), "-o", "comm=")
+	return err == nil && strings.Contains(comm, "gh")
+}

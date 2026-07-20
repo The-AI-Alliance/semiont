@@ -47,6 +47,27 @@ semiont stop
   1Password at all: **exporting the variable always wins** — a plain
   `ANTHROPIC_API_KEY=… semiont start` behaves exactly as it always has.
   `--dry-run` reaches for nothing (plan shows `<env:VAR>` placeholders).
+- **`semiont start --runtime codespace` runs the same stack on a
+  GitHub-hosted machine** (the KB's devcontainer + compose own the inside;
+  the launcher orchestrates the outside via `gh`, which is required on PATH
+  for this placement only). The REPO is the identity — derived from the KB
+  clone's origin, or `--repo owner/name` from anywhere, needed only at
+  creation: the stack record carries it afterwards, so a bare `semiont
+  start` resumes the recorded codespace from any directory, and `status` /
+  `logs` / `stop` dispatch off the record as always. The launcher keeps at
+  most one codespace per repo (it adopts and resumes what exists — the
+  codespace *name* is a PID, shown by status, input only via `--codespace`
+  when raw `gh` left several). `semiont stop` maps to `gh codespace stop` —
+  billing halts, state and credentials persist, the record is kept; `semiont
+  stop --delete` destroys and forgets. Port forwards (3000/4000 + sidecar
+  vitals) run as a recorded detached process that `status` re-establishes
+  and `stop` ends. Admin credentials are generated inside the codespace at
+  creation; `start` and `status` read them fresh over ssh and display them —
+  never stored, never logged (`useradd` refuses and points at `status`).
+  Preflights fail fast with fixes: `gh` missing/unauthenticated, the
+  `codespace` scope, and the `ANTHROPIC_API_KEY` Codespaces user secret.
+  Codespace placement is never sticky — every codespace start says
+  `--runtime codespace` (or rides an existing record).
 - `semiont useradd` creates or updates users in the RUNNING stack: the
   launcher execs the in-container Semiont CLI's `useradd` inside the backend
   container (record-driven runtime + container ID, name-scan fallback) and

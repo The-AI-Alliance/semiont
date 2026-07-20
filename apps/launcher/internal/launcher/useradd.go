@@ -57,6 +57,14 @@ func Useradd(args []string) int {
 		return 1
 	}
 
+	// The §1 asymmetry: a codespace stack generated its admin at creation —
+	// the job is to READ those credentials, not mint users from here.
+	if st := loadState(); st != nil && st.Runtime == "codespace" {
+		u.fail("This stack runs in a codespace; its admin credentials were generated at creation.")
+		fmt.Fprintln(os.Stderr, "  semiont status shows them (read from the codespace's .devcontainer/admin.json).")
+		return 1
+	}
+
 	rt, handle := backendHandle()
 	if rt == "" {
 		u.fail("useradd needs a running backend, and none was found under any installed runtime.")
