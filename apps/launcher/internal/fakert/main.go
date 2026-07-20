@@ -26,6 +26,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -187,11 +188,14 @@ func ghCmd(args []string) {
 func ghCodespace(args []string, joined string) {
 	switch args[0] {
 	case "list":
+		// Explicit scripting wins; otherwise reflect what THIS fake has
+		// created, as real gh would — a created codespace must show up
+		// (and reach Available) or callers that wait for it hang.
 		body := os.Getenv("FAKERT_GH_CS_LIST")
 		if body == "" {
-			body = "[]"
+			body = "[" + strings.Join(createdCodespaces(), ",") + "]"
 		}
-		fmt.Println(body)
+		fmt.Println(applyWakes(body))
 	case "create":
 		if n := os.Getenv("FAKERT_GH_CREATE_FAILS"); n != "" {
 			// Countdown via cursor file: each failing attempt burns one.
@@ -210,15 +214,25 @@ func ghCodespace(args []string, joined string) {
 		if name == "" {
 			name = "fake-cs-1"
 		}
+		repo := ""
+		for i, a := range args {
+			if a == "--repo" && i+1 < len(args) {
+				repo = args[i+1]
+			}
+		}
+		recordCreated(name, repo)
 		fmt.Println(name)
 	case "ports":
 		// forward: bind host ports, park like a dev tunnel. Pidfile so the
 		// harness's killServes reaps the parked process between tests.
+		// Real gh takes <codespacePort>:<localPort> and listens on the
+		// LOCAL one. Modelling this correctly is what would have caught the
+		// reversed-argument bug found live on 2026-07-20.
 		var ports []string
 		for _, a := range args {
-			if pair := strings.SplitN(a, ":", 2); len(pair) == 2 && pair[0] != "" {
-				if _, err := strconv.Atoi(pair[0]); err == nil {
-					ports = append(ports, pair[0])
+			if pair := strings.SplitN(a, ":", 2); len(pair) == 2 {
+				if _, err := strconv.Atoi(pair[1]); err == nil {
+					ports = append(ports, pair[1])
 				}
 			}
 		}
@@ -237,7 +251,22 @@ func ghCodespace(args []string, joined string) {
 			os.Exit(1)
 		}
 		switch {
-		case strings.Contains(joined, "cat .devcontainer/admin.json"):
+		case strings.HasSuffix(strings.TrimSpace(joined), "true"):
+			// The wake probe: connecting is what resumes a codespace, so
+			// record it — subsequent `list` calls must report it Available,
+			// exactly as GitHub does.
+			if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+				f, err := os.OpenFile(filepath.Join(dir, "woken"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+				if err == nil {
+					for i, a := range args {
+						if a == "-c" && i+1 < len(args) {
+							fmt.Fprintln(f, args[i+1])
+						}
+					}
+					f.Close()
+				}
+			}
+		case strings.Contains(joined, "admin.json"):
 			body := os.Getenv("FAKERT_GH_ADMIN")
 			if body == "" {
 				body = `{"email":"admin@example.com","password":"fake-admin-pw"}`
@@ -462,6 +491,72 @@ func run(args []string) {
 	} else {
 		fmt.Println("0123456789ab")
 	}
+}
+
+// createdCodespaces: JSON objects for every codespace this fake created,
+// reported Available (the real API reaches Available on its own).
+func createdCodespaces() []string {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return nil
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "created-codespaces"))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		nameRepo := strings.SplitN(line, " ", 2)
+		if len(nameRepo) != 2 {
+			continue
+		}
+		out = append(out, fmt.Sprintf(`{"name":%q,"state":"Available","repository":%q}`, nameRepo[0], nameRepo[1]))
+	}
+	return out
+}
+
+// applyWakes reports a woken codespace as Available regardless of the
+// scripted initial state — a stopped codespace that something connected to
+// really does come back, and a fake that never transitions would let the
+// launcher wait forever (it did, until this was added).
+func applyWakes(body string) string {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return body
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "woken"))
+	if err != nil {
+		return body
+	}
+	var entries []map[string]any
+	if json.Unmarshal([]byte(body), &entries) != nil {
+		return body
+	}
+	for _, name := range strings.Fields(string(b)) {
+		for _, e := range entries {
+			if e["name"] == name {
+				e["state"] = "Available"
+			}
+		}
+	}
+	out, err := json.Marshal(entries)
+	if err != nil {
+		return body
+	}
+	return string(out)
+}
+
+func recordCreated(name, repo string) {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return
+	}
+	f, err := os.OpenFile(filepath.Join(dir, "created-codespaces"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s %s\n", name, repo)
 }
 
 // handleName resolves a launcher-supplied handle (container name or the

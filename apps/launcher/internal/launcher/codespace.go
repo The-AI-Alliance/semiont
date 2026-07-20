@@ -3,6 +3,7 @@ package launcher
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"regexp"
@@ -65,16 +66,12 @@ func startCodespace(u *ui, opts startOptions) int {
 		return 1
 	}
 
-	// A recorded LOCAL stack owns the real local ports the forward needs —
-	// that stack must stop first (codespace stacks, by contrast, coexist).
+	// A local stack and codespace stacks COEXIST: the only local resource a
+	// codespace needs is its one KB forward port, and allocateKBPort already
+	// skips the local stack's recorded claims and any live holder. So the
+	// local KB keeps 4000, a codespace KB takes 4001, and one browser works
+	// both from its Knowledge Bases panel — the point of per-stack ports.
 	ss := loadStackSet()
-	if local := ss.Stacks["local"]; local != nil && local.Runtime != "" {
-		if !opts.dryRun {
-			u.fail("The local stack is running under %s (per %s) — it holds the ports the forward needs.", local.Runtime, statePath())
-			fmt.Fprintln(os.Stderr, "  Stop it first (semiont stop --runtime "+local.Runtime+").")
-			return 1
-		}
-	}
 
 	// Identity ladder, repo-first (the repo IS the identity; many codespace
 	// stacks may be recorded at once): --repo → root's origin (create-path
@@ -185,7 +182,7 @@ func startCodespace(u *ui, opts startOptions) int {
 		}
 		// A dead recorded forward is normal here; a live one means the
 		// stack is already reachable and respawning would fail the binds.
-		if forwardAlive(st.ForwardPID) {
+		if forwardProcAlive(st.ForwardPID) { // zombie or healthy, it must go before respawn
 			_ = syscall.Kill(st.ForwardPID, syscall.SIGTERM)
 			time.Sleep(200 * time.Millisecond)
 		}
@@ -205,9 +202,33 @@ func startCodespace(u *ui, opts startOptions) int {
 	if !requirePortFree(u, kbPort, "KB (forward)") {
 		return 1
 	}
+	// The VM must be Available before a tunnel to it can bind — measured
+	// 2026-07-20: `ports forward` against a stopped codespace TRIGGERS the
+	// wake and then dies, leaving the launcher waiting on a tunnel that
+	// will never exist. So ensure Available first, waking explicitly when
+	// stopped.
+	if code := ensureCodespaceAvailable(u, repo, name); code != 0 {
+		return code
+	}
 	pid, code := spawnForward(u, name, kbPort)
 	if code != 0 {
 		return code
+	}
+	// A forward that never binds is the failure mode that wasted the whole
+	// health budget in testing: gh can exit, or stay up forwarding nothing.
+	// Confirm the port actually answers before gating on the stack.
+	bound := false
+	for i := 0; i < 30; i++ {
+		if forwardAlive(pid, kbPort) {
+			bound = true
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if !bound {
+		u.fail("The port forward did not come up on localhost:%d within 30s.", kbPort)
+		fmt.Fprintf(os.Stderr, "  Try it directly:  gh codespace ports forward %d:%d -c %s\n", kbRemotePort, kbPort, name)
+		return 1
 	}
 
 	// The record binds the stack to its executor before the health gate —
@@ -469,13 +490,71 @@ func createCodespace(u *ui, repo string, opts startOptions) (string, int) {
 	}
 }
 
+// ensureCodespaceAvailable gets the VM to Available before anything tries to
+// tunnel to it. A stopped codespace resumes BECAUSE something connects, so
+// there is a trigger step: `gh codespace ssh -- true` both wakes it and
+// blocks until it is connectable (measured: ~19s), which also proves the
+// ssh path the credentials read needs.
+func ensureCodespaceAvailable(u *ui, repo, name string) int {
+	state := ""
+	if instances, err := ghCodespaceList(repo); err == nil {
+		for _, c := range instances {
+			if c.Name == name {
+				state = c.State
+			}
+		}
+	}
+	if state == "Available" {
+		return 0
+	}
+	if state == "Shutdown" {
+		u.log("Codespace is stopped — waking it %s", u.dim("(connecting is what resumes a codespace; ~20s)"))
+		if err := runSilent("gh", "codespace", "ssh", "-c", name, "--", "true"); err != nil {
+			u.fail("Could not wake codespace %s.", name)
+			fmt.Fprintln(os.Stderr, "  Check it:  gh codespace list")
+			return 1
+		}
+	}
+	return waitCodespaceAvailable(u, repo, name)
+}
+
+// waitCodespaceAvailable polls until GitHub reports the VM Available.
+// Post-CREATE only: a fresh codespace is Provisioning for minutes and
+// forwarding before then cannot bind. Never call it for a stopped
+// codespace — those wake on connection, so this would wait forever.
+func waitCodespaceAvailable(u *ui, repo, name string) int {
+	for i := 0; i < 300; i++ {
+		instances, err := ghCodespaceList(repo)
+		if err == nil {
+			for _, c := range instances {
+				if c.Name == name && c.State == "Available" {
+					return 0
+				}
+			}
+		}
+		if i == 0 {
+			u.log("Waiting for the codespace VM %s", u.dim("(GitHub reports Provisioning until the machine is up)"))
+		}
+		time.Sleep(2 * time.Second)
+	}
+	u.fail("Codespace %s did not reach Available within 10 minutes.", name)
+	fmt.Fprintln(os.Stderr, "  Check it:  gh codespace list")
+	return 1
+}
+
 // spawnForward starts the detached dev-tunnel forward for this stack's KB
 // port — a long-lived process the bring-up-and-exit launcher deliberately
 // leaves behind, PID + port recorded (status re-establishes it, stop kills
 // it). Each codespace stack runs its own.
 func spawnForward(u *ui, name string, kbPort int) (int, int) {
+	// Argument order is <codespacePort>:<localPort> — NOT the reverse.
+	// Getting it backwards forwards a port nothing serves onto a local port
+	// something else may already own: gh then fails to bind but the process
+	// STAYS ALIVE, so it looks healthy while forwarding nothing. The §1
+	// recipe's symmetric 4000:4000 example hides the order; live testing
+	// found it.
 	args := []string{"codespace", "ports", "forward",
-		fmt.Sprintf("%d:%d", kbPort, kbRemotePort), "-c", name}
+		fmt.Sprintf("%d:%d", kbRemotePort, kbPort), "-c", name}
 	u.echoCmd("gh", args...)
 	cmd := exec.Command("gh", args...)
 	cmd.Stdout, cmd.Stderr = nil, nil
@@ -501,11 +580,20 @@ type adminCreds struct {
 // (the pre-sshd-feature gap) degrades with the fix named — never blocks a
 // healthy stack.
 func fetchAdminCreds(u *ui, name string) *adminCreds {
-	u.log("Reading admin credentials %s", u.dim("(gh codespace ssh -c "+name+" -- cat .devcontainer/admin.json — generated at creation, never stored locally)"))
-	out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", ".devcontainer/admin.json")
+	// ABSOLUTE (globbed) path: `gh codespace ssh` lands in /home/vscode, not
+	// the workspace, so the relative form the recipe used silently fails
+	// with "No such file or directory". The glob expands remotely and does
+	// not depend on the workspace directory's name. Found live 2026-07-20.
+	const credPath = "/workspaces/*/.devcontainer/admin.json"
+	u.log("Reading admin credentials %s", u.dim("(gh codespace ssh -c "+name+" -- cat "+credPath+" — generated at creation, never stored locally)"))
+	out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", credPath)
 	if err != nil {
-		u.warn("Could not read credentials over ssh (a codespace created before the devcontainer sshd feature?).")
-		fmt.Println("    Recreate from current main to fix, or read them from the codespace terminal: cat .devcontainer/admin.json")
+		// Two very different causes; naming only the rare one (as this
+		// message used to) misdiagnoses the common case out loud.
+		u.warn("Could not read admin credentials over ssh yet.")
+		fmt.Println("    Usually this means setup is still finishing inside the codespace (sshd comes up with it) —")
+		fmt.Println("    semiont status re-reads them. If it persists, the devcontainer may predate the sshd feature:")
+		fmt.Println("    recreate from current main, or read them in the codespace terminal: cat .devcontainer/admin.json")
 		return nil
 	}
 	var c adminCreds
@@ -537,7 +625,7 @@ func renderCodespacePlan(opts startOptions, repo, recorded string) {
 		}
 		fmt.Println("gh codespace create --repo " + repo + " --machine " + machine + "   # only when none exists (503-aware retry)")
 	}
-	fmt.Println("gh codespace ports forward <kb-port>:4000 -c <codespace>   # detached; pid + port recorded (4000, else lowest free above)")
+	fmt.Println("gh codespace ports forward 4000:<kb-port> -c <codespace>   # <codespacePort>:<localPort>; detached; pid + port recorded")
 	fmt.Println("# wait: http://localhost:<kb-port>/api/health (600s)")
 	fmt.Println("gh codespace ssh -c <codespace> -- cat .devcontainer/admin.json   # credentials (displayed, never stored)")
 }
@@ -567,7 +655,7 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 	}
 	// Verify port release only when THIS stack held the lens — another
 	// codespace's live forward legitimately holds the same local ports.
-	hadLens := forwardAlive(st.ForwardPID)
+	hadLens := forwardProcAlive(st.ForwardPID)
 	if hadLens {
 		u.log("Stopping the port forward %s", u.dim(fmt.Sprintf("(pid %d)", st.ForwardPID)))
 		_ = syscall.Kill(st.ForwardPID, syscall.SIGTERM)
@@ -626,14 +714,21 @@ func statusCodespace(u *ui, st *stackState) int {
 		printRoots(u, st)
 		return 1
 	case "Available":
-	default:
-		fmt.Printf("  %s\n", u.dim("stopped — state and credentials persist; billing halted"))
+	case "Shutdown":
+		fmt.Printf("  %s\n", u.dim("stopped — state and credentials persist; compute billing halted (storage still bills)"))
 		fmt.Printf("  Resume:   %s\n", u.bold("semiont start"))
+		printRoots(u, st)
+		return 1
+	default:
+		// Queued / Provisioning / Starting / Rebuilding / Failed …: coming
+		// up (and billing) — NOT stopped. Saying "stopped, billing halted"
+		// here would be wrong on both counts.
+		fmt.Printf("  %s\n", u.dim("not ready yet (state: "+state+") — GitHub is still working on it; re-run semiont status"))
 		printRoots(u, st)
 		return 1
 	}
 
-	if !forwardAlive(st.ForwardPID) {
+	if !forwardAlive(st.ForwardPID, st.ForwardPort) {
 		u.log("Recorded KB forward is not running — re-establishing")
 		if st.ForwardPort == 0 {
 			st.ForwardPort = allocateKBPort(loadStackSet(), st.Repo)
@@ -682,7 +777,7 @@ func statusCodespace(u *ui, st *stackState) int {
 func forwardedStacks(cs []*stackState) []*stackState {
 	var out []*stackState
 	for _, c := range cs {
-		if forwardAlive(c.ForwardPID) {
+		if forwardAlive(c.ForwardPID, c.ForwardPort) {
 			out = append(out, c)
 		}
 	}
@@ -700,7 +795,7 @@ func dropCollidingForwards(u *ui, needs []portNeed) {
 		claimed[p.port] = true
 	}
 	for _, st := range codespaceStacks(loadStackSet()) {
-		if forwardAlive(st.ForwardPID) && claimed[st.ForwardPort] {
+		if forwardProcAlive(st.ForwardPID) && claimed[st.ForwardPort] {
 			u.warn("Dropping %s's KB forward on port %d — the local stack needs it; the codespace keeps running (re-attach: semiont start --runtime codespace --repo %s).",
 				st.Repo, st.ForwardPort, st.Repo)
 			_ = syscall.Kill(st.ForwardPID, syscall.SIGTERM)
@@ -736,7 +831,7 @@ func printStacksOverview(u *ui, local *stackState, cs []*stackState) {
 			state = "deleted?"
 		}
 		fwd := ""
-		if forwardAlive(c.ForwardPID) {
+		if forwardAlive(c.ForwardPID, c.ForwardPort) {
 			fwd = "  " + u.bold(fmt.Sprintf("KB localhost:%d", c.ForwardPort))
 		}
 		fmt.Printf("  codespace  %s  %s %s%s\n", c.Repo, c.Codespace, u.dim("("+state+")"), fwd)
@@ -750,14 +845,30 @@ func captureBoth(name string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), err
 }
 
-// forwardAlive: is the recorded forward PID still OUR forward? A bare
+// forwardProcAlive: is the recorded PID still OUR forward PROCESS? A bare
 // liveness signal is not enough — PIDs get reused, and trusting (or worse,
 // SIGTERMing) a recycled PID hits an unrelated process. The PID counts only
-// if it is alive AND running gh.
-func forwardAlive(pid int) bool {
+// if it is alive AND running gh. Use this for cleanup decisions.
+func forwardProcAlive(pid int) bool {
 	if pid == 0 || syscall.Kill(pid, 0) != nil {
 		return false
 	}
 	comm, err := capture("ps", "-p", fmt.Sprintf("%d", pid), "-o", "comm=")
 	return err == nil && strings.Contains(comm, "gh")
+}
+
+// forwardAlive: is the forward actually FORWARDING? A live gh process can
+// fail to bind (wrong port order, port taken, codespace not ready) and stay
+// running — a zombie that every pid-only check calls healthy while nothing
+// reaches the KB. Observed live 2026-07-20. So the port must answer too.
+func forwardAlive(pid, port int) bool {
+	if !forwardProcAlive(pid) || port == 0 {
+		return false
+	}
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }

@@ -1114,8 +1114,8 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"gh api user/codespaces/secrets/ANTHROPIC_API_KEY/repositories",
 		"gh codespace list --json name,state,repository",
 		"gh codespace create --repo "+csRepo+" --machine premiumLinux",
-		"gh codespace ports forward 4000:4000 -c fake-cs-1",
-		"gh codespace ssh -c fake-cs-1 -- cat .devcontainer/admin.json")
+		"gh codespace ports forward 4000:4000 -c fake-cs-1", // <codespacePort>:<localPort>
+		"gh codespace ssh -c fake-cs-1 -- cat /workspaces/*/.devcontainer/admin.json")
 	mustContain(t, "stdout", stdout,
 		"KB repo: "+csRepo,
 		"uncommitted changes", "as PUSHED",
@@ -1469,13 +1469,28 @@ func TestCodespaceStatus(t *testing.T) {
 
 func TestCodespaceGuardsAndScoping(t *testing.T) {
 	// Cross-placement guards: a recorded stack of either kind binds.
+	// A LOCAL stack no longer blocks a codespace start: they coexist, and
+	// the codespace KB simply allocates around the local stack's ports.
 	s := newCodespaceScenario(t)
-	writeStackState(t, s, "container")
-	_, stderr, code := s.run(t, "start", "--runtime", "codespace")
-	if code != 1 {
-		t.Fatalf("local record + codespace start: want exit 1, got %d", code)
+	statePath := statePathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	mustContain(t, "stderr", stderr, "The local stack is running under container")
+	local := `{"schema":3,"stacks":{"local":{"runtime":"container","ports":[3000,4000,9090],` +
+		`"services":{"backend":{"container":"semiont-backend","id":"fid-semiont-backend","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}}}}`
+	if err := os.WriteFile(statePath, []byte(local), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code != 0 {
+		t.Fatalf("local record + codespace start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "coexist stdout", stdout, "Semiont KB         http://localhost:4001")
+	if l, _ := os.ReadFile(s.log); !strings.Contains(string(l), "ports forward 4000:4001") {
+		t.Errorf("forward argv must be <codespacePort>:<localPort> = 4000:4001:\n%s", l)
+	}
+	b, _ := os.ReadFile(statePath)
+	mustContain(t, "stack.json", string(b), `"local"`, "codespace:"+csRepo, `"forwardPort": 4001`)
 
 	s2 := newCodespaceScenario(t)
 	if _, _, code := s2.run(t, "start", "--runtime", "codespace"); code != 0 {
@@ -1485,7 +1500,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	// A codespace stack no longer blocks a local start — they coexist (the
 	// dry-run proves the local plan renders; only the lens would contend,
 	// and it's dropped live).
-	stdout, stderr, code := s2.run(t, "start", "--runtime", "container", "--dry-run")
+	stdout, stderr, code = s2.run(t, "start", "--runtime", "container", "--dry-run")
 	if code != 0 {
 		t.Fatalf("codespace record + local dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
