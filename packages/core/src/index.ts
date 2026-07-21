@@ -391,3 +391,7 @@ export type { GraphViews } from './knowledge-graph-views';
 // (worker, smelter, weaver) to the KS.
 export { retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from './retry';
 export type { RetryPolicy, RetryAttemptInfo } from './retry';
+
+// Browser ↔ launcher KB discovery — the canonical served URL of the
+// launcher's discovery document (BROWSER-KB-DISCOVERY).
+export { DISCOVERY_URL_PATH } from './discovery';
