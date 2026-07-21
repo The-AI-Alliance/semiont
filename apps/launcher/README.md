@@ -90,9 +90,12 @@ semiont stop
   `status` opens with a STACKS fleet overview (each stack's state and
   `KB localhost:<port>`) and details the lone forwarded stack (`--repo`
   details any); bare `logs` follows the local stack, else the lone
-  codespace; bare `stop` refuses to guess — `--repo <owner/name>` targets a
-  codespace stack, `--runtime` the local one — and `useradd` follows the same
-  rule. Schema 1/2 single-stack records migrate on read.
+  codespace; bare `stop` and `useradd`
+  let the working directory disambiguate — inside the clone whose local
+  stack is running they mean local; inside a clone whose origin names a
+  recorded codespace stack (no local stack) they mean that one — and refuse
+  anywhere less certain: `--repo <owner/name>` targets a codespace stack,
+  `--runtime` the local one. Schema 1/2 single-stack records migrate on read.
 - Codespace admin credentials are generated inside the codespace at
   creation; `start` and `status` read them fresh over ssh and display them —
   never stored, never logged. Those are the FIRST admin; `useradd --repo`
@@ -153,6 +156,24 @@ semiont stop
   silently overwritten. **No reporting command ever wakes a stopped
   codespace** (an ssh would, resuming compute billing), so `--refresh` on a
   stopped one says so and skips.
+- **A failed health gate shows the crash where it is**: the launcher prints
+  the last ~20 lines of that container's own logs plus the `semiont logs
+  --service <name>` pointer — the cause of a startup crash is usually
+  sitting right there (a friction log spent most of a day on an errno -35
+  event-log read failure that was in `logs` for the whole 120s backend
+  wait). Service containers run **without `--rm`** for the same reason: a
+  container that CRASHES during the gate used to remove itself, destroying
+  the very logs that explain it ("No such container"). It now remains,
+  Exited and inspectable — status shows it, `semiont logs` reads it — until
+  the next start's preflight or a stop sweeps it. Cleanup was always the
+  launcher's explicit job at both ends; `--rm` only ever subtracted the
+  evidence. (One-shot busybox probes keep `--rm` — nothing to keep.) And on macOS, a KB root under `~/Desktop`, `~/Documents` (only when
+  Finder's "Desktop & Documents Folders" iCloud sync is actually on), or
+  `~/Library/Mobile Documents` draws a start-time WARNING: iCloud evicts
+  file content, and container reads of evicted files fail with that errno
+  -35 — typically only once the event log is non-empty, which masquerades as
+  a regression. A warning, not a refusal: eviction state isn't stable, and
+  the same setup can run fine for months.
 - `semiont stop` sweeps **every** installed runtime by default, so a stack
   started under `--runtime docker` can't survive a plain stop. Stop's job
   isn't done until the ports are actually free: `start` records the host

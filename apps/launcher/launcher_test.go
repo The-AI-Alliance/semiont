@@ -1171,7 +1171,7 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"gh codespace ssh -c fake-cs-1 -- cat /workspaces/*/.devcontainer/admin.json")
 	mustContain(t, "stdout", stdout,
 		"KB repo: "+csRepo,
-		"uncommitted changes", "as PUSHED",
+		"Starting a CODESPACE for", "as PUSHED", "uncommitted changes",
 		"Creating codespace for "+csRepo,
 		"Reading admin credentials",
 		"Semiont KB is up in codespace fake-cs-1",
@@ -1805,7 +1805,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("codespace record + local dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "local plan stdout", stdout, "container run -d --rm --name semiont-backend")
+	mustContain(t, "local plan stdout", stdout, "container run -d --name semiont-backend")
 
 	// useradd now WORKS against a codespace stack (the generated admin is
 	// only the FIRST user; everything after it is useradd's job).
@@ -1949,13 +1949,17 @@ func TestMultiStackCodespaces(t *testing.T) {
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log), "gh codespace ssh -c bar-cs-1")
 
-	// A bare stop refuses to guess among stacks.
+	// A bare stop refuses to guess among stacks — when the cwd says
+	// nothing. (Inside a clone the origin picks; TestBareStopFollowsCwd.)
+	prevCwd := s.cwd
+	s.cwd = t.TempDir()
 	_, stderr, code = s.run(t, "stop")
 	if code != 1 {
 		t.Fatalf("ambiguous stop: want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr, "Multiple stacks are recorded",
 		"semiont stop --repo "+csRepo, "semiont stop --repo other/bar")
+	s.cwd = prevCwd
 
 	// stop --repo targets exactly one; the other stack keeps its forward.
 	stdout, stderr, code = s.run(t, "stop", "--repo", csRepo)
@@ -2115,7 +2119,7 @@ func TestStartExternalGraphBoot(t *testing.T) {
 		"graph — externally provided at 127.0.0.1:7777 (reachable)",
 		"🚀 Semiont stack is up")
 	argv := s.argv(t)
-	for _, absent := range []string{"run -d --rm --name semiont-neo4j", "NEO4J_AUTH", "lsof -ti :7474"} {
+	for _, absent := range []string{"run -d --name semiont-neo4j", "NEO4J_AUTH", "lsof -ti :7474"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("external graph still touched %q in argv", absent)
 		}
@@ -2773,7 +2777,7 @@ func TestStartPrefersRecordedRuntime(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout,
 		"docker pull ghcr.io/the-ai-alliance/semiont-backend:latest",
-		"docker run -d --rm --name semiont-backend")
+		"docker run -d --name semiont-backend")
 	// The main flow must plan against docker; `container` may appear only in
 	// the cross-runtime stray sweep, never as the launching runtime.
 	if strings.Contains(stdout, "container run -d") {
@@ -2975,7 +2979,7 @@ func TestStartServiceWorker(t *testing.T) {
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
 		"<config-stage>/worker.toml:/home/semiont/.semiontconfig:ro",
 	)
-	for _, absent := range []string{"run -d --rm --name semiont-neo4j", "run -d --rm --name semiont-backend", "semiont-frontend"} {
+	for _, absent := range []string{"run -d --name semiont-neo4j", "run -d --name semiont-backend", "semiont-frontend"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("--service worker touched the wider stack: %q in argv", absent)
 		}
@@ -3004,7 +3008,7 @@ func TestStartServiceGraph(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout, "Restarting graph (Neo4j)", "🚀 graph is up")
 	argv := s.argv(t)
-	mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --rm --name semiont-neo4j")
+	mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --name semiont-neo4j")
 	for _, absent := range []string{"image pull", "busybox", "inspect"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("infra --service ran needless step: %q in argv", absent)
@@ -3410,6 +3414,107 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 	// …and never fabricates an install state for a remote model.
 	if strings.Contains(stdout, "ollama pull claude") {
 		t.Errorf("remote model offered an ollama pull:\n%s", stdout)
+	}
+}
+
+func TestBareStopFollowsCwd(t *testing.T) {
+	// Standing in the clone whose stack is running, a bare stop means THAT
+	// stack — demanding --runtime container restated what the prompt already
+	// said (observed 2026-07-20). The rule is the start-side one: a KB clone
+	// is explicit context.
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("codespace start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "start", "--runtime", "container"); code != 0 {
+		t.Fatalf("local start: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// useradd from the clone: local backend, no ssh, no refusal.
+	before := s.mustLog(t)
+	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123"); code != 0 {
+		t.Fatalf("bare useradd in clone: exit %d\nstderr:\n%s", code, stderr)
+	}
+	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "useradd argv", fresh, "exec", "semiont useradd")
+	if strings.Contains(fresh, "gh codespace") {
+		t.Errorf("bare useradd in the local clone went to the codespace:\n%s", fresh)
+	}
+
+	// stop from the clone: the local stack, codespace untouched and still
+	// recorded.
+	before = s.mustLog(t)
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("bare stop in clone: exit %d\nstderr:\n%s", code, stderr)
+	}
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	if strings.Contains(fresh, "gh codespace stop") {
+		t.Errorf("bare stop in the local clone stopped the codespace:\n%s", fresh)
+	}
+	mustContain(t, "stop argv", fresh, "stop")
+	b, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json keeps the codespace", string(b), "codespace:"+csRepo)
+
+	// With the local stack gone and TWO codespaces recorded, the clone's
+	// origin picks — from a neutral directory it still refuses.
+	s.extraEnv = append(s.extraEnv, "FAKERT_GH_CS_NAME=bar-cs-1")
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", "other/bar"); code != 0 {
+		t.Fatalf("second codespace: exit %d\nstderr:\n%s", code, stderr)
+	}
+	before = s.mustLog(t)
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("bare stop via origin: exit %d\nstderr:\n%s", code, stderr)
+	}
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "origin-picked stop", fresh, "gh codespace stop -c fake-cs-1")
+	if strings.Contains(fresh, "bar-cs-1") {
+		t.Errorf("origin pick touched the other repo's codespace:\n%s", fresh)
+	}
+}
+
+func TestFailedGateDumpsContainerLogs(t *testing.T) {
+	// When a health gate fails, the crash cause is usually sitting in the
+	// container's own logs — a friction log spent most of a day on an errno
+	// -35 that was in `logs` for the whole 120s wait while the launcher said
+	// only "did not become ready". The gate failure now shows the tail.
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_SKIP_SERVE=6333") // vectors: up but never listens
+	stdout, stderr, code := s.run(t, "start")
+	if code != 1 {
+		t.Fatalf("start with a dead vectors should fail: exit %d", code)
+	}
+	all := stdout + stderr
+	mustContain(t, "gate failure output", all,
+		"vectors (Qdrant) did not become ready",
+		"of semiont-qdrant's logs:",
+		"qdrant out", // fakert's `logs` stdout — proof the tail is the container's own
+		"qdrant err",
+		"Full logs:  semiont logs --service vectors")
+}
+
+func TestCrashedContainerStaysInspectable(t *testing.T) {
+	// The other half of the failed-gate story (friction log issue 5): a
+	// container that CRASHED during the gate used to be gone — --rm took the
+	// container, its console output, and its log files with it, and
+	// `<rt> logs` answered "No such container". Service containers now run
+	// without --rm: the crashed container remains, dumpLogs works on it, and
+	// the next start's preflight (or stop) sweeps it.
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	argv := s.argv(t)
+	for _, line := range strings.Split(argv, "\n") {
+		if strings.Contains(line, "run -d") && strings.Contains(line, "semiont-") {
+			if strings.Contains(line, "--rm") {
+				t.Errorf("service container launched with --rm — a crash would destroy its logs: %q", line)
+			}
+		}
+		// One-shot probes stay ephemeral: they produce no diagnostics worth
+		// keeping and would otherwise pile up.
+		if strings.Contains(line, "busybox") && !strings.Contains(line, "--rm") {
+			t.Errorf("busybox probe lost its --rm: %q", line)
+		}
 	}
 }
 

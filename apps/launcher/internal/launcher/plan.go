@@ -197,7 +197,12 @@ func driverDisplay(role, driver string) string {
 // image.
 func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 	spec := driverCatalog[role][rp.Driver]
-	a := []string{"run", "-d", "--rm", "--name", roles[role].container}
+	// NO --rm: a crashed container must remain inspectable — its logs are
+	// the diagnosis (a friction log lost most of a day to --rm destroying
+	// them; the runtime's `logs` answered "No such container"). Cleanup is
+	// already explicit at both ends: start's preflight and stop both
+	// stop+rm by name.
+	a := []string{"run", "-d", "--name", roles[role].container}
 	for _, ap := range spec.auxPorts {
 		a = append(a, "-p", fmt.Sprintf("%d:%d", ap.port, ap.port))
 	}
@@ -215,7 +220,7 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 // shape do not — roles[owner].container would be wrong for embedding.
 func ollamaRunArgs(rp rolePlan, extra ...string) []string {
 	spec := driverCatalog["inference"]["ollama"]
-	a := []string{"run", "-d", "--rm", "--name", "semiont-ollama"}
+	a := []string{"run", "-d", "--name", "semiont-ollama"} // no --rm: see providedRunArgs
 	a = append(a, "-p", fmt.Sprintf("%d:%d", rp.Port, spec.defaultPort))
 	a = append(a, extra...)
 	return append(a, rp.Image)

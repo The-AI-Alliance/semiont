@@ -30,7 +30,10 @@ Launcher-owned (consumed here, not forwarded):
   --help, -h            Show this help
 
 Needs a running backend: semiont start first. With more than one stack
-recorded, useradd refuses to guess — say which with --repo or --runtime.
+recorded, the working directory disambiguates (the clone whose local stack
+is running means local; a clone whose origin names a codespace stack, with
+no local stack, means that one) — anywhere less certain, useradd refuses to
+guess: say which with --repo or --runtime.
 
 A codespace generates its FIRST admin at creation — semiont status prints
 those credentials. Use useradd there for everything after that: more users,
@@ -107,6 +110,7 @@ func Useradd(args []string) int {
 	// else refuse rather than guess — writing a user into the wrong KB is
 	// not something to do silently.
 	var target *stackState
+	cwdRoot := cwdKBRoot()
 	switch {
 	case wantLocal:
 	case repo != "":
@@ -118,11 +122,23 @@ func Useradd(args []string) int {
 			}
 			return 1
 		}
+	// Standing in the clone whose stack is running: the cwd says "local" —
+	// demanding --runtime here made the user restate the prompt (same rule
+	// stop and start keep).
+	case local != nil && local.KBRoot != "" && local.KBRoot == cwdRoot:
 	case local != nil && len(cs) == 0:
 	case local == nil && len(cs) == 1:
 		target = cs[0]
 	case local == nil && len(cs) == 0:
 	default:
+		// No local stack, several codespaces: this clone's origin may name
+		// one — the same convenience repoFromRoot gives start.
+		if local == nil {
+			if c := originCodespace(cs, cwdRoot); c != nil {
+				target = c
+				break
+			}
+		}
 		u.fail("Multiple stacks are recorded — say which:")
 		if local != nil {
 			fmt.Fprintf(os.Stderr, "    semiont useradd --runtime %s ...   (the local stack)\n", local.Runtime)

@@ -26,9 +26,12 @@ A CODESPACE stack (started with --runtime codespace) stops with
 'gh codespace stop': billing halts, state and credentials persist, and the
 record is kept — resume with semiont start. --delete destroys the codespace
 (state and all) and forgets the record; it applies only to codespace stacks.
-With several stacks recorded (local + codespaces), a bare stop refuses and
-lists them: --repo <owner/name> targets a codespace stack, --runtime targets
-the local one.
+With several stacks recorded (local + codespaces), the working directory
+disambiguates: from inside the clone whose LOCAL stack is running, a bare
+stop means that stack; from a clone whose git origin names a recorded
+codespace stack (and no local stack exists), it means that one. Anywhere
+less certain, stop refuses and lists the choices: --repo <owner/name>
+targets a codespace stack, --runtime targets the local one.
 `
 
 // stopNames sweeps all ten container names in REVERSE start order —
@@ -140,17 +143,34 @@ func Stop(args []string) int {
 		return stopCodespace(u, target, service, del, dryRun)
 	}
 	if runtime == "" && len(cs) > 0 {
-		if st == nil && len(cs) == 1 {
-			return stopCodespace(u, cs[0], service, del, dryRun)
+		// The cwd disambiguates before anyone is asked to — the same rule
+		// start keeps (standing in a KB clone is explicit context). The
+		// LOCAL stack when this very root is the one it runs; the codespace
+		// stack this clone's origin names when no local stack exists.
+		// Anything less certain still refuses: stop doesn't guess, but it
+		// also must not demand --runtime container from a user standing in
+		// the exact clone whose stack is up (observed 2026-07-20).
+		root := cwdKBRoot()
+		localHere := st != nil && st.KBRoot != "" && st.KBRoot == root
+		if !localHere {
+			if st == nil {
+				if len(cs) == 1 {
+					return stopCodespace(u, cs[0], service, del, dryRun)
+				}
+				if c := originCodespace(cs, root); c != nil {
+					u.log("Stopping %s %s", u.bold(c.Repo), u.dim("(this clone's origin; per "+statePath()+")"))
+					return stopCodespace(u, c, service, del, dryRun)
+				}
+			}
+			u.fail("Multiple stacks are recorded — say which:")
+			if st != nil {
+				fmt.Fprintf(os.Stderr, "    semiont stop --runtime %s   (the local stack)\n", st.Runtime)
+			}
+			for _, c := range cs {
+				fmt.Fprintf(os.Stderr, "    semiont stop --repo %s\n", c.Repo)
+			}
+			return 1
 		}
-		u.fail("Multiple stacks are recorded — say which:")
-		if st != nil {
-			fmt.Fprintf(os.Stderr, "    semiont stop --runtime %s   (the local stack)\n", st.Runtime)
-		}
-		for _, c := range cs {
-			fmt.Fprintf(os.Stderr, "    semiont stop --repo %s\n", c.Repo)
-		}
-		return 1
 	}
 	if del {
 		u.fail("--delete only applies to a codespace stack (a local stop already removes the containers).")

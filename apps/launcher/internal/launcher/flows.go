@@ -94,6 +94,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 		}
 		d, ok := x.waitHTTP("traces (Jaeger)", "http://localhost:16686", 30)
 		if !ok {
+			x.dumpLogs(roles["traces"].container, "traces")
 			return 1
 		}
 		x.say(sayOK, "traces — Jaeger UI on http://localhost:16686 (OTLP collector: %s:4318) %s", addr, x.dim("("+took(d)+")"))
@@ -149,6 +150,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 	d, ok := x.waitHTTP("Frontend", "http://localhost:3000", 30)
 	if !ok {
+		x.dumpLogs(roles["frontend"].container, "frontend")
 		return 1
 	}
 	x.say(sayOK, "Frontend on http://localhost:3000 %s", x.dim("("+took(d)+")"))
@@ -181,6 +183,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			aux := fc.plan.AuxPorts("graph")[0].port
 			d, ok := x.waitHTTP("graph ("+disp+")", fmt.Sprintf("http://localhost:%d", aux), 30)
 			if !ok {
+				x.dumpLogs(roles["graph"].container, "graph")
 				return 1
 			}
 			x.say(sayOK, "graph — bolt://localhost:%d (browser: http://localhost:%d) %s", rp.Port, aux, x.dim("("+took(d)+")"))
@@ -188,6 +191,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		case "vectors":
 			d, ok := x.waitHTTP("vectors ("+disp+")", fmt.Sprintf("http://localhost:%d/readyz", rp.Port), 15)
 			if !ok {
+				x.dumpLogs(roles["vectors"].container, "vectors")
 				return 1
 			}
 			x.say(sayOK, "vectors — http://localhost:%d %s", rp.Port, x.dim("("+took(d)+")"))
@@ -195,6 +199,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		case "database":
 			d, ok := x.waitPG(addr, rp.Port, 20)
 			if !ok {
+				x.dumpLogs(roles["database"].container, "database")
 				return 1
 			}
 			x.say(sayOK, "database — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
@@ -352,6 +357,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 			}
 			d, ok := x.waitHTTP(role+" (Ollama)", fmt.Sprintf("http://localhost:%d/api/version", rp.Port), 30)
 			if !ok {
+				x.dumpLogs("semiont-ollama", role)
 				return 1
 			}
 			x.say(sayOK, "%s — Ollama container on http://localhost:%d (24 GB memory) %s", role, rp.Port, x.dim("("+took(d)+")"))
@@ -380,6 +386,7 @@ func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []stri
 	x.say(sayLog, "Waiting for backend health...")
 	d, ok := x.waitHTTP("Backend", fmt.Sprintf("http://localhost:%d/api/health", port), 120)
 	if !ok {
+		x.dumpLogs("semiont-backend", "backend")
 		return 1
 	}
 	x.say(sayOK, "Backend healthy %s", x.dim("("+took(d)+")"))
@@ -399,6 +406,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret str
 	}
 	d, ok := x.waitHTTP(sc.label, fmt.Sprintf("http://localhost:%d/health", sc.port), 30)
 	if !ok {
+		x.dumpLogs(roles[sc.svc].container, sc.svc)
 		return 1
 	}
 	x.say(sayOK, "%s healthy (http://localhost:%d) %s", sc.label, sc.port, x.dim("("+took(d)+")"))
@@ -481,6 +489,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			return 1
 		}
 		if d, ok = x.waitHTTP("traces (Jaeger UI)", "http://localhost:16686", 30); !ok {
+			x.dumpLogs(roles["traces"].container, "traces")
 			return 1
 		}
 		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "jaeger")
@@ -496,14 +505,17 @@ func flowOneService(x executor, fc flowCtx) int {
 		switch svc {
 		case "graph":
 			if d, ok = x.waitHTTP("graph ("+disp+")", fmt.Sprintf("http://localhost:%d", fc.plan.AuxPorts("graph")[0].port), 30); !ok {
+				x.dumpLogs(roles["graph"].container, "graph")
 				return 1
 			}
 		case "vectors":
 			if d, ok = x.waitHTTP("vectors ("+disp+")", fmt.Sprintf("http://localhost:%d/readyz", rp.Port), 15); !ok {
+				x.dumpLogs(roles["vectors"].container, "vectors")
 				return 1
 			}
 		case "database":
 			if d, ok = x.waitPG(addr, rp.Port, 20); !ok {
+				x.dumpLogs(roles["database"].container, "database")
 				return 1
 			}
 		}
@@ -543,6 +555,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			return 1
 		}
 		if d, ok = x.waitHTTP("Frontend", fmt.Sprintf("http://localhost:%d", bp), 30); !ok {
+			x.dumpLogs(roles["frontend"].container, "frontend")
 			return 1
 		}
 		x.record(svc, id, image("frontend", fc.version), providedLauncher, fmt.Sprintf("http://localhost:%d", bp), "")

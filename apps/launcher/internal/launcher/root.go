@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -261,4 +262,56 @@ func requireGitClone(u *ui, root string) bool {
 		return false
 	}
 	return true
+}
+
+// icloudZone classifies a KB root against the macOS iCloud-managed areas:
+// "mobile" under ~/Library/Mobile Documents (always iCloud), "desktop" under
+// ~/Desktop or ~/Documents (iCloud only when "Desktop & Documents Folders"
+// sync is on), "" elsewhere. Pure so it is testable off-macOS; the darwin
+// gate and the sync-setting read live in warnICloudRoot.
+func icloudZone(root, home string) string {
+	if home == "" {
+		return ""
+	}
+	under := func(dir string) bool {
+		p := filepath.Join(home, dir)
+		return root == p || strings.HasPrefix(root, p+string(os.PathSeparator))
+	}
+	switch {
+	case under(filepath.Join("Library", "Mobile Documents")):
+		return "mobile"
+	case under("Desktop"), under("Documents"):
+		return "desktop"
+	}
+	return ""
+}
+
+// warnICloudRoot: a KB under an iCloud-managed folder can fail container
+// reads — iCloud evicts file content ("dataless" files), and a read through
+// the bind mount then surfaces inside the VM as errno -35 (EDEADLK), which
+// Node reports as "Unknown system error -35". The observed shape (friction
+// log 2026-07-20): first boot fine, every boot after the event log is
+// non-empty crashes the view-materializer scan. A WARNING, not a refusal —
+// the same setup also ran for months, because eviction state isn't stable.
+// Desktop/Documents warn only when Finder says the sync is actually on
+// (FXICloudDriveDesktop=1) — a Desktop KB on a non-synced Mac is fine and
+// must not nag.
+func warnICloudRoot(u *ui, root string) {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	zone := icloudZone(root, home)
+	if zone == "desktop" {
+		out, err := capture("defaults", "read", "com.apple.finder", "FXICloudDriveDesktop")
+		if err != nil || strings.TrimSpace(out) != "1" {
+			return
+		}
+	}
+	if zone != "" {
+		u.warn("KB root %s is in an iCloud-managed folder — container reads can fail on iCloud-evicted files (errno -35), typically once the event log is non-empty. Prefer a non-synced path (e.g. ~/Developer).", root)
+	}
 }

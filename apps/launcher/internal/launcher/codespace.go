@@ -291,6 +291,40 @@ func startCodespace(u *ui, opts startOptions) int {
 	return 0
 }
 
+// cwdKBRoot: the KB root the working directory resolves to (SEMIONT_ROOT,
+// else the .semiont/ walk) — "" when not inside a clone. The cwd is context
+// every command may consult: standing in a clone says which stack is meant.
+func cwdKBRoot() string {
+	root, _, err := resolveKBRoot()
+	if err != nil {
+		return ""
+	}
+	return root
+}
+
+// originCodespace: the recorded codespace stack whose repo this clone's git
+// origin names, nil when none does (or root is ""). This is the stop/useradd
+// counterpart of repoFromRoot's create-path convenience.
+func originCodespace(cs []*stackState, root string) *stackState {
+	if root == "" {
+		return nil
+	}
+	origin, err := capture("git", "-C", root, "remote", "get-url", "origin")
+	if err != nil || origin == "" {
+		return nil
+	}
+	slug, ok := parseGitHubSlug(origin)
+	if !ok {
+		return nil
+	}
+	for _, c := range cs {
+		if c.Repo == slug {
+			return c
+		}
+	}
+	return nil
+}
+
 // repoFromRoot: the create-path convenience — resolve the KB root as usual
 // and read the slug from its origin remote.
 func repoFromRoot(u *ui, opts startOptions) (slug string, did string, code int) {
@@ -325,7 +359,11 @@ func repoFromRoot(u *ui, opts startOptions) (slug string, did string, code int) 
 	// Pushed-state honesty: locally an uncommitted config edit is live via
 	// the /kb bind mount; in a codespace it silently doesn't exist.
 	if out, err := capture("git", "-C", root, "status", "--porcelain"); err == nil && out != "" {
-		u.warn("%s has uncommitted changes — the codespace runs %s as PUSHED; they don't travel.", root, slug)
+		// Lead with the PLACEMENT: during the 2026-07-20 flip incident this
+		// warning was the earliest tell that a start had gone cloud-shaped,
+		// but nothing in its old wording said so — the first word must name
+		// which path is running.
+		u.warn("Starting a CODESPACE for %s — it runs the repo as PUSHED to GitHub; the uncommitted changes in %s don't travel.", slug, root)
 	}
 	return slug, did, 0
 }
@@ -781,8 +819,7 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 // died), credentials read fresh, and a LOCAL section that doesn't pretend
 // the remote VM's directories are here.
 func statusCodespace(u *ui, st *stackState, refresh bool) int {
-	fmt.Println()
-	fmt.Println("  CODESPACE")
+	u.section("CODESPACE")
 	// Distinguish three different things that all used to look alike:
 	// GitHub says it's gone, GitHub says it's not ready, and we could not
 	// ask at all. Only the first justifies telling anyone to delete a record.
@@ -867,8 +904,7 @@ func statusCodespace(u *ui, st *stackState, refresh bool) int {
 	// missing identity for free, or re-verify a recorded one on --refresh.
 	reconcileDid(u, st, refresh)
 
-	fmt.Println()
-	fmt.Println("  LOCAL")
+	u.section("LOCAL")
 	fmt.Printf("  state      %s\n", statePath())
 	fmt.Printf("  forward    pid %d %s\n", st.ForwardPID, u.dim(fmt.Sprintf("(KB localhost:%d → codespace:%d)", st.ForwardPort, kbRemotePort)))
 
@@ -918,8 +954,7 @@ func dropCollidingForwards(u *ui, needs []portNeed) {
 // codespace instance and its state are status layered on it, which is why
 // the repo leads each entry and the instance name is a dimmed detail.
 func printRemoteKBs(u *ui, cs []*stackState) {
-	fmt.Println()
-	fmt.Println("  REMOTE KNOWLEDGE BASES")
+	u.section("REMOTE KNOWLEDGE BASES")
 	if len(cs) == 0 {
 		fmt.Printf("  %s\n", u.dim("(none — semiont start --runtime codespace --repo <owner>/<name>)"))
 		return

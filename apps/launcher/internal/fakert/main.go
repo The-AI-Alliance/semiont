@@ -126,6 +126,7 @@ func git(args []string) {
 //	FAKERT_OLLAMA_TAGS      models the fake Ollama already has (comma separated)
 //	FAKERT_OLLAMA_UNLISTABLE  /api/tags fails — "unknown", which must not pull
 //	FAKERT_OLLAMA_PULL_FAILS  /api/pull answers with an error
+//	FAKERT_SKIP_SERVE       host ports to leave unbound (crashed-after-start containers)
 //
 // `codespace ports forward A:B …` binds every host port and parks (the fake
 // dev tunnel), writing a serve pidfile so killServes reaps it.
@@ -486,6 +487,23 @@ func run(args []string) {
 	if !detached {
 		fmt.Fprintf(os.Stderr, "fakert run: unscripted foreground run %v\n", args)
 		os.Exit(64)
+	}
+	// FAKERT_SKIP_SERVE: comma-separated host ports to leave unbound even
+	// though the container "runs" — models a container that came up but whose
+	// process crashed before listening, so health gates fail while `logs`
+	// still answers.
+	if skip := os.Getenv("FAKERT_SKIP_SERVE"); skip != "" {
+		skipped := map[string]bool{}
+		for _, p := range strings.Split(skip, ",") {
+			skipped[strings.TrimSpace(p)] = true
+		}
+		kept := ports[:0]
+		for _, p := range ports {
+			if !skipped[p] {
+				kept = append(kept, p)
+			}
+		}
+		ports = kept
 	}
 	if len(ports) > 0 {
 		self, err := os.Executable()
