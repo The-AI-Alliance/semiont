@@ -20,6 +20,7 @@ pnpm-debug.log*
 packages/*/dist/
 dist/
 build/
+apps/frontend/public
 
 # Testing
 coverage/
