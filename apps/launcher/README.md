@@ -193,6 +193,14 @@ semiont stop
   -35 — typically only once the event log is non-empty, which masquerades as
   a regression. A warning, not a refusal: eviction state isn't stable, and
   the same setup can run fine for months.
+- **The Browser discovery view** (BROWSER-KB-DISCOVERY.md lane 1): every
+  stack mutation regenerates `<state>/discovery/kbs.json` — each managed KB's
+  localhost endpoint, placement, did:web and site name; `managedBy:
+  semiont-launcher` so the Browser can split managed from manual entries.
+  Endpoints and identity only, never a secret. The frontend container mounts
+  the directory read-only at `/discovery` — inert until the frontend image
+  serves it (lane 2); an empty stack set writes an empty list, because an
+  absent file is ambiguous.
 - `semiont stop` sweeps **every** installed runtime by default, so a stack
   started under `--runtime docker` can't survive a plain stop. Stop's job
   isn't done until the ports are actually free: `start` records the host

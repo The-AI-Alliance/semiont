@@ -3625,6 +3625,57 @@ func TestStatusBilling(t *testing.T) {
 	}
 }
 
+func TestDiscoveryFileTracksStacks(t *testing.T) {
+	// BROWSER-KB-DISCOVERY lane 1: the export view rides every stack
+	// mutation — local start, codespace start, delete — and is endpoints
+	// only, never a secret. The frontend mounts its directory read-only.
+	s := newCodespaceScenario(t)
+	disc := func() string {
+		b, _ := os.ReadFile(filepath.Join(s.home, ".local", "state", "semiont", "discovery", "kbs.json"))
+		return string(b)
+	}
+
+	if _, stderr, code := s.run(t, "start", "--runtime", "container"); code != 0 {
+		t.Fatalf("local start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "local entry", disc(),
+		`"host": "localhost"`, `"port": 4000`, `"placement": "local"`,
+		`"did": "did:web:example.github.io:test-kb"`, `"siteName": "Test Knowledge Base"`,
+		`"managedBy": "semiont-launcher"`)
+	// The frontend mounts the directory, read-only.
+	mustContain(t, "frontend mount", s.argv(t), "-v <home>/.local/state/semiont/discovery:/discovery:ro")
+
+	// Codespace start adds its forward (local holds 4000 → allocated 4001).
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("codespace start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "codespace entry", disc(),
+		`"port": 4001`, `"placement": "codespace"`, `"repo": "pingel-org/foo-kb"`)
+
+	// Secrets never travel: the view is endpoints and identity only.
+	for _, banned := range []string{"password", "op://", "apiKey", "secret"} {
+		if strings.Contains(disc(), banned) {
+			t.Errorf("discovery view leaked %q:\n%s", banned, disc())
+		}
+	}
+
+	// Deleting the codespace stack removes its entry; the local one remains.
+	if _, _, code := s.run(t, "stop", "--repo", csRepo, "--delete"); code != 0 {
+		t.Fatal("delete")
+	}
+	if strings.Contains(disc(), "codespace") {
+		t.Errorf("deleted stack still advertised:\n%s", disc())
+	}
+	mustContain(t, "local survives", disc(), `"placement": "local"`)
+
+	// Stopping the last stack leaves an EMPTY list — an absent file is
+	// ambiguous; an empty list says the launcher manages nothing.
+	if _, _, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
+		t.Fatal("local stop")
+	}
+	mustContain(t, "empty view", disc(), `"kbs": []`)
+}
+
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")

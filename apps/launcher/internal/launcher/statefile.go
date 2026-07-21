@@ -193,11 +193,15 @@ func saveStackSet(ss *stackSet) {
 	}
 	if len(ss.Stacks) == 0 {
 		_ = os.Remove(p)
+		writeDiscovery(ss) // empty list, not an absent file
 		return
 	}
 	ss.Schema = 3
 	ss.UpdatedAt = time.Now().UTC()
 	ss.Launcher = BuildVersion
+	// The Browser's discovery view rides every mutation — same single
+	// writer, same moments (BROWSER-KB-DISCOVERY.md lane 1).
+	defer writeDiscovery(ss)
 	b, err := json.MarshalIndent(ss, "", "  ")
 	if err != nil {
 		return
