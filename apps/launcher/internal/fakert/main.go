@@ -163,6 +163,10 @@ func ghCmd(args []string) {
 		}
 		fmt.Println(body)
 	case len(args) >= 3 && args[0] == "api" && args[1] == "user" && args[2] == "--jq":
+		if os.Getenv("FAKERT_GH_UNAUTH") != "" {
+			fmt.Fprintln(os.Stderr, "gh: To get started with GitHub CLI, please run:  gh auth login")
+			os.Exit(4)
+		}
 		fmt.Println("fakeuser")
 	case len(args) >= 2 && args[0] == "api" && strings.Contains(args[1], "/settings/billing/usage"):
 		// The Tier 2 payload, shaped exactly like the 2026-07-20 capture:

@@ -30,13 +30,21 @@ type usageItem struct {
 // statusBilling renders the report, or — without the scope — exactly the fix
 // and nothing else. Exit codes: 0 shown, 1 not.
 func statusBilling(u *ui) int {
-	if !onPath("gh") {
-		u.fail("--billing reads GitHub's usage report via gh, which is not on PATH.")
+	if !requireGh(u, "--billing (GitHub's usage report)") {
 		return 1
 	}
-	login, err := capture("gh", "api", "user", "--jq", ".login")
+	// captureBoth, not capture: an unauthenticated gh explains itself on
+	// stderr ("please run: gh auth login") — discarding that showed a bare
+	// "cannot resolve login" with no way forward.
+	login, err := captureBoth("gh", "api", "user", "--jq", ".login")
 	if err != nil {
-		u.fail("Cannot resolve the GitHub login: %s", strings.TrimSpace(login))
+		u.fail("Cannot resolve the GitHub login — is gh authenticated?")
+		if msg := strings.TrimSpace(login); msg != "" {
+			for _, line := range strings.Split(msg, "\n") {
+				fmt.Fprintln(os.Stderr, "    gh: "+line)
+			}
+		}
+		fmt.Fprintln(os.Stderr, "  First-time setup:  gh auth login")
 		return 1
 	}
 	out, err := captureBoth("gh", "api", "/users/"+strings.TrimSpace(login)+"/settings/billing/usage")

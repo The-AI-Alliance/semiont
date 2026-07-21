@@ -3607,6 +3607,16 @@ func TestStatusBilling(t *testing.T) {
 		t.Errorf("scope-less billing printed money:\n%s\n%s", stdout, stderr)
 	}
 
+	// Unauthenticated gh: its own guidance must reach the user, plus ours —
+	// capture-stdout-only used to swallow gh's "please run gh auth login".
+	s3 := newScenario(t, "container", "gh")
+	s3.extraEnv = append(s3.extraEnv, "FAKERT_GH_UNAUTH=1")
+	stdout, stderr, code = s3.run(t, "status", "--billing")
+	if code != 1 {
+		t.Fatalf("unauthenticated --billing: want exit 1, got %d", code)
+	}
+	mustContain(t, "unauth guidance", stdout+stderr, "gh auth login", "is gh authenticated?")
+
 	// --billing is standalone: GitHub bills per month/repo, not per stack.
 	if _, stderr, code := s.run(t, "status", "--billing", "--repo", "a/b"); code != 1 {
 		t.Fatal("billing+repo should refuse")
