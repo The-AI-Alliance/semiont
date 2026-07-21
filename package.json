@@ -70,7 +70,7 @@
     "ip-address": "^10.1.1",
     "ws": "^8.20.1",
     "esbuild": "^0.28.1",
-    "js-yaml": "^4.2.0",
+    "js-yaml": "^4.3.0",
     "@opentelemetry/core": "^2.8.0",
     "@opentelemetry/resources": "^2.8.0",
     "@opentelemetry/sdk-metrics": "^2.8.0",
