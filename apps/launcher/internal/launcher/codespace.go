@@ -359,7 +359,11 @@ func repoFromRoot(u *ui, opts startOptions) (slug string, did string, code int) 
 	// Pushed-state honesty: locally an uncommitted config edit is live via
 	// the /kb bind mount; in a codespace it silently doesn't exist.
 	if out, err := capture("git", "-C", root, "status", "--porcelain"); err == nil && out != "" {
-		u.warn("%s has uncommitted changes — the codespace runs %s as PUSHED; they don't travel.", root, slug)
+		// Lead with the PLACEMENT: during the 2026-07-20 flip incident this
+		// warning was the earliest tell that a start had gone cloud-shaped,
+		// but nothing in its old wording said so — the first word must name
+		// which path is running.
+		u.warn("Starting a CODESPACE for %s — it runs the repo as PUSHED to GitHub; the uncommitted changes in %s don't travel.", slug, root)
 	}
 	return slug, did, 0
 }

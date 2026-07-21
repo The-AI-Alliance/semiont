@@ -1171,7 +1171,7 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"gh codespace ssh -c fake-cs-1 -- cat /workspaces/*/.devcontainer/admin.json")
 	mustContain(t, "stdout", stdout,
 		"KB repo: "+csRepo,
-		"uncommitted changes", "as PUSHED",
+		"Starting a CODESPACE for", "as PUSHED", "uncommitted changes",
 		"Creating codespace for "+csRepo,
 		"Reading admin credentials",
 		"Semiont KB is up in codespace fake-cs-1",
