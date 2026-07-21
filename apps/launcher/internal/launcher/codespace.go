@@ -196,6 +196,9 @@ func startCodespace(u *ui, opts startOptions) int {
 	if opts.machine != "" && !created {
 		u.warn("--machine %s ignored: %s already exists and keeps the class it was created with.", opts.machine, name)
 	}
+	if (opts.idleTimeout != "" || opts.retention != "") && !created {
+		u.warn("--idle-timeout/--retention-period ignored: %s already exists and keeps its create-time settings.", name)
+	}
 
 	// One KB port per stack — other codespaces' forwards keep running;
 	// concurrency is the point. Allocation dodges every recorded claim and
@@ -279,6 +282,15 @@ func startCodespace(u *ui, opts startOptions) int {
 	}
 	fmt.Println()
 	fmt.Printf("  %s\n", u.dim("Runs "+repo+" as pushed — local uncommitted changes don't travel."))
+	// The hardware burning and its auto-stop — the summary is where a fresh
+	// VM's cost begins (CODESPACE-COSTS.md P0 q1).
+	if f, ok := fetchCodespaceFacts()[name]; ok && f.Machine != "" {
+		line := "Machine " + f.Machine
+		if f.IdleMin > 0 {
+			line += fmt.Sprintf(" · auto-stops after %dm idle", f.IdleMin)
+		}
+		fmt.Printf("  %s\n", u.dim(line))
+	}
 	if creds != nil {
 		fmt.Printf("  Connect as %s / %s %s\n",
 			u.bold(creds.Email), u.bold(creds.Password), u.dim("(generated at creation; never stored by the launcher)"))
@@ -286,7 +298,9 @@ func startCodespace(u *ui, opts startOptions) int {
 	fmt.Println()
 	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
 	fmt.Printf("  Follow logs:   %s %s\n", u.bold("semiont logs --repo "+repo), u.dim("(bare logs when unambiguous)"))
-	fmt.Printf("  Halt billing:  %s %s\n", u.bold("semiont stop --repo "+repo), u.dim("(state persists; --delete destroys)"))
+	// "Halt billing" overpromised: stopping halts COMPUTE billing; storage
+	// bills until retention auto-deletes the codespace (CODESPACE-COSTS.md).
+	fmt.Printf("  Halt compute:  %s %s\n", u.bold("semiont stop --repo "+repo), u.dim("(storage bills until auto-delete; --delete destroys now)"))
 	fmt.Println()
 	return 0
 }
@@ -522,10 +536,27 @@ func createCodespace(u *ui, repo string, opts startOptions) (string, int) {
 	if code != 0 {
 		return "", code
 	}
+	// Cost levers, set EXPLICITLY at create (adjudicated 2026-07-20,
+	// CODESPACE-COSTS.md P0 q3/q4): idle-timeout 60m — looser than GitHub's
+	// 30m, headroom for long image/model pulls; retention 720h (30 days,
+	// GitHub's maximum) — explicit so a tighter account-level default cannot
+	// silently shorten a KB codespace's life. Retention is when a STOPPED
+	// codespace is auto-deleted, state and all; announced because a default
+	// that deletes user state must never be silent.
+	idle, retention := opts.idleTimeout, opts.retention
+	if idle == "" {
+		idle = "60m"
+	}
+	if retention == "" {
+		retention = "720h"
+	}
 	u.log("Creating codespace for %s %s", u.bold(repo), u.dim("(--machine "+machine+"; ~4 min to Available, hooks run minutes past it)"))
-	u.echoCmd("gh", "codespace", "create", "--repo", repo, "--machine", machine)
+	u.log("Cost levers: %s", u.dim("auto-stop after "+idle+" idle; kept "+retention+" after stopping, then AUTO-DELETED (state and all)"))
+	args := []string{"codespace", "create", "--repo", repo, "--machine", machine,
+		"--idle-timeout", idle, "--retention-period", retention}
+	u.echoCmd("gh", args...)
 	for attempt := 1; ; attempt++ {
-		out, err := captureBoth("gh", "codespace", "create", "--repo", repo, "--machine", machine)
+		out, err := captureBoth("gh", args...)
 		if err == nil {
 			lines := strings.Fields(out)
 			if len(lines) == 0 {
@@ -743,7 +774,7 @@ func renderCodespacePlan(opts startOptions, repo, recorded string) {
 		} else {
 			fmt.Println("gh api /repos/" + repo + "/codespaces/machines   # preflight: verify --machine " + machine + " is available")
 		}
-		fmt.Println("gh codespace create --repo " + repo + " --machine " + machine + "   # only when none exists (503-aware retry)")
+		fmt.Println("gh codespace create --repo " + repo + " --machine " + machine + " --idle-timeout 60m --retention-period 720h   # only when none exists (503-aware retry; 60m/720h are launcher defaults, flags override)")
 	}
 	fmt.Println("gh codespace ports forward 4000:<kb-port> -c <codespace>   # <codespacePort>:<localPort>; detached; pid + port recorded")
 	fmt.Println("# wait: http://localhost:<kb-port>/api/health (600s)")
@@ -836,7 +867,22 @@ func statusCodespace(u *ui, st *stackState, refresh bool) int {
 			}
 		}
 	}
-	fmt.Printf("  %s  %s %s\n", u.bold(st.Codespace), st.Repo, u.dim("(state: "+state+")"))
+	stateDetail := "state: " + state
+	if f, ok := fetchCodespaceFacts()[st.Codespace]; ok {
+		if f.Machine != "" {
+			stateDetail += " · " + f.Machine
+		}
+		if state == "Available" && !f.StartedAt.IsZero() {
+			stateDetail += " · up " + formatUptime(time.Since(f.StartedAt))
+		}
+		if state == "Shutdown" && f.AutoDel != "" {
+			stateDetail += " · auto-deletes " + f.AutoDel
+		}
+		if f.IdleMin > 0 {
+			stateDetail += fmt.Sprintf(" · idle-stop %dm", f.IdleMin)
+		}
+	}
+	fmt.Printf("  %s  %s %s\n", u.bold(st.Codespace), st.Repo, u.dim("("+stateDetail+")"))
 	// --refresh needs an ssh, and an ssh to a stopped codespace WAKES it —
 	// resuming compute billing from a command the user ran to look, not to
 	// launch. Say so and skip rather than do it quietly.
@@ -949,6 +995,75 @@ func dropCollidingForwards(u *ui, needs []portNeed) {
 	}
 }
 
+// codespaceFacts: the cost-relevant facts for one codespace, from
+// `gh api /user/codespaces` — retention expiry, idle timeout, machine class
+// and size, and when it was last STARTED. lastUsedAt is "billing since" for
+// an Available codespace: verified 2026-07-20 by observation (the field
+// moved to the exact minute a resume started it; createdAt stayed put).
+// Everything here is DISPLAY — best-effort, absent facts render as nothing.
+type codespaceFacts struct {
+	Machine   string // class + size, e.g. "premiumLinux 8c/32GB"
+	StartedAt time.Time
+	AutoDel   string // yyyy-mm-dd a STOPPED codespace is deleted, state and all
+	IdleMin   int
+}
+
+func fetchCodespaceFacts() map[string]codespaceFacts {
+	out, err := capture("gh", "api", "/user/codespaces")
+	if err != nil {
+		return nil
+	}
+	var body struct {
+		Codespaces []struct {
+			Name    string `json:"name"`
+			Machine struct {
+				Name   string `json:"name"`
+				CPUs   int    `json:"cpus"`
+				Memory int64  `json:"memory_in_bytes"`
+			} `json:"machine"`
+			LastUsedAt         string `json:"last_used_at"`
+			RetentionExpiresAt string `json:"retention_expires_at"`
+			IdleTimeoutMinutes int    `json:"idle_timeout_minutes"`
+		} `json:"codespaces"`
+	}
+	if json.Unmarshal([]byte(out), &body) != nil {
+		return nil
+	}
+	facts := make(map[string]codespaceFacts, len(body.Codespaces))
+	for _, c := range body.Codespaces {
+		f := codespaceFacts{IdleMin: c.IdleTimeoutMinutes}
+		if c.Machine.Name != "" {
+			f.Machine = c.Machine.Name
+			if c.Machine.CPUs > 0 && c.Machine.Memory > 0 {
+				f.Machine += fmt.Sprintf(" %dc/%dGB", c.Machine.CPUs, c.Machine.Memory>>30)
+			}
+		}
+		if t, err := time.Parse(time.RFC3339, c.LastUsedAt); err == nil {
+			f.StartedAt = t
+		}
+		if len(c.RetentionExpiresAt) >= 10 {
+			f.AutoDel = c.RetentionExpiresAt[:10]
+		}
+		facts[c.Name] = f
+	}
+	return facts
+}
+
+// formatUptime: coarse on purpose — this is a cost cue, not a stopwatch.
+func formatUptime(d time.Duration) string {
+	if d < time.Minute {
+		return "<1m"
+	}
+	h, m := int(d.Hours()), int(d.Minutes())%60
+	switch {
+	case h == 0:
+		return fmt.Sprintf("%dm", m)
+	case m == 0:
+		return fmt.Sprintf("%dh", h)
+	}
+	return fmt.Sprintf("%dh%dm", h, m)
+}
+
 // printRemoteKBs: the REMOTE KNOWLEDGE BASES section — codespace-hosted KBs this
 // machine knows about. A repo is the durable thing (the identity); the
 // codespace instance and its state are status layered on it, which is why
@@ -960,8 +1075,10 @@ func printRemoteKBs(u *ui, cs []*stackState) {
 		return
 	}
 	states := map[string]string{}
+	var facts map[string]codespaceFacts
 	ghQueried := false
 	if onPath("gh") {
+		facts = fetchCodespaceFacts()
 		if out, err := capture("gh", "codespace", "list", "--json", "name,state,repository"); err == nil {
 			ghQueried = true
 			var all []codespaceInstance
@@ -989,7 +1106,21 @@ func printRemoteKBs(u *ui, cs []*stackState) {
 		case state == "":
 			state = "not listed by GitHub"
 		}
-		fmt.Printf("    %s %s\n", u.dim("codespace "+c.Codespace), u.dim("("+state+")"))
+		// Cost facts ride the state parens: an Available codespace names the
+		// hardware burning and since when — the safety tax the concurrent-KB
+		// feature owes (CODESPACE-COSTS.md Tier 1).
+		detail := state
+		if f, ok := facts[c.Codespace]; ok {
+			if state == "Available" {
+				if f.Machine != "" {
+					detail += " · " + f.Machine
+				}
+				if !f.StartedAt.IsZero() {
+					detail += " · up " + formatUptime(time.Since(f.StartedAt))
+				}
+			}
+		}
+		fmt.Printf("    %s %s\n", u.dim("codespace "+c.Codespace), u.dim("("+detail+")"))
 		// Status layered on top: where its KB is reachable, or what to run.
 		switch {
 		case forwardAlive(c.ForwardPID, c.ForwardPort):
@@ -1001,7 +1132,11 @@ func printRemoteKBs(u *ui, cs []*stackState) {
 		case state == "Available":
 			fmt.Printf("    %s\n", u.dim("not forwarded — semiont start --runtime codespace --repo "+c.Repo))
 		case state == "Shutdown":
-			fmt.Printf("    %s\n", u.dim("stopped (storage still bills) — resume: semiont start --runtime codespace --repo "+c.Repo))
+			bill := "stopped (storage still bills"
+			if f, ok := facts[c.Codespace]; ok && f.AutoDel != "" {
+				bill += "; auto-deletes " + f.AutoDel + ", state and all"
+			}
+			fmt.Printf("    %s\n", u.dim(bill+") — resume: semiont start --runtime codespace --repo "+c.Repo))
 		default:
 			fmt.Printf("    %s\n", u.dim("details: semiont status --repo "+c.Repo))
 		}

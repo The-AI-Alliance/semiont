@@ -36,6 +36,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -161,6 +162,38 @@ func ghCmd(args []string) {
 				`{"name":"largePremiumLinux","display_name":"16 cores, 64 GB RAM, 128 GB storage","cpus":16,"memory_in_bytes":68719476736}],"total_count":3}`
 		}
 		fmt.Println(body)
+	case len(args) >= 3 && args[0] == "api" && args[1] == "user" && args[2] == "--jq":
+		fmt.Println("fakeuser")
+	case len(args) >= 2 && args[0] == "api" && strings.Contains(args[1], "/settings/billing/usage"):
+		// The Tier 2 payload, shaped exactly like the 2026-07-20 capture:
+		// month buckets, per-repo (bare name), quota-as-discount, and a
+		// non-codespaces product that must be filtered out.
+		if os.Getenv("FAKERT_GH_BILLING_NOSCOPE") != "" {
+			fmt.Fprintln(os.Stderr, "gh: This API operation needs the \"user\" scope (HTTP 403)")
+			os.Exit(1)
+		}
+		body := os.Getenv("FAKERT_GH_BILLING")
+		if body == "" {
+			body = `{"usageItems":[` +
+				`{"date":"2026-01-01T00:00:00Z","product":"codespaces","sku":"Codespaces compute 8-core","quantity":44.29,"unitType":"Hours","grossAmount":31.89,"discountAmount":16.2,"netAmount":15.69,"repositoryName":"semiont"},` +
+				`{"date":"2026-01-01T00:00:00Z","product":"codespaces","sku":"Codespaces storage","quantity":7.71,"unitType":"GigabyteHours","grossAmount":0.54,"discountAmount":0.54,"netAmount":0.0,"repositoryName":"semiont"},` +
+				`{"date":"2026-07-01T00:00:00Z","product":"codespaces","sku":"Codespaces compute 8-core","quantity":4.03,"unitType":"Hours","grossAmount":2.90,"discountAmount":2.90,"netAmount":0.0,"repositoryName":"semiont-template-kb"},` +
+				`{"date":"2026-07-01T00:00:00Z","product":"copilot","sku":"Copilot Cloud Agent","quantity":18.0,"unitType":"Requests","grossAmount":0.72,"discountAmount":0.72,"netAmount":0.0,"repositoryName":""}]}`
+		}
+		fmt.Println(body)
+	case len(args) >= 2 && args[0] == "api" && args[1] == "/user/codespaces":
+		// The cost-facts endpoint (CODESPACE-COSTS Tier 1): machine size,
+		// last_used_at (= when last STARTED; verified 2026-07-20),
+		// retention expiry, idle timeout. Every fake codespace reports the
+		// same premiumLinux shape; last_used_at is now-2h30s so "up 2h"
+		// renders deterministically (the 30s absorbs test runtime).
+		var entries []string
+		for _, cs := range createdCodespaceNames() {
+			entries = append(entries, `{"name":"`+cs+`","machine":{"name":"premiumLinux","cpus":8,"memory_in_bytes":34359738368},`+
+				`"last_used_at":"`+time.Now().UTC().Add(-2*time.Hour-30*time.Second).Format(time.RFC3339)+`",`+
+				`"retention_expires_at":"2026-08-19T14:59:00Z","idle_timeout_minutes":60}`)
+		}
+		fmt.Println(`{"codespaces":[` + strings.Join(entries, ",") + `]}`)
 	case len(args) >= 2 && args[0] == "api" && strings.Contains(args[1], "/codespaces/secrets/"):
 		if os.Getenv("FAKERT_GH_SECRET_404") != "" {
 			fmt.Fprintln(os.Stderr, "gh: Not Found (HTTP 404)")
@@ -548,6 +581,25 @@ func createdCodespaces() []string {
 			continue
 		}
 		out = append(out, fmt.Sprintf(`{"name":%q,"state":"Available","repository":%q}`, nameRepo[0], nameRepo[1]))
+	}
+	return out
+}
+
+// createdCodespaceNames: just the names, for the /user/codespaces facts.
+func createdCodespaceNames() []string {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return nil
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "created-codespaces"))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		if f := strings.Fields(line); len(f) >= 1 {
+			out = append(out, f[0])
+		}
 	}
 	return out
 }

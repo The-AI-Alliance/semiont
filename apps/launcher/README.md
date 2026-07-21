@@ -109,6 +109,25 @@ semiont stop
   announced with the reason; an explicit `--machine` that isn't available is
   a hard error listing what is (never a silent substitution), and on a
   resume the flag is called out as inert rather than looking effective.
+  `semiont status --billing` (opt-in, needs gh's
+  `user` scope — it prints the one-line grant command if missing) shows
+  GitHub's own monthly usage report: compute/storage quantities, gross,
+  plan-quota discounts, and the NET actually paid — their numbers verbatim,
+  attributed per repository as GitHub reports it.
+  Status states the burn in FACTS, never invented dollars
+  (rates live on GitHub's pricing page, not in any API): an Available
+  codespace shows its machine and uptime (`Available · premiumLinux 8c/32GB
+  · up 3h20m`), a stopped one shows when storage billing ends by deletion
+  (`storage still bills; auto-deletes 2026-08-19, state and all`), and the
+  up-summary names the machine and its auto-stop.
+  Every create sets the cost levers EXPLICITLY: `--idle-timeout 60m` (auto-
+  stop; looser than GitHub's 30m for long pulls) and `--retention-period
+  720h` (30 days — GitHub's maximum — after which a STOPPED codespace is
+  auto-deleted, state and all; explicit so a tighter account default cannot
+  silently shorten a KB codespace's life). Both are overridable flags on
+  `semiont start`, create-time only: on a resume they are called out as
+  inert, and outside codespace placement they are refused. The create
+  announces both, because a default that deletes user state is never silent.
   Codespace placement is never sticky — every codespace start says
   `--runtime codespace` (or rides an existing record).
 - `semiont useradd` creates or updates users in the RUNNING stack: the
