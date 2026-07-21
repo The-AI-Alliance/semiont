@@ -583,7 +583,11 @@
     "statusExpired": "نشست منقضی شده",
     "statusSignedOut": "خارج شده",
     "statusUnreachable": "غیرقابل دسترس",
-    "invalidHost": "نام هاست نامعتبر"
+    "invalidHost": "نام هاست نامعتبر",
+    "discoveredTitle": "یافت‌شده روی این دستگاه",
+    "managedBadge": "مدیریت‌شده توسط راه‌انداز",
+    "placementLocal": "محلی",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "هیچ پایگاه دانشی وجود ندارد",
@@ -591,6 +595,7 @@
     "sessionExpired": "نشست شما منقضی شده است.",
     "signedOut": "شما خارج شده‌اید.",
     "signInHint": "برای مرور منابع با استفاده از پنل پایگاه دانش وارد شوید.",
+    "discoveredOnMachine": "{{count}} پایگاه دانش در حال اجرا روی این دستگاه یافت شد — از پنل سمت راست متصل شوید.",
     "findKnowledgeBases": "یافتن پایگاه‌های دانش",
     "createNew": "ایجاد یکی جدید"
   },

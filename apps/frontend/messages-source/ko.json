@@ -583,7 +583,11 @@
     "statusExpired": "세션 만료",
     "statusSignedOut": "로그아웃됨",
     "statusUnreachable": "연결 불가",
-    "invalidHost": "잘못된 호스트 이름"
+    "invalidHost": "잘못된 호스트 이름",
+    "discoveredTitle": "이 컴퓨터에서 발견됨",
+    "managedBadge": "런처에서 관리",
+    "placementLocal": "로컬",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "지식 베이스 없음",
@@ -591,6 +595,7 @@
     "sessionExpired": "세션이 만료되었습니다.",
     "signedOut": "로그아웃되었습니다.",
     "signInHint": "지식 베이스 패널을 사용하여 로그인하고 리소스를 탐색하세요.",
+    "discoveredOnMachine": "이 컴퓨터에서 실행 중인 지식 베이스 {{count}}개를 발견했습니다 — 오른쪽 패널에서 연결하세요.",
     "findKnowledgeBases": "지식 베이스 찾기",
     "createNew": "새로 만들기"
   },

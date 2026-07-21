@@ -583,7 +583,11 @@
     "statusExpired": "Session udløbet",
     "statusSignedOut": "Logget ud",
     "statusUnreachable": "Utilgængelig",
-    "invalidHost": "Ugyldigt værtsnavn"
+    "invalidHost": "Ugyldigt værtsnavn",
+    "discoveredTitle": "Fundet på denne maskine",
+    "managedBadge": "Administreret af launcher",
+    "placementLocal": "lokal",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ingen videnbaser",
@@ -591,6 +595,7 @@
     "sessionExpired": "Din session er udløbet.",
     "signedOut": "Du er logget ud.",
     "signInHint": "Log ind via videnbas-panelet for at gennemse ressourcer.",
+    "discoveredOnMachine": "{{count}} videnbaser fundet kørende på denne maskine — opret forbindelse fra panelet til højre.",
     "findKnowledgeBases": "Find videnbaser",
     "createNew": "Opret en ny"
   },

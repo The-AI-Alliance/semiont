@@ -583,7 +583,11 @@
     "statusExpired": "Sessione scaduta",
     "statusSignedOut": "Disconnesso",
     "statusUnreachable": "Non raggiungibile",
-    "invalidHost": "Nome host non valido"
+    "invalidHost": "Nome host non valido",
+    "discoveredTitle": "Trovato su questo computer",
+    "managedBadge": "Gestito dal launcher",
+    "placementLocal": "locale",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Nessuna base di conoscenza",
@@ -591,6 +595,7 @@
     "sessionExpired": "La tua sessione è scaduta.",
     "signedOut": "Hai effettuato la disconnessione.",
     "signInHint": "Accedi tramite il pannello Base di conoscenza per sfogliare le risorse.",
+    "discoveredOnMachine": "Trovate {{count}} basi di conoscenza in esecuzione su questo computer — connettiti dal pannello a destra.",
     "findKnowledgeBases": "Trova basi di conoscenza",
     "createNew": "Creane una nuova"
   },

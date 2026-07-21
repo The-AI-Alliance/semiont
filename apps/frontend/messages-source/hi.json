@@ -583,7 +583,11 @@
     "statusExpired": "सत्र समाप्त",
     "statusSignedOut": "साइन आउट",
     "statusUnreachable": "अनुपलब्ध",
-    "invalidHost": "अमान्य होस्टनाम"
+    "invalidHost": "अमान्य होस्टनाम",
+    "discoveredTitle": "इस मशीन पर मिला",
+    "managedBadge": "लॉन्चर द्वारा प्रबंधित",
+    "placementLocal": "स्थानीय",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "कोई ज्ञान आधार नहीं",
@@ -591,6 +595,7 @@
     "sessionExpired": "आपका सत्र समाप्त हो गया है।",
     "signedOut": "आप साइन आउट हैं।",
     "signInHint": "संसाधन ब्राउज़ करने के लिए ज्ञान आधार पैनल का उपयोग करके साइन इन करें।",
+    "discoveredOnMachine": "इस मशीन पर चल रहे {{count}} ज्ञान आधार मिले — दाईं ओर के पैनल से जुड़ें।",
     "findKnowledgeBases": "ज्ञानकोश खोजें",
     "createNew": "नया बनाएँ"
   },

@@ -583,7 +583,11 @@
     "statusExpired": "Økt utløpt",
     "statusSignedOut": "Logget ut",
     "statusUnreachable": "Ikke tilgjengelig",
-    "invalidHost": "Ugyldig vertsnavn"
+    "invalidHost": "Ugyldig vertsnavn",
+    "discoveredTitle": "Funnet på denne maskinen",
+    "managedBadge": "Administrert av launcher",
+    "placementLocal": "lokal",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ingen kunnskapsbaser",
@@ -591,6 +595,7 @@
     "sessionExpired": "Økten din har utløpt.",
     "signedOut": "Du er logget ut.",
     "signInHint": "Logg inn via kunnskapsbase-panelet for å bla gjennom ressurser.",
+    "discoveredOnMachine": "{{count}} kunnskapsbaser funnet kjørende på denne maskinen — koble til fra panelet til høyre.",
     "findKnowledgeBases": "Finn kunnskapsbaser",
     "createNew": "Opprett en ny"
   },

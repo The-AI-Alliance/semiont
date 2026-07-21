@@ -583,7 +583,11 @@
     "statusExpired": "Relace vypršela",
     "statusSignedOut": "Odhlášeno",
     "statusUnreachable": "Nedosažitelné",
-    "invalidHost": "Neplatný název hostitele"
+    "invalidHost": "Neplatný název hostitele",
+    "discoveredTitle": "Nalezeno v tomto počítači",
+    "managedBadge": "Spravováno spouštěčem",
+    "placementLocal": "místní",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Žádné znalostní báze",
@@ -591,6 +595,7 @@
     "sessionExpired": "Vaše relace vypršela.",
     "signedOut": "Jste odhlášeni.",
     "signInHint": "Přihlaste se pomocí panelu Znalostní báze a procházejte zdroje.",
+    "discoveredOnMachine": "Na tomto počítači nalezeno {{count}} spuštěných znalostních bází — připojte se z panelu vpravo.",
     "findKnowledgeBases": "Najít znalostní báze",
     "createNew": "Vytvořit novou"
   },

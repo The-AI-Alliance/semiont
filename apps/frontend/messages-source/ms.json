@@ -583,7 +583,11 @@
     "statusExpired": "Sesi tamat",
     "statusSignedOut": "Log keluar",
     "statusUnreachable": "Tidak dapat dicapai",
-    "invalidHost": "Nama hos tidak sah"
+    "invalidHost": "Nama hos tidak sah",
+    "discoveredTitle": "Ditemui pada mesin ini",
+    "managedBadge": "Diurus oleh launcher",
+    "placementLocal": "tempatan",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Tiada pangkalan pengetahuan",
@@ -591,6 +595,7 @@
     "sessionExpired": "Sesi anda telah tamat.",
     "signedOut": "Anda telah log keluar.",
     "signInHint": "Log masuk menggunakan panel Pangkalan Pengetahuan untuk melayari sumber.",
+    "discoveredOnMachine": "{{count}} pangkalan pengetahuan ditemui sedang berjalan pada mesin ini — sambung dari panel di sebelah kanan.",
     "findKnowledgeBases": "Cari pangkalan pengetahuan",
     "createNew": "Cipta yang baharu"
   },

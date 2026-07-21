@@ -583,7 +583,11 @@
     "statusExpired": "Istunto vanhentunut",
     "statusSignedOut": "Kirjautunut ulos",
     "statusUnreachable": "Ei tavoitettavissa",
-    "invalidHost": "Virheellinen isäntänimi"
+    "invalidHost": "Virheellinen isäntänimi",
+    "discoveredTitle": "Löytyi tältä koneelta",
+    "managedBadge": "Käynnistimen hallinnassa",
+    "placementLocal": "paikallinen",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ei tietopankkeja",
@@ -591,6 +595,7 @@
     "sessionExpired": "Istuntosi on vanhentunut.",
     "signedOut": "Olet kirjautunut ulos.",
     "signInHint": "Kirjaudu sisään Tietopankki-paneelin avulla selataksesi resursseja.",
+    "discoveredOnMachine": "Tältä koneelta löytyi {{count}} käynnissä olevaa tietopankkia — yhdistä oikealla olevasta paneelista.",
     "findKnowledgeBases": "Etsi tietokantoja",
     "createNew": "Luo uusi"
   },

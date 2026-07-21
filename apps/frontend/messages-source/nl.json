@@ -583,7 +583,11 @@
     "statusExpired": "Sessie verlopen",
     "statusSignedOut": "Uitgelogd",
     "statusUnreachable": "Onbereikbaar",
-    "invalidHost": "Ongeldige hostnaam"
+    "invalidHost": "Ongeldige hostnaam",
+    "discoveredTitle": "Gevonden op deze machine",
+    "managedBadge": "Beheerd door launcher",
+    "placementLocal": "lokaal",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Geen kennisbases",
@@ -591,6 +595,7 @@
     "sessionExpired": "Uw sessie is verlopen.",
     "signedOut": "U bent uitgelogd.",
     "signInHint": "Log in via het kennisbasis-paneel om bronnen te bekijken.",
+    "discoveredOnMachine": "{{count}} kennisbases gevonden die op deze machine draaien — maak verbinding via het paneel aan de rechterkant.",
     "findKnowledgeBases": "Kennisbanken zoeken",
     "createNew": "Nieuwe aanmaken"
   },
