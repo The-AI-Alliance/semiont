@@ -3472,6 +3472,26 @@ func TestBareStopFollowsCwd(t *testing.T) {
 	}
 }
 
+func TestFailedGateDumpsContainerLogs(t *testing.T) {
+	// When a health gate fails, the crash cause is usually sitting in the
+	// container's own logs — a friction log spent most of a day on an errno
+	// -35 that was in `logs` for the whole 120s wait while the launcher said
+	// only "did not become ready". The gate failure now shows the tail.
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_SKIP_SERVE=6333") // vectors: up but never listens
+	stdout, stderr, code := s.run(t, "start")
+	if code != 1 {
+		t.Fatalf("start with a dead vectors should fail: exit %d", code)
+	}
+	all := stdout + stderr
+	mustContain(t, "gate failure output", all,
+		"vectors (Qdrant) did not become ready",
+		"of semiont-qdrant's logs:",
+		"qdrant out", // fakert's `logs` stdout — proof the tail is the container's own
+		"qdrant err",
+		"Full logs:  semiont logs --service vectors")
+}
+
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")

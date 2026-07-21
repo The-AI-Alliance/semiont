@@ -46,6 +46,7 @@ type executor interface {
 	record(role, id, image, provided, endpoint, driver string)
 	providerOf(role string) string                              // how an already-recorded role was provided
 	noteContainer(role, container string)                       // stamp a launched container on a container-less role
+	dumpLogs(container, svc string)                             // failed health gate: show the crash where it is
 	verifyRemoteModels(role, base, key string, models []string) // record /v1/models metadata; warn on unlisted
 	ensureModels(base string, models []string)                  // pull configured ollama models that are absent
 	val(live, plan string) string                               // mode-scoped value (kb root, admin password)
@@ -404,6 +405,28 @@ func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 	saveStack(x.st)
 }
 
+// dumpLogs prints the tail of a just-launched container's own logs when its
+// health gate fails. The crash cause is usually sitting right there — a
+// friction log (2026-07-20) spent most of a day on an errno -35 event-log
+// read failure that was in `logs` for the whole 120s wait, while the
+// launcher said only "did not become ready".
+func (x *liveExec) dumpLogs(container, svc string) {
+	out, _ := captureBoth(x.rt, "logs", container)
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) == 1 && strings.TrimSpace(lines[0]) == "" {
+		return
+	}
+	const tail = 20
+	if len(lines) > tail {
+		lines = lines[len(lines)-tail:]
+	}
+	fmt.Fprintf(os.Stderr, "  Last %d line(s) of %s's logs:\n", len(lines), container)
+	for _, l := range lines {
+		fmt.Fprintln(os.Stderr, "    "+l)
+	}
+	fmt.Fprintf(os.Stderr, "  Full logs:  semiont logs --service %s\n", svc)
+}
+
 func (x *liveExec) ensureModels(base string, models []string) {
 	ensureOllamaModels(x.u, base, models)
 }
@@ -569,6 +592,9 @@ func (x *planExec) providerOf(string) string { return "" }
 
 // --dry-run records nothing, so ownership notes have nowhere to land.
 func (x *planExec) noteContainer(string, string) {}
+
+// --dry-run launches nothing, so nothing can crash.
+func (x *planExec) dumpLogs(string, string) {}
 
 // --dry-run reaches for nothing; name the query a real run would make.
 func (x *planExec) verifyRemoteModels(role, base, _ string, models []string) {

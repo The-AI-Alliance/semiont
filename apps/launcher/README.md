@@ -156,6 +156,18 @@ semiont stop
   silently overwritten. **No reporting command ever wakes a stopped
   codespace** (an ssh would, resuming compute billing), so `--refresh` on a
   stopped one says so and skips.
+- **A failed health gate shows the crash where it is**: the launcher prints
+  the last ~20 lines of that container's own logs plus the `semiont logs
+  --service <name>` pointer — the cause of a startup crash is usually
+  sitting right there (a friction log spent most of a day on an errno -35
+  event-log read failure that was in `logs` for the whole 120s backend
+  wait). And on macOS, a KB root under `~/Desktop`, `~/Documents` (only when
+  Finder's "Desktop & Documents Folders" iCloud sync is actually on), or
+  `~/Library/Mobile Documents` draws a start-time WARNING: iCloud evicts
+  file content, and container reads of evicted files fail with that errno
+  -35 — typically only once the event log is non-empty, which masquerades as
+  a regression. A warning, not a refusal: eviction state isn't stable, and
+  the same setup can run fine for months.
 - `semiont stop` sweeps **every** installed runtime by default, so a stack
   started under `--runtime docker` can't survive a plain stop. Stop's job
   isn't done until the ports are actually free: `start` records the host

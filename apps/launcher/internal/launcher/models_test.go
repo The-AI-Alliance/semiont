@@ -59,3 +59,27 @@ func TestBindingModelsAreSortedAndDeduped(t *testing.T) {
 		}
 	}
 }
+
+// The iCloud zones: ~/Library/Mobile Documents is always iCloud-managed;
+// Desktop/Documents only when the Finder sync setting says so (checked by
+// the darwin-only caller, not here). The separator guard matters: a sibling
+// named "Desktopia" must not match.
+func TestICloudZone(t *testing.T) {
+	home := "/Users/x"
+	for root, want := range map[string]string{
+		"/Users/x/Desktop/kb":                      "desktop",
+		"/Users/x/Documents/deep/nested/kb":        "desktop",
+		"/Users/x/Library/Mobile Documents/foo/kb": "mobile",
+		"/Users/x/Developer/kb":                    "",
+		"/Users/x/Desktopia/kb":                    "",
+		"/Users/x/Desktop":                         "desktop",
+		"/elsewhere/Desktop/kb":                    "",
+	} {
+		if got := icloudZone(root, home); got != want {
+			t.Errorf("icloudZone(%q) = %q, want %q", root, got, want)
+		}
+	}
+	if got := icloudZone("/Users/x/Desktop/kb", ""); got != "" {
+		t.Errorf("empty home must classify nothing, got %q", got)
+	}
+}

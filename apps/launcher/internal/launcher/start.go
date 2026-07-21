@@ -512,6 +512,9 @@ func Start(args []string) int {
 		if ident := loadKBIdentity(root); ident != nil && ident.SiteName != "" {
 			u.log("KB: %s %s", u.bold(ident.SiteName), u.dim(ident.didWeb()))
 		}
+		if !opts.dryRun {
+			warnICloudRoot(u, root)
+		}
 	}
 	if rtFrom != "" {
 		u.log("Container runtime: %s %s", u.bold(rt), u.dim("("+rtFrom+")"))
