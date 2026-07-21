@@ -18,6 +18,10 @@ const translations: Record<string, string> = {
   'KnowledgeBasePanel.statusExpired': 'Session expired',
   'KnowledgeBasePanel.statusSignedOut': 'Signed out',
   'KnowledgeBasePanel.statusUnreachable': 'Unreachable',
+  'KnowledgeBasePanel.discoveredTitle': 'Found on this machine',
+  'KnowledgeBasePanel.managedBadge': 'Managed by launcher',
+  'KnowledgeBasePanel.placementLocal': 'local',
+  'KnowledgeBasePanel.placementCodespace': 'codespace',
 };
 
 vi.mock('react-i18next', () => ({
@@ -79,11 +83,21 @@ const {
   };
 });
 
+// Launcher discovery (P5): the panel binds useKBDiscovery; tests script it
+// through this holder (reset in beforeEach, set per test).
+const discoveryHolder = vi.hoisted(() => ({
+  current: { state: null, kbs: [] } as {
+    state: import('@semiont/sdk').DiscoveryState | null;
+    kbs: import('@semiont/core').DiscoveredKB[];
+  },
+}));
+
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
   return {
     ...actual,
     useSemiont: () => mockBrowser,
+    useKBDiscovery: () => discoveryHolder.current,
     defaultProtocol: (host: string) => host === 'localhost' || host === '127.0.0.1' ? 'http' : 'https',
   };
 });
@@ -179,6 +193,95 @@ describe('KnowledgeBasePanel', () => {
     it('should have a heading for the panel', () => {
       render(<KnowledgeBasePanel />);
       expect(screen.getByRole('heading', { name: /Knowledge Bases/ })).toBeInTheDocument();
+    });
+  });
+
+  describe('Launcher discovery (P5)', () => {
+    const discoveredLocal = {
+      host: 'localhost',
+      port: 4001,
+      placement: 'local' as const,
+      managedBy: 'semiont-launcher',
+      did: 'did:web:local.example',
+      siteName: 'Local KB',
+    };
+    // Same endpoint as kb1 ('Production', prod.example.com:4000) — the collision.
+    const discoveredProd = {
+      host: 'prod.example.com',
+      port: 4000,
+      placement: 'codespace' as const,
+      managedBy: 'semiont-launcher',
+      did: 'did:web:prod.example',
+      siteName: 'Production KB',
+    };
+
+    beforeEach(() => {
+      discoveryHolder.current = { state: null, kbs: [] };
+    });
+
+    it('renders launcher-discovered KBs in their own section', () => {
+      discoveryHolder.current = { state: { kind: 'managed', kbs: [discoveredLocal] }, kbs: [discoveredLocal] };
+      render(<KnowledgeBasePanel />);
+
+      expect(screen.getByText('Found on this machine')).toBeInTheDocument();
+      expect(screen.getByText('Local KB')).toBeInTheDocument();
+      expect(screen.getByText(/localhost:4001/)).toBeInTheDocument();
+      expect(screen.getByText('local')).toBeInTheDocument();
+    });
+
+    it('clicking a discovered KB opens the login form prefilled with its endpoint', async () => {
+      discoveryHolder.current = { state: { kind: 'managed', kbs: [discoveredLocal] }, kbs: [discoveredLocal] };
+      const user = userEvent.setup();
+      render(<KnowledgeBasePanel />);
+
+      await user.click(screen.getByText('Local KB'));
+
+      expect(screen.getByPlaceholderText('Host')).toHaveValue('localhost');
+      expect(screen.getByPlaceholderText('Port')).toHaveValue(4001);
+    });
+
+    it('adopts a collision: one row, managed badge, no discovered section', () => {
+      discoveryHolder.current = { state: { kind: 'managed', kbs: [discoveredProd] }, kbs: [discoveredProd] };
+      render(<KnowledgeBasePanel />);
+
+      // The registered row renders once (its registered label, not the
+      // discovered siteName), gains the managed badge, and the registry is
+      // untouched (adoption is render-only and reversible).
+      expect(screen.getByText('Production')).toBeInTheDocument();
+      expect(screen.queryByText('Production KB')).not.toBeInTheDocument();
+      expect(screen.getByTitle('Managed by launcher')).toBeInTheDocument();
+      expect(screen.getByText('codespace')).toBeInTheDocument();
+      expect(screen.queryByText('Found on this machine')).not.toBeInTheDocument();
+    });
+
+    it('renders the panel unchanged when discovery is absent', () => {
+      discoveryHolder.current = { state: { kind: 'absent', reason: 'not-found' }, kbs: [] };
+      render(<KnowledgeBasePanel />);
+
+      expect(screen.queryByText('Found on this machine')).not.toBeInTheDocument();
+      expect(screen.queryByTitle('Managed by launcher')).not.toBeInTheDocument();
+      expect(screen.getByText('Production')).toBeInTheDocument();
+      expect(screen.getByText('Staging')).toBeInTheDocument();
+    });
+
+    it('removal is projection-only: discovered rows vanish, adopted rows just lose the badge', () => {
+      discoveryHolder.current = {
+        state: { kind: 'managed', kbs: [discoveredLocal, discoveredProd] },
+        kbs: [discoveredLocal, discoveredProd],
+      };
+      const { rerender } = render(<KnowledgeBasePanel />);
+      expect(screen.getByText('Local KB')).toBeInTheDocument();
+      // Two badges: the adopted registered row's and the discovered row's.
+      expect(screen.getAllByTitle('Managed by launcher')).toHaveLength(2);
+
+      // The launcher stops managing everything.
+      discoveryHolder.current = { state: { kind: 'managed', kbs: [] }, kbs: [] };
+      rerender(<KnowledgeBasePanel />);
+
+      expect(screen.queryByText('Local KB')).not.toBeInTheDocument();
+      expect(screen.queryByTitle('Managed by launcher')).not.toBeInTheDocument();
+      // The adopted row survives — it is the user's registered KB.
+      expect(screen.getByText('Production')).toBeInTheDocument();
     });
   });
 });
