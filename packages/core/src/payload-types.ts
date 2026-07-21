@@ -29,3 +29,11 @@ export type JobType = components['schemas']['JobType'];
  * `servesJobTypes`. See .plans/COLLABORATOR-DIRECTORY.md.
  */
 export type CollaboratorEntry = components['schemas']['CollaboratorEntry'];
+
+/**
+ * The launcher's published KB-discovery view (BROWSER-KB-DISCOVERY): the
+ * document at `DISCOVERY_URL_PATH` and its entries. Endpoints and identity
+ * only — never credentials.
+ */
+export type DiscoveryDocument = components['schemas']['DiscoveryDocument'];
+export type DiscoveredKB = components['schemas']['DiscoveredKB'];

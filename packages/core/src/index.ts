@@ -109,6 +109,8 @@ export type {
   SelectionData,
   JobType,
   CollaboratorEntry,
+  DiscoveryDocument,
+  DiscoveredKB,
 } from './payload-types';
 
 // Event utilities

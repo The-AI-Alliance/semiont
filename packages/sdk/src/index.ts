@@ -146,3 +146,22 @@ export * from './state';
 // all return Observables that consumers typically `lastValueFrom` to await
 // the final value, or `firstValueFrom` to grab the first non-undefined emit.
 export { firstValueFrom, lastValueFrom } from 'rxjs';
+
+// Browser ↔ launcher KB discovery (BROWSER-KB-DISCOVERY P3): the domain
+// layer over the launcher's published export view — one validator, typed
+// absent-vs-managed state, and the poll/diff subscription. IO-abstracted:
+// httpDiscovery for the served mount, textDiscovery for any consumer-owned
+// byte source (no fs in the sdk).
+export {
+  parseDiscoveryDocument,
+  httpDiscovery,
+  textDiscovery,
+  subscribeDiscovery,
+} from './discovery';
+export type {
+  DiscoveryState,
+  DiscoveryReadResult,
+  DiscoveryTransport,
+  DiscoveryDiff,
+  DiscoveryAbsentReason,
+} from './discovery';
