@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { EventStorage } from '../../storage/event-storage';
+import { EventStorage, wrapEventReadError } from '../../storage/event-storage';
 import { annotationId, resourceId, userId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { promises as fs } from 'fs';
@@ -478,6 +478,69 @@ describe('EventStorage', () => {
       // Should still read correctly
       const events = await storage.getAllEvents(resourceId('doc1'));
       expect(events).toHaveLength(1);
+    });
+  });
+
+  describe('Read-error reporting', () => {
+    // Friction log 2026-07-20: an errno -35 read failure surfaced with no
+    // file path, costing most of a day. Read failures must name the file.
+
+    describe('wrapEventReadError()', () => {
+      it('names the failing file and preserves the original message', () => {
+        const original: NodeJS.ErrnoException = new Error('Unknown system error -21');
+        original.errno = -21;
+        original.syscall = 'read';
+
+        const wrapped = wrapEventReadError('/kb/.semiont/events/__system__/events-000001.jsonl', original);
+
+        expect(wrapped.message).toContain('failed to read event log entry /kb/.semiont/events/__system__/events-000001.jsonl');
+        expect(wrapped.message).toContain('Unknown system error -21');
+        expect(wrapped.cause).toBe(original);
+      });
+
+      it('appends the iCloud eviction hint for errno -35', () => {
+        const original: NodeJS.ErrnoException = new Error('Unknown system error -35');
+        original.errno = -35;
+        original.syscall = 'read';
+
+        const wrapped = wrapEventReadError('/kb/.semiont/events/__system__/events-000001.jsonl', original);
+
+        expect(wrapped.message).toContain('iCloud-synced folders');
+        expect(wrapped.message).toContain('move the KB to a non-synced path');
+      });
+
+      it('does not append the hint for other errnos', () => {
+        const original: NodeJS.ErrnoException = new Error('EIO: i/o error');
+        original.errno = -5;
+
+        const wrapped = wrapEventReadError('/some/file.jsonl', original);
+
+        expect(wrapped.message).not.toContain('iCloud');
+      });
+    });
+
+    it('readEventsFromFile names the file on non-ENOENT read failures', async () => {
+      // A directory where a JSONL file is expected → EISDIR, not ENOENT
+      const docPath = storage.getResourcePath(resourceId('doc-read-err'));
+      await fs.mkdir(join(docPath, 'events-000001.jsonl'), { recursive: true });
+
+      await expect(
+        storage.readEventsFromFile(resourceId('doc-read-err'), 'events-000001.jsonl')
+      ).rejects.toThrow(/failed to read event log entry .*doc-read-err.*events-000001\.jsonl/);
+    });
+
+    it('countEventsInFile names the file on non-ENOENT read failures', async () => {
+      const docPath = storage.getResourcePath(resourceId('doc-count-err'));
+      await fs.mkdir(join(docPath, 'events-000001.jsonl'), { recursive: true });
+
+      await expect(
+        storage.countEventsInFile(resourceId('doc-count-err'), 'events-000001.jsonl')
+      ).rejects.toThrow(/failed to read event log entry .*doc-count-err.*events-000001\.jsonl/);
+    });
+
+    it('still returns [] for a missing file (ENOENT unchanged)', async () => {
+      const events = await storage.readEventsFromFile(resourceId('doc-absent'), 'events-000001.jsonl');
+      expect(events).toEqual([]);
     });
   });
 });

@@ -29,6 +29,26 @@ export interface EventStorageConfig {
 }
 
 /**
+ * Wrap a low-level event-log read failure with the path being read, so the
+ * error names the failing file wherever it surfaces (error.log, health-gate
+ * dumps, rebuild skips).
+ *
+ * errno -35 is how an iCloud-evicted ("dataless") file surfaces when read
+ * through a container bind mount on macOS: the Linux VM sees EDEADLK (-35),
+ * which libuv leaves unmapped — "Unknown system error -35". Nothing about
+ * that message points at iCloud, so this is where the hint gets attached.
+ */
+export function wrapEventReadError(filePath: string, error: NodeJS.ErrnoException): Error {
+  const hint = error.errno === -35
+    ? ' (on macOS, iCloud-synced folders (Desktop/Documents) can evict file content that container mounts cannot read; move the KB to a non-synced path)'
+    : '';
+  return new Error(
+    `failed to read event log entry ${filePath}: ${error.message}${hint}`,
+    { cause: error },
+  );
+}
+
+/**
  * EventStorage handles physical storage of events
  * Owns: file I/O, sharding, AND sequence/hash tracking
  */
@@ -238,7 +258,7 @@ export class EventStorage {
       if (error.code === 'ENOENT') {
         return 0;
       }
-      throw error;
+      throw wrapEventReadError(filePath, error);
     }
   }
 
@@ -280,7 +300,7 @@ export class EventStorage {
       if (error.code === 'ENOENT') {
         return []; // File doesn't exist
       }
-      throw error;
+      throw wrapEventReadError(filePath, error);
     }
 
     return events;
