@@ -161,7 +161,13 @@ semiont stop
   --service <name>` pointer — the cause of a startup crash is usually
   sitting right there (a friction log spent most of a day on an errno -35
   event-log read failure that was in `logs` for the whole 120s backend
-  wait). And on macOS, a KB root under `~/Desktop`, `~/Documents` (only when
+  wait). Service containers run **without `--rm`** for the same reason: a
+  container that CRASHES during the gate used to remove itself, destroying
+  the very logs that explain it ("No such container"). It now remains,
+  Exited and inspectable — status shows it, `semiont logs` reads it — until
+  the next start's preflight or a stop sweeps it. Cleanup was always the
+  launcher's explicit job at both ends; `--rm` only ever subtracted the
+  evidence. (One-shot busybox probes keep `--rm` — nothing to keep.) And on macOS, a KB root under `~/Desktop`, `~/Documents` (only when
   Finder's "Desktop & Documents Folders" iCloud sync is actually on), or
   `~/Library/Mobile Documents` draws a start-time WARNING: iCloud evicts
   file content, and container reads of evicted files fail with that errno

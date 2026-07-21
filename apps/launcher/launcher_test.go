@@ -1805,7 +1805,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("codespace record + local dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "local plan stdout", stdout, "container run -d --rm --name semiont-backend")
+	mustContain(t, "local plan stdout", stdout, "container run -d --name semiont-backend")
 
 	// useradd now WORKS against a codespace stack (the generated admin is
 	// only the FIRST user; everything after it is useradd's job).
@@ -2119,7 +2119,7 @@ func TestStartExternalGraphBoot(t *testing.T) {
 		"graph — externally provided at 127.0.0.1:7777 (reachable)",
 		"🚀 Semiont stack is up")
 	argv := s.argv(t)
-	for _, absent := range []string{"run -d --rm --name semiont-neo4j", "NEO4J_AUTH", "lsof -ti :7474"} {
+	for _, absent := range []string{"run -d --name semiont-neo4j", "NEO4J_AUTH", "lsof -ti :7474"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("external graph still touched %q in argv", absent)
 		}
@@ -2777,7 +2777,7 @@ func TestStartPrefersRecordedRuntime(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout,
 		"docker pull ghcr.io/the-ai-alliance/semiont-backend:latest",
-		"docker run -d --rm --name semiont-backend")
+		"docker run -d --name semiont-backend")
 	// The main flow must plan against docker; `container` may appear only in
 	// the cross-runtime stray sweep, never as the launching runtime.
 	if strings.Contains(stdout, "container run -d") {
@@ -2979,7 +2979,7 @@ func TestStartServiceWorker(t *testing.T) {
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
 		"<config-stage>/worker.toml:/home/semiont/.semiontconfig:ro",
 	)
-	for _, absent := range []string{"run -d --rm --name semiont-neo4j", "run -d --rm --name semiont-backend", "semiont-frontend"} {
+	for _, absent := range []string{"run -d --name semiont-neo4j", "run -d --name semiont-backend", "semiont-frontend"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("--service worker touched the wider stack: %q in argv", absent)
 		}
@@ -3008,7 +3008,7 @@ func TestStartServiceGraph(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout, "Restarting graph (Neo4j)", "🚀 graph is up")
 	argv := s.argv(t)
-	mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --rm --name semiont-neo4j")
+	mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --name semiont-neo4j")
 	for _, absent := range []string{"image pull", "busybox", "inspect"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("infra --service ran needless step: %q in argv", absent)
@@ -3490,6 +3490,32 @@ func TestFailedGateDumpsContainerLogs(t *testing.T) {
 		"qdrant out", // fakert's `logs` stdout — proof the tail is the container's own
 		"qdrant err",
 		"Full logs:  semiont logs --service vectors")
+}
+
+func TestCrashedContainerStaysInspectable(t *testing.T) {
+	// The other half of the failed-gate story (friction log issue 5): a
+	// container that CRASHED during the gate used to be gone — --rm took the
+	// container, its console output, and its log files with it, and
+	// `<rt> logs` answered "No such container". Service containers now run
+	// without --rm: the crashed container remains, dumpLogs works on it, and
+	// the next start's preflight (or stop) sweeps it.
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	argv := s.argv(t)
+	for _, line := range strings.Split(argv, "\n") {
+		if strings.Contains(line, "run -d") && strings.Contains(line, "semiont-") {
+			if strings.Contains(line, "--rm") {
+				t.Errorf("service container launched with --rm — a crash would destroy its logs: %q", line)
+			}
+		}
+		// One-shot probes stay ephemeral: they produce no diagnostics worth
+		// keeping and would otherwise pile up.
+		if strings.Contains(line, "busybox") && !strings.Contains(line, "--rm") {
+			t.Errorf("busybox probe lost its --rm: %q", line)
+		}
+	}
 }
 
 func TestStatusService(t *testing.T) {

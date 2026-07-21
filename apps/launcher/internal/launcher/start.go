@@ -627,7 +627,7 @@ func image(svc, version string) string {
 }
 
 func tracesArgs() []string {
-	return []string{"run", "-d", "--rm", "--name", "semiont-jaeger",
+	return []string{"run", "-d", "--name", "semiont-jaeger", // no --rm: see providedRunArgs
 		"-p", "16686:16686", "-p", "4318:4318", "jaegertracing/all-in-one:1.76.0"}
 }
 
@@ -637,7 +637,7 @@ func tracesArgs() []string {
 // ride in here — `semiont useradd` execs the in-container CLI instead, so
 // no password ever sits in the container's inspectable env.
 func backendArgs(kbRoot, stage, addr, secret, version string, port int, userEnv, otel []string) []string {
-	a := []string{"run", "-d", "--rm", "--name", "semiont-backend",
+	a := []string{"run", "-d", "--name", "semiont-backend", // no --rm: see providedRunArgs
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", "8G",
 		"--volume", kbRoot + ":/kb",
 		"--volume", stage + "/backend.toml:/home/semiont/.semiontconfig:ro"}
@@ -656,7 +656,7 @@ func backendArgs(kbRoot, stage, addr, secret, version string, port int, userEnv,
 // weaver) — identical in shape, differing only in name, port, and memory.
 func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string, userEnv, otel []string) []string {
 	p := strconv.Itoa(port)
-	a := []string{"run", "-d", "--rm", "--name", "semiont-" + svc,
+	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
 		"--memory", mem, "--publish", p + ":" + p,
 		"--volume", stage + "/" + svc + ".toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, userEnv...)
@@ -675,7 +675,7 @@ func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string,
 // 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
 // may move — it's absent from the config and nothing in the stack dials it.
 func frontendArgs(version string, port int) []string {
-	return []string{"run", "-d", "--rm", "--name", "semiont-frontend",
+	return []string{"run", "-d", "--name", "semiont-frontend", // no --rm: see providedRunArgs
 		"--memory", "1G", "--publish", fmt.Sprintf("%d:3000", port), image("frontend", version)}
 }
 
@@ -727,9 +727,10 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 
 	// Summary; the stack runs detached and this process exits — bring the
 	// stack up, say where everything is, and get out of the way. These
-	// containers run --rm with NO restart policy; a crashed service stays
-	// down until you rerun semiont start (fail-fast is the design; the
-	// compose path adds restart: on-failure).
+	// containers run with NO restart policy; a crashed service stays down —
+	// and, with no --rm, stays VISIBLE: status shows it exited and its logs
+	// survive for diagnosis until the next start or stop sweeps it
+	// (fail-fast is the design; the compose path adds restart: on-failure).
 	u.stamp("semiont start: containers ready")
 	fmt.Println()
 	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 Semiont stack is up"), u.dim("("+took(time.Since(t0))+")"))
