@@ -1,7 +1,20 @@
 package launcher
 
 // discovery.go — lane 1 of BROWSER-KB-DISCOVERY.md: publish the launcher's
-// KB view where the Browser can read it. <stateDir>/discovery/kbs.json is an
+// KB view where the Browser can read it.
+//
+// SCHEMA AUTHORITY: specs/src/discovery/DiscoveryDocument.json (and
+// DiscoveredKB.json) — the multi-language contract of record: a standalone
+// contract directory in specs (per-directory ref-closure by rule, so binding
+// it never drags in the API surface; see specs/src/discovery/README.md). TypeScript
+// consumers get their types from @semiont/core (the OpenAPI pipeline); THIS
+// side gets discovery_types_gen.go from the same files via the go:generate
+// below — the Go equivalent of core's generated types.ts, so schema drift is
+// a compile error here, not a review promise. Change the schema first, then
+// regenerate both sides. version is the compatibility gate: consumers must
+// ignore documents they do not understand.
+
+//go:generate sh -c "cd ../../../.. && container run --rm -v $(pwd):/w -w /w golang:1.25 go run github.com/atombender/go-jsonschema@v0.23.1 -p launcher --tags json --struct-name-from-title --capitalization KB -o apps/launcher/internal/launcher/discovery_types_gen.go specs/src/discovery/DiscoveryDocument.json" <stateDir>/discovery/kbs.json is an
 // EXPORT VIEW regenerated on every stack mutation (saveStackSet is the single
 // writer), and the frontend container mounts the directory read-only at
 // /discovery. Never stack.json itself — that file is launcher-private (PIDs,
@@ -15,16 +28,6 @@ import (
 	"strings"
 )
 
-type discoveryKB struct {
-	Host      string `json:"host"`
-	Port      int    `json:"port"`
-	Placement string `json:"placement"` // "local" | "codespace"
-	Repo      string `json:"repo,omitempty"`
-	Did       string `json:"did,omitempty"`
-	SiteName  string `json:"siteName,omitempty"`
-	ManagedBy string `json:"managedBy"` // the Browser's managed/manual split keys on this
-}
-
 // writeDiscovery renders the view. An EMPTY stack set writes an empty list —
 // an absent file is ambiguous ("no launcher?" vs "nothing running"), an
 // empty list says plainly that the launcher manages nothing right now.
@@ -33,9 +36,16 @@ func writeDiscovery(ss *stackSet) {
 	if dir == "" {
 		return
 	}
-	kbs := []discoveryKB{}
+	opt := func(v string) *string {
+		if v == "" {
+			return nil
+		}
+		return &v
+	}
+	kbs := []DiscoveredKB{}
 	if st := ss.Stacks["local"]; st != nil {
-		e := discoveryKB{Host: "localhost", Port: 4000, Placement: "local", Did: st.KBDid, ManagedBy: "semiont-launcher"}
+		e := DiscoveredKB{Host: "localhost", Port: 4000, Placement: DiscoveredKBPlacementLocal,
+			Did: opt(st.KBDid), ManagedBy: "semiont-launcher"}
 		// The backend endpoint carries the real port when the config moved it.
 		if b, ok := st.Services["backend"]; ok {
 			if p := portFromEndpoint(b.Endpoint); p != 0 {
@@ -43,7 +53,7 @@ func writeDiscovery(ss *stackSet) {
 			}
 		}
 		if ident := loadKBIdentity(st.KBRoot); ident != nil {
-			e.SiteName = ident.SiteName
+			e.SiteName = opt(ident.SiteName)
 		}
 		kbs = append(kbs, e)
 	}
@@ -51,12 +61,12 @@ func writeDiscovery(ss *stackSet) {
 		if c.ForwardPort == 0 {
 			continue // no local endpoint to offer
 		}
-		kbs = append(kbs, discoveryKB{
-			Host: "localhost", Port: c.ForwardPort, Placement: "codespace",
-			Repo: c.Repo, Did: c.KBDid, ManagedBy: "semiont-launcher",
+		kbs = append(kbs, DiscoveredKB{
+			Host: "localhost", Port: c.ForwardPort, Placement: DiscoveredKBPlacementCodespace,
+			Repo: opt(c.Repo), Did: opt(c.KBDid), ManagedBy: "semiont-launcher",
 		})
 	}
-	b, err := json.MarshalIndent(map[string]any{"version": 1, "kbs": kbs}, "", "  ")
+	b, err := json.MarshalIndent(DiscoveryDocument{Version: 1, Kbs: kbs}, "", "  ")
 	if err != nil {
 		return
 	}

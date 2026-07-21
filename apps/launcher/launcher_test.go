@@ -226,7 +226,15 @@ func (s *scenario) argv(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := strings.ReplaceAll(string(b), s.kb, "<kb-root>")
+	return s.norm(string(b))
+}
+
+// norm replaces the scenario's per-run paths with stable placeholders — the
+// same normalization for argv logs and stdout goldens, so a host path in
+// either (the discovery mount taught us) can never bake a tmp dir into a
+// golden that greens on refresh and reds on every later run.
+func (s *scenario) norm(text string) string {
+	out := strings.ReplaceAll(text, s.kb, "<kb-root>")
 	out = stageRe.ReplaceAllString(out, "<config-stage>")
 	out = strings.ReplaceAll(out, s.home, "<home>")
 	return out
@@ -522,7 +530,7 @@ func TestStartDryRunDefault(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 	}
-	checkGolden(t, "start-dryrun-default.txt", stdout)
+	checkGolden(t, "start-dryrun-default.txt", s.norm(stdout))
 	// Dry run must execute nothing beyond KB-root resolution.
 	if got := s.argv(t); got != "git -C <kb-root> rev-parse --show-toplevel\n" {
 		t.Errorf("dry run executed external commands:\n%s", got)
@@ -536,7 +544,7 @@ func TestStartDryRunLocalVersion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 	}
-	checkGolden(t, "start-dryrun-local.txt", stdout)
+	checkGolden(t, "start-dryrun-local.txt", s.norm(stdout))
 }
 
 // --- stop ---
