@@ -291,6 +291,40 @@ func startCodespace(u *ui, opts startOptions) int {
 	return 0
 }
 
+// cwdKBRoot: the KB root the working directory resolves to (SEMIONT_ROOT,
+// else the .semiont/ walk) — "" when not inside a clone. The cwd is context
+// every command may consult: standing in a clone says which stack is meant.
+func cwdKBRoot() string {
+	root, _, err := resolveKBRoot()
+	if err != nil {
+		return ""
+	}
+	return root
+}
+
+// originCodespace: the recorded codespace stack whose repo this clone's git
+// origin names, nil when none does (or root is ""). This is the stop/useradd
+// counterpart of repoFromRoot's create-path convenience.
+func originCodespace(cs []*stackState, root string) *stackState {
+	if root == "" {
+		return nil
+	}
+	origin, err := capture("git", "-C", root, "remote", "get-url", "origin")
+	if err != nil || origin == "" {
+		return nil
+	}
+	slug, ok := parseGitHubSlug(origin)
+	if !ok {
+		return nil
+	}
+	for _, c := range cs {
+		if c.Repo == slug {
+			return c
+		}
+	}
+	return nil
+}
+
 // repoFromRoot: the create-path convenience — resolve the KB root as usual
 // and read the slug from its origin remote.
 func repoFromRoot(u *ui, opts startOptions) (slug string, did string, code int) {

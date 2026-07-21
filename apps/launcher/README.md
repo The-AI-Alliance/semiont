@@ -90,9 +90,12 @@ semiont stop
   `status` opens with a STACKS fleet overview (each stack's state and
   `KB localhost:<port>`) and details the lone forwarded stack (`--repo`
   details any); bare `logs` follows the local stack, else the lone
-  codespace; bare `stop` refuses to guess — `--repo <owner/name>` targets a
-  codespace stack, `--runtime` the local one — and `useradd` follows the same
-  rule. Schema 1/2 single-stack records migrate on read.
+  codespace; bare `stop` and `useradd`
+  let the working directory disambiguate — inside the clone whose local
+  stack is running they mean local; inside a clone whose origin names a
+  recorded codespace stack (no local stack) they mean that one — and refuse
+  anywhere less certain: `--repo <owner/name>` targets a codespace stack,
+  `--runtime` the local one. Schema 1/2 single-stack records migrate on read.
 - Codespace admin credentials are generated inside the codespace at
   creation; `start` and `status` read them fresh over ssh and display them —
   never stored, never logged. Those are the FIRST admin; `useradd --repo`

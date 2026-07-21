@@ -1949,13 +1949,17 @@ func TestMultiStackCodespaces(t *testing.T) {
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log), "gh codespace ssh -c bar-cs-1")
 
-	// A bare stop refuses to guess among stacks.
+	// A bare stop refuses to guess among stacks — when the cwd says
+	// nothing. (Inside a clone the origin picks; TestBareStopFollowsCwd.)
+	prevCwd := s.cwd
+	s.cwd = t.TempDir()
 	_, stderr, code = s.run(t, "stop")
 	if code != 1 {
 		t.Fatalf("ambiguous stop: want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr, "Multiple stacks are recorded",
 		"semiont stop --repo "+csRepo, "semiont stop --repo other/bar")
+	s.cwd = prevCwd
 
 	// stop --repo targets exactly one; the other stack keeps its forward.
 	stdout, stderr, code = s.run(t, "stop", "--repo", csRepo)
@@ -3410,6 +3414,61 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 	// …and never fabricates an install state for a remote model.
 	if strings.Contains(stdout, "ollama pull claude") {
 		t.Errorf("remote model offered an ollama pull:\n%s", stdout)
+	}
+}
+
+func TestBareStopFollowsCwd(t *testing.T) {
+	// Standing in the clone whose stack is running, a bare stop means THAT
+	// stack — demanding --runtime container restated what the prompt already
+	// said (observed 2026-07-20). The rule is the start-side one: a KB clone
+	// is explicit context.
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("codespace start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "start", "--runtime", "container"); code != 0 {
+		t.Fatalf("local start: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// useradd from the clone: local backend, no ssh, no refusal.
+	before := s.mustLog(t)
+	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--password", "password123"); code != 0 {
+		t.Fatalf("bare useradd in clone: exit %d\nstderr:\n%s", code, stderr)
+	}
+	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "useradd argv", fresh, "exec", "semiont useradd")
+	if strings.Contains(fresh, "gh codespace") {
+		t.Errorf("bare useradd in the local clone went to the codespace:\n%s", fresh)
+	}
+
+	// stop from the clone: the local stack, codespace untouched and still
+	// recorded.
+	before = s.mustLog(t)
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("bare stop in clone: exit %d\nstderr:\n%s", code, stderr)
+	}
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	if strings.Contains(fresh, "gh codespace stop") {
+		t.Errorf("bare stop in the local clone stopped the codespace:\n%s", fresh)
+	}
+	mustContain(t, "stop argv", fresh, "stop")
+	b, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json keeps the codespace", string(b), "codespace:"+csRepo)
+
+	// With the local stack gone and TWO codespaces recorded, the clone's
+	// origin picks — from a neutral directory it still refuses.
+	s.extraEnv = append(s.extraEnv, "FAKERT_GH_CS_NAME=bar-cs-1")
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", "other/bar"); code != 0 {
+		t.Fatalf("second codespace: exit %d\nstderr:\n%s", code, stderr)
+	}
+	before = s.mustLog(t)
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("bare stop via origin: exit %d\nstderr:\n%s", code, stderr)
+	}
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "origin-picked stop", fresh, "gh codespace stop -c fake-cs-1")
+	if strings.Contains(fresh, "bar-cs-1") {
+		t.Errorf("origin pick touched the other repo's codespace:\n%s", fresh)
 	}
 }
 
