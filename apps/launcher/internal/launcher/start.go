@@ -43,6 +43,8 @@ type startOptions struct {
 	repo         string // --repo: owner/name (codespace placement only)
 	csName       string // --codespace: instance disambiguator (codespace placement only)
 	machine      string // --machine: VM class (codespace placement only)
+	idleTimeout  string // --idle-timeout: create-time only (codespace placement)
+	retention    string // --retention-period: create-time only (codespace placement)
 }
 
 const startUsage = `Usage: semiont start [options]
@@ -80,6 +82,13 @@ Options:
                         KB clone's origin remote; the record remembers it)
   --codespace <name>    Codespace placement: disambiguate when the repo has
                         several codespaces (the launcher itself makes one)
+  --idle-timeout <d>    Codespace placement, create-time: inactivity before
+                        auto-stop (launcher default 60m — GitHub's own is 30m)
+  --retention-period <d>  Codespace placement, create-time: how long a stopped
+                        codespace is kept before AUTO-DELETION, state and all
+                        (launcher default 720h = 30 days, GitHub's maximum;
+                        passed explicitly so a tighter account default cannot
+                        silently shorten a KB codespace's life)
   --machine <class>     Codespace placement: VM class (default: premiumLinux
                         when your account can use it for the repo, else the
                         largest it can; only applies when creating)
@@ -189,6 +198,20 @@ func Start(args []string) int {
 			}
 			opts.machine = v
 			i++
+		case "--idle-timeout":
+			v, ok := needVal(i)
+			if !ok {
+				return 1
+			}
+			opts.idleTimeout = v
+			i++
+		case "--retention-period":
+			v, ok := needVal(i)
+			if !ok {
+				return 1
+			}
+			opts.retention = v
+			i++
 		case "--list-configs":
 			opts.listConfigs = true
 		case "--clean-ollama":
@@ -256,8 +279,8 @@ func Start(args []string) int {
 			u.fail("--root and --repo are contradictory (one derives the repo from a clone, the other bypasses clones).")
 			return 1
 		}
-	} else if opts.repo != "" || opts.csName != "" || opts.machine != "" {
-		u.fail("--repo/--codespace/--machine only apply to --runtime codespace.")
+	} else if opts.repo != "" || opts.csName != "" || opts.machine != "" || opts.idleTimeout != "" || opts.retention != "" {
+		u.fail("--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace.")
 		return 1
 	}
 	if opts.port != 0 && (opts.service != "frontend" || opts.runtime == "codespace") {

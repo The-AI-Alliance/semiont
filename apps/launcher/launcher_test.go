@@ -1166,6 +1166,10 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"gh auth status",
 		"gh api user/codespaces/secrets/ANTHROPIC_API_KEY/repositories",
 		"gh codespace list --json name,state,repository",
+		// Cost levers ride every create, explicitly (CODESPACE-COSTS.md P0
+		// q3/q4): 60m idle, 30-day retention — GitHub's max, stated so a
+		// tighter account default cannot silently shorten the KB's life.
+		"--idle-timeout 60m --retention-period 720h",
 		"gh codespace create --repo "+csRepo+" --machine premiumLinux",
 		"gh codespace ports forward 4000:4000 -c fake-cs-1", // <codespacePort>:<localPort>
 		"gh codespace ssh -c fake-cs-1 -- cat /workspaces/*/.devcontainer/admin.json")
@@ -1179,7 +1183,7 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"Semiont Browser    semiont start --service frontend", // not forwarded — runs locally
 		"admin@example.com", "fake-admin-pw",
 		"local uncommitted changes don't travel",
-		"Halt billing:")
+		"Halt compute:")
 	b, _ := os.ReadFile(statePathFor(s.home))
 	mustContain(t, "stack.json", string(b),
 		`"runtime": "codespace"`, `"codespace": "fake-cs-1"`, `"repo": "pingel-org/foo-kb"`,
@@ -1750,7 +1754,7 @@ func TestCodespaceStatus(t *testing.T) {
 		t.Fatalf("status --repo: exit %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "status --repo stdout", stdout,
-		"CODESPACE", "fake-cs-1", csRepo, "(state: Available)",
+		"CODESPACE", "fake-cs-1", csRepo, "state: Available",
 		"re-establishing",
 		"KB", "healthy", "http://localhost:4000/api/health",
 		"run inside the codespace via compose",
@@ -1765,7 +1769,7 @@ func TestCodespaceStatus(t *testing.T) {
 		t.Fatalf("stopped status --repo: want exit 1, got %d\n%s", code, stdout)
 	}
 	mustContain(t, "stopped status stdout", stdout,
-		"(state: Shutdown)", "stopped — state and credentials persist", "semiont start")
+		"state: Shutdown", "stopped — state and credentials persist", "semiont start")
 }
 
 func TestCodespaceGuardsAndScoping(t *testing.T) {
@@ -1834,8 +1838,8 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"start", "--repo", "a/b"}, "--repo/--codespace/--machine only apply to --runtime codespace"},
-		{[]string{"start", "--machine", "basicLinux"}, "--repo/--codespace/--machine only apply to --runtime codespace"},
+		{[]string{"start", "--repo", "a/b"}, "--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace"},
+		{[]string{"start", "--machine", "basicLinux"}, "--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace"},
 		{[]string{"start", "--runtime", "codespace", "--root", "x", "--repo", "a/b"}, "--root and --repo are contradictory"},
 		{[]string{"start", "--runtime", "codespace", "--service", "worker"}, "--service does not apply to --runtime codespace"},
 		{[]string{"start", "--runtime", "codespace", "--config", "anthropic"}, "--config does not apply to --runtime codespace"},
@@ -3515,6 +3519,109 @@ func TestCrashedContainerStaysInspectable(t *testing.T) {
 		if strings.Contains(line, "busybox") && !strings.Contains(line, "--rm") {
 			t.Errorf("busybox probe lost its --rm: %q", line)
 		}
+	}
+}
+
+func TestCodespaceCostLevers(t *testing.T) {
+	// Explicit flags override the launcher defaults at create; on a resume
+	// they are inert and say so (settings are create-time), like --machine.
+	s := newCodespaceScenario(t)
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace",
+		"--idle-timeout", "15m", "--retention-period", "48h")
+	if code != 0 {
+		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "argv", s.argv(t), "--idle-timeout 15m --retention-period 48h")
+	mustContain(t, "announcement", stdout+stderr, "auto-stop after 15m idle", "48h", "AUTO-DELETED")
+
+	// Resume: the flags cannot apply and must be called out, not look effective.
+	stdout, stderr, _ = s.run(t, "start", "--runtime", "codespace", "--idle-timeout", "5m")
+	mustContain(t, "inert warning", stdout+stderr, "--idle-timeout/--retention-period ignored")
+
+	// And outside codespace placement they are refused, like --repo.
+	if _, stderr, code := s.run(t, "start", "--runtime", "container", "--idle-timeout", "5m"); code != 1 {
+		t.Fatalf("local start with codespace flag: want exit 1")
+	} else {
+		mustContain(t, "refusal", stderr, "only apply to --runtime codespace")
+	}
+}
+
+func TestCodespaceCostFacts(t *testing.T) {
+	// Tier 1 of CODESPACE-COSTS: status states the hardware burning and
+	// since when — facts only, never invented dollars. Available shows
+	// machine + uptime; Shutdown shows when storage billing ENDS by
+	// auto-deletion; the up-summary names the machine and its auto-stop.
+	s := newCodespaceScenario(t)
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code != 0 {
+		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "up-summary", stdout+stderr, "Machine premiumLinux 8c/32GB", "auto-stops after 60m idle")
+
+	stdout, _, _ = s.run(t, "status")
+	mustContain(t, "overview (Available)", stdout,
+		"Available · premiumLinux 8c/32GB · up 2h")
+
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatal("stop")
+	}
+	stdout, _, _ = s.run(t, "status")
+	mustContain(t, "overview (Shutdown)", stdout,
+		"storage still bills; auto-deletes 2026-08-19, state and all")
+	if strings.Contains(stdout, "up 2h") {
+		t.Errorf("a stopped codespace claimed uptime:\n%s", stdout)
+	}
+	// And no dollar figure is ever invented.
+	if strings.Contains(stdout, "$") {
+		t.Errorf("status printed a dollar figure it cannot know:\n%s", stdout)
+	}
+}
+
+func TestStatusBilling(t *testing.T) {
+	// Tier 2 (CODESPACE-COSTS): GitHub's OWN usage report, opt-in. Their
+	// numbers verbatim — quantities, gross, quota-as-discount, net — never a
+	// launcher estimate; non-codespaces products filtered out; the month
+	// that actually cost money shows its net.
+	s := newScenario(t, "container", "gh")
+	stdout, stderr, code := s.run(t, "status", "--billing")
+	if code != 0 {
+		t.Fatalf("--billing: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "billing", stdout,
+		"CODESPACES BILLING",
+		"2026-01", "44.3 compute-hrs", "net $15.69",
+		"2026-07", "net $0.00", "semiont-template-kb")
+	if strings.Contains(stdout, "Copilot") || strings.Contains(stdout, "copilot") {
+		t.Errorf("a non-codespaces product leaked into the codespaces report:\n%s", stdout)
+	}
+
+	// Without the scope: exactly the fix, nothing invented.
+	s2 := newScenario(t, "container", "gh")
+	s2.extraEnv = append(s2.extraEnv, "FAKERT_GH_BILLING_NOSCOPE=1")
+	stdout, stderr, code = s2.run(t, "status", "--billing")
+	if code != 1 {
+		t.Fatalf("scope-less --billing: want exit 1, got %d", code)
+	}
+	mustContain(t, "scope fix", stdout+stderr, "gh auth refresh -h github.com -s user")
+	if strings.Contains(stdout+stderr, "$") {
+		t.Errorf("scope-less billing printed money:\n%s\n%s", stdout, stderr)
+	}
+
+	// Unauthenticated gh: its own guidance must reach the user, plus ours —
+	// capture-stdout-only used to swallow gh's "please run gh auth login".
+	s3 := newScenario(t, "container", "gh")
+	s3.extraEnv = append(s3.extraEnv, "FAKERT_GH_UNAUTH=1")
+	stdout, stderr, code = s3.run(t, "status", "--billing")
+	if code != 1 {
+		t.Fatalf("unauthenticated --billing: want exit 1, got %d", code)
+	}
+	mustContain(t, "unauth guidance", stdout+stderr, "gh auth login", "is gh authenticated?")
+
+	// --billing is standalone: GitHub bills per month/repo, not per stack.
+	if _, stderr, code := s.run(t, "status", "--billing", "--repo", "a/b"); code != 1 {
+		t.Fatal("billing+repo should refuse")
+	} else {
+		mustContain(t, "refusal", stderr, "standalone")
 	}
 }
 

@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 )
 
-const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name> [--refresh]] [--service <name>] [--runtime container|docker|podman] [--verbose]
+const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name> [--refresh]] [--service <name>] [--runtime container|docker|podman] [--verbose] [--billing]
 
 Reports what this machine knows about, in three layers:
 
@@ -40,6 +40,11 @@ health, name ONE stack:
   semiont status --service backend     && echo backend-up
 
 Those forms exit 0 only when the named stack (or service) is healthy.
+
+--billing (standalone) shows GitHub's own codespaces usage report — monthly
+compute/storage quantities, gross, plan-quota discounts, and the NET you
+actually pay. Their numbers, never launcher estimates. Needs the "user"
+scope: grant once with  gh auth refresh -h github.com -s user
 
 status never wakes a stopped codespace. --refresh (with --repo) re-reads that
 KB's did:web identity over ssh to confirm the recorded one — it is skipped,
@@ -82,6 +87,7 @@ func Status(args []string) int {
 	runtime, service, repoFlag, rootFlag := "", "", "", ""
 	refresh := false
 	verbose := false
+	billing := false
 	for i := 0; i < len(args); i++ {
 		need := func() (string, bool) {
 			if i+1 >= len(args) {
@@ -123,6 +129,8 @@ func Status(args []string) int {
 			refresh = true
 		case "--verbose", "-v":
 			verbose = true
+		case "--billing":
+			billing = true
 		case "--help", "-h":
 			fmt.Print(statusUsage)
 			return 0
@@ -140,6 +148,13 @@ func Status(args []string) int {
 	if repoFlag != "" && (rootFlag != "" || service != "") {
 		u.fail("--repo names a remote stack; --root/--service name the local one.")
 		return 1
+	}
+	if billing {
+		if repoFlag != "" || rootFlag != "" || service != "" || refresh {
+			u.fail("--billing is a standalone report (GitHub bills per month and repo, not per stack).")
+			return 1
+		}
+		return statusBilling(u)
 	}
 	if refresh && repoFlag == "" {
 		u.fail("--refresh re-reads ONE remote KB's identity over ssh — name it with --repo <owner/name>.")
