@@ -401,6 +401,14 @@ rebuild, never a refusal. (The Neo4j subdirs are host-side mode 777: its
 entrypoint refuses to boot unless its `test -w` gate passes, and Apple
 container's virtiofs won't let it chown a mount root.)
 
+`semiont clean` is the one way this state dies: it removes the current
+root's state directory (`--store database|vectors|graph` scopes to one
+store; `--dry-run` shows what would go, with sizes; `--root <path|name|key>`
+targets another root — a literal key is how you remove *orphaned* state
+whose KB directory no longer exists). It refuses while a recorded stack is
+using the state — stop first. `stop` itself never touches state; stopping
+and restarting is exactly the round trip persistence exists for.
+
 ## Development
 
 Go module with no external dependencies. Build and test (hermetically — no Go

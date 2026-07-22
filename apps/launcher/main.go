@@ -27,6 +27,7 @@ Commands:
   status    Report container state and application health per service
   logs      Follow the running stack's service logs
   stop      Stop the stack across all installed runtimes
+  clean     Remove a root's persistent stack state (PostgreSQL/Qdrant/Neo4j)
   about     What Semiont is, project links, and detected runtimes
   version   Print the launcher version
 
@@ -58,6 +59,8 @@ func main() {
 		code = launcher.Logs(rest)
 	case "stop":
 		code = launcher.Stop(rest)
+	case "clean":
+		code = launcher.Clean(rest)
 	case "about":
 		code = launcher.About(rest)
 	case "version", "--version":

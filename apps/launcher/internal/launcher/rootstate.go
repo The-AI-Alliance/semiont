@@ -16,10 +16,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -53,8 +56,16 @@ var keyUnsafe = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 // — else "path-" + a stable hash of the absolute root path. meta.json keeps
 // the unsanitized truth so status and clean can always name the root.
 func rootKey(root string) string {
-	if ident := loadKBIdentity(root); ident != nil && ident.Domain != "" {
-		return keyUnsafe.ReplaceAllString(ident.Domain, "-")
+	return stateKeyFor(loadKBIdentity(root).didWeb(), root)
+}
+
+// stateKeyFor derives the key from an already-known identity — the form
+// clean and status use against RECORDS (stack.json's kbDid/kbRoot), where
+// re-reading .semiont/config would answer for the wrong tree (or none, for
+// an orphan).
+func stateKeyFor(did, root string) string {
+	if d, ok := strings.CutPrefix(did, "did:web:"); ok && d != "" {
+		return keyUnsafe.ReplaceAllString(d, "-")
 	}
 	abs, err := filepath.Abs(root)
 	if err != nil {
@@ -211,4 +222,41 @@ func saveRootMeta(dir string, m *rootMeta) {
 func storeDirNonEmpty(dir string) bool {
 	entries, err := os.ReadDir(dir)
 	return err == nil && len(entries) > 0
+}
+
+// dirSize: total bytes of regular files under path, and whether the path
+// exists at all — absent must stay distinguishable from empty ("unknown is
+// not missing"). Go-native walk; unreadable entries are skipped, not fatal.
+func dirSize(path string) (int64, bool) {
+	if _, err := os.Stat(path); err != nil {
+		return 0, false
+	}
+	var total int64
+	_ = filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.Type().IsRegular() {
+			if info, e := d.Info(); e == nil {
+				total += info.Size()
+			}
+		}
+		return nil
+	})
+	return total, true
+}
+
+// humanBytes: one rounding for every size the launcher prints.
+func humanBytes(n int64) string {
+	const k = 1024
+	switch {
+	case n >= k*k*k:
+		return fmt.Sprintf("%.1f GB", float64(n)/(k*k*k))
+	case n >= k*k:
+		return fmt.Sprintf("%.1f MB", float64(n)/(k*k))
+	case n >= k:
+		return fmt.Sprintf("%.1f KB", float64(n)/k)
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
 }
