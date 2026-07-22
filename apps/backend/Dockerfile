@@ -56,12 +56,19 @@ COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont 
 # whose bundled tar/brace-expansion/undici are all CVE-free, so keeping npm is
 # clean for the Trivy gate.
 #
-# We still drop the TypeScript compiler: `typescript` + its native `@typescript/*`
-# Go binaries are pulled transitively (via the qdrant client's dep chain) but
-# never loaded at runtime, and the native `tsc` carries a Go-stdlib CVE
-# (CVE-2026-39822).
+# We still drop two things pulled transitively but never loaded at runtime:
+#   - the TypeScript compiler: `typescript` + its native `@typescript/*` Go
+#     binaries (via the qdrant client's dep chain); the native `tsc` carries a
+#     Go-stdlib CVE (CVE-2026-39822).
+#   - `elkjs`: pulled by @prisma/studio-core (via prisma@7.9.0) for Prisma
+#     Studio's graph layout. It is EPL-2.0 — not on the license allowlist — and
+#     is lazy-loaded only by the Studio GUI, which the backend never runs (it
+#     shells out to `npx prisma generate`/`migrate`). studio-core itself stays:
+#     it is Apache-2.0 and prisma's CLI top-level-requires it (removing it breaks
+#     `prisma generate`), while removing only elkjs leaves the CLI working.
 RUN find /usr/local/lib/node_modules /home/semiont/.local/share/semiont \
-      -type d \( -name typescript -o -name '@typescript' \) -prune -exec rm -rf {} +
+      -type d \( -name typescript -o -name '@typescript' -o -name elkjs \) \
+      -prune -exec rm -rf {} +
 
 COPY LICENSE apps/backend/NOTICE /home/semiont/
 
