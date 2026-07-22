@@ -100,19 +100,23 @@ func Stop(args []string) int {
 		if b == nil {
 			u.log("No Browser is recorded — sweeping the container name to be sure.")
 		}
-		handle := "semiont-frontend"
+		name := "semiont-frontend"
+		handle := name
 		if b != nil && b.ID != "" {
 			handle = b.ID
 		}
 		if dryRun {
 			fmt.Println("# stop the Browser (machine-level; stacks untouched):")
 			fmt.Printf("<rt> stop %s\n<rt> rm %s\n", handle, handle)
+			if handle != name {
+				fmt.Printf("<rt> stop %s\n<rt> rm %s\n", name, name)
+			}
 			return 0
 		}
 		stopped := false
 		for _, rt := range installedRuntimes() {
-			s1 := runSilent(rt, "stop", handle) == nil
-			s2 := runSilent(rt, "rm", handle) == nil
+			s1 := runSilent(rt, "stop", handle) == nil || (handle != name && runSilent(rt, "stop", name) == nil)
+			s2 := runSilent(rt, "rm", handle) == nil || (handle != name && runSilent(rt, "rm", name) == nil)
 			stopped = stopped || s1 || s2
 		}
 		clearBrowser()
