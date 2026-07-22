@@ -33,6 +33,11 @@ With --yes and neither source, init refuses rather than guessing.
   --domain <d>        did:web domain (colon-path form, e.g. owner.github.io:repo)
   --site-name <s>     Human-readable site name (default: the project name)
   --admin-email <e>   Admin email recorded in the site config
+  --inference <p>     Build a config: anthropic or ollama
+  --model <id>        The heavy model (gatherer, matcher, workers.default)
+  --model-light <id>  Emitted as a commented per-worker example, not a binding
+  --embedding <e>     ollama:<model> (voyage: not yet — no established key var)
+  --config-name <n>   Config file name (default: the provider name)
   --no-git            Skip git init/add; sets git.sync = false (stated consequences)
   --force             Re-initialize over an existing .semiont/
   --yes               Accept defaults; never prompt (refuses where no safe default exists)
@@ -44,6 +49,7 @@ With --yes and neither source, init refuses rather than guessing.
 func Init(args []string) int {
 	u := newUI(false)
 	var name, domain, siteName, adminEmail string
+	var inference, model, modelLight, embedding, configName string
 	var noGit, yes, force, dryRun bool
 	for i := 0; i < len(args); i++ {
 		need := func() (string, bool) {
@@ -82,6 +88,41 @@ func Init(args []string) int {
 			}
 			adminEmail = v
 			i++
+		case "--inference":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			inference = v
+			i++
+		case "--model":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			model = v
+			i++
+		case "--model-light":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			modelLight = v
+			i++
+		case "--embedding":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			embedding = v
+			i++
+		case "--config-name":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			configName = v
+			i++
 		case "--no-git":
 			noGit = true
 		case "--yes":
@@ -97,6 +138,36 @@ func Init(args []string) int {
 			u.fail("Unknown argument: %s", args[i])
 			return 1
 		}
+	}
+
+	// Config-builder inputs validate BEFORE anything touches disk.
+	if inference != "" && inference != "anthropic" && inference != "ollama" {
+		u.fail("--inference must be anthropic or ollama, got %q.", inference)
+		return 1
+	}
+	embModel := ""
+	if embedding != "" {
+		kind, m, _ := strings.Cut(embedding, ":")
+		switch kind {
+		case "ollama":
+			if m == "" {
+				u.fail("--embedding ollama:<model> needs a model name.")
+				return 1
+			}
+			embModel = m
+		case "voyage":
+			// No established key variable exists for voyage, and the
+			// launcher never invents environment variables. Deferred.
+			u.fail("voyage embedding is not supported yet (no established key variable) — use --embedding ollama:<model>.")
+			return 1
+		default:
+			u.fail("--embedding must be ollama:<model>, got %q.", embedding)
+			return 1
+		}
+	}
+	if inference != "" && model == "" {
+		u.fail("--inference %s needs --model <id> (the heavy model: gatherer, matcher, workers.default).", inference)
+		return 1
 	}
 
 	dir, err := os.Getwd()
@@ -188,6 +259,13 @@ adminEmail = %q
 			fmt.Println("git init")
 			fmt.Println("git add .semiont")
 		}
+		if inference != "" {
+			cn := configName
+			if cn == "" {
+				cn = inference
+			}
+			fmt.Printf("# .semiont/semiontconfig/%s.toml — generated (%s inference, %s embedding), vetted by derivePlan before writing\n", cn, inference, embModel)
+		}
 		fmt.Println("# register root in " + rootsPath())
 		return 0
 	}
@@ -222,6 +300,52 @@ adminEmail = %q
 		}
 	}
 
+	// The config builder (P2): flags first; interactively, prompts fill the
+	// gaps (typed entry — the live pickers are P3); --yes with no
+	// --inference skips generation rather than guessing a provider.
+	if inference == "" && !yes {
+		fmt.Println("Configure inference now? The config is built from the launcher's own")
+		fmt.Println("knowledge — nothing is copied, and the file is yours from its first byte.")
+		inference = prompt("Inference provider (anthropic / ollama / skip)", "skip")
+		if inference == "skip" || inference == "" {
+			inference = ""
+		} else if inference != "anthropic" && inference != "ollama" {
+			u.fail("Provider must be anthropic or ollama, got %q.", inference)
+			return 1
+		}
+		if inference != "" && model == "" {
+			model = prompt("Model id (heavy: gatherer, matcher, default worker)", "")
+			if model == "" {
+				u.fail("A model id is required.")
+				return 1
+			}
+		}
+		if inference != "" && embModel == "" {
+			embModel = prompt("Embedding model (served by Ollama)", "nomic-embed-text")
+		}
+	}
+	if inference != "" {
+		if embModel == "" {
+			embModel = "nomic-embed-text"
+		}
+		cn := configName
+		if cn == "" {
+			cn = inference
+		}
+		content := generateSemiontconfig(genParams{
+			Inference: inference, Model: model, ModelLight: modelLight, EmbeddingModel: embModel,
+		})
+		if !writeVettedConfig(u, dir, cn, content) {
+			return 1
+		}
+		if !noGit && onPath("git") {
+			if out, err := captureBoth("git", "-C", dir, "add", ".semiont"); err != nil {
+				u.fail("git add .semiont: %s", strings.TrimSpace(out))
+				return 1
+			}
+		}
+	}
+
 	registerRootUse(dir, false, "")
 	warnICloudRoot(u, dir)
 
@@ -229,8 +353,15 @@ adminEmail = %q
 	fmt.Printf("%s\n", u.wrap(ansiBold+ansiGreen, "🌱 "+name+" is born"))
 	fmt.Println()
 	fmt.Println("  Next steps:")
-	fmt.Printf("    1. %s %s\n", u.bold("semiont init is not yet a config builder"), u.dim("(LAUNCHER-BIRTH P2) — add .semiont/semiontconfig/<name>.toml before starting"))
-	fmt.Printf("    2. %s\n", u.bold("semiont secret set ANTHROPIC_API_KEY"))
-	fmt.Printf("    3. %s\n", u.bold("semiont start"))
+	step := 1
+	if inference == "" {
+		fmt.Printf("    %d. %s %s\n", step, u.bold("add a config"), u.dim("(rerun with --inference, or write .semiont/semiontconfig/<name>.toml)"))
+		step++
+	}
+	if inference == "anthropic" {
+		fmt.Printf("    %d. %s\n", step, u.bold("semiont secret set ANTHROPIC_API_KEY"))
+		step++
+	}
+	fmt.Printf("    %d. %s\n", step, u.bold("semiont start"))
 	return 0
 }

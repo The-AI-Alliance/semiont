@@ -3915,6 +3915,73 @@ func TestInitInteractivePrompts(t *testing.T) {
 		`domain = "d.example.org:kb"`, `siteName = "My KB"`)
 }
 
+func TestInitGeneratesStartableConfig(t *testing.T) {
+	// LAUNCHER-BIRTH P2: the generative builder. The strongest possible
+	// assertion is the round trip — the generated config must pass the REAL
+	// deriver: `start --dry-run --config <name>` succeeds from the newborn
+	// KB. Bindings are exactly the three-name roster; per-worker refinement
+	// is the user's edit, not ours.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_ROOT="+s.cwd)
+	_, stderr, code := s.run(t, "init",
+		"--name", "kb", "--domain", "d.io:kb", "--yes",
+		"--inference", "anthropic", "--model", "claude-sonnet-4-5-20250929",
+		"--embedding", "ollama:nomic-embed-text", "--config-name", "anthropic")
+	if code != 0 {
+		t.Fatalf("init: exit %d\nstderr:\n%s", code, stderr)
+	}
+	cfg, err := os.ReadFile(filepath.Join(s.cwd, ".semiont", "semiontconfig", "anthropic.toml"))
+	if err != nil {
+		t.Fatalf("generated config missing: %v", err)
+	}
+	mustContain(t, "config", string(cfg),
+		"[environments.local.actors.gatherer.inference]",
+		"[environments.local.actors.matcher.inference]",
+		"[environments.local.workers.default.inference]",
+		`model = "claude-sonnet-4-5-20250929"`,
+		`model = "nomic-embed-text"`,
+		"${ANTHROPIC_API_KEY}")
+	if strings.Contains(string(cfg), "reference-annotation") {
+		t.Errorf("generator emitted per-worker refinements — those are the user's edits:\n%s", cfg)
+	}
+	stdout, stderr, code := s.run(t, "start", "--config", "anthropic", "--dry-run")
+	if code != 0 {
+		t.Fatalf("the generated config failed the real deriver: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	// The anthropic shape: external SaaS inference; the Ollama that exists
+	// solely for the embedding, pulling exactly the embedding model.
+	mustContain(t, "plan", stdout, "remote SaaS",
+		"pull each missing one): nomic-embed-text")
+
+	// The ollama variant round-trips too, in the local-Ollama shape.
+	s2 := newScenario(t, "container")
+	s2.cwd = t.TempDir()
+	s2.extraEnv = append(s2.extraEnv, "FAKERT_GIT_ROOT="+s2.cwd)
+	if _, stderr, code := s2.run(t, "init",
+		"--name", "kb2", "--domain", "d.io:kb2", "--yes",
+		"--inference", "ollama", "--model", "gemma4:26b",
+		"--embedding", "ollama:nomic-embed-text"); code != 0 {
+		t.Fatalf("ollama init: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run")
+	if code != 0 {
+		t.Fatalf("ollama config failed the deriver: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "ollama plan", stdout, "host Ollama", "gemma4:26b, nomic-embed-text")
+
+	// voyage embedding refuses: no established key variable exists, and the
+	// launcher never invents environment variables.
+	s3 := newScenario(t, "container")
+	s3.cwd = t.TempDir()
+	_, stderr, code = s3.run(t, "init", "--name", "kb3", "--domain", "d.io:kb3", "--yes",
+		"--inference", "anthropic", "--model", "m", "--embedding", "voyage:voyage-3")
+	if code != 1 {
+		t.Fatalf("voyage: want refusal, got %d", code)
+	}
+	mustContain(t, "voyage refusal", stderr, "voyage", "ollama")
+}
+
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")
