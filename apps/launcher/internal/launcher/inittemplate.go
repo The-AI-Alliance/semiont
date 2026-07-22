@@ -11,9 +11,11 @@ package launcher
 // failure (no partial trees).
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -31,7 +33,9 @@ func materializeTemplate(u *ui, src, ref string) (dir string, cleanup func(), ok
 		u.fail("Creating a temp dir for the template clone: %v", err)
 		return "", nil, false
 	}
-	args := []string{"clone", "--depth", "1", "--branch", ref, src, tmp}
+	// `--` before positionals: a src beginning with "-" would otherwise be
+	// read as a git option (option injection) — Copilot review, PR #1065.
+	args := []string{"clone", "--depth", "1", "--branch", ref, "--", src, tmp}
 	u.log("Fetching template %s", u.dim("(git "+strings.Join(args, " ")+")"))
 	if out, err := captureBoth("git", args...); err != nil {
 		_ = os.RemoveAll(tmp)
@@ -60,6 +64,14 @@ func copyTemplateConfigs(u *ui, root, tplDir string) bool {
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") {
 			continue
+		}
+		// Refuse symlinks: a template (or local dir) could symlink a .toml
+		// at an arbitrary local path, reading it into the newborn KB
+		// (Copilot review, PR #1065).
+		if e.Type()&os.ModeSymlink != 0 {
+			rollback()
+			u.fail("Template config %s is a symlink — refusing (a symlinked config could read arbitrary local files).", e.Name())
+			return false
 		}
 		b, err := os.ReadFile(filepath.Join(src, e.Name()))
 		if err != nil {
@@ -95,6 +107,9 @@ func copyDevcontainer(u *ui, root, tplDir, kbName string) bool {
 	err := filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if d.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%s is a symlink — refusing (a symlinked file could copy arbitrary local paths into the KB)", p)
 		}
 		rel, _ := filepath.Rel(src, p)
 		target := filepath.Join(dst, rel)
@@ -142,5 +157,11 @@ func rewriteDevcontainerName(b []byte, kbName string) []byte {
 	if close < 0 {
 		return b
 	}
-	return []byte(s[:i] + marker + rest[:open+1] + kbName + rest[open+1+close:])
+	// JSON-escape: a --name (or dir basename) with a quote or backslash would
+	// otherwise produce invalid JSON/JSONC (Copilot review, PR #1065).
+	// strconv.Quote yields a full quoted string, so drop the surrounding
+	// quotes we already have in the splice.
+	escaped := strconv.Quote(kbName)
+	escaped = escaped[1 : len(escaped)-1]
+	return []byte(s[:i] + marker + rest[:open+1] + escaped + rest[open+1+close:])
 }

@@ -20,10 +20,11 @@ import (
 )
 
 type genParams struct {
-	Inference      string // "anthropic" | "ollama"
-	Model          string // heavy: gatherer, matcher, workers.default
-	ModelLight     string // optional: emitted as a commented example only
-	EmbeddingModel string // ollama-served embedding model
+	Inference         string // "anthropic" | "ollama"
+	Model             string // heavy: gatherer, matcher, workers.default
+	ModelLight        string // optional: emitted as a commented example only
+	EmbeddingModel    string // ollama-served embedding model
+	AnthropicEndpoint string // honored in the generated config; "" → the default
 }
 
 func generateSemiontconfig(p genParams) string {
@@ -68,9 +69,16 @@ func generateSemiontconfig(p genParams) string {
 	w(``)
 	switch p.Inference {
 	case "anthropic":
+		// Honor --anthropic-endpoint: validating against a proxy but writing
+		// the default endpoint would be a silent mismatch (Copilot review,
+		// PR #1065).
+		endpoint := p.AnthropicEndpoint
+		if endpoint == "" {
+			endpoint = "https://api.anthropic.com"
+		}
 		w(`[environments.local.inference.anthropic]`)
 		w(`platform = "external"`)
-		w(`endpoint = "https://api.anthropic.com"`)
+		w(`endpoint = %q`, endpoint)
 		w(`apiKey = "${ANTHROPIC_API_KEY}"`)
 	case "ollama":
 		w(`[environments.local.inference.ollama]`)
@@ -112,29 +120,45 @@ func generateSemiontconfig(p genParams) string {
 // place. The same gate template copies pass through (P4): no path may write
 // a config this launcher cannot start.
 func writeVettedConfig(u *ui, root, name, content string) bool {
+	// name becomes a filename and (via --config-name) is user-controlled — a
+	// separator or ".." would escape .semiont/semiontconfig. Require a plain
+	// stem (Copilot review, PR #1065).
+	if name == "" || name == "." || name == ".." ||
+		strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+		u.fail("Config name %q must be a simple file stem (no path separators).", name)
+		return false
+	}
+	// Vet in a SYSTEM temp file: loadConfig+derivePlan judge the content
+	// without touching .semiont, so a rejected config never leaves a partial
+	// tree behind.
+	vf, err := os.CreateTemp("", "semiont-vet-*.toml")
+	if err != nil {
+		u.fail("Vetting config: %v", err)
+		return false
+	}
+	vetPath := vf.Name()
+	defer os.Remove(vetPath)
+	if _, err := vf.WriteString(content); err != nil {
+		vf.Close()
+		u.fail("Vetting config: %v", err)
+		return false
+	}
+	vf.Close()
+	env, envName, _, err := loadConfig(vetPath)
+	if err == nil {
+		_, err = derivePlan(env, envName, vetPath)
+	}
+	if err != nil {
+		u.fail("The config did not pass the launcher's own deriver — refusing to write it: %v", err)
+		return false
+	}
 	dir := filepath.Join(root, ".semiont", "semiontconfig")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		u.fail("Creating %s: %v", dir, err)
 		return false
 	}
-	tmp := filepath.Join(dir, "."+name+".toml.vetting")
-	if err := os.WriteFile(tmp, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name+".toml"), []byte(content), 0o644); err != nil {
 		u.fail("Writing config: %v", err)
-		return false
-	}
-	env, envName, _, err := loadConfig(tmp)
-	if err == nil {
-		_, err = derivePlan(env, envName, tmp)
-	}
-	if err != nil {
-		_ = os.Remove(tmp)
-		u.fail("The config did not pass the launcher's own deriver — refusing to write it: %v", err)
-		return false
-	}
-	final := filepath.Join(dir, name+".toml")
-	if err := os.Rename(tmp, final); err != nil {
-		_ = os.Remove(tmp)
-		u.fail("Placing config: %v", err)
 		return false
 	}
 	u.ok(".semiont/semiontconfig/%s.toml written %s", name, u.dim("(vetted by the plan deriver)"))

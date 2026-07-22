@@ -4270,6 +4270,94 @@ func TestInitFromTemplateURLClones(t *testing.T) {
 	}
 }
 
+func TestInitCopilotHardening(t *testing.T) {
+	// The PR #1065 review fixes, pinned so they cannot silently regress.
+
+	// (1) --config-name path traversal is refused, no file escapes.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	_, stderr, code := s.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes",
+		"--inference", "anthropic", "--model", "m", "--config-name", "../escape",
+		"--anthropic-endpoint", "http://127.0.0.1:1")
+	if code != 1 {
+		t.Fatalf("traversal config-name: want refusal, got %d", code)
+	}
+	mustContain(t, "traversal refused", stderr, "simple file stem")
+	if _, err := os.Stat(filepath.Join(s.cwd, "..", "escape.toml")); err == nil {
+		t.Error("traversal wrote outside the KB")
+	}
+
+	// (2) Transactional: a failure after .semiont/config leaves NOTHING —
+	// a bogus model is rejected, and the dir is rolled back so a rerun does
+	// not need --force.
+	s2 := newScenario(t, "container")
+	s2.cwd = t.TempDir()
+	serveOllamaFixtures(t, 41451, nil, nil) // registry knows nothing
+	_, _, code = s2.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes",
+		"--inference", "ollama", "--model", "totally-fake:9b", "--embedding", "ollama:nomic-embed-text",
+		"--ollama-base", "http://localhost:41451", "--ollama-registry", "http://localhost:41451")
+	if code != 1 {
+		t.Fatalf("bad model: want refusal, got %d", code)
+	}
+	if _, err := os.Stat(filepath.Join(s2.cwd, ".semiont")); !os.IsNotExist(err) {
+		t.Error("a failed init left a partial .semiont/ (not rolled back)")
+	}
+
+	// (3) --force removes the old tree — no stale config survives.
+	s3 := newScenario(t, "container")
+	s3.cwd = t.TempDir()
+	scdir := filepath.Join(s3.cwd, ".semiont", "semiontconfig")
+	if err := os.MkdirAll(scdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(scdir, "stale.toml"), []byte("junk"), 0o644)
+	if _, _, code := s3.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes", "--force"); code != 0 {
+		t.Fatalf("--force init failed: %d", code)
+	}
+	if _, err := os.Stat(filepath.Join(scdir, "stale.toml")); err == nil {
+		t.Error("--force left a stale config beside the new identity")
+	}
+
+	// (4) devcontainer name with a quote stays valid JSON.
+	tpl := templateFixture(t, false)
+	s4 := newScenario(t, "container")
+	s4.cwd = t.TempDir()
+	if _, _, code := s4.run(t, "init", "--name", `weird"name`, "--domain", "d.io:w", "--yes",
+		"--from-template", tpl, "--devcontainer"); code != 0 {
+		t.Fatalf("quoted-name init failed: %d", code)
+	}
+	dj, _ := os.ReadFile(filepath.Join(s4.cwd, ".devcontainer", "devcontainer.json"))
+	var parsed map[string]any
+	if err := json.Unmarshal(dj, &parsed); err != nil {
+		t.Errorf("devcontainer.json is invalid JSON after a quoted name: %v\n%s", err, dj)
+	}
+
+	// (5) a symlinked template config is refused.
+	tpl2 := templateFixture(t, false)
+	_ = os.Symlink("/etc/hosts", filepath.Join(tpl2, ".semiont", "semiontconfig", "evil.toml"))
+	s5 := newScenario(t, "container")
+	s5.cwd = t.TempDir()
+	_, stderr, code = s5.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes", "--from-template", tpl2)
+	if code != 1 {
+		t.Fatalf("symlinked config: want refusal, got %d", code)
+	}
+	mustContain(t, "symlink refused", stderr, "symlink")
+
+	// (6) the generated anthropic config honors --anthropic-endpoint.
+	s6 := newScenario(t, "container")
+	s6.cwd = t.TempDir()
+	serveAnthropicModels(t, 41452, "m")
+	s6.extraEnv = append(s6.extraEnv, "ANTHROPIC_API_KEY=k")
+	if _, stderr, code := s6.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes",
+		"--inference", "anthropic", "--model", "m", "--embedding", "ollama:nomic-embed-text",
+		"--anthropic-endpoint", "http://localhost:41452",
+		"--ollama-base", "http://127.0.0.1:1", "--ollama-registry", "http://127.0.0.1:1"); code != 0 {
+		t.Fatalf("endpoint init: %d\n%s", code, stderr)
+	}
+	cfg, _ := os.ReadFile(filepath.Join(s6.cwd, ".semiont", "semiontconfig", "anthropic.toml"))
+	mustContain(t, "endpoint honored", string(cfg), `endpoint = "http://localhost:41452"`)
+}
+
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")

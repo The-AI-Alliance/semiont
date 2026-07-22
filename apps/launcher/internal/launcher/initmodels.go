@@ -133,7 +133,16 @@ func validateOllamaModel(u *ui, ollamaBase, registryBase, model string) bool {
 		u.ok("Model %s exists in the ollama registry %s", model, u.dim("(not installed yet — pulled at start)"))
 		return true
 	case 404:
-		u.fail("Model %q is not in the ollama registry (404) — a typo?", model)
+		// A registry 404 is a refusal ONLY when the local Ollama could be
+		// consulted and did not have it — then it is a genuine typo. If
+		// Ollama itself is unreachable, the model may be installed there (or
+		// be a custom/local-only model) and we simply cannot know: unknown
+		// is not missing (Copilot review, PR #1065).
+		if !facts.found {
+			u.warn("Model %s is not in the ollama registry, and the local Ollama (%s) is unreachable — recorded as typed; verify it is installed before start.", model, ollamaBase)
+			return true
+		}
+		u.fail("Model %q is not in the ollama registry (404) and is not installed locally — a typo?", model)
 		return false
 	default:
 		u.warn("Model %s could not be verified (registry answered %d) — recorded as typed.", model, resp.StatusCode)

@@ -1,11 +1,11 @@
 package launcher
 
-// initcmd.go — `semiont init`, LAUNCHER-BIRTH.md P1: birth a KB locally with
+// initcmd.go — `semiont init`, LAUNCHER-BIRTH.md: birth a KB locally with
 // correct identity AT birth (the template path assigns identity by post-fork
-// rewrite — a workaround this command exists to not need). P1 is the
-// scaffold: identity + .semiont/config + git + roots registration. The
-// config BUILDER (semiontconfig generation, live model registries, template
-// copy) lands in later phases of the plan.
+// rewrite — a workaround this command exists to not need). Identity +
+// .semiont/config + git + roots (P1), the generative semiontconfig builder
+// with a derivePlan vet (P2), live model validation (P3), and the explicit
+// template-copy paths (P4) all land here.
 
 import (
 	"bufio"
@@ -25,8 +25,9 @@ Interactive by design — every prompt has a flag twin, so callers can run it
 prompt-free; --yes accepts defaults where a safe default exists. The one
 thing with NO safe default is the did:web domain: it is the KB's PERMANENT
 identity, stamped into the committed event log. It comes from --domain, or
-is derived from this directory's git origin (<owner_lc>.github.io:<name> —
-the same rule the template's post-fork action applies), or is prompted for.
+is derived from this directory's git origin (<owner_lc>.github.io:<repo>,
+from the origin slug — the same rule the template's post-fork action
+applies), or is prompted for.
 With --yes and neither source, init refuses rather than guessing.
 
   --name <n>          Project name (default: directory basename)
@@ -239,9 +240,20 @@ func Init(args []string) int {
 	if name == "" {
 		name = filepath.Base(dir)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".semiont")); err == nil && !force {
-		u.fail(".semiont/ already exists here — this KB is already born. Re-initialize with --force.")
-		return 1
+	semiontDir := filepath.Join(dir, ".semiont")
+	if _, err := os.Stat(semiontDir); err == nil {
+		if !force {
+			u.fail(".semiont/ already exists here — this KB is already born. Re-initialize with --force.")
+			return 1
+		}
+		// --force is a fresh birth, not a merge: remove the old tree so no
+		// stale semiontconfig/*.toml survives beside the new identity
+		// (Copilot review, PR #1065). This is destructive by request.
+		if err := os.RemoveAll(semiontDir); err != nil {
+			u.fail("--force: could not remove the existing .semiont/: %v", err)
+			return 1
+		}
+		u.warn("--force: removed the existing .semiont/ — re-initializing from scratch.")
 	}
 
 	in := bufio.NewReader(os.Stdin)
@@ -275,7 +287,7 @@ func Init(args []string) int {
 	if domain == "" {
 		if yes {
 			u.fail("No did:web domain: it is the KB's permanent identity (stamped into the committed event log) and has no safe default.")
-			fmt.Fprintln(os.Stderr, "  Pass --domain <owner_lc>.github.io:<name>, or run from a clone whose git origin can supply it.")
+			fmt.Fprintln(os.Stderr, "  Pass --domain <owner_lc>.github.io:<repo>, or run from a clone whose git origin can supply it.")
 			return 1
 		}
 		fmt.Println("The did:web domain is this KB's permanent identity — it is stamped")
@@ -325,7 +337,11 @@ adminEmail = %q
 			if cn == "" {
 				cn = inference
 			}
-			fmt.Printf("# .semiont/semiontconfig/%s.toml — generated (%s inference, %s embedding), vetted by derivePlan before writing\n", cn, inference, embModel)
+			em := embModel
+			if em == "" {
+				em = "nomic-embed-text" // the same default a real run applies
+			}
+			fmt.Printf("# .semiont/semiontconfig/%s.toml — generated (%s inference, %s embedding), vetted by derivePlan before writing\n", cn, inference, em)
 		}
 		if fromTemplate != "" {
 			fmt.Printf("# copy semiontconfig tomls from %s (ref %s) — each vetted by derivePlan pre-write; identity NEVER copied\n", fromTemplate, templateRef)
@@ -337,40 +353,11 @@ adminEmail = %q
 		return 0
 	}
 
-	if noGit {
-		u.warn("--no-git: git init is skipped, git.sync = false, and .semiont/ is not staged — the backend versions the event log via git, so this KB cannot run the full stack until it becomes a clone.")
-	}
-	if err := os.MkdirAll(filepath.Join(dir, ".semiont"), 0o755); err != nil {
-		u.fail("Creating .semiont/: %v", err)
-		return 1
-	}
-	if err := os.WriteFile(filepath.Join(dir, ".semiont", "config"), []byte(cfg), 0o644); err != nil {
-		u.fail("Writing .semiont/config: %v", err)
-		return 1
-	}
-	u.ok(".semiont/config written %s", u.dim("("+domain+")"))
-
-	if !noGit {
-		if !onPath("git") {
-			u.warn("git is not on PATH — skipping git init/add; the full stack needs this KB to be a clone.")
-		} else {
-			if out, err := captureBoth("git", "-C", dir, "init"); err != nil {
-				u.fail("git init: %s", strings.TrimSpace(out))
-				return 1
-			}
-			u.ok("git init")
-			if out, err := captureBoth("git", "-C", dir, "add", ".semiont"); err != nil {
-				u.fail("git add .semiont: %s", strings.TrimSpace(out))
-				return 1
-			}
-			u.ok("git add .semiont")
-		}
-	}
-
-	// The config builder (P2): flags first; interactively, prompts fill the
-	// gaps (typed entry — the live pickers are P3); --yes with no
-	// --inference skips generation rather than guessing a provider.
-	if inference == "" && !yes {
+	// ── Decide everything BEFORE touching disk (Copilot review, PR #1065:
+	// init must be transactional). Interactive prompts, model validation,
+	// and config generation all happen here; the writes come after, guarded
+	// by a rollback so a failure never leaves a half-born .semiont/.
+	if inference == "" && !yes && fromTemplate == "" {
 		fmt.Println("Configure inference now? The config is built from the launcher's own")
 		fmt.Println("knowledge — nothing is copied, and the file is yours from its first byte.")
 		inference = prompt("Inference provider (anthropic / ollama / skip)", "skip")
@@ -391,12 +378,12 @@ adminEmail = %q
 			embModel = prompt("Embedding model (served by Ollama)", "nomic-embed-text")
 		}
 	}
+
+	genContent, genName := "", ""
 	if inference != "" {
 		if embModel == "" {
 			embModel = "nomic-embed-text"
 		}
-		// Live validation (P3): the choices are checked against the sources
-		// that will have to serve them — refusals now, not failed jobs later.
 		switch inference {
 		case "anthropic":
 			m, ok := resolveAnthropicModel(u, anthropicEndpoint, os.Getenv("ANTHROPIC_API_KEY"), model)
@@ -412,58 +399,98 @@ adminEmail = %q
 		if !validateOllamaModel(u, ollamaBase, ollamaRegistry, embModel) {
 			return 1
 		}
-		cn := configName
-		if cn == "" {
-			cn = inference
+		genName = configName
+		if genName == "" {
+			genName = inference
 		}
-		content := generateSemiontconfig(genParams{
-			Inference: inference, Model: model, ModelLight: modelLight, EmbeddingModel: embModel,
+		genContent = generateSemiontconfig(genParams{
+			Inference: inference, Model: model, ModelLight: modelLight,
+			EmbeddingModel: embModel, AnthropicEndpoint: anthropicEndpoint,
 		})
-		if !writeVettedConfig(u, dir, cn, content) {
-			return 1
-		}
-		if !noGit && onPath("git") {
-			if out, err := captureBoth("git", "-C", dir, "add", ".semiont"); err != nil {
-				u.fail("git add .semiont: %s", strings.TrimSpace(out))
-				return 1
-			}
-		}
 	}
 
+	// Template materialization is a reach that can fail — do it before the
+	// first .semiont write too.
+	var tplDir string
 	if fromTemplate != "" || devcontainer {
 		src := fromTemplate
 		if src == "" {
 			src = defaultTemplateRepo // --devcontainer alone still needs the tree
 		}
-		tplDir, cleanup, ok := materializeTemplate(u, src, templateRef)
+		d, cleanup, ok := materializeTemplate(u, src, templateRef)
 		if !ok {
 			return 1
 		}
 		defer cleanup()
-		if fromTemplate != "" {
-			if !copyTemplateConfigs(u, dir, tplDir) {
-				return 1
+		tplDir = d
+	}
+
+	// ── Write phase. Rollback removes anything init created this run if any
+	// step below fails, so a rerun sees a clean directory (no stale --force).
+	var startedWriting, success bool
+	defer func() {
+		if startedWriting && !success {
+			_ = os.RemoveAll(semiontDir)
+			if devcontainer {
+				_ = os.RemoveAll(filepath.Join(dir, ".devcontainer"))
 			}
 		}
-		if devcontainer {
-			if !copyDevcontainer(u, dir, tplDir, name) {
-				return 1
-			}
+	}()
+	fail := func(format string, a ...any) int {
+		u.fail(format, a...)
+		return 1
+	}
+
+	if noGit {
+		u.warn("--no-git: git init is skipped, git.sync = false, and .semiont/ is not staged — the backend versions the event log via git, so this KB cannot run the full stack until it becomes a clone.")
+	}
+	startedWriting = true
+	if err := os.MkdirAll(semiontDir, 0o755); err != nil {
+		return fail("Creating .semiont/: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(semiontDir, "config"), []byte(cfg), 0o644); err != nil {
+		return fail("Writing .semiont/config: %v", err)
+	}
+	u.ok(".semiont/config written %s", u.dim("("+domain+")"))
+
+	if genContent != "" {
+		if !writeVettedConfig(u, dir, genName, genContent) {
+			return 1
 		}
-		if !noGit && onPath("git") {
+	}
+	if tplDir != "" && fromTemplate != "" {
+		if !copyTemplateConfigs(u, dir, tplDir) {
+			return 1
+		}
+	}
+	if tplDir != "" && devcontainer {
+		if !copyDevcontainer(u, dir, tplDir, name) {
+			return 1
+		}
+	}
+
+	if !noGit {
+		if !onPath("git") {
+			u.warn("git is not on PATH — skipping git init/add; the full stack needs this KB to be a clone.")
+		} else {
+			if out, err := captureBoth("git", "-C", dir, "init"); err != nil {
+				return fail("git init: %s", strings.TrimSpace(out))
+			}
+			u.ok("git init")
 			addArgs := []string{"-C", dir, "add", ".semiont"}
 			if devcontainer {
 				addArgs = append(addArgs, ".devcontainer")
 			}
 			if out, err := captureBoth("git", addArgs...); err != nil {
-				u.fail("git add: %s", strings.TrimSpace(out))
-				return 1
+				return fail("git add: %s", strings.TrimSpace(out))
 			}
+			u.ok("git add")
 		}
 	}
 
 	registerRootUse(dir, false, "")
 	warnICloudRoot(u, dir)
+	success = true
 
 	fmt.Println()
 	fmt.Printf("%s\n", u.wrap(ansiBold+ansiGreen, "🌱 "+name+" is born"))
