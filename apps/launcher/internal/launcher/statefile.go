@@ -50,6 +50,7 @@ type serviceState struct {
 	// live only when the key happens to be in its environment.
 	RemoteModels map[string]remoteModelMeta `json:"remoteModels,omitempty"`
 	Endpoint     string                     `json:"endpoint,omitempty"`  // health probe: http(s) URL or tcp:<host>:<port>
+	Runtime      string                     `json:"runtime,omitempty"`   // browser record only: the runtime that runs it (stack services get theirs from the stack)
 	HostReuse    bool                       `json:"hostReuse,omitempty"` // schema 1 (read-compat only; no longer written)
 	StartedAt    time.Time                  `json:"startedAt"`
 }
@@ -107,6 +108,12 @@ type stackSet struct {
 	UpdatedAt time.Time              `json:"updatedAt"`
 	Launcher  string                 `json:"launcherVersion"`
 	Stacks    map[string]*stackState `json:"stacks"`
+	// Browser: the machine-level viewer, deliberately OUTSIDE every stack
+	// (BROWSER-LIFECYCLE.md): it serves any number of KBs, any start ensures
+	// it, and stopping a stack leaves it running. Optional and
+	// read-compatible; pre-separation records carrying a frontend service
+	// entry migrate on read.
+	Browser *serviceState `json:"browser,omitempty"`
 }
 
 // stackKey: "local" for the machine's one local stack, "codespace:<repo>"
@@ -142,6 +149,7 @@ func loadStackSet() *stackSet {
 		var full stackSet
 		if json.Unmarshal(b, &full) == nil && full.Stacks != nil {
 			full.Schema = 3
+			migrateBrowser(&full)
 			return &full
 		}
 		return ss
@@ -163,7 +171,25 @@ func loadStackSet() *stackSet {
 		}
 	}
 	ss.Stacks[stackKey(&st)] = &st
+	migrateBrowser(ss)
 	return ss
+}
+
+// migrateBrowser lifts a pre-separation frontend service entry out of the
+// local stack into the machine-level browser record. Idempotent; the next
+// save persists the lifted shape.
+func migrateBrowser(ss *stackSet) {
+	if ss.Browser != nil {
+		return
+	}
+	st := ss.Stacks["local"]
+	if st == nil {
+		return
+	}
+	if e, ok := st.Services["frontend"]; ok && e.Provided == providedLauncher {
+		ss.Browser = &e
+		delete(st.Services, "frontend")
+	}
 }
 
 // loadLocalState: the machine's one local stack record, or nil.
@@ -191,7 +217,7 @@ func saveStackSet(ss *stackSet) {
 	if p == "" {
 		return
 	}
-	if len(ss.Stacks) == 0 {
+	if len(ss.Stacks) == 0 && ss.Browser == nil {
 		_ = os.Remove(p)
 		writeDiscovery(ss) // empty list, not an absent file
 		return
@@ -230,6 +256,23 @@ func saveStack(st *stackState) {
 func forgetStack(key string) {
 	ss := loadStackSet()
 	delete(ss.Stacks, key)
+	saveStackSet(ss)
+}
+
+// saveBrowser upserts the machine-level browser record.
+func saveBrowser(e *serviceState) {
+	ss := loadStackSet()
+	ss.Browser = e
+	saveStackSet(ss)
+}
+
+// clearBrowser forgets it (the targeted `stop --service frontend`).
+func clearBrowser() {
+	ss := loadStackSet()
+	if ss.Browser == nil {
+		return
+	}
+	ss.Browser = nil
 	saveStackSet(ss)
 }
 

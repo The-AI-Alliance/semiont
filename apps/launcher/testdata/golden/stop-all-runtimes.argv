@@ -1,5 +1,3 @@
-container stop semiont-frontend
-container rm semiont-frontend
 container stop semiont-weaver
 container rm semiont-weaver
 container stop semiont-smelter
@@ -18,8 +16,6 @@ container stop semiont-neo4j
 container rm semiont-neo4j
 container stop semiont-jaeger
 container rm semiont-jaeger
-docker stop semiont-frontend
-docker rm semiont-frontend
 docker stop semiont-weaver
 docker rm semiont-weaver
 docker stop semiont-smelter
@@ -38,8 +34,6 @@ docker stop semiont-neo4j
 docker rm semiont-neo4j
 docker stop semiont-jaeger
 docker rm semiont-jaeger
-podman stop semiont-frontend
-podman rm semiont-frontend
 podman stop semiont-weaver
 podman rm semiont-weaver
 podman stop semiont-smelter
@@ -58,7 +52,6 @@ podman stop semiont-neo4j
 podman rm semiont-neo4j
 podman stop semiont-jaeger
 podman rm semiont-jaeger
-lsof -ti :3000
 lsof -ti :9090
 lsof -ti :9091
 lsof -ti :9092

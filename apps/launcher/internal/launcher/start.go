@@ -20,10 +20,13 @@ const (
 // preflightNames is the stop-then-rm sweep order at start; semiont-ollama is
 // deliberately absent — it is handled in the Ollama section, where a host
 // instance may make a container unnecessary.
+// semiont-frontend is deliberately ABSENT: the Browser is not a stack
+// member (BROWSER-LIFECYCLE.md) — its keep-or-refresh lifecycle lives in
+// flowBrowser, and the preflight must not sweep a viewer the user keeps
+// open across stacks.
 var preflightNames = []string{
 	"semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-postgres",
 	"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver",
-	"semiont-frontend",
 }
 
 type startOptions struct {
@@ -735,7 +738,9 @@ func pullArgs(rt, img string) []string {
 	return []string{"pull", img}
 }
 
-var semiontServices = []string{"backend", "worker", "smelter", "weaver", "frontend"}
+// frontend is absent: the Browser pulls its own image inside flowBrowser,
+// and only when actually (re)starting — a kept Browser costs no pull.
+var semiontServices = []string{"backend", "worker", "smelter", "weaver"}
 
 // sidecarSpecs: the three make-meaning sidecars, in start order.
 type sidecarSpec struct {

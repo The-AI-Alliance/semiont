@@ -17,10 +17,8 @@ container stop semiont-smelter
 container rm semiont-smelter
 container stop semiont-weaver
 container rm semiont-weaver
-container stop semiont-frontend
-container rm semiont-frontend
 # remove staged config copies: /tmp/semiont-config.*
-# require free ports: 7474 7687 6333 5432 4000 9090 9091 9092 3000 16686 4318
+# require free ports: 7474 7687 6333 5432 4000 9090 9091 9092 16686 4318
 # stage per-service config copies under <config-stage>: backend.toml worker.toml smelter.toml weaver.toml
 # SEMIONT_VERSION=local — using locally-built :local images (no pull)
 container run -d --name semiont-jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:1.76.0
@@ -34,6 +32,7 @@ container run -d --name semiont-qdrant -p 6333:6333 qdrant/qdrant:v1.18.3
 # ensure ollama models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # else:
 container stop semiont-ollama
+container rm semiont-ollama
 # require free port: 11434
 container run -d --name semiont-ollama -p 11434:11434 -m 24G -v <ollama-volume>:/root/.ollama ollama/ollama
 # wait: http://localhost:11434/api/version (30s)
@@ -51,5 +50,11 @@ container run -d --name semiont-smelter --memory 2G --publish 9091:9091 --volume
 # wait: http://localhost:9091/health (30s)
 container run -d --name semiont-weaver --memory 3G --publish 9092:9092 --volume <config-stage>/weaver.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env SEMIONT_WORKER_SECRET=<worker-secret> ghcr.io/the-ai-alliance/semiont-weaver:local
 # wait: http://localhost:9092/health (30s)
+# browser: keep if running with image identity matching ghcr.io/the-ai-alliance/semiont-frontend:local; else stop/rm + pull + run
+# (the Browser is not a stack member: stop leaves it running; semiont stop --service frontend stops it)
+# else:
+container stop semiont-frontend
+container rm semiont-frontend
+# require free port: 3000
 container run -d --name semiont-frontend --memory 1G --publish 3000:3000 -v <home>/.local/state/semiont/discovery:/discovery:ro ghcr.io/the-ai-alliance/semiont-frontend:local
 # wait: http://localhost:3000 (30s)

@@ -249,7 +249,8 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 		portNeed{9090, "Worker"},
 		portNeed{9091, "Smelter"},
 		portNeed{9092, "Weaver"},
-		portNeed{3000, "Frontend"},
+		// No browser port here: the Browser is not a stack member — its
+		// port is checked inside flowBrowser, and only when (re)starting.
 	)
 	if observe {
 		checks = append(checks, portNeed{16686, "Jaeger UI"}, portNeed{4318, "Jaeger OTLP"})

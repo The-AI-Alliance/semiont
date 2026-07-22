@@ -9,6 +9,7 @@ package launcher
 // plan is a plan, not a transcript.
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -26,7 +27,6 @@ type executor interface {
 	portChecks(ports []portNeed) bool
 	portCheck(p portNeed) bool    // singular wording in plan mode
 	recordPorts(ports []portNeed) // note claimed host ports in the belief record
-	stopEcho(name string)         // the echoed best-effort stop (ollama teardown)
 	hostOllamaReachable(addr string, port int) bool
 	stageAll(configFile string) (string, bool)           // per-service config copies; returns stage dir
 	stageOne(svc, configFile string) (string, bool)      // one service's fresh private copy
@@ -44,8 +44,11 @@ type executor interface {
 	workerSecret() (string, bool)          // full start: env or generated
 	ollamaVolume(opts startOptions) string // model-cache choice (prompt is live-only)
 	record(role, id, image, provided, endpoint, driver string)
-	providerOf(role string) string                              // how an already-recorded role was provided
-	noteContainer(role, container string)                       // stamp a launched container on a container-less role
+	providerOf(role string) string        // how an already-recorded role was provided
+	noteContainer(role, container string) // stamp a launched container on a container-less role
+	browserCurrent(desired string) bool   // running AND image identity matches
+	browserRecord() *serviceState         // the machine-level browser record
+	recordBrowser(id, image, version string, port int)
 	dumpLogs(container, svc string)                             // failed health gate: show the crash where it is
 	verifyRemoteModels(role, base, key string, models []string) // record /v1/models metadata; warn on unlisted
 	ensureModels(base string, models []string)                  // pull configured ollama models that are absent
@@ -115,11 +118,6 @@ func (x *liveExec) pause() { time.Sleep(time.Second) }
 
 func (x *liveExec) portCheck(p portNeed) bool {
 	return requirePortFree(x.u, p.port, p.label)
-}
-
-func (x *liveExec) stopEcho(name string) {
-	x.u.echoCmd(x.rt, "stop", name)
-	runPassthrough(x.rt, "stop", name)
 }
 
 // hostOllamaReachable: a host Ollama is serving — confirm containers can
@@ -427,6 +425,60 @@ func (x *liveExec) dumpLogs(container, svc string) {
 	fmt.Fprintf(os.Stderr, "  Full logs:  semiont logs --service %s\n", svc)
 }
 
+// browserCurrent: is semiont-frontend RUNNING on an image identical to the
+// one this start would run? Identity, not tag order: the running container's
+// image reference must match the desired ref, and when both sides expose an
+// image ID those must match too (a moved :latest). Reference match without
+// obtainable IDs KEEPS the browser (restart-on-doubt would negate the
+// feature on runtimes that expose no ID through inspect) — the explicit
+// refresh is `semiont start --service frontend`.
+func (x *liveExec) browserCurrent(desired string) bool {
+	out, err := capture(x.rt, "inspect", "semiont-frontend")
+	if err != nil || out == "" {
+		return false
+	}
+	var entries []map[string]any
+	if json.Unmarshal([]byte(out), &entries) != nil || len(entries) == 0 {
+		return false
+	}
+	e := entries[0]
+	status, _ := digString(e, "status")
+	if status == "" {
+		status, _ = digString(e, "State", "Status")
+	}
+	if status != "running" {
+		return false
+	}
+	ref, _ := digString(e, "configuration", "image", "reference")
+	if ref == "" {
+		ref, _ = digString(e, "Config", "Image")
+	}
+	if ref != desired {
+		return false
+	}
+	runningID, _ := digString(e, "Image")
+	if runningID == "" {
+		return true // reference matches; no ID exposed — keep
+	}
+	idOut, err := capture(x.rt, "image", "inspect", "-f", "{{.Id}}", desired)
+	if err != nil || idOut == "" {
+		return true
+	}
+	return strings.TrimSpace(idOut) == runningID
+}
+
+func (x *liveExec) browserRecord() *serviceState {
+	return loadStackSet().Browser
+}
+
+func (x *liveExec) recordBrowser(id, img, version string, port int) {
+	saveBrowser(&serviceState{
+		Container: "semiont-frontend", ID: id, Image: img, Provided: providedLauncher,
+		Runtime: x.rt, Endpoint: fmt.Sprintf("http://localhost:%d", port),
+		StartedAt: time.Now().UTC(),
+	})
+}
+
 func (x *liveExec) ensureModels(base string, models []string) {
 	ensureOllamaModels(x.u, base, models)
 }
@@ -532,8 +584,6 @@ func (x *planExec) portCheck(p portNeed) bool {
 
 func (x *planExec) recordPorts([]portNeed) {}
 
-func (x *planExec) stopEcho(name string) { x.p("stop", name) }
-
 func (x *planExec) hostOllamaReachable(string, int) bool { return true }
 
 func (x *planExec) backendReachable(addr string, port int) bool {
@@ -595,6 +645,12 @@ func (x *planExec) noteContainer(string, string) {}
 
 // --dry-run launches nothing, so nothing can crash.
 func (x *planExec) dumpLogs(string, string) {}
+
+// --dry-run: the keep-or-restart decision is a runtime fact; either() shows
+// both branches, so these answer neutrally.
+func (x *planExec) browserCurrent(string) bool                { return false }
+func (x *planExec) browserRecord() *serviceState              { return nil }
+func (x *planExec) recordBrowser(string, string, string, int) {}
 
 // --dry-run reaches for nothing; name the query a real run would make.
 func (x *planExec) verifyRemoteModels(role, base, _ string, models []string) {

@@ -31,13 +31,21 @@ semiont stop
 
 - `semiont start --help` lists all flags (`--config`, `--runtime`,
   `--no-observe`, `--ollama-cache`, …).
-- `semiont start --service frontend --port <n>` moves the browser — the ONE
-  port a flag may move (it's absent from the KB config and nothing in the
-  stack dials it; every other port belongs to the config, and a codespace
-  forwards only its KB on an allocated port). Move, not multiply: the
-  browser restarts on the chosen port, the record carries the endpoint, and
-  status/stop follow it. A non-3000 port warns that backends configured
-  with `frontendURL http://localhost:3000` may reject the origin.
+- **The Browser is not a stack member** (BROWSER-LIFECYCLE.md): it is the
+  machine-level viewer of every KB, local and codespace, discovery-synced.
+  ANY start ensures it — including a codespace start, when a local container
+  runtime exists — and none churns it: a running Browser is KEPT when its
+  image matches what the start would run (image identity, not tag order),
+  restarted when stale. A bare `semiont stop` leaves it running, announced;
+  `semiont stop --service frontend` is the explicit off-switch. Its record
+  lives beside the stacks (machine-level, with its runtime and image), its
+  port is never among a stack's claims, and `status` opens with a BROWSER
+  section — first because it sits architecturally above everything it views
+  — showing its image tag so browser-vs-stack version skew is visible.
+- `semiont start --service frontend --port <n>` moves the Browser — the ONE
+  port a flag may move — and is also the explicit refresh (it always
+  restarts, bypassing keep-if-current). A non-3000 port warns that backends
+  configured with `frontendURL http://localhost:3000` may reject the origin.
 - **`semiont secret` registers where config secrets come from** — pointers,
   never values. `semiont secret set ANTHROPIC_API_KEY` walks an interactive
   provider-then-path flow (or pass the source directly:

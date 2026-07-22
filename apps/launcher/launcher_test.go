@@ -562,7 +562,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 10 container(s) across container, docker, podman",
+		"Sweeping 9 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -643,16 +643,18 @@ func TestStatusMixed(t *testing.T) {
 		t.Errorf("--service names one stack, so it must exit on health; got %d", code)
 	}
 	mustContain(t, "stdout", stdout,
-		"SERVICE", "STATE", "RUNTIME", "HEALTH",
+		"SERVICE", "RUNTIME", "STATUS",
 		"LOCAL STACK", "database (PostgreSQL)", // tech rides in the SERVICE cell now
 		"PostgreSQL", "Neo4j", "Qdrant", "Ollama", "Jaeger",
 		"LOCAL ROOTS",
 		"(discovered from cwd)",
-		"✓ http://localhost:4000/api/health",
-		"✗ http://localhost:9090/health",
-		"✗ tcp://localhost:5432",
-		"exited",
-		"host",
+		// The merged STATUS cell: mark + word, probe dimmed after. The
+		// diagnostic matrix each word pins: running-and-healthy, running-
+		// but-unhealthy, crashed, absent, host-provided.
+		"✓ running", "✗ running", "✗ exited", "✗ absent", "✓ reachable",
+		"http://localhost:4000/api/health",
+		"http://localhost:9090/health",
+		"tcp://localhost:5432",
 	)
 	// LAUNCHER PATHS describes the launcher, not any KB — asked for, not shown.
 	if strings.Contains(stdout, "LAUNCHER PATHS") {
@@ -695,8 +697,10 @@ func TestStatusAllHealthy(t *testing.T) {
 		t.Fatalf("want exit 0 with all core healthy, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "traces")
-	if strings.Contains(stdout, "✗ http://localhost:4000") {
-		t.Errorf("backend reported unhealthy:\n%s", stdout)
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.Contains(line, "backend") && strings.Contains(line, "✗") {
+			t.Errorf("backend reported unhealthy:\n%s", stdout)
+		}
 	}
 }
 
@@ -1188,7 +1192,9 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"Reading admin credentials",
 		"Semiont KB is up in codespace fake-cs-1",
 		"Semiont KB         http://localhost:4000",
-		"Semiont Browser    semiont start --service frontend", // not forwarded — runs locally
+		// Codespace start ENSURES the local Browser (a runtime exists in
+		// this scenario), so the summary names the live endpoint.
+		"Semiont Browser    http://localhost:3000",
 		"admin@example.com", "fake-admin-pw",
 		"local uncommitted changes don't travel",
 		"Halt compute:")
@@ -1724,8 +1730,12 @@ func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	mustContain(t, "delete stdout", stdout, "deleted", "destroyed")
 	log, _ = os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log), "gh codespace delete -c fake-cs-1 --force")
-	if _, err := os.Stat(statePathFor(s.home)); !os.IsNotExist(err) {
-		t.Error("stack.json survived stop --delete")
+	// The codespace record is forgotten — but stack.json itself now
+	// legitimately survives: codespace start ensured the local Browser,
+	// whose machine-level record lives there.
+	b, _ = os.ReadFile(statePathFor(s.home))
+	if strings.Contains(string(b), "codespace:") {
+		t.Errorf("deleted codespace stack still recorded:\n%s", b)
 	}
 
 	// --delete is codespace-only.
@@ -2569,8 +2579,11 @@ func TestStackStateLifecycle(t *testing.T) {
 		} `json:"services"`
 	}
 	var set struct {
-		Schema int                      `json:"schema"`
-		Stacks map[string]recordedStack `json:"stacks"`
+		Schema  int                      `json:"schema"`
+		Stacks  map[string]recordedStack `json:"stacks"`
+		Browser *struct {
+			ID string `json:"id"`
+		} `json:"browser"`
 	}
 	if err := json.Unmarshal(b, &set); err != nil {
 		t.Fatalf("stack.json not valid JSON: %v\n%s", err, b)
@@ -2582,7 +2595,15 @@ func TestStackStateLifecycle(t *testing.T) {
 	if set.Schema != 3 || st.Runtime != "container" {
 		t.Errorf("schema/runtime: got %d/%q", set.Schema, st.Runtime)
 	}
-	for _, role := range []string{"traces", "graph", "vectors", "inference", "database", "backend", "worker", "smelter", "weaver", "frontend"} {
+	// frontend is deliberately ABSENT from the stack's services: the Browser
+	// is machine-level (BROWSER-LIFECYCLE.md), recorded under "browser".
+	if _, ok := st.Services["frontend"]; ok {
+		t.Error("frontend recorded as a stack service — the Browser is machine-level")
+	}
+	if set.Browser == nil || set.Browser.ID != "fid-semiont-frontend" {
+		t.Errorf("browser record missing or wrong: %+v", set.Browser)
+	}
+	for _, role := range []string{"traces", "graph", "vectors", "inference", "database", "backend", "worker", "smelter", "weaver"} {
 		e, ok := st.Services[role]
 		if !ok {
 			t.Errorf("service %q missing from record", role)
@@ -2647,16 +2668,28 @@ func TestStackStateLifecycle(t *testing.T) {
 	mustContain(t, "stdout", stdout, "Using recorded stack state", "Semiont stack stopped.")
 	fullArgv := strings.TrimPrefix(s.argv(t), preFull)
 	mustContain(t, "full stop argv", fullArgv,
-		"container stop fid-semiont-backend", "container rm fid-semiont-frontend",
+		"container stop fid-semiont-backend",
 		"docker stop semiont-backend", "podman stop semiont-backend")
+	// The Browser survives a full stop — never in the sweep.
+	if strings.Contains(fullArgv, "semiont-frontend") {
+		t.Errorf("full stop touched the Browser:\n%s", fullArgv)
+	}
 	for _, bad := range []string{"docker stop fid-", "podman stop fid-"} {
 		if strings.Contains(fullArgv, bad) {
 			t.Errorf("stray sweep used the recorded runtime's IDs: %q", bad)
 		}
 	}
-	if _, err := os.Stat(statePathFor(s.home)); !os.IsNotExist(err) {
-		t.Error("stack.json survived a full stop")
+	// stack.json now legitimately survives a full stop: the browser record
+	// lives there and the Browser keeps running. The LOCAL STACK entry must
+	// be gone, the browser entry present.
+	b2, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatalf("stack.json should survive (browser record): %v", err)
 	}
+	if strings.Contains(string(b2), `"local"`) {
+		t.Errorf("local stack record survived its stop:\n%s", b2)
+	}
+	mustContain(t, "browser record survives", string(b2), `"browser"`)
 }
 
 func TestStopTwiceIsHonest(t *testing.T) {
@@ -2751,7 +2784,8 @@ func TestStopRuntimeMismatchKeepsRecordAndStaging(t *testing.T) {
 		t.Error("stack.json erased by a mismatched-runtime stop")
 	}
 	argv := s.argv(t)
-	mustContain(t, "argv", argv, "docker stop semiont-frontend")
+	// The sweep excludes the Browser now; weaver is the first stack member.
+	mustContain(t, "argv", argv, "docker stop semiont-weaver")
 	if strings.Contains(argv, "container stop") {
 		t.Errorf("mismatched stop touched the recorded runtime:\n%s", argv)
 	}
@@ -3684,6 +3718,89 @@ func TestDiscoveryFileTracksStacks(t *testing.T) {
 	mustContain(t, "empty view", disc(), `"kbs": []`)
 }
 
+func TestBrowserOutlivesTheStack(t *testing.T) {
+	// BROWSER-LIFECYCLE P2: the Browser is a machine-level viewer, not a
+	// stack member. Start ensures it; a second start with a current image
+	// KEEPS it; bare stop leaves it running (announced); a stale image is
+	// restarted; --service frontend is the explicit off-switch.
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// The record is machine-level, not a stack service.
+	rec, _ := os.ReadFile(statePathFor(s.home))
+	mustContain(t, "stack.json", string(rec), `"browser"`)
+	if strings.Contains(string(rec), `"frontend"`) {
+		t.Errorf("frontend still recorded as a stack service:\n%s", rec)
+	}
+	// The stack's port claims must NOT include the Browser's 3000 — stop
+	// verifies release of stack ports, and the Browser keeps running.
+	if strings.Contains(string(rec), "3000") && strings.Contains(strings.Split(string(rec), `"browser"`)[0], "3000") {
+		t.Errorf("browser port recorded among the stack's claims:\n%s", rec)
+	}
+
+	// Bare stop: stack down, Browser untouched and announced. Slice the
+	// argv to THIS command — start's own restart branch legitimately
+	// stop/rm's a stale browser earlier in the log.
+	preStop := s.mustLog(t)
+	stdout, stderr, code := s.run(t, "stop", "--runtime", "container")
+	if code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stop stdout", stdout, "Browser still running", "semiont stop --service frontend")
+	if stopArgv := strings.TrimPrefix(string(s.mustLog(t)), string(preStop)); strings.Contains(stopArgv, "semiont-frontend") {
+		t.Errorf("bare stop touched the Browser:\n%s", stopArgv)
+	}
+	rec, _ = os.ReadFile(statePathFor(s.home))
+	mustContain(t, "browser record survives the stack record", string(rec), `"browser"`)
+
+	// Second start with the SAME image running: keep, don't churn. The fake
+	// runtime reports the reference the launcher would run.
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_STATE_frontend=running",
+		"FAKERT_IMAGE_frontend=ghcr.io/the-ai-alliance/semiont-frontend:latest")
+	before := s.mustLog(t)
+	stdout, stderr, code = s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "keep message", stdout+stderr, "Browser already running")
+	if strings.Contains(fresh, "run -d --name semiont-frontend") {
+		t.Errorf("current Browser was churned:\n%s", fresh)
+	}
+
+	// Stale image (reference differs): restart.
+	for i, e := range s.extraEnv {
+		if strings.HasPrefix(e, "FAKERT_IMAGE_frontend=") {
+			s.extraEnv[i] = "FAKERT_IMAGE_frontend=ghcr.io/the-ai-alliance/semiont-frontend:old"
+		}
+	}
+	if _, _, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
+		t.Fatal("interim stop")
+	}
+	before = s.mustLog(t)
+	stdout, stderr, code = s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("stale-image start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	if !strings.Contains(fresh, "run -d --name semiont-frontend") {
+		t.Errorf("stale Browser was not restarted:\n%s", fresh)
+	}
+
+	// The explicit off-switch stops it and clears the record.
+	stdout, _, code = s.run(t, "stop", "--service", "frontend")
+	if code != 0 {
+		t.Fatalf("stop --service frontend: exit %d", code)
+	}
+	mustContain(t, "off-switch", stdout, "Browser stopped")
+	rec, _ = os.ReadFile(statePathFor(s.home))
+	if strings.Contains(string(rec), `"browser"`) {
+		t.Errorf("browser record survived its explicit stop:\n%s", rec)
+	}
+}
+
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")
@@ -3692,7 +3809,7 @@ func TestStatusService(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("healthy backend: want exit 0, got %d\nstdout:\n%s", code, stdout)
 	}
-	mustContain(t, "stdout", stdout, "backend", "running", "✓ http://localhost:4000/api/health")
+	mustContain(t, "stdout", stdout, "backend", "✓ running", "http://localhost:4000/api/health")
 	for _, absent := range []string{"LOCAL ROOTS", "worker", "traces"} {
 		if strings.Contains(stdout, absent) {
 			t.Errorf("filtered status leaked %q:\n%s", absent, stdout)
