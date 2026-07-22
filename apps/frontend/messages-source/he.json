@@ -583,7 +583,11 @@
     "statusExpired": "הפגישה פגה",
     "statusSignedOut": "מנותק",
     "statusUnreachable": "לא ניתן להגיע",
-    "invalidHost": "שם מארח לא חוקי"
+    "invalidHost": "שם מארח לא חוקי",
+    "discoveredTitle": "נמצא במחשב זה",
+    "managedBadge": "מנוהל על ידי המשגר",
+    "placementLocal": "מקומי",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "אין בסיסי ידע",
@@ -591,6 +595,7 @@
     "sessionExpired": "הפגישה שלך פגה.",
     "signedOut": "אינך מחובר.",
     "signInHint": "התחבר באמצעות לוח בסיס הידע כדי לעיין במשאבים.",
+    "discoveredOnMachine": "נמצאו {{count}} בסיסי ידע פעילים במחשב זה — התחבר מהלוח שמצד ימין.",
     "findKnowledgeBases": "מצא מאגרי ידע",
     "createNew": "צור חדש"
   },

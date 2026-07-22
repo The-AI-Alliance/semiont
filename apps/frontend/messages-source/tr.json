@@ -583,7 +583,11 @@
     "statusExpired": "Oturum süresi doldu",
     "statusSignedOut": "Çıkış yapıldı",
     "statusUnreachable": "Erişilemiyor",
-    "invalidHost": "Geçersiz ana bilgisayar adı"
+    "invalidHost": "Geçersiz ana bilgisayar adı",
+    "discoveredTitle": "Bu makinede bulundu",
+    "managedBadge": "Başlatıcı tarafından yönetiliyor",
+    "placementLocal": "yerel",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Bilgi tabanı yok",
@@ -591,6 +595,7 @@
     "sessionExpired": "Oturumunuzun süresi doldu.",
     "signedOut": "Çıkış yaptınız.",
     "signInHint": "Kaynakları görüntülemek için Bilgi Tabanı panelini kullanarak giriş yapın.",
+    "discoveredOnMachine": "Bu makinede çalışan {{count}} bilgi tabanı bulundu — sağdaki panelden bağlanın.",
     "findKnowledgeBases": "Bilgi tabanlarını bul",
     "createNew": "Yeni oluştur"
   },

@@ -583,7 +583,11 @@
     "statusExpired": "セッション期限切れ",
     "statusSignedOut": "サインアウト済み",
     "statusUnreachable": "到達不能",
-    "invalidHost": "無効なホスト名"
+    "invalidHost": "無効なホスト名",
+    "discoveredTitle": "このマシンで見つかりました",
+    "managedBadge": "ランチャーで管理",
+    "placementLocal": "ローカル",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "ナレッジベースがありません",
@@ -591,6 +595,7 @@
     "sessionExpired": "セッションが期限切れになりました。",
     "signedOut": "サインアウトしています。",
     "signInHint": "ナレッジベースパネルを使用してサインインし、リソースを閲覧してください。",
+    "discoveredOnMachine": "このマシンで実行中のナレッジベースが {{count}} 件見つかりました — 右側のパネルから接続してください。",
     "findKnowledgeBases": "ナレッジベースを探す",
     "createNew": "新規作成"
   },

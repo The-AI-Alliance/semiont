@@ -583,7 +583,11 @@
     "statusExpired": "Phiên đã hết hạn",
     "statusSignedOut": "Đã đăng xuất",
     "statusUnreachable": "Không thể truy cập",
-    "invalidHost": "Tên máy chủ không hợp lệ"
+    "invalidHost": "Tên máy chủ không hợp lệ",
+    "discoveredTitle": "Được tìm thấy trên máy này",
+    "managedBadge": "Được quản lý bởi trình khởi chạy",
+    "placementLocal": "cục bộ",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Không có cơ sở kiến thức",
@@ -591,6 +595,7 @@
     "sessionExpired": "Phiên của bạn đã hết hạn.",
     "signedOut": "Bạn đã đăng xuất.",
     "signInHint": "Đăng nhập bằng bảng Cơ sở kiến thức để duyệt tài nguyên.",
+    "discoveredOnMachine": "Đã tìm thấy {{count}} cơ sở kiến thức đang chạy trên máy này — kết nối từ bảng ở bên phải.",
     "findKnowledgeBases": "Tìm cơ sở tri thức",
     "createNew": "Tạo mới"
   },

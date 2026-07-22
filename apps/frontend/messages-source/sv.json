@@ -583,7 +583,11 @@
     "statusExpired": "Session utgången",
     "statusSignedOut": "Utloggad",
     "statusUnreachable": "Onåbar",
-    "invalidHost": "Ogiltigt värdnamn"
+    "invalidHost": "Ogiltigt värdnamn",
+    "discoveredTitle": "Hittades på den här datorn",
+    "managedBadge": "Hanteras av launcher",
+    "placementLocal": "lokal",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Inga kunskapsbaser",
@@ -591,6 +595,7 @@
     "sessionExpired": "Din session har gått ut.",
     "signedOut": "Du är utloggad.",
     "signInHint": "Logga in via kunskapsbasens panel för att bläddra bland resurser.",
+    "discoveredOnMachine": "{{count}} kunskapsbaser hittades igång på den här datorn — anslut från panelen till höger.",
     "findKnowledgeBases": "Hitta kunskapsbaser",
     "createNew": "Skapa en ny"
   },

@@ -1,0 +1,25 @@
+{
+  "title": "DiscoveryDocument",
+  "type": "object",
+  "description": "The launcher's KB discovery document — the schema authority for <stateDir>/discovery/kbs.json, which the semiont launcher (Go, apps/launcher) regenerates on every stack mutation and the frontend container mounts read-only at /discovery. NOT an API endpoint: a static document fetched same-origin by browsers (via the frontend's static server) or read from disk by local Node consumers. An empty kbs list is meaningful (\"the launcher manages nothing right now\") and distinct from an absent file. Design record: .plans/BROWSER-KB-DISCOVERY.md.",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "enum": [
+        1
+      ],
+      "description": "Document schema version. Consumers MUST check it and ignore documents they do not understand."
+    },
+    "kbs": {
+      "type": "array",
+      "items": {
+        "$ref": "./DiscoveredKB.json"
+      },
+      "description": "Every KB the launcher currently manages, local and forwarded"
+    }
+  },
+  "required": [
+    "version",
+    "kbs"
+  ]
+}

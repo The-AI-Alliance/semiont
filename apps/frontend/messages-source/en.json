@@ -269,7 +269,11 @@
     "statusExpired": "Session expired",
     "statusSignedOut": "Signed out",
     "statusUnreachable": "Unreachable",
-    "invalidHost": "Invalid hostname"
+    "invalidHost": "Invalid hostname",
+    "discoveredTitle": "Found on this machine",
+    "managedBadge": "Managed by launcher",
+    "placementLocal": "local",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "No knowledge bases",
@@ -278,7 +282,8 @@
     "createNew": "Create a new one",
     "sessionExpired": "Your session has expired.",
     "signedOut": "You are signed out.",
-    "signInHint": "Sign in using the Knowledge Base panel to browse resources."
+    "signInHint": "Sign in using the Knowledge Base panel to browse resources.",
+    "discoveredOnMachine": "{{count}} knowledge base(s) found running on this machine — connect from the panel on the right."
   },
   "AccountPanel": {
     "notAuthenticated": "Sign in to a knowledge base to view your account."

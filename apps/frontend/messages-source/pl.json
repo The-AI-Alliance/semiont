@@ -583,7 +583,11 @@
     "statusExpired": "Sesja wygasła",
     "statusSignedOut": "Wylogowano",
     "statusUnreachable": "Niedostępny",
-    "invalidHost": "Nieprawidłowa nazwa hosta"
+    "invalidHost": "Nieprawidłowa nazwa hosta",
+    "discoveredTitle": "Znaleziono na tym komputerze",
+    "managedBadge": "Zarządzane przez launcher",
+    "placementLocal": "lokalny",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Brak baz wiedzy",
@@ -591,6 +595,7 @@
     "sessionExpired": "Twoja sesja wygasła.",
     "signedOut": "Jesteś wylogowany.",
     "signInHint": "Zaloguj się za pomocą panelu Bazy wiedzy, aby przeglądać zasoby.",
+    "discoveredOnMachine": "Znaleziono {{count}} działających baz wiedzy na tym komputerze — połącz się z panelu po prawej stronie.",
     "findKnowledgeBases": "Znajdź bazy wiedzy",
     "createNew": "Utwórz nową"
   },

@@ -583,7 +583,11 @@
     "statusExpired": "เซสชันหมดอายุ",
     "statusSignedOut": "ออกจากระบบแล้ว",
     "statusUnreachable": "เข้าถึงไม่ได้",
-    "invalidHost": "ชื่อโฮสต์ไม่ถูกต้อง"
+    "invalidHost": "ชื่อโฮสต์ไม่ถูกต้อง",
+    "discoveredTitle": "พบในเครื่องนี้",
+    "managedBadge": "จัดการโดย launcher",
+    "placementLocal": "ในเครื่อง",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "ไม่มีฐานความรู้",
@@ -591,6 +595,7 @@
     "sessionExpired": "เซสชันของคุณหมดอายุแล้ว",
     "signedOut": "คุณออกจากระบบแล้ว",
     "signInHint": "เข้าสู่ระบบโดยใช้แผงฐานความรู้เพื่อเรียกดูทรัพยากร",
+    "discoveredOnMachine": "พบฐานความรู้ {{count}} รายการที่กำลังทำงานบนเครื่องนี้ — เชื่อมต่อจากแผงทางด้านขวา",
     "findKnowledgeBases": "ค้นหาฐานความรู้",
     "createNew": "สร้างใหม่"
   },

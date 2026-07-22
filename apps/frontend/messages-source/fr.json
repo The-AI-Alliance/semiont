@@ -583,7 +583,11 @@
     "statusExpired": "Session expirée",
     "statusSignedOut": "Déconnecté",
     "statusUnreachable": "Inaccessible",
-    "invalidHost": "Nom d'hôte invalide"
+    "invalidHost": "Nom d'hôte invalide",
+    "discoveredTitle": "Trouvé sur cette machine",
+    "managedBadge": "Géré par le lanceur",
+    "placementLocal": "local",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Aucune base de connaissances",
@@ -591,6 +595,7 @@
     "sessionExpired": "Votre session a expiré.",
     "signedOut": "Vous êtes déconnecté.",
     "signInHint": "Connectez-vous via le panneau Base de connaissances pour parcourir les ressources.",
+    "discoveredOnMachine": "{{count}} bases de connaissances trouvées en cours d'exécution sur cette machine — connectez-vous depuis le panneau de droite.",
     "findKnowledgeBases": "Trouver des bases de connaissances",
     "createNew": "En créer une nouvelle"
   },

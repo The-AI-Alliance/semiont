@@ -583,7 +583,11 @@
     "statusExpired": "সেশন মেয়াদ শেষ",
     "statusSignedOut": "সাইন আউট হয়েছে",
     "statusUnreachable": "পৌঁছানো যাচ্ছে না",
-    "invalidHost": "অবৈধ হোস্টনেম"
+    "invalidHost": "অবৈধ হোস্টনেম",
+    "discoveredTitle": "এই মেশিনে পাওয়া গেছে",
+    "managedBadge": "লঞ্চার দ্বারা পরিচালিত",
+    "placementLocal": "স্থানীয়",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "কোনো জ্ঞান ভাণ্ডার নেই",
@@ -591,6 +595,7 @@
     "sessionExpired": "আপনার সেশনের মেয়াদ শেষ হয়েছে।",
     "signedOut": "আপনি সাইন আউট হয়েছেন।",
     "signInHint": "সম্পদ ব্রাউজ করতে জ্ঞান ভাণ্ডার প্যানেল ব্যবহার করে সাইন ইন করুন।",
+    "discoveredOnMachine": "এই মেশিনে {{count}}টি জ্ঞান ভাণ্ডার চলমান অবস্থায় পাওয়া গেছে — ডান দিকের প্যানেল থেকে সংযুক্ত করুন।",
     "findKnowledgeBases": "জ্ঞানভাণ্ডার খুঁজুন",
     "createNew": "নতুন একটি তৈরি করুন"
   },

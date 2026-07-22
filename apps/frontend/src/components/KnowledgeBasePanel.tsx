@@ -4,9 +4,11 @@ import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIc
 import { SemiontClient, defaultProtocol, isValidHostname, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { baseUrl } from '@semiont/core';
+import type { DiscoveredKB } from '@semiont/core';
 import {
   useSemiont,
   useObservable,
+  useKBDiscovery,
 } from '@semiont/react-ui';
 
 type T = (key: string, params?: Record<string, unknown>) => string;
@@ -24,6 +26,34 @@ const STATUS_KEYS: Record<KbSessionStatus, string> = {
   'signed-out': 'statusSignedOut',
   unreachable: 'statusUnreachable',
 };
+
+const endpointKey = (host: string, port: number) => `${host}:${port}`;
+
+/**
+ * Fixed-shape rendering: a field that should be present but isn't renders
+ * this placeholder — a visible gap, never a semantic fallback to some other
+ * field.
+ */
+const MISSING = '–';
+
+/** Placement badge — also the managed marker on an adopted registered row. */
+function PlacementBadge({ placement, t }: { placement: DiscoveredKB['placement']; t: T }) {
+  return (
+    <span
+      title={t('managedBadge')}
+      style={{
+        fontSize: '0.65rem',
+        padding: '0 0.375rem',
+        borderRadius: '9999px',
+        border: '1px solid var(--semiont-color-primary-500, #3b82f6)',
+        color: 'var(--semiont-color-primary-500, #3b82f6)',
+        flexShrink: 0,
+      }}
+    >
+      {t(placement === 'local' ? 'placementLocal' : 'placementCodespace')}
+    </span>
+  );
+}
 
 function StatusDot({ status, t }: { status: KbSessionStatus; t: T }) {
   return (
@@ -134,8 +164,8 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
   const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
   const authResult = await client.auth!.password(emailStr, password);
-  const token = (authResult as any).token ?? (authResult as any).accessToken;
-  const refreshToken = (authResult as any).refreshToken;
+  const token = authResult.token;
+  const refreshToken = authResult.refreshToken;
   if (!token) throw new Error('No access token received');
   if (!refreshToken) throw new Error('No refresh token received');
 
@@ -143,8 +173,8 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
   let gitBranch: string | undefined;
   try {
     const status = await client.admin!.status();
-    if ((status as any).projectName) label = (status as any).projectName;
-    if ((status as any).gitBranch) gitBranch = (status as any).gitBranch;
+    if (status.projectName) label = status.projectName;
+    if (status.gitBranch) gitBranch = status.gitBranch;
   } catch { /* use default label */ }
 
   return { token, refreshToken, label, ...(gitBranch ? { gitBranch } : {}) };
@@ -162,7 +192,8 @@ export function KnowledgeBasePanel() {
   const updateKnowledgeBase = semiont.updateKb.bind(semiont);
   const signIn = (id: string, access: string, refresh: string) => { void semiont.signIn(id, access, refresh); };
   const signOut = (id: string) => { void semiont.signOut(id); };
-  const [showAddForm, setShowAddForm] = useState(false);
+  // null = closed; {} = blank form; {host, port} = prefilled from a discovered KB.
+  const [addForm, setAddForm] = useState<{ host?: string; port?: number } | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [reauthKbId, setReauthKbId] = useState<string | null>(null);
@@ -171,8 +202,22 @@ export function KnowledgeBasePanel() {
   const [confirmRemoveKbId, setConfirmRemoveKbId] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
+  // Launcher discovery (BROWSER-KB-DISCOVERY P5). The document is launcher
+  // BELIEF — health stays this panel's own probe. Collision policy: a
+  // discovered KB matching a registered endpoint is ADOPTED render-only (one
+  // row, managed badge, registry untouched — fully reversible); removal is
+  // projection-only (discovered rows vanish, adopted rows lose the badge).
+  const { kbs: discoveredKbs } = useKBDiscovery();
+  const managedByEndpoint = new Map(discoveredKbs.map(d => [endpointKey(d.host, d.port), d]));
+  const managedFor = (kb: KnowledgeBase): DiscoveredKB | undefined =>
+    kb.endpoint.kind === 'http' ? managedByEndpoint.get(endpointKey(kb.endpoint.host, kb.endpoint.port)) : undefined;
+  const registeredEndpoints = new Set(
+    knowledgeBases.flatMap(kb => kb.endpoint.kind === 'http' ? [endpointKey(kb.endpoint.host, kb.endpoint.port)] : []),
+  );
+  const unregisteredDiscovered = discoveredKbs.filter(d => !registeredEndpoints.has(endpointKey(d.host, d.port)));
+
   useEffect(() => {
-    if (knowledgeBases.length === 0) setShowAddForm(true);
+    if (knowledgeBases.length === 0) setAddForm({});
   }, [knowledgeBases.length]);
 
   useEffect(() => {
@@ -180,8 +225,8 @@ export function KnowledgeBasePanel() {
     return () => clearInterval(interval);
   }, []);
 
-  const openAddForm = () => {
-    setShowAddForm(true);
+  const openAddForm = (prefill: { host?: string; port?: number } = {}) => {
+    setAddForm(prefill);
     setReauthKbId(null);
     setAddError(null);
   };
@@ -197,7 +242,7 @@ export function KnowledgeBasePanel() {
         const { token, refreshToken, gitBranch } = await authenticateWithBackend(host, port, protocol, email, password);
         updateKnowledgeBase(existing.id, { ...(gitBranch ? { gitBranch } : {}) });
         signIn(existing.id, token, refreshToken);
-        setShowAddForm(false);
+        setAddForm(null);
       } catch (err) {
         setAddError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -217,7 +262,7 @@ export function KnowledgeBasePanel() {
         token,
         refreshToken,
       );
-      setShowAddForm(false);
+      setAddForm(null);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -255,7 +300,7 @@ export function KnowledgeBasePanel() {
       setActiveKnowledgeBase(kb.id);
     } else {
       setReauthKbId(kb.id);
-      setShowAddForm(false);
+      setAddForm(null);
       setReauthError(null);
     }
   };
@@ -274,6 +319,7 @@ export function KnowledgeBasePanel() {
             const status = semiont.getKbSessionStatus(kb.id);
             const isActive = kb.id === activeKnowledgeBase?.id;
             const isReauthing = reauthKbId === kb.id;
+            const managed = managedFor(kb);
 
             return (
               <div key={kb.id}>
@@ -285,6 +331,7 @@ export function KnowledgeBasePanel() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <StatusDot status={status} t={t} />
                     <span className="semiont-panel-text" style={{ flex: 1, fontWeight: 500 }}>{kb.label}</span>
+                    {managed && <PlacementBadge placement={managed.placement} t={t} />}
                     {isActive && (
                       <CheckIcon style={{ width: '1rem', height: '1rem', color: 'var(--semiont-color-primary-500)', flexShrink: 0 }} />
                     )}
@@ -307,10 +354,16 @@ export function KnowledgeBasePanel() {
                   </div>
                   <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem' }}>
                     {kb.endpoint.kind === 'http'
-                      ? `${kb.endpoint.host}:${kb.endpoint.port}`
+                      ? `${kb.endpoint.host}:${kb.endpoint.port} · ${kb.gitBranch ?? MISSING}`
                       : `local:${kb.endpoint.kbId}`}
-                    {kb.gitBranch ? ` · ${kb.gitBranch}` : ''}
                   </span>
+                  {managed && (
+                    // The repo gets its own line — vertical space over width;
+                    // wrap instead of the class's nowrap-ellipsis.
+                    <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                      {managed.repo ?? MISSING}
+                    </span>
+                  )}
                 </div>
                 {confirmRemoveKbId === kb.id && (
                   <div style={{
@@ -354,23 +407,54 @@ export function KnowledgeBasePanel() {
           })}
         </div>
 
-        {showAddForm && (
+        {unregisteredDiscovered.length > 0 && (
+          <div className="semiont-panel__list">
+            <h3 className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0.5rem 0.75rem 0.25rem' }}>
+              {t('discoveredTitle')}
+            </h3>
+            {unregisteredDiscovered.map((d) => (
+              <div
+                key={endpointKey(d.host, d.port)}
+                className="semiont-panel-item semiont-panel-item--clickable"
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', cursor: 'pointer', padding: '0.5rem 0.75rem' }}
+                onClick={() => openAddForm({ host: d.host, port: d.port })}
+                {...(d.did !== undefined ? { title: d.did } : {})}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className="semiont-panel-text" style={{ flex: 1, fontWeight: 500 }}>{d.siteName ?? MISSING}</span>
+                  <PlacementBadge placement={d.placement} t={t} />
+                </div>
+                <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem' }}>
+                  {endpointKey(d.host, d.port)}
+                </span>
+                <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                  {d.repo ?? MISSING}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {addForm !== null && (
           <LoginForm
+            key={`${addForm.host ?? ''}:${addForm.port ?? ''}`}
             t={t}
             onSubmit={handleAdd}
-            onCancel={() => setShowAddForm(false)}
+            onCancel={() => setAddForm(null)}
             error={addError}
             isSubmitting={addSubmitting}
             autoFocus={knowledgeBases.length === 0}
             pulsing={knowledgeBases.length === 0}
+            {...(addForm.host !== undefined ? { initialHost: addForm.host } : {})}
+            {...(addForm.port !== undefined ? { initialPort: addForm.port } : {})}
           />
         )}
       </div>
 
-      {!showAddForm && (
+      {addForm === null && (
         <div className="semiont-panel-footer">
           <button
-            onClick={openAddForm}
+            onClick={() => openAddForm()}
             className="semiont-panel-item semiont-panel-item--clickable"
             style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--semiont-color-primary-600)' }}
           >

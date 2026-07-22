@@ -19,8 +19,9 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).DOMMatrix) {
   };
 }
 
-// window.matchMedia mock for theme detection
-Object.defineProperty(window, 'matchMedia', {
+// window.matchMedia mock for theme detection (jsdom only — node-environment
+// tests, e.g. the static server's, have no window)
+if (typeof window !== 'undefined') Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({
     matches: false,
@@ -35,14 +36,14 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Polyfill animations API for Headless UI
-if (!window.Element.prototype.getAnimations) {
+if (typeof window !== 'undefined' && !window.Element.prototype.getAnimations) {
   window.Element.prototype.getAnimations = function () {
     return [];
   };
 }
 
 // window.location mock
-Object.defineProperty(window, 'location', {
+if (typeof window !== 'undefined') Object.defineProperty(window, 'location', {
   value: {
     href: 'http://localhost:3000/',
     origin: 'http://localhost:3000',

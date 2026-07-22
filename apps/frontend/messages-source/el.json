@@ -583,7 +583,11 @@
     "statusExpired": "Η συνεδρία έληξε",
     "statusSignedOut": "Αποσυνδεδεμένο",
     "statusUnreachable": "Μη προσβάσιμο",
-    "invalidHost": "Μη έγκυρο όνομα κεντρικού υπολογιστή"
+    "invalidHost": "Μη έγκυρο όνομα κεντρικού υπολογιστή",
+    "discoveredTitle": "Βρέθηκε σε αυτόν τον υπολογιστή",
+    "managedBadge": "Διαχειρίζεται από τον launcher",
+    "placementLocal": "τοπικό",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Δεν υπάρχουν βάσεις γνώσης",
@@ -591,6 +595,7 @@
     "sessionExpired": "Η συνεδρία σας έληξε.",
     "signedOut": "Είστε αποσυνδεδεμένοι.",
     "signInHint": "Συνδεθείτε χρησιμοποιώντας τον πίνακα Βάσης Γνώσης για να περιηγηθείτε στους πόρους.",
+    "discoveredOnMachine": "Βρέθηκαν {{count}} βάσεις γνώσης σε λειτουργία σε αυτόν τον υπολογιστή — συνδεθείτε από τον πίνακα στα δεξιά.",
     "findKnowledgeBases": "Εύρεση βάσεων γνώσεων",
     "createNew": "Δημιουργία νέας"
   },

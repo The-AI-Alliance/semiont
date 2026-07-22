@@ -583,7 +583,11 @@
     "statusExpired": "Sitzung abgelaufen",
     "statusSignedOut": "Abgemeldet",
     "statusUnreachable": "Nicht erreichbar",
-    "invalidHost": "Ungültiger Hostname"
+    "invalidHost": "Ungültiger Hostname",
+    "discoveredTitle": "Auf diesem Computer gefunden",
+    "managedBadge": "Vom Launcher verwaltet",
+    "placementLocal": "lokal",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Keine Wissensbasen",
@@ -591,6 +595,7 @@
     "sessionExpired": "Ihre Sitzung ist abgelaufen.",
     "signedOut": "Sie sind abgemeldet.",
     "signInHint": "Melden Sie sich über das Wissensbasis-Panel an, um Ressourcen zu durchsuchen.",
+    "discoveredOnMachine": "{{count}} laufende Wissensbasen auf diesem Computer gefunden — verbinden Sie sich über das Panel rechts.",
     "findKnowledgeBases": "Wissensbasen finden",
     "createNew": "Neue erstellen"
   },

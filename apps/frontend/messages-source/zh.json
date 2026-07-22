@@ -583,7 +583,11 @@
     "statusExpired": "会话已过期",
     "statusSignedOut": "已退出",
     "statusUnreachable": "无法访问",
-    "invalidHost": "无效的主机名"
+    "invalidHost": "无效的主机名",
+    "discoveredTitle": "在此计算机上找到",
+    "managedBadge": "由启动器管理",
+    "placementLocal": "本地",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "没有知识库",
@@ -591,6 +595,7 @@
     "sessionExpired": "您的会话已过期。",
     "signedOut": "您已退出登录。",
     "signInHint": "通过知识库面板登录以浏览资源。",
+    "discoveredOnMachine": "在此计算机上找到 {{count}} 个正在运行的知识库 — 从右侧面板连接。",
     "findKnowledgeBases": "查找知识库",
     "createNew": "创建新知识库"
   },

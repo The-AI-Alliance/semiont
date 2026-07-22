@@ -583,7 +583,11 @@
     "statusExpired": "Sesiune expirată",
     "statusSignedOut": "Deconectat",
     "statusUnreachable": "Inaccesibil",
-    "invalidHost": "Nume de gazdă invalid"
+    "invalidHost": "Nume de gazdă invalid",
+    "discoveredTitle": "Găsit pe această mașină",
+    "managedBadge": "Gestionat de launcher",
+    "placementLocal": "local",
+    "placementCodespace": "codespace"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Nicio bază de cunoștințe",
@@ -591,6 +595,7 @@
     "sessionExpired": "Sesiunea dvs. a expirat.",
     "signedOut": "Ați fost deconectat.",
     "signInHint": "Conectați-vă prin panoul Baza de cunoștințe pentru a naviga prin resurse.",
+    "discoveredOnMachine": "{{count}} baze de cunoștințe găsite rulând pe această mașină — conectați-vă din panoul din dreapta.",
     "findKnowledgeBases": "Găsește baze de cunoștințe",
     "createNew": "Creează una nouă"
   },

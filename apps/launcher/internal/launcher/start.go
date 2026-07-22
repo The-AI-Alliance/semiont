@@ -321,6 +321,10 @@ func Start(args []string) int {
 	u = newUI(opts.quiet || opts.dryRun)
 	if !opts.dryRun {
 		u.stamp("semiont start")
+		// Materialize the Browser discovery view before anything mounts it:
+		// a --service frontend on a fresh machine would otherwise mount a
+		// directory nothing has created yet.
+		writeDiscovery(loadStackSet())
 	}
 
 	// Codespace placement dispatches before anything local: no root
@@ -698,8 +702,16 @@ func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string,
 // 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
 // may move — it's absent from the config and nothing in the stack dials it.
 func frontendArgs(version string, port int) []string {
-	return []string{"run", "-d", "--name", "semiont-frontend", // no --rm: see providedRunArgs
-		"--memory", "1G", "--publish", fmt.Sprintf("%d:3000", port), image("frontend", version)}
+	a := []string{"run", "-d", "--name", "semiont-frontend", // no --rm: see providedRunArgs
+		"--memory", "1G", "--publish", fmt.Sprintf("%d:3000", port)}
+	// The Browser's KB-discovery view (BROWSER-KB-DISCOVERY.md lane 1): a
+	// read-only DIRECTORY mount (Apple container cannot single-file mount).
+	// Inert until the frontend image serves /discovery — a dormant feature
+	// whose activation record is the plan.
+	if dir := stateDir(); dir != "" {
+		a = append(a, "-v", filepath.Join(dir, "discovery")+":/discovery:ro")
+	}
+	return append(a, image("frontend", version))
 }
 
 // browserPort: the frontend's host port — --port, else 3000.

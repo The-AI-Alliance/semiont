@@ -11,6 +11,7 @@ import {
   useObservable,
   useTheme,
   useLineNumbers,
+  useKBDiscovery,
 } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CookiePreferences } from '@/components/CookiePreferences';
@@ -25,11 +26,15 @@ function GlobalEventsConnector() {
  * Empty state for the main content area when no KB is connected or authenticated.
  * Shows contextual guidance based on whether any KBs exist.
  */
-function DiscoverEmptyState() {
+export function DiscoverEmptyState() {
   const { t: _t } = useTranslation();
-  const t = (k: string) => _t(`DiscoverEmptyState.${k}`) as string;
+  const t = (k: string, p?: Record<string, unknown>) =>
+    (p !== undefined ? _t(`DiscoverEmptyState.${k}`, p) : _t(`DiscoverEmptyState.${k}`)) as string;
   const semiont = useSemiont();
   const knowledgeBases = useObservable(semiont.kbs$) ?? [];
+  // Launcher discovery: with zero registered KBs, say what's running on this
+  // machine instead of only linking docs (BROWSER-KB-DISCOVERY follow-up).
+  const { kbs: discoveredKbs } = useKBDiscovery();
   const activeKnowledgeBase = useObservable(semiont.activeSession$)?.kb ?? null;
   const status = activeKnowledgeBase
     ? semiont.getKbSessionStatus(activeKnowledgeBase.id)
@@ -42,6 +47,11 @@ function DiscoverEmptyState() {
         <p style={{ color: 'var(--semiont-color-neutral-400)', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '0.75rem' }}>
           {t('noKnowledgeBasesHint')}
         </p>
+        {discoveredKbs.length > 0 && (
+          <p style={{ color: 'var(--semiont-color-primary-500)', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '0.75rem' }}>
+            {t('discoveredOnMachine', { count: discoveredKbs.length })}
+          </p>
+        )}
         <p style={{ color: 'var(--semiont-color-neutral-400)', fontSize: '0.85rem', lineHeight: 1.5 }}>
           <a href="https://github.com/The-AI-Alliance/semiont/blob/main/docs/KNOWLEDGE-BASES.md" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--semiont-color-primary-500)' }}>{t('findKnowledgeBases')}</a>
           {' · '}
