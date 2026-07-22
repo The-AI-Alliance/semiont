@@ -877,10 +877,10 @@ describe('Spec Contract Hygiene', () => {
     expect(mismatches).toEqual([]);
   });
 
-  it('every $ref in the spec resolves to a schema that exists in components/schemas', async () => {
+  it('every $ref in the spec resolves to a schema whose source file exists', async () => {
     const fs = await import('fs/promises');
     const path = await import('path');
-    const schemasDir = path.join(process.cwd(), '../../specs/src/components/schemas');
+    const specSrcDir = path.join(process.cwd(), '../../specs/src');
 
     const refs = new Set<string>();
     const collectRefs = (node: unknown): void => {
@@ -911,15 +911,33 @@ describe('Spec Contract Hygiene', () => {
     }
 
     // Sanity check: confirm each declared schema has a file on disk (catches
-    // components pointing at missing JSON files after a rename).
+    // components pointing at missing JSON files after a rename). The file's
+    // location comes from the SOURCE registry's own $ref — not from an
+    // assumed directory: standalone contract directories (specs/src/
+    // discovery/, see its README) are registered into the bundle from
+    // outside components/schemas, deliberately.
+    const srcRoot = JSON.parse(
+      await fs.readFile(path.join(specSrcDir, 'openapi.json'), 'utf8'),
+    ) as { components?: { schemas?: Record<string, { $ref?: string }> } };
     const missingOnDisk: string[] = [];
-    for (const schemaName of declaredSchemas) {
-      const filePath = path.join(schemasDir, `${schemaName}.json`);
+    for (const [schemaName, decl] of Object.entries(srcRoot.components?.schemas ?? {})) {
+      const rel = decl.$ref ?? `components/schemas/${schemaName}.json`;
+      const filePath = path.join(specSrcDir, rel);
       try {
         await fs.access(filePath);
       } catch {
         missingOnDisk.push(`${schemaName} (expected at ${filePath})`);
       }
+    }
+    // And the two registries must agree: every bundled schema is declared in
+    // the source root and vice versa — a bundle/source split would let the
+    // disk check silently pass while the bundle drifts.
+    const srcNames = new Set(Object.keys(srcRoot.components?.schemas ?? {}));
+    for (const name of declaredSchemas) {
+      if (!srcNames.has(name)) missingOnDisk.push(`${name} (in bundle but not in specs/src/openapi.json)`);
+    }
+    for (const name of srcNames) {
+      if (!declaredSchemas.has(name)) missingOnDisk.push(`${name} (in specs/src/openapi.json but not in the bundle)`);
     }
 
     if (unresolved.length > 0) {
