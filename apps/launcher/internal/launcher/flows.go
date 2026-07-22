@@ -166,11 +166,7 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 			return 0
 		},
 		func() int {
-			if port != 3000 {
-				x.say(sayWarn, "Browser on port %d: backends configured with frontendURL http://localhost:3000 may reject this origin (OAuth redirects / CORS).", port)
-			}
-			x.stopEcho("semiont-frontend")
-			x.pause()
+			x.stopRm("semiont-frontend")
 			if !x.portCheck(portNeed{port, "Frontend"}) {
 				return 1
 			}
