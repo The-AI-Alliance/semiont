@@ -91,8 +91,8 @@ export function parseDiscoveryDocument(text: string): DiscoveryState {
   for (const entry of parsed.kbs) {
     if (!isObject(entry)) return absent('invalid', 'kb entry is not an object');
     const { host, port, placement, managedBy, repo, did, siteName } = entry;
-    if (!isString(host) || !isNumber(port) || !isString(managedBy)) {
-      return absent('invalid', 'kb entry missing required host/port/managedBy');
+    if (!isString(host) || !isString(managedBy) || !isNumber(port) || !Number.isInteger(port) || port <= 0 || port > 65535) {
+      return absent('invalid', 'kb entry missing required host/port/managedBy (port must be an integer 1-65535)');
     }
     if (placement !== 'local' && placement !== 'codespace') {
       return absent('invalid', `kb entry has unknown placement ${JSON.stringify(placement)}`);
