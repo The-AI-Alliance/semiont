@@ -19,16 +19,40 @@ no language runtime bleeds onto your host. Besides the launcher you need only
 
 ## Use
 
-Run from inside a KB clone (or birth one first with `semiont init` — it
-assigns the KB's permanent did:web identity at birth, from --domain, the git
-origin, or a prompt; interactive with full flag parity, and --yes refuses
-rather than guessing where no safe default exists. `--inference anthropic|ollama --model <id>
---embedding ollama:<model>` builds a full semiontconfig from the launcher's
-own knowledge — nothing copied, nothing mastered, the three-name binding
-roster (per-worker refinement is your edit) — and every generated config is
-vetted by the plan deriver before it is written, so a generator bug is a
-refusal, never a KB that cannot start. Live model pickers and template-copy
-paths are landing next: .plans/LAUNCHER-BIRTH.md):
+Run from inside a KB clone — or birth one first with **`semiont init`**
+(design record: .plans/LAUNCHER-BIRTH.md). Interactive with full flag
+parity; `--yes` refuses rather than guessing where no safe default exists.
+What init does:
+
+- **Identity at birth**: the permanent did:web domain from `--domain`, the
+  git origin (`<owner_lc>.github.io:<name>` — the same rule the template's
+  post-fork action applies), or a prompt that says plainly this is the
+  identity stamped into the committed event log.
+- **A config built, not copied**: `--inference anthropic|ollama --model <id>
+  --embedding ollama:<model>` synthesizes a full semiontconfig from the
+  launcher's own knowledge — the three-name binding roster
+  (gatherer/matcher/workers.default; per-worker refinement is your edit).
+  NOTHING is mastered anywhere.
+- **Choices validated live**: with a key, Anthropic models validate against
+  `/v1/models` (an unlisted id is a refusal printing what exists; no
+  `--model` picks the newest capable, announced); Ollama models pass as
+  installed or registry-verified ("pulled at start"), refuse on the
+  registry's 404, and degrade to accept-with-warning when sources are
+  unreachable — unknown is not missing.
+- **Or copy from the template, explicitly**: `--from-template [url|dir]`
+  shallow-clones and copies its semiontconfigs — each vetted, all-or-nothing
+  — and `--devcontainer` copies the codespace set with the display name
+  rewritten to yours, making a locally-born KB `--runtime codespace`
+  eligible. Identity is NEVER copied.
+- **Every config write — generated or copied — passes the plan deriver
+  first**: a bug or a version-skewed template is a pre-write refusal
+  carrying the parser's own error, never a KB that cannot start.
+
+```sh
+semiont init --yes --inference anthropic --embedding ollama:nomic-embed-text
+```
+
+births a startable KB in one command (identity from your git origin). Then:
 
 ```sh
 semiont start
