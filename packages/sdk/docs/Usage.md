@@ -15,6 +15,7 @@
 - [Auth — Authentication](#auth)
 - [Admin — Administration](#admin)
 - [Job — Worker Lifecycle](#job)
+- [KB Discovery — Launcher-Managed Endpoints](#kb-discovery)
 - [SSE Streams](#sse-streams)
 - [Error Handling](#error-handling)
 - [Logging](#logging)
@@ -505,6 +506,40 @@ const final = await semiont.job.pollUntilComplete(jobId, {
   onProgress: (s) => console.log(s.status),
 });
 ```
+
+## KB Discovery
+
+Module-level (not a namespace — it runs *before* any client or session exists): the
+consumer side of the launcher's published KB view, for building "pick a knowledge base"
+surfaces without hand-typed hosts and ports.
+
+```typescript
+import { httpDiscovery, textDiscovery, subscribeDiscovery, parseDiscoveryDocument } from '@semiont/sdk';
+import type { DiscoveredKB } from '@semiont/core';
+
+// Browser, same origin as the Semiont frontend: poll + diff.
+const sub = subscribeDiscovery(httpDiscovery(), { intervalMs: 5_000 })
+  .subscribe(({ state, added, updated, removed }) => {
+    if (state.kind === 'absent') {
+      // No launcher detected (404 / SPA fallback / unreadable) — state.reason says which.
+    } else {
+      // 'managed' — state.kbs is authoritative; an EMPTY list means the
+      // launcher is present and manages nothing (distinct from absent).
+    }
+  });
+sub.unsubscribe();   // stops polling
+
+// Node (or any custom byte source): supply the IO, the sdk supplies the semantics.
+const fileTransport = textDiscovery(() => readFile(kbsJsonPath, 'utf8').catch(() => null));
+```
+
+Semantics the sdk owns so consumers don't re-derive them: schema validation against
+`@semiont/core`'s generated `DiscoveryDocument` types (a structurally invalid or
+unknown-`version` document reads as `absent` with a diagnostic — never a partial parse);
+ETag/`If-None-Match` polling (a 304 emits nothing); and diffing keyed by
+`did ?? host:port`. Entries are endpoint descriptors only — discovery never creates
+sessions, and no credentials ever appear in the document. The subscription is a plain
+RxJS `Observable` (a poll loop has no terminal value): subscribe/unsubscribe, no `await`.
 
 ## Bus Connection
 

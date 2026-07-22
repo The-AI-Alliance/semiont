@@ -85,6 +85,12 @@ HTTP adapter is re-exported here for convenience; the in-process transport is
   progress observables; UI-shape-agnostic ([`docs/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/STATE-UNITS.md)).
 - **`WorkerBus`** — the transport-neutral bus interface worker adapters consume (the adapters
   live with their domains: `@semiont/jobs`, `@semiont/make-meaning`).
+- **KB discovery** — the consumer side of the launcher's published KB view:
+  `httpDiscovery` (polls the Browser origin's `DISCOVERY_URL_PATH` with ETag/304),
+  `textDiscovery` (bring-your-own IO — the sdk never imports `fs`), and
+  `subscribeDiscovery` (a polling diff stream with a typed absent-vs-managed state).
+  Descriptors only; auth stays per-KB. Types (`DiscoveredKB`, `DiscoveryDocument`) come
+  from `@semiont/core`'s generated schema.
 - **Helpers & types** — the cache primitive behind live queries
   ([`docs/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/CACHE-SEMANTICS.md)),
   `createSearchPipeline`, branded ids, and the unified error hierarchy (`SemiontError`,

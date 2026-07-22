@@ -256,6 +256,40 @@ state-unit factories import only from `@semiont/sdk` and call
 `.stream(channel).subscribe(...)` / `.emit(channel, payload)`. No
 factory touches a raw `EventBus`.
 
+### `useKBDiscovery` — launcher-published KBs
+
+The Semiont launcher publishes an export view of every KB it manages
+(local stacks and codespace forwards) as a `DiscoveryDocument`, which the
+frontend image serves at `DISCOVERY_URL_PATH` (`@semiont/core`). The sdk
+owns every consumer-side semantic — validation via the core type guards,
+the `version` compatibility gate, the **typed absent-vs-managed
+distinction** (`absent` = "no launcher detected"; `managed` with an empty
+list = "the launcher is here and manages nothing"), ETag/304 polling, and
+diffing keyed `did ?? host:port` (`httpDiscovery` / `textDiscovery` /
+`subscribeDiscovery`).
+
+`useKBDiscovery` is the React binding, and it is deliberately thin — it
+owns lifecycle, nothing else:
+
+```tsx
+import { useKBDiscovery } from '@semiont/react-ui';
+
+const { state, kbs } = useKBDiscovery();          // same-origin httpDiscovery()
+// state: DiscoveryState | null (null before the first poll)
+// kbs:   DiscoveredKB[] — the managed list, [] otherwise
+```
+
+- Polls only while `enabled` (default `true` — pass `false` when the
+  consuming surface is closed) **and** the document is visible; pause and
+  resume reuse one transport, so `httpDiscovery`'s remembered ETag turns
+  the resume poll into a 304.
+- Options: `enabled?`, `intervalMs?` (sdk default applies), `transport?`
+  (tests and non-default URLs; the injection seam is the test seam).
+- **No merge policy** — react-ui owns no KB registry. What a discovered KB
+  *means* next to a registered one (adoption, removal rendering, health)
+  is the consuming app's policy; discovery yields descriptors and auth
+  stays per-KB, user-driven (the sdk never creates sessions from them).
+
 ## Invariants
 
 1. **One client per KB.** The session owns it; the browser owns the

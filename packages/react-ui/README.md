@@ -206,6 +206,10 @@ See [docs/SESSION.md](docs/SESSION.md) for details.
 - **Admin** — `createAdminUsersStateUnit`, `createAdminSecurityStateUnit`, `createExchangeStateUnit` (backup/restore + import/export)
 - **Auth + discovery + moderation** — `createWelcomeStateUnit`, `createDiscoverStateUnit`, `createEntityTagsStateUnit`
 
+Adjacent to the state units: `useKBDiscovery` binds the sdk's
+launcher-KB discovery subscription (`subscribeDiscovery`) to React state —
+see [SESSION.md](docs/SESSION.md#usekbdiscovery--launcher-published-kbs).
+
 Each lives in `src/features/<feature>/state/` (or `src/state/` for cross-feature ones) next to the components that consume it. The `useStateUnit` hook wires them into React lifecycles.
 
 Use them via `import { createComposePageStateUnit } from '@semiont/react-ui'`. UI-shape-neutral state machines (flow VMs, worker adapters, search pipeline) continue to live in `@semiont/sdk` and are re-exported from here for convenience.

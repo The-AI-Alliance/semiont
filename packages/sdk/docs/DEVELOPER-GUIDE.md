@@ -42,6 +42,27 @@ A one-shot script that just needs a few calls and exits can use the lighter
 `SemiontClient.signInHttp({ baseUrl, email, password })` (no token refresh, no `kb`). Already
 hold a JWT? Use the `fromHttp(...)` variants. → [Usage § Setup](./Usage.md#setup).
 
+**Discover local KBs (launcher-managed).** Before there's a session at all: on a machine
+running the Semiont launcher, the Browser's origin serves a live view of every KB the
+launcher manages. `subscribeDiscovery` polls it and emits diffs — no Host/Port typing:
+
+```typescript
+import { httpDiscovery, subscribeDiscovery } from '@semiont/sdk';
+
+const sub = subscribeDiscovery(httpDiscovery()).subscribe(({ state, added, removed }) => {
+  if (state.kind === 'absent') showManualEntryOnly(state.reason);  // no launcher detected
+  else renderManagedKbs(state.kbs);   // 'managed' — an EMPTY list means "launcher manages nothing"
+});
+// … sub.unsubscribe() stops polling.
+```
+
+Render `absent` and managed-but-empty differently — the typed distinction exists so you
+never re-derive it. Entries are **descriptors only** (host, port, placement, `did`,
+`siteName`) — discovery never creates sessions; auth stays per-KB, exactly recipe 1. Merge
+by `entry.did ?? host:port` (ports get reallocated; the did follows the KB). A Node process
+that reads the launcher's file directly supplies its own IO: `textDiscovery(() =>
+readFile(path, 'utf8').catch(() => null))` — same validation, same semantics.
+
 ## 2. Consume a call — `await`, `.subscribe`, and the `.run()` rule
 
 Every method returns a `Promise<T>` (one value) or one of three awaitable Observables:

@@ -67,6 +67,10 @@ Namespace methods return one of exactly four shapes:
 - **`CacheObservable<T>`** — live queries with stale-while-revalidate semantics.
 - **`void`** — collaboration signals; observation happens on the bus.
 
+(One deliberate exception *outside* the namespaces: the module-level `subscribeDiscovery`
+returns a plain rxjs `Observable` — a poll loop has no terminal value, so there is nothing
+for `await` to mean. Subscribe and unsubscribe; see [Usage § KB Discovery](./Usage.md#kb-discovery).)
+
 `yield.resource` is the special case for the second row: subscribers see the upload-progress lifecycle (`started` → optional `progress` → `finished`); `await` resolves to `{ resourceId }`. Same dual-shape contract as the other streams.
 
 The fourth row — collaboration signals — is the surface most data-processing SDKs don't have. They're the SDK's contribution to multi-participant coordination: a participant calls `client.beckon.hover(annotationId)` and other participants subscribed to `beckon:hover` see it; an agent calls `client.bind.initiate(...)` and the human's UI lights up the binding flow. They look fire-and-forget at the call site; on the bus they fan out across participants. They earn first-class slots on the verb namespaces because they're not browser-app leakage — they're how a multi-participant session stays coherent.
