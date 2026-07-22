@@ -102,6 +102,11 @@ func git(args []string) {
 		fmt.Fprintln(os.Stderr, "error: No such remote 'origin'")
 		os.Exit(2)
 	}
+	if len(args) >= 1 && (args[0] == "init" || args[0] == "add") {
+		// The birth flow (semiont init): idempotent no-ops here — the argv
+		// log is the observable.
+		return
+	}
 	if len(args) >= 2 && args[0] == "status" && args[1] == "--porcelain" {
 		if os.Getenv("FAKERT_GIT_DIRTY") != "" {
 			fmt.Println(" M .semiont/semiontconfig/anthropic.toml")

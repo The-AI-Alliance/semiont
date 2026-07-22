@@ -19,7 +19,11 @@ no language runtime bleeds onto your host. Besides the launcher you need only
 
 ## Use
 
-Run from inside a KB clone:
+Run from inside a KB clone (or birth one first with `semiont init` — it
+assigns the KB's permanent did:web identity at birth, from --domain, the git
+origin, or a prompt; interactive with full flag parity, and --yes refuses
+rather than guessing where no safe default exists. The config builder and
+template-copy paths are landing next: .plans/LAUNCHER-BIRTH.md):
 
 ```sh
 semiont start

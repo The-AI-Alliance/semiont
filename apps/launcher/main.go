@@ -20,6 +20,7 @@ Local Semiont stack launcher — drives your container runtime
 (Apple container, Docker, or Podman) directly.
 
 Commands:
+  init      Birth a new KB here: permanent identity, git repo, registration
   start     Start the local Semiont stack
   useradd   Create or update a user in the running stack
   secret    Register where config secrets come from (pointers, never values)
@@ -43,6 +44,8 @@ func main() {
 	cmd, rest := os.Args[1], os.Args[2:]
 	code := 0
 	switch cmd {
+	case "init":
+		code = launcher.Init(rest)
 	case "start":
 		code = launcher.Start(rest)
 	case "useradd":

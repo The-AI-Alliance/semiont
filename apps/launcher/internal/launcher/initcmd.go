@@ -1,0 +1,236 @@
+package launcher
+
+// initcmd.go — `semiont init`, LAUNCHER-BIRTH.md P1: birth a KB locally with
+// correct identity AT birth (the template path assigns identity by post-fork
+// rewrite — a workaround this command exists to not need). P1 is the
+// scaffold: identity + .semiont/config + git + roots registration. The
+// config BUILDER (semiontconfig generation, live model registries, template
+// copy) lands in later phases of the plan.
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+const initUsage = `Usage: semiont init [options]
+
+Create a new Semiont KB in the current directory: its permanent identity
+(.semiont/config), a git repository (the /kb mount requires a clone), and a
+registration in the launcher's roots.
+
+Interactive by design — every prompt has a flag twin, so callers can run it
+prompt-free; --yes accepts defaults where a safe default exists. The one
+thing with NO safe default is the did:web domain: it is the KB's PERMANENT
+identity, stamped into the committed event log. It comes from --domain, or
+is derived from this directory's git origin (<owner_lc>.github.io:<name> —
+the same rule the template's post-fork action applies), or is prompted for.
+With --yes and neither source, init refuses rather than guessing.
+
+  --name <n>          Project name (default: directory basename)
+  --domain <d>        did:web domain (colon-path form, e.g. owner.github.io:repo)
+  --site-name <s>     Human-readable site name (default: the project name)
+  --admin-email <e>   Admin email recorded in the site config
+  --no-git            Skip git init/add; sets git.sync = false (stated consequences)
+  --force             Re-initialize over an existing .semiont/
+  --yes               Accept defaults; never prompt (refuses where no safe default exists)
+  --dry-run           Print what would be created; write and execute nothing
+  --help, -h          Show this help
+`
+
+// Init implements `semiont init`.
+func Init(args []string) int {
+	u := newUI(false)
+	var name, domain, siteName, adminEmail string
+	var noGit, yes, force, dryRun bool
+	for i := 0; i < len(args); i++ {
+		need := func() (string, bool) {
+			if i+1 >= len(args) {
+				u.fail("Missing value for %s", args[i])
+				return "", false
+			}
+			return args[i+1], true
+		}
+		switch args[i] {
+		case "--name":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			name = v
+			i++
+		case "--domain":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			domain = v
+			i++
+		case "--site-name":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			siteName = v
+			i++
+		case "--admin-email":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			adminEmail = v
+			i++
+		case "--no-git":
+			noGit = true
+		case "--yes":
+			yes = true
+		case "--force":
+			force = true
+		case "--dry-run":
+			dryRun = true
+		case "--help", "-h":
+			fmt.Print(initUsage)
+			return 0
+		default:
+			u.fail("Unknown argument: %s", args[i])
+			return 1
+		}
+	}
+
+	dir, err := os.Getwd()
+	if err != nil {
+		u.fail("Cannot determine the current directory: %v", err)
+		return 1
+	}
+	if name == "" {
+		name = filepath.Base(dir)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".semiont")); err == nil && !force {
+		u.fail(".semiont/ already exists here — this KB is already born. Re-initialize with --force.")
+		return 1
+	}
+
+	in := bufio.NewReader(os.Stdin)
+	prompt := func(question, def string) string {
+		if def != "" {
+			fmt.Printf("  %s [%s]: ", question, def)
+		} else {
+			fmt.Printf("  %s: ", question)
+		}
+		line, _ := in.ReadString('\n')
+		line = strings.TrimSpace(line)
+		if line == "" {
+			return def
+		}
+		return line
+	}
+
+	// The did:web ladder (LAUNCHER-BIRTH decision 6): flag → derived from
+	// the git origin by the SAME rule as the template's post-fork action
+	// (<owner_lc>.github.io:<repo>) → prompt. Permanent identity has no
+	// safe default, so --yes with neither source REFUSES.
+	if domain == "" {
+		if origin, err := capture("git", "-C", dir, "remote", "get-url", "origin"); err == nil && origin != "" {
+			if slug, ok := parseGitHubSlug(origin); ok {
+				owner, repo, _ := strings.Cut(slug, "/")
+				domain = strings.ToLower(owner) + ".github.io:" + repo
+				u.log("did:web domain derived from the git origin: %s", u.bold(domain))
+			}
+		}
+	}
+	if domain == "" {
+		if yes {
+			u.fail("No did:web domain: it is the KB's permanent identity (stamped into the committed event log) and has no safe default.")
+			fmt.Fprintln(os.Stderr, "  Pass --domain <owner_lc>.github.io:<name>, or run from a clone whose git origin can supply it.")
+			return 1
+		}
+		fmt.Println("The did:web domain is this KB's permanent identity — it is stamped")
+		fmt.Println("into the committed event log and should never change.")
+		domain = prompt("did:web domain (e.g. owner.github.io:repo)", "")
+		if domain == "" {
+			u.fail("A did:web domain is required.")
+			return 1
+		}
+	}
+	if siteName == "" {
+		if yes {
+			siteName = name
+		} else {
+			siteName = prompt("Site name", name)
+		}
+	}
+	if adminEmail == "" && !yes {
+		adminEmail = prompt("Admin email", "")
+	}
+
+	cfg := fmt.Sprintf(`[project]
+name = %q
+version = "0.1.0"
+
+[git]
+sync = %t
+
+[site]
+domain = %q
+siteName = %q
+adminEmail = %q
+`, name, !noGit, domain, siteName, adminEmail)
+
+	if dryRun {
+		fmt.Println("# semiont init --dry-run — what a real run would create. Nothing is written.")
+		fmt.Println("# .semiont/config:")
+		for _, l := range strings.Split(strings.TrimRight(cfg, "\n"), "\n") {
+			fmt.Println("#   " + l)
+		}
+		if !noGit {
+			fmt.Println("git init")
+			fmt.Println("git add .semiont")
+		}
+		fmt.Println("# register root in " + rootsPath())
+		return 0
+	}
+
+	if noGit {
+		u.warn("--no-git: git init is skipped, git.sync = false, and .semiont/ is not staged — the backend versions the event log via git, so this KB cannot run the full stack until it becomes a clone.")
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".semiont"), 0o755); err != nil {
+		u.fail("Creating .semiont/: %v", err)
+		return 1
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".semiont", "config"), []byte(cfg), 0o644); err != nil {
+		u.fail("Writing .semiont/config: %v", err)
+		return 1
+	}
+	u.ok(".semiont/config written %s", u.dim("("+domain+")"))
+
+	if !noGit {
+		if !onPath("git") {
+			u.warn("git is not on PATH — skipping git init/add; the full stack needs this KB to be a clone.")
+		} else {
+			if out, err := captureBoth("git", "-C", dir, "init"); err != nil {
+				u.fail("git init: %s", strings.TrimSpace(out))
+				return 1
+			}
+			u.ok("git init")
+			if out, err := captureBoth("git", "-C", dir, "add", ".semiont"); err != nil {
+				u.fail("git add .semiont: %s", strings.TrimSpace(out))
+				return 1
+			}
+			u.ok("git add .semiont")
+		}
+	}
+
+	registerRootUse(dir, false, "")
+	warnICloudRoot(u, dir)
+
+	fmt.Println()
+	fmt.Printf("%s\n", u.wrap(ansiBold+ansiGreen, "🌱 "+name+" is born"))
+	fmt.Println()
+	fmt.Println("  Next steps:")
+	fmt.Printf("    1. %s %s\n", u.bold("semiont init is not yet a config builder"), u.dim("(LAUNCHER-BIRTH P2) — add .semiont/semiontconfig/<name>.toml before starting"))
+	fmt.Printf("    2. %s\n", u.bold("semiont secret set ANTHROPIC_API_KEY"))
+	fmt.Printf("    3. %s\n", u.bold("semiont start"))
+	return 0
+}

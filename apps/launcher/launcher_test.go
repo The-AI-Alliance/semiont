@@ -3801,6 +3801,120 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 	}
 }
 
+// --- semiont init (LAUNCHER-BIRTH P1) ---
+
+func TestInitBirthsIdentity(t *testing.T) {
+	// Flag-driven birth, prompt-free: .semiont/config carries the exact
+	// identity, git init + stage happen, the root registers, and a second
+	// init refuses without --force.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	stdout, stderr, code := s.run(t, "init",
+		"--name", "family-kb", "--domain", "pingel-org.github.io:family-kb",
+		"--site-name", "Family KB", "--admin-email", "a@b.co", "--yes")
+	if code != 0 {
+		t.Fatalf("init: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	cfg, err := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	if err != nil {
+		t.Fatalf(".semiont/config not written: %v", err)
+	}
+	mustContain(t, ".semiont/config", string(cfg),
+		`name = "family-kb"`,
+		`domain = "pingel-org.github.io:family-kb"`,
+		`siteName = "Family KB"`,
+		`adminEmail = "a@b.co"`,
+		`sync = true`)
+	// The launcher runs git with -C <dir>; assert the subcommands.
+	mustContain(t, "argv", s.argv(t), " init", " add .semiont")
+	roots, _ := os.ReadFile(filepath.Join(s.home, ".local", "state", "semiont", "roots.json"))
+	mustContain(t, "roots.json", string(roots), "family-kb")
+
+	// Refuse a second birth without --force — .semiont/ is not overwritable
+	// by accident.
+	_, stderr, code = s.run(t, "init", "--name", "x", "--domain", "d:x", "--yes")
+	if code != 1 {
+		t.Fatalf("re-init without --force: want exit 1, got %d", code)
+	}
+	mustContain(t, "refusal", stderr, "--force")
+}
+
+func TestInitIdentityLadderAndRefusals(t *testing.T) {
+	// The did:web ladder: --domain wins; else derived from the git origin by
+	// THE SAME RULE as template-init.yml step 6 (<owner_lc>.github.io:<name>);
+	// else --yes REFUSES — permanent identity has no safe default.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_ORIGIN=git@github.com:Pingel-Org/family-kb.git")
+	stdout, stderr, code := s.run(t, "init", "--name", "family-kb", "--yes")
+	if code != 0 {
+		t.Fatalf("origin-derived init: exit %d\nstderr:\n%s", code, stderr)
+	}
+	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	// Owner lowercased (Pages hosts are lowercase); repo name kept as-is.
+	mustContain(t, "derived did", string(cfg), `domain = "pingel-org.github.io:family-kb"`)
+	mustContain(t, "derivation announced", stdout+stderr, "pingel-org.github.io:family-kb")
+
+	// No --domain, no origin, --yes: refuse and say why.
+	s2 := newScenario(t, "container")
+	s2.cwd = t.TempDir()
+	_, stderr, code = s2.run(t, "init", "--name", "x", "--yes")
+	if code != 1 {
+		t.Fatalf("identity-less --yes: want exit 1, got %d", code)
+	}
+	mustContain(t, "identity refusal", stderr, "permanent", "--domain")
+}
+
+func TestInitNoGitAndDryRun(t *testing.T) {
+	// --no-git: sync=false, consequences stated, no git in the argv.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	stdout, stderr, code := s.run(t, "init", "--name", "x", "--domain", "d.io:x", "--yes", "--no-git")
+	if code != 0 {
+		t.Fatalf("init --no-git: exit %d\nstderr:\n%s", code, stderr)
+	}
+	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	mustContain(t, "config", string(cfg), `sync = false`)
+	mustContain(t, "consequences", stdout+stderr, "--no-git")
+	for _, line := range strings.Split(s.argv(t), "\n") {
+		if strings.HasPrefix(line, "git ") && (strings.Contains(line, " init") || strings.Contains(line, " add")) {
+			t.Errorf("--no-git ran git: %q", line)
+		}
+	}
+
+	// --dry-run: says what it would write, writes NOTHING, reaches for
+	// nothing (start's plan discipline).
+	s3 := newScenario(t, "container")
+	s3.cwd = t.TempDir()
+	stdout, stderr, code = s3.run(t, "init", "--name", "y", "--domain", "d.io:y", "--yes", "--dry-run")
+	if code != 0 {
+		t.Fatalf("init --dry-run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "plan", stdout, ".semiont/config", "git init")
+	if _, err := os.Stat(filepath.Join(s3.cwd, ".semiont")); !os.IsNotExist(err) {
+		t.Error("--dry-run wrote .semiont/")
+	}
+	if got := s3.argv(t); strings.Contains(got, " init") || strings.Contains(got, " add") {
+		t.Errorf("--dry-run executed git:\n%s", got)
+	}
+}
+
+func TestInitInteractivePrompts(t *testing.T) {
+	// The interactive path: prompts fill what flags did not — here the
+	// domain (with the permanent-identity warning) and site name.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	s.stdin = "d.example.org:kb\nMy KB\n"
+	stdout, stderr, code := s.run(t, "init", "--name", "kb", "--admin-email", "a@b.co")
+	if code != 0 {
+		t.Fatalf("interactive init: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "identity warning shown", stdout, "permanent")
+	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	mustContain(t, "prompted values", string(cfg),
+		`domain = "d.example.org:kb"`, `siteName = "My KB"`)
+}
+
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")
