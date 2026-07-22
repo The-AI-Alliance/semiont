@@ -38,6 +38,9 @@ With --yes and neither source, init refuses rather than guessing.
   --model-light <id>  Emitted as a commented per-worker example, not a binding
   --embedding <e>     ollama:<model> (voyage: not yet — no established key var)
   --config-name <n>   Config file name (default: the provider name)
+  --anthropic-endpoint <u>  Anthropic API base (proxy knob; default https://api.anthropic.com)
+  --ollama-base <u>         Local Ollama base (default http://localhost:11434)
+  --ollama-registry <u>     Ollama registry base (default https://registry.ollama.ai)
   --no-git            Skip git init/add; sets git.sync = false (stated consequences)
   --force             Re-initialize over an existing .semiont/
   --yes               Accept defaults; never prompt (refuses where no safe default exists)
@@ -50,6 +53,9 @@ func Init(args []string) int {
 	u := newUI(false)
 	var name, domain, siteName, adminEmail string
 	var inference, model, modelLight, embedding, configName string
+	anthropicEndpoint := "https://api.anthropic.com"
+	ollamaBase := "http://localhost:11434"
+	ollamaRegistry := "https://registry.ollama.ai"
 	var noGit, yes, force, dryRun bool
 	for i := 0; i < len(args); i++ {
 		need := func() (string, bool) {
@@ -123,6 +129,27 @@ func Init(args []string) int {
 			}
 			configName = v
 			i++
+		case "--anthropic-endpoint":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			anthropicEndpoint = v
+			i++
+		case "--ollama-base":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			ollamaBase = v
+			i++
+		case "--ollama-registry":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			ollamaRegistry = v
+			i++
 		case "--no-git":
 			noGit = true
 		case "--yes":
@@ -165,8 +192,9 @@ func Init(args []string) int {
 			return 1
 		}
 	}
-	if inference != "" && model == "" {
-		u.fail("--inference %s needs --model <id> (the heavy model: gatherer, matcher, workers.default).", inference)
+	if inference == "ollama" && model == "" && yes {
+		// No registry listing exists to derive an ollama default from.
+		u.fail("--inference ollama needs --model <id> (no list-all registry API exists to pick a default from).")
 		return 1
 	}
 
@@ -327,6 +355,23 @@ adminEmail = %q
 	if inference != "" {
 		if embModel == "" {
 			embModel = "nomic-embed-text"
+		}
+		// Live validation (P3): the choices are checked against the sources
+		// that will have to serve them — refusals now, not failed jobs later.
+		switch inference {
+		case "anthropic":
+			m, ok := resolveAnthropicModel(u, anthropicEndpoint, os.Getenv("ANTHROPIC_API_KEY"), model)
+			if !ok {
+				return 1
+			}
+			model = m
+		case "ollama":
+			if !validateOllamaModel(u, ollamaBase, ollamaRegistry, model) {
+				return 1
+			}
+		}
+		if !validateOllamaModel(u, ollamaBase, ollamaRegistry, embModel) {
+			return 1
 		}
 		cn := configName
 		if cn == "" {

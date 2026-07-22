@@ -22,8 +22,13 @@ no language runtime bleeds onto your host. Besides the launcher you need only
 Run from inside a KB clone (or birth one first with `semiont init` — it
 assigns the KB's permanent did:web identity at birth, from --domain, the git
 origin, or a prompt; interactive with full flag parity, and --yes refuses
-rather than guessing where no safe default exists. The config builder and
-template-copy paths are landing next: .plans/LAUNCHER-BIRTH.md):
+rather than guessing where no safe default exists. `--inference anthropic|ollama --model <id>
+--embedding ollama:<model>` builds a full semiontconfig from the launcher's
+own knowledge — nothing copied, nothing mastered, the three-name binding
+roster (per-worker refinement is your edit) — and every generated config is
+vetted by the plan deriver before it is written, so a generator bug is a
+refusal, never a KB that cannot start. Live model pickers and template-copy
+paths are landing next: .plans/LAUNCHER-BIRTH.md):
 
 ```sh
 semiont start
