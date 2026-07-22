@@ -141,10 +141,11 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.getByText('Staging')).toBeInTheDocument();
     });
 
-    it('should display host:port for each KB', () => {
+    it('should display host:port for each KB, with a placeholder for a missing branch', () => {
       render(<KnowledgeBasePanel />);
       expect(screen.getByText('prod.example.com:4000 · main')).toBeInTheDocument();
-      expect(screen.getByText('staging.example.com:4000')).toBeInTheDocument();
+      // Fixed shape: the branch slot renders '–' rather than disappearing.
+      expect(screen.getByText('staging.example.com:4000 · –')).toBeInTheDocument();
     });
 
     it('should display gitBranch when present', () => {
@@ -153,11 +154,11 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.getByText(/· main/)).toBeInTheDocument();
     });
 
-    it('should not display branch separator when gitBranch is absent', () => {
+    it('should display the placeholder in the branch slot when gitBranch is absent', () => {
+      // Fixed shape (2026-07-21 identity decision): the slot renders '–'
+      // rather than disappearing — a missing field is a visible gap.
       render(<KnowledgeBasePanel />);
-      // kb2 has no gitBranch — should show host:port only, no ·
-      const stagingText = screen.getByText('staging.example.com:4000');
-      expect(stagingText.textContent).not.toContain('·');
+      expect(screen.getByText('staging.example.com:4000 · –')).toBeInTheDocument();
     });
 
     it('should render the Add knowledge base button', () => {
@@ -213,20 +214,38 @@ describe('KnowledgeBasePanel', () => {
       managedBy: 'semiont-launcher',
       did: 'did:web:prod.example',
       siteName: 'Production KB',
+      repo: 'org/prod-kb',
     };
 
     beforeEach(() => {
       discoveryHolder.current = { state: null, kbs: [] };
     });
 
-    it('renders launcher-discovered KBs in their own section', () => {
+    it('renders launcher-discovered KBs in their own section (fixed shape, repo slot)', () => {
       discoveryHolder.current = { state: { kind: 'managed', kbs: [discoveredLocal] }, kbs: [discoveredLocal] };
       render(<KnowledgeBasePanel />);
 
       expect(screen.getByText('Found on this machine')).toBeInTheDocument();
       expect(screen.getByText('Local KB')).toBeInTheDocument();
-      expect(screen.getByText(/localhost:4001/)).toBeInTheDocument();
+      // Fixed shape, stacked (2026-07-21: vertical space over width): the
+      // endpoint and the repo slot are separate lines; no repo → '–' line.
+      expect(screen.getByText('localhost:4001')).toBeInTheDocument();
+      expect(screen.getByText('–')).toBeInTheDocument();
       expect(screen.getByText('local')).toBeInTheDocument();
+      // The did is inspectable as the row tooltip.
+      expect(screen.getByTitle('did:web:local.example')).toBeInTheDocument();
+    });
+
+    it('renders a placeholder name for a discovered KB without a siteName — never a duplicated line', () => {
+      const nameless = { host: 'localhost', port: 4002, placement: 'local' as const, managedBy: 'semiont-launcher', repo: 'org/other-kb' };
+      discoveryHolder.current = { state: { kind: 'managed', kbs: [nameless] }, kbs: [nameless] };
+      render(<KnowledgeBasePanel />);
+
+      expect(screen.getByText('–')).toBeInTheDocument();
+      expect(screen.getByText('localhost:4002')).toBeInTheDocument();
+      expect(screen.getByText('org/other-kb')).toBeInTheDocument();
+      // The endpoint appears once, as its own line — not as the name too.
+      expect(screen.getAllByText(/localhost:4002/)).toHaveLength(1);
     });
 
     it('clicking a discovered KB opens the login form prefilled with its endpoint', async () => {
@@ -252,6 +271,10 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.getByTitle('Managed by launcher')).toBeInTheDocument();
       expect(screen.getByText('codespace')).toBeInTheDocument();
       expect(screen.queryByText('Found on this machine')).not.toBeInTheDocument();
+      // The adopted row borrows discovery's repo, on its own stacked line
+      // (render-only; endpoint · branch stays a short first line).
+      expect(screen.getByText('prod.example.com:4000 · main')).toBeInTheDocument();
+      expect(screen.getByText('org/prod-kb')).toBeInTheDocument();
     });
 
     it('renders the panel unchanged when discovery is absent', () => {

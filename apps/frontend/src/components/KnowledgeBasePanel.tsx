@@ -29,6 +29,13 @@ const STATUS_KEYS: Record<KbSessionStatus, string> = {
 
 const endpointKey = (host: string, port: number) => `${host}:${port}`;
 
+/**
+ * Fixed-shape rendering: a field that should be present but isn't renders
+ * this placeholder — a visible gap, never a semantic fallback to some other
+ * field.
+ */
+const MISSING = '–';
+
 /** Placement badge — also the managed marker on an adopted registered row. */
 function PlacementBadge({ placement, t }: { placement: DiscoveredKB['placement']; t: T }) {
   return (
@@ -157,8 +164,8 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
   const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
   const authResult = await client.auth!.password(emailStr, password);
-  const token = (authResult as any).token ?? (authResult as any).accessToken;
-  const refreshToken = (authResult as any).refreshToken;
+  const token = authResult.token;
+  const refreshToken = authResult.refreshToken;
   if (!token) throw new Error('No access token received');
   if (!refreshToken) throw new Error('No refresh token received');
 
@@ -166,8 +173,8 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
   let gitBranch: string | undefined;
   try {
     const status = await client.admin!.status();
-    if ((status as any).projectName) label = (status as any).projectName;
-    if ((status as any).gitBranch) gitBranch = (status as any).gitBranch;
+    if (status.projectName) label = status.projectName;
+    if (status.gitBranch) gitBranch = status.gitBranch;
   } catch { /* use default label */ }
 
   return { token, refreshToken, label, ...(gitBranch ? { gitBranch } : {}) };
@@ -347,10 +354,16 @@ export function KnowledgeBasePanel() {
                   </div>
                   <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem' }}>
                     {kb.endpoint.kind === 'http'
-                      ? `${kb.endpoint.host}:${kb.endpoint.port}`
+                      ? `${kb.endpoint.host}:${kb.endpoint.port} · ${kb.gitBranch ?? MISSING}`
                       : `local:${kb.endpoint.kbId}`}
-                    {kb.gitBranch ? ` · ${kb.gitBranch}` : ''}
                   </span>
+                  {managed && (
+                    // The repo gets its own line — vertical space over width;
+                    // wrap instead of the class's nowrap-ellipsis.
+                    <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                      {managed.repo ?? MISSING}
+                    </span>
+                  )}
                 </div>
                 {confirmRemoveKbId === kb.id && (
                   <div style={{
@@ -405,13 +418,17 @@ export function KnowledgeBasePanel() {
                 className="semiont-panel-item semiont-panel-item--clickable"
                 style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', cursor: 'pointer', padding: '0.5rem 0.75rem' }}
                 onClick={() => openAddForm({ host: d.host, port: d.port })}
+                {...(d.did !== undefined ? { title: d.did } : {})}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span className="semiont-panel-text" style={{ flex: 1, fontWeight: 500 }}>{d.siteName ?? endpointKey(d.host, d.port)}</span>
+                  <span className="semiont-panel-text" style={{ flex: 1, fontWeight: 500 }}>{d.siteName ?? MISSING}</span>
                   <PlacementBadge placement={d.placement} t={t} />
                 </div>
                 <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem' }}>
                   {endpointKey(d.host, d.port)}
+                </span>
+                <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                  {d.repo ?? MISSING}
                 </span>
               </div>
             ))}
