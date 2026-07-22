@@ -69,6 +69,7 @@ container run -d --name semiont-qdrant -p 6333:6333 qdrant/qdrant:v1.18.3
 # ensure ollama models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # else:
 container stop semiont-ollama
+container rm semiont-ollama
 # require free port: 11434
 container run -d --name semiont-ollama -p 11434:11434 -m 24G -v <ollama-volume>:/root/.ollama ollama/ollama
 # wait: http://localhost:11434/api/version (30s)
@@ -90,6 +91,7 @@ container run -d --name semiont-weaver --memory 3G --publish 9092:9092 --volume 
 # (the Browser is not a stack member: stop leaves it running; semiont stop --service frontend stops it)
 # else:
 container stop semiont-frontend
+container rm semiont-frontend
 # require free port: 3000
 container image pull ghcr.io/the-ai-alliance/semiont-frontend:latest
 container run -d --name semiont-frontend --memory 1G --publish 3000:3000 -v <home>/.local/state/semiont/discovery:/discovery:ro ghcr.io/the-ai-alliance/semiont-frontend:latest

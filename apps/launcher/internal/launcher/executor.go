@@ -27,7 +27,6 @@ type executor interface {
 	portChecks(ports []portNeed) bool
 	portCheck(p portNeed) bool    // singular wording in plan mode
 	recordPorts(ports []portNeed) // note claimed host ports in the belief record
-	stopEcho(name string)         // the echoed best-effort stop (ollama teardown)
 	hostOllamaReachable(addr string, port int) bool
 	stageAll(configFile string) (string, bool)           // per-service config copies; returns stage dir
 	stageOne(svc, configFile string) (string, bool)      // one service's fresh private copy
@@ -119,11 +118,6 @@ func (x *liveExec) pause() { time.Sleep(time.Second) }
 
 func (x *liveExec) portCheck(p portNeed) bool {
 	return requirePortFree(x.u, p.port, p.label)
-}
-
-func (x *liveExec) stopEcho(name string) {
-	x.u.echoCmd(x.rt, "stop", name)
-	runPassthrough(x.rt, "stop", name)
 }
 
 // hostOllamaReachable: a host Ollama is serving — confirm containers can
@@ -589,8 +583,6 @@ func (x *planExec) portCheck(p portNeed) bool {
 }
 
 func (x *planExec) recordPorts([]portNeed) {}
-
-func (x *planExec) stopEcho(name string) { x.p("stop", name) }
 
 func (x *planExec) hostOllamaReachable(string, int) bool { return true }
 

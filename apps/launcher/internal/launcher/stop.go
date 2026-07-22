@@ -100,24 +100,29 @@ func Stop(args []string) int {
 		if b == nil {
 			u.log("No Browser is recorded — sweeping the container name to be sure.")
 		}
-		name := "semiont-frontend"
-		handle := name
+		// Sweep BOTH the recorded ID and the stable name: a stale ID
+		// (container recreated outside this record) would no-op while the
+		// name still runs — an off-switch that doesn't switch off (Copilot
+		// review, PR #1064). Idempotent; the name pass is free when the ID
+		// already got it.
+		handles := []string{"semiont-frontend"}
 		if b != nil && b.ID != "" {
-			handle = b.ID
+			handles = []string{b.ID, "semiont-frontend"}
 		}
 		if dryRun {
 			fmt.Println("# stop the Browser (machine-level; stacks untouched):")
-			fmt.Printf("<rt> stop %s\n<rt> rm %s\n", handle, handle)
-			if handle != name {
-				fmt.Printf("<rt> stop %s\n<rt> rm %s\n", name, name)
+			for _, h := range handles {
+				fmt.Printf("<rt> stop %s\n<rt> rm %s\n", h, h)
 			}
 			return 0
 		}
 		stopped := false
 		for _, rt := range installedRuntimes() {
-			s1 := runSilent(rt, "stop", handle) == nil || (handle != name && runSilent(rt, "stop", name) == nil)
-			s2 := runSilent(rt, "rm", handle) == nil || (handle != name && runSilent(rt, "rm", name) == nil)
-			stopped = stopped || s1 || s2
+			for _, h := range handles {
+				s1 := runSilent(rt, "stop", h) == nil
+				s2 := runSilent(rt, "rm", h) == nil
+				stopped = stopped || s1 || s2
+			}
 		}
 		clearBrowser()
 		if stopped {

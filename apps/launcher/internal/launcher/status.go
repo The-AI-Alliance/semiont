@@ -238,10 +238,10 @@ func Status(args []string) int {
 // line, fine to scroll away). Shows the image tag so browser-vs-stack skew
 // is visible: a kept Browser can legitimately outlive several stacks.
 func printBrowser(u *ui, ss *stackSet) (healthy bool) {
+	u.section("BROWSER")
 	b := ss.Browser
 	endpoint := "http://localhost:3000"
-	name := "semiont-frontend"
-	handle := name
+	handle := "semiont-frontend"
 	if b != nil {
 		if b.Endpoint != "" {
 			endpoint = b.Endpoint
@@ -258,9 +258,12 @@ func printBrowser(u *ui, ss *stackSet) (healthy bool) {
 		rts = []string{b.Runtime}
 	}
 	state, _ := containerState(rts, handle)
-	if state == "" && handle != name {
-		state, _ = containerState(rts, name)
+	if state == "" && handle != "semiont-frontend" {
+		// A stale recorded ID must not contradict a live endpoint ("absent"
+		// beside ✓): the stable name is the fallback truth (Copilot review).
+		state, _ = containerState(rts, "semiont-frontend")
 	}
+	word := state
 	if word == "" {
 		word = "absent"
 	}

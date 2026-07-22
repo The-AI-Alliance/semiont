@@ -66,6 +66,7 @@ container run -d --name semiont-jaeger -p 16686:16686 -p 4318:4318 jaegertracing
 container run -d --name semiont-neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
 container run -d --name semiont-qdrant -p 6333:6333 qdrant/qdrant:v1.18.3
 container stop semiont-ollama
+container rm semiont-ollama
 lsof -ti :11434
 container run -d --name semiont-ollama -p 11434:11434 -m 24G -v semiont-ollama-models:/root/.ollama ollama/ollama
 container run -d --name semiont-postgres -p 5432:5432 -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
@@ -77,6 +78,7 @@ container run -d --name semiont-smelter --memory 2G --publish 9091:9091 --volume
 container run -d --name semiont-weaver --memory 3G --publish 9092:9092 --volume <config-stage>/weaver.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://192.168.64.1:4318 --env BACKEND_HOST=192.168.64.1 --env OLLAMA_HOST=192.168.64.1 --env NEO4J_HOST=192.168.64.1 --env QDRANT_HOST=192.168.64.1 --env POSTGRES_HOST=192.168.64.1 --env SEMIONT_WORKER_SECRET=test-worker-secret ghcr.io/the-ai-alliance/semiont-weaver:latest
 container inspect semiont-frontend
 container stop semiont-frontend
+container rm semiont-frontend
 lsof -ti :3000
 container image pull ghcr.io/the-ai-alliance/semiont-frontend:latest
 container run -d --name semiont-frontend --memory 1G --publish 3000:3000 -v <home>/.local/state/semiont/discovery:/discovery:ro ghcr.io/the-ai-alliance/semiont-frontend:latest

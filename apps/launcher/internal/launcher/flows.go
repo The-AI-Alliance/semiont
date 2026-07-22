@@ -166,7 +166,15 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 			return 0
 		},
 		func() int {
+			if port != 3000 {
+				x.say(sayWarn, "Browser on port %d: backends configured with frontendURL http://localhost:3000 may reject this origin (OAuth redirects / CORS).", port)
+			}
+			// stop+rm, not stop: without --rm (kept for crash forensics) a
+			// stopped container HOLDS its name — the next run --name fails
+			// with "already exists" on every runtime (Copilot review, PR
+			// #1064; the same reason stop.go always rm's).
 			x.stopRm("semiont-frontend")
+			x.pause()
 			if !x.portCheck(portNeed{port, "Frontend"}) {
 				return 1
 			}
@@ -372,7 +380,11 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 		},
 		func() int {
 			x.say(sayLog, "No host Ollama detected — starting container...")
-			x.stopEcho("semiont-ollama")
+			// Same stop+rm rule as the Browser: --service inference has no
+			// preflight rm ahead of it, so a stopped semiont-ollama would
+			// hold the name (latent since the --rm removal; surfaced by the
+			// same review).
+			x.stopRm("semiont-ollama")
 			x.pause()
 			if !x.portCheck(portNeed{rp.Port, "Ollama"}) {
 				return 1

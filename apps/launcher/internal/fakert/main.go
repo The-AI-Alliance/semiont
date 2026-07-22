@@ -409,16 +409,28 @@ func runtimeCmd(base string, args []string) {
 	}
 	switch args[0] {
 	case "stop":
-		// Exit like real runtimes: 0 only when the container "exists" (a
-		// serve pidfile is our existence marker), else nonzero — the
-		// launcher's preflight counts prior containers from these codes.
-		if !killServe(handleName(args[len(args)-1])) {
+		// Exit like real runtimes: 0 only when the container "exists" — a
+		// serve pidfile (run-created) or a scripted FAKERT_STATE container
+		// that hasn't been rm'd.
+		name := handleName(args[len(args)-1])
+		existed := killServe(name)
+		if scriptedAlive(name) {
+			existed = true
+		}
+		if !existed {
 			fmt.Fprintln(os.Stderr, "Error: no such container")
 			os.Exit(1)
 		}
 	case "rm":
-		fmt.Fprintln(os.Stderr, "Error: no such container")
-		os.Exit(1)
+		// rm releases the NAME: record the removal marker so a later
+		// `run --name` stops conflicting (see the name-holding check in run).
+		name := handleName(args[len(args)-1])
+		existed := killServe(name) || scriptedAlive(name)
+		markRemoved(name)
+		if !existed {
+			fmt.Fprintln(os.Stderr, "Error: no such container")
+			os.Exit(1)
+		}
 	case "pull":
 		pull(args[len(args)-1])
 	case "image":
@@ -528,6 +540,16 @@ func run(args []string) {
 		fmt.Fprintf(os.Stderr, "fakert run: unscripted foreground run %v\n", args)
 		os.Exit(64)
 	}
+	// NAME-HOLDING: real runtimes refuse `run --name X` while a container
+	// named X exists IN ANY STATE — stopped included (no --rm keeps them).
+	// A scripted container (FAKERT_STATE_<svc>) holds its name until an
+	// explicit `rm` records a removal marker. This fidelity gap once let a
+	// stop-without-rm restart path pass hermetically and fail live
+	// (Copilot review, PR #1064).
+	if name != "" && scriptedAlive(name) {
+		fmt.Fprintf(os.Stderr, "Error: the container name %q is already in use\n", name)
+		os.Exit(125)
+	}
 	// FAKERT_SKIP_SERVE: comma-separated host ports to leave unbound even
 	// though the container "runs" — models a container that came up but whose
 	// process crashed before listening, so health gates fail while `logs`
@@ -590,6 +612,29 @@ func createdCodespaces() []string {
 		out = append(out, fmt.Sprintf(`{"name":%q,"state":"Available","repository":%q}`, nameRepo[0], nameRepo[1]))
 	}
 	return out
+}
+
+// removed / markRemoved / scriptedAlive: name-holding bookkeeping for the
+// scripted (FAKERT_STATE_*) containers — env can't be mutated per-invocation,
+// so removal lives in a marker file.
+func removed(name string) bool {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(dir, "removed-"+name))
+	return err == nil
+}
+
+func markRemoved(name string) {
+	if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+		_ = os.WriteFile(filepath.Join(dir, "removed-"+name), nil, 0o644)
+	}
+}
+
+func scriptedAlive(name string) bool {
+	svc := strings.TrimPrefix(name, "semiont-")
+	return os.Getenv("FAKERT_STATE_"+svc) != "" && !removed(name)
 }
 
 // createdCodespaceNames: just the names, for the /user/codespaces facts.
