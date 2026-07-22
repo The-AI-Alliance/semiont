@@ -1,6 +1,6 @@
 {
   "name": "@semiont/inference",
-  "version": "0.5.18",
+  "version": "0.5.19",
   "engines": {
     "node": ">=24.0.0"
   },
