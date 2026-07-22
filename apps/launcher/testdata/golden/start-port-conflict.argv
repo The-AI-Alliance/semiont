@@ -16,7 +16,5 @@ container stop semiont-smelter
 container rm semiont-smelter
 container stop semiont-weaver
 container rm semiont-weaver
-container stop semiont-frontend
-container rm semiont-frontend
 lsof -ti :7474
 ps -p 12345 -o comm=

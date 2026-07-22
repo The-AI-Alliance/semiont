@@ -8,13 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode/utf8"
 )
 
 const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name> [--refresh]] [--service <name>] [--runtime container|docker|podman] [--verbose] [--billing]
 
-Reports what this machine knows about, in three layers:
+Reports what this machine knows about:
 
+  BROWSER        the machine-level viewer (not a stack member) — first,
+                 because it sits architecturally above everything it views
   LOCAL STACK    the one stack running here, and the root it belongs to
   LOCAL ROOTS    every KB clone the launcher has used (roots.json)
   REMOTE KNOWLEDGE BASES
@@ -62,7 +63,6 @@ var statusServices = []struct {
 	endpoint string // http(s) URL, or "tcp:<port>"
 	core     bool   // counted toward the exit status
 }{
-	{"frontend", "http://localhost:3000", true},
 	{"backend", "http://localhost:4000/api/health", true},
 	{"database", "tcp:5432", true},
 	{"worker", "http://localhost:9090/health", true},
@@ -145,6 +145,15 @@ func Status(args []string) int {
 			return 1
 		}
 	}
+	// --service frontend asks about the Browser — machine-level, outside
+	// every stack, so it bypasses the stack table entirely.
+	if service == "frontend" && repoFlag == "" {
+		healthy := printBrowser(u, loadStackSet())
+		if healthy {
+			return 0
+		}
+		return 1
+	}
 	if repoFlag != "" && (rootFlag != "" || service != "") {
 		u.fail("--repo names a remote stack; --root/--service name the local one.")
 		return 1
@@ -195,6 +204,9 @@ func Status(args []string) int {
 		}
 	}
 
+	if service == "" {
+		printBrowser(u, ss)
+	}
 	healthy, code := printLocalStack(u, st, runtime, service)
 	if code != 0 {
 		return code
@@ -219,6 +231,57 @@ func Status(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+// printBrowser renders the BROWSER section — FIRST, because the viewer sits
+// architecturally above every stack it views (and is the least interesting
+// line, fine to scroll away). Shows the image tag so browser-vs-stack skew
+// is visible: a kept Browser can legitimately outlive several stacks.
+func printBrowser(u *ui, ss *stackSet) (healthy bool) {
+	u.section("BROWSER")
+	b := ss.Browser
+	endpoint := "http://localhost:3000"
+	handle := "semiont-frontend"
+	if b != nil {
+		if b.Endpoint != "" {
+			endpoint = b.Endpoint
+		}
+		if b.ID != "" {
+			handle = b.ID
+		}
+	}
+	healthy = probeHealth(endpoint)
+	// Query only the runtime the record names — a record must narrow the
+	// sweep, same rule the stack table keeps. No record: all installed.
+	rts := installedRuntimes()
+	if b != nil && b.Runtime != "" && onPath(b.Runtime) {
+		rts = []string{b.Runtime}
+	}
+	state, _ := containerState(rts, handle)
+	word := state
+	if word == "" {
+		word = "absent"
+	}
+	mark := u.wrap(ansiRed, "✗")
+	if healthy {
+		mark = u.wrap(ansiGreen, "✓")
+	}
+	detail := "serves every KB on this machine; discovery-synced"
+	if b != nil && b.Image != "" {
+		if i := strings.LastIndexByte(b.Image, ':'); i > 0 {
+			tag := b.Image[i+1:]
+			detail = "images " + tag + " · " + detail
+			if st := ss.Stacks["local"]; st != nil && st.Version != "" && st.Version != tag {
+				detail += " · STACK RUNS " + st.Version + " — refresh: semiont start --service frontend"
+			}
+		}
+	}
+	if !healthy && state == "" {
+		fmt.Printf("  %s %-12s %s\n", mark, word, u.dim("any semiont start brings it up (or: semiont start --service frontend)"))
+		return healthy
+	}
+	fmt.Printf("  %s %-12s %s  %s\n", mark, word, endpoint, u.dim("("+detail+")"))
+	return healthy
 }
 
 // printLocalStack renders the LOCAL STACK section: the root it belongs to,
@@ -273,7 +336,12 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 		fmt.Println()
 	}
 
-	fmt.Printf("  %-22s %-10s %-10s %s\n", "SERVICE", "STATE", "RUNTIME", "HEALTH")
+	// One STATUS cell — mark + word — instead of STATE and HEALTH columns
+	// that said yes twice on every healthy row. The diagnostic divergences
+	// keep distinct words: "✗ running" (up but unhealthy) vs "✗ exited"
+	// (crashed, kept for inspection) vs "✓ host"/"✓ reachable" (provided
+	// elsewhere). The probe endpoint stays, dimmed.
+	fmt.Printf("  %-22s %-10s %s\n", "SERVICE", "RUNTIME", "STATUS")
 	healthy = true
 	// Fetched once, lazily: the inference and embedding model rows both read
 	// it, and a stack with no ollama-served models never asks at all.
@@ -311,7 +379,7 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 		}
 
 		if rec != nil && rec.Provided == providedNone {
-			fmt.Printf("  %-22s %-10s %-10s %s\n", label, "—", "—", u.dim("not configured"))
+			fmt.Printf("  %-22s %-10s %s\n", label, "—", u.dim("not configured"))
 			continue
 		}
 
@@ -343,17 +411,23 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 			healthy = false
 		}
 
-		stateCol := state
-		switch {
-		case state == "running":
-			stateCol = u.wrap(ansiGreen, state)
-		case state == "":
-			stateCol = u.dim("—")
-		default:
-			stateCol = u.wrap(ansiYellow, state)
+		// The STATUS word: the container state when there is a container
+		// (running / exited), else what the probe can honestly say about a
+		// role provided elsewhere (reachable / unreachable), else "absent".
+		word := state
+		if word == "" {
+			switch {
+			case rt == "external" || rt == "host":
+				word = "unreachable"
+				if isHealthy {
+					word = "reachable"
+				}
+			default:
+				word = "absent"
+			}
 		}
 		if rt == "" {
-			rt = u.dim("—")
+			rt = "—"
 		}
 		probe := endpoint
 		if rest, ok := strings.CutPrefix(probe, "tcp:"); ok {
@@ -363,13 +437,11 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 				probe = "tcp://localhost:" + rest
 			}
 		}
-		healthCol := u.wrap(ansiRed, "✗") + " " + u.dim(probe)
+		mark := u.wrap(ansiRed, "✗")
 		if isHealthy {
-			healthCol = u.wrap(ansiGreen, "✓") + " " + u.dim(probe)
+			mark = u.wrap(ansiGreen, "✓")
 		}
-		fmt.Printf("  %-22s %-*s %-*s %s\n",
-			label, 10+utf8.RuneCountInString(stateCol)-visibleLen(stateCol), stateCol,
-			10+utf8.RuneCountInString(rt)-visibleLen(rt), rt, healthCol)
+		fmt.Printf("  %-22s %-10s %s %-12s %s\n", label, rt, mark, word, u.dim(probe))
 
 		// The models this role was started with, indented beneath it.
 		if rec != nil && len(rec.Models) > 0 {
@@ -523,26 +595,6 @@ func printLauncherPaths(u *ui) {
 		p := filepath.Join(home, ".ollama")
 		row("inference", p, presence(p))
 	}
-}
-
-// visibleLen is the printed width of a string minus its ANSI escapes — needed
-// so %-*s column padding lines up whether or not color is on.
-func visibleLen(s string) int {
-	n := 0
-	inEsc := false
-	for _, r := range s {
-		switch {
-		case inEsc:
-			if r == 'm' {
-				inEsc = false
-			}
-		case r == '\033':
-			inEsc = true
-		default:
-			n++
-		}
-	}
-	return n
 }
 
 // containerState asks each runtime for the container's state, first hit wins.

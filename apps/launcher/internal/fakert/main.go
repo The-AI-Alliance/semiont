@@ -475,7 +475,10 @@ func runtimeCmd(base string, args []string) {
 			// docker/podman status form: inspect -f {{.State.Status}} <name>
 			fmt.Println(state)
 		case base == "container":
-			fmt.Printf(`[{"configuration":{"initProcess":{"environment":%s}},"status":%q}]`+"\n", env, state)
+			// FAKERT_IMAGE_<svc> scripts the image reference the container
+			// reports (the Browser's keep-if-current check reads it).
+			img := os.Getenv("FAKERT_IMAGE_" + svc)
+			fmt.Printf(`[{"configuration":{"initProcess":{"environment":%s},"image":{"reference":%q}},"status":%q}]`+"\n", env, img, state)
 		default:
 			// docker/podman full form: inspect <name>
 			fmt.Printf(`[{"Config":{"Env":%s},"State":{"Status":%q}}]`+"\n", env, state)

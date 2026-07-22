@@ -1,5 +1,3 @@
-docker stop semiont-frontend
-docker rm semiont-frontend
 docker stop semiont-weaver
 docker rm semiont-weaver
 docker stop semiont-smelter

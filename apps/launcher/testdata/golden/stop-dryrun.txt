@@ -1,7 +1,5 @@
 # semiont stop --dry-run — the exact runtime commands a real run would
 # execute, in order.
-container stop semiont-frontend
-container rm semiont-frontend
 container stop semiont-weaver
 container rm semiont-weaver
 container stop semiont-smelter
@@ -20,8 +18,6 @@ container stop semiont-neo4j
 container rm semiont-neo4j
 container stop semiont-jaeger
 container rm semiont-jaeger
-docker stop semiont-frontend
-docker rm semiont-frontend
 docker stop semiont-weaver
 docker rm semiont-weaver
 docker stop semiont-smelter
@@ -40,8 +36,6 @@ docker stop semiont-neo4j
 docker rm semiont-neo4j
 docker stop semiont-jaeger
 docker rm semiont-jaeger
-podman stop semiont-frontend
-podman rm semiont-frontend
 podman stop semiont-weaver
 podman rm semiont-weaver
 podman stop semiont-smelter

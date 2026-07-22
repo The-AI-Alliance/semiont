@@ -272,13 +272,24 @@ func startCodespace(u *ui, opts startOptions) int {
 	fmt.Printf("  Semiont KB         %s %s\n", u.bold(fmt.Sprintf("http://localhost:%d", kbPort)),
 		u.dim("(add Host localhost, Port "+fmt.Sprintf("%d", kbPort)+" in the browser's Knowledge Bases panel)"))
 	// The browser is NOT forwarded — only the KB is. It runs locally and
-	// connects to any number of KBs, cloud or local; without this pointer a
-	// codespace-only user has no browser at all.
+	// views any number of KBs. ANY start ensures it (BROWSER-LIFECYCLE.md
+	// decision 2) — but only when a container runtime exists here: codespace
+	// placement must not gain a hard local-runtime requirement.
+	if rts := installedRuntimes(); len(rts) > 0 {
+		version := os.Getenv("SEMIONT_VERSION")
+		if version == "" {
+			version = "latest"
+		}
+		bx := &liveExec{u: u, rt: rts[0], version: version}
+		// Non-fatal: the KB is up either way; a browser failure already
+		// warned above the summary.
+		_ = flowBrowser(bx, version, 3000, false)
+	}
 	if httpOK("http://localhost:3000") {
-		fmt.Printf("  Semiont Browser    %s %s\n", u.bold("http://localhost:3000"), u.dim("(already running)"))
+		fmt.Printf("  Semiont Browser    %s %s\n", u.bold("http://localhost:3000"), u.dim("(discovery-synced — this KB appears in its panel)"))
 	} else {
 		fmt.Printf("  Semiont Browser    %s %s\n", u.bold("semiont start --service frontend"),
-			u.dim("(runs locally; one browser works any number of KBs)"))
+			u.dim("(no local container runtime found — install one, or browse from another machine)"))
 	}
 	fmt.Println()
 	fmt.Printf("  %s\n", u.dim("Runs "+repo+" as pushed — local uncommitted changes don't travel."))

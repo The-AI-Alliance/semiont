@@ -140,22 +140,58 @@ func flowFullStart(x executor, fc flowCtx) int {
 		}
 	}
 
-	// Frontend: a static SPA server — no config mount and no service env.
-	x.banner("Starting Frontend")
-	args := frontendArgs(fc.version, 3000)
-	id, ok := x.runDetached(args)
-	if !ok {
-		x.say(sayFail, "Frontend failed to start.")
-		return 1
-	}
-	d, ok := x.waitHTTP("Frontend", "http://localhost:3000", 30)
-	if !ok {
-		x.dumpLogs(roles["frontend"].container, "frontend")
-		return 1
-	}
-	x.say(sayOK, "Frontend on http://localhost:3000 %s", x.dim("("+took(d)+")"))
-	x.record("frontend", id, image("frontend", fc.version), providedLauncher, "http://localhost:3000", "")
-	return 0
+	// The Browser rides every start but belongs to no stack.
+	return flowBrowser(x, fc.version, 3000, false)
+}
+
+// flowBrowser: the Browser is a MACHINE-LEVEL viewer, not a stack member
+// (BROWSER-LIFECYCLE.md). Any start ensures it; none churns it: a running
+// Browser is kept when its image matches what this start would run, and
+// restarted when the image is stale (image identity, not tag order — tags
+// like :latest and :local are mutable) or when the restart is explicit
+// (--service frontend, the port mover).
+func flowBrowser(x executor, version string, port int, forceRestart bool) int {
+	x.banner("Browser")
+	desired := image("frontend", version)
+	x.note("browser: keep if running with image identity matching %s; else stop/rm + pull + run", desired)
+	x.note("(the Browser is not a stack member: stop leaves it running; semiont stop --service frontend stops it)")
+	return x.either(func() bool { return !forceRestart && x.browserCurrent(desired) },
+		func() int {
+			endpoint := "http://localhost:3000"
+			if b := x.browserRecord(); b != nil && b.Endpoint != "" {
+				endpoint = b.Endpoint
+			}
+			x.say(sayOK, "Browser already running on %s %s", endpoint,
+				x.dim("(current image — left alone; semiont stop --service frontend stops it)"))
+			return 0
+		},
+		func() int {
+			if port != 3000 {
+				x.say(sayWarn, "Browser on port %d: backends configured with frontendURL http://localhost:3000 may reject this origin (OAuth redirects / CORS).", port)
+			}
+			x.stopEcho("semiont-frontend")
+			x.pause()
+			if !x.portCheck(portNeed{port, "Frontend"}) {
+				return 1
+			}
+			if version != "local" && !x.pull(desired) {
+				return 1
+			}
+			args := frontendArgs(version, port)
+			id, ok := x.runDetached(args)
+			if !ok {
+				x.say(sayFail, "Browser failed to start.")
+				return 1
+			}
+			d, ok := x.waitHTTP("Browser", fmt.Sprintf("http://localhost:%d", port), 30)
+			if !ok {
+				x.dumpLogs("semiont-frontend", "frontend")
+				return 1
+			}
+			x.say(sayOK, "Browser on http://localhost:%d %s", port, x.dim("("+took(d)+")"))
+			x.recordBrowser(id, desired, version, port)
+			return 0
+		})
 }
 
 // flowDepRole: the uniform dependency-role shape for graph / vectors /
@@ -435,7 +471,11 @@ func flowOneService(x executor, fc flowCtx) int {
 	}
 
 	x.banner("Restarting " + roleTitle(svc))
-	if svc != "inference" {
+	// frontend is handled entirely by flowBrowser (its own stop/port/pull) —
+	// and its port must NEVER enter the STACK's recorded claims: stop
+	// verifies stack-port release while the Browser deliberately keeps
+	// running on its port.
+	if svc != "inference" && svc != "frontend" {
 		if x.stopRm(roles[svc].container) {
 			x.say(sayLog, "Removed prior %s container", svc)
 			x.pause()
@@ -544,21 +584,11 @@ func flowOneService(x executor, fc flowCtx) int {
 			}
 		}
 	case "frontend":
-		bp := browserPort(fc.opts)
-		if bp != 3000 {
-			x.say(sayWarn, "Browser on port %d: backends configured with frontendURL http://localhost:3000 may reject this origin (OAuth redirects / CORS).", bp)
+		// Explicit --service frontend is the one deliberate restart (and the
+		// port mover): forceRestart bypasses keep-if-current.
+		if code := flowBrowser(x, fc.version, browserPort(fc.opts), true); code != 0 {
+			return code
 		}
-		args := frontendArgs(fc.version, bp)
-		id, ok := x.runDetached(args)
-		if !ok {
-			x.say(sayFail, "Frontend failed to start.")
-			return 1
-		}
-		if d, ok = x.waitHTTP("Frontend", fmt.Sprintf("http://localhost:%d", bp), 30); !ok {
-			x.dumpLogs(roles["frontend"].container, "frontend")
-			return 1
-		}
-		x.record(svc, id, image("frontend", fc.version), providedLauncher, fmt.Sprintf("http://localhost:%d", bp), "")
 	}
 	if d > 0 {
 		x.say(sayOK, "%s healthy %s", svc, x.dim("("+took(d)+")"))

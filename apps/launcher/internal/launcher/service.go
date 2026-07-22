@@ -43,7 +43,9 @@ var roles = map[string]roleSpec{
 	"worker":    {"", "semiont-worker", []portNeed{{9090, "Worker"}}},
 	"smelter":   {"", "semiont-smelter", []portNeed{{9091, "Smelter"}}},
 	"weaver":    {"", "semiont-weaver", []portNeed{{9092, "Weaver"}}},
-	"frontend":  {"", "semiont-frontend", []portNeed{{3000, "Frontend"}}},
+	// frontend: the Browser owns its port inside flowBrowser — an empty
+	// ports list here keeps 3000 out of every stack-level claim and sweep.
+	"frontend": {"", "semiont-frontend", nil},
 }
 
 const roleList = "backend, worker, smelter, weaver, frontend, database, graph, vectors, inference, embedding, or traces"
@@ -108,6 +110,20 @@ func recoverWorkerSecret(rt string) (secret, from, seen string) {
 		}
 	}
 	return "", "", seen
+}
+
+// digString walks a nested inspect entry for a string leaf.
+func digString(m map[string]any, path ...string) (string, bool) {
+	var cur any = m
+	for _, k := range path {
+		mm, ok := cur.(map[string]any)
+		if !ok {
+			return "", false
+		}
+		cur = mm[k]
+	}
+	s, ok := cur.(string)
+	return s, ok
 }
 
 // inspectEnv digs the env list out of one inspect entry, wherever the

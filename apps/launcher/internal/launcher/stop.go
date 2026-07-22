@@ -38,8 +38,11 @@ targets a codespace stack, --runtime targets the local one.
 // dependents before their dependencies, so nothing spends teardown alive
 // with its upstream already gone (start brings up jaeger → neo4j → qdrant →
 // ollama → postgres → backend → worker → smelter → weaver → frontend).
+// semiont-frontend is deliberately ABSENT: the Browser is not a stack
+// member (BROWSER-LIFECYCLE.md) — a bare stop leaves the viewer running
+// (announced), and `stop --service frontend` is its explicit off-switch.
 var stopNames = []string{
-	"semiont-frontend", "semiont-weaver", "semiont-smelter", "semiont-worker",
+	"semiont-weaver", "semiont-smelter", "semiont-worker",
 	"semiont-backend", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
 	"semiont-neo4j", "semiont-jaeger",
 }
@@ -86,6 +89,39 @@ func Stop(args []string) int {
 			u.fail("Unknown argument: %s", args[i])
 			return 1
 		}
+	}
+
+	// --service frontend targets the machine-level Browser, not a stack
+	// member: stop its container (record ID preferred), clear its record,
+	// and never touch stack state.
+	if service == "frontend" && repo == "" {
+		ssPre := loadStackSet()
+		b := ssPre.Browser
+		if b == nil {
+			u.log("No Browser is recorded — sweeping the container name to be sure.")
+		}
+		handle := "semiont-frontend"
+		if b != nil && b.ID != "" {
+			handle = b.ID
+		}
+		if dryRun {
+			fmt.Println("# stop the Browser (machine-level; stacks untouched):")
+			fmt.Printf("<rt> stop %s\n<rt> rm %s\n", handle, handle)
+			return 0
+		}
+		stopped := false
+		for _, rt := range installedRuntimes() {
+			s1 := runSilent(rt, "stop", handle) == nil
+			s2 := runSilent(rt, "rm", handle) == nil
+			stopped = stopped || s1 || s2
+		}
+		clearBrowser()
+		if stopped {
+			u.ok("Browser stopped %s", u.dim("(stacks untouched; any start brings it back)"))
+		} else {
+			u.log("Browser was not running.")
+		}
+		return 0
 	}
 
 	// serviceContainer: the container --service targets. Usually the roles
@@ -375,13 +411,21 @@ func Stop(args []string) int {
 	}
 	verifyPortsReleased(u, ports)
 	fmt.Println("Semiont stack stopped.")
+	// The Browser deliberately survives a stack stop — it is the machine's
+	// viewer, not a stack member. Say so, with the off-switch: silence here
+	// would read as a leak.
+	if b := loadStackSet().Browser; b != nil && b.Endpoint != "" && httpOK(b.Endpoint) {
+		fmt.Printf("Browser still running on %s %s\n", b.Endpoint, u.dim("(not a stack member; stop it with: semiont stop --service frontend)"))
+	}
 	return 0
 }
 
 // fiatPorts: the launcher-owned ports every stack claims regardless of
 // config — the release-verification fallback when no record captured the
-// stack's exact claims (older launcher's record, name-sweep path).
-var fiatPorts = []int{3000, 9090, 9091, 9092, 16686, 4318}
+// stack's exact claims (older launcher's record, name-sweep path). 3000 is
+// absent: the Browser is not a stack member and its port is not the
+// stack's to verify.
+var fiatPorts = []int{9090, 9091, 9092, 16686, 4318}
 
 // verifyPortsReleased: stop's job isn't done until the ports are actually
 // free — runtimes release published ports asynchronously (Apple container's
