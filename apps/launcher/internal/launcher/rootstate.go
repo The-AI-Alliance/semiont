@@ -75,21 +75,54 @@ func stateRootDir(root string) string {
 
 // stateStoreSpec: how one infra role's container consumes its state subdir.
 type stateStoreSpec struct {
-	sub    string   // subdir under the root's state dir
-	target string   // container path it mounts at
-	env    []string // extra env the mount shape requires
+	dir    string       // the store's subdir under the root's state dir
+	mounts []stateMount // bind mounts within it
+	env    []string     // extra env the mount shape requires
+	mode   os.FileMode  // non-zero: host-side perms on the mount dirs (virtiofs test -w gate)
+	// projection: this store derives from the event log — an image mismatch
+	// auto-cleans and rebuilds instead of refusing. False = system of
+	// record (database): existing data is never auto-deleted.
+	projection bool
 }
 
-// stateStores: the roles whose containers persist state. P1: database only;
-// P2 adds vectors and graph.
+// stateMount: one -v within a store. sub "" mounts the store dir itself.
+type stateMount struct{ sub, target string }
+
+// stateStores: the roles whose containers persist state, with the mount
+// shapes the Phase 0 spikes measured (LAUNCHER-STATE.md Decision).
 var stateStores = map[string]stateStoreSpec{
 	// The entrypoint chmods $PGDATA only — a created-inside subdir — never
 	// the mount root (which virtiofs refuses; Phase 0, 7/7).
 	"database": {
-		sub:    "postgres",
-		target: "/var/lib/postgresql/data",
+		dir:    "postgres",
+		mounts: []stateMount{{"", "/var/lib/postgresql/data"}},
 		env:    []string{"PGDATA=/var/lib/postgresql/data/pgdata"},
 	},
+	// Qdrant just writes files; a plain mount works (Phase 0, 7/7).
+	"vectors": {
+		dir:        "qdrant",
+		mounts:     []stateMount{{"", "/qdrant/storage"}},
+		projection: true,
+	},
+	// Neo4j's entrypoint gates on `test -w` of /data and /logs and insists
+	// on chowning an unwritable mount root — refused on virtiofs, and
+	// in-mount chown silently no-ops. Host-side 0777 satisfies the gate so
+	// the chown is never attempted (Phase 0, 8/8).
+	"graph": {
+		dir:        "neo4j",
+		mounts:     []stateMount{{"data", "/data"}, {"logs", "/logs"}},
+		mode:       0o777,
+		projection: true,
+	},
+}
+
+// storeDir: the store's directory under a root's state dir.
+func (spec stateStoreSpec) storeDir(root string) string {
+	dir := stateRootDir(root)
+	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, spec.dir)
 }
 
 // stateMountArgs renders the -v/-e run args for a role's persistent state.
@@ -100,11 +133,14 @@ func stateMountArgs(role, root string) []string {
 	if !ok {
 		return nil
 	}
-	dir := stateRootDir(root)
-	if dir == "" {
+	sd := spec.storeDir(root)
+	if sd == "" {
 		return nil
 	}
-	args := []string{"-v", filepath.Join(dir, spec.sub) + ":" + spec.target}
+	var args []string
+	for _, m := range spec.mounts {
+		args = append(args, "-v", filepath.Join(sd, m.sub)+":"+m.target)
+	}
 	for _, e := range spec.env {
 		args = append(args, "-e", e)
 	}

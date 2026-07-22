@@ -63,8 +63,8 @@ docker pull ghcr.io/the-ai-alliance/semiont-worker:latest
 docker pull ghcr.io/the-ai-alliance/semiont-smelter:latest
 docker pull ghcr.io/the-ai-alliance/semiont-weaver:latest
 docker run -d --name semiont-jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:1.76.0
-docker run -d --name semiont-neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
-docker run -d --name semiont-qdrant -p 6333:6333 qdrant/qdrant:v1.18.3
+docker run -d --name semiont-neo4j -p 7474:7474 -p 7687:7687 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/data:/data -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
+docker run -d --name semiont-qdrant -p 6333:6333 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/qdrant:/qdrant/storage qdrant/qdrant:v1.18.3
 docker stop semiont-ollama
 docker rm semiont-ollama
 lsof -ti :11434

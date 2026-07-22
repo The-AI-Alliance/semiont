@@ -28,8 +28,8 @@ container image pull ghcr.io/the-ai-alliance/semiont-backend:latest
 container image pull ghcr.io/the-ai-alliance/semiont-worker:latest
 container image pull ghcr.io/the-ai-alliance/semiont-smelter:latest
 container image pull ghcr.io/the-ai-alliance/semiont-weaver:latest
-container run -d --name semiont-neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
-container run -d --name semiont-qdrant -p 6333:6333 qdrant/qdrant:v1.18.3
+container run -d --name semiont-neo4j -p 7474:7474 -p 7687:7687 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/data:/data -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
+container run -d --name semiont-qdrant -p 6333:6333 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/qdrant:/qdrant/storage qdrant/qdrant:v1.18.3
 container stop semiont-ollama
 container rm semiont-ollama
 lsof -ti :11434

@@ -615,6 +615,50 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 	}
 }
 
+func TestStateProjectionAutoCleans(t *testing.T) {
+	s := newScenario(t, "container")
+	// Graph/vectors are PROJECTIONS of the event log: data written by a
+	// different image is auto-cleaned (announced), never a refusal — the
+	// rebuild is the freshness guarantee. Contrast: the database refusal
+	// in TestStateImageMismatchRefuses.
+	dir := stateRootFor(s.home, testKBKey)
+	stale := filepath.Join(dir, "neo4j", "data", "databases")
+	if err := os.MkdirAll(stale, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stale, "stale.db"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	meta := `{"kbRoot":"` + s.kb + `","stores":{"graph":{"image":"neo4j:5.20.0-community"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("projection mismatch must not refuse: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "auto-clean announcement", stdout, "neo4j:5.20.0-community", "clearing")
+	if _, err := os.Stat(filepath.Join(stale, "stale.db")); err == nil {
+		t.Error("stale projection data survived the auto-clean")
+	}
+	newMeta, err := os.ReadFile(filepath.Join(dir, "meta.json"))
+	if err != nil {
+		t.Fatalf("meta.json after start: %v", err)
+	}
+	mustContain(t, "meta.json restamp", string(newMeta), "neo4j:5.26.28-community")
+	// The neo4j mount dirs must exist again (and 0777 for the virtiofs
+	// test -w gate its entrypoint runs).
+	for _, sub := range []string{"data", "logs"} {
+		fi, err := os.Stat(filepath.Join(dir, "neo4j", sub))
+		if err != nil {
+			t.Fatalf("neo4j %s dir after start: %v", sub, err)
+		}
+		if perm := fi.Mode().Perm(); perm != 0o777 {
+			t.Errorf("neo4j %s dir mode = %o, want 777 (neo4j's entrypoint gates on test -w)", sub, perm)
+		}
+	}
+}
+
 func TestStatePathHashKeyWithoutDid(t *testing.T) {
 	s := newScenario(t, "container")
 	// A KB with no [site] domain has no did:web — the state key falls back

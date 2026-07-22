@@ -60,9 +60,11 @@ container image pull ghcr.io/the-ai-alliance/semiont-smelter:latest
 container image pull ghcr.io/the-ai-alliance/semiont-weaver:latest
 container run -d --name semiont-jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:1.76.0
 # wait: http://localhost:16686 (30s)
-container run -d --name semiont-neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
+# graph state: <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j (created if absent; reused across restarts)
+container run -d --name semiont-neo4j -p 7474:7474 -p 7687:7687 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/data:/data -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
 # wait: http://localhost:7474 (30s)
-container run -d --name semiont-qdrant -p 6333:6333 qdrant/qdrant:v1.18.3
+# vectors state: <home>/.local/share/semiont/roots/example.github.io-test-kb/qdrant (created if absent; reused across restarts)
+container run -d --name semiont-qdrant -p 6333:6333 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/qdrant:/qdrant/storage qdrant/qdrant:v1.18.3
 # wait: http://localhost:6333/readyz (15s)
 # probe: host Ollama at http://localhost:11434/api/version
 # if present — probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:11434/api/version" — and use it

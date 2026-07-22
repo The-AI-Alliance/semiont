@@ -485,10 +485,9 @@ func (x *liveExec) ensureModels(base string, models []string) {
 }
 
 // stateMounts prepares a role's persistent state dir and returns the run
-// args that mount it (LAUNCHER-STATE.md). !ok is the DATABASE refusal:
-// existing data written by a different image is user rows — never
-// auto-deleted; the fix-it names the clean command. Projections (P2) will
-// auto-clean here instead.
+// args that mount it (LAUNCHER-STATE.md). The image-mismatch split lives
+// here: database data is user rows — refuse, fix-it names the clean
+// command; projections (vectors/graph) auto-clean and rebuild.
 func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 	args := stateMountArgs(role, root)
 	if len(args) == 0 {
@@ -496,16 +495,38 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 	}
 	spec := stateStores[role]
 	dir := stateRootDir(root)
-	sub := filepath.Join(dir, spec.sub)
+	sd := spec.storeDir(root)
 	meta := loadRootMeta(dir)
-	if prev := meta.Stores[role].Image; prev != "" && prev != image && storeDirNonEmpty(sub) {
-		x.u.fail("%s state at %s was written by %s; this config launches %s.", role, sub, prev, image)
-		fmt.Fprintln(os.Stderr, "  That data is not auto-deleted. Remove it first: semiont clean --store "+role)
-		return nil, false
+	if prev := meta.Stores[role].Image; prev != "" && prev != image && storeDirNonEmpty(sd) {
+		if spec.projection {
+			// A projection of the event log: staleness is rebuildable, so a
+			// mismatch clears rather than refuses.
+			x.u.log("%s state at %s was written by %s; this config launches %s — projections rebuild, so clearing it.",
+				role, sd, prev, image)
+			if err := os.RemoveAll(sd); err != nil {
+				x.u.fail("cannot clear %s state %s: %v", role, sd, err)
+				return nil, false
+			}
+		} else {
+			x.u.fail("%s state at %s was written by %s; this config launches %s.", role, sd, prev, image)
+			fmt.Fprintln(os.Stderr, "  That data is not auto-deleted. Remove it first: semiont clean --store "+role)
+			return nil, false
+		}
 	}
-	if err := os.MkdirAll(sub, 0o755); err != nil {
-		x.u.fail("cannot create state dir %s: %v", sub, err)
-		return nil, false
+	for _, m := range spec.mounts {
+		mp := filepath.Join(sd, m.sub)
+		if err := os.MkdirAll(mp, 0o755); err != nil {
+			x.u.fail("cannot create state dir %s: %v", mp, err)
+			return nil, false
+		}
+		if spec.mode != 0 {
+			// MkdirAll perms pass through the umask; the virtiofs gate needs
+			// the literal mode, so stamp it explicitly.
+			if err := os.Chmod(mp, spec.mode); err != nil {
+				x.u.fail("cannot chmod state dir %s: %v", mp, err)
+				return nil, false
+			}
+		}
 	}
 	meta.KBRoot = root
 	meta.Did = loadKBIdentity(root).didWeb()
@@ -705,7 +726,7 @@ func (x *planExec) stateMounts(role, _, root string) ([]string, bool) {
 	args := stateMountArgs(role, root)
 	if len(args) > 0 {
 		x.c("%s state: %s (created if absent; reused across restarts)",
-			role, filepath.Join(stateRootDir(root), stateStores[role].sub))
+			role, stateStores[role].storeDir(root))
 	}
 	return args, true
 }

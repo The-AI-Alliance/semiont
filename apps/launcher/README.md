@@ -393,6 +393,14 @@ auto-deleted). The backend applies its schema with `prisma migrate deploy`,
 which only applies not-yet-applied migrations — a populated database
 no-ops on restart.
 
+Qdrant (`qdrant/`) and Neo4j (`neo4j/`) state persists the same way, with
+the opposite mismatch rule: they are *projections* of the event log, so a
+start whose config names a different image announces it is clearing the
+stale store and lets the normal rebuild repopulate it — freshness by
+rebuild, never a refusal. (The Neo4j subdirs are host-side mode 777: its
+entrypoint refuses to boot unless its `test -w` gate passes, and Apple
+container's virtiofs won't let it chown a mount root.)
+
 ## Development
 
 Go module with no external dependencies. Build and test (hermetically — no Go
