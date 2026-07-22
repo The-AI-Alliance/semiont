@@ -32,3 +32,12 @@ Annotation vocabulary, is the standing counterexample).
 
 `title` is required in each schema — it names the generated types in every
 language.
+
+## Mount point (contract of record)
+
+The frontend container serves this document from the container-internal
+directory **`/discovery`** — the launcher mounts `<stateDir>/discovery`
+there read-only, and the static server's production default reads from it.
+This path is part of the contract: it exists as a literal on both sides of a
+language boundary (Go golden-pinned; JS production default), so treat a
+change here like a schema change — both sides, deliberately, never a cleanup.
