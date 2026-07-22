@@ -20,7 +20,13 @@ Not this repo — one of these:
 git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
 ```
 
-**Start a new project** — [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb), the empty template:
+**Start a new project** — birth one in place with the launcher (identity from your git origin, config synthesized and validated live):
+
+```bash
+semiont init --yes --inference anthropic --embedding ollama:nomic-embed-text
+```
+
+…or clone [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb), the empty template:
 
 ```bash
 git clone https://github.com/The-AI-Alliance/semiont-template-kb.git
@@ -44,11 +50,11 @@ semiont start
 semiont useradd --email admin@example.com --password <choose-a-password> --admin
 ```
 
-One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **including the Semiont browser at http://localhost:3000**. `semiont useradd` then creates the admin user you'll sign in with. `semiont logs` follows the stack, `semiont stop` tears it down, and `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
+One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **and ensures the Semiont browser is running at http://localhost:3000**. `semiont useradd` then creates the admin user you'll sign in with. `semiont logs` follows the stack and `semiont stop` tears it down — the browser stays up (it's the machine-level viewer of every KB, not a stack member; `semiont stop --service frontend` closes it). `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
 
 ### 3. Connect
 
-Open **http://localhost:3000**. In the Semiont browser's Knowledge Bases panel, enter host `localhost`, port `4000`, and the email and password from step 2.
+Open **http://localhost:3000**. The Semiont browser's Knowledge Bases panel discovers launcher-managed stacks automatically — pick yours and sign in with the email and password from step 2. (Connecting to a KB the launcher doesn't know about? Enter its host and port by hand, e.g. `localhost` / `4000`.)
 
 ![Connect to knowledge base](website/assets/images/connect-kb.png)
 

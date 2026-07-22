@@ -57,7 +57,7 @@ Three steps — no npm or Node.js required. Install the `semiont` launcher (a si
 brew install the-ai-alliance/semiont/semiont
 ```
 
-Clone a knowledge-base repo — the empty template for a new project, or a pre-populated demo — and start it:
+Clone a knowledge-base repo — the empty template for a new project (or birth one in place with `semiont init`), or a pre-populated demo — and start it:
 
 ```bash
 git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git

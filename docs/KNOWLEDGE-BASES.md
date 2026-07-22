@@ -21,7 +21,11 @@ semiont useradd --email admin@example.com --password <choose-a-password> --admin
 ```
 
 `semiont logs` follows the stack, `semiont status` health-checks it, and
-`semiont stop` tears it down.
+`semiont stop` tears it down — except the browser, which is the machine-level
+viewer of every KB rather than a stack member: every start ensures it, stop
+leaves it running, and `semiont stop --service frontend` is the explicit
+off-switch. Its Knowledge Bases panel discovers launcher-managed stacks
+automatically.
 
 **Or run it on GitHub's machine instead of yours.** The same launcher places
 a KB stack in a **GitHub Codespace** — one command creates (or resumes) the
@@ -45,6 +49,19 @@ See [Local Semiont](system/LOCAL-SEMIONT.md) for the full local-run guide
 troubleshooting pointers).
 
 ## Starting from scratch
+
+**`semiont init`** births a new KB in place — no clone required. It stamps
+the permanent did:web identity at birth (from `--domain` or your git
+origin), synthesizes a validated semiontconfig from `--inference` /
+`--model` / `--embedding` choices (or copies the template's configs with
+`--from-template`), and refuses rather than writing a config that cannot
+start:
+
+```bash
+semiont init --yes --inference anthropic --embedding ollama:nomic-embed-text
+```
+
+Or clone the empty template:
 
 | Template | Description | Clone |
 |---|---|---|

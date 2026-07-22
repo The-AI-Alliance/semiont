@@ -47,7 +47,9 @@ the infrastructure (Neo4j, Qdrant, Ollama if not already running, PostgreSQL)
 and the five Semiont services, all in containers, pulling the published
 images and bind-mounting the `.semiont/semiontconfig/{name}.toml` config of
 your choice (`--config`); `semiont logs` follows all services, `[svc]`-prefixed;
-`semiont status` health-checks them; `semiont stop` removes the whole stack.
+`semiont status` health-checks them; `semiont stop` removes the stack (the
+browser survives as the machine-level viewer — `semiont stop --service
+frontend` closes it).
 
 KB repos build no images: the Semiont services run from the published, attested
 `ghcr.io/the-ai-alliance/semiont-{backend,worker,smelter,weaver,frontend}` images

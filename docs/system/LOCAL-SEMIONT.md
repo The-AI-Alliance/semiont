@@ -28,8 +28,10 @@ One command starts the whole stack — the five published Semiont images
 KB's config bind-mounted at runtime. No npm required, and nothing is built
 locally: KB repos carry no Dockerfiles and no scripts. `semiont logs`
 follows the services, `semiont status` health-checks them, `semiont stop`
-tears the stack down, and `semiont start --dry-run` prints the exact
-runtime commands a real run would execute. See the
+tears the stack down (the browser survives — it's machine-level, not a
+stack member; `semiont stop --service frontend` closes it), and
+`semiont start --dry-run` prints the exact runtime commands a real run
+would execute. See the
 [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for
 prerequisites and details; the image inventory is in
 [Container Images](./administration/IMAGES.md).
