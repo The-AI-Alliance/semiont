@@ -376,6 +376,23 @@ semiont stop
 - `SEMIONT_VERSION` selects the service image tag (default `latest`; the
   sentinel `local` uses locally-built `:local` images and skips pulls).
 
+### Where state lives
+
+Local-stack databases persist across restarts. Each local semiont root gets
+its own directory under the launcher's data home — `~/Library/Application
+Support/semiont/roots/<key>` on macOS, `$XDG_DATA_HOME/semiont/roots/<key>`
+(default `~/.local/share/...`) on Linux — keyed by the KB's did:web when
+`.semiont/config` declares one (identity travels with the KB, so a moved
+clone keeps its state), else by a hash of the root path. `start`
+bind-mounts each store's subdir into its container: PostgreSQL rows —
+including users, which the event log does **not** record — survive `stop`
+and restart. A `meta.json` stamp records which image wrote each store; a
+start whose config names a *different* database image over existing data
+refuses with a fix-it line rather than risk it (Postgres data is never
+auto-deleted). The backend applies its schema with `prisma migrate deploy`,
+which only applies not-yet-applied migrations — a populated database
+no-ops on restart.
+
 ## Development
 
 Go module with no external dependencies. Build and test (hermetically — no Go

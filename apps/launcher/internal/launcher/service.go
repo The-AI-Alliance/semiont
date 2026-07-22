@@ -218,11 +218,13 @@ func runStartService(u *ui, rt, version, root, configFile string, opts startOpti
 }
 
 // renderServicePlan is --dry-run for --service: the same flow, plan mode.
-func renderServicePlan(rt, version string, opts startOptions, userEnv []string, plan *launchPlan) {
+// Real root for the same reason as renderStartPlan: the state path is
+// plan-time truth; the kb mount keeps its placeholder via val().
+func renderServicePlan(rt, version, root string, opts startOptions, userEnv []string, plan *launchPlan) {
 	x := &planExec{rt: rt}
 	x.c("semiont start --service %s --dry-run — the exact runtime commands a real", opts.service)
 	x.c("run would execute, in order. Values known only at runtime appear as <placeholders>.")
-	flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: "<kb-root>", configFile: opts.configName, userEnv: userEnv})
+	flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: opts.configName, userEnv: userEnv})
 }
 
 // serviceEndpoint: the health endpoint status should probe for a service the

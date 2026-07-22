@@ -547,6 +547,91 @@ func TestStartDryRunLocalVersion(t *testing.T) {
 	checkGolden(t, "start-dryrun-local.txt", s.norm(stdout))
 }
 
+// --- local-stack state persistence (LAUNCHER-STATE.md) ---
+
+// stateRootFor mirrors the launcher's per-root state dir for the scenario's
+// fake HOME (tests run on linux, so the XDG data home).
+func stateRootFor(home, key string) string {
+	return filepath.Join(home, ".local", "share", "semiont", "roots", key)
+}
+
+// testKBKey: the slug of the test KB's did:web (testdata/kb/.semiont/config).
+const testKBKey = "example.github.io-test-kb"
+
+func TestStatePersistsAcrossStarts(t *testing.T) {
+	s := newScenario(t, "container")
+	_, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("first start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	dir := stateRootFor(s.home, testKBKey)
+	meta, err := os.ReadFile(filepath.Join(dir, "meta.json"))
+	if err != nil {
+		t.Fatalf("meta.json after start: %v", err)
+	}
+	mustContain(t, "meta.json", string(meta), "postgres:15.18-alpine", s.kb)
+	if _, err := os.Stat(filepath.Join(dir, "postgres")); err != nil {
+		t.Fatalf("postgres state dir after start: %v", err)
+	}
+	// A second start must REUSE the same dir — that is the whole feature:
+	// the mount appears in both boots' argv, same path both times.
+	s.killServes()
+	_, stderr, code = s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mount := dir + "/postgres:/var/lib/postgresql/data"
+	if got := strings.Count(string(s.mustLog(t)), mount); got != 2 {
+		t.Errorf("state mount should appear in both boots (want 2, got %d)", got)
+	}
+}
+
+func TestStateImageMismatchRefuses(t *testing.T) {
+	s := newScenario(t, "container")
+	// Existing postgres data written by a DIFFERENT image version: the
+	// launcher must refuse — user rows are not a projection it may delete.
+	dir := stateRootFor(s.home, testKBKey)
+	pg := filepath.Join(dir, "postgres", "pgdata")
+	if err := os.MkdirAll(pg, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pg, "PG_VERSION"), []byte("14\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	meta := `{"kbRoot":"` + s.kb + `","stores":{"database":{"image":"postgres:14.9-alpine"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start")
+	if code == 0 {
+		t.Fatalf("start over another image's data must refuse\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "refusal", stdout+stderr,
+		"postgres:14.9-alpine",  // what wrote the data
+		"postgres:15.18-alpine", // what the plan wants
+		"semiont clean --store database") // the way out
+	if _, err := os.Stat(filepath.Join(pg, "PG_VERSION")); err != nil {
+		t.Error("a refusal must not touch the data dir")
+	}
+}
+
+func TestStatePathHashKeyWithoutDid(t *testing.T) {
+	s := newScenario(t, "container")
+	// A KB with no [site] domain has no did:web — the state key falls back
+	// to a stable hash of the root path.
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "config"),
+		[]byte("[project]\nname = \"No Did KB\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	if !regexp.MustCompile(`roots/path-[0-9a-f]{12}/postgres`).MatchString(stdout) {
+		t.Errorf("dry-run must show a path-hash state key; stdout:\n%s", stdout)
+	}
+}
+
 // --- stop ---
 
 func TestStopSweepsAllRuntimes(t *testing.T) {

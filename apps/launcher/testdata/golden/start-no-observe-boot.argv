@@ -34,7 +34,7 @@ container stop semiont-ollama
 container rm semiont-ollama
 lsof -ti :11434
 container run -d --name semiont-ollama -p 11434:11434 -m 24G -v semiont-ollama-models:/root/.ollama ollama/ollama
-container run -d --name semiont-postgres -p 5432:5432 -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
+container run -d --name semiont-postgres -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
 container run --rm busybox:1.38.0 nc -z -w 2 192.168.64.1 5432
 container run -d --name semiont-backend --publish 4000:4000 --memory 8G --volume <kb-root>:/kb --volume <config-stage>/backend.toml:/home/semiont/.semiontconfig:ro --env POSTGRES_HOST=192.168.64.1 --env NEO4J_HOST=192.168.64.1 --env QDRANT_HOST=192.168.64.1 --env OLLAMA_HOST=192.168.64.1 --env SEMIONT_WORKER_SECRET=test-worker-secret ghcr.io/the-ai-alliance/semiont-backend:latest
 container run --rm busybox:1.38.0 sh -c wget -q -O- http://192.168.64.1:4000/api/health

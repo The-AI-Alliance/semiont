@@ -75,7 +75,8 @@ container run -d --name semiont-ollama -p 11434:11434 -m 24G -v <ollama-volume>:
 # wait: http://localhost:11434/api/version (30s)
 # ensure ollama models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # embedding: externally provided at localhost:11434 — verify reachability, launch nothing
-container run -d --name semiont-postgres -p 5432:5432 -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
+# database state: <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres (created if absent; reused across restarts)
+container run -d --name semiont-postgres -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
 # wait: tcp localhost:5432 (20s)
 # probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432
 container run -d --name semiont-backend --publish 4000:4000 --memory 8G --volume <kb-root>:/kb --volume <config-stage>/backend.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env POSTGRES_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env SEMIONT_WORKER_SECRET=<worker-secret> ghcr.io/the-ai-alliance/semiont-backend:latest

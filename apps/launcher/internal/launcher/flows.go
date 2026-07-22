@@ -212,7 +212,14 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	x.banner(depRoleTitles[role] + " (" + disp + ")")
 	switch rp.Obligation {
 	case obligationProvided:
-		args := providedRunArgs(role, rp)
+		// Persistent state rides the run argv (LAUNCHER-STATE.md): roles in
+		// stateStores mount their per-root dir; a database refusal (data
+		// written by another image) stops the start here.
+		extra, ok := x.stateMounts(role, rp.Image, fc.root)
+		if !ok {
+			return 1
+		}
+		args := providedRunArgs(role, rp, extra...)
 		id, ok := x.runDetached(args)
 		if !ok {
 			x.say(sayFail, "%s (%s) failed to start.", role, disp)

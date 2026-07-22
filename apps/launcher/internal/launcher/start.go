@@ -602,9 +602,9 @@ func Start(args []string) int {
 
 	if opts.dryRun {
 		if opts.service != "" {
-			renderServicePlan(rt, version, opts, userEnv, plan)
+			renderServicePlan(rt, version, root, opts, userEnv, plan)
 		} else {
-			renderStartPlan(rt, version, opts, userEnv, plan)
+			renderStartPlan(rt, version, root, opts, userEnv, plan)
 		}
 		return 0
 	}
