@@ -3801,6 +3801,563 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 	}
 }
 
+// --- semiont init (LAUNCHER-BIRTH P1) ---
+
+func TestInitBirthsIdentity(t *testing.T) {
+	// Flag-driven birth, prompt-free: .semiont/config carries the exact
+	// identity, git init + stage happen, the root registers, and a second
+	// init refuses without --force.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	stdout, stderr, code := s.run(t, "init",
+		"--name", "family-kb", "--domain", "pingel-org.github.io:family-kb",
+		"--site-name", "Family KB", "--admin-email", "a@b.co", "--yes")
+	if code != 0 {
+		t.Fatalf("init: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	cfg, err := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	if err != nil {
+		t.Fatalf(".semiont/config not written: %v", err)
+	}
+	mustContain(t, ".semiont/config", string(cfg),
+		`name = "family-kb"`,
+		`domain = "pingel-org.github.io:family-kb"`,
+		`siteName = "Family KB"`,
+		`adminEmail = "a@b.co"`,
+		`sync = true`)
+	// The launcher runs git with -C <dir>; assert the subcommands.
+	mustContain(t, "argv", s.argv(t), " init", " add .semiont")
+	roots, _ := os.ReadFile(filepath.Join(s.home, ".local", "state", "semiont", "roots.json"))
+	mustContain(t, "roots.json", string(roots), "family-kb")
+
+	// Refuse a second birth without --force — .semiont/ is not overwritable
+	// by accident.
+	_, stderr, code = s.run(t, "init", "--name", "x", "--domain", "d:x", "--yes")
+	if code != 1 {
+		t.Fatalf("re-init without --force: want exit 1, got %d", code)
+	}
+	mustContain(t, "refusal", stderr, "--force")
+}
+
+func TestInitIdentityLadderAndRefusals(t *testing.T) {
+	// The did:web ladder: --domain wins; else derived from the git origin by
+	// THE SAME RULE as template-init.yml step 6 (<owner_lc>.github.io:<name>);
+	// else --yes REFUSES — permanent identity has no safe default.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_ORIGIN=git@github.com:Pingel-Org/family-kb.git")
+	stdout, stderr, code := s.run(t, "init", "--name", "family-kb", "--yes")
+	if code != 0 {
+		t.Fatalf("origin-derived init: exit %d\nstderr:\n%s", code, stderr)
+	}
+	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	// Owner lowercased (Pages hosts are lowercase); repo name kept as-is.
+	mustContain(t, "derived did", string(cfg), `domain = "pingel-org.github.io:family-kb"`)
+	mustContain(t, "derivation announced", stdout+stderr, "pingel-org.github.io:family-kb")
+
+	// No --domain, no origin, --yes: refuse and say why.
+	s2 := newScenario(t, "container")
+	s2.cwd = t.TempDir()
+	_, stderr, code = s2.run(t, "init", "--name", "x", "--yes")
+	if code != 1 {
+		t.Fatalf("identity-less --yes: want exit 1, got %d", code)
+	}
+	mustContain(t, "identity refusal", stderr, "permanent", "--domain")
+}
+
+func TestInitNoGitAndDryRun(t *testing.T) {
+	// --no-git: sync=false, consequences stated, no git in the argv.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	stdout, stderr, code := s.run(t, "init", "--name", "x", "--domain", "d.io:x", "--yes", "--no-git")
+	if code != 0 {
+		t.Fatalf("init --no-git: exit %d\nstderr:\n%s", code, stderr)
+	}
+	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	mustContain(t, "config", string(cfg), `sync = false`)
+	mustContain(t, "consequences", stdout+stderr, "--no-git")
+	for _, line := range strings.Split(s.argv(t), "\n") {
+		if strings.HasPrefix(line, "git ") && (strings.Contains(line, " init") || strings.Contains(line, " add")) {
+			t.Errorf("--no-git ran git: %q", line)
+		}
+	}
+
+	// --dry-run: says what it would write, writes NOTHING, reaches for
+	// nothing (start's plan discipline).
+	s3 := newScenario(t, "container")
+	s3.cwd = t.TempDir()
+	stdout, stderr, code = s3.run(t, "init", "--name", "y", "--domain", "d.io:y", "--yes", "--dry-run")
+	if code != 0 {
+		t.Fatalf("init --dry-run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "plan", stdout, ".semiont/config", "git init")
+	if _, err := os.Stat(filepath.Join(s3.cwd, ".semiont")); !os.IsNotExist(err) {
+		t.Error("--dry-run wrote .semiont/")
+	}
+	if got := s3.argv(t); strings.Contains(got, " init") || strings.Contains(got, " add") {
+		t.Errorf("--dry-run executed git:\n%s", got)
+	}
+}
+
+func TestInitInteractivePrompts(t *testing.T) {
+	// The interactive path: prompts fill what flags did not — here the
+	// domain (with the permanent-identity warning) and site name.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	s.stdin = "d.example.org:kb\nMy KB\n"
+	stdout, stderr, code := s.run(t, "init", "--name", "kb", "--admin-email", "a@b.co")
+	if code != 0 {
+		t.Fatalf("interactive init: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "identity warning shown", stdout, "permanent")
+	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	mustContain(t, "prompted values", string(cfg),
+		`domain = "d.example.org:kb"`, `siteName = "My KB"`)
+}
+
+func TestInitGeneratesStartableConfig(t *testing.T) {
+	// LAUNCHER-BIRTH P2: the generative builder. The strongest possible
+	// assertion is the round trip — the generated config must pass the REAL
+	// deriver: `start --dry-run --config <name>` succeeds from the newborn
+	// KB. Bindings are exactly the three-name roster; per-worker refinement
+	// is the user's edit, not ours.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_ROOT="+s.cwd)
+	// Seam flags at a dead port: hermetic — validation degrades to the
+	// warn path, which is itself part of the P3 contract.
+	_, stderr, code := s.run(t, "init",
+		"--name", "kb", "--domain", "d.io:kb", "--yes",
+		"--inference", "anthropic", "--model", "claude-sonnet-4-5-20250929",
+		"--embedding", "ollama:nomic-embed-text", "--config-name", "anthropic",
+		"--ollama-base", "http://127.0.0.1:1", "--ollama-registry", "http://127.0.0.1:1")
+	if code != 0 {
+		t.Fatalf("init: exit %d\nstderr:\n%s", code, stderr)
+	}
+	cfg, err := os.ReadFile(filepath.Join(s.cwd, ".semiont", "semiontconfig", "anthropic.toml"))
+	if err != nil {
+		t.Fatalf("generated config missing: %v", err)
+	}
+	mustContain(t, "config", string(cfg),
+		"[environments.local.actors.gatherer.inference]",
+		"[environments.local.actors.matcher.inference]",
+		"[environments.local.workers.default.inference]",
+		`model = "claude-sonnet-4-5-20250929"`,
+		`model = "nomic-embed-text"`,
+		"${ANTHROPIC_API_KEY}")
+	if strings.Contains(string(cfg), "reference-annotation") {
+		t.Errorf("generator emitted per-worker refinements — those are the user's edits:\n%s", cfg)
+	}
+	stdout, stderr, code := s.run(t, "start", "--config", "anthropic", "--dry-run")
+	if code != 0 {
+		t.Fatalf("the generated config failed the real deriver: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	// The anthropic shape: external SaaS inference; the Ollama that exists
+	// solely for the embedding, pulling exactly the embedding model.
+	mustContain(t, "plan", stdout, "remote SaaS",
+		"pull each missing one): nomic-embed-text")
+
+	// The ollama variant round-trips too, in the local-Ollama shape.
+	s2 := newScenario(t, "container")
+	s2.cwd = t.TempDir()
+	s2.extraEnv = append(s2.extraEnv, "FAKERT_GIT_ROOT="+s2.cwd)
+	if _, stderr, code := s2.run(t, "init",
+		"--name", "kb2", "--domain", "d.io:kb2", "--yes",
+		"--inference", "ollama", "--model", "gemma4:26b",
+		"--embedding", "ollama:nomic-embed-text",
+		"--ollama-base", "http://127.0.0.1:1", "--ollama-registry", "http://127.0.0.1:1"); code != 0 {
+		t.Fatalf("ollama init: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run")
+	if code != 0 {
+		t.Fatalf("ollama config failed the deriver: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "ollama plan", stdout, "host Ollama", "gemma4:26b, nomic-embed-text")
+
+	// voyage embedding refuses: no established key variable exists, and the
+	// launcher never invents environment variables.
+	s3 := newScenario(t, "container")
+	s3.cwd = t.TempDir()
+	_, stderr, code = s3.run(t, "init", "--name", "kb3", "--domain", "d.io:kb3", "--yes",
+		"--inference", "anthropic", "--model", "m", "--embedding", "voyage:voyage-3")
+	if code != 1 {
+		t.Fatalf("voyage: want refusal, got %d", code)
+	}
+	mustContain(t, "voyage refusal", stderr, "voyage", "ollama")
+}
+
+// serveOllamaFixtures: a local stand-in for BOTH the local Ollama daemon
+// (/api/tags — what is installed) and the ollama registry
+// (/v2/library/<m>/manifests/<t> — what exists to pull). init reaches them
+// through --ollama-base / --ollama-registry, the proxy knobs that double as
+// test seams.
+func serveOllamaFixtures(t *testing.T, port int, installed []string, pullable []string) {
+	t.Helper()
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("port %d unavailable: %v", port, err)
+	}
+	known := map[string]bool{}
+	for _, m := range pullable {
+		known[m] = true
+	}
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/tags":
+			type m struct {
+				Name string `json:"name"`
+				Size int64  `json:"size"`
+			}
+			var ms []m
+			for _, n := range installed {
+				ms = append(ms, m{Name: n, Size: 1 << 30})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"models": ms})
+		case strings.HasPrefix(r.URL.Path, "/v2/library/"):
+			rest := strings.TrimPrefix(r.URL.Path, "/v2/library/")
+			name, tag, _ := strings.Cut(rest, "/manifests/")
+			if known[name+":"+tag] {
+				w.WriteHeader(200)
+				return
+			}
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})}
+	go srv.Serve(ln)
+	t.Cleanup(func() { srv.Close() })
+}
+
+func TestInitAnthropicPickerValidatesAgainstLiveList(t *testing.T) {
+	// With a key in hand, the model choice is validated against /v1/models —
+	// a withdrawn or typo'd id is a REFUSAL naming what exists, not a KB
+	// whose jobs fail later (the claude-fable-5 lesson). Without --model,
+	// the ONE editorial default picks the newest capable model and says so.
+	serveAnthropicModels(t, 41436, "claude-sonnet-4-9", "claude-haiku-4-5")
+	base := []string{"init", "--domain", "d.io:kb", "--yes",
+		"--inference", "anthropic", "--embedding", "ollama:nomic-embed-text",
+		"--anthropic-endpoint", "http://localhost:41436", "--ollama-registry", "http://localhost:41437"}
+	serveOllamaFixtures(t, 41437, nil, []string{"nomic-embed-text:latest"})
+
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+	_, stderr, code := s.run(t, append(base, "--name", "kb", "--model", "claude-fable-5")...)
+	if code != 1 {
+		t.Fatalf("unlisted model: want refusal, got %d", code)
+	}
+	mustContain(t, "refusal names the live list", stderr, "claude-fable-5", "claude-sonnet-4-9")
+
+	s2 := newScenario(t, "container")
+	s2.cwd = t.TempDir()
+	s2.extraEnv = append(s2.extraEnv, "ANTHROPIC_API_KEY=test-key")
+	stdout, stderr, code := s2.run(t, append(base, "--name", "kb2")...)
+	if code != 0 {
+		t.Fatalf("default pick: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "default announced", stdout+stderr, "claude-sonnet-4-9")
+	cfg, _ := os.ReadFile(filepath.Join(s2.cwd, ".semiont", "semiontconfig", "anthropic.toml"))
+	mustContain(t, "config", string(cfg), `model = "claude-sonnet-4-9"`)
+
+	// Keyless: typed model accepted, plainly marked unvalidated.
+	s3 := newScenario(t, "container")
+	s3.cwd = t.TempDir()
+	stdout, stderr, code = s3.run(t, append(base, "--name", "kb3", "--model", "claude-anything")...)
+	if code != 0 {
+		t.Fatalf("keyless: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "unvalidated warning", stdout+stderr, "unvalidated")
+}
+
+func TestInitOllamaModelsValidatedByRegistry(t *testing.T) {
+	// Ollama models: installed passes; not-installed-but-pullable passes
+	// (start's pull machinery finishes the job); bogus is REFUSED with the
+	// registry's own 404; an unreachable registry degrades to
+	// accept-with-warning — unknown is not missing, init edition.
+	serveOllamaFixtures(t, 41438, []string{"gemma4:26b"}, []string{"gemma4:e2b:latest", "gemma4:e2b", "nomic-embed-text:latest"})
+	base := []string{"init", "--domain", "d.io:kb", "--yes", "--inference", "ollama",
+		"--embedding", "ollama:nomic-embed-text",
+		"--ollama-base", "http://localhost:41438", "--ollama-registry", "http://localhost:41438"}
+
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	stdout, stderr, code := s.run(t, append(base, "--name", "a", "--model", "gemma4:26b")...)
+	if code != 0 {
+		t.Fatalf("installed model: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "installed", stdout+stderr, "installed")
+
+	s2 := newScenario(t, "container")
+	s2.cwd = t.TempDir()
+	stdout, stderr, code = s2.run(t, append(base, "--name", "b", "--model", "gemma4:e2b")...)
+	if code != 0 {
+		t.Fatalf("pullable model: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "pull promise", stdout+stderr, "pulled at start")
+
+	s3 := newScenario(t, "container")
+	s3.cwd = t.TempDir()
+	_, stderr, code = s3.run(t, append(base, "--name", "c", "--model", "gemma9:nope")...)
+	if code != 1 {
+		t.Fatalf("bogus model: want refusal, got %d", code)
+	}
+	mustContain(t, "registry refusal", stderr, "gemma9:nope", "registry")
+
+	// Registry unreachable AND not installed: accept, warned.
+	s4 := newScenario(t, "container")
+	s4.cwd = t.TempDir()
+	stdout, stderr, code = s4.run(t, "init", "--domain", "d.io:kb", "--yes", "--name", "d",
+		"--inference", "ollama", "--model", "gemma4:26b", "--embedding", "ollama:nomic-embed-text",
+		"--ollama-base", "http://127.0.0.1:1", "--ollama-registry", "http://127.0.0.1:1")
+	if code != 0 {
+		t.Fatalf("offline: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "offline warning", stdout+stderr, "could not be verified")
+}
+
+// templateFixture builds a fake semiont-template-kb tree: real fixture
+// configs (the same files the parser tests trust) plus a devcontainer set
+// with the template's display name.
+func templateFixture(t *testing.T, includeBad bool) string {
+	t.Helper()
+	root := t.TempDir()
+	sc := filepath.Join(root, ".semiont", "semiontconfig")
+	if err := os.MkdirAll(sc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"anthropic.toml", "ollama-gemma.toml"} {
+		b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "semiontconfig", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(sc, name), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if includeBad {
+		bad := "[defaults]\nenvironment = \"local\"\n\n[environments.local.graph]\ntype = \"janusgraph\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\n"
+		if err := os.WriteFile(filepath.Join(sc, "broken.toml"), []byte(bad), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dc := filepath.Join(root, ".devcontainer")
+	if err := os.MkdirAll(dc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"devcontainer.json":  `{"name": "Semiont Template KB", "dockerComposeFile": "docker-compose.yml"}`,
+		"docker-compose.yml": "services:\n  backend:\n    image: x\n",
+		"post-create.sh":     "#!/bin/sh\necho hi\n",
+	}
+	for n, c := range files {
+		if err := os.WriteFile(filepath.Join(dc, n), []byte(c), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Template identity — must NEVER reach the newborn.
+	if err := os.WriteFile(filepath.Join(root, ".semiont", "config"),
+		[]byte("[site]\ndomain = \"the-ai-alliance.github.io:semiont-template-kb\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+func TestInitFromTemplateCopiesAndVets(t *testing.T) {
+	// LAUNCHER-BIRTH P4: the explicit template-copy path. Every fetched toml
+	// passes the SAME derivePlan vet as generated ones; identity is always
+	// init's own, never the template's; and the copied config round-trips
+	// through the real deriver.
+	tpl := templateFixture(t, false)
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_ROOT="+s.cwd)
+	_, stderr, code := s.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes",
+		"--from-template", tpl)
+	if code != 0 {
+		t.Fatalf("from-template: exit %d\nstderr:\n%s", code, stderr)
+	}
+	for _, n := range []string{"anthropic.toml", "ollama-gemma.toml"} {
+		if _, err := os.Stat(filepath.Join(s.cwd, ".semiont", "semiontconfig", n)); err != nil {
+			t.Errorf("%s not copied: %v", n, err)
+		}
+	}
+	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	mustContain(t, "identity is init's own", string(cfg), `domain = "d.io:kb"`)
+	if strings.Contains(string(cfg), "semiont-template-kb") {
+		t.Errorf("template identity leaked into the newborn:\n%s", cfg)
+	}
+	if _, _, code := s.run(t, "start", "--config", "anthropic", "--dry-run"); code != 0 {
+		t.Fatal("copied config failed the real deriver")
+	}
+
+	// A template carrying an unstartable config: the WHOLE init refuses,
+	// pre-write, with the parser's own complaint — no partial tree.
+	tplBad := templateFixture(t, true)
+	s2 := newScenario(t, "container")
+	s2.cwd = t.TempDir()
+	_, stderr, code = s2.run(t, "init", "--name", "kb2", "--domain", "d.io:kb2", "--yes",
+		"--from-template", tplBad)
+	if code != 1 {
+		t.Fatalf("bad template: want refusal, got %d", code)
+	}
+	mustContain(t, "parser's own error", stderr, "janusgraph")
+	if _, err := os.Stat(filepath.Join(s2.cwd, ".semiont", "semiontconfig")); !os.IsNotExist(err) {
+		t.Error("refusal left a partial semiontconfig tree")
+	}
+
+	// Two config sources are contradictory.
+	s3 := newScenario(t, "container")
+	s3.cwd = t.TempDir()
+	_, stderr, code = s3.run(t, "init", "--name", "kb3", "--domain", "d.io:kb3", "--yes",
+		"--from-template", tpl, "--inference", "anthropic", "--model", "m")
+	if code != 1 {
+		t.Fatalf("both sources: want refusal, got %d", code)
+	}
+	mustContain(t, "contradiction", stderr, "--from-template", "--inference")
+}
+
+func TestInitDevcontainerCopy(t *testing.T) {
+	// The separate devcontainer offer: the set copies verbatim EXCEPT the
+	// display name, which becomes the newborn's (template-init.yml step 5 —
+	// each KB's codespace self-identifies). This is what makes a local-born
+	// KB codespace-capable.
+	tpl := templateFixture(t, false)
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	_, stderr, code := s.run(t, "init", "--name", "myk", "--domain", "d.io:myk", "--yes",
+		"--from-template", tpl, "--devcontainer")
+	if code != 0 {
+		t.Fatalf("devcontainer copy: exit %d\nstderr:\n%s", code, stderr)
+	}
+	dj, err := os.ReadFile(filepath.Join(s.cwd, ".devcontainer", "devcontainer.json"))
+	if err != nil {
+		t.Fatalf("devcontainer.json not copied: %v", err)
+	}
+	mustContain(t, "renamed", string(dj), `"name": "myk"`)
+	if strings.Contains(string(dj), "Semiont Template KB") {
+		t.Errorf("template display name survived:\n%s", dj)
+	}
+	for _, n := range []string{"docker-compose.yml", "post-create.sh"} {
+		got, err := os.ReadFile(filepath.Join(s.cwd, ".devcontainer", n))
+		if err != nil {
+			t.Errorf("%s not copied: %v", n, err)
+			continue
+		}
+		want, _ := os.ReadFile(filepath.Join(tpl, ".devcontainer", n))
+		if string(got) != string(want) {
+			t.Errorf("%s not byte-identical", n)
+		}
+	}
+}
+
+func TestInitFromTemplateURLClones(t *testing.T) {
+	// A URL source shallow-clones via git (already a launcher requirement —
+	// no gh, no listing APIs, atomic ref). fakert's clone persona materializes
+	// FAKERT_TEMPLATE_DIR at the destination.
+	tpl := templateFixture(t, false)
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, "FAKERT_TEMPLATE_DIR="+tpl)
+	_, stderr, code := s.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes",
+		"--from-template", "https://github.com/The-AI-Alliance/semiont-template-kb")
+	if code != 0 {
+		t.Fatalf("url template: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "argv", s.argv(t), "clone --depth 1")
+	if _, err := os.Stat(filepath.Join(s.cwd, ".semiont", "semiontconfig", "anthropic.toml")); err != nil {
+		t.Errorf("cloned config missing: %v", err)
+	}
+}
+
+func TestInitCopilotHardening(t *testing.T) {
+	// The PR #1065 review fixes, pinned so they cannot silently regress.
+
+	// (1) --config-name path traversal is refused, no file escapes.
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	_, stderr, code := s.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes",
+		"--inference", "anthropic", "--model", "m", "--config-name", "../escape",
+		"--anthropic-endpoint", "http://127.0.0.1:1")
+	if code != 1 {
+		t.Fatalf("traversal config-name: want refusal, got %d", code)
+	}
+	mustContain(t, "traversal refused", stderr, "simple file stem")
+	if _, err := os.Stat(filepath.Join(s.cwd, "..", "escape.toml")); err == nil {
+		t.Error("traversal wrote outside the KB")
+	}
+
+	// (2) Transactional: a failure after .semiont/config leaves NOTHING —
+	// a bogus model is rejected, and the dir is rolled back so a rerun does
+	// not need --force.
+	s2 := newScenario(t, "container")
+	s2.cwd = t.TempDir()
+	serveOllamaFixtures(t, 41451, nil, nil) // registry knows nothing
+	_, _, code = s2.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes",
+		"--inference", "ollama", "--model", "totally-fake:9b", "--embedding", "ollama:nomic-embed-text",
+		"--ollama-base", "http://localhost:41451", "--ollama-registry", "http://localhost:41451")
+	if code != 1 {
+		t.Fatalf("bad model: want refusal, got %d", code)
+	}
+	if _, err := os.Stat(filepath.Join(s2.cwd, ".semiont")); !os.IsNotExist(err) {
+		t.Error("a failed init left a partial .semiont/ (not rolled back)")
+	}
+
+	// (3) --force removes the old tree — no stale config survives.
+	s3 := newScenario(t, "container")
+	s3.cwd = t.TempDir()
+	scdir := filepath.Join(s3.cwd, ".semiont", "semiontconfig")
+	if err := os.MkdirAll(scdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(scdir, "stale.toml"), []byte("junk"), 0o644)
+	if _, _, code := s3.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes", "--force"); code != 0 {
+		t.Fatalf("--force init failed: %d", code)
+	}
+	if _, err := os.Stat(filepath.Join(scdir, "stale.toml")); err == nil {
+		t.Error("--force left a stale config beside the new identity")
+	}
+
+	// (4) devcontainer name with a quote stays valid JSON.
+	tpl := templateFixture(t, false)
+	s4 := newScenario(t, "container")
+	s4.cwd = t.TempDir()
+	if _, _, code := s4.run(t, "init", "--name", `weird"name`, "--domain", "d.io:w", "--yes",
+		"--from-template", tpl, "--devcontainer"); code != 0 {
+		t.Fatalf("quoted-name init failed: %d", code)
+	}
+	dj, _ := os.ReadFile(filepath.Join(s4.cwd, ".devcontainer", "devcontainer.json"))
+	var parsed map[string]any
+	if err := json.Unmarshal(dj, &parsed); err != nil {
+		t.Errorf("devcontainer.json is invalid JSON after a quoted name: %v\n%s", err, dj)
+	}
+
+	// (5) a symlinked template config is refused.
+	tpl2 := templateFixture(t, false)
+	_ = os.Symlink("/etc/hosts", filepath.Join(tpl2, ".semiont", "semiontconfig", "evil.toml"))
+	s5 := newScenario(t, "container")
+	s5.cwd = t.TempDir()
+	_, stderr, code = s5.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes", "--from-template", tpl2)
+	if code != 1 {
+		t.Fatalf("symlinked config: want refusal, got %d", code)
+	}
+	mustContain(t, "symlink refused", stderr, "symlink")
+
+	// (6) the generated anthropic config honors --anthropic-endpoint.
+	s6 := newScenario(t, "container")
+	s6.cwd = t.TempDir()
+	serveAnthropicModels(t, 41452, "m")
+	s6.extraEnv = append(s6.extraEnv, "ANTHROPIC_API_KEY=k")
+	if _, stderr, code := s6.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes",
+		"--inference", "anthropic", "--model", "m", "--embedding", "ollama:nomic-embed-text",
+		"--anthropic-endpoint", "http://localhost:41452",
+		"--ollama-base", "http://127.0.0.1:1", "--ollama-registry", "http://127.0.0.1:1"); code != 0 {
+		t.Fatalf("endpoint init: %d\n%s", code, stderr)
+	}
+	cfg, _ := os.ReadFile(filepath.Join(s6.cwd, ".semiont", "semiontconfig", "anthropic.toml"))
+	mustContain(t, "endpoint honored", string(cfg), `endpoint = "http://localhost:41452"`)
+}
+
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")

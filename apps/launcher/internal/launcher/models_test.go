@@ -1,6 +1,10 @@
 package launcher
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 // Ollama reports an untagged model as ":latest". A config naming it without
 // a tag must still read as installed — getting this wrong turns every
@@ -81,5 +85,31 @@ func TestICloudZone(t *testing.T) {
 	}
 	if got := icloudZone("/Users/x/Desktop/kb", ""); got != "" {
 		t.Errorf("empty home must classify nothing, got %q", got)
+	}
+}
+
+// The vet gate is the whole safety story of config generation and template
+// copying alike: NOTHING may write a semiontconfig this launcher's own
+// deriver rejects. A refusal must also leave no file behind.
+func TestWriteVettedConfigRefusesUnstartable(t *testing.T) {
+	root := t.TempDir()
+	u := newUI(true)
+	bad := "[environments.local.graph]\ntype = \"janusgraph\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\n"
+	if writeVettedConfig(u, root, "bad", bad) {
+		t.Fatal("an unknown driver type passed the vet")
+	}
+	dir := filepath.Join(root, ".semiont", "semiontconfig")
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		t.Errorf("refusal left a file behind: %s", e.Name())
+	}
+
+	// And the generator's real output passes — the same gate, both verdicts.
+	good := generateSemiontconfig(genParams{Inference: "anthropic", Model: "m", EmbeddingModel: "nomic-embed-text"})
+	if !writeVettedConfig(u, root, "good", good) {
+		t.Fatal("the generator's own output failed the vet")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "good.toml")); err != nil {
+		t.Fatalf("vetted config not placed: %v", err)
 	}
 }

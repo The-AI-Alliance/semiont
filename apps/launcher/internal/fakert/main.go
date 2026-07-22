@@ -102,6 +102,26 @@ func git(args []string) {
 		fmt.Fprintln(os.Stderr, "error: No such remote 'origin'")
 		os.Exit(2)
 	}
+	if len(args) >= 1 && args[0] == "clone" {
+		// The template-copy URL path: materialize FAKERT_TEMPLATE_DIR at the
+		// destination, standing in for a shallow clone.
+		dst := args[len(args)-1]
+		srcDir := os.Getenv("FAKERT_TEMPLATE_DIR")
+		if srcDir == "" {
+			fmt.Fprintln(os.Stderr, "fakert git clone: FAKERT_TEMPLATE_DIR not set")
+			os.Exit(1)
+		}
+		if err := copyTree(srcDir, dst); err != nil {
+			fmt.Fprintln(os.Stderr, "fakert git clone:", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(args) >= 1 && (args[0] == "init" || args[0] == "add") {
+		// The birth flow (semiont init): idempotent no-ops here — the argv
+		// log is the observable.
+		return
+	}
 	if len(args) >= 2 && args[0] == "status" && args[1] == "--porcelain" {
 		if os.Getenv("FAKERT_GIT_DIRTY") != "" {
 			fmt.Println(" M .semiont/semiontconfig/anthropic.toml")
@@ -839,4 +859,23 @@ func serve(ports []string) {
 		}()
 	}
 	<-done // parked until killed
+}
+
+// copyTree: minimal recursive copy for the fake clone.
+func copyTree(src, dst string) error {
+	return filepath.Walk(src, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, p)
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, b, info.Mode())
+	})
 }
