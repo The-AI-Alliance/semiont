@@ -1,4 +1,5 @@
-# Stage 1: install (npm runs here, then is discarded).
+# Stage 1: install. Unlike the other service images, the backend does NOT discard
+# npm afterward — the runtime stage copies it over for `npx prisma` (see below).
 #
 # The backend image drives the role through the `@semiont/cli` global bin
 # (`semiont provision/start/useradd`), which loads the service package from the
@@ -11,26 +12,20 @@
 # Base is node:24-alpine, NOT node:26 like the frontend: node 26's built-in undici
 # is incompatible with the qdrant client's undici@6 (throws "invalid onError
 # method" on connect), and the qdrant client has no newer release that fixes it.
-# (node:24's own npm still bundles a vulnerable undici on amd64 — patched below.)
 FROM node:24-alpine AS installer
 ARG NPM_REGISTRY=https://registry.npmjs.org
 ARG SEMIONT_VERSION=latest
+# The backend KEEPS npm at runtime (for `npx prisma`), so npm's own bundled deps
+# ship in the image and face the Trivy gate. node:24-alpine's npm (11.16.0) bundles
+# tar 7.5.15 (CVE-2026-59873 CRITICAL, CVE-2026-59874 HIGH), brace-expansion 5.0.6
+# (CVE-2026-13149 HIGH), and undici 6.26.0 (CVE-2026-12151 HIGH). Pin npm to 12.0.1,
+# which bundles tar 7.5.19, brace-expansion 5.0.7, and undici 6.27.0 — all fixed.
 RUN npm config set registry $NPM_REGISTRY && \
+    npm install -g npm@12.0.1 && \
     npm install -g @semiont/cli@${SEMIONT_VERSION} && \
     npm install @semiont/backend@${SEMIONT_VERSION} neo4j-driver @qdrant/js-client-rest \
       --prefix /home/semiont/.local/share/semiont && \
     npm cache clean --force
-
-# The backend keeps npm at runtime (for `npx prisma`), but node:24-alpine's npm
-# (11.16.0 on amd64) bundles undici 6.26.0 (CVE-2026-12151, DoS). Patch npm's
-# bundled undici in place to 6.27.0 — a drop-in patch bump within 6.x. No-op on
-# bases whose npm bundles no undici. The app's own undici (via the qdrant client)
-# is already 6.27.0.
-RUN npm pack undici@6.27.0 --pack-destination /tmp >/dev/null && \
-    tar -xzf /tmp/undici-6.27.0.tgz -C /tmp && \
-    find /usr/local/lib/node_modules/npm -type d -path '*/node_modules/undici' \
-      -exec sh -c 'rm -rf "$1" && cp -a /tmp/package "$1"' _ {} \; && \
-    rm -rf /tmp/undici-6.27.0.tgz /tmp/package
 
 # Stage 2: runtime — node + git + npm. Unlike the other service images, the
 # backend KEEPS npm because it shells out to `npx prisma` at provision/start time.
@@ -57,8 +52,9 @@ COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont 
 # The backend KEEPS npm/npx (see the base-image note above): at runtime
 # `semiont provision` runs `npx prisma generate` and `semiont start` runs
 # `npx prisma migrate`, so removing npx makes the backend fail to start
-# (spawnSync npx ENOENT). npm's own bundled undici is patched to 6.27.0 in the
-# installer stage above (CVE-2026-12151), so keeping npm is clean for the Trivy gate.
+# (spawnSync npx ENOENT). npm is pinned to 12.0.1 in the installer stage above,
+# whose bundled tar/brace-expansion/undici are all CVE-free, so keeping npm is
+# clean for the Trivy gate.
 #
 # We still drop the TypeScript compiler: `typescript` + its native `@typescript/*`
 # Go binaries are pulled transitively (via the qdrant client's dep chain) but
