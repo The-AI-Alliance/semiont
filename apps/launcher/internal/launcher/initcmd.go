@@ -38,6 +38,12 @@ With --yes and neither source, init refuses rather than guessing.
   --model-light <id>  Emitted as a commented per-worker example, not a binding
   --embedding <e>     ollama:<model> (voyage: not yet — no established key var)
   --config-name <n>   Config file name (default: the provider name)
+  --from-template [s] Copy semiontconfig from the template instead of building
+                      (s: URL or local dir; default the canonical template repo;
+                      every copy is vetted by the plan deriver pre-write)
+  --template-ref <r>  Git ref for a URL template source (default main)
+  --devcontainer      Also copy .devcontainer (display name rewritten) — makes
+                      this KB codespace-capable
   --anthropic-endpoint <u>  Anthropic API base (proxy knob; default https://api.anthropic.com)
   --ollama-base <u>         Local Ollama base (default http://localhost:11434)
   --ollama-registry <u>     Ollama registry base (default https://registry.ollama.ai)
@@ -53,6 +59,8 @@ func Init(args []string) int {
 	u := newUI(false)
 	var name, domain, siteName, adminEmail string
 	var inference, model, modelLight, embedding, configName string
+	var fromTemplate, templateRef string
+	var devcontainer bool
 	anthropicEndpoint := "https://api.anthropic.com"
 	ollamaBase := "http://localhost:11434"
 	ollamaRegistry := "https://registry.ollama.ai"
@@ -129,6 +137,24 @@ func Init(args []string) int {
 			}
 			configName = v
 			i++
+		case "--from-template":
+			// Optional value: a URL or local directory; bare flag = the
+			// canonical template repo.
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				fromTemplate = args[i+1]
+				i++
+			} else {
+				fromTemplate = defaultTemplateRepo
+			}
+		case "--template-ref":
+			v, ok := need()
+			if !ok {
+				return 1
+			}
+			templateRef = v
+			i++
+		case "--devcontainer":
+			devcontainer = true
 		case "--anthropic-endpoint":
 			v, ok := need()
 			if !ok {
@@ -168,6 +194,13 @@ func Init(args []string) int {
 	}
 
 	// Config-builder inputs validate BEFORE anything touches disk.
+	if fromTemplate != "" && inference != "" {
+		u.fail("--from-template and --inference are two sources for the same configs — pick one.")
+		return 1
+	}
+	if templateRef == "" {
+		templateRef = "main"
+	}
 	if inference != "" && inference != "anthropic" && inference != "ollama" {
 		u.fail("--inference must be anthropic or ollama, got %q.", inference)
 		return 1
@@ -294,6 +327,12 @@ adminEmail = %q
 			}
 			fmt.Printf("# .semiont/semiontconfig/%s.toml — generated (%s inference, %s embedding), vetted by derivePlan before writing\n", cn, inference, embModel)
 		}
+		if fromTemplate != "" {
+			fmt.Printf("# copy semiontconfig tomls from %s (ref %s) — each vetted by derivePlan pre-write; identity NEVER copied\n", fromTemplate, templateRef)
+		}
+		if devcontainer {
+			fmt.Println("# copy .devcontainer from the template, display name rewritten to the KB's")
+		}
 		fmt.Println("# register root in " + rootsPath())
 		return 0
 	}
@@ -386,6 +425,38 @@ adminEmail = %q
 		if !noGit && onPath("git") {
 			if out, err := captureBoth("git", "-C", dir, "add", ".semiont"); err != nil {
 				u.fail("git add .semiont: %s", strings.TrimSpace(out))
+				return 1
+			}
+		}
+	}
+
+	if fromTemplate != "" || devcontainer {
+		src := fromTemplate
+		if src == "" {
+			src = defaultTemplateRepo // --devcontainer alone still needs the tree
+		}
+		tplDir, cleanup, ok := materializeTemplate(u, src, templateRef)
+		if !ok {
+			return 1
+		}
+		defer cleanup()
+		if fromTemplate != "" {
+			if !copyTemplateConfigs(u, dir, tplDir) {
+				return 1
+			}
+		}
+		if devcontainer {
+			if !copyDevcontainer(u, dir, tplDir, name) {
+				return 1
+			}
+		}
+		if !noGit && onPath("git") {
+			addArgs := []string{"-C", dir, "add", ".semiont"}
+			if devcontainer {
+				addArgs = append(addArgs, ".devcontainer")
+			}
+			if out, err := captureBoth("git", addArgs...); err != nil {
+				u.fail("git add: %s", strings.TrimSpace(out))
 				return 1
 			}
 		}

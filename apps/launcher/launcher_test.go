@@ -4116,6 +4116,160 @@ func TestInitOllamaModelsValidatedByRegistry(t *testing.T) {
 	mustContain(t, "offline warning", stdout+stderr, "could not be verified")
 }
 
+// templateFixture builds a fake semiont-template-kb tree: real fixture
+// configs (the same files the parser tests trust) plus a devcontainer set
+// with the template's display name.
+func templateFixture(t *testing.T, includeBad bool) string {
+	t.Helper()
+	root := t.TempDir()
+	sc := filepath.Join(root, ".semiont", "semiontconfig")
+	if err := os.MkdirAll(sc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"anthropic.toml", "ollama-gemma.toml"} {
+		b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "semiontconfig", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(sc, name), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if includeBad {
+		bad := "[defaults]\nenvironment = \"local\"\n\n[environments.local.graph]\ntype = \"janusgraph\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\n"
+		if err := os.WriteFile(filepath.Join(sc, "broken.toml"), []byte(bad), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dc := filepath.Join(root, ".devcontainer")
+	if err := os.MkdirAll(dc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"devcontainer.json":  `{"name": "Semiont Template KB", "dockerComposeFile": "docker-compose.yml"}`,
+		"docker-compose.yml": "services:\n  backend:\n    image: x\n",
+		"post-create.sh":     "#!/bin/sh\necho hi\n",
+	}
+	for n, c := range files {
+		if err := os.WriteFile(filepath.Join(dc, n), []byte(c), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Template identity — must NEVER reach the newborn.
+	if err := os.WriteFile(filepath.Join(root, ".semiont", "config"),
+		[]byte("[site]\ndomain = \"the-ai-alliance.github.io:semiont-template-kb\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+func TestInitFromTemplateCopiesAndVets(t *testing.T) {
+	// LAUNCHER-BIRTH P4: the explicit template-copy path. Every fetched toml
+	// passes the SAME derivePlan vet as generated ones; identity is always
+	// init's own, never the template's; and the copied config round-trips
+	// through the real deriver.
+	tpl := templateFixture(t, false)
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_ROOT="+s.cwd)
+	_, stderr, code := s.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes",
+		"--from-template", tpl)
+	if code != 0 {
+		t.Fatalf("from-template: exit %d\nstderr:\n%s", code, stderr)
+	}
+	for _, n := range []string{"anthropic.toml", "ollama-gemma.toml"} {
+		if _, err := os.Stat(filepath.Join(s.cwd, ".semiont", "semiontconfig", n)); err != nil {
+			t.Errorf("%s not copied: %v", n, err)
+		}
+	}
+	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	mustContain(t, "identity is init's own", string(cfg), `domain = "d.io:kb"`)
+	if strings.Contains(string(cfg), "semiont-template-kb") {
+		t.Errorf("template identity leaked into the newborn:\n%s", cfg)
+	}
+	if _, _, code := s.run(t, "start", "--config", "anthropic", "--dry-run"); code != 0 {
+		t.Fatal("copied config failed the real deriver")
+	}
+
+	// A template carrying an unstartable config: the WHOLE init refuses,
+	// pre-write, with the parser's own complaint — no partial tree.
+	tplBad := templateFixture(t, true)
+	s2 := newScenario(t, "container")
+	s2.cwd = t.TempDir()
+	_, stderr, code = s2.run(t, "init", "--name", "kb2", "--domain", "d.io:kb2", "--yes",
+		"--from-template", tplBad)
+	if code != 1 {
+		t.Fatalf("bad template: want refusal, got %d", code)
+	}
+	mustContain(t, "parser's own error", stderr, "janusgraph")
+	if _, err := os.Stat(filepath.Join(s2.cwd, ".semiont", "semiontconfig")); !os.IsNotExist(err) {
+		t.Error("refusal left a partial semiontconfig tree")
+	}
+
+	// Two config sources are contradictory.
+	s3 := newScenario(t, "container")
+	s3.cwd = t.TempDir()
+	_, stderr, code = s3.run(t, "init", "--name", "kb3", "--domain", "d.io:kb3", "--yes",
+		"--from-template", tpl, "--inference", "anthropic", "--model", "m")
+	if code != 1 {
+		t.Fatalf("both sources: want refusal, got %d", code)
+	}
+	mustContain(t, "contradiction", stderr, "--from-template", "--inference")
+}
+
+func TestInitDevcontainerCopy(t *testing.T) {
+	// The separate devcontainer offer: the set copies verbatim EXCEPT the
+	// display name, which becomes the newborn's (template-init.yml step 5 —
+	// each KB's codespace self-identifies). This is what makes a local-born
+	// KB codespace-capable.
+	tpl := templateFixture(t, false)
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	_, stderr, code := s.run(t, "init", "--name", "myk", "--domain", "d.io:myk", "--yes",
+		"--from-template", tpl, "--devcontainer")
+	if code != 0 {
+		t.Fatalf("devcontainer copy: exit %d\nstderr:\n%s", code, stderr)
+	}
+	dj, err := os.ReadFile(filepath.Join(s.cwd, ".devcontainer", "devcontainer.json"))
+	if err != nil {
+		t.Fatalf("devcontainer.json not copied: %v", err)
+	}
+	mustContain(t, "renamed", string(dj), `"name": "myk"`)
+	if strings.Contains(string(dj), "Semiont Template KB") {
+		t.Errorf("template display name survived:\n%s", dj)
+	}
+	for _, n := range []string{"docker-compose.yml", "post-create.sh"} {
+		got, err := os.ReadFile(filepath.Join(s.cwd, ".devcontainer", n))
+		if err != nil {
+			t.Errorf("%s not copied: %v", n, err)
+			continue
+		}
+		want, _ := os.ReadFile(filepath.Join(tpl, ".devcontainer", n))
+		if string(got) != string(want) {
+			t.Errorf("%s not byte-identical", n)
+		}
+	}
+}
+
+func TestInitFromTemplateURLClones(t *testing.T) {
+	// A URL source shallow-clones via git (already a launcher requirement —
+	// no gh, no listing APIs, atomic ref). fakert's clone persona materializes
+	// FAKERT_TEMPLATE_DIR at the destination.
+	tpl := templateFixture(t, false)
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, "FAKERT_TEMPLATE_DIR="+tpl)
+	_, stderr, code := s.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes",
+		"--from-template", "https://github.com/The-AI-Alliance/semiont-template-kb")
+	if code != 0 {
+		t.Fatalf("url template: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "argv", s.argv(t), "clone --depth 1")
+	if _, err := os.Stat(filepath.Join(s.cwd, ".semiont", "semiontconfig", "anthropic.toml")); err != nil {
+		t.Errorf("cloned config missing: %v", err)
+	}
+}
+
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")

@@ -128,7 +128,7 @@ func writeVettedConfig(u *ui, root, name, content string) bool {
 	}
 	if err != nil {
 		_ = os.Remove(tmp)
-		u.fail("The generated config did not pass the launcher's own deriver — refusing to write it: %v", err)
+		u.fail("The config did not pass the launcher's own deriver — refusing to write it: %v", err)
 		return false
 	}
 	final := filepath.Join(dir, name+".toml")
