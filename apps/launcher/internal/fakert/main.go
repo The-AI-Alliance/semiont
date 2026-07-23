@@ -307,6 +307,13 @@ func ghCodespace(args []string, joined string) {
 				[]byte(strconv.Itoa(os.Getpid())), 0o644)
 		}
 		serve(ports)
+	case "logs":
+		// The creation-log follower the health wait tails. A few plausible
+		// lines, then exit — a tailer that ends early is legal (the launcher
+		// treats the stream as decoration, never a gate).
+		fmt.Println("2026-01-01 00:00:00.000Z: Running onCreateCommand...")
+		fmt.Println("2026-01-01 00:00:01.000Z: Pulling semiont-backend:latest")
+		fmt.Println("2026-01-01 00:00:02.000Z: postCreateCommand done")
 	case "stop", "delete":
 		// argv log is the observable, but state must follow too: a stopped
 		// codespace reports Shutdown until something wakes it, exactly as

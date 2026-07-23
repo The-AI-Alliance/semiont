@@ -115,7 +115,12 @@ semiont stop
   codespace *name* is a PID, shown by status, input only via `--codespace`
   when raw `gh` left several). `semiont stop` maps to `gh codespace stop` —
   billing halts, state and credentials persist, the record is kept; `semiont
-  stop --delete` destroys and forgets.
+  stop --delete` destroys and forgets. The two long waits narrate
+  themselves: the VM wait redraws the polled state with elapsed time, and a
+  fresh create's health wait tails the devcontainer creation log (`gh
+  codespace logs --follow`) as a sliding window of its last few lines —
+  cleared once healthy; piped output gets 30-second heartbeat lines
+  instead.
 - **Many codespace stacks run concurrently — each forwards its KB on its
   own local port.** The record store (`stack.json`, schema 3) is a keyed
   collection: the machine's one local stack (fixed ports and container

@@ -271,6 +271,13 @@ func took(d time.Duration) string {
 // claiming 600. A deadline makes the number honest, and the message reports
 // the time actually spent so it can never drift from reality again.
 func waitForHTTP(u *ui, name, url string, seconds int) (time.Duration, bool) {
+	return waitForHTTPTick(u, name, url, seconds, nil)
+}
+
+// waitForHTTPTick is waitForHTTP with a per-iteration hook — the seam the
+// codespace health wait uses to render its creation-log window without a
+// second wait loop that could drift from this one's deadline discipline.
+func waitForHTTPTick(u *ui, name, url string, seconds int, tick func(elapsed time.Duration)) (time.Duration, bool) {
 	t0 := time.Now()
 	deadline := t0.Add(time.Duration(seconds) * time.Second)
 	for {
@@ -279,6 +286,9 @@ func waitForHTTP(u *ui, name, url string, seconds int) (time.Duration, bool) {
 		}
 		if !time.Now().Before(deadline) {
 			break
+		}
+		if tick != nil {
+			tick(time.Since(t0))
 		}
 		time.Sleep(time.Second)
 	}

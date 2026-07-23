@@ -625,8 +625,8 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 		t.Fatalf("start over another image's data must refuse\nstdout:\n%s", stdout)
 	}
 	mustContain(t, "refusal", stdout+stderr,
-		"postgres:14.9-alpine",  // what wrote the data
-		"postgres:15.18-alpine", // what the plan wants
+		"postgres:14.9-alpine",           // what wrote the data
+		"postgres:15.18-alpine",          // what the plan wants
 		"semiont clean --store database") // the way out
 	if _, err := os.Stat(filepath.Join(pg, "PG_VERSION")); err != nil {
 		t.Error("a refusal must not touch the data dir")
@@ -1546,6 +1546,12 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"KB repo: "+csRepo,
 		"Starting a CODESPACE for", "as PUSHED", "uncommitted changes",
 		"Creating codespace for "+csRepo,
+		// The health wait tails the creation log on the CREATE path (a
+		// resume's creation log is stale history). The echoed command is
+		// the deterministic observable — in the fake world health passes
+		// on the first probe and the follower is killed before it can
+		// exec, so the argv log may legitimately never see it.
+		"gh codespace logs --follow -c fake-cs-1",
 		"Reading admin credentials",
 		"Semiont KB is up in codespace fake-cs-1",
 		"Semiont KB         http://localhost:4000",

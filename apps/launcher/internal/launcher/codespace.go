@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -8,6 +9,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -254,7 +256,14 @@ func startCodespace(u *ui, opts startOptions) int {
 	// Health, not VM state, is readiness ("Available ≠ hooks finished" —
 	// on a fresh create the devcontainer hooks run minutes past Available).
 	u.log("Waiting for the stack %s", u.dim("(a fresh create runs devcontainer hooks — image and model pulls take minutes)"))
-	d, ok := waitForHTTP(u, "KB (through the forward)", fmt.Sprintf("http://localhost:%d/api/health", kbPort), 600)
+	// A fresh create narrates its hooks: tail the creation log while the
+	// health gate waits. Resume tails nothing — its creation log is old.
+	var tail *creationLogTail
+	if created {
+		tail = startCreationLogTail(u, name)
+	}
+	d, ok := waitForHTTPTick(u, "KB (through the forward)", fmt.Sprintf("http://localhost:%d/api/health", kbPort), 600, tail.tick)
+	tail.stop()
 	if !ok {
 		return 1
 	}
@@ -618,12 +627,25 @@ func ensureCodespaceAvailable(u *ui, repo, name string) int {
 // Post-CREATE only: a fresh codespace is Provisioning for minutes and
 // forwarding before then cannot bind. Never call it for a stopped
 // codespace — those wake on connection, so this would wait forever.
+// Liveness during the minutes-long wait: on a terminal, one redrawn line
+// carrying the polled state and elapsed time; piped, a 30s heartbeat —
+// silence and a spinner are different claims, and this wait had neither.
 func waitCodespaceAvailable(u *ui, repo, name string) int {
+	t0 := time.Now()
+	lastBeat := t0
+	state := "Provisioning"
 	for i := 0; i < 300; i++ {
 		instances, err := ghCodespaceList(repo)
 		if err == nil {
 			for _, c := range instances {
-				if c.Name == name && c.State == "Available" {
+				if c.Name != name {
+					continue
+				}
+				state = c.State
+				if state == "Available" {
+					if u.color {
+						fmt.Print("\r\033[K")
+					}
 					return 0
 				}
 			}
@@ -631,11 +653,121 @@ func waitCodespaceAvailable(u *ui, repo, name string) int {
 		if i == 0 {
 			u.log("Waiting for the codespace VM %s", u.dim("(GitHub reports Provisioning until the machine is up)"))
 		}
+		if u.color {
+			fmt.Printf("\r  %s\033[K", u.dim(state+"… ("+took(time.Since(t0))+")"))
+		} else if time.Since(lastBeat) >= 30*time.Second {
+			lastBeat = time.Now()
+			u.log("Still waiting for the VM — %s (%s elapsed)", state, took(time.Since(t0)))
+		}
 		time.Sleep(2 * time.Second)
+	}
+	if u.color {
+		fmt.Print("\r\033[K")
 	}
 	u.fail("Codespace %s did not reach Available within 10 minutes.", name)
 	fmt.Fprintln(os.Stderr, "  Check it:  gh codespace list")
 	return 1
+}
+
+// creationLogTail streams `gh codespace logs --follow` (the devcontainer
+// creation log — compose pulls, hook output) alongside the health wait. On
+// a terminal the last few lines render as a dimmed sliding window, redrawn
+// in place and cleared when the wait ends; piped, a 30s heartbeat carries
+// the newest line instead. Decoration, never a gate: if gh cannot stream
+// (briefly true right at Available), the window simply stays empty.
+type creationLogTail struct {
+	u        *ui
+	cmd      *exec.Cmd
+	mu       sync.Mutex
+	lines    []string // ring: the newest creationLogWindow lines
+	rendered int      // lines currently drawn on the terminal
+	lastBeat time.Time
+}
+
+const creationLogWindow = 6
+
+// startCreationLogTail spawns the follower. CREATE path only: a resumed
+// codespace's creation log is stale history and tailing it would narrate
+// the wrong boot.
+func startCreationLogTail(u *ui, name string) *creationLogTail {
+	args := []string{"codespace", "logs", "--follow", "-c", name}
+	u.echoCmd("gh", args...)
+	cmd := exec.Command("gh", args...)
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil
+	}
+	cmd.Stderr = nil
+	if err := cmd.Start(); err != nil {
+		return nil
+	}
+	lt := &creationLogTail{u: u, cmd: cmd, lastBeat: time.Now()}
+	go func() {
+		sc := bufio.NewScanner(out)
+		for sc.Scan() {
+			line := strings.TrimRight(sc.Text(), " \t")
+			if line == "" {
+				continue
+			}
+			lt.mu.Lock()
+			lt.lines = append(lt.lines, line)
+			if len(lt.lines) > creationLogWindow {
+				lt.lines = lt.lines[len(lt.lines)-creationLogWindow:]
+			}
+			lt.mu.Unlock()
+		}
+	}()
+	return lt
+}
+
+// tick renders the window (terminal) or the heartbeat (piped). Wired into
+// the health wait's loop via waitForHTTPTick.
+func (lt *creationLogTail) tick(elapsed time.Duration) {
+	if lt == nil {
+		return
+	}
+	lt.mu.Lock()
+	lines := append([]string(nil), lt.lines...)
+	lt.mu.Unlock()
+	if !lt.u.color {
+		if time.Since(lt.lastBeat) >= 30*time.Second {
+			lt.lastBeat = time.Now()
+			if n := len(lines); n > 0 {
+				lt.u.log("Still waiting (%s elapsed) — %s", took(elapsed), lines[n-1])
+			} else {
+				lt.u.log("Still waiting (%s elapsed)", took(elapsed))
+			}
+		}
+		return
+	}
+	if lt.rendered > 0 {
+		fmt.Printf("\033[%dA", lt.rendered)
+	}
+	for _, ln := range lines {
+		// Hard truncation keeps every window line to one terminal row —
+		// a wrapped line would break the cursor-up arithmetic.
+		if len(ln) > 100 {
+			ln = ln[:100] + "…"
+		}
+		fmt.Printf("\033[K  %s\n", lt.u.dim(ln))
+	}
+	lt.rendered = len(lines)
+}
+
+// stop kills the follower and, on a terminal, collapses the window so the
+// final transcript keeps only the launcher's own lines.
+func (lt *creationLogTail) stop() {
+	if lt == nil {
+		return
+	}
+	if lt.cmd.Process != nil {
+		_ = lt.cmd.Process.Kill()
+	}
+	_ = lt.cmd.Wait()
+	if lt.u.color && lt.rendered > 0 {
+		fmt.Printf("\033[%dA\033[J", lt.rendered)
+		lt.rendered = 0
+	}
 }
 
 // spawnForward starts the detached dev-tunnel forward for this stack's KB
