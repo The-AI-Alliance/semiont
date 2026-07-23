@@ -335,7 +335,7 @@ func TestStartDaemonDownAdvisesSystemStart(t *testing.T) {
 	s.extraEnv = append(s.extraEnv, "FAKERT_DAEMON_DOWN=1")
 	stdout, stderr, code := s.run(t, "start")
 	if code == 0 {
-		t.Fatalf("start with the daemon down must fail\nstdout:\n%s", stdout)
+		t.Fatalf("start with the daemon down must fail\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
 	}
 	mustContain(t, "daemon-down fix-it", stdout+stderr, "container system start")
 }

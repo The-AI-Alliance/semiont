@@ -442,9 +442,15 @@ func runtimeCmd(base string, args []string) {
 	}
 	switch args[0] {
 	case "system", "info":
-		// Daemon liveness queries (container system status / docker|podman
-		// info): the daemon is up unless FAKERT_DAEMON_DOWN said otherwise.
-		return
+		// Only the exact liveness probes are scripted — anything else under
+		// system/info is an unexpected launcher change and must fail loudly,
+		// not vanish into a blanket exit 0.
+		switch base + " " + strings.Join(args, " ") {
+		case "container system status", "docker info", "podman info":
+			return
+		}
+		fmt.Fprintf(os.Stderr, "fakert: unscripted probe %q\n", base+" "+strings.Join(args, " "))
+		os.Exit(64)
 	case "stop":
 		// Exit like real runtimes: 0 only when the container "exists" — a
 		// serve pidfile (run-created) or a scripted FAKERT_STATE container
