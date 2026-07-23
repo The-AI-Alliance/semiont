@@ -1,53 +1,19 @@
 ---
 layout: default
-title: Semiont - Trusted AI Knowledge Bases for Humans and AI Agents
+title: Semiont - Trusted AI Knowledge Bases
 ---
 
 ## Semiont
 
-**Semiont is an open, source-grounded semantic knowledge platform for building and maintaining trusted AI knowledge bases and context layers. It gives humans and AI agents a shared workspace and architecture to annotate, connect, enrich, and govern domain knowledge for accurate applications, agents, and workflows.**
+**Semiont is an open, source-grounded platform for building trusted AI knowledge bases — a shared workspace where humans and AI agents annotate, connect, and govern domain knowledge.**
 
 ![Semiont screenshot](assets/images/semiont-2026-03-10.png)
 
-Most organizations sit on vast document collections that are searchable but not *understood*. Semiont closes that gap. Import your corpus — contracts, research papers, product specs, regulatory filings — and the system immediately begins identifying entities, proposing annotations, and linking related concepts across documents. Domain experts review and refine what AI proposes; AI scales what experts start. The result is a grounded knowledge graph where every node traces back to a specific passage in a specific document — a semantic wiki that grows smarter with every interaction.
+- **Annotate and link documents.** Humans and AI agents mark entities, comments, and references directly in your corpus — every annotation anchors to a specific passage, in the W3C Web Annotation standard.
+- **Grow a grounded knowledge graph.** Annotations and links project into a graph where every node traces back to its source. Search it semantically, navigate it, audit its provenance.
+- **Serve trusted context to AI.** Feed RAG pipelines, agents, and applications from cited sources instead of unchecked generation. Self-hosted, with inference on [Anthropic](https://www.anthropic.com/) (cloud) or [Ollama](https://ollama.com/) (fully local).
 
-That wiki becomes infrastructure. Use it to power semantic search and contextual recommendations in your products. Feed it to RAG pipelines so your AI assistants answer from verified, cited sources instead of hallucinating. Automate compliance checks by querying relationships across regulatory documents. Surface hidden connections across research portfolios that would take analysts months to find manually. Every annotation your team creates — or your agents produce — compounds into an asset that makes the next query smarter, the next review faster, and the next product feature possible.
-
-Self-hosted, so your data stays on your infrastructure — and simple to run: one brew-installed launcher starts the whole stack from published, cryptographically attested container images. Inference runs on **[Anthropic](https://www.anthropic.com/)** (cloud) or **[Ollama](https://ollama.com/)** (fully local) — mix providers per worker to balance cost, capability, and privacy. Built on the W3C Web Annotation standard — portable, interoperable, and sovereign.
-
-### Why Semiont?
-
-**Eliminate Cold Starts** — Import a set of documents and the eight flows immediately begin producing value: AI agents detect entity mentions, propose annotations, and generate linked resources while humans review, correct, and extend the results. The knowledge graph grows as a byproduct of annotation — no upfront schema design, manual data entry, or batch ETL pipeline required.
-
-**Calibrate the Human–AI Mix** — Because humans and AI agents share identical interfaces, organizations can dial the mix to fit their constraints. A domain with abundant expert availability and a high accuracy bar can run human-primary workflows with AI suggestions; a domain rich in GPU capacity but short on specialists can run agent-primary pipelines with human spot-checks. Supervision depth, automation ratio, and quality gates are deployment decisions — not architectural rewrites.
-
-### Core Tenets
-
-**Peer Collaboration** — Humans and AI agents are architectural equals. Every operation flows through the same API, event bus, and event-sourced storage regardless of who initiates it. Any workflow can be performed manually, automated by an agent, or done collaboratively — through the GUI, the [TypeScript SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk), [agent skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills) for agentic coding assistants, or the [CLI](https://github.com/The-AI-Alliance/semiont/tree/main/apps/cli).
-
-**Document-Grounded Knowledge** — Knowledge is always anchored to source documents. Annotations point into specific passages; references link documents to each other. The knowledge graph is a projection of these grounded relationships, not a replacement for the original material.
-
-### Eight Collaborative Flows
-
-Humans and AI agents work as peers through eight composable workflows:
-
-- **[Frame](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/FRAME.md)** — Define and evolve the KB's schema vocabulary — what *kinds* of things exist (entity types, future tag schemas, relation types). The schema layer the other seven flows operate within
-- **[Yield](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/YIELD.md)** — Introduce new resources into the system — upload documents, load pages, or generate new content from annotated references
-- **[Mark](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/MARK.md)** — Add structured metadata to resources — highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
-- **[Match](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/MATCHER.md)** — Search the knowledge base for candidate resources using multi-source retrieval and composite scoring — structural signals plus optional LLM re-ranking
-- **[Bind](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/BIND.md)** — Resolve ambiguous references to specific resources, linking entity mentions to their correct targets in the knowledge base
-- **[Gather](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/GATHER.md)** — Assemble related context around a focal annotation for downstream generation or analysis
-- **[Browse](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
-- **[Beckon](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
-
-## Use Cases
-
-- **Research & Analysis** — Annotate papers, trace citations, track provenance of ideas across a growing corpus
-- **Legal & Compliance** — Review contracts, query relationships across regulatory filings, automate cross-reference checks
-- **Organizational Knowledge** — Build a living wiki from internal documents where teams and AI agents co-curate institutional knowledge
-- **RAG & Retrieval** — Ground LLM responses in cited, annotated sources instead of unchecked generation
-- **Content Curation** — Organize resources with rich semantic metadata, entity linking, and AI-assisted tagging
-- **Agentic Memory** — Give AI agents a persistent, structured knowledge base they can read from and write to
+**No cold start.** Most knowledge systems are useless until someone invests weeks in schema design, taxonomy building, and manual data entry — the *cold-start problem*. Semiont skips it: import documents and AI agents immediately begin detecting entities, proposing annotations, and linking related material for humans to review and refine. The knowledge graph grows as a byproduct of that work — no upfront schema, no ETL pipeline.
 
 ## Get Started
 
@@ -78,6 +44,10 @@ Explore the knowledge bases:
 - **[Full catalog](https://github.com/The-AI-Alliance/semiont/blob/main/docs/KNOWLEDGE-BASES.md)** — seven demo KBs across different domains, plus community knowledge bases
 
 See the **[Quick Start](https://github.com/The-AI-Alliance/semiont#quick-start)** for full setup instructions.
+
+## How it works
+
+Humans and AI agents are architectural equals: every operation — whether it comes from the GUI, the [TypeScript SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk), [agent skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills), or the [CLI](https://github.com/The-AI-Alliance/semiont/tree/main/apps/cli) — travels the same event bus, speaking the same **[eight verbs](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/README.md)**: *frame, yield, mark, match, bind, gather, browse, beckon*. Any workflow can be done manually, automated by an agent, or shared between the two. The **[protocol docs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol)** cover the design in depth.
 
 ## Open Source & Community
 
