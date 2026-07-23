@@ -643,15 +643,15 @@ func printLauncherPaths(u *ui) {
 		row("all roots", rootsDir, "no persistent state")
 		return
 	}
-	note := fmt.Sprintf("%d roots, %s total", roots, humanBytes(total))
+	rootsNote := fmt.Sprintf("%d roots, %s total", roots, humanBytes(total))
 	if roots == 1 {
-		note = fmt.Sprintf("1 root, %s total", humanBytes(total))
+		rootsNote = fmt.Sprintf("1 root, %s total", humanBytes(total))
 	}
 	if n := len(orphanKeys); n > 0 {
-		note += fmt.Sprintf("; %d orphaned — kb path no longer exists; semiont clean --root %s",
+		rootsNote += fmt.Sprintf("; %d orphaned — kb path no longer exists; semiont clean --root %s",
 			n, strings.Join(orphanKeys, ", "))
 	}
-	row("all roots", rootsDir, note)
+	row("all roots", rootsDir, rootsNote)
 }
 
 // storeSizes: one root's per-store disk breakdown, fixed display order,
