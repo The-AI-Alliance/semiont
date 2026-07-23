@@ -193,8 +193,12 @@ semiont stop
   running here, headed by the root it belongs to and its did:web), LOCAL
   ROOTS, REMOTE KNOWLEDGE BASES (codespace-hosted KBs, their state, and each
   KB's local port). `--verbose` adds LAUNCHER PATHS — the launcher's own
-  config, cache, log, state, staging and model-cache paths, which describe the
-  tool rather than any KB. Roots and KBs are the durable
+  config, cache, log, state, staging and model-cache paths, plus the
+  persistent per-root stack state with its disk consumption: a `data` row
+  for the current root (per-store breakdown — postgres, qdrant, neo4j) and
+  an `all roots` row totaling every root, with orphaned state (its KB
+  directory no longer exists) called out alongside the `semiont clean
+  --root <key>` that removes it. Roots and KBs are the durable
   things; a stack is status layered on one of them. Per service it
   shows the container STATE as the runtime sees it plus a host-side health
   probe, with the concrete product in the service cell (`database
@@ -375,6 +379,39 @@ semiont stop
   0/1 on that service alone.
 - `SEMIONT_VERSION` selects the service image tag (default `latest`; the
   sentinel `local` uses locally-built `:local` images and skips pulls).
+
+### Where state lives
+
+Local-stack databases persist across restarts. Each local semiont root gets
+its own directory under the launcher's data home — `~/Library/Application
+Support/semiont/roots/<key>` on macOS, `$XDG_DATA_HOME/semiont/roots/<key>`
+(default `~/.local/share/...`) on Linux — keyed by the KB's did:web when
+`.semiont/config` declares one (identity travels with the KB, so a moved
+clone keeps its state), else by a hash of the root path. `start`
+bind-mounts each store's subdir into its container: PostgreSQL rows —
+including users, which the event log does **not** record — survive `stop`
+and restart. A `meta.json` stamp records which image wrote each store; a
+start whose config names a *different* database image over existing data
+refuses with a fix-it line rather than risk it (Postgres data is never
+auto-deleted). The backend applies its schema with `prisma migrate deploy`,
+which only applies not-yet-applied migrations — a populated database
+no-ops on restart.
+
+Qdrant (`qdrant/`) and Neo4j (`neo4j/`) state persists the same way, with
+the opposite mismatch rule: they are *projections* of the event log, so a
+start whose config names a different image announces it is clearing the
+stale store and lets the normal rebuild repopulate it — freshness by
+rebuild, never a refusal. (The Neo4j subdirs are host-side mode 777: its
+entrypoint refuses to boot unless its `test -w` gate passes, and Apple
+container's virtiofs won't let it chown a mount root.)
+
+`semiont clean` is the one way this state dies: it removes the current
+root's state directory (`--store database|vectors|graph` scopes to one
+store; `--dry-run` shows what would go, with sizes; `--root <path|name|key>`
+targets another root — a literal key is how you remove *orphaned* state
+whose KB directory no longer exists). It refuses while a recorded stack is
+using the state — stop first. `stop` itself never touches state; stopping
+and restarting is exactly the round trip persistence exists for.
 
 ## Development
 

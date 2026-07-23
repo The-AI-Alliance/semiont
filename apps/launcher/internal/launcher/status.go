@@ -2,7 +2,9 @@ package launcher
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
@@ -22,9 +24,10 @@ Reports what this machine knows about:
                  codespace-hosted KBs, their state, and their KB port
 
 --verbose adds LAUNCHER PATHS: the launcher's own config, cache, log, state,
-staging and model-cache paths on this host. They describe the tool, not any
-KB, and change only when the launcher itself does — so they are asked for
-rather than shown.
+staging and model-cache paths on this host, plus the persistent per-root
+stack state and its disk consumption — the active root's stores, and the
+total across all roots (orphaned state is called out with the clean
+command that removes it).
 
 For every local service: the container state as the runtime reports it
 (running / exited / absent — across all installed runtimes unless --runtime
@@ -556,15 +559,16 @@ func printRoots(u *ui, st *stackState) {
 }
 
 // printLauncherPaths reports the host-side paths the stack touches, under
-// --verbose only: they describe the LAUNCHER, not any KB, and change only
-// when the launcher itself does — so the everyday report leads with roots
-// and stacks instead. (Paths, not
-// "directories" — the state entry is a file.) They are: the
-// launcher's XDG-resolved config/cache homes (reserved by design — see
-// GO-LAUNCHER.md host need #1; Go maps them to XDG_* on Linux and
+// --verbose only — the everyday report leads with roots and stacks
+// instead. (Paths, not "directories" — the state entry is a file.) They
+// are: the launcher's XDG-resolved config/cache homes (reserved by design
+// — see GO-LAUNCHER.md host need #1; Go maps them to XDG_* on Linux and
 // ~/Library/... on macOS), the live config staging under /tmp (never
-// $TMPDIR — Apple container cannot sustain mounts from /var/folders), and
-// the Ollama model cache a container run may share.
+// $TMPDIR — Apple container cannot sustain mounts from /var/folders), the
+// Ollama model cache a container run may share, and the persistent
+// per-root stack state with its disk consumption (LAUNCHER-STATE.md):
+// the active root's stores, then the total across every root, orphans
+// called out with the clean command that removes them.
 func printLauncherPaths(u *ui) {
 	u.section("LAUNCHER PATHS")
 	row := func(label, path, note string) {
@@ -600,6 +604,74 @@ func printLauncherPaths(u *ui) {
 		p := filepath.Join(home, ".ollama")
 		row("inference", p, presence(p))
 	}
+
+	// Persistent per-root stack state (LAUNCHER-STATE.md requirement 5):
+	// the active root's stores and the all-roots total.
+	d := dataDir()
+	if d == "" {
+		return
+	}
+	rootsDir := filepath.Join(d, "roots")
+	if root, _, err := resolveKBRoot(); err == nil {
+		dir := filepath.Join(rootsDir, rootKey(root))
+		note := "absent"
+		if parts, total, any := storeSizes(dir); any {
+			note = humanBytes(total) + ": " + strings.Join(parts, ", ")
+		}
+		row("data", dir, note)
+	}
+	entries, err := os.ReadDir(rootsDir)
+	roots := 0
+	var total int64
+	var orphanKeys []string
+	if err == nil {
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			roots++
+			sz, _ := dirSize(filepath.Join(rootsDir, e.Name()))
+			total += sz
+			// Orphan = the stamped kb path DOES NOT EXIST — only that.
+			// Permission or IO errors are unknowns, and unknown is not
+			// missing; a dir without a readable stamp is counted, never
+			// accused.
+			if m := loadRootMeta(filepath.Join(rootsDir, e.Name())); m.KBRoot != "" {
+				if _, statErr := os.Stat(m.KBRoot); errors.Is(statErr, fs.ErrNotExist) {
+					orphanKeys = append(orphanKeys, e.Name())
+				}
+			}
+		}
+	}
+	if roots == 0 {
+		row("all roots", rootsDir, "no persistent state")
+		return
+	}
+	rootsNote := fmt.Sprintf("%d roots, %s total", roots, humanBytes(total))
+	if roots == 1 {
+		rootsNote = fmt.Sprintf("1 root, %s total", humanBytes(total))
+	}
+	if n := len(orphanKeys); n > 0 {
+		rootsNote += fmt.Sprintf("; %d orphaned — kb path no longer exists; semiont clean --root %s",
+			n, strings.Join(orphanKeys, ", "))
+	}
+	row("all roots", rootsDir, rootsNote)
+}
+
+// storeSizes: one root's per-store disk breakdown, fixed display order,
+// present stores only — absent is absent, not 0 B.
+func storeSizes(dir string) (parts []string, total int64, any bool) {
+	for _, role := range []string{"database", "vectors", "graph"} {
+		spec := stateStores[role]
+		sz, ok := dirSize(filepath.Join(dir, spec.dir))
+		if !ok {
+			continue
+		}
+		any = true
+		total += sz
+		parts = append(parts, spec.dir+" "+humanBytes(sz))
+	}
+	return
 }
 
 // containerState asks each runtime for the container's state, first hit wins.

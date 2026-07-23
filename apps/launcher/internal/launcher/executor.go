@@ -52,6 +52,7 @@ type executor interface {
 	dumpLogs(container, svc string)                             // failed health gate: show the crash where it is
 	verifyRemoteModels(role, base, key string, models []string) // record /v1/models metadata; warn on unlisted
 	ensureModels(base string, models []string)                  // pull configured ollama models that are absent
+	stateMounts(role, image, root string) ([]string, bool)      // persistent-state run args; !ok = refuse (data written by another image)
 	val(live, plan string) string                               // mode-scoped value (kb root, admin password)
 	rtName() string
 
@@ -483,6 +484,67 @@ func (x *liveExec) ensureModels(base string, models []string) {
 	ensureOllamaModels(x.u, base, models)
 }
 
+// stateMounts prepares a role's persistent state dir and returns the run
+// args that mount it (LAUNCHER-STATE.md). The image-mismatch split lives
+// here: database data is user rows — refuse, fix-it names the clean
+// command; projections (vectors/graph) auto-clean and rebuild.
+func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
+	args := stateMountArgs(role, root)
+	if len(args) == 0 {
+		return nil, true
+	}
+	spec := stateStores[role]
+	dir := stateRootDir(root)
+	sd := spec.storeDir(root)
+	meta := loadRootMeta(dir)
+	if prev := meta.Stores[role].Image; prev != "" && prev != image && storeDirNonEmpty(sd) {
+		if spec.projection {
+			// A projection of the event log: staleness is rebuildable, so a
+			// mismatch clears rather than refuses.
+			x.u.log("%s state at %s was written by %s; this config launches %s — projections rebuild, so clearing it.",
+				role, sd, prev, image)
+			if err := os.RemoveAll(sd); err != nil {
+				x.u.fail("cannot clear %s state %s: %v", role, sd, err)
+				return nil, false
+			}
+		} else {
+			x.u.fail("%s state at %s was written by %s; this config launches %s.", role, sd, prev, image)
+			fmt.Fprintln(os.Stderr, "  That data is not auto-deleted. Remove it first: semiont clean --store "+role)
+			return nil, false
+		}
+	}
+	for _, m := range spec.mounts {
+		mp := filepath.Join(sd, m.sub)
+		if err := os.MkdirAll(mp, 0o755); err != nil {
+			x.u.fail("cannot create state dir %s: %v", mp, err)
+			return nil, false
+		}
+		if spec.mode != 0 {
+			// MkdirAll perms pass through the umask; the virtiofs gate needs
+			// the literal mode, so stamp it explicitly.
+			if err := os.Chmod(mp, spec.mode); err != nil {
+				x.u.fail("cannot chmod state dir %s: %v", mp, err)
+				return nil, false
+			}
+		}
+	}
+	if spec.mode != 0 {
+		// The mount dirs carry a permissive mode for the container's own
+		// gate — clamp their UNMOUNTED parent to owner-only so other local
+		// users can't traverse to them. The container never sees the
+		// parent; only the mount dirs cross the boundary.
+		if err := os.Chmod(sd, 0o700); err != nil {
+			x.u.fail("cannot chmod state dir %s: %v", sd, err)
+			return nil, false
+		}
+	}
+	meta.KBRoot = root
+	meta.Did = loadKBIdentity(root).didWeb()
+	meta.Stores[role] = storeMeta{Image: image}
+	saveRootMeta(dir, meta)
+	return args, true
+}
+
 func (x *liveExec) val(live, _ string) string { return live }
 func (x *liveExec) rtName() string            { return x.rt }
 func (x *liveExec) dim(s string) string       { return x.u.dim(s) }
@@ -665,6 +727,18 @@ func (x *planExec) ensureModels(base string, models []string) {
 	if len(models) > 0 {
 		x.c("ensure ollama models present at %s (pull each missing one): %s", base, strings.Join(models, ", "))
 	}
+}
+
+// --dry-run computes the real state path (it is derivation, not effect) but
+// creates nothing and never refuses — the image-mismatch check reads disk,
+// a runtime fact the plan only names.
+func (x *planExec) stateMounts(role, _, root string) ([]string, bool) {
+	args := stateMountArgs(role, root)
+	if len(args) > 0 {
+		x.c("%s state: %s (created if absent; reused across restarts)",
+			role, stateStores[role].storeDir(root))
+	}
+	return args, true
 }
 
 func (x *planExec) val(_, plan string) string { return plan }

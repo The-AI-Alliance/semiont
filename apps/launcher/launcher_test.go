@@ -547,6 +547,349 @@ func TestStartDryRunLocalVersion(t *testing.T) {
 	checkGolden(t, "start-dryrun-local.txt", s.norm(stdout))
 }
 
+// --- local-stack state persistence (LAUNCHER-STATE.md) ---
+
+// stateRootFor mirrors the launcher's per-root state dir (dataDir) for the
+// scenario's fake HOME — GOOS-aware like statePathFor, though the suite's
+// home is the linux golang container in practice.
+func stateRootFor(home, key string) string {
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Application Support", "semiont", "roots", key)
+	}
+	return filepath.Join(home, ".local", "share", "semiont", "roots", key)
+}
+
+// testKBKey: the slug of the test KB's did:web (testdata/kb/.semiont/config).
+const testKBKey = "example.github.io-test-kb"
+
+func TestStatePersistsAcrossStarts(t *testing.T) {
+	s := newScenario(t, "container")
+	_, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("first start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	dir := stateRootFor(s.home, testKBKey)
+	meta, err := os.ReadFile(filepath.Join(dir, "meta.json"))
+	if err != nil {
+		t.Fatalf("meta.json after start: %v", err)
+	}
+	mustContain(t, "meta.json", string(meta), "postgres:15.18-alpine", s.kb)
+	if _, err := os.Stat(filepath.Join(dir, "postgres")); err != nil {
+		t.Fatalf("postgres state dir after start: %v", err)
+	}
+	// A second start must REUSE the same dir — that is the whole feature:
+	// the mount appears in both boots' argv, same path both times.
+	s.killServes()
+	_, stderr, code = s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mount := dir + "/postgres:/var/lib/postgresql/data"
+	if got := strings.Count(string(s.mustLog(t)), mount); got != 2 {
+		t.Errorf("state mount should appear in both boots (want 2, got %d)", got)
+	}
+}
+
+func TestStateImageMismatchRefuses(t *testing.T) {
+	s := newScenario(t, "container")
+	// Existing postgres data written by a DIFFERENT image version: the
+	// launcher must refuse — user rows are not a projection it may delete.
+	dir := stateRootFor(s.home, testKBKey)
+	pg := filepath.Join(dir, "postgres", "pgdata")
+	if err := os.MkdirAll(pg, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pg, "PG_VERSION"), []byte("14\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	meta := `{"kbRoot":"` + s.kb + `","stores":{"database":{"image":"postgres:14.9-alpine"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start")
+	if code == 0 {
+		t.Fatalf("start over another image's data must refuse\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "refusal", stdout+stderr,
+		"postgres:14.9-alpine",  // what wrote the data
+		"postgres:15.18-alpine", // what the plan wants
+		"semiont clean --store database") // the way out
+	if _, err := os.Stat(filepath.Join(pg, "PG_VERSION")); err != nil {
+		t.Error("a refusal must not touch the data dir")
+	}
+}
+
+func TestStateProjectionAutoCleans(t *testing.T) {
+	s := newScenario(t, "container")
+	// Graph/vectors are PROJECTIONS of the event log: data written by a
+	// different image is auto-cleaned (announced), never a refusal — the
+	// rebuild is the freshness guarantee. Contrast: the database refusal
+	// in TestStateImageMismatchRefuses.
+	dir := stateRootFor(s.home, testKBKey)
+	stale := filepath.Join(dir, "neo4j", "data", "databases")
+	if err := os.MkdirAll(stale, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stale, "stale.db"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	meta := `{"kbRoot":"` + s.kb + `","stores":{"graph":{"image":"neo4j:5.20.0-community"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("projection mismatch must not refuse: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "auto-clean announcement", stdout, "neo4j:5.20.0-community", "clearing")
+	if _, err := os.Stat(filepath.Join(stale, "stale.db")); err == nil {
+		t.Error("stale projection data survived the auto-clean")
+	}
+	newMeta, err := os.ReadFile(filepath.Join(dir, "meta.json"))
+	if err != nil {
+		t.Fatalf("meta.json after start: %v", err)
+	}
+	mustContain(t, "meta.json restamp", string(newMeta), "neo4j:5.26.28-community")
+	// The neo4j mount dirs must exist again (and 0777 for the virtiofs
+	// test -w gate its entrypoint runs).
+	for _, sub := range []string{"data", "logs"} {
+		fi, err := os.Stat(filepath.Join(dir, "neo4j", sub))
+		if err != nil {
+			t.Fatalf("neo4j %s dir after start: %v", sub, err)
+		}
+		if perm := fi.Mode().Perm(); perm != 0o777 {
+			t.Errorf("neo4j %s dir mode = %o, want 777 (neo4j's entrypoint gates on test -w)", sub, perm)
+		}
+	}
+	// ...while their UNMOUNTED parent is clamped owner-only, so the 0777
+	// leaves nothing traversable by other local users.
+	if fi, err := os.Stat(filepath.Join(dir, "neo4j")); err != nil {
+		t.Fatalf("neo4j store dir: %v", err)
+	} else if perm := fi.Mode().Perm(); perm != 0o700 {
+		t.Errorf("neo4j store dir mode = %o, want 700 (owner-only parent clamp)", perm)
+	}
+}
+
+func TestStatePathHashKeyWithoutDid(t *testing.T) {
+	s := newScenario(t, "container")
+	// A KB with no [site] domain has no did:web — the state key falls back
+	// to a stable hash of the root path.
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "config"),
+		[]byte("[project]\nname = \"No Did KB\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	if !regexp.MustCompile(`roots/path-[0-9a-f]{12}/postgres`).MatchString(stdout) {
+		t.Errorf("dry-run must show a path-hash state key; stdout:\n%s", stdout)
+	}
+}
+
+// --- clean ---
+
+// seedStateDir fabricates a populated per-root state dir with all three
+// stores and a fully-stamped meta.json.
+func seedStateDir(t *testing.T, s *scenario) string {
+	t.Helper()
+	dir := stateRootFor(s.home, testKBKey)
+	for sub, content := range map[string]string{
+		"postgres/pgdata/PG_VERSION": "15\n",
+		"qdrant/collections/spike":   strings.Repeat("q", 2048),
+		"neo4j/data/databases/x":     strings.Repeat("n", 1024),
+	} {
+		p := filepath.Join(dir, sub)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	meta := `{"kbRoot":"` + s.kb + `","did":"did:web:example.github.io:test-kb","stores":{` +
+		`"database":{"image":"postgres:15.18-alpine"},` +
+		`"vectors":{"image":"qdrant/qdrant:v1.18.3"},` +
+		`"graph":{"image":"neo4j:5.26.28-community"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestCleanDryRunListsAndKeeps(t *testing.T) {
+	s := newScenario(t)
+	dir := seedStateDir(t, s)
+	stdout, stderr, code := s.run(t, "clean", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "dry-run", stdout, "would remove", "dry-run")
+	if _, err := os.Stat(filepath.Join(dir, "postgres", "pgdata", "PG_VERSION")); err != nil {
+		t.Error("--dry-run removed data")
+	}
+}
+
+func TestCleanRemovesRootState(t *testing.T) {
+	s := newScenario(t)
+	dir := seedStateDir(t, s)
+	stdout, stderr, code := s.run(t, "clean")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "clean", stdout, "Removed")
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Errorf("state dir survived clean: %v", err)
+	}
+}
+
+func TestCleanStoreScopes(t *testing.T) {
+	s := newScenario(t)
+	dir := seedStateDir(t, s)
+	stdout, stderr, code := s.run(t, "clean", "--store", "vectors")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	// The success message names the STORE dir it removed, not the root —
+	// a scoped clean must not claim it wiped everything.
+	mustContain(t, "scoped message", stdout, filepath.Join(dir, "qdrant"))
+	if strings.Contains(stdout, "Removed "+dir+" ") {
+		t.Errorf("scoped clean claimed to remove the whole root:\n%s", stdout)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "qdrant")); !os.IsNotExist(err) {
+		t.Error("--store vectors left the qdrant dir")
+	}
+	for _, keep := range []string{"postgres", "neo4j"} {
+		if _, err := os.Stat(filepath.Join(dir, keep)); err != nil {
+			t.Errorf("--store vectors touched %s: %v", keep, err)
+		}
+	}
+	meta, err := os.ReadFile(filepath.Join(dir, "meta.json"))
+	if err != nil {
+		t.Fatalf("meta.json after scoped clean: %v", err)
+	}
+	if strings.Contains(string(meta), `"vectors"`) {
+		t.Error("vectors stamp survived its store's clean")
+	}
+	mustContain(t, "meta.json keeps other stamps", string(meta), `"database"`, `"graph"`)
+}
+
+func TestCleanRefusesRunningStack(t *testing.T) {
+	s := newScenario(t)
+	seedStateDir(t, s)
+	// A recorded local stack on this root: clean must refuse — those dirs
+	// may be mounted right now.
+	stack := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + s.kb +
+		`","kbDid":"did:web:example.github.io:test-kb","services":{}}}}`
+	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(stack), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "clean")
+	if code == 0 {
+		t.Fatalf("clean under a recorded stack must refuse\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "refusal", stdout+stderr, "semiont stop")
+	if _, err := os.Stat(stateRootFor(s.home, testKBKey)); err != nil {
+		t.Error("refusal must not remove anything")
+	}
+}
+
+func TestCleanOrphanKeyTarget(t *testing.T) {
+	s := newScenario(t)
+	// State whose KB no longer exists anywhere: targetable by its literal
+	// key, exactly as status names it.
+	orphan := stateRootFor(s.home, "gone.example.org-old-kb")
+	if err := os.MkdirAll(filepath.Join(orphan, "qdrant"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(orphan, "qdrant", "f"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "clean", "--root", "gone.example.org-old-kb")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, err := os.Stat(orphan); !os.IsNotExist(err) {
+		t.Error("orphan state survived clean --root <key>")
+	}
+}
+
+func TestStartServiceDatabaseMountsState(t *testing.T) {
+	s := newScenario(t, "container")
+	// --service must apply the SAME persistence rules as a full start: a
+	// database restarted alone that silently skipped its mount would write
+	// rows into a container that dies with it.
+	_, stderr, code := s.run(t, "start", "--service", "database")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	mount := filepath.Join(stateRootFor(s.home, testKBKey), "postgres") + ":/var/lib/postgresql/data"
+	mustContain(t, "service-mode state mount", string(s.mustLog(t)), mount)
+}
+
+func TestCleanRejectsTraversalKey(t *testing.T) {
+	s := newScenario(t)
+	dir := seedStateDir(t, s)
+	// A --root value that is not a plain key must never reach RemoveAll:
+	// "roots/.." is the data dir itself.
+	stdout, _, code := s.run(t, "clean", "--root", "..")
+	if code == 0 {
+		t.Fatalf("traversal --root value accepted\nstdout:\n%s", stdout)
+	}
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatalf("traversal --root removed state outside roots/: %v", err)
+	}
+}
+
+func TestCleanNothingToRemove(t *testing.T) {
+	s := newScenario(t)
+	stdout, stderr, code := s.run(t, "clean")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "no-op clean", stdout, "Nothing to remove")
+}
+
+func TestStatusVerboseDiskUsage(t *testing.T) {
+	s := newScenario(t, "container")
+	seedStateDir(t, s) // postgres 3 B, qdrant 2048 B, neo4j 1024 B
+	// A second, ORPHANED root: stamped kbRoot no longer exists.
+	orphan := stateRootFor(s.home, "gone.example.org-old-kb")
+	if err := os.MkdirAll(filepath.Join(orphan, "qdrant"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(orphan, "qdrant", "f"), []byte("xxxx"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(orphan, "meta.json"),
+		[]byte(`{"kbRoot":"/nowhere/does/not/exist","stores":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "status", "--verbose")
+	_ = code // status exit reflects health; the paths section prints regardless
+	_ = stderr
+	mustContain(t, "active-root data row", stdout,
+		"roots/"+testKBKey,
+		"postgres 3 B", "qdrant 2.0 KB", "neo4j 1.0 KB")
+	mustContain(t, "all-roots row", stdout,
+		"2 roots", "1 orphaned", "semiont clean --root gone.example.org-old-kb")
+}
+
+func TestStatusVerboseNoState(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, _, _ := s.run(t, "status", "--verbose")
+	// No state anywhere: the data row says so honestly — absent, not a
+	// zero-byte fiction.
+	mustContain(t, "data row absent", stdout, "data")
+	if strings.Contains(stdout, "0 B:") {
+		t.Errorf("absent state must read as absent, not zero bytes:\n%s", stdout)
+	}
+	mustContain(t, "no roots", stdout, "no persistent state")
+}
+
 // --- stop ---
 
 func TestStopSweepsAllRuntimes(t *testing.T) {

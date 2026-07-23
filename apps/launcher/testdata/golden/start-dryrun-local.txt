@@ -23,9 +23,11 @@ container rm semiont-weaver
 # SEMIONT_VERSION=local — using locally-built :local images (no pull)
 container run -d --name semiont-jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:1.76.0
 # wait: http://localhost:16686 (30s)
-container run -d --name semiont-neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
+# graph state: <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j (created if absent; reused across restarts)
+container run -d --name semiont-neo4j -p 7474:7474 -p 7687:7687 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/data:/data -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
 # wait: http://localhost:7474 (30s)
-container run -d --name semiont-qdrant -p 6333:6333 qdrant/qdrant:v1.18.3
+# vectors state: <home>/.local/share/semiont/roots/example.github.io-test-kb/qdrant (created if absent; reused across restarts)
+container run -d --name semiont-qdrant -p 6333:6333 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/qdrant:/qdrant/storage qdrant/qdrant:v1.18.3
 # wait: http://localhost:6333/readyz (15s)
 # probe: host Ollama at http://localhost:11434/api/version
 # if present — probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:11434/api/version" — and use it
@@ -38,7 +40,8 @@ container run -d --name semiont-ollama -p 11434:11434 -m 24G -v <ollama-volume>:
 # wait: http://localhost:11434/api/version (30s)
 # ensure ollama models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # embedding: externally provided at localhost:11434 — verify reachability, launch nothing
-container run -d --name semiont-postgres -p 5432:5432 -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
+# database state: <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres (created if absent; reused across restarts)
+container run -d --name semiont-postgres -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
 # wait: tcp localhost:5432 (20s)
 # probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432
 container run -d --name semiont-backend --publish 4000:4000 --memory 8G --volume <kb-root>:/kb --volume <config-stage>/backend.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env POSTGRES_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env SEMIONT_WORKER_SECRET=<worker-secret> ghcr.io/the-ai-alliance/semiont-backend:local
