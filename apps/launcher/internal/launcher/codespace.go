@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -255,7 +256,13 @@ func startCodespace(u *ui, opts startOptions) int {
 
 	// Health, not VM state, is readiness ("Available ≠ hooks finished" —
 	// on a fresh create the devcontainer hooks run minutes past Available).
-	u.log("Waiting for the stack %s", u.dim("(a fresh create runs devcontainer hooks — image and model pulls take minutes)"))
+	// Each path narrates ITS wait: a resume borrowing the fresh-create
+	// wording promised minutes for a gate that usually opens in seconds.
+	if created {
+		u.log("Waiting for the stack %s", u.dim("(a fresh create runs devcontainer hooks — image and model pulls take minutes)"))
+	} else {
+		u.log("Waiting for the stack %s", u.dim("(resume: the VM wakes already provisioned — usually seconds)"))
+	}
 	// A fresh create narrates its hooks: tail the creation log while the
 	// health gate waits. Resume tails nothing — its creation log is old.
 	var tail *creationLogTail
@@ -704,6 +711,9 @@ func startCreationLogTail(u *ui, name string) *creationLogTail {
 	lt := &creationLogTail{u: u, cmd: cmd, lastBeat: time.Now()}
 	go func() {
 		sc := bufio.NewScanner(out)
+		// Compose rewrites progress with bare \r; \n-only splitting
+		// stitched those fragments into mega-lines (observed live).
+		sc.Split(splitCRLines)
 		for sc.Scan() {
 			line := strings.TrimRight(sc.Text(), " \t")
 			if line == "" {
@@ -746,12 +756,42 @@ func (lt *creationLogTail) tick(elapsed time.Duration) {
 	for _, ln := range lines {
 		// Hard truncation keeps every window line to one terminal row —
 		// a wrapped line would break the cursor-up arithmetic.
-		if len(ln) > 100 {
-			ln = ln[:100] + "…"
-		}
-		fmt.Printf("\033[K  %s\n", lt.u.dim(ln))
+		fmt.Printf("\033[K  %s\n", lt.u.dim(truncateLine(ln, 100)))
 	}
 	lt.rendered = len(lines)
+}
+
+// truncateLine keeps a line to at most max runes plus an ellipsis. Rune
+// units, not bytes: compose output is full of box-drawing characters, and
+// a byte slice cut one in half on the first live run (─────? …).
+func truncateLine(s string, max int) string {
+	if len(s) <= max { // byte length ≤ max implies rune count ≤ max
+		return s
+	}
+	n := 0
+	for i := range s {
+		if n == max {
+			return s[:i] + "…"
+		}
+		n++
+	}
+	return s
+}
+
+// splitCRLines is a bufio.SplitFunc treating \r and \n alike as line ends —
+// compose progress rewrites lines with bare \r, and \n-only splitting
+// stitched those fragments together.
+func splitCRLines(data []byte, atEOF bool) (int, []byte, error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	if i := bytes.IndexAny(data, "\r\n"); i >= 0 {
+		return i + 1, data[:i], nil
+	}
+	if atEOF {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
 }
 
 // stop kills the follower and, on a terminal, collapses the window so the

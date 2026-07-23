@@ -1592,7 +1592,13 @@ func TestCodespaceBareResumeRootless(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout,
 		"Using recorded stack's runtime: codespace",
-		"Resuming recorded codespace fake-cs-1")
+		"Resuming recorded codespace fake-cs-1",
+		// The wait narrates a RESUME, not a fresh create — the VM wakes
+		// with the stack already provisioned.
+		"already provisioned")
+	if strings.Contains(stdout, "a fresh create runs devcontainer hooks") {
+		t.Errorf("resume borrowed the fresh-create wait wording:\n%s", stdout)
+	}
 	log, _ := os.ReadFile(s.log)
 	if strings.Contains(string(log), "codespace create") {
 		t.Errorf("resume created a new codespace:\n%s", log)
