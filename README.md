@@ -47,14 +47,19 @@ Then `cd` into the KB repo you just cloned — **not this repo** — and run:
 
 ```bash
 semiont start
-semiont useradd --email admin@example.com --password <choose-a-password> --admin
 ```
 
-One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **and ensures the Semiont browser is running at http://localhost:3000**. `semiont useradd` then creates the admin user you'll sign in with. `semiont logs` follows the stack and `semiont stop` tears it down — the browser stays up (it's the machine-level viewer of every KB, not a stack member; `semiont stop --service frontend` closes it). `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
+One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **and ensures the Semiont browser is running at http://localhost:3000**. `semiont logs` follows the stack and `semiont stop` tears it down — the browser stays up (it's the machine-level viewer of every KB, not a stack member; `semiont stop --service frontend` closes it). `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
 
 ### 3. Connect
 
-Open **http://localhost:3000**. The Semiont browser's Knowledge Bases panel discovers launcher-managed stacks automatically — pick yours and sign in with the email and password from step 2. (Connecting to a KB the launcher doesn't know about? Enter its host and port by hand, e.g. `localhost` / `4000`.)
+Create your admin user:
+
+```bash
+semiont useradd --email admin@example.com --password <choose-a-password> --admin
+```
+
+Then open **http://localhost:3000**. The Semiont browser's Knowledge Bases panel discovers launcher-managed stacks automatically — pick yours and sign in with the email and password you just created. (Connecting to a KB the launcher doesn't know about? Enter its host and port by hand, e.g. `localhost` / `4000`.)
 
 ![Connect to knowledge base](website/assets/images/connect-kb.png)
 

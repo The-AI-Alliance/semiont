@@ -63,10 +63,13 @@ Clone a knowledge-base repo — the empty template for a new project (or birth o
 git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
 cd semiont-gutenberg-kb
 semiont start
-semiont useradd --email admin@example.com --password <choose-a-password> --admin
 ```
 
-One command brings up the whole stack from published, attested container images — including the Semiont browser. Open **http://localhost:3000** and sign in with the credentials you chose.
+One command brings up the whole stack from published, attested container images — including the Semiont browser. Create your admin user and sign in at **http://localhost:3000**:
+
+```bash
+semiont useradd --email admin@example.com --password <choose-a-password> --admin
+```
 
 Explore the knowledge bases:
 
