@@ -1756,7 +1756,7 @@ func TestCodespaceMachinePreflight(t *testing.T) {
 	s := newCodespaceScenario(t)
 	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
 	if code != 0 {
-		t.Fatalf("default: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("default: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log),
@@ -1767,11 +1767,12 @@ func TestCodespaceMachinePreflight(t *testing.T) {
 	}
 
 	// No premium: fall back to the largest offered, announced with the reason.
+	s.killServes() // free the parked forward: THIS test is about machine selection, not port laddering
 	s2 := newCodespaceScenario(t)
 	s2.extraEnv = append(s2.extraEnv, only("standardLinux32gb"))
 	stdout, stderr, code = s2.run(t, "start", "--runtime", "codespace")
 	if code != 0 {
-		t.Fatalf("fallback: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("fallback: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "fallback stdout", stdout,
 		"premiumLinux isn't available to you for "+csRepo,
@@ -1780,19 +1781,21 @@ func TestCodespaceMachinePreflight(t *testing.T) {
 	mustContain(t, "argv log", string(log), "--machine standardLinux32gb")
 
 	// Largest wins the fallback, not merely the first offered.
+	s2.killServes() // free the parked forward: THIS test is about machine selection, not port laddering
 	s3 := newCodespaceScenario(t)
 	s3.extraEnv = append(s3.extraEnv, only("standardLinux32gb", "largePremiumLinux"))
 	if _, stderr, code := s3.run(t, "start", "--runtime", "codespace"); code != 0 {
-		t.Fatalf("largest: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("largest: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	log, _ = os.ReadFile(s3.log)
 	mustContain(t, "argv log", string(log), "--machine largePremiumLinux")
 
 	// Explicit and available: used, no announcement.
+	s3.killServes() // free the parked forward: THIS test is about machine selection, not port laddering
 	s4 := newCodespaceScenario(t)
 	stdout, stderr, code = s4.run(t, "start", "--runtime", "codespace", "--machine", "standardLinux32gb")
 	if code != 0 {
-		t.Fatalf("explicit: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("explicit: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	log, _ = os.ReadFile(s4.log)
 	mustContain(t, "argv log", string(log), "--machine standardLinux32gb")
