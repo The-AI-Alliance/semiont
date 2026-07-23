@@ -551,7 +551,14 @@ func flowOneService(x executor, fc flowCtx) int {
 	case "graph", "vectors", "database":
 		rp := fc.plan.Roles[svc]
 		disp := driverDisplay(svc, rp.Driver)
-		args := providedRunArgs(svc, rp)
+		// The same persistence rules as a full start (LAUNCHER-STATE.md): a
+		// lone database restart that skipped its mount would write rows into
+		// a container that dies with it.
+		extra, ok := x.stateMounts(svc, rp.Image, fc.root)
+		if !ok {
+			return 1
+		}
+		args := providedRunArgs(svc, rp, extra...)
 		id, ok := x.runDetached(args)
 		if !ok {
 			x.say(sayFail, "%s (%s) failed to start.", svc, disp)

@@ -2,7 +2,9 @@ package launcher
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
@@ -630,10 +632,12 @@ func printLauncherPaths(u *ui) {
 			roots++
 			sz, _ := dirSize(filepath.Join(rootsDir, e.Name()))
 			total += sz
-			// Orphan = the stamped kb path no longer exists. A dir without a
-			// readable stamp is counted but never accused.
+			// Orphan = the stamped kb path DOES NOT EXIST — only that.
+			// Permission or IO errors are unknowns, and unknown is not
+			// missing; a dir without a readable stamp is counted, never
+			// accused.
 			if m := loadRootMeta(filepath.Join(rootsDir, e.Name())); m.KBRoot != "" {
-				if _, statErr := os.Stat(m.KBRoot); statErr != nil {
+				if _, statErr := os.Stat(m.KBRoot); errors.Is(statErr, fs.ErrNotExist) {
 					orphanKeys = append(orphanKeys, e.Name())
 				}
 			}

@@ -549,9 +549,13 @@ func TestStartDryRunLocalVersion(t *testing.T) {
 
 // --- local-stack state persistence (LAUNCHER-STATE.md) ---
 
-// stateRootFor mirrors the launcher's per-root state dir for the scenario's
-// fake HOME (tests run on linux, so the XDG data home).
+// stateRootFor mirrors the launcher's per-root state dir (dataDir) for the
+// scenario's fake HOME — GOOS-aware like statePathFor, though the suite's
+// home is the linux golang container in practice.
 func stateRootFor(home, key string) string {
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Application Support", "semiont", "roots", key)
+	}
 	return filepath.Join(home, ".local", "share", "semiont", "roots", key)
 }
 
@@ -657,6 +661,13 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 			t.Errorf("neo4j %s dir mode = %o, want 777 (neo4j's entrypoint gates on test -w)", sub, perm)
 		}
 	}
+	// ...while their UNMOUNTED parent is clamped owner-only, so the 0777
+	// leaves nothing traversable by other local users.
+	if fi, err := os.Stat(filepath.Join(dir, "neo4j")); err != nil {
+		t.Fatalf("neo4j store dir: %v", err)
+	} else if perm := fi.Mode().Perm(); perm != 0o700 {
+		t.Errorf("neo4j store dir mode = %o, want 700 (owner-only parent clamp)", perm)
+	}
 }
 
 func TestStatePathHashKeyWithoutDid(t *testing.T) {
@@ -735,9 +746,15 @@ func TestCleanRemovesRootState(t *testing.T) {
 func TestCleanStoreScopes(t *testing.T) {
 	s := newScenario(t)
 	dir := seedStateDir(t, s)
-	_, stderr, code := s.run(t, "clean", "--store", "vectors")
+	stdout, stderr, code := s.run(t, "clean", "--store", "vectors")
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	// The success message names the STORE dir it removed, not the root —
+	// a scoped clean must not claim it wiped everything.
+	mustContain(t, "scoped message", stdout, filepath.Join(dir, "qdrant"))
+	if strings.Contains(stdout, "Removed "+dir+" ") {
+		t.Errorf("scoped clean claimed to remove the whole root:\n%s", stdout)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "qdrant")); !os.IsNotExist(err) {
 		t.Error("--store vectors left the qdrant dir")
@@ -797,6 +814,33 @@ func TestCleanOrphanKeyTarget(t *testing.T) {
 	}
 	if _, err := os.Stat(orphan); !os.IsNotExist(err) {
 		t.Error("orphan state survived clean --root <key>")
+	}
+}
+
+func TestStartServiceDatabaseMountsState(t *testing.T) {
+	s := newScenario(t, "container")
+	// --service must apply the SAME persistence rules as a full start: a
+	// database restarted alone that silently skipped its mount would write
+	// rows into a container that dies with it.
+	_, stderr, code := s.run(t, "start", "--service", "database")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	mount := filepath.Join(stateRootFor(s.home, testKBKey), "postgres") + ":/var/lib/postgresql/data"
+	mustContain(t, "service-mode state mount", string(s.mustLog(t)), mount)
+}
+
+func TestCleanRejectsTraversalKey(t *testing.T) {
+	s := newScenario(t)
+	dir := seedStateDir(t, s)
+	// A --root value that is not a plain key must never reach RemoveAll:
+	// "roots/.." is the data dir itself.
+	stdout, _, code := s.run(t, "clean", "--root", "..")
+	if code == 0 {
+		t.Fatalf("traversal --root value accepted\nstdout:\n%s", stdout)
+	}
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatalf("traversal --root removed state outside roots/: %v", err)
 	}
 }
 

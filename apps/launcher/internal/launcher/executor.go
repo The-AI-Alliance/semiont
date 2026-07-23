@@ -528,6 +528,16 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 			}
 		}
 	}
+	if spec.mode != 0 {
+		// The mount dirs carry a permissive mode for the container's own
+		// gate — clamp their UNMOUNTED parent to owner-only so other local
+		// users can't traverse to them. The container never sees the
+		// parent; only the mount dirs cross the boundary.
+		if err := os.Chmod(sd, 0o700); err != nil {
+			x.u.fail("cannot chmod state dir %s: %v", sd, err)
+			return nil, false
+		}
+	}
 	meta.KBRoot = root
 	meta.Did = loadKBIdentity(root).didWeb()
 	meta.Stores[role] = storeMeta{Image: image}

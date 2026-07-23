@@ -79,40 +79,53 @@ func Clean(args []string) int {
 		return 1
 	}
 
-	type target struct{ label, path string }
+	type target struct {
+		label, path string
+		size        int64
+	}
 	var targets []target
 	if store != "" {
-		targets = append(targets, target{store, filepath.Join(dir, stateStores[store].dir)})
+		targets = append(targets, target{store, filepath.Join(dir, stateStores[store].dir), 0})
 	} else {
-		targets = append(targets, target{"all stores (" + key + ")", dir})
+		targets = append(targets, target{"all stores (" + key + ")", dir, 0})
 	}
 
-	var total int64
-	found := false
+	var kept []target
 	for _, tg := range targets {
 		sz, exists := dirSize(tg.path)
 		if !exists {
 			continue
 		}
-		found = true
-		total += sz
+		tg.size = sz
+		kept = append(kept, tg)
 		if dryRun {
 			u.log("would remove %s — %s (%s)", tg.path, humanBytes(sz), tg.label)
 		}
 	}
-	if !found {
-		u.log("Nothing to remove: no state at %s", dir)
+	if len(kept) == 0 {
+		if store != "" {
+			u.log("Nothing to remove: no %s state under %s", store, dir)
+		} else {
+			u.log("Nothing to remove: no state at %s", dir)
+		}
 		return 0
 	}
 	if dryRun {
+		var total int64
+		for _, tg := range kept {
+			total += tg.size
+		}
 		u.log("Total: %s %s", humanBytes(total), u.dim("(dry-run; nothing removed)"))
 		return 0
 	}
-	for _, tg := range targets {
+	for _, tg := range kept {
 		if err := os.RemoveAll(tg.path); err != nil {
 			u.fail("cannot remove %s: %v", tg.path, err)
 			return 1
 		}
+		// Name what was actually removed — a scoped clean removes ONE
+		// store's dir, never the root's.
+		u.ok("Removed %s — %s freed.", tg.path, humanBytes(tg.size))
 	}
 	// A scoped clean drops that store's stamp too, so the next start sees
 	// first-use, not a mismatch against thin air. A full clean removed
@@ -122,7 +135,6 @@ func Clean(args []string) int {
 		delete(meta.Stores, store)
 		saveRootMeta(dir, meta)
 	}
-	u.ok("Removed %s — %s freed.", dir, humanBytes(total))
 	return 0
 }
 
@@ -151,9 +163,13 @@ func cleanTarget(u *ui, rootArg string) (key, dir string, code int) {
 			key = rootKey(root)
 			break
 		}
-		if fi, statErr := os.Stat(filepath.Join(d, "roots", rootArg)); statErr == nil && fi.IsDir() {
-			key = rootArg
-			break
+		// A literal key must be a plain basename — anything else (".."; a
+		// path) would let RemoveAll reach outside roots/.
+		if rootArg == filepath.Base(rootArg) && rootArg != "." && rootArg != ".." {
+			if fi, statErr := os.Stat(filepath.Join(d, "roots", rootArg)); statErr == nil && fi.IsDir() {
+				key = rootArg
+				break
+			}
 		}
 		u.fail("%v", err)
 		fmt.Fprintf(os.Stderr, "  (and no state key %q under %s)\n", rootArg, filepath.Join(d, "roots"))
