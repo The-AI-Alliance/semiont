@@ -193,8 +193,12 @@ semiont stop
   running here, headed by the root it belongs to and its did:web), LOCAL
   ROOTS, REMOTE KNOWLEDGE BASES (codespace-hosted KBs, their state, and each
   KB's local port). `--verbose` adds LAUNCHER PATHS — the launcher's own
-  config, cache, log, state, staging and model-cache paths, which describe the
-  tool rather than any KB. Roots and KBs are the durable
+  config, cache, log, state, staging and model-cache paths, plus the
+  persistent per-root stack state with its disk consumption: a `data` row
+  for the current root (per-store breakdown — postgres, qdrant, neo4j) and
+  an `all roots` row totaling every root, with orphaned state (its KB
+  directory no longer exists) called out alongside the `semiont clean
+  --root <key>` that removes it. Roots and KBs are the durable
   things; a stack is status layered on one of them. Per service it
   shows the container STATE as the runtime sees it plus a host-side health
   probe, with the concrete product in the service cell (`database

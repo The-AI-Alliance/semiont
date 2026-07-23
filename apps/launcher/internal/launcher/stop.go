@@ -12,7 +12,9 @@ const stopUsage = `Usage: semiont stop [--service <name>] [--runtime container|d
 
 Stop the whole Semiont stack — services, dependencies, and observability —
 and clean up the staged config copies. Safe to run when nothing is up:
-every step is a no-op then.
+every step is a no-op then. Persistent stack state (PostgreSQL, Qdrant,
+Neo4j data) is deliberately LEFT: the next start reuses it. Removing it is
+its own explicit command: semiont clean.
 
 With no --runtime, EVERY installed runtime is swept — stopping via the wrong
 runtime is a silent no-op that leaves the real stack running.
