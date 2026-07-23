@@ -326,6 +326,20 @@ func TestStartDefaultBoot(t *testing.T) {
 	mustContain(t, "stdout", stdout, "SEMIONT_WORKER_SECRET=<redacted>")
 }
 
+func TestStartDaemonDownAdvisesSystemStart(t *testing.T) {
+	s := newScenario(t, "container")
+	// The Apple container apiserver is down: the first command that NEEDS
+	// an answer is the host-address probe, so daemon-down surfaces there
+	// wearing a networking costume. The failure must diagnose the actual
+	// condition and name the fix.
+	s.extraEnv = append(s.extraEnv, "FAKERT_DAEMON_DOWN=1")
+	stdout, stderr, code := s.run(t, "start")
+	if code == 0 {
+		t.Fatalf("start with the daemon down must fail\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	mustContain(t, "daemon-down fix-it", stdout+stderr, "container system start")
+}
+
 func TestStartRuntimeDockerBoot(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
 	s.extraEnv = append(s.extraEnv, "FAKERT_NSLOOKUP=ok")
@@ -4078,8 +4092,20 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 	}
 	// The stack's port claims must NOT include the Browser's 3000 — stop
 	// verifies release of stack ports, and the Browser keeps running.
-	if strings.Contains(string(rec), "3000") && strings.Contains(strings.Split(string(rec), `"browser"`)[0], "3000") {
-		t.Errorf("browser port recorded among the stack's claims:\n%s", rec)
+	// Assert on the PARSED claims, not a raw substring: a nanosecond
+	// startedAt containing "3000" flaked this in CI (run 29972367456).
+	var claims struct {
+		Stacks map[string]struct {
+			Ports []int `json:"ports"`
+		} `json:"stacks"`
+	}
+	if err := json.Unmarshal(rec, &claims); err != nil {
+		t.Fatalf("stack.json: %v", err)
+	}
+	for _, p := range claims.Stacks["local"].Ports {
+		if p == 3000 {
+			t.Errorf("browser port recorded among the stack's claims:\n%s", rec)
+		}
 	}
 
 	// Bare stop: stack down, Browser untouched and announced. Slice the

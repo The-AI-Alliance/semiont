@@ -295,10 +295,38 @@ func (x *liveExec) resolveAddr() (string, bool) {
 	addr := resolveHostAddr(x.rt)
 	if addr == "" {
 		x.u.fail("Could not determine host address for container networking.")
-		fmt.Fprintln(os.Stderr, "  Neither the runtime's host alias nor the default-gateway probe returned a result.")
+		if fixit := daemonDownFixit(x.rt); fixit != "" {
+			fmt.Fprintln(os.Stderr, "  "+fixit)
+		} else {
+			fmt.Fprintln(os.Stderr, "  Neither the runtime's host alias nor the default-gateway probe returned a result.")
+		}
 		return "", false
 	}
 	return addr, true
+}
+
+// daemonDownFixit: an empty host-address probe usually isn't networking at
+// all — the runtime's daemon is down, and the probe is merely the first
+// command in a start whose failure is fatal (the preflight sweeps that run
+// before it swallow their errors). Ask the runtime directly; when its own
+// liveness check fails, say WHICH check failed and name the likely fix —
+// a failed check is evidence, not proof, so the wording claims no more.
+func daemonDownFixit(rt string) string {
+	switch rt {
+	case "container":
+		if runSilent(rt, "system", "status") != nil {
+			return "`container system status` failed — the runtime's API server looks down. Start it: container system start"
+		}
+	case "docker":
+		if runSilent(rt, "info") != nil {
+			return "`docker info` failed — the Docker daemon looks unreachable. Start Docker Desktop (or dockerd), then retry."
+		}
+	case "podman":
+		if runSilent(rt, "info") != nil {
+			return "`podman info` failed — the Podman machine looks unreachable. Start it: podman machine start"
+		}
+	}
+	return ""
 }
 
 func (x *liveExec) either(cond func() bool, then, els func() int) int {
