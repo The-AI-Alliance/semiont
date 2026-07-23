@@ -1574,6 +1574,26 @@ func TestCodespaceStartCreates(t *testing.T) {
 	}
 }
 
+func TestCodespaceForwardDeathFailsFast(t *testing.T) {
+	// The mid-wait forward death observed live 2026-07-23: the tunnel
+	// bound, then its process died while the health gate polled — and the
+	// launcher burned the full budget blaming an innocent KB. A dead
+	// forward must fail FAST, name the forward, and point at the rerun.
+	s := newCodespaceScenario(t)
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_GH_FORWARD_SICK=1",             // bound, but health never OK
+		"FAKERT_GH_FORWARD_DIES_AFTER_MS=2500") // dies during the health wait
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code == 0 {
+		t.Fatalf("start must fail when the forward dies\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "diagnosis", stdout+stderr,
+		"port forward", "died", "semiont start")
+	if strings.Contains(stdout+stderr, "did not become ready") {
+		t.Errorf("forward death misblamed the KB:\n%s\n%s", stdout, stderr)
+	}
+}
+
 func TestCodespaceBareResumeRootless(t *testing.T) {
 	// After a create, a BARE `semiont start` from any directory resumes the
 	// recorded codespace: no --repo, no clone, no root discovery, no create.

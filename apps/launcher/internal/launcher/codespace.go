@@ -218,7 +218,7 @@ func startCodespace(u *ui, opts startOptions) int {
 	if code := ensureCodespaceAvailable(u, repo, name); code != 0 {
 		return code
 	}
-	pid, code := spawnForward(u, name, kbPort)
+	pid, fwdDead, code := spawnForward(u, name, kbPort)
 	if code != 0 {
 		return code
 	}
@@ -269,7 +269,22 @@ func startCodespace(u *ui, opts startOptions) int {
 	if created {
 		tail = startCreationLogTail(u, name)
 	}
-	d, ok := waitForHTTPTick(u, "KB (through the forward)", fmt.Sprintf("http://localhost:%d/api/health", kbPort), 600, tail.tick)
+	// Each tick renders the window AND takes the forward's pulse: a tunnel
+	// that dies mid-wait must fail in seconds with the true diagnosis, not
+	// burn the whole budget blaming a KB that may be healthy (observed
+	// live 2026-07-23 — 600s spent polling a defunct forward).
+	tick := func(elapsed time.Duration) bool {
+		tail.tick(elapsed)
+		select {
+		case <-fwdDead:
+			u.fail("The port forward (pid %d) died after %s — the stack may be fine.", pid, took(elapsed))
+			fmt.Fprintln(os.Stderr, "  Rerun to respawn it:  semiont start --runtime codespace --repo "+repo)
+			return false
+		default:
+			return true
+		}
+	}
+	d, ok := waitForHTTPTick(u, "KB (through the forward)", fmt.Sprintf("http://localhost:%d/api/health", kbPort), 600, tick)
 	tail.stop()
 	if !ok {
 		return 1
@@ -813,8 +828,10 @@ func (lt *creationLogTail) stop() {
 // spawnForward starts the detached dev-tunnel forward for this stack's KB
 // port — a long-lived process the bring-up-and-exit launcher deliberately
 // leaves behind, PID + port recorded (status re-establishes it, stop kills
-// it). Each codespace stack runs its own.
-func spawnForward(u *ui, name string, kbPort int) (int, int) {
+// it). Each codespace stack runs its own. The returned channel closes if
+// the forward dies while THIS launcher still runs — the health gate's
+// fail-fast signal.
+func spawnForward(u *ui, name string, kbPort int) (int, <-chan struct{}, int) {
 	// Argument order is <codespacePort>:<localPort> — NOT the reverse.
 	// Getting it backwards forwards a port nothing serves onto a local port
 	// something else may already own: gh then fails to bind but the process
@@ -828,12 +845,21 @@ func spawnForward(u *ui, name string, kbPort int) (int, int) {
 	cmd.Stdout, cmd.Stderr = nil, nil
 	if err := cmd.Start(); err != nil {
 		u.fail("Could not start the port forward: %v", err)
-		return 0, 1
+		return 0, nil, 1
 	}
 	pid := cmd.Process.Pid
-	_ = cmd.Process.Release()
+	// A reaping Wait (not Release): the observed mid-wait death left a
+	// ZOMBIE, and a zombie still passes kill-0 aliveness — only Wait both
+	// reaps it and yields a truthful death signal for the health gate.
+	// The child still outlives a normally-exiting launcher: Wait blocks in
+	// a goroutine that dies with the process, killing nothing.
+	dead := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(dead)
+	}()
 	u.log("Port forward running %s", u.dim(fmt.Sprintf("(detached, pid %d — recorded; semiont stop ends it)", pid)))
-	return pid, 0
+	return pid, dead, 0
 }
 
 type adminCreds struct {
@@ -1103,7 +1129,7 @@ func statusCodespace(u *ui, st *stackState, refresh bool) int {
 		if st.ForwardPort == 0 {
 			st.ForwardPort = allocateKBPort(loadStackSet(), st.Repo)
 		}
-		if pid, code := spawnForward(u, st.Codespace, st.ForwardPort); code == 0 {
+		if pid, _, code := spawnForward(u, st.Codespace, st.ForwardPort); code == 0 {
 			st.ForwardPID = pid
 			saveStack(st)
 		}

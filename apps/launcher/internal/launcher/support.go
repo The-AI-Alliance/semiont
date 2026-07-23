@@ -275,9 +275,12 @@ func waitForHTTP(u *ui, name, url string, seconds int) (time.Duration, bool) {
 }
 
 // waitForHTTPTick is waitForHTTP with a per-iteration hook — the seam the
-// codespace health wait uses to render its creation-log window without a
-// second wait loop that could drift from this one's deadline discipline.
-func waitForHTTPTick(u *ui, name, url string, seconds int, tick func(elapsed time.Duration)) (time.Duration, bool) {
+// codespace health wait uses to render its creation-log window and watch
+// the forward's pulse without a second wait loop that could drift from
+// this one's deadline discipline. A tick returning false ABORTS the wait:
+// the tick has diagnosed and printed the real failure (a dead forward),
+// so the generic did-not-become-ready message must not overwrite it.
+func waitForHTTPTick(u *ui, name, url string, seconds int, tick func(elapsed time.Duration) bool) (time.Duration, bool) {
 	t0 := time.Now()
 	deadline := t0.Add(time.Duration(seconds) * time.Second)
 	for {
@@ -287,8 +290,8 @@ func waitForHTTPTick(u *ui, name, url string, seconds int, tick func(elapsed tim
 		if !time.Now().Before(deadline) {
 			break
 		}
-		if tick != nil {
-			tick(time.Since(t0))
+		if tick != nil && !tick(time.Since(t0)) {
+			return time.Since(t0), false
 		}
 		time.Sleep(time.Second)
 	}
