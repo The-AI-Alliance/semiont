@@ -625,8 +625,8 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 		t.Fatalf("start over another image's data must refuse\nstdout:\n%s", stdout)
 	}
 	mustContain(t, "refusal", stdout+stderr,
-		"postgres:14.9-alpine",  // what wrote the data
-		"postgres:15.18-alpine", // what the plan wants
+		"postgres:14.9-alpine",           // what wrote the data
+		"postgres:15.18-alpine",          // what the plan wants
 		"semiont clean --store database") // the way out
 	if _, err := os.Stat(filepath.Join(pg, "PG_VERSION")); err != nil {
 		t.Error("a refusal must not touch the data dir")
@@ -1546,6 +1546,12 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"KB repo: "+csRepo,
 		"Starting a CODESPACE for", "as PUSHED", "uncommitted changes",
 		"Creating codespace for "+csRepo,
+		// The health wait tails the creation log on the CREATE path (a
+		// resume's creation log is stale history). The echoed command is
+		// the deterministic observable — in the fake world health passes
+		// on the first probe and the follower is killed before it can
+		// exec, so the argv log may legitimately never see it.
+		"gh codespace logs --follow -c fake-cs-1",
 		"Reading admin credentials",
 		"Semiont KB is up in codespace fake-cs-1",
 		"Semiont KB         http://localhost:4000",
@@ -1568,6 +1574,26 @@ func TestCodespaceStartCreates(t *testing.T) {
 	}
 }
 
+func TestCodespaceForwardDeathFailsFast(t *testing.T) {
+	// The mid-wait forward death observed live 2026-07-23: the tunnel
+	// bound, then its process died while the health gate polled — and the
+	// launcher burned the full budget blaming an innocent KB. A dead
+	// forward must fail FAST, name the forward, and point at the rerun.
+	s := newCodespaceScenario(t)
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_GH_FORWARD_SICK=1",             // bound, but health never OK
+		"FAKERT_GH_FORWARD_DIES_AFTER_MS=2500") // dies during the health wait
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code == 0 {
+		t.Fatalf("start must fail when the forward dies\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "diagnosis", stdout+stderr,
+		"port forward", "died", "semiont start")
+	if strings.Contains(stdout+stderr, "did not become ready") {
+		t.Errorf("forward death misblamed the KB:\n%s\n%s", stdout, stderr)
+	}
+}
+
 func TestCodespaceBareResumeRootless(t *testing.T) {
 	// After a create, a BARE `semiont start` from any directory resumes the
 	// recorded codespace: no --repo, no clone, no root discovery, no create.
@@ -1586,7 +1612,13 @@ func TestCodespaceBareResumeRootless(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout,
 		"Using recorded stack's runtime: codespace",
-		"Resuming recorded codespace fake-cs-1")
+		"Resuming recorded codespace fake-cs-1",
+		// The wait narrates a RESUME, not a fresh create — the VM wakes
+		// with the stack already provisioned.
+		"already provisioned")
+	if strings.Contains(stdout, "a fresh create runs devcontainer hooks") {
+		t.Errorf("resume borrowed the fresh-create wait wording:\n%s", stdout)
+	}
 	log, _ := os.ReadFile(s.log)
 	if strings.Contains(string(log), "codespace create") {
 		t.Errorf("resume created a new codespace:\n%s", log)
@@ -1724,7 +1756,7 @@ func TestCodespaceMachinePreflight(t *testing.T) {
 	s := newCodespaceScenario(t)
 	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
 	if code != 0 {
-		t.Fatalf("default: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("default: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log),
@@ -1735,11 +1767,12 @@ func TestCodespaceMachinePreflight(t *testing.T) {
 	}
 
 	// No premium: fall back to the largest offered, announced with the reason.
+	s.killServes() // free the parked forward: THIS test is about machine selection, not port laddering
 	s2 := newCodespaceScenario(t)
 	s2.extraEnv = append(s2.extraEnv, only("standardLinux32gb"))
 	stdout, stderr, code = s2.run(t, "start", "--runtime", "codespace")
 	if code != 0 {
-		t.Fatalf("fallback: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("fallback: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "fallback stdout", stdout,
 		"premiumLinux isn't available to you for "+csRepo,
@@ -1748,19 +1781,21 @@ func TestCodespaceMachinePreflight(t *testing.T) {
 	mustContain(t, "argv log", string(log), "--machine standardLinux32gb")
 
 	// Largest wins the fallback, not merely the first offered.
+	s2.killServes() // free the parked forward: THIS test is about machine selection, not port laddering
 	s3 := newCodespaceScenario(t)
 	s3.extraEnv = append(s3.extraEnv, only("standardLinux32gb", "largePremiumLinux"))
 	if _, stderr, code := s3.run(t, "start", "--runtime", "codespace"); code != 0 {
-		t.Fatalf("largest: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("largest: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	log, _ = os.ReadFile(s3.log)
 	mustContain(t, "argv log", string(log), "--machine largePremiumLinux")
 
 	// Explicit and available: used, no announcement.
+	s3.killServes() // free the parked forward: THIS test is about machine selection, not port laddering
 	s4 := newCodespaceScenario(t)
 	stdout, stderr, code = s4.run(t, "start", "--runtime", "codespace", "--machine", "standardLinux32gb")
 	if code != 0 {
-		t.Fatalf("explicit: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("explicit: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	log, _ = os.ReadFile(s4.log)
 	mustContain(t, "argv log", string(log), "--machine standardLinux32gb")

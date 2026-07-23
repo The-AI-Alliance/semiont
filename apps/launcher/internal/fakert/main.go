@@ -292,6 +292,25 @@ func ghCodespace(args []string, joined string) {
 		// Real gh takes <codespacePort>:<localPort> and listens on the
 		// LOCAL one. Modelling this correctly is what would have caught the
 		// reversed-argument bug found live on 2026-07-20.
+		//
+		// FAKERT_GH_FORWARD_SICK: the tunnel is bound but the stack behind
+		// it answers 503 (backend still warming). FAKERT_GH_FORWARD_DIES_
+		// AFTER_MS: the forward process exits after that delay — the
+		// mid-wait death observed live on 2026-07-23 (pid went defunct
+		// while the KB was healthy in the codespace).
+		if ms := os.Getenv("FAKERT_GH_FORWARD_DIES_AFTER_MS"); ms != "" {
+			if n, err := strconv.Atoi(ms); err == nil {
+				go func() {
+					time.Sleep(time.Duration(n) * time.Millisecond)
+					os.Exit(1)
+				}()
+			}
+		}
+		if os.Getenv("FAKERT_GH_FORWARD_SICK") != "" {
+			// Scoped to THIS process: __serve children of `run -d` never
+			// see it, so container health fakes stay healthy.
+			os.Setenv("FAKERT_SERVE_SICK", "1")
+		}
 		var ports []string
 		for _, a := range args {
 			if pair := strings.SplitN(a, ":", 2); len(pair) == 2 {
@@ -307,6 +326,13 @@ func ghCodespace(args []string, joined string) {
 				[]byte(strconv.Itoa(os.Getpid())), 0o644)
 		}
 		serve(ports)
+	case "logs":
+		// The creation-log follower the health wait tails. A few plausible
+		// lines, then exit — a tailer that ends early is legal (the launcher
+		// treats the stream as decoration, never a gate).
+		fmt.Println("2026-01-01 00:00:00.000Z: Running onCreateCommand...")
+		fmt.Println("2026-01-01 00:00:01.000Z: Pulling semiont-backend:latest")
+		fmt.Println("2026-01-01 00:00:02.000Z: postCreateCommand done")
 	case "stop", "delete":
 		// argv log is the observable, but state must follow too: a stopped
 		// codespace reports Shutdown until something wakes it, exactly as
@@ -838,6 +864,12 @@ func serve(ports []string) {
 		}
 		go func() {
 			_ = http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// A sick serve answers but is never ready (see the forward
+				// case) — bound ≠ healthy, exactly like a warming backend.
+				if os.Getenv("FAKERT_SERVE_SICK") != "" {
+					http.Error(w, "warming", http.StatusServiceUnavailable)
+					return
+				}
 				// A fake Ollama, so model checks and pulls are exercisable.
 				// FAKERT_OLLAMA_TAGS lists the models it already has (comma
 				// separated); every pull is appended to a log the test reads.
