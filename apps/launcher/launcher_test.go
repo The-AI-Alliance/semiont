@@ -4092,8 +4092,20 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 	}
 	// The stack's port claims must NOT include the Browser's 3000 — stop
 	// verifies release of stack ports, and the Browser keeps running.
-	if strings.Contains(string(rec), "3000") && strings.Contains(strings.Split(string(rec), `"browser"`)[0], "3000") {
-		t.Errorf("browser port recorded among the stack's claims:\n%s", rec)
+	// Assert on the PARSED claims, not a raw substring: a nanosecond
+	// startedAt containing "3000" flaked this in CI (run 29972367456).
+	var claims struct {
+		Stacks map[string]struct {
+			Ports []int `json:"ports"`
+		} `json:"stacks"`
+	}
+	if err := json.Unmarshal(rec, &claims); err != nil {
+		t.Fatalf("stack.json: %v", err)
+	}
+	for _, p := range claims.Stacks["local"].Ports {
+		if p == 3000 {
+			t.Errorf("browser port recorded among the stack's claims:\n%s", rec)
+		}
 	}
 
 	// Bare stop: stack down, Browser untouched and announced. Slice the
