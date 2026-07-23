@@ -1,6 +1,6 @@
 {
   "name": "@semiont/core",
-  "version": "0.5.19",
+  "version": "0.5.20",
   "description": "Core types and domain logic for Semiont - Resource, Annotation, and Graph models",
   "type": "module",
   "main": "dist/index.js",
