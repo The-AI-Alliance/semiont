@@ -326,6 +326,20 @@ func TestStartDefaultBoot(t *testing.T) {
 	mustContain(t, "stdout", stdout, "SEMIONT_WORKER_SECRET=<redacted>")
 }
 
+func TestStartDaemonDownAdvisesSystemStart(t *testing.T) {
+	s := newScenario(t, "container")
+	// The Apple container apiserver is down: the first command that NEEDS
+	// an answer is the host-address probe, so daemon-down surfaces there
+	// wearing a networking costume. The failure must diagnose the actual
+	// condition and name the fix.
+	s.extraEnv = append(s.extraEnv, "FAKERT_DAEMON_DOWN=1")
+	stdout, stderr, code := s.run(t, "start")
+	if code == 0 {
+		t.Fatalf("start with the daemon down must fail\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "daemon-down fix-it", stdout+stderr, "container system start")
+}
+
 func TestStartRuntimeDockerBoot(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
 	s.extraEnv = append(s.extraEnv, "FAKERT_NSLOOKUP=ok")

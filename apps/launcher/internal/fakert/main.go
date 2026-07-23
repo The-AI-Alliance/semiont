@@ -19,6 +19,8 @@
 //	FAKERT_VOLUME_ABSENT     "1" makes `volume rm` fail (volume not found)
 //	FAKERT_STACK_RUNTIME     which runtime's list/ps shows semiont-backend
 //	FAKERT_PULL_FAIL         substring; pulls of matching images fail
+//	FAKERT_DAEMON_DOWN       "1": every runtime command fails XPC-style;
+//	                         `container system status` reports the apiserver down
 //
 // A detached `run -d ... -p A:B` spawns this binary in __serve mode listening
 // on every published host port (HTTP 200 to any path, which also satisfies
@@ -427,7 +429,22 @@ func runtimeCmd(base string, args []string) {
 	if len(args) == 0 {
 		os.Exit(64)
 	}
+	// Daemon-down persona (measured on Apple container 0.11.0 with the
+	// apiserver off): `container system status` names the condition and
+	// exits 1; every other command dies with an XPC connection error.
+	if os.Getenv("FAKERT_DAEMON_DOWN") == "1" {
+		if base == "container" && args[0] == "system" {
+			fmt.Fprintln(os.Stderr, "apiserver is not running and not registered with launchd")
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stderr, `Error: internalError: (cause: "interrupted: "XPC connection error: Connection invalid"")`)
+		os.Exit(1)
+	}
 	switch args[0] {
+	case "system", "info":
+		// Daemon liveness queries (container system status / docker|podman
+		// info): the daemon is up unless FAKERT_DAEMON_DOWN said otherwise.
+		return
 	case "stop":
 		// Exit like real runtimes: 0 only when the container "exists" — a
 		// serve pidfile (run-created) or a scripted FAKERT_STATE container
