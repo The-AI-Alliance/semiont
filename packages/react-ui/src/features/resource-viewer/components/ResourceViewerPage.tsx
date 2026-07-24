@@ -449,7 +449,6 @@ export function ResourceViewerPage({
             <AssistProgress
               progress={generationProgress}
               dataType="generation"
-              isAssisting={true}
               onCancel={() => session?.client.job.cancelRequest('generation')}
               translations={{
                 title: tg('progressTitle'),

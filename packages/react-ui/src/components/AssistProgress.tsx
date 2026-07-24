@@ -27,11 +27,13 @@ export interface AssistProgressProps {
   progress: JobProgress;
   /** CSS `data-type` hook ('highlight' | 'comment' | … | 'reference' | 'tag' | 'generation'). */
   dataType: string;
-  /** Whether the assist is still running — gates the dismiss affordance. */
-  isAssisting: boolean;
   /** Cancel the underlying job — rendered while running when provided. Caller wires `client.job.cancelRequest(...)`. */
   onCancel?: () => void;
-  /** Dismiss the terminal display — rendered when no longer assisting. Caller wires `client.mark.dismissProgress()`. */
+  /**
+   * Dismiss the display — rendered whenever provided. WHEN dismissal is
+   * offered is the caller's policy (AssistShell withholds the callback while
+   * the assist is still running). Caller wires `client.mark.dismissProgress()`.
+   */
   onDismiss?: () => void;
   /** Render the percentage bar (tag flow's visual; percentage itself comes from `progress`). */
   showPercentBar?: boolean;
@@ -50,7 +52,6 @@ export interface AssistProgressProps {
 export function AssistProgress({
   progress,
   dataType,
-  isAssisting,
   onCancel,
   onDismiss,
   showPercentBar = false,
@@ -137,8 +138,8 @@ export function AssistProgress({
           </div>
         )}
 
-        {/* Dismiss — terminal only */}
-        {onDismiss && !isAssisting && (
+        {/* Dismiss — rendered whenever the caller offers it */}
+        {onDismiss && (
           <button
             onClick={onDismiss}
             className="semiont-annotation-progress__close"

@@ -15,8 +15,12 @@ export interface AssistShellProps {
   progress: JobProgress | null | undefined;
   /** The per-motivation form (fields + submit) — shown when no progress is displayed. */
   form: ReactNode;
-  /** Pass-through config for the progress renderer (cancel/dismiss wiring, translations, percent bar). */
-  progressProps?: Omit<AssistProgressProps, 'progress' | 'isAssisting' | 'dataType'>;
+  /**
+   * Pass-through config for the progress renderer (cancel/dismiss wiring,
+   * translations, percent bar). Dismiss policy lives HERE: the shell forwards
+   * `onDismiss` only once the assist is no longer running.
+   */
+  progressProps?: Omit<AssistProgressProps, 'progress' | 'dataType'>;
 }
 
 /**
@@ -61,9 +65,9 @@ export function AssistShell({ assistType, title, isAssisting, progress, form, pr
           {progress && (
             <AssistProgress
               progress={progress}
-              isAssisting={isAssisting}
               dataType={assistType}
               {...progressProps}
+              {...(isAssisting ? { onDismiss: undefined } : {})}
             />
           )}
         </div>

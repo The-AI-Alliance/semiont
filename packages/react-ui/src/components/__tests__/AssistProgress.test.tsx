@@ -27,8 +27,7 @@ describe('AssistProgress', () => {
       <AssistProgress
         progress={running({ requestParams: [{ label: 'Density', value: '5' }] })}
         dataType="comment"
-        isAssisting={true}
-      />,
+             />,
     );
     expect(screen.getByText('working on it')).toBeInTheDocument();
     expect(screen.getByText(/Density/)).toBeInTheDocument();
@@ -40,11 +39,10 @@ describe('AssistProgress', () => {
 
   it('renders a title header only when given one', () => {
     const { rerender } = render(
-      <AssistProgress progress={running()} dataType="reference" isAssisting={true}
-        translations={{ title: 'Annotating Entity References' }} />,
+      <AssistProgress progress={running()} dataType="reference"        translations={{ title: 'Annotating Entity References' }} />,
     );
     expect(screen.getByText('Annotating Entity References')).toBeInTheDocument();
-    rerender(<AssistProgress progress={running()} dataType="comment" isAssisting={true} />);
+    rerender(<AssistProgress progress={running()} dataType="comment" />);
     expect(screen.queryByText('Annotating Entity References')).not.toBeInTheDocument();
   });
 
@@ -54,27 +52,23 @@ describe('AssistProgress', () => {
     const onCancel = vi.fn();
     const tr = { title: 'Generating Resource', cancel: 'Cancel Job' };
     const { rerender } = render(
-      <AssistProgress progress={running()} dataType="generation" isAssisting={true}
-        onCancel={onCancel} translations={tr} />,
+      <AssistProgress progress={running()} dataType="generation"        onCancel={onCancel} translations={tr} />,
     );
     await userEvent.click(screen.getByTitle('Cancel Job'));
     expect(onCancel).toHaveBeenCalledOnce();
     rerender(
-      <AssistProgress progress={running({ stage: 'complete' })} dataType="generation" isAssisting={false}
-        onCancel={onCancel} translations={tr} />,
+      <AssistProgress progress={running({ stage: 'complete' })} dataType="generation"        onCancel={onCancel} translations={tr} />,
     );
     expect(screen.queryByTitle('Cancel Job')).not.toBeInTheDocument();
   });
 
   it('stage branching: complete shows ✅ + complete copy, error shows ❌ + message', () => {
     const { rerender } = render(
-      <AssistProgress progress={running({ stage: 'complete' })} dataType="reference" isAssisting={false}
-        translations={{ complete: 'All done!' }} />,
+      <AssistProgress progress={running({ stage: 'complete' })} dataType="reference"        translations={{ complete: 'All done!' }} />,
     );
     expect(screen.getByText('All done!')).toBeInTheDocument();
     rerender(
-      <AssistProgress progress={running({ stage: 'error', message: 'it broke' })} dataType="reference" isAssisting={false}
-        translations={{ failed: 'Failed' }} />,
+      <AssistProgress progress={running({ stage: 'error', message: 'it broke' })} dataType="reference"        translations={{ failed: 'Failed' }} />,
     );
     expect(screen.getByText('it broke')).toBeInTheDocument();
   });
@@ -83,8 +77,7 @@ describe('AssistProgress', () => {
     render(
       <AssistProgress
         progress={running({ completedEntityTypes: [{ entityType: 'Person', foundCount: 3 }] })}
-        dataType="reference" isAssisting={true}
-        translations={{ found: (n) => `Found ${n}` }}
+        dataType="reference"        translations={{ found: (n) => `Found ${n}` }}
       />,
     );
     expect(screen.getByText('Person:')).toBeInTheDocument();
@@ -95,16 +88,14 @@ describe('AssistProgress', () => {
     const { rerender } = render(
       <AssistProgress
         progress={running({ currentEntityType: 'Location' })}
-        dataType="reference" isAssisting={true}
-        translations={{ current: (l) => `Processing: ${l}` }}
+        dataType="reference"        translations={{ current: (l) => `Processing: ${l}` }}
       />,
     );
     expect(screen.getByText('Processing: Location')).toBeInTheDocument();
     rerender(
       <AssistProgress
         progress={running({ currentCategory: 'Rule', processedCategories: 2, totalCategories: 5 })}
-        dataType="tag" isAssisting={true}
-      />,
+        dataType="tag"      />,
     );
     expect(screen.getByText(/Rule/)).toBeInTheDocument();
     expect(screen.getByText(/2\/5/)).toBeInTheDocument();
@@ -112,26 +103,28 @@ describe('AssistProgress', () => {
 
   it('renders the percentage bar only when opted in', () => {
     const { container, rerender } = render(
-      <AssistProgress progress={running({ percentage: 40 })} dataType="tag" isAssisting={true} showPercentBar />,
+      <AssistProgress progress={running({ percentage: 40 })} dataType="tag" showPercentBar />,
     );
     const fill = container.querySelector('.semiont-progress-bar__fill');
     expect(fill).toBeInTheDocument();
     expect(fill).toHaveStyle({ width: '40%' });
     rerender(
-      <AssistProgress progress={running({ percentage: 40 })} dataType="reference" isAssisting={true} />,
+      <AssistProgress progress={running({ percentage: 40 })} dataType="reference" />,
     );
     expect(container.querySelector('.semiont-progress-bar__fill')).not.toBeInTheDocument();
   });
 
-  it('shows dismiss only when terminal (not assisting) and wired', async () => {
+  it('renders dismiss whenever the caller offers it (WHEN is the caller\'s policy)', async () => {
+    // AssistShell withholds onDismiss while the assist is running — that
+    // gate is pinned in AssistShell.test; here the contract is just
+    // "callback present → affordance rendered".
     const onDismiss = vi.fn();
     const { rerender } = render(
-      <AssistProgress progress={running()} dataType="highlight" isAssisting={true}
-        onDismiss={onDismiss} translations={{ close: 'Close' }} />,
+      <AssistProgress progress={running()} dataType="highlight" translations={{ close: 'Close' }} />,
     );
     expect(screen.queryByLabelText('Close')).not.toBeInTheDocument();
     rerender(
-      <AssistProgress progress={running()} dataType="highlight" isAssisting={false}
+      <AssistProgress progress={running()} dataType="highlight"
         onDismiss={onDismiss} translations={{ close: 'Close' }} />,
     );
     await userEvent.click(screen.getByLabelText('Close'));
