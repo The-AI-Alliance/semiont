@@ -138,7 +138,11 @@ export function createMarkStateUnit(
         }
         declineMessage = declinedMessage(e.data.result);
         if (declineMessage) {
-          progress$.next({ stage: 'declined', percentage: 100, message: declineMessage });
+          // A decline is a clean terminal completion (not an error), so reuse
+          // the existing 'complete' stage rather than a bespoke value the
+          // progress widgets don't branch on — the message carries the
+          // specifics ("no extractable text layer…").
+          progress$.next({ stage: 'complete', percentage: 100, message: declineMessage });
         }
       },
       complete: () => {

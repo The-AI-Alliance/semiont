@@ -475,6 +475,31 @@ export function ReferencesPanel({
               }}
             />
           )}
+
+          {/* Terminal notice (e.g. a scanned-PDF "no text layer" decline) —
+              shown once the assist finishes. The in-progress widget above
+              hides the message on the 'complete' stage, so render the message
+              directly here, mirroring AssistSection's close affordance, so a
+              reference decline isn't silent. */}
+          {!isAssisting && progress && (
+            <div className="semiont-annotation-progress" data-type="reference">
+              <div className="semiont-annotation-progress__status">
+                <div className="semiont-annotation-progress__message">
+                  <span className="semiont-annotation-progress__icon">✨</span>
+                  <span>{progress.message}</span>
+                </div>
+                <button
+                  onClick={() => session?.client.mark.dismissProgress()}
+                  className="semiont-annotation-progress__close"
+                  aria-label={t('closeProgress')}
+                  title={t('closeProgress')}
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
               </>
             )}
           </div>
