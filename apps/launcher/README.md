@@ -385,6 +385,22 @@ semiont stop
 - `SEMIONT_VERSION` selects the service image tag (default `latest`; the
   sentinel `local` uses locally-built `:local` images and skips pulls).
 
+### Login and upload
+
+`semiont login --email <address>` authenticates against a running stack's
+backend and stores the session token — never the password, which is read
+from stdin only (prompted echo-off on a terminal; `echo "$PW" | semiont
+login …` for scripts) — per stack in the launcher state home, mode 0600.
+`semiont yield --upload <file>` then registers files as KB resources.
+Files must live under the KB root (storage URIs are repo-relative; the
+content belongs in the repo) — and commit the `.semiont/events/` files an
+upload creates: they ARE the documents. Both verbs speak to the backend
+through `packages/sdk-go`, the Go client generated from the same OpenAPI
+authority as the TypeScript SDK's types; delegate-mode yield (LLM
+generation from gathered context) deliberately stays with the npm CLI.
+Both take `--repo <owner/name>` to target a codespace stack through its
+forward instead of the local one.
+
 ### Where state lives
 
 Local-stack databases persist across restarts. Each local semiont root gets
@@ -420,8 +436,7 @@ and restarting is exactly the round trip persistence exists for.
 
 ## Development
 
-Go module with no external dependencies. Build and test (hermetically — no Go
-on the host required):
+Build and test (hermetically — no Go on the host required):
 
 ```sh
 container run --rm -v "$(pwd)":/work -w /work/apps/launcher golang:1.25 \

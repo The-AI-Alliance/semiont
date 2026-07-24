@@ -904,6 +904,132 @@ func TestStatusVerboseNoState(t *testing.T) {
 	mustContain(t, "no roots", stdout, "no persistent state")
 }
 
+// --- login (sdk-go glue) ---
+
+// tokensPathFor mirrors the launcher's token store path for the scenario's
+// fake HOME — GOOS-aware like statePathFor.
+func tokensPathFor(home string) string {
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Application Support", "semiont", "tokens.json")
+	}
+	return filepath.Join(home, ".local", "state", "semiont", "tokens.json")
+}
+
+func TestLoginStoresTokenNeverPassword(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// Password arrives on stdin — never argv (ps/history), never env.
+	s.stdin = "hunter2secret\n"
+	stdout, stderr, code := s.run(t, "login", "--email", "admin@example.com")
+	if code != 0 {
+		t.Fatalf("login: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Logged in", "admin@example.com")
+	b, err := os.ReadFile(tokensPathFor(s.home))
+	if err != nil {
+		t.Fatalf("tokens.json after login: %v", err)
+	}
+	mustContain(t, "tokens.json", string(b), "fake-jwt-token", `"local"`)
+	if fi, err := os.Stat(tokensPathFor(s.home)); err == nil {
+		if perm := fi.Mode().Perm(); perm != 0o600 {
+			t.Errorf("tokens.json mode = %o, want 600 (it holds a bearer token)", perm)
+		}
+	}
+	// The password exists NOWHERE after the command: not in any launcher
+	// file, not echoed. (Same discipline as the secret tests.)
+	for _, f := range []string{tokensPathFor(s.home), statePathFor(s.home), rootsPathFor(s.home)} {
+		if fb, err := os.ReadFile(f); err == nil && strings.Contains(string(fb), "hunter2secret") {
+			t.Errorf("password persisted in %s", f)
+		}
+	}
+	if strings.Contains(stdout, "hunter2secret") {
+		t.Error("password echoed to stdout")
+	}
+}
+
+func TestLoginWithoutStackRefuses(t *testing.T) {
+	s := newScenario(t, "container")
+	s.stdin = "hunter2secret\n"
+	_, stderr, code := s.run(t, "login", "--email", "a@b.example")
+	if code == 0 {
+		t.Fatal("login with no running stack must refuse")
+	}
+	mustContain(t, "fix-it", stderr, "semiont start")
+}
+
+// --- yield (sdk-go glue) ---
+
+// yieldScenario boots the fake stack, logs in, and seeds docs/note.md.
+func yieldScenario(t *testing.T, login bool) *scenario {
+	t.Helper()
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if login {
+		s.stdin = "hunter2secret\n"
+		if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+			t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
+		}
+		s.stdin = ""
+	}
+	if err := os.MkdirAll(filepath.Join(s.kb, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.kb, "docs", "note.md"), []byte("# hi\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestYieldUploadsFile(t *testing.T) {
+	s := yieldScenario(t, true)
+	stdout, stderr, code := s.run(t, "yield", "--upload", "docs/note.md")
+	if code != 0 {
+		t.Fatalf("yield: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Yielded", "docs/note.md", "fake-resource-id")
+	// What the backend actually received — the multipart per the spec's
+	// schema, the bearer token, the bytes.
+	b, err := os.ReadFile(filepath.Join(s.fakertDir, "yield-upload.json"))
+	if err != nil {
+		t.Fatalf("upload capture: %v", err)
+	}
+	mustContain(t, "multipart", string(b),
+		`"name":"note"`,
+		`"format":"text/markdown"`,
+		`"storageUri":"file://docs/note.md"`,
+		`"authorization":"Bearer fake-jwt-token"`,
+		`"filecontent":"# hi\n"`)
+}
+
+func TestYieldOutsideRootRefuses(t *testing.T) {
+	s := yieldScenario(t, true)
+	outside := filepath.Join(t.TempDir(), "stray.md")
+	if err := os.WriteFile(outside, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "yield", "--upload", outside)
+	if code == 0 {
+		t.Fatalf("upload outside the KB root must refuse\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "refusal", stdout+stderr, "KB root", "Copy it")
+	if _, err := os.ReadFile(filepath.Join(s.fakertDir, "yield-upload.json")); err == nil {
+		t.Error("refused upload still reached the backend")
+	}
+}
+
+func TestYieldWithoutSessionAdvisesLogin(t *testing.T) {
+	s := yieldScenario(t, false)
+	stdout, stderr, code := s.run(t, "yield", "--upload", "docs/note.md")
+	if code == 0 {
+		t.Fatalf("yield without a session must refuse\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "fix-it", stdout+stderr, "semiont login")
+}
+
 // --- stop ---
 
 func TestStopSweepsAllRuntimes(t *testing.T) {

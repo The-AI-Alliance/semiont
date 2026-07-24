@@ -870,6 +870,52 @@ func serve(ports []string) {
 					http.Error(w, "warming", http.StatusServiceUnavailable)
 					return
 				}
+				// The backend's password login (sdk-go glue): any credentials
+				// accepted, fixed fake JWT back — tests assert the TOKEN is
+				// stored and the PASSWORD never is.
+				if r.URL.Path == "/api/tokens/password" {
+					// Explicit Content-Type: the generated Go client parses
+					// JSON200 only when the header says json (the sniffer
+					// would say text/plain), exactly like the real backend.
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(map[string]any{
+						"success": true,
+						"token":   "fake-jwt-token",
+						"user": map[string]any{
+							"id": "u1", "email": "admin@example.com", "name": nil,
+							"image": nil, "domain": "example.com", "isAdmin": true,
+						},
+					})
+					return
+				}
+				// The yield upload (sdk-go glue): capture the multipart —
+				// fields, file bytes, auth header — for test assertions,
+				// then answer 202 {resourceId} like the real create route.
+				if r.URL.Path == "/resources" && r.Method == http.MethodPost {
+					_ = r.ParseMultipartForm(16 << 20)
+					capture := map[string]string{"authorization": r.Header.Get("Authorization")}
+					if r.MultipartForm != nil {
+						for k, v := range r.MultipartForm.Value {
+							if len(v) > 0 {
+								capture[k] = v[0]
+							}
+						}
+					}
+					if f, hdr, err := r.FormFile("file"); err == nil {
+						b, _ := io.ReadAll(f)
+						capture["filecontent"] = string(b)
+						capture["filename"] = hdr.Filename
+						_ = f.Close()
+					}
+					if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+						jb, _ := json.Marshal(capture)
+						_ = os.WriteFile(filepath.Join(dir, "yield-upload.json"), jb, 0o644)
+					}
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusAccepted)
+					_ = json.NewEncoder(w).Encode(map[string]any{"resourceId": "fake-resource-id"})
+					return
+				}
 				// A fake Ollama, so model checks and pulls are exercisable.
 				// FAKERT_OLLAMA_TAGS lists the models it already has (comma
 				// separated); every pull is appended to a log the test reads.

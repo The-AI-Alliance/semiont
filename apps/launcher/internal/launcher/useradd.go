@@ -102,50 +102,9 @@ func Useradd(args []string) int {
 		return 1
 	}
 
-	ss := loadStackSet()
-	cs := codespaceStacks(ss)
-	local := ss.Stacks["local"]
-
-	// Which stack? Explicit --repo wins; else the only stack there is;
-	// else refuse rather than guess — writing a user into the wrong KB is
-	// not something to do silently.
-	var target *stackState
-	cwdRoot := cwdKBRoot()
-	switch {
-	case wantLocal:
-	case repo != "":
-		target = ss.Stacks["codespace:"+repo]
-		if target == nil {
-			u.fail("No codespace stack recorded for %s.", repo)
-			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
-			}
-			return 1
-		}
-	// Standing in the clone whose stack is running: the cwd says "local" —
-	// demanding --runtime here made the user restate the prompt (same rule
-	// stop and start keep).
-	case local != nil && local.KBRoot != "" && local.KBRoot == cwdRoot:
-	case local != nil && len(cs) == 0:
-	case local == nil && len(cs) == 1:
-		target = cs[0]
-	case local == nil && len(cs) == 0:
-	default:
-		// No local stack, several codespaces: this clone's origin may name
-		// one — the same convenience repoFromRoot gives start.
-		if local == nil {
-			if c := originCodespace(cs, cwdRoot); c != nil {
-				target = c
-				break
-			}
-		}
-		u.fail("Multiple stacks are recorded — say which:")
-		if local != nil {
-			fmt.Fprintf(os.Stderr, "    semiont useradd --runtime %s ...   (the local stack)\n", local.Runtime)
-		}
-		for _, c := range cs {
-			fmt.Fprintf(os.Stderr, "    semiont useradd --repo %s ...\n", c.Repo)
-		}
+	// Which stack? The shared knowledge-verb ladder (stackselect.go).
+	target, ok := selectVerbStack(u, "useradd", loadStackSet(), repo, wantLocal)
+	if !ok {
 		return 1
 	}
 
