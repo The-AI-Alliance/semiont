@@ -97,10 +97,6 @@ func Useradd(args []string) int {
 		}
 		rest = append(rest, args[i])
 	}
-	if repo != "" && wantLocal {
-		u.fail("--repo and --runtime are contradictory: one names a codespace stack, the other the local one.")
-		return 1
-	}
 
 	// Which stack? The shared knowledge-verb ladder (stackselect.go).
 	target, ok := selectVerbStack(u, "useradd", loadStackSet(), repo, wantLocal)

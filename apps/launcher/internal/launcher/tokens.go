@@ -63,5 +63,10 @@ func saveToken(key string, e tokenEntry) error {
 	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, p)
+	if err := os.Rename(tmp, p); err != nil {
+		// Never leave a bearer token sitting in a stray temp file.
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }

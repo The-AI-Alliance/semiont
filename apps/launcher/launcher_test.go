@@ -949,6 +949,30 @@ func TestLoginStoresTokenNeverPassword(t *testing.T) {
 	}
 }
 
+func TestVerbStackContradictionRefuses(t *testing.T) {
+	// --repo + --runtime is contradictory for EVERY knowledge verb; the
+	// check lives in the shared ladder so no verb can silently resolve the
+	// pair to the local stack (Copilot caught login/yield doing exactly
+	// that after the useradd extraction).
+	s := newScenario(t, "container")
+	for _, verb := range []string{"useradd", "login", "yield"} {
+		args := []string{verb, "--repo", "a/b", "--runtime", "container"}
+		switch verb {
+		case "useradd":
+			args = append(args, "--email", "x@y.example")
+		case "login":
+			args = append(args, "--email", "x@y.example")
+		case "yield":
+			args = append(args, "--upload", "docs/note.md")
+		}
+		_, stderr, code := s.run(t, args...)
+		if code == 0 {
+			t.Errorf("%s accepted --repo with --runtime", verb)
+		}
+		mustContain(t, verb+" contradiction", stderr, "contradictory")
+	}
+}
+
 func TestLoginWithoutStackRefuses(t *testing.T) {
 	s := newScenario(t, "container")
 	s.stdin = "hunter2secret\n"

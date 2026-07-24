@@ -15,6 +15,13 @@ import (
 // (non-nil, true) = that codespace stack; ok=false = refused, message
 // printed with verb-specific fix-it lines.
 func selectVerbStack(u *ui, verb string, ss *stackSet, repo string, wantLocal bool) (*stackState, bool) {
+	// The contradiction check lives HERE, once — a verb that forgot it
+	// would silently resolve --repo+--runtime to the local stack (the
+	// wantLocal arm wins the switch), targeting the wrong KB.
+	if repo != "" && wantLocal {
+		u.fail("--repo and --runtime are contradictory: one names a codespace stack, the other the local one.")
+		return nil, false
+	}
 	cs := codespaceStacks(ss)
 	local := ss.Stacks["local"]
 	cwdRoot := cwdKBRoot()

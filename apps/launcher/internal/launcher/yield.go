@@ -132,6 +132,13 @@ func Yield(args []string) int {
 		if root == "" {
 			root = cwdKBRoot()
 		}
+		if root == "" {
+			// A legacy record can lack KBRoot; refuse plainly rather than
+			// let the path check babble about a KB root named "".
+			u.fail("Cannot determine the KB root (the stack record predates root tracking, and the current directory is not inside a KB clone).")
+			fmt.Fprintln(os.Stderr, "  Run yield from inside the KB clone, or set SEMIONT_ROOT.")
+			return 1
+		}
 	}
 
 	tok, haveTok := loadTokens()[key]
@@ -187,18 +194,26 @@ func yieldOne(u *ui, cli *semiont.ClientWithResponses, token, root, up, name str
 
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
-	_ = w.WriteField("name", name)
-	_ = w.WriteField("format", format)
-	_ = w.WriteField("storageUri", "file://"+rel)
-	fw, err := w.CreateFormFile("file", filepath.Base(rel))
-	if err == nil {
-		_, err = fw.Write(content)
-	}
-	if err == nil {
-		err = w.Close()
-	}
-	if err != nil {
-		u.fail("building upload for %s: %v", up, err)
+	if buildErr := func() error {
+		if err := w.WriteField("name", name); err != nil {
+			return err
+		}
+		if err := w.WriteField("format", format); err != nil {
+			return err
+		}
+		if err := w.WriteField("storageUri", "file://"+rel); err != nil {
+			return err
+		}
+		fw, err := w.CreateFormFile("file", filepath.Base(rel))
+		if err != nil {
+			return err
+		}
+		if _, err := fw.Write(content); err != nil {
+			return err
+		}
+		return w.Close()
+	}(); buildErr != nil {
+		u.fail("building upload for %s: %v", up, buildErr)
 		return 1
 	}
 
