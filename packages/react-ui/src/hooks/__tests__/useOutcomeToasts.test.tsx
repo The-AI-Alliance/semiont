@@ -144,14 +144,6 @@ describe('useOutcomeToasts', () => {
     expect(showError).toHaveBeenCalledTimes(1);
   });
 
-  it('assist cancellation surfaces as info', () => {
-    const { eventBus } = setup();
-    act(() => {
-      eventBus.get('mark:assist-cancelled').next(undefined as never);
-    });
-    expect(showInfo).toHaveBeenCalledWith('Annotation cancelled');
-  });
-
   it('an assist timeout surfaces as error (a client-side timeout has no job:fail)', () => {
     const { eventBus } = setup();
     act(() => {

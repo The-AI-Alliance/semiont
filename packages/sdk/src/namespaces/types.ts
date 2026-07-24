@@ -369,6 +369,9 @@ export interface BindNamespace {
 
   /** UI signal: a reference-binding flow is requested for an annotation. */
   initiate(input: EventMap['bind:initiate']): void;
+
+  /** UI signal: a bind body update failed at an awaiting caller with no toast surface; useOutcomeToasts surfaces it. */
+  reportBodyError(input: EventMap['bind:body-error']): void;
 }
 
 /**

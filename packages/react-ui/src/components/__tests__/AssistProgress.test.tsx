@@ -39,7 +39,7 @@ describe('AssistProgress', () => {
 
   it('renders a title header only when given one', () => {
     const { rerender } = render(
-      <AssistProgress progress={running()} dataType="reference"        translations={{ title: 'Annotating Entity References' }} />,
+      <AssistProgress progress={running()} dataType="reference" translations={{ title: 'Annotating Entity References' }} />,
     );
     expect(screen.getByText('Annotating Entity References')).toBeInTheDocument();
     rerender(<AssistProgress progress={running()} dataType="comment" />);
@@ -52,23 +52,29 @@ describe('AssistProgress', () => {
     const onCancel = vi.fn();
     const tr = { title: 'Generating Resource', cancel: 'Cancel Job' };
     const { rerender } = render(
-      <AssistProgress progress={running()} dataType="generation"        onCancel={onCancel} translations={tr} />,
+      <AssistProgress progress={running()} dataType="generation" onCancel={onCancel} translations={tr} />,
     );
     await userEvent.click(screen.getByTitle('Cancel Job'));
     expect(onCancel).toHaveBeenCalledOnce();
     rerender(
-      <AssistProgress progress={running({ stage: 'complete' })} dataType="generation"        onCancel={onCancel} translations={tr} />,
+      <AssistProgress progress={running({ stage: 'complete' })} dataType="generation" onCancel={onCancel} translations={tr} />,
+    );
+    expect(screen.queryByTitle('Cancel Job')).not.toBeInTheDocument();
+    // Error is terminal too — offering cancel on a dead job is misleading and
+    // invites redundant cancel requests.
+    rerender(
+      <AssistProgress progress={running({ stage: 'error', message: 'it broke' })} dataType="generation" onCancel={onCancel} translations={tr} />,
     );
     expect(screen.queryByTitle('Cancel Job')).not.toBeInTheDocument();
   });
 
   it('stage branching: complete shows ✅ + complete copy, error shows ❌ + message', () => {
     const { rerender } = render(
-      <AssistProgress progress={running({ stage: 'complete' })} dataType="reference"        translations={{ complete: 'All done!' }} />,
+      <AssistProgress progress={running({ stage: 'complete' })} dataType="reference" translations={{ complete: 'All done!' }} />,
     );
     expect(screen.getByText('All done!')).toBeInTheDocument();
     rerender(
-      <AssistProgress progress={running({ stage: 'error', message: 'it broke' })} dataType="reference"        translations={{ failed: 'Failed' }} />,
+      <AssistProgress progress={running({ stage: 'error', message: 'it broke' })} dataType="reference" translations={{ failed: 'Failed' }} />,
     );
     expect(screen.getByText('it broke')).toBeInTheDocument();
   });
@@ -77,7 +83,7 @@ describe('AssistProgress', () => {
     render(
       <AssistProgress
         progress={running({ completedEntityTypes: [{ entityType: 'Person', foundCount: 3 }] })}
-        dataType="reference"        translations={{ found: (n) => `Found ${n}` }}
+        dataType="reference" translations={{ found: (n) => `Found ${n}` }}
       />,
     );
     expect(screen.getByText('Person:')).toBeInTheDocument();
@@ -88,7 +94,7 @@ describe('AssistProgress', () => {
     const { rerender } = render(
       <AssistProgress
         progress={running({ currentEntityType: 'Location' })}
-        dataType="reference"        translations={{ current: (l) => `Processing: ${l}` }}
+        dataType="reference" translations={{ current: (l) => `Processing: ${l}` }}
       />,
     );
     expect(screen.getByText('Processing: Location')).toBeInTheDocument();

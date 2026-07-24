@@ -113,8 +113,8 @@ export interface ResourceViewerPageProps {
  * @subscribes browse:entity-type-clicked - Navigate filtered by entity type
  *
  * Outcome-notification channels (mark:create-error, mark:delete-error,
- * bind:body-error, job:complete, job:fail, mark:assist-cancelled,
- * mark:assist-timeout) are subscribed by useOutcomeToasts.
+ * bind:body-error, job:complete, job:fail, mark:assist-timeout) are
+ * subscribed by useOutcomeToasts.
  */
 export function ResourceViewerPage({
   resource,

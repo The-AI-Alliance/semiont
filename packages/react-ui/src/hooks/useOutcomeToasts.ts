@@ -16,9 +16,8 @@ import { declinedMessage } from '../lib/job-outcome';
  *     except a clean decline (e.g. a scanned/image-only PDF with no text
  *     layer, #736/#738) → info: a decline is a valid no-op, neither a
  *     success (nothing was detected) nor a failure (nothing broke).
- *   mark:assist-cancelled                                            → info
  *
- * Every resource-bearing channel is filtered to `resourceId`, so N mounted
+ * Every subscribed channel is filtered to `resourceId`, so N mounted
  * viewers each toast only their own resource's outcomes.
  *
  * Deliberately NOT subscribed: the `*-failed` wire reply channels
@@ -53,7 +52,6 @@ export function useOutcomeToasts(resourceId: string): void {
       if (event.resourceId !== resourceId) return;
       showError(`Failed to update reference: ${event.message || 'unknown error'}`);
     },
-    'mark:assist-cancelled': () => showInfo('Annotation cancelled'),
     'mark:assist-timeout': (event) => {
       if (event.resourceId !== resourceId) return;
       showError('Annotation assist timed out');

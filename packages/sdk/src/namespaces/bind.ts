@@ -27,4 +27,12 @@ export class BindNamespace implements IBindNamespace {
     // Local emit: resource-viewer-page-state-unit subscribes via the local bus.
     this.bus.get('bind:initiate').next(input);
   }
+
+  reportBodyError(input: EventMap['bind:body-error']): void {
+    // Local emit: the client-local, resource-stamped UI notification for a
+    // bind failure caught by a caller with no toast surface (ReferenceEntry's
+    // unlink); useOutcomeToasts subscribes and surfaces it. Distinct from the
+    // bind:body-update-failed wire reply, which is busRequest plumbing.
+    this.bus.get('bind:body-error').next(input);
+  }
 }

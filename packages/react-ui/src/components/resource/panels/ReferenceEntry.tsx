@@ -79,10 +79,9 @@ export function ReferenceEntry({
         reference.id,
         [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri, purpose: 'linking' } }],
       ).catch((error: unknown) => {
-        // This component has no toast surface — emit the client-local,
-        // resource-stamped bind error; useOutcomeToasts surfaces it. (The raw
-        // bind:body-update-failed wire reply is busRequest plumbing, not UI.)
-        semiont.bus.get('bind:body-error').next({
+        // This component has no toast surface — report the client-local,
+        // resource-stamped bind error; useOutcomeToasts surfaces it.
+        semiont.bind.reportBodyError({
           resourceId: source,
           message: error instanceof Error ? error.message : String(error),
         });

@@ -68,7 +68,7 @@ export function AssistProgress({
             <span className="semiont-annotation-sparkle">✨</span>
             {tr.title}
           </h3>
-          {onCancel && progress.stage !== 'complete' && (
+          {onCancel && !terminal && (
             <button onClick={onCancel} className="semiont-annotation-cancel" title={tr.cancel} type="button">
               ✕
             </button>

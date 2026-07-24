@@ -117,7 +117,8 @@ export function createMarkStateUnit(
         // `complete` event carries `result` for callers awaiting the
         // Observable, but the panel just dismisses on `complete`. Terminal
         // outcomes (success / clean decline / failure) are surfaced as toasts
-        // by the job-lifecycle handlers in ResourceViewerPage, not here.
+        // by useOutcomeToasts (react-ui), which subscribes job:complete /
+        // job:fail directly — not through this Observable.
         if (e.kind === 'progress') progress$.next(e.data);
       },
       complete: () => {

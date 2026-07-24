@@ -174,6 +174,22 @@ describe('UI signal wrappers', () => {
     });
   });
 
+  describe('bind.reportBodyError', () => {
+    it('emits bind:body-error with the given payload (local bus)', () => {
+      // The client-local UI notification for a bind failure caught by a caller
+      // with no toast surface (ReferenceEntry's unlink) — components must go
+      // through this wrapper, never raw bus.get (audit-raw-bus.sh).
+      const bus = new EventBus();
+      const spy = busSpy(bus, 'bind:body-error');
+      const bind = new BindNamespace(makeMockTransport(), bus);
+
+      const payload = { resourceId: 'res-1', message: 'link is load-bearing' };
+      bind.reportBodyError(payload);
+
+      expect(spy).toHaveBeenCalledExactlyOnceWith('bind:body-error', payload);
+    });
+  });
+
   describe('yield.clone', () => {
     it('emits yield:clone with no payload (local bus)', () => {
       const bus = new EventBus();

@@ -173,7 +173,6 @@ export type EventMap = {
   'mark:cancel-pending': void;
   'mark:submit': components['schemas']['MarkSubmitEvent'];
   'mark:assist-request': components['schemas']['MarkAssistRequestEvent'];
-  'mark:assist-cancelled': void;
   'mark:progress-dismiss': void;
   // Client-local: the assist Observable went silent past its deadline (no
   // progress, no completion, no job:fail). Emitted by mark-state-unit so the
@@ -601,7 +600,6 @@ export const CHANNEL_SCHEMAS = {
   'mark:cancel-pending':              null, // void
   'mark:submit':                      'MarkSubmitEvent',
   'mark:assist-request':              'MarkAssistRequestEvent',
-  'mark:assist-cancelled':            null, // void
   'mark:progress-dismiss':            null, // void
   'mark:assist-timeout':              null, // { resourceId; motivation } — client-local UI signal
   'mark:create-error':                null, // { resourceId; message } — client-local UI signal
