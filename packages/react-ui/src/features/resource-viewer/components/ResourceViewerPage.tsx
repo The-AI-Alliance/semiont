@@ -24,6 +24,7 @@ import { useObservable } from '@semiont/react-ui';
 import { useResourceContent } from '../../../hooks/useResourceContent';
 import { useMediaToken } from '../../../hooks/useMediaToken';
 import { useToast } from '../../../components/Toast';
+import { useOutcomeToasts } from '../../../hooks/useOutcomeToasts';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import { useHoverDelay } from '../../../hooks/useHoverDelay';
@@ -105,20 +106,15 @@ export interface ResourceViewerPageProps {
  * @subscribes mark:unarchive - Unarchive the current resource
  * @subscribes yield:clone - Clone the current resource
  * @subscribes beckon:sparkle - Trigger sparkle animation
- * @subscribes mark:added - Annotation was created
- * @subscribes mark:removed - Annotation was deleted
- * @subscribes mark:create-failed - Annotation creation failed
- * @subscribes mark:delete-failed - Annotation deletion failed
- * @subscribes mark:body-updated - Annotation body was updated
- * @subscribes annotate:body-update-failed - Annotation body update failed
+ * @subscribes mark:added - Annotation was created (sparkle)
  * @subscribes settings:theme-changed - UI theme changed
  * @subscribes settings:line-numbers-toggled - Line numbers display toggled
- * @subscribes detection:complete - Detection completed
- * @subscribes detection:failed - Detection failed
- * @subscribes generation:complete - Generation completed
- * @subscribes generation:failed - Generation failed
  * @subscribes browse:reference-navigate - Navigate to a referenced document
  * @subscribes browse:entity-type-clicked - Navigate filtered by entity type
+ *
+ * Outcome-notification channels (mark:create-failed, mark:delete-failed,
+ * bind:body-update-failed, job:complete, job:fail, mark:assist-cancelled)
+ * are subscribed by useOutcomeToasts.
  */
 export function ResourceViewerPage({
   resource,
@@ -151,7 +147,7 @@ export function ResourceViewerPage({
   }, [browser]);
 
   // UI state hooks
-  const { showError, showSuccess, showInfo } = useToast();
+  const { showError, showSuccess } = useToast();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();
@@ -359,44 +355,7 @@ export function ResourceViewerPage({
     triggerSparkleAnimation(stored.payload.annotation.id);
   }, [triggerSparkleAnimation]);
 
-  const handleAnnotationCreateFailed = useCallback(({ message }: { message?: string }) =>
-    showError(`Failed to create annotation: ${message || 'unknown error'}`), [showError]);
-  const handleAnnotationDeleteFailed = useCallback(({ message }: { message?: string }) =>
-    showError(`Failed to delete annotation: ${message || 'unknown error'}`), [showError]);
-  const handleAnnotateBodyUpdated = useCallback(() => {
-    // Success - optimistic update already applied via EventBus
-  }, []);
-  const handleAnnotateBodyUpdateFailed = useCallback(({ message }: { message: string }) =>
-    showError(`Failed to update reference: ${message}`), [showError]);
-
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
-
-  // Unified job lifecycle handlers. `job:complete` / `job:fail` fire
-  // for every job type (annotation + generation); we dispatch on
-  // jobType and filter to this resource. `annotationId` is present on
-  // jobs attached to a specific annotation (today: generation from a
-  // reference); it's what UI consumers lower down in the tree use to
-  // attach per-annotation visual feedback.
-  const handleJobComplete = useCallback((event: components['schemas']['JobCompleteCommand']) => {
-    if (event.resourceId !== (resource.id as string)) return;
-    if (event.jobType === 'generation') {
-      const result = event.result as components['schemas']['JobGenerationResult'] | undefined;
-      const name = result?.resourceName;
-      showSuccess(name
-        ? `Resource "${name}" created successfully!`
-        : 'Resource created successfully!');
-    } else {
-      showSuccess('Annotation complete');
-    }
-  }, [resource.id, showSuccess]);
-  const handleJobFailed = useCallback((event: components['schemas']['JobFailCommand']) => {
-    if (event.resourceId !== (resource.id as string)) return;
-    if (event.jobType === 'generation') {
-      showError(`Resource generation failed: ${event.error}`);
-    } else {
-      showError(event.error || 'Annotation failed');
-    }
-  }, [resource.id, showError]);
 
   const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
     if (routes.resourceDetail) {
@@ -412,22 +371,23 @@ export function ResourceViewerPage({
     }
   }, [routes.know, session]);
 
-  // Event bus subscriptions (combined into single useEventSubscriptions call to prevent hook ordering issues)
+  // Outcome notifications (annotation CRUD failures, job success/decline/fail,
+  // assist cancelled) live in useOutcomeToasts — they need only the resource id
+  // and the toast surface. The registration below keeps the handlers that need
+  // page-local dependencies (SDK actions, sparkles, settings, navigation).
+  useOutcomeToasts(resource.id as string);
+
+  // Single useEventSubscriptions call per file (enforced by
+  // scripts/compliance/audit-hooks-ordering.ts); hooks like useOutcomeToasts
+  // own their channels in their own files.
   useEventSubscriptions({
     'mark:archive': handleResourceArchive,
     'mark:unarchive': handleResourceUnarchive,
     'yield:clone': handleResourceClone,
     'beckon:sparkle': handleAnnotationSparkle,
     'mark:added': handleAnnotationAdded,
-    'mark:create-failed': handleAnnotationCreateFailed,
-    'mark:delete-failed': handleAnnotationDeleteFailed,
-    'mark:body-updated': handleAnnotateBodyUpdated,
-    'bind:body-update-failed': handleAnnotateBodyUpdateFailed,
     'settings:theme-changed': handleSettingsThemeChanged,
     'settings:line-numbers-toggled': toggleLineNumbers,
-    'job:complete': handleJobComplete,
-    'job:fail': handleJobFailed,
-    'mark:assist-cancelled': () => showInfo('Annotation cancelled'),
     'browse:reference-navigate': handleReferenceNavigate,
     'browse:entity-type-clicked': handleEntityTypeClicked,
   });

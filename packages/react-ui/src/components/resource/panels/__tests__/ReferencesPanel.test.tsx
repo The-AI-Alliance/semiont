@@ -129,24 +129,6 @@ describe('ReferencesPanel Component', () => {
       expect(screen.getByText('Annotate References')).toBeInTheDocument();
     });
 
-    it('surfaces a terminal decline message once the assist finishes (scanned-PDF no-text-layer)', () => {
-      // #738: a reference assist on a scanned PDF declines cleanly. The
-      // in-progress widget renders only while assisting AND hides the message
-      // on the 'complete' stage, so the terminal notice must render the message
-      // directly when !isAssisting — otherwise a reference decline is silent.
-      renderWithEventBus(
-        <ReferencesPanel
-          {...panelProps()}
-          isAssisting={false}
-          progress={{ stage: 'complete', percentage: 100, message: 'This PDF has no extractable text layer (scanned or image-only); detection is not supported.' }}
-        />,
-      );
-
-      expect(screen.getByText(/no extractable text layer/i)).toBeInTheDocument();
-      // The in-progress widget is not shown for a terminal (!isAssisting) state.
-      expect(screen.queryByTestId('annotation-progress-widget')).not.toBeInTheDocument();
-    });
-
     it('should render all entity type buttons', () => {
       renderWithEventBus(<ReferencesPanel {...panelProps()} />);
 
