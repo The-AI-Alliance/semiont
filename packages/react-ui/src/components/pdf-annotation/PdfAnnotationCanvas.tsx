@@ -256,7 +256,7 @@ export function PdfAnnotationCanvas({
         // The hit-test owns the coordinate transform — capture the hit
         // annotation's viewport rect for the emission below (A1 anchor).
         let hitRect: AnchorRect | undefined;
-        const hit = pageRects.find(r => {
+        const hit = rectsForPage(existingAnnotations, pageNumber).find(r => {
           const rect = pdfToCanvasCoordinates(r.coord, pageDimensions.height, 1.0);
 
           // Scale to display coordinates
