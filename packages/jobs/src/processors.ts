@@ -92,15 +92,26 @@ function toMatch(r: ReconciledSelector): { exact: string; start: number; end: nu
  * Two annotations with the same key are the same event written twice.
  */
 function annotationDedupeKey(ann: Record<string, unknown>): string {
-  const target = ann.target as { selector?: Array<{ type: string; start?: number; end?: number }> } | undefined;
+  const target = ann.target as
+    | { selector?: Array<{ type: string; start?: number; end?: number; value?: string; exact?: string; prefix?: string; suffix?: string }> }
+    | undefined;
   const selectors = Array.isArray(target?.selector) ? target.selector : [];
   const pos = selectors.find((s) => s.type === 'TextPositionSelector');
-  return [
-    ann.motivation as string,
-    pos?.start ?? '?',
-    pos?.end ?? '?',
-    JSON.stringify(ann.body ?? null),
-  ].join('|');
+  // Anchor identity is media-specific. Text annotations carry a
+  // TextPositionSelector (durable char offsets). PDF annotations have none —
+  // their anchor is the per-line FragmentSelector viewrect geometry plus the
+  // TextQuoteSelector text. Keying only on TextPositionSelector would collapse
+  // every PDF annotation sharing a motivation+body onto one (its offsets fall
+  // back to '?'), so e.g. multiple PDF highlights emit as a single annotation.
+  let anchor: string;
+  if (pos) {
+    anchor = `pos:${pos.start ?? '?'}:${pos.end ?? '?'}`;
+  } else {
+    const frags = selectors.filter((s) => s.type === 'FragmentSelector').map((s) => s.value ?? '').join(',');
+    const quote = selectors.find((s) => s.type === 'TextQuoteSelector');
+    anchor = `frag:${frags}|quote:${quote?.exact ?? ''}:${quote?.prefix ?? ''}:${quote?.suffix ?? ''}`;
+  }
+  return [ann.motivation as string, anchor, JSON.stringify(ann.body ?? null)].join('|');
 }
 
 /**

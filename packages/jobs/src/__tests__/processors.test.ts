@@ -49,6 +49,7 @@ vi.mock('@semiont/event-sourcing', () => ({
 import { AnnotationDetection } from '../workers/annotation-detection';
 import { extractEntities } from '../workers/detection/entity-extractor';
 import { generateResourceFromTopic } from '../workers/generation/resource-generation';
+import type { PdfTextLayer } from '@semiont/content';
 import {
   processHighlightJob,
   processCommentJob,
@@ -57,6 +58,7 @@ import {
   processTagJob,
   processGenerationJob,
   buildTextAnnotation,
+  buildPdfAnnotation,
   type BuildAnnotation,
 } from '../processors';
 
@@ -76,6 +78,24 @@ const GENERATOR: Agent = {
 // internally). Attribution shape is exercised through this closure.
 const textBuild = (content: string, userId: string = USER_DID): BuildAnnotation =>
   (motivation, match, body) => buildTextAnnotation(content, RID, userId, GENERATOR, motivation, match, body);
+
+// Synthetic two-line text layer — "alpha beta" / "gamma delta" — for the PDF
+// path. `.text` is what a PDF processor detects over; `pdfBuild` anchors each
+// detected span via `buildPdfAnnotation` (FragmentSelector viewrects, no
+// TextPositionSelector), the media-appropriate builder `prepareDetection`
+// hands a `pdf-text-layer` job.
+const PDF_LAYER: PdfTextLayer = {
+  pages: [{ pageNumber: 1, widthPt: 612, heightPt: 792 }],
+  text: 'alpha beta\ngamma delta',
+  items: [
+    { start: 0,  end: 5,  page: 1, x: 72,  y: 720, width: 40, height: 12 }, // alpha
+    { start: 6,  end: 10, page: 1, x: 118, y: 720, width: 34, height: 12 }, // beta
+    { start: 11, end: 16, page: 1, x: 72,  y: 700, width: 45, height: 12 }, // gamma
+    { start: 17, end: 22, page: 1, x: 125, y: 700, width: 42, height: 12 }, // delta
+  ],
+};
+const pdfBuild = (layer: PdfTextLayer, userId: string = USER_DID): BuildAnnotation =>
+  (motivation, match, body) => buildPdfAnnotation(layer, RID, userId, GENERATOR, motivation, match, body);
 
 function makeInferenceClient(): InferenceClient {
   return {
@@ -124,6 +144,34 @@ describe('processHighlightJob', () => {
     expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
     expect(progress).toHaveBeenCalledWith(10, expect.any(String), 'analyzing');
     expect(progress).toHaveBeenLastCalledWith(100, expect.stringContaining('2 highlights'), 'creating');
+  });
+
+  it('keeps distinct PDF highlights (dedupe must not key on an absent TextPositionSelector)', async () => {
+    // Regression: PDF annotations carry no TextPositionSelector, so a dedupe
+    // key built only from position offsets degrades to `highlighting|?|?|null`
+    // and collapses every bodiless PDF highlight to one. Two distinct spans
+    // must survive as two annotations, anchored by FragmentSelector geometry.
+    const content = PDF_LAYER.text; // 'alpha beta\ngamma delta'
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'alpha', start: 0, end: 5 },
+      { exact: 'delta', start: 17, end: 22 },
+    ]);
+
+    const result = await processHighlightJob(
+      content,
+      makeInferenceClient(),
+      { resourceId: RID, density: 5 },
+      pdfBuild(PDF_LAYER),
+      vi.fn(),
+    );
+
+    expect(result.annotations).toHaveLength(2);
+    expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
+    for (const ann of result.annotations) {
+      const selectors = (ann as { target: { selector: Array<{ type: string }> } }).target.selector;
+      expect(selectors.some((s) => s.type === 'FragmentSelector')).toBe(true);
+      expect(selectors.some((s) => s.type === 'TextPositionSelector')).toBe(false);
+    }
   });
 });
 

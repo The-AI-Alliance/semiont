@@ -44,8 +44,12 @@ import {
 } from '../processors';
 import { extractPdfTextLayer } from '@semiont/content';
 
-// Mock all six processors. Each test sets its own return value.
-vi.mock('../processors', async () => ({
+// Mock the six processor entry points; keep every other export real.
+// `prepareDetection` imports `buildTextAnnotation`/`buildPdfAnnotation` from
+// this same module, so replacing it wholesale would leave those undefined —
+// spread the original and override only the processors.
+vi.mock('../processors', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../processors')>()),
   processHighlightJob:  vi.fn(),
   processCommentJob:    vi.fn(),
   processAssessmentJob: vi.fn(),
