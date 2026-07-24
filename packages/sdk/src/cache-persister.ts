@@ -18,6 +18,52 @@
 import type { CachePersister } from './cache';
 import type { SessionStorage } from './session/session-storage';
 
+/**
+ * B17 — couple the resumption bookmark to the cache flush.
+ *
+ * The persisted `Last-Event-ID` audits the persisted cache documents: on
+ * reload the client resumes replay from it, so any event at-or-before it
+ * whose effect is NOT in the persisted caches would be silently skipped.
+ * Writing the id immediately per event created exactly that hazard (a
+ * crash inside the refetch + save-debounce window persisted a bookmark
+ * ahead of the caches). Instead: `saveLastEventId` only STASHES the id;
+ * the wrapped storage writes it through — document first, id second — on
+ * the next cache-document write. The persisted id may therefore LAG the
+ * caches (harmless: replay re-invalidates idempotently) but can never
+ * lead them. A crash between the two writes leaves the id lagging — the
+ * safe direction. Cross-resource cases need no coupling at all: a
+ * scope-mismatched resume already yields `bus:resume-gap` → blanket
+ * invalidation.
+ */
+export function coupledLastEventId(
+  storage: SessionStorage,
+  lastEventIdKey: string,
+): {
+  /** Hand THIS to `cachePersistence` — its writes carry the bookmark forward. */
+  storage: SessionStorage;
+  saveLastEventId: (id: string) => void;
+  loadLastEventId: () => string | null;
+} {
+  let pending: string | null = null;
+  const coupled: SessionStorage = {
+    get: (k) => storage.get(k),
+    set: (k, v) => {
+      storage.set(k, v);
+      if (pending !== null) {
+        storage.set(lastEventIdKey, pending);
+        pending = null;
+      }
+    },
+    delete: (k) => storage.delete(k),
+    ...(storage.subscribe ? { subscribe: storage.subscribe.bind(storage) } : {}),
+  };
+  return {
+    storage: coupled,
+    saveLastEventId: (id) => { pending = id; },
+    loadLastEventId: () => storage.get(lastEventIdKey),
+  };
+}
+
 /** localStorage origins cap around 5–10 MB; leave plenty for everyone else. */
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
 

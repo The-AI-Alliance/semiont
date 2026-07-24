@@ -517,7 +517,12 @@ cache durable, per-KB rehydration (.plans/LOCAL-STORAGE.md):
    the persisted `Last-Event-ID` (persisted `p-*` ids only — an ephemeral
    `e-*` id means "no resumption context" server-side and is never saved),
    replayed events invalidate through the normal handlers, and
-   `bus:resume-gap` blanket-invalidates as always.
+   `bus:resume-gap` blanket-invalidates as always. The persisted id is
+   COUPLED to the cache flush (`coupledLastEventId`): stashed per event,
+   written only alongside a cache-document write (document first, id
+   second) — so the bookmark may lag the persisted caches (harmless:
+   replay re-invalidates idempotently) but can never lead them and
+   silently skip a reconciling event.
 3. **Settled values only.** The store never contains B15 failure markers,
    so neither does the persisted document; a previously-failed key
    rehydrates as absent and refetches on first observation.

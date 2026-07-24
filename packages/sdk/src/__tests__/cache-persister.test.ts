@@ -7,7 +7,8 @@
  * delegates through the storage's own subscription seam.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { sessionStoragePersister } from '../cache-persister';
+import { coupledLastEventId, sessionStoragePersister } from '../cache-persister';
+import type { SessionStorage } from '../session/session-storage';
 import { TestStorage } from '../session/__tests__/test-storage-helpers';
 
 const KEY = 'semiont.cache.kb-1.resource';
@@ -105,5 +106,72 @@ describe('sessionStoragePersister (B17)', () => {
 
     const loaded = sessionStoragePersister<number, string>(opts).load();
     expect(loaded!.get(42)).toBe('answer');
+  });
+});
+
+describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () => {
+  const ID_KEY = 'semiont.lastEventId.kb-1';
+
+  function recordingStorage() {
+    const writes: Array<[string, string]> = [];
+    const inner = new TestStorage();
+    const storage: SessionStorage = {
+      get: (k) => inner.get(k),
+      set: (k, v) => { writes.push([k, v]); inner.set(k, v); },
+      delete: (k) => inner.delete(k),
+    };
+    return { storage, writes, inner };
+  }
+
+  it('saveLastEventId alone writes nothing — the id must never lead the caches', () => {
+    const { storage, writes } = recordingStorage();
+    const coupled = coupledLastEventId(storage, ID_KEY);
+
+    coupled.saveLastEventId('p-res-1-47');
+
+    expect(writes).toHaveLength(0);
+    expect(storage.get(ID_KEY)).toBeNull();
+  });
+
+  it('a cache-document write flushes the pending id — document first, id second', () => {
+    const { storage, writes } = recordingStorage();
+    const coupled = coupledLastEventId(storage, ID_KEY);
+
+    coupled.saveLastEventId('p-res-1-47');
+    coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":1}');
+
+    expect(writes.map(([k]) => k)).toEqual(['semiont.cache.kb-1.resource', ID_KEY]);
+    expect(storage.get(ID_KEY)).toBe('p-res-1-47');
+  });
+
+  it('with no pending id, a document write is just a document write', () => {
+    const { storage, writes } = recordingStorage();
+    const coupled = coupledLastEventId(storage, ID_KEY);
+
+    coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":1}');
+
+    expect(writes.map(([k]) => k)).toEqual(['semiont.cache.kb-1.resource']);
+  });
+
+  it('multiple events before one flush persist the latest id exactly once', () => {
+    const { storage, writes } = recordingStorage();
+    const coupled = coupledLastEventId(storage, ID_KEY);
+
+    coupled.saveLastEventId('p-res-1-47');
+    coupled.saveLastEventId('p-res-1-48');
+    coupled.storage.set('semiont.cache.kb-1.annotations', '{"doc":2}');
+    coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":3}');
+
+    expect(storage.get(ID_KEY)).toBe('p-res-1-48');
+    expect(writes.filter(([k]) => k === ID_KEY)).toHaveLength(1);
+  });
+
+  it('loadLastEventId round-trips what a flush persisted', () => {
+    const { storage } = recordingStorage();
+    const coupled = coupledLastEventId(storage, ID_KEY);
+    coupled.saveLastEventId('p-res-1-47');
+    coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":1}');
+
+    expect(coupledLastEventId(storage, ID_KEY).loadLastEventId()).toBe('p-res-1-47');
   });
 });

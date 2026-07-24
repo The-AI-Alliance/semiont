@@ -498,9 +498,11 @@ What persists, per KB:
 - Five browse caches — resource descriptors, annotation lists, annotation details,
   entity types, tag schemas — under `semiont.cache.<kbId>.<name>`. Lists, event
   histories, and the collaborator directory deliberately stay in-memory.
-- The last **persisted** SSE event id (`semiont.lastEventId.<kbId>`). Ephemeral
-  (`e-*`) ids are never saved — the server treats them as "no resumption context,"
-  which would silently skip the replay that reconciles rehydrated data.
+- The last **persisted** SSE event id (`semiont.lastEventId.<kbId>`), written
+  only alongside cache-document flushes so the bookmark can never claim more
+  than the caches contain. Ephemeral (`e-*`) ids are never saved — the server
+  treats them as "no resumption context," which would silently skip the replay
+  that reconciles rehydrated data.
 
 How reconciliation works — there is no reconcile code path, only the existing
 contract: rehydrated entries serve synchronously with **no fetch**; the SSE
