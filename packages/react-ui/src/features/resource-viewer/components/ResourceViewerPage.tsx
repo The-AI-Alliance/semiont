@@ -40,7 +40,7 @@ import { useShellStateUnit } from '../../../hooks/useShellStateUnit';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import { ResourceGenerateModal } from '../../../components/modals/ResourceGenerateModal';
-import { AnnotateReferencesProgressWidget } from '../../../components/AnnotateReferencesProgressWidget';
+import { AssistProgress } from '../../../components/AssistProgress';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
 
 type SemiontResource = ResourceDescriptor;
@@ -446,10 +446,11 @@ export function ResourceViewerPage({
           </div>
           {/* Resource-generation progress (GENERATE-FROM-BUTTON P7) — no annotationId ⇒ a resource-gen job */}
           {generationProgress && !generationProgress.annotationId && (
-            <AnnotateReferencesProgressWidget
+            <AssistProgress
               progress={generationProgress}
-              annotationType="generation"
-              cancelJobType="generation"
+              dataType="generation"
+              isAssisting={true}
+              onCancel={() => session?.client.job.cancelRequest('generation')}
               translations={{
                 title: tg('progressTitle'),
                 cancel: tg('progressCancel'),

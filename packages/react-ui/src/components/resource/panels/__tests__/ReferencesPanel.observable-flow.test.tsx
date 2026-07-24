@@ -51,7 +51,6 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 
 vi.mock('../AssistSection', () => ({
   AssistSection: () => null,
-  AnnotateReferencesProgressWidget: () => null,
 }));
 
 const NINE_TYPES = [

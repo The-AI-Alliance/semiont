@@ -5,7 +5,7 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
-import { AnnotateReferencesProgressWidget } from '../../AnnotateReferencesProgressWidget';
+import { AssistShell } from './AssistShell';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
@@ -108,19 +108,6 @@ export function ReferencesPanel({
   const [includeDescriptiveReferences, setIncludeDescriptiveReferences] = useState(false);
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Collapsible detection section state - load from localStorage, default expanded
-  const [isAssistExpanded, setIsAssistExpanded] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    const stored = localStorage.getItem('assist-section-expanded-reference');
-    return stored ? stored === 'true' : true;
-  });
-
-  // Persist detection section expanded state to localStorage
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('assist-section-expanded-reference', String(isAssistExpanded));
-  }, [isAssistExpanded]);
 
   // Direct ref management - replace useAnnotationPanel hook
   const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -353,118 +340,15 @@ export function ReferencesPanel({
       <div ref={containerRef} className="semiont-panel__content">
         {/* Assist Section - only in Annotate mode; shown for any media type (AI detection is media-agnostic — text is resolved via the media-type registry, incl. PDF text layers) */}
         {annotateMode && (
-          <div className="semiont-panel__section">
-            <button
-              onClick={() => setIsAssistExpanded(!isAssistExpanded)}
-              className="semiont-panel__section-title semiont-panel__section-title--collapsible"
-              aria-expanded={isAssistExpanded}
-              type="button"
-            >
-              <span>{t('annotateReferences')}</span>
-              <span className="semiont-panel__section-chevron" data-expanded={isAssistExpanded}>
-                ›
-              </span>
-            </button>
-            {isAssistExpanded && (
-              <>
-                {/* Show annotation UI when not actively assisting */}
-                {!isAssisting && (
-                <div className="semiont-assist-widget" data-type="reference">
-            <>
-              {/* Completed annotation log - shown after completion */}
-              {lastAnnotationLog && lastAnnotationLog.length > 0 && (
-                <div className="semiont-assist-widget__log">
-                  <div className="semiont-assist-widget__log-items">
-                    {lastAnnotationLog.map((item, index) => (
-                      <div key={index} className="semiont-assist-widget__log-item">
-                        <span className="semiont-assist-widget__log-check">✓</span>
-                        <span className="semiont-assist-widget__log-type">{item.entityType}:</span>
-                        <span>{t('found', { count: item.foundCount })}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Entity Types Selection */}
-              <div className="semiont-assist-widget__entity-types">
-                <p className="semiont-assist-widget__label">
-                  {t('selectEntityTypes')}
-                </p>
-                <div className="semiont-assist-widget__chips">
-                  {allEntityTypes.length > 0 ? (
-                    allEntityTypes.map((type: string) => (
-                      <button
-                        key={type}
-                        onClick={() => {
-                          setSelectedEntityTypes(prev =>
-                            prev.includes(type)
-                              ? prev.filter(t => t !== type)
-                              : [...prev, type]
-                          );
-                        }}
-                        aria-pressed={selectedEntityTypes.includes(type)}
-                        aria-label={`${selectedEntityTypes.includes(type) ? t('deselect') : t('select')} ${type}`}
-                        className="semiont-chip semiont-chip--selectable"
-                        data-selected={selectedEntityTypes.includes(type)}
-                      >
-                        {type}
-                      </button>
-                    ))
-                  ) : (
-                    <p className="semiont-assist-widget__no-types">
-                      {t('noEntityTypes')}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Selected Count */}
-              {selectedEntityTypes.length > 0 && (
-                <p className="semiont-assist-widget__count">
-                  {t('typesSelected', { count: selectedEntityTypes.length })}
-                </p>
-              )}
-
-              {/* Include Descriptive References Checkbox */}
-              <div className="semiont-assist-widget__checkbox-group">
-                <label className="semiont-assist-widget__checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={includeDescriptiveReferences}
-                    onChange={(e) => setIncludeDescriptiveReferences(e.target.checked)}
-                    className="semiont-assist-widget__checkbox"
-                  />
-                  <span>{t('includeDescriptiveReferences')}</span>
-                </label>
-                <p className="semiont-assist-widget__checkbox-hint">
-                  {t('descriptiveReferencesTooltip')}
-                </p>
-              </div>
-
-              {/* Start Assist Button */}
-              <button
-                onClick={handleAssist}
-                disabled={selectedEntityTypes.length === 0}
-                title={t('annotate')}
-                className="semiont-button"
-                data-variant="assist"
-                data-type="reference"
-              >
-                <span className="semiont-button-icon">✨</span>
-                <span>{t('annotate')}</span>
-              </button>
-            </>
-            </div>
-          )}
-
-          {/* Annotation Progress - shown when active */}
-          {isAssisting && progress && (
-            <AnnotateReferencesProgressWidget
-              progress={progress}
-              annotationType="reference"
-              cancelJobType="annotation"
-              translations={{
+          <AssistShell
+            assistType="reference"
+            title={t('annotateReferences')}
+            isAssisting={isAssisting}
+            progress={progress}
+            progressProps={{
+              onCancel: () => session?.client.job.cancelRequest('annotation'),
+              onDismiss: () => session?.client.mark.dismissProgress(),
+              translations: {
                 title: t('annotationProgressTitle'),
                 cancel: t('cancelAnnotation'),
                 inProgress: t('annotating'),
@@ -472,12 +356,97 @@ export function ReferencesPanel({
                 failed: t('failed'),
                 found: (count) => t('found', { count }),
                 current: (entityType) => t('current', { entityType }),
-              }}
-            />
-          )}
+                close: t('closeProgress'),
+              },
+            }}
+            form={
+              <>
+                {/* Completed annotation log - shown after completion */}
+                {lastAnnotationLog && lastAnnotationLog.length > 0 && (
+                  <div className="semiont-assist-widget__log">
+                    <div className="semiont-assist-widget__log-items">
+                      {lastAnnotationLog.map((item, index) => (
+                        <div key={index} className="semiont-assist-widget__log-item">
+                          <span className="semiont-assist-widget__log-check">✓</span>
+                          <span className="semiont-assist-widget__log-type">{item.entityType}:</span>
+                          <span>{t('found', { count: item.foundCount })}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Entity Types Selection */}
+                <div className="semiont-assist-widget__entity-types">
+                  <p className="semiont-assist-widget__label">
+                    {t('selectEntityTypes')}
+                  </p>
+                  <div className="semiont-assist-widget__chips">
+                    {allEntityTypes.length > 0 ? (
+                      allEntityTypes.map((type: string) => (
+                        <button
+                          key={type}
+                          onClick={() => {
+                            setSelectedEntityTypes(prev =>
+                              prev.includes(type)
+                                ? prev.filter(t => t !== type)
+                                : [...prev, type]
+                            );
+                          }}
+                          aria-pressed={selectedEntityTypes.includes(type)}
+                          aria-label={`${selectedEntityTypes.includes(type) ? t('deselect') : t('select')} ${type}`}
+                          className="semiont-chip semiont-chip--selectable"
+                          data-selected={selectedEntityTypes.includes(type)}
+                        >
+                          {type}
+                        </button>
+                      ))
+                    ) : (
+                      <p className="semiont-assist-widget__no-types">
+                        {t('noEntityTypes')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Selected Count */}
+                {selectedEntityTypes.length > 0 && (
+                  <p className="semiont-assist-widget__count">
+                    {t('typesSelected', { count: selectedEntityTypes.length })}
+                  </p>
+                )}
+
+                {/* Include Descriptive References Checkbox */}
+                <div className="semiont-assist-widget__checkbox-group">
+                  <label className="semiont-assist-widget__checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={includeDescriptiveReferences}
+                      onChange={(e) => setIncludeDescriptiveReferences(e.target.checked)}
+                      className="semiont-assist-widget__checkbox"
+                    />
+                    <span>{t('includeDescriptiveReferences')}</span>
+                  </label>
+                  <p className="semiont-assist-widget__checkbox-hint">
+                    {t('descriptiveReferencesTooltip')}
+                  </p>
+                </div>
+
+                {/* Start Assist Button */}
+                <button
+                  onClick={handleAssist}
+                  disabled={selectedEntityTypes.length === 0}
+                  title={t('annotate')}
+                  className="semiont-button"
+                  data-variant="assist"
+                  data-type="reference"
+                >
+                  <span className="semiont-button-icon">✨</span>
+                  <span>{t('annotate')}</span>
+                </button>
               </>
-            )}
-          </div>
+            }
+          />
         )}
 
         {/* References List Section */}

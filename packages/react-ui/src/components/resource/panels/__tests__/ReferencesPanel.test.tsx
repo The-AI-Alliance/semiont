@@ -77,16 +77,6 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
   TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// Mock AnnotateReferencesProgressWidget - simplified to avoid module import issues
-vi.mock('@/components/AnnotateReferencesProgressWidget', () => ({
-  AnnotateReferencesProgressWidget: ({ progress }: any) => (
-    <div data-testid="annotation-progress-widget">
-      <div data-testid="progress-data">{JSON.stringify(progress)}</div>
-      <button title="Cancel Annotation">Cancel</button>
-    </div>
-  ),
-}));
-
 describe('ReferencesPanel Component', () => {
   // Mock Link component
   const MockLink = ({ href, children, ...props }: any) => (
@@ -392,7 +382,7 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      expect(screen.getByTestId('annotation-progress-widget')).toBeInTheDocument();
+      expect(screen.getByText('Detecting references...')).toBeInTheDocument();
     });
 
     it('should pass progress data to widget', () => {
@@ -414,9 +404,9 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      const progressData = screen.getByTestId('progress-data');
-      expect(progressData.textContent).toContain('Person');
-      expect(progressData.textContent).toContain('Organization');
+      // Real AssistProgress renders the completed entity-type log.
+      expect(screen.getByText('Person:')).toBeInTheDocument();
+      expect(screen.getByText('Organization:')).toBeInTheDocument();
     });
 
     it('should hide entity type selection during detection', () => {
@@ -441,7 +431,9 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      const cancelButton = screen.getByTitle('Cancel Annotation');
+      // Real AssistProgress titles the cancel button with t('cancelAnnotation')
+      // (the mock translator echoes unknown keys).
+      const cancelButton = screen.getByTitle('cancelAnnotation');
       expect(cancelButton).toBeInTheDocument();
     });
   });
@@ -577,9 +569,11 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      // Should not show any log items (but selection UI should still be visible)
+      // Should not show any log items. Terminal progress (dismissable) is
+      // shown instead of the form — the AssistShell normalization (#7); the
+      // form returns once progress clears.
       expect(screen.queryByText('✓')).not.toBeInTheDocument();
-      expect(screen.getByText('Select entity types')).toBeInTheDocument();
+      expect(screen.queryByText('Select entity types')).not.toBeInTheDocument();
     });
   });
 
@@ -600,7 +594,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       // Detecting state
-      expect(screen.getByTestId('annotation-progress-widget')).toBeInTheDocument();
+      expect(screen.getByText('Detecting references...')).toBeInTheDocument();
       expect(screen.queryByText('Select entity types')).not.toBeInTheDocument();
     });
 
@@ -614,7 +608,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       // Detecting
-      expect(screen.getByTestId('annotation-progress-widget')).toBeInTheDocument();
+      expect(screen.getByText('Detecting references...')).toBeInTheDocument();
 
       // Complete - first trigger useEffect to copy to lastDetectionLog
       rerender(
@@ -635,7 +629,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel {...panelProps()} isAssisting={false} progress={null} />
       );
 
-      expect(screen.queryByTestId('annotation-progress-widget')).not.toBeInTheDocument();
+      expect(screen.queryByText('Annotation complete')).not.toBeInTheDocument();
       // Both log and selection UI should be visible
       expect(screen.getByText('Person:')).toBeInTheDocument();
       expect(screen.getByText('Select entity types')).toBeInTheDocument();
