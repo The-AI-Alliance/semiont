@@ -51,7 +51,7 @@ export function AssistSection({
   type ToneValue = 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive' | '';
   const [tone, setTone] = useState<ToneValue>('');
   // Default density depends on annotation type
-  const defaultDensity = annotationType === 'comment' ? 5 : annotationType === 'assessment' ? 4 : annotationType === 'highlight' ? 5 : 5;
+  const defaultDensity = annotationType === 'assessment' ? 4 : 5;
   const [density, setDensity] = useState(defaultDensity);
   const [useDensity, setUseDensity] = useState(true); // Enabled by default
 
@@ -78,7 +78,7 @@ export function AssistSection({
     session?.client.mark.requestAssist(motivation, {
       instructions: instructions.trim() || undefined,
       tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone : undefined,
-      density: (annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && useDensity ? density : undefined,
+      density: useDensity ? density : undefined,
       // Body locale only applies where the LLM writes natural-language text:
       // comment/assessment have a body, highlight does not.
       language: (annotationType === 'comment' || annotationType === 'assessment') ? locale : undefined,
@@ -171,45 +171,43 @@ export function AssistSection({
               </div>
             )}
 
-            {/* Density selector - for comments, assessments, and highlights */}
-            {(annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && (
-              <div className="semiont-form-field">
-                {/* Header with toggle */}
-                <div className="semiont-form-field__header">
-                  <label className="semiont-form-field__label semiont-form-field__label--with-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={useDensity}
-                      onChange={(e) => setUseDensity(e.target.checked)}
-                      className="semiont-checkbox"
-                      data-variant={annotationType}
-                    />
-                    <span>{t('densityLabel')}</span>
-                  </label>
-                  {useDensity && (
-                    <span className="semiont-form-field__info">{density} per 2000 words</span>
-                  )}
-                </div>
-
-                {/* Slider - only shown when enabled */}
+            {/* Density selector — applies to every assist type */}
+            <div className="semiont-form-field">
+              {/* Header with toggle */}
+              <div className="semiont-form-field__header">
+                <label className="semiont-form-field__label semiont-form-field__label--with-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={useDensity}
+                    onChange={(e) => setUseDensity(e.target.checked)}
+                    className="semiont-checkbox"
+                    data-variant={annotationType}
+                  />
+                  <span>{t('densityLabel')}</span>
+                </label>
                 {useDensity && (
-                  <>
-                    <input
-                      type="range"
-                      min={annotationType === 'comment' ? '2' : '1'}
-                      max={annotationType === 'comment' ? '12' : annotationType === 'assessment' ? '10' : '15'}
-                      value={density}
-                      onChange={(e) => setDensity(Number(e.target.value))}
-                      className="semiont-slider"
-                    />
-                    <div className="semiont-slider__labels">
-                      <span>{t('densitySparse')}</span>
-                      <span>{t('densityDense')}</span>
-                    </div>
-                  </>
+                  <span className="semiont-form-field__info">{density} per 2000 words</span>
                 )}
               </div>
-            )}
+
+              {/* Slider - only shown when enabled */}
+              {useDensity && (
+                <>
+                  <input
+                    type="range"
+                    min={annotationType === 'comment' ? '2' : '1'}
+                    max={annotationType === 'comment' ? '12' : annotationType === 'assessment' ? '10' : '15'}
+                    value={density}
+                    onChange={(e) => setDensity(Number(e.target.value))}
+                    className="semiont-slider"
+                  />
+                  <div className="semiont-slider__labels">
+                    <span>{t('densitySparse')}</span>
+                    <span>{t('densityDense')}</span>
+                  </div>
+                </>
+              )}
+            </div>
 
             <button
               onClick={handleAssist}

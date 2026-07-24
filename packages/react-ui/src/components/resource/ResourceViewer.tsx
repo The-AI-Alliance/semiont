@@ -7,7 +7,7 @@ import { BrowseView, type ReferenceHover } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
 import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, components, EventMap, AnchorRect } from '@semiont/core';
-import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/core';
+import { getExactText, getTargetSelector, getPrimaryMediaType, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
 import { ANNOTATORS } from '../../lib/annotation-registry';
@@ -29,9 +29,6 @@ import type { AnnotationsCollection } from '../../types/annotation-props';
  *
  * Event flow:
  *   make-meaning → EventLog → SSE → EventBus → ResourceViewer → Cache invalidation
- *
- * Phase 2 complete: Event-based cache invalidation replaces manual refetch
- * Phase 3 complete: Fully event-driven - all user interactions use unified event bus
  */
 interface Props {
   resource: SemiontResource & { content: string };
@@ -81,13 +78,14 @@ interface Props {
 }
 
 /**
- * @emits mark:delete - User requested to delete annotation. Payload: { annotationId: string }
- * @emits panel:open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
+ * Deletion calls `session.client.mark.delete(...)` directly (no bus emit);
+ * panel opening invokes the host's `onOpenPanel` callback — the host owns
+ * the panel and any `panel:open` emission.
  *
  * @subscribes mark:added - New annotation was added. Payload: { annotation: Annotation }
  * @subscribes mark:removed - Annotation was removed. Payload: { annotationId: string }
  * @subscribes mark:body-updated - Annotation was updated. Payload: { annotation: Annotation }
- * @subscribes browse:click - User clicked on annotation. Payload: { annotationId: string }
+ * @subscribes browse:click - User clicked on annotation. Payload: { annotationId: string, motivation, anchorRect? }
  */
 export function ResourceViewer({
   resource,
@@ -125,16 +123,8 @@ export function ResourceViewer({
   }
   const rUri = resource['@id'];
 
-  // Helper to get MIME type from resource
-  const getMimeType = (): string => {
-    const reps = resource.representations;
-    if (Array.isArray(reps) && reps.length > 0 && reps[0]) {
-      return reps[0].mediaType;
-    }
-    return 'text/plain';
-  };
-
-  const mimeType = getMimeType();
+  // Same primary-representation semantics as the page and the worker — one helper.
+  const mimeType = getPrimaryMediaType(resource) || 'text/plain';
 
   // Toolbar preferences (TOOLBAR-PREFS-AS-PROPS): controlled (prop supplied) or a
   // plain uncontrolled default. Preferences are state, not events — no localStorage
@@ -152,15 +142,8 @@ export function ResourceViewer({
 
   const semiont = session?.client;
 
-  const handleAnnotateAdded = useCallback(() => {
-    semiont?.browse.invalidateAnnotationList(rUri);
-  }, [semiont, rUri]);
-
-  const handleAnnotateRemoved = useCallback(() => {
-    semiont?.browse.invalidateAnnotationList(rUri);
-  }, [semiont, rUri]);
-
-  const handleAnnotateBodyUpdated = useCallback(() => {
+  // One invalidation for every annotation mutation event (added/removed/body-updated).
+  const handleAnnotationsChanged = useCallback(() => {
     semiont?.browse.invalidateAnnotationList(rUri);
   }, [semiont, rUri]);
 
@@ -196,20 +179,9 @@ export function ResourceViewer({
     position: { x: number; y: number };
   } | null>(null);
 
-  // Internal UI state for hover, focus, and scroll
+  // Internal UI state for hover
   // Use prop value when provided (controlled by parent), otherwise null
   const hoveredAnnotationId = hoveredAnnotationIdProp ?? null;
-  const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [_focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
-
-  // Focus annotation helper
-  const focusAnnotation = useCallback((annotationId: string) => {
-    setFocusedAnnotationId(annotationId);
-    setScrollToAnnotationId(annotationId);
-
-    // Clear focus after 3 seconds
-    setTimeout(() => setFocusedAnnotationId(null), 3000);
-  }, []);
 
   // Calculate centered position for JSON-LD modal
   const getJsonLdModalPosition = () => {
@@ -235,16 +207,11 @@ export function ResourceViewer({
 
     // If annotation has a side panel, only open it when Detail mode is active
     // For delete/jsonld/follow modes, let those handlers below process it
-    if (metadata?.hasSidePanel) {
-      if (selectedClick === 'detail') {
-        // Focus annotation (sets internal focus and scroll state, plus calls parent callback for backward compat)
-        focusAnnotation(annotation.id);
-        return;
-      }
-      // Don't return early for delete/jsonld/follow modes - let them be handled below
-      if (selectedClick !== 'deleting' && selectedClick !== 'jsonld' && selectedClick !== 'follow') {
-        return;
-      }
+    // Side-panel annotations in detail mode are routed to the host's panel by
+    // handleAnnotationClickEvent before this is ever called; here only the
+    // toolbar click modes (delete / jsonld / follow) fall through.
+    if (metadata?.hasSidePanel && selectedClick !== 'deleting' && selectedClick !== 'jsonld' && selectedClick !== 'follow') {
+      return;
     }
 
     // Check if this is a highlight, assessment, comment, reference, or tag
@@ -280,7 +247,7 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-  }, [annotateMode, selectedClick, focusAnnotation, onOpenResource]);
+  }, [annotateMode, selectedClick, onOpenResource]);
 
   // Annotation click coordinator - handles panel opening and scrolling
   const handleAnnotationClickEvent = useCallback(({ annotationId, motivation, anchorRect }: {
@@ -317,13 +284,12 @@ export function ResourceViewer({
     onOpenPanel?.({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation, ...(anchorRect ? { anchorRect } : {}) });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, onOpenPanel]);
 
-  // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues
-  // IMPORTANT: All event subscriptions MUST be in a single call to maintain consistent hook order between renders
+  // Single subscription call per file (see scripts/compliance/audit-hooks-ordering.ts).
   useSessionEventSubscriptions(session, {
     // Annotation cache invalidation
-    'mark:added': handleAnnotateAdded,
-    'mark:removed': handleAnnotateRemoved,
-    'mark:body-updated': handleAnnotateBodyUpdated,
+    'mark:added': handleAnnotationsChanged,
+    'mark:removed': handleAnnotationsChanged,
+    'mark:body-updated': handleAnnotationsChanged,
 
     // Annotation clicks
     'browse:click': handleAnnotationClickEvent,
@@ -335,12 +301,14 @@ export function ResourceViewer({
     [highlights, references, assessments, comments, tags]
   );
 
+  // No scrollToAnnotationId: panel-entry scrolling is the host's loop (page →
+  // UnifiedAnnotationsPanel → onScrollCompleted); in-content scrolling stays a
+  // host-facing capability on AnnotateView/CodeMirrorRenderer, unfed here.
   const uiState = {
     selectedMotivation,
     selectedClick,
     selectedShape,
     hoveredAnnotationId,
-    scrollToAnnotationId
   };
 
   // Define getTargetResourceName callback OUTSIDE the conditional

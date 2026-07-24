@@ -1,4 +1,4 @@
-import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
+import { BehaviorSubject, TimeoutError, type Observable, type Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
 import type { ResourceId, Motivation, Selector, EventMap, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
@@ -126,10 +126,20 @@ export function createMarkStateUnit(
           progressDismissTimer = null;
         }, 5000);
       },
-      error: () => {
+      error: (err: unknown) => {
         clearProgressTimer();
         assistingMotivation$.next(null);
         progress$.next(null);
+        // A client-side timeout means the assist went silent — no progress,
+        // no completion, and no job:fail (the channel that toasts real
+        // failures). Emit the one signal that lets the outcome layer tell
+        // the user; genuine failures errored via job:fail and skip this.
+        if (err instanceof TimeoutError) {
+          client.bus.get('mark:assist-timeout').next({
+            resourceId: resourceId as string,
+            motivation: event.motivation,
+          });
+        }
       },
     });
     subs.push(assistSub);

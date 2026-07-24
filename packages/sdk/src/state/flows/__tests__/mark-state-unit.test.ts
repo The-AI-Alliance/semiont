@@ -295,6 +295,39 @@ describe('createMarkStateUnit', () => {
     vi.useRealTimers();
   });
 
+  it('emits mark:assist-timeout when a silent assist times out (nothing else will tell the user)', () => {
+    // A client-side timeout means no job:fail ever fired — without this
+    // emission the spinner just vanishes and the stall is invisible.
+    vi.useFakeTimers();
+    tc = withMark({ assist: vi.fn(() => new Observable(() => {})) });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const timeouts: unknown[] = [];
+    tc.bus.get('mark:assist-timeout').subscribe(e => timeouts.push(e));
+
+    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    vi.advanceTimersByTime(180_000);
+
+    expect(timeouts).toEqual([{ resourceId: 'res-1', motivation: 'highlighting' }]);
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('does not emit mark:assist-timeout for a real assist error (the job:fail path owns those)', () => {
+    // mark.assist errors its Observable when job:fail arrives; that failure
+    // already toasts via the job:fail outcome channel — a timeout emission
+    // here would double-notify.
+    tc = withMark({ assist: vi.fn(() => new Observable((sub) => { sub.error(new Error('LLM down')); })) });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const timeouts: unknown[] = [];
+    tc.bus.get('mark:assist-timeout').subscribe(e => timeouts.push(e));
+
+    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+
+    expect(timeouts).toEqual([]);
+    stateUnit.dispose();
+  });
+
   it('resets timeout on each progress emission (does not fire prematurely)', () => {
     vi.useFakeTimers();
     const progressSubject = new Subject();

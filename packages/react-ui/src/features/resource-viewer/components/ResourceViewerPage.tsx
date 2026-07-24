@@ -113,8 +113,8 @@ export interface ResourceViewerPageProps {
  * @subscribes browse:entity-type-clicked - Navigate filtered by entity type
  *
  * Outcome-notification channels (mark:create-failed, mark:delete-failed,
- * bind:body-update-failed, job:complete, job:fail, mark:assist-cancelled)
- * are subscribed by useOutcomeToasts.
+ * bind:body-update-failed, job:complete, job:fail, mark:assist-cancelled,
+ * mark:assist-timeout) are subscribed by useOutcomeToasts.
  */
 export function ResourceViewerPage({
   resource,
@@ -284,7 +284,7 @@ export function ResourceViewerPage({
       path: `/know/compose?${params.toString()}`,
       reason: 'compose-from-wizard',
     });
-  }, [session]);
+  }, [browser]);
 
   // Add resource to open tabs when it loads
   useEffect(() => {
@@ -345,7 +345,7 @@ export function ResourceViewerPage({
       console.error('Failed to generate clone token:', err);
       showError('Failed to generate clone link');
     }
-  }, [semiont, rUri, showError, session]);
+  }, [semiont, rUri, showError, browser]);
 
   const handleAnnotationSparkle = useCallback(({ annotationId }: { annotationId: string }) => {
     triggerSparkleAnimation(annotationId);
@@ -362,19 +362,19 @@ export function ResourceViewerPage({
       const path = routes.resourceDetail(resourceId);
       browser.emit('nav:push', { path, reason: 'reference-link' });
     }
-  }, [routes.resourceDetail, session]);
+  }, [routes.resourceDetail, browser]);
 
   const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
     if (routes.know) {
       const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
       browser.emit('nav:push', { path, reason: 'entity-type-filter' });
     }
-  }, [routes.know, session]);
+  }, [routes.know, browser]);
 
   // Outcome notifications (annotation CRUD failures, job success/decline/fail,
-  // assist cancelled) live in useOutcomeToasts — they need only the resource id
-  // and the toast surface. The registration below keeps the handlers that need
-  // page-local dependencies (SDK actions, sparkles, settings, navigation).
+  // assist cancelled/timed-out) live in useOutcomeToasts — they need only the
+  // resource id and the toast surface. The registration below keeps the handlers
+  // that need page-local dependencies (SDK actions, sparkles, settings, navigation).
   useOutcomeToasts(resource.id as string);
 
   // Single useEventSubscriptions call per file (enforced by

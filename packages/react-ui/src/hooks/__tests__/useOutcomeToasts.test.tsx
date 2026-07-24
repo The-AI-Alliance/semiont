@@ -108,4 +108,20 @@ describe('useOutcomeToasts', () => {
     });
     expect(showInfo).toHaveBeenCalledWith('Annotation cancelled');
   });
+
+  it('an assist timeout surfaces as error (a client-side timeout has no job:fail)', () => {
+    const { eventBus } = setup();
+    act(() => {
+      eventBus.get('mark:assist-timeout').next({ resourceId: RID, motivation: 'highlighting' });
+    });
+    expect(showError).toHaveBeenCalledWith(expect.stringMatching(/timed out/i));
+  });
+
+  it('assist timeouts for a different resource are ignored (resourceId filter)', () => {
+    const { eventBus } = setup();
+    act(() => {
+      eventBus.get('mark:assist-timeout').next({ resourceId: 'other-res', motivation: 'highlighting' });
+    });
+    expect(showError).not.toHaveBeenCalled();
+  });
 });

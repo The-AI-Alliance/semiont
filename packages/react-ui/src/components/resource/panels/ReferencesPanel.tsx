@@ -110,7 +110,7 @@ export function ReferencesPanel({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Collapsible detection section state - load from localStorage, default expanded
-  const [isAssistExpanded, setIsDetectExpanded] = useState(() => {
+  const [isAssistExpanded, setIsAssistExpanded] = useState(() => {
     if (typeof window === 'undefined') return true;
     const stored = localStorage.getItem('assist-section-expanded-reference');
     return stored ? stored === 'true' : true;
@@ -355,7 +355,7 @@ export function ReferencesPanel({
         {annotateMode && (
           <div className="semiont-panel__section">
             <button
-              onClick={() => setIsDetectExpanded(!isAssistExpanded)}
+              onClick={() => setIsAssistExpanded(!isAssistExpanded)}
               className="semiont-panel__section-title semiont-panel__section-title--collapsible"
               aria-expanded={isAssistExpanded}
               type="button"

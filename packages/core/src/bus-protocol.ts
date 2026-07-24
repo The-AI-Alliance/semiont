@@ -175,6 +175,11 @@ export type EventMap = {
   'mark:assist-request': components['schemas']['MarkAssistRequestEvent'];
   'mark:assist-cancelled': void;
   'mark:progress-dismiss': void;
+  // Client-local: the assist Observable went silent past its deadline (no
+  // progress, no completion, no job:fail). Emitted by mark-state-unit so the
+  // outcome-notification layer can tell the user; a real job failure arrives
+  // as job:fail instead and never produces this.
+  'mark:assist-timeout': { resourceId: string; motivation: components['schemas']['Motivation'] };
 
   // ========================================================================
   // FRAME FLOW — schema-layer vocabulary (entity types; future tag schemas,
@@ -585,6 +590,7 @@ export const CHANNEL_SCHEMAS = {
   'mark:assist-request':              'MarkAssistRequestEvent',
   'mark:assist-cancelled':            null, // void
   'mark:progress-dismiss':            null, // void
+  'mark:assist-timeout':              null, // { resourceId; motivation } — client-local UI signal
 
   // ── BIND FLOW ───────────────────────────────────────────────────
   'bind:initiate':                    'BindInitiateCommand',
