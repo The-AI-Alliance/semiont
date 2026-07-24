@@ -493,7 +493,10 @@ export class SemiontBrowser {
         id,
         name,
         openedAt: Date.now(),
-        order: existing.length,
+        // max+1, not length: after removals, length can collide with a
+        // surviving order (e.g. [0,2] + add), leaving placement to sort
+        // stability.
+        order: existing.reduce((m, r) => Math.max(m, r.order ?? -1), -1) + 1,
         ...(mediaType !== undefined ? { mediaType } : {}),
         ...(storageUri !== undefined ? { storageUri } : {}),
       }];

@@ -127,6 +127,27 @@ describe('cache persistence (B17)', () => {
     expect(persister.save).not.toHaveBeenCalled();
   });
 
+  it('an external change is applied but never echoed back as a save (no cross-tab ping-pong)', () => {
+    const { persister, pushExternal } = spyPersister<string, string>();
+    const cache = createCache<string, string>(async () => 'x', { persister });
+
+    pushExternal(new Map([['k', 'from-other-tab']]));
+    expect(cache.get('k')).toBe('from-other-tab');
+
+    // The other tab's save always re-stamps writtenAt, so an echoed save
+    // would differ byte-wise and re-fire its storage event: A saves → B
+    // echoes → A echoes → … . Applying without echoing breaks the loop.
+    vi.advanceTimersByTime(200);
+    expect(persister.save).not.toHaveBeenCalled();
+
+    // A real local mutation afterwards still saves normally.
+    cache.set('k2', 'local');
+    vi.advanceTimersByTime(50);
+    expect(persister.save).toHaveBeenCalledTimes(1);
+
+    cache.dispose();
+  });
+
   it('a throwing save is best-effort: neither the debounced path nor the dispose flush breaks', () => {
     const { persister } = spyPersister<string, string>();
     vi.mocked(persister.save).mockImplementation(() => {

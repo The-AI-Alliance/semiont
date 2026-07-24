@@ -147,9 +147,15 @@ export function sessionStoragePersister<K, V>(opts: {
         records.push([keyJson, v, writtenAt]);
       }
 
-      // Byte-cap eviction: drop oldest-written entries until the document fits.
+      // Byte-cap eviction: drop oldest-written entries until the document
+      // fits. Measured in real UTF-8 bytes (the option's name tells the
+      // truth): `.length` counts UTF-16 code units, which skews up to 3×
+      // for non-ASCII values. localStorage itself accounts in code units,
+      // so for that substrate the byte cap is conservative — acceptable
+      // for a guard rail.
+      const encoder = new TextEncoder();
       const documentSize = (list: Array<[unknown, unknown, number]>): number =>
-        JSON.stringify({ version, writtenAt: now, entries: list }).length;
+        encoder.encode(JSON.stringify({ version, writtenAt: now, entries: list })).length;
       if (documentSize(records) > maxBytes) {
         records = [...records].sort((a, b) => a[2] - b[2]);
         while (records.length > 0 && documentSize(records) > maxBytes) {

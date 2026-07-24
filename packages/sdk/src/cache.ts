@@ -178,9 +178,17 @@ export function createCache<K, V>(
         e instanceof Error ? e.message : e);
     }
   };
+  /**
+   * External changes are applied WITHOUT echoing a save back: the adapter
+   * re-stamps `writtenAt` on every save, so an echo is never byte-identical
+   * and would re-fire the other tab's storage event — an unbounded two-tab
+   * ping-pong at the debounce cadence. BehaviorSubject emission is
+   * synchronous, so the flag is set for exactly the external `next`.
+   */
+  let applyingExternal = false;
   if (persister) {
     store$.pipe(skip(1)).subscribe((entries) => {
-      if (disposed) return;
+      if (disposed || applyingExternal) return;
       if (saveTimer !== null) clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
         saveTimer = null;
@@ -189,7 +197,12 @@ export function createCache<K, V>(
     });
     unsubscribeExternal = persister.subscribe?.((entries) => {
       if (disposed) return;
-      store$.next(new Map(entries));
+      applyingExternal = true;
+      try {
+        store$.next(new Map(entries));
+      } finally {
+        applyingExternal = false;
+      }
     }) ?? null;
   }
 

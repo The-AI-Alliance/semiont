@@ -74,6 +74,26 @@ describe('sessionStoragePersister (B17)', () => {
     expect(loaded!.has('new')).toBe(true);
   });
 
+  it('measures the byte cap in bytes, not UTF-16 code units', () => {
+    // '€' is 1 code unit but 3 UTF-8 bytes: 60 units ≈ 180 bytes per value.
+    // A cap that passes on code-unit length must still evict on real bytes.
+    const persister = sessionStoragePersister<string, string>({
+      storage,
+      storageKey: KEY,
+      version: 1,
+      maxBytes: 400,
+    });
+
+    persister.save(new Map([['old', '€'.repeat(60)]]));
+    vi.setSystemTime(2_000_000);
+    persister.save(new Map([['old', '€'.repeat(60)], ['new', '€'.repeat(60)]]));
+
+    const loaded = sessionStoragePersister<string, string>({ storage, storageKey: KEY, version: 1 }).load();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.has('old')).toBe(false);
+    expect(loaded!.has('new')).toBe(true);
+  });
+
   it('delegates cross-context sync through storage.subscribe', () => {
     const persister = sessionStoragePersister<string, string>({ storage, storageKey: KEY, version: 1 });
     const onExternalChange = vi.fn();

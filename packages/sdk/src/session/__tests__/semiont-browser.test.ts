@@ -259,6 +259,23 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
+  it('assigns a unique order after removals (no collision with surviving tabs)', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('r1', 'One');
+    browser.addOpenResource('r2', 'Two');
+    browser.addOpenResource('r3', 'Three');
+    browser.removeOpenResource('r2'); // surviving orders: 0, 2
+
+    browser.addOpenResource('r4', 'Four'); // length-based order would collide at 2
+
+    const list = browser.openResources$.getValue();
+    const orders = list.map((r) => r.order);
+    expect(new Set(orders).size).toBe(orders.length);
+    expect(list.map((r) => r.id)).toEqual(['r1', 'r3', 'r4']);
+
+    await browser.dispose();
+  });
+
   it('reorderOpenResources ignores out-of-range indices', async () => {
     const browser = await makeConnectedBrowser();
     browser.addOpenResource('r1', 'One');
