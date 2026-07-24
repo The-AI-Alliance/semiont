@@ -7,7 +7,7 @@ import { declinedMessage } from '../lib/job-outcome';
  * Toasts for domain **outcome** events on a resource — the complete set of
  * pure event→notification mappings the resource viewer chrome owns:
  *
- *   mark:create-failed / mark:delete-failed / bind:body-update-failed → error
+ *   mark:create-error / mark:delete-error / bind:body-error          → error
  *   job:fail                                                         → error
  *   mark:assist-timeout                                              → error
  *     (a client-side timeout: the assist went silent, so no job:fail
@@ -18,26 +18,41 @@ import { declinedMessage } from '../lib/job-outcome';
  *     success (nothing was detected) nor a failure (nothing broke).
  *   mark:assist-cancelled                                            → info
  *
+ * Every resource-bearing channel is filtered to `resourceId`, so N mounted
+ * viewers each toast only their own resource's outcomes.
+ *
+ * Deliberately NOT subscribed: the `*-failed` wire reply channels
+ * (`mark:create-failed`, `mark:delete-failed`, `bind:body-update-failed`).
+ * Those carry `CommandError` and are busRequest correlation plumbing,
+ * bridged to every connected client — toasting them raw double-toasts the
+ * requester and leaks other users' failures. The UI-facing counterparts are
+ * the client-local `*-error` events above, emitted by the awaiting catch
+ * (mark-state-unit; ReferenceEntry's unlink), which inherently knows whose
+ * command failed on which resource. Awaiting callers with their own toast
+ * surface (the reference wizard, the compose save flow) surface failures
+ * themselves instead.
+ *
  * This is deliberately the whole seam: these channels need only the
  * resource id and the toast surface — no SDK client, no navigation, no
  * page state — which is what separates them from the page's other
  * subscriptions (actions, sparkles, settings, navigation).
- *
- * `job:complete`/`job:fail`/`mark:assist-timeout` are filtered to
- * `resourceId`; the mark/bind failure channels carry no resource id and are
- * session-wide (pre-existing behavior — with N mounted viewers each one
- * toasts).
  */
 export function useOutcomeToasts(resourceId: string): void {
   const { showError, showSuccess, showInfo } = useToast();
 
   useEventSubscriptions({
-    'mark:create-failed': ({ message }) =>
-      showError(`Failed to create annotation: ${message || 'unknown error'}`),
-    'mark:delete-failed': ({ message }) =>
-      showError(`Failed to delete annotation: ${message || 'unknown error'}`),
-    'bind:body-update-failed': ({ message }) =>
-      showError(`Failed to update reference: ${message}`),
+    'mark:create-error': (event) => {
+      if (event.resourceId !== resourceId) return;
+      showError(`Failed to create annotation: ${event.message || 'unknown error'}`);
+    },
+    'mark:delete-error': (event) => {
+      if (event.resourceId !== resourceId) return;
+      showError(`Failed to delete annotation: ${event.message || 'unknown error'}`);
+    },
+    'bind:body-error': (event) => {
+      if (event.resourceId !== resourceId) return;
+      showError(`Failed to update reference: ${event.message || 'unknown error'}`);
+    },
     'mark:assist-cancelled': () => showInfo('Annotation cancelled'),
     'mark:assist-timeout': (event) => {
       if (event.resourceId !== resourceId) return;

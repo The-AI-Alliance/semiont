@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ANNOTATORS } from '../annotation-registry';
+import { ANNOTATORS, annotatorKeyForMotivation } from '../annotation-registry';
 
 // Mock http-transport type guards
 vi.mock('@semiont/core', async (importOriginal) => {
@@ -112,6 +112,29 @@ describe('annotation-registry ANNOTATORS', () => {
     it('tag returns empty for no schema and no categories', () => {
       const fmt = ANNOTATORS.tag.detection!.formatRequestParams!;
       expect(fmt([undefined, undefined])).toEqual([]);
+    });
+  });
+
+  describe('annotatorKeyForMotivation', () => {
+    it('maps every motivation to its annotator key (the panel tab key)', () => {
+      expect(annotatorKeyForMotivation('highlighting')).toBe('highlight');
+      expect(annotatorKeyForMotivation('commenting')).toBe('comment');
+      expect(annotatorKeyForMotivation('assessing')).toBe('assessment');
+      expect(annotatorKeyForMotivation('linking')).toBe('reference');
+      expect(annotatorKeyForMotivation('tagging')).toBe('tag');
+    });
+
+    it('round-trips every registry entry (drift guard)', () => {
+      for (const [key, annotator] of Object.entries(ANNOTATORS)) {
+        expect(annotatorKeyForMotivation(annotator.motivation)).toBe(key);
+      }
+    });
+
+    it('returns undefined for strings outside the Motivation union (loose event boundaries)', () => {
+      // BrowsePanelOpenEvent.motivation is a plain string and panel:open is
+      // not wire-validated — callers at that boundary need the miss case.
+      expect(annotatorKeyForMotivation('bookmarking')).toBeUndefined();
+      expect(annotatorKeyForMotivation('')).toBeUndefined();
     });
   });
 });

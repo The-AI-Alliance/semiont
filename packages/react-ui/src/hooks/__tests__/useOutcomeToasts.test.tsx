@@ -93,12 +93,55 @@ describe('useOutcomeToasts', () => {
     expect(showError).toHaveBeenCalledWith('inference timed out');
   });
 
-  it('annotation CRUD failures surface as errors', () => {
+  it('a local create error toasts once, filtered to this resource', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('mark:create-failed').next({ message: 'nope' } as never);
+      eventBus.get('mark:create-error').next({ resourceId: RID, message: 'nope' });
     });
     expect(showError).toHaveBeenCalledWith('Failed to create annotation: nope');
+    expect(showError).toHaveBeenCalledTimes(1);
+  });
+
+  it('a local delete error toasts, filtered to this resource', () => {
+    const { eventBus } = setup();
+    act(() => {
+      eventBus.get('mark:delete-error').next({ resourceId: RID, message: 'gone wrong' });
+      eventBus.get('mark:delete-error').next({ resourceId: 'other-res', message: 'not mine' });
+    });
+    expect(showError).toHaveBeenCalledWith('Failed to delete annotation: gone wrong');
+    expect(showError).toHaveBeenCalledTimes(1);
+  });
+
+  it('raw wire replies (CommandError) do NOT toast — they are busRequest plumbing', () => {
+    // The *-failed reply channels are bridged to every client and matched by
+    // correlationId in busRequest. Toasting them raw double-toasts the
+    // requester and leaks other users' failures.
+    const { eventBus } = setup();
+    act(() => {
+      eventBus.get('mark:create-failed').next({ correlationId: 'c-1', message: 'nope' } as never);
+      eventBus.get('mark:delete-failed').next({ correlationId: 'c-2', message: 'nope' } as never);
+    });
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('bind:body-update-failed (raw wire reply) does NOT toast', () => {
+    const { eventBus } = setup();
+    act(() => {
+      eventBus.get('bind:body-update-failed').next({ correlationId: 'c-3', message: 'nope' } as never);
+    });
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('a local bind error toasts, filtered to this resource (unlink path)', () => {
+    // ReferenceEntry's unlink catch cannot toast directly — it emits the
+    // client-local sibling instead.
+    const { eventBus } = setup();
+    act(() => {
+      eventBus.get('bind:body-error').next({ resourceId: RID, message: 'nope' });
+      eventBus.get('bind:body-error').next({ resourceId: 'other-res', message: 'not mine' });
+    });
+    expect(showError).toHaveBeenCalledWith('Failed to update reference: nope');
+    expect(showError).toHaveBeenCalledTimes(1);
   });
 
   it('assist cancellation surfaces as info', () => {

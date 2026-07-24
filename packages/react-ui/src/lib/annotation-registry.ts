@@ -88,7 +88,7 @@ export interface Annotator {
 /**
  * Static annotator definitions - single source of truth
  */
-export const ANNOTATORS: Record<string, Annotator> = {
+export const ANNOTATORS = {
   highlight: {
     motivation: 'highlighting',
     internalType: 'highlight',
@@ -252,5 +252,22 @@ export const ANNOTATORS: Record<string, Annotator> = {
       }
     }
   }
-};
+} satisfies Record<string, Annotator>;
+
+/** Keys of the annotator registry — also the annotations panel's tab keys. */
+export type AnnotatorKey = keyof typeof ANNOTATORS;
+
+/**
+ * Annotator key (= panel tab key) for a motivation — derived from
+ * {@link ANNOTATORS}, the single motivation↔annotator source, so no second
+ * hand-written map can drift. Takes `string`, not `Motivation`: some event
+ * payloads carry motivation loosely (e.g. `BrowsePanelOpenEvent.motivation`
+ * is a plain string, and `panel:open` is not wire-validated), so callers at
+ * those boundaries must handle `undefined`.
+ */
+export function annotatorKeyForMotivation(motivation: string): AnnotatorKey | undefined {
+  const entry = (Object.entries(ANNOTATORS) as [AnnotatorKey, Annotator][])
+    .find(([, annotator]) => annotator.motivation === motivation);
+  return entry?.[0];
+}
 

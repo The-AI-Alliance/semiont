@@ -84,7 +84,9 @@ export function createMarkStateUnit(
       });
       client.bus.get('mark:create-ok').next({ response: { annotationId: result.annotationId } });
     } catch (error) {
-      client.bus.get('mark:create-failed').next({ message: error instanceof Error ? error.message : String(error) });
+      // Client-local, resource-stamped UI notification — the wire reply
+      // (mark:create-failed) is busRequest plumbing, not for UI consumption.
+      client.bus.get('mark:create-error').next({ resourceId: resourceId as string, message: error instanceof Error ? error.message : String(error) });
     }
   }));
 
@@ -93,7 +95,7 @@ export function createMarkStateUnit(
       await client.mark.delete(resourceId, event.annotationId as Parameters<typeof client.mark.delete>[1]);
       client.bus.get('mark:delete-ok').next({ response: { annotationId: event.annotationId } });
     } catch (error) {
-      client.bus.get('mark:delete-failed').next({ message: error instanceof Error ? error.message : String(error) });
+      client.bus.get('mark:delete-error').next({ resourceId: resourceId as string, message: error instanceof Error ? error.message : String(error) });
     }
   }));
 
