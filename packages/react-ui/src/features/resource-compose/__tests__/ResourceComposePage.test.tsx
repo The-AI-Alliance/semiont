@@ -311,6 +311,36 @@ describe('ResourceComposePage', () => {
 
       expect(screen.getByText('Drop file or click')).toBeInTheDocument();
     });
+
+    // The dropzone copy says "Drop file or click" — the drop half was never
+    // wired (the input is display:none, so native input drops can't land
+    // either): Chrome handled the drop by navigating to the file.
+    it('cancels dragover on the dropzone so the browser never takes the drop', () => {
+      const props = createMockProps();
+      const { container } = renderWithProviders(<ResourceComposePage {...props} />);
+
+      fireEvent.click(screen.getByText('Upload File').closest('button')!);
+      const dropzone = container.querySelector('.semiont-form__upload-dropzone')!;
+
+      // fireEvent returns false when the event was preventDefault-ed.
+      expect(fireEvent.dragOver(dropzone, { dataTransfer: { files: [] } })).toBe(false);
+    });
+
+    it('applies a dropped file: name shown, resource name defaulted', async () => {
+      const props = createMockProps();
+      const { container } = renderWithProviders(<ResourceComposePage {...props} />);
+
+      fireEvent.click(screen.getByText('Upload File').closest('button')!);
+      const dropzone = container.querySelector('.semiont-form__upload-dropzone')!;
+
+      const file = new File(['# notes'], 'field-notes.md', { type: 'text/markdown' });
+      fireEvent.drop(dropzone, { dataTransfer: { files: [file] } });
+
+      await waitFor(() => {
+        expect(screen.getByText('field-notes.md')).toBeInTheDocument();
+      });
+      expect(screen.getByLabelText('Resource Name')).toHaveValue('field-notes');
+    });
   });
 
   describe('Form Submission', () => {

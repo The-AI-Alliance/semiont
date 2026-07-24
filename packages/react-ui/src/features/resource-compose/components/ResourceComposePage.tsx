@@ -159,6 +159,7 @@ export function ResourceComposePage({
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [fileMimeType, setFileMimeType] = useState<string>('text/markdown');
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   // Format selection for manual content entry
   const [selectedFormat, setSelectedFormat] = useState<string>('text/markdown');
@@ -192,7 +193,13 @@ export function ResourceComposePage({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    applyUploadedFile(file);
+  };
 
+  // One application path for both entries into the dropzone: the file-input
+  // change (click) and a real drag-and-drop (the input is display:none, so
+  // native input drops can never land — the label owns the drop).
+  const applyUploadedFile = (file: File) => {
     const detectedMediaType = detectUploadMediaType(file);
     setUploadedFile(file);
     setFileMimeType(detectedMediaType);
@@ -548,7 +555,18 @@ export function ResourceComposePage({
             <div className="semiont-form__upload-section">
               <div>
                 <div className="semiont-form__upload-container">
-                  <label className="semiont-form__upload-dropzone">
+                  <label
+                    className="semiont-form__upload-dropzone"
+                    data-drag-over={isDragOver ? 'true' : 'false'}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                    onDragLeave={() => setIsDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragOver(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file && !isCreating) applyUploadedFile(file);
+                    }}
+                  >
                     <div className="semiont-form__upload-area">
                       <input
                         type="file"

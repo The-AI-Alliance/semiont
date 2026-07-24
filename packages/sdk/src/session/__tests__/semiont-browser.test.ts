@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { firstValueFrom, skip, take } from 'rxjs';
+import { firstValueFrom, filter, skip, take } from 'rxjs';
 
 const mockGetMe = vi.fn();
 const mockDispose = vi.fn();
@@ -36,7 +36,7 @@ import { createHttpSessionFactory } from '../http-session-factory';
 import { getBrowser } from '../registry';
 import { __resetForTests } from '../testing';
 import { storageKey, seedStoredSession, TestStorage } from './test-storage-helpers';
-import { STORAGE_KEY, ACTIVE_KEY } from '../storage';
+import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY } from '../storage';
 
 const KB_A = {
   id: 'kb-a',
@@ -216,9 +216,27 @@ describe('SemiontBrowser — setActiveKb (D2 disposal contract)', () => {
   });
 });
 
-describe('SemiontBrowser — open resources', () => {
-  it('addOpenResource, removeOpenResource, updateName, reorder', async () => {
+describe('SemiontBrowser — open resources (KB-scoped)', () => {
+  // Tabs are per-KB state; the visible list is a projection of the ACTIVE,
+  // CONNECTED KB (gate: activeSession$ non-null). Storage is the durable
+  // per-KB record; removeKb reaps it; the legacy flat key is ignored.
+
+  /** KB_A + KB_B registered with stored sessions; KB_A active and live. */
+  async function makeConnectedBrowser() {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    seedStoredSession(storage, KB_B.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A, KB_B]));
+    storage.set(ACTIVE_KEY, KB_A.id);
     const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null), take(1)));
+    return browser;
+  }
+
+  const liveSession = (browser: SemiontBrowser) =>
+    firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null), take(1)));
+
+  it('addOpenResource, removeOpenResource, updateName, reorder — on the active KB', async () => {
+    const browser = await makeConnectedBrowser();
 
     browser.addOpenResource('r1', 'One');
     browser.addOpenResource('r2', 'Two', 'text/markdown', 'file://two.md');
@@ -241,12 +259,96 @@ describe('SemiontBrowser — open resources', () => {
     await browser.dispose();
   });
 
+  it('assigns a unique order after removals (no collision with surviving tabs)', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('r1', 'One');
+    browser.addOpenResource('r2', 'Two');
+    browser.addOpenResource('r3', 'Three');
+    browser.removeOpenResource('r2'); // surviving orders: 0, 2
+
+    browser.addOpenResource('r4', 'Four'); // length-based order would collide at 2
+
+    const list = browser.openResources$.getValue();
+    const orders = list.map((r) => r.order);
+    expect(new Set(orders).size).toBe(orders.length);
+    expect(list.map((r) => r.id)).toEqual(['r1', 'r3', 'r4']);
+
+    await browser.dispose();
+  });
+
   it('reorderOpenResources ignores out-of-range indices', async () => {
-    const browser = makeBrowser();
+    const browser = await makeConnectedBrowser();
     browser.addOpenResource('r1', 'One');
     const before = browser.openResources$.getValue();
     browser.reorderOpenResources(0, 5);
     expect(browser.openResources$.getValue()).toEqual(before);
+    await browser.dispose();
+  });
+
+  it('is inert with no live session: nothing visible, nothing persisted', async () => {
+    const browser = makeBrowser();
+    browser.addOpenResource('r1', 'One');
+    expect(browser.openResources$.getValue()).toEqual([]);
+    expect(storage.get(OPEN_RESOURCES_BY_KB_KEY)).toBeNull();
+    await browser.dispose();
+  });
+
+  it('switching KBs switches the visible list; each KB keeps its own', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('r1', 'One');
+
+    await browser.setActiveKb(KB_B.id);
+    await liveSession(browser);
+    expect(browser.openResources$.getValue()).toEqual([]);
+    browser.addOpenResource('r2', 'Two');
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r2']);
+
+    await browser.setActiveKb(KB_A.id);
+    await liveSession(browser);
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r1']);
+
+    await browser.dispose();
+  });
+
+  it('signOut hides the tabs; storage retains them; signIn restores', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('r1', 'One');
+
+    await browser.signOut(KB_A.id);
+    expect(browser.openResources$.getValue()).toEqual([]);
+    const stored = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY)!) as Record<string, Array<{ id: string }>>;
+    expect(stored[KB_A.id]!.map((r) => r.id)).toEqual(['r1']);
+
+    await browser.signIn(KB_A.id, freshJwt(), 'r');
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r1']);
+
+    await browser.dispose();
+  });
+
+  it('removeKb reaps the stored tabs for that KB', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('r1', 'One');
+
+    browser.removeKb(KB_A.id);
+    const stored = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY) ?? '{}') as Record<string, unknown>;
+    expect(stored[KB_A.id]).toBeUndefined();
+
+    await browser.dispose();
+  });
+
+  it('cross-tab writes to the per-KB key update the projection', async () => {
+    const browser = await makeConnectedBrowser();
+    const payload = JSON.stringify({ [KB_A.id]: [{ id: 'rX', name: 'X', openedAt: 1, order: 0 }] });
+    storage.set(OPEN_RESOURCES_BY_KB_KEY, payload);
+    storage.dispatch(OPEN_RESOURCES_BY_KB_KEY, payload);
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['rX']);
+    await browser.dispose();
+  });
+
+  it('ignores the legacy flat openDocuments key entirely', async () => {
+    storage.set('openDocuments', JSON.stringify([{ id: 'old', name: 'Old', openedAt: 1 }]));
+    const browser = await makeConnectedBrowser();
+    expect(browser.openResources$.getValue()).toEqual([]);
     await browser.dispose();
   });
 });

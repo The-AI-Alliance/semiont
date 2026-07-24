@@ -26,6 +26,7 @@ import {
   getStoredSession,
   isJwtExpired,
   loadKnowledgeBases,
+  OPEN_RESOURCES_BY_KB_KEY,
   saveKnowledgeBases,
   setStoredSession,
 } from './storage';
@@ -41,8 +42,6 @@ import { SemiontSessionError } from './errors';
 import type { SessionStorage } from './session-storage';
 import type { SessionFactory } from './session-factory';
 
-const OPEN_RESOURCES_KEY = 'openDocuments';
-
 function sortOpenResources(resources: OpenResource[]): OpenResource[] {
   return [...resources].sort((a, b) => {
     if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
@@ -50,14 +49,19 @@ function sortOpenResources(resources: OpenResource[]): OpenResource[] {
   });
 }
 
-function loadOpenResources(storage: SessionStorage): OpenResource[] {
+/**
+ * Tabs are per-KB state: Record<kbId, OpenResource[]>. State from the
+ * retired flat `openDocuments` key is deliberately ignored (it never
+ * recorded which KB its entries belonged to).
+ */
+function loadOpenResourcesByKb(storage: SessionStorage): Record<string, OpenResource[]> {
   try {
-    const stored = storage.get(OPEN_RESOURCES_KEY);
-    if (stored) return sortOpenResources(JSON.parse(stored) as OpenResource[]);
+    const stored = storage.get(OPEN_RESOURCES_BY_KB_KEY);
+    if (stored) return JSON.parse(stored) as Record<string, OpenResource[]>;
   } catch {
     // Ignore parse errors
   }
-  return [];
+  return {};
 }
 
 export interface SemiontBrowserConfig {
@@ -112,6 +116,8 @@ export class SemiontBrowser {
   private unsubscribeStorage: (() => void) | null = null;
   private disposed = false;
   private activating: Promise<void> | null = null;
+  /** Per-KB tab lists; `openResources$` projects the active, connected KB's. */
+  private openByKb: Record<string, OpenResource[]> = {};
 
   constructor(config: SemiontBrowserConfig) {
     this.storage = config.storage;
@@ -129,7 +135,8 @@ export class SemiontBrowser {
     this.activeSession$ = new BehaviorSubject<SemiontSession | null>(null);
     this.activeSignals$ = new BehaviorSubject<SessionSignals | null>(null);
     this.sessionActivating$ = new BehaviorSubject<boolean>(false);
-    this.openResources$ = new BehaviorSubject<OpenResource[]>(loadOpenResources(this.storage));
+    this.openByKb = loadOpenResourcesByKb(this.storage);
+    this.openResources$ = new BehaviorSubject<OpenResource[]>([]);
     this.error$ = new Subject<SemiontSessionError>();
     this.identityToken$ = new BehaviorSubject<string | null>(null);
 
@@ -140,16 +147,18 @@ export class SemiontBrowser {
       else this.storage.delete(ACTIVE_KEY);
     });
 
-    // Persist openResources$ on every change.
-    this.openResources$.subscribe((list) => {
-      this.storage.set(OPEN_RESOURCES_KEY, JSON.stringify(list));
-    });
+    // The visible tab list is a projection of the active, CONNECTED KB
+    // (gate: a live session). Connect/disconnect/switch all surface as
+    // activeSession$ transitions, so one subscription re-projects for all
+    // three; CRUD and cross-tab writes refresh explicitly.
+    this.activeSession$.subscribe(() => this.refreshOpenResources());
 
-    // Sync openResources$ from other contexts (cross-tab/cross-process).
+    // Sync the per-KB map from other contexts (cross-tab/cross-process).
     this.unsubscribeStorage = this.storage.subscribe?.((key, newValue) => {
-      if (key !== OPEN_RESOURCES_KEY || !newValue) return;
+      if (key !== OPEN_RESOURCES_BY_KB_KEY || !newValue) return;
       try {
-        this.openResources$.next(sortOpenResources(JSON.parse(newValue) as OpenResource[]));
+        this.openByKb = JSON.parse(newValue) as Record<string, OpenResource[]>;
+        this.refreshOpenResources();
       } catch {
         // Ignore parse errors
       }
@@ -208,6 +217,14 @@ export class SemiontBrowser {
 
   removeKb(id: string): void {
     clearStoredSession(this.storage, id);
+    // Reap the KB's tab record — removal of the connection is the one
+    // deliberate act that forgets the working set.
+    if (this.openByKb[id]) {
+      const rest = { ...this.openByKb };
+      delete rest[id];
+      this.openByKb = rest;
+      this.persistOpenResources();
+    }
     const next = this.kbs$.getValue().filter((kb) => kb.id !== id);
     this.kbs$.next(next);
     if (this.activeKbId$.getValue() === id) {
@@ -425,7 +442,31 @@ export class SemiontBrowser {
     }
   }
 
-  // ── Open resources ────────────────────────────────────────────────────
+  // ── Open resources (per-KB; the visible list is a projection) ─────────
+
+  private refreshOpenResources(): void {
+    const kbId = this.activeKbId$.getValue();
+    const session = this.activeSession$.getValue();
+    const list = kbId && session ? sortOpenResources(this.openByKb[kbId] ?? []) : [];
+    this.openResources$.next(list);
+  }
+
+  private persistOpenResources(): void {
+    this.storage.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify(this.openByKb));
+  }
+
+  /**
+   * All tab CRUD funnels through here: inert without an active, connected
+   * KB (the projection gate), otherwise mutate that KB's list, persist the
+   * whole map, and re-project.
+   */
+  private mutateOpenResources(mutate: (list: OpenResource[]) => OpenResource[]): void {
+    const kbId = this.activeKbId$.getValue();
+    if (!kbId || !this.activeSession$.getValue()) return;
+    this.openByKb = { ...this.openByKb, [kbId]: mutate(this.openByKb[kbId] ?? []) };
+    this.persistOpenResources();
+    this.refreshOpenResources();
+  }
 
   addOpenResource(
     id: string,
@@ -433,51 +474,57 @@ export class SemiontBrowser {
     mediaType?: string,
     storageUri?: string,
   ): void {
-    const existing = this.openResources$.getValue();
-    const idx = existing.findIndex((r) => r.id === id);
-    if (idx >= 0) {
-      // Update metadata in place; keep position and openedAt.
-      const prev = existing[idx]!;
-      const updated: OpenResource = {
-        ...prev,
+    this.mutateOpenResources((existing) => {
+      const idx = existing.findIndex((r) => r.id === id);
+      if (idx >= 0) {
+        // Update metadata in place; keep position and openedAt.
+        const prev = existing[idx]!;
+        const updated: OpenResource = {
+          ...prev,
+          name,
+          ...(mediaType !== undefined ? { mediaType } : {}),
+          ...(storageUri !== undefined ? { storageUri } : {}),
+        };
+        const next = [...existing];
+        next[idx] = updated;
+        return next;
+      }
+      return [...existing, {
+        id,
         name,
+        openedAt: Date.now(),
+        // max+1, not length: after removals, length can collide with a
+        // surviving order (e.g. [0,2] + add), leaving placement to sort
+        // stability.
+        order: existing.reduce((m, r) => Math.max(m, r.order ?? -1), -1) + 1,
         ...(mediaType !== undefined ? { mediaType } : {}),
         ...(storageUri !== undefined ? { storageUri } : {}),
-      };
-      const next = [...existing];
-      next[idx] = updated;
-      this.openResources$.next(next);
-      return;
-    }
-    const resource: OpenResource = {
-      id,
-      name,
-      openedAt: Date.now(),
-      order: existing.length,
-      ...(mediaType !== undefined ? { mediaType } : {}),
-      ...(storageUri !== undefined ? { storageUri } : {}),
-    };
-    this.openResources$.next([...existing, resource]);
+      }];
+    });
   }
 
   removeOpenResource(id: string): void {
-    this.openResources$.next(this.openResources$.getValue().filter((r) => r.id !== id));
+    this.mutateOpenResources((existing) => existing.filter((r) => r.id !== id));
   }
 
   updateOpenResourceName(id: string, name: string): void {
-    this.openResources$.next(
-      this.openResources$.getValue().map((r) => (r.id === id ? { ...r, name } : r)),
+    this.mutateOpenResources((existing) =>
+      existing.map((r) => (r.id === id ? { ...r, name } : r)),
     );
   }
 
   reorderOpenResources(oldIndex: number, newIndex: number): void {
-    const list = [...this.openResources$.getValue()];
-    if (oldIndex < 0 || oldIndex >= list.length || newIndex < 0 || newIndex >= list.length) {
-      return;
-    }
-    const [moved] = list.splice(oldIndex, 1);
-    if (moved) list.splice(newIndex, 0, moved);
-    this.openResources$.next(list);
+    this.mutateOpenResources((existing) => {
+      // Indices refer to the SORTED (visible) list; renumber `order` after
+      // the move so the drag survives persistence and re-sorting.
+      const list = sortOpenResources(existing);
+      if (oldIndex < 0 || oldIndex >= list.length || newIndex < 0 || newIndex >= list.length) {
+        return existing;
+      }
+      const [moved] = list.splice(oldIndex, 1);
+      if (moved) list.splice(newIndex, 0, moved);
+      return list.map((r, i) => ({ ...r, order: i }));
+    });
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────

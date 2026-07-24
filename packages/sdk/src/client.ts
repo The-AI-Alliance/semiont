@@ -15,6 +15,7 @@
 
 import type { BaseUrl, AccessToken } from '@semiont/core';
 import { EventBus, accessToken, baseUrl } from '@semiont/core';
+import type { SessionStorage } from './session/session-storage';
 import { BehaviorSubject } from 'rxjs';
 import { BrowseNamespace } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
@@ -109,7 +110,18 @@ export class SemiontClient {
    * `HttpTransport` instance that's also passed as `transport` (HTTP
    * implements both `ITransport` and `IBackendOperations`).
    */
-  constructor(transport: ITransport, content: IContentTransport, backend?: IBackendOperations) {
+  constructor(
+    transport: ITransport,
+    content: IContentTransport,
+    backend?: IBackendOperations,
+    options?: {
+      /**
+       * B17 — cache persistence through the environment's SessionStorage
+       * adapter (keyPrefix = KB id). Omitted = in-memory-only caches.
+       */
+      cachePersistence?: { storage: SessionStorage; keyPrefix: string };
+    },
+  ) {
     this.transport = transport;
     this.content = content;
     this.baseUrl = transport.baseUrl;
@@ -118,7 +130,12 @@ export class SemiontClient {
     this.transport.bridgeInto(this.bus);
 
     this.frame  = new FrameNamespace(this.transport);
-    this.browse = new BrowseNamespace(this.transport, this.bus, this.content);
+    this.browse = new BrowseNamespace(
+      this.transport,
+      this.bus,
+      this.content,
+      options?.cachePersistence ? { cachePersistence: options.cachePersistence } : undefined,
+    );
     this.mark   = new MarkNamespace(this.transport, this.bus);
     this.bind   = new BindNamespace(this.transport, this.bus);
     this.gather = new GatherNamespace(this.transport, this.bus);
