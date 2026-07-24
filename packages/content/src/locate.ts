@@ -11,22 +11,24 @@ const SAME_LINE_THRESHOLD_PT = 2;
 /**
  * Locates bounding rectangles for a span of text in a PdfTextLayer
  * (single-line or multi-line).
- * 
- * Finds all overlapping items [start, end), groups them by page and line,
- * and records one bounding rectangle per line as a PdfCoordinate.
- * 
- * Returns array of PdfCoordinate, one per line of text covered by the span.
- * Returns empty array if no items overlap the span.
+ *
+ * Finds all overlapping items [start, end), groups them by page and line, and
+ * records one bounding rectangle per line as a PdfCoordinate.
+ *
+ * Returns both the per-line `rects` and the `overlap` items they were computed
+ * from — so a caller that also needs the covered text (e.g. buildPdfAnnotation's
+ * geometry↔text containment invariant) reuses this single `layer.items` scan
+ * instead of re-filtering. Both arrays are empty if no item overlaps the span.
  */
 export function locate(
     layer: PdfTextLayer,
     start: number,
     end: number
-): PdfCoordinate[] {
+): { rects: PdfCoordinate[]; overlap: PdfTextItem[] } {
     const overlap: PdfTextItem[] = layer.items.filter(
         item => item.start < end && item.end > start
     );
-    if (overlap.length === 0) return [];
+    if (overlap.length === 0) return { rects: [], overlap };
 
     const pages: Map<number, PdfTextItem[]> = groupItemsByPage(overlap);
     const rects: PdfCoordinate[] = [];
@@ -43,7 +45,7 @@ export function locate(
             rects.push({page, x, y, width: right - x, height: top - y});
         }
     }
-    return rects;
+    return { rects, overlap };
 }
 
 function groupItemsByPage(items: PdfTextItem[]): Map<number, PdfTextItem[]> {

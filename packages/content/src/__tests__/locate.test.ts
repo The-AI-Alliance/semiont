@@ -30,7 +30,7 @@ describe('locate', () => {
         const layer = await extractPdfTextLayer(readFixture('single-line.pdf'));
         if (!layer) throw new Error('expected layer, got null');
         const start = layer.text.indexOf(KNOWN_PHRASE);
-        const rects = locate(layer, start, start + KNOWN_PHRASE.length);
+        const { rects } = locate(layer, start, start + KNOWN_PHRASE.length);
         if (rects.length === 0) throw new Error('expected rects, got empty array');
 
         const rect = rects[0];
@@ -50,7 +50,7 @@ describe('locate', () => {
         const layer = await extractPdfTextLayer(readFixture('single-line.pdf'));
         if (!layer) throw new Error('expected layer, got null');
         const start = layer.text.indexOf(KNOWN_PHRASE);
-        const rects = locate(layer, start, start + KNOWN_PHRASE.length);
+        const { rects } = locate(layer, start, start + KNOWN_PHRASE.length);
         expect(rects).toHaveLength(1);
 
         const fragment = createFragmentSelector(rects[0]);
@@ -64,7 +64,7 @@ describe('locate', () => {
         const start = layer.text.indexOf(KNOWN_PHRASE);
         expect(start).toBeGreaterThanOrEqual(0);
 
-        const rects = locate(layer, start, start + KNOWN_PHRASE.length);
+        const { rects } = locate(layer, start, start + KNOWN_PHRASE.length);
         expect(rects).toHaveLength(1);
         expect(rects[0].page).toBe(1);
         expect(rects[0].width).toBeGreaterThan(0);
@@ -75,7 +75,7 @@ describe('locate', () => {
     it('returns one rect per line for a multi-line span', async () => {
         const layer = await extractPdfTextLayer(readFixture('multi-line.pdf'));
         if (!layer) throw new Error('expected layer, got null');
-        const rects = locate(layer, 0, layer.text.length - 1);
+        const { rects } = locate(layer, 0, layer.text.length - 1);
         expect(rects.length).toBeGreaterThan(1);
 
         const ys = rects.map(r => r.y);  // Extracts y value from every rect into an array
@@ -86,7 +86,7 @@ describe('locate', () => {
     it('returns empty array when span has no matching items', async () => {
         const layer = await extractPdfTextLayer(readFixture('single-line.pdf'));
         if (!layer) throw new Error('expected layer, got null');
-        const rects = locate(layer, 99999, 100000);
+        const { rects } = locate(layer, 99999, 100000);
         expect(rects).toHaveLength(0);
     });
     

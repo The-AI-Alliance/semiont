@@ -249,13 +249,14 @@ export function buildPdfAnnotation(
   match: { exact: string; start: number; end: number; prefix?: string; suffix?: string },
   body?: Record<string, unknown> | Record<string, unknown>[],
 ) {
-  const rects = locate(layer, match.start, match.end);
+  // `locate` returns both the per-line rects and the overlap items it found;
+  // reuse `overlap` for the containment check rather than re-scanning layer.items.
+  const { rects, overlap } = locate(layer, match.start, match.end);
 
-  const covered = layer.items.filter((i) => i.start < match.end && i.end > match.start);
-  const coveredText = covered.length
+  const coveredText = overlap.length
     ? layer.text.substring(
-        Math.min(...covered.map((i) => i.start)),
-        Math.max(...covered.map((i) => i.end)),
+        Math.min(...overlap.map((i) => i.start)),
+        Math.max(...overlap.map((i) => i.end)),
       )
     : '';
   const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
