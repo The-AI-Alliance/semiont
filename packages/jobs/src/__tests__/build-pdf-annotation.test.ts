@@ -91,4 +91,31 @@ describe('buildPdfAnnotation (#736 geometry tail)', () => {
       { exact: 'alpha', start: 0, end: 5 }, body);
     expect((ann as Record<string, unknown>).body).toEqual(body);
   });
+
+  it('linking motivation carries its detection-time body through the shared geometry', () => {
+    // #737: at detection time a linking reference's body is the entity type as a
+    // TextualBody (the SpecificResource target is appended later, at bind). The
+    // geometry tail is identical to highlighting; only motivation + body differ.
+    const body = { type: 'TextualBody', value: 'Person', purpose: 'tagging', format: 'text/plain' };
+    const ann = buildPdfAnnotation(LAYER, RID, USER_DID, GENERATOR, 'linking',
+      { exact: 'gamma delta', start: 11, end: 22 }, body);
+    expect(ann.motivation).toBe('linking');
+    expect((ann as Record<string, unknown>).body).toEqual(body);
+    expect(frags(ann).length).toBeGreaterThanOrEqual(1);
+    expect(sels(ann).some(x => x.type === 'TextQuoteSelector')).toBe(true);
+    expect(sels(ann).some(x => x.type === 'TextPositionSelector')).toBe(false);
+  });
+
+  it('carries an array body (as commenting/tagging pass) unchanged', () => {
+    // comment and tag hand buildAnnotation an ARRAY of bodies; the geometry tail
+    // must pass either shape (single object | array) through verbatim.
+    const body = [
+      { type: 'TextualBody', value: 'Rule',   purpose: 'tagging',    format: 'text/plain' },
+      { type: 'TextualBody', value: 'a note', purpose: 'commenting', format: 'text/plain' },
+    ];
+    const ann = buildPdfAnnotation(LAYER, RID, USER_DID, GENERATOR, 'tagging',
+      { exact: 'alpha', start: 0, end: 5 }, body);
+    expect((ann as Record<string, unknown>).body).toEqual(body);
+    expect(Array.isArray((ann as Record<string, unknown>).body)).toBe(true);
+  });
 });

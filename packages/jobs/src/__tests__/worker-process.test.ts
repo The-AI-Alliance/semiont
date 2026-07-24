@@ -469,35 +469,53 @@ describe('handleJob orchestration', () => {
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(false);
     });
 
-    it('runs detection on a text-layer PDF via the pdf-text-layer strategy', async () => {
-      // application/pdf resolves to 'pdf-text-layer': the source is the
-      // extracted layer's text (not decoded bytes), anchored by a PDF-aware
-      // buildAnnotation. The processor receives exactly that text.
-      vi.mocked(processHighlightJob).mockResolvedValue({
-        annotations: [] as never,
-        result: {} as never,
-      });
-      vi.mocked(extractPdfTextLayer).mockResolvedValue({
-        text: 'the quick brown fox',
-        items: [],
-      } as never);
+    // #737 (Phase 3): all five detection motivations fan out to the PDF
+    // text-layer path. Geometry is shared (buildPdfAnnotation, covered in
+    // build-pdf-annotation.test.ts); this proves the dispatch routes every
+    // motivation through 'pdf-text-layer' — feeding each processor the extracted
+    // layer text (arg 0) and a PDF-aware buildAnnotation (arg 3), never the
+    // decoded-bytes path. `lastCall` closes over the concrete mock so each
+    // processor's own arg tuple is read (their signatures differ).
+    type PdfFanoutCase = {
+      jobType: ActiveJob['type'];
+      arm: () => void;                    // set this processor's resolved value
+      lastCall: () => unknown[] | undefined;
+    };
+    const PDF_FANOUT: PdfFanoutCase[] = [
+      { jobType: 'highlight-annotation',
+        arm: () => { vi.mocked(processHighlightJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        lastCall: () => vi.mocked(processHighlightJob).mock.calls[0] },
+      { jobType: 'comment-annotation',
+        arm: () => { vi.mocked(processCommentJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        lastCall: () => vi.mocked(processCommentJob).mock.calls[0] },
+      { jobType: 'assessment-annotation',
+        arm: () => { vi.mocked(processAssessmentJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        lastCall: () => vi.mocked(processAssessmentJob).mock.calls[0] },
+      { jobType: 'reference-annotation',
+        arm: () => { vi.mocked(processReferenceJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        lastCall: () => vi.mocked(processReferenceJob).mock.calls[0] },
+      { jobType: 'tag-annotation',
+        arm: () => { vi.mocked(processTagJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        lastCall: () => vi.mocked(processTagJob).mock.calls[0] },
+    ];
+
+    it.each(PDF_FANOUT)('fans $jobType out to the pdf-text-layer path', async ({ jobType, arm, lastCall }) => {
+      arm();
+      vi.mocked(extractPdfTextLayer).mockResolvedValue({ text: 'the quick brown fox', items: [] } as never);
       const h = makeFakeSessionAndAdapter();
       vi.mocked(h.session.client.browse.resource).mockResolvedValue({
         representations: [{ mediaType: 'application/pdf' }],
       } as never);
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
+      await handleJob(h.adapter, makeConfig(h.session), makeJob(jobType));
 
       // pdf-text-layer fetches the representation bytes, never resourceContent.
       expect(h.session.client.browse.resourceRepresentation).toHaveBeenCalled();
       expect(h.session.client.browse.resourceContent).not.toHaveBeenCalled();
-      expect(processHighlightJob).toHaveBeenCalledWith(
-        'the quick brown fox',   // source.text — the extracted layer
-        expect.anything(),       // inferenceClient
-        expect.anything(),       // job.params
-        expect.any(Function),    // source.buildAnnotation — PDF-aware anchor
-        expect.any(Function),    // onProgress
-      );
+      const call = lastCall();
+      expect(call).toBeDefined();
+      expect(call![0]).toBe('the quick brown fox'); // source.text — the extracted layer
+      expect(typeof call![3]).toBe('function');      // source.buildAnnotation — PDF-aware anchor
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(true);
     });
 

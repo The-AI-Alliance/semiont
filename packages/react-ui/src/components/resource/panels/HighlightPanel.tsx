@@ -153,7 +153,7 @@ export function HighlightPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
-        {/* Assist Section - only in Annotate mode and for text resources */}
+        {/* Assist Section - only in Annotate mode; shown for any media type (AI detection is media-agnostic — text is resolved via the media-type registry, incl. PDF text layers) */}
         {annotateMode && (
           <AssistSection
             session={session}
