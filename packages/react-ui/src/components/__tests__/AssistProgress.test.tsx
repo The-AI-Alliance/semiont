@@ -120,6 +120,31 @@ describe('AssistProgress', () => {
     expect(container.querySelector('.semiont-progress-bar__fill')).not.toBeInTheDocument();
   });
 
+  it('cancel and dismiss carry accessible names, with safe fallbacks when untranslated', () => {
+    // ✕ / × glyphs alone are meaningless to screen readers; the controls must
+    // have an accessible name even when a caller forgets the translations.
+    render(
+      <AssistProgress progress={running()} dataType="generation"
+        onCancel={vi.fn()} onDismiss={vi.fn()}
+        translations={{ title: 'Generating' }} />,
+    );
+    expect(screen.getByLabelText('Cancel')).toBeInTheDocument();
+    expect(screen.getByLabelText('Dismiss')).toBeInTheDocument();
+  });
+
+  it('terminal stages never render a blank status line', () => {
+    // JobProgress.message is required but can be '' — a terminal display with
+    // no text at all is worse than a generic word.
+    const { rerender } = render(
+      <AssistProgress progress={running({ stage: 'complete', message: '' })} dataType="reference" />,
+    );
+    expect(screen.getByText('Complete')).toBeInTheDocument();
+    rerender(
+      <AssistProgress progress={running({ stage: 'error', message: '' })} dataType="reference" />,
+    );
+    expect(screen.getByText('Failed')).toBeInTheDocument();
+  });
+
   it('renders dismiss whenever the caller offers it (WHEN is the caller\'s policy)', async () => {
     // AssistShell withholds onDismiss while the assist is running — that
     // gate is pinned in AssistShell.test; here the contract is just

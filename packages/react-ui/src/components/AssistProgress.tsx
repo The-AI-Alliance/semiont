@@ -69,7 +69,13 @@ export function AssistProgress({
             {tr.title}
           </h3>
           {onCancel && !terminal && (
-            <button onClick={onCancel} className="semiont-annotation-cancel" title={tr.cancel} type="button">
+            <button
+              onClick={onCancel}
+              className="semiont-annotation-cancel"
+              title={tr.cancel || 'Cancel'}
+              aria-label={tr.cancel || 'Cancel'}
+              type="button"
+            >
               ✕
             </button>
           )}
@@ -106,12 +112,13 @@ export function AssistProgress({
         {progress.stage === 'complete' ? (
           <div className="semiont-annotation-progress__message">
             <span className="semiont-annotation-progress__icon">✅</span>
-            <span>{tr.complete ?? progress.message}</span>
+            {/* JobProgress.message is required but may be '' — never blank a terminal line. */}
+            <span>{tr.complete || progress.message || 'Complete'}</span>
           </div>
         ) : progress.stage === 'error' ? (
           <div className="semiont-annotation-progress__message">
             <span className="semiont-annotation-progress__icon">❌</span>
-            <span>{progress.message || tr.failed}</span>
+            <span>{progress.message || tr.failed || 'Failed'}</span>
           </div>
         ) : (
           <div className="semiont-annotation-progress__message">
@@ -143,8 +150,8 @@ export function AssistProgress({
           <button
             onClick={onDismiss}
             className="semiont-annotation-progress__close"
-            aria-label={tr.close}
-            title={tr.close}
+            aria-label={tr.close || 'Dismiss'}
+            title={tr.close || 'Dismiss'}
             type="button"
           >
             ×

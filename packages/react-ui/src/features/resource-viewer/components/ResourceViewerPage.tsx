@@ -372,9 +372,9 @@ export function ResourceViewerPage({
   }, [routes.know, browser]);
 
   // Outcome notifications (annotation CRUD failures, job success/decline/fail,
-  // assist cancelled/timed-out) live in useOutcomeToasts — they need only the
-  // resource id and the toast surface. The registration below keeps the handlers
-  // that need page-local dependencies (SDK actions, sparkles, settings, navigation).
+  // assist timed-out) live in useOutcomeToasts — they need only the resource id
+  // and the toast surface. The registration below keeps the handlers that need
+  // page-local dependencies (SDK actions, sparkles, settings, navigation).
   useOutcomeToasts(resource.id as string);
 
   // Single useEventSubscriptions call per file (enforced by

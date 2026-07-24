@@ -260,10 +260,10 @@ export type AnnotatorKey = keyof typeof ANNOTATORS;
 /**
  * Annotator key (= panel tab key) for a motivation — derived from
  * {@link ANNOTATORS}, the single motivation↔annotator source, so no second
- * hand-written map can drift. Takes `string`, not `Motivation`: some event
- * payloads carry motivation loosely (e.g. `BrowsePanelOpenEvent.motivation`
- * is a plain string, and `panel:open` is not wire-validated), so callers at
- * those boundaries must handle `undefined`.
+ * hand-written map can drift. Takes `string`, not `Motivation`: the schemas
+ * type motivation properly (`BrowsePanelOpenEvent.motivation` is a `Motivation`
+ * `$ref`), but `panel:open` is not wire-validated at runtime, so loose strings
+ * can still arrive — callers at that boundary must handle `undefined`.
  */
 export function annotatorKeyForMotivation(motivation: string): AnnotatorKey | undefined {
   const entry = (Object.entries(ANNOTATORS) as [AnnotatorKey, Annotator][])
