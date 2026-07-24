@@ -485,6 +485,46 @@ surface) and the same logic serves a browser app, a Node daemon, and a one-shot 
 
 ---
 
+## Cache persistence across reloads (B17)
+
+Sessions built through `createHttpSessionFactory` persist their read caches through the
+same `SessionStorage` adapter the session layer already uses — so a reloaded client
+renders **last-seen data immediately** and reconciles in the background instead of
+cold-starting every request. In the browser this is on by default (the react-ui
+`SemiontProvider` supplies `WebBrowserStorage`); a desktop or Node host gets it by
+supplying its own `SessionStorage` — no other wiring.
+
+What persists, per KB:
+- Five browse caches — resource descriptors, annotation lists, annotation details,
+  entity types, tag schemas — under `semiont.cache.<kbId>.<name>`. Lists, event
+  histories, and the collaborator directory deliberately stay in-memory.
+- The last **persisted** SSE event id (`semiont.lastEventId.<kbId>`), written
+  only alongside cache-document flushes so the bookmark can never claim more
+  than the caches contain. Ephemeral (`e-*`) ids are never saved — the server
+  treats them as "no resumption context," which would silently skip the replay
+  that reconciles rehydrated data.
+
+How reconciliation works — there is no reconcile code path, only the existing
+contract: rehydrated entries serve synchronously with **no fetch**; the SSE
+reconnect sends the persisted `Last-Event-ID`; replayed events flow through the
+normal handlers and invalidate exactly what changed (stale value stays visible
+while the refetch runs); `bus:resume-gap` blanket-invalidates when replay can't
+cover. Failure states are never persisted, saves are debounced with a flush on
+dispose, and stored documents are version-gated (mismatch reads as empty).
+
+Constructing a client directly (no factory)? Opt in explicitly:
+
+```ts
+const client = new SemiontClient(transport, content, backend, {
+  cachePersistence: { storage, keyPrefix: kbId },
+});
+```
+
+Full behavioral contract: [CACHE-SEMANTICS.md](CACHE-SEMANTICS.md) **B17** (and the
+design record in `.plans/LOCAL-STORAGE.md`).
+
+---
+
 ## Where to go deeper
 
 - **[Usage.md](./Usage.md)** — the per-namespace reference: every method, every option.

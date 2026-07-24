@@ -15,6 +15,7 @@ import { BehaviorSubject } from 'rxjs';
 import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
 import { baseUrl, type AccessToken } from '@semiont/core';
 import { SemiontClient } from '../client';
+import { coupledLastEventId } from '../cache-persister';
 import { SemiontSession, type UserInfo } from './semiont-session';
 import { SemiontSessionError } from './errors';
 import { kbBackendUrl, getStoredSession, setStoredSession } from './storage';
@@ -101,13 +102,26 @@ export function createHttpSessionFactory(): SessionFactory {
     // before any 401 could fire.
     const token$ = new BehaviorSubject<AccessToken | null>(null);
     let session!: SemiontSession;
+    // B17: resume from the last persisted SSE id across reloads, so
+    // rehydrated caches reconcile by replay instead of gapping. The id is
+    // COUPLED to the cache flush (stashed in memory, written only alongside
+    // cache-document writes) so the persisted bookmark can lag the caches
+    // but never lead them.
+    const coupled = coupledLastEventId(storage, `semiont.lastEventId.${kb.id}`);
     const transport = new HttpTransport({
       baseUrl: baseUrl(kbBackendUrl(endpoint)),
       token$,
       tokenRefresher: () => session.refresh().then((t) => t ?? null),
+      loadLastEventId: coupled.loadLastEventId,
+      saveLastEventId: coupled.saveLastEventId,
     });
     const content = new HttpContentTransport(transport);
-    const client = new SemiontClient(transport, content, transport);
+    // B17: the real session's client persists its browse caches through the
+    // environment's storage adapter, scoped by KB. (The token-refresh
+    // throwaway clients above deliberately do not.)
+    const client = new SemiontClient(transport, content, transport, {
+      cachePersistence: { storage: coupled.storage, keyPrefix: kb.id },
+    });
     session = new SemiontSession({
       kb,
       storage,

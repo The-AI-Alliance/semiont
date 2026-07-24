@@ -117,6 +117,12 @@ export interface HttpTransportConfig {
   logger?: Logger;
   /** Optional 401-recovery hook. See {@link TokenRefresher}. */
   tokenRefresher?: TokenRefresher;
+  /**
+   * B17 — persistence thunks for the last seen persisted SSE id, passed
+   * through to the actor state unit. See {@link ActorStateUnitOptions}.
+   */
+  loadLastEventId?: () => string | null;
+  saveLastEventId?: (id: string) => void;
 }
 
 export class HttpTransport implements ITransport, IBackendOperations {
@@ -145,8 +151,11 @@ export class HttpTransport implements ITransport, IBackendOperations {
   /** Buses we've been asked to bridge wire events into. */
   private readonly bridges: EventBus[] = [];
 
+  private readonly config: HttpTransportConfig;
+
   constructor(config: HttpTransportConfig) {
     const { baseUrl, timeout = 30000, retry = 2, logger, tokenRefresher } = config;
+    this.config = config;
 
     this.baseUrl = (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) as BaseUrl;
     this.token$ = config.token$ ?? new BehaviorSubject<AccessToken | null>(null);
@@ -262,6 +271,8 @@ export class HttpTransport implements ITransport, IBackendOperations {
         baseUrl: this.baseUrl,
         token: () => this.token$.getValue() ?? '',
         channels: [...BRIDGED_CHANNELS],
+        ...(this.config.loadLastEventId ? { loadLastEventId: this.config.loadLastEventId } : {}),
+        ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
       });
       for (const channel of BRIDGED_CHANNELS) {
         this._actor.on$<Record<string, unknown>>(channel).subscribe((payload) => {

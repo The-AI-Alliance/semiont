@@ -501,6 +501,41 @@ new behavior here must be accompanied by a new test case referencing
 its number (`// B7 — invalidate preserves stale value`). Removing or
 changing a behavior must update both this doc and the test.
 
+
+### B17 — Persistence is opt-in rehydration, reconciled by resumption
+
+An optional `CachePersister` on `createCache` (and the
+`sessionStoragePersister` adapter over the `SessionStorage` seam) gives a
+cache durable, per-KB rehydration (.plans/LOCAL-STORAGE.md):
+
+1. **Load-on-construct.** `persister.load()` seeds the store before the
+   first observation. A rehydrated key serves synchronously and issues NO
+   fetch — protocol behavior is indistinguishable from a warm in-memory
+   cache.
+2. **Rehydrated data is stale-until-reconciled.** Correctness comes from
+   the existing contract, not new machinery: the transport reconnects with
+   the persisted `Last-Event-ID` (persisted `p-*` ids only — an ephemeral
+   `e-*` id means "no resumption context" server-side and is never saved),
+   replayed events invalidate through the normal handlers, and
+   `bus:resume-gap` blanket-invalidates as always. The persisted id is
+   COUPLED to the cache flush (`coupledLastEventId`): stashed per event,
+   written only alongside a cache-document write (document first, id
+   second) — so the bookmark may lag the persisted caches (harmless:
+   replay re-invalidates idempotently) but can never lead them and
+   silently skip a reconciling event.
+3. **Settled values only.** The store never contains B15 failure markers,
+   so neither does the persisted document; a previously-failed key
+   rehydrates as absent and refetches on first observation.
+4. **Saves are debounced** (default 50 ms) and **`dispose()` flushes a
+   pending save synchronously before going inert** — the flush is part of
+   the disposal act, so a KB switch cannot lose the last write; nothing
+   may save after disposal (B16 extends to the persister).
+5. **Version-gated.** A stored document whose version doesn't match (or
+   that fails to parse) reads as empty — never an error into the cache.
+6. **Cross-context sync** rides the persister's `subscribe` (the
+   `SessionStorage.subscribe` seam): an external write replaces the store;
+   last writer wins.
+
 ## Revision log
 
 - 2026-04-19 — initial spec, written as part of CACHE-LIBRARY.md
@@ -516,3 +551,7 @@ changing a behavior must update both this doc and the test.
   (stale-beats-error requires a stale value). Driven by the
   LIVENESS-AXIOMS P2 property suite falsifying L1/L2 against the real
   composition (valueless-key-terminal-failure-starves-observers.md).
+- 2026-07-21 — B17 added (opt-in persistence: load-on-construct
+  rehydration reconciled by resumption; values-only; flush-then-inert
+  dispose; version-gated; cross-context via the SessionStorage seam).
+  Execution record in .plans/LOCAL-STORAGE.md.

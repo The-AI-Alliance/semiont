@@ -21,6 +21,8 @@ import type { SessionStorage } from './session-storage';
 const SESSION_PREFIX = 'semiont.session.';
 export const STORAGE_KEY = 'semiont.knowledgeBases';
 export const ACTIVE_KEY = 'semiont.activeKnowledgeBaseId';
+/** Per-KB open-resource tabs: Record<kbId, OpenResource[]>. */
+export const OPEN_RESOURCES_BY_KB_KEY = 'semiont.openResourcesByKb';
 
 /** Refresh the access token this many milliseconds before it expires. */
 export const REFRESH_BEFORE_EXP_MS = 5 * 60 * 1000;

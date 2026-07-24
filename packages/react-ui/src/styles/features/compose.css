@@ -114,6 +114,13 @@
   display: none;
 }
 
+/* The label owns drag-and-drop (the input above can't receive native drops);
+   highlight while a drag hovers. */
+.semiont-form__upload-dropzone[data-drag-over="true"] {
+  border-color: var(--semiont-color-primary-500);
+  background: var(--semiont-color-primary-50, rgba(59, 130, 246, 0.06));
+}
+
 .semiont-form__upload-text {
   font-size: 0.875rem;
   color: var(--semiont-color-gray-600);
