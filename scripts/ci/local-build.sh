@@ -367,6 +367,41 @@ for img in $IMAGES; do
   fanout_image "$TAG"
 done
 
+# --- sdk-go drift gate ---
+#
+# packages/sdk-go/client_gen.go is GENERATED from specs/openapi.json and
+# COMMITTED (see packages/sdk-go/README.md). Nothing regenerates it
+# automatically, so a spec change can leave it stale. This gate regenerates
+# to a scratch path inside the container (never the working tree — builds
+# don't mutate source) and diffs: byte-identical or fail. Deterministic
+# because the generator version is pinned.
+
+banner "SDK-GO DRIFT GATE"
+
+step "Checking packages/sdk-go/client_gen.go against specs/openapi.json..."
+GOCACHE_DIR=/tmp/semiont-gocache
+mkdir -p "$GOCACHE_DIR"
+if $RT run --rm \
+  -v "$REPO_ROOT":/workspace \
+  -v "$GOCACHE_DIR":/root/.cache/go-build \
+  -w /workspace \
+  golang:1.25 \
+  sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
+           -generate types,client -package semiont \
+           -o /tmp/client_gen.check.go specs/openapi.json \
+         && diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go >/dev/null'; then
+  ok "packages/sdk-go matches the spec"
+else
+  fail "packages/sdk-go/client_gen.go is STALE — the OpenAPI spec changed without regenerating the Go client."
+  echo ""
+  echo -e "  Regenerate and commit it:"
+  echo ""
+  echo -e "    ${BOLD}cd packages/sdk-go && go generate ./...${RESET}"
+  echo -e "    ${BOLD}git add packages/sdk-go/client_gen.go${RESET}   (then commit)"
+  echo ""
+  exit 1
+fi
+
 # --- Build the launcher (host binary) ---
 #
 # The semiont launcher is a static Go binary that runs on the HOST and drives

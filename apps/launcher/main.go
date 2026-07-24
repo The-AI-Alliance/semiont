@@ -23,6 +23,8 @@ Commands:
   init      Birth a new KB here: permanent identity, git repo, registration
   start     Start the local Semiont stack
   useradd   Create or update a user in the running stack
+  login     Authenticate against a running stack (token stored, never the password)
+  yield     Upload files from the KB root as resources (needs login)
   secret    Register where config secrets come from (pointers, never values)
   status    Report container state and application health per service
   logs      Follow the running stack's service logs
@@ -51,6 +53,10 @@ func main() {
 		code = launcher.Start(rest)
 	case "useradd":
 		code = launcher.Useradd(rest)
+	case "login":
+		code = launcher.Login(rest)
+	case "yield":
+		code = launcher.Yield(rest)
 	case "secret":
 		code = launcher.Secret(rest)
 	case "status":
