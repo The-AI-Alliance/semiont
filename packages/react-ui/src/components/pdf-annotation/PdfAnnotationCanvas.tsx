@@ -336,7 +336,7 @@ export function PdfAnnotationCanvas({
     setIsDrawing(false);
     // Note: We keep selection so the preview remains visible
     // It will be cleared when drawingMode changes or user starts new selection
-  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations]);
+  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri]);
 
   // Every FragmentSelector rect on the current page — one per line for a
   // multi-line (multi-selector) annotation, exactly one for a manual annotation.
