@@ -4,12 +4,8 @@ import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import type { Annotation, AnchorRect } from '@semiont/core';
 import { resourceId as toResourceId } from '@semiont/core';
 import { toViewportAnchorRect } from '../../lib/anchor-rect';
-import {
-  getTargetSelector,
-  createFragmentSelector,
-  parseFragmentSelector,
-  getPageFromFragment,
-} from '@semiont/core';
+import { createFragmentSelector } from '@semiont/core';
+import { rectsForPage } from './rects-for-page';
 import { createHoverHandlers, type SemiontSession } from '@semiont/sdk';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import {
@@ -260,14 +256,8 @@ export function PdfAnnotationCanvas({
         // The hit-test owns the coordinate transform — capture the hit
         // annotation's viewport rect for the emission below (A1 anchor).
         let hitRect: AnchorRect | undefined;
-        const clickedAnnotation = pageAnnotations.find(ann => {
-          const fragmentSel = getFragmentSelector(ann.target);
-          if (!fragmentSel) return false;
-
-          const pdfCoord = parseFragmentSelector(fragmentSel.value);
-          if (!pdfCoord) return false;
-
-          const rect = pdfToCanvasCoordinates(pdfCoord, pageDimensions.height, 1.0);
+        const hit = rectsForPage(existingAnnotations, pageNumber).find(r => {
+          const rect = pdfToCanvasCoordinates(r.coord, pageDimensions.height, 1.0);
 
           // Scale to display coordinates
           const scaleX = displayDimensions.width / pageDimensions.width;
@@ -278,20 +268,20 @@ export function PdfAnnotationCanvas({
           const displayWidth = rect.width * scaleX;
           const displayHeight = rect.height * scaleY;
 
-          const hit = (
+          const inside = (
             selection.endX >= displayX &&
             selection.endX <= displayX + displayWidth &&
             selection.endY >= displayY &&
             selection.endY <= displayY + displayHeight
           );
-          if (hit && imageRef.current) {
+          if (inside && imageRef.current) {
             hitRect = toViewportAnchorRect(imageRef.current.getBoundingClientRect(), displayX, displayY, displayWidth, displayHeight);
           }
-          return hit;
+          return inside;
         });
 
-        if (clickedAnnotation) {
-          session?.client.browse.click(clickedAnnotation.id, clickedAnnotation.motivation, hitRect);
+        if (hit) {
+          session?.client.browse.click(hit.annId, hit.annotation.motivation, hitRect);
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -346,26 +336,11 @@ export function PdfAnnotationCanvas({
     setIsDrawing(false);
     // Note: We keep selection so the preview remains visible
     // It will be cleared when drawingMode changes or user starts new selection
-  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations]);
+  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri]);
 
-  // Helper to get FragmentSelector from annotation target
-  const getFragmentSelector = (target: Annotation['target']) => {
-    const selector = getTargetSelector(target);
-    if (!selector) return null;
-    const selectors = Array.isArray(selector) ? selector : [selector];
-
-    const found = selectors.find(s => s.type === 'FragmentSelector');
-    if (!found || found.type !== 'FragmentSelector') return null;
-    return found as { type: 'FragmentSelector'; value: string; conformsTo?: string };
-  };
-
-  // Filter annotations for current page
-  const pageAnnotations = existingAnnotations.filter(ann => {
-    const fragmentSel = getFragmentSelector(ann.target);
-    if (!fragmentSel) return false;
-    const page = getPageFromFragment(fragmentSel.value);
-    return page === pageNumber;
-  });
+  // Every FragmentSelector rect on the current page — one per line for a
+  // multi-line (multi-selector) annotation, exactly one for a manual annotation.
+  const pageRects = rectsForPage(existingAnnotations, pageNumber);
 
   // Hover handlers with currentHover guard and dwell delay
   const { handleMouseEnter, handleMouseLeave } = useMemo(
@@ -434,29 +409,23 @@ export function PdfAnnotationCanvas({
                 height={displayDimensions.height}
               >
                 {/* Render existing annotations for this page */}
-                {pageAnnotations.map(ann => {
-                  const fragmentSel = getFragmentSelector(ann.target);
-                  if (!fragmentSel) return null;
-
-                  const pdfCoord = parseFragmentSelector(fragmentSel.value);
-                  if (!pdfCoord) return null;
-
-                  const rect = pdfToCanvasCoordinates(pdfCoord, pageDimensions.height, 1.0);
+                {pageRects.map(r => {
+                  const rect = pdfToCanvasCoordinates(r.coord, pageDimensions.height, 1.0);
 
                   // Scale to display coordinates
                   const scaleX = displayDimensions.width / pageDimensions.width;
                   const scaleY = displayDimensions.height / pageDimensions.height;
 
-                  const isHovered = ann.id === hoveredAnnotationId;
-                  const isSelected = ann.id === selectedAnnotationId;
+                  const isHovered = r.annId === hoveredAnnotationId;
+                  const isSelected = r.annId === selectedAnnotationId;
 
-                  // Get color for this annotation's motivation (not the selected motivation)
-                  const annMotivation = ann.motivation as SelectionMotivation | null;
+                  // Colour by the annotation's own motivation (not the toolbar's).
+                  const annMotivation = r.annotation.motivation as SelectionMotivation | null;
                   const { stroke: annStroke, fill: annFill } = getMotivationColor(annMotivation);
 
                   return (
                     <rect
-                      key={ann.id}
+                      key={`${r.annId}:${r.selectorIndex}`}
                       x={rect.x * scaleX}
                       y={rect.y * scaleY}
                       width={rect.width * scaleX}
@@ -469,8 +438,8 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={(e) => session?.client.browse.click(ann.id, ann.motivation, e.currentTarget.getBoundingClientRect())}
-                      onMouseEnter={() => handleMouseEnter(ann.id)}
+                      onClick={(e) => session?.client.browse.click(r.annId, r.annotation.motivation, e.currentTarget.getBoundingClientRect())}
+                      onMouseEnter={() => handleMouseEnter(r.annId)}
                       onMouseLeave={handleMouseLeave}
                     />
                   );
