@@ -879,8 +879,9 @@ func serve(ports []string) {
 					// would say text/plain), exactly like the real backend.
 					w.Header().Set("Content-Type", "application/json")
 					_ = json.NewEncoder(w).Encode(map[string]any{
-						"success": true,
-						"token":   "fake-jwt-token",
+						"success":      true,
+						"token":        "fake-jwt-token",
+						"refreshToken": "fake-refresh-token",
 						"user": map[string]any{
 							"id": "u1", "email": "admin@example.com", "name": nil,
 							"image": nil, "domain": "example.com", "isAdmin": true,
@@ -888,10 +889,68 @@ func serve(ports []string) {
 					})
 					return
 				}
+				// Session lifecycle (Tier 1). FAKERT_STALE_TOKEN=1 makes the
+				// login-issued token read as EXPIRED — the refresh flow's
+				// exercise: refresh with the stored refresh token mints
+				// fake-jwt-token-2, which every bearer endpoint accepts.
+				bearerOK := func() bool {
+					// FAKERT_ALL_TOKENS_STALE: NO bearer is ever accepted,
+					// though refresh still succeeds — the "refreshed but
+					// still rejected" scenario (account disabled etc.).
+					if os.Getenv("FAKERT_ALL_TOKENS_STALE") != "" {
+						return false
+					}
+					a := r.Header.Get("Authorization")
+					if a == "Bearer fake-jwt-token-2" {
+						return true
+					}
+					return a == "Bearer fake-jwt-token" && os.Getenv("FAKERT_STALE_TOKEN") == ""
+				}
+				if r.URL.Path == "/api/tokens/refresh" {
+					var req struct {
+						RefreshToken string `json:"refreshToken"`
+					}
+					_ = json.NewDecoder(r.Body).Decode(&req)
+					w.Header().Set("Content-Type", "application/json")
+					if req.RefreshToken != "fake-refresh-token" {
+						w.WriteHeader(401)
+						_ = json.NewEncoder(w).Encode(map[string]any{"error": "invalid refresh token"})
+						return
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "fake-jwt-token-2"})
+					return
+				}
+				if r.URL.Path == "/api/users/logout" {
+					if !bearerOK() {
+						http.Error(w, `{"error":"unauthorized"}`, 401)
+						return
+					}
+					w.WriteHeader(204)
+					return
+				}
+				if r.URL.Path == "/api/users/me" {
+					w.Header().Set("Content-Type", "application/json")
+					if !bearerOK() {
+						w.WriteHeader(401)
+						_ = json.NewEncoder(w).Encode(map[string]any{"error": "token expired"})
+						return
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{
+						"id": "u1", "email": "admin@example.com", "name": nil, "image": nil,
+						"domain": "example.com", "provider": "password", "isAdmin": true, "isModerator": false,
+					})
+					return
+				}
 				// The yield upload (sdk-go glue): capture the multipart —
 				// fields, file bytes, auth header — for test assertions,
 				// then answer 202 {resourceId} like the real create route.
 				if r.URL.Path == "/resources" && r.Method == http.MethodPost {
+					if !bearerOK() {
+						w.Header().Set("Content-Type", "application/json")
+						w.WriteHeader(401)
+						_ = json.NewEncoder(w).Encode(map[string]any{"error": "token expired"})
+						return
+					}
 					_ = r.ParseMultipartForm(16 << 20)
 					capture := map[string]string{"authorization": r.Header.Get("Authorization")}
 					if r.MultipartForm != nil {

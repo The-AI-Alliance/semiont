@@ -21,6 +21,32 @@ type tokenEntry struct {
 	ObtainedAt   time.Time `json:"obtainedAt"`
 }
 
+// deleteToken forgets one stack's session (logout).
+func deleteToken(key string) error {
+	m := loadTokens()
+	if _, ok := m[key]; !ok {
+		return nil
+	}
+	delete(m, key)
+	p := tokensPath()
+	if p == "" {
+		return os.ErrNotExist
+	}
+	b, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := p + ".tmp"
+	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, p); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
 func tokensPath() string {
 	dir := stateDir()
 	if dir == "" {
