@@ -24,6 +24,7 @@ Commands:
   start     Start the local Semiont stack
   useradd   Create or update a user in the running stack
   login     Authenticate against a running stack (token stored, never the password)
+  logout    End the stored session (server best-effort, local token forgotten)
   yield     Upload files from the KB root as resources (needs login)
   secret    Register where config secrets come from (pointers, never values)
   status    Report container state and application health per service
@@ -55,6 +56,8 @@ func main() {
 		code = launcher.Useradd(rest)
 	case "login":
 		code = launcher.Login(rest)
+	case "logout":
+		code = launcher.Logout(rest)
 	case "yield":
 		code = launcher.Yield(rest)
 	case "secret":
