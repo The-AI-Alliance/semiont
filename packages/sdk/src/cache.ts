@@ -164,13 +164,27 @@ export function createCache<K, V>(
   const saveDebounceMs = options?.saveDebounceMs ?? 50;
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   let unsubscribeExternal: (() => void) | null = null;
+  /**
+   * Persistence is best-effort: a throwing save (localStorage quota, a
+   * broken adapter) must never break the cache — and above all must never
+   * break dispose(), which sits on the KB-switch teardown path.
+   */
+  const trySave = (entries: Map<K, V>): void => {
+    try {
+      persister?.save(entries);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[cache PERSIST] save failed; persistence skipped (best-effort):',
+        e instanceof Error ? e.message : e);
+    }
+  };
   if (persister) {
     store$.pipe(skip(1)).subscribe((entries) => {
       if (disposed) return;
       if (saveTimer !== null) clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
         saveTimer = null;
-        persister.save(entries);
+        trySave(entries);
       }, saveDebounceMs);
     });
     unsubscribeExternal = persister.subscribe?.((entries) => {
@@ -374,7 +388,7 @@ export function createCache<K, V>(
       if (saveTimer !== null) {
         clearTimeout(saveTimer);
         saveTimer = null;
-        persister?.save(store$.value);
+        trySave(store$.value);
       }
       unsubscribeExternal?.();
       store$.complete();

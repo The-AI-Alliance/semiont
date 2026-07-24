@@ -127,6 +127,23 @@ describe('cache persistence (B17)', () => {
     expect(persister.save).not.toHaveBeenCalled();
   });
 
+  it('a throwing save is best-effort: neither the debounced path nor the dispose flush breaks', () => {
+    const { persister } = spyPersister<string, string>();
+    vi.mocked(persister.save).mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    const cache = createCache<string, string>(async () => 'x', { persister });
+
+    cache.set('a', '1');
+    // Debounced save fires and throws inside its timer — must not propagate.
+    expect(() => vi.advanceTimersByTime(50)).not.toThrow();
+    expect(cache.get('a')).toBe('1');
+
+    cache.set('b', '2');
+    // Dispose flush hits the throwing save — teardown must still complete.
+    expect(() => cache.dispose()).not.toThrow();
+  });
+
   it('without options, behavior is unchanged (no persister calls anywhere)', async () => {
     const cache = createCache<string, string>(async () => 'v');
     cache.set('a', '1');
