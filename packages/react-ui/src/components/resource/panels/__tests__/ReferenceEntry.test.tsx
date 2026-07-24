@@ -306,6 +306,26 @@ describe('ReferenceEntry', () => {
 
       bindSpy.mockRestore();
     });
+
+    it('emits bind:body-error (resource-stamped, client-local) when unlink fails', async () => {
+      // This component has no toast surface — its catch emits the client-local
+      // bind error and useOutcomeToasts surfaces it. The raw
+      // bind:body-update-failed wire reply is busRequest plumbing, not UI.
+      mockIsBodyResolved.mockReturnValue(true);
+      mockGetBodySource.mockReturnValue('linked-doc');
+
+      const bindSpy = vi.spyOn(BindNamespace.prototype, 'body').mockRejectedValue(new Error('link is load-bearing'));
+      const errors: unknown[] = [];
+      eventBus.get('bind:body-error').subscribe(e => errors.push(e));
+
+      const { container } = renderEntry({ annotateMode: true });
+      await userEvent.click(container.querySelector('.semiont-reference-unlink')!);
+
+      await vi.waitFor(() => expect(errors).toHaveLength(1));
+      expect(errors[0]).toEqual({ resourceId: 'resource-1', message: 'link is load-bearing' });
+
+      bindSpy.mockRestore();
+    });
   });
 
   describe('Status icon — stub reference', () => {

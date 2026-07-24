@@ -6,7 +6,7 @@ import type { components, Selector } from '@semiont/core';
 type JobProgress = components['schemas']['JobProgress'];
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { SemiontSession } from '@semiont/sdk';
-import type { Annotator } from '../../../lib/annotation-registry';
+import { annotatorKeyForMotivation, type Annotator } from '../../../lib/annotation-registry';
 import { StatisticsPanel } from './StatisticsPanel';
 import { HighlightPanel } from './HighlightPanel';
 import { ReferencesPanel } from './ReferencesPanel';
@@ -154,21 +154,13 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
     }
   }, [props.initialTabGeneration]); // Only watch generation counter, not the tab itself
 
-  // Auto-switch to the appropriate tab when creating a new annotation
+  // Auto-switch to the appropriate tab when creating a new annotation. Tab
+  // keys are the annotator keys — derived from the registry, the single
+  // motivation↔annotator source, so this can't drift from ANNOTATORS.
   useEffect(() => {
     if (props.pendingAnnotation) {
-      // Map motivation to tab (only for motivations with corresponding tabs)
-      const motivationToTab: Partial<Record<Motivation, TabKey>> = {
-        'linking': 'reference',
-        'commenting': 'comment',
-        'tagging': 'tag',
-        'assessing': 'assessment',
-        'highlighting': 'highlight'
-      };
-      const tab = motivationToTab[props.pendingAnnotation.motivation];
-      if (tab) {
-        setActiveTab(tab);
-      }
+      const tab = annotatorKeyForMotivation(props.pendingAnnotation.motivation);
+      if (tab) setActiveTab(tab);
     }
   }, [props.pendingAnnotation]);
 

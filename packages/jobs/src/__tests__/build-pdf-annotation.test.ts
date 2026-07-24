@@ -39,6 +39,23 @@ const LAYER: PdfTextLayer = {
   ],
 };
 
+// Synthetic cross-page layer (#738): the SAME continuous text, but "alpha beta"
+// sits on page 1 and "gamma delta" on page 2. A span from "beta" through "gamma"
+// straddles the page break.
+const CROSS_PAGE_LAYER: PdfTextLayer = {
+  pages: [
+    { pageNumber: 1, widthPt: 612, heightPt: 792 },
+    { pageNumber: 2, widthPt: 612, heightPt: 792 },
+  ],
+  text: 'alpha beta\ngamma delta',
+  items: [
+    { start: 0,  end: 5,  page: 1, x: 72,  y: 720, width: 40, height: 12 }, // alpha (p1)
+    { start: 6,  end: 10, page: 1, x: 118, y: 720, width: 34, height: 12 }, // beta  (p1)
+    { start: 11, end: 16, page: 2, x: 72,  y: 720, width: 45, height: 12 }, // gamma (p2)
+    { start: 17, end: 22, page: 2, x: 125, y: 720, width: 42, height: 12 }, // delta (p2)
+  ],
+};
+
 type PdfSel = { type: string; value?: string; conformsTo?: string; exact?: string; prefix?: string; suffix?: string };
 const sels = (ann: ReturnType<typeof buildPdfAnnotation>): PdfSel[] => ann.target.selector as PdfSel[];
 const frags = (ann: ReturnType<typeof buildPdfAnnotation>) => sels(ann).filter(s => s.type === 'FragmentSelector');
@@ -117,5 +134,21 @@ describe('buildPdfAnnotation (#736 geometry tail)', () => {
       { exact: 'alpha', start: 0, end: 5 }, body);
     expect((ann as Record<string, unknown>).body).toEqual(body);
     expect(Array.isArray((ann as Record<string, unknown>).body)).toBe(true);
+  });
+
+  it('#738 cross-page: a span straddling a page break yields one FragmentSelector per page', () => {
+    // "beta\ngamma" (chars 6..16) — beta on page 1, gamma on page 2.
+    const ann = buildPdfAnnotation(CROSS_PAGE_LAYER, RID, USER_DID, GENERATOR, 'highlighting',
+      { exact: 'beta\ngamma', start: 6, end: 16 });
+    const f = frags(ann);
+    expect(f).toHaveLength(2);
+    // One viewrect on page 1, one on page 2 (order-independent).
+    const pages = f.map((x) => x.value?.match(/^page=(\d+)&/)?.[1]).sort();
+    expect(pages).toEqual(['1', '2']);
+    // The containment invariant spans the break: covered text 'beta\ngamma'
+    // (normalized) contains the exact — buildPdfAnnotation does not throw.
+    const tq = sels(ann).find((s) => s.type === 'TextQuoteSelector');
+    expect(tq?.exact).toBe('beta\ngamma');
+    expect(sels(ann).some((x) => x.type === 'TextPositionSelector')).toBe(false);
   });
 });

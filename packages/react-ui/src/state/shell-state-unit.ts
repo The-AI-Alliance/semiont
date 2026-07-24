@@ -11,19 +11,12 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import type { SemiontBrowser } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
+import { annotatorKeyForMotivation } from '../lib/annotation-registry';
 
 export type ToolbarPanelType = 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'knowledge-base';
 
 export const COMMON_PANELS: readonly ToolbarPanelType[] = ['knowledge-base', 'user', 'settings'] as const;
 export const RESOURCE_PANELS: readonly ToolbarPanelType[] = ['history', 'info', 'annotations', 'collaboration', 'jsonld'] as const;
-
-const MOTIVATION_TO_TAB: Record<string, string> = {
-  'linking': 'reference',
-  'commenting': 'comment',
-  'tagging': 'tag',
-  'highlighting': 'highlight',
-  'assessing': 'assessment',
-};
 
 export interface ShellStateUnit extends StateUnit {
   activePanel$: Observable<ToolbarPanelType | null>;
@@ -64,7 +57,10 @@ export function createShellStateUnit(browser: SemiontBrowser, options?: ShellSta
       scrollToAnnotationId$.next(scrollToAnnotationId);
     }
     if (motivation) {
-      const tab = MOTIVATION_TO_TAB[motivation] || 'highlight';
+      // Derived from ANNOTATORS (the single motivation↔annotator source).
+      // The payload's motivation is a loose string (BrowsePanelOpenEvent),
+      // so unknown values fall back to the highlight tab.
+      const tab = annotatorKeyForMotivation(motivation) ?? 'highlight';
       panelInitialTab$.next({ tab, generation: ++tabGenerationCounter });
     }
     activePanel$.next(panel as ToolbarPanelType);

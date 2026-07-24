@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useObservable } from '../../../hooks/useObservable';
 import type { SemiontSession } from '@semiont/sdk';
+import { AssistShell } from './AssistShell';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
@@ -110,19 +111,6 @@ export function TaggingPanel({
   }, [schemas, selectedSchemaId]);
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Collapsible detection section state - load from localStorage, default expanded
-  const [isAssistExpanded, setIsDetectExpanded] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    const stored = localStorage.getItem('assist-section-expanded-tag');
-    return stored ? stored === 'true' : true;
-  });
-
-  // Persist detection section expanded state to localStorage
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('assist-section-expanded-tag', String(isAssistExpanded));
-  }, [isAssistExpanded]);
 
   // Subscribe to click events - update focused state
   // Event handler for annotation clicks (extracted to avoid inline arrow function)
@@ -357,22 +345,14 @@ export function TaggingPanel({
 
         {/* Assist Section - only in Annotate mode */}
         {annotateMode && (
-          <div className="semiont-panel__section">
-            <button
-              onClick={() => setIsDetectExpanded(!isAssistExpanded)}
-              className="semiont-panel__section-title semiont-panel__section-title--collapsible"
-              aria-expanded={isAssistExpanded}
-              type="button"
-            >
-              <span>{t('annotateTags')}</span>
-              <span className="semiont-panel__section-chevron" data-expanded={isAssistExpanded}>
-                ›
-              </span>
-            </button>
-            {isAssistExpanded && (
-              <div className="semiont-assist-widget" data-assisting={isAssisting && progress ? 'true' : 'false'} data-type="tag">
-              {!isAssisting && !progress && (
-                <>
+          <AssistShell
+            assistType="tag"
+            title={t('annotateTags')}
+            isAssisting={isAssisting}
+            progress={progress}
+            progressProps={{ showPercentBar: true }}
+            form={
+              <>
                   {/* Empty-state — registry has resolved with no schemas. */}
                   {noSchemasRegistered && (
                     <p className="semiont-form__help" data-type="tag-no-schemas">
@@ -461,64 +441,21 @@ export function TaggingPanel({
                       </p>
                     </div>
                   )}
-                </>
-              )}
+                {/* Assist Button */}
+                <button
+                  onClick={handleAssist}
+                  disabled={selectedCategories.size === 0 || isAssisting}
+                  className="semiont-button"
+                  data-variant="assist"
+                  data-type="tag"
+                >
+                  <span className="semiont-button-icon">✨</span>
+                  <span>{t('annotate')}</span>
+                </button>
 
-              {/* Assist Button - Always visible */}
-              <button
-                onClick={handleAssist}
-                disabled={selectedCategories.size === 0 || isAssisting}
-                className="semiont-button"
-                data-variant="assist"
-                data-type="tag"
-              >
-                <span className="semiont-button-icon">✨</span>
-                <span>{t('annotate')}</span>
-              </button>
-
-              {/* Annotation Progress */}
-              {isAssisting && progress && (
-                <div className="semiont-annotation-progress" data-type="tag">
-                  {/* Request Parameters */}
-                  {progress.requestParams && progress.requestParams.length > 0 && (
-                    <div className="semiont-annotation-progress__params" data-type="tag">
-                      <div className="semiont-annotation-progress__params-title">Request Parameters:</div>
-                      {progress.requestParams.map((param, idx) => (
-                        <div key={idx} className="semiont-annotation-progress__param">
-                          <span className="semiont-annotation-progress__param-label">{param.label}:</span> {param.value}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="semiont-annotation-progress__status">
-                    <div className="semiont-annotation-progress__message">
-                      <span className="semiont-annotation-progress__icon">✨</span>
-                      <span>{progress.message}</span>
-                    </div>
-                    {progress.currentCategory && (
-                      <div className="semiont-annotation-progress__details">
-                        Processing: {progress.currentCategory}
-                        {progress.processedCategories !== undefined && progress.totalCategories !== undefined && (
-                          <> ({progress.processedCategories}/{progress.totalCategories})</>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {progress.percentage !== undefined && (
-                    <div className="semiont-progress-bar">
-                      <div
-                        className="semiont-progress-bar__fill"
-                        data-type="tag"
-                        style={{ width: `${progress.percentage}%` }}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-              </div>
-            )}
-          </div>
+              </>
+            }
+          />
         )}
 
         {/* Tags list */}

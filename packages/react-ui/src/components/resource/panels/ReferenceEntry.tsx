@@ -78,7 +78,14 @@ export function ReferenceEntry({
         resourceId(source),
         reference.id,
         [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri, purpose: 'linking' } }],
-      ).catch(() => { /* error handled by events-stream */ });
+      ).catch((error: unknown) => {
+        // This component has no toast surface — report the client-local,
+        // resource-stamped bind error; useOutcomeToasts surfaces it.
+        semiont.bind.reportBodyError({
+          resourceId: source,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      });
     }
   };
 

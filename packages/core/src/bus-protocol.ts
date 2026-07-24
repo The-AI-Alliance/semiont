@@ -173,8 +173,25 @@ export type EventMap = {
   'mark:cancel-pending': void;
   'mark:submit': components['schemas']['MarkSubmitEvent'];
   'mark:assist-request': components['schemas']['MarkAssistRequestEvent'];
-  'mark:assist-cancelled': void;
   'mark:progress-dismiss': void;
+  // Client-local: the assist Observable went silent past its deadline (no
+  // progress, no completion, no job:fail). Emitted by mark-state-unit so the
+  // outcome-notification layer can tell the user; a real job failure arrives
+  // as job:fail instead and never produces this.
+  'mark:assist-timeout': { resourceId: string; motivation: components['schemas']['Motivation'] };
+  // Client-local UI notifications for annotation command failures, emitted by
+  // the awaiting catch (mark-state-unit), which inherently knows whose command
+  // failed on which resource. Distinct from the `mark:create-failed` /
+  // `mark:delete-failed` wire replies above: those are busRequest correlation
+  // plumbing (CommandError, matched by correlationId, bridged to every
+  // client) and are NOT for UI consumption — subscribing to them raw
+  // double-toasts the requester and leaks other users' failures.
+  'mark:create-error': { resourceId: string; message: string };
+  'mark:delete-error': { resourceId: string; message: string };
+  // Same pattern for bind body updates initiated by callers that cannot toast
+  // directly (e.g. ReferenceEntry's unlink); awaiting callers with their own
+  // toast surface (the reference wizard) surface failures themselves instead.
+  'bind:body-error': { resourceId: string; message: string };
 
   // ========================================================================
   // FRAME FLOW — schema-layer vocabulary (entity types; future tag schemas,
@@ -583,8 +600,11 @@ export const CHANNEL_SCHEMAS = {
   'mark:cancel-pending':              null, // void
   'mark:submit':                      'MarkSubmitEvent',
   'mark:assist-request':              'MarkAssistRequestEvent',
-  'mark:assist-cancelled':            null, // void
   'mark:progress-dismiss':            null, // void
+  'mark:assist-timeout':              null, // { resourceId; motivation } — client-local UI signal
+  'mark:create-error':                null, // { resourceId; message } — client-local UI signal
+  'mark:delete-error':                null, // { resourceId; message } — client-local UI signal
+  'bind:body-error':                  null, // { resourceId; message } — client-local UI signal
 
   // ── BIND FLOW ───────────────────────────────────────────────────
   'bind:initiate':                    'BindInitiateCommand',

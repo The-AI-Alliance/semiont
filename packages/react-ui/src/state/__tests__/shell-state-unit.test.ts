@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { components } from '@semiont/core';
 import { createShellStateUnit } from '../shell-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing';
 import { SemiontBrowser } from '@semiont/sdk';
@@ -85,7 +86,7 @@ describe('createShellStateUnit', () => {
     const tabs: string[] = [];
     stateUnit.panelInitialTab$.subscribe(v => { if (v) tabs.push(v.tab); });
 
-    const cases: [string, string][] = [
+    const cases: Array<[components['schemas']['Motivation'], string]> = [
       ['linking', 'reference'],
       ['commenting', 'comment'],
       ['tagging', 'tag'],
@@ -104,7 +105,10 @@ describe('createShellStateUnit', () => {
     const tabs: string[] = [];
     stateUnit.panelInitialTab$.subscribe(v => { if (v) tabs.push(v.tab); });
 
-    browser.emit('panel:open', { panel: 'annotations', motivation: 'unknown-thing' });
+    // The schema types motivation as Motivation, but panel:open is not
+    // wire-validated (CHANNEL_SCHEMAS: null) — simulate a runtime-loose
+    // payload; the 'highlight' fallback is the pinned defense for it.
+    browser.emit('panel:open', { panel: 'annotations', motivation: 'unknown-thing' as never });
     expect(tabs[tabs.length - 1]).toBe('highlight');
     stateUnit.dispose();
   });

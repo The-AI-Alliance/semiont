@@ -65,7 +65,8 @@ export * from './contexts/TranslationContext';
 
 // Components - Top level
 export * from './components/CodeMirrorRenderer';
-export * from './components/AnnotateReferencesProgressWidget';
+export * from './components/AssistProgress';
+export * from './components/resource/panels/AssistShell';
 export * from './components/ErrorBoundary';
 export * from './components/ProtectedErrorBoundary';
 export * from './components/LiveRegion';

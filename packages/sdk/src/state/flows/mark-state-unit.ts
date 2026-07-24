@@ -1,4 +1,4 @@
-import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
+import { BehaviorSubject, TimeoutError, type Observable, type Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
 import type { ResourceId, Motivation, Selector, EventMap, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
@@ -84,7 +84,9 @@ export function createMarkStateUnit(
       });
       client.bus.get('mark:create-ok').next({ response: { annotationId: result.annotationId } });
     } catch (error) {
-      client.bus.get('mark:create-failed').next({ message: error instanceof Error ? error.message : String(error) });
+      // Client-local, resource-stamped UI notification — the wire reply
+      // (mark:create-failed) is busRequest plumbing, not for UI consumption.
+      client.bus.get('mark:create-error').next({ resourceId: resourceId as string, message: error instanceof Error ? error.message : String(error) });
     }
   }));
 
@@ -93,7 +95,7 @@ export function createMarkStateUnit(
       await client.mark.delete(resourceId, event.annotationId as Parameters<typeof client.mark.delete>[1]);
       client.bus.get('mark:delete-ok').next({ response: { annotationId: event.annotationId } });
     } catch (error) {
-      client.bus.get('mark:delete-failed').next({ message: error instanceof Error ? error.message : String(error) });
+      client.bus.get('mark:delete-error').next({ resourceId: resourceId as string, message: error instanceof Error ? error.message : String(error) });
     }
   }));
 
@@ -113,7 +115,10 @@ export function createMarkStateUnit(
       next: (e) => {
         // Surface only the live progress events to the UI; the final
         // `complete` event carries `result` for callers awaiting the
-        // Observable, but the panel just dismisses on `complete`.
+        // Observable, but the panel just dismisses on `complete`. Terminal
+        // outcomes (success / clean decline / failure) are surfaced as toasts
+        // by useOutcomeToasts (react-ui), which subscribes job:complete /
+        // job:fail directly — not through this Observable.
         if (e.kind === 'progress') progress$.next(e.data);
       },
       complete: () => {
@@ -124,10 +129,20 @@ export function createMarkStateUnit(
           progressDismissTimer = null;
         }, 5000);
       },
-      error: () => {
+      error: (err: unknown) => {
         clearProgressTimer();
         assistingMotivation$.next(null);
         progress$.next(null);
+        // A client-side timeout means the assist went silent — no progress,
+        // no completion, and no job:fail (the channel that toasts real
+        // failures). Emit the one signal that lets the outcome layer tell
+        // the user; genuine failures errored via job:fail and skip this.
+        if (err instanceof TimeoutError) {
+          client.bus.get('mark:assist-timeout').next({
+            resourceId: resourceId as string,
+            motivation: event.motivation,
+          });
+        }
       },
     });
     subs.push(assistSub);
