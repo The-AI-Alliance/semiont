@@ -17,7 +17,16 @@ import type {
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest } from '@semiont/core';
-import { createCache, type Cache } from '../cache';
+import { createCache, type Cache, type CachePersister } from '../cache';
+import { sessionStoragePersister } from '../cache-persister';
+import type { SessionStorage } from '../session/session-storage';
+
+/**
+ * B17 — serialized-shape version shared by every persisted browse cache.
+ * Bump when any persisted value shape changes; stale documents then read
+ * as empty and refetch.
+ */
+const CACHE_PERSISTENCE_VERSION = 1;
 import type {
   BrowseNamespace as IBrowseNamespace,
   ReferencedByEntry,
@@ -115,9 +124,32 @@ export class BrowseNamespace implements IBrowseNamespace {
     private readonly transport: ITransport,
     private readonly bus: EventBus,
     private readonly content: IContentTransport,
-    options?: { busTimeoutMs?: number },
+    options?: {
+      busTimeoutMs?: number;
+      /**
+       * B17 — opt into cache persistence through the environment's
+       * SessionStorage adapter. keyPrefix is the KB id (cache data is
+       * KB-specific). Omitted = in-memory-only, today's behavior.
+       */
+      cachePersistence?: { storage: SessionStorage; keyPrefix: string };
+    },
   ) {
     this.busTimeoutMs = options?.busTimeoutMs;
+
+    // The opt-in table (see .plans/LOCAL-STORAGE.md): small, first-paint
+    // caches persist; lists, event histories, and the collaborator
+    // directory stay in-memory.
+    const persistence = options?.cachePersistence;
+    const persisted = <K, V>(name: string): { persister: CachePersister<K, V> } | undefined =>
+      persistence
+        ? {
+            persister: sessionStoragePersister<K, V>({
+              storage: persistence.storage,
+              storageKey: `semiont.cache.${persistence.keyPrefix}.${name}`,
+              version: CACHE_PERSISTENCE_VERSION,
+            }),
+          }
+        : undefined;
 
     this.resourceCache = createCache<ResourceId, ResourceDescriptor>(async (id) => {
       const result = await busRequest(
@@ -127,7 +159,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       return result.resource as ResourceDescriptor;
-    });
+    }, persisted<ResourceId, ResourceDescriptor>('resource'));
 
     this.resourceListCache = createCache<string, ResourceDescriptor[]>(async (key) => {
       const filters = this.resourceListFilters.get(key) ?? {};
@@ -156,7 +188,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         { resourceId },
         this.busTimeoutMs,
       );
-    });
+    }, persisted<ResourceId, AnnotationsListResponse>('annotations'));
 
     this.annotationDetailCache = createCache<AnnotationId, Annotation>(async (annotationId) => {
       const resourceId = this.annotationResources.get(annotationId);
@@ -170,7 +202,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       return result.annotation as Annotation;
-    });
+    }, persisted<AnnotationId, Annotation>('annotation-detail'));
 
     this.entityTypesCache = createCache<string, string[]>(async () => {
       const result = await busRequest(
@@ -180,7 +212,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       return result.entityTypes;
-    });
+    }, persisted<string, string[]>('entity-types'));
 
     this.tagSchemasCache = createCache<string, TagSchema[]>(async () => {
       const result = await busRequest(
@@ -190,7 +222,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       return result.tagSchemas;
-    });
+    }, persisted<string, TagSchema[]>('tag-schemas'));
 
     this.agentsCache = createCache<string, CollaboratorEntry[]>(async () => {
       const result = await busRequest(

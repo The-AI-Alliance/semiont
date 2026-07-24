@@ -105,9 +105,18 @@ export function createHttpSessionFactory(): SessionFactory {
       baseUrl: baseUrl(kbBackendUrl(endpoint)),
       token$,
       tokenRefresher: () => session.refresh().then((t) => t ?? null),
+      // B17: resume from the last persisted SSE id across reloads, so
+      // rehydrated caches reconcile by replay instead of gapping.
+      loadLastEventId: () => storage.get(`semiont.lastEventId.${kb.id}`),
+      saveLastEventId: (id) => storage.set(`semiont.lastEventId.${kb.id}`, id),
     });
     const content = new HttpContentTransport(transport);
-    const client = new SemiontClient(transport, content, transport);
+    // B17: the real session's client persists its browse caches through the
+    // environment's storage adapter, scoped by KB. (The token-refresh
+    // throwaway clients above deliberately do not.)
+    const client = new SemiontClient(transport, content, transport, {
+      cachePersistence: { storage, keyPrefix: kb.id },
+    });
     session = new SemiontSession({
       kb,
       storage,

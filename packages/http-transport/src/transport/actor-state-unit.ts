@@ -23,6 +23,17 @@ export interface ActorStateUnitOptions {
   channels: string[];
   scope?: string;
   reconnectMs?: number;
+  /**
+   * B17 (LOCAL-STORAGE) — IO-abstracted persistence for the last seen
+   * PERSISTED event id, so a reloaded client resumes instead of gapping.
+   * `load` runs once at construction; `save` fires per persisted (`p-*`)
+   * id — ephemeral (`e-*`) ids are never saved: the server treats them as
+   * "no resumption context", which after a reload would silently skip the
+   * replay that reconciles rehydrated caches. The transport stays
+   * storage-free; callers wrap their own adapter in these thunks.
+   */
+  loadLastEventId?: () => string | null;
+  saveLastEventId?: (id: string) => void;
 }
 
 /** Time in the `reconnecting` state before transitioning to `degraded`. */
@@ -152,7 +163,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    * treats ephemeral ids as "no resumption context" and responds live-
    * only; persisted ids drive replay.
    */
-  let lastEventId: string | null = null;
+  let lastEventId: string | null = options.loadLastEventId?.() ?? null;
 
   /**
    * Recently-delivered event ids, to dedup the make-before-break overlap: the
@@ -314,6 +325,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
               if (currentId !== undefined) {
                 lastEventId = currentId;
                 rememberEventId(currentId);
+                // B17: persisted ids only — see ActorStateUnitOptions.
+                if (currentId.startsWith('p-')) options.saveLastEventId?.(currentId);
               }
               const parsed = JSON.parse(currentData) as BusEvent;
               busLog('RECV', parsed.channel, parsed.payload, parsed.scope);

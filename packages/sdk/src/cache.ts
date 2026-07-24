@@ -60,8 +60,25 @@ import {
   filter,
   map,
   merge,
+  skip,
   throwError,
 } from 'rxjs';
+
+/**
+ * B17 — optional persistence seam for a cache instance. `load` runs once at
+ * construction (settled values only — B15 failure markers live outside the
+ * store and are never serialized); `save` receives every store mutation,
+ * debounced by the cache; `subscribe` is the cross-context sync hook (the
+ * persister calls back when another tab/process wrote the same key).
+ */
+export interface CachePersister<K, V> {
+  /** Called once at cache construction. Returns initial entries, or null for none. */
+  load(): Map<K, V> | null;
+  /** Called on store mutations, debounced by the cache; flushed on dispose. */
+  save(entries: Map<K, V>): void;
+  /** Optional cross-context sync; returns an unsubscribe function. */
+  subscribe?(onExternalChange: (entries: Map<K, V>) => void): () => void;
+}
 
 export interface Cache<K, V> {
   /** Observable stream of the value at `key` (SWR). Triggers a fetch if not cached. */
@@ -102,8 +119,17 @@ export interface Cache<K, V> {
   dispose(): void;
 }
 
-export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> {
-  const store$ = new BehaviorSubject<Map<K, V>>(new Map());
+export function createCache<K, V>(
+  fetchFn: (key: K) => Promise<V>,
+  options?: {
+    /** B17 — persistence seam. Omitted = today's in-memory-only behavior. */
+    persister?: CachePersister<K, V>;
+    /** Debounce window for persister.save. Default 50 ms. */
+    saveDebounceMs?: number;
+  },
+): Cache<K, V> {
+  const persister = options?.persister;
+  const store$ = new BehaviorSubject<Map<K, V>>(persister?.load() ?? new Map());
   /** In-flight fetch promise per key — dedups concurrent fetches (B3). */
   const inflight = new Map<K, Promise<V>>();
   const obsCache = new Map<K, Observable<V | undefined>>();
@@ -128,6 +154,30 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
   const failures = new Map<K, Error>();
   const failure$ = new Subject<{ key: K; error: Error }>();
   const toError = (e: unknown): Error => (e instanceof Error ? e : new Error(String(e)));
+
+  /**
+   * B17 — debounced persistence. The initial emission (the loaded map) is
+   * skipped: only mutations schedule a save. `dispose()` flushes a pending
+   * save synchronously (the KB-switch teardown must not lose the last
+   * write), then everything goes inert with the rest of B16.
+   */
+  const saveDebounceMs = options?.saveDebounceMs ?? 50;
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  let unsubscribeExternal: (() => void) | null = null;
+  if (persister) {
+    store$.pipe(skip(1)).subscribe((entries) => {
+      if (disposed) return;
+      if (saveTimer !== null) clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        saveTimer = null;
+        persister.save(entries);
+      }, saveDebounceMs);
+    });
+    unsubscribeExternal = persister.subscribe?.((entries) => {
+      if (disposed) return;
+      store$.next(new Map(entries));
+    }) ?? null;
+  }
 
   /**
    * Run (or join) a fetch for `key`. Resolves with the value and updates the
@@ -319,6 +369,14 @@ export function createCache<K, V>(fetchFn: (key: K) => Promise<V>): Cache<K, V> 
     dispose(): void {
       if (disposed) return; // idempotent (B16)
       disposed = true;
+      // B17: flush a pending save before the store completes — the disposal
+      // act itself, not a post-disposal act.
+      if (saveTimer !== null) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        persister?.save(store$.value);
+      }
+      unsubscribeExternal?.();
       store$.complete();
       // Must complete alongside store$: the per-key observable is a merge,
       // and merge completes only when ALL its sources complete — leaving

@@ -533,6 +533,63 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
+  // ── B17 (LOCAL-STORAGE W4): lastEventId across reloads ────────────────
+
+  it('loads a persisted last event id and sends it on the FIRST connect', async () => {
+    mockSSEResponse();
+
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['mark:added'],
+      loadLastEventId: () => 'p-res-1-40',
+    });
+
+    stateUnit.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    const initOpts = mockFetch.mock.calls[0][1] as { headers: Record<string, string> };
+    expect(initOpts.headers['Last-Event-ID']).toBe('p-res-1-40');
+
+    stateUnit.dispose();
+  });
+
+  it('saves persisted ids as they arrive — and only persisted ids (e-* is live-only context)', async () => {
+    const sse = mockSSEResponse();
+    const saved: string[] = [];
+
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['mark:added'],
+      saveLastEventId: (id) => saved.push(id),
+    });
+
+    stateUnit.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    sse.push(
+      'event: bus-event\nid: p-res-1-47\ndata: ' +
+        JSON.stringify({ channel: 'mark:added', payload: { foo: 'bar' } }) +
+        '\n\n',
+    );
+    sse.push(
+      'event: bus-event\nid: e-mark:added:abc\ndata: ' +
+        JSON.stringify({ channel: 'mark:added', payload: { foo: 'baz' } }) +
+        '\n\n',
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    await vi.waitFor(() => expect(saved.length).toBeGreaterThan(0));
+    // An ephemeral id must never be persisted: the server treats it as
+    // "no resumption context", which after a reload would silently skip
+    // the replay that reconciles rehydrated caches.
+    expect(saved).toEqual(['p-res-1-47']);
+
+    stateUnit.dispose();
+  });
+
   it('does not send Last-Event-ID header on the first connect', async () => {
     mockSSEResponse();
 
