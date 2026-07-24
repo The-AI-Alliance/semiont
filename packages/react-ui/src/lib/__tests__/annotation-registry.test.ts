@@ -131,8 +131,8 @@ describe('annotation-registry ANNOTATORS', () => {
     });
 
     it('returns undefined for strings outside the Motivation union (loose event boundaries)', () => {
-      // BrowsePanelOpenEvent.motivation is a plain string and panel:open is
-      // not wire-validated — callers at that boundary need the miss case.
+      // BrowsePanelOpenEvent.motivation is typed as Motivation in the schema,
+      // but panel:open is not wire-validated at runtime — callers at that boundary need the miss case.
       expect(annotatorKeyForMotivation('bookmarking')).toBeUndefined();
       expect(annotatorKeyForMotivation('')).toBeUndefined();
     });
