@@ -263,6 +263,61 @@ describe('createMarkStateUnit', () => {
     vi.useRealTimers();
   });
 
+  it('surfaces a clean decline (scanned PDF) as a progress message and keeps it up (no auto-dismiss)', () => {
+    // #738: a scanned/image-only PDF declines cleanly — the worker reports a
+    // no-text-layer result rather than erroring. It must surface as a message so
+    // the user learns why nothing was detected, and persist until dismissed.
+    vi.useFakeTimers();
+    const progressSubject = new Subject();
+    tc = withMark({ assist: vi.fn(() => progressSubject.asObservable()) });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const prog: unknown[] = [];
+    stateUnit.progress$.subscribe(v => prog.push(v));
+
+    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    progressSubject.next({
+      kind: 'complete',
+      data: { result: { declined: true, reason: 'no-text-layer', message: 'This PDF has no extractable text layer (scanned or image-only); detection is not supported.' } },
+    });
+    progressSubject.complete();
+
+    expect(prog[prog.length - 1]).toEqual(expect.objectContaining({
+      message: expect.stringContaining('no extractable text layer'),
+    }));
+    // Not auto-dismissed like a normal completion — the message stays.
+    vi.advanceTimersByTime(10_000);
+    expect(prog[prog.length - 1]).toEqual(expect.objectContaining({
+      message: expect.stringContaining('no extractable text layer'),
+    }));
+    // ...but the user can still dismiss it.
+    tc.bus.get('mark:progress-dismiss').next(undefined);
+    expect(prog[prog.length - 1]).toBeNull();
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('a completion with a normal (non-declined) result still auto-dismisses', () => {
+    vi.useFakeTimers();
+    const progressSubject = new Subject();
+    tc = withMark({ assist: vi.fn(() => progressSubject.asObservable()) });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const prog: unknown[] = [];
+    stateUnit.progress$.subscribe(v => prog.push(v));
+
+    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    progressSubject.next({ kind: 'progress', data: { stage: 'creating', percentage: 100, message: 'done' } });
+    progressSubject.next({ kind: 'complete', data: { result: { highlightsFound: 3, highlightsCreated: 3 } } });
+    progressSubject.complete();
+
+    expect(prog[prog.length - 1]).not.toBeNull();
+    vi.advanceTimersByTime(5000);
+    expect(prog[prog.length - 1]).toBeNull();
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
   it('clears state when assist Observable errors immediately', () => {
     const assistFn = vi.fn(() => new Observable((sub) => {
       sub.error(new Error('LLM down'));

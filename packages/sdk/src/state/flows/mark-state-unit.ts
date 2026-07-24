@@ -1,10 +1,23 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
+import { isObject, isString } from '@semiont/core';
 import type { ResourceId, Motivation, Selector, EventMap, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 
 type JobProgress = components['schemas']['JobProgress'];
+
+/**
+ * A detection job that declined cleanly rather than erroring — today a
+ * scanned / image-only PDF with no text layer to analyze (#736/#738). The
+ * worker reports it as the job result; it is not in the typed `JobResult`
+ * union, so narrow it structurally. Returns the user-facing message, or null.
+ */
+function declinedMessage(result: unknown): string | null {
+  return isObject(result) && result.declined === true && isString(result.message)
+    ? result.message
+    : null;
+}
 
 export interface PendingAnnotation {
   selector: Selector | Selector[];
@@ -107,18 +120,33 @@ export function createMarkStateUnit(
     assistingMotivation$.next(event.motivation);
     progress$.next(null);
 
+    // When a job declines cleanly (e.g. a scanned PDF with no text layer), the
+    // final `complete` event carries the reason. Hold it so `complete` leaves
+    // the message up instead of the usual auto-dismiss.
+    let declineMessage: string | null = null;
     const assistSub = client.mark.assist(resourceId, event.motivation, event.options).pipe(
       timeout({ each: 180_000 }),
     ).subscribe({
       next: (e) => {
-        // Surface only the live progress events to the UI; the final
-        // `complete` event carries `result` for callers awaiting the
-        // Observable, but the panel just dismisses on `complete`.
-        if (e.kind === 'progress') progress$.next(e.data);
+        // Live progress events drive the spinner. The final `complete` event
+        // carries `result`: a normal completion just dismisses, but a clean
+        // decline (scanned/image-only PDF) surfaces its message here — otherwise
+        // the panel vanishes with zero annotations and no explanation.
+        if (e.kind === 'progress') {
+          progress$.next(e.data);
+          return;
+        }
+        declineMessage = declinedMessage(e.data.result);
+        if (declineMessage) {
+          progress$.next({ stage: 'declined', percentage: 100, message: declineMessage });
+        }
       },
       complete: () => {
         assistingMotivation$.next(null);
         clearProgressTimer();
+        // A decline message stays until the user dismisses it
+        // (mark:progress-dismiss); a normal completion auto-dismisses.
+        if (declineMessage) return;
         progressDismissTimer = setTimeout(() => {
           progress$.next(null);
           progressDismissTimer = null;
