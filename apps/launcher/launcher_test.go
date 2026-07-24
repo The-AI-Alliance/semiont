@@ -1083,6 +1083,21 @@ func TestYieldAutoRefreshesExpiredToken(t *testing.T) {
 	mustContain(t, "tokens.json", string(tb), "fake-jwt-token-2", "fake-refresh-token")
 }
 
+func TestYieldPostRefreshRejectionSaysSo(t *testing.T) {
+	// Refresh SUCCEEDS but the renewed token is also rejected (account
+	// disabled, tokens revoked server-side): the failure must not claim
+	// "the refresh token could not renew it" — it did. Distinct message.
+	s := yieldScenario(t, true, "FAKERT_ALL_TOKENS_STALE=1")
+	stdout, stderr, code := s.run(t, "yield", "--upload", "docs/note.md")
+	if code == 0 {
+		t.Fatalf("yield must fail when every token is rejected\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "post-refresh rejection", stdout+stderr, "after a successful refresh", "semiont login")
+	if strings.Contains(stdout+stderr, "could not renew") {
+		t.Errorf("claimed the refresh failed when it succeeded:\n%s\n%s", stdout, stderr)
+	}
+}
+
 func TestLogoutForgetsSession(t *testing.T) {
 	s := yieldScenario(t, true)
 	stdout, stderr, code := s.run(t, "logout")

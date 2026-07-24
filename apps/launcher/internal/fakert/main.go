@@ -894,6 +894,12 @@ func serve(ports []string) {
 				// exercise: refresh with the stored refresh token mints
 				// fake-jwt-token-2, which every bearer endpoint accepts.
 				bearerOK := func() bool {
+					// FAKERT_ALL_TOKENS_STALE: NO bearer is ever accepted,
+					// though refresh still succeeds — the "refreshed but
+					// still rejected" scenario (account disabled etc.).
+					if os.Getenv("FAKERT_ALL_TOKENS_STALE") != "" {
+						return false
+					}
 					a := r.Header.Get("Authorization")
 					if a == "Bearer fake-jwt-token-2" {
 						return true

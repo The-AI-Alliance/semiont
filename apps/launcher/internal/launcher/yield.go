@@ -240,8 +240,12 @@ func yieldOne(u *ui, cli *semiont.ClientWithResponses, key string, tok *tokenEnt
 					*tok = refreshed
 					continue
 				}
+				u.fail("Session rejected and the refresh token could not renew it.")
+			} else {
+				// The refresh SUCCEEDED — saying it "could not renew" here
+				// would contradict the Session-refreshed line just printed.
+				u.fail("Session rejected even after a successful refresh — the backend no longer accepts this account's tokens.")
 			}
-			u.fail("Session rejected and the refresh token could not renew it.")
 			fmt.Fprintln(os.Stderr, "  Log in again:  semiont login --email <address>")
 			return 1
 		case resp.JSON400 != nil:
