@@ -15,8 +15,9 @@ import { generateResourceFromTopic } from './workers/generation/resource-generat
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
 import { generateAnnotationId } from '@semiont/event-sourcing';
 import { didToAgent, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
-import { reconcileSelector, type ReconciledSelector } from '@semiont/core';
+import { reconcileSelector, createFragmentSelector, type ReconciledSelector } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
+import { locate, type PdfTextLayer } from '@semiont/content';
 import type {
   HighlightDetectionParams,
   CommentDetectionParams,
@@ -33,6 +34,22 @@ import type {
 } from './types';
 
 type Agent = components['schemas']['Agent'];
+
+/** A detected span — offsets into the extracted `.text`, plus optional context. */
+export type SpanMatch = { exact: string; start: number; end: number; prefix?: string; suffix?: string };
+
+/**
+ * Turn a detected span into a stored annotation. The media type, resource, and
+ * attribution context are closed over by the caller (see `prepareDetection`);
+ * the detection processor supplies only the motivation, the span, and any
+ * motivation-specific body. This is the single axis that varies by media type,
+ * so the detection processors themselves stay media-agnostic.
+ */
+export type BuildAnnotation = (
+  motivation: string,
+  match: SpanMatch,
+  body?: Record<string, unknown> | Record<string, unknown>[],
+) => Record<string, unknown>;
 
 /**
  * Progress callback. The three positional args satisfy the minimum
@@ -115,7 +132,7 @@ function dedupeAnnotations(annotations: Record<string, unknown>[]): Record<strin
   return out;
 }
 
-function buildTextAnnotation(
+export function buildTextAnnotation(
   content: string,
   resourceId: ResourceId,
   userId: string,
@@ -195,12 +212,88 @@ function buildTextAnnotation(
   };
 }
 
+/**
+ * PDF sibling of `buildTextAnnotation`. The model returns the same
+ * `{ exact, start, end, prefix?, suffix? }` match over the extracted text
+ * layer's `text`; geometry comes from the layer, never the model.
+ *
+ * `target.selector` = one `FragmentSelector` per line (`locate` unions the
+ * overlapping text-layer items into per-line viewrects) plus a
+ * `TextQuoteSelector` anchor. No `TextPositionSelector`: the extracted text
+ * layer is a derived artifact, not the stored content, so its char offsets are
+ * not a durable anchor.
+ *
+ * Write-time invariant (geometry <-> text): geometry is item-level (word runs),
+ * so the covered items' text must *contain* `exact` (whitespace-normalized) —
+ * containment, not reconstruction. An empty cover (no overlapping items -> no
+ * rects) also fails. Throws loudly, naming the resource + motivation, rather
+ * than persisting geometry that doesn't back the quoted text.
+ */
+export function buildPdfAnnotation(
+  layer: PdfTextLayer,
+  resourceId: ResourceId,
+  userId: string,
+  generator: Agent,
+  motivation: string,
+  match: { exact: string; start: number; end: number; prefix?: string; suffix?: string },
+  body?: Record<string, unknown> | Record<string, unknown>[],
+) {
+  const rects = locate(layer, match.start, match.end);
+
+  const covered = layer.items.filter((i) => i.start < match.end && i.end > match.start);
+  const coveredText = covered.length
+    ? layer.text.substring(
+        Math.min(...covered.map((i) => i.start)),
+        Math.max(...covered.map((i) => i.end)),
+      )
+    : '';
+  const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
+  if (rects.length === 0 || !normalize(coveredText).includes(normalize(match.exact))) {
+    throw new Error(
+      `buildPdfAnnotation invariant: covered text does not contain exact ` +
+        `for resource ${resourceId}, motivation ${motivation}`,
+    );
+  }
+
+  const creator = didToAgent(userId);
+  const wasAttributedTo: Agent[] =
+    creator['@id'] === generator['@id'] ? [generator] : [creator, generator];
+
+  return {
+    '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+    'type': 'Annotation' as const,
+    'id': generateAnnotationId(),
+    motivation,
+    creator,
+    generator,
+    wasAttributedTo,
+    created: new Date().toISOString(),
+    target: {
+      type: 'SpecificResource' as const,
+      source: resourceId as string,
+      selector: [
+        ...rects.map((coord) => ({
+          type: 'FragmentSelector' as const,
+          conformsTo: 'http://tools.ietf.org/rfc/rfc3778' as const,
+          value: createFragmentSelector(coord),
+        })),
+        {
+          type: 'TextQuoteSelector' as const,
+          exact: match.exact,
+          ...(match.prefix && { prefix: match.prefix }),
+          ...(match.suffix && { suffix: match.suffix }),
+        },
+      ],
+    },
+    ...(body !== undefined ? { body } : {}),
+  };
+}
+
 export async function processHighlightJob(
   content: string,
   inferenceClient: InferenceClient,
   params: HighlightDetectionParams,
-  userId: string,
-  generator: Agent,
+  buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<HighlightDetectionResult>> {
   onProgress(10, 'Loading resource...', 'analyzing');
@@ -215,7 +308,7 @@ export async function processHighlightJob(
   // Highlights carry no body — motivation:'highlighting' on a target
   // is a complete annotation per the W3C Web Annotation Model.
   const annotations = dedupeAnnotations(highlights.map((h) =>
-    buildTextAnnotation(content, params.resourceId, userId, generator, 'highlighting', h),
+    buildAnnotation('highlighting', h),
   ));
 
   onProgress(100, `Complete! Created ${annotations.length} highlights`, 'creating');
@@ -230,8 +323,7 @@ export async function processCommentJob(
   content: string,
   inferenceClient: InferenceClient,
   params: CommentDetectionParams,
-  userId: string,
-  generator: Agent,
+  buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<CommentDetectionResult>> {
   onProgress(10, 'Loading resource...', 'analyzing');
@@ -252,7 +344,7 @@ export async function processCommentJob(
     // Match the pre-#651 CommentAnnotationWorker: include format and
     // language on the body TextualBody. Optional in the schema, but
     // consumers that do language-aware rendering rely on them.
-    buildTextAnnotation(content, params.resourceId, userId, generator, 'commenting', c, [
+    buildAnnotation('commenting', c, [
       { type: 'TextualBody', value: c.comment, purpose: 'commenting', format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
     ]),
   ));
@@ -269,8 +361,7 @@ export async function processAssessmentJob(
   content: string,
   inferenceClient: InferenceClient,
   params: AssessmentDetectionParams,
-  userId: string,
-  generator: Agent,
+  buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<AssessmentDetectionResult>> {
   onProgress(10, 'Loading resource...', 'analyzing');
@@ -291,7 +382,7 @@ export async function processAssessmentJob(
     // purpose='describing' — that loses the "this is an assessment, not
     // a description" signal and breaks existing readers that access
     // `body.value` directly on the object.
-    buildTextAnnotation(content, params.resourceId, userId, generator, 'assessing', a, {
+    buildAnnotation('assessing', a, {
       type: 'TextualBody', value: a.assessment, purpose: 'assessing', format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage,
     }),
   ));
@@ -308,8 +399,7 @@ export async function processReferenceJob(
   content: string,
   inferenceClient: InferenceClient,
   params: DetectionParams,
-  userId: string,
-  generator: Agent,
+  buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   logger: Logger,
 ): Promise<ProcessorResult<DetectionResult>> {
@@ -377,9 +467,7 @@ export async function processReferenceJob(
           anchorMethod: reconciled.anchorMethod,
         });
       }
-      const ann = buildTextAnnotation(
-        content, params.resourceId, userId, generator, 'linking', toMatch(reconciled), unresolvedBody,
-      );
+      const ann = buildAnnotation('linking', toMatch(reconciled), unresolvedBody);
       allAnnotations.push(ann);
       totalEmitted++;
     }
@@ -403,8 +491,7 @@ export async function processTagJob(
   content: string,
   inferenceClient: InferenceClient,
   params: TagDetectionParams,
-  userId: string,
-  generator: Agent,
+  buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<TagDetectionResult>> {
   onProgress(10, 'Loading resource...', 'analyzing');
@@ -429,7 +516,7 @@ export async function processTagJob(
     // plus the tagging-schema id as a classifying TextualBody. The
     // classifying body is the only trace of schema provenance in the
     // event log — do not drop it.
-    return buildTextAnnotation(content, params.resourceId, userId, generator, 'tagging', t, [
+    return buildAnnotation('tagging', t, [
       { type: 'TextualBody', value: category,         purpose: 'tagging',     format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
       { type: 'TextualBody', value: params.schema.id, purpose: 'classifying', format: 'text/plain' satisfies SupportedMediaType },
     ]);

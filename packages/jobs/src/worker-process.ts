@@ -20,8 +20,9 @@ import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
 import { getPrimaryMediaType, textExtractionOf, assembleAnnotation, type EventMap } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import type { Logger, components } from '@semiont/core';
+import type { Logger, ResourceId, components } from '@semiont/core';
 import { deriveStorageUri } from '@semiont/content';
+import { prepareDetection } from './workers/detection/prepare-detection';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
 import {
   processHighlightJob,
@@ -174,23 +175,33 @@ async function handleJobInner(
     return;
   }
 
-  // Detection jobs decode the source resource as text — fetchContent()
-  // sends Accept: text/plain and TextDecoder-decodes whatever returns —
-  // so gate on the registry's extraction strategy before fetching:
-  // binary types have no text to analyze (the LLM would see mojibake),
-  // and PDFs need the text-layer path that arrives with PDF-DETECTION.md.
-  // Generation reads the annotation carried in its params, not the
-  // source bytes, so it is not gated. Throwing here surfaces as a normal
-  // job:fail through the startWorkerProcess catch.
+  // Detection needs the resource's text plus a media-appropriate way to anchor a
+  // detected span. Both come from the media-type registry's extraction strategy
+  // (textExtractionOf, see prepareDetection): 'decode' -> decoded text + text
+  // selectors, 'pdf-text-layer' -> extracted layer + viewrect selectors. Gating
+  // on the strategy up front keeps binary bytes away from the model — a 'none'
+  // type would TextDecoder-decode to mojibake. A scanned PDF (no text layer)
+  // declines cleanly; a non-textual 'none' type is a user error and throws
+  // (surfaces as job:fail via the startWorkerProcess catch). Generation reads the
+  // annotation in its params, not the source bytes, so it is not prepared here.
+  let source: Awaited<ReturnType<typeof prepareDetection>> = null;
   if (jobType !== 'generation') {
     const descriptor = await session.client.browse.resource(resourceId as never);
     const mediaType = getPrimaryMediaType(descriptor);
-    const extraction = mediaType ? textExtractionOf(mediaType) : 'none';
-    if (extraction === 'pdf-text-layer') {
-      throw new Error(`Cannot run ${jobType} on resource ${resourceId}: PDF text-layer detection is not yet supported`);
-    }
-    if (extraction !== 'decode') {
+    const strategy = mediaType ? textExtractionOf(mediaType) : 'none';
+    if (strategy === 'none') {
       throw new Error(`Cannot run ${jobType} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
+    }
+    source = await prepareDetection(strategy, session, resourceId as ResourceId, userId, generator);
+    if (!source) {
+      // 'pdf-text-layer' that yielded no text layer: a scanned / image-only PDF.
+      // Decline cleanly (not a crash) — complete the job with a no-text-layer result.
+      await emitEvent(session, 'job:complete', {
+        ...lifecycleBase,
+        result: { declined: true, reason: 'no-text-layer', message: 'This PDF has no extractable text layer (scanned or image-only); detection is not supported.' } as never,
+      });
+      adapter.completeJob();
+      return;
     }
   }
 
@@ -210,14 +221,9 @@ async function handleJobInner(
     }).catch(() => {});
   };
 
-  const fetchContent = async (): Promise<string> => {
-    return session.client.browse.resourceContent(resourceId as never);
-  };
-
   if (jobType === 'highlight-annotation') {
-    const content = await fetchContent();
     const { annotations, result } = await processHighlightJob(
-      content, inferenceClient, job.params as never, userId, generator, onProgress,
+      source!.text, inferenceClient, job.params as never, source!.buildAnnotation, onProgress,
     );
     for (const ann of annotations) {
       await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
@@ -229,9 +235,8 @@ async function handleJobInner(
     adapter.completeJob();
 
   } else if (jobType === 'comment-annotation') {
-    const content = await fetchContent();
     const { annotations, result } = await processCommentJob(
-      content, inferenceClient, job.params as never, userId, generator, onProgress,
+      source!.text, inferenceClient, job.params as never, source!.buildAnnotation, onProgress,
     );
     for (const ann of annotations) {
       await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
@@ -243,9 +248,8 @@ async function handleJobInner(
     adapter.completeJob();
 
   } else if (jobType === 'assessment-annotation') {
-    const content = await fetchContent();
     const { annotations, result } = await processAssessmentJob(
-      content, inferenceClient, job.params as never, userId, generator, onProgress,
+      source!.text, inferenceClient, job.params as never, source!.buildAnnotation, onProgress,
     );
     for (const ann of annotations) {
       await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
@@ -257,9 +261,8 @@ async function handleJobInner(
     adapter.completeJob();
 
   } else if (jobType === 'reference-annotation') {
-    const content = await fetchContent();
     const { annotations, result } = await processReferenceJob(
-      content, inferenceClient, job.params as never, userId, generator, onProgress, config.logger,
+      source!.text, inferenceClient, job.params as never, source!.buildAnnotation, onProgress, config.logger,
     );
     for (const ann of annotations) {
       await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
@@ -271,9 +274,8 @@ async function handleJobInner(
     adapter.completeJob();
 
   } else if (jobType === 'tag-annotation') {
-    const content = await fetchContent();
     const { annotations, result } = await processTagJob(
-      content, inferenceClient, job.params as never, userId, generator, onProgress,
+      source!.text, inferenceClient, job.params as never, source!.buildAnnotation, onProgress,
     );
     for (const ann of annotations) {
       await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
