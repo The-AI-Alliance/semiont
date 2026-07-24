@@ -49,6 +49,7 @@ vi.mock('@semiont/event-sourcing', () => ({
 import { AnnotationDetection } from '../workers/annotation-detection';
 import { extractEntities } from '../workers/detection/entity-extractor';
 import { generateResourceFromTopic } from '../workers/generation/resource-generation';
+import type { PdfTextLayer } from '@semiont/content';
 import {
   processHighlightJob,
   processCommentJob,
@@ -56,6 +57,9 @@ import {
   processReferenceJob,
   processTagJob,
   processGenerationJob,
+  buildTextAnnotation,
+  buildPdfAnnotation,
+  type BuildAnnotation,
 } from '../processors';
 
 const RID = resourceId('res-test');
@@ -67,6 +71,31 @@ const GENERATOR: Agent = {
   provider: 'test',
   model: 'test',
 };
+
+// The detection processors now take a media-agnostic `buildAnnotation`; for
+// these text-detection tests it is `buildTextAnnotation` curried with the
+// resource + attribution context (exactly what the processors used to do
+// internally). Attribution shape is exercised through this closure.
+const textBuild = (content: string, userId: string = USER_DID): BuildAnnotation =>
+  (motivation, match, body) => buildTextAnnotation(content, RID, userId, GENERATOR, motivation, match, body);
+
+// Synthetic two-line text layer — "alpha beta" / "gamma delta" — for the PDF
+// path. `.text` is what a PDF processor detects over; `pdfBuild` anchors each
+// detected span via `buildPdfAnnotation` (FragmentSelector viewrects, no
+// TextPositionSelector), the media-appropriate builder `prepareDetection`
+// hands a `pdf-text-layer` job.
+const PDF_LAYER: PdfTextLayer = {
+  pages: [{ pageNumber: 1, widthPt: 612, heightPt: 792 }],
+  text: 'alpha beta\ngamma delta',
+  items: [
+    { start: 0,  end: 5,  page: 1, x: 72,  y: 720, width: 40, height: 12 }, // alpha
+    { start: 6,  end: 10, page: 1, x: 118, y: 720, width: 34, height: 12 }, // beta
+    { start: 11, end: 16, page: 1, x: 72,  y: 700, width: 45, height: 12 }, // gamma
+    { start: 17, end: 22, page: 1, x: 125, y: 700, width: 42, height: 12 }, // delta
+  ],
+};
+const pdfBuild = (layer: PdfTextLayer, userId: string = USER_DID): BuildAnnotation =>
+  (motivation, match, body) => buildPdfAnnotation(layer, RID, userId, GENERATOR, motivation, match, body);
 
 function makeInferenceClient(): InferenceClient {
   return {
@@ -101,8 +130,7 @@ describe('processHighlightJob', () => {
       content,
       makeInferenceClient(),
       { resourceId: RID, density: 5 },
-      USER_DID,
-      GENERATOR,
+      textBuild(content),
       progress,
     );
 
@@ -116,6 +144,34 @@ describe('processHighlightJob', () => {
     expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
     expect(progress).toHaveBeenCalledWith(10, expect.any(String), 'analyzing');
     expect(progress).toHaveBeenLastCalledWith(100, expect.stringContaining('2 highlights'), 'creating');
+  });
+
+  it('keeps distinct PDF highlights (dedupe must not key on an absent TextPositionSelector)', async () => {
+    // Regression: PDF annotations carry no TextPositionSelector, so a dedupe
+    // key built only from position offsets degrades to `highlighting|?|?|null`
+    // and collapses every bodiless PDF highlight to one. Two distinct spans
+    // must survive as two annotations, anchored by FragmentSelector geometry.
+    const content = PDF_LAYER.text; // 'alpha beta\ngamma delta'
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'alpha', start: 0, end: 5 },
+      { exact: 'delta', start: 17, end: 22 },
+    ]);
+
+    const result = await processHighlightJob(
+      content,
+      makeInferenceClient(),
+      { resourceId: RID, density: 5 },
+      pdfBuild(PDF_LAYER),
+      vi.fn(),
+    );
+
+    expect(result.annotations).toHaveLength(2);
+    expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
+    for (const ann of result.annotations) {
+      const selectors = (ann as { target: { selector: Array<{ type: string }> } }).target.selector;
+      expect(selectors.some((s) => s.type === 'FragmentSelector')).toBe(true);
+      expect(selectors.some((s) => s.type === 'TextPositionSelector')).toBe(false);
+    }
   });
 });
 
@@ -131,8 +187,7 @@ describe('processCommentJob', () => {
       'passage here',
       makeInferenceClient(),
       { resourceId: RID, density: 3 },
-      USER_DID,
-      GENERATOR,
+      textBuild('passage here'),
       vi.fn(),
     );
 
@@ -161,8 +216,7 @@ describe('processAssessmentJob', () => {
       'claim made',
       makeInferenceClient(),
       { resourceId: RID, density: 3 },
-      USER_DID,
-      GENERATOR,
+      textBuild('claim made'),
       vi.fn(),
     );
 
@@ -195,8 +249,7 @@ describe('processReferenceJob', () => {
       'Paris and Berlin',
       makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Location')] },
-      USER_DID,
-      GENERATOR,
+      textBuild('Paris and Berlin'),
       progress,
       LOGGER,
     );
@@ -226,8 +279,7 @@ describe('processReferenceJob', () => {
       'good stuff',
       makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Thing')] },
-      USER_DID,
-      GENERATOR,
+      textBuild('good stuff'),
       vi.fn(),
       LOGGER,
     );
@@ -243,8 +295,7 @@ describe('processReferenceJob', () => {
       'content',
       makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Location')] },
-      USER_DID,
-      GENERATOR,
+      textBuild('content'),
       vi.fn(),
       LOGGER,
     );
@@ -271,8 +322,7 @@ describe('processTagJob', () => {
       'foo bar baz',
       makeInferenceClient(),
       { resourceId: RID, schema: SCHEMA_1, categories: ['catA', 'catB'] },
-      USER_DID,
-      GENERATOR,
+      textBuild('foo bar baz'),
       vi.fn(),
     );
 
@@ -483,8 +533,7 @@ describe('annotation attribution composition', () => {
       'snippet',
       makeInferenceClient(),
       { resourceId: RID, density: 1 },
-      USER_DID, // human DID
-      GENERATOR, // Software agent
+      textBuild('snippet'),
       vi.fn(),
     );
 
@@ -517,8 +566,7 @@ describe('annotation attribution composition', () => {
       'snippet',
       makeInferenceClient(),
       { resourceId: RID, density: 1 },
-      autonomousDid as never,
-      GENERATOR,
+      textBuild('snippet', autonomousDid),
       vi.fn(),
     );
 
@@ -544,10 +592,10 @@ describe('annotation attribution composition', () => {
     ]);
 
     const sources = await Promise.all([
-      processCommentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, USER_DID, GENERATOR, vi.fn()),
-      processAssessmentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, USER_DID, GENERATOR, vi.fn()),
-      processReferenceJob('x', makeInferenceClient(), { resourceId: RID, entityTypes: [entityType('Person')] }, USER_DID, GENERATOR, vi.fn(), LOGGER),
-      processTagJob('x', makeInferenceClient(), { resourceId: RID, schema: 'schema-1', categories: ['c'], sourceLanguage: 'en' } as never, USER_DID, GENERATOR, vi.fn()),
+      processCommentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, textBuild('x'), vi.fn()),
+      processAssessmentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, textBuild('x'), vi.fn()),
+      processReferenceJob('x', makeInferenceClient(), { resourceId: RID, entityTypes: [entityType('Person')] }, textBuild('x'), vi.fn(), LOGGER),
+      processTagJob('x', makeInferenceClient(), { resourceId: RID, schema: 'schema-1', categories: ['c'], sourceLanguage: 'en' } as never, textBuild('x'), vi.fn()),
     ]);
 
     for (const result of sources) {
@@ -587,8 +635,7 @@ describe('locale threading', () => {
         'passage here',
         makeInferenceClient(),
         { resourceId: RID, language: 'fr' },
-        USER_DID,
-        GENERATOR,
+        textBuild('passage here'),
         vi.fn(),
       );
 
@@ -606,8 +653,7 @@ describe('locale threading', () => {
         'claim made',
         makeInferenceClient(),
         { resourceId: RID, language: 'fr' },
-        USER_DID,
-        GENERATOR,
+        textBuild('claim made'),
         vi.fn(),
       );
 
@@ -625,8 +671,7 @@ describe('locale threading', () => {
         'Paris',
         makeInferenceClient(),
         { resourceId: RID, entityTypes: [entityType('Location')], language: 'fr' },
-        USER_DID,
-        GENERATOR,
+        textBuild('Paris'),
         vi.fn(),
         LOGGER,
       );
@@ -645,8 +690,7 @@ describe('locale threading', () => {
         'foo bar',
         makeInferenceClient(),
         { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'], language: 'de' },
-        USER_DID,
-        GENERATOR,
+        textBuild('foo bar'),
         vi.fn(),
       );
 
@@ -667,8 +711,7 @@ describe('locale threading', () => {
         'passage here',
         makeInferenceClient(),
         { resourceId: RID },
-        USER_DID,
-        GENERATOR,
+        textBuild('passage here'),
         vi.fn(),
       );
 
@@ -687,7 +730,7 @@ describe('locale threading', () => {
       await processHighlightJob(
         'content', client,
         { resourceId: RID, sourceLanguage: 'fr' },
-        USER_DID, GENERATOR, vi.fn(),
+        textBuild('content'), vi.fn(),
       );
 
       expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
@@ -702,7 +745,7 @@ describe('locale threading', () => {
       await processCommentJob(
         'content', client,
         { resourceId: RID, language: 'de', sourceLanguage: 'fr' },
-        USER_DID, GENERATOR, vi.fn(),
+        textBuild('content'), vi.fn(),
       );
 
       expect(AnnotationDetection.detectComments).toHaveBeenCalledWith(
@@ -717,7 +760,7 @@ describe('locale threading', () => {
       await processAssessmentJob(
         'content', client,
         { resourceId: RID, language: 'es', sourceLanguage: 'pt' },
-        USER_DID, GENERATOR, vi.fn(),
+        textBuild('content'), vi.fn(),
       );
 
       expect(AnnotationDetection.detectAssessments).toHaveBeenCalledWith(
@@ -732,7 +775,7 @@ describe('locale threading', () => {
       await processReferenceJob(
         'content', client,
         { resourceId: RID, entityTypes: [entityType('Location')], sourceLanguage: 'fr' },
-        USER_DID, GENERATOR, vi.fn(),
+        textBuild('content'), vi.fn(),
         LOGGER,
       );
 
@@ -748,7 +791,7 @@ describe('locale threading', () => {
       await processTagJob(
         'content', client,
         { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'], sourceLanguage: 'fr' },
-        USER_DID, GENERATOR, vi.fn(),
+        textBuild('content'), vi.fn(),
       );
 
       // Worker now receives the full schema (resolved by the dispatcher),
@@ -763,7 +806,7 @@ describe('locale threading', () => {
       const client = makeInferenceClient();
 
       await processHighlightJob(
-        'content', client, { resourceId: RID }, USER_DID, GENERATOR, vi.fn(),
+        'content', client, { resourceId: RID }, textBuild('content'), vi.fn(),
       );
 
       expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
@@ -822,8 +865,7 @@ describe('buildTextAnnotation invariant', () => {
         'the quick brown fox',
         makeInferenceClient(),
         { resourceId: RID, density: 5 },
-        USER_DID,
-        GENERATOR,
+        textBuild('the quick brown fox'),
         vi.fn(),
       ),
     ).rejects.toThrow(/buildTextAnnotation invariant: content\.substring/);
@@ -841,8 +883,7 @@ describe('buildTextAnnotation invariant', () => {
         content,
         makeInferenceClient(),
         { resourceId: RID, density: 5 },
-        USER_DID,
-        GENERATOR,
+        textBuild(content),
         vi.fn(),
       ),
     ).rejects.toThrow(/buildTextAnnotation invariant: content prefix-slice/);
@@ -859,8 +900,7 @@ describe('buildTextAnnotation invariant', () => {
         content,
         makeInferenceClient(),
         { resourceId: RID, density: 5 },
-        USER_DID,
-        GENERATOR,
+        textBuild(content),
         vi.fn(),
       ),
     ).rejects.toThrow(/buildTextAnnotation invariant: content suffix-slice/);
@@ -876,8 +916,7 @@ describe('buildTextAnnotation invariant', () => {
         'short',
         makeInferenceClient(),
         { resourceId: RID, density: 5 },
-        USER_DID,
-        GENERATOR,
+        textBuild('short'),
         vi.fn(),
       ),
     ).rejects.toThrow(new RegExp(`resource ${RID}, motivation highlighting`));
@@ -908,8 +947,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       content,
       makeInferenceClient(),
       { resourceId: RID, density: 5 },
-      USER_DID,
-      GENERATOR,
+      textBuild(content),
       vi.fn(),
     );
 
@@ -943,8 +981,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       content,
       makeInferenceClient(),
       { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'] },
-      USER_DID,
-      GENERATOR,
+      textBuild(content),
       vi.fn(),
     );
 
@@ -970,8 +1007,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       'Alice went to Paris.',
       makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Person')] },
-      USER_DID,
-      GENERATOR,
+      textBuild('Alice went to Paris.'),
       vi.fn(),
       LOGGER,
     );
@@ -1004,8 +1040,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       content,
       makeInferenceClient(),
       { resourceId: RID, density: 3 },
-      USER_DID,
-      GENERATOR,
+      textBuild(content),
       vi.fn(),
     );
 
@@ -1030,8 +1065,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       content,
       makeInferenceClient(),
       { resourceId: RID, density: 3 },
-      USER_DID,
-      GENERATOR,
+      textBuild(content),
       vi.fn(),
     );
 
@@ -1067,8 +1101,7 @@ describe('annotation de-duplication', () => {
       'A trip to Paris.',
       makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Location')] },
-      USER_DID,
-      GENERATOR,
+      textBuild('A trip to Paris.'),
       vi.fn(),
       LOGGER,
     );
@@ -1089,8 +1122,7 @@ describe('annotation de-duplication', () => {
       'The metal Mercury is dense.',
       makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Planet'), entityType('Element')] },
-      USER_DID,
-      GENERATOR,
+      textBuild('The metal Mercury is dense.'),
       vi.fn(),
       LOGGER,
     );
@@ -1110,8 +1142,7 @@ describe('annotation de-duplication', () => {
       content,
       makeInferenceClient(),
       { resourceId: RID, density: 5 },
-      USER_DID,
-      GENERATOR,
+      textBuild(content),
       vi.fn(),
     );
 
@@ -1131,8 +1162,7 @@ describe('annotation de-duplication', () => {
       content,
       makeInferenceClient(),
       { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'] },
-      USER_DID,
-      GENERATOR,
+      textBuild(content),
       vi.fn(),
     );
 

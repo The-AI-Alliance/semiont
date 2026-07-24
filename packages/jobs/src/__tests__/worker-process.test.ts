@@ -42,15 +42,29 @@ import {
   processTagJob,
   processGenerationJob,
 } from '../processors';
+import { extractPdfTextLayer } from '@semiont/content';
 
-// Mock all six processors. Each test sets its own return value.
-vi.mock('../processors', async () => ({
+// Mock the six processor entry points; keep every other export real.
+// `prepareDetection` imports `buildTextAnnotation`/`buildPdfAnnotation` from
+// this same module, so replacing it wholesale would leave those undefined —
+// spread the original and override only the processors.
+vi.mock('../processors', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../processors')>()),
   processHighlightJob:  vi.fn(),
   processCommentJob:    vi.fn(),
   processAssessmentJob: vi.fn(),
   processReferenceJob:  vi.fn(),
   processTagJob:        vi.fn(),
   processGenerationJob: vi.fn(),
+}));
+
+// prepareDetection's 'pdf-text-layer' branch runs extractPdfTextLayer over the
+// fetched PDF bytes. Mock only that export so orchestration tests drive the
+// text-layer-vs-scanned decision without real PDF fixtures; everything else in
+// @semiont/content (deriveStorageUri, etc.) stays real.
+vi.mock('@semiont/content', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@semiont/content')>()),
+  extractPdfTextLayer: vi.fn(),
 }));
 
 const RID = 'res-abc';
@@ -90,6 +104,12 @@ function makeFakeSessionAndAdapter() {
           representations: [{ mediaType: 'text/plain' }],
         })),
         resourceContent: vi.fn(async (_rid: string) => 'the content'),
+        // PDF detection ('pdf-text-layer') fetches the raw bytes here; the
+        // bytes are inert because extractPdfTextLayer is mocked per test.
+        resourceRepresentation: vi.fn(async (_rid: string) => ({
+          data: new ArrayBuffer(8),
+          contentType: 'application/pdf',
+        })),
       },
       yield: {
         resource: vi.fn(async (data: Parameters<SemiontSession['client']['yield']['resource']>[0]) => {
@@ -453,18 +473,74 @@ describe('handleJob orchestration', () => {
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(false);
     });
 
-    it('fails a detection job on a PDF with a distinct not-yet-supported message', async () => {
+    // #737 (Phase 3): all five detection motivations fan out to the PDF
+    // text-layer path. Geometry is shared (buildPdfAnnotation, covered in
+    // build-pdf-annotation.test.ts); this proves the dispatch routes every
+    // motivation through 'pdf-text-layer' — feeding each processor the extracted
+    // layer text (arg 0) and a PDF-aware buildAnnotation (arg 3), never the
+    // decoded-bytes path. `lastCall` closes over the concrete mock so each
+    // processor's own arg tuple is read (their signatures differ).
+    type PdfFanoutCase = {
+      jobType: ActiveJob['type'];
+      arm: () => void;                    // set this processor's resolved value
+      lastCall: () => unknown[] | undefined;
+    };
+    const PDF_FANOUT: PdfFanoutCase[] = [
+      { jobType: 'highlight-annotation',
+        arm: () => { vi.mocked(processHighlightJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        lastCall: () => vi.mocked(processHighlightJob).mock.calls[0] },
+      { jobType: 'comment-annotation',
+        arm: () => { vi.mocked(processCommentJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        lastCall: () => vi.mocked(processCommentJob).mock.calls[0] },
+      { jobType: 'assessment-annotation',
+        arm: () => { vi.mocked(processAssessmentJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        lastCall: () => vi.mocked(processAssessmentJob).mock.calls[0] },
+      { jobType: 'reference-annotation',
+        arm: () => { vi.mocked(processReferenceJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        lastCall: () => vi.mocked(processReferenceJob).mock.calls[0] },
+      { jobType: 'tag-annotation',
+        arm: () => { vi.mocked(processTagJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        lastCall: () => vi.mocked(processTagJob).mock.calls[0] },
+    ];
+
+    it.each(PDF_FANOUT)('fans $jobType out to the pdf-text-layer path', async ({ jobType, arm, lastCall }) => {
+      arm();
+      vi.mocked(extractPdfTextLayer).mockResolvedValue({ text: 'the quick brown fox', items: [] } as never);
       const h = makeFakeSessionAndAdapter();
       vi.mocked(h.session.client.browse.resource).mockResolvedValue({
         representations: [{ mediaType: 'application/pdf' }],
       } as never);
 
-      await expect(
-        handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'))
-      ).rejects.toThrow(/text-layer detection is not yet supported/);
+      await handleJob(h.adapter, makeConfig(h.session), makeJob(jobType));
 
+      // pdf-text-layer fetches the representation bytes, never resourceContent.
+      expect(h.session.client.browse.resourceRepresentation).toHaveBeenCalled();
       expect(h.session.client.browse.resourceContent).not.toHaveBeenCalled();
+      const call = lastCall();
+      expect(call).toBeDefined();
+      expect(call![0]).toBe('the quick brown fox'); // source.text — the extracted layer
+      expect(typeof call![3]).toBe('function');      // source.buildAnnotation — PDF-aware anchor
+      expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(true);
+    });
+
+    it('declines cleanly (no throw, no processor) for a scanned PDF with no text layer', async () => {
+      // extractPdfTextLayer returns null for a scanned / image-only PDF.
+      // The dispatch declines cleanly — completes the job with a no-text-layer
+      // result — rather than crashing or running the model on nothing.
+      vi.mocked(extractPdfTextLayer).mockResolvedValue(null);
+      const h = makeFakeSessionAndAdapter();
+      vi.mocked(h.session.client.browse.resource).mockResolvedValue({
+        representations: [{ mediaType: 'application/pdf' }],
+      } as never);
+
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
+
       expect(processHighlightJob).not.toHaveBeenCalled();
+      const complete = h.busEmits.find(e => e.channel === 'job:complete');
+      expect(complete).toBeDefined();
+      expect((complete!.payload as { result?: unknown }).result)
+        .toMatchObject({ declined: true, reason: 'no-text-layer' });
+      expect(h.adapterCalls.some(c => c.method === 'completeJob')).toBe(true);
     });
 
     it('fails a detection job when the resource has no primary representation', async () => {

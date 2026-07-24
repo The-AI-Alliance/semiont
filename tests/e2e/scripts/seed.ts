@@ -9,12 +9,14 @@
  * 02-09 fail at the very first "open resource:" assertion.
  *
  * Seeds two `text/plain` resources (for the text-annotation specs) plus
- * one `application/pdf` resource (for `14-pdf-render.spec.ts`, the
- * PDFJS-6-UNIFY browser smoke). The PDF is seeded **first** on purpose:
- * Discover lists resources newest-first
- * (`make-meaning/src/resource-context.ts` `sortByDateDesc`), so the
- * oldest resource sorts last and never becomes the `.first()` card the
- * text specs (02-09) open. Adding the PDF must not displace that card.
+ * two `application/pdf` resources: a 3-word render smoke fixture (for
+ * `14-pdf-render.spec.ts`, the PDFJS-6-UNIFY browser smoke) and a
+ * text-layer fixture with a Concept-dense paragraph (for
+ * `20-pdf-assisted-detection.spec.ts`, AI detection on a PDF). Both PDFs are
+ * seeded **first** on purpose: Discover lists resources newest-first
+ * (`make-meaning/src/resource-context.ts` `sortByDateDesc`), so the two
+ * oldest resources sort last and never become the `.first()` card the text
+ * specs (02-09) open. Adding the PDFs must not displace that card.
  *
  * This module exports two entry points:
  *
@@ -67,6 +69,79 @@ const PDF_FIXTURE_BASE64 =
   'MDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI0MSAwMDAwMCBuIAowMDAwMDAwMzcyIDAwMDAwIG4g' +
   'CnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKNDQyCiUlRU9G';
 
+/**
+ * A single-page (612×792) text-layer PDF whose content is a Concept-dense
+ * essay on cellular respiration (~346 words). Unlike the 3-word "Spatial Smoke
+ * PDF" above (a render smoke fixture), it carries enough extractable prose that
+ * density-gated AI detection (highlight/comment) reliably finds ≥1 span and
+ * entity extraction (reference/linking) finds many Concept entities —
+ * `20-pdf-assisted-detection.spec.ts` runs comment + reference assist against
+ * it. Standard Helvetica Type1 font; text drawn with BT/Tf/Td/Tj operators,
+ * one positioned line per string advanced by the T-star line-move. Verified
+ * through `@semiont/content`'s `extractPdfTextLayer` (pdfjs-dist@6): 1 page,
+ * 31 text items, text layer beginning "Cellular respiration is the set of
+ * metabolic reactions".
+ */
+const TEXT_PDF_FIXTURE_BASE64 =
+  'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5k' +
+  'b2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4K' +
+  'ZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3gg' +
+  'WzAgMCA2MTIgNzkyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA1IDAgUiA+PiA+PiAv' +
+  'Q29udGVudHMgNCAwIFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAyNTU4ID4+CnN0' +
+  'cmVhbQpCVAovRjEgMTAgVGYKMTQgVEwKNTQgNzQ4IFRkCihDZWxsdWxhciByZXNwaXJhdGlv' +
+  'biBpcyB0aGUgc2V0IG9mIG1ldGFib2xpYyByZWFjdGlvbnMgYW5kIHByb2Nlc3NlcyB0aGF0' +
+  'KSBUagpUKgoodGFrZSBwbGFjZSBpbiB0aGUgY2VsbHMgb2Ygb3JnYW5pc21zIHRvIGNvbnZl' +
+  'cnQgYmlvY2hlbWljYWwgZW5lcmd5IGZyb20pIFRqClQqCihudXRyaWVudHMgaW50byBhZGVu' +
+  'b3NpbmUgdHJpcGhvc3BoYXRlLCBhbmQgdGhlbiByZWxlYXNlIHdhc3RlIHByb2R1Y3RzLikg' +
+  'VGoKVCoKKFRoZSByZWFjdGlvbnMgaW52b2x2ZWQgaW4gcmVzcGlyYXRpb24gYXJlIGNhdGFi' +
+  'b2xpYyByZWFjdGlvbnMgdGhhdCBicmVhaykgVGoKVCoKKGxhcmdlIG1vbGVjdWxlcyBpbnRv' +
+  'IHNtYWxsZXIgb25lcywgcmVsZWFzaW5nIGVuZXJneSBhcyB0aGUgY292YWxlbnQgYm9uZHMp' +
+  'IFRqClQqCihiZXR3ZWVuIGF0b21zIGFyZSByZWFycmFuZ2VkLiBHbHljb2x5c2lzIGlzIGEg' +
+  'bWV0YWJvbGljIHBhdGh3YXkgdGhhdCBvY2N1cnMpIFRqClQqCihpbiB0aGUgY3l0b3BsYXNt' +
+  'LCBjb252ZXJ0aW5nIGEgbW9sZWN1bGUgb2YgZ2x1Y29zZSBpbnRvIHR3byBtb2xlY3VsZXMg' +
+  'b2YpIFRqClQqCihweXJ1dmF0ZSB3aGlsZSBwcm9kdWNpbmcgYSBzbWFsbCBuZXQgeWllbGQg' +
+  'b2YgQVRQIGFuZCB0aGUgZWxlY3Ryb24gY2FycmllcikgVGoKVCoKKE5BREguIFRoZSBweXJ1' +
+  'dmF0ZSBpcyB0aGVuIHRyYW5zcG9ydGVkIGludG8gdGhlIG1pdG9jaG9uZHJpYSwgd2hlcmUg' +
+  'aXQgaXMpIFRqClQqCihveGlkaXplZCBhbmQgY29tYmluZWQgd2l0aCBjb2VuenltZSBBIHRv' +
+  'IGZvcm0gYWNldHlsIGNvZW56eW1lIEEuIFRoZSBjaXRyaWMpIFRqClQqCihhY2lkIGN5Y2xl' +
+  'LCBhbHNvIGNhbGxlZCB0aGUgS3JlYnMgY3ljbGUsIG94aWRpemVzIGFjZXR5bC1Db0EgYW5k' +
+  'IHRyYW5zZmVycykgVGoKVCoKKGhpZ2gtZW5lcmd5IGVsZWN0cm9ucyB0byB0aGUgY2Fycmll' +
+  'cnMgTkFESCBhbmQgRkFESDIgd2hpbGUgcmVsZWFzaW5nIGNhcmJvbikgVGoKVCoKKGRpb3hp' +
+  'ZGUgYXMgYSBieXByb2R1Y3QuIE94aWRhdGl2ZSBwaG9zcGhvcnlsYXRpb24gdGhlbiB1c2Vz' +
+  'IHRoZSBlbGVjdHJvbikgVGoKVCoKKHRyYW5zcG9ydCBjaGFpbiBlbWJlZGRlZCBpbiB0aGUg' +
+  'aW5uZXIgbWl0b2Nob25kcmlhbCBtZW1icmFuZSB0byBwdW1wIHByb3RvbnMpIFRqClQqCiha' +
+  'Y3Jvc3MgaXQgYW5kIGVzdGFibGlzaCBhbiBlbGVjdHJvY2hlbWljYWwgZ3JhZGllbnQga25v' +
+  'd24gYXMgdGhlIHByb3RvbikgVGoKVCoKKG1vdGl2ZSBmb3JjZS4gVGhlIGVsZWN0cm9uIHRy' +
+  'YW5zcG9ydCBjaGFpbiBpcyBidWlsdCBmcm9tIGZvdXIgbGFyZ2UgcHJvdGVpbikgVGoKVCoK' +
+  'KGNvbXBsZXhlcywgbGFiZWxlZCBjb21wbGV4IG9uZSB0aHJvdWdoIGNvbXBsZXggZm91ciwg' +
+  'YWxvbmcgd2l0aCB0aGUgbW9iaWxlKSBUagpUKgooY2FycmllcnMgdWJpcXVpbm9uZSBhbmQg' +
+  'Y3l0b2Nocm9tZSBjIHRoYXQgZmVycnkgZWxlY3Ryb25zIGJldHdlZW4gdGhlbS4gQXMpIFRq' +
+  'ClQqCihlbGVjdHJvbnMgcGFzcyBkb3duIHRoZSBjaGFpbiB0b3dhcmQgb3h5Z2VuLCB0aGUg' +
+  'Y29tcGxleGVzIHB1bXAgaHlkcm9nZW4pIFRqClQqCihpb25zIGZyb20gdGhlIG1pdG9jaG9u' +
+  'ZHJpYWwgbWF0cml4IGludG8gdGhlIGludGVybWVtYnJhbmUgc3BhY2UsIHN0b3JpbmcpIFRq' +
+  'ClQqCihwb3RlbnRpYWwgZW5lcmd5IGluIHRoZSBncmFkaWVudC4gQVRQIHN5bnRoYXNlIGhh' +
+  'cm5lc3NlcyB0aGF0IGdyYWRpZW50KSBUagpUKgoodGhyb3VnaCBjaGVtaW9zbW9zaXMgdG8g' +
+  'cGhvc3Bob3J5bGF0ZSBBRFAgaW50byBBVFAsIHRoZSBwcmltYXJ5IGVuZXJneSkgVGoKVCoK' +
+  'KGN1cnJlbmN5IG9mIHRoZSBjZWxsLiBPeHlnZW4gc2VydmVzIGFzIHRoZSBmaW5hbCBlbGVj' +
+  'dHJvbiBhY2NlcHRvciwpIFRqClQqCihjb21iaW5pbmcgd2l0aCBzcGVudCBlbGVjdHJvbnMg' +
+  'YW5kIHByb3RvbnMgdG8gZm9ybSB3YXRlciBhdCB0aGUgZW5kIG9mIHRoZSkgVGoKVCoKKGNo' +
+  'YWluLiBBZXJvYmljIHJlc3BpcmF0aW9uIG9mIGEgc2luZ2xlIGdsdWNvc2UgbW9sZWN1bGUg' +
+  'Y2FuIHlpZWxkIHJvdWdobHkpIFRqClQqCih0aGlydHkgdG8gdGhpcnR5LWVpZ2h0IG1vbGVj' +
+  'dWxlcyBvZiBBVFAgYWNyb3NzIGFsbCBvZiB0aGVzZSBzdGFnZXMuIEluIHRoZSkgVGoKVCoK' +
+  'KGFic2VuY2Ugb2Ygb3h5Z2VuLCBtYW55IGNlbGxzIGZhbGwgYmFjayBvbiBmZXJtZW50YXRp' +
+  'b24sIGFuIGFuYWVyb2JpYykgVGoKVCoKKHBhdGh3YXkgdGhhdCByZWdlbmVyYXRlcyB0aGUg' +
+  'Y2FycmllcnMgZ2x5Y29seXNpcyByZXF1aXJlcy4gSW4gaHVtYW4gbXVzY2xlKSBUagpUKgoo' +
+  'Y2VsbHMgZmVybWVudGF0aW9uIHByb2R1Y2VzIGxhY3RpYyBhY2lkLCB3aGlsZSBpbiB5ZWFz' +
+  'dCBpdCBwcm9kdWNlcyBldGhhbm9sKSBUagpUKgooYW5kIGNhcmJvbiBkaW94aWRlLCB0aG91' +
+  'Z2ggYm90aCByb3V0ZXMgeWllbGQgZmFyIGxlc3MgdXNhYmxlIGVuZXJneSBwZXIpIFRqClQq' +
+  'Cihtb2xlY3VsZSBvZiBnbHVjb3NlIHRoYW4gYWVyb2JpYyByZXNwaXJhdGlvbiBwcm92aWRl' +
+  'cyB0byB0aGUgb3JnYW5pc20uKSBUagpFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwg' +
+  'L1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+CmVu' +
+  'ZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAK' +
+  'MDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAw' +
+  'MDAgbiAKMDAwMDAwMjg1MSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAw' +
+  'IFIgPj4Kc3RhcnR4cmVmCjI5MjEKJSVFT0Y=';
+
 // Names + storageUris are stable so a re-run sees the same KB shape.
 //
 // The two text documents are `text/plain` (NOT `text/markdown`): the
@@ -79,8 +154,8 @@ const PDF_FIXTURE_BASE64 =
 // manual-highlight / manual-reference / comment / hover-beckon specs
 // have text to select.
 //
-// The PDF is listed FIRST so it is created first → oldest → sorts last
-// in Discover (see the module doc); the text specs' `.first()` card
+// The two PDFs are listed FIRST so they are created first → oldest → sort
+// last in Discover (see the module doc); the text specs' `.first()` card
 // stays a text resource.
 const SEED_RESOURCES: readonly SeedSpec[] = [
   {
@@ -89,6 +164,13 @@ const SEED_RESOURCES: readonly SeedSpec[] = [
     format: 'application/pdf',
     language: 'en',
     bytes: Buffer.from(PDF_FIXTURE_BASE64, 'base64'),
+  },
+  {
+    name: 'Cellular Respiration PDF',
+    storageUri: 'file://e2e/seed-cellular.pdf',
+    format: 'application/pdf',
+    language: 'en',
+    bytes: Buffer.from(TEXT_PDF_FIXTURE_BASE64, 'base64'),
   },
   {
     name: 'Quantum Computing Primer',
