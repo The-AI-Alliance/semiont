@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,8 +9,11 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name> [--refresh]] [--service <name>] [--runtime container|docker|podman] [--verbose] [--billing]
@@ -221,6 +225,7 @@ func Status(args []string) int {
 		printRemoteKBs(u, cs)
 	}
 	if service == "" && verbose {
+		printSessions(u, ss)
 		printLauncherPaths(u)
 	}
 
@@ -555,6 +560,50 @@ func printRoots(u *ui, st *stackState) {
 		if cfg != "" {
 			fmt.Printf("    %s\n", u.dim("config: "+cfg+" (used when --config is omitted)"))
 		}
+	}
+}
+
+// printSessions reports login sessions under --verbose: each stored token
+// (tokens.json) with its stack key and email, LIVE-verified against the
+// stack's /api/users/me when reachable — valid/expired is a runtime fact,
+// so an unreachable stack reads "unverified", never a guess.
+func printSessions(u *ui, ss *stackSet) {
+	u.section("SESSIONS")
+	toks := loadTokens()
+	if len(toks) == 0 {
+		fmt.Printf("  %s\n", u.dim("(none — semiont login --email <address>)"))
+		return
+	}
+	keys := make([]string, 0, len(toks))
+	for k := range toks {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		e := toks[k]
+		base := ""
+		if k == "local" {
+			if st := ss.Stacks["local"]; st != nil {
+				base = backendBase(st)
+			}
+		} else if st := ss.Stacks[k]; st != nil && st.ForwardPort != 0 {
+			base = fmt.Sprintf("http://localhost:%d", st.ForwardPort)
+		}
+		state := "unverified (stack not reachable)"
+		if base != "" {
+			if cli, err := semiont.NewClientWithResponses(base); err == nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				resp, err := cli.GetApiUsersMeWithResponse(ctx, bearer(e.Token))
+				cancel()
+				switch {
+				case err == nil && resp.JSON200 != nil:
+					state = "valid"
+				case err == nil && resp.JSON401 != nil:
+					state = "expired (auto-refreshes on next use, or semiont login)"
+				}
+			}
+		}
+		fmt.Printf("  %-24s %s %s\n", k, e.Email, u.dim("("+state+")"))
 	}
 }
 

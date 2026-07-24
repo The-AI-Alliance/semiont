@@ -986,9 +986,12 @@ func TestLoginWithoutStackRefuses(t *testing.T) {
 // --- yield (sdk-go glue) ---
 
 // yieldScenario boots the fake stack, logs in, and seeds docs/note.md.
-func yieldScenario(t *testing.T, login bool) *scenario {
+// extraEnv lands BEFORE start: the fake backend serve keeps its birth env,
+// so per-run env set after start never reaches it (learned RED-first).
+func yieldScenario(t *testing.T, login bool, extraEnv ...string) *scenario {
 	t.Helper()
 	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, extraEnv...)
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -1052,6 +1055,69 @@ func TestYieldWithoutSessionAdvisesLogin(t *testing.T) {
 		t.Fatalf("yield without a session must refuse\nstdout:\n%s", stdout)
 	}
 	mustContain(t, "fix-it", stdout+stderr, "semiont login")
+}
+
+func TestYieldAutoRefreshesExpiredToken(t *testing.T) {
+	// The login-issued access token has expired (they live an hour); the
+	// stored refresh token must renew it INVISIBLY — login is a
+	// once-a-month event, not an hourly chore. (Login itself never sends a
+	// bearer, so the from-birth stale flag doesn't break the setup.)
+	s := yieldScenario(t, true, "FAKERT_STALE_TOKEN=1")
+	stdout, stderr, code := s.run(t, "yield", "--upload", "docs/note.md")
+	if code != 0 {
+		t.Fatalf("yield with refreshable token: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Yielded", "fake-resource-id")
+	// The upload went out under the REFRESHED token…
+	b, err := os.ReadFile(filepath.Join(s.fakertDir, "yield-upload.json"))
+	if err != nil {
+		t.Fatalf("upload capture: %v", err)
+	}
+	mustContain(t, "multipart", string(b), `"authorization":"Bearer fake-jwt-token-2"`)
+	// …and the rotation was SAVED: next command starts from the new token,
+	// keeping the original refresh token (the server does not rotate it).
+	tb, err := os.ReadFile(tokensPathFor(s.home))
+	if err != nil {
+		t.Fatalf("tokens.json: %v", err)
+	}
+	mustContain(t, "tokens.json", string(tb), "fake-jwt-token-2", "fake-refresh-token")
+}
+
+func TestLogoutForgetsSession(t *testing.T) {
+	s := yieldScenario(t, true)
+	stdout, stderr, code := s.run(t, "logout")
+	if code != 0 {
+		t.Fatalf("logout: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Logged out", "local")
+	if tb, err := os.ReadFile(tokensPathFor(s.home)); err == nil {
+		if strings.Contains(string(tb), "fake-jwt-token") {
+			t.Errorf("token survived logout:\n%s", tb)
+		}
+	}
+	// A second logout is a benign no-op, said plainly.
+	stdout, _, code = s.run(t, "logout")
+	if code != 0 {
+		t.Fatalf("repeat logout should no-op, got exit %d", code)
+	}
+	mustContain(t, "stdout", stdout, "No session")
+}
+
+func TestStatusVerboseShowsSessions(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// Before any login: the section says so, without inventing a session.
+	stdout, _, _ := s.run(t, "status", "--verbose")
+	mustContain(t, "no sessions yet", stdout, "SESSIONS", "none — semiont login")
+	s.stdin = "hunter2secret\n"
+	if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+		t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.stdin = ""
+	stdout, _, _ = s.run(t, "status", "--verbose")
+	mustContain(t, "session row", stdout, "SESSIONS", "local", "admin@example.com", "valid")
 }
 
 // --- stop ---

@@ -13,7 +13,6 @@ import (
 	"context"
 	"fmt"
 	"mime/multipart"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -154,7 +153,7 @@ func Yield(args []string) int {
 		return 1
 	}
 	for _, up := range uploads {
-		if code := yieldOne(u, cli, tok.Token, root, up, name); code != 0 {
+		if code := yieldOne(u, cli, key, &tok, root, up, name); code != 0 {
 			return code
 		}
 	}
@@ -164,7 +163,10 @@ func Yield(args []string) int {
 // yieldOne validates, builds the multipart per the spec's schema (name,
 // file, format, storageUri), and posts it. Fail-fast: the first refusal or
 // error stops the batch — partial silent success is how uploads get lost.
-func yieldOne(u *ui, cli *semiont.ClientWithResponses, token, root, up, name string) int {
+// A 401 triggers ONE invisible refresh-and-retry (session.go) before the
+// login fix-it — access tokens live an hour; that must be plumbing, not
+// the user's problem.
+func yieldOne(u *ui, cli *semiont.ClientWithResponses, key string, tok *tokenEntry, root, up, name string) int {
 	abs := up
 	if !filepath.IsAbs(abs) {
 		if a, err := filepath.Abs(abs); err == nil {
@@ -217,31 +219,37 @@ func yieldOne(u *ui, cli *semiont.ClientWithResponses, token, root, up, name str
 		return 1
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	resp, err := cli.PostResourcesWithBodyWithResponse(ctx, w.FormDataContentType(), &buf,
-		func(_ context.Context, req *http.Request) error {
-			req.Header.Set("Authorization", "Bearer "+token)
-			return nil
-		})
-	if err != nil {
-		u.fail("Backend unreachable: %v", err)
-		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
-		return 1
-	}
-	switch {
-	case resp.JSON202 != nil:
-		u.ok("Yielded: %s → %s", up, resp.JSON202.ResourceId)
-		return 0
-	case resp.JSON401 != nil:
-		u.fail("Session rejected (expired?).")
-		fmt.Fprintln(os.Stderr, "  Log in again:  semiont login --email <address>")
-		return 1
-	case resp.JSON400 != nil:
-		u.fail("Backend rejected %s: %s", up, resp.JSON400.Error)
-		return 1
-	default:
-		u.fail("Upload of %s failed: HTTP %d.", up, resp.HTTPResponse.StatusCode)
-		return 1
+	body := buf.Bytes()
+	for attempt := 0; ; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		resp, err := cli.PostResourcesWithBodyWithResponse(ctx, w.FormDataContentType(),
+			bytes.NewReader(body), bearer(tok.Token))
+		cancel()
+		if err != nil {
+			u.fail("Backend unreachable: %v", err)
+			fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
+			return 1
+		}
+		switch {
+		case resp.JSON202 != nil:
+			u.ok("Yielded: %s → %s", up, resp.JSON202.ResourceId)
+			return 0
+		case resp.JSON401 != nil:
+			if attempt == 0 {
+				if refreshed, ok := refreshSession(u, cli, key, *tok); ok {
+					*tok = refreshed
+					continue
+				}
+			}
+			u.fail("Session rejected and the refresh token could not renew it.")
+			fmt.Fprintln(os.Stderr, "  Log in again:  semiont login --email <address>")
+			return 1
+		case resp.JSON400 != nil:
+			u.fail("Backend rejected %s: %s", up, resp.JSON400.Error)
+			return 1
+		default:
+			u.fail("Upload of %s failed: HTTP %d.", up, resp.HTTPResponse.StatusCode)
+			return 1
+		}
 	}
 }
