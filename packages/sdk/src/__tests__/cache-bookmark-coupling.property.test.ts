@@ -156,12 +156,20 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
     const c1Held = persistedAUpTo(storage) >= bookmarkSeq(storage);
 
     // ── Reload: abandon the old rig un-disposed (dispose would flush the
-    // pending save — a crash does not), kill its timers, rebuild, replay.
+    // pending save — a crash does not), kill its timers, rebuild, resume.
     vi.clearAllTimers();
     rig = buildRig(storage, { gated });
     rig.cacheA.observe(KEY);
-    for (let seq = bookmarkSeq(storage) + 1; seq <= serverSeq; seq++) {
-      rig.cacheA.invalidate(KEY);   // replay re-invalidates idempotently
+    // Replay exists ONLY when a bookmark was persisted — a connect with no
+    // `Last-Event-ID` is live-only and the server replays nothing. (An
+    // absent bookmark used to be modelled as "replay from 1": backwards,
+    // and the shared modelling error behind this suite's false green. See
+    // cache-reload-fidelity.property.test.ts for the full note.)
+    const resumeFrom = storage.get(BOOKMARK_KEY) !== null ? bookmarkSeq(storage) + 1 : null;
+    if (resumeFrom !== null) {
+      for (let seq = resumeFrom; seq <= serverSeq; seq++) {
+        rig.cacheA.invalidate(KEY);   // replay re-invalidates idempotently
+      }
     }
     while (rig.resolvers.length > 0) rig.resolvers.shift()!({ upTo: serverSeq });
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
@@ -214,15 +222,18 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
     // fires first, landing content before the flush — the write-ordering
     // coupling really does cover that narrower path, which is exactly why
     // the bug survived review until spec 14 hit the wider window.
-    const { c1Held, renderedEqualsServer } = await runScenario(
+    const { c1Held } = await runScenario(
       ['deliver', 'writeB'],
       false,
     );
     // Pre-fix: B's write flushes bookmark 1 while A's refetch is still in
-    // flight — the persisted doc says 0, the bookmark says 1, replay from 2
-    // redelivers nothing, and the reload renders stale. Spec 14's measurement.
+    // flight — the persisted doc says 0, the bookmark says 1, and replay
+    // from 2 redelivers nothing. That storage violation is what this pins.
     expect(c1Held).toBe(false);
-    expect(renderedEqualsServer).toBe(false);
+    // The stale-render half is no longer asserted here: B18
+    // (refetch-on-rehydrate) revalidates on reload and paints server truth
+    // even when the bookmark led the content. Defense in depth — see the
+    // matching note in cache-reload-fidelity.property.test.ts.
   });
 
   it('C1 property: no interleaving of deliver/complete/writeB/settleA + crash-reload breaks the invariant (gated)', async () => {

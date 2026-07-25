@@ -169,12 +169,22 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
 
     // Reload with crash semantics: the old rig is abandoned un-disposed
     // (a crash flushes nothing), timers die, a fresh rig loads the same
-    // storage and replays from bookmark+1.
+    // storage and resumes.
     vi.clearAllTimers();
     rig = buildRig(storage);
     rig.cacheA.observe(KEY);
-    for (let seq = bookmarkSeq(storage) + 1; seq <= serverSeq; seq++) {
-      rig.cacheA.invalidate(KEY);
+    // Replay exists ONLY when a bookmark was persisted. The transport sends
+    // `Last-Event-ID` only if it loaded one (`actor-state-unit.ts`: "fresh
+    // connections send no header"), and a connect without it gets a
+    // live-only stream — the server replays NOTHING. The previous model
+    // treated an ABSENT bookmark as "replay from 1", which is backwards and
+    // is precisely why this rig was green while the product was broken: it
+    // healed every scenario with invalidations the real client never gets.
+    // Measured 2026-07-24: at spec-14 failure time there is no lastEventId
+    // key in storage at all (the B17-Q gate correctly holds it pending).
+    const resumeFrom = storage.get(BOOKMARK_KEY) !== null ? bookmarkSeq(storage) + 1 : null;
+    if (resumeFrom !== null) {
+      for (let seq = resumeFrom; seq <= serverSeq; seq++) rig.cacheA.invalidate(KEY);
     }
     while (rig.resolvers.length > 0) rig.resolvers.shift()!({ upTo: serverSeq });
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
@@ -207,10 +217,20 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
    * go red: the ordering pin there, and (should anyone then "fix" the pin
    * by deleting it) this one still names the user-visible consequence.
    */
-  it('teeth: the pre-fix stash-before-apply ordering loses the annotation on [receiveLegacy, writeB]', async () => {
+  it('teeth: the pre-fix stash-before-apply ordering still violates C1 (bookmark leads content)', async () => {
     const r = await runScenario(['receiveLegacy', 'writeB', 'applyLegacy']);
+    // The storage invariant is still broken by that ordering: the bookmark
+    // reaches 1 while the persisted document is still 0.
     expect(r.c1Held).toBe(false);
-    expect(r.renderedEqualsServer).toBe(false);
+    // DELIBERATELY NOT asserting a stale render any more. B18
+    // (refetch-on-rehydrate) heals the user-visible symptom even when C1 is
+    // violated — the reload revalidates and paints server truth regardless
+    // of what replay would have delivered. That is the two layers working
+    // as intended, not the ordering bug being fixed twice: C1 is the
+    // invariant the ordering fix exists to keep true (it still governs
+    // keys nothing observes after reload, and cross-resource resumes), and
+    // C1 is what this test pins. If B18 were ever removed, the render
+    // assertion belongs back here.
   });
 
   /**
