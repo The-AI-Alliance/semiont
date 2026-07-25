@@ -852,6 +852,49 @@ func busybox(args []string, joined string) {
 
 // killServe reaps the port listener for a named container, reporting whether
 // one existed.
+// busReplies carries emitted requests to whichever SSE stream is open, so a
+// reply can only be produced AFTER the emit — the ordering the launcher's
+// bus client depends on.
+var busReplies = make(chan struct {
+	Channel string         `json:"channel"`
+	Payload map[string]any `json:"payload"`
+}, 8)
+
+// busReplyFor maps a request channel to its scripted reply, using the
+// generated operations registry so the fake can never invent a channel pair
+// the real bus does not have.
+func busReplyFor(request, cid string) (string, map[string]any) {
+	op, ok := busOperations[request]
+	if !ok {
+		return "", nil
+	}
+	if msg := os.Getenv("FAKERT_BUS_FAIL"); msg != "" {
+		return op.failure, map[string]any{"correlationId": cid, "message": msg}
+	}
+	env := "FAKERT_BUS_REPLY_" + strings.NewReplacer(":", "_", "-", "_").Replace(request)
+	raw := os.Getenv(env)
+	if raw == "" {
+		raw = "{}"
+	}
+	var response any
+	if json.Unmarshal([]byte(raw), &response) != nil {
+		response = map[string]any{}
+	}
+	return op.result, map[string]any{"correlationId": cid, "response": response}
+}
+
+// The handful of operations the launcher's verbs use. Kept minimal on
+// purpose: an unscripted request produces no reply, so a verb wired to the
+// wrong channel times out loudly in tests instead of passing by accident.
+var busOperations = map[string]struct{ result, failure string }{
+	"browse:resources-requested":    {"browse:resources-result", "browse:resources-failed"},
+	"browse:resource-requested":     {"browse:resource-result", "browse:resource-failed"},
+	"browse:annotations-requested":  {"browse:annotations-result", "browse:annotations-failed"},
+	"browse:entity-types-requested": {"browse:entity-types-result", "browse:entity-types-failed"},
+	"gather:resource-requested":     {"gather:resource-complete", "gather:resource-failed"},
+	"gather:requested":              {"gather:complete", "gather:failed"},
+}
+
 func killServe(name string) bool {
 	dir := os.Getenv("FAKERT_DIR")
 	if dir == "" {
@@ -988,6 +1031,53 @@ func serve(ports []string) {
 						"domain": "example.com", "provider": "password", "isAdmin": true, "isModerator": false,
 					})
 					return
+				}
+				// The event bus. /bus/subscribe holds an SSE stream open and
+				// replies to whatever /bus/emit receives, echoing the
+				// caller's correlationId — the same contract the real
+				// backend keeps, so the launcher's subscribe-before-emit
+				// ordering is exercised for real.
+				// FAKERT_BUS_REPLY_<channel-with-colons-as-underscores>:
+				// JSON `response` object for that operation's result.
+				// FAKERT_BUS_FAIL=<message>: reply on the failure channel.
+				if r.URL.Path == "/bus/emit" && r.Method == http.MethodPost {
+					var body struct {
+						Channel string         `json:"channel"`
+						Payload map[string]any `json:"payload"`
+					}
+					_ = json.NewDecoder(r.Body).Decode(&body)
+					if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+						b, _ := json.Marshal(body)
+						_ = os.WriteFile(filepath.Join(dir, "bus-emit.json"), b, 0o644)
+						// Queue the reply for whichever stream is listening.
+						busReplies <- body
+					}
+					w.WriteHeader(http.StatusAccepted)
+					return
+				}
+				if r.URL.Path == "/bus/subscribe" {
+					w.Header().Set("Content-Type", "text/event-stream")
+					w.WriteHeader(http.StatusOK)
+					if f, ok := w.(http.Flusher); ok {
+						f.Flush() // headers = subscribed
+					}
+					for {
+						select {
+						case <-r.Context().Done():
+							return
+						case req := <-busReplies:
+							cid, _ := req.Payload["correlationId"].(string)
+							ch, payload := busReplyFor(req.Channel, cid)
+							if ch == "" {
+								continue
+							}
+							data, _ := json.Marshal(map[string]any{"channel": ch, "payload": payload})
+							fmt.Fprintf(w, "event: bus-event\ndata: %s\n\n", data)
+							if f, ok := w.(http.Flusher); ok {
+								f.Flush()
+							}
+						}
+					}
 				}
 				// The yield upload (sdk-go glue): capture the multipart —
 				// fields, file bytes, auth header — for test assertions,

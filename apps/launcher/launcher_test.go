@@ -5170,3 +5170,97 @@ func TestVersion(t *testing.T) {
 		}
 	}
 }
+
+// --- bus verbs: browse, gather ---
+
+// busScenario boots a stack, logs in, and scripts the fake bus's replies.
+func busScenario(t *testing.T, env ...string) *scenario {
+	t.Helper()
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, env...)
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.stdin = "hunter2secret\n"
+	if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+		t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.stdin = ""
+	return s
+}
+
+func TestBrowseListsResources(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_browse_resources_requested={"resources":[`+
+		`{"id":"res-1","name":"Letter","entityTypes":["Letter"]},`+
+		`{"id":"res-2","name":"Email","entityTypes":[]}],"total":2}`)
+	stdout, stderr, code := s.run(t, "browse", "--limit", "5")
+	if code != 0 {
+		t.Fatalf("browse: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "table", stdout, "res-1", "Letter", "res-2", "Email", "2 shown, 2 total")
+	// The request went out on the right operation with our filter.
+	b, err := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	if err != nil {
+		t.Fatalf("no emit captured: %v", err)
+	}
+	mustContain(t, "emit", string(b), `"channel":"browse:resources-requested"`, `"limit":5`, `"correlationId"`)
+}
+
+func TestBrowseJSONPassesThrough(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_browse_resources_requested={"resources":[],"total":0}`)
+	stdout, _, code := s.run(t, "browse", "--json")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if !strings.Contains(stdout, `"response"`) {
+		t.Errorf("--json must print the raw reply, got:\n%s", stdout)
+	}
+}
+
+func TestBrowseFailureChannelIsReported(t *testing.T) {
+	s := busScenario(t, "FAKERT_BUS_FAIL=resource vanished")
+	stdout, stderr, code := s.run(t, "browse", "res-9")
+	if code == 0 {
+		t.Fatalf("a failure reply must fail the command\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "rejection", stdout+stderr, "rejected", "resource vanished")
+}
+
+func TestBrowseWithoutSessionAdvisesLogin(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: %s", stderr)
+	}
+	stdout, stderr, code := s.run(t, "browse")
+	if code == 0 {
+		t.Fatal("browse without a session must refuse")
+	}
+	mustContain(t, "fix-it", stdout+stderr, "semiont login")
+}
+
+func TestGatherResourceSummarizes(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_gather_resource_requested=`+
+		`{"content":"some gathered content","summary":"A letter about X","resources":[{},{}],"metadata":{"tokens":1234}}`)
+	stdout, stderr, code := s.run(t, "gather", "res-1")
+	if code != 0 {
+		t.Fatalf("gather: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	// A summary, not the payload: context is LLM input and can be huge.
+	mustContain(t, "summary", stdout, "A letter about X", "2 related resource(s)", "~1234 tokens", "--json")
+	if strings.Contains(stdout, "some gathered content") {
+		t.Error("gather dumped the full content into the terminal; that is what --json is for")
+	}
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "emit", string(b), `"channel":"gather:resource-requested"`, `"resourceId":"res-1"`, `"includeContent":true`)
+}
+
+func TestGatherAnnotationUsesStreamingOperation(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_gather_requested={"content":"ctx","resources":[]}`)
+	stdout, stderr, code := s.run(t, "gather", "res-1", "ann-7")
+	if code != 0 {
+		t.Fatalf("gather annotation: exit %d\nstderr:\n%s", code, stderr)
+	}
+	_ = stdout
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "emit", string(b), `"channel":"gather:requested"`, `"annotationId":"ann-7"`, `"resourceId":"res-1"`)
+}
