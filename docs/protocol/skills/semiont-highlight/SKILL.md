@@ -125,5 +125,5 @@ highlight(target).catch((e) => {
 - **Check results** with `semiont.browse.annotations(rId)` — filter for `motivation === 'highlighting'`.
 - **Manual mode is for corrections.** If the AI missed a specific passage, add it manually. Don't re-run delegate just to capture one passage.
 - **Progress tracking** is available by subscribing to the Observable returned from `mark.assist`; each emission is a progress snapshot with `percentage` and `createdCount`.
-- **CLI shortcut.** A thin CLI wrapper exists for one-off invocations — see [CLI cheatsheet](../CLI-CHEATSHEET.md). The SDK is primary; the CLI is a convenience for ad-hoc work.
+- **CLI shortcut.** The `semiont` launcher (see [apps/launcher](../../../../apps/launcher/README.md)) exposes these operations as verbs for one-off invocations. The SDK is primary; the launcher is a convenience for ad-hoc work.
 - **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated, with codes like `bus.timeout`). See [Error Handling in Usage.md](../../../../packages/sdk/docs/Usage.md#error-handling).

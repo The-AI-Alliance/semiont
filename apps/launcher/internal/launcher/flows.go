@@ -48,9 +48,14 @@ func flowFullStart(x executor, fc flowCtx) int {
 			removed++
 		}
 	}
-	x.sweepStray(preflightNames)
+	swept := x.sweepStray(preflightNames)
 	x.sweepStaging()
-	x.pause()
+	// The settle is for the runtime to release what we just tore down. With
+	// nothing removed there is nothing to settle, and every first start paid
+	// a second for it.
+	if removed > 0 || swept {
+		x.pause()
+	}
 	if removed == 0 {
 		x.say(sayOK, "No prior containers")
 	} else {

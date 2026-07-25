@@ -1,0 +1,162 @@
+package launcher
+
+// match.go — `semiont match`: find candidate resources an annotation could
+// bind to. Two bus exchanges, in the order the npm CLI uses: gather the
+// annotation's context first, then hand that context to the scored search.
+// The gather is not an optimization — match:search-requested REQUIRES a
+// context payload, so skipping it would just be a rejected request.
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+)
+
+const matchUsage = `Usage: semiont match <resourceId> <annotationId> [options]
+
+Search for resources this annotation could bind to. Gathers the annotation's
+context, then runs a scored search over the KB.
+
+Options:
+  --limit <n>          Maximum candidates (default 10)
+  --no-semantic        Skip semantic scoring (lexical only)
+  --json               Raw JSON reply
+  --repo <owner/name>  Target a codespace stack (default: the local stack)
+  --runtime <rt>       Target the local stack explicitly
+  --help               Show this help
+
+Requires a session:  semiont login --email <address>
+`
+
+func Match(args []string) int {
+	u := newUI(false)
+	var positional []string
+	var repo string
+	limit := 10
+	noSemantic, asJSON, wantLocal := false, false, false
+
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		val := func() (string, bool) {
+			if i+1 >= len(args) {
+				u.fail("Missing value for %s", a)
+				return "", false
+			}
+			i++
+			return args[i], true
+		}
+		var ok bool
+		switch a {
+		case "--limit":
+			var v string
+			v, ok = val()
+			if ok {
+				n, err := strconv.Atoi(v)
+				if err != nil || n < 1 {
+					u.fail("--limit wants a positive number, got %q", v)
+					return 1
+				}
+				limit = n
+			}
+		case "--repo":
+			repo, ok = val()
+		case "--runtime":
+			_, ok = val()
+			wantLocal = true
+		case "--no-semantic":
+			noSemantic, ok = true, true
+		case "--json":
+			asJSON, ok = true, true
+		case "--help", "-h":
+			fmt.Print(matchUsage)
+			return 0
+		default:
+			if strings.HasPrefix(a, "-") {
+				u.fail("Unknown argument: %s", a)
+				return 1
+			}
+			positional = append(positional, a)
+			ok = true
+		}
+		if !ok {
+			return 1
+		}
+	}
+	if len(positional) != 2 {
+		fmt.Print(matchUsage)
+		return 1
+	}
+	resourceID, annotationID := positional[0], positional[1]
+
+	t, ok := verbSession(u, "match", repo, wantLocal)
+	if !ok {
+		return 1
+	}
+	cli := bus.NewClient(t.base, t.token)
+	ctx := context.Background()
+
+	// Step 1: the annotation's context (streaming operation).
+	u.log("Gathering context for %s...", annotationID)
+	gathered, err := cli.Request(ctx, "gather:requested", semiont.GatherAnnotationRequest{
+		ResourceId:   resourceID,
+		AnnotationId: annotationID,
+	}, nil)
+	if err != nil {
+		return busFail(u, "match (gather step)", err)
+	}
+	var gc semiont.GatherAnnotationComplete
+	if json.Unmarshal(gathered, &gc) != nil {
+		u.fail("match: the gathered context could not be read.")
+		return 1
+	}
+
+	// Step 2: the scored search, grounded by that context.
+	req := semiont.MatchSearchRequest{
+		ResourceId:  resourceID,
+		ReferenceId: annotationID,
+		Context:     gc.Response,
+		Limit:       &limit,
+	}
+	semantic := !noSemantic
+	req.UseSemanticScoring = &semantic
+	reply, err := cli.Request(ctx, "match:search-requested", req, nil)
+	if err != nil {
+		return busFail(u, "match", err)
+	}
+	if asJSON {
+		fmt.Println(string(reply))
+		return 0
+	}
+
+	// Parsed with the GENERATED type, not a hand-rolled struct: resources
+	// are JSON-LD (`@id`, not `id`), and hand-rolling that field name was
+	// exactly how this verb shipped printing blank identifiers. The schema
+	// owns the shape; Go should read it from there.
+	var results semiont.MatchSearchResult
+	if json.Unmarshal(reply, &results) != nil {
+		return rawFallback(reply)
+	}
+	rows := results.Response
+	if len(rows) == 0 {
+		u.log("No candidates found.")
+		return 0
+	}
+	for _, r := range rows {
+		trailer := ""
+		if r.Score != nil {
+			trailer = fmt.Sprintf("%.3f", *r.Score)
+		}
+		if r.MatchReason != nil && *r.MatchReason != "" {
+			trailer = strings.TrimSpace(trailer + "  " + *r.MatchReason)
+		}
+		fmt.Printf("  %-28s %-40s %s\n", r.Id, r.Name, u.dim(trailer))
+	}
+	fmt.Printf("\n  %s\n", u.dim(fmt.Sprintf("%d candidate(s) — bind one with: semiont bind %s %s <resourceId>",
+		len(rows), resourceID, annotationID)))
+	return 0
+}

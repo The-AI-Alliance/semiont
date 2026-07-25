@@ -1,10 +1,9 @@
 /**
  * Base Options Schema - Zod schema for common command options
  *
- * Three tiers:
- *   BaseOptionsSchema  — fields shared by every command (no environment, no bus)
+ * Two tiers:
+ *   BaseOptionsSchema  — fields shared by every command (no environment)
  *   OpsOptionsSchema   — + --environment  (platform/service commands)
- *   ApiOptionsSchema   — + --bus          (API commands that talk to the backend)
  */
 
 import { z } from 'zod';
@@ -27,14 +26,6 @@ export const BaseOptionsSchema = z.object({
  */
 export const OpsOptionsSchema = BaseOptionsSchema.extend({
   environment: z.string().optional(),
-});
-
-/**
- * Schema for API commands that talk to the backend via --bus.
- * No --environment, no --user, no --password — use `semiont login` to authenticate.
- */
-export const ApiOptionsSchema = BaseOptionsSchema.extend({
-  bus: z.string().optional(),
 });
 
 /**
@@ -103,18 +94,6 @@ export const OPS_ARGS: Record<string, ArgDefinition> = {
 };
 
 /**
- * Additional argument definitions for API commands (adds --bus).
- */
-export const API_ARGS: Record<string, ArgDefinition> = {
-  '--bus': {
-    type: 'string',
-    description:
-      'Backend URL (e.g. http://localhost:4000). ' +
-      'Fallback: $SEMIONT_BUS. Use `semiont login` to authenticate.',
-  },
-};
-
-/**
  * Aliases shared by all commands.
  */
 export const BASE_ALIASES: Record<string, string> = {
@@ -125,10 +104,6 @@ export const BASE_ALIASES: Record<string, string> = {
 
 export const OPS_ALIASES: Record<string, string> = {
   '-e': '--environment',
-};
-
-export const API_ALIASES: Record<string, string> = {
-  '-b': '--bus',
 };
 
 /**
@@ -143,22 +118,6 @@ export function withOpsArgs(
   return {
     args: { ...BASE_ARGS, ...OPS_ARGS, ...commandArgs },
     aliases: { ...BASE_ALIASES, ...OPS_ALIASES, ...commandAliases },
-    ...(positional && { positional }),
-  };
-}
-
-/**
- * Helper for API commands that talk to the backend.
- * Includes base args plus --bus.
- */
-export function withApiArgs(
-  commandArgs: Record<string, ArgDefinition> = {},
-  commandAliases: Record<string, string> = {},
-  positional?: string[]
-) {
-  return {
-    args: { ...BASE_ARGS, ...API_ARGS, ...commandArgs },
-    aliases: { ...BASE_ALIASES, ...API_ALIASES, ...commandAliases },
     ...(positional && { positional }),
   };
 }

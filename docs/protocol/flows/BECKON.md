@@ -14,7 +14,7 @@ The Beckon flow directs user focus to specific annotations or regions of interes
 
 The Beckon flow is the coordination layer for user focus. When a human hovers over an annotation in the panel, the corresponding text lights up in the document — and vice versa. When an AI agent creates a new annotation, a sparkle animation draws the user's eye to it. All of this runs through a small set of events on the frontend event bus.
 
-Beckoning is ephemeral — it produces no persistent state and coordinates transient focus signals only. Within a browser session, it is purely a frontend concern operating on the local event bus. Cross-participant beckoning (via `semiont beckon` from the CLI or another agent) flows through the unified bus gateway (`POST /bus/emit` + `GET /bus/subscribe`), but remains stateless: signals are delivered if the participant is connected and silently dropped if not — same semantics as all other beckon events. The [Browse flow](./BROWSE.md) handles the routing of clicks and panel state changes.
+Beckoning is ephemeral — it produces no persistent state and coordinates transient focus signals only. Within a browser session, it is purely a frontend concern operating on the local event bus. Cross-participant beckoning (via `semiont beckon` from the launcher or another agent) flows through the unified bus gateway (`POST /bus/emit` + `GET /bus/subscribe`), but remains stateless: signals are delivered if the participant is connected and silently dropped if not — same semantics as all other beckon events. The [Browse flow](./BROWSE.md) handles the routing of clicks and panel state changes.
 
 ## Using the SDK
 
@@ -80,7 +80,7 @@ Click events relay through `beckon:focus` to scroll the document view:
 
 ## Cross-Participant Beckoning
 
-`semiont beckon <resourceId> --annotation <annotationId>` from the CLI
+`semiont beckon <resourceId> --annotation <annotationId>` from the launcher
 (or a programmatic call to `client.beckon.attention(...)`) delivers the
 same `beckon:focus` signal to everyone watching the workspace, through
 the unified bus gateway:

@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
@@ -37,6 +38,52 @@ func refreshSession(u *ui, cli *semiont.ClientWithResponses, key string, e token
 		u.log("Session refreshed %s", u.dim("(access token renewed from the stored refresh token)"))
 	}
 	return e, true
+}
+
+// verbSession resolves what every knowledge verb needs: which stack, its
+// backend base URL, and a live session token. One place, because nine verbs
+// asking the same three questions nine different ways is how they drift.
+// Refusals are printed here with their fix-it lines; ok=false means stop.
+type verbTarget struct {
+	base  string // backend base URL (local record, or a codespace's forward)
+	key   string // token/stack key: "local" or "codespace:<repo>"
+	token string
+	root  string // KB root, "" for a codespace target with no local clone
+}
+
+func verbSession(u *ui, verb, repo string, wantLocal bool) (verbTarget, bool) {
+	ss := loadStackSet()
+	target, ok := selectVerbStack(u, verb, ss, repo, wantLocal)
+	if !ok {
+		return verbTarget{}, false
+	}
+	var t verbTarget
+	if target != nil {
+		t.base = fmt.Sprintf("http://localhost:%d", target.ForwardPort)
+		t.key = "codespace:" + target.Repo
+		t.root = cwdKBRoot()
+	} else {
+		local := ss.Stacks["local"]
+		if local == nil {
+			u.fail("%s needs a running stack, and none is recorded.", verb)
+			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
+			return verbTarget{}, false
+		}
+		t.base = backendBase(local)
+		t.key = "local"
+		t.root = local.KBRoot
+		if t.root == "" {
+			t.root = cwdKBRoot()
+		}
+	}
+	e, have := loadTokens()[t.key]
+	if !have || e.Token == "" {
+		u.fail("No session for %s.", t.key)
+		fmt.Fprintln(os.Stderr, "  Log in first:  semiont login --email <address>")
+		return verbTarget{}, false
+	}
+	t.token = e.Token
+	return t, true
 }
 
 const logoutUsage = `Usage: semiont logout [--repo <owner/name> | --runtime <rt>]

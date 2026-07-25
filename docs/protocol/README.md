@@ -50,14 +50,11 @@ The eight flows are also the eight verb namespaces on the SDK's `SemiontClient` 
 
 Every operation in the GUI is available programmatically. The same eight flows work identically whether driven by a human, a script, or an AI agent.
 
-**[Semiont CLI](../../apps/cli/README.md)** — pipe the full annotation pipeline from the terminal:
-
-```bash
-semiont mark doc-123 --delegate --motivation linking --entity-type Person --entity-type Organization
-semiont gather annotation doc-123 ann-456
-semiont match doc-123 ann-456
-semiont bind doc-123 ann-456 target-789
-```
+**[Semiont launcher](../../apps/launcher/README.md)** — pipe the full annotation pipeline from the
+terminal. The launcher is the host-installed `semiont` binary
+(`brew install the-ai-alliance/semiont/semiont`); it exposes `browse`, `gather`, `mark`, `match`,
+`bind`, `listen`, `yield`, and `beckon` as verbs against a running stack. Run `semiont <verb> --help`
+for each verb's current flags.
 
 **[Semiont SDK](../../packages/sdk/README.md)** — type-safe TypeScript SDK organized by the eight verbs. `SemiontClient.signInHttp(...)` is the credentials-first one-line construction for scripts. Long-running scripts that span token expiry use `SemiontSession.signInHttp(...)` instead — same shape, plus refresh and persistence.
 

@@ -20,10 +20,10 @@ import (
 
 type executor interface {
 	// --- effects ---
-	stopRm(name string) bool   // teardown; reports whether anything existed
-	sweepStray(names []string) // stop+rm the names under every OTHER installed runtime
-	pause()                    // the settle sleep after teardown
-	sweepStaging()             // /tmp/semiont-config.* removal (+ state forget)
+	stopRm(name string) bool        // teardown; reports whether anything existed
+	sweepStray(names []string) bool // stop+rm the names under every OTHER installed runtime; reports whether anything existed
+	pause()                         // the settle sleep after teardown
+	sweepStaging()                  // /tmp/semiont-config.* removal (+ state forget)
 	portChecks(ports []portNeed) bool
 	portCheck(p portNeed) bool    // singular wording in plan mode
 	recordPorts(ports []portNeed) // note claimed host ports in the belief record
@@ -96,7 +96,8 @@ func (x *liveExec) stopRm(name string) bool {
 // sweepStray: the cross-runtime belt-and-braces — after this, no semiont-*
 // container exists under ANY installed runtime, so a port holder at check
 // time is provably foreign. Idempotent no-ops when clean.
-func (x *liveExec) sweepStray(names []string) {
+func (x *liveExec) sweepStray(names []string) bool {
+	swept := false
 	for _, rt := range installedRuntimes() {
 		if rt == x.rt {
 			continue
@@ -110,9 +111,11 @@ func (x *liveExec) sweepStray(names []string) {
 			}
 		}
 		if removed > 0 {
+			swept = true
 			x.u.warn("Removed %d stray Semiont container(s) under %s.", removed, rt)
 		}
 	}
+	return swept
 }
 
 func (x *liveExec) pause() { time.Sleep(time.Second) }
@@ -607,7 +610,7 @@ func (x *planExec) stopRm(name string) bool   { x.p("stop", name); x.p("rm", nam
 func (x *planExec) pause()                    {}
 func (x *planExec) sweepStaging()             { x.c("remove staged config copies: /tmp/semiont-config.*") }
 
-func (x *planExec) sweepStray(names []string) {
+func (x *planExec) sweepStray(names []string) bool {
 	for _, rt := range installedRuntimes() {
 		if rt == x.rt {
 			continue
@@ -618,6 +621,8 @@ func (x *planExec) sweepStray(names []string) {
 			fmt.Println(renderCmd(rt, "rm", c))
 		}
 	}
+	// Plan mode performs nothing, so it settles nothing.
+	return false
 }
 
 func (x *planExec) portChecks(ports []portNeed) bool {

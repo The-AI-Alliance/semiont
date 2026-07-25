@@ -40,7 +40,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
 func main() {
@@ -852,6 +855,114 @@ func busybox(args []string, joined string) {
 
 // killServe reaps the port listener for a named container, reporting whether
 // one existed.
+// The fake bus is a BROADCAST, like the real one: every open subscription
+// receives every event on a channel it subscribed to. The first version
+// handed each emitted request to exactly one stream, so a flow with two
+// concurrent subscriptions (yield --delegate: one for job:* lifecycle, one
+// inside the request/reply helper) lost its reply to the wrong stream and
+// timed out. A fake with different delivery semantics than the real bus
+// tests a protocol nobody implements.
+type busSub struct {
+	channels map[string]bool
+	out      chan busFrame
+}
+
+type busFrame struct {
+	channel string
+	payload map[string]any
+}
+
+var (
+	busMu   sync.Mutex
+	busSubs []*busSub
+)
+
+func busSubscribe(channels []string) *busSub {
+	sub := &busSub{channels: map[string]bool{}, out: make(chan busFrame, 64)}
+	for _, c := range channels {
+		sub.channels[c] = true
+	}
+	busMu.Lock()
+	busSubs = append(busSubs, sub)
+	busMu.Unlock()
+	return sub
+}
+
+func busUnsubscribe(target *busSub) {
+	busMu.Lock()
+	defer busMu.Unlock()
+	for i, s := range busSubs {
+		if s == target {
+			busSubs = append(busSubs[:i], busSubs[i+1:]...)
+			return
+		}
+	}
+}
+
+// busPublish fans one event out to every subscriber listening for it.
+func busPublish(channel string, payload map[string]any) {
+	busMu.Lock()
+	subs := append([]*busSub(nil), busSubs...)
+	busMu.Unlock()
+	for _, s := range subs {
+		if !s.channels[channel] {
+			continue
+		}
+		select {
+		case s.out <- busFrame{channel: channel, payload: payload}:
+		default: // a stalled reader must not wedge the emitter
+		}
+	}
+}
+
+// busReplyFor maps a request channel to its scripted reply. The channel PAIR
+// comes from the generated operations registry, so the fake can never invent a
+// pair the real bus does not have — a fake that agrees with the code under
+// test about a wrong channel is how a verb passes while broken.
+func busReplyFor(request, cid string) (string, map[string]any) {
+	if !busScripted[request] {
+		return "", nil
+	}
+	op, ok := bus.Operations[bus.Channel(request)]
+	if !ok {
+		return "", nil
+	}
+	if msg := os.Getenv("FAKERT_BUS_FAIL"); msg != "" {
+		return string(op.Failure), map[string]any{"correlationId": cid, "message": msg}
+	}
+	env := "FAKERT_BUS_REPLY_" + strings.NewReplacer(":", "_", "-", "_").Replace(request)
+	raw := os.Getenv(env)
+	if raw == "" {
+		raw = "{}"
+		if request == "job:create" {
+			raw = `{"jobId":"fake-job-1"}`
+		}
+	}
+	var response any
+	if json.Unmarshal([]byte(raw), &response) != nil {
+		response = map[string]any{}
+	}
+	return string(op.Result), map[string]any{"correlationId": cid, "response": response}
+}
+
+// The handful of operations the launcher's verbs use — an ALLOWLIST of request
+// channels, not a channel-pair table (the pair is derived above). Kept minimal
+// on purpose: an unscripted request produces no reply, so a verb wired to the
+// wrong channel times out loudly in tests instead of passing by accident.
+var busScripted = map[string]bool{
+	"browse:resources-requested":    true,
+	"browse:resource-requested":     true,
+	"browse:annotations-requested":  true,
+	"browse:entity-types-requested": true,
+	"gather:resource-requested":     true,
+	"gather:requested":              true,
+	"mark:create-request":           true,
+	"mark:delete":                   true,
+	"bind:update-body":              true,
+	"match:search-requested":        true,
+	"job:create":                    true,
+}
+
 func killServe(name string) bool {
 	dir := os.Getenv("FAKERT_DIR")
 	if dir == "" {
@@ -988,6 +1099,69 @@ func serve(ports []string) {
 						"domain": "example.com", "provider": "password", "isAdmin": true, "isModerator": false,
 					})
 					return
+				}
+				// The event bus. /bus/subscribe holds an SSE stream open and
+				// replies to whatever /bus/emit receives, echoing the
+				// caller's correlationId — the same contract the real
+				// backend keeps, so the launcher's subscribe-before-emit
+				// ordering is exercised for real.
+				// FAKERT_BUS_REPLY_<channel-with-colons-as-underscores>:
+				// JSON `response` object for that operation's result.
+				// FAKERT_BUS_FAIL=<message>: reply on the failure channel.
+				if r.URL.Path == "/bus/emit" && r.Method == http.MethodPost {
+					var body struct {
+						Channel string         `json:"channel"`
+						Payload map[string]any `json:"payload"`
+					}
+					_ = json.NewDecoder(r.Body).Decode(&body)
+					if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+						b, _ := json.Marshal(body)
+						_ = os.WriteFile(filepath.Join(dir, "bus-emit.json"), b, 0o644)
+					}
+					cid, _ := body.Payload["correlationId"].(string)
+					if ch, payload := busReplyFor(body.Channel, cid); ch != "" {
+						busPublish(ch, payload)
+						// A created job then runs: progress, then a terminal
+						// event, both keyed by jobId — never the correlationId
+						// the request used.
+						if body.Channel == "job:create" {
+							jobID := "fake-job-1"
+							busPublish("job:report-progress", map[string]any{
+								"jobId": jobID, "progress": map[string]any{"message": "drafting"}})
+							if msg := os.Getenv("FAKERT_JOB_FAIL"); msg != "" {
+								busPublish("job:fail", map[string]any{"jobId": jobID, "error": msg})
+							} else {
+								busPublish("job:complete", map[string]any{
+									"jobId": jobID, "resourceId": "res-src", "jobType": "generation",
+									"result": map[string]any{"resourceId": "res-new", "resourceName": "Generated"},
+								})
+							}
+						}
+					}
+					w.WriteHeader(http.StatusAccepted)
+					return
+				}
+				if r.URL.Path == "/bus/subscribe" {
+					q := r.URL.Query()
+					sub := busSubscribe(append(q["channel"], q["scoped"]...))
+					defer busUnsubscribe(sub)
+					w.Header().Set("Content-Type", "text/event-stream")
+					w.WriteHeader(http.StatusOK)
+					if f, ok := w.(http.Flusher); ok {
+						f.Flush() // headers = subscribed
+					}
+					for {
+						select {
+						case <-r.Context().Done():
+							return
+						case fr := <-sub.out:
+							data, _ := json.Marshal(map[string]any{"channel": fr.channel, "payload": fr.payload})
+							fmt.Fprintf(w, "event: bus-event\ndata: %s\n\n", data)
+							if f, ok := w.(http.Flusher); ok {
+								f.Flush()
+							}
+						}
+					}
 				}
 				// The yield upload (sdk-go glue): capture the multipart —
 				// fields, file bytes, auth header — for test assertions,

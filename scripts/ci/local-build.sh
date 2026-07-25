@@ -416,10 +416,22 @@ if $RT run --rm \
   -w /workspace \
   golang:1.25 \
   sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
-           -generate types,client -package semiont \
+           -generate types,client,skip-prune -package semiont \
            -o /tmp/client_gen.check.go specs/openapi.json \
          && diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go >/dev/null'; then
   ok "packages/sdk-go matches the spec"
+
+step "Checking the generated Go client covers every schema..."
+if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
+  node scripts/ci/check-go-schema-coverage.mjs; then
+  :
+else
+  fail "The generated Go client is missing schemas (see above)."
+  echo ""
+  echo -e "    ${BOLD}cd packages/sdk-go && go generate ./...${RESET}"
+  echo ""
+  exit 1
+fi
 else
   fail "packages/sdk-go/client_gen.go is STALE — the OpenAPI spec changed without regenerating the Go client."
   echo ""

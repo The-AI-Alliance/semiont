@@ -1,3 +1,12 @@
+// ⚠ GENERATED FILE — do not edit.
+//
+// Authority:   specs/src/bus/registry.json  (channels, payloads, operations)
+// Regenerate:  node scripts/bus/generate-ts.mjs
+// Go counterpart: node scripts/bus/generate-go.mjs → packages/sdk-go/bus
+//
+// Payload schemas themselves live in the OpenAPI components; the registry
+// names which one each channel carries. Add or change a channel THERE.
+
 import type { EventName } from './bus-protocol';
 import { BUS_OPERATIONS } from './bus-operations';
 
@@ -31,9 +40,13 @@ import { BUS_OPERATIONS } from './bus-operations';
  * operation in `BUS_OPERATIONS` instead.
  */
 export const BRIDGED_BROADCASTS = [
-  'job:report-progress', 'job:complete', 'job:fail',
-  'frame:entity-type-added', 'frame:tag-schema-added',
-  'beckon:focus', 'beckon:sparkle',
+  'job:report-progress',
+  'job:complete',
+  'job:fail',
+  'frame:entity-type-added',
+  'frame:tag-schema-added',
+  'beckon:focus',
+  'beckon:sparkle',
   'bus:resume-gap',
 ] as const satisfies readonly EventName[];
 

@@ -10,6 +10,7 @@
 // faithful" a demonstration rather than a claim. Run with --check to diff
 // without writing (the CI drift gate).
 
+import { validateRegistry } from './validate-registry.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,10 +18,15 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
 const PROTOCOL = resolve(ROOT, 'packages/core/src/bus-protocol.ts');
+const BRIDGED = resolve(ROOT, 'packages/core/src/bridged-channels.ts');
 const OPERATIONS = resolve(ROOT, 'packages/core/src/bus-operations.ts');
 
 const CHECK = process.argv.includes('--check');
 const reg = JSON.parse(readFileSync(REGISTRY, 'utf8'));
+
+// Source-level invariants BEFORE anything is emitted: no generated artifact
+// may come from a registry that breaks the bus's cross-list rules.
+validateRegistry(reg);
 const byChannel = new Map(reg.channels.map((c) => [c.channel, c]));
 
 /** Pad `head` out to `col`; a head that overflows gets a single space —
@@ -144,9 +150,24 @@ const operations =
   '\n}' +
   reg.preamble.operationsFooter;
 
+// ── bridged-channels.ts ────────────────────────────────────────────────
+// The broadcast LIST is registry data (it is protocol vocabulary, and Go
+// needs it too — `semiont listen` subscribes to exactly this set). The
+// derivation below it is template: it never varies with the data, it just
+// composes the operations' reply channels with the broadcasts.
+const bridged =
+  BANNER +
+  reg.preamble.bridgedHeader +
+  reg.bridgedBroadcasts.doc +
+  '\nexport const BRIDGED_BROADCASTS = [\n' +
+  reg.bridgedBroadcasts.channels.map((c) => `  '${c}',`).join('\n') +
+  '\n] as const satisfies readonly EventName[];\n\n' +
+  reg.preamble.bridgedDerivation;
+
 const outputs = [
   [PROTOCOL, protocol],
   [OPERATIONS, operations],
+  [BRIDGED, bridged],
 ];
 
 // Alignment-insensitive comparison: the proof that matters is that no

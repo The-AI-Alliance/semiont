@@ -75,6 +75,11 @@ npm run generate:bus:check    # verify without writing (what CI runs)
 ```
 
 Channels whose payload is TypeScript-only (DOM geometry, callbacks) are
-excluded — they never cross the wire. Payload structs are not generated here:
-the OpenAPI schemas a channel carries already have Go types in
-`client_gen.go`. See [docs/protocol/EVENT-BUS.md](../../docs/protocol/EVENT-BUS.md).
+excluded — they never cross the wire. Payload structs are not generated here
+either: the OpenAPI schemas a channel carries have Go types in
+`client_gen.go`, which is generated with `skip-prune` **precisely so they do**
+— oapi-codegen otherwise drops every schema unreachable from an HTTP path,
+which silently omitted ~150 of 192 schemas (the entire bus payload
+vocabulary) until 2026-07-25. A CI oracle now asserts spec-schema count
+equals generated-type count, because the drift gate compares the generator
+against itself and cannot see that class of gap. See [docs/protocol/EVENT-BUS.md](../../docs/protocol/EVENT-BUS.md).

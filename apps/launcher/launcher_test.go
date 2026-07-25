@@ -5170,3 +5170,290 @@ func TestVersion(t *testing.T) {
 		}
 	}
 }
+
+// --- bus verbs: browse, gather ---
+
+// busScenario boots a stack, logs in, and scripts the fake bus's replies.
+func busScenario(t *testing.T, env ...string) *scenario {
+	t.Helper()
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, env...)
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.stdin = "hunter2secret\n"
+	if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+		t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.stdin = ""
+	return s
+}
+
+func TestBrowseListsResources(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_browse_resources_requested={"resources":[`+
+		`{"@id":"res-1","name":"Letter","entityTypes":["Letter"]},`+
+		`{"@id":"res-2","name":"Email","entityTypes":[]}],"total":2}`)
+	stdout, stderr, code := s.run(t, "browse", "--limit", "5")
+	if code != 0 {
+		t.Fatalf("browse: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "table", stdout, "res-1", "Letter", "res-2", "Email", "2 shown, 2 total")
+	// The request went out on the right operation with our filter.
+	b, err := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	if err != nil {
+		t.Fatalf("no emit captured: %v", err)
+	}
+	mustContain(t, "emit", string(b), `"channel":"browse:resources-requested"`, `"limit":5`, `"correlationId"`)
+}
+
+func TestBrowseJSONPassesThrough(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_browse_resources_requested={"resources":[],"total":0}`)
+	stdout, _, code := s.run(t, "browse", "--json")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if !strings.Contains(stdout, `"response"`) {
+		t.Errorf("--json must print the raw reply, got:\n%s", stdout)
+	}
+}
+
+func TestBrowseFailureChannelIsReported(t *testing.T) {
+	s := busScenario(t, "FAKERT_BUS_FAIL=resource vanished")
+	stdout, stderr, code := s.run(t, "browse", "res-9")
+	if code == 0 {
+		t.Fatalf("a failure reply must fail the command\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "rejection", stdout+stderr, "rejected", "resource vanished")
+}
+
+func TestBrowseWithoutSessionAdvisesLogin(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: %s", stderr)
+	}
+	stdout, stderr, code := s.run(t, "browse")
+	if code == 0 {
+		t.Fatal("browse without a session must refuse")
+	}
+	mustContain(t, "fix-it", stdout+stderr, "semiont login")
+}
+
+func TestGatherResourceSummarizes(t *testing.T) {
+	// The REAL GatheredContext shape (schema-defined): metadata +
+	// inferredRelationshipSummary, not the content/summary/resources fields
+	// an earlier version of this test invented.
+	s := busScenario(t, `FAKERT_BUS_REPLY_gather_resource_requested=`+
+		`{"inferredRelationshipSummary":"A letter about X",`+
+		`"metadata":{"resourceType":"Letter","language":"en","entityTypes":["Letter","Contract"]},`+
+		`"focus":{"kind":"resource"},"graph":{}}`)
+	stdout, stderr, code := s.run(t, "gather", "res-1")
+	if code != 0 {
+		t.Fatalf("gather: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	// A summary, not the payload: context is LLM input and can be huge.
+	mustContain(t, "summary", stdout, "A letter about X", "Letter", "en", "2 entity type(s)", "--json")
+	if strings.Contains(stdout, `"graph"`) {
+		t.Errorf("gather dumped raw JSON — it could not parse the real reply:\n%s", stdout)
+	}
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "emit", string(b), `"channel":"gather:resource-requested"`, `"resourceId":"res-1"`, `"includeContent":true`)
+}
+
+func TestGatherAnnotationUsesStreamingOperation(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_gather_requested={"content":"ctx","resources":[]}`)
+	stdout, stderr, code := s.run(t, "gather", "res-1", "ann-7")
+	if code != 0 {
+		t.Fatalf("gather annotation: exit %d\nstderr:\n%s", code, stderr)
+	}
+	_ = stdout
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "emit", string(b), `"channel":"gather:requested"`, `"annotationId":"ann-7"`, `"resourceId":"res-1"`)
+}
+
+func TestMarkCreatesWithSelectorAndBody(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_mark_create_request={"annotationId":"ann-42"}`)
+	stdout, stderr, code := s.run(t, "mark", "res-1",
+		"--quote", "the disputed clause", "--prefix", "before ", "--body-text", "check this")
+	if code != 0 {
+		t.Fatalf("mark: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "ann-42", "commenting")
+	b, err := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	if err != nil {
+		t.Fatalf("no emit: %v", err)
+	}
+	mustContain(t, "emit", string(b),
+		`"channel":"mark:create-request"`,
+		`"TextQuoteSelector"`, `"exact":"the disputed clause"`, `"prefix":"before "`,
+		`"TextualBody"`, `"value":"check this"`,
+		`"motivation":"commenting"`) // inferred from the body
+}
+
+func TestMarkLinkInfersLinkingMotivation(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_mark_create_request={"annotationId":"ann-9"}`)
+	if _, stderr, code := s.run(t, "mark", "res-1", "--link", "res-2"); code != 0 {
+		t.Fatalf("mark --link: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "emit", string(b), `"motivation":"linking"`, `"SpecificResource"`, `"source":"res-2"`)
+}
+
+func TestMarkSelectorFlagsAreExclusive(t *testing.T) {
+	s := busScenario(t)
+	_, stderr, code := s.run(t, "mark", "res-1", "--quote", "x", "--start", "1", "--end", "2")
+	if code == 0 {
+		t.Fatal("--quote with --start/--end must refuse")
+	}
+	mustContain(t, "refusal", stderr, "pick one")
+	// And a half-given position range is a refusal, not a silent whole-resource mark.
+	if _, stderr, code := s.run(t, "mark", "res-1", "--start", "1"); code == 0 {
+		t.Error("--start without --end must refuse")
+	} else {
+		mustContain(t, "refusal", stderr, "go together")
+	}
+}
+
+func TestMarkDeleteNeedsResource(t *testing.T) {
+	s := busScenario(t)
+	_, stderr, code := s.run(t, "mark", "--delete", "ann-1")
+	if code == 0 {
+		t.Fatal("--delete without --resource must refuse")
+	}
+	mustContain(t, "refusal", stderr, "--resource")
+}
+
+func TestBindAddsAndRemovesTarget(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_bind_update_body={}`)
+	if _, stderr, code := s.run(t, "bind", "res-1", "ann-1", "res-2"); code != 0 {
+		t.Fatalf("bind: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "emit", string(b), `"channel":"bind:update-body"`, `"op":"add"`,
+		`"source":"res-2"`, `"purpose":"linking"`, `"annotationId":"ann-1"`)
+
+	if _, stderr, code := s.run(t, "bind", "res-1", "ann-1", "--unbind", "res-2"); code != 0 {
+		t.Fatalf("unbind: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ = os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "emit", string(b), `"op":"remove"`)
+}
+
+func TestMatchGathersThenSearches(t *testing.T) {
+	// match is TWO exchanges: the search requires a context payload, so a
+	// gather must precede it — not an optimization, a precondition.
+	s := busScenario(t,
+		`FAKERT_BUS_REPLY_gather_requested={"content":"surrounding text"}`,
+		// The REAL shape: MatchSearchResult.response IS the candidate list.
+		// The first version of this test scripted {"candidates":[…]} — my
+		// guess — so it passed against code that could not parse a real
+		// reply. A fake that encodes an assumption tests the assumption.
+		`FAKERT_BUS_REPLY_match_search_requested=[`+
+			`{"@id":"res-7","name":"Acme MSA","score":0.91,"matchReason":"title match"},`+
+			`{"@id":"res-8","name":"Side Letter","score":0.44}]`)
+	stdout, stderr, code := s.run(t, "match", "res-1", "ann-1", "--limit", "5")
+	if code != 0 {
+		t.Fatalf("match: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "res-7", "Acme MSA", "0.910", "title match", "2 candidate(s)", "semiont bind res-1 ann-1")
+	// Rendered as a table, not dumped: a raw-JSON fallback would mean the
+	// parser did not understand the reply — which is how the first version of
+	// this verb "passed" while guessing the payload shape.
+	if strings.Contains(stdout, `"@id":"res-7"`) {
+		t.Errorf("match fell back to raw JSON — it could not parse the real reply:\n%s", stdout)
+	}
+	// The LAST emit is the search, carrying the gathered context and our flags.
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "search emit", string(b),
+		`"channel":"match:search-requested"`, `"referenceId":"ann-1"`,
+		`"limit":5`, `"useSemanticScoring":true`, `"context"`)
+}
+
+func TestBeckonEmitsWithoutClaimingDelivery(t *testing.T) {
+	s := busScenario(t)
+	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-1", "--annotation", "ann-2")
+	if code != 0 {
+		t.Fatalf("beckon: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stdout", stdout, "res-1", "ann-2", "no delivery confirmation")
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	// BeckonFocusEvent carries exactly these two fields; a `message` the
+	// schema does not declare must not reach the wire.
+	mustContain(t, "emit", string(b), `"channel":"beckon:focus"`, `"resourceId":"res-1"`, `"annotationId":"ann-2"`)
+	if strings.Contains(string(b), `"message"`) {
+		t.Errorf("emitted a field BeckonFocusEvent does not declare:\n%s", b)
+	}
+}
+
+func TestBeckonNeedsAResource(t *testing.T) {
+	s := busScenario(t)
+	stdout, _, code := s.run(t, "beckon")
+	if code == 0 {
+		t.Fatal("beckon without a resource must refuse")
+	}
+	mustContain(t, "usage", stdout, "Usage: semiont beckon")
+}
+
+func TestListenRefusesWithoutSession(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: %s", stderr)
+	}
+	stdout, stderr, code := s.run(t, "listen")
+	if code == 0 {
+		t.Fatal("listen without a session must refuse")
+	}
+	mustContain(t, "fix-it", stdout+stderr, "semiont login")
+}
+
+func TestListenHelpNamesTheBridgingConstraint(t *testing.T) {
+	s := newScenario(t)
+	stdout, _, code := s.run(t, "listen", "--help")
+	if code != 0 {
+		t.Fatalf("listen --help: exit %d", code)
+	}
+	// The silent-failure trap the bus docs warn about must be stated, not
+	// discovered by waiting forever on an unbridged channel.
+	mustContain(t, "help", stdout, "bridges", "deliver nothing")
+}
+
+func TestYieldDelegateFollowsJobToCompletion(t *testing.T) {
+	// Delegate is the ONLY verb that is not one request/reply: it gathers,
+	// creates a job, then follows job:* broadcasts keyed by jobId. The
+	// subscription must be open before job:create, or a fast job's
+	// completion is missed.
+	s := busScenario(t, `FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`)
+	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src",
+		"--storage-uri", "file://generated/out.md", "--title", "Derived", "--task", "summary")
+	if code != 0 {
+		t.Fatalf("delegate: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Generating", "drafting", "res-new", "Generated")
+	b, err := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	if err != nil {
+		t.Fatalf("no emit: %v", err)
+	}
+	// The job carries the gathered context and the generation params.
+	mustContain(t, "job:create emit", string(b),
+		`"channel":"job:create"`, `"jobType":"generation"`, `"resourceId":"res-src"`,
+		`"storageUri":"file://generated/out.md"`, `"title":"Derived"`, `"task":"summary"`, `"context"`)
+}
+
+func TestYieldDelegateReportsJobFailure(t *testing.T) {
+	s := busScenario(t,
+		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
+		"FAKERT_JOB_FAIL=model refused")
+	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md")
+	if code == 0 {
+		t.Fatalf("a failed job must fail the command\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "failure", stdout+stderr, "Generation failed", "model refused")
+}
+
+func TestYieldDelegateNeedsStorageUri(t *testing.T) {
+	s := busScenario(t)
+	_, stderr, code := s.run(t, "yield", "--delegate", "res-src")
+	if code == 0 {
+		t.Fatal("--delegate without --storage-uri must refuse")
+	}
+	mustContain(t, "refusal", stderr, "--storage-uri")
+}

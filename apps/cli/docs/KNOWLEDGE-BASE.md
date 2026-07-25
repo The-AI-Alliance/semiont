@@ -4,7 +4,7 @@ This guide covers the commands that manage the knowledge base itself: project in
 
 These commands do not require `--environment` (except `backup`, `restore`, `export`, `import` which need it to locate the running services).
 
-For commands that *query* the knowledge base via the API see [Knowledge Work Commands](./KNOWLEDGE-WORK.md).
+Commands that *query* the knowledge base over the API are verbs of the host-installed `semiont` launcher — see [apps/launcher](../../launcher/README.md).
 For service lifecycle management see [Infrastructure Commands](./INFRASTRUCTURE.md).
 
 ---
@@ -65,6 +65,5 @@ semiont import -e local --file export.json
 
 ## Further Reading
 
-- [Knowledge Work Commands](./KNOWLEDGE-WORK.md) — query and annotate the knowledge base via the API
 - [Infrastructure Commands](./INFRASTRUCTURE.md) — service lifecycle, deployment, administration
 - [Managing Environments](./ADDING_ENVIRONMENTS.md)
