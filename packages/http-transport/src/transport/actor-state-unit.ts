@@ -195,6 +195,11 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       if (oldest !== undefined) seenEventIds.delete(oldest);
     }
   };
+  /** Release a claim whose apply threw, so a redelivery is re-processed
+   *  rather than swallowed by its own dedup entry. */
+  const forgetEventId = (id: string): void => {
+    seenEventIds.delete(id);
+  };
 
   const shared$ = events$.pipe(share());
 
@@ -341,32 +346,49 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
               const carrier = extractTraceparent(
                 parsed.payload as Record<string, unknown>,
               );
-              await withTraceparent(carrier, () =>
-                withSpan(
-                  `bus.recv:${parsed.channel}`,
-                  () => { events$.next(parsed); },
-                  {
-                    kind: SpanKind.CONSUMER,
-                    attrs: {
-                      'bus.channel': parsed.channel,
-                      ...(parsed.scope ? { 'bus.scope': parsed.scope } : {}),
+              // The two kinds of id bookkeeping sit on OPPOSITE sides of the
+              // awaited fan-out, because they answer different questions.
+              //
+              // `seenEventIds` answers "has this frame been claimed?" and must
+              // be recorded BEFORE the await: the await yields the event loop,
+              // so during a make-before-break overlap the sibling connection
+              // can read the same stable-id frame, find the set still missing
+              // it, and deliver it a second time — defeating the overlap dedup
+              // (#847) that .plans/bugs/BRIDGE-GAPS.md exists to protect.
+              // Rolled back if the apply throws, so a redelivery after a
+              // dropped read loop is re-processed rather than silently
+              // swallowed by its own claim.
+              if (currentId !== undefined) rememberEventId(currentId);
+              try {
+                await withTraceparent(carrier, () =>
+                  withSpan(
+                    `bus.recv:${parsed.channel}`,
+                    () => { events$.next(parsed); },
+                    {
+                      kind: SpanKind.CONSUMER,
+                      attrs: {
+                        'bus.channel': parsed.channel,
+                        ...(parsed.scope ? { 'bus.scope': parsed.scope } : {}),
+                      },
                     },
-                  },
-                ),
-              );
-              // Id bookkeeping AFTER the apply fan-out, deliberately — an id
-              // is stashable only once its event's effects are pending or
-              // done. The pre-fix order (stash first, then an AWAITED apply)
-              // opened a gap where a bystander cache's debounced save could
-              // fire mid-await, find every cache quiet, and flush a bookmark
-              // whose event nothing had absorbed — the fast-path reload loss
+                  ),
+                );
+              } catch (err) {
+                if (currentId !== undefined) forgetEventId(currentId);
+                throw err;
+              }
+              // The resume position and the persisted bookmark answer "have
+              // this event's effects been absorbed?" and stay AFTER the apply.
+              // The pre-fix order (stash first, then an AWAITED apply) opened a
+              // gap where a bystander cache's debounced save could fire
+              // mid-await, find every cache quiet, and flush a bookmark whose
+              // event nothing had absorbed — the fast-path reload loss
               // (.plans/bugs/annotation-lost-on-immediate-reload-after-create.md).
-              // Everything here moves to the LAGGING side, which is safe: a
-              // reconnect or crash mid-apply resumes from the previous id and
-              // redelivers, and re-invalidation is idempotent.
+              // Both stay on the LAGGING side, which is safe: a reconnect or
+              // crash mid-apply resumes from the previous id and redelivers,
+              // and re-invalidation is idempotent.
               if (currentId !== undefined) {
                 lastEventId = currentId;
-                rememberEventId(currentId);
                 // B17: persisted ids only — see ActorStateUnitOptions.
                 if (currentId.startsWith('p-')) options.saveLastEventId?.(currentId);
               }

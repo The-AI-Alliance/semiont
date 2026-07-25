@@ -13,7 +13,8 @@
  *
  * What is pinned NOW: the persisted value is still delivered synchronously
  * (B17's actual win — instant paint, no `undefined` flash), AND exactly one
- * revalidation request follows per rehydrated key (B18). An un-cached key
+ * revalidation CHAIN follows per rehydrated key (B18) — one request, plus
+ * B14's single bounded retry if it fails. An un-cached key
  * still requests as before. Construction without the persistence option is
  * byte-for-byte today's in-memory behavior.
  */
@@ -64,8 +65,9 @@ describe('BrowseNamespace cache rehydration (B17)', () => {
     // Instant paint from disk — the value arrives without waiting on the
     // wire (the inert transport never answers), which is B17's whole point.
     expect(seen.name).toBe('Cached Doc');
-    // B18: and it is revalidated — exactly one request for that key, issued
-    // alongside (not instead of) the instant paint.
+    // B18: and it is revalidated — one chain for that key (this first
+    // request, plus a B14 retry only if it fails), issued alongside (not
+    // instead of) the instant paint.
     expect(emit).toHaveBeenCalledTimes(1);
     expect(emit.mock.calls[0]![0]).toBe('browse:resource-requested');
 
@@ -105,8 +107,9 @@ describe('BrowseNamespace cache rehydration (B17)', () => {
     // The round trip is proven by the value arriving at all: the transport
     // is inert, so 'Cached Doc' can only have come from storage.
     expect(seen.name).toBe('Cached Doc');
-    // B18: rehydrated, therefore revalidated — one request, which the inert
-    // transport never answers, leaving the persisted value on screen (B6).
+    // B18: rehydrated, therefore revalidated — one chain, whose first
+    // request the inert transport never answers, leaving the persisted value
+    // on screen (B6).
     expect(emit).toHaveBeenCalledTimes(1);
     second.dispose();
   });

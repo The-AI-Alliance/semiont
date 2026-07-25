@@ -561,9 +561,10 @@ Boundaries:
 - **Once per key per session.** The mark is cleared as soon as a fetch is
   under way from any path (`observe`'s revalidation, `invalidate`, or the
   `fetch`/await path) and by `set`/`remove`, so a rehydrated key costs at
-  most one extra request; afterwards B2 applies normally. Only keys that
-  are actually observed revalidate — rehydrating 200 entries and looking at
-  one costs one request.
+  most one extra revalidation chain — one request, plus B14's single bounded
+  retry if it fails; afterwards B2 applies normally. Only keys that are
+  actually observed revalidate — rehydrating 200 entries and looking at one
+  costs one chain.
 - **Never worse than not revalidating.** A failed revalidation keeps the
   persisted value visible (B6) after B14's bounded retry; B15 cannot fire
   for these keys because the store holds a value.

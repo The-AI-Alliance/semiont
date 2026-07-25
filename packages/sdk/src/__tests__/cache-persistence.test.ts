@@ -59,7 +59,8 @@ describe('cache persistence (B17)', () => {
     // Observing it serves the persisted value FIRST…
     const seen = await firstValueFrom(cache.observe('k1').pipe(filter((v) => v !== undefined), take(1)));
     expect(seen).toBe('rehydrated');
-    // …and starts exactly one revalidation, whose result supersedes it.
+    // …and starts one revalidation chain (one request here; B14 adds a
+    // single retry only on failure), whose result supersedes it.
     expect(fetchFn).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(0);
     expect(cache.get('k1')).toBe('fetched');

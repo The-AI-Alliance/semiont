@@ -336,10 +336,11 @@ export function createCache<K, V>(
         // immediately (it is already in the store, so subscribers paint with
         // no `undefined` flash — B17's actual win is preserved) AND
         // revalidate in the background, rendering the fresher on arrival.
-        // `runFetch` clears the mark, so this costs at most one request per
-        // rehydrated key per session; thereafter B2 applies as usual. A
-        // failed revalidation keeps the persisted value visible (B6) after
-        // B14's bounded retry — never worse than not revalidating at all.
+        // `runFetch` clears the mark, so this costs at most one revalidation
+        // CHAIN per rehydrated key per session — one request, plus B14's single
+        // bounded retry if it fails; thereafter B2 applies as usual. A failed
+        // chain keeps the persisted value visible (B6) — never worse than not
+        // revalidating at all.
         runFetchSWR(key);
       } else if (!store$.value.has(key) && !inflight.has(key)) {
         // Subscribe path: fire-and-forget, swallow failures so a subscriber

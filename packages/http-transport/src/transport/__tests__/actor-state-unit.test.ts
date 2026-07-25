@@ -888,6 +888,47 @@ describe('createActorStateUnit', () => {
 
     stateUnit.dispose();
   });
+
+  it('dedupes when both connections read the same frame CONCURRENTLY (no await between pushes)', async () => {
+    // The sibling of the test above, and the case it cannot see: there the
+    // duplicate arrives only after the first delivery has fully completed, so
+    // `seenEventIds` is already populated whichever side of the awaited
+    // fan-out the claim is recorded on. Here both read loops are handed the
+    // same stable id with NO await in between, so they can both be inside the
+    // fan-out await at once. If the dedup claim were recorded after that await
+    // (the shape the fast-path reload fix introduced), both would find the set
+    // empty and deliver — the overlap dedup defeated. See
+    // .plans/bugs/BRIDGE-GAPS.md and PR #1077's review.
+    const c1 = mockConn();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['mark:added'],
+    });
+    const received: unknown[] = [];
+    stateUnit.on$('mark:added').subscribe((p) => received.push(p));
+    stateUnit.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    const c2 = mockConn({ defer: true });
+    stateUnit.addChannels(['other:channel']);
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    c2.open();
+
+    const frame = sseChunkId(
+      'bus-event',
+      JSON.stringify({ channel: 'mark:added', payload: { seq: 7 } }),
+      'p-res-1-7',
+    );
+    // Both connections receive it with no yield in between — the overlap.
+    c1.sse.push(frame);
+    c2.sse.push(frame);
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(received).toHaveLength(1);
+
+    stateUnit.dispose();
+  });
 });
 
 describe('ActorStateUnit — StateUnit axioms', () => {
