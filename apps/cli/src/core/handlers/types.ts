@@ -6,7 +6,7 @@ import type { ServiceType } from '../service-types.js';
 /**
  * All commands that can be dispatched to a handler
  */
-export type CommandName = 'check' | 'start' | 'stop' | 'restart' | 'provision' | 'publish' | 'update' | 'restore';
+export type CommandName = 'check' | 'start' | 'stop' | 'restart' | 'provision' | 'restore';
 
 /**
  * Possible run-states for a service
@@ -47,20 +47,6 @@ export interface StartHandlerContext<TPlatform = any> extends BaseHandlerContext
  * Generic provision handler context
  */
 export interface ProvisionHandlerContext<TPlatform = any> extends BaseHandlerContext<TPlatform> {
-  // Platform-specific fields will be added in platform-specific types
-}
-
-/**
- * Generic publish handler context
- */
-export interface PublishHandlerContext<TPlatform = any> extends BaseHandlerContext<TPlatform> {
-  // Platform-specific fields will be added in platform-specific types
-}
-
-/**
- * Generic update handler context
- */
-export interface UpdateHandlerContext<TPlatform = any> extends BaseHandlerContext<TPlatform> {
   // Platform-specific fields will be added in platform-specific types
 }
 
@@ -127,34 +113,6 @@ export interface ProvisionHandlerResult extends HandlerResult {
 }
 
 /**
- * Publish handler specific result
- */
-export interface PublishHandlerResult extends HandlerResult {
-  artifacts?: Record<string, any>;
-  rollback?: {
-    supported: boolean;
-    command?: string;
-  };
-  registry?: {
-    type: string;
-    uri: string;
-    tags: string[];
-  };
-  metadata?: Record<string, any>;
-}
-
-/**
- * Update handler specific result
- */
-export interface UpdateHandlerResult extends HandlerResult {
-  previousVersion?: string;
-  newVersion?: string;
-  strategy?: 'rolling' | 'restart' | 'recreate' | 'blue-green' | 'none';
-  downtime?: number;
-  metadata?: Record<string, any>;
-}
-
-/**
  * Stop handler specific result
  */
 export interface StopHandlerResult extends HandlerResult {
@@ -187,18 +145,6 @@ export type StartHandler<TPlatform, TContext extends StartHandlerContext<TPlatfo
  */
 export type ProvisionHandler<TPlatform, TContext extends ProvisionHandlerContext<TPlatform> = ProvisionHandlerContext<TPlatform>> = 
   Handler<TPlatform, TContext, ProvisionHandlerResult>;
-
-/**
- * Publish handler function signature
- */
-export type PublishHandler<TPlatform, TContext extends PublishHandlerContext<TPlatform> = PublishHandlerContext<TPlatform>> = 
-  Handler<TPlatform, TContext, PublishHandlerResult>;
-
-/**
- * Update handler function signature
- */
-export type UpdateHandler<TPlatform, TContext extends UpdateHandlerContext<TPlatform> = UpdateHandlerContext<TPlatform>> = 
-  Handler<TPlatform, TContext, UpdateHandlerResult>;
 
 /**
  * Stop handler function signature

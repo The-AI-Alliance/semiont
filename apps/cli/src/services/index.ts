@@ -5,9 +5,7 @@ export type { ServiceName } from '../core/service-discovery.js';
 // Result types are now exported from their respective command files
 export * from '../core/commands/start.js';
 export * from '../core/commands/check.js';
-export * from '../core/commands/update.js';
 export * from '../core/commands/provision.js';
-export * from '../core/commands/publish.js';
 export * from '../core/base-service.js';
 export * from './service-factory.js';
 

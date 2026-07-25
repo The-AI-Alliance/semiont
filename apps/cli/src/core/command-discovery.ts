@@ -22,8 +22,6 @@ import { startCommand } from './commands/start.js';
 import { stopCommand } from './commands/stop.js';
 import { checkCommand } from './commands/check.js';
 import { provisionCommand } from './commands/provision.js';
-import { publishCommand } from './commands/publish.js';
-import { updateCommand } from './commands/update.js';
 import { watchCommand } from './commands/watch.js';
 import { useraddCommand } from './commands/useradd.js';
 import { backupCmd } from './commands/backup.js';
@@ -49,8 +47,6 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'stop': stopCommand,
   'check': checkCommand,
   'provision': provisionCommand,
-  'publish': publishCommand,
-  'update': updateCommand,
   'watch': watchCommand,
   'useradd': useraddCommand,
   'backup': backupCmd,

@@ -85,8 +85,6 @@ export class DatabaseService extends BaseService {
         'service/type': SERVICE_TYPES.DATABASE,
         [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'true',
         [COMMAND_CAPABILITY_ANNOTATIONS.RESTORE]: 'true',
-        [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'false',
-        [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'false',
         [COMMAND_CAPABILITY_ANNOTATIONS.TEST]: 'false',
         [COMMAND_CAPABILITY_ANNOTATIONS.EXEC]: 'true',
         // When on external platform, only check and watch apply

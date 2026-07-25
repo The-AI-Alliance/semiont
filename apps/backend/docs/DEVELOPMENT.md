@@ -43,12 +43,12 @@ npx prisma db push
 # Start development server (with auto-restart on changes)
 npm run dev
 
-# Build for production (handled automatically by semiont publish)
+# Build for production (also run during the container image build)
 npm run build
 npm start
 ```
 
-**Note on Building**: For local development, use `npm run dev` for auto-restart. For production deployment, `semiont publish` handles building TypeScript locally before creating Docker images. See [DEPLOYMENT.md](../../../docs/system/administration/DEPLOYMENT.md) for details.
+**Note on Building**: For local development, use `npm run dev` for auto-restart. Production builds happen in the `semiont-backend` image build (`apps/backend/Dockerfile`).
 
 ## Essential CLI Commands
 

@@ -122,19 +122,6 @@ semiont local   # equivalent to: init → provision → start → useradd
 
 ---
 
-## AWS ECS Deployment
-
-For teams deploying Semiont services to AWS ECS Fargate, the CLI includes built-in handlers for `publish` and `update`:
-
-```bash
-semiont publish --service frontend -e production   # build → ECR push → new task definition
-semiont update --service frontend -e production    # deploy new task definition to ECS
-```
-
-`publish` builds locally, pushes to ECR, and registers a new task definition revision. `update` detects the new revision and issues a rolling deployment, with optional `--wait` progress monitoring and CloudWatch log fetch on failure. Most teams will prefer to wire these steps into their own CI/CD pipelines directly.
-
----
-
 ## Further Reading
 
 - [Knowledge Base Commands](./KNOWLEDGE-BASE.md) — init, backup, restore, verify, export, import

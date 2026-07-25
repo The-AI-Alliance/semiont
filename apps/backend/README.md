@@ -397,16 +397,10 @@ npm run test:watch
 See [Testing Guide](./docs/TESTING.md) for testing patterns.
 
 ### Deployment
-```bash
-# Build and publish
-semiont publish --service backend --environment production
 
-# Deploy to ECS
-semiont update --service backend --wait
-
-# Monitor deployment
-semiont watch logs --service backend
-```
+The backend ships as the published `semiont-backend` container image; a KB stack runs it via the
+host-installed `semiont` launcher (see [apps/launcher](../launcher/README.md)) or
+`docker compose` against the KB's `.semiont/compose/backend.yml`.
 
 See [Deployment Guide](../../docs/system/administration/DEPLOYMENT.md) for complete procedures.
 

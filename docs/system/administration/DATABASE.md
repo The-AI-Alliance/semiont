@@ -134,7 +134,7 @@ semiont exec --service backend "cat prisma/schema.prisma"
 #### Manual Schema Changes
 
 1. **Update Schema**: Edit `../prisma/schema.prisma`
-2. **Deploy Changes**: Run `semiont publish`
+2. **Rebuild the backend image** so the new schema ships in it
 3. **Automatic Migration**: Backend container will apply changes on startup
 
 #### Prisma Studio (Database Browser)
@@ -183,11 +183,7 @@ model User {
 }
 ```
 
-2. Deploy the changes:
-
-```bash
-semiont publish
-```
+2. Rebuild the backend image so the new schema ships in it, then restart the stack.
 
 3. Verify migration in logs:
 

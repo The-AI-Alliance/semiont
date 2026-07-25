@@ -13,7 +13,6 @@ import { CommandBuilder } from '../command-definition.js';
 import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 
 import { Platform } from '../platform.js';
-import { AWSPlatform } from '../../platforms/aws/platform.js';
 import { ContainerPlatform } from '../../platforms/container/platform.js';
 import { PosixPlatform } from '../../platforms/posix/platform.js';
 
@@ -116,7 +115,6 @@ export async function watch(
   for (const [platform, services] of servicesByPlatform) {
     let strategy: Platform;
     switch (platform) {
-      case 'aws':      strategy = new AWSPlatform(); break;
       case 'container': strategy = new ContainerPlatform(); break;
       case 'posix':    strategy = new PosixPlatform(); break;
       default: continue;
