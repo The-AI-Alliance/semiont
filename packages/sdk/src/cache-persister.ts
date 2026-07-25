@@ -43,13 +43,25 @@ export function coupledLastEventId(
   storage: SessionStorage;
   saveLastEventId: (id: string) => void;
   loadLastEventId: () => string | null;
+  /**
+   * B17-Q (C1) — quiescence-gate the flush. Write-ordering alone couples
+   * write MOMENTS, not content: doc B's save could flush a bookmark whose
+   * event doc A had not yet absorbed (mid-refetch or mid-debounce) — the
+   * measured spec-14 bug. With a gate (wired by the session factory to
+   * `browse.persistenceSettled()`), a cache-document write carries the
+   * pending id through only when every persisted cache is quiet; otherwise
+   * the id stays pending — lagging, the safe direction — and rides the next
+   * quiet write.
+   */
+  setFlushGate: (gate: () => boolean) => void;
 } {
   let pending: string | null = null;
+  let flushGate: (() => boolean) | null = null;
   const coupled: SessionStorage = {
     get: (k) => storage.get(k),
     set: (k, v) => {
       storage.set(k, v);
-      if (pending !== null) {
+      if (pending !== null && (flushGate === null || flushGate())) {
         storage.set(lastEventIdKey, pending);
         pending = null;
       }
@@ -61,6 +73,7 @@ export function coupledLastEventId(
     storage: coupled,
     saveLastEventId: (id) => { pending = id; },
     loadLastEventId: () => storage.get(lastEventIdKey),
+    setFlushGate: (gate) => { flushGate = gate; },
   };
 }
 

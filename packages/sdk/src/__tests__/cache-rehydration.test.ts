@@ -5,6 +5,10 @@
  * rehydrated key delivers the persisted value synchronously and emits NO
  * `browse:*-requested` on the transport. An un-cached key still requests as
  * today. Construction without the option is byte-for-byte today's behavior.
+ * (Known limitation under fix: see
+ * .plans/bugs/pdf-annotations-vanish-after-reload-stale-persisted-cache.md —
+ * the (a)+(b) causal-gating work is what makes trusting rehydrated content
+ * sound; rehydrate-then-revalidate was considered and parked there.)
  */
 import { describe, it, expect, vi } from 'vitest';
 import { Subject, firstValueFrom, filter, take } from 'rxjs';

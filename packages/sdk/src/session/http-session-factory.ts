@@ -122,6 +122,11 @@ export function createHttpSessionFactory(): SessionFactory {
     const client = new SemiontClient(transport, content, transport, {
       cachePersistence: { storage: coupled.storage, keyPrefix: kb.id },
     });
+    // B17-Q (C1): the bookmark flush waits for persisted-cache quiescence —
+    // a bystander document write must not carry an id whose event some other
+    // cache is still absorbing (mid-refetch or mid-debounce). Wired after
+    // construction because the gate reads the client's own caches.
+    coupled.setFlushGate(() => client.browse.persistenceSettled());
     session = new SemiontSession({
       kb,
       storage,
