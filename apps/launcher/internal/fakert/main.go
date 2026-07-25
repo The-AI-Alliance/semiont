@@ -9,7 +9,9 @@
 //	FAKERT_LOG               append-one-line-per-invocation argv log (the golden seam)
 //	FAKERT_DIR               scratch dir for serve pidfiles
 //	FAKERT_GIT_ROOT          `git rev-parse --show-toplevel` output; unset = not a repo
-//	FAKERT_LSOF_<port>       newline-separated PIDs "holding" the port; unset = free
+//	FAKERT_LSOF_<port>       newline-separated PIDs "holding" the port; UNSET =
+//	                         answer for real (dial it), because a fake that
+//	                         calls a truly-held port "free" hides real bugs
 //	FAKERT_PS_<pid>          comm= output for a PID (default "fakeproc")
 //	FAKERT_NSLOOKUP          "ok" makes the host-alias probe succeed
 //	FAKERT_GATEWAY           default-gateway probe output (default 192.168.64.1)
@@ -397,13 +399,28 @@ func lsof(args []string) {
 		fmt.Fprintf(os.Stderr, "fakert lsof: unscripted args %v\n", args)
 		os.Exit(64)
 	}
-	pids := os.Getenv("FAKERT_LSOF_" + strings.TrimPrefix(args[1], ":"))
-	if pids == "" {
-		os.Exit(1) // real lsof exits 1 when nothing matches
+	port := strings.TrimPrefix(args[1], ":")
+	if pids := os.Getenv("FAKERT_LSOF_" + port); pids != "" {
+		for _, p := range strings.Fields(pids) {
+			fmt.Println(p)
+		}
+		return
 	}
-	for _, p := range strings.Fields(pids) {
-		fmt.Println(p)
+	// FIDELITY: with nothing scripted, answer for REAL. A port something is
+	// actually listening on must read as BUSY — real lsof sees it, and the
+	// launcher trusts lsof for both its port preflight and KB-port
+	// allocation. An env-only fake reported "free" for a held port, so the
+	// launcher handed out a port that could not bind: the forward died
+	// instantly and the start failed 30s later blaming the tunnel (CI run
+	// 30143820210). A fake that lies about the world hides real bugs.
+	// Probe by BINDING, not dialing: bindability is the question the
+	// launcher is really asking, and a dial can report "free" for a port
+	// that is held but not accepting (backlog exhausted, filtered).
+	if ln, err := net.Listen("tcp", "127.0.0.1:"+port); err == nil {
+		_ = ln.Close()
+		os.Exit(1) // bindable ⇒ nothing holds it; real lsof exits 1
 	}
+	fmt.Println(os.Getpid()) // a pid, as real lsof prints
 }
 
 // opCmd fakes the 1Password CLI: the launcher calls `op read op://<path>`.
@@ -648,8 +665,10 @@ func run(args []string) {
 			os.Exit(1)
 		}
 		if dir := os.Getenv("FAKERT_DIR"); dir != "" && name != "" {
+			// pid, then the ports it holds — `stop` waits for THOSE to be
+			// released, which is what a real stop guarantees (killServe).
 			_ = os.WriteFile(filepath.Join(dir, "serve-"+name+".pid"),
-				[]byte(strconv.Itoa(cmd.Process.Pid)), 0o644)
+				[]byte(strconv.Itoa(cmd.Process.Pid)+"\n"+strings.Join(ports, " ")), 0o644)
 		}
 	}
 	// The container identifier the runtime reports — name-derived so tests
@@ -843,9 +862,38 @@ func killServe(name string) bool {
 	if err != nil {
 		return false
 	}
-	if pid, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil {
+	lines := strings.SplitN(strings.TrimSpace(string(b)), "\n", 2)
+	if pid, err := strconv.Atoi(strings.TrimSpace(lines[0])); err == nil {
 		if p, err := os.FindProcess(pid); err == nil {
 			_ = p.Kill()
+		}
+	}
+	// FIDELITY: a real `stop` does not return until the container is stopped
+	// and its published ports are RELEASED. Returning early let the
+	// launcher's very next port check still see the dying listener —
+	// invisible while the fake lsof was env-only, a flake the moment it told
+	// the truth. Waiting on the PORTS (not the pid) avoids depending on who
+	// reaps an orphaned serve.
+	if len(lines) > 1 {
+		for _, p := range strings.Fields(lines[1]) {
+			deadline := time.Now().Add(3 * time.Second)
+			freed := false
+			for time.Now().Before(deadline) {
+				if ln, err := net.Listen("tcp", "127.0.0.1:"+p); err == nil {
+					_ = ln.Close()
+					freed = true
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			if !freed {
+				// Never silently give up: an unreleased port here becomes
+				// an unexplained failure in a LATER test. Say so where it
+				// happened. (Loud on stderr, not a nonzero exit — the exit
+				// code of `stop` means "did the container exist", which the
+				// launcher acts on.)
+				fmt.Fprintf(os.Stderr, "fakert stop: port %s still held 3s after killing %s — harness bug, later tests may fail\n", p, name)
+			}
 		}
 	}
 	_ = os.Remove(pidfile)
