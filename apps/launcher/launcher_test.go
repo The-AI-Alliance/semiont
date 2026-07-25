@@ -5418,3 +5418,45 @@ func TestListenHelpNamesTheBridgingConstraint(t *testing.T) {
 	// discovered by waiting forever on an unbridged channel.
 	mustContain(t, "help", stdout, "bridges", "deliver nothing")
 }
+
+func TestYieldDelegateFollowsJobToCompletion(t *testing.T) {
+	// Delegate is the ONLY verb that is not one request/reply: it gathers,
+	// creates a job, then follows job:* broadcasts keyed by jobId. The
+	// subscription must be open before job:create, or a fast job's
+	// completion is missed.
+	s := busScenario(t, `FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`)
+	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src",
+		"--storage-uri", "file://generated/out.md", "--title", "Derived", "--task", "summary")
+	if code != 0 {
+		t.Fatalf("delegate: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Generating", "drafting", "res-new", "Generated")
+	b, err := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	if err != nil {
+		t.Fatalf("no emit: %v", err)
+	}
+	// The job carries the gathered context and the generation params.
+	mustContain(t, "job:create emit", string(b),
+		`"channel":"job:create"`, `"jobType":"generation"`, `"resourceId":"res-src"`,
+		`"storageUri":"file://generated/out.md"`, `"title":"Derived"`, `"task":"summary"`, `"context"`)
+}
+
+func TestYieldDelegateReportsJobFailure(t *testing.T) {
+	s := busScenario(t,
+		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
+		"FAKERT_JOB_FAIL=model refused")
+	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md")
+	if code == 0 {
+		t.Fatalf("a failed job must fail the command\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "failure", stdout+stderr, "Generation failed", "model refused")
+}
+
+func TestYieldDelegateNeedsStorageUri(t *testing.T) {
+	s := busScenario(t)
+	_, stderr, code := s.run(t, "yield", "--delegate", "res-src")
+	if code == 0 {
+		t.Fatal("--delegate without --storage-uri must refuse")
+	}
+	mustContain(t, "refusal", stderr, "--storage-uri")
+}

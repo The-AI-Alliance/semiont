@@ -40,6 +40,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -852,13 +853,65 @@ func busybox(args []string, joined string) {
 
 // killServe reaps the port listener for a named container, reporting whether
 // one existed.
-// busReplies carries emitted requests to whichever SSE stream is open, so a
-// reply can only be produced AFTER the emit — the ordering the launcher's
-// bus client depends on.
-var busReplies = make(chan struct {
-	Channel string         `json:"channel"`
-	Payload map[string]any `json:"payload"`
-}, 8)
+// The fake bus is a BROADCAST, like the real one: every open subscription
+// receives every event on a channel it subscribed to. The first version
+// handed each emitted request to exactly one stream, so a flow with two
+// concurrent subscriptions (yield --delegate: one for job:* lifecycle, one
+// inside the request/reply helper) lost its reply to the wrong stream and
+// timed out. A fake with different delivery semantics than the real bus
+// tests a protocol nobody implements.
+type busSub struct {
+	channels map[string]bool
+	out      chan busFrame
+}
+
+type busFrame struct {
+	channel string
+	payload map[string]any
+}
+
+var (
+	busMu   sync.Mutex
+	busSubs []*busSub
+)
+
+func busSubscribe(channels []string) *busSub {
+	sub := &busSub{channels: map[string]bool{}, out: make(chan busFrame, 64)}
+	for _, c := range channels {
+		sub.channels[c] = true
+	}
+	busMu.Lock()
+	busSubs = append(busSubs, sub)
+	busMu.Unlock()
+	return sub
+}
+
+func busUnsubscribe(target *busSub) {
+	busMu.Lock()
+	defer busMu.Unlock()
+	for i, s := range busSubs {
+		if s == target {
+			busSubs = append(busSubs[:i], busSubs[i+1:]...)
+			return
+		}
+	}
+}
+
+// busPublish fans one event out to every subscriber listening for it.
+func busPublish(channel string, payload map[string]any) {
+	busMu.Lock()
+	subs := append([]*busSub(nil), busSubs...)
+	busMu.Unlock()
+	for _, s := range subs {
+		if !s.channels[channel] {
+			continue
+		}
+		select {
+		case s.out <- busFrame{channel: channel, payload: payload}:
+		default: // a stalled reader must not wedge the emitter
+		}
+	}
+}
 
 // busReplyFor maps a request channel to its scripted reply, using the
 // generated operations registry so the fake can never invent a channel pair
@@ -875,6 +928,9 @@ func busReplyFor(request, cid string) (string, map[string]any) {
 	raw := os.Getenv(env)
 	if raw == "" {
 		raw = "{}"
+		if request == "job:create" {
+			raw = `{"jobId":"fake-job-1"}`
+		}
 	}
 	var response any
 	if json.Unmarshal([]byte(raw), &response) != nil {
@@ -897,6 +953,7 @@ var busOperations = map[string]struct{ result, failure string }{
 	"mark:delete":                   {"mark:delete-ok", "mark:delete-failed"},
 	"bind:update-body":              {"bind:body-updated", "bind:body-update-failed"},
 	"match:search-requested":        {"match:search-results", "match:search-failed"},
+	"job:create":                    {"job:created", "job:create-failed"},
 }
 
 func killServe(name string) bool {
@@ -1053,13 +1110,34 @@ func serve(ports []string) {
 					if dir := os.Getenv("FAKERT_DIR"); dir != "" {
 						b, _ := json.Marshal(body)
 						_ = os.WriteFile(filepath.Join(dir, "bus-emit.json"), b, 0o644)
-						// Queue the reply for whichever stream is listening.
-						busReplies <- body
+					}
+					cid, _ := body.Payload["correlationId"].(string)
+					if ch, payload := busReplyFor(body.Channel, cid); ch != "" {
+						busPublish(ch, payload)
+						// A created job then runs: progress, then a terminal
+						// event, both keyed by jobId — never the correlationId
+						// the request used.
+						if body.Channel == "job:create" {
+							jobID := "fake-job-1"
+							busPublish("job:report-progress", map[string]any{
+								"jobId": jobID, "progress": map[string]any{"message": "drafting"}})
+							if msg := os.Getenv("FAKERT_JOB_FAIL"); msg != "" {
+								busPublish("job:fail", map[string]any{"jobId": jobID, "error": msg})
+							} else {
+								busPublish("job:complete", map[string]any{
+									"jobId": jobID, "resourceId": "res-src", "jobType": "generation",
+									"result": map[string]any{"resourceId": "res-new", "resourceName": "Generated"},
+								})
+							}
+						}
 					}
 					w.WriteHeader(http.StatusAccepted)
 					return
 				}
 				if r.URL.Path == "/bus/subscribe" {
+					q := r.URL.Query()
+					sub := busSubscribe(append(q["channel"], q["scoped"]...))
+					defer busUnsubscribe(sub)
 					w.Header().Set("Content-Type", "text/event-stream")
 					w.WriteHeader(http.StatusOK)
 					if f, ok := w.(http.Flusher); ok {
@@ -1069,13 +1147,8 @@ func serve(ports []string) {
 						select {
 						case <-r.Context().Done():
 							return
-						case req := <-busReplies:
-							cid, _ := req.Payload["correlationId"].(string)
-							ch, payload := busReplyFor(req.Channel, cid)
-							if ch == "" {
-								continue
-							}
-							data, _ := json.Marshal(map[string]any{"channel": ch, "payload": payload})
+						case fr := <-sub.out:
+							data, _ := json.Marshal(map[string]any{"channel": fr.channel, "payload": fr.payload})
 							fmt.Fprintf(w, "event: bus-event\ndata: %s\n\n", data)
 							if f, ok := w.(http.Flusher); ok {
 								f.Flush()

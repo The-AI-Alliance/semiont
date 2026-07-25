@@ -2,15 +2,14 @@ package launcher
 
 // yield.go — `semiont yield --upload`: register local files as KB
 // resources via the generated packages/sdk-go client (multipart POST
-// /resources, bearer token from `semiont login`). UPLOAD ONLY by design:
-// --delegate (LLM generation from gathered context) stays with the npm
-// CLI — its gather/observable orchestration lives in the TypeScript SDK,
-// and porting it would be the double maintenance the sdk-go decision
-// exists to avoid.
+// /resources, bearer token from `semiont login`), and `--delegate`:
+// generation from gathered context, which rides the JOB lifecycle rather
+// than a single request/reply (see runYieldDelegate below).
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"os"
@@ -19,6 +18,7 @@ import (
 	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
 const yieldUsage = `Usage: semiont yield --upload <file> [--upload <file>...] [options]
@@ -35,7 +35,7 @@ Options:
   --help               Show this help
 
 Requires a session:  semiont login --email <address>
-Delegate mode (LLM generation from context) lives in the in-container CLI.
+Generation from context: semiont yield --delegate --help
 `
 
 // extMediaTypes: the common cases, detected client-side like the npm CLI
@@ -52,10 +52,63 @@ var extMediaTypes = map[string]string{
 
 func Yield(args []string) int {
 	u := newUI(false)
-	var uploads []string
+	var uploads, positional []string
 	name, repo, wantLocal := "", "", false
+	delegate := false
+	var dopts delegateOptions
 	for i := 0; i < len(args); i++ {
+		// --delegate takes its own option set; everything below stays the
+		// upload path's.
+		if delegate {
+			a := args[i]
+			val := func() (string, bool) {
+				if i+1 >= len(args) {
+					u.fail("Missing value for %s", a)
+					return "", false
+				}
+				i++
+				return args[i], true
+			}
+			var ok bool
+			switch a {
+			case "--storage-uri":
+				dopts.storageURI, ok = val()
+			case "--title":
+				dopts.title, ok = val()
+			case "--prompt":
+				dopts.prompt, ok = val()
+			case "--language":
+				dopts.language, ok = val()
+			case "--task":
+				dopts.task, ok = val()
+			case "--structure":
+				dopts.structure, ok = val()
+			case "--repo":
+				repo, ok = val()
+			case "--runtime":
+				_, ok = val()
+				wantLocal = true
+			case "--json":
+				dopts.asJSON, ok = true, true
+			case "--help", "-h":
+				fmt.Print(delegateUsage)
+				return 0
+			default:
+				if strings.HasPrefix(a, "-") {
+					u.fail("Unknown argument: %s", a)
+					return 1
+				}
+				positional = append(positional, a)
+				ok = true
+			}
+			if !ok {
+				return 1
+			}
+			continue
+		}
 		switch args[i] {
+		case "--delegate":
+			delegate = true
 		case "--upload":
 			if i+1 >= len(args) {
 				u.fail("Missing value for --upload")
@@ -91,6 +144,21 @@ func Yield(args []string) int {
 			u.fail("Unknown argument: %s", args[i])
 			return 1
 		}
+	}
+	if delegate {
+		if len(positional) == 0 || len(positional) > 2 {
+			fmt.Print(delegateUsage)
+			return 1
+		}
+		if dopts.storageURI == "" {
+			u.fail("--delegate needs --storage-uri (the generated resource must be given a home).")
+			return 1
+		}
+		t, ok := verbSession(u, "yield", repo, wantLocal)
+		if !ok {
+			return 1
+		}
+		return runYieldDelegate(u, t, positional, dopts)
 	}
 	if len(uploads) == 0 {
 		fmt.Print(yieldUsage)
@@ -256,4 +324,168 @@ func yieldOne(u *ui, cli *semiont.ClientWithResponses, key string, tok *tokenEnt
 			return 1
 		}
 	}
+}
+
+// --- delegate mode: generation via the job lifecycle -------------------
+//
+// Unlike every other verb here, delegate is NOT one request/reply. It
+// creates a job (job:create → job:created carries the jobId) and then
+// follows job:report-progress / job:complete / job:fail, which are
+// BROADCASTS correlated by jobId — not by the correlationId the bus client
+// uses elsewhere. The subscription therefore opens BEFORE the job is
+// created: the jobId is unknown at that moment, so events are buffered and
+// filtered once it arrives. Subscribing after would race a fast job.
+
+const delegateUsage = `Usage: semiont yield --delegate <resourceId> [<annotationId>] --storage-uri <file://…> [options]
+
+Generate a new resource from gathered context: derived from a whole resource,
+or anchored to one annotation.
+
+Options:
+  --storage-uri <uri>  Where the generated resource is written (required)
+  --title <text>       Title for the generated resource
+  --prompt <text>      Instruction guiding the generation
+  --language <tag>     BCP-47 language for the generated content
+  --task <t>           Framing: resource | answer | summary (or free text)
+  --structure <s>      Shape: prose | sections | chat (or free text)
+  --json               Raw JSON completion event
+  --repo <owner/name>  Target a codespace stack (default: the local stack)
+  --runtime <rt>       Target the local stack explicitly
+
+Requires a session:  semiont login --email <address>
+`
+
+func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOptions) int {
+	cli := bus.NewClient(t.base, t.token)
+	ctx := context.Background()
+	resourceID := positional[0]
+
+	// Gather the grounding context first — generation without it is the
+	// thin-context failure mode the npm CLI documents.
+	var gathered any
+	if len(positional) == 2 {
+		reply, err := cli.Request(ctx, "gather:requested", semiont.GatherAnnotationRequest{
+			ResourceId: resourceID, AnnotationId: positional[1],
+		}, nil)
+		if err != nil {
+			return busFail(u, "yield --delegate (gather)", err)
+		}
+		var gc semiont.GatherAnnotationComplete
+		if json.Unmarshal(reply, &gc) != nil {
+			u.fail("yield --delegate: the gathered context could not be read.")
+			return 1
+		}
+		gathered = gc.Response
+	} else {
+		req := semiont.GatherResourceRequest{ResourceId: resourceID}
+		req.Options.IncludeContent = true
+		req.Options.IncludeSummary = true
+		reply, err := cli.Request(ctx, "gather:resource-requested", req, nil)
+		if err != nil {
+			return busFail(u, "yield --delegate (gather)", err)
+		}
+		var gc semiont.GatherResourceComplete
+		if json.Unmarshal(reply, &gc) != nil {
+			u.fail("yield --delegate: the gathered context could not be read.")
+			return 1
+		}
+		gathered = gc.Response
+	}
+
+	// Subscribe BEFORE creating the job: the lifecycle events are broadcasts
+	// keyed by a jobId that does not exist yet, so they are buffered here and
+	// filtered below.
+	sub, err := cli.Subscribe(ctx, []bus.Channel{"job:report-progress", "job:complete", "job:fail"}, nil, "")
+	if err != nil {
+		return busFail(u, "yield --delegate", err)
+	}
+	defer sub.Close()
+
+	params := map[string]any{"storageUri": opts.storageURI, "context": gathered}
+	for k, v := range map[string]string{
+		"title": opts.title, "prompt": opts.prompt, "language": opts.language,
+		"task": opts.task, "structure": opts.structure,
+	} {
+		if v != "" {
+			params[k] = v
+		}
+	}
+	if len(positional) == 2 {
+		params["referenceId"] = positional[1]
+	}
+
+	created, err := cli.Request(ctx, "job:create", semiont.JobCreateCommand{
+		JobType:    semiont.JobType("generation"),
+		ResourceId: resourceID,
+		Params:     params,
+	}, nil)
+	if err != nil {
+		return busFail(u, "yield --delegate", err)
+	}
+	var jc semiont.JobCreatedResult
+	if json.Unmarshal(created, &jc) != nil || jc.Response.JobId == "" {
+		u.fail("yield --delegate: the backend accepted the job but named no jobId.")
+		return 1
+	}
+	jobID := jc.Response.JobId
+	u.log("Generating %s", u.dim("(job "+jobID+")"))
+
+	// Follow the job. A generation can run for minutes; narrate it rather
+	// than leaving a silent terminal.
+	for {
+		select {
+		case <-ctx.Done():
+			return 1
+		case ev, open := <-sub.Events:
+			if !open {
+				u.fail("The event stream closed before job %s finished.", jobID)
+				fmt.Fprintln(os.Stderr, "  The job may still be running:  semiont browse "+resourceID)
+				return 1
+			}
+			var probe struct {
+				JobId    string          `json:"jobId"`
+				Error    string          `json:"error"`
+				Progress json.RawMessage `json:"progress"`
+			}
+			if json.Unmarshal(ev.Payload, &probe) != nil || probe.JobId != jobID {
+				continue // another job's broadcast
+			}
+			switch ev.Channel {
+			case "job:report-progress":
+				var p semiont.GatherProgress
+				if json.Unmarshal(probe.Progress, &p) == nil && p.Message != nil {
+					u.log("%s", *p.Message)
+				}
+			case "job:fail":
+				u.fail("Generation failed: %s", probe.Error)
+				return 1
+			case "job:complete":
+				if opts.asJSON {
+					fmt.Println(string(ev.Payload))
+					return 0
+				}
+				var done semiont.JobCompleteCommand
+				_ = json.Unmarshal(ev.Payload, &done)
+				if done.Result != nil {
+					var r struct {
+						ResourceId   string `json:"resourceId"`
+						ResourceName string `json:"resourceName"`
+					}
+					raw, _ := json.Marshal(done.Result)
+					_ = json.Unmarshal(raw, &r)
+					if r.ResourceId != "" {
+						u.ok("Yielded %s → %s %s", opts.storageURI, r.ResourceId, u.dim(r.ResourceName))
+						return 0
+					}
+				}
+				u.ok("Yielded %s", opts.storageURI)
+				return 0
+			}
+		}
+	}
+}
+
+type delegateOptions struct {
+	storageURI, title, prompt, language, task, structure string
+	asJSON                                               bool
 }
