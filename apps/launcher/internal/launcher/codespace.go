@@ -231,6 +231,19 @@ func startCodespace(u *ui, opts startOptions) int {
 			bound = true
 			break
 		}
+		// A forward that EXITED cannot bind later — the usual cause is the
+		// local port already being in use (gh fails "address already in
+		// use" and dies at once). Watching the same death channel the
+		// health gate uses turns 30s of vagueness into an instant, honest
+		// diagnosis naming the port.
+		select {
+		case <-fwdDead:
+			u.fail("The port forward exited immediately — localhost:%d is probably already in use.", kbPort)
+			fmt.Fprintf(os.Stderr, "  See what holds it:  lsof -ti :%d\n", kbPort)
+			fmt.Fprintf(os.Stderr, "  Try it directly:    gh codespace ports forward %d:%d -c %s\n", kbRemotePort, kbPort, name)
+			return 1
+		default:
+		}
 		time.Sleep(time.Second)
 	}
 	if !bound {
