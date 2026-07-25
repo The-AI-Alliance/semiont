@@ -9,12 +9,11 @@
 import type { PlatformType } from '@semiont/core';
 import type { PosixResources } from './posix/types.js';
 import type { ContainerResources } from './container/types.js';
-import type { AWSResources } from './aws/types.js';
 import type { ExternalResources } from './external/types.js';
 import type { MockResources } from './mock/types.js';
 
 // Re-export for use by platform implementations
-export type { PosixResources, ContainerResources, AWSResources, ExternalResources, MockResources };
+export type { PosixResources, ContainerResources, ExternalResources, MockResources };
 
 
 /**
@@ -24,7 +23,6 @@ export type { PosixResources, ContainerResources, AWSResources, ExternalResource
 export type PlatformResources = 
   | { platform: 'posix'; data: PosixResources }
   | { platform: 'container'; data: ContainerResources }
-  | { platform: 'aws'; data: AWSResources }
   | { platform: 'external'; data: ExternalResources }
   | { platform: 'mock'; data: MockResources };
 
@@ -45,7 +43,6 @@ export function createPlatformResources<P extends PlatformType>(
   platform: P,
   data: P extends 'posix' ? PosixResources :
         P extends 'container' ? ContainerResources :
-        P extends 'aws' ? AWSResources :
         P extends 'external' ? ExternalResources :
         P extends 'mock' ? MockResources :
         never

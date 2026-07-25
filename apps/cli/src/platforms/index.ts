@@ -11,10 +11,6 @@ export { ContainerPlatform } from './container/platform.js';
 export { ExternalPlatform } from './external/platform.js';
 export { MockPlatform } from './mock/platform.js';
 
-// AWSPlatform is loaded lazily — its @aws-sdk/* dependencies are optional.
-// Re-export the type for consumers that need it, but don't import the class eagerly.
-export type { AWSPlatform } from './aws/platform.js';
-
 import { Platform } from '../core/platform.js';
 import { PlatformType } from '@semiont/core';
 import { PosixPlatform } from './posix/platform.js';
@@ -24,7 +20,6 @@ import { MockPlatform } from './mock/platform.js';
 
 /**
  * Factory for creating platform strategy instances.
- * AWS platform is loaded lazily to avoid requiring @aws-sdk/* for non-AWS users.
  */
 export class PlatformFactory {
   private static instances = new Map<PlatformType, Platform>();
@@ -48,10 +43,6 @@ export class PlatformFactory {
         return new PosixPlatform();
       case 'container':
         return new ContainerPlatform();
-      case 'aws': {
-        const { AWSPlatform } = await import('./aws/platform.js');
-        return new AWSPlatform();
-      }
       case 'external':
         return new ExternalPlatform();
       case 'mock' as any:

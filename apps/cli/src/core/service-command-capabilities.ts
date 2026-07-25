@@ -11,10 +11,6 @@ import type { CommandName } from './handlers/types.js';
  * Well-known annotation keys for command capabilities
  */
 export const COMMAND_CAPABILITY_ANNOTATIONS = {
-  // Deployment and build commands
-  PUBLISH: 'command/supports-publish',
-  UPDATE: 'command/supports-update',
-  
   // Data management commands
   BACKUP: 'command/supports-backup',
   RESTORE: 'command/supports-restore',

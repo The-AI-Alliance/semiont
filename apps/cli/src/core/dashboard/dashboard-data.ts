@@ -153,13 +153,6 @@ export class DashboardDataSource {
           }
         }
         
-        // Add from resources if available
-        if (checkResult.extensions?.resources && isPlatformResources(checkResult.extensions.resources, 'aws')) {
-          const awsData = checkResult.extensions.resources.data;
-          serviceStatus.albArn = awsData.albArn;
-          // Image URI would come from task definition - not available yet
-        }
-        
         services.push(serviceStatus);
 
         // Add logs if available
@@ -496,13 +489,6 @@ export class DashboardDataSource {
           if (firstPort) {
             parts.push(`Port: ${firstPort}`);
           }
-        }
-      } else if (isPlatformResources(checkResult.extensions.resources, 'aws')) {
-        if (checkResult.extensions.resources.data.instanceId) {
-          parts.push(`Instance: ${checkResult.extensions.resources.data.instanceId}`);
-        } else if (checkResult.extensions.resources.data.taskArn) {
-          const taskId = checkResult.extensions.resources.data.taskArn.split('/').pop()?.slice(0, 12);
-          parts.push(`Task: ${taskId}`);
         }
       }
     }

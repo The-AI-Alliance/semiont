@@ -50,10 +50,6 @@ updates:
           - "@tailwindcss/*"
           - "lightningcss"
           - "lightningcss-*"
-      # AWS SDK clients are released in lockstep on a single version line
-      aws-sdk:
-        patterns:
-          - "@aws-sdk/*"
       # @opentelemetry packages share a version line and root package.json overrides
       opentelemetry:
         patterns:

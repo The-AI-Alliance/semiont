@@ -99,9 +99,6 @@ export class BackendService extends BaseService {
       annotations: {
         // Service type declaration
         'service/type': SERVICE_TYPES.BACKEND,
-        // Backend can be built and published as container
-        [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'true',
-        [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'true',
         [COMMAND_CAPABILITY_ANNOTATIONS.TEST]: 'true',
         [COMMAND_CAPABILITY_ANNOTATIONS.EXEC]: 'true',
         // Backend doesn't support backup/restore directly (database does)

@@ -64,9 +64,6 @@ export class FrontendService extends BaseService {
         ...base.annotations,
         // Service type declaration
         'service/type': SERVICE_TYPES.FRONTEND,
-        // Frontend can be built and published as container or static assets
-        [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'true',
-        [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'true',
         [COMMAND_CAPABILITY_ANNOTATIONS.TEST]: 'true',
         // Frontend doesn't support these data operations
         [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'false',

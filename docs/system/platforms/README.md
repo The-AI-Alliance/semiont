@@ -22,12 +22,6 @@ Semiont services run on different **platforms** depending on the deployment envi
 - **Use Case**: Containerized services (Apple Container, Docker, Podman)
 - **Services**: database, graph, generic, web
 
-### AWS - Production Cloud
-- **Documentation**: [AWS.md](./AWS.md)
-- **CLI Implementation**: [apps/cli/src/platforms/aws/](../../../apps/cli/src/platforms/aws/)
-- **Use Case**: AWS managed services (ECS, RDS, S3, EFS)
-- **Services**: ECS (backend/worker), RDS, Neptune, S3+CloudFront, EFS, Lambda
-
 ### External - Third-Party Services
 - **Documentation**: [External.md](./External.md)
 - **CLI Implementation**: [apps/cli/src/platforms/external/](../../../apps/cli/src/platforms/external/)
@@ -46,9 +40,13 @@ Semiont services run on different **platforms** depending on the deployment envi
 |----------|-----------|----------|------------------|
 | **POSIX** | Native processes | Local dev | backend, frontend, mcp |
 | **Container** | Container runtime | Isolation | database, graph |
-| **AWS** | AWS managed | Production | ECS, RDS, Neptune, S3 |
 | **External** | Third-party APIs | External | inference, graph |
 | **Mock** | Simulated | Testing | Any (test doubles) |
+
+> **There is no cloud platform.** The AWS platform was removed; the CLI provisions nothing in a
+> cloud. Semiont's container images can be scheduled by any container platform (ECS Fargate,
+> Kubernetes, …), but that is your own integration — see
+> [Running Semiont on AWS](./AWS.md).
 
 ## Platform Selection
 
@@ -67,7 +65,9 @@ Development environment:
 └── Inference → External (Anthropic API)
 ```
 
-Production and staging environments would typically use AWS platform for managed services.
+A deployed KB stack does not use these platforms at all: it runs the published container images,
+brought up by the `semiont` launcher or `docker compose`. See
+[CONTAINER-TOPOLOGY.md](../CONTAINER-TOPOLOGY.md) for the distinction between the two layers.
 
 ### By Service Type
 
@@ -75,18 +75,17 @@ Based on handler implementations:
 
 **Application Services** ([posix/handlers/](../../../apps/cli/src/platforms/posix/handlers/)):
 
-- Backend, Frontend, MCP → POSIX (local dev)
-- Backend → AWS ECS (production)
+- Backend, Frontend, MCP → POSIX
 
 **Data Services**:
 
-- Database → Container (local), AWS RDS (production)
-- Graph → External or Container (local), AWS Neptune (production)
+- Database → Container
+- Graph → External or Container
 
 **Infrastructure Services**:
 
 - Inference → External (Anthropic/OpenAI APIs)
-- Filesystem → POSIX (local), AWS S3/EFS (production)
+- Filesystem → POSIX
 
 ## Configuration
 

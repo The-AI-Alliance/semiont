@@ -131,25 +131,6 @@ export interface CommandExtensions {
     graceful?: boolean;
   };
   
-  // update command extensions
-  previousVersion?: string;
-  newVersion?: string;
-  strategy?: 'rolling' | 'recreate' | 'none';
-  downtime?: number;
-  
-  // publish command extensions
-  version?: string;
-  artifacts?: Record<string, string>;
-  rollback?: {
-    supported: boolean;
-    command?: string;
-  };
-  registry?: {
-    type: string;
-    uri: string;
-    tags: string[];
-  };
-  
   // check command extensions
   status?: ServiceStatus;
   provisioned?: boolean;

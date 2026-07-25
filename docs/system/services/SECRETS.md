@@ -51,4 +51,4 @@ When an external store is configured, `semiont start` retrieves secrets from it 
 
 - [Configuration Guide](../administration/CONFIGURATION.md) — Full configuration reference
 - [Authentication](../administration/AUTHENTICATION.md) — JWT and OAuth flow
-- [AWS Deployment](../platforms/AWS.md) — AWS Secrets Manager setup
+- [Running Semiont on AWS](../platforms/AWS.md) — unsupported; secrets are your integration
