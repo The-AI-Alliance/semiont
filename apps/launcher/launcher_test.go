@@ -2272,7 +2272,8 @@ func TestKBPortAllocationDodgesLiveHolders(t *testing.T) {
 	}
 	// It stepped over the port the first scenario's forward really holds.
 	mustContain(t, "second stack's forward", string(s2.mustLog(t)), "ports forward 4000:4001")
-	if strings.Contains(stdout, "did not come up") || strings.Contains(stdout, "exited immediately") {
+	// Stable substrings, not the full sentences — wording may change.
+	if strings.Contains(stdout, "did not come up") || strings.Contains(stdout, "port forward exited") {
 		t.Errorf("second create collided on the KB port:\n%s", stdout)
 	}
 }

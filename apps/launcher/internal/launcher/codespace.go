@@ -238,7 +238,7 @@ func startCodespace(u *ui, opts startOptions) int {
 		// diagnosis naming the port.
 		select {
 		case <-fwdDead:
-			u.fail("The port forward exited immediately — localhost:%d is probably already in use.", kbPort)
+			u.fail("The port forward exited before it could bind — localhost:%d is probably already in use.", kbPort)
 			fmt.Fprintf(os.Stderr, "  See what holds it:  lsof -ti :%d\n", kbPort)
 			fmt.Fprintf(os.Stderr, "  Try it directly:    gh codespace ports forward %d:%d -c %s\n", kbRemotePort, kbPort, name)
 			return 1

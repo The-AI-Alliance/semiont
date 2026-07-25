@@ -413,12 +413,14 @@ func lsof(args []string) {
 	// launcher handed out a port that could not bind: the forward died
 	// instantly and the start failed 30s later blaming the tunnel (CI run
 	// 30143820210). A fake that lies about the world hides real bugs.
-	if c, err := net.DialTimeout("tcp", "127.0.0.1:"+port, 300*time.Millisecond); err == nil {
-		_ = c.Close()
-		fmt.Println(os.Getpid()) // a pid, as real lsof prints
-		return
+	// Probe by BINDING, not dialing: bindability is the question the
+	// launcher is really asking, and a dial can report "free" for a port
+	// that is held but not accepting (backlog exhausted, filtered).
+	if ln, err := net.Listen("tcp", "127.0.0.1:"+port); err == nil {
+		_ = ln.Close()
+		os.Exit(1) // bindable ⇒ nothing holds it; real lsof exits 1
 	}
-	os.Exit(1) // real lsof exits 1 when nothing matches
+	fmt.Println(os.Getpid()) // a pid, as real lsof prints
 }
 
 // opCmd fakes the 1Password CLI: the launcher calls `op read op://<path>`.
@@ -875,13 +877,22 @@ func killServe(name string) bool {
 	if len(lines) > 1 {
 		for _, p := range strings.Fields(lines[1]) {
 			deadline := time.Now().Add(3 * time.Second)
+			freed := false
 			for time.Now().Before(deadline) {
-				c, err := net.DialTimeout("tcp", "127.0.0.1:"+p, 100*time.Millisecond)
-				if err != nil {
-					break // refused: the port is free
+				if ln, err := net.Listen("tcp", "127.0.0.1:"+p); err == nil {
+					_ = ln.Close()
+					freed = true
+					break
 				}
-				_ = c.Close()
 				time.Sleep(10 * time.Millisecond)
+			}
+			if !freed {
+				// Never silently give up: an unreleased port here becomes
+				// an unexplained failure in a LATER test. Say so where it
+				// happened. (Loud on stderr, not a nonzero exit — the exit
+				// code of `stop` means "did the container exist", which the
+				// launcher acts on.)
+				fmt.Fprintf(os.Stderr, "fakert stop: port %s still held 3s after killing %s — harness bug, later tests may fail\n", p, name)
 			}
 		}
 	}
