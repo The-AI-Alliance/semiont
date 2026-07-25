@@ -28,6 +28,8 @@ Commands:
   yield     Upload files from the KB root as resources (needs login)
   browse    Read the KB: resources, annotations, entity types (needs login)
   gather    Assemble LLM context for a resource or annotation (needs login)
+  mark      Annotate a resource; --delete removes an annotation (needs login)
+  bind      Resolve a linking annotation to its target resource (needs login)
   secret    Register where config secrets come from (pointers, never values)
   status    Report container state and application health per service
   logs      Follow the running stack's service logs
@@ -66,6 +68,10 @@ func main() {
 		code = launcher.Browse(rest)
 	case "gather":
 		code = launcher.Gather(rest)
+	case "mark":
+		code = launcher.Mark(rest)
+	case "bind":
+		code = launcher.Bind(rest)
 	case "secret":
 		code = launcher.Secret(rest)
 	case "status":

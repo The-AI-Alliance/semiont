@@ -5264,3 +5264,71 @@ func TestGatherAnnotationUsesStreamingOperation(t *testing.T) {
 	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
 	mustContain(t, "emit", string(b), `"channel":"gather:requested"`, `"annotationId":"ann-7"`, `"resourceId":"res-1"`)
 }
+
+func TestMarkCreatesWithSelectorAndBody(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_mark_create_request={"annotationId":"ann-42"}`)
+	stdout, stderr, code := s.run(t, "mark", "res-1",
+		"--quote", "the disputed clause", "--prefix", "before ", "--body-text", "check this")
+	if code != 0 {
+		t.Fatalf("mark: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "ann-42", "commenting")
+	b, err := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	if err != nil {
+		t.Fatalf("no emit: %v", err)
+	}
+	mustContain(t, "emit", string(b),
+		`"channel":"mark:create-request"`,
+		`"TextQuoteSelector"`, `"exact":"the disputed clause"`, `"prefix":"before "`,
+		`"TextualBody"`, `"value":"check this"`,
+		`"motivation":"commenting"`) // inferred from the body
+}
+
+func TestMarkLinkInfersLinkingMotivation(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_mark_create_request={"annotationId":"ann-9"}`)
+	if _, stderr, code := s.run(t, "mark", "res-1", "--link", "res-2"); code != 0 {
+		t.Fatalf("mark --link: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "emit", string(b), `"motivation":"linking"`, `"SpecificResource"`, `"source":"res-2"`)
+}
+
+func TestMarkSelectorFlagsAreExclusive(t *testing.T) {
+	s := busScenario(t)
+	_, stderr, code := s.run(t, "mark", "res-1", "--quote", "x", "--start", "1", "--end", "2")
+	if code == 0 {
+		t.Fatal("--quote with --start/--end must refuse")
+	}
+	mustContain(t, "refusal", stderr, "pick one")
+	// And a half-given position range is a refusal, not a silent whole-resource mark.
+	if _, stderr, code := s.run(t, "mark", "res-1", "--start", "1"); code == 0 {
+		t.Error("--start without --end must refuse")
+	} else {
+		mustContain(t, "refusal", stderr, "go together")
+	}
+}
+
+func TestMarkDeleteNeedsResource(t *testing.T) {
+	s := busScenario(t)
+	_, stderr, code := s.run(t, "mark", "--delete", "ann-1")
+	if code == 0 {
+		t.Fatal("--delete without --resource must refuse")
+	}
+	mustContain(t, "refusal", stderr, "--resource")
+}
+
+func TestBindAddsAndRemovesTarget(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_bind_update_body={}`)
+	if _, stderr, code := s.run(t, "bind", "res-1", "ann-1", "res-2"); code != 0 {
+		t.Fatalf("bind: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "emit", string(b), `"channel":"bind:update-body"`, `"op":"add"`,
+		`"source":"res-2"`, `"purpose":"linking"`, `"annotationId":"ann-1"`)
+
+	if _, stderr, code := s.run(t, "bind", "res-1", "ann-1", "--unbind", "res-2"); code != 0 {
+		t.Fatalf("unbind: exit %d\nstderr:\n%s", code, stderr)
+	}
+	b, _ = os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "emit", string(b), `"op":"remove"`)
+}
