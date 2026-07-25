@@ -155,7 +155,10 @@ func (s *scenario) killServes() {
 		if err != nil {
 			continue
 		}
-		if pid, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil {
+		// Pidfiles are "pid\n<ports>" (fakert records the ports so its own
+		// stop can wait for their release) — parse the FIRST line only.
+		first := strings.SplitN(strings.TrimSpace(string(b)), "\n", 2)[0]
+		if pid, err := strconv.Atoi(strings.TrimSpace(first)); err == nil {
 			pids = append(pids, pid)
 			if p, err := os.FindProcess(pid); err == nil {
 				_ = p.Kill()
@@ -2252,6 +2255,28 @@ func writeCodespaceState(t *testing.T, s *scenario) {
 	}
 }
 
+func TestKBPortAllocationDodgesLiveHolders(t *testing.T) {
+	// Two scenarios alive at once (separate HOMEs, so neither sees the
+	// other's records) must not collide on the KB port: allocation consults
+	// lsof, and the fake answers for REAL listeners — the fidelity gap that
+	// let CI hand out an unbindable 4000 (run 30143820210).
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("first create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s2 := newCodespaceScenario(t)
+	s2.cwd = t.TempDir()
+	stdout, stderr, code := s2.run(t, "start", "--runtime", "codespace", "--repo", "other/bar")
+	if code != 0 {
+		t.Fatalf("second create: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	// It stepped over the port the first scenario's forward really holds.
+	mustContain(t, "second stack's forward", string(s2.mustLog(t)), "ports forward 4000:4001")
+	if strings.Contains(stdout, "did not come up") || strings.Contains(stdout, "exited immediately") {
+		t.Errorf("second create collided on the KB port:\n%s", stdout)
+	}
+}
+
 func TestCodespaceDidIsRecordedNotInferred(t *testing.T) {
 	// did:web is the permanent identity in the committed event log, so the
 	// remote-KB line must show only what was READ from the clone whose origin
@@ -3769,7 +3794,13 @@ func TestStartServiceSecretUnreadableIsLoud(t *testing.T) {
 	// With an explicit env secret: proceeds, but warns about the mismatch
 	// risk instead of pretending recovery worked.
 	s.noWorkerSecret = false
-	serveHealth(t, 9090)
+	// NO serveHealth(9090) here: 9090 is the WORKER's own port, and the
+	// launcher must find it free to start the container that then serves it
+	// (the fake run -d binds it, as in TestStartServiceWorker). Pre-binding
+	// it modelled a foreign process squatting the port — fiction that only
+	// passed while the fake lsof lied about real listeners; now the launcher
+	// correctly refuses. serveHealth is for services the launcher does NOT
+	// start (an already-running backend, Jaeger, a host Ollama).
 	stdout, stderr2, code := s.run(t, "start", "--service", "worker")
 	if code != 0 {
 		t.Fatalf("env-secret path: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr2)
