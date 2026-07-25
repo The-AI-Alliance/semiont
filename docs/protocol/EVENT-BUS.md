@@ -172,7 +172,19 @@ Commands, results, and UI signals are transient. They flow across the bus, drive
 
 ## Fan-in: SSE bridging
 
-The SDK's `SemiontClient` owns a local `EventBus`; the HTTP transport bridges wire events into it. `BRIDGED_CHANNELS` in [bridged-channels.ts](../../packages/core/src/bridged-channels.ts) is the set the transport forwards — but it is no longer a hand-list. It is **derived**: every operation's reply channels (result + failure + optional progress) come from the `BUS_OPERATIONS` registry, plus a small hand-list `BRIDGED_BROADCASTS` of the non-request/reply minority (KB-global domain events like `frame:entity-type-added`, UI signals like `beckon:*`, and infra like `bus:resume-gap`). Deriving the reply set from the registry is what makes "a reply channel forgotten from the bridged set" — the recurring silent-timeout bug — unrepresentable.
+The SDK's `SemiontClient` owns a local `EventBus`; the HTTP transport bridges wire events into it. `BRIDGED_CHANNELS` in [bridged-channels.ts](../../packages/core/src/bridged-channels.ts) is the set the transport forwards — but it is no longer a hand-list. It is **derived**: every operation's reply channels (result + failure + optional progress) come from the `BUS_OPERATIONS` registry, plus `bridgedBroadcasts` in the registry — the non-request/reply minority (KB-global domain events like `frame:entity-type-added`, UI signals like `beckon:*`, and infra like `bus:resume-gap`). Deriving the reply set from the registry is what makes "a reply channel forgotten from the bridged set" — the recurring silent-timeout bug — unrepresentable.
+
+### Where the invariants are enforced
+
+Three layers, deliberately, because each catches what the others structurally cannot:
+
+| Layer | Where | Catches |
+|---|---|---|
+| **Source** | [validate-registry.mjs](../../scripts/bus/validate-registry.mjs), run by both generators before they emit | undeclared operation channels, a reply owned by two operations, a non-emittable request, and a reply channel listed in `bridgedBroadcasts` (the double-delivery shape) — reported against the registry line you typed |
+| **Compile time** | `satisfies` clauses in the generated TypeScript | an unknown channel, a missing payload binding, a schema name that isn't in the OpenAPI types |
+| **Test time** | [bus-invariants.test.ts](../../packages/core/src/__tests__/bus-invariants.test.ts) and [bridged_test.go](../../packages/sdk-go/bus/bridged_test.go) | duplicates in the bridged set, the frozen-snapshot equality, bridged ∩ persisted, and — in Go, which has no `satisfies` — the reply-is-bridged and request-is-emittable properties |
+
+The Go tests overlap the TypeScript ones on purpose. Both languages generate from one registry, so today they are a second opinion rather than the only guard; that redundancy is the point, because an artifact checked only against the thing that generated it can agree with a mistake indefinitely.
 
 ```ts
 // HttpTransport, on SSE receive:
@@ -271,7 +283,7 @@ with the registry, naming the command to run.
 The compile-time discipline is strict by design. A new channel requires changes in two places (the registry and the OpenAPI schema), plus an SDK method to call it:
 
 1. **The registry** ([`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)) — add the channel with its payload (`shape` plus the OpenAPI schema name, or `storedEvent` / `void`), and its `validate` entry: the schema the `/bus/emit` route enforces, or `null` for non-validated. Then run `npm run generate:bus`, which writes the `EventMap` and `CHANNEL_SCHEMAS` entries in both languages. The generated `satisfies Record<EventName, ...>` clause still fails the typecheck if the two maps disagree.
-2. **`PERSISTED_EVENT_TYPES`** (only if it's a `StoredEvent` domain event) and, for SSE delivery, the routing: a request/reply operation is declared as an `operations` entry in the **registry** (generated into `BUS_OPERATIONS`) (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is added to **`BRIDGED_BROADCASTS`**. You no longer hand-edit `BRIDGED_CHANNELS` for replies. Each list has its own completeness check, and an equality test pins the derived bridged set.
+2. **`PERSISTED_EVENT_TYPES`** (only if it's a `StoredEvent` domain event) and, for SSE delivery, the routing: a request/reply operation is declared as an `operations` entry in the **registry** (generated into `BUS_OPERATIONS`) (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is added to the registry's **`bridgedBroadcasts.channels`**. You never hand-edit `BRIDGED_CHANNELS` — replies are derived, and broadcasts are registry data. Each list has its own completeness check, an equality test pins the derived bridged set, and `validate-registry.mjs` refuses a broadcast entry that is really an operation's reply.
 
 Then for the OpenAPI schema:
 

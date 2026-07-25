@@ -10,6 +10,7 @@
 // faithful" a demonstration rather than a claim. Run with --check to diff
 // without writing (the CI drift gate).
 
+import { validateRegistry } from './validate-registry.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +23,10 @@ const OPERATIONS = resolve(ROOT, 'packages/core/src/bus-operations.ts');
 
 const CHECK = process.argv.includes('--check');
 const reg = JSON.parse(readFileSync(REGISTRY, 'utf8'));
+
+// Source-level invariants BEFORE anything is emitted: no generated artifact
+// may come from a registry that breaks the bus's cross-list rules.
+validateRegistry(reg);
 const byChannel = new Map(reg.channels.map((c) => [c.channel, c]));
 
 /** Pad `head` out to `col`; a head that overflows gets a single space —

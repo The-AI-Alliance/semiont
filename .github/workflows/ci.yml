@@ -433,14 +433,22 @@ jobs:
       - name: Vet launcher
         run: cd apps/launcher && go vet ./...
 
+      # An EXPLICIT budget. These tests drive a fake runtime through real
+      # start/stop lifecycles, so the suite is minutes long and serial; it had
+      # been running at 594-612s against Go's undeclared 600s default, and the
+      # first batch of new tests to cross that line failed as a "timeout" with
+      # no bad code anywhere. A budget you never declared is not a budget.
       - name: Test launcher
-        run: cd apps/launcher && go test ./...
+        run: cd apps/launcher && go test -timeout 30m ./...
 
       # packages/sdk-go is a separate module (the generated API client + bus
       # registry the launcher consumes via a replace directive) — it needs its
       # own vet/build, or a broken generated file only surfaces downstream.
-      - name: Vet and build sdk-go
-        run: cd packages/sdk-go && go vet ./... && go build ./...
+      # `go test` too: the bus client's wire-contract tests (subscribe before
+      # emit, correlation, failure channels) and the bridged-set invariants
+      # live here, and a build-only step never ran a single one of them.
+      - name: Vet, build and test sdk-go
+        run: cd packages/sdk-go && go vet ./... && go build ./... && go test -timeout 5m ./...
 
       # The launcher's deps are go-toml and packages/sdk-go (whose client
       # pulls oapi-codegen/runtime), plus the Go stdlib compiled into the

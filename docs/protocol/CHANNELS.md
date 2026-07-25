@@ -53,7 +53,7 @@ The authoritative list is `resourceBroadcasts.channels` in [the registry](../../
 
 ## Bridged channels (HTTP transport fan-in)
 
-The set the HTTP transport pushes onto the client's local bus on SSE receive: every operation's reply channels (`-ok` / `-failed` / `-result` / progress) plus the system-wide broadcasts. `BRIDGED_CHANNELS` ([`packages/core/src/bridged-channels.ts`](../../packages/core/src/bridged-channels.ts)) is **derived**, not hand-maintained — the reply channels come from the `BUS_OPERATIONS` registry, plus a small `BRIDGED_BROADCASTS` hand-list for the non-request/reply minority (KB-global domain events, `beckon:*` UI signals, infra). Deriving the reply set is what keeps a reply channel from being silently omitted. Bridged channels are delivered globally and are **disjoint** from the resource-scoped set (see [TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)).
+The set the HTTP transport pushes onto the client's local bus on SSE receive: every operation's reply channels (`-ok` / `-failed` / `-result` / progress) plus the system-wide broadcasts. `BRIDGED_CHANNELS` ([`packages/core/src/bridged-channels.ts`](../../packages/core/src/bridged-channels.ts)) is **derived**, not hand-maintained — the reply channels come from the `BUS_OPERATIONS` registry, plus `bridgedBroadcasts` in [the registry](../../specs/src/bus/registry.json) for the non-request/reply minority (KB-global domain events, `beckon:*` UI signals, infra). Deriving the reply set is what keeps a reply channel from being silently omitted. Bridged channels are delivered globally and are **disjoint** from the resource-scoped set (see [TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)).
 
 In-process transports do the same fan-in via `LocalTransport.bridgeInto(bus)`.
 

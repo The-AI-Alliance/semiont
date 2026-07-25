@@ -141,6 +141,9 @@
       "BeckonSparkleEvent": {
         "$ref": "components/schemas/BeckonSparkleEvent.json"
       },
+      "BindBodyOperation": {
+        "$ref": "components/schemas/BindBodyOperation.json"
+      },
       "BindBodyUpdated": {
         "$ref": "components/schemas/BindBodyUpdated.json"
       },
@@ -347,6 +350,9 @@
       },
       "GatherAnnotationComplete": {
         "$ref": "components/schemas/GatherAnnotationComplete.json"
+      },
+      "GatherAnnotationOptions": {
+        "$ref": "components/schemas/GatherAnnotationOptions.json"
       },
       "GatherAnnotationRequest": {
         "$ref": "components/schemas/GatherAnnotationRequest.json"
@@ -569,6 +575,9 @@
       },
       "ResourceUpdatedPayload": {
         "$ref": "components/schemas/ResourceUpdatedPayload.json"
+      },
+      "ScoredResource": {
+        "$ref": "components/schemas/ScoredResource.json"
       },
       "SelectionData": {
         "$ref": "components/schemas/SelectionData.json"
