@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -156,39 +157,50 @@ func Gather(args []string) int {
 		return 0
 	}
 
-	var env struct {
-		Response json.RawMessage `json:"response"`
+	// GENERATED reply types model the whole envelope (correlationId +
+	// response), so there is no hand-rolled unwrapping — and no chance of
+	// guessing a field name the schema never had.
+	var gathered semiont.GatheredContext
+	if len(positional) == 2 {
+		var r semiont.GatherAnnotationComplete
+		if json.Unmarshal(reply, &r) != nil {
+			return rawFallback(reply)
+		}
+		gathered = r.Response
+	} else {
+		var r semiont.GatherResourceComplete
+		if json.Unmarshal(reply, &r) != nil {
+			return rawFallback(reply)
+		}
+		gathered = r.Response
 	}
-	if json.Unmarshal(reply, &env) != nil || len(env.Response) == 0 {
-		env.Response = reply
+	// `summary` is already the --summary flag; this is the gathered prose.
+	relSummary := ""
+	if gathered.InferredRelationshipSummary != nil {
+		relSummary = *gathered.InferredRelationshipSummary
 	}
-	var ctxDoc struct {
-		Content   string            `json:"content"`
-		Summary   string            `json:"summary"`
-		Resources []json.RawMessage `json:"resources"`
-		Metadata  struct {
-			Language string `json:"language"`
-			Tokens   int    `json:"tokens"`
-		} `json:"metadata"`
+	// Focus is a discriminated union in the schema, not a plain field —
+	// summarize from the metadata the context always carries instead.
+	var bits []string
+	if gathered.Metadata.ResourceType != nil {
+		bits = append(bits, *gathered.Metadata.ResourceType)
 	}
-	if json.Unmarshal(env.Response, &ctxDoc) != nil {
-		return rawFallback(env.Response)
+	if gathered.Metadata.Language != nil {
+		bits = append(bits, *gathered.Metadata.Language)
 	}
-	// A summary, not the payload: the content is LLM input, often huge, and
+	if gathered.Metadata.EntityTypes != nil && len(*gathered.Metadata.EntityTypes) > 0 {
+		bits = append(bits, fmt.Sprintf("%d entity type(s)", len(*gathered.Metadata.EntityTypes)))
+	}
+
+	// A summary, not the payload: the context is LLM input, often huge, and
 	// dumping it into a terminal by default helps nobody. --json is the
 	// pipe-it-somewhere path.
-	if ctxDoc.Summary != "" {
-		fmt.Printf("  %s\n\n", ctxDoc.Summary)
+	if relSummary != "" {
+		fmt.Printf("  %s\n\n", relSummary)
 	}
-	fmt.Printf("  %s\n", u.dim(fmt.Sprintf("%d related resource(s), %d chars of content%s",
-		len(ctxDoc.Resources), len(ctxDoc.Content), tokenNote(ctxDoc.Metadata.Tokens))))
+	if len(bits) > 0 {
+		fmt.Printf("  %s\n", u.dim(strings.Join(bits, " · ")))
+	}
 	fmt.Printf("  %s\n", u.dim("full context: add --json"))
 	return 0
-}
-
-func tokenNote(tokens int) string {
-	if tokens == 0 {
-		return ""
-	}
-	return fmt.Sprintf(", ~%d tokens", tokens)
 }

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -216,17 +217,12 @@ func Mark(args []string) int {
 		fmt.Println(string(reply))
 		return 0
 	}
-	var env struct {
-		AnnotationID string `json:"annotationId"`
-		Response     struct {
-			AnnotationID string `json:"annotationId"`
-		} `json:"response"`
+	var ok2 semiont.MarkCreateOk
+	if json.Unmarshal(reply, &ok2) != nil {
+		u.ok("Marked %s %s", resourceID, u.dim("("+motivation+")"))
+		return 0
 	}
-	_ = json.Unmarshal(reply, &env)
-	id := env.AnnotationID
-	if id == "" {
-		id = env.Response.AnnotationID
-	}
+	id := ok2.Response.AnnotationId
 	if id == "" {
 		u.ok("Marked %s %s", resourceID, u.dim("("+motivation+")"))
 		return 0

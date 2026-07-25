@@ -5191,8 +5191,8 @@ func busScenario(t *testing.T, env ...string) *scenario {
 
 func TestBrowseListsResources(t *testing.T) {
 	s := busScenario(t, `FAKERT_BUS_REPLY_browse_resources_requested={"resources":[`+
-		`{"id":"res-1","name":"Letter","entityTypes":["Letter"]},`+
-		`{"id":"res-2","name":"Email","entityTypes":[]}],"total":2}`)
+		`{"@id":"res-1","name":"Letter","entityTypes":["Letter"]},`+
+		`{"@id":"res-2","name":"Email","entityTypes":[]}],"total":2}`)
 	stdout, stderr, code := s.run(t, "browse", "--limit", "5")
 	if code != 0 {
 		t.Fatalf("browse: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -5239,16 +5239,21 @@ func TestBrowseWithoutSessionAdvisesLogin(t *testing.T) {
 }
 
 func TestGatherResourceSummarizes(t *testing.T) {
+	// The REAL GatheredContext shape (schema-defined): metadata +
+	// inferredRelationshipSummary, not the content/summary/resources fields
+	// an earlier version of this test invented.
 	s := busScenario(t, `FAKERT_BUS_REPLY_gather_resource_requested=`+
-		`{"content":"some gathered content","summary":"A letter about X","resources":[{},{}],"metadata":{"tokens":1234}}`)
+		`{"inferredRelationshipSummary":"A letter about X",`+
+		`"metadata":{"resourceType":"Letter","language":"en","entityTypes":["Letter","Contract"]},`+
+		`"focus":{"kind":"resource"},"graph":{}}`)
 	stdout, stderr, code := s.run(t, "gather", "res-1")
 	if code != 0 {
 		t.Fatalf("gather: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	// A summary, not the payload: context is LLM input and can be huge.
-	mustContain(t, "summary", stdout, "A letter about X", "2 related resource(s)", "~1234 tokens", "--json")
-	if strings.Contains(stdout, "some gathered content") {
-		t.Error("gather dumped the full content into the terminal; that is what --json is for")
+	mustContain(t, "summary", stdout, "A letter about X", "Letter", "en", "2 entity type(s)", "--json")
+	if strings.Contains(stdout, `"graph"`) {
+		t.Errorf("gather dumped raw JSON — it could not parse the real reply:\n%s", stdout)
 	}
 	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
 	mustContain(t, "emit", string(b), `"channel":"gather:resource-requested"`, `"resourceId":"res-1"`, `"includeContent":true`)
@@ -5343,8 +5348,8 @@ func TestMatchGathersThenSearches(t *testing.T) {
 		// guess — so it passed against code that could not parse a real
 		// reply. A fake that encodes an assumption tests the assumption.
 		`FAKERT_BUS_REPLY_match_search_requested=[`+
-			`{"id":"res-7","name":"Acme MSA","score":0.91,"matchReason":"title match"},`+
-			`{"id":"res-8","name":"Side Letter","score":0.44}]`)
+			`{"@id":"res-7","name":"Acme MSA","score":0.91,"matchReason":"title match"},`+
+			`{"@id":"res-8","name":"Side Letter","score":0.44}]`)
 	stdout, stderr, code := s.run(t, "match", "res-1", "ann-1", "--limit", "5")
 	if code != 0 {
 		t.Fatalf("match: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -5353,10 +5358,10 @@ func TestMatchGathersThenSearches(t *testing.T) {
 	// Rendered as a table, not dumped: a raw-JSON fallback would mean the
 	// parser did not understand the reply — which is how the first version of
 	// this verb "passed" while guessing the payload shape.
-	if strings.Contains(stdout, `"id":"res-7"`) {
+	if strings.Contains(stdout, `"@id":"res-7"`) {
 		t.Errorf("match fell back to raw JSON — it could not parse the real reply:\n%s", stdout)
 	}
-	if strings.Contains(stdout, `"id":"res-7"`) {
+	if strings.Contains(stdout, `"@id":"res-7"`) {
 		t.Error("match fell back to dumping raw JSON — it could not parse the real reply shape")
 	}
 	// The LAST emit is the search, carrying the gathered context and our flags.

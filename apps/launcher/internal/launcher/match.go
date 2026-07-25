@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -136,18 +137,11 @@ func Match(args []string) int {
 		return 0
 	}
 
-	// MatchSearchResult.response is the scored candidate LIST itself — there
-	// is no wrapper object around it (the emitter is
-	// packages/make-meaning/src/matcher.ts; the schema now says so
-	// explicitly, and ScoredResource names the item type).
-	var results struct {
-		Response []struct {
-			ID          string  `json:"id"`
-			Name        string  `json:"name"`
-			Score       float64 `json:"score"`
-			MatchReason string  `json:"matchReason"`
-		} `json:"response"`
-	}
+	// Parsed with the GENERATED type, not a hand-rolled struct: resources
+	// are JSON-LD (`@id`, not `id`), and hand-rolling that field name was
+	// exactly how this verb shipped printing blank identifiers. The schema
+	// owns the shape; Go should read it from there.
+	var results semiont.MatchSearchResult
 	if json.Unmarshal(reply, &results) != nil {
 		return rawFallback(reply)
 	}
@@ -158,13 +152,13 @@ func Match(args []string) int {
 	}
 	for _, r := range rows {
 		trailer := ""
-		if r.Score != 0 {
-			trailer = fmt.Sprintf("%.3f", r.Score)
+		if r.Score != nil {
+			trailer = fmt.Sprintf("%.3f", *r.Score)
 		}
-		if r.MatchReason != "" {
-			trailer = strings.TrimSpace(trailer + "  " + r.MatchReason)
+		if r.MatchReason != nil && *r.MatchReason != "" {
+			trailer = strings.TrimSpace(trailer + "  " + *r.MatchReason)
 		}
-		fmt.Printf("  %-28s %-40s %s\n", r.ID, r.Name, u.dim(trailer))
+		fmt.Printf("  %-28s %-40s %s\n", r.Id, r.Name, u.dim(trailer))
 	}
 	fmt.Printf("\n  %s\n", u.dim(fmt.Sprintf("%d candidate(s) — bind one with: semiont bind %s %s <resourceId>",
 		len(rows), resourceID, annotationID)))

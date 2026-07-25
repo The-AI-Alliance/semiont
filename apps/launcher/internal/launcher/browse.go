@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -190,14 +191,11 @@ func renderBrowse(u *ui, op bus.Channel, reply json.RawMessage) int {
 	}
 	switch op {
 	case "browse:resources-requested":
-		var r struct {
-			Resources []struct {
-				ID          string   `json:"id"`
-				Name        string   `json:"name"`
-				EntityTypes []string `json:"entityTypes"`
-			} `json:"resources"`
-			Total int `json:"total"`
-		}
+		// GENERATED type, not hand-rolled: resources are JSON-LD and carry
+		// `@id`. Hand-writing `id` here printed an empty column against real
+		// data while the tests — whose fakes shared the same mistake —
+		// passed.
+		var r semiont.ListResourcesResponse
 		if err := json.Unmarshal(env.Response, &r); err != nil {
 			return rawFallback(env.Response)
 		}
@@ -207,58 +205,45 @@ func renderBrowse(u *ui, op bus.Channel, reply json.RawMessage) int {
 		}
 		for _, res := range r.Resources {
 			types := ""
-			if len(res.EntityTypes) > 0 {
-				types = u.dim("(" + strings.Join(res.EntityTypes, ", ") + ")")
+			if res.EntityTypes != nil && len(*res.EntityTypes) > 0 {
+				types = u.dim("(" + strings.Join(*res.EntityTypes, ", ") + ")")
 			}
-			fmt.Printf("  %-28s %s %s\n", res.ID, res.Name, types)
+			fmt.Printf("  %-28s %s %s\n", res.Id, res.Name, types)
 		}
-		fmt.Printf("\n  %s\n", u.dim(fmt.Sprintf("%d shown, %d total", len(r.Resources), r.Total)))
+		fmt.Printf("\n  %s\n", u.dim(fmt.Sprintf("%d shown, %d total", len(r.Resources), int(r.Total))))
 	case "browse:resource-requested":
-		var r struct {
-			Resource struct {
-				ID          string   `json:"id"`
-				Name        string   `json:"name"`
-				EntityTypes []string `json:"entityTypes"`
-			} `json:"resource"`
-			Annotations []json.RawMessage `json:"annotations"`
-		}
+		var r semiont.GetResourceResponse
 		if err := json.Unmarshal(env.Response, &r); err != nil {
 			return rawFallback(env.Response)
 		}
-		fmt.Printf("  %s  %s\n", u.bold(r.Resource.Name), u.dim(r.Resource.ID))
-		if len(r.Resource.EntityTypes) > 0 {
-			fmt.Printf("  %s\n", u.dim("entity types: "+strings.Join(r.Resource.EntityTypes, ", ")))
+		fmt.Printf("  %s  %s\n", u.bold(r.Resource.Name), u.dim(r.Resource.Id))
+		if r.Resource.EntityTypes != nil && len(*r.Resource.EntityTypes) > 0 {
+			fmt.Printf("  %s\n", u.dim("entity types: "+strings.Join(*r.Resource.EntityTypes, ", ")))
 		}
 		fmt.Printf("  %s\n", u.dim(fmt.Sprintf("%d annotation(s)", len(r.Annotations))))
 	case "browse:annotations-requested":
-		var r struct {
-			Annotations []struct {
-				ID   string `json:"id"`
-				Type string `json:"type"`
-			} `json:"annotations"`
-		}
-		if err := json.Unmarshal(env.Response, &r); err != nil {
+		var r semiont.BrowseAnnotationsResult
+		if err := json.Unmarshal(reply, &r); err != nil {
 			return rawFallback(env.Response)
 		}
-		if len(r.Annotations) == 0 {
+		if len(r.Response.Annotations) == 0 {
 			u.log("No annotations on that resource.")
 			return 0
 		}
-		for _, a := range r.Annotations {
-			fmt.Printf("  %-28s %s\n", a.ID, u.dim(a.Type))
+		for _, a := range r.Response.Annotations {
+			fmt.Printf("  %-28s %s\n", a.Id, u.dim(string(a.Motivation)))
 		}
+		fmt.Printf("\n  %s\n", u.dim(fmt.Sprintf("%d of %d", len(r.Response.Annotations), int(r.Response.Total))))
 	case "browse:entity-types-requested":
-		var r struct {
-			EntityTypes []string `json:"entityTypes"`
-		}
-		if err := json.Unmarshal(env.Response, &r); err != nil {
+		var r semiont.BrowseEntityTypesResult
+		if err := json.Unmarshal(reply, &r); err != nil {
 			return rawFallback(env.Response)
 		}
-		if len(r.EntityTypes) == 0 {
+		if len(r.Response.EntityTypes) == 0 {
 			u.log("This KB declares no entity types yet.")
 			return 0
 		}
-		for _, e := range r.EntityTypes {
+		for _, e := range r.Response.EntityTypes {
 			fmt.Printf("  %s\n", e)
 		}
 	default:
