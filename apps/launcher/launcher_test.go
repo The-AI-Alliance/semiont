@@ -5338,13 +5338,27 @@ func TestMatchGathersThenSearches(t *testing.T) {
 	// gather must precede it — not an optimization, a precondition.
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_requested={"content":"surrounding text"}`,
-		`FAKERT_BUS_REPLY_match_search_requested={"candidates":[`+
-			`{"id":"res-7","name":"Acme MSA","score":0.91},{"id":"res-8","name":"Side Letter","score":0.44}]}`)
+		// The REAL shape: MatchSearchResult.response IS the candidate list.
+		// The first version of this test scripted {"candidates":[…]} — my
+		// guess — so it passed against code that could not parse a real
+		// reply. A fake that encodes an assumption tests the assumption.
+		`FAKERT_BUS_REPLY_match_search_requested=[`+
+			`{"id":"res-7","name":"Acme MSA","score":0.91,"matchReason":"title match"},`+
+			`{"id":"res-8","name":"Side Letter","score":0.44}]`)
 	stdout, stderr, code := s.run(t, "match", "res-1", "ann-1", "--limit", "5")
 	if code != 0 {
 		t.Fatalf("match: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "res-7", "Acme MSA", "0.910", "2 candidate(s)", "semiont bind res-1 ann-1")
+	mustContain(t, "stdout", stdout, "res-7", "Acme MSA", "0.910", "title match", "2 candidate(s)", "semiont bind res-1 ann-1")
+	// Rendered as a table, not dumped: a raw-JSON fallback would mean the
+	// parser did not understand the reply — which is how the first version of
+	// this verb "passed" while guessing the payload shape.
+	if strings.Contains(stdout, `"id":"res-7"`) {
+		t.Errorf("match fell back to raw JSON — it could not parse the real reply:\n%s", stdout)
+	}
+	if strings.Contains(stdout, `"id":"res-7"`) {
+		t.Error("match fell back to dumping raw JSON — it could not parse the real reply shape")
+	}
 	// The LAST emit is the search, carrying the gathered context and our flags.
 	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
 	mustContain(t, "search emit", string(b),

@@ -10,24 +10,8 @@
     },
     "response": {
       "type": "array",
-      "items": {
-        "allOf": [
-          { "$ref": "ResourceDescriptor.json" },
-          {
-            "type": "object",
-            "properties": {
-              "score": {
-                "type": "number",
-                "description": "Relevance score"
-              },
-              "matchReason": {
-                "type": "string",
-                "description": "Human-readable reason for the match"
-              }
-            }
-          }
-        ]
-      }
+      "description": "The scored candidates, best first. This IS the result list — there is no wrapper object with a `candidates` or `resources` key around it.",
+      "items": { "$ref": "ScoredResource.json" }
     }
   },
   "required": ["correlationId", "referenceId", "response"]

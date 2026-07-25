@@ -389,13 +389,20 @@ jobs:
       - name: OpenAPI spec vs generated Go client
         run: |
           go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
-            -generate types,client -package semiont \
+            -generate types,client,skip-prune -package semiont \
             -o /tmp/client_gen.check.go specs/openapi.json
           if ! diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go; then
             echo "::error::packages/sdk-go/client_gen.go is stale — run: cd packages/sdk-go && go generate ./..."
             exit 1
           fi
           echo "sdk-go client matches the spec"
+
+      # The drift check above is SELF-CONSISTENT: same command both sides, so
+      # a generation command that drops schemas passes it forever. This is the
+      # independent oracle — spec says N schemas, Go must have N. (It was the
+      # absence of this check that let ~150 pruned schemas sit unnoticed.)
+      - name: Generated Go client covers every schema
+        run: node scripts/ci/check-go-schema-coverage.mjs
 
   test-launcher:
     name: Launcher Tests (Go)

@@ -52,6 +52,72 @@ func (e AnnotationType) Valid() bool {
 	}
 }
 
+// Defines values for BindUpdateBodyCommandOperationsOp.
+const (
+	BindUpdateBodyCommandOperationsOpAdd     BindUpdateBodyCommandOperationsOp = "add"
+	BindUpdateBodyCommandOperationsOpRemove  BindUpdateBodyCommandOperationsOp = "remove"
+	BindUpdateBodyCommandOperationsOpReplace BindUpdateBodyCommandOperationsOp = "replace"
+)
+
+// Valid indicates whether the value is a known member of the BindUpdateBodyCommandOperationsOp enum.
+func (e BindUpdateBodyCommandOperationsOp) Valid() bool {
+	switch e {
+	case BindUpdateBodyCommandOperationsOpAdd:
+		return true
+	case BindUpdateBodyCommandOperationsOpRemove:
+		return true
+	case BindUpdateBodyCommandOperationsOpReplace:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BodyOperationAddOp.
+const (
+	BodyOperationAddOpAdd BodyOperationAddOp = "add"
+)
+
+// Valid indicates whether the value is a known member of the BodyOperationAddOp enum.
+func (e BodyOperationAddOp) Valid() bool {
+	switch e {
+	case BodyOperationAddOpAdd:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BodyOperationRemoveOp.
+const (
+	Remove BodyOperationRemoveOp = "remove"
+)
+
+// Valid indicates whether the value is a known member of the BodyOperationRemoveOp enum.
+func (e BodyOperationRemoveOp) Valid() bool {
+	switch e {
+	case Remove:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BodyOperationReplaceOp.
+const (
+	Replace BodyOperationReplaceOp = "replace"
+)
+
+// Valid indicates whether the value is a known member of the BodyOperationReplaceOp enum.
+func (e BodyOperationReplaceOp) Valid() bool {
+	switch e {
+	case Replace:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BodyPurpose.
 const (
 	BodyPurposeAssessing    BodyPurpose = "assessing"
@@ -103,6 +169,27 @@ func (e BodyPurpose) Valid() bool {
 	}
 }
 
+// Defines values for BrowseDirectoryRequestSort.
+const (
+	AnnotationCount BrowseDirectoryRequestSort = "annotationCount"
+	Mtime           BrowseDirectoryRequestSort = "mtime"
+	Name            BrowseDirectoryRequestSort = "name"
+)
+
+// Valid indicates whether the value is a known member of the BrowseDirectoryRequestSort enum.
+func (e BrowseDirectoryRequestSort) Valid() bool {
+	switch e {
+	case AnnotationCount:
+		return true
+	case Mtime:
+		return true
+	case Name:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CookieConsentNecessary.
 const (
 	CookieConsentNecessaryTrue CookieConsentNecessary = true
@@ -133,6 +220,69 @@ func (e CookieConsentRequestNecessary) Valid() bool {
 	}
 }
 
+// Defines values for DirEntryType.
+const (
+	Dir DirEntryType = "dir"
+)
+
+// Valid indicates whether the value is a known member of the DirEntryType enum.
+func (e DirEntryType) Valid() bool {
+	switch e {
+	case Dir:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DiscoveredKBPlacement.
+const (
+	Codespace DiscoveredKBPlacement = "codespace"
+	Local     DiscoveredKBPlacement = "local"
+)
+
+// Valid indicates whether the value is a known member of the DiscoveredKBPlacement enum.
+func (e DiscoveredKBPlacement) Valid() bool {
+	switch e {
+	case Codespace:
+		return true
+	case Local:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DiscoveryDocumentVersion.
+const (
+	N1 DiscoveryDocumentVersion = 1
+)
+
+// Valid indicates whether the value is a known member of the DiscoveryDocumentVersion enum.
+func (e DiscoveryDocumentVersion) Valid() bool {
+	switch e {
+	case N1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FileEntryType.
+const (
+	File FileEntryType = "file"
+)
+
+// Valid indicates whether the value is a known member of the FileEntryType enum.
+func (e FileEntryType) Valid() bool {
+	switch e {
+	case File:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FragmentSelectorType.
 const (
 	FragmentSelectorTypeFragmentSelector FragmentSelectorType = "FragmentSelector"
@@ -142,6 +292,36 @@ const (
 func (e FragmentSelectorType) Valid() bool {
 	switch e {
 	case FragmentSelectorTypeFragmentSelector:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GatheredContextFocus0Kind.
+const (
+	GatheredContextFocus0KindAnnotation GatheredContextFocus0Kind = "annotation"
+)
+
+// Valid indicates whether the value is a known member of the GatheredContextFocus0Kind enum.
+func (e GatheredContextFocus0Kind) Valid() bool {
+	switch e {
+	case GatheredContextFocus0KindAnnotation:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GatheredContextFocus1Kind.
+const (
+	GatheredContextFocus1KindResource GatheredContextFocus1Kind = "resource"
+)
+
+// Valid indicates whether the value is a known member of the GatheredContextFocus1Kind enum.
+func (e GatheredContextFocus1Kind) Valid() bool {
+	switch e {
+	case GatheredContextFocus1KindResource:
 		return true
 	default:
 		return false
@@ -163,6 +343,135 @@ func (e HealthResponseDatabase) Valid() bool {
 	case Disconnected:
 		return true
 	case Unknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobCancelRequestJobType.
+const (
+	JobCancelRequestJobTypeAnnotation JobCancelRequestJobType = "annotation"
+	JobCancelRequestJobTypeGeneration JobCancelRequestJobType = "generation"
+)
+
+// Valid indicates whether the value is a known member of the JobCancelRequestJobType enum.
+func (e JobCancelRequestJobType) Valid() bool {
+	switch e {
+	case JobCancelRequestJobTypeAnnotation:
+		return true
+	case JobCancelRequestJobTypeGeneration:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobStatusResponseStatus.
+const (
+	Cancelled JobStatusResponseStatus = "cancelled"
+	Complete  JobStatusResponseStatus = "complete"
+	Failed    JobStatusResponseStatus = "failed"
+	Pending   JobStatusResponseStatus = "pending"
+	Running   JobStatusResponseStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the JobStatusResponseStatus enum.
+func (e JobStatusResponseStatus) Valid() bool {
+	switch e {
+	case Cancelled:
+		return true
+	case Complete:
+		return true
+	case Failed:
+		return true
+	case Pending:
+		return true
+	case Running:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobType.
+const (
+	JobTypeAssessmentAnnotation JobType = "assessment-annotation"
+	JobTypeCommentAnnotation    JobType = "comment-annotation"
+	JobTypeGeneration           JobType = "generation"
+	JobTypeHighlightAnnotation  JobType = "highlight-annotation"
+	JobTypeReferenceAnnotation  JobType = "reference-annotation"
+	JobTypeTagAnnotation        JobType = "tag-annotation"
+)
+
+// Valid indicates whether the value is a known member of the JobType enum.
+func (e JobType) Valid() bool {
+	switch e {
+	case JobTypeAssessmentAnnotation:
+		return true
+	case JobTypeCommentAnnotation:
+		return true
+	case JobTypeGeneration:
+		return true
+	case JobTypeHighlightAnnotation:
+		return true
+	case JobTypeReferenceAnnotation:
+		return true
+	case JobTypeTagAnnotation:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for KnowledgeGraphNodesType.
+const (
+	KnowledgeGraphNodesTypeAnnotation KnowledgeGraphNodesType = "annotation"
+	KnowledgeGraphNodesTypeResource   KnowledgeGraphNodesType = "resource"
+)
+
+// Valid indicates whether the value is a known member of the KnowledgeGraphNodesType enum.
+func (e KnowledgeGraphNodesType) Valid() bool {
+	switch e {
+	case KnowledgeGraphNodesTypeAnnotation:
+		return true
+	case KnowledgeGraphNodesTypeResource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MarkAssistRequestEventOptionsTone.
+const (
+	Analytical     MarkAssistRequestEventOptionsTone = "analytical"
+	Balanced       MarkAssistRequestEventOptionsTone = "balanced"
+	Constructive   MarkAssistRequestEventOptionsTone = "constructive"
+	Conversational MarkAssistRequestEventOptionsTone = "conversational"
+	Critical       MarkAssistRequestEventOptionsTone = "critical"
+	Explanatory    MarkAssistRequestEventOptionsTone = "explanatory"
+	Scholarly      MarkAssistRequestEventOptionsTone = "scholarly"
+	Technical      MarkAssistRequestEventOptionsTone = "technical"
+)
+
+// Valid indicates whether the value is a known member of the MarkAssistRequestEventOptionsTone enum.
+func (e MarkAssistRequestEventOptionsTone) Valid() bool {
+	switch e {
+	case Analytical:
+		return true
+	case Balanced:
+		return true
+	case Constructive:
+		return true
+	case Conversational:
+		return true
+	case Critical:
+		return true
+	case Explanatory:
+		return true
+	case Scholarly:
+		return true
+	case Technical:
 		return true
 	default:
 		return false
@@ -226,6 +535,27 @@ func (e RepresentationRel) Valid() bool {
 	}
 }
 
+// Defines values for SettingsThemeChangedEventTheme.
+const (
+	Dark   SettingsThemeChangedEventTheme = "dark"
+	Light  SettingsThemeChangedEventTheme = "light"
+	System SettingsThemeChangedEventTheme = "system"
+)
+
+// Valid indicates whether the value is a known member of the SettingsThemeChangedEventTheme enum.
+func (e SettingsThemeChangedEventTheme) Valid() bool {
+	switch e {
+	case Dark:
+		return true
+	case Light:
+		return true
+	case System:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SpecificResourceType.
 const (
 	SpecificResourceTypeSpecificResource SpecificResourceType = "SpecificResource"
@@ -235,6 +565,207 @@ const (
 func (e SpecificResourceType) Valid() bool {
 	switch e {
 	case SpecificResourceTypeSpecificResource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SupportedMediaType.
+const (
+	Applicationgzip                                                      SupportedMediaType = "application/gzip"
+	Applicationjavascript                                                SupportedMediaType = "application/javascript"
+	Applicationjson                                                      SupportedMediaType = "application/json"
+	Applicationmsword                                                    SupportedMediaType = "application/msword"
+	ApplicationoctetStream                                               SupportedMediaType = "application/octet-stream"
+	Applicationpdf                                                       SupportedMediaType = "application/pdf"
+	Applicationtypescript                                                SupportedMediaType = "application/typescript"
+	ApplicationvndMsExcel                                                SupportedMediaType = "application/vnd.ms-excel"
+	ApplicationvndMsPowerpoint                                           SupportedMediaType = "application/vnd.ms-powerpoint"
+	ApplicationvndOpenxmlformatsOfficedocumentPresentationmlPresentation SupportedMediaType = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	ApplicationvndOpenxmlformatsOfficedocumentSpreadsheetmlSheet         SupportedMediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	ApplicationvndOpenxmlformatsOfficedocumentWordprocessingmlDocument   SupportedMediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	Applicationwasm                                                      SupportedMediaType = "application/wasm"
+	Applicationx7zCompressed                                             SupportedMediaType = "application/x-7z-compressed"
+	ApplicationxTar                                                      SupportedMediaType = "application/x-tar"
+	ApplicationxYaml                                                     SupportedMediaType = "application/x-yaml"
+	Applicationxml                                                       SupportedMediaType = "application/xml"
+	Applicationyaml                                                      SupportedMediaType = "application/yaml"
+	Applicationzip                                                       SupportedMediaType = "application/zip"
+	Audioaac                                                             SupportedMediaType = "audio/aac"
+	Audioflac                                                            SupportedMediaType = "audio/flac"
+	Audiompeg                                                            SupportedMediaType = "audio/mpeg"
+	Audioogg                                                             SupportedMediaType = "audio/ogg"
+	Audiowav                                                             SupportedMediaType = "audio/wav"
+	Audiowebm                                                            SupportedMediaType = "audio/webm"
+	Fontotf                                                              SupportedMediaType = "font/otf"
+	Fontttf                                                              SupportedMediaType = "font/ttf"
+	Fontwoff                                                             SupportedMediaType = "font/woff"
+	Fontwoff2                                                            SupportedMediaType = "font/woff2"
+	Imagebmp                                                             SupportedMediaType = "image/bmp"
+	Imagegif                                                             SupportedMediaType = "image/gif"
+	Imagejpeg                                                            SupportedMediaType = "image/jpeg"
+	Imagepng                                                             SupportedMediaType = "image/png"
+	ImagesvgXml                                                          SupportedMediaType = "image/svg+xml"
+	Imagetiff                                                            SupportedMediaType = "image/tiff"
+	Imagewebp                                                            SupportedMediaType = "image/webp"
+	ImagexIcon                                                           SupportedMediaType = "image/x-icon"
+	Textcss                                                              SupportedMediaType = "text/css"
+	Textcsv                                                              SupportedMediaType = "text/csv"
+	Texthtml                                                             SupportedMediaType = "text/html"
+	Textjavascript                                                       SupportedMediaType = "text/javascript"
+	Textmarkdown                                                         SupportedMediaType = "text/markdown"
+	Textplain                                                            SupportedMediaType = "text/plain"
+	TextxC                                                               SupportedMediaType = "text/x-c"
+	TextxC1                                                              SupportedMediaType = "text/x-c++"
+	TextxCsharp                                                          SupportedMediaType = "text/x-csharp"
+	TextxGo                                                              SupportedMediaType = "text/x-go"
+	TextxJava                                                            SupportedMediaType = "text/x-java"
+	TextxKotlin                                                          SupportedMediaType = "text/x-kotlin"
+	TextxPhp                                                             SupportedMediaType = "text/x-php"
+	TextxPython                                                          SupportedMediaType = "text/x-python"
+	TextxRuby                                                            SupportedMediaType = "text/x-ruby"
+	TextxRust                                                            SupportedMediaType = "text/x-rust"
+	TextxShell                                                           SupportedMediaType = "text/x-shell"
+	TextxSwift                                                           SupportedMediaType = "text/x-swift"
+	TextxTypescript                                                      SupportedMediaType = "text/x-typescript"
+	Textxml                                                              SupportedMediaType = "text/xml"
+	Videomp4                                                             SupportedMediaType = "video/mp4"
+	Videompeg                                                            SupportedMediaType = "video/mpeg"
+	Videoogg                                                             SupportedMediaType = "video/ogg"
+	Videoquicktime                                                       SupportedMediaType = "video/quicktime"
+	Videowebm                                                            SupportedMediaType = "video/webm"
+	VideoxMsvideo                                                        SupportedMediaType = "video/x-msvideo"
+)
+
+// Valid indicates whether the value is a known member of the SupportedMediaType enum.
+func (e SupportedMediaType) Valid() bool {
+	switch e {
+	case Applicationgzip:
+		return true
+	case Applicationjavascript:
+		return true
+	case Applicationjson:
+		return true
+	case Applicationmsword:
+		return true
+	case ApplicationoctetStream:
+		return true
+	case Applicationpdf:
+		return true
+	case Applicationtypescript:
+		return true
+	case ApplicationvndMsExcel:
+		return true
+	case ApplicationvndMsPowerpoint:
+		return true
+	case ApplicationvndOpenxmlformatsOfficedocumentPresentationmlPresentation:
+		return true
+	case ApplicationvndOpenxmlformatsOfficedocumentSpreadsheetmlSheet:
+		return true
+	case ApplicationvndOpenxmlformatsOfficedocumentWordprocessingmlDocument:
+		return true
+	case Applicationwasm:
+		return true
+	case Applicationx7zCompressed:
+		return true
+	case ApplicationxTar:
+		return true
+	case ApplicationxYaml:
+		return true
+	case Applicationxml:
+		return true
+	case Applicationyaml:
+		return true
+	case Applicationzip:
+		return true
+	case Audioaac:
+		return true
+	case Audioflac:
+		return true
+	case Audiompeg:
+		return true
+	case Audioogg:
+		return true
+	case Audiowav:
+		return true
+	case Audiowebm:
+		return true
+	case Fontotf:
+		return true
+	case Fontttf:
+		return true
+	case Fontwoff:
+		return true
+	case Fontwoff2:
+		return true
+	case Imagebmp:
+		return true
+	case Imagegif:
+		return true
+	case Imagejpeg:
+		return true
+	case Imagepng:
+		return true
+	case ImagesvgXml:
+		return true
+	case Imagetiff:
+		return true
+	case Imagewebp:
+		return true
+	case ImagexIcon:
+		return true
+	case Textcss:
+		return true
+	case Textcsv:
+		return true
+	case Texthtml:
+		return true
+	case Textjavascript:
+		return true
+	case Textmarkdown:
+		return true
+	case Textplain:
+		return true
+	case TextxC:
+		return true
+	case TextxC1:
+		return true
+	case TextxCsharp:
+		return true
+	case TextxGo:
+		return true
+	case TextxJava:
+		return true
+	case TextxKotlin:
+		return true
+	case TextxPhp:
+		return true
+	case TextxPython:
+		return true
+	case TextxRuby:
+		return true
+	case TextxRust:
+		return true
+	case TextxShell:
+		return true
+	case TextxSwift:
+		return true
+	case TextxTypescript:
+		return true
+	case Textxml:
+		return true
+	case Videomp4:
+		return true
+	case Videompeg:
+		return true
+	case Videoogg:
+		return true
+	case Videoquicktime:
+		return true
+	case Videowebm:
+		return true
+	case VideoxMsvideo:
 		return true
 	default:
 		return false
@@ -481,9 +1012,46 @@ type Annotation_WasAttributedTo struct {
 	union json.RawMessage
 }
 
+// AnnotationAddedPayload Payload for mark:added domain event
+type AnnotationAddedPayload struct {
+	Annotation Annotation `json:"annotation"`
+
+	// ContentChecksum SHA-256 of resource content at annotation time
+	ContentChecksum *string `json:"contentChecksum,omitempty"`
+}
+
 // AnnotationBody Phase 2: Body can be TextualBody (for entity tags, descriptions) or SpecificResource (for links)
 type AnnotationBody struct {
 	union json.RawMessage
+}
+
+// AnnotationBodyUpdatedPayload Payload for mark:body-updated domain event
+type AnnotationBodyUpdatedPayload struct {
+	AnnotationId string                                         `json:"annotationId"`
+	Operations   []AnnotationBodyUpdatedPayload_Operations_Item `json:"operations"`
+}
+
+// AnnotationBodyUpdatedPayload_Operations_Item defines model for AnnotationBodyUpdatedPayload.operations.Item.
+type AnnotationBodyUpdatedPayload_Operations_Item struct {
+	union json.RawMessage
+}
+
+// AnnotationContextResponse defines model for AnnotationContextResponse.
+type AnnotationContextResponse struct {
+	Annotation Annotation `json:"annotation"`
+	Context    struct {
+		After    *string `json:"after,omitempty"`
+		Before   *string `json:"before,omitempty"`
+		Selected string  `json:"selected"`
+	} `json:"context"`
+
+	// Resource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
+	Resource ResourceDescriptor `json:"resource"`
+}
+
+// AnnotationRemovedPayload Payload for mark:removed domain event
+type AnnotationRemovedPayload struct {
+	AnnotationId string `json:"annotationId"`
 }
 
 // AnnotationTarget W3C Web Annotation target object - source is required, selector is optional
@@ -528,8 +1096,351 @@ type AuthResponse struct {
 	} `json:"user"`
 }
 
+// BeckonFocusEvent Emitted when an annotation receives focus for beckoning
+type BeckonFocusEvent struct {
+	AnnotationId *string `json:"annotationId,omitempty"`
+	ResourceId   *string `json:"resourceId,omitempty"`
+}
+
+// BeckonHoverEvent Emitted when an annotation is hovered over for beckoning
+type BeckonHoverEvent struct {
+	AnnotationId *string `json:"annotationId"`
+}
+
+// BeckonSparkleEvent Emitted when a sparkle effect is triggered on an annotation
+type BeckonSparkleEvent struct {
+	AnnotationId string `json:"annotationId"`
+}
+
+// BindBodyUpdated Void success reply emitted on the bind:body-updated channel after bind:update-body has been applied, matched to the originating command by correlationId.
+type BindBodyUpdated struct {
+	// CorrelationId Correlation id echoed from the originating bind:update-body command so busRequest can match the reply.
+	CorrelationId string `json:"correlationId"`
+}
+
+// BindInitiateCommand Command payload sent on the bind:initiate bus channel to start a bind flow.
+type BindInitiateCommand struct {
+	// AnnotationId Branded AnnotationId of the annotation being bound
+	AnnotationId string `json:"annotationId"`
+
+	// DefaultTitle Default title for the bound annotation
+	DefaultTitle string `json:"defaultTitle"`
+
+	// EntityTypes Entity types to associate with the annotation
+	EntityTypes []string `json:"entityTypes"`
+
+	// ResourceId Branded ResourceId of the resource being bound to
+	ResourceId string `json:"resourceId"`
+}
+
+// BindUpdateBodyCommand Command payload sent on the bind:update-body bus channel to modify annotation bodies.
+type BindUpdateBodyCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// AnnotationId Branded AnnotationId of the annotation whose body is being updated
+	AnnotationId string `json:"annotationId"`
+
+	// CorrelationId Client-supplied id used to match this command to its result event(s) on the events-stream. Generated by the route handler if absent.
+	CorrelationId string `json:"correlationId"`
+
+	// Operations List of body mutation operations to apply
+	Operations []struct {
+		// Item Phase 2: Body can be TextualBody (for entity tags, descriptions) or SpecificResource (for links)
+		Item *AnnotationBody `json:"item,omitempty"`
+
+		// NewItem Phase 2: Body can be TextualBody (for entity tags, descriptions) or SpecificResource (for links)
+		NewItem *AnnotationBody `json:"newItem,omitempty"`
+
+		// OldItem Phase 2: Body can be TextualBody (for entity tags, descriptions) or SpecificResource (for links)
+		OldItem *AnnotationBody `json:"oldItem,omitempty"`
+
+		// Op The type of body operation
+		Op BindUpdateBodyCommandOperationsOp `json:"op"`
+	} `json:"operations"`
+
+	// ResourceId Branded ResourceId of the resource the annotation belongs to
+	ResourceId string `json:"resourceId"`
+}
+
+// BindUpdateBodyCommandOperationsOp The type of body operation
+type BindUpdateBodyCommandOperationsOp string
+
+// BodyOperationAdd defines model for BodyOperationAdd.
+type BodyOperationAdd struct {
+	Item BodyOperationAdd_Item `json:"item"`
+	Op   BodyOperationAddOp    `json:"op"`
+}
+
+// BodyOperationAdd_Item defines model for BodyOperationAdd.Item.
+type BodyOperationAdd_Item struct {
+	union json.RawMessage
+}
+
+// BodyOperationAddOp defines model for BodyOperationAdd.Op.
+type BodyOperationAddOp string
+
+// BodyOperationRemove defines model for BodyOperationRemove.
+type BodyOperationRemove struct {
+	Item BodyOperationRemove_Item `json:"item"`
+	Op   BodyOperationRemoveOp    `json:"op"`
+}
+
+// BodyOperationRemove_Item defines model for BodyOperationRemove.Item.
+type BodyOperationRemove_Item struct {
+	union json.RawMessage
+}
+
+// BodyOperationRemoveOp defines model for BodyOperationRemove.Op.
+type BodyOperationRemoveOp string
+
+// BodyOperationReplace defines model for BodyOperationReplace.
+type BodyOperationReplace struct {
+	NewItem BodyOperationReplace_NewItem `json:"newItem"`
+	OldItem BodyOperationReplace_OldItem `json:"oldItem"`
+	Op      BodyOperationReplaceOp       `json:"op"`
+}
+
+// BodyOperationReplace_NewItem defines model for BodyOperationReplace.NewItem.
+type BodyOperationReplace_NewItem struct {
+	union json.RawMessage
+}
+
+// BodyOperationReplace_OldItem defines model for BodyOperationReplace.OldItem.
+type BodyOperationReplace_OldItem struct {
+	union json.RawMessage
+}
+
+// BodyOperationReplaceOp defines model for BodyOperationReplace.Op.
+type BodyOperationReplaceOp string
+
 // BodyPurpose W3C Web Annotation body purpose vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation
 type BodyPurpose string
+
+// BrowseAgentsRequest Request to browse the KB's collaborator directory (its declared Agents)
+type BrowseAgentsRequest struct {
+	CorrelationId string `json:"correlationId"`
+}
+
+// BrowseAgentsResult Result of browsing the collaborator directory
+type BrowseAgentsResult struct {
+	CorrelationId string `json:"correlationId"`
+	Response      struct {
+		Agents []CollaboratorEntry `json:"agents"`
+	} `json:"response"`
+}
+
+// BrowseAnnotationContextRequest Request to get contextual text around an annotation
+type BrowseAnnotationContextRequest struct {
+	AnnotationId  string `json:"annotationId"`
+	ContextAfter  *int   `json:"contextAfter,omitempty"`
+	ContextBefore *int   `json:"contextBefore,omitempty"`
+	CorrelationId string `json:"correlationId"`
+	ResourceId    string `json:"resourceId"`
+}
+
+// BrowseAnnotationHistoryRequest Request to browse the history of an annotation
+type BrowseAnnotationHistoryRequest struct {
+	AnnotationId  string `json:"annotationId"`
+	CorrelationId string `json:"correlationId"`
+	ResourceId    string `json:"resourceId"`
+}
+
+// BrowseAnnotationHistoryResult Result of browsing annotation history
+type BrowseAnnotationHistoryResult struct {
+	CorrelationId string                       `json:"correlationId"`
+	Response      GetAnnotationHistoryResponse `json:"response"`
+}
+
+// BrowseAnnotationRequest Request to browse a single annotation
+type BrowseAnnotationRequest struct {
+	AnnotationId  string `json:"annotationId"`
+	CorrelationId string `json:"correlationId"`
+	ResourceId    string `json:"resourceId"`
+}
+
+// BrowseAnnotationResult Result of browsing a single annotation
+type BrowseAnnotationResult struct {
+	CorrelationId string                `json:"correlationId"`
+	Response      GetAnnotationResponse `json:"response"`
+}
+
+// BrowseAnnotationsRequest Request to browse annotations for a resource
+type BrowseAnnotationsRequest struct {
+	CorrelationId string `json:"correlationId"`
+	ResourceId    string `json:"resourceId"`
+}
+
+// BrowseAnnotationsResult Result of browsing annotations for a resource
+type BrowseAnnotationsResult struct {
+	CorrelationId string                 `json:"correlationId"`
+	Response      GetAnnotationsResponse `json:"response"`
+}
+
+// BrowseClickEvent Emitted when an annotation is clicked in the browse panel
+type BrowseClickEvent struct {
+	AnnotationId string `json:"annotationId"`
+
+	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
+	Motivation Motivation `json:"motivation"`
+}
+
+// BrowseDirectoryRequest Request to browse a directory listing
+type BrowseDirectoryRequest struct {
+	CorrelationId string                      `json:"correlationId"`
+	Path          string                      `json:"path"`
+	Sort          *BrowseDirectoryRequestSort `json:"sort,omitempty"`
+}
+
+// BrowseDirectoryRequestSort defines model for BrowseDirectoryRequest.Sort.
+type BrowseDirectoryRequestSort string
+
+// BrowseDirectoryResult Result of browsing a directory listing
+type BrowseDirectoryResult struct {
+	CorrelationId string `json:"correlationId"`
+	Response      struct {
+		Entries []DirectoryEntry `json:"entries"`
+		Path    string           `json:"path"`
+	} `json:"response"`
+}
+
+// BrowseEntityTypeClickedEvent Emitted when an entity type is clicked in the browse panel
+type BrowseEntityTypeClickedEvent struct {
+	EntityType string `json:"entityType"`
+}
+
+// BrowseEntityTypesRequest Request to browse available entity types
+type BrowseEntityTypesRequest struct {
+	CorrelationId string `json:"correlationId"`
+}
+
+// BrowseEntityTypesResult Result of browsing entity types
+type BrowseEntityTypesResult struct {
+	CorrelationId string                 `json:"correlationId"`
+	Response      GetEntityTypesResponse `json:"response"`
+}
+
+// BrowseEventsRequest Request to browse events for a resource
+type BrowseEventsRequest struct {
+	CorrelationId string  `json:"correlationId"`
+	Limit         *int    `json:"limit,omitempty"`
+	ResourceId    string  `json:"resourceId"`
+	Type          *string `json:"type,omitempty"`
+	UserId        *string `json:"userId,omitempty"`
+}
+
+// BrowseEventsResult Result of browsing events for a resource
+type BrowseEventsResult struct {
+	CorrelationId string            `json:"correlationId"`
+	Response      GetEventsResponse `json:"response"`
+}
+
+// BrowseExternalNavigateEvent Emitted when navigation to an external URL is requested
+type BrowseExternalNavigateEvent struct {
+	ResourceId *string `json:"resourceId,omitempty"`
+	Url        string  `json:"url"`
+}
+
+// BrowseFilesResponse defines model for BrowseFilesResponse.
+type BrowseFilesResponse struct {
+	Entries []DirectoryEntry `json:"entries"`
+
+	// Path The directory path that was listed, relative to project root
+	Path string `json:"path"`
+}
+
+// BrowseLinkClickedEvent Emitted when a link is clicked in the browse panel
+type BrowseLinkClickedEvent struct {
+	Href  string  `json:"href"`
+	Label *string `json:"label,omitempty"`
+}
+
+// BrowsePanelOpenEvent Emitted when a browse panel is opened
+type BrowsePanelOpenEvent struct {
+	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
+	Motivation           *Motivation `json:"motivation,omitempty"`
+	Panel                string      `json:"panel"`
+	ScrollToAnnotationId *string     `json:"scrollToAnnotationId,omitempty"`
+}
+
+// BrowsePanelToggleEvent Emitted when a browse panel is toggled
+type BrowsePanelToggleEvent struct {
+	Panel string `json:"panel"`
+}
+
+// BrowseReferenceNavigateEvent Emitted when navigation to a reference resource is requested
+type BrowseReferenceNavigateEvent struct {
+	ResourceId string `json:"resourceId"`
+}
+
+// BrowseReferencedByRequest Request to browse annotations that reference a resource
+type BrowseReferencedByRequest struct {
+	CorrelationId string  `json:"correlationId"`
+	Motivation    *string `json:"motivation,omitempty"`
+	ResourceId    string  `json:"resourceId"`
+}
+
+// BrowseReferencedByResult Result of browsing annotations that reference a resource
+type BrowseReferencedByResult struct {
+	CorrelationId string                  `json:"correlationId"`
+	Response      GetReferencedByResponse `json:"response"`
+}
+
+// BrowseResourceCloseEvent Emitted when a resource is closed in the browse panel
+type BrowseResourceCloseEvent struct {
+	ResourceId string `json:"resourceId"`
+}
+
+// BrowseResourceReorderEvent Emitted when resources are reordered in the browse panel
+type BrowseResourceReorderEvent struct {
+	NewIndex int `json:"newIndex"`
+	OldIndex int `json:"oldIndex"`
+}
+
+// BrowseResourceRequest Request to browse a single resource
+type BrowseResourceRequest struct {
+	CorrelationId string `json:"correlationId"`
+	ResourceId    string `json:"resourceId"`
+}
+
+// BrowseResourceResult Result of browsing a single resource
+type BrowseResourceResult struct {
+	CorrelationId string              `json:"correlationId"`
+	Response      GetResourceResponse `json:"response"`
+}
+
+// BrowseResourcesRequest Request to browse resources with optional filtering and pagination
+type BrowseResourcesRequest struct {
+	Archived      *bool   `json:"archived,omitempty"`
+	CorrelationId string  `json:"correlationId"`
+	EntityType    *string `json:"entityType,omitempty"`
+	Limit         *int    `json:"limit,omitempty"`
+	Offset        *int    `json:"offset,omitempty"`
+	Search        *string `json:"search,omitempty"`
+}
+
+// BrowseResourcesResult Result of browsing resources
+type BrowseResourcesResult struct {
+	CorrelationId string                `json:"correlationId"`
+	Response      ListResourcesResponse `json:"response"`
+}
+
+// BrowseRouterPushEvent Emitted when the browse panel requests a router navigation
+type BrowseRouterPushEvent struct {
+	Path   string  `json:"path"`
+	Reason *string `json:"reason,omitempty"`
+}
+
+// BrowseTagSchemasRequest Request to browse registered tag schemas
+type BrowseTagSchemasRequest struct {
+	CorrelationId string `json:"correlationId"`
+}
+
+// BrowseTagSchemasResult Result of browsing tag schemas
+type BrowseTagSchemasResult struct {
+	CorrelationId string                `json:"correlationId"`
+	Response      GetTagSchemasResponse `json:"response"`
+}
 
 // BusEmitRequest Emit an event on the Semiont bus. Channel names come from bus-protocol.ts; payload shape is validated against the channel's registered schema (CHANNEL_SCHEMAS). An optional scope routes resource-scoped broadcasts (e.g. mark:added, job:complete) to per-resource subscribers via eventBus.scope(scope); leave it unset for unscoped/global events.
 type BusEmitRequest struct {
@@ -541,6 +1452,53 @@ type BusEmitRequest struct {
 
 	// Scope Optional resource scope for broadcast channels (e.g. resourceId). Publishers only — frontends must never set this.
 	Scope *string `json:"scope,omitempty"`
+}
+
+// CloneResourceWithTokenResponse defines model for CloneResourceWithTokenResponse.
+type CloneResourceWithTokenResponse struct {
+	// ExpiresAt ISO 8601 timestamp when token expires
+	ExpiresAt string `json:"expiresAt"`
+
+	// Resource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
+	Resource ResourceDescriptor `json:"resource"`
+
+	// Token Generated clone token
+	Token string `json:"token"`
+}
+
+// CollaboratorEntry One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the job types it serves. Actor-role-only agents (gatherer/matcher) and Persons omit servesJobTypes.
+type CollaboratorEntry struct {
+	// Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software. Each branch carries fields appropriate to its kind. Software peers are first-class participants, not a sub-class of Person.
+	Agent Agent `json:"agent"`
+
+	// ServesJobTypes Job types this agent is declared to serve (from the KB's workers.* config sections). Absent for Persons and for agents declared only under actor roles.
+	ServesJobTypes *[]JobType `json:"servesJobTypes,omitempty"`
+}
+
+// CommandError Error response for failed bus commands. Replaces native Error objects on the EventBus so payloads are serializable and OpenAPI-typed.
+type CommandError struct {
+	// CorrelationId Optional correlation id echoed from the originating command. When present, the failure event can be matched back to the specific command that failed.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// Details Optional additional context (stack trace, field name, etc.)
+	Details *string `json:"details,omitempty"`
+
+	// Message Human-readable error message
+	Message string `json:"message"`
+}
+
+// ContentFormat Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
+type ContentFormat = string
+
+// ContextualSummaryResponse defines model for ContextualSummaryResponse.
+type ContextualSummaryResponse struct {
+	Context struct {
+		After    *string `json:"after,omitempty"`
+		Before   *string `json:"before,omitempty"`
+		Selected string  `json:"selected"`
+	} `json:"context"`
+	RelevantFields map[string]interface{} `json:"relevantFields"`
+	Summary        string                 `json:"summary"`
 }
 
 // CookieConsent User's cookie consent preferences. `necessary` is always true — necessary cookies cannot be disabled. Timestamps and version are stamped server-side.
@@ -587,10 +1545,135 @@ type CookieExportResponse struct {
 	} `json:"user"`
 }
 
+// CreateAnnotationRequest defines model for CreateAnnotationRequest.
+type CreateAnnotationRequest struct {
+	// Body Optional body. Omit for annotations whose motivation alone is meaningful (highlighting) or whose user-supplied content is empty. Shape matches Annotation.body.
+	Body *CreateAnnotationRequest_Body `json:"body,omitempty"`
+
+	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
+	Motivation Motivation `json:"motivation"`
+
+	// Target W3C Web Annotation target object - source is required, selector is optional
+	Target AnnotationTarget `json:"target"`
+}
+
+// CreateAnnotationRequestBody1 Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bodies
+type CreateAnnotationRequestBody1 = []AnnotationBody
+
+// CreateAnnotationRequest_Body Optional body. Omit for annotations whose motivation alone is meaningful (highlighting) or whose user-supplied content is empty. Shape matches Annotation.body.
+type CreateAnnotationRequest_Body struct {
+	union json.RawMessage
+}
+
 // CreateResourceResponse Response body for POST /resources (202 Accepted). Resource creation is asynchronous — the backend writes content to disk, emits yield:create on the bus, and returns the newly-minted resourceId immediately. Consumers watch SSE domain events (yield:created) to observe the fully-persisted state.
 type CreateResourceResponse struct {
 	// ResourceId The id of the newly-created resource. Assigned by Stower when it persists yield:create.
 	ResourceId string `json:"resourceId"`
+}
+
+// DeleteUserResponse defines model for DeleteUserResponse.
+type DeleteUserResponse struct {
+	Message string `json:"message"`
+	Success bool   `json:"success"`
+}
+
+// DirEntry defines model for DirEntry.
+type DirEntry struct {
+	// Mtime Last modified time (ISO 8601)
+	Mtime time.Time `json:"mtime"`
+
+	// Name Entry name (basename)
+	Name string `json:"name"`
+
+	// Path Path relative to project root
+	Path string       `json:"path"`
+	Type DirEntryType `json:"type"`
+}
+
+// DirEntryType defines model for DirEntry.Type.
+type DirEntryType string
+
+// DirectoryEntry defines model for DirectoryEntry.
+type DirectoryEntry struct {
+	union json.RawMessage
+}
+
+// DiscoveredKB One knowledge base the Semiont launcher manages on this machine, as published in the discovery document (see DiscoveryDocument). Endpoints and identity only — never credentials; login remains the consumer's per-KB business.
+type DiscoveredKB struct {
+	// Did The KB's did:web identifier as recorded from its committed .semiont/config — the permanent identity stamped into its event log. Prefer this as a merge key: ports are reallocated across restarts; the did follows the KB.
+	Did *string `json:"did,omitempty"`
+
+	// Host Hostname the KB is reachable on from this machine (today always "localhost" — local stacks bind locally and codespace KBs arrive through a local port forward)
+	Host string `json:"host"`
+
+	// ManagedBy The agent that owns this entry's lifecycle (the launcher writes "semiont-launcher"). Consumers treat managed entries as authoritative for themselves — upsert on appearance, remove on disappearance — and never touch entries they did not write.
+	ManagedBy string `json:"managedBy"`
+
+	// Placement Where the stack actually runs. "local": containers on this machine. "codespace": a GitHub-hosted VM whose KB is port-forwarded here.
+	Placement DiscoveredKBPlacement `json:"placement"`
+
+	// Port Local TCP port of the KB's API (the backend port for a local stack; the allocated forward port for a codespace stack)
+	Port int `json:"port"`
+
+	// Repo owner/name GitHub slug — present for codespace placements, where the repo is the stack's identity
+	Repo *string `json:"repo,omitempty"`
+
+	// SiteName Human-readable site name from the KB's .semiont/config, for display
+	SiteName *string `json:"siteName,omitempty"`
+}
+
+// DiscoveredKBPlacement Where the stack actually runs. "local": containers on this machine. "codespace": a GitHub-hosted VM whose KB is port-forwarded here.
+type DiscoveredKBPlacement string
+
+// DiscoveryDocument The launcher's KB discovery document — the schema authority for <stateDir>/discovery/kbs.json, which the semiont launcher (Go, apps/launcher) regenerates on every stack mutation and the frontend container mounts read-only at /discovery. NOT an API endpoint: a static document fetched same-origin by browsers (via the frontend's static server) or read from disk by local Node consumers. An empty kbs list is meaningful ("the launcher manages nothing right now") and distinct from an absent file. Design record: .plans/BROWSER-KB-DISCOVERY.md.
+type DiscoveryDocument struct {
+	// Kbs Every KB the launcher currently manages, local and forwarded
+	Kbs []DiscoveredKB `json:"kbs"`
+
+	// Version Document schema version. Consumers MUST check it and ignore documents they do not understand.
+	Version DiscoveryDocumentVersion `json:"version"`
+}
+
+// DiscoveryDocumentVersion Document schema version. Consumers MUST check it and ignore documents they do not understand.
+type DiscoveryDocumentVersion int
+
+// EnrichedResourceEvent defines model for EnrichedResourceEvent.
+type EnrichedResourceEvent struct {
+	Annotation *Annotation `json:"annotation,omitempty"`
+
+	// Id Unique event ID (UUID)
+	Id string `json:"id"`
+
+	// Metadata Metadata added at persistence time. Part of every StoredEvent. Integrity is provided by git at the commit level (when gitSync is enabled), not by in-event metadata fields.
+	Metadata EventMetadata `json:"metadata"`
+
+	// Payload Event-type-specific payload
+	Payload map[string]interface{} `json:"payload"`
+
+	// ResourceId Resource this event affects (absent for system events)
+	ResourceId *string `json:"resourceId,omitempty"`
+
+	// Timestamp When the event occurred
+	Timestamp time.Time `json:"timestamp"`
+
+	// Type Event type (flow verb name, e.g. mark:added)
+	Type string `json:"type"`
+
+	// UserId DID of the user who triggered the event
+	UserId string `json:"userId"`
+
+	// Version Event schema version
+	Version int `json:"version"`
+}
+
+// EntityTagChangedPayload Payload for mark:entity-tag-added and mark:entity-tag-removed domain events
+type EntityTagChangedPayload struct {
+	EntityType string `json:"entityType"`
+}
+
+// EntityTypeAddedPayload Payload for frame:entity-type-added domain event (system-level, no resourceId — fan-out is global)
+type EntityTypeAddedPayload struct {
+	EntityType string `json:"entityType"`
 }
 
 // ErrorResponse defines model for ErrorResponse.
@@ -600,12 +1683,55 @@ type ErrorResponse struct {
 	Error   string      `json:"error"`
 }
 
+// EventMetadata Metadata added at persistence time. Part of every StoredEvent. Integrity is provided by git at the commit level (when gitSync is enabled), not by in-event metadata fields.
+type EventMetadata struct {
+	// CorrelationId Optional correlation id propagated from a command. Lets clients match command-result events back to the POST that initiated them. Set by EventStore.appendEvent's options when a route handler passes one through.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// SequenceNumber Monotonic position in the event log (ordering authority)
+	SequenceNumber int `json:"sequenceNumber"`
+}
+
 // EventStreamResponse defines model for EventStreamResponse.
 type EventStreamResponse struct {
 	Data  string  `json:"data"`
 	Event string  `json:"event"`
 	Id    *string `json:"id,omitempty"`
 }
+
+// FileEntry defines model for FileEntry.
+type FileEntry struct {
+	// AnnotationCount Number of annotations on this resource (only when tracked is true)
+	AnnotationCount *int `json:"annotationCount,omitempty"`
+
+	// Creator DID of the user who created the resource (only when tracked is true)
+	Creator *string `json:"creator,omitempty"`
+
+	// EntityTypes Entity types assigned to this resource (only when tracked is true)
+	EntityTypes *[]string `json:"entityTypes,omitempty"`
+
+	// Mtime Last modified time (ISO 8601)
+	Mtime time.Time `json:"mtime"`
+
+	// Name Entry name (basename)
+	Name string `json:"name"`
+
+	// Path Path relative to project root
+	Path string `json:"path"`
+
+	// ResourceId Resource ID (only when tracked is true)
+	ResourceId *string `json:"resourceId,omitempty"`
+
+	// Size File size in bytes
+	Size int `json:"size"`
+
+	// Tracked True if this file is a tracked resource in the Knowledge Base
+	Tracked bool          `json:"tracked"`
+	Type    FileEntryType `json:"type"`
+}
+
+// FileEntryType defines model for FileEntry.Type.
+type FileEntryType string
 
 // FragmentSelector W3C Web Annotation FragmentSelector for media fragment identifiers (RFC 3778 for PDFs)
 type FragmentSelector struct {
@@ -620,6 +1746,281 @@ type FragmentSelector struct {
 // FragmentSelectorType defines model for FragmentSelector.Type.
 type FragmentSelectorType string
 
+// FrameAddEntityTypeCommand Bus command to add a new entity type to the KB's vocabulary. Carried on the `frame:add-entity-type` channel — Frame is the schema-layer flow that owns vocabulary writes.
+type FrameAddEntityTypeCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// CorrelationId Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back. Absent for in-process (bootstrap/replay/import) emits, which race the frame:entity-type-added domain event instead.
+	CorrelationId *string `json:"correlationId,omitempty"`
+	Tag           string  `json:"tag"`
+}
+
+// FrameAddTagSchemaCommand Bus command to register a tag schema with the KB's runtime registry. Carried on the `frame:add-tag-schema` channel — Frame is the schema-layer flow that owns vocabulary writes. Most-recent registration of a given `schema.id` wins; the projection reflects the latest content. Identical re-registrations are silent; differing content overwrites and logs a warning.
+type FrameAddTagSchemaCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// CorrelationId Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back. Absent for in-process emits.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// Schema A structural-analysis schema (e.g. legal-irac, scientific-imrad, argument-toulmin). Defines a methodology framework as an id, name, description, domain hint, and an ordered list of categories. KBs and their skills register schemas with the runtime registry via `frame.addTagSchema(...)` at session start.
+	Schema TagSchema `json:"schema"`
+}
+
+// GatherAnnotationComplete Completion payload emitted on the gather:annotation-complete bus channel when annotation context gathering finishes.
+type GatherAnnotationComplete struct {
+	// AnnotationId Branded AnnotationId of the annotation whose context was gathered
+	AnnotationId string `json:"annotationId"`
+
+	// CorrelationId Client-generated correlation ID to thread the response back to the originating request
+	CorrelationId string `json:"correlationId"`
+
+	// Response Context gathered for a gather.* call — consumed by yield.* (generation) and the matcher. A shared base (graph, semanticContext, metadata, inferredRelationshipSummary) plus a discriminated `focus` that names the anchor: an annotation or a whole resource.
+	Response GatheredContext `json:"response"`
+}
+
+// GatherAnnotationRequest Request payload sent on the gather:requested bus channel to gather context for an annotation.
+type GatherAnnotationRequest struct {
+	// AnnotationId Branded AnnotationId of the annotation to gather context for
+	AnnotationId string `json:"annotationId"`
+
+	// CorrelationId Client-generated correlation ID to thread the response back to the originating request
+	CorrelationId string `json:"correlationId"`
+
+	// Options Optional gathering configuration
+	Options *struct {
+		// ContextWindow Characters of surrounding text context to include
+		ContextWindow *int `json:"contextWindow,omitempty"`
+
+		// IncludeSourceContext Whether to include source context in the gathered result
+		IncludeSourceContext *bool `json:"includeSourceContext,omitempty"`
+
+		// IncludeTargetContext Whether to include target context in the gathered result
+		IncludeTargetContext *bool `json:"includeTargetContext,omitempty"`
+	} `json:"options,omitempty"`
+
+	// ResourceId Branded ResourceId of the resource the annotation belongs to
+	ResourceId string `json:"resourceId"`
+}
+
+// GatherProgress Progress payload emitted on the gather:annotation-progress SSE channel during LLM context gathering.
+type GatherProgress struct {
+	Message    *string  `json:"message,omitempty"`
+	Percentage *float32 `json:"percentage,omitempty"`
+}
+
+// GatherResourceComplete Completion payload emitted on the gather:resource-complete bus channel when resource context gathering finishes.
+type GatherResourceComplete struct {
+	// CorrelationId Client-generated correlation ID to thread the response back to the originating request
+	CorrelationId string `json:"correlationId"`
+
+	// ResourceId Branded ResourceId of the resource whose context was gathered
+	ResourceId string `json:"resourceId"`
+
+	// Response Context gathered for a gather.* call — consumed by yield.* (generation) and the matcher. A shared base (graph, semanticContext, metadata, inferredRelationshipSummary) plus a discriminated `focus` that names the anchor: an annotation or a whole resource.
+	Response GatheredContext `json:"response"`
+}
+
+// GatherResourceRequest Request payload sent on the gather:resource-requested bus channel to gather context for a resource.
+type GatherResourceRequest struct {
+	// CorrelationId Client-generated correlation ID to thread the response back to the originating request
+	CorrelationId string `json:"correlationId"`
+
+	// Options Gathering configuration
+	Options struct {
+		// Depth Depth of resource graph traversal
+		Depth int `json:"depth"`
+
+		// ExcludeEntityTypes Entity types to exclude from the semantic recall built into this context (caller-supplied; e.g. a chat consumer passes ['Question'] so prior questions never ground answer generation). Optional; default none.
+		ExcludeEntityTypes *[]string `json:"excludeEntityTypes,omitempty"`
+
+		// IncludeContent Whether to include resource content in the gathered result
+		IncludeContent bool `json:"includeContent"`
+
+		// IncludeSummary Whether to include resource summaries in the gathered result
+		IncludeSummary bool `json:"includeSummary"`
+
+		// MaxResources Maximum number of related resources to include
+		MaxResources int `json:"maxResources"`
+	} `json:"options"`
+
+	// ResourceId Branded ResourceId of the resource to gather context for
+	ResourceId string `json:"resourceId"`
+}
+
+// GatherSummaryRequest Request to generate an AI summary of an annotation
+type GatherSummaryRequest struct {
+	AnnotationId  string `json:"annotationId"`
+	CorrelationId string `json:"correlationId"`
+	ResourceId    string `json:"resourceId"`
+}
+
+// GatheredContext Context gathered for a gather.* call — consumed by yield.* (generation) and the matcher. A shared base (graph, semanticContext, metadata, inferredRelationshipSummary) plus a discriminated `focus` that names the anchor: an annotation or a whole resource.
+type GatheredContext struct {
+	// Focus The gather anchor. Discriminated on `kind`.
+	Focus GatheredContext_Focus `json:"focus"`
+
+	// Graph Knowledge graph gathered for an LLM context — a shared backbone in which resources AND annotations are typed nodes, connected by typed (optionally bidirectional) edges. Flattened views the matcher/generation read (connections, citedBy, siblings) are derived from these nodes/edges.
+	Graph KnowledgeGraph `json:"graph"`
+
+	// InferredRelationshipSummary LLM-generated summary of the focal anchor's relationships in the knowledge graph
+	InferredRelationshipSummary *string `json:"inferredRelationshipSummary,omitempty"`
+
+	// Metadata Context metadata about the focal anchor and its source
+	Metadata struct {
+		// EntityTypeFrequencies Global frequency counts for entity types (for IDF-like weighting). A KB-wide statistic, not a neighborhood property — kept here rather than on the graph.
+		EntityTypeFrequencies *map[string]int `json:"entityTypeFrequencies,omitempty"`
+
+		// EntityTypes Entity types associated with the focal anchor
+		EntityTypes *[]string `json:"entityTypes,omitempty"`
+
+		// Language BCP 47 language tag of source content
+		Language *string `json:"language,omitempty"`
+
+		// ResourceType Type of source resource (e.g., 'document', 'image', 'video')
+		ResourceType *string `json:"resourceType,omitempty"`
+	} `json:"metadata"`
+
+	// SemanticContext Semantically similar passages from across the knowledge base, found via vector search
+	SemanticContext *struct {
+		// ExcludedEntityTypes Entity types excluded from this recall — a record of how `similar` was filtered (e.g. ['Question'] so answer-generation never surfaces prior questions). Absent when no exclusion was applied.
+		ExcludedEntityTypes *[]string `json:"excludedEntityTypes,omitempty"`
+
+		// Similar Passages ranked by cosine similarity to the focal text
+		Similar []SemanticMatch `json:"similar"`
+	} `json:"semanticContext,omitempty"`
+}
+
+// GatheredContextFocus0 Annotation-anchored focus.
+type GatheredContextFocus0 struct {
+	Annotation Annotation                `json:"annotation"`
+	Kind       GatheredContextFocus0Kind `json:"kind"`
+
+	// Selected Text context around the annotation target
+	Selected *struct {
+		// After Text appearing after the selected passage
+		After *string `json:"after,omitempty"`
+
+		// Before Text appearing before the selected passage
+		Before *string `json:"before,omitempty"`
+
+		// Text The selected text passage (the annotation target)
+		Text string `json:"text"`
+	} `json:"selected,omitempty"`
+
+	// SourceResource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
+	SourceResource ResourceDescriptor `json:"sourceResource"`
+
+	// TargetContext Context about the annotation's link target. Dormant — see LINK-TARGET-CONTEXT.md.
+	TargetContext *struct {
+		Content string  `json:"content"`
+		Summary *string `json:"summary,omitempty"`
+	} `json:"targetContext,omitempty"`
+
+	// TargetResource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
+	TargetResource *ResourceDescriptor `json:"targetResource,omitempty"`
+
+	// UserHint User-provided hint to supplement or replace the selected text for search and generation
+	UserHint *string `json:"userHint,omitempty"`
+}
+
+// GatheredContextFocus0Kind defines model for GatheredContext.Focus.0.Kind.
+type GatheredContextFocus0Kind string
+
+// GatheredContextFocus1 Whole-resource focus.
+type GatheredContextFocus1 struct {
+	// Content Resource content (included when requested)
+	Content *struct {
+		// Main Content of the focal resource
+		Main *string `json:"main,omitempty"`
+
+		// Related Map of related resource IDs to their content
+		Related *map[string]string `json:"related,omitempty"`
+	} `json:"content,omitempty"`
+	Kind GatheredContextFocus1Kind `json:"kind"`
+
+	// Resource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
+	Resource            ResourceDescriptor `json:"resource"`
+	SuggestedReferences *[]string          `json:"suggestedReferences,omitempty"`
+	Summary             *string            `json:"summary,omitempty"`
+}
+
+// GatheredContextFocus1Kind defines model for GatheredContext.Focus.1.Kind.
+type GatheredContextFocus1Kind string
+
+// GatheredContext_Focus The gather anchor. Discriminated on `kind`.
+type GatheredContext_Focus struct {
+	union json.RawMessage
+}
+
+// GetAnnotationHistoryResponse defines model for GetAnnotationHistoryResponse.
+type GetAnnotationHistoryResponse struct {
+	AnnotationId string                `json:"annotationId"`
+	Events       []StoredEventResponse `json:"events"`
+	ResourceId   string                `json:"resourceId"`
+	Total        float32               `json:"total"`
+}
+
+// GetAnnotationResponse defines model for GetAnnotationResponse.
+type GetAnnotationResponse struct {
+	Annotation       Annotation          `json:"annotation"`
+	ResolvedResource *ResourceDescriptor `json:"resolvedResource"`
+	Resource         *ResourceDescriptor `json:"resource"`
+}
+
+// GetAnnotationsResponse defines model for GetAnnotationsResponse.
+type GetAnnotationsResponse struct {
+	Annotations []Annotation `json:"annotations"`
+
+	// Motivation Motivation filter applied (if any)
+	Motivation *Motivation `json:"motivation,omitempty"`
+
+	// Total Total number of annotations
+	Total float32 `json:"total"`
+}
+
+// GetEntityTypesResponse defines model for GetEntityTypesResponse.
+type GetEntityTypesResponse struct {
+	EntityTypes []string `json:"entityTypes"`
+}
+
+// GetEventsResponse defines model for GetEventsResponse.
+type GetEventsResponse struct {
+	Events     []StoredEventResponse `json:"events"`
+	ResourceId string                `json:"resourceId"`
+	Total      float32               `json:"total"`
+}
+
+// GetReferencedByResponse defines model for GetReferencedByResponse.
+type GetReferencedByResponse struct {
+	ReferencedBy []struct {
+		// Id Reference annotation ID
+		Id string `json:"id"`
+
+		// ResourceName Name of resource containing the reference
+		ResourceName string `json:"resourceName"`
+		Target       struct {
+			Selector struct {
+				// Exact The selected text that references this resource
+				Exact string `json:"exact"`
+			} `json:"selector"`
+
+			// Source ID of resource containing the reference
+			Source string `json:"source"`
+		} `json:"target"`
+	} `json:"referencedBy"`
+}
+
+// GetResourceByTokenResponse defines model for GetResourceByTokenResponse.
+type GetResourceByTokenResponse struct {
+	// ExpiresAt ISO 8601 timestamp when token expires
+	ExpiresAt string `json:"expiresAt"`
+
+	// SourceResource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
+	SourceResource ResourceDescriptor `json:"sourceResource"`
+}
+
 // GetResourceResponse defines model for GetResourceResponse.
 type GetResourceResponse struct {
 	// Annotations All annotations for the resource (highlights, references, assessments, etc.)
@@ -630,6 +2031,11 @@ type GetResourceResponse struct {
 
 	// Resource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
 	Resource ResourceDescriptor `json:"resource"`
+}
+
+// GetTagSchemasResponse defines model for GetTagSchemasResponse.
+type GetTagSchemasResponse struct {
+	TagSchemas []TagSchema `json:"tagSchemas"`
 }
 
 // GoogleAuthRequest defines model for GoogleAuthRequest.
@@ -649,6 +2055,581 @@ type HealthResponse struct {
 
 // HealthResponseDatabase defines model for HealthResponse.Database.
 type HealthResponseDatabase string
+
+// JobAssessmentAnnotationResult Result of a completed assessment-annotation job.
+type JobAssessmentAnnotationResult struct {
+	AssessmentsCreated int `json:"assessmentsCreated"`
+	AssessmentsFound   int `json:"assessmentsFound"`
+}
+
+// JobCancelRequest Request to cancel a job
+type JobCancelRequest struct {
+	// CorrelationId Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back. Absent for the local cancelRequest UI signal.
+	CorrelationId *string                 `json:"correlationId,omitempty"`
+	JobType       JobCancelRequestJobType `json:"jobType"`
+}
+
+// JobCancelRequestJobType defines model for JobCancelRequest.JobType.
+type JobCancelRequestJobType string
+
+// JobClaimCommand Command to claim a pending job (atomic CAS: pending → running)
+type JobClaimCommand struct {
+	CorrelationId string `json:"correlationId"`
+	JobId         string `json:"jobId"`
+}
+
+// JobCommentAnnotationResult Result of a completed comment-annotation job.
+type JobCommentAnnotationResult struct {
+	CommentsCreated int `json:"commentsCreated"`
+	CommentsFound   int `json:"commentsFound"`
+}
+
+// JobCompleteCommand Command to mark a job as complete
+type JobCompleteCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// AnnotationId Annotation this job is attached to, when applicable. Lets the UI route completion feedback (toast, resolve state) to a specific annotation.
+	AnnotationId *string `json:"annotationId,omitempty"`
+	JobId        string  `json:"jobId"`
+
+	// JobType Type of background job
+	JobType    JobType `json:"jobType"`
+	ResourceId string  `json:"resourceId"`
+
+	// Result Discriminated union of all job result types.
+	Result *JobResult `json:"result,omitempty"`
+}
+
+// JobCompletedPayload Payload for job:completed domain event
+type JobCompletedPayload struct {
+	// AnnotationId Annotation this job was attached to, when applicable
+	AnnotationId *string `json:"annotationId,omitempty"`
+
+	// AnnotationUri For generation: URI of annotation that triggered generation
+	AnnotationUri *string `json:"annotationUri,omitempty"`
+
+	// FoundCount For detection: total entities found
+	FoundCount *int   `json:"foundCount,omitempty"`
+	JobId      string `json:"jobId"`
+
+	// JobType Type of background job
+	JobType JobType `json:"jobType"`
+	Message *string `json:"message,omitempty"`
+
+	// Result Full result object for extensibility
+	Result *map[string]interface{} `json:"result,omitempty"`
+
+	// ResultResourceId For generation: ID of generated resource
+	ResultResourceId *string `json:"resultResourceId,omitempty"`
+	TotalSteps       *int    `json:"totalSteps,omitempty"`
+}
+
+// JobCreateCommand Command to create a new job via the event bus
+type JobCreateCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+	CorrelationId    string  `json:"correlationId"`
+
+	// JobType Type of background job
+	JobType    JobType                `json:"jobType"`
+	Params     map[string]interface{} `json:"params"`
+	ResourceId string                 `json:"resourceId"`
+}
+
+// JobCreatedResult Result of a job:create command
+type JobCreatedResult struct {
+	CorrelationId string `json:"correlationId"`
+	Response      struct {
+		JobId string `json:"jobId"`
+	} `json:"response"`
+}
+
+// JobFailCommand Command to mark a job as failed
+type JobFailCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// AnnotationId Annotation this job is attached to, when applicable. Lets the UI route failure feedback (error toast, revert state) to a specific annotation.
+	AnnotationId *string `json:"annotationId,omitempty"`
+	Error        string  `json:"error"`
+	JobId        string  `json:"jobId"`
+
+	// JobType Type of background job
+	JobType    JobType `json:"jobType"`
+	ResourceId string  `json:"resourceId"`
+}
+
+// JobFailedPayload Payload for job:failed domain event
+type JobFailedPayload struct {
+	// AnnotationId Annotation this job was attached to, when applicable
+	AnnotationId *string `json:"annotationId,omitempty"`
+	Details      *string `json:"details,omitempty"`
+	Error        string  `json:"error"`
+	JobId        string  `json:"jobId"`
+
+	// JobType Type of background job
+	JobType JobType `json:"jobType"`
+}
+
+// JobGenerationResult Result of a completed generation job. resourceId is assigned by Stower when yield:create is processed; the worker emits job:complete with only resourceName, and Stower populates resourceId on the persisted payload.
+type JobGenerationResult struct {
+	// ResourceId ID of the generated resource (populated by Stower, not by the worker)
+	ResourceId *string `json:"resourceId,omitempty"`
+
+	// ResourceName Name of the generated resource
+	ResourceName string `json:"resourceName"`
+}
+
+// JobHighlightAnnotationResult Result of a completed highlight-annotation job.
+type JobHighlightAnnotationResult struct {
+	HighlightsCreated int `json:"highlightsCreated"`
+	HighlightsFound   int `json:"highlightsFound"`
+}
+
+// JobProgress Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike.
+type JobProgress struct {
+	// AnnotationId Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. client.yield.fromAnnotation's Observable) can still route visual feedback to a specific annotation.
+	AnnotationId *string `json:"annotationId,omitempty"`
+
+	// CompletedEntityTypes Reference annotation: completed entity types with per-type counts, for UI progress display
+	CompletedEntityTypes *[]struct {
+		EntityType string `json:"entityType"`
+		FoundCount int    `json:"foundCount"`
+	} `json:"completedEntityTypes,omitempty"`
+
+	// CurrentCategory Category currently being processed (tag-annotation)
+	CurrentCategory *string `json:"currentCategory,omitempty"`
+
+	// CurrentEntityType Entity type currently being processed
+	CurrentEntityType *string `json:"currentEntityType,omitempty"`
+
+	// EntitiesEmitted Annotations emitted so far (reference-annotation)
+	EntitiesEmitted *int `json:"entitiesEmitted,omitempty"`
+
+	// EntitiesFound Entities found so far (reference-annotation)
+	EntitiesFound *int `json:"entitiesFound,omitempty"`
+
+	// Message Human-readable progress message
+	Message string `json:"message"`
+
+	// Percentage Completion percentage (0-100)
+	Percentage float32 `json:"percentage"`
+
+	// ProcessedCategories Categories processed (tag-annotation)
+	ProcessedCategories *int `json:"processedCategories,omitempty"`
+
+	// ProcessedEntityTypes Entity types processed so far (reference-annotation)
+	ProcessedEntityTypes *int `json:"processedEntityTypes,omitempty"`
+
+	// RequestParams Echoed job parameters for display in the progress UI (e.g. entity types or categories the user asked to detect)
+	RequestParams *[]struct {
+		Label string `json:"label"`
+		Value string `json:"value"`
+	} `json:"requestParams,omitempty"`
+
+	// Stage Current processing stage (e.g. 'analyzing', 'creating', 'complete', 'error')
+	Stage string `json:"stage"`
+
+	// TotalCategories Total categories (tag-annotation)
+	TotalCategories *int `json:"totalCategories,omitempty"`
+
+	// TotalEntityTypes Total entity types to process (reference-annotation)
+	TotalEntityTypes *int `json:"totalEntityTypes,omitempty"`
+}
+
+// JobProgressPayload Payload for job:progress domain event
+type JobProgressPayload struct {
+	// CurrentStep Human-readable current step
+	CurrentStep *string `json:"currentStep,omitempty"`
+
+	// FoundCount For detection: entities found so far
+	FoundCount *int   `json:"foundCount,omitempty"`
+	JobId      string `json:"jobId"`
+
+	// JobType Type of background job
+	JobType        JobType `json:"jobType"`
+	Message        *string `json:"message,omitempty"`
+	Percentage     float32 `json:"percentage"`
+	ProcessedSteps *int    `json:"processedSteps,omitempty"`
+
+	// Progress Full progress object for extensibility
+	Progress   *map[string]interface{} `json:"progress,omitempty"`
+	TotalSteps *int                    `json:"totalSteps,omitempty"`
+}
+
+// JobQueuedEvent Event indicating a job has been queued
+type JobQueuedEvent struct {
+	JobId      string `json:"jobId"`
+	JobType    string `json:"jobType"`
+	ResourceId string `json:"resourceId"`
+
+	// UserId DID of the user who initiated the job (audit).
+	UserId string `json:"userId"`
+}
+
+// JobReferenceAnnotationResult Result of a completed reference-annotation job.
+type JobReferenceAnnotationResult struct {
+	// Errors Number of errors encountered
+	Errors int `json:"errors"`
+
+	// TotalEmitted Total annotations emitted
+	TotalEmitted int `json:"totalEmitted"`
+
+	// TotalFound Total entities found
+	TotalFound int `json:"totalFound"`
+}
+
+// JobReportProgressCommand Command to report progress on a job
+type JobReportProgressCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// AnnotationId Annotation this job is attached to, when applicable. Lets the UI attach progress visuals to a specific annotation (e.g. a reference whose generation is running).
+	AnnotationId *string `json:"annotationId,omitempty"`
+	JobId        string  `json:"jobId"`
+
+	// JobType Type of background job
+	JobType    JobType `json:"jobType"`
+	Percentage float32 `json:"percentage"`
+
+	// Progress Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike.
+	Progress   *JobProgress `json:"progress,omitempty"`
+	ResourceId string       `json:"resourceId"`
+}
+
+// JobResult Discriminated union of all job result types.
+type JobResult struct {
+	union json.RawMessage
+}
+
+// JobStartCommand Command to start a job
+type JobStartCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// AnnotationId Annotation this job is attached to, when applicable. Set for annotation-scoped jobs like generation (from a specific reference). Unset for resource-scoped jobs like bulk reference/tag/highlight detection.
+	AnnotationId *string `json:"annotationId,omitempty"`
+	JobId        string  `json:"jobId"`
+
+	// JobType Type of background job
+	JobType    JobType `json:"jobType"`
+	ResourceId string  `json:"resourceId"`
+}
+
+// JobStartedPayload Payload for job:started domain event
+type JobStartedPayload struct {
+	// AnnotationId Annotation this job is attached to, when applicable
+	AnnotationId *string `json:"annotationId,omitempty"`
+	JobId        string  `json:"jobId"`
+
+	// JobType Type of background job
+	JobType    JobType `json:"jobType"`
+	TotalSteps *int    `json:"totalSteps,omitempty"`
+}
+
+// JobStatusRequest Request to check the status of a job
+type JobStatusRequest struct {
+	CorrelationId string `json:"correlationId"`
+	JobId         string `json:"jobId"`
+}
+
+// JobStatusResponse defines model for JobStatusResponse.
+type JobStatusResponse struct {
+	CompletedAt *string                 `json:"completedAt,omitempty"`
+	Created     string                  `json:"created"`
+	Error       *string                 `json:"error,omitempty"`
+	JobId       string                  `json:"jobId"`
+	Progress    interface{}             `json:"progress,omitempty"`
+	Result      interface{}             `json:"result,omitempty"`
+	StartedAt   *string                 `json:"startedAt,omitempty"`
+	Status      JobStatusResponseStatus `json:"status"`
+
+	// Type Type of background job
+	Type   JobType `json:"type"`
+	UserId string  `json:"userId"`
+}
+
+// JobStatusResponseStatus defines model for JobStatusResponse.Status.
+type JobStatusResponseStatus string
+
+// JobStatusResult Result of a job status request
+type JobStatusResult struct {
+	CorrelationId string            `json:"correlationId"`
+	Response      JobStatusResponse `json:"response"`
+}
+
+// JobTagAnnotationResult Result of a completed tag-annotation job.
+type JobTagAnnotationResult struct {
+	// ByCategory Count of tags created per category
+	ByCategory  map[string]int `json:"byCategory"`
+	TagsCreated int            `json:"tagsCreated"`
+	TagsFound   int            `json:"tagsFound"`
+}
+
+// JobType Type of background job
+type JobType string
+
+// KnowledgeGraph Knowledge graph gathered for an LLM context — a shared backbone in which resources AND annotations are typed nodes, connected by typed (optionally bidirectional) edges. Flattened views the matcher/generation read (connections, citedBy, siblings) are derived from these nodes/edges.
+type KnowledgeGraph struct {
+	Edges []struct {
+		// Bidirectional Whether the connection goes both ways
+		Bidirectional *bool                   `json:"bidirectional,omitempty"`
+		Metadata      *map[string]interface{} `json:"metadata,omitempty"`
+		Source        string                  `json:"source"`
+		Target        string                  `json:"target"`
+
+		// Type Edge kind (e.g. citation, annotation-of, sibling)
+		Type string `json:"type"`
+	} `json:"edges"`
+	Nodes []struct {
+		// EntityTypes Entity types on the node (resources) or carried by the annotation
+		EntityTypes *[]string `json:"entityTypes,omitempty"`
+
+		// Id Node identifier — a ResourceId or AnnotationId
+		Id       string                  `json:"id"`
+		Label    string                  `json:"label"`
+		Metadata *map[string]interface{} `json:"metadata,omitempty"`
+
+		// Type Whether this node is a resource or an annotation
+		Type KnowledgeGraphNodesType `json:"type"`
+	} `json:"nodes"`
+}
+
+// KnowledgeGraphNodesType Whether this node is a resource or an annotation
+type KnowledgeGraphNodesType string
+
+// ListResourcesResponse defines model for ListResourcesResponse.
+type ListResourcesResponse struct {
+	Limit     float32              `json:"limit"`
+	Offset    float32              `json:"offset"`
+	Resources []ResourceDescriptor `json:"resources"`
+	Total     float32              `json:"total"`
+}
+
+// MarkArchiveCommand Bus command to archive a resource and optionally remove its file.
+type MarkArchiveCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// CorrelationId Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back.
+	CorrelationId *string `json:"correlationId,omitempty"`
+	KeepFile      *bool   `json:"keepFile,omitempty"`
+	NoGit         *bool   `json:"noGit,omitempty"`
+	ResourceId    string  `json:"resourceId"`
+	StorageUri    *string `json:"storageUri,omitempty"`
+}
+
+// MarkAssistRequestEvent Emitted when the user requests AI assistance for a mark
+type MarkAssistRequestEvent struct {
+	// CorrelationId Client-supplied id used to match this command to its result event(s) on the events-stream. Generated by the route handler if absent.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
+	Motivation Motivation `json:"motivation"`
+	Options    struct {
+		Categories                   *[]string                          `json:"categories,omitempty"`
+		Density                      *float32                           `json:"density,omitempty"`
+		EntityTypes                  *[]string                          `json:"entityTypes,omitempty"`
+		IncludeDescriptiveReferences *bool                              `json:"includeDescriptiveReferences,omitempty"`
+		Instructions                 *string                            `json:"instructions,omitempty"`
+		Language                     *string                            `json:"language,omitempty"`
+		SchemaId                     *string                            `json:"schemaId,omitempty"`
+		Tone                         *MarkAssistRequestEventOptionsTone `json:"tone,omitempty"`
+	} `json:"options"`
+}
+
+// MarkAssistRequestEventOptionsTone defines model for MarkAssistRequestEvent.Options.Tone.
+type MarkAssistRequestEventOptionsTone string
+
+// MarkCreateCommand Bus command to create an annotation on a resource.
+type MarkCreateCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string    `json:"_userId,omitempty"`
+	Annotation       Annotation `json:"annotation"`
+
+	// CorrelationId Optional correlation id threaded from the originating mark:create-request. Propagated into event metadata by Stower so annotation-assembly can emit mark:create-ok after persistence completes.
+	CorrelationId *string `json:"correlationId,omitempty"`
+	ResourceId    string  `json:"resourceId"`
+}
+
+// MarkCreateOk Success reply after creating an annotation, matched to the originating command by correlationId.
+type MarkCreateOk struct {
+	// CorrelationId Correlation id echoed from the mark:create-request command so busRequest can match the reply.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// Response The created annotation's identity.
+	Response struct {
+		AnnotationId string `json:"annotationId"`
+	} `json:"response"`
+}
+
+// MarkCreateRequest Raw annotation creation intent — bus handler assembles the W3C annotation
+type MarkCreateRequest struct {
+	CorrelationId string                  `json:"correlationId"`
+	Request       CreateAnnotationRequest `json:"request"`
+	ResourceId    string                  `json:"resourceId"`
+}
+
+// MarkDeleteCommand Bus command to delete an annotation.
+type MarkDeleteCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+	AnnotationId     string  `json:"annotationId"`
+
+	// CorrelationId Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back.
+	CorrelationId *string `json:"correlationId,omitempty"`
+	ResourceId    *string `json:"resourceId,omitempty"`
+}
+
+// MarkDeleteOk Success reply after deleting an annotation, matched to the originating command by correlationId.
+type MarkDeleteOk struct {
+	// CorrelationId Correlation id echoed from the mark:delete command so busRequest can match the reply.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// Response The deleted annotation's identity.
+	Response struct {
+		AnnotationId string `json:"annotationId"`
+	} `json:"response"`
+}
+
+// MarkRequestedEvent Emitted when the user requests a new mark (annotation) on a resource
+type MarkRequestedEvent struct {
+	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
+	Motivation Motivation `json:"motivation"`
+
+	// Selector One or more W3C selectors
+	Selector MarkRequestedEvent_Selector `json:"selector"`
+
+	// Source The '@id' of the resource the mark belongs to (W3C target.source). Routes the event to the right viewer/state unit when a host mounts many viewers on one session.
+	Source string `json:"source"`
+}
+
+// MarkRequestedEventSelector4 defines model for .
+type MarkRequestedEventSelector4 = []MarkRequestedEvent_Selector_4_Item
+
+// MarkRequestedEvent_Selector_4_Item defines model for MarkRequestedEvent.Selector.4.Item.
+type MarkRequestedEvent_Selector_4_Item struct {
+	union json.RawMessage
+}
+
+// MarkRequestedEvent_Selector One or more W3C selectors
+type MarkRequestedEvent_Selector struct {
+	union json.RawMessage
+}
+
+// MarkSubmitEvent Emitted when a mark is submitted with its annotation body
+type MarkSubmitEvent struct {
+	// Body Optional body. Omit for annotations whose motivation alone is meaningful (e.g. highlighting) or whose user-supplied content is empty (e.g. an assessing annotation saved without comment text). Shape matches Annotation.body.
+	Body *MarkSubmitEvent_Body `json:"body,omitempty"`
+
+	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
+	Motivation Motivation `json:"motivation"`
+
+	// Selector One or more W3C selectors
+	Selector MarkSubmitEvent_Selector `json:"selector"`
+
+	// Source The '@id' of the resource the mark belongs to (W3C target.source). Routes the submit to the state unit bound to that resource — without it, N mounted units each create the annotation (N copies on N resources).
+	Source string `json:"source"`
+}
+
+// MarkSubmitEventBody1 Non-empty array of mixed TextualBody / SpecificResource bodies
+type MarkSubmitEventBody1 = []AnnotationBody
+
+// MarkSubmitEvent_Body Optional body. Omit for annotations whose motivation alone is meaningful (e.g. highlighting) or whose user-supplied content is empty (e.g. an assessing annotation saved without comment text). Shape matches Annotation.body.
+type MarkSubmitEvent_Body struct {
+	union json.RawMessage
+}
+
+// MarkSubmitEventSelector4 defines model for .
+type MarkSubmitEventSelector4 = []MarkSubmitEvent_Selector_4_Item
+
+// MarkSubmitEvent_Selector_4_Item defines model for MarkSubmitEvent.Selector.4.Item.
+type MarkSubmitEvent_Selector_4_Item struct {
+	union json.RawMessage
+}
+
+// MarkSubmitEvent_Selector One or more W3C selectors
+type MarkSubmitEvent_Selector struct {
+	union json.RawMessage
+}
+
+// MarkUnarchiveCommand Bus command to unarchive a previously archived resource.
+type MarkUnarchiveCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// CorrelationId Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back.
+	CorrelationId *string `json:"correlationId,omitempty"`
+	ResourceId    string  `json:"resourceId"`
+	StorageUri    *string `json:"storageUri,omitempty"`
+}
+
+// MarkUpdateBodyCommand Bus command to update an annotation's body with patch operations.
+type MarkUpdateBodyCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+	AnnotationId     string  `json:"annotationId"`
+
+	// CorrelationId Correlation id threaded from the originating route through to event metadata. Lets the events-stream deliver matched results to the client that initiated the bind.
+	CorrelationId *string                                 `json:"correlationId,omitempty"`
+	Operations    []MarkUpdateBodyCommand_Operations_Item `json:"operations"`
+	ResourceId    string                                  `json:"resourceId"`
+}
+
+// MarkUpdateBodyCommand_Operations_Item defines model for MarkUpdateBodyCommand.operations.Item.
+type MarkUpdateBodyCommand_Operations_Item struct {
+	union json.RawMessage
+}
+
+// MarkUpdateEntityTypesCommand Bus command to replace the entity types on a resource.
+type MarkUpdateEntityTypesCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// CorrelationId Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back.
+	CorrelationId      *string  `json:"correlationId,omitempty"`
+	CurrentEntityTypes []string `json:"currentEntityTypes"`
+	ResourceId         string   `json:"resourceId"`
+	UpdatedEntityTypes []string `json:"updatedEntityTypes"`
+}
+
+// MatchSearchFailed Error payload emitted on match:search-failed SSE channel.
+type MatchSearchFailed struct {
+	CorrelationId string `json:"correlationId"`
+	Error         string `json:"error"`
+	ReferenceId   string `json:"referenceId"`
+}
+
+// MatchSearchRequest Request payload sent on the match:search-request bus channel to find candidate matches.
+type MatchSearchRequest struct {
+	// Context Context gathered for a gather.* call — consumed by yield.* (generation) and the matcher. A shared base (graph, semanticContext, metadata, inferredRelationshipSummary) plus a discriminated `focus` that names the anchor: an annotation or a whole resource.
+	Context GatheredContext `json:"context"`
+
+	// CorrelationId Client-generated correlation ID to thread the response back to the originating request
+	CorrelationId string `json:"correlationId"`
+
+	// Limit Maximum number of candidate results to return
+	Limit *int `json:"limit,omitempty"`
+
+	// ReferenceId Annotation ID of the reference to search candidates for
+	ReferenceId string `json:"referenceId"`
+
+	// ResourceId Resource ID the reference annotation belongs to. Used to scope result events on the EventBus so the events-stream delivers them to participants viewing this resource.
+	ResourceId string `json:"resourceId"`
+
+	// UseSemanticScoring Enable semantic similarity scoring in addition to keyword matching
+	UseSemanticScoring *bool `json:"useSemanticScoring,omitempty"`
+}
+
+// MatchSearchResult Search results payload emitted on match:search-results SSE channel.
+type MatchSearchResult struct {
+	CorrelationId string `json:"correlationId"`
+	ReferenceId   string `json:"referenceId"`
+
+	// Response The scored candidates, best first. This IS the result list — there is no wrapper object with a `candidates` or `resources` key around it.
+	Response []ScoredResource `json:"response"`
+}
 
 // MediaTokenRequest defines model for MediaTokenRequest.
 type MediaTokenRequest struct {
@@ -755,6 +2736,68 @@ type Representation_ConformsTo struct {
 
 // RepresentationRel Semantics of this rendition relative to the resource (e.g., original, thumbnail, preview, derived).
 type RepresentationRel string
+
+// RepresentationAddedPayload Payload for yield:representation-added domain event
+type RepresentationAddedPayload struct {
+	// Representation A specific, byte-addressable rendition of a resource (file/asset/variant).
+	Representation Representation `json:"representation"`
+}
+
+// RepresentationRemovedPayload Payload for yield:representation-removed domain event
+type RepresentationRemovedPayload struct {
+	// Checksum Checksum of the representation to remove
+	Checksum string `json:"checksum"`
+}
+
+// ResourceArchivedPayload Payload for mark:archived domain event
+type ResourceArchivedPayload struct {
+	Reason *string `json:"reason,omitempty"`
+}
+
+// ResourceClonedPayload Payload for yield:cloned domain event
+type ResourceClonedPayload struct {
+	ContentByteSize *int      `json:"contentByteSize,omitempty"`
+	ContentChecksum string    `json:"contentChecksum"`
+	EntityTypes     *[]string `json:"entityTypes,omitempty"`
+
+	// Format Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
+	Format           ContentFormat `json:"format"`
+	Language         *string       `json:"language,omitempty"`
+	Name             string        `json:"name"`
+	ParentResourceId string        `json:"parentResourceId"`
+}
+
+// ResourceCreatedPayload Payload for yield:created domain event
+type ResourceCreatedPayload struct {
+	ContentByteSize *int `json:"contentByteSize,omitempty"`
+
+	// ContentChecksum SHA-256 of content
+	ContentChecksum string    `json:"contentChecksum"`
+	EntityTypes     *[]string `json:"entityTypes,omitempty"`
+
+	// Format Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
+	Format        ContentFormat `json:"format"`
+	GeneratedFrom *struct {
+		AnnotationId string `json:"annotationId"`
+		ResourceId   string `json:"resourceId"`
+	} `json:"generatedFrom,omitempty"`
+	GenerationPrompt *string                           `json:"generationPrompt,omitempty"`
+	Generator        *ResourceCreatedPayload_Generator `json:"generator,omitempty"`
+	IsDraft          *bool                             `json:"isDraft,omitempty"`
+	Language         *string                           `json:"language,omitempty"`
+	Name             string                            `json:"name"`
+
+	// StorageUri Working-tree URI (e.g. file://docs/overview.md)
+	StorageUri *string `json:"storageUri,omitempty"`
+}
+
+// ResourceCreatedPayloadGenerator1 defines model for .
+type ResourceCreatedPayloadGenerator1 = []Agent
+
+// ResourceCreatedPayload_Generator defines model for ResourceCreatedPayload.Generator.
+type ResourceCreatedPayload_Generator struct {
+	union json.RawMessage
+}
 
 // ResourceDescriptor Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
 type ResourceDescriptor struct {
@@ -940,6 +2983,279 @@ type ResourceDescriptor_WasDerivedFrom struct {
 	union json.RawMessage
 }
 
+// ResourceMovedPayload Payload for yield:moved domain event
+type ResourceMovedPayload struct {
+	// FromUri Previous file:// URI
+	FromUri string `json:"fromUri"`
+
+	// ToUri New file:// URI
+	ToUri string `json:"toUri"`
+}
+
+// ResourceUnarchivedPayload Payload for mark:unarchived domain event (empty payload)
+type ResourceUnarchivedPayload = map[string]interface{}
+
+// ResourceUpdatedPayload Payload for yield:updated domain event
+type ResourceUpdatedPayload struct {
+	ContentByteSize *int `json:"contentByteSize,omitempty"`
+
+	// ContentChecksum SHA-256 of new content
+	ContentChecksum string `json:"contentChecksum"`
+}
+
+// ScoredResource defines model for ScoredResource.
+type ScoredResource struct {
+	// Context JSON-LD context; URI, object, or array of these.
+	Context ScoredResource_Context `json:"@context"`
+
+	// Id Canonical URI/URN of the resource being described.
+	Id string `json:"@id"`
+
+	// Type Type(s) of the resource (IRIs/CURIEs via @context).
+	Type *ScoredResource_Type `json:"@type,omitempty"`
+
+	// About Topics (IRIs or strings).
+	About *ScoredResource_About `json:"about,omitempty"`
+
+	// Archived Application-specific: Whether this resource is archived
+	Archived *bool `json:"archived,omitempty"`
+
+	// AvailableFormats Convenience set summarizing media types across representations.
+	AvailableFormats *[]string `json:"availableFormats,omitempty"`
+
+	// ConformsTo Profile/shape URI this resource description conforms to.
+	ConformsTo *ScoredResource_ConformsTo `json:"conformsTo,omitempty"`
+
+	// CurrentChecksum SHA-256 hex hash of the current content. Updated on resource.created, resource.updated, resource.cloned events.
+	CurrentChecksum *string    `json:"currentChecksum,omitempty"`
+	DateCreated     *time.Time `json:"dateCreated,omitempty"`
+	DateModified    *time.Time `json:"dateModified,omitempty"`
+	Description     *string    `json:"description,omitempty"`
+
+	// EntityTypes Application-specific: Entity types for this resource
+	EntityTypes *[]string `json:"entityTypes,omitempty"`
+
+	// Generator Software agent that produced or processed this resource (W3C Web Annotation model)
+	Generator *ScoredResource_Generator `json:"generator,omitempty"`
+	HasPart   *[]string                 `json:"hasPart,omitempty"`
+
+	// Identifier Persistent identifiers (e.g., DOI, URN).
+	Identifier *ScoredResource_Identifier `json:"identifier,omitempty"`
+
+	// IsDraft Application-specific: Whether this resource is a draft
+	IsDraft  *bool     `json:"isDraft,omitempty"`
+	IsPartOf *[]string `json:"isPartOf,omitempty"`
+	License  *string   `json:"license,omitempty"`
+
+	// MatchReason Human-readable reason for the match.
+	MatchReason *string `json:"matchReason,omitempty"`
+	Name        string  `json:"name"`
+
+	// OriginatedFrom Original URI from a source knowledge base when this resource was imported
+	OriginatedFrom *string `json:"originatedFrom,omitempty"`
+
+	// Representations Managed or referenced byte-level renditions of this resource.
+	Representations ScoredResource_Representations `json:"representations"`
+
+	// SameAs Equivalent/authoritative references.
+	SameAs *[]string `json:"sameAs,omitempty"`
+
+	// Score Relevance score assigned by the matcher; higher is a better candidate.
+	Score *float32 `json:"score,omitempty"`
+
+	// SourceAnnotationId Application-specific: ID of annotation that triggered generation
+	SourceAnnotationId *string `json:"sourceAnnotationId,omitempty"`
+
+	// SourceResourceId Application-specific: ID of source resource for clones/derivatives
+	SourceResourceId *string `json:"sourceResourceId,omitempty"`
+
+	// StorageUri Working-tree URI for this resource (e.g. file://docs/overview.md). Stable across updates and moves.
+	StorageUri *string `json:"storageUri,omitempty"`
+	Version    *string `json:"version,omitempty"`
+
+	// WasAttributedTo W3C PROV - agents responsible for this resource
+	WasAttributedTo *ScoredResource_WasAttributedTo `json:"wasAttributedTo,omitempty"`
+
+	// WasDerivedFrom W3C PROV - source resources this was derived from
+	WasDerivedFrom       *ScoredResource_WasDerivedFrom `json:"wasDerivedFrom,omitempty"`
+	AdditionalProperties map[string]interface{}         `json:"-"`
+}
+
+// ScoredResourceContext0 defines model for .
+type ScoredResourceContext0 = string
+
+// ScoredResourceContext1 defines model for .
+type ScoredResourceContext1 map[string]interface{}
+
+// ScoredResourceContext2 defines model for .
+type ScoredResourceContext2 = []ScoredResource_Context_2_Item
+
+// ScoredResourceContext20 defines model for .
+type ScoredResourceContext20 = string
+
+// ScoredResourceContext21 defines model for .
+type ScoredResourceContext21 map[string]interface{}
+
+// ScoredResource_Context_2_Item defines model for ScoredResource.Context.2.Item.
+type ScoredResource_Context_2_Item struct {
+	union json.RawMessage
+}
+
+// ScoredResource_Context JSON-LD context; URI, object, or array of these.
+type ScoredResource_Context struct {
+	union json.RawMessage
+}
+
+// ScoredResourceType0 defines model for .
+type ScoredResourceType0 = string
+
+// ScoredResourceType1 defines model for .
+type ScoredResourceType1 = []string
+
+// ScoredResource_Type Type(s) of the resource (IRIs/CURIEs via @context).
+type ScoredResource_Type struct {
+	union json.RawMessage
+}
+
+// ScoredResourceAbout0 defines model for .
+type ScoredResourceAbout0 = string
+
+// ScoredResourceAbout1 defines model for .
+type ScoredResourceAbout1 = []string
+
+// ScoredResource_About Topics (IRIs or strings).
+type ScoredResource_About struct {
+	union json.RawMessage
+}
+
+// ScoredResourceConformsTo0 defines model for .
+type ScoredResourceConformsTo0 = string
+
+// ScoredResourceConformsTo1 defines model for .
+type ScoredResourceConformsTo1 = []string
+
+// ScoredResource_ConformsTo Profile/shape URI this resource description conforms to.
+type ScoredResource_ConformsTo struct {
+	union json.RawMessage
+}
+
+// ScoredResourceGenerator1 defines model for .
+type ScoredResourceGenerator1 = []Agent
+
+// ScoredResource_Generator Software agent that produced or processed this resource (W3C Web Annotation model)
+type ScoredResource_Generator struct {
+	union json.RawMessage
+}
+
+// ScoredResourceIdentifier0 defines model for .
+type ScoredResourceIdentifier0 = string
+
+// ScoredResourceIdentifier1 defines model for .
+type ScoredResourceIdentifier1 = []string
+
+// ScoredResourceIdentifier2 defines model for .
+type ScoredResourceIdentifier2 struct {
+	Id                   *string                `json:"@id,omitempty"`
+	Scheme               *string                `json:"scheme,omitempty"`
+	Value                *string                `json:"value,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// ScoredResource_Identifier Persistent identifiers (e.g., DOI, URN).
+type ScoredResource_Identifier struct {
+	union json.RawMessage
+}
+
+// ScoredResourceRepresentations1 defines model for .
+type ScoredResourceRepresentations1 = []Representation
+
+// ScoredResource_Representations Managed or referenced byte-level renditions of this resource.
+type ScoredResource_Representations struct {
+	union json.RawMessage
+}
+
+// ScoredResourceWasAttributedTo1 defines model for .
+type ScoredResourceWasAttributedTo1 = []Agent
+
+// ScoredResource_WasAttributedTo W3C PROV - agents responsible for this resource
+type ScoredResource_WasAttributedTo struct {
+	union json.RawMessage
+}
+
+// ScoredResourceWasDerivedFrom0 defines model for .
+type ScoredResourceWasDerivedFrom0 = string
+
+// ScoredResourceWasDerivedFrom1 defines model for .
+type ScoredResourceWasDerivedFrom1 = []string
+
+// ScoredResource_WasDerivedFrom W3C PROV - source resources this was derived from
+type ScoredResource_WasDerivedFrom struct {
+	union json.RawMessage
+}
+
+// SelectionData Selection data for user-initiated annotations. Captures the text range and optional selector information from a user's highlight in the UI.
+type SelectionData struct {
+	// ConformsTo Specification the fragment selector conforms to
+	ConformsTo *string `json:"conformsTo,omitempty"`
+
+	// End End character offset
+	End int `json:"end"`
+
+	// Exact The exact selected text
+	Exact string `json:"exact"`
+
+	// FragmentSelector Fragment selector (e.g. page=2)
+	FragmentSelector *string `json:"fragmentSelector,omitempty"`
+
+	// Prefix Text before the selection (for disambiguation)
+	Prefix *string `json:"prefix,omitempty"`
+
+	// Start Start character offset
+	Start int `json:"start"`
+
+	// Suffix Text after the selection (for disambiguation)
+	Suffix *string `json:"suffix,omitempty"`
+
+	// SvgSelector SVG selector for non-text selections (e.g. PDF regions)
+	SvgSelector *string `json:"svgSelector,omitempty"`
+}
+
+// SemanticMatch defines model for SemanticMatch.
+type SemanticMatch struct {
+	// AnnotationId Source annotation ID, if the match is from an annotation
+	AnnotationId *string `json:"annotationId,omitempty"`
+
+	// EntityTypes Entity types on the matched passage
+	EntityTypes *[]string `json:"entityTypes,omitempty"`
+
+	// ResourceId Source resource ID
+	ResourceId string `json:"resourceId"`
+
+	// Score Cosine similarity score (0-1)
+	Score float32 `json:"score"`
+
+	// Text The chunk text that matched
+	Text string `json:"text"`
+}
+
+// SettingsHoverDelayChangedEvent Emitted when the hover delay setting changes
+type SettingsHoverDelayChangedEvent struct {
+	HoverDelayMs int `json:"hoverDelayMs"`
+}
+
+// SettingsLocaleChangedEvent Emitted when the UI locale setting changes
+type SettingsLocaleChangedEvent struct {
+	Locale string `json:"locale"`
+}
+
+// SettingsThemeChangedEvent Emitted when the UI theme setting changes
+type SettingsThemeChangedEvent struct {
+	Theme SettingsThemeChangedEventTheme `json:"theme"`
+}
+
+// SettingsThemeChangedEventTheme defines model for SettingsThemeChangedEvent.Theme.
+type SettingsThemeChangedEventTheme string
+
 // SpecificResource defines model for SpecificResource.
 type SpecificResource struct {
 	// Purpose W3C Web Annotation body purpose vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation
@@ -972,6 +3288,36 @@ type StatusResponse struct {
 	Version     string  `json:"version"`
 }
 
+// StoredEventResponse A persisted domain event with metadata. Flat shape — event fields and metadata are peers.
+type StoredEventResponse struct {
+	// Id Unique event ID (UUID)
+	Id string `json:"id"`
+
+	// Metadata Metadata added at persistence time. Part of every StoredEvent. Integrity is provided by git at the commit level (when gitSync is enabled), not by in-event metadata fields.
+	Metadata EventMetadata `json:"metadata"`
+
+	// Payload Event-type-specific payload
+	Payload map[string]interface{} `json:"payload"`
+
+	// ResourceId Resource this event affects (absent for system events)
+	ResourceId *string `json:"resourceId,omitempty"`
+
+	// Timestamp When the event occurred
+	Timestamp time.Time `json:"timestamp"`
+
+	// Type Event type (flow verb name, e.g. mark:added)
+	Type string `json:"type"`
+
+	// UserId DID of the user who triggered the event
+	UserId string `json:"userId"`
+
+	// Version Event schema version
+	Version int `json:"version"`
+}
+
+// SupportedMediaType Base MIME types (no parameters) admitted by Semiont. Membership is the create/yield gate — every member is storable, nameable, and uploadable. What more the system can do with a type (render, annotate, extract text, author) is curated per type in @semiont/core's media-type registry, which is keyed by this enum.
+type SupportedMediaType string
+
 // SvgSelector defines model for SvgSelector.
 type SvgSelector struct {
 	Type SvgSelectorType `json:"type"`
@@ -982,6 +3328,30 @@ type SvgSelector struct {
 
 // SvgSelectorType defines model for SvgSelector.Type.
 type SvgSelectorType string
+
+// TagCategory A single category within a tag schema (e.g. 'Issue' in IRAC, 'distinguished' in legal-citation-treatment). Each category carries methodology-bound semantics: a name, a description, and examples used in the LLM prompt.
+type TagCategory struct {
+	Description string   `json:"description"`
+	Examples    []string `json:"examples"`
+	Name        string   `json:"name"`
+}
+
+// TagSchema A structural-analysis schema (e.g. legal-irac, scientific-imrad, argument-toulmin). Defines a methodology framework as an id, name, description, domain hint, and an ordered list of categories. KBs and their skills register schemas with the runtime registry via `frame.addTagSchema(...)` at session start.
+type TagSchema struct {
+	Description string `json:"description"`
+
+	// Domain Free-form domain hint (e.g. 'legal', 'scientific', 'general'). Used in the LLM prompt to tune the model's analysis voice. KB authors choose.
+	Domain string        `json:"domain"`
+	Id     string        `json:"id"`
+	Name   string        `json:"name"`
+	Tags   []TagCategory `json:"tags"`
+}
+
+// TagSchemaAddedPayload Payload for frame:tag-schema-added domain event (system-level, no resourceId — fan-out is global to the KB).
+type TagSchemaAddedPayload struct {
+	// Schema A structural-analysis schema (e.g. legal-irac, scientific-imrad, argument-toulmin). Defines a methodology framework as an id, name, description, domain hint, and an ordered list of categories. KBs and their skills register schemas with the runtime registry via `frame.addTagSchema(...)` at session start.
+	Schema TagSchema `json:"schema"`
+}
 
 // TextPositionSelector defines model for TextPositionSelector.
 type TextPositionSelector struct {
@@ -1037,11 +3407,43 @@ type TokenRefreshResponse struct {
 	AccessToken string `json:"access_token"`
 }
 
+// UpdateAnnotationBodyRequest defines model for UpdateAnnotationBodyRequest.
+type UpdateAnnotationBodyRequest struct {
+	// Operations Array of body modification operations to apply
+	Operations []UpdateAnnotationBodyRequest_Operations_Item `json:"operations"`
+
+	// ResourceId Resource ID containing the annotation (required for O(1) Layer 3 lookup)
+	ResourceId string `json:"resourceId"`
+}
+
+// UpdateAnnotationBodyRequest_Operations_Item defines model for UpdateAnnotationBodyRequest.operations.Item.
+type UpdateAnnotationBodyRequest_Operations_Item struct {
+	union json.RawMessage
+}
+
 // UpdateUserRequest defines model for UpdateUserRequest.
 type UpdateUserRequest struct {
 	IsActive *bool   `json:"isActive,omitempty"`
 	IsAdmin  *bool   `json:"isAdmin,omitempty"`
 	Name     *string `json:"name,omitempty"`
+}
+
+// UpdateUserResponse defines model for UpdateUserResponse.
+type UpdateUserResponse struct {
+	Success bool `json:"success"`
+	User    struct {
+		Created   string  `json:"created"`
+		Domain    string  `json:"domain"`
+		Email     string  `json:"email"`
+		Id        string  `json:"id"`
+		Image     *string `json:"image,omitempty"`
+		IsActive  bool    `json:"isActive"`
+		IsAdmin   bool    `json:"isAdmin"`
+		LastLogin *string `json:"lastLogin,omitempty"`
+		Name      *string `json:"name,omitempty"`
+		Provider  string  `json:"provider"`
+		UpdatedAt string  `json:"updatedAt"`
+	} `json:"user"`
 }
 
 // UserResponse defines model for UserResponse.
@@ -1061,6 +3463,128 @@ type UserResponse struct {
 
 	// Token The validated JWT token string for the current session
 	Token string `json:"token"`
+}
+
+// WeaveRebuildCommand Bus command to rebuild the graph projection from the event log — the whole graph when resourceId is absent, one resource when present. Served by the Weaver; replaces direct rebuild access, which does not survive the Weaver's container split.
+type WeaveRebuildCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// CorrelationId Correlation id for request/reply matching, set by busRequest so the ok/failed reply routes back.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// ResourceId When present, rebuild only this resource; otherwise clear and rebuild the entire graph.
+	ResourceId *string `json:"resourceId,omitempty"`
+}
+
+// YieldCloneCreateCommand Bus command to create a cloned resource from a clone token.
+type YieldCloneCreateCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+	ArchiveOriginal  *bool   `json:"archiveOriginal,omitempty"`
+	Content          string  `json:"content"`
+	CorrelationId    string  `json:"correlationId"`
+	Name             string  `json:"name"`
+	Token            string  `json:"token"`
+}
+
+// YieldCloneCreated Success response after creating a cloned resource.
+type YieldCloneCreated struct {
+	CorrelationId string `json:"correlationId"`
+	Response      struct {
+		ResourceId string `json:"resourceId"`
+	} `json:"response"`
+}
+
+// YieldCloneResourceRequest Bus command to request cloning a resource using a clone token.
+type YieldCloneResourceRequest struct {
+	CorrelationId string `json:"correlationId"`
+	Token         string `json:"token"`
+}
+
+// YieldCloneTokenRequest Bus command to request a clone token for a resource.
+type YieldCloneTokenRequest struct {
+	CorrelationId string `json:"correlationId"`
+	ResourceId    string `json:"resourceId"`
+}
+
+// YieldCreateCommand Bus command to create a yielded resource in the knowledge base.
+type YieldCreateCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+	ByteSize         int     `json:"byteSize"`
+	ContentChecksum  string  `json:"contentChecksum"`
+
+	// CorrelationId Correlation id for request/reply matching, set by busRequest so the yield:create-ok / yield:create-failed reply routes back to the awaiting caller.
+	CorrelationId *string   `json:"correlationId,omitempty"`
+	EntityTypes   *[]string `json:"entityTypes,omitempty"`
+
+	// Format Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
+	Format        ContentFormat `json:"format"`
+	GeneratedFrom *struct {
+		AnnotationId *string `json:"annotationId,omitempty"`
+		ResourceId   *string `json:"resourceId,omitempty"`
+	} `json:"generatedFrom,omitempty"`
+	GenerationPrompt *string                       `json:"generationPrompt,omitempty"`
+	Generator        *YieldCreateCommand_Generator `json:"generator,omitempty"`
+	IsDraft          *bool                         `json:"isDraft,omitempty"`
+	Language         *string                       `json:"language,omitempty"`
+	Name             string                        `json:"name"`
+	NoGit            *bool                         `json:"noGit,omitempty"`
+	StorageUri       string                        `json:"storageUri"`
+}
+
+// YieldCreateCommandGenerator1 defines model for .
+type YieldCreateCommandGenerator1 = []Agent
+
+// YieldCreateCommand_Generator defines model for YieldCreateCommand.Generator.
+type YieldCreateCommand_Generator struct {
+	union json.RawMessage
+}
+
+// YieldCreateOk Success reply after creating a yielded resource, matched to the originating command by correlationId.
+type YieldCreateOk struct {
+	// CorrelationId Correlation id echoed from the yield:create command so busRequest can match the reply.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// Response The created resource's identity.
+	Response struct {
+		ResourceId string `json:"resourceId"`
+	} `json:"response"`
+}
+
+// YieldMvCommand Bus command to move (rename) a yielded resource.
+type YieldMvCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+	FromUri          string  `json:"fromUri"`
+	NoGit            *bool   `json:"noGit,omitempty"`
+	ToUri            string  `json:"toUri"`
+}
+
+// YieldUpdateCommand Bus command to update a yielded resource's storage content.
+type YieldUpdateCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+	ByteSize         int     `json:"byteSize"`
+	ContentChecksum  string  `json:"contentChecksum"`
+
+	// CorrelationId Correlation id for request/reply matching, set by busRequest so the yield:update-ok / yield:update-failed reply routes back to the awaiting caller.
+	CorrelationId *string `json:"correlationId,omitempty"`
+	NoGit         *bool   `json:"noGit,omitempty"`
+	ResourceId    string  `json:"resourceId"`
+	StorageUri    string  `json:"storageUri"`
+}
+
+// YieldUpdateOk Success reply after updating a yielded resource, matched to the originating command by correlationId.
+type YieldUpdateOk struct {
+	// CorrelationId Correlation id echoed from the yield:update command so busRequest can match the reply.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// Response The updated resource's identity.
+	Response struct {
+		ResourceId string `json:"resourceId"`
+	} `json:"response"`
 }
 
 // PostApiAdminExchangeRestoreMultipartBody defines parameters for PostApiAdminExchangeRestore.
@@ -2448,6 +4972,599 @@ func (a ResourceDescriptorIdentifier2) MarshalJSON() ([]byte, error) {
 	return json.Marshal(object)
 }
 
+// Getter for additional properties for ScoredResource. Returns the specified
+// element and whether it was found
+func (a ScoredResource) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for ScoredResource
+func (a *ScoredResource) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for ScoredResource to handle AdditionalProperties
+func (a *ScoredResource) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["@context"]; found {
+		err = json.Unmarshal(raw, &a.Context)
+		if err != nil {
+			return fmt.Errorf("error reading '@context': %w", err)
+		}
+		delete(object, "@context")
+	}
+
+	if raw, found := object["@id"]; found {
+		err = json.Unmarshal(raw, &a.Id)
+		if err != nil {
+			return fmt.Errorf("error reading '@id': %w", err)
+		}
+		delete(object, "@id")
+	}
+
+	if raw, found := object["@type"]; found {
+		err = json.Unmarshal(raw, &a.Type)
+		if err != nil {
+			return fmt.Errorf("error reading '@type': %w", err)
+		}
+		delete(object, "@type")
+	}
+
+	if raw, found := object["about"]; found {
+		err = json.Unmarshal(raw, &a.About)
+		if err != nil {
+			return fmt.Errorf("error reading 'about': %w", err)
+		}
+		delete(object, "about")
+	}
+
+	if raw, found := object["archived"]; found {
+		err = json.Unmarshal(raw, &a.Archived)
+		if err != nil {
+			return fmt.Errorf("error reading 'archived': %w", err)
+		}
+		delete(object, "archived")
+	}
+
+	if raw, found := object["availableFormats"]; found {
+		err = json.Unmarshal(raw, &a.AvailableFormats)
+		if err != nil {
+			return fmt.Errorf("error reading 'availableFormats': %w", err)
+		}
+		delete(object, "availableFormats")
+	}
+
+	if raw, found := object["conformsTo"]; found {
+		err = json.Unmarshal(raw, &a.ConformsTo)
+		if err != nil {
+			return fmt.Errorf("error reading 'conformsTo': %w", err)
+		}
+		delete(object, "conformsTo")
+	}
+
+	if raw, found := object["currentChecksum"]; found {
+		err = json.Unmarshal(raw, &a.CurrentChecksum)
+		if err != nil {
+			return fmt.Errorf("error reading 'currentChecksum': %w", err)
+		}
+		delete(object, "currentChecksum")
+	}
+
+	if raw, found := object["dateCreated"]; found {
+		err = json.Unmarshal(raw, &a.DateCreated)
+		if err != nil {
+			return fmt.Errorf("error reading 'dateCreated': %w", err)
+		}
+		delete(object, "dateCreated")
+	}
+
+	if raw, found := object["dateModified"]; found {
+		err = json.Unmarshal(raw, &a.DateModified)
+		if err != nil {
+			return fmt.Errorf("error reading 'dateModified': %w", err)
+		}
+		delete(object, "dateModified")
+	}
+
+	if raw, found := object["description"]; found {
+		err = json.Unmarshal(raw, &a.Description)
+		if err != nil {
+			return fmt.Errorf("error reading 'description': %w", err)
+		}
+		delete(object, "description")
+	}
+
+	if raw, found := object["entityTypes"]; found {
+		err = json.Unmarshal(raw, &a.EntityTypes)
+		if err != nil {
+			return fmt.Errorf("error reading 'entityTypes': %w", err)
+		}
+		delete(object, "entityTypes")
+	}
+
+	if raw, found := object["generator"]; found {
+		err = json.Unmarshal(raw, &a.Generator)
+		if err != nil {
+			return fmt.Errorf("error reading 'generator': %w", err)
+		}
+		delete(object, "generator")
+	}
+
+	if raw, found := object["hasPart"]; found {
+		err = json.Unmarshal(raw, &a.HasPart)
+		if err != nil {
+			return fmt.Errorf("error reading 'hasPart': %w", err)
+		}
+		delete(object, "hasPart")
+	}
+
+	if raw, found := object["identifier"]; found {
+		err = json.Unmarshal(raw, &a.Identifier)
+		if err != nil {
+			return fmt.Errorf("error reading 'identifier': %w", err)
+		}
+		delete(object, "identifier")
+	}
+
+	if raw, found := object["isDraft"]; found {
+		err = json.Unmarshal(raw, &a.IsDraft)
+		if err != nil {
+			return fmt.Errorf("error reading 'isDraft': %w", err)
+		}
+		delete(object, "isDraft")
+	}
+
+	if raw, found := object["isPartOf"]; found {
+		err = json.Unmarshal(raw, &a.IsPartOf)
+		if err != nil {
+			return fmt.Errorf("error reading 'isPartOf': %w", err)
+		}
+		delete(object, "isPartOf")
+	}
+
+	if raw, found := object["license"]; found {
+		err = json.Unmarshal(raw, &a.License)
+		if err != nil {
+			return fmt.Errorf("error reading 'license': %w", err)
+		}
+		delete(object, "license")
+	}
+
+	if raw, found := object["matchReason"]; found {
+		err = json.Unmarshal(raw, &a.MatchReason)
+		if err != nil {
+			return fmt.Errorf("error reading 'matchReason': %w", err)
+		}
+		delete(object, "matchReason")
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &a.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+		delete(object, "name")
+	}
+
+	if raw, found := object["originatedFrom"]; found {
+		err = json.Unmarshal(raw, &a.OriginatedFrom)
+		if err != nil {
+			return fmt.Errorf("error reading 'originatedFrom': %w", err)
+		}
+		delete(object, "originatedFrom")
+	}
+
+	if raw, found := object["representations"]; found {
+		err = json.Unmarshal(raw, &a.Representations)
+		if err != nil {
+			return fmt.Errorf("error reading 'representations': %w", err)
+		}
+		delete(object, "representations")
+	}
+
+	if raw, found := object["sameAs"]; found {
+		err = json.Unmarshal(raw, &a.SameAs)
+		if err != nil {
+			return fmt.Errorf("error reading 'sameAs': %w", err)
+		}
+		delete(object, "sameAs")
+	}
+
+	if raw, found := object["score"]; found {
+		err = json.Unmarshal(raw, &a.Score)
+		if err != nil {
+			return fmt.Errorf("error reading 'score': %w", err)
+		}
+		delete(object, "score")
+	}
+
+	if raw, found := object["sourceAnnotationId"]; found {
+		err = json.Unmarshal(raw, &a.SourceAnnotationId)
+		if err != nil {
+			return fmt.Errorf("error reading 'sourceAnnotationId': %w", err)
+		}
+		delete(object, "sourceAnnotationId")
+	}
+
+	if raw, found := object["sourceResourceId"]; found {
+		err = json.Unmarshal(raw, &a.SourceResourceId)
+		if err != nil {
+			return fmt.Errorf("error reading 'sourceResourceId': %w", err)
+		}
+		delete(object, "sourceResourceId")
+	}
+
+	if raw, found := object["storageUri"]; found {
+		err = json.Unmarshal(raw, &a.StorageUri)
+		if err != nil {
+			return fmt.Errorf("error reading 'storageUri': %w", err)
+		}
+		delete(object, "storageUri")
+	}
+
+	if raw, found := object["version"]; found {
+		err = json.Unmarshal(raw, &a.Version)
+		if err != nil {
+			return fmt.Errorf("error reading 'version': %w", err)
+		}
+		delete(object, "version")
+	}
+
+	if raw, found := object["wasAttributedTo"]; found {
+		err = json.Unmarshal(raw, &a.WasAttributedTo)
+		if err != nil {
+			return fmt.Errorf("error reading 'wasAttributedTo': %w", err)
+		}
+		delete(object, "wasAttributedTo")
+	}
+
+	if raw, found := object["wasDerivedFrom"]; found {
+		err = json.Unmarshal(raw, &a.WasDerivedFrom)
+		if err != nil {
+			return fmt.Errorf("error reading 'wasDerivedFrom': %w", err)
+		}
+		delete(object, "wasDerivedFrom")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for ScoredResource to handle AdditionalProperties
+func (a ScoredResource) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	object["@context"], err = json.Marshal(a.Context)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling '@context': %w", err)
+	}
+
+	object["@id"], err = json.Marshal(a.Id)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling '@id': %w", err)
+	}
+
+	if a.Type != nil {
+		object["@type"], err = json.Marshal(a.Type)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '@type': %w", err)
+		}
+	}
+
+	if a.About != nil {
+		object["about"], err = json.Marshal(a.About)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'about': %w", err)
+		}
+	}
+
+	if a.Archived != nil {
+		object["archived"], err = json.Marshal(a.Archived)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'archived': %w", err)
+		}
+	}
+
+	if a.AvailableFormats != nil {
+		object["availableFormats"], err = json.Marshal(a.AvailableFormats)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'availableFormats': %w", err)
+		}
+	}
+
+	if a.ConformsTo != nil {
+		object["conformsTo"], err = json.Marshal(a.ConformsTo)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'conformsTo': %w", err)
+		}
+	}
+
+	if a.CurrentChecksum != nil {
+		object["currentChecksum"], err = json.Marshal(a.CurrentChecksum)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'currentChecksum': %w", err)
+		}
+	}
+
+	if a.DateCreated != nil {
+		object["dateCreated"], err = json.Marshal(a.DateCreated)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'dateCreated': %w", err)
+		}
+	}
+
+	if a.DateModified != nil {
+		object["dateModified"], err = json.Marshal(a.DateModified)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'dateModified': %w", err)
+		}
+	}
+
+	if a.Description != nil {
+		object["description"], err = json.Marshal(a.Description)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'description': %w", err)
+		}
+	}
+
+	if a.EntityTypes != nil {
+		object["entityTypes"], err = json.Marshal(a.EntityTypes)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'entityTypes': %w", err)
+		}
+	}
+
+	if a.Generator != nil {
+		object["generator"], err = json.Marshal(a.Generator)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'generator': %w", err)
+		}
+	}
+
+	if a.HasPart != nil {
+		object["hasPart"], err = json.Marshal(a.HasPart)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'hasPart': %w", err)
+		}
+	}
+
+	if a.Identifier != nil {
+		object["identifier"], err = json.Marshal(a.Identifier)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'identifier': %w", err)
+		}
+	}
+
+	if a.IsDraft != nil {
+		object["isDraft"], err = json.Marshal(a.IsDraft)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'isDraft': %w", err)
+		}
+	}
+
+	if a.IsPartOf != nil {
+		object["isPartOf"], err = json.Marshal(a.IsPartOf)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'isPartOf': %w", err)
+		}
+	}
+
+	if a.License != nil {
+		object["license"], err = json.Marshal(a.License)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'license': %w", err)
+		}
+	}
+
+	if a.MatchReason != nil {
+		object["matchReason"], err = json.Marshal(a.MatchReason)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'matchReason': %w", err)
+		}
+	}
+
+	object["name"], err = json.Marshal(a.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	}
+
+	if a.OriginatedFrom != nil {
+		object["originatedFrom"], err = json.Marshal(a.OriginatedFrom)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'originatedFrom': %w", err)
+		}
+	}
+
+	object["representations"], err = json.Marshal(a.Representations)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'representations': %w", err)
+	}
+
+	if a.SameAs != nil {
+		object["sameAs"], err = json.Marshal(a.SameAs)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'sameAs': %w", err)
+		}
+	}
+
+	if a.Score != nil {
+		object["score"], err = json.Marshal(a.Score)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'score': %w", err)
+		}
+	}
+
+	if a.SourceAnnotationId != nil {
+		object["sourceAnnotationId"], err = json.Marshal(a.SourceAnnotationId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'sourceAnnotationId': %w", err)
+		}
+	}
+
+	if a.SourceResourceId != nil {
+		object["sourceResourceId"], err = json.Marshal(a.SourceResourceId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'sourceResourceId': %w", err)
+		}
+	}
+
+	if a.StorageUri != nil {
+		object["storageUri"], err = json.Marshal(a.StorageUri)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'storageUri': %w", err)
+		}
+	}
+
+	if a.Version != nil {
+		object["version"], err = json.Marshal(a.Version)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'version': %w", err)
+		}
+	}
+
+	if a.WasAttributedTo != nil {
+		object["wasAttributedTo"], err = json.Marshal(a.WasAttributedTo)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'wasAttributedTo': %w", err)
+		}
+	}
+
+	if a.WasDerivedFrom != nil {
+		object["wasDerivedFrom"], err = json.Marshal(a.WasDerivedFrom)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'wasDerivedFrom': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for ScoredResourceIdentifier2. Returns the specified
+// element and whether it was found
+func (a ScoredResourceIdentifier2) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for ScoredResourceIdentifier2
+func (a *ScoredResourceIdentifier2) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for ScoredResourceIdentifier2 to handle AdditionalProperties
+func (a *ScoredResourceIdentifier2) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["@id"]; found {
+		err = json.Unmarshal(raw, &a.Id)
+		if err != nil {
+			return fmt.Errorf("error reading '@id': %w", err)
+		}
+		delete(object, "@id")
+	}
+
+	if raw, found := object["scheme"]; found {
+		err = json.Unmarshal(raw, &a.Scheme)
+		if err != nil {
+			return fmt.Errorf("error reading 'scheme': %w", err)
+		}
+		delete(object, "scheme")
+	}
+
+	if raw, found := object["value"]; found {
+		err = json.Unmarshal(raw, &a.Value)
+		if err != nil {
+			return fmt.Errorf("error reading 'value': %w", err)
+		}
+		delete(object, "value")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for ScoredResourceIdentifier2 to handle AdditionalProperties
+func (a ScoredResourceIdentifier2) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Id != nil {
+		object["@id"], err = json.Marshal(a.Id)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '@id': %w", err)
+		}
+	}
+
+	if a.Scheme != nil {
+		object["scheme"], err = json.Marshal(a.Scheme)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'scheme': %w", err)
+		}
+	}
+
+	if a.Value != nil {
+		object["value"], err = json.Marshal(a.Value)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'value': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
 // AsAgent0 returns the union data inside the Agent as a Agent0
 func (t Agent) AsAgent0() (Agent0, error) {
 	var body Agent0
@@ -2846,6 +5963,94 @@ func (t *AnnotationBody) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsBodyOperationAdd returns the union data inside the AnnotationBodyUpdatedPayload_Operations_Item as a BodyOperationAdd
+func (t AnnotationBodyUpdatedPayload_Operations_Item) AsBodyOperationAdd() (BodyOperationAdd, error) {
+	var body BodyOperationAdd
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBodyOperationAdd overwrites any union data inside the AnnotationBodyUpdatedPayload_Operations_Item as the provided BodyOperationAdd
+func (t *AnnotationBodyUpdatedPayload_Operations_Item) FromBodyOperationAdd(v BodyOperationAdd) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBodyOperationAdd performs a merge with any union data inside the AnnotationBodyUpdatedPayload_Operations_Item, using the provided BodyOperationAdd
+func (t *AnnotationBodyUpdatedPayload_Operations_Item) MergeBodyOperationAdd(v BodyOperationAdd) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBodyOperationRemove returns the union data inside the AnnotationBodyUpdatedPayload_Operations_Item as a BodyOperationRemove
+func (t AnnotationBodyUpdatedPayload_Operations_Item) AsBodyOperationRemove() (BodyOperationRemove, error) {
+	var body BodyOperationRemove
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBodyOperationRemove overwrites any union data inside the AnnotationBodyUpdatedPayload_Operations_Item as the provided BodyOperationRemove
+func (t *AnnotationBodyUpdatedPayload_Operations_Item) FromBodyOperationRemove(v BodyOperationRemove) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBodyOperationRemove performs a merge with any union data inside the AnnotationBodyUpdatedPayload_Operations_Item, using the provided BodyOperationRemove
+func (t *AnnotationBodyUpdatedPayload_Operations_Item) MergeBodyOperationRemove(v BodyOperationRemove) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBodyOperationReplace returns the union data inside the AnnotationBodyUpdatedPayload_Operations_Item as a BodyOperationReplace
+func (t AnnotationBodyUpdatedPayload_Operations_Item) AsBodyOperationReplace() (BodyOperationReplace, error) {
+	var body BodyOperationReplace
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBodyOperationReplace overwrites any union data inside the AnnotationBodyUpdatedPayload_Operations_Item as the provided BodyOperationReplace
+func (t *AnnotationBodyUpdatedPayload_Operations_Item) FromBodyOperationReplace(v BodyOperationReplace) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBodyOperationReplace performs a merge with any union data inside the AnnotationBodyUpdatedPayload_Operations_Item, using the provided BodyOperationReplace
+func (t *AnnotationBodyUpdatedPayload_Operations_Item) MergeBodyOperationReplace(v BodyOperationReplace) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AnnotationBodyUpdatedPayload_Operations_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *AnnotationBodyUpdatedPayload_Operations_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsTextPositionSelector returns the union data inside the AnnotationTarget_Selector_4_Item as a TextPositionSelector
 func (t AnnotationTarget_Selector_4_Item) AsTextPositionSelector() (TextPositionSelector, error) {
 	var body TextPositionSelector
@@ -3100,6 +6305,1264 @@ func (t *AnnotationTarget_Selector) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsTextualBody returns the union data inside the BodyOperationAdd_Item as a TextualBody
+func (t BodyOperationAdd_Item) AsTextualBody() (TextualBody, error) {
+	var body TextualBody
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextualBody overwrites any union data inside the BodyOperationAdd_Item as the provided TextualBody
+func (t *BodyOperationAdd_Item) FromTextualBody(v TextualBody) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextualBody performs a merge with any union data inside the BodyOperationAdd_Item, using the provided TextualBody
+func (t *BodyOperationAdd_Item) MergeTextualBody(v TextualBody) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSpecificResource returns the union data inside the BodyOperationAdd_Item as a SpecificResource
+func (t BodyOperationAdd_Item) AsSpecificResource() (SpecificResource, error) {
+	var body SpecificResource
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSpecificResource overwrites any union data inside the BodyOperationAdd_Item as the provided SpecificResource
+func (t *BodyOperationAdd_Item) FromSpecificResource(v SpecificResource) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSpecificResource performs a merge with any union data inside the BodyOperationAdd_Item, using the provided SpecificResource
+func (t *BodyOperationAdd_Item) MergeSpecificResource(v SpecificResource) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t BodyOperationAdd_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *BodyOperationAdd_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTextualBody returns the union data inside the BodyOperationRemove_Item as a TextualBody
+func (t BodyOperationRemove_Item) AsTextualBody() (TextualBody, error) {
+	var body TextualBody
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextualBody overwrites any union data inside the BodyOperationRemove_Item as the provided TextualBody
+func (t *BodyOperationRemove_Item) FromTextualBody(v TextualBody) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextualBody performs a merge with any union data inside the BodyOperationRemove_Item, using the provided TextualBody
+func (t *BodyOperationRemove_Item) MergeTextualBody(v TextualBody) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSpecificResource returns the union data inside the BodyOperationRemove_Item as a SpecificResource
+func (t BodyOperationRemove_Item) AsSpecificResource() (SpecificResource, error) {
+	var body SpecificResource
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSpecificResource overwrites any union data inside the BodyOperationRemove_Item as the provided SpecificResource
+func (t *BodyOperationRemove_Item) FromSpecificResource(v SpecificResource) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSpecificResource performs a merge with any union data inside the BodyOperationRemove_Item, using the provided SpecificResource
+func (t *BodyOperationRemove_Item) MergeSpecificResource(v SpecificResource) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t BodyOperationRemove_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *BodyOperationRemove_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTextualBody returns the union data inside the BodyOperationReplace_NewItem as a TextualBody
+func (t BodyOperationReplace_NewItem) AsTextualBody() (TextualBody, error) {
+	var body TextualBody
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextualBody overwrites any union data inside the BodyOperationReplace_NewItem as the provided TextualBody
+func (t *BodyOperationReplace_NewItem) FromTextualBody(v TextualBody) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextualBody performs a merge with any union data inside the BodyOperationReplace_NewItem, using the provided TextualBody
+func (t *BodyOperationReplace_NewItem) MergeTextualBody(v TextualBody) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSpecificResource returns the union data inside the BodyOperationReplace_NewItem as a SpecificResource
+func (t BodyOperationReplace_NewItem) AsSpecificResource() (SpecificResource, error) {
+	var body SpecificResource
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSpecificResource overwrites any union data inside the BodyOperationReplace_NewItem as the provided SpecificResource
+func (t *BodyOperationReplace_NewItem) FromSpecificResource(v SpecificResource) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSpecificResource performs a merge with any union data inside the BodyOperationReplace_NewItem, using the provided SpecificResource
+func (t *BodyOperationReplace_NewItem) MergeSpecificResource(v SpecificResource) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t BodyOperationReplace_NewItem) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *BodyOperationReplace_NewItem) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTextualBody returns the union data inside the BodyOperationReplace_OldItem as a TextualBody
+func (t BodyOperationReplace_OldItem) AsTextualBody() (TextualBody, error) {
+	var body TextualBody
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextualBody overwrites any union data inside the BodyOperationReplace_OldItem as the provided TextualBody
+func (t *BodyOperationReplace_OldItem) FromTextualBody(v TextualBody) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextualBody performs a merge with any union data inside the BodyOperationReplace_OldItem, using the provided TextualBody
+func (t *BodyOperationReplace_OldItem) MergeTextualBody(v TextualBody) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSpecificResource returns the union data inside the BodyOperationReplace_OldItem as a SpecificResource
+func (t BodyOperationReplace_OldItem) AsSpecificResource() (SpecificResource, error) {
+	var body SpecificResource
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSpecificResource overwrites any union data inside the BodyOperationReplace_OldItem as the provided SpecificResource
+func (t *BodyOperationReplace_OldItem) FromSpecificResource(v SpecificResource) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSpecificResource performs a merge with any union data inside the BodyOperationReplace_OldItem, using the provided SpecificResource
+func (t *BodyOperationReplace_OldItem) MergeSpecificResource(v SpecificResource) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t BodyOperationReplace_OldItem) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *BodyOperationReplace_OldItem) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsAnnotationBody returns the union data inside the CreateAnnotationRequest_Body as a AnnotationBody
+func (t CreateAnnotationRequest_Body) AsAnnotationBody() (AnnotationBody, error) {
+	var body AnnotationBody
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAnnotationBody overwrites any union data inside the CreateAnnotationRequest_Body as the provided AnnotationBody
+func (t *CreateAnnotationRequest_Body) FromAnnotationBody(v AnnotationBody) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAnnotationBody performs a merge with any union data inside the CreateAnnotationRequest_Body, using the provided AnnotationBody
+func (t *CreateAnnotationRequest_Body) MergeAnnotationBody(v AnnotationBody) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateAnnotationRequestBody1 returns the union data inside the CreateAnnotationRequest_Body as a CreateAnnotationRequestBody1
+func (t CreateAnnotationRequest_Body) AsCreateAnnotationRequestBody1() (CreateAnnotationRequestBody1, error) {
+	var body CreateAnnotationRequestBody1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateAnnotationRequestBody1 overwrites any union data inside the CreateAnnotationRequest_Body as the provided CreateAnnotationRequestBody1
+func (t *CreateAnnotationRequest_Body) FromCreateAnnotationRequestBody1(v CreateAnnotationRequestBody1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateAnnotationRequestBody1 performs a merge with any union data inside the CreateAnnotationRequest_Body, using the provided CreateAnnotationRequestBody1
+func (t *CreateAnnotationRequest_Body) MergeCreateAnnotationRequestBody1(v CreateAnnotationRequestBody1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CreateAnnotationRequest_Body) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CreateAnnotationRequest_Body) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsFileEntry returns the union data inside the DirectoryEntry as a FileEntry
+func (t DirectoryEntry) AsFileEntry() (FileEntry, error) {
+	var body FileEntry
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFileEntry overwrites any union data inside the DirectoryEntry as the provided FileEntry
+func (t *DirectoryEntry) FromFileEntry(v FileEntry) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFileEntry performs a merge with any union data inside the DirectoryEntry, using the provided FileEntry
+func (t *DirectoryEntry) MergeFileEntry(v FileEntry) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsDirEntry returns the union data inside the DirectoryEntry as a DirEntry
+func (t DirectoryEntry) AsDirEntry() (DirEntry, error) {
+	var body DirEntry
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDirEntry overwrites any union data inside the DirectoryEntry as the provided DirEntry
+func (t *DirectoryEntry) FromDirEntry(v DirEntry) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDirEntry performs a merge with any union data inside the DirectoryEntry, using the provided DirEntry
+func (t *DirectoryEntry) MergeDirEntry(v DirEntry) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t DirectoryEntry) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *DirectoryEntry) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsGatheredContextFocus0 returns the union data inside the GatheredContext_Focus as a GatheredContextFocus0
+func (t GatheredContext_Focus) AsGatheredContextFocus0() (GatheredContextFocus0, error) {
+	var body GatheredContextFocus0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGatheredContextFocus0 overwrites any union data inside the GatheredContext_Focus as the provided GatheredContextFocus0
+func (t *GatheredContext_Focus) FromGatheredContextFocus0(v GatheredContextFocus0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGatheredContextFocus0 performs a merge with any union data inside the GatheredContext_Focus, using the provided GatheredContextFocus0
+func (t *GatheredContext_Focus) MergeGatheredContextFocus0(v GatheredContextFocus0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsGatheredContextFocus1 returns the union data inside the GatheredContext_Focus as a GatheredContextFocus1
+func (t GatheredContext_Focus) AsGatheredContextFocus1() (GatheredContextFocus1, error) {
+	var body GatheredContextFocus1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGatheredContextFocus1 overwrites any union data inside the GatheredContext_Focus as the provided GatheredContextFocus1
+func (t *GatheredContext_Focus) FromGatheredContextFocus1(v GatheredContextFocus1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGatheredContextFocus1 performs a merge with any union data inside the GatheredContext_Focus, using the provided GatheredContextFocus1
+func (t *GatheredContext_Focus) MergeGatheredContextFocus1(v GatheredContextFocus1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t GatheredContext_Focus) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *GatheredContext_Focus) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsJobGenerationResult returns the union data inside the JobResult as a JobGenerationResult
+func (t JobResult) AsJobGenerationResult() (JobGenerationResult, error) {
+	var body JobGenerationResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobGenerationResult overwrites any union data inside the JobResult as the provided JobGenerationResult
+func (t *JobResult) FromJobGenerationResult(v JobGenerationResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobGenerationResult performs a merge with any union data inside the JobResult, using the provided JobGenerationResult
+func (t *JobResult) MergeJobGenerationResult(v JobGenerationResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobReferenceAnnotationResult returns the union data inside the JobResult as a JobReferenceAnnotationResult
+func (t JobResult) AsJobReferenceAnnotationResult() (JobReferenceAnnotationResult, error) {
+	var body JobReferenceAnnotationResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobReferenceAnnotationResult overwrites any union data inside the JobResult as the provided JobReferenceAnnotationResult
+func (t *JobResult) FromJobReferenceAnnotationResult(v JobReferenceAnnotationResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobReferenceAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobReferenceAnnotationResult
+func (t *JobResult) MergeJobReferenceAnnotationResult(v JobReferenceAnnotationResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobHighlightAnnotationResult returns the union data inside the JobResult as a JobHighlightAnnotationResult
+func (t JobResult) AsJobHighlightAnnotationResult() (JobHighlightAnnotationResult, error) {
+	var body JobHighlightAnnotationResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobHighlightAnnotationResult overwrites any union data inside the JobResult as the provided JobHighlightAnnotationResult
+func (t *JobResult) FromJobHighlightAnnotationResult(v JobHighlightAnnotationResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobHighlightAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobHighlightAnnotationResult
+func (t *JobResult) MergeJobHighlightAnnotationResult(v JobHighlightAnnotationResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobAssessmentAnnotationResult returns the union data inside the JobResult as a JobAssessmentAnnotationResult
+func (t JobResult) AsJobAssessmentAnnotationResult() (JobAssessmentAnnotationResult, error) {
+	var body JobAssessmentAnnotationResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobAssessmentAnnotationResult overwrites any union data inside the JobResult as the provided JobAssessmentAnnotationResult
+func (t *JobResult) FromJobAssessmentAnnotationResult(v JobAssessmentAnnotationResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobAssessmentAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobAssessmentAnnotationResult
+func (t *JobResult) MergeJobAssessmentAnnotationResult(v JobAssessmentAnnotationResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobCommentAnnotationResult returns the union data inside the JobResult as a JobCommentAnnotationResult
+func (t JobResult) AsJobCommentAnnotationResult() (JobCommentAnnotationResult, error) {
+	var body JobCommentAnnotationResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobCommentAnnotationResult overwrites any union data inside the JobResult as the provided JobCommentAnnotationResult
+func (t *JobResult) FromJobCommentAnnotationResult(v JobCommentAnnotationResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobCommentAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobCommentAnnotationResult
+func (t *JobResult) MergeJobCommentAnnotationResult(v JobCommentAnnotationResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobTagAnnotationResult returns the union data inside the JobResult as a JobTagAnnotationResult
+func (t JobResult) AsJobTagAnnotationResult() (JobTagAnnotationResult, error) {
+	var body JobTagAnnotationResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobTagAnnotationResult overwrites any union data inside the JobResult as the provided JobTagAnnotationResult
+func (t *JobResult) FromJobTagAnnotationResult(v JobTagAnnotationResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobTagAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobTagAnnotationResult
+func (t *JobResult) MergeJobTagAnnotationResult(v JobTagAnnotationResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t JobResult) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *JobResult) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTextPositionSelector returns the union data inside the MarkRequestedEvent_Selector_4_Item as a TextPositionSelector
+func (t MarkRequestedEvent_Selector_4_Item) AsTextPositionSelector() (TextPositionSelector, error) {
+	var body TextPositionSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextPositionSelector overwrites any union data inside the MarkRequestedEvent_Selector_4_Item as the provided TextPositionSelector
+func (t *MarkRequestedEvent_Selector_4_Item) FromTextPositionSelector(v TextPositionSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextPositionSelector performs a merge with any union data inside the MarkRequestedEvent_Selector_4_Item, using the provided TextPositionSelector
+func (t *MarkRequestedEvent_Selector_4_Item) MergeTextPositionSelector(v TextPositionSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTextQuoteSelector returns the union data inside the MarkRequestedEvent_Selector_4_Item as a TextQuoteSelector
+func (t MarkRequestedEvent_Selector_4_Item) AsTextQuoteSelector() (TextQuoteSelector, error) {
+	var body TextQuoteSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextQuoteSelector overwrites any union data inside the MarkRequestedEvent_Selector_4_Item as the provided TextQuoteSelector
+func (t *MarkRequestedEvent_Selector_4_Item) FromTextQuoteSelector(v TextQuoteSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextQuoteSelector performs a merge with any union data inside the MarkRequestedEvent_Selector_4_Item, using the provided TextQuoteSelector
+func (t *MarkRequestedEvent_Selector_4_Item) MergeTextQuoteSelector(v TextQuoteSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSvgSelector returns the union data inside the MarkRequestedEvent_Selector_4_Item as a SvgSelector
+func (t MarkRequestedEvent_Selector_4_Item) AsSvgSelector() (SvgSelector, error) {
+	var body SvgSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSvgSelector overwrites any union data inside the MarkRequestedEvent_Selector_4_Item as the provided SvgSelector
+func (t *MarkRequestedEvent_Selector_4_Item) FromSvgSelector(v SvgSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSvgSelector performs a merge with any union data inside the MarkRequestedEvent_Selector_4_Item, using the provided SvgSelector
+func (t *MarkRequestedEvent_Selector_4_Item) MergeSvgSelector(v SvgSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFragmentSelector returns the union data inside the MarkRequestedEvent_Selector_4_Item as a FragmentSelector
+func (t MarkRequestedEvent_Selector_4_Item) AsFragmentSelector() (FragmentSelector, error) {
+	var body FragmentSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFragmentSelector overwrites any union data inside the MarkRequestedEvent_Selector_4_Item as the provided FragmentSelector
+func (t *MarkRequestedEvent_Selector_4_Item) FromFragmentSelector(v FragmentSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFragmentSelector performs a merge with any union data inside the MarkRequestedEvent_Selector_4_Item, using the provided FragmentSelector
+func (t *MarkRequestedEvent_Selector_4_Item) MergeFragmentSelector(v FragmentSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t MarkRequestedEvent_Selector_4_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *MarkRequestedEvent_Selector_4_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTextPositionSelector returns the union data inside the MarkRequestedEvent_Selector as a TextPositionSelector
+func (t MarkRequestedEvent_Selector) AsTextPositionSelector() (TextPositionSelector, error) {
+	var body TextPositionSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextPositionSelector overwrites any union data inside the MarkRequestedEvent_Selector as the provided TextPositionSelector
+func (t *MarkRequestedEvent_Selector) FromTextPositionSelector(v TextPositionSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextPositionSelector performs a merge with any union data inside the MarkRequestedEvent_Selector, using the provided TextPositionSelector
+func (t *MarkRequestedEvent_Selector) MergeTextPositionSelector(v TextPositionSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTextQuoteSelector returns the union data inside the MarkRequestedEvent_Selector as a TextQuoteSelector
+func (t MarkRequestedEvent_Selector) AsTextQuoteSelector() (TextQuoteSelector, error) {
+	var body TextQuoteSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextQuoteSelector overwrites any union data inside the MarkRequestedEvent_Selector as the provided TextQuoteSelector
+func (t *MarkRequestedEvent_Selector) FromTextQuoteSelector(v TextQuoteSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextQuoteSelector performs a merge with any union data inside the MarkRequestedEvent_Selector, using the provided TextQuoteSelector
+func (t *MarkRequestedEvent_Selector) MergeTextQuoteSelector(v TextQuoteSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSvgSelector returns the union data inside the MarkRequestedEvent_Selector as a SvgSelector
+func (t MarkRequestedEvent_Selector) AsSvgSelector() (SvgSelector, error) {
+	var body SvgSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSvgSelector overwrites any union data inside the MarkRequestedEvent_Selector as the provided SvgSelector
+func (t *MarkRequestedEvent_Selector) FromSvgSelector(v SvgSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSvgSelector performs a merge with any union data inside the MarkRequestedEvent_Selector, using the provided SvgSelector
+func (t *MarkRequestedEvent_Selector) MergeSvgSelector(v SvgSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFragmentSelector returns the union data inside the MarkRequestedEvent_Selector as a FragmentSelector
+func (t MarkRequestedEvent_Selector) AsFragmentSelector() (FragmentSelector, error) {
+	var body FragmentSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFragmentSelector overwrites any union data inside the MarkRequestedEvent_Selector as the provided FragmentSelector
+func (t *MarkRequestedEvent_Selector) FromFragmentSelector(v FragmentSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFragmentSelector performs a merge with any union data inside the MarkRequestedEvent_Selector, using the provided FragmentSelector
+func (t *MarkRequestedEvent_Selector) MergeFragmentSelector(v FragmentSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsMarkRequestedEventSelector4 returns the union data inside the MarkRequestedEvent_Selector as a MarkRequestedEventSelector4
+func (t MarkRequestedEvent_Selector) AsMarkRequestedEventSelector4() (MarkRequestedEventSelector4, error) {
+	var body MarkRequestedEventSelector4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMarkRequestedEventSelector4 overwrites any union data inside the MarkRequestedEvent_Selector as the provided MarkRequestedEventSelector4
+func (t *MarkRequestedEvent_Selector) FromMarkRequestedEventSelector4(v MarkRequestedEventSelector4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMarkRequestedEventSelector4 performs a merge with any union data inside the MarkRequestedEvent_Selector, using the provided MarkRequestedEventSelector4
+func (t *MarkRequestedEvent_Selector) MergeMarkRequestedEventSelector4(v MarkRequestedEventSelector4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t MarkRequestedEvent_Selector) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *MarkRequestedEvent_Selector) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsAnnotationBody returns the union data inside the MarkSubmitEvent_Body as a AnnotationBody
+func (t MarkSubmitEvent_Body) AsAnnotationBody() (AnnotationBody, error) {
+	var body AnnotationBody
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAnnotationBody overwrites any union data inside the MarkSubmitEvent_Body as the provided AnnotationBody
+func (t *MarkSubmitEvent_Body) FromAnnotationBody(v AnnotationBody) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAnnotationBody performs a merge with any union data inside the MarkSubmitEvent_Body, using the provided AnnotationBody
+func (t *MarkSubmitEvent_Body) MergeAnnotationBody(v AnnotationBody) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsMarkSubmitEventBody1 returns the union data inside the MarkSubmitEvent_Body as a MarkSubmitEventBody1
+func (t MarkSubmitEvent_Body) AsMarkSubmitEventBody1() (MarkSubmitEventBody1, error) {
+	var body MarkSubmitEventBody1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMarkSubmitEventBody1 overwrites any union data inside the MarkSubmitEvent_Body as the provided MarkSubmitEventBody1
+func (t *MarkSubmitEvent_Body) FromMarkSubmitEventBody1(v MarkSubmitEventBody1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMarkSubmitEventBody1 performs a merge with any union data inside the MarkSubmitEvent_Body, using the provided MarkSubmitEventBody1
+func (t *MarkSubmitEvent_Body) MergeMarkSubmitEventBody1(v MarkSubmitEventBody1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t MarkSubmitEvent_Body) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *MarkSubmitEvent_Body) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTextPositionSelector returns the union data inside the MarkSubmitEvent_Selector_4_Item as a TextPositionSelector
+func (t MarkSubmitEvent_Selector_4_Item) AsTextPositionSelector() (TextPositionSelector, error) {
+	var body TextPositionSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextPositionSelector overwrites any union data inside the MarkSubmitEvent_Selector_4_Item as the provided TextPositionSelector
+func (t *MarkSubmitEvent_Selector_4_Item) FromTextPositionSelector(v TextPositionSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextPositionSelector performs a merge with any union data inside the MarkSubmitEvent_Selector_4_Item, using the provided TextPositionSelector
+func (t *MarkSubmitEvent_Selector_4_Item) MergeTextPositionSelector(v TextPositionSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTextQuoteSelector returns the union data inside the MarkSubmitEvent_Selector_4_Item as a TextQuoteSelector
+func (t MarkSubmitEvent_Selector_4_Item) AsTextQuoteSelector() (TextQuoteSelector, error) {
+	var body TextQuoteSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextQuoteSelector overwrites any union data inside the MarkSubmitEvent_Selector_4_Item as the provided TextQuoteSelector
+func (t *MarkSubmitEvent_Selector_4_Item) FromTextQuoteSelector(v TextQuoteSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextQuoteSelector performs a merge with any union data inside the MarkSubmitEvent_Selector_4_Item, using the provided TextQuoteSelector
+func (t *MarkSubmitEvent_Selector_4_Item) MergeTextQuoteSelector(v TextQuoteSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSvgSelector returns the union data inside the MarkSubmitEvent_Selector_4_Item as a SvgSelector
+func (t MarkSubmitEvent_Selector_4_Item) AsSvgSelector() (SvgSelector, error) {
+	var body SvgSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSvgSelector overwrites any union data inside the MarkSubmitEvent_Selector_4_Item as the provided SvgSelector
+func (t *MarkSubmitEvent_Selector_4_Item) FromSvgSelector(v SvgSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSvgSelector performs a merge with any union data inside the MarkSubmitEvent_Selector_4_Item, using the provided SvgSelector
+func (t *MarkSubmitEvent_Selector_4_Item) MergeSvgSelector(v SvgSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFragmentSelector returns the union data inside the MarkSubmitEvent_Selector_4_Item as a FragmentSelector
+func (t MarkSubmitEvent_Selector_4_Item) AsFragmentSelector() (FragmentSelector, error) {
+	var body FragmentSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFragmentSelector overwrites any union data inside the MarkSubmitEvent_Selector_4_Item as the provided FragmentSelector
+func (t *MarkSubmitEvent_Selector_4_Item) FromFragmentSelector(v FragmentSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFragmentSelector performs a merge with any union data inside the MarkSubmitEvent_Selector_4_Item, using the provided FragmentSelector
+func (t *MarkSubmitEvent_Selector_4_Item) MergeFragmentSelector(v FragmentSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t MarkSubmitEvent_Selector_4_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *MarkSubmitEvent_Selector_4_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTextPositionSelector returns the union data inside the MarkSubmitEvent_Selector as a TextPositionSelector
+func (t MarkSubmitEvent_Selector) AsTextPositionSelector() (TextPositionSelector, error) {
+	var body TextPositionSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextPositionSelector overwrites any union data inside the MarkSubmitEvent_Selector as the provided TextPositionSelector
+func (t *MarkSubmitEvent_Selector) FromTextPositionSelector(v TextPositionSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextPositionSelector performs a merge with any union data inside the MarkSubmitEvent_Selector, using the provided TextPositionSelector
+func (t *MarkSubmitEvent_Selector) MergeTextPositionSelector(v TextPositionSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTextQuoteSelector returns the union data inside the MarkSubmitEvent_Selector as a TextQuoteSelector
+func (t MarkSubmitEvent_Selector) AsTextQuoteSelector() (TextQuoteSelector, error) {
+	var body TextQuoteSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextQuoteSelector overwrites any union data inside the MarkSubmitEvent_Selector as the provided TextQuoteSelector
+func (t *MarkSubmitEvent_Selector) FromTextQuoteSelector(v TextQuoteSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextQuoteSelector performs a merge with any union data inside the MarkSubmitEvent_Selector, using the provided TextQuoteSelector
+func (t *MarkSubmitEvent_Selector) MergeTextQuoteSelector(v TextQuoteSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSvgSelector returns the union data inside the MarkSubmitEvent_Selector as a SvgSelector
+func (t MarkSubmitEvent_Selector) AsSvgSelector() (SvgSelector, error) {
+	var body SvgSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSvgSelector overwrites any union data inside the MarkSubmitEvent_Selector as the provided SvgSelector
+func (t *MarkSubmitEvent_Selector) FromSvgSelector(v SvgSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSvgSelector performs a merge with any union data inside the MarkSubmitEvent_Selector, using the provided SvgSelector
+func (t *MarkSubmitEvent_Selector) MergeSvgSelector(v SvgSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFragmentSelector returns the union data inside the MarkSubmitEvent_Selector as a FragmentSelector
+func (t MarkSubmitEvent_Selector) AsFragmentSelector() (FragmentSelector, error) {
+	var body FragmentSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFragmentSelector overwrites any union data inside the MarkSubmitEvent_Selector as the provided FragmentSelector
+func (t *MarkSubmitEvent_Selector) FromFragmentSelector(v FragmentSelector) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFragmentSelector performs a merge with any union data inside the MarkSubmitEvent_Selector, using the provided FragmentSelector
+func (t *MarkSubmitEvent_Selector) MergeFragmentSelector(v FragmentSelector) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsMarkSubmitEventSelector4 returns the union data inside the MarkSubmitEvent_Selector as a MarkSubmitEventSelector4
+func (t MarkSubmitEvent_Selector) AsMarkSubmitEventSelector4() (MarkSubmitEventSelector4, error) {
+	var body MarkSubmitEventSelector4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMarkSubmitEventSelector4 overwrites any union data inside the MarkSubmitEvent_Selector as the provided MarkSubmitEventSelector4
+func (t *MarkSubmitEvent_Selector) FromMarkSubmitEventSelector4(v MarkSubmitEventSelector4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMarkSubmitEventSelector4 performs a merge with any union data inside the MarkSubmitEvent_Selector, using the provided MarkSubmitEventSelector4
+func (t *MarkSubmitEvent_Selector) MergeMarkSubmitEventSelector4(v MarkSubmitEventSelector4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t MarkSubmitEvent_Selector) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *MarkSubmitEvent_Selector) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsBodyOperationAdd returns the union data inside the MarkUpdateBodyCommand_Operations_Item as a BodyOperationAdd
+func (t MarkUpdateBodyCommand_Operations_Item) AsBodyOperationAdd() (BodyOperationAdd, error) {
+	var body BodyOperationAdd
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBodyOperationAdd overwrites any union data inside the MarkUpdateBodyCommand_Operations_Item as the provided BodyOperationAdd
+func (t *MarkUpdateBodyCommand_Operations_Item) FromBodyOperationAdd(v BodyOperationAdd) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBodyOperationAdd performs a merge with any union data inside the MarkUpdateBodyCommand_Operations_Item, using the provided BodyOperationAdd
+func (t *MarkUpdateBodyCommand_Operations_Item) MergeBodyOperationAdd(v BodyOperationAdd) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBodyOperationRemove returns the union data inside the MarkUpdateBodyCommand_Operations_Item as a BodyOperationRemove
+func (t MarkUpdateBodyCommand_Operations_Item) AsBodyOperationRemove() (BodyOperationRemove, error) {
+	var body BodyOperationRemove
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBodyOperationRemove overwrites any union data inside the MarkUpdateBodyCommand_Operations_Item as the provided BodyOperationRemove
+func (t *MarkUpdateBodyCommand_Operations_Item) FromBodyOperationRemove(v BodyOperationRemove) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBodyOperationRemove performs a merge with any union data inside the MarkUpdateBodyCommand_Operations_Item, using the provided BodyOperationRemove
+func (t *MarkUpdateBodyCommand_Operations_Item) MergeBodyOperationRemove(v BodyOperationRemove) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBodyOperationReplace returns the union data inside the MarkUpdateBodyCommand_Operations_Item as a BodyOperationReplace
+func (t MarkUpdateBodyCommand_Operations_Item) AsBodyOperationReplace() (BodyOperationReplace, error) {
+	var body BodyOperationReplace
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBodyOperationReplace overwrites any union data inside the MarkUpdateBodyCommand_Operations_Item as the provided BodyOperationReplace
+func (t *MarkUpdateBodyCommand_Operations_Item) FromBodyOperationReplace(v BodyOperationReplace) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBodyOperationReplace performs a merge with any union data inside the MarkUpdateBodyCommand_Operations_Item, using the provided BodyOperationReplace
+func (t *MarkUpdateBodyCommand_Operations_Item) MergeBodyOperationReplace(v BodyOperationReplace) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t MarkUpdateBodyCommand_Operations_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *MarkUpdateBodyCommand_Operations_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsRepresentationType0 returns the union data inside the Representation_Type as a RepresentationType0
 func (t Representation_Type) AsRepresentationType0() (RepresentationType0, error) {
 	var body RepresentationType0
@@ -3220,6 +7683,68 @@ func (t Representation_ConformsTo) MarshalJSON() ([]byte, error) {
 }
 
 func (t *Representation_ConformsTo) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsAgent returns the union data inside the ResourceCreatedPayload_Generator as a Agent
+func (t ResourceCreatedPayload_Generator) AsAgent() (Agent, error) {
+	var body Agent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAgent overwrites any union data inside the ResourceCreatedPayload_Generator as the provided Agent
+func (t *ResourceCreatedPayload_Generator) FromAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAgent performs a merge with any union data inside the ResourceCreatedPayload_Generator, using the provided Agent
+func (t *ResourceCreatedPayload_Generator) MergeAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsResourceCreatedPayloadGenerator1 returns the union data inside the ResourceCreatedPayload_Generator as a ResourceCreatedPayloadGenerator1
+func (t ResourceCreatedPayload_Generator) AsResourceCreatedPayloadGenerator1() (ResourceCreatedPayloadGenerator1, error) {
+	var body ResourceCreatedPayloadGenerator1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromResourceCreatedPayloadGenerator1 overwrites any union data inside the ResourceCreatedPayload_Generator as the provided ResourceCreatedPayloadGenerator1
+func (t *ResourceCreatedPayload_Generator) FromResourceCreatedPayloadGenerator1(v ResourceCreatedPayloadGenerator1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeResourceCreatedPayloadGenerator1 performs a merge with any union data inside the ResourceCreatedPayload_Generator, using the provided ResourceCreatedPayloadGenerator1
+func (t *ResourceCreatedPayload_Generator) MergeResourceCreatedPayloadGenerator1(v ResourceCreatedPayloadGenerator1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ResourceCreatedPayload_Generator) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ResourceCreatedPayload_Generator) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -3892,6 +8417,828 @@ func (t ResourceDescriptor_WasDerivedFrom) MarshalJSON() ([]byte, error) {
 }
 
 func (t *ResourceDescriptor_WasDerivedFrom) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsScoredResourceContext20 returns the union data inside the ScoredResource_Context_2_Item as a ScoredResourceContext20
+func (t ScoredResource_Context_2_Item) AsScoredResourceContext20() (ScoredResourceContext20, error) {
+	var body ScoredResourceContext20
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceContext20 overwrites any union data inside the ScoredResource_Context_2_Item as the provided ScoredResourceContext20
+func (t *ScoredResource_Context_2_Item) FromScoredResourceContext20(v ScoredResourceContext20) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceContext20 performs a merge with any union data inside the ScoredResource_Context_2_Item, using the provided ScoredResourceContext20
+func (t *ScoredResource_Context_2_Item) MergeScoredResourceContext20(v ScoredResourceContext20) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsScoredResourceContext21 returns the union data inside the ScoredResource_Context_2_Item as a ScoredResourceContext21
+func (t ScoredResource_Context_2_Item) AsScoredResourceContext21() (ScoredResourceContext21, error) {
+	var body ScoredResourceContext21
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceContext21 overwrites any union data inside the ScoredResource_Context_2_Item as the provided ScoredResourceContext21
+func (t *ScoredResource_Context_2_Item) FromScoredResourceContext21(v ScoredResourceContext21) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceContext21 performs a merge with any union data inside the ScoredResource_Context_2_Item, using the provided ScoredResourceContext21
+func (t *ScoredResource_Context_2_Item) MergeScoredResourceContext21(v ScoredResourceContext21) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ScoredResource_Context_2_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ScoredResource_Context_2_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsScoredResourceContext0 returns the union data inside the ScoredResource_Context as a ScoredResourceContext0
+func (t ScoredResource_Context) AsScoredResourceContext0() (ScoredResourceContext0, error) {
+	var body ScoredResourceContext0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceContext0 overwrites any union data inside the ScoredResource_Context as the provided ScoredResourceContext0
+func (t *ScoredResource_Context) FromScoredResourceContext0(v ScoredResourceContext0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceContext0 performs a merge with any union data inside the ScoredResource_Context, using the provided ScoredResourceContext0
+func (t *ScoredResource_Context) MergeScoredResourceContext0(v ScoredResourceContext0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsScoredResourceContext1 returns the union data inside the ScoredResource_Context as a ScoredResourceContext1
+func (t ScoredResource_Context) AsScoredResourceContext1() (ScoredResourceContext1, error) {
+	var body ScoredResourceContext1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceContext1 overwrites any union data inside the ScoredResource_Context as the provided ScoredResourceContext1
+func (t *ScoredResource_Context) FromScoredResourceContext1(v ScoredResourceContext1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceContext1 performs a merge with any union data inside the ScoredResource_Context, using the provided ScoredResourceContext1
+func (t *ScoredResource_Context) MergeScoredResourceContext1(v ScoredResourceContext1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsScoredResourceContext2 returns the union data inside the ScoredResource_Context as a ScoredResourceContext2
+func (t ScoredResource_Context) AsScoredResourceContext2() (ScoredResourceContext2, error) {
+	var body ScoredResourceContext2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceContext2 overwrites any union data inside the ScoredResource_Context as the provided ScoredResourceContext2
+func (t *ScoredResource_Context) FromScoredResourceContext2(v ScoredResourceContext2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceContext2 performs a merge with any union data inside the ScoredResource_Context, using the provided ScoredResourceContext2
+func (t *ScoredResource_Context) MergeScoredResourceContext2(v ScoredResourceContext2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ScoredResource_Context) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ScoredResource_Context) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsScoredResourceType0 returns the union data inside the ScoredResource_Type as a ScoredResourceType0
+func (t ScoredResource_Type) AsScoredResourceType0() (ScoredResourceType0, error) {
+	var body ScoredResourceType0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceType0 overwrites any union data inside the ScoredResource_Type as the provided ScoredResourceType0
+func (t *ScoredResource_Type) FromScoredResourceType0(v ScoredResourceType0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceType0 performs a merge with any union data inside the ScoredResource_Type, using the provided ScoredResourceType0
+func (t *ScoredResource_Type) MergeScoredResourceType0(v ScoredResourceType0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsScoredResourceType1 returns the union data inside the ScoredResource_Type as a ScoredResourceType1
+func (t ScoredResource_Type) AsScoredResourceType1() (ScoredResourceType1, error) {
+	var body ScoredResourceType1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceType1 overwrites any union data inside the ScoredResource_Type as the provided ScoredResourceType1
+func (t *ScoredResource_Type) FromScoredResourceType1(v ScoredResourceType1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceType1 performs a merge with any union data inside the ScoredResource_Type, using the provided ScoredResourceType1
+func (t *ScoredResource_Type) MergeScoredResourceType1(v ScoredResourceType1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ScoredResource_Type) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ScoredResource_Type) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsScoredResourceAbout0 returns the union data inside the ScoredResource_About as a ScoredResourceAbout0
+func (t ScoredResource_About) AsScoredResourceAbout0() (ScoredResourceAbout0, error) {
+	var body ScoredResourceAbout0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceAbout0 overwrites any union data inside the ScoredResource_About as the provided ScoredResourceAbout0
+func (t *ScoredResource_About) FromScoredResourceAbout0(v ScoredResourceAbout0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceAbout0 performs a merge with any union data inside the ScoredResource_About, using the provided ScoredResourceAbout0
+func (t *ScoredResource_About) MergeScoredResourceAbout0(v ScoredResourceAbout0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsScoredResourceAbout1 returns the union data inside the ScoredResource_About as a ScoredResourceAbout1
+func (t ScoredResource_About) AsScoredResourceAbout1() (ScoredResourceAbout1, error) {
+	var body ScoredResourceAbout1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceAbout1 overwrites any union data inside the ScoredResource_About as the provided ScoredResourceAbout1
+func (t *ScoredResource_About) FromScoredResourceAbout1(v ScoredResourceAbout1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceAbout1 performs a merge with any union data inside the ScoredResource_About, using the provided ScoredResourceAbout1
+func (t *ScoredResource_About) MergeScoredResourceAbout1(v ScoredResourceAbout1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ScoredResource_About) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ScoredResource_About) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsScoredResourceConformsTo0 returns the union data inside the ScoredResource_ConformsTo as a ScoredResourceConformsTo0
+func (t ScoredResource_ConformsTo) AsScoredResourceConformsTo0() (ScoredResourceConformsTo0, error) {
+	var body ScoredResourceConformsTo0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceConformsTo0 overwrites any union data inside the ScoredResource_ConformsTo as the provided ScoredResourceConformsTo0
+func (t *ScoredResource_ConformsTo) FromScoredResourceConformsTo0(v ScoredResourceConformsTo0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceConformsTo0 performs a merge with any union data inside the ScoredResource_ConformsTo, using the provided ScoredResourceConformsTo0
+func (t *ScoredResource_ConformsTo) MergeScoredResourceConformsTo0(v ScoredResourceConformsTo0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsScoredResourceConformsTo1 returns the union data inside the ScoredResource_ConformsTo as a ScoredResourceConformsTo1
+func (t ScoredResource_ConformsTo) AsScoredResourceConformsTo1() (ScoredResourceConformsTo1, error) {
+	var body ScoredResourceConformsTo1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceConformsTo1 overwrites any union data inside the ScoredResource_ConformsTo as the provided ScoredResourceConformsTo1
+func (t *ScoredResource_ConformsTo) FromScoredResourceConformsTo1(v ScoredResourceConformsTo1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceConformsTo1 performs a merge with any union data inside the ScoredResource_ConformsTo, using the provided ScoredResourceConformsTo1
+func (t *ScoredResource_ConformsTo) MergeScoredResourceConformsTo1(v ScoredResourceConformsTo1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ScoredResource_ConformsTo) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ScoredResource_ConformsTo) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsAgent returns the union data inside the ScoredResource_Generator as a Agent
+func (t ScoredResource_Generator) AsAgent() (Agent, error) {
+	var body Agent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAgent overwrites any union data inside the ScoredResource_Generator as the provided Agent
+func (t *ScoredResource_Generator) FromAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAgent performs a merge with any union data inside the ScoredResource_Generator, using the provided Agent
+func (t *ScoredResource_Generator) MergeAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsScoredResourceGenerator1 returns the union data inside the ScoredResource_Generator as a ScoredResourceGenerator1
+func (t ScoredResource_Generator) AsScoredResourceGenerator1() (ScoredResourceGenerator1, error) {
+	var body ScoredResourceGenerator1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceGenerator1 overwrites any union data inside the ScoredResource_Generator as the provided ScoredResourceGenerator1
+func (t *ScoredResource_Generator) FromScoredResourceGenerator1(v ScoredResourceGenerator1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceGenerator1 performs a merge with any union data inside the ScoredResource_Generator, using the provided ScoredResourceGenerator1
+func (t *ScoredResource_Generator) MergeScoredResourceGenerator1(v ScoredResourceGenerator1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ScoredResource_Generator) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ScoredResource_Generator) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsScoredResourceIdentifier0 returns the union data inside the ScoredResource_Identifier as a ScoredResourceIdentifier0
+func (t ScoredResource_Identifier) AsScoredResourceIdentifier0() (ScoredResourceIdentifier0, error) {
+	var body ScoredResourceIdentifier0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceIdentifier0 overwrites any union data inside the ScoredResource_Identifier as the provided ScoredResourceIdentifier0
+func (t *ScoredResource_Identifier) FromScoredResourceIdentifier0(v ScoredResourceIdentifier0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceIdentifier0 performs a merge with any union data inside the ScoredResource_Identifier, using the provided ScoredResourceIdentifier0
+func (t *ScoredResource_Identifier) MergeScoredResourceIdentifier0(v ScoredResourceIdentifier0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsScoredResourceIdentifier1 returns the union data inside the ScoredResource_Identifier as a ScoredResourceIdentifier1
+func (t ScoredResource_Identifier) AsScoredResourceIdentifier1() (ScoredResourceIdentifier1, error) {
+	var body ScoredResourceIdentifier1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceIdentifier1 overwrites any union data inside the ScoredResource_Identifier as the provided ScoredResourceIdentifier1
+func (t *ScoredResource_Identifier) FromScoredResourceIdentifier1(v ScoredResourceIdentifier1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceIdentifier1 performs a merge with any union data inside the ScoredResource_Identifier, using the provided ScoredResourceIdentifier1
+func (t *ScoredResource_Identifier) MergeScoredResourceIdentifier1(v ScoredResourceIdentifier1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsScoredResourceIdentifier2 returns the union data inside the ScoredResource_Identifier as a ScoredResourceIdentifier2
+func (t ScoredResource_Identifier) AsScoredResourceIdentifier2() (ScoredResourceIdentifier2, error) {
+	var body ScoredResourceIdentifier2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceIdentifier2 overwrites any union data inside the ScoredResource_Identifier as the provided ScoredResourceIdentifier2
+func (t *ScoredResource_Identifier) FromScoredResourceIdentifier2(v ScoredResourceIdentifier2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceIdentifier2 performs a merge with any union data inside the ScoredResource_Identifier, using the provided ScoredResourceIdentifier2
+func (t *ScoredResource_Identifier) MergeScoredResourceIdentifier2(v ScoredResourceIdentifier2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ScoredResource_Identifier) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ScoredResource_Identifier) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsRepresentation returns the union data inside the ScoredResource_Representations as a Representation
+func (t ScoredResource_Representations) AsRepresentation() (Representation, error) {
+	var body Representation
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRepresentation overwrites any union data inside the ScoredResource_Representations as the provided Representation
+func (t *ScoredResource_Representations) FromRepresentation(v Representation) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeRepresentation performs a merge with any union data inside the ScoredResource_Representations, using the provided Representation
+func (t *ScoredResource_Representations) MergeRepresentation(v Representation) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsScoredResourceRepresentations1 returns the union data inside the ScoredResource_Representations as a ScoredResourceRepresentations1
+func (t ScoredResource_Representations) AsScoredResourceRepresentations1() (ScoredResourceRepresentations1, error) {
+	var body ScoredResourceRepresentations1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceRepresentations1 overwrites any union data inside the ScoredResource_Representations as the provided ScoredResourceRepresentations1
+func (t *ScoredResource_Representations) FromScoredResourceRepresentations1(v ScoredResourceRepresentations1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceRepresentations1 performs a merge with any union data inside the ScoredResource_Representations, using the provided ScoredResourceRepresentations1
+func (t *ScoredResource_Representations) MergeScoredResourceRepresentations1(v ScoredResourceRepresentations1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ScoredResource_Representations) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ScoredResource_Representations) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsAgent returns the union data inside the ScoredResource_WasAttributedTo as a Agent
+func (t ScoredResource_WasAttributedTo) AsAgent() (Agent, error) {
+	var body Agent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAgent overwrites any union data inside the ScoredResource_WasAttributedTo as the provided Agent
+func (t *ScoredResource_WasAttributedTo) FromAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAgent performs a merge with any union data inside the ScoredResource_WasAttributedTo, using the provided Agent
+func (t *ScoredResource_WasAttributedTo) MergeAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsScoredResourceWasAttributedTo1 returns the union data inside the ScoredResource_WasAttributedTo as a ScoredResourceWasAttributedTo1
+func (t ScoredResource_WasAttributedTo) AsScoredResourceWasAttributedTo1() (ScoredResourceWasAttributedTo1, error) {
+	var body ScoredResourceWasAttributedTo1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceWasAttributedTo1 overwrites any union data inside the ScoredResource_WasAttributedTo as the provided ScoredResourceWasAttributedTo1
+func (t *ScoredResource_WasAttributedTo) FromScoredResourceWasAttributedTo1(v ScoredResourceWasAttributedTo1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceWasAttributedTo1 performs a merge with any union data inside the ScoredResource_WasAttributedTo, using the provided ScoredResourceWasAttributedTo1
+func (t *ScoredResource_WasAttributedTo) MergeScoredResourceWasAttributedTo1(v ScoredResourceWasAttributedTo1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ScoredResource_WasAttributedTo) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ScoredResource_WasAttributedTo) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsScoredResourceWasDerivedFrom0 returns the union data inside the ScoredResource_WasDerivedFrom as a ScoredResourceWasDerivedFrom0
+func (t ScoredResource_WasDerivedFrom) AsScoredResourceWasDerivedFrom0() (ScoredResourceWasDerivedFrom0, error) {
+	var body ScoredResourceWasDerivedFrom0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceWasDerivedFrom0 overwrites any union data inside the ScoredResource_WasDerivedFrom as the provided ScoredResourceWasDerivedFrom0
+func (t *ScoredResource_WasDerivedFrom) FromScoredResourceWasDerivedFrom0(v ScoredResourceWasDerivedFrom0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceWasDerivedFrom0 performs a merge with any union data inside the ScoredResource_WasDerivedFrom, using the provided ScoredResourceWasDerivedFrom0
+func (t *ScoredResource_WasDerivedFrom) MergeScoredResourceWasDerivedFrom0(v ScoredResourceWasDerivedFrom0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsScoredResourceWasDerivedFrom1 returns the union data inside the ScoredResource_WasDerivedFrom as a ScoredResourceWasDerivedFrom1
+func (t ScoredResource_WasDerivedFrom) AsScoredResourceWasDerivedFrom1() (ScoredResourceWasDerivedFrom1, error) {
+	var body ScoredResourceWasDerivedFrom1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromScoredResourceWasDerivedFrom1 overwrites any union data inside the ScoredResource_WasDerivedFrom as the provided ScoredResourceWasDerivedFrom1
+func (t *ScoredResource_WasDerivedFrom) FromScoredResourceWasDerivedFrom1(v ScoredResourceWasDerivedFrom1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeScoredResourceWasDerivedFrom1 performs a merge with any union data inside the ScoredResource_WasDerivedFrom, using the provided ScoredResourceWasDerivedFrom1
+func (t *ScoredResource_WasDerivedFrom) MergeScoredResourceWasDerivedFrom1(v ScoredResourceWasDerivedFrom1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ScoredResource_WasDerivedFrom) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ScoredResource_WasDerivedFrom) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsBodyOperationAdd returns the union data inside the UpdateAnnotationBodyRequest_Operations_Item as a BodyOperationAdd
+func (t UpdateAnnotationBodyRequest_Operations_Item) AsBodyOperationAdd() (BodyOperationAdd, error) {
+	var body BodyOperationAdd
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBodyOperationAdd overwrites any union data inside the UpdateAnnotationBodyRequest_Operations_Item as the provided BodyOperationAdd
+func (t *UpdateAnnotationBodyRequest_Operations_Item) FromBodyOperationAdd(v BodyOperationAdd) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBodyOperationAdd performs a merge with any union data inside the UpdateAnnotationBodyRequest_Operations_Item, using the provided BodyOperationAdd
+func (t *UpdateAnnotationBodyRequest_Operations_Item) MergeBodyOperationAdd(v BodyOperationAdd) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBodyOperationRemove returns the union data inside the UpdateAnnotationBodyRequest_Operations_Item as a BodyOperationRemove
+func (t UpdateAnnotationBodyRequest_Operations_Item) AsBodyOperationRemove() (BodyOperationRemove, error) {
+	var body BodyOperationRemove
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBodyOperationRemove overwrites any union data inside the UpdateAnnotationBodyRequest_Operations_Item as the provided BodyOperationRemove
+func (t *UpdateAnnotationBodyRequest_Operations_Item) FromBodyOperationRemove(v BodyOperationRemove) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBodyOperationRemove performs a merge with any union data inside the UpdateAnnotationBodyRequest_Operations_Item, using the provided BodyOperationRemove
+func (t *UpdateAnnotationBodyRequest_Operations_Item) MergeBodyOperationRemove(v BodyOperationRemove) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBodyOperationReplace returns the union data inside the UpdateAnnotationBodyRequest_Operations_Item as a BodyOperationReplace
+func (t UpdateAnnotationBodyRequest_Operations_Item) AsBodyOperationReplace() (BodyOperationReplace, error) {
+	var body BodyOperationReplace
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBodyOperationReplace overwrites any union data inside the UpdateAnnotationBodyRequest_Operations_Item as the provided BodyOperationReplace
+func (t *UpdateAnnotationBodyRequest_Operations_Item) FromBodyOperationReplace(v BodyOperationReplace) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBodyOperationReplace performs a merge with any union data inside the UpdateAnnotationBodyRequest_Operations_Item, using the provided BodyOperationReplace
+func (t *UpdateAnnotationBodyRequest_Operations_Item) MergeBodyOperationReplace(v BodyOperationReplace) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t UpdateAnnotationBodyRequest_Operations_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *UpdateAnnotationBodyRequest_Operations_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsAgent returns the union data inside the YieldCreateCommand_Generator as a Agent
+func (t YieldCreateCommand_Generator) AsAgent() (Agent, error) {
+	var body Agent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAgent overwrites any union data inside the YieldCreateCommand_Generator as the provided Agent
+func (t *YieldCreateCommand_Generator) FromAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAgent performs a merge with any union data inside the YieldCreateCommand_Generator, using the provided Agent
+func (t *YieldCreateCommand_Generator) MergeAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsYieldCreateCommandGenerator1 returns the union data inside the YieldCreateCommand_Generator as a YieldCreateCommandGenerator1
+func (t YieldCreateCommand_Generator) AsYieldCreateCommandGenerator1() (YieldCreateCommandGenerator1, error) {
+	var body YieldCreateCommandGenerator1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromYieldCreateCommandGenerator1 overwrites any union data inside the YieldCreateCommand_Generator as the provided YieldCreateCommandGenerator1
+func (t *YieldCreateCommand_Generator) FromYieldCreateCommandGenerator1(v YieldCreateCommandGenerator1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeYieldCreateCommandGenerator1 performs a merge with any union data inside the YieldCreateCommand_Generator, using the provided YieldCreateCommandGenerator1
+func (t *YieldCreateCommand_Generator) MergeYieldCreateCommandGenerator1(v YieldCreateCommandGenerator1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t YieldCreateCommand_Generator) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *YieldCreateCommand_Generator) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

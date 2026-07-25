@@ -1,0 +1,19 @@
+{
+  "allOf": [
+    { "$ref": "ResourceDescriptor.json" },
+    {
+      "type": "object",
+      "properties": {
+        "score": {
+          "type": "number",
+          "description": "Relevance score assigned by the matcher; higher is a better candidate."
+        },
+        "matchReason": {
+          "type": "string",
+          "description": "Human-readable reason for the match."
+        }
+      }
+    }
+  ],
+  "description": "A resource returned by a search, carrying its relevance score. Named rather than inlined so both generated languages get a real type — an anonymous allOf produces an unnameable shape that callers end up re-deriving by hand (and guessing wrong)."
+}

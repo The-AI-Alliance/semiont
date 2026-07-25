@@ -14,4 +14,4 @@
 // already the permanent identity.
 package semiont
 
-//go:generate sh -c "cd ../.. && container run --rm -v $(pwd):/w -w /w golang:1.25 go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 -generate types,client -package semiont -o packages/sdk-go/client_gen.go specs/openapi.json"
+//go:generate sh -c "cd ../.. && container run --rm -v $(pwd):/w -w /w golang:1.25 go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 -generate types,client,skip-prune -package semiont -o packages/sdk-go/client_gen.go specs/openapi.json"

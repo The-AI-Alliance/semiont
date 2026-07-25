@@ -136,41 +136,35 @@ func Match(args []string) int {
 		return 0
 	}
 
-	var env struct {
-		Response json.RawMessage `json:"response"`
-	}
-	if json.Unmarshal(reply, &env) != nil || len(env.Response) == 0 {
-		env.Response = reply
-	}
+	// MatchSearchResult.response is the scored candidate LIST itself — there
+	// is no wrapper object around it (the emitter is
+	// packages/make-meaning/src/matcher.ts; the schema now says so
+	// explicitly, and ScoredResource names the item type).
 	var results struct {
-		Candidates []struct {
-			ID    string  `json:"id"`
-			Name  string  `json:"name"`
-			Score float64 `json:"score"`
-		} `json:"candidates"`
-		Resources []struct {
-			ID    string  `json:"id"`
-			Name  string  `json:"name"`
-			Score float64 `json:"score"`
-		} `json:"resources"`
+		Response []struct {
+			ID          string  `json:"id"`
+			Name        string  `json:"name"`
+			Score       float64 `json:"score"`
+			MatchReason string  `json:"matchReason"`
+		} `json:"response"`
 	}
-	if json.Unmarshal(env.Response, &results) != nil {
-		return rawFallback(env.Response)
+	if json.Unmarshal(reply, &results) != nil {
+		return rawFallback(reply)
 	}
-	rows := results.Candidates
-	if len(rows) == 0 {
-		rows = results.Resources
-	}
+	rows := results.Response
 	if len(rows) == 0 {
 		u.log("No candidates found.")
 		return 0
 	}
 	for _, r := range rows {
-		score := ""
+		trailer := ""
 		if r.Score != 0 {
-			score = u.dim(fmt.Sprintf("%.3f", r.Score))
+			trailer = fmt.Sprintf("%.3f", r.Score)
 		}
-		fmt.Printf("  %-28s %-40s %s\n", r.ID, r.Name, score)
+		if r.MatchReason != "" {
+			trailer = strings.TrimSpace(trailer + "  " + r.MatchReason)
+		}
+		fmt.Printf("  %-28s %-40s %s\n", r.ID, r.Name, u.dim(trailer))
 	}
 	fmt.Printf("\n  %s\n", u.dim(fmt.Sprintf("%d candidate(s) — bind one with: semiont bind %s %s <resourceId>",
 		len(rows), resourceID, annotationID)))
