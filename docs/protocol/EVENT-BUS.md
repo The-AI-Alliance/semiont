@@ -268,22 +268,22 @@ with the registry, naming the command to run.
 
 ## Adding a new channel
 
-The compile-time discipline is strict by design. A new channel requires changes in three places:
+The compile-time discipline is strict by design. A new channel requires changes in two places (the registry and the OpenAPI schema), plus an SDK method to call it:
 
 1. **The registry** ([`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)) — add the channel with its payload (`shape` plus the OpenAPI schema name, or `storedEvent` / `void`), and its `validate` entry: the schema the `/bus/emit` route enforces, or `null` for non-validated. Then run `npm run generate:bus`, which writes the `EventMap` and `CHANNEL_SCHEMAS` entries in both languages. The generated `satisfies Record<EventName, ...>` clause still fails the typecheck if the two maps disagree.
-3. **`PERSISTED_EVENT_TYPES`** (only if it's a `StoredEvent` domain event) and, for SSE delivery, the routing: a request/reply operation is declared as an `operations` entry in the **registry** (generated into `BUS_OPERATIONS`) (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is added to **`BRIDGED_BROADCASTS`**. You no longer hand-edit `BRIDGED_CHANNELS` for replies. Each list has its own completeness check, and an equality test pins the derived bridged set.
+2. **`PERSISTED_EVENT_TYPES`** (only if it's a `StoredEvent` domain event) and, for SSE delivery, the routing: a request/reply operation is declared as an `operations` entry in the **registry** (generated into `BUS_OPERATIONS`) (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is added to **`BRIDGED_BROADCASTS`**. You no longer hand-edit `BRIDGED_CHANNELS` for replies. Each list has its own completeness check, and an equality test pins the derived bridged set.
 
 Then for the OpenAPI schema:
 
-4. Add the schema file to `specs/src/components/schemas/`.
-5. Reference it from the right path file under `specs/src/paths/` (if the channel has an HTTP entry point too).
-6. Run `npm run generate:openapi --workspace=@semiont/core` to bundle and regenerate types.
-7. Rebuild `@semiont/core`.
+3. Add the schema file to `specs/src/components/schemas/`.
+4. Reference it from the right path file under `specs/src/paths/` (if the channel has an HTTP entry point too).
+5. Run `npm run generate:openapi --workspace=@semiont/core` to bundle and regenerate types.
+6. Rebuild `@semiont/core`.
 
 And for the SDK:
 
-8. Add a namespace method that wraps `transport.emit(channel, ...)` or `busRequest(...)` for the new operation.
-9. Update [packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md) under the right verb.
+7. Add a namespace method that wraps `transport.emit(channel, ...)` or `busRequest(...)` for the new operation.
+8. Update [packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md) under the right verb.
 
 Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` clause and the `PERSISTED_EVENT_TYPES` exhaustiveness check make incomplete additions fail the typecheck loud and clear.
 

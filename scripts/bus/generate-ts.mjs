@@ -60,9 +60,17 @@ function emitLines(entries, format) {
 }
 
 // ── bus-protocol.ts ────────────────────────────────────────────────────
+/** A channel named in an order list but missing from `channels` means the
+ *  registry is corrupt; say so instead of dying on `undefined.docs`. */
+function channelOr(ch, where) {
+  const c = byChannel.get(ch);
+  if (!c) throw new Error(`registry: channelOrder.${where} names "${ch}", which is missing from channels[]`);
+  return c;
+}
+
 const eventMapLines = emitLines(
   reg.channelOrder.eventMap.map((ch) => {
-    const c = byChannel.get(ch);
+    const c = channelOr(ch, 'eventMap');
     return { ...c, lead: c.docs.lead, trailing: c.docs.trailing };
   }),
   (e) => `  '${e.channel}': ${e.ts};${e.trailing ? ` ${e.trailing}` : ''}`,
@@ -70,7 +78,7 @@ const eventMapLines = emitLines(
 
 const schemaLines = emitLines(
   reg.channelOrder.schemas.map((ch) => {
-    const c = byChannel.get(ch);
+    const c = channelOr(ch, 'schemas');
     return { ...c, lead: c.schemaDocs.lead, trailing: c.schemaDocs.trailing };
   }),
   (e) =>
