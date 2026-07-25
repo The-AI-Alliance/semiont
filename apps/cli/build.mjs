@@ -139,19 +139,11 @@ await Promise.all(scriptFiles.map(async (name) => {
         'url',
         'querystring',
         'module',
-        // Don't bundle these Node.js built-ins and external binaries
-        'aws-cli',
+        // Don't bundle these external binaries
         'docker',
         'podman',
-        // React and Ink - keep external to avoid ESM/top-level await issues
+        // React (web dashboard bundle) - keep external to avoid ESM/top-level await issues
         'react',
-        'ink',
-        'react-devtools-core',
-        // AWS SDK packages have complex CommonJS/ESM interactions
-        '@aws-sdk/*',
-        // CDK is optional - projects can provide their own
-        'aws-cdk-lib',
-        'constructs',
         // Local workspace packages - keep external to avoid CommonJS/ESM issues
         '@semiont/api-types',
         '@semiont/http-transport',
@@ -184,7 +176,6 @@ await Promise.all(scriptFiles.map(async (name) => {
         'vite'
       ],
       define: {
-        // Disable ink devtools in production bundles
         'process.env.NODE_ENV': '"production"',
         // Inline Semiont version at build time
         '__SEMIONT_VERSION__': JSON.stringify(version)
@@ -203,16 +194,6 @@ await Promise.all(scriptFiles.map(async (name) => {
 
 console.log(`🎉 All files bundled successfully!`)
 
-// Copy templates directory to dist
-if (existsSync('templates')) {
-  try {
-    await cp('templates', 'dist/templates', { recursive: true })
-    console.log('✅ Copied templates directory')
-  } catch (error) {
-    console.error('❌ Failed to copy templates:', error.message)
-    process.exit(1)
-  }
-}
 
 // Copy dashboard bundle to dist
 if (existsSync('dist/dashboard')) {

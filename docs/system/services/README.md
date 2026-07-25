@@ -132,7 +132,7 @@ The detailed service documentation has been reorganized to be package-centric:
 ### System Documentation
 - [Architecture Overview](../README.md) - Overall system architecture
 - [Service Overview](./OVERVIEW.md) - Service management and deployment
-- [AWS Deployment](../platforms/AWS.md) - Production deployment guide
+- [Running Semiont on AWS](../platforms/AWS.md) - unsupported; what you must wire up yourself
 - [Configuration Guide](../administration/CONFIGURATION.md) - Environment and service configuration
 - [Authentication](../administration/AUTHENTICATION.md) - OAuth 2.0 and JWT authentication
 

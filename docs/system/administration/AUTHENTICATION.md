@@ -5,7 +5,7 @@ Semiont uses **bearer-only** authentication: every request authenticates with an
 **Related Documentation:**
 - [Architecture Overview](../README.md) - Overall application architecture
 - [Security](./SECURITY.md) - CORS posture, secret management, hardening checklist
-- [AWS Deployment](../platforms/AWS.md) - AWS Secrets Manager configuration
+- [Secrets](../services/SECRETS.md) - how secrets reach services
 - [Configuration Guide](./CONFIGURATION.md) - Environment and secret management
 
 ## Overview
@@ -212,7 +212,7 @@ Store `JWT_SECRET` and OAuth credentials in secure secret storage (e.g. AWS Secr
 
 ### API
 
-1. Routes explicitly apply `authMiddleware`. 2. Rate-limit per IP/user (see [AWS.md](../platforms/AWS.md) for WAF). 3. Validate inputs with Zod. 4. Log auth events; the startup log records the bearer-only / open-CORS posture.
+1. Routes explicitly apply `authMiddleware`. 2. Rate-limit per IP/user (edge rate-limiting is your deployment platform's concern). 3. Validate inputs with Zod. 4. Log auth events; the startup log records the bearer-only / open-CORS posture.
 
 > **MCP programmatic access** — the old browser-mediated MCP token routes (`/api/tokens/mcp-setup`, `/api/tokens/mcp-generate`) were removed when auth moved bearer-only; MCP provisioning is being re-architected (each backend KB owns its own grant handshake). MCP `login` is not available until that rebuild lands.
 
@@ -237,7 +237,7 @@ Store `JWT_SECRET` and OAuth credentials in secure secret storage (e.g. AWS Secr
 
 - [Architecture Overview](../README.md) - Application architecture and service communication
 - [Security](./SECURITY.md) - CORS posture, secrets, hardening
-- [AWS Deployment](../platforms/AWS.md) - AWS Secrets Manager and security groups
+- [Running Semiont on AWS](../platforms/AWS.md) - what you must wire up yourself
 - [Database Management](./DATABASE.md) - User table schema (incl. `tokenVersion`) and Prisma setup
 
 ---

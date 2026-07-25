@@ -128,9 +128,9 @@ The currently supported platforms:
 
 - **POSIX** — Local processes (monorepo development). Each Semiont service is a Node process started directly on the host. See [platforms/POSIX.md](platforms/POSIX.md) and [LOCAL-SEMIONT.md](LOCAL-SEMIONT.md) for running Semiont locally.
 - **Container** — Docker / Podman / Apple containers. Each service is a containerized Node process; the diagram above shows this layout. This is what KB stacks use — locally via the host-installed `semiont` launcher (any of the three runtimes) and in **GitHub Codespaces** via `docker compose` in the devcontainer. See [platforms/Container.md](platforms/Container.md).
-- **AWS** — ECS Fargate tasks, RDS, S3, Neptune. The same containers, scheduled by ECS. See [platforms/AWS.md](platforms/AWS.md).
+These are what the Semiont CLI knows how to provision and manage today. They share the same containers because they share the same npm packages — the difference is where the Node processes run, not what they run.
 
-These three are what the Semiont CLI knows how to provision and manage today. They share the same containers because they share the same npm packages — the difference is where the Node processes run, not what they run.
+**There is no cloud platform.** The AWS platform (ECS/RDS/Neptune via CDK) was removed, along with the `publish`/`update` commands that drove it. The published images can of course be scheduled by a cloud container platform such as ECS Fargate, but that is your own integration — see [Running Semiont on AWS](platforms/AWS.md).
 
 Other deployment shapes are valid and require no architectural changes — they just don't have first-class CLI tooling yet:
 
@@ -163,4 +163,4 @@ semiont check --service all
 See **[CLI Documentation](../../apps/cli/README.md)** and **[administration/CONFIGURATION.md](administration/CONFIGURATION.md)** for full configuration details.
 
 For the per-service catalog (storage, AI, infrastructure), see **[services/OVERVIEW.md](services/OVERVIEW.md)**.
-For deployment playbooks (CI/CD, image publishing, AWS provisioning), see **[administration/DEPLOYMENT.md](administration/DEPLOYMENT.md)** and **[administration/IMAGES.md](administration/IMAGES.md)**.
+For how stacks are deployed, and what running them elsewhere would require of you, see **[administration/DEPLOYMENT.md](administration/DEPLOYMENT.md)**; for how the images are built and published, **[administration/IMAGES.md](administration/IMAGES.md)**.
