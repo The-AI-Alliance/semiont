@@ -42,6 +42,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
 func main() {
@@ -913,16 +915,20 @@ func busPublish(channel string, payload map[string]any) {
 	}
 }
 
-// busReplyFor maps a request channel to its scripted reply, using the
-// generated operations registry so the fake can never invent a channel pair
-// the real bus does not have.
+// busReplyFor maps a request channel to its scripted reply. The channel PAIR
+// comes from the generated operations registry, so the fake can never invent a
+// pair the real bus does not have — a fake that agrees with the code under
+// test about a wrong channel is how a verb passes while broken.
 func busReplyFor(request, cid string) (string, map[string]any) {
-	op, ok := busOperations[request]
+	if !busScripted[request] {
+		return "", nil
+	}
+	op, ok := bus.Operations[bus.Channel(request)]
 	if !ok {
 		return "", nil
 	}
 	if msg := os.Getenv("FAKERT_BUS_FAIL"); msg != "" {
-		return op.failure, map[string]any{"correlationId": cid, "message": msg}
+		return string(op.Failure), map[string]any{"correlationId": cid, "message": msg}
 	}
 	env := "FAKERT_BUS_REPLY_" + strings.NewReplacer(":", "_", "-", "_").Replace(request)
 	raw := os.Getenv(env)
@@ -936,24 +942,25 @@ func busReplyFor(request, cid string) (string, map[string]any) {
 	if json.Unmarshal([]byte(raw), &response) != nil {
 		response = map[string]any{}
 	}
-	return op.result, map[string]any{"correlationId": cid, "response": response}
+	return string(op.Result), map[string]any{"correlationId": cid, "response": response}
 }
 
-// The handful of operations the launcher's verbs use. Kept minimal on
-// purpose: an unscripted request produces no reply, so a verb wired to the
+// The handful of operations the launcher's verbs use — an ALLOWLIST of request
+// channels, not a channel-pair table (the pair is derived above). Kept minimal
+// on purpose: an unscripted request produces no reply, so a verb wired to the
 // wrong channel times out loudly in tests instead of passing by accident.
-var busOperations = map[string]struct{ result, failure string }{
-	"browse:resources-requested":    {"browse:resources-result", "browse:resources-failed"},
-	"browse:resource-requested":     {"browse:resource-result", "browse:resource-failed"},
-	"browse:annotations-requested":  {"browse:annotations-result", "browse:annotations-failed"},
-	"browse:entity-types-requested": {"browse:entity-types-result", "browse:entity-types-failed"},
-	"gather:resource-requested":     {"gather:resource-complete", "gather:resource-failed"},
-	"gather:requested":              {"gather:complete", "gather:failed"},
-	"mark:create-request":           {"mark:create-ok", "mark:create-failed"},
-	"mark:delete":                   {"mark:delete-ok", "mark:delete-failed"},
-	"bind:update-body":              {"bind:body-updated", "bind:body-update-failed"},
-	"match:search-requested":        {"match:search-results", "match:search-failed"},
-	"job:create":                    {"job:created", "job:create-failed"},
+var busScripted = map[string]bool{
+	"browse:resources-requested":    true,
+	"browse:resource-requested":     true,
+	"browse:annotations-requested":  true,
+	"browse:entity-types-requested": true,
+	"gather:resource-requested":     true,
+	"gather:requested":              true,
+	"mark:create-request":           true,
+	"mark:delete":                   true,
+	"bind:update-body":              true,
+	"match:search-requested":        true,
+	"job:create":                    true,
 }
 
 func killServe(name string) bool {

@@ -5361,9 +5361,6 @@ func TestMatchGathersThenSearches(t *testing.T) {
 	if strings.Contains(stdout, `"@id":"res-7"`) {
 		t.Errorf("match fell back to raw JSON — it could not parse the real reply:\n%s", stdout)
 	}
-	if strings.Contains(stdout, `"@id":"res-7"`) {
-		t.Error("match fell back to dumping raw JSON — it could not parse the real reply shape")
-	}
 	// The LAST emit is the search, carrying the gathered context and our flags.
 	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
 	mustContain(t, "search emit", string(b),

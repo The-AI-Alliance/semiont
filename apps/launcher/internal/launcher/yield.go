@@ -442,39 +442,42 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 				fmt.Fprintln(os.Stderr, "  The job may still be running:  semiont browse "+resourceID)
 				return 1
 			}
-			var probe struct {
-				JobId    string          `json:"jobId"`
-				Error    string          `json:"error"`
-				Progress json.RawMessage `json:"progress"`
-			}
-			if json.Unmarshal(ev.Payload, &probe) != nil || probe.JobId != jobID {
-				continue // another job's broadcast
-			}
+			// Each job channel carries its own command schema, so each is read
+			// with its own generated type. The lifecycle correlates by jobId —
+			// these are broadcasts, and every viewer of the KB sees them.
 			switch ev.Channel {
 			case "job:report-progress":
-				var p semiont.GatherProgress
-				if json.Unmarshal(probe.Progress, &p) == nil && p.Message != nil {
-					u.log("%s", *p.Message)
+				var p semiont.JobReportProgressCommand
+				if json.Unmarshal(ev.Payload, &p) != nil || p.JobId != jobID {
+					continue // another job's broadcast
+				}
+				// JobProgress is the one progress shape for every job type;
+				// stage and message are always present. Narrating the stage
+				// too is what makes a minutes-long generation legible.
+				if p.Progress != nil {
+					u.log("%s %s", p.Progress.Stage, u.dim(p.Progress.Message))
 				}
 			case "job:fail":
-				u.fail("Generation failed: %s", probe.Error)
+				var f semiont.JobFailCommand
+				if json.Unmarshal(ev.Payload, &f) != nil || f.JobId != jobID {
+					continue
+				}
+				u.fail("Generation failed: %s", f.Error)
 				return 1
 			case "job:complete":
+				var done semiont.JobCompleteCommand
+				if json.Unmarshal(ev.Payload, &done) != nil || done.JobId != jobID {
+					continue
+				}
 				if opts.asJSON {
 					fmt.Println(string(ev.Payload))
 					return 0
 				}
-				var done semiont.JobCompleteCommand
-				_ = json.Unmarshal(ev.Payload, &done)
+				// JobResult is a union over every job type; a generation names
+				// the resource it produced.
 				if done.Result != nil {
-					var r struct {
-						ResourceId   string `json:"resourceId"`
-						ResourceName string `json:"resourceName"`
-					}
-					raw, _ := json.Marshal(done.Result)
-					_ = json.Unmarshal(raw, &r)
-					if r.ResourceId != "" {
-						u.ok("Yielded %s → %s %s", opts.storageURI, r.ResourceId, u.dim(r.ResourceName))
+					if gen, err := done.Result.AsJobGenerationResult(); err == nil && gen.ResourceId != nil {
+						u.ok("Yielded %s → %s %s", opts.storageURI, *gen.ResourceId, u.dim(gen.ResourceName))
 						return 0
 					}
 				}
