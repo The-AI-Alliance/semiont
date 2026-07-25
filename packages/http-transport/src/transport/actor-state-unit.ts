@@ -322,12 +322,6 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
             // never spuriously drops a distinct event.
             const isDuplicate = currentId !== undefined && seenEventIds.has(currentId);
             if (currentEvent === 'bus-event' && currentData && !isDuplicate) {
-              if (currentId !== undefined) {
-                lastEventId = currentId;
-                rememberEventId(currentId);
-                // B17: persisted ids only — see ActorStateUnitOptions.
-                if (currentId.startsWith('p-')) options.saveLastEventId?.(currentId);
-              }
               const parsed = JSON.parse(currentData) as BusEvent;
               busLog('RECV', parsed.channel, parsed.payload, parsed.scope);
               // Drain-window forensics: an event delivered by a SUPERSEDED
@@ -360,6 +354,22 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
                   },
                 ),
               );
+              // Id bookkeeping AFTER the apply fan-out, deliberately — an id
+              // is stashable only once its event's effects are pending or
+              // done. The pre-fix order (stash first, then an AWAITED apply)
+              // opened a gap where a bystander cache's debounced save could
+              // fire mid-await, find every cache quiet, and flush a bookmark
+              // whose event nothing had absorbed — the fast-path reload loss
+              // (.plans/bugs/annotation-lost-on-immediate-reload-after-create.md).
+              // Everything here moves to the LAGGING side, which is safe: a
+              // reconnect or crash mid-apply resumes from the previous id and
+              // redelivers, and re-invalidation is idempotent.
+              if (currentId !== undefined) {
+                lastEventId = currentId;
+                rememberEventId(currentId);
+                // B17: persisted ids only — see ActorStateUnitOptions.
+                if (currentId.startsWith('p-')) options.saveLastEventId?.(currentId);
+              }
             }
             currentEvent = '';
             currentData = '';

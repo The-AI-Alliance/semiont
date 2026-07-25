@@ -590,6 +590,41 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
+  it('stashes an id only AFTER the event has been applied to on$ subscribers (the receive→apply gap)', async () => {
+    // .plans/bugs/annotation-lost-on-immediate-reload-after-create.md: the
+    // pre-fix loop ran saveLastEventId BEFORE the awaited apply fan-out.
+    // Inside that await, a bystander cache's debounced save could fire,
+    // find every cache quiet (nothing invalidated yet), and flush the
+    // just-stashed bookmark — persisting an id whose event no cache had
+    // absorbed. The invariant pinned here: by the instant saveLastEventId
+    // runs, the event's subscribers have already run — so an id is only
+    // ever stashable once its apply-effects are pending or done.
+    const sse = mockSSEResponse();
+    const order: string[] = [];
+
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['mark:added'],
+      saveLastEventId: () => order.push('stash'),
+    });
+    stateUnit.on$('mark:added').subscribe(() => order.push('apply'));
+
+    stateUnit.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    sse.push(
+      'event: bus-event\nid: p-res-1-48\ndata: ' +
+        JSON.stringify({ channel: 'mark:added', payload: { foo: 'bar' } }) +
+        '\n\n',
+    );
+
+    await vi.waitFor(() => expect(order).toContain('stash'));
+    expect(order).toEqual(['apply', 'stash']);
+
+    stateUnit.dispose();
+  });
+
   it('does not send Last-Event-ID header on the first connect', async () => {
     mockSSEResponse();
 
