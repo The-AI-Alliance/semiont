@@ -37,8 +37,9 @@ Options:
 Requires a session:  semiont login --email <address>
 
 Only channels the transport bridges can be received. A channel that exists
-but is not bridged delivers nothing at all, so this warns before subscribing
-rather than leaving you watching a stream that can never produce an event.
+but is not bridged will deliver nothing at all, so this warns before
+subscribing rather than leaving you watching a stream that can never
+produce an event.
 `
 
 // The default subscription is the GENERATED broadcast set
