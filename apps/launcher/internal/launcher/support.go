@@ -258,8 +258,28 @@ func took(d time.Duration) string {
 	return fmt.Sprintf("%ds", int(d.Round(time.Second).Seconds()))
 }
 
-// waitForHTTP polls until a URL returns 2xx, one attempt per second,
-// reporting how long readiness took.
+// pollDelay paces a readiness loop: fast while the service might come up
+// any moment, settling to once a second for the long haul.
+//
+// It used to be a flat one second, which meant a service ready a beat after
+// the first probe still cost a full second of dead time. Measured on a start:
+// nine services each reported exactly "(1s)" — about nine seconds of pure
+// pacing, for services that were already up. The budget is wall-clock and
+// enforced against a deadline, so tightening the early retries shortens real
+// waits without touching the timeout contract.
+func pollDelay(elapsed time.Duration) time.Duration {
+	switch {
+	case elapsed < time.Second:
+		return 50 * time.Millisecond
+	case elapsed < 5*time.Second:
+		return 250 * time.Millisecond
+	default:
+		return time.Second
+	}
+}
+
+// waitForHTTP polls until a URL returns 2xx, reporting how long readiness
+// took.
 // waitForHTTP polls until the endpoint answers or the budget expires. The
 // budget is WALL-CLOCK SECONDS, enforced against a deadline — not a count of
 // attempts.
@@ -283,6 +303,10 @@ func waitForHTTP(u *ui, name, url string, seconds int) (time.Duration, bool) {
 func waitForHTTPTick(u *ui, name, url string, seconds int, tick func(elapsed time.Duration) bool) (time.Duration, bool) {
 	t0 := time.Now()
 	deadline := t0.Add(time.Duration(seconds) * time.Second)
+	// The tick is a DISPLAY concern (the codespace log window), so it stays on
+	// its ~1s cadence no matter how fast we poll. Seeded negative so the first
+	// one fires immediately rather than a second in.
+	lastTick := -time.Second
 	for {
 		if httpOK(url) {
 			return time.Since(t0), true
@@ -290,10 +314,14 @@ func waitForHTTPTick(u *ui, name, url string, seconds int, tick func(elapsed tim
 		if !time.Now().Before(deadline) {
 			break
 		}
-		if tick != nil && !tick(time.Since(t0)) {
-			return time.Since(t0), false
+		elapsed := time.Since(t0)
+		if tick != nil && elapsed-lastTick >= time.Second {
+			lastTick = elapsed
+			if !tick(elapsed) {
+				return time.Since(t0), false
+			}
 		}
-		time.Sleep(time.Second)
+		time.Sleep(pollDelay(elapsed))
 	}
 	u.fail("%s did not become ready at %s within %ds (waited %s).", name, url, seconds, took(time.Since(t0)))
 	return time.Since(t0), false
@@ -322,7 +350,7 @@ func waitForPG(u *ui, rt, host string, port, seconds int) (time.Duration, bool) 
 		if !time.Now().Before(deadline) {
 			break
 		}
-		time.Sleep(time.Second)
+		time.Sleep(pollDelay(time.Since(t0)))
 	}
 	if !up {
 		u.fail("PostgreSQL did not open port %d within %ds (waited %s).", port, seconds, took(time.Since(t0)))
