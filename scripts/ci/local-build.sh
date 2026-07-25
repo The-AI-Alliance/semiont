@@ -367,6 +367,35 @@ for img in $IMAGES; do
   fanout_image "$TAG"
 done
 
+# --- bus registry drift gate ---
+#
+# specs/src/bus/registry.json is the AUTHORITY for the event bus: channels,
+# payload shapes, and the request/reply operations. BOTH languages are
+# generated from it — packages/core/src/bus-protocol.ts + bus-operations.ts
+# (TypeScript) and packages/sdk-go/bus/*_gen.go — so an edit to one language's
+# generated file, or a registry change without regeneration, is drift that
+# would let the two sides disagree at runtime. Each generator's --check diffs
+# without writing.
+
+banner "BUS REGISTRY DRIFT GATE"
+
+step "Checking generated bus files against specs/src/bus/registry.json..."
+if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
+  sh -c 'node scripts/bus/generate-ts.mjs --check && node scripts/bus/generate-go.mjs --check'; then
+  ok "bus registry and both generated languages agree"
+else
+  fail "Generated bus files are STALE (or were hand-edited) — they must match specs/src/bus/registry.json."
+  echo ""
+  echo -e "  Regenerate both languages and commit:"
+  echo ""
+  echo -e "    ${BOLD}node scripts/bus/generate-ts.mjs${RESET}   (packages/core/src/bus-protocol.ts, bus-operations.ts)"
+  echo -e "    ${BOLD}node scripts/bus/generate-go.mjs${RESET}   (packages/sdk-go/bus/*_gen.go)"
+  echo ""
+  echo -e "  Channels and operations are edited in ${BOLD}specs/src/bus/registry.json${RESET}, never in the generated files."
+  echo ""
+  exit 1
+fi
+
 # --- sdk-go drift gate ---
 #
 # packages/sdk-go/client_gen.go is GENERATED from specs/openapi.json and

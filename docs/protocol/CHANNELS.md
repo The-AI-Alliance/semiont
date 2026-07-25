@@ -2,7 +2,7 @@
 
 The set of channels every Semiont actor speaks, grouped by category. The protocol semantics behind these categories — naming, payload shape, scoping rules, persistence — are in **[EVENT-BUS.md](./EVENT-BUS.md)**. This doc is the reference list.
 
-The authoritative TypeScript source is **[`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts)** — the `EventMap` type and the `CHANNEL_SCHEMAS` map. If a channel here disagrees with that file, the file wins.
+The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**, from which [`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts) (`EventMap`, `CHANNEL_SCHEMAS`) and the Go equivalents are generated — see [EVENT-BUS.md](./EVENT-BUS.md#the-registry-is-the-authority-both-languages-are-generated). If a channel here disagrees with the registry, the registry wins.
 
 ## Persisted domain events (the system of record)
 
@@ -49,7 +49,7 @@ Non-persisted results matched back to the originating request by `correlationId`
 
 Channels every viewer of a specific resource wants to see, regardless of who triggered them. Published on `eventBus.scope(resourceId)`; received via a `scope=rId&scoped=X` SSE subscription the SDK wires up automatically when a consumer subscribes to that resource's `browse.*` live queries (freshness follows observation; #847).
 
-The authoritative list is `RESOURCE_BROADCAST_TYPES` in [`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts) — **currently empty.** `job:complete` / `job:fail` used to live here but were moved to global, `jobId`-keyed delivery (see *Correlation-ID responses* above, and #847): the dispatcher filters by `jobId`, viewers filter the global stream by `resourceId`, so a client that is both no longer receives them twice. The set remains as the extension point for genuine multi-viewer resource broadcasts (e.g. generation progress).
+The authoritative list is `RESOURCE_BROADCAST_TYPES`, carried in [the registry](../../specs/src/bus/registry.json) and generated into `bus-protocol.ts` (edit the registry — a change to the generated file is reverted by the next `npm run generate:bus`) — **currently empty.** `job:complete` / `job:fail` used to live here but were moved to global, `jobId`-keyed delivery (see *Correlation-ID responses* above, and #847): the dispatcher filters by `jobId`, viewers filter the global stream by `resourceId`, so a client that is both no longer receives them twice. The set remains as the extension point for genuine multi-viewer resource broadcasts (e.g. generation progress).
 
 ## Bridged channels (HTTP transport fan-in)
 
@@ -62,6 +62,7 @@ In-process transports do the same fan-in via `LocalTransport.bridgeInto(bus)`.
 - **[EVENT-BUS.md](./EVENT-BUS.md)** — channel naming, payload categories, scoping rules, `correlationId` / `_userId` / `_trace` conventions
 - **[TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md)** — abstract `ITransport` behavioral guarantees
 - **[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)** — HTTP+SSE wire format
-- **[`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts)** — `EventMap` and `CHANNEL_SCHEMAS`
+- **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** — the authority (channels, payloads, operations)
+- **[`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts)** — GENERATED `EventMap` and `CHANNEL_SCHEMAS`
 - **[`packages/core/src/persisted-events.ts`](../../packages/core/src/persisted-events.ts)** — `PERSISTED_EVENT_TYPES`
 - **[`packages/core/src/bridged-channels.ts`](../../packages/core/src/bridged-channels.ts)** — `BRIDGED_CHANNELS`

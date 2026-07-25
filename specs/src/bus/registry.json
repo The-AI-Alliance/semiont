@@ -1,0 +1,3507 @@
+{
+  "$comment": "AUTHORITY for the Semiont event bus: channels, their payloads, and the request/reply operations. TypeScript (packages/core) and Go (packages/sdk-go) are BOTH generated from this file — edit here, then run the generators. Payload schemas themselves live in the OpenAPI components; `validate` names the one a channel carries on the wire.",
+  "channelOrder": {
+    "eventMap": [
+      "yield:created",
+      "yield:cloned",
+      "yield:updated",
+      "yield:moved",
+      "yield:representation-added",
+      "yield:representation-removed",
+      "yield:create",
+      "yield:update",
+      "yield:mv",
+      "yield:clone",
+      "yield:clone-token-requested",
+      "yield:clone-resource-requested",
+      "yield:clone-create",
+      "yield:create-ok",
+      "yield:create-failed",
+      "yield:update-ok",
+      "yield:update-failed",
+      "yield:move-failed",
+      "yield:clone-token-generated",
+      "yield:clone-token-failed",
+      "yield:clone-resource-result",
+      "yield:clone-resource-failed",
+      "yield:clone-created",
+      "yield:clone-create-failed",
+      "mark:added",
+      "mark:removed",
+      "mark:body-updated",
+      "mark:entity-tag-added",
+      "mark:entity-tag-removed",
+      "mark:archived",
+      "mark:unarchived",
+      "mark:create-request",
+      "mark:create",
+      "mark:delete",
+      "mark:update-body",
+      "mark:archive",
+      "mark:unarchive",
+      "mark:update-entity-types",
+      "mark:create-ok",
+      "mark:create-failed",
+      "mark:delete-ok",
+      "mark:delete-failed",
+      "mark:archive-ok",
+      "mark:archive-failed",
+      "mark:unarchive-ok",
+      "mark:unarchive-failed",
+      "mark:update-entity-types-ok",
+      "mark:update-entity-types-failed",
+      "mark:body-update-failed",
+      "mark:select-comment",
+      "mark:select-tag",
+      "mark:select-assessment",
+      "mark:select-reference",
+      "mark:requested",
+      "mark:cancel-pending",
+      "mark:submit",
+      "mark:assist-request",
+      "mark:progress-dismiss",
+      "mark:assist-timeout",
+      "mark:create-error",
+      "mark:delete-error",
+      "bind:body-error",
+      "frame:entity-type-added",
+      "frame:tag-schema-added",
+      "frame:add-entity-type",
+      "frame:add-tag-schema",
+      "frame:entity-type-add-ok",
+      "frame:entity-type-add-failed",
+      "frame:tag-schema-add-ok",
+      "frame:tag-schema-add-failed",
+      "bind:initiate",
+      "bind:update-body",
+      "bind:body-updated",
+      "bind:body-update-failed",
+      "match:search-requested",
+      "match:search-results",
+      "match:search-failed",
+      "gather:requested",
+      "gather:complete",
+      "gather:failed",
+      "gather:resource-requested",
+      "gather:resource-complete",
+      "gather:resource-failed",
+      "gather:summary-requested",
+      "gather:summary-result",
+      "gather:summary-failed",
+      "gather:annotation-progress",
+      "browse:resource-requested",
+      "browse:resource-result",
+      "browse:resource-failed",
+      "browse:resources-requested",
+      "browse:resources-result",
+      "browse:resources-failed",
+      "browse:annotations-requested",
+      "browse:annotations-result",
+      "browse:annotations-failed",
+      "browse:annotation-requested",
+      "browse:annotation-result",
+      "browse:annotation-failed",
+      "browse:events-requested",
+      "browse:events-result",
+      "browse:events-failed",
+      "browse:annotation-history-requested",
+      "browse:annotation-history-result",
+      "browse:annotation-history-failed",
+      "browse:annotation-context-requested",
+      "browse:annotation-context-result",
+      "browse:annotation-context-failed",
+      "browse:referenced-by-requested",
+      "browse:referenced-by-result",
+      "browse:referenced-by-failed",
+      "browse:entity-types-requested",
+      "browse:entity-types-result",
+      "browse:entity-types-failed",
+      "browse:tag-schemas-requested",
+      "browse:tag-schemas-result",
+      "browse:tag-schemas-failed",
+      "browse:agents-requested",
+      "browse:agents-result",
+      "browse:agents-failed",
+      "browse:directory-requested",
+      "browse:directory-result",
+      "browse:directory-failed",
+      "browse:click",
+      "browse:reference-navigate",
+      "browse:entity-type-clicked",
+      "panel:toggle",
+      "panel:open",
+      "panel:close",
+      "shell:sidebar-toggle",
+      "tabs:close",
+      "tabs:reorder",
+      "nav:link-clicked",
+      "nav:push",
+      "nav:external",
+      "beckon:hover",
+      "beckon:focus",
+      "beckon:sparkle",
+      "job:started",
+      "job:progress",
+      "job:completed",
+      "job:failed",
+      "job:start",
+      "job:report-progress",
+      "job:complete",
+      "job:fail",
+      "job:queued",
+      "job:cancel-requested",
+      "job:status-requested",
+      "job:create",
+      "job:claim",
+      "job:status-result",
+      "job:status-failed",
+      "job:created",
+      "job:create-failed",
+      "job:claimed",
+      "job:claim-failed",
+      "job:cancel-ok",
+      "job:cancel-failed",
+      "weave:applied",
+      "smelt:settled",
+      "weave:rebuild",
+      "weave:rebuild-ok",
+      "weave:rebuild-failed",
+      "settings:theme-changed",
+      "settings:line-numbers-toggled",
+      "settings:locale-changed",
+      "settings:hover-delay-changed",
+      "stream-connected",
+      "replay-window-exceeded",
+      "bus:resume-gap"
+    ],
+    "schemas": [
+      "yield:created",
+      "yield:cloned",
+      "yield:updated",
+      "yield:moved",
+      "yield:representation-added",
+      "yield:representation-removed",
+      "yield:create",
+      "yield:update",
+      "yield:mv",
+      "yield:clone",
+      "yield:clone-token-requested",
+      "yield:clone-resource-requested",
+      "yield:clone-create",
+      "yield:create-ok",
+      "yield:create-failed",
+      "yield:update-ok",
+      "yield:update-failed",
+      "yield:move-failed",
+      "yield:clone-token-generated",
+      "yield:clone-token-failed",
+      "yield:clone-resource-result",
+      "yield:clone-resource-failed",
+      "yield:clone-created",
+      "yield:clone-create-failed",
+      "mark:added",
+      "mark:removed",
+      "mark:body-updated",
+      "mark:entity-tag-added",
+      "mark:entity-tag-removed",
+      "frame:entity-type-added",
+      "frame:tag-schema-added",
+      "mark:archived",
+      "mark:unarchived",
+      "mark:create-request",
+      "mark:create",
+      "mark:delete",
+      "mark:update-body",
+      "mark:archive",
+      "mark:unarchive",
+      "mark:update-entity-types",
+      "frame:add-entity-type",
+      "frame:add-tag-schema",
+      "mark:create-ok",
+      "mark:create-failed",
+      "mark:delete-ok",
+      "mark:delete-failed",
+      "mark:archive-ok",
+      "mark:archive-failed",
+      "mark:unarchive-ok",
+      "mark:unarchive-failed",
+      "mark:update-entity-types-ok",
+      "mark:update-entity-types-failed",
+      "mark:body-update-failed",
+      "frame:entity-type-add-ok",
+      "frame:entity-type-add-failed",
+      "frame:tag-schema-add-ok",
+      "frame:tag-schema-add-failed",
+      "mark:select-comment",
+      "mark:select-tag",
+      "mark:select-assessment",
+      "mark:select-reference",
+      "mark:requested",
+      "mark:cancel-pending",
+      "mark:submit",
+      "mark:assist-request",
+      "mark:progress-dismiss",
+      "mark:assist-timeout",
+      "mark:create-error",
+      "mark:delete-error",
+      "bind:body-error",
+      "bind:initiate",
+      "bind:update-body",
+      "bind:body-updated",
+      "bind:body-update-failed",
+      "match:search-requested",
+      "match:search-results",
+      "match:search-failed",
+      "gather:requested",
+      "gather:complete",
+      "gather:failed",
+      "gather:resource-requested",
+      "gather:resource-complete",
+      "gather:resource-failed",
+      "gather:summary-requested",
+      "gather:summary-result",
+      "gather:summary-failed",
+      "gather:annotation-progress",
+      "browse:resource-requested",
+      "browse:resource-result",
+      "browse:resource-failed",
+      "browse:resources-requested",
+      "browse:resources-result",
+      "browse:resources-failed",
+      "browse:annotations-requested",
+      "browse:annotations-result",
+      "browse:annotations-failed",
+      "browse:annotation-requested",
+      "browse:annotation-result",
+      "browse:annotation-failed",
+      "browse:events-requested",
+      "browse:events-result",
+      "browse:events-failed",
+      "browse:annotation-history-requested",
+      "browse:annotation-history-result",
+      "browse:annotation-history-failed",
+      "browse:annotation-context-requested",
+      "browse:annotation-context-result",
+      "browse:annotation-context-failed",
+      "browse:referenced-by-requested",
+      "browse:referenced-by-result",
+      "browse:referenced-by-failed",
+      "browse:entity-types-requested",
+      "browse:entity-types-result",
+      "browse:entity-types-failed",
+      "browse:tag-schemas-requested",
+      "browse:tag-schemas-result",
+      "browse:tag-schemas-failed",
+      "browse:agents-requested",
+      "browse:agents-result",
+      "browse:agents-failed",
+      "browse:directory-requested",
+      "browse:directory-result",
+      "browse:directory-failed",
+      "browse:click",
+      "browse:reference-navigate",
+      "browse:entity-type-clicked",
+      "panel:toggle",
+      "panel:open",
+      "panel:close",
+      "shell:sidebar-toggle",
+      "tabs:close",
+      "tabs:reorder",
+      "nav:link-clicked",
+      "nav:push",
+      "nav:external",
+      "beckon:hover",
+      "beckon:focus",
+      "beckon:sparkle",
+      "job:started",
+      "job:progress",
+      "job:completed",
+      "job:failed",
+      "job:start",
+      "job:report-progress",
+      "job:complete",
+      "job:fail",
+      "job:queued",
+      "job:cancel-requested",
+      "job:status-requested",
+      "job:create",
+      "job:claim",
+      "job:status-result",
+      "job:status-failed",
+      "job:created",
+      "job:create-failed",
+      "job:claimed",
+      "job:claim-failed",
+      "job:cancel-ok",
+      "job:cancel-failed",
+      "settings:theme-changed",
+      "settings:line-numbers-toggled",
+      "settings:locale-changed",
+      "settings:hover-delay-changed",
+      "weave:applied",
+      "smelt:settled",
+      "weave:rebuild",
+      "weave:rebuild-ok",
+      "weave:rebuild-failed",
+      "stream-connected",
+      "replay-window-exceeded",
+      "bus:resume-gap"
+    ]
+  },
+  "channels": [
+    {
+      "channel": "yield:created",
+      "shape": "storedEvent",
+      "event": "yield:created",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'yield:created'>>",
+      "docs": {
+        "lead": [
+          "",
+          "",
+          "  // ========================================================================",
+          "  // YIELD FLOW — resource creation, update, move, clone",
+          "  // ========================================================================",
+          "",
+          "  // Domain events (branded — system of record)"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [
+          "",
+          "  // ── YIELD FLOW ──────────────────────────────────────────────────"
+        ],
+        "trailing": "// StoredEvent"
+      }
+    },
+    {
+      "channel": "yield:cloned",
+      "shape": "storedEvent",
+      "event": "yield:cloned",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'yield:cloned'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:updated",
+      "shape": "storedEvent",
+      "event": "yield:updated",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'yield:updated'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:moved",
+      "shape": "storedEvent",
+      "event": "yield:moved",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'yield:moved'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:representation-added",
+      "shape": "storedEvent",
+      "event": "yield:representation-added",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'yield:representation-added'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:representation-removed",
+      "shape": "storedEvent",
+      "event": "yield:representation-removed",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'yield:representation-removed'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:create",
+      "shape": "schema",
+      "schema": "YieldCreateCommand",
+      "validate": "YieldCreateCommand",
+      "ts": "components['schemas']['YieldCreateCommand']",
+      "docs": {
+        "lead": [
+          "",
+          "  // Generation lifecycle flows through the unified job:* family",
+          "  // (job:start, job:report-progress, job:complete, job:fail). The",
+          "  // pre-unification `yield:progress`/`yield:finished`/`yield:failed`",
+          "  // channels were removed on the lifecycle-unification.",
+          "",
+          "  // Commands"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:update",
+      "shape": "schema",
+      "schema": "YieldUpdateCommand",
+      "validate": "YieldUpdateCommand",
+      "ts": "components['schemas']['YieldUpdateCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:mv",
+      "shape": "schema",
+      "schema": "YieldMvCommand",
+      "validate": "YieldMvCommand",
+      "ts": "components['schemas']['YieldMvCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:clone",
+      "shape": "void",
+      "validate": null,
+      "ts": "void",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// void"
+      }
+    },
+    {
+      "channel": "yield:clone-token-requested",
+      "shape": "schema",
+      "schema": "YieldCloneTokenRequest",
+      "validate": "YieldCloneTokenRequest",
+      "ts": "components['schemas']['YieldCloneTokenRequest']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:clone-resource-requested",
+      "shape": "schema",
+      "schema": "YieldCloneResourceRequest",
+      "validate": "YieldCloneResourceRequest",
+      "ts": "components['schemas']['YieldCloneResourceRequest']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:clone-create",
+      "shape": "schema",
+      "schema": "YieldCloneCreateCommand",
+      "validate": "YieldCloneCreateCommand",
+      "ts": "components['schemas']['YieldCloneCreateCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:create-ok",
+      "shape": "schema",
+      "schema": "YieldCreateOk",
+      "validate": "YieldCreateOk",
+      "ts": "components['schemas']['YieldCreateOk']",
+      "docs": {
+        "lead": [
+          "",
+          "  // Command results"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:create-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": "CommandError",
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:update-ok",
+      "shape": "schema",
+      "schema": "YieldUpdateOk",
+      "validate": "YieldUpdateOk",
+      "ts": "components['schemas']['YieldUpdateOk']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:update-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId } & CommandError"
+      }
+    },
+    {
+      "channel": "yield:move-failed",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ fromUri: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { fromUri } & CommandError"
+      }
+    },
+    {
+      "channel": "yield:clone-token-generated",
+      "shape": "envelope",
+      "schema": "CloneResourceWithTokenResponse",
+      "validate": null,
+      "ts": "{ correlationId: string; response: components['schemas']['CloneResourceWithTokenResponse'] }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId; response: CloneResourceWithTokenResponse }"
+      }
+    },
+    {
+      "channel": "yield:clone-token-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId } & CommandError"
+      }
+    },
+    {
+      "channel": "yield:clone-resource-result",
+      "shape": "envelope",
+      "schema": "GetResourceByTokenResponse",
+      "validate": null,
+      "ts": "{ correlationId: string; response: components['schemas']['GetResourceByTokenResponse'] }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId; response: GetResourceByTokenResponse }"
+      }
+    },
+    {
+      "channel": "yield:clone-resource-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId } & CommandError"
+      }
+    },
+    {
+      "channel": "yield:clone-created",
+      "shape": "schema",
+      "schema": "YieldCloneCreated",
+      "validate": "YieldCloneCreated",
+      "ts": "components['schemas']['YieldCloneCreated']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:clone-create-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId } & CommandError"
+      }
+    },
+    {
+      "channel": "mark:added",
+      "shape": "storedEvent",
+      "event": "mark:added",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'mark:added'>>",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // MARK FLOW — annotation CRUD, AI assist, resource lifecycle",
+          "  // ========================================================================",
+          "",
+          "  // Domain events (branded — system of record)"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [
+          "",
+          "  // ── MARK FLOW ───────────────────────────────────────────────────"
+        ],
+        "trailing": "// StoredEvent"
+      }
+    },
+    {
+      "channel": "mark:removed",
+      "shape": "storedEvent",
+      "event": "mark:removed",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'mark:removed'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:body-updated",
+      "shape": "storedEvent",
+      "event": "mark:body-updated",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'mark:body-updated'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:entity-tag-added",
+      "shape": "storedEvent",
+      "event": "mark:entity-tag-added",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'mark:entity-tag-added'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:entity-tag-removed",
+      "shape": "storedEvent",
+      "event": "mark:entity-tag-removed",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'mark:entity-tag-removed'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:archived",
+      "shape": "storedEvent",
+      "event": "mark:archived",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'mark:archived'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:unarchived",
+      "shape": "storedEvent",
+      "event": "mark:unarchived",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'mark:unarchived'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:create-request",
+      "shape": "schema",
+      "schema": "MarkCreateRequest",
+      "validate": "MarkCreateRequest",
+      "ts": "components['schemas']['MarkCreateRequest']",
+      "docs": {
+        "lead": [
+          "",
+          "  // Annotation-job lifecycle flows through the unified job:* family",
+          "  // (job:start, job:report-progress, job:complete, job:fail). UI",
+          "  // consumers filter by jobType. The pre-unification channels",
+          "  // `mark:progress`/`mark:assist-finished`/`mark:assist-failed` were",
+          "  // removed on the lifecycle-unification.",
+          "",
+          "  // Commands"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:create",
+      "shape": "schema",
+      "schema": "MarkCreateCommand",
+      "validate": "MarkCreateCommand",
+      "ts": "components['schemas']['MarkCreateCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:delete",
+      "shape": "custom",
+      "validate": "MarkDeleteCommand",
+      "ts": "MarkDeleteCommand",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:update-body",
+      "shape": "custom",
+      "validate": "MarkUpdateBodyCommand",
+      "ts": "MarkUpdateBodyCommand",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:archive",
+      "shape": "schema",
+      "schema": "MarkArchiveCommand",
+      "validate": "MarkArchiveCommand",
+      "ts": "components['schemas']['MarkArchiveCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:unarchive",
+      "shape": "schema",
+      "schema": "MarkUnarchiveCommand",
+      "validate": "MarkUnarchiveCommand",
+      "ts": "components['schemas']['MarkUnarchiveCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:update-entity-types",
+      "shape": "schema",
+      "schema": "MarkUpdateEntityTypesCommand",
+      "validate": "MarkUpdateEntityTypesCommand",
+      "ts": "components['schemas']['MarkUpdateEntityTypesCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:create-ok",
+      "shape": "schema",
+      "schema": "MarkCreateOk",
+      "validate": "MarkCreateOk",
+      "ts": "components['schemas']['MarkCreateOk']",
+      "docs": {
+        "lead": [
+          "",
+          "  // Command results"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:create-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": "CommandError",
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:delete-ok",
+      "shape": "schema",
+      "schema": "MarkDeleteOk",
+      "validate": "MarkDeleteOk",
+      "ts": "components['schemas']['MarkDeleteOk']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:delete-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": "CommandError",
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:archive-ok",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId?: string }",
+      "docs": {
+        "lead": [
+          "  // archive/unarchive confirmed-write replies (bridged) — correlation-keyed",
+          "  // acks the SDK's busRequest awaits. Failure routes the real outcome back",
+          "  // instead of the old fire-and-forget silence (.plans/bugs/BRIDGE-GAPS.md)."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:archive-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": "CommandError",
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:unarchive-ok",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId?: string }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:unarchive-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": "CommandError",
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:update-entity-types-ok",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId?: string }",
+      "docs": {
+        "lead": [
+          "  // update-entity-types confirmed-write reply (bridged) — correlation-keyed ack",
+          "  // the SDK's busRequest awaits; failure routes the real outcome back rather than",
+          "  // the old fire-and-forget silence (.plans/bugs/BRIDGE-GAPS.md)."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:update-entity-types-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": "CommandError",
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:body-update-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": "CommandError",
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:select-comment",
+      "shape": "schema",
+      "schema": "SelectionData",
+      "validate": "SelectionData",
+      "ts": "components['schemas']['SelectionData']",
+      "docs": {
+        "lead": [
+          "",
+          "  // UI events"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:select-tag",
+      "shape": "schema",
+      "schema": "SelectionData",
+      "validate": "SelectionData",
+      "ts": "components['schemas']['SelectionData']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:select-assessment",
+      "shape": "schema",
+      "schema": "SelectionData",
+      "validate": "SelectionData",
+      "ts": "components['schemas']['SelectionData']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:select-reference",
+      "shape": "schema",
+      "schema": "SelectionData",
+      "validate": "SelectionData",
+      "ts": "components['schemas']['SelectionData']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:requested",
+      "shape": "schema",
+      "schema": "MarkRequestedEvent",
+      "validate": "MarkRequestedEvent",
+      "ts": "components['schemas']['MarkRequestedEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:cancel-pending",
+      "shape": "void",
+      "validate": null,
+      "ts": "void",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// void"
+      }
+    },
+    {
+      "channel": "mark:submit",
+      "shape": "schema",
+      "schema": "MarkSubmitEvent",
+      "validate": "MarkSubmitEvent",
+      "ts": "components['schemas']['MarkSubmitEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:assist-request",
+      "shape": "schema",
+      "schema": "MarkAssistRequestEvent",
+      "validate": "MarkAssistRequestEvent",
+      "ts": "components['schemas']['MarkAssistRequestEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:progress-dismiss",
+      "shape": "void",
+      "validate": null,
+      "ts": "void",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// void"
+      }
+    },
+    {
+      "channel": "mark:assist-timeout",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ resourceId: string; motivation: components['schemas']['Motivation'] }",
+      "docs": {
+        "lead": [
+          "  // Client-local: the assist Observable went silent past its deadline (no",
+          "  // progress, no completion, no job:fail). Emitted by mark-state-unit so the",
+          "  // outcome-notification layer can tell the user; a real job failure arrives",
+          "  // as job:fail instead and never produces this."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { resourceId; motivation } — client-local UI signal"
+      }
+    },
+    {
+      "channel": "mark:create-error",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ resourceId: string; message: string }",
+      "docs": {
+        "lead": [
+          "  // Client-local UI notifications for annotation command failures, emitted by",
+          "  // the awaiting catch (mark-state-unit), which inherently knows whose command",
+          "  // failed on which resource. Distinct from the `mark:create-failed` /",
+          "  // `mark:delete-failed` wire replies above: those are busRequest correlation",
+          "  // plumbing (CommandError, matched by correlationId, bridged to every",
+          "  // client) and are NOT for UI consumption — subscribing to them raw",
+          "  // double-toasts the requester and leaks other users' failures."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { resourceId; message } — client-local UI signal"
+      }
+    },
+    {
+      "channel": "mark:delete-error",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ resourceId: string; message: string }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { resourceId; message } — client-local UI signal"
+      }
+    },
+    {
+      "channel": "bind:body-error",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ resourceId: string; message: string }",
+      "docs": {
+        "lead": [
+          "  // Same pattern for bind body updates initiated by callers that cannot toast",
+          "  // directly (e.g. ReferenceEntry's unlink); awaiting callers with their own",
+          "  // toast surface (the reference wizard) surface failures themselves instead."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { resourceId; message } — client-local UI signal"
+      }
+    },
+    {
+      "channel": "frame:entity-type-added",
+      "shape": "storedEvent",
+      "event": "frame:entity-type-added",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'frame:entity-type-added'>>",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // FRAME FLOW — schema-layer vocabulary (entity types; future tag schemas,",
+          "  // relation/predicate types, ontology import). The eighth flow.",
+          "  // ========================================================================",
+          "",
+          "  // Domain events (branded — system of record). System-level: no resourceId."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "frame:tag-schema-added",
+      "shape": "storedEvent",
+      "event": "frame:tag-schema-added",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'frame:tag-schema-added'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "frame:add-entity-type",
+      "shape": "schema",
+      "schema": "FrameAddEntityTypeCommand",
+      "validate": "FrameAddEntityTypeCommand",
+      "ts": "components['schemas']['FrameAddEntityTypeCommand']",
+      "docs": {
+        "lead": [
+          "",
+          "  // Commands"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "frame:add-tag-schema",
+      "shape": "schema",
+      "schema": "FrameAddTagSchemaCommand",
+      "validate": "FrameAddTagSchemaCommand",
+      "ts": "components['schemas']['FrameAddTagSchemaCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "frame:entity-type-add-ok",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId?: string }",
+      "docs": {
+        "lead": [
+          "",
+          "  // Command results — `*-add-ok` / `*-add-failed` are correlation-keyed replies",
+          "  // for the SDK's confirmed `busRequest` writes (both bridged). In-process callers",
+          "  // (bootstrap/replay/import) instead race the `frame:*-added` domain event and",
+          "  // don't await `*-add-ok`, so its correlationId is optional."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "frame:entity-type-add-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": "CommandError",
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "frame:tag-schema-add-ok",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId?: string }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "frame:tag-schema-add-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": "CommandError",
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "bind:initiate",
+      "shape": "custom",
+      "validate": "BindInitiateCommand",
+      "ts": "BindInitiateCommand",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // BIND FLOW — reference linking",
+          "  // ========================================================================",
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [
+          "",
+          "  // ── BIND FLOW ───────────────────────────────────────────────────"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "bind:update-body",
+      "shape": "custom",
+      "validate": "BindUpdateBodyCommand",
+      "ts": "BindUpdateBodyCommand",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "bind:body-updated",
+      "shape": "schema",
+      "schema": "BindBodyUpdated",
+      "validate": "BindBodyUpdated",
+      "ts": "components['schemas']['BindBodyUpdated']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "bind:body-update-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": "CommandError",
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "match:search-requested",
+      "shape": "schema",
+      "schema": "MatchSearchRequest",
+      "validate": "MatchSearchRequest",
+      "ts": "components['schemas']['MatchSearchRequest']",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // MATCH FLOW — search",
+          "  // ========================================================================",
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [
+          "",
+          "  // ── MATCH FLOW ──────────────────────────────────────────────────"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "match:search-results",
+      "shape": "schema",
+      "schema": "MatchSearchResult",
+      "validate": "MatchSearchResult",
+      "ts": "components['schemas']['MatchSearchResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "match:search-failed",
+      "shape": "schema",
+      "schema": "MatchSearchFailed",
+      "validate": "MatchSearchFailed",
+      "ts": "components['schemas']['MatchSearchFailed']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "gather:requested",
+      "shape": "schema",
+      "schema": "GatherAnnotationRequest",
+      "validate": "GatherAnnotationRequest",
+      "ts": "components['schemas']['GatherAnnotationRequest']",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // GATHER FLOW — context gathering",
+          "  // ========================================================================",
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [
+          "",
+          "  // ── GATHER FLOW ─────────────────────────────────────────────────"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "gather:complete",
+      "shape": "schema",
+      "schema": "GatherAnnotationComplete",
+      "validate": "GatherAnnotationComplete",
+      "ts": "components['schemas']['GatherAnnotationComplete']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "gather:failed",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId: string; annotationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId; annotationId } & CommandError"
+      }
+    },
+    {
+      "channel": "gather:resource-requested",
+      "shape": "schema",
+      "schema": "GatherResourceRequest",
+      "validate": "GatherResourceRequest",
+      "ts": "components['schemas']['GatherResourceRequest']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "gather:resource-complete",
+      "shape": "schema",
+      "schema": "GatherResourceComplete",
+      "validate": "GatherResourceComplete",
+      "ts": "components['schemas']['GatherResourceComplete']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "gather:resource-failed",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId: string; resourceId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId; resourceId } & CommandError"
+      }
+    },
+    {
+      "channel": "gather:summary-requested",
+      "shape": "schema",
+      "schema": "GatherSummaryRequest",
+      "validate": "GatherSummaryRequest",
+      "ts": "components['schemas']['GatherSummaryRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "gather:summary-result",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId: string; response: Record<string, unknown> }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId; response: Record<string, unknown> }"
+      }
+    },
+    {
+      "channel": "gather:summary-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId } & CommandError"
+      }
+    },
+    {
+      "channel": "gather:annotation-progress",
+      "shape": "schema",
+      "schema": "GatherProgress",
+      "validate": "GatherProgress",
+      "ts": "components['schemas']['GatherProgress']",
+      "docs": {
+        "lead": [
+          "",
+          "  // SSE stream payloads"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:resource-requested",
+      "shape": "schema",
+      "schema": "BrowseResourceRequest",
+      "validate": "BrowseResourceRequest",
+      "ts": "components['schemas']['BrowseResourceRequest']",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // BROWSE FLOW — knowledge base reads + UI navigation",
+          "  // ========================================================================",
+          "",
+          "  // Reads.",
+          "  //",
+          "  // Reply `response` payloads carry DOMAIN-flavored documents: the KS serves",
+          "  // real, validated ids, so these declare the branded `Annotation` /",
+          "  // `ResourceDescriptor` (annotation-types.ts / graph.ts) rather than the raw",
+          "  // OpenAPI flavors — consumers must never need to re-brand (`as Annotation[]`)",
+          "  // what the protocol already guarantees. Field overrides via Omit +",
+          "  // intersection; envelope shape per .plans/REPLY-SHAPE-STANDARD.md."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [
+          "",
+          "  // ── BROWSE FLOW ─────────────────────────────────────────────────"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:resource-result",
+      "shape": "custom",
+      "validate": "BrowseResourceResult",
+      "ts": "{\n    correlationId: string;\n    response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {\n      resource: ResourceDescriptor;\n      annotations: Annotation[];\n      entityReferences: Annotation[];\n    };\n  }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:resource-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId } & CommandError"
+      }
+    },
+    {
+      "channel": "browse:resources-requested",
+      "shape": "schema",
+      "schema": "BrowseResourcesRequest",
+      "validate": "BrowseResourcesRequest",
+      "ts": "components['schemas']['BrowseResourcesRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:resources-result",
+      "shape": "custom",
+      "validate": "BrowseResourcesResult",
+      "ts": "{\n    correlationId: string;\n    response: Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {\n      resources: ResourceDescriptor[];\n    };\n  }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:resources-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:annotations-requested",
+      "shape": "schema",
+      "schema": "BrowseAnnotationsRequest",
+      "validate": "BrowseAnnotationsRequest",
+      "ts": "components['schemas']['BrowseAnnotationsRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:annotations-result",
+      "shape": "custom",
+      "validate": "BrowseAnnotationsResult",
+      "ts": "{\n    correlationId: string;\n    response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {\n      annotations: Annotation[];\n    };\n  }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:annotations-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:annotation-requested",
+      "shape": "schema",
+      "schema": "BrowseAnnotationRequest",
+      "validate": "BrowseAnnotationRequest",
+      "ts": "components['schemas']['BrowseAnnotationRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:annotation-result",
+      "shape": "custom",
+      "validate": "BrowseAnnotationResult",
+      "ts": "{\n    correlationId: string;\n    response: Omit<components['schemas']['GetAnnotationResponse'], 'annotation' | 'resource' | 'resolvedResource'> & {\n      annotation: Annotation;\n      resource: ResourceDescriptor | null;\n      resolvedResource: ResourceDescriptor | null;\n    };\n  }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:annotation-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:events-requested",
+      "shape": "schema",
+      "schema": "BrowseEventsRequest",
+      "validate": "BrowseEventsRequest",
+      "ts": "components['schemas']['BrowseEventsRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:events-result",
+      "shape": "schema",
+      "schema": "BrowseEventsResult",
+      "validate": "BrowseEventsResult",
+      "ts": "components['schemas']['BrowseEventsResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:events-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:annotation-history-requested",
+      "shape": "schema",
+      "schema": "BrowseAnnotationHistoryRequest",
+      "validate": "BrowseAnnotationHistoryRequest",
+      "ts": "components['schemas']['BrowseAnnotationHistoryRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:annotation-history-result",
+      "shape": "schema",
+      "schema": "BrowseAnnotationHistoryResult",
+      "validate": "BrowseAnnotationHistoryResult",
+      "ts": "components['schemas']['BrowseAnnotationHistoryResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:annotation-history-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:annotation-context-requested",
+      "shape": "schema",
+      "schema": "BrowseAnnotationContextRequest",
+      "validate": "BrowseAnnotationContextRequest",
+      "ts": "components['schemas']['BrowseAnnotationContextRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:annotation-context-result",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId: string; response: Record<string, unknown> }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId; response: Record<string, unknown> }"
+      }
+    },
+    {
+      "channel": "browse:annotation-context-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:referenced-by-requested",
+      "shape": "schema",
+      "schema": "BrowseReferencedByRequest",
+      "validate": "BrowseReferencedByRequest",
+      "ts": "components['schemas']['BrowseReferencedByRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:referenced-by-result",
+      "shape": "schema",
+      "schema": "BrowseReferencedByResult",
+      "validate": "BrowseReferencedByResult",
+      "ts": "components['schemas']['BrowseReferencedByResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:referenced-by-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:entity-types-requested",
+      "shape": "schema",
+      "schema": "BrowseEntityTypesRequest",
+      "validate": "BrowseEntityTypesRequest",
+      "ts": "components['schemas']['BrowseEntityTypesRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:entity-types-result",
+      "shape": "schema",
+      "schema": "BrowseEntityTypesResult",
+      "validate": "BrowseEntityTypesResult",
+      "ts": "components['schemas']['BrowseEntityTypesResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:entity-types-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:tag-schemas-requested",
+      "shape": "schema",
+      "schema": "BrowseTagSchemasRequest",
+      "validate": "BrowseTagSchemasRequest",
+      "ts": "components['schemas']['BrowseTagSchemasRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:tag-schemas-result",
+      "shape": "schema",
+      "schema": "BrowseTagSchemasResult",
+      "validate": "BrowseTagSchemasResult",
+      "ts": "components['schemas']['BrowseTagSchemasResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:tag-schemas-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:agents-requested",
+      "shape": "schema",
+      "schema": "BrowseAgentsRequest",
+      "validate": "BrowseAgentsRequest",
+      "ts": "components['schemas']['BrowseAgentsRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:agents-result",
+      "shape": "schema",
+      "schema": "BrowseAgentsResult",
+      "validate": "BrowseAgentsResult",
+      "ts": "components['schemas']['BrowseAgentsResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:agents-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:directory-requested",
+      "shape": "schema",
+      "schema": "BrowseDirectoryRequest",
+      "validate": "BrowseDirectoryRequest",
+      "ts": "components['schemas']['BrowseDirectoryRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:directory-result",
+      "shape": "schema",
+      "schema": "BrowseDirectoryResult",
+      "validate": "BrowseDirectoryResult",
+      "ts": "components['schemas']['BrowseDirectoryResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:directory-failed",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId: string; path: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId; path } & CommandError"
+      }
+    },
+    {
+      "channel": "browse:click",
+      "shape": "custom",
+      "validate": null,
+      "ts": "components['schemas']['BrowseClickEvent'] & { anchorRect?: AnchorRect }",
+      "docs": {
+        "lead": [
+          "",
+          "  // UI events (session-scoped — fire on the client bus, tied to a KB)"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// includes runtime `anchorRect?: AnchorRect`"
+      }
+    },
+    {
+      "channel": "browse:reference-navigate",
+      "shape": "schema",
+      "schema": "BrowseReferenceNavigateEvent",
+      "validate": "BrowseReferenceNavigateEvent",
+      "ts": "components['schemas']['BrowseReferenceNavigateEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:entity-type-clicked",
+      "shape": "schema",
+      "schema": "BrowseEntityTypeClickedEvent",
+      "validate": "BrowseEntityTypeClickedEvent",
+      "ts": "components['schemas']['BrowseEntityTypeClickedEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "panel:toggle",
+      "shape": "schema",
+      "schema": "BrowsePanelToggleEvent",
+      "validate": "BrowsePanelToggleEvent",
+      "ts": "components['schemas']['BrowsePanelToggleEvent']",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // SHELL — app-scoped UI events (fire on SemiontBrowser's bus, not the",
+          "  // per-session client bus). These must work regardless of whether a",
+          "  // KB session is active: panel toggles, sidebar, tab bar, routing.",
+          "  // ========================================================================",
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [
+          "",
+          "  // ── SHELL (app-scoped UI events, fire on SemiontBrowser bus) ────"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "panel:open",
+      "shape": "custom",
+      "validate": null,
+      "ts": "components['schemas']['BrowsePanelOpenEvent'] & { anchorRect?: AnchorRect }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// includes runtime `anchorRect?: AnchorRect`"
+      }
+    },
+    {
+      "channel": "panel:close",
+      "shape": "void",
+      "validate": null,
+      "ts": "void",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// void"
+      }
+    },
+    {
+      "channel": "shell:sidebar-toggle",
+      "shape": "void",
+      "validate": null,
+      "ts": "void",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// void"
+      }
+    },
+    {
+      "channel": "tabs:close",
+      "shape": "schema",
+      "schema": "BrowseResourceCloseEvent",
+      "validate": "BrowseResourceCloseEvent",
+      "ts": "components['schemas']['BrowseResourceCloseEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "tabs:reorder",
+      "shape": "schema",
+      "schema": "BrowseResourceReorderEvent",
+      "validate": "BrowseResourceReorderEvent",
+      "ts": "components['schemas']['BrowseResourceReorderEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "nav:link-clicked",
+      "shape": "schema",
+      "schema": "BrowseLinkClickedEvent",
+      "validate": "BrowseLinkClickedEvent",
+      "ts": "components['schemas']['BrowseLinkClickedEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "nav:push",
+      "shape": "schema",
+      "schema": "BrowseRouterPushEvent",
+      "validate": "BrowseRouterPushEvent",
+      "ts": "components['schemas']['BrowseRouterPushEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "nav:external",
+      "shape": "custom",
+      "validate": null,
+      "ts": "components['schemas']['BrowseExternalNavigateEvent'] & { cancelFallback: () => void }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// includes runtime `cancelFallback: () => void`"
+      }
+    },
+    {
+      "channel": "beckon:hover",
+      "shape": "schema",
+      "schema": "BeckonHoverEvent",
+      "validate": "BeckonHoverEvent",
+      "ts": "components['schemas']['BeckonHoverEvent']",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // BECKON FLOW — annotation attention",
+          "  // ========================================================================",
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [
+          "",
+          "  // ── BECKON FLOW ─────────────────────────────────────────────────"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "beckon:focus",
+      "shape": "schema",
+      "schema": "BeckonFocusEvent",
+      "validate": "BeckonFocusEvent",
+      "ts": "components['schemas']['BeckonFocusEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "beckon:sparkle",
+      "shape": "schema",
+      "schema": "BeckonSparkleEvent",
+      "validate": "BeckonSparkleEvent",
+      "ts": "components['schemas']['BeckonSparkleEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:started",
+      "shape": "storedEvent",
+      "event": "job:started",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'job:started'>>",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // JOB FLOW — worker commands + domain events",
+          "  // ========================================================================",
+          "",
+          "  // Domain events (branded — system of record)"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [
+          "",
+          "  // ── JOB FLOW ────────────────────────────────────────────────────"
+        ],
+        "trailing": "// StoredEvent"
+      }
+    },
+    {
+      "channel": "job:progress",
+      "shape": "storedEvent",
+      "event": "job:progress",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'job:progress'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:completed",
+      "shape": "storedEvent",
+      "event": "job:completed",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'job:completed'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:failed",
+      "shape": "storedEvent",
+      "event": "job:failed",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'job:failed'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:start",
+      "shape": "schema",
+      "schema": "JobStartCommand",
+      "validate": "JobStartCommand",
+      "ts": "components['schemas']['JobStartCommand']",
+      "docs": {
+        "lead": [
+          "",
+          "  // Commands"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:report-progress",
+      "shape": "schema",
+      "schema": "JobReportProgressCommand",
+      "validate": "JobReportProgressCommand",
+      "ts": "components['schemas']['JobReportProgressCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:complete",
+      "shape": "schema",
+      "schema": "JobCompleteCommand",
+      "validate": "JobCompleteCommand",
+      "ts": "components['schemas']['JobCompleteCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:fail",
+      "shape": "schema",
+      "schema": "JobFailCommand",
+      "validate": "JobFailCommand",
+      "ts": "components['schemas']['JobFailCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:queued",
+      "shape": "schema",
+      "schema": "JobQueuedEvent",
+      "validate": "JobQueuedEvent",
+      "ts": "components['schemas']['JobQueuedEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:cancel-requested",
+      "shape": "schema",
+      "schema": "JobCancelRequest",
+      "validate": "JobCancelRequest",
+      "ts": "components['schemas']['JobCancelRequest']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:status-requested",
+      "shape": "schema",
+      "schema": "JobStatusRequest",
+      "validate": "JobStatusRequest",
+      "ts": "components['schemas']['JobStatusRequest']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:create",
+      "shape": "schema",
+      "schema": "JobCreateCommand",
+      "validate": "JobCreateCommand",
+      "ts": "components['schemas']['JobCreateCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:claim",
+      "shape": "schema",
+      "schema": "JobClaimCommand",
+      "validate": "JobClaimCommand",
+      "ts": "components['schemas']['JobClaimCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:status-result",
+      "shape": "schema",
+      "schema": "JobStatusResult",
+      "validate": "JobStatusResult",
+      "ts": "components['schemas']['JobStatusResult']",
+      "docs": {
+        "lead": [
+          "",
+          "  // Results"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:status-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId } & CommandError"
+      }
+    },
+    {
+      "channel": "job:created",
+      "shape": "schema",
+      "schema": "JobCreatedResult",
+      "validate": "JobCreatedResult",
+      "ts": "components['schemas']['JobCreatedResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:create-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:claimed",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId: string; response: Record<string, unknown> }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId; response: Record<string, unknown> }"
+      }
+    },
+    {
+      "channel": "job:claim-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:cancel-ok",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId?: string; response: { cancelled: number } }",
+      "docs": {
+        "lead": [
+          "  // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled",
+          "  // (running jobs finish — there's no worker-kill channel). Failure surfaces a",
+          "  // queue error instead of the old silent swallow (.plans/bugs/BRIDGE-GAPS.md)."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:cancel-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": "CommandError",
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "weave:applied",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ resourceId: string; sequenceNumber: number }",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // WEAVE FLOW — graph projection progress (GRAPH-PROJECTION-SYNC, D2 = push)",
+          "  // ========================================================================",
+          "",
+          "  /**",
+          "   * Emitted by the Weaver after applying an event (or a batch's last event)",
+          "   * for a resource to the graph. `sequenceNumber` is the resource-stream",
+          "   * sequence of the last applied event. Folded by `WeaveProgress`",
+          "   * (make-meaning) into the backend-local applied map that the",
+          "   * `whenApplied` barrier awaits. In-process signal today; crosses the",
+          "   * bus gateway after WEAVER-ISOLATION.",
+          "   */"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [
+          "",
+          "  // ── WEAVE FLOW ──────────────────────────────────────────────────"
+        ],
+        "trailing": "// { resourceId; sequenceNumber }"
+      }
+    },
+    {
+      "channel": "smelt:settled",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ resourceId: string; contentChecksum: string; outcome: 'indexed' | 'skipped' }",
+      "docs": {
+        "lead": [
+          "",
+          "  // Signal — the vector projection's per-resource decision report: emitted",
+          "  // by the Smelter after indexing a resource's content ('indexed') or after",
+          "  // deciding not to ('skipped': media gate, empty text). Keyed by the",
+          "  // checksum of the bytes inspected — \"settled at C\" is read-your-writes for",
+          "  // exactly that content. NEVER emitted on transient failures: an error is not",
+          "  // a decision (SMELTER-INDEX-SYNC A2). Consumed by the backend-local",
+          "  // `SmeltProgress` fold behind the gather-side barrier. This is the",
+          "  // Smelter's single outbound signal (SMELTER-AXIOMS D3, as amended)."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { resourceId; contentChecksum; outcome }"
+      }
+    },
+    {
+      "channel": "weave:rebuild",
+      "shape": "schema",
+      "schema": "WeaveRebuildCommand",
+      "validate": "WeaveRebuildCommand",
+      "ts": "components['schemas']['WeaveRebuildCommand']",
+      "docs": {
+        "lead": [
+          "",
+          "  // Command — rebuild the graph projection from the event log (full when",
+          "  // resourceId is absent, one resource when present). Served by the Weaver;",
+          "  // replaces direct `rebuildAll()`/`rebuildResource()` access, which does",
+          "  // not survive the container split (WEAVER-ISOLATION D3). Correlated",
+          "  // request/reply via the BUS_OPERATIONS registry."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "weave:rebuild-ok",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId?: string }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId }"
+      }
+    },
+    {
+      "channel": "weave:rebuild-failed",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId?: string; message: string }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId; message }"
+      }
+    },
+    {
+      "channel": "settings:theme-changed",
+      "shape": "schema",
+      "schema": "SettingsThemeChangedEvent",
+      "validate": "SettingsThemeChangedEvent",
+      "ts": "components['schemas']['SettingsThemeChangedEvent']",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // SETTINGS (frontend-only)",
+          "  // ========================================================================",
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [
+          "",
+          "  // ── SETTINGS (frontend-only) ────────────────────────────────────"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "settings:line-numbers-toggled",
+      "shape": "void",
+      "validate": null,
+      "ts": "void",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// void"
+      }
+    },
+    {
+      "channel": "settings:locale-changed",
+      "shape": "schema",
+      "schema": "SettingsLocaleChangedEvent",
+      "validate": "SettingsLocaleChangedEvent",
+      "ts": "components['schemas']['SettingsLocaleChangedEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "settings:hover-delay-changed",
+      "shape": "schema",
+      "schema": "SettingsHoverDelayChangedEvent",
+      "validate": "SettingsHoverDelayChangedEvent",
+      "ts": "components['schemas']['SettingsHoverDelayChangedEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "stream-connected",
+      "shape": "custom",
+      "validate": null,
+      "ts": "Record<string, never>",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // SSE infrastructure",
+          "  // ========================================================================",
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [
+          "",
+          "  // ── SSE infrastructure ──────────────────────────────────────────"
+        ],
+        "trailing": "// Record<string, never>"
+      }
+    },
+    {
+      "channel": "replay-window-exceeded",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ resourceId?: string; lastEventId: number; missedCount: number; cap: number; message: string }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// inline payload"
+      }
+    },
+    {
+      "channel": "bus:resume-gap",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ scope?: string; lastSeenId?: string; reason: string }",
+      "docs": {
+        "lead": [
+          "  /**",
+          "   * Emitted by the `/bus/subscribe` handler when a client reconnected",
+          "   * with `Last-Event-ID: p-<scope>-<seq>` but the server could not",
+          "   * replay all missed persisted events for that scope (retention",
+          "   * window exceeded, scope unknown, or request unparseable). The",
+          "   * client should treat this as a signal to fall back to the pre-",
+          "   * resumption contract: invalidate caches for the affected scope",
+          "   * and re-read from scratch. Analogous to `replay-window-exceeded`",
+          "   * but scoped to the bus gateway rather than the per-resource",
+          "   * events stream.",
+          "   *",
+          "   * `scope` is the scope string the client asked about (omitted for",
+          "   * global-persisted resumption gaps, if that path ever exists).",
+          "   * `reason` is human-readable, for logging.",
+          "   */"
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// inline payload"
+      }
+    }
+  ],
+  "operations": [
+    {
+      "request": "bind:update-body",
+      "result": "bind:body-updated",
+      "failure": "bind:body-update-failed",
+      "docs": {
+        "lead": [
+          "",
+          "  // ── BIND ────────────────────────────────────────────────────────"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:resource-requested",
+      "result": "browse:resource-result",
+      "failure": "browse:resource-failed",
+      "docs": {
+        "lead": [
+          "",
+          "  // ── BROWSE (reads) ──────────────────────────────────────────────"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:resources-requested",
+      "result": "browse:resources-result",
+      "failure": "browse:resources-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:annotation-requested",
+      "result": "browse:annotation-result",
+      "failure": "browse:annotation-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:annotations-requested",
+      "result": "browse:annotations-result",
+      "failure": "browse:annotations-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:annotation-history-requested",
+      "result": "browse:annotation-history-result",
+      "failure": "browse:annotation-history-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:events-requested",
+      "result": "browse:events-result",
+      "failure": "browse:events-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:referenced-by-requested",
+      "result": "browse:referenced-by-result",
+      "failure": "browse:referenced-by-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:entity-types-requested",
+      "result": "browse:entity-types-result",
+      "failure": "browse:entity-types-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:tag-schemas-requested",
+      "result": "browse:tag-schemas-result",
+      "failure": "browse:tag-schemas-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:agents-requested",
+      "result": "browse:agents-result",
+      "failure": "browse:agents-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:directory-requested",
+      "result": "browse:directory-result",
+      "failure": "browse:directory-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:annotation-context-requested",
+      "result": "browse:annotation-context-result",
+      "failure": "browse:annotation-context-failed",
+      "docs": {
+        "lead": [
+          "  // dormant — backend handler complete, no client caller yet (annotation-detail capability)"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "frame:add-entity-type",
+      "result": "frame:entity-type-add-ok",
+      "failure": "frame:entity-type-add-failed",
+      "docs": {
+        "lead": [
+          "",
+          "  // ── FRAME (KB schema writes) ────────────────────────────────────"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "frame:add-tag-schema",
+      "result": "frame:tag-schema-add-ok",
+      "failure": "frame:tag-schema-add-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "gather:requested",
+      "result": "gather:complete",
+      "failure": "gather:failed",
+      "progress": "gather:annotation-progress",
+      "docs": {
+        "lead": [
+          "",
+          "  // ── GATHER ──────────────────────────────────────────────────────",
+          "  // streaming: take-1 result + failure plus an intermediate progress channel"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "gather:resource-requested",
+      "result": "gather:resource-complete",
+      "failure": "gather:resource-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "gather:summary-requested",
+      "result": "gather:summary-result",
+      "failure": "gather:summary-failed",
+      "docs": {
+        "lead": [
+          "  // dormant — backend handler complete, no client caller yet (annotation summary)"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "job:create",
+      "result": "job:created",
+      "failure": "job:create-failed",
+      "docs": {
+        "lead": [
+          "",
+          "  // ── JOB ─────────────────────────────────────────────────────────"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "job:status-requested",
+      "result": "job:status-result",
+      "failure": "job:status-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "job:cancel-requested",
+      "result": "job:cancel-ok",
+      "failure": "job:cancel-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "job:claim",
+      "result": "job:claimed",
+      "failure": "job:claim-failed",
+      "docs": {
+        "lead": [
+          "  // worker-side: the worker claims a queued job (not an SDK call)"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "mark:create-request",
+      "result": "mark:create-ok",
+      "failure": "mark:create-failed",
+      "docs": {
+        "lead": [
+          "",
+          "  // ── MARK ────────────────────────────────────────────────────────"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "mark:delete",
+      "result": "mark:delete-ok",
+      "failure": "mark:delete-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "mark:archive",
+      "result": "mark:archive-ok",
+      "failure": "mark:archive-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "mark:unarchive",
+      "result": "mark:unarchive-ok",
+      "failure": "mark:unarchive-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "mark:update-entity-types",
+      "result": "mark:update-entity-types-ok",
+      "failure": "mark:update-entity-types-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "match:search-requested",
+      "result": "match:search-results",
+      "failure": "match:search-failed",
+      "docs": {
+        "lead": [
+          "",
+          "  // ── MATCH ───────────────────────────────────────────────────────",
+          "  // take-1 dressed as an Observable in the SDK; no progress channel"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "weave:rebuild",
+      "result": "weave:rebuild-ok",
+      "failure": "weave:rebuild-failed",
+      "docs": {
+        "lead": [
+          "",
+          "  // ── WEAVE ───────────────────────────────────────────────────────",
+          "  // Graph-projection rebuild, served by the Weaver (WEAVER-ISOLATION D3)"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "yield:create",
+      "result": "yield:create-ok",
+      "failure": "yield:create-failed",
+      "docs": {
+        "lead": [
+          "",
+          "  // ── YIELD ───────────────────────────────────────────────────────",
+          "  // live in-process (resource-operations.ts emits + awaits via race()); the",
+          "  // client also .on()-subscribes -ok for cache invalidation"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "yield:update",
+      "result": "yield:update-ok",
+      "failure": "yield:update-failed",
+      "docs": {
+        "lead": [
+          "  // dormant — handler in stower exists, no request emitter; client pre-subscribes -ok"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "yield:clone-create",
+      "result": "yield:clone-created",
+      "failure": "yield:clone-create-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "yield:clone-resource-requested",
+      "result": "yield:clone-resource-result",
+      "failure": "yield:clone-resource-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "yield:clone-token-requested",
+      "result": "yield:clone-token-generated",
+      "failure": "yield:clone-token-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    }
+  ],
+  "preamble": {
+    "protocolHeader": "/**\n * Bus Protocol\n *\n * The complete EventMap for the RxJS EventBus. Every channel name and\n * its payload type is defined here — domain events, commands, reads,\n * results, SSE stream payloads, and frontend UI events.\n *\n * Identifier discipline: where a payload carries an annotation or\n * resource id, the TypeScript layer narrows the OpenAPI `string` to the\n * branded type (`AnnotationId`, `ResourceId`, `UserId`). The runtime\n * wire shape is unchanged (brands have no runtime representation);\n * what this buys us is that command handlers don't have to re-brand\n * at every seam. Brand once at the entry boundary (HTTP route handler,\n * DOM attribute read, URL param parse), not at every bus hop in\n * between. See `.plans/BRAND-UPSTREAM.md` for the rationale.\n *\n * Organized by flow (verb), then by category within each flow.\n */\n\nimport type { components } from './types';\nimport type { AnnotationId, ResourceId } from './identifiers';\nimport type { Annotation } from './annotation-types';\nimport type { ResourceDescriptor } from './graph';\nimport type { StoredEvent } from './event-base';\nimport type { EventOfType } from './persisted-events';\n\n// Branded overrides for OpenAPI command payloads that carry identifier\n// fields. Narrows `string` → branded at the TypeScript layer.\n//\n// `_userId` is the gateway-injected authenticated DID (string at the\n// schema layer); handlers that need a `UserId` brand it locally.\ntype MarkDeleteCommand =\n  components['schemas']['MarkDeleteCommand'] & {\n    annotationId: AnnotationId;\n    resourceId?: ResourceId;\n  };\ntype MarkUpdateBodyCommand =\n  components['schemas']['MarkUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindInitiateCommand =\n  components['schemas']['BindInitiateCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindUpdateBodyCommand =\n  components['schemas']['BindUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\n\n/**\n * The unified EventMap — every channel on the EventBus.\n *\n * Convention:\n * - Domain events (past tense): StoredEvent<Interface> — branded types\n * - Commands/reads/results/UI: OpenAPI schema refs — plain strings\n * - void: UI-only signals with no payload\n */\n\n/**\n * Viewport-space rectangle of a clicked annotation element — runtime-only\n * view geometry riding UI events (never wire vocabulary; deliberately not in\n * the OpenAPI schemas). Structurally satisfied by a DOM `DOMRect`, spelled\n * out here because this package compiles without the DOM lib.\n */\nexport interface AnchorRect {\n  x: number;\n  y: number;\n  width: number;\n  height: number;\n  top: number;\n  right: number;\n  bottom: number;\n  left: number;\n}\n\n",
+    "protocolBetween": ";\n\n/**\n * Any valid channel name on the EventBus — `keyof EventMap`, the root channel\n * type. Two subsets matter, and confusing them is a silent-failure trap:\n *\n * - `EmittableChannel` (below) — channels with a non-null `CHANNEL_SCHEMAS`\n *   entry; what you EMIT (the `/bus/emit` gateway validates the payload).\n * - `BridgedChannel` (`bridged-channels.ts`) — the transport fan-in set; the\n *   only channels a client can SUBSCRIBE to over a concrete transport.\n *\n * Request/reply (`busRequest`) emits on an `EmittableChannel` and subscribes on\n * `BridgedChannel` replies. A reply channel that is a valid `EventName` but NOT\n * in `BRIDGED_CHANNELS` is never delivered → the request times out with no\n * compile or runtime error (see\n * `.plans/bugs/gather-resource-complete-not-bridged.md`). `busRequest` now types\n * its reply params `BridgedChannel` so that omission is a compile error.\n */\nexport type EventName = keyof EventMap;\n\n/**\n * Genuine resource-bound broadcast event types.\n *\n * Publishers emit these on the scoped EventBus (`eventBus.scope(resourceId)`)\n * because every participant viewing the resource should receive them — not\n * just the caller who triggered the originating action. Examples: resource\n * generation progress, which multiple viewers of a generating resource all\n * want to see.\n *\n * Non-broadcast progress (AI-assist progress for one user, search results\n * for one caller) does NOT belong here. Those are per-caller correlation-ID\n * responses and publish globally — the caller filters by `correlationId`.\n *\n * The SDK's resource-scoped `browse.*` live queries wire these channels —\n * subscribing acquires the scope via the transport's `subscribeToResource`\n * (`scope=id&scoped=<channel>`) so the SSE route delivers them to that\n * participant (freshness follows observation; #847). WorkerStateUnit uses this\n * list to decide which emitted events to scope to their resource.\n */\nexport const RESOURCE_BROADCAST_TYPES = [\n  // Currently empty. `job:complete` / `job:fail` were moved to GLOBAL,\n  // `jobId`-keyed correlation delivery (#847): the dispatching caller\n  // filters by `jobId`, and resource viewers filter the same global stream\n  // by `resourceId` — no resource-scoped copy, so a client that is both\n  // dispatcher and viewer no longer receives it twice. This set remains as\n  // the extension point for *genuine* resource-bound broadcasts — events\n  // every viewer of a resource should see and no single caller owns (e.g.\n  // resource-generation progress for multiple viewers).\n] as const satisfies readonly EventName[];\n\nexport type ResourceBroadcastType = typeof RESOURCE_BROADCAST_TYPES[number];\n\n/**\n * Authoritative map from bus channel to OpenAPI schema name.\n *\n * Every {@link EventName} must appear. The `satisfies` clause below\n * enforces completeness at compile time — adding a channel to\n * {@link EventMap} without adding an entry here is a build error.\n *\n * Values:\n *   - `<SchemaName>`: payload validates against `components['schemas'][SchemaName]`.\n *   - `null`: no single-schema validation. Used for branded\n *     `StoredEvent` wrappers, `void` UI signals, and compound inline\n *     types (e.g. `{ correlationId } & CommandError`). These are not\n *     validated by `/bus/emit`.\n *\n * The `/bus/emit` route reads this map to validate incoming payloads.\n * Consumers can also use it to do client-side pre-flight validation\n * before emitting.\n */\n",
+    "protocolFooter": " as const satisfies Record<EventName, keyof components['schemas'] | null>;\n\n/** Channels where `/bus/emit` validates the payload (non-null schema). */\nexport type EmittableChannel = {\n  [K in EventName]: typeof CHANNEL_SCHEMAS[K] extends null ? never : K\n}[EventName];\n",
+    "eventMapTail": [],
+    "schemasTail": [],
+    "operationsHeader": "import type { EventName, EmittableChannel } from './bus-protocol';\n\n/**\n * BUS_OPERATIONS — the request/reply operations registry (Tier 1).\n *\n * Each entry declares ONE operation as the triple that was previously three\n * loose, independently-maintained facts spread across call sites:\n *   - the request channel (the key — an `EmittableChannel`),\n *   - the `result` channel (success reply),\n *   - the `failure` channel,\n *   - and, for a streaming op, an optional `progress` channel.\n *\n * `BridgedChannel` / `BRIDGED_CHANNELS` are DERIVED from this map\n * (bridged-channels.ts): every reply lands in the bridged fan-in set by\n * construction, so \"a reply channel forgotten from BRIDGED_CHANNELS\" — the\n * recurring bug class (gather:resource-complete, frame:*-add-failed) — is no\n * longer representable. See .plans/BUS-OPERATIONS-REGISTRY.md.\n *\n * `Partial<Record<EmittableChannel, …>>` enforces that every key is a real\n * emittable request. `result`/`failure`/`progress` stay `EventName` rather than\n * `BridgedChannel` to avoid a circular reference (BridgedChannel derives from\n * this map); the derivation closes the loop instead.\n */\nexport interface BusOperationSpec {\n  result: EventName;\n  failure: EventName;\n  /** Streaming ops only: an intermediate channel that also bridges. */\n  progress?: EventName;\n}\n\n",
+    "operationsInnerTail": [],
+    "operationsFooter": " as const satisfies Partial<Record<EmittableChannel, BusOperationSpec>>;\n\n/** The request-channel key of a registered operation — what `busRequest` takes. */\nexport type BusOperationKey = keyof typeof BUS_OPERATIONS;\n"
+  }
+}

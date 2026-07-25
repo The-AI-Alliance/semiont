@@ -130,7 +130,7 @@ system can be built on.
 
 - **StateUnit**: [packages/sdk/src/state/flows/beckon-state-unit.ts](../../../packages/sdk/src/state/flows/beckon-state-unit.ts)
 - **Namespace**: [packages/sdk/src/namespaces/beckon.ts](../../../packages/sdk/src/namespaces/beckon.ts)
-- **Event definitions**: [packages/core/src/bus-protocol.ts](../../../packages/core/src/bus-protocol.ts) — `BECKON FLOW` section
+- **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `BECKON FLOW` section
 - **Bus bridge (client)**: [packages/sdk/src/client.ts](../../../packages/sdk/src/client.ts) — `ACTOR_TO_LOCAL_BRIDGES`
 - **CLI command**: [apps/cli/src/core/commands/beckon.ts](../../../apps/cli/src/core/commands/beckon.ts)
 - **Bus gateway**: [apps/backend/src/routes/bus.ts](../../../apps/backend/src/routes/bus.ts)

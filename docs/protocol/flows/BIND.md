@@ -191,5 +191,5 @@ For unresolved-reference workflows, this is usually the intended behavior — co
 - **Namespace (write side)**: [packages/sdk/src/namespaces/bind.ts](../../../packages/sdk/src/namespaces/bind.ts) — emits `bind:update-body` for annotation body updates (bind is a write command, not a tracked state unit)
 - **Wizard**: [packages/react-ui/src/components/modals/ReferenceWizardModal.tsx](../../../packages/react-ui/src/components/modals/ReferenceWizardModal.tsx) — multi-step wizard for Bind/Generate/Compose
 - **Matcher actor**: [packages/make-meaning/src/matcher.ts](../../../packages/make-meaning/src/matcher.ts) — context-driven search + inference scoring
-- **Event definitions**: [packages/core/src/bus-protocol.ts](../../../packages/core/src/bus-protocol.ts) — `BIND FLOW` section
+- **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `BIND FLOW` section
 - **API**: `updateAnnotationBody` in [@semiont/sdk](../../../packages/sdk/README.md)

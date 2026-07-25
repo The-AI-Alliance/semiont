@@ -347,6 +347,49 @@ jobs:
           GOOGLE_CLIENT_SECRET: test-client-secret
           SITE_DOMAIN: test.semiont.com
 
+  # Generated code is committed (so consumers and CI never need the
+  # generators), which means it can go stale the moment its authority changes.
+  # scripts/ci/local-build.sh has these gates too, but that script does NOT run
+  # in CI — without this job, nothing checks generated artifacts on a PR.
+  generated-artifacts:
+    name: Generated Artifacts (drift)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Setup Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: apps/launcher/go.mod
+
+      # Authority: specs/src/bus/registry.json → TypeScript (packages/core)
+      # and Go (packages/sdk-go/bus). Either language drifting means the two
+      # sides can disagree about channels at runtime.
+      - name: Bus registry vs generated code
+        run: |
+          node scripts/bus/generate-ts.mjs --check
+          node scripts/bus/generate-go.mjs --check
+
+      # Authority: specs/openapi.json → packages/sdk-go/client_gen.go.
+      # Deterministic because the generator version is pinned.
+      - name: OpenAPI spec vs generated Go client
+        run: |
+          go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
+            -generate types,client -package semiont \
+            -o /tmp/client_gen.check.go specs/openapi.json
+          if ! diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go; then
+            echo "::error::packages/sdk-go/client_gen.go is stale — run: cd packages/sdk-go && go generate ./..."
+            exit 1
+          fi
+          echo "sdk-go client matches the spec"
+
   test-launcher:
     name: Launcher Tests (Go)
     runs-on: ubuntu-latest
@@ -360,15 +403,35 @@ jobs:
         with:
           go-version-file: apps/launcher/go.mod
 
+      # gofmt REPORTS on stdout and exits 0 even when files are unformatted —
+      # `gofmt -l . && next` therefore never gates anything. Test the output,
+      # or drift lives for weeks (launcher_test.go did exactly that).
+      - name: Check formatting (gofmt)
+        run: |
+          unformatted=$(gofmt -l apps/launcher packages/sdk-go)
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+          echo "gofmt clean"
+
       - name: Vet launcher
         run: cd apps/launcher && go vet ./...
 
       - name: Test launcher
         run: cd apps/launcher && go test ./...
 
-      # The launcher has no third-party module deps, so its CVE exposure is the Go
-      # stdlib/toolchain compiled into the shipped binary (distributed via Homebrew).
-      # govulncheck scans stdlib + deps and reports only vulns reachable from our code.
+      # packages/sdk-go is a separate module (the generated API client + bus
+      # registry the launcher consumes via a replace directive) — it needs its
+      # own vet/build, or a broken generated file only surfaces downstream.
+      - name: Vet and build sdk-go
+        run: cd packages/sdk-go && go vet ./... && go build ./...
+
+      # The launcher's deps are go-toml and packages/sdk-go (whose client
+      # pulls oapi-codegen/runtime), plus the Go stdlib compiled into the
+      # shipped binary (distributed via Homebrew). govulncheck scans stdlib +
+      # deps and reports only vulns reachable from our code.
       - name: Vulnerability scan launcher (govulncheck)
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest

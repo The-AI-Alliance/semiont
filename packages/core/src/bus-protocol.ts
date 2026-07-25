@@ -1,3 +1,12 @@
+// ⚠ GENERATED FILE — do not edit.
+//
+// Authority:   specs/src/bus/registry.json  (channels, payloads, operations)
+// Regenerate:  node scripts/bus/generate-ts.mjs
+// Go counterpart: node scripts/bus/generate-go.mjs → packages/sdk-go/bus
+//
+// Payload schemas themselves live in the OpenAPI components; the registry
+// names which one each channel carries. Add or change a channel THERE.
+
 /**
  * Bus Protocol
  *
@@ -564,8 +573,8 @@ export const CHANNEL_SCHEMAS = {
   'mark:body-updated':                null,
   'mark:entity-tag-added':            null,
   'mark:entity-tag-removed':          null,
-  'frame:entity-type-added':           null,
-  'frame:tag-schema-added':            null,
+  'frame:entity-type-added':          null,
+  'frame:tag-schema-added':           null,
   'mark:archived':                    null,
   'mark:unarchived':                  null,
   'mark:create-request':              'MarkCreateRequest',
@@ -575,8 +584,8 @@ export const CHANNEL_SCHEMAS = {
   'mark:archive':                     'MarkArchiveCommand',
   'mark:unarchive':                   'MarkUnarchiveCommand',
   'mark:update-entity-types':         'MarkUpdateEntityTypesCommand',
-  'frame:add-entity-type':             'FrameAddEntityTypeCommand',
-  'frame:add-tag-schema':              'FrameAddTagSchemaCommand',
+  'frame:add-entity-type':            'FrameAddEntityTypeCommand',
+  'frame:add-tag-schema':             'FrameAddTagSchemaCommand',
   'mark:create-ok':                   'MarkCreateOk',
   'mark:create-failed':               'CommandError',
   'mark:delete-ok':                   'MarkDeleteOk',
@@ -588,10 +597,10 @@ export const CHANNEL_SCHEMAS = {
   'mark:update-entity-types-ok':      null,
   'mark:update-entity-types-failed':  'CommandError',
   'mark:body-update-failed':          'CommandError',
-  'frame:entity-type-add-ok':          null,
-  'frame:entity-type-add-failed':      'CommandError',
-  'frame:tag-schema-add-ok':           null,
-  'frame:tag-schema-add-failed':       'CommandError',
+  'frame:entity-type-add-ok':         null,
+  'frame:entity-type-add-failed':     'CommandError',
+  'frame:tag-schema-add-ok':          null,
+  'frame:tag-schema-add-failed':      'CommandError',
   'mark:select-comment':              'SelectionData',
   'mark:select-tag':                  'SelectionData',
   'mark:select-assessment':           'SelectionData',

@@ -59,3 +59,22 @@ When the time comes: drop the launcher's `replace`, push a tag named
 there is no registry step beyond the tag. If a shorter import path is ever
 wanted, mirroring to a dedicated repo at release time remains open; nothing
 here forecloses it.
+
+## The `bus` package
+
+`bus/` holds the event-bus vocabulary — channel constants, the emittable
+channel→schema map, and the request/reply operation registry. Like
+`client_gen.go` it is **generated and committed**, but from a different
+authority: [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json),
+which also generates the TypeScript side (`packages/core/src/bus-protocol.ts`).
+That shared authority is what keeps the two languages from drifting apart.
+
+```sh
+npm run generate:bus          # regenerate both languages
+npm run generate:bus:check    # verify without writing (what CI runs)
+```
+
+Channels whose payload is TypeScript-only (DOM geometry, callbacks) are
+excluded — they never cross the wire. Payload structs are not generated here:
+the OpenAPI schemas a channel carries already have Go types in
+`client_gen.go`. See [docs/protocol/EVENT-BUS.md](../../docs/protocol/EVENT-BUS.md).
