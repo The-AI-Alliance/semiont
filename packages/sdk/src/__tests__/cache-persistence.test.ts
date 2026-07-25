@@ -40,18 +40,35 @@ describe('cache persistence (B17)', () => {
     vi.useRealTimers();
   });
 
-  it('rehydrates on construction: value visible synchronously, NO fetch issued', async () => {
+  it('rehydrates on construction: value visible synchronously, then revalidated once (B18)', async () => {
+    // Declared behavior change 2026-07-24: this used to pin "NO fetch
+    // issued". Trusting a disk value indefinitely is what made a
+    // just-created annotation invisible after an immediate reload
+    // (.plans/bugs/annotation-lost-on-immediate-reload-after-create.md).
+    // B18 keeps the instant paint and adds the revalidation.
     const fetchFn = vi.fn(async () => 'fetched');
     const { persister } = spyPersister<string, string>(new Map([['k1', 'rehydrated']]));
 
     const cache = createCache<string, string>(fetchFn, { persister });
 
     expect(persister.load).toHaveBeenCalledTimes(1);
+    // Synchronously available — no fetch is awaited to paint (B17's win).
     expect(cache.get('k1')).toBe('rehydrated');
+    expect(fetchFn).not.toHaveBeenCalled();
 
+    // Observing it serves the persisted value FIRST…
     const seen = await firstValueFrom(cache.observe('k1').pipe(filter((v) => v !== undefined), take(1)));
     expect(seen).toBe('rehydrated');
-    expect(fetchFn).not.toHaveBeenCalled();
+    // …and starts one revalidation chain (one request here; B14 adds a
+    // single retry only on failure), whose result supersedes it.
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cache.get('k1')).toBe('fetched');
+
+    // Once revalidated the key is ordinary again: re-observing does not
+    // refetch (B2 — the mark is one-shot per session).
+    cache.observe('k1');
+    expect(fetchFn).toHaveBeenCalledTimes(1);
 
     cache.dispose();
   });

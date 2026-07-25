@@ -509,20 +509,29 @@ An optional `CachePersister` on `createCache` (and the
 cache durable, per-KB rehydration (.plans/LOCAL-STORAGE.md):
 
 1. **Load-on-construct.** `persister.load()` seeds the store before the
-   first observation. A rehydrated key serves synchronously and issues NO
-   fetch — protocol behavior is indistinguishable from a warm in-memory
-   cache.
-2. **Rehydrated data is stale-until-reconciled.** Correctness comes from
-   the existing contract, not new machinery: the transport reconnects with
-   the persisted `Last-Event-ID` (persisted `p-*` ids only — an ephemeral
-   `e-*` id means "no resumption context" server-side and is never saved),
-   replayed events invalidate through the normal handlers, and
-   `bus:resume-gap` blanket-invalidates as always. The persisted id is
-   COUPLED to the cache flush (`coupledLastEventId`): stashed per event,
-   written only alongside a cache-document write (document first, id
-   second) — so the bookmark may lag the persisted caches (harmless:
-   replay re-invalidates idempotently) but can never lead them and
-   silently skip a reconciling event.
+   first observation, so a rehydrated key serves **synchronously** — no
+   `undefined` flash, no waiting on the wire to paint. (It does issue one
+   revalidation request; see B18.)
+2. **Rehydrated data is stale-until-reconciled**, and reconciliation is
+   **two independent layers** — neither sufficient alone:
+   - *Replay*, when it is available: the transport reconnects with the
+     persisted `Last-Event-ID` (persisted `p-*` ids only — an ephemeral
+     `e-*` id means "no resumption context" server-side and is never
+     saved), replayed events invalidate through the normal handlers, and
+     `bus:resume-gap` blanket-invalidates as always. The persisted id is
+     COUPLED to the cache flush (`coupledLastEventId`): stashed per event,
+     written only alongside a cache-document write, and **only while every
+     persisted cache is quiescent** (B17-Q's flush gate) — so the bookmark
+     may lag the persisted caches (harmless: replay re-invalidates
+     idempotently) but can never lead them and silently skip a reconciling
+     event. Note the transport stashes an id only AFTER the event has been
+     applied to subscribers, so an id is never flushable before its effects
+     are pending.
+   - *Revalidation on rehydrate* (B18), which covers what replay cannot:
+     when NO bookmark was persisted, the reconnect carries no
+     `Last-Event-ID` and the server replays **nothing** — measured as the
+     actual state at failure time in
+     `.plans/bugs/annotation-lost-on-immediate-reload-after-create.md`.
 3. **Settled values only.** The store never contains B15 failure markers,
    so neither does the persisted document; a previously-failed key
    rehydrates as absent and refetches on first observation.
@@ -535,6 +544,40 @@ cache durable, per-KB rehydration (.plans/LOCAL-STORAGE.md):
 6. **Cross-context sync** rides the persister's `subscribe` (the
    `SessionStorage.subscribe` seam): an external write replaces the store;
    last writer wins.
+
+### B18 — A restored-from-disk value is revalidated on first observation
+
+A value loaded by `persister.load()` is **stale-until-revalidated**: unlike
+a value this session fetched, nothing guarantees it reflects server truth.
+The first `observe(key)` of such a key therefore:
+
+1. **serves the persisted value immediately** — it is already in the store,
+   so subscribers paint instantly (B17's actual win is preserved), and
+2. **starts one background revalidation** through the ordinary SWR path,
+   rendering the fresher value when it arrives.
+
+Boundaries:
+
+- **Once per key per session.** The mark is cleared as soon as a fetch is
+  under way from any path (`observe`'s revalidation, `invalidate`, or the
+  `fetch`/await path) and by `set`/`remove`, so a rehydrated key costs at
+  most one extra revalidation chain — one request, plus B14's single bounded
+  retry if it fails; afterwards B2 applies normally. Only keys that are
+  actually observed revalidate — rehydrating 200 entries and looking at one
+  costs one chain.
+- **Never worse than not revalidating.** A failed revalidation keeps the
+  persisted value visible (B6) after B14's bounded retry; B15 cannot fire
+  for these keys because the store holds a value.
+- **Why it is not redundant with replay.** Replay reconciles only when a
+  bookmark exists to resume from. It did not, in the measured failure — the
+  flush gate was correctly holding the id pending, so storage contained no
+  bookmark at all and the reconnect was live-only. B18 does not depend on
+  replay, on the bookmark, or on any timing argument.
+
+**Cost, honestly stated:** this gives back part of what B17 bought — a
+reload is no longer request-free. It is not a return to cold-start: the
+paint is still immediate and never blocks on the wire; what returns is the
+background request per observed key.
 
 ## Revision log
 
@@ -555,3 +598,16 @@ cache durable, per-KB rehydration (.plans/LOCAL-STORAGE.md):
   rehydration reconciled by resumption; values-only; flush-then-inert
   dispose; version-gated; cross-context via the SessionStorage seam).
   Execution record in .plans/LOCAL-STORAGE.md.
+- 2026-07-24 — **B18 added, and B17.1/B17.2 corrected — a declared
+  behavior change.** B17 as written promised "a rehydrated key issues NO
+  fetch", resting reconciliation entirely on replay. Measurement
+  (.plans/bugs/annotation-lost-on-immediate-reload-after-create.md) showed
+  that at failure time there is **no persisted bookmark at all**, so replay
+  is not merely late — it does not happen, and the stale document is served
+  forever. B18 makes rehydrated values revalidate on first observation
+  (instant paint kept, one background request per observed key). B17.2 now
+  states the two reconciliation layers and notes B17-Q's flush gate. Also
+  in this line of work: the flush gate itself (B17-Q, `persistencePending`/
+  `persistenceSettled`) and the transport's apply-before-stash ordering.
+  Three pins that encoded the old promise were updated deliberately
+  (`cache-persistence`, `cache-rehydration`, and the property teeth).

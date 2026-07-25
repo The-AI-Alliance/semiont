@@ -115,6 +115,15 @@ export interface Cache<K, V> {
   /** Per-key SWR refetch of every currently-cached entry. */
   invalidateAll(): void;
 
+  /**
+   * B17-Q — true while this cache's content may be ahead of (or racing) its
+   * persisted document: any fetch in flight, or a debounced save pending.
+   * The quiescence input to the resumption-bookmark flush gate — the
+   * bookmark may only be flushed when every persisted cache is quiet, so it
+   * can lag the persisted content but never lead it (C1).
+   */
+  persistencePending(): boolean;
+
   /** Release the underlying subject. Observers complete. */
   dispose(): void;
 }
@@ -129,7 +138,20 @@ export function createCache<K, V>(
   },
 ): Cache<K, V> {
   const persister = options?.persister;
-  const store$ = new BehaviorSubject<Map<K, V>>(persister?.load() ?? new Map());
+  const initialEntries = persister?.load() ?? new Map<K, V>();
+  const store$ = new BehaviorSubject<Map<K, V>>(initialEntries);
+
+  /**
+   * B18 — keys restored from the persister that have NOT been revalidated
+   * this session. A value read off disk is *stale-until-revalidated*: unlike
+   * a value this session fetched, nothing guarantees it reflects server
+   * truth. Treating the two alike is what made an annotation created
+   * seconds before a reload invisible — the persisted document predated it,
+   * `observe()` saw a populated store and issued no request, and no replay
+   * could help (at failure time no resumption bookmark exists at all).
+   * See .plans/bugs/annotation-lost-on-immediate-reload-after-create.md.
+   */
+  const rehydrated = new Set<K>(initialEntries.keys());
   /** In-flight fetch promise per key — dedups concurrent fetches (B3). */
   const inflight = new Map<K, Promise<V>>();
   const obsCache = new Map<K, Observable<V | undefined>>();
@@ -213,6 +235,11 @@ export function createCache<K, V>(
    * share the same promise.
    */
   const runFetch = (key: K): Promise<V> => {
+    // B18 — a fetch is under way for this key from SOME path (observe's
+    // revalidation, invalidate, or the await path), so it is no longer
+    // merely restored-from-disk. Cleared before the dedup return: joining an
+    // in-flight fetch counts as revalidating too.
+    rehydrated.delete(key);
     const existing = inflight.get(key);
     if (existing) return existing;
 
@@ -304,6 +331,17 @@ export function createCache<K, V>(
         // of replaying the stale error.
         failures.delete(key);
         runFetchSWR(key);
+      } else if (rehydrated.has(key)) {
+        // B18 — first observation of a restored-from-disk value: serve it
+        // immediately (it is already in the store, so subscribers paint with
+        // no `undefined` flash — B17's actual win is preserved) AND
+        // revalidate in the background, rendering the fresher on arrival.
+        // `runFetch` clears the mark, so this costs at most one revalidation
+        // CHAIN per rehydrated key per session — one request, plus B14's single
+        // bounded retry if it fails; thereafter B2 applies as usual. A failed
+        // chain keeps the persisted value visible (B6) — never worse than not
+        // revalidating at all.
+        runFetchSWR(key);
       } else if (!store$.value.has(key) && !inflight.has(key)) {
         // Subscribe path: fire-and-forget, swallow failures so a subscriber
         // stays at its last value (B6); one bounded retry (B14). The
@@ -365,6 +403,7 @@ export function createCache<K, V>(
 
     remove(key: K): void {
       if (disposed) return; // B16
+      rehydrated.delete(key); // B18: nothing left to revalidate
       // B13a: drop the entry. The value is gone; observers see `undefined`.
       const next = new Map(store$.value);
       next.delete(key);
@@ -376,8 +415,10 @@ export function createCache<K, V>(
     set(key: K, value: V): void {
       if (disposed) return; // B16
       // B13b: write-through. No fetch. Atomic update. A written value
-      // supersedes any B15 failure marker.
+      // supersedes any B15 failure marker — and any B18 rehydrated mark:
+      // a caller-supplied value is current by construction.
       failures.delete(key);
+      rehydrated.delete(key);
       const next = new Map(store$.value);
       next.set(key, value);
       store$.next(next);
@@ -393,6 +434,13 @@ export function createCache<K, V>(
       }
     },
 
+    persistencePending(): boolean {
+      // B17-Q: in-flight fetches mean content may still be older than the
+      // event that triggered them; a pending debounced save means content
+      // newer than the persisted document. Either way the bookmark must wait.
+      return inflight.size > 0 || saveTimer !== null;
+    },
+
     dispose(): void {
       if (disposed) return; // idempotent (B16)
       disposed = true;
@@ -404,6 +452,7 @@ export function createCache<K, V>(
         trySave(store$.value);
       }
       unsubscribeExternal?.();
+      rehydrated.clear(); // B18
       store$.complete();
       // Must complete alongside store$: the per-key observable is a merge,
       // and merge completes only when ALL its sources complete — leaving

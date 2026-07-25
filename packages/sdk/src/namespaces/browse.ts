@@ -120,6 +120,13 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private readonly busSubs: Array<{ unsubscribe(): void }> = [];
 
+  /**
+   * B17-Q — the persisted caches, registered at construction, for the
+   * quiescence check gating the resumption-bookmark flush. Empty when
+   * persistence is off (settled is then vacuously true).
+   */
+  private readonly persistedCaches: Array<{ persistencePending(): boolean }> = [];
+
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
@@ -150,8 +157,14 @@ export class BrowseNamespace implements IBrowseNamespace {
             }),
           }
         : undefined;
+    // B17-Q: every persisted cache registers for the quiescence check that
+    // gates the resumption-bookmark flush (`persistenceSettled`).
+    const track = <C extends { persistencePending(): boolean }>(cache: C): C => {
+      if (persistence) this.persistedCaches.push(cache);
+      return cache;
+    };
 
-    this.resourceCache = createCache<ResourceId, ResourceDescriptor>(async (id) => {
+    this.resourceCache = track(createCache<ResourceId, ResourceDescriptor>(async (id) => {
       const result = await busRequest(
         this.transport,
         'browse:resource-requested',
@@ -159,7 +172,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       return result.resource as ResourceDescriptor;
-    }, persisted<ResourceId, ResourceDescriptor>('resource'));
+    }, persisted<ResourceId, ResourceDescriptor>('resource')));
 
     this.resourceListCache = createCache<string, ResourceDescriptor[]>(async (key) => {
       const filters = this.resourceListFilters.get(key) ?? {};
@@ -181,16 +194,16 @@ export class BrowseNamespace implements IBrowseNamespace {
       return result.resources as ResourceDescriptor[];
     });
 
-    this.annotationListCache = createCache<ResourceId, AnnotationsListResponse>(async (resourceId) => {
+    this.annotationListCache = track(createCache<ResourceId, AnnotationsListResponse>(async (resourceId) => {
       return busRequest(
         this.transport,
         'browse:annotations-requested',
         { resourceId },
         this.busTimeoutMs,
       );
-    }, persisted<ResourceId, AnnotationsListResponse>('annotations'));
+    }, persisted<ResourceId, AnnotationsListResponse>('annotations')));
 
-    this.annotationDetailCache = createCache<AnnotationId, Annotation>(async (annotationId) => {
+    this.annotationDetailCache = track(createCache<AnnotationId, Annotation>(async (annotationId) => {
       const resourceId = this.annotationResources.get(annotationId);
       if (!resourceId) {
         throw new Error(`Cannot fetch annotation ${annotationId}: no resourceId known`);
@@ -202,9 +215,9 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       return result.annotation as Annotation;
-    }, persisted<AnnotationId, Annotation>('annotation-detail'));
+    }, persisted<AnnotationId, Annotation>('annotation-detail')));
 
-    this.entityTypesCache = createCache<string, string[]>(async () => {
+    this.entityTypesCache = track(createCache<string, string[]>(async () => {
       const result = await busRequest(
         this.transport,
         'browse:entity-types-requested',
@@ -212,9 +225,9 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       return result.entityTypes;
-    }, persisted<string, string[]>('entity-types'));
+    }, persisted<string, string[]>('entity-types')));
 
-    this.tagSchemasCache = createCache<string, TagSchema[]>(async () => {
+    this.tagSchemasCache = track(createCache<string, TagSchema[]>(async () => {
       const result = await busRequest(
         this.transport,
         'browse:tag-schemas-requested',
@@ -222,7 +235,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       return result.tagSchemas;
-    }, persisted<string, TagSchema[]>('tag-schemas'));
+    }, persisted<string, TagSchema[]>('tag-schemas')));
 
     this.agentsCache = createCache<string, CollaboratorEntry[]>(async () => {
       const result = await busRequest(
@@ -505,6 +518,17 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   invalidateAgents(): void {
     this.agentsCache.invalidate(AGENTS_KEY);
+  }
+
+  /**
+   * B17-Q (C1) — true when every persisted cache is quiet: no fetch in
+   * flight, no debounced save pending. The session factory wires this as the
+   * resumption-bookmark flush gate, making the persisted bookmark unable to
+   * lead the persisted content — the invariant spec 14 caught being violated
+   * (.plans/bugs/pdf-annotations-vanish-after-reload-stale-persisted-cache.md).
+   */
+  persistenceSettled(): boolean {
+    return this.persistedCaches.every((cache) => !cache.persistencePending());
   }
 
   invalidateReferencedBy(resourceId: ResourceId): void {

@@ -1,10 +1,22 @@
 /**
- * B17 (LOCAL-STORAGE W3) — rehydration wired through BrowseNamespace.
+ * B17 (LOCAL-STORAGE W3) + B18 — rehydration wired through BrowseNamespace.
  *
- * The protocol-silence pin: with a prepopulated storage adapter, observing a
- * rehydrated key delivers the persisted value synchronously and emits NO
- * `browse:*-requested` on the transport. An un-cached key still requests as
- * today. Construction without the option is byte-for-byte today's behavior.
+ * **Declared behavior change (2026-07-24).** This file used to pin
+ * "protocol silence": a rehydrated key was served with NO
+ * `browse:*-requested` at all. That contract WAS the defect behind
+ * .plans/bugs/annotation-lost-on-immediate-reload-after-create.md — an
+ * annotation created seconds before a reload is absent from the persisted
+ * document, and silence meant nothing ever corrected it (measured: no
+ * resumption bookmark exists at failure time, so replay cannot cover it
+ * either). Trusting disk content was never sound; the parked
+ * rehydrate-then-revalidate option is now the fix.
+ *
+ * What is pinned NOW: the persisted value is still delivered synchronously
+ * (B17's actual win — instant paint, no `undefined` flash), AND exactly one
+ * revalidation CHAIN follows per rehydrated key (B18) — one request, plus
+ * B14's single bounded retry if it fails. An un-cached key
+ * still requests as before. Construction without the persistence option is
+ * byte-for-byte today's in-memory behavior.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { Subject, firstValueFrom, filter, take } from 'rxjs';
@@ -31,7 +43,7 @@ const RID = makeResourceId('res-cached');
 const DESCRIPTOR = { '@id': RID, name: 'Cached Doc' } as unknown as ResourceDescriptor;
 
 describe('BrowseNamespace cache rehydration (B17)', () => {
-  it('serves a rehydrated resource with NO transport request; un-cached keys still request', async () => {
+  it('serves a rehydrated resource instantly AND revalidates it (B18); un-cached keys still request', async () => {
     const storage = new TestStorage();
     sessionStoragePersister<string, ResourceDescriptor>({
       storage,
@@ -50,13 +62,19 @@ describe('BrowseNamespace cache rehydration (B17)', () => {
     const seen = await firstValueFrom(
       browse.resource(RID).pipe(filter((r): r is ResourceDescriptor => r !== undefined), take(1)),
     );
+    // Instant paint from disk — the value arrives without waiting on the
+    // wire (the inert transport never answers), which is B17's whole point.
     expect(seen.name).toBe('Cached Doc');
-    expect(emit).not.toHaveBeenCalled();
-
-    // An un-cached key still goes to the transport.
-    browse.resource(makeResourceId('res-uncached')).pipe(take(1)).subscribe();
+    // B18: and it is revalidated — one chain for that key (this first
+    // request, plus a B14 retry only if it fails), issued alongside (not
+    // instead of) the instant paint.
     expect(emit).toHaveBeenCalledTimes(1);
     expect(emit.mock.calls[0]![0]).toBe('browse:resource-requested');
+
+    // An un-cached key still goes to the transport (unchanged).
+    browse.resource(makeResourceId('res-uncached')).pipe(take(1)).subscribe();
+    expect(emit).toHaveBeenCalledTimes(2);
+    expect(emit.mock.calls[1]![0]).toBe('browse:resource-requested');
 
     browse.dispose();
   });
@@ -86,8 +104,13 @@ describe('BrowseNamespace cache rehydration (B17)', () => {
     const seen = await firstValueFrom(
       second.resource(RID).pipe(filter((r): r is ResourceDescriptor => r !== undefined), take(1)),
     );
+    // The round trip is proven by the value arriving at all: the transport
+    // is inert, so 'Cached Doc' can only have come from storage.
     expect(seen.name).toBe('Cached Doc');
-    expect(emit).not.toHaveBeenCalled();
+    // B18: rehydrated, therefore revalidated — one chain, whose first
+    // request the inert transport never answers, leaving the persisted value
+    // on screen (B6).
+    expect(emit).toHaveBeenCalledTimes(1);
     second.dispose();
   });
 });
