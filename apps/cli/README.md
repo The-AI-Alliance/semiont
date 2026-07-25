@@ -4,14 +4,17 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli)
 [![License](https://img.shields.io/npm/l/@semiont/cli.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The Semiont CLI provides four categories of commands:
+The Semiont CLI provides two categories of commands:
 
 | Category | Commands | Auth model |
 |----------|----------|------------|
-| **Credential** | `login` | Writes a cached token |
-| **Knowledge Work** | `browse`, `gather`, `mark`, `match`, `bind`, `listen`, `yield`, `beckon` | Reads the cached token (`--bus`) |
 | **Knowledge Base** | `init`, `backup`, `restore`, `verify`, `export`, `import` | None / `--environment` |
-| **Infrastructure** | `local`, `provision`, `start`, `stop`, `check`, `publish`, `update`, `mv`, `useradd`, `clean`, `watch` | `--environment` |
+| **Infrastructure** | `local`, `provision`, `start`, `stop`, `check`, `publish`, `update`, `useradd`, `clean`, `watch` | `--environment` |
+
+> **Knowledge work lives in the launcher.** `login`, `browse`, `gather`, `mark`, `match`, `bind`,
+> `listen`, `yield`, and `beckon` are verbs of the host-installed `semiont` launcher (see
+> [apps/launcher](../launcher/README.md)), not of this package. For programmatic use, reach the same
+> capabilities through [`@semiont/sdk`](../../packages/sdk/README.md).
 
 ---
 
@@ -46,101 +49,20 @@ All commands support:
 ## Quick Start
 
 ```bash
-# 1. Log in (once — token cached for 24 hours)
-semiont login --bus http://localhost:4000 --user alice@example.com
+# 1. Initialize a project
+semiont init
 
-# 2. Browse the knowledge base
-semiont browse resources
+# 2. Provision and start services
+semiont provision -e local
+semiont start -e local
 
-# 3. Gather LLM context for a resource
-semiont gather resource <resourceId>
-
-# 4. Create an annotation
-semiont mark <resourceId> --motivation highlighting --quote "key phrase"
+# 3. Confirm health
+semiont check -e local
 ```
 
 ---
 
 ## Command Categories
-
-### Credential — `login`
-
-Authenticates against a Semiont backend and caches a token. Run this once before using any API command.
-
-```bash
-semiont login --bus http://localhost:4000 --user alice@example.com
-semiont login --bus https://api.acme.com   # prompts for password interactively
-semiont login --refresh --bus https://api.acme.com
-```
-
-Token is cached at `$XDG_STATE_HOME/semiont/auth/<bus-slug>.json` and is valid for 24 hours. Multiple backends can be logged into simultaneously.
-
-See [Knowledge Work Commands](./docs/KNOWLEDGE-WORK.md) for the full credential resolution order.
-
----
-
-### Knowledge Work Commands
-
-These commands call the Semiont backend. They require a cached token from `semiont login`.
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--bus <url>` | `-b` | Backend URL. Fallback: `$SEMIONT_BUS` |
-
-For full details see [Knowledge Work Commands](./docs/KNOWLEDGE-WORK.md).
-
-**browse** — inspect resources, annotations, references, events
-
-```bash
-semiont browse resources
-semiont browse resource <resourceId> --annotations
-semiont browse annotation <resourceId> <annotationId>
-semiont browse entity-types
-```
-
-**gather** — fetch LLM-optimised context
-
-```bash
-semiont gather resource <resourceId>
-semiont gather annotation <resourceId> <annotationId>
-```
-
-**mark** — create W3C annotations (manual or AI-delegate)
-
-```bash
-semiont mark <resourceId> --motivation highlighting --quote "key phrase"
-semiont mark <resourceId> --motivation linking --delegate --entity-type Person
-```
-
-**match / bind** — find and resolve linking annotations
-
-```bash
-semiont match <resourceId> <annotationId>
-semiont bind <resourceId> <annotationId> <targetResourceId>
-```
-
-**listen** — stream domain events as NDJSON
-
-```bash
-semiont listen
-semiont listen resource <resourceId>
-```
-
-**yield** — upload or AI-generate a resource
-
-```bash
-semiont yield --upload ./paper.pdf
-semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://out.md
-semiont yield --delegate --resource <resourceId> --storage-uri file://answer.md --title "What is X?" --task answer --structure prose
-```
-
-**beckon** — direct a participant's attention
-
-```bash
-semiont beckon <resourceId>
-```
-
----
 
 ### Knowledge Base Commands
 
@@ -186,7 +108,6 @@ semiont clean -e local
 
 ## Further Reading
 
-- [Knowledge Work Commands](./docs/KNOWLEDGE-WORK.md) — login, browse, gather, mark, match, bind, listen, yield, beckon
 - [Knowledge Base Commands](./docs/KNOWLEDGE-BASE.md) — init, backup, restore, verify, export, import
 - [Infrastructure Commands](./docs/INFRASTRUCTURE.md) — service lifecycle, deployment, administration
 - [Architecture Overview](./docs/ARCHITECTURE.md)

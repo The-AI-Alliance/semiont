@@ -1,5 +1,13 @@
 # Adding New Commands to Semiont CLI
 
+> **Scope.** This CLI covers **knowledge-base data** (`init`, `backup`, `restore`, `verify`,
+> `export`, `import`) and **infrastructure** (`provision`, `start`, `stop`, `check`, `publish`,
+> `update`, `watch`, `useradd`, `clean`, `local`/`serve`). Knowledge-work verbs (`browse`, `gather`,
+> `mark`, `match`, `bind`, `listen`, `yield`, `beckon`, `login`) are **not** part of this package —
+> they are verbs of the host-installed `semiont` launcher ([apps/launcher](../../launcher/README.md)),
+> and the same capabilities are available programmatically through
+> [`@semiont/sdk`](../../../packages/sdk/README.md). Do not add API-calling commands here.
+
 The CLI has two families of commands with different patterns. Pick the right one before you start.
 
 ---
@@ -7,14 +15,21 @@ The CLI has two families of commands with different patterns. Pick the right one
 ## Two Command Families
 
 ### 1. Infrastructure commands
-Operate on services (start, stop, check, provision, …). They use the `MultiServiceExecutor` / `CommandDescriptor` / `HandlerDescriptor` pattern. See `src/core/commands/start.ts` as a reference. The rest of this guide does **not** cover this family.
+Operate on services (`start`, `stop`, `check`, `provision`, …). They use the
+`MultiServiceExecutor` / `CommandDescriptor` / `HandlerDescriptor` pattern — one handler per
+`(platform, serviceType, command)` triple. See `src/core/commands/start.ts` as a reference, and
+[ADDING_PLATFORMS.md](./ADDING_PLATFORMS.md) / [ADDING_SERVICES.md](./ADDING_SERVICES.md) for the
+handler side. The rest of this guide does **not** cover this family.
 
-### 2. Knowledge-base commands
-Talk directly to the Semiont API. They use a simple `CommandBuilder` + handler function pattern. This is what `browse`, `gather`, `mark`, `yield`, `bind`, `match`, `listen`, and `mv` all use. **This guide covers this family.**
+### 2. Knowledge-base data commands
+Operate directly on the KB's event log, content store, and graph via `@semiont/make-meaning`,
+`@semiont/event-sourcing`, and `@semiont/content`. They use a simple `CommandBuilder` + handler
+function pattern. This is what `backup`, `restore`, `verify`, `export`, and `import` all use.
+**This guide covers this family.**
 
 ---
 
-## Step-by-step: adding a knowledge-base command
+## Step-by-step: adding a knowledge-base data command
 
 ### 1. Create the command file
 
@@ -24,13 +39,16 @@ apps/cli/src/core/commands/my-command.ts
 
 ### 2. Define the schema
 
-There are three schema tiers in `base-options-schema.ts`: `BaseOptionsSchema` (fields shared by every command), `OpsOptionsSchema` (adds `--environment`, for platform/service commands), and `ApiOptionsSchema` (adds `--bus`, for commands that talk to the backend). Knowledge-base commands use `ApiOptionsSchema`:
+There are two schema tiers in `base-options-schema.ts`: `BaseOptionsSchema` (fields shared by every
+command — `--verbose`, `--dry-run`, `--quiet`, `--output`, `--force-discovery`, `--preflight`) and
+`OpsOptionsSchema` (adds `--environment`). Data commands use `OpsOptionsSchema`, since they need an
+environment to locate the KB:
 
 ```typescript
 import { z } from 'zod';
-import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 
-export const MyCommandOptionsSchema = ApiOptionsSchema.extend({
+export const MyCommandOptionsSchema = OpsOptionsSchema.extend({
   // positional args collected here when using restAs
   args: z.array(z.string()).min(1, 'resourceId is required'),
   // command-specific flags
@@ -40,31 +58,35 @@ export const MyCommandOptionsSchema = ApiOptionsSchema.extend({
 export type MyCommandOptions = z.output<typeof MyCommandOptionsSchema>;
 ```
 
-`ApiOptionsSchema` extends `BaseOptionsSchema` with `--bus` (alias `-b`, fallback `$SEMIONT_BUS`). There are no `--user`/`--password` flags — authentication comes from the token cached by `semiont login`. Only use it when the command calls `loadCachedClient`.
+`--environment` resolves from the flag, then `$SEMIONT_ENV`, then `defaults.environment` in
+`~/.semiontconfig`.
 
 ### 3. Implement the handler
 
+Resolve the project root and environment config, open the KB, do the work, and return
+`CommandResults`:
+
 ```typescript
 import { CommandResults } from '../command-types.js';
-import { loadCachedClient, resolveBusUrl } from '../client-factory.js';
+import { findProjectRoot, loadEnvironmentConfig } from '../config-loader.js';
+import { printInfo, printSuccess } from '../io/cli-logger.js';
 
 export async function runMyCommand(options: MyCommandOptions): Promise<CommandResults> {
   const startTime = Date.now();
-  const rawBusUrl = resolveBusUrl(options.bus);
-  const { semiont } = loadCachedClient(rawBusUrl);
+  const projectRoot = findProjectRoot();
+  const environment = options.environment!;
+  const envConfig = loadEnvironmentConfig(projectRoot, environment);
 
-  const [rawResourceId] = options.args;
+  const [target] = options.args;
 
-  // Call the API through the SDK client's namespaces
-  const result = await semiont.myNamespace.someMethod(rawResourceId);
+  // ... do the work (see backup.ts / export.ts for opening the event store,
+  //     content store, and knowledge base)
 
-  // Write JSON to stdout; progress label to stderr
-  if (!options.quiet) process.stderr.write(`Done: ${rawResourceId}\n`);
-  process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+  if (!options.quiet) printSuccess(`Done: ${target}`);
 
   return {
     command: 'my-command',
-    environment: rawBusUrl,
+    environment,
     timestamp: new Date(),
     duration: Date.now() - startTime,
     summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },
@@ -73,12 +95,13 @@ export async function runMyCommand(options: MyCommandOptions): Promise<CommandRe
       workingDirectory: process.cwd(),
       dryRun: options.dryRun,
     },
-    results: [{ entity: rawResourceId, platform: 'posix', success: true }],
+    results: [{ entity: target, platform: 'posix', success: true, duration: Date.now() - startTime }],
   };
 }
 ```
 
-`loadCachedClient(rawBusUrl)` returns `{ semiont, token }` — a `SemiontClient` from `@semiont/sdk` plus the cached `AccessToken` (useful for listen-style state units). It throws a user-facing "Not logged in" error if no valid token exists for that bus URL.
+Write machine-readable output to `stdout` and progress/labels to `stderr`, so `--output json` stays
+pipeable.
 
 ### 4. Export the command definition
 
@@ -89,13 +112,13 @@ export const myCmd = new CommandBuilder()
   .name('my-command')
   .description('One-line description shown in semiont --help')
   .requiresEnvironment(true)
-  .requiresServices(true)
+  .requiresServices(false)   // true only if the MultiServiceExecutor should resolve services
   .examples(
     'semiont my-command <resourceId>',
     'semiont my-command <resourceId> --force',
   )
   .args({
-    ...withApiArgs({
+    ...withOpsArgs({
       '--force': {
         type: 'boolean',
         description: 'Force the operation',
@@ -109,8 +132,6 @@ export const myCmd = new CommandBuilder()
   .handler(runMyCommand)
   .build();
 ```
-
-Use `withOpsArgs` instead of `withApiArgs` if the command operates on environments/services (adds `--environment`/`-e` instead of `--bus`/`-b`).
 
 ### 5. Register the command
 
@@ -137,12 +158,12 @@ npx tsc --noEmit -p apps/cli/tsconfig.json
 
 ## Common patterns
 
-### Subcommands (browse-style)
+### Subcommands
 
-Collect subcommands as positional args:
+Collect subcommands as positional args and validate the shape in the schema:
 
 ```typescript
-export const MyOptionsSchema = ApiOptionsSchema.extend({
+export const MyOptionsSchema = OpsOptionsSchema.extend({
   args: z.array(z.string()).min(1, 'Subcommand required: foo | bar'),
 }).superRefine((val, ctx) => {
   const sub = val.args[0];
@@ -161,68 +182,25 @@ export const MyOptionsSchema = ApiOptionsSchema.extend({
 Then dispatch in the handler:
 
 ```typescript
-const [subcommand, rawResourceId] = options.args;
+const [subcommand, target] = options.args;
 if (subcommand === 'foo') { ... }
 else { /* bar */ }
 ```
 
-### Long-lived bus subscriptions (listen-style)
+### Preflight checks
 
-```typescript
-import { createActorStateUnit } from '@semiont/http-transport';
-
-const actor = createActorStateUnit({
-  baseUrl: rawBusUrl,
-  token,
-  channels: ['mark:added', 'mark:removed', 'job:completed'],
-});
-
-// For resource-scoped channels, add with a scope:
-// actor.addChannels(['mark:added', ...], resourceId);
-
-for (const channel of ['mark:added', 'mark:removed', 'job:completed']) {
-  actor.on$(channel).subscribe((event) => {
-    process.stdout.write(JSON.stringify(event) + '\n');
-  });
-}
-
-actor.start();
-
-await new Promise<void>((resolve) => {
-  const cleanup = () => { actor.dispose(); resolve(); };
-  process.once('SIGINT', cleanup);
-  process.once('SIGTERM', cleanup);
-});
-```
-
-See the `listen` command for a working example.
-
-### One-shot bus request-response (gather/bind-style)
-
-SDK namespace methods are called directly on the `semiont` client. Promise-returning methods are awaited as usual; observable-returning methods (long-running backend work that streams progress) are resolved with rxjs `lastValueFrom`:
-
-```typescript
-import { lastValueFrom } from 'rxjs';
-
-// Promise-returning method
-const context = await semiont.gather.resource(resourceId, { contextWindow: 1000 });
-
-// Observable-returning method — completes when the backend finishes
-const result = await lastValueFrom(
-  semiont.gather.annotation(resourceId, annotationId, { contextWindow: 1000 }),
-);
-```
-
-See `gather.ts` and `bind.ts` for working examples.
+Commands can declare preflight checks that `--preflight` runs instead of the command body. See
+`src/core/handlers/preflight-utils.ts` (`checkCommandAvailable`, `preflightFromChecks`) and
+[ARCHITECTURE.md](./ARCHITECTURE.md#preflight-checks).
 
 ---
 
 ## Checklist
 
-- [ ] Schema extends `ApiOptionsSchema` (or `OpsOptionsSchema`/`BaseOptionsSchema` if no API calls)
-- [ ] `.args()` uses `withApiArgs` (or `withOpsArgs`)
-- [ ] `loadCachedClient(resolveBusUrl(options.bus))` provides the authenticated `semiont` client
-- [ ] JSON written to `stdout`; labels/progress written to `stderr`
+- [ ] Schema extends `OpsOptionsSchema` (or `BaseOptionsSchema` if no environment is needed)
+- [ ] `.args()` uses `withOpsArgs`
+- [ ] Machine-readable output on `stdout`; labels/progress on `stderr`
 - [ ] Returns a valid `CommandResults` object
 - [ ] Registered in `command-discovery.ts`
 - [ ] `npx tsc --noEmit` passes clean
+- [ ] Not an API-calling command (those belong to the launcher / `@semiont/sdk` — see Scope above)

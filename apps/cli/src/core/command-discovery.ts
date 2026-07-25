@@ -33,16 +33,6 @@ import { exportCmd } from './commands/export.js';
 import { importCmd } from './commands/import.js';
 import { serveCommand } from './commands/serve.js';
 import { cleanCommand } from './commands/clean.js';
-import { mvCmd } from './commands/mv.js';
-import { yieldCmd } from './commands/yield.js';
-import { markCmd } from './commands/mark.js';
-import { gatherCmd } from './commands/gather.js';
-import { matchCmd } from './commands/match.js';
-import { bindCmd } from './commands/bind.js';
-import { beckonCmd } from './commands/beckon.js';
-import { browseCmd } from './commands/browse.js';
-import { listenCmd } from './commands/listen.js';
-import { loginCmd } from './commands/login.js';
 
 /**
  * Cache of loaded command definitions
@@ -71,16 +61,6 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'serve': serveCommand,
   'local': serveCommand,
   'clean': cleanCommand,
-  'mv': mvCmd,
-  'yield': yieldCmd,
-  'mark': markCmd,
-  'gather': gatherCmd,
-  'match': matchCmd,
-  'bind': bindCmd,
-  'beckon': beckonCmd,
-  'browse': browseCmd,
-  'listen': listenCmd,
-  'login': loginCmd,
 };
 
 /**

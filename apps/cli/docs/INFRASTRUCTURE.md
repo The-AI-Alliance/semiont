@@ -3,7 +3,7 @@
 This guide covers the infrastructure-management side of the Semiont CLI: service lifecycle, deployment, and administration.
 
 For knowledge-base setup (`init`, `backup`, `restore`, `verify`, `export`, `import`) see [Knowledge Base Commands](./KNOWLEDGE-BASE.md).
-For API operations (`browse`, `gather`, `mark`, `yield`, `bind`, `match`, `listen`, `beckon`) see [Knowledge Work Commands](./KNOWLEDGE-WORK.md).
+Knowledge-work operations (`browse`, `gather`, `mark`, `yield`, `bind`, `match`, `listen`, `beckon`) are verbs of the host-installed `semiont` launcher — see [apps/launcher](../../launcher/README.md).
 
 ---
 
@@ -138,7 +138,6 @@ semiont update --service frontend -e production    # deploy new task definition 
 ## Further Reading
 
 - [Knowledge Base Commands](./KNOWLEDGE-BASE.md) — init, backup, restore, verify, export, import
-- [Knowledge Work Commands](./KNOWLEDGE-WORK.md) — login, browse, gather, mark, match, bind, listen, yield, beckon
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Managing Environments](./ADDING_ENVIRONMENTS.md)
 - [Adding Commands](./ADDING_COMMANDS.md)

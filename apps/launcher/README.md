@@ -396,8 +396,7 @@ Files must live under the KB root (storage URIs are repo-relative; the
 content belongs in the repo) — and commit the `.semiont/events/` files an
 upload creates: they ARE the documents. Both verbs speak to the backend
 through `packages/sdk-go`, the Go client generated from the same OpenAPI
-authority as the TypeScript SDK's types; delegate-mode yield (LLM
-generation from gathered context) deliberately stays with the npm CLI.
+authority as the TypeScript SDK's types.
 Both take `--repo <owner/name>` to target a codespace stack through its
 forward instead of the local one.
 
