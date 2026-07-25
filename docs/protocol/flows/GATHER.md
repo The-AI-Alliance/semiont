@@ -128,6 +128,6 @@ Current consumers:
 ## Implementation
 
 - **StateUnit**: [packages/sdk/src/state/flows/gather-state-unit.ts](../../../packages/sdk/src/state/flows/gather-state-unit.ts)
-- **Event definitions**: [packages/core/src/bus-protocol.ts](../../../packages/core/src/bus-protocol.ts) — `GATHER FLOW` section
+- **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `GATHER FLOW` section
 - **API**: `getAnnotationLLMContext` in [@semiont/sdk](../../../packages/sdk/README.md)
 - **Backend**: Context assembly in [@semiont/make-meaning](../../../packages/make-meaning/docs/api-reference.md)

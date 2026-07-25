@@ -85,7 +85,7 @@ deduplication) applies unchanged. HTTP adds:
   They may reach the handler in either order. Ordering has to be in
   the payload.
 - **Schema validation**. Every inbound payload is validated against
-  `CHANNEL_SCHEMAS` ([packages/core/src/bus-protocol.ts](../../packages/core/src/bus-protocol.ts));
+  `CHANNEL_SCHEMAS` — declared in [specs/src/bus/registry.json](../../specs/src/bus/registry.json), generated into `packages/core/src/bus-protocol.ts`;
   this is an HTTP-layer guard because the wire is untyped JSON.
   - Channels with a named schema: payload must match, or 400.
   - Channels with a `null` schema entry: no validation (compound /
@@ -460,7 +460,8 @@ above is the decision tree.
 
 - `apps/backend/src/routes/bus.ts` — the `/bus/emit` and
   `/bus/subscribe` routes.
-- `packages/core/src/bus-protocol.ts` — `EventMap`, `CHANNEL_SCHEMAS`,
+- `specs/src/bus/registry.json` — the authority: channels, payloads, operations.
+- `packages/core/src/bus-protocol.ts` — GENERATED `EventMap`, `CHANNEL_SCHEMAS`,
   `EmittableChannel`, `RESOURCE_BROADCAST_TYPES`.
 - `packages/http-transport/src/transport/http-transport.ts` — the HTTP
   implementation of `ITransport`.

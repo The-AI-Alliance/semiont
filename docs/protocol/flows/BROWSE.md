@@ -113,4 +113,4 @@ Panel types are defined as constants:
 - **Observable router**: [packages/react-ui/src/hooks/useObservableBrowse.tsx](../../../packages/react-ui/src/hooks/useObservableBrowse.tsx) — `useObservableRouter`
 - **Observable navigation**: [packages/react-ui/src/hooks/useObservableBrowse.tsx](../../../packages/react-ui/src/hooks/useObservableBrowse.tsx) — `useObservableExternalNavigation`
 - **Navigation handler (subscriber)**: [apps/frontend/src/components/knowledge/NavigationHandler.tsx](../../../apps/frontend/src/components/knowledge/NavigationHandler.tsx)
-- **Event definitions**: [packages/core/src/bus-protocol.ts](../../../packages/core/src/bus-protocol.ts) — `BROWSE FLOW` section
+- **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `BROWSE FLOW` section

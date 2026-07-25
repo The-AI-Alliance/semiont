@@ -9,7 +9,7 @@ If you only want to *use* the protocol from a script, you don't need this doc �
 - Debugging a bus-mediated round-trip with the [bus log](../../tests/e2e/docs/bus-logging.md)
 - Adding a new channel to the EventMap
 
-The authoritative TypeScript definition is **[`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts)** — the `EventMap` type and the `CHANNEL_SCHEMAS` map. This doc is the prose explanation; the source is the truth.
+The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**; [`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts) (the `EventMap` type and `CHANNEL_SCHEMAS` map) and the Go equivalents are GENERATED from it — see "The registry is the authority" below. This doc is the prose explanation; the registry is the truth.
 
 ## Channel naming
 
@@ -52,7 +52,7 @@ Each channel falls into one of five payload categories. The category tells you w
 | **UI signal** | OpenAPI schema or `void` | yes when schema-typed | no | `beckon:hover`, `panel:toggle`, `mark:selection-changed` |
 | **SSE infrastructure** | inline | no | no | `stream-connected`, `bus:resume-gap` |
 
-`CHANNEL_SCHEMAS` in [bus-protocol.ts](../../packages/core/src/bus-protocol.ts) maps every channel to its OpenAPI schema name (or `null` when validation isn't applicable — `StoredEvent` wrappers, `void` signals, compound inline types). The `/bus/emit` route reads this map and rejects payloads that don't validate.
+`CHANNEL_SCHEMAS` — declared in [the registry](../../specs/src/bus/registry.json), generated into `bus-protocol.ts` — maps every channel to its OpenAPI schema name (or `null` when validation isn't applicable — `StoredEvent` wrappers, `void` signals, compound inline types). The `/bus/emit` route reads this map and rejects payloads that don't validate.
 
 ## Identity: `_userId` is gateway-injected
 
@@ -147,7 +147,7 @@ RESOURCE_SCOPED_CHANNELS = [
 ];
 ```
 
-`RESOURCE_BROADCAST_TYPES` (in [bus-protocol.ts](../../packages/core/src/bus-protocol.ts)) is the extension point for *non-persisted* events that still want resource-scoped fan-out. It is **currently empty**: `job:complete` / `job:fail` were moved to global, `jobId`-keyed delivery (#847) — the dispatcher filters by `jobId`, viewers filter the same global stream by `resourceId`, so there's no scoped copy (and a client that is both no longer receives a duplicate).
+`RESOURCE_BROADCAST_TYPES` (registry data: the `resourceBroadcasts.channels` list, generated into `bus-protocol.ts`) is the extension point for *non-persisted* events that still want resource-scoped fan-out. It is **currently empty**: `job:complete` / `job:fail` were moved to global, `jobId`-keyed delivery (#847) — the dispatcher filters by `jobId`, viewers filter the same global stream by `resourceId`, so there's no scoped copy (and a client that is both no longer receives a duplicate).
 
 **Bridged and resource-scoped must stay disjoint.** A channel delivered on *both* the global subscription and a scoped one arrives twice (with different SSE ids) → a duplicate on the client bus. The `filter(t => !BRIDGED_CHANNELS.includes(t))` above guarantees disjointness for the persisted-derived part; an invariant test (`BRIDGED_CHANNELS ∩ RESOURCE_SCOPED_CHANNELS === ∅`) backstops the unfiltered `RESOURCE_BROADCAST_TYPES` extension point.
 
@@ -233,25 +233,57 @@ Three legitimate paths to the bus, each suited to a distinct case:
 
 The three paths are documented end-to-end (with code shapes and call-site examples) in [`packages/sdk/docs/REACTIVE-MODEL.md`](../../packages/sdk/docs/REACTIVE-MODEL.md#three-paths-to-the-bus). The bus surface is *not* `@internal` — it's a real surface for advanced and worker use — but the typed namespaces are the canonical entry point for everything else. If you find yourself writing `transport.emit(channel, ...)` from application code, the right move is usually to reach for the namespace, or — if no namespace covers your case — to add one.
 
+## The registry is the authority; both languages are generated
+
+`bus-protocol.ts` and `bus-operations.ts` are **generated files** — do not edit
+them. The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**:
+every channel, the payload it carries, and the request/reply operation triples.
+Two generators read it:
+
+| Output | Generator |
+|---|---|
+| `packages/core/src/bus-protocol.ts`, `bus-operations.ts` | `node scripts/bus/generate-ts.mjs` |
+| `packages/sdk-go/bus/{channels,operations}_gen.go` | `node scripts/bus/generate-go.mjs` |
+
+```sh
+npm run generate:bus          # regenerate both languages
+npm run generate:bus:check    # verify without writing (what CI runs)
+```
+
+Hand-written TypeScript that the registry cannot express — runtime-only UI
+types like `AnchorRect` (DOM geometry, callbacks) — lives in the companion
+module `packages/core/src/bus-ui-types.ts`, which the generated file imports
+and re-exports. Adding a resource-scoped broadcast means adding a channel to
+`resourceBroadcasts.channels` in the registry, not editing the generated
+`RESOURCE_BROADCAST_TYPES`.
+
+Payload *schemas* still live in the OpenAPI components — the registry only
+names which schema each channel carries. Channels whose payload is
+TypeScript-only (DOM geometry, callbacks) are excluded from the Go output:
+they never cross the wire.
+
+Nothing regenerates automatically. The `Generated Artifacts (drift)` CI job
+and `scripts/ci/local-build.sh` both fail if the committed output disagrees
+with the registry, naming the command to run.
+
 ## Adding a new channel
 
-The compile-time discipline is strict by design. A new channel requires changes in three places, all of which the typechecker enforces:
+The compile-time discipline is strict by design. A new channel requires changes in two places (the registry and the OpenAPI schema), plus an SDK method to call it:
 
-1. **`EventMap`** in [bus-protocol.ts](../../packages/core/src/bus-protocol.ts) — declare the channel name and payload type.
-2. **`CHANNEL_SCHEMAS`** in the same file — map the channel to its OpenAPI schema name (or `null` for non-validated). The `satisfies Record<EventName, ...>` clause on this map fails to typecheck if you forget.
-3. **`PERSISTED_EVENT_TYPES`** (only if it's a `StoredEvent` domain event) and, for SSE delivery, the routing: a request/reply operation is declared in **`BUS_OPERATIONS`** (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is added to **`BRIDGED_BROADCASTS`**. You no longer hand-edit `BRIDGED_CHANNELS` for replies. Each list has its own completeness check, and an equality test pins the derived bridged set.
+1. **The registry** ([`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)) — add the channel with its payload (`shape` plus the OpenAPI schema name, or `storedEvent` / `void`), and its `validate` entry: the schema the `/bus/emit` route enforces, or `null` for non-validated. Then run `npm run generate:bus`, which writes the `EventMap` and `CHANNEL_SCHEMAS` entries in both languages. The generated `satisfies Record<EventName, ...>` clause still fails the typecheck if the two maps disagree.
+2. **`PERSISTED_EVENT_TYPES`** (only if it's a `StoredEvent` domain event) and, for SSE delivery, the routing: a request/reply operation is declared as an `operations` entry in the **registry** (generated into `BUS_OPERATIONS`) (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is added to **`BRIDGED_BROADCASTS`**. You no longer hand-edit `BRIDGED_CHANNELS` for replies. Each list has its own completeness check, and an equality test pins the derived bridged set.
 
 Then for the OpenAPI schema:
 
-4. Add the schema file to `specs/src/components/schemas/`.
-5. Reference it from the right path file under `specs/src/paths/` (if the channel has an HTTP entry point too).
-6. Run `npm run generate:openapi --workspace=@semiont/core` to bundle and regenerate types.
-7. Rebuild `@semiont/core`.
+3. Add the schema file to `specs/src/components/schemas/`.
+4. Reference it from the right path file under `specs/src/paths/` (if the channel has an HTTP entry point too).
+5. Run `npm run generate:openapi --workspace=@semiont/core` to bundle and regenerate types.
+6. Rebuild `@semiont/core`.
 
 And for the SDK:
 
-8. Add a namespace method that wraps `transport.emit(channel, ...)` or `busRequest(...)` for the new operation.
-9. Update [packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md) under the right verb.
+7. Add a namespace method that wraps `transport.emit(channel, ...)` or `busRequest(...)` for the new operation.
+8. Update [packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md) under the right verb.
 
 Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` clause and the `PERSISTED_EVENT_TYPES` exhaustiveness check make incomplete additions fail the typecheck loud and clear.
 
@@ -260,7 +292,9 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 - **[CHANNELS.md](./CHANNELS.md)** — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts, bridged channels.
 - **[TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md)** — abstract `ITransport` behavioral guarantees every transport must honor.
 - **[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)** — HTTP+SSE wire format; the `/bus/emit` and `/bus/subscribe` contract.
-- **[`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts)** — the authoritative `EventMap` and `CHANNEL_SCHEMAS`.
+- **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** — the authority: channels, payloads, operations.
+- **[`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts)** — GENERATED `EventMap` and `CHANNEL_SCHEMAS`.
+- **`packages/sdk-go/bus/`** — GENERATED Go channel constants and operation registry.
 - **[`packages/core/src/event-bus.ts`](../../packages/core/src/event-bus.ts)** — the in-process `EventBus` and `ScopedEventBus` implementation.
 - **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — the bus log format and capture API.
 - **[../../packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md)** — the namespace tour with worked examples per verb.
