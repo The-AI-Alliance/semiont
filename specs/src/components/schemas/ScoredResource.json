@@ -1,6 +1,8 @@
 {
   "allOf": [
-    { "$ref": "ResourceDescriptor.json" },
+    {
+      "$ref": "ResourceDescriptor.json"
+    },
     {
       "type": "object",
       "properties": {
@@ -15,5 +17,5 @@
       }
     }
   ],
-  "description": "A resource returned by a search, carrying its relevance score. Named rather than inlined so both generated languages get a real type — an anonymous allOf produces an unnameable shape that callers end up re-deriving by hand (and guessing wrong)."
+  "description": "A resource returned by a search, carrying its relevance score and the reason it matched."
 }

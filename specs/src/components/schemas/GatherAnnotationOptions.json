@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Optional configuration for an annotation-focus gather. Distinct from the resource-focus options (depth / maxResources / includeContent / includeSummary): an annotation gather windows text around a mark rather than traversing a graph. Named rather than inlined so the two option sets cannot be confused for one another in a generated client.",
+  "description": "Optional configuration for an annotation-focus gather, which windows text around a mark. Distinct from the resource-focus options (depth / maxResources / includeContent / includeSummary), which traverse the resource graph.",
   "properties": {
     "includeSourceContext": {
       "type": "boolean",

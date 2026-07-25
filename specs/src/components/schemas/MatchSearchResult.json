@@ -10,9 +10,15 @@
     },
     "response": {
       "type": "array",
-      "description": "The scored candidates, best first. This IS the result list — there is no wrapper object with a `candidates` or `resources` key around it.",
-      "items": { "$ref": "ScoredResource.json" }
+      "description": "The scored candidates, best first.",
+      "items": {
+        "$ref": "ScoredResource.json"
+      }
     }
   },
-  "required": ["correlationId", "referenceId", "response"]
+  "required": [
+    "correlationId",
+    "referenceId",
+    "response"
+  ]
 }
