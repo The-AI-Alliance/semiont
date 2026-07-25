@@ -40,15 +40,10 @@ Only channels the transport bridges can be received; a channel that exists
 but is not bridged would deliver nothing, so this refuses it up front.
 `
 
-// defaultListenChannels: the system-wide broadcasts a KB emits — job
-// lifecycle and vocabulary changes. These mirror BRIDGED_BROADCASTS on the
-// TypeScript side; anything an operation replies on is per-caller noise and
-// deliberately absent.
-var defaultListenChannels = []bus.Channel{
-	"job:report-progress", "job:complete", "job:fail",
-	"frame:entity-type-added", "frame:tag-schema-added",
-	"beckon:focus", "beckon:sparkle",
-}
+// The default subscription is the GENERATED broadcast set
+// (packages/sdk-go/bus/bridged_gen.go, from specs/src/bus/registry.json) —
+// the same list the TypeScript side derives. It used to be hand-copied here,
+// which is precisely the drift the registry exists to prevent.
 
 func Listen(args []string) int {
 	u := newUI(false)
@@ -95,13 +90,13 @@ func Listen(args []string) int {
 		}
 	}
 	if len(channels) == 0 {
-		channels = defaultListenChannels
+		channels = bus.BridgedBroadcasts
 	}
-	// A channel nobody bridges delivers nothing — refuse rather than sit
-	// silent forever pretending to listen.
+	// A channel nobody bridges delivers nothing, silently — say so rather
+	// than sitting there pretending to listen.
 	for _, ch := range channels {
-		if _, known := bus.ChannelSchemas[ch]; !known && !isBroadcast(ch) {
-			u.warn("%s is not a bridged channel — it may deliver nothing.", ch)
+		if !bus.Bridged(ch) {
+			u.warn("%s is not a bridged channel — it will deliver nothing.", ch)
 		}
 	}
 
@@ -150,15 +145,6 @@ func Listen(args []string) int {
 			printEvent(u, ev, asJSON)
 		}
 	}
-}
-
-func isBroadcast(ch bus.Channel) bool {
-	for _, b := range defaultListenChannels {
-		if b == ch {
-			return true
-		}
-	}
-	return false
 }
 
 func printEvent(u *ui, ev bus.Event, asJSON bool) {

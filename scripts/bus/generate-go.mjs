@@ -95,6 +95,49 @@ func (c Channel) Emittable() bool {
 }
 `;
 
+// ── bridged channels (the SUBSCRIBE side) ──────────────────────────────
+// Only these can be received over a transport. `semiont listen` defaults to
+// the broadcasts; the full set adds every operation's reply channels, which
+// are derived here exactly as the TypeScript side derives them.
+const bridgedRows = reg.bridgedBroadcasts.channels.map((c) => `\t${goName(c)},`);
+
+const bridgedGo = `${BANNER}
+package bus
+
+// BridgedBroadcasts: channels with no owning operation — job lifecycle, KB
+// vocabulary changes, attention signals, SSE infrastructure. These are what a
+// client subscribes to when it wants to watch a KB rather than await a reply.
+var BridgedBroadcasts = []Channel{
+${bridgedRows.join('\n')}
+}
+
+// BridgedChannels: everything a transport delivers — the broadcasts plus
+// every operation's reply channels. Derived from Operations, so a reply can
+// never be missing from the set (the recurring unbridged-reply bug).
+var BridgedChannels = func() []Channel {
+\tout := append([]Channel(nil), BridgedBroadcasts...)
+\tfor _, op := range Operations {
+\t\tout = append(out, op.Result, op.Failure)
+\t\tif op.Streaming() {
+\t\t\tout = append(out, op.Progress)
+\t\t}
+\t}
+\treturn out
+}()
+
+// Bridged reports whether a channel can be received over a transport at all.
+// Subscribing to anything else delivers nothing, silently — the trap the bus
+// docs warn about.
+func Bridged(c Channel) bool {
+\tfor _, b := range BridgedChannels {
+\t\tif b == c {
+\t\t\treturn true
+\t\t}
+\t}
+\treturn false
+}
+`;
+
 // ── operations_gen.go ──────────────────────────────────────────────────
 const opRows = alignRows(
   reg.operations.map((o) => {
@@ -134,6 +177,7 @@ let drift = 0;
 for (const [name, text] of [
   ['channels_gen.go', channelsGo],
   ['operations_gen.go', operationsGo],
+  ['bridged_gen.go', bridgedGo],
 ]) {
   const path = resolve(OUT_DIR, name);
   const current = existsSync(path) ? readFileSync(path, 'utf8') : '';
