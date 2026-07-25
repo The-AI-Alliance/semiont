@@ -1112,7 +1112,7 @@ type BeckonSparkleEvent struct {
 	AnnotationId string `json:"annotationId"`
 }
 
-// BindBodyOperation One body-list edit on a linking annotation. Named rather than inlined so both generated languages get a real type — an inline object becomes an anonymous struct callers must re-spell by hand at every use.
+// BindBodyOperation One edit to a linking annotation's body list: add or remove a body item, or replace an existing one.
 type BindBodyOperation struct {
 	// Item Phase 2: Body can be TextualBody (for entity tags, descriptions) or SpecificResource (for links)
 	Item *AnnotationBody `json:"item,omitempty"`
@@ -1783,7 +1783,7 @@ type GatherAnnotationComplete struct {
 	Response GatheredContext `json:"response"`
 }
 
-// GatherAnnotationOptions Optional configuration for an annotation-focus gather. Distinct from the resource-focus options (depth / maxResources / includeContent / includeSummary): an annotation gather windows text around a mark rather than traversing a graph. Named rather than inlined so the two option sets cannot be confused for one another in a generated client.
+// GatherAnnotationOptions Optional configuration for an annotation-focus gather, which windows text around a mark. Distinct from the resource-focus options (depth / maxResources / includeContent / includeSummary), which traverse the resource graph.
 type GatherAnnotationOptions struct {
 	// ContextWindow Characters of surrounding text context to include
 	ContextWindow *int `json:"contextWindow,omitempty"`
@@ -1803,7 +1803,7 @@ type GatherAnnotationRequest struct {
 	// CorrelationId Client-generated correlation ID to thread the response back to the originating request
 	CorrelationId string `json:"correlationId"`
 
-	// Options Optional configuration for an annotation-focus gather. Distinct from the resource-focus options (depth / maxResources / includeContent / includeSummary): an annotation gather windows text around a mark rather than traversing a graph. Named rather than inlined so the two option sets cannot be confused for one another in a generated client.
+	// Options Optional configuration for an annotation-focus gather, which windows text around a mark. Distinct from the resource-focus options (depth / maxResources / includeContent / includeSummary), which traverse the resource graph.
 	Options *GatherAnnotationOptions `json:"options,omitempty"`
 
 	// ResourceId Branded ResourceId of the resource the annotation belongs to
@@ -2633,7 +2633,7 @@ type MatchSearchResult struct {
 	CorrelationId string `json:"correlationId"`
 	ReferenceId   string `json:"referenceId"`
 
-	// Response The scored candidates, best first. This IS the result list — there is no wrapper object with a `candidates` or `resources` key around it.
+	// Response The scored candidates, best first.
 	Response []ScoredResource `json:"response"`
 }
 
