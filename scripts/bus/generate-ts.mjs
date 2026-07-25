@@ -80,17 +80,41 @@ const schemaLines = emitLines(
     (e.trailing ? ` ${e.trailing}` : ''),
 );
 
+// The sections between the two maps are TEMPLATE (derived types and the
+// `satisfies` tails the generator owns) plus DATA and PROSE from the registry
+// — never an opaque frozen blob, which is what made the generated file
+// contain hand-edit zones that silently reverted.
+const broadcastBody = [
+  reg.resourceBroadcasts.bodyComment,
+  ...reg.resourceBroadcasts.channels.map((c) => `  '${c}',`),
+]
+  .filter(Boolean)
+  .join('\n');
+
 const protocol =
   BANNER +
   reg.preamble.protocolHeader +
   'export type EventMap = {' +
   [...eventMapLines, ...reg.preamble.eventMapTail].join('\n') +
-  '\n}' +
-  reg.preamble.protocolBetween +
-  'export const CHANNEL_SCHEMAS = {' +
+  '\n};\n\n' +
+  // AnchorRect and friends live in the hand-written companion module; the
+  // re-export keeps every existing `from './bus-protocol'` import working.
+  "export type { AnchorRect } from './bus-ui-types';\n\n" +
+  reg.docs.eventName +
+  '\nexport type EventName = keyof EventMap;\n\n' +
+  reg.docs.resourceBroadcasts +
+  '\nexport const RESOURCE_BROADCAST_TYPES = [\n' +
+  broadcastBody +
+  '\n] as const satisfies readonly EventName[];\n\n' +
+  'export type ResourceBroadcastType = typeof RESOURCE_BROADCAST_TYPES[number];\n\n' +
+  reg.docs.channelSchemas +
+  '\nexport const CHANNEL_SCHEMAS = {' +
   [...schemaLines, ...reg.preamble.schemasTail].join('\n') +
-  '\n}' +
-  reg.preamble.protocolFooter;
+  "\n} as const satisfies Record<EventName, keyof components['schemas'] | null>;\n\n" +
+  reg.docs.emittableChannel +
+  '\nexport type EmittableChannel = {\n' +
+  '  [K in EventName]: typeof CHANNEL_SCHEMAS[K] extends null ? never : K\n' +
+  '}[EventName];\n';
 
 // ── bus-operations.ts ──────────────────────────────────────────────────
 const opsLines = emitLines(

@@ -49,7 +49,7 @@ Non-persisted results matched back to the originating request by `correlationId`
 
 Channels every viewer of a specific resource wants to see, regardless of who triggered them. Published on `eventBus.scope(resourceId)`; received via a `scope=rId&scoped=X` SSE subscription the SDK wires up automatically when a consumer subscribes to that resource's `browse.*` live queries (freshness follows observation; #847).
 
-The authoritative list is `RESOURCE_BROADCAST_TYPES`, carried in [the registry](../../specs/src/bus/registry.json) and generated into `bus-protocol.ts` (edit the registry — a change to the generated file is reverted by the next `npm run generate:bus`) — **currently empty.** `job:complete` / `job:fail` used to live here but were moved to global, `jobId`-keyed delivery (see *Correlation-ID responses* above, and #847): the dispatcher filters by `jobId`, viewers filter the global stream by `resourceId`, so a client that is both no longer receives them twice. The set remains as the extension point for genuine multi-viewer resource broadcasts (e.g. generation progress).
+The authoritative list is `resourceBroadcasts.channels` in [the registry](../../specs/src/bus/registry.json), generated into `RESOURCE_BROADCAST_TYPES` in `bus-protocol.ts` — **currently empty.** `job:complete` / `job:fail` used to live here but were moved to global, `jobId`-keyed delivery (see *Correlation-ID responses* above, and #847): the dispatcher filters by `jobId`, viewers filter the global stream by `resourceId`, so a client that is both no longer receives them twice. The set remains as the extension point for genuine multi-viewer resource broadcasts (e.g. generation progress).
 
 ## Bridged channels (HTTP transport fan-in)
 

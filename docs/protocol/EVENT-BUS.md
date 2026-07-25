@@ -147,7 +147,7 @@ RESOURCE_SCOPED_CHANNELS = [
 ];
 ```
 
-`RESOURCE_BROADCAST_TYPES` (today still carried verbatim in [the registry](../../specs/src/bus/registry.json)'s `preamble`, emitted into `bus-protocol.ts` — edit it THERE, not in the generated file) is the extension point for *non-persisted* events that still want resource-scoped fan-out. It is **currently empty**: `job:complete` / `job:fail` were moved to global, `jobId`-keyed delivery (#847) — the dispatcher filters by `jobId`, viewers filter the same global stream by `resourceId`, so there's no scoped copy (and a client that is both no longer receives a duplicate).
+`RESOURCE_BROADCAST_TYPES` (registry data: the `resourceBroadcasts.channels` list, generated into `bus-protocol.ts`) is the extension point for *non-persisted* events that still want resource-scoped fan-out. It is **currently empty**: `job:complete` / `job:fail` were moved to global, `jobId`-keyed delivery (#847) — the dispatcher filters by `jobId`, viewers filter the same global stream by `resourceId`, so there's no scoped copy (and a client that is both no longer receives a duplicate).
 
 **Bridged and resource-scoped must stay disjoint.** A channel delivered on *both* the global subscription and a scoped one arrives twice (with different SSE ids) → a duplicate on the client bus. The `filter(t => !BRIDGED_CHANNELS.includes(t))` above guarantees disjointness for the persisted-derived part; an invariant test (`BRIDGED_CHANNELS ∩ RESOURCE_SCOPED_CHANNELS === ∅`) backstops the unfiltered `RESOURCE_BROADCAST_TYPES` extension point.
 
@@ -249,6 +249,13 @@ Two generators read it:
 npm run generate:bus          # regenerate both languages
 npm run generate:bus:check    # verify without writing (what CI runs)
 ```
+
+Hand-written TypeScript that the registry cannot express — runtime-only UI
+types like `AnchorRect` (DOM geometry, callbacks) — lives in the companion
+module `packages/core/src/bus-ui-types.ts`, which the generated file imports
+and re-exports. Adding a resource-scoped broadcast means adding a channel to
+`resourceBroadcasts.channels` in the registry, not editing the generated
+`RESOURCE_BROADCAST_TYPES`.
 
 Payload *schemas* still live in the OpenAPI components — the registry only
 names which schema each channel carries. Channels whose payload is

@@ -32,6 +32,7 @@ import type { Annotation } from './annotation-types';
 import type { ResourceDescriptor } from './graph';
 import type { StoredEvent } from './event-base';
 import type { EventOfType } from './persisted-events';
+import type { AnchorRect } from './bus-ui-types';
 
 // Branded overrides for OpenAPI command payloads that carry identifier
 // fields. Narrows `string` → branded at the TypeScript layer.
@@ -68,22 +69,6 @@ type BindUpdateBodyCommand =
  * - void: UI-only signals with no payload
  */
 
-/**
- * Viewport-space rectangle of a clicked annotation element — runtime-only
- * view geometry riding UI events (never wire vocabulary; deliberately not in
- * the OpenAPI schemas). Structurally satisfied by a DOM `DOMRect`, spelled
- * out here because this package compiles without the DOM lib.
- */
-export interface AnchorRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  top: number;
-  right: number;
-  bottom: number;
-  left: number;
-}
 
 export type EventMap = {
 
@@ -471,6 +456,8 @@ export type EventMap = {
    */
   'bus:resume-gap': { scope?: string; lastSeenId?: string; reason: string };
 };
+
+export type { AnchorRect } from './bus-ui-types';
 
 /**
  * Any valid channel name on the EventBus — `keyof EventMap`, the root channel
