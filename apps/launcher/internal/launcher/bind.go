@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -94,14 +95,23 @@ func Bind(args []string) int {
 	}
 	cli := bus.NewClient(t.base, t.token)
 
-	reply, err := cli.Request(context.Background(), "bind:update-body", map[string]any{
-		"resourceId":   resourceID,
-		"annotationId": annotationID,
-		"operations": []map[string]any{{
-			"op":   op,
-			"item": map[string]any{"type": "SpecificResource", "source": target, "purpose": "linking"},
-		}},
-	}, nil)
+	var item semiont.AnnotationBody
+	purpose := semiont.BodyPurpose("linking")
+	if err := item.FromSpecificResource(semiont.SpecificResource{
+		Type: "SpecificResource", Source: target, Purpose: &purpose,
+	}); err != nil {
+		u.fail("could not build the body item: %v", err)
+		return 1
+	}
+	cmd := semiont.BindUpdateBodyCommand{
+		ResourceId:   resourceID,
+		AnnotationId: annotationID,
+	}
+	cmd.Operations = []semiont.BindBodyOperation{{
+		Op:   semiont.BindBodyOperationOp(op),
+		Item: &item,
+	}}
+	reply, err := cli.Request(context.Background(), "bind:update-body", cmd, nil)
 	if err != nil {
 		return busFail(u, "bind", err)
 	}

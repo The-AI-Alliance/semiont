@@ -233,7 +233,11 @@ type RequestOptions struct {
 // correlationId, then return the first reply bearing that id. This ordering
 // is the whole ballgame — emitting first races the subscription and loses
 // fast replies.
-func (c *Client) Request(ctx context.Context, op Channel, payload map[string]any, opts *RequestOptions) (json.RawMessage, error) {
+// payload is `any` so callers pass the GENERATED request type for the
+// operation (BrowseResourcesRequest, MarkCreateRequest, …) instead of an
+// untyped map. The correlationId stays the client's to own — it is injected
+// after marshalling, so callers never invent one and never omit it.
+func (c *Client) Request(ctx context.Context, op Channel, payload any, opts *RequestOptions) (json.RawMessage, error) {
 	spec, ok := Operations[op]
 	if !ok {
 		return nil, fmt.Errorf("%q is not a request/reply operation", op)
@@ -260,8 +264,14 @@ func (c *Client) Request(ctx context.Context, op Channel, payload map[string]any
 
 	correlationID := uuid.NewString()
 	body := map[string]any{}
-	for k, v := range payload {
-		body[k] = v
+	if payload != nil {
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			return nil, fmt.Errorf("%s: encoding the request: %w", op, err)
+		}
+		if err := json.Unmarshal(raw, &body); err != nil {
+			return nil, fmt.Errorf("%s: request payload must be a JSON object: %w", op, err)
+		}
 	}
 	body["correlationId"] = correlationID
 	if err := c.Emit(rctx, op, body, opts.Scope); err != nil {

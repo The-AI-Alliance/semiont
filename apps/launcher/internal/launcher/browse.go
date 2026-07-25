@@ -120,26 +120,32 @@ func Browse(args []string) int {
 	}
 	cli := bus.NewClient(t.base, t.token)
 
+	// Typed request per operation — the generated types come from the same
+	// schemas the backend validates against, so a wrong or missing field is
+	// a compile error here rather than a rejection (or a silent drop) there.
 	var op bus.Channel
-	payload := map[string]any{}
+	var payload any
 	switch {
 	case entityTypes:
 		op = "browse:entity-types-requested"
+		payload = semiont.BrowseEntityTypesRequest{}
 	case annotations:
 		op = "browse:annotations-requested"
-		payload["resourceId"] = resourceID
+		payload = semiont.BrowseAnnotationsRequest{ResourceId: resourceID}
 	case resourceID != "":
 		op = "browse:resource-requested"
-		payload["resourceId"] = resourceID
+		payload = semiont.BrowseResourceRequest{ResourceId: resourceID}
 	default:
 		op = "browse:resources-requested"
-		payload["limit"] = limit
+		req := semiont.BrowseResourcesRequest{}
+		req.Limit = &limit
 		if search != "" {
-			payload["search"] = search
+			req.Search = &search
 		}
 		if entityType != "" {
-			payload["entityType"] = entityType
+			req.EntityType = &entityType
 		}
+		payload = req
 	}
 
 	reply, err := cli.Request(context.Background(), op, payload, nil)
@@ -178,53 +184,42 @@ func asBusRequestError(err error, target **bus.RequestError) bool {
 	return ok
 }
 
-// renderBrowse prints the human table. The reply envelope is
-// {correlationId, response: …}; only `response` is data.
+// renderBrowse prints the human table from the GENERATED reply type for each
+// operation. Nothing here parses a field name by hand — that habit shipped a
+// verb that printed blank identifiers because resources are JSON-LD (`@id`).
 func renderBrowse(u *ui, op bus.Channel, reply json.RawMessage) int {
-	var env struct {
-		Response json.RawMessage `json:"response"`
-	}
-	if json.Unmarshal(reply, &env) != nil || len(env.Response) == 0 {
-		// Not every reply wraps its data; fall back to the whole payload
-		// rather than pretending there was nothing.
-		env.Response = reply
-	}
 	switch op {
 	case "browse:resources-requested":
-		// GENERATED type, not hand-rolled: resources are JSON-LD and carry
-		// `@id`. Hand-writing `id` here printed an empty column against real
-		// data while the tests — whose fakes shared the same mistake —
-		// passed.
-		var r semiont.ListResourcesResponse
-		if err := json.Unmarshal(env.Response, &r); err != nil {
-			return rawFallback(env.Response)
+		var r semiont.BrowseResourcesResult
+		if err := json.Unmarshal(reply, &r); err != nil {
+			return rawFallback(reply)
 		}
-		if len(r.Resources) == 0 {
+		if len(r.Response.Resources) == 0 {
 			u.log("No resources match.")
 			return 0
 		}
-		for _, res := range r.Resources {
+		for _, res := range r.Response.Resources {
 			types := ""
 			if res.EntityTypes != nil && len(*res.EntityTypes) > 0 {
 				types = u.dim("(" + strings.Join(*res.EntityTypes, ", ") + ")")
 			}
 			fmt.Printf("  %-28s %s %s\n", res.Id, res.Name, types)
 		}
-		fmt.Printf("\n  %s\n", u.dim(fmt.Sprintf("%d shown, %d total", len(r.Resources), int(r.Total))))
+		fmt.Printf("\n  %s\n", u.dim(fmt.Sprintf("%d shown, %d total", len(r.Response.Resources), int(r.Response.Total))))
 	case "browse:resource-requested":
-		var r semiont.GetResourceResponse
-		if err := json.Unmarshal(env.Response, &r); err != nil {
-			return rawFallback(env.Response)
+		var r semiont.BrowseResourceResult
+		if err := json.Unmarshal(reply, &r); err != nil {
+			return rawFallback(reply)
 		}
-		fmt.Printf("  %s  %s\n", u.bold(r.Resource.Name), u.dim(r.Resource.Id))
-		if r.Resource.EntityTypes != nil && len(*r.Resource.EntityTypes) > 0 {
-			fmt.Printf("  %s\n", u.dim("entity types: "+strings.Join(*r.Resource.EntityTypes, ", ")))
+		fmt.Printf("  %s  %s\n", u.bold(r.Response.Resource.Name), u.dim(r.Response.Resource.Id))
+		if r.Response.Resource.EntityTypes != nil && len(*r.Response.Resource.EntityTypes) > 0 {
+			fmt.Printf("  %s\n", u.dim("entity types: "+strings.Join(*r.Response.Resource.EntityTypes, ", ")))
 		}
-		fmt.Printf("  %s\n", u.dim(fmt.Sprintf("%d annotation(s)", len(r.Annotations))))
+		fmt.Printf("  %s\n", u.dim(fmt.Sprintf("%d annotation(s)", len(r.Response.Annotations))))
 	case "browse:annotations-requested":
 		var r semiont.BrowseAnnotationsResult
 		if err := json.Unmarshal(reply, &r); err != nil {
-			return rawFallback(env.Response)
+			return rawFallback(reply)
 		}
 		if len(r.Response.Annotations) == 0 {
 			u.log("No annotations on that resource.")
@@ -237,7 +232,7 @@ func renderBrowse(u *ui, op bus.Channel, reply json.RawMessage) int {
 	case "browse:entity-types-requested":
 		var r semiont.BrowseEntityTypesResult
 		if err := json.Unmarshal(reply, &r); err != nil {
-			return rawFallback(env.Response)
+			return rawFallback(reply)
 		}
 		if len(r.Response.EntityTypes) == 0 {
 			u.log("This KB declares no entity types yet.")
@@ -247,7 +242,7 @@ func renderBrowse(u *ui, op bus.Channel, reply json.RawMessage) int {
 			fmt.Printf("  %s\n", e)
 		}
 	default:
-		return rawFallback(env.Response)
+		return rawFallback(reply)
 	}
 	return 0
 }

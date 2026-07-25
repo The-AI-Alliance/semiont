@@ -5373,19 +5373,23 @@ func TestMatchGathersThenSearches(t *testing.T) {
 
 func TestBeckonEmitsWithoutClaimingDelivery(t *testing.T) {
 	s := busScenario(t)
-	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-1", "--annotation", "ann-2", "--message", "look here")
+	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-1", "--annotation", "ann-2")
 	if code != 0 {
 		t.Fatalf("beckon: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "stdout", stdout, "res-1", "ann-2", "no delivery confirmation")
 	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
-	mustContain(t, "emit", string(b), `"channel":"beckon:focus"`, `"resourceId":"res-1"`,
-		`"annotationId":"ann-2"`, `"message":"look here"`)
+	// BeckonFocusEvent carries exactly these two fields; a `message` the
+	// schema does not declare must not reach the wire.
+	mustContain(t, "emit", string(b), `"channel":"beckon:focus"`, `"resourceId":"res-1"`, `"annotationId":"ann-2"`)
+	if strings.Contains(string(b), `"message"`) {
+		t.Errorf("emitted a field BeckonFocusEvent does not declare:\n%s", b)
+	}
 }
 
 func TestBeckonNeedsAResource(t *testing.T) {
 	s := busScenario(t)
-	stdout, _, code := s.run(t, "beckon", "--message", "hi")
+	stdout, _, code := s.run(t, "beckon")
 	if code == 0 {
 		t.Fatal("beckon without a resource must refuse")
 	}

@@ -152,7 +152,7 @@ func Mark(args []string) int {
 
 	if deleteID != "" {
 		_, err := cli.Request(context.Background(), "mark:delete",
-			map[string]any{"annotationId": deleteID, "resourceId": resourceFlag}, nil)
+			semiont.MarkDeleteCommand{AnnotationId: deleteID, ResourceId: &resourceFlag}, nil)
 		if err != nil {
 			return busFail(u, "mark --delete", err)
 		}
@@ -175,41 +175,88 @@ func Mark(args []string) int {
 		}
 	}
 
-	target := map[string]any{"source": resourceID}
+	// Built with the generated types and their union constructors: a
+	// selector or body assembled as a bare map is exactly how a wrong field
+	// name reaches the backend unnoticed.
+	target := semiont.AnnotationTarget{Source: resourceID}
 	switch {
 	case quote != "":
-		sel := map[string]any{"type": "TextQuoteSelector", "exact": quote}
+		sel := semiont.TextQuoteSelector{Type: "TextQuoteSelector", Exact: quote}
 		if prefix != "" {
-			sel["prefix"] = prefix
+			sel.Prefix = &prefix
 		}
 		if suffix != "" {
-			sel["suffix"] = suffix
+			sel.Suffix = &suffix
 		}
-		target["selector"] = sel
+		var u semiont.AnnotationTarget_Selector
+		if err := u.FromTextQuoteSelector(sel); err != nil {
+			return markBuildFail(err)
+		}
+		target.Selector = &u
 	case start >= 0:
-		target["selector"] = map[string]any{"type": "TextPositionSelector", "start": start, "end": end}
+		var u semiont.AnnotationTarget_Selector
+		if err := u.FromTextPositionSelector(semiont.TextPositionSelector{
+			Type: "TextPositionSelector", Start: float32(start), End: float32(end),
+		}); err != nil {
+			return markBuildFail(err)
+		}
+		target.Selector = &u
 	}
 
-	var bodies []map[string]any
+	var bodies []semiont.AnnotationBody
 	if bodyText != "" {
-		bodies = append(bodies, map[string]any{"type": "TextualBody", "value": bodyText, "purpose": "commenting"})
+		var b semiont.AnnotationBody
+		purpose := semiont.BodyPurpose("commenting")
+		if err := b.FromTextualBody(semiont.TextualBody{
+			Type: "TextualBody", Value: bodyText, Purpose: &purpose,
+		}); err != nil {
+			return markBuildFail(err)
+		}
+		bodies = append(bodies, b)
 	}
 	if link != "" {
-		bodies = append(bodies, map[string]any{"type": "SpecificResource", "source": link, "purpose": "linking"})
+		var b semiont.AnnotationBody
+		purpose := semiont.BodyPurpose("linking")
+		if err := b.FromSpecificResource(semiont.SpecificResource{
+			Type: "SpecificResource", Source: link, Purpose: &purpose,
+		}); err != nil {
+			return markBuildFail(err)
+		}
+		bodies = append(bodies, b)
 	}
 	for _, et := range entityTypes {
-		bodies = append(bodies, map[string]any{"type": "TextualBody", "value": et, "purpose": "tagging"})
+		var b semiont.AnnotationBody
+		purpose := semiont.BodyPurpose("tagging")
+		if err := b.FromTextualBody(semiont.TextualBody{
+			Type: "TextualBody", Value: et, Purpose: &purpose,
+		}); err != nil {
+			return markBuildFail(err)
+		}
+		bodies = append(bodies, b)
 	}
 
-	request := map[string]any{"target": target, "motivation": motivation}
+	request := semiont.CreateAnnotationRequest{
+		Target:     target,
+		Motivation: semiont.Motivation(motivation),
+	}
+	// The body is a union of "one body" or "a list of bodies" — the schema
+	// models both, so use the list form only when there is more than one.
 	if len(bodies) == 1 {
-		request["body"] = bodies[0]
+		var body semiont.CreateAnnotationRequest_Body
+		if err := body.FromAnnotationBody(bodies[0]); err != nil {
+			return markBuildFail(err)
+		}
+		request.Body = &body
 	} else if len(bodies) > 1 {
-		request["body"] = bodies
+		var body semiont.CreateAnnotationRequest_Body
+		if err := body.FromCreateAnnotationRequestBody1(bodies); err != nil {
+			return markBuildFail(err)
+		}
+		request.Body = &body
 	}
 
 	reply, err := cli.Request(context.Background(), "mark:create-request",
-		map[string]any{"resourceId": resourceID, "request": request}, nil)
+		semiont.MarkCreateRequest{ResourceId: resourceID, Request: request}, nil)
 	if err != nil {
 		return busFail(u, "mark", err)
 	}
@@ -229,4 +276,12 @@ func Mark(args []string) int {
 	}
 	u.ok("Marked %s → %s %s", resourceID, id, u.dim("("+motivation+")"))
 	return 0
+}
+
+// markBuildFail: a union constructor only fails on a programming error here
+// (the value cannot be encoded), so say so plainly rather than dressing it
+// as a backend problem.
+func markBuildFail(err error) int {
+	newUI(false).fail("could not build the annotation: %v", err)
+	return 1
 }

@@ -24,7 +24,8 @@ context surrounding one annotation.
 
 Options:
   --depth <n>          Resource-graph traversal depth
-  --max-resources <n>  Cap on related resources
+  --max-resources <n>  Cap on related resources (resource focus)
+  --context-window <n> Characters of text around the annotation (annotation focus)
   --no-content         Omit resource content (metadata only)
   --summary            Include summaries
   --json               Raw JSON reply instead of a summary
@@ -39,7 +40,7 @@ func Gather(args []string) int {
 	u := newUI(false)
 	var positional []string
 	var repo string
-	depth, maxResources := 0, 0
+	depth, maxResources, contextWindow := 0, 0, 0
 	noContent, summary, asJSON, wantLocal := false, false, false, false
 
 	for i := 0; i < len(args); i++ {
@@ -70,6 +71,12 @@ func Gather(args []string) int {
 				return 1
 			}
 			maxResources = n
+		case "--context-window":
+			n, ok := num()
+			if !ok {
+				return 1
+			}
+			contextWindow = n
 		case "--repo":
 			if i+1 >= len(args) {
 				u.fail("Missing value for --repo")
@@ -112,39 +119,48 @@ func Gather(args []string) int {
 	}
 	cli := bus.NewClient(t.base, t.token)
 
-	options := map[string]any{"includeContent": !noContent, "includeSummary": summary}
-	if depth > 0 {
-		options["depth"] = depth
-	}
-	if maxResources > 0 {
-		options["maxResources"] = maxResources
-	}
-
+	// The two gathers take DIFFERENT option sets — the resource variant
+	// traverses a graph, the annotation variant windows text around a mark.
+	// Sending one blob to both (what the untyped version did) silently fed
+	// each the other's fields.
 	var op bus.Channel
-	payload := map[string]any{"resourceId": positional[0], "options": options}
+	var payload any
 	if len(positional) == 2 {
 		op = "gather:requested" // annotation focus — streaming
-		payload["annotationId"] = positional[1]
+		req := semiont.GatherAnnotationRequest{
+			ResourceId:   positional[0],
+			AnnotationId: positional[1],
+		}
+		if contextWindow > 0 {
+			req.Options = &semiont.GatherAnnotationOptions{ContextWindow: &contextWindow}
+		}
+		payload = req
 	} else {
 		op = "gather:resource-requested"
+		req := semiont.GatherResourceRequest{ResourceId: positional[0]}
+		req.Options.IncludeContent = !noContent
+		req.Options.IncludeSummary = summary
+		req.Options.Depth = depth
+		req.Options.MaxResources = maxResources
+		payload = req
 	}
 
 	opts := &bus.RequestOptions{}
 	if !asJSON && bus.Operations[op].Streaming() {
-		// A gather can take a while; say what it is doing rather than
-		// leaving a silent terminal (the codespace-wait lesson).
-		opts.Progress = func(_ bus.Channel, payload []byte) {
-			var p struct {
-				Step    string `json:"step"`
-				Message string `json:"message"`
+		// Narrate the wait rather than leaving a silent terminal (the
+		// codespace-wait lesson). GatherProgress carries message+percentage —
+		// there is no "step" field, whatever the earlier hand-rolled struct
+		// claimed.
+		opts.Progress = func(_ bus.Channel, raw []byte) {
+			var p semiont.GatherProgress
+			if json.Unmarshal(raw, &p) != nil || p.Message == nil {
+				return
 			}
-			_ = json.Unmarshal(payload, &p)
-			switch {
-			case p.Message != "":
-				u.log("%s", p.Message)
-			case p.Step != "":
-				u.log("gathering: %s", p.Step)
+			if p.Percentage != nil {
+				u.log("%s (%.0f%%)", *p.Message, *p.Percentage)
+				return
 			}
+			u.log("%s", *p.Message)
 		}
 	}
 

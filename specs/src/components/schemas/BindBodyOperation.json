@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "description": "One body-list edit on a linking annotation. Named rather than inlined so both generated languages get a real type — an inline object becomes an anonymous struct callers must re-spell by hand at every use.",
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": ["add", "remove", "replace"],
+      "description": "The type of body operation"
+    },
+    "item": {
+      "$ref": "./AnnotationBody.json",
+      "description": "Body item for add operations"
+    },
+    "oldItem": {
+      "$ref": "./AnnotationBody.json",
+      "description": "Previous body item for replace operations"
+    },
+    "newItem": {
+      "$ref": "./AnnotationBody.json",
+      "description": "Replacement body item for replace operations"
+    }
+  },
+  "required": ["op"]
+}

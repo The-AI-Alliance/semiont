@@ -11,10 +11,11 @@ import (
 	"fmt"
 	"strings"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
-const beckonUsage = `Usage: semiont beckon --resource <resourceId> [--annotation <id>] [--message <text>]
+const beckonUsage = `Usage: semiont beckon --resource <resourceId> [--annotation <id>]
 
 Draw attention to a resource (or one annotation in it) for anyone watching
 this KB in a Browser.
@@ -22,7 +23,6 @@ this KB in a Browser.
 Options:
   --resource <id>      The resource to point at (required)
   --annotation <id>    Narrow the attention to one annotation
-  --message <text>     A note to show alongside
   --repo <owner/name>  Target a codespace stack (default: the local stack)
   --runtime <rt>       Target the local stack explicitly
   --help               Show this help
@@ -35,7 +35,7 @@ that the signal was sent — not that a participant is watching.
 
 func Beckon(args []string) int {
 	u := newUI(false)
-	var resource, annotation, message, repo string
+	var resource, annotation, repo string
 	wantLocal := false
 
 	for i := 0; i < len(args); i++ {
@@ -54,8 +54,6 @@ func Beckon(args []string) int {
 			resource, ok = val()
 		case "--annotation":
 			annotation, ok = val()
-		case "--message":
-			message, ok = val()
 		case "--repo":
 			repo, ok = val()
 		case "--runtime":
@@ -91,14 +89,14 @@ func Beckon(args []string) int {
 	}
 	cli := bus.NewClient(t.base, t.token)
 
-	payload := map[string]any{"resourceId": resource}
+	// BeckonFocusEvent carries a resource and an annotation — and nothing
+	// else. An earlier version sent a `message` field the schema does not
+	// declare; the flag is gone rather than quietly dropped on the wire.
+	ev := semiont.BeckonFocusEvent{ResourceId: &resource}
 	if annotation != "" {
-		payload["annotationId"] = annotation
+		ev.AnnotationId = &annotation
 	}
-	if message != "" {
-		payload["message"] = message
-	}
-	if err := cli.Emit(context.Background(), "beckon:focus", payload, ""); err != nil {
+	if err := cli.Emit(context.Background(), "beckon:focus", ev, ""); err != nil {
 		return busFail(u, "beckon", err)
 	}
 

@@ -102,33 +102,29 @@ func Match(args []string) int {
 
 	// Step 1: the annotation's context (streaming operation).
 	u.log("Gathering context for %s...", annotationID)
-	gathered, err := cli.Request(ctx, "gather:requested", map[string]any{
-		"resourceId":   resourceID,
-		"annotationId": annotationID,
+	gathered, err := cli.Request(ctx, "gather:requested", semiont.GatherAnnotationRequest{
+		ResourceId:   resourceID,
+		AnnotationId: annotationID,
 	}, nil)
 	if err != nil {
 		return busFail(u, "match (gather step)", err)
 	}
-	var genv struct {
-		Response json.RawMessage `json:"response"`
-	}
-	if json.Unmarshal(gathered, &genv) != nil || len(genv.Response) == 0 {
-		genv.Response = gathered
-	}
-	var contextDoc any
-	if json.Unmarshal(genv.Response, &contextDoc) != nil {
+	var gc semiont.GatherAnnotationComplete
+	if json.Unmarshal(gathered, &gc) != nil {
 		u.fail("match: the gathered context could not be read.")
 		return 1
 	}
 
 	// Step 2: the scored search, grounded by that context.
-	reply, err := cli.Request(ctx, "match:search-requested", map[string]any{
-		"resourceId":         resourceID,
-		"referenceId":        annotationID,
-		"context":            contextDoc,
-		"limit":              limit,
-		"useSemanticScoring": !noSemantic,
-	}, nil)
+	req := semiont.MatchSearchRequest{
+		ResourceId:  resourceID,
+		ReferenceId: annotationID,
+		Context:     gc.Response,
+		Limit:       &limit,
+	}
+	semantic := !noSemantic
+	req.UseSemanticScoring = &semantic
+	reply, err := cli.Request(ctx, "match:search-requested", req, nil)
 	if err != nil {
 		return busFail(u, "match", err)
 	}
