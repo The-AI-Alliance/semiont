@@ -5332,3 +5332,66 @@ func TestBindAddsAndRemovesTarget(t *testing.T) {
 	b, _ = os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
 	mustContain(t, "emit", string(b), `"op":"remove"`)
 }
+
+func TestMatchGathersThenSearches(t *testing.T) {
+	// match is TWO exchanges: the search requires a context payload, so a
+	// gather must precede it — not an optimization, a precondition.
+	s := busScenario(t,
+		`FAKERT_BUS_REPLY_gather_requested={"content":"surrounding text"}`,
+		`FAKERT_BUS_REPLY_match_search_requested={"candidates":[`+
+			`{"id":"res-7","name":"Acme MSA","score":0.91},{"id":"res-8","name":"Side Letter","score":0.44}]}`)
+	stdout, stderr, code := s.run(t, "match", "res-1", "ann-1", "--limit", "5")
+	if code != 0 {
+		t.Fatalf("match: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "res-7", "Acme MSA", "0.910", "2 candidate(s)", "semiont bind res-1 ann-1")
+	// The LAST emit is the search, carrying the gathered context and our flags.
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "search emit", string(b),
+		`"channel":"match:search-requested"`, `"referenceId":"ann-1"`,
+		`"limit":5`, `"useSemanticScoring":true`, `"context"`)
+}
+
+func TestBeckonEmitsWithoutClaimingDelivery(t *testing.T) {
+	s := busScenario(t)
+	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-1", "--annotation", "ann-2", "--message", "look here")
+	if code != 0 {
+		t.Fatalf("beckon: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stdout", stdout, "res-1", "ann-2", "no delivery confirmation")
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	mustContain(t, "emit", string(b), `"channel":"beckon:focus"`, `"resourceId":"res-1"`,
+		`"annotationId":"ann-2"`, `"message":"look here"`)
+}
+
+func TestBeckonNeedsAResource(t *testing.T) {
+	s := busScenario(t)
+	stdout, _, code := s.run(t, "beckon", "--message", "hi")
+	if code == 0 {
+		t.Fatal("beckon without a resource must refuse")
+	}
+	mustContain(t, "usage", stdout, "Usage: semiont beckon")
+}
+
+func TestListenRefusesWithoutSession(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: %s", stderr)
+	}
+	stdout, stderr, code := s.run(t, "listen")
+	if code == 0 {
+		t.Fatal("listen without a session must refuse")
+	}
+	mustContain(t, "fix-it", stdout+stderr, "semiont login")
+}
+
+func TestListenHelpNamesTheBridgingConstraint(t *testing.T) {
+	s := newScenario(t)
+	stdout, _, code := s.run(t, "listen", "--help")
+	if code != 0 {
+		t.Fatalf("listen --help: exit %d", code)
+	}
+	// The silent-failure trap the bus docs warn about must be stated, not
+	// discovered by waiting forever on an unbridged channel.
+	mustContain(t, "help", stdout, "bridges", "deliver nothing")
+}

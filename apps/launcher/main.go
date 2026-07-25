@@ -30,6 +30,9 @@ Commands:
   gather    Assemble LLM context for a resource or annotation (needs login)
   mark      Annotate a resource; --delete removes an annotation (needs login)
   bind      Resolve a linking annotation to its target resource (needs login)
+  match     Find resources an annotation could bind to (needs login)
+  beckon    Draw attention to a resource or annotation (needs login)
+  listen    Follow the KB's live event stream (needs login)
   secret    Register where config secrets come from (pointers, never values)
   status    Report container state and application health per service
   logs      Follow the running stack's service logs
@@ -72,6 +75,12 @@ func main() {
 		code = launcher.Mark(rest)
 	case "bind":
 		code = launcher.Bind(rest)
+	case "match":
+		code = launcher.Match(rest)
+	case "beckon":
+		code = launcher.Beckon(rest)
+	case "listen":
+		code = launcher.Listen(rest)
 	case "secret":
 		code = launcher.Secret(rest)
 	case "status":

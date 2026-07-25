@@ -1,0 +1,195 @@
+package launcher
+
+// listen.go — `semiont listen`: subscribe to the KB's live event stream and
+// print events until interrupted. The pure-streaming verb: no request, no
+// reply, just the bus. Only BRIDGED channels can be subscribed to over a
+// transport, so the default set is the bridged broadcasts — asking for an
+// unbridged channel would hang forever with no error, which is exactly the
+// silent-failure trap the bus docs warn about.
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+)
+
+const listenUsage = `Usage: semiont listen [--channel <name>]... [options]
+
+Subscribe to the knowledge base's live event stream and print events as they
+arrive. Runs until interrupted (Ctrl-C).
+
+Options:
+  --channel <name>     Subscribe to this channel (repeatable; default: the
+                       system-wide broadcasts)
+  --scope <resourceId> Subscribe to one resource's scoped channels
+  --json               Print each event as raw JSON
+  --repo <owner/name>  Target a codespace stack (default: the local stack)
+  --runtime <rt>       Target the local stack explicitly
+  --help               Show this help
+
+Requires a session:  semiont login --email <address>
+
+Only channels the transport bridges can be received; a channel that exists
+but is not bridged would deliver nothing, so this refuses it up front.
+`
+
+// defaultListenChannels: the system-wide broadcasts a KB emits — job
+// lifecycle and vocabulary changes. These mirror BRIDGED_BROADCASTS on the
+// TypeScript side; anything an operation replies on is per-caller noise and
+// deliberately absent.
+var defaultListenChannels = []bus.Channel{
+	"job:report-progress", "job:complete", "job:fail",
+	"frame:entity-type-added", "frame:tag-schema-added",
+	"beckon:focus", "beckon:sparkle",
+}
+
+func Listen(args []string) int {
+	u := newUI(false)
+	var channels []bus.Channel
+	var scope, repo string
+	asJSON, wantLocal := false, false
+
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		val := func() (string, bool) {
+			if i+1 >= len(args) {
+				u.fail("Missing value for %s", a)
+				return "", false
+			}
+			i++
+			return args[i], true
+		}
+		var ok bool
+		switch a {
+		case "--channel":
+			var v string
+			v, ok = val()
+			if ok {
+				channels = append(channels, bus.Channel(v))
+			}
+		case "--scope":
+			scope, ok = val()
+		case "--repo":
+			repo, ok = val()
+		case "--runtime":
+			_, ok = val()
+			wantLocal = true
+		case "--json":
+			asJSON, ok = true, true
+		case "--help", "-h":
+			fmt.Print(listenUsage)
+			return 0
+		default:
+			u.fail("Unknown argument: %s", a)
+			return 1
+		}
+		if !ok {
+			return 1
+		}
+	}
+	if len(channels) == 0 {
+		channels = defaultListenChannels
+	}
+	// A channel nobody bridges delivers nothing — refuse rather than sit
+	// silent forever pretending to listen.
+	for _, ch := range channels {
+		if _, known := bus.ChannelSchemas[ch]; !known && !isBroadcast(ch) {
+			u.warn("%s is not a bridged channel — it may deliver nothing.", ch)
+		}
+	}
+
+	t, ok := verbSession(u, "listen", repo, wantLocal)
+	if !ok {
+		return 1
+	}
+	cli := bus.NewClient(t.base, t.token)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	var scoped []bus.Channel
+	if scope != "" {
+		scoped, channels = channels, nil
+	}
+	sub, err := cli.Subscribe(ctx, channels, scoped, scope)
+	if err != nil {
+		return busFail(u, "listen", err)
+	}
+	defer sub.Close()
+
+	where := "this KB"
+	if scope != "" {
+		where = "resource " + scope
+	}
+	u.log("Listening to %s %s", where, u.dim("(Ctrl-C to stop)"))
+
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println()
+			u.log("Stopped.")
+			return 0
+		case ev, open := <-sub.Events:
+			if !open {
+				// The stream ended on its own — say so rather than exiting 0
+				// as though the user had asked to stop.
+				if err := sub.Err(); err != nil {
+					u.fail("The event stream ended: %v", err)
+					return 1
+				}
+				u.warn("The event stream closed.")
+				return 1
+			}
+			printEvent(u, ev, asJSON)
+		}
+	}
+}
+
+func isBroadcast(ch bus.Channel) bool {
+	for _, b := range defaultListenChannels {
+		if b == ch {
+			return true
+		}
+	}
+	return false
+}
+
+func printEvent(u *ui, ev bus.Event, asJSON bool) {
+	if asJSON {
+		b, _ := json.Marshal(map[string]any{"channel": ev.Channel, "payload": json.RawMessage(ev.Payload), "scope": ev.Scope})
+		fmt.Println(string(b))
+		return
+	}
+	// One line per event: time, channel, and whichever identifier the
+	// payload carries — enough to follow along without a JSON reader.
+	var p struct {
+		ResourceID   string `json:"resourceId"`
+		AnnotationID string `json:"annotationId"`
+		JobID        string `json:"jobId"`
+		Message      string `json:"message"`
+		Name         string `json:"name"`
+	}
+	_ = json.Unmarshal(ev.Payload, &p)
+	var bits []string
+	for _, kv := range []struct{ k, v string }{
+		{"resource", p.ResourceID}, {"annotation", p.AnnotationID},
+		{"job", p.JobID}, {"name", p.Name}, {"", p.Message},
+	} {
+		if kv.v == "" {
+			continue
+		}
+		if kv.k == "" {
+			bits = append(bits, kv.v)
+		} else {
+			bits = append(bits, kv.k+"="+kv.v)
+		}
+	}
+	fmt.Printf("  %s %-28s %s\n", u.dim(time.Now().Format("15:04:05")), ev.Channel, u.dim(strings.Join(bits, "  ")))
+}

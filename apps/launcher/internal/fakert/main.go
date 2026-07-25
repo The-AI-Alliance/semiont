@@ -896,6 +896,7 @@ var busOperations = map[string]struct{ result, failure string }{
 	"mark:create-request":           {"mark:create-ok", "mark:create-failed"},
 	"mark:delete":                   {"mark:delete-ok", "mark:delete-failed"},
 	"bind:update-body":              {"bind:body-updated", "bind:body-update-failed"},
+	"match:search-requested":        {"match:search-results", "match:search-failed"},
 }
 
 func killServe(name string) bool {
