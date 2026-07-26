@@ -99,7 +99,10 @@ function parseArgs(argv: string[]): Options {
 async function readPasswordFromStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
-  const first = Buffer.concat(chunks).toString('utf8').split('\n', 1)[0];
+  // split() on empty input yields [''], but noUncheckedIndexedAccess types the
+  // index access as possibly-undefined regardless — empty stdin is a refusal
+  // either way, two lines down.
+  const first = Buffer.concat(chunks).toString('utf8').split('\n', 1)[0] ?? '';
   const password = first.replace(/\r$/, '');
   if (!password) throw new Error('--password-stdin was given but stdin carried no password');
   if (password.length < 8) throw new Error('Password must be at least 8 characters long');
