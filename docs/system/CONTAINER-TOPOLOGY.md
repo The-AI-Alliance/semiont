@@ -122,15 +122,11 @@ For the wire-level event protocol, see **[../protocol/EVENT-BUS.md](../protocol/
 
 Services run on different platforms, configured in `~/.semiontconfig` per environment. Each platform is a different adapter for hosting the same npm packages — the partition into "frontend / backend / worker / smelter" is a deployment choice (which adapter you pick), not an architectural one.
 
-### Platform types
+### How stacks are run
 
-The currently supported platforms:
+Every Semiont service runs as a **container** — Docker, Podman, or Apple Container. The diagram above shows the layout. A KB stack is brought up either by the host-installed `semiont` launcher (any of the three runtimes, locally or in a GitHub Codespace) or by `docker compose` against the KB's `.semiont/compose/backend.yml`. See [platforms/README.md](platforms/README.md) and [LOCAL-SEMIONT.md](LOCAL-SEMIONT.md).
 
-- **POSIX** — Local processes (monorepo development). Each Semiont service is a Node process started directly on the host. See [platforms/POSIX.md](platforms/POSIX.md) and [LOCAL-SEMIONT.md](LOCAL-SEMIONT.md) for running Semiont locally.
-- **Container** — Docker / Podman / Apple containers. Each service is a containerized Node process; the diagram above shows this layout. This is what KB stacks use — locally via the host-installed `semiont` launcher (any of the three runtimes) and in **GitHub Codespaces** via `docker compose` in the devcontainer. See [platforms/Container.md](platforms/Container.md).
-These are what the Semiont CLI knows how to provision and manage today. They share the same containers because they share the same npm packages — the difference is where the Node processes run, not what they run.
-
-**There is no cloud platform.** The AWS platform (ECS/RDS/Neptune via CDK) was removed, along with the `publish`/`update` commands that drove it. The published images can of course be scheduled by a cloud container platform such as ECS Fargate, but that is your own integration — see [Running Semiont on AWS](platforms/AWS.md).
+**There is no platform abstraction, and no cloud platform.** `@semiont/cli` once carried a per-platform handler matrix (`posix`, `container`, `aws`, `external`, `mock`) plus `publish`/`update` for AWS; all of it has been deleted and that package is now a deprecation stub. The published images can of course be scheduled by a cloud container platform such as ECS Fargate, but that is your own integration — see [Running Semiont on AWS](platforms/AWS.md).
 
 Other deployment shapes are valid and require no architectural changes — they just don't have first-class CLI tooling yet:
 

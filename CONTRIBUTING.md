@@ -196,49 +196,20 @@ Then create a Pull Request from your fork to `The-AI-Alliance/semiont:main` on G
 
 **For maintainers with push access:** You may push branches directly to the main repository, but pull requests are still required for code review.
 
-## 🌍 Adding New Platform Support
+## 🌍 Deployment Targets
 
-**This is the most valuable contribution you can make!**
+Semiont ships as container images (`semiont-backend`, `semiont-frontend`, `semiont-worker`,
+`semiont-smelter`, `semiont-weaver`) plus the infrastructure containers a stack needs. There is no
+per-platform plugin system: the CLI's old `(platform × serviceType × command)` handler matrix —
+and the `@semiont/cli` package itself — have been removed.
 
-Platform contributions enable Semiont to run on new cloud providers and deployment targets. We have comprehensive guides for extending the CLI:
+Stacks are brought up by the host-installed [`semiont` launcher](apps/launcher/README.md) or by
+`docker compose` against a KB's `.semiont/compose/backend.yml`. Running the images on another
+container platform (ECS Fargate, Kubernetes, Nomad) needs no code here — see
+[Running Semiont on AWS](docs/system/platforms/AWS.md) for the integration checklist and
+[Deployment](docs/system/administration/DEPLOYMENT.md) for the supported paths.
 
-### Developer Guides
-
-- **[Adding Platforms](apps/cli/docs/ADDING_PLATFORMS.md)** - Complete guide to implementing a new platform (GCP, Azure, DigitalOcean, etc.)
-- **[Adding Services](apps/cli/docs/ADDING_SERVICES.md)** - Add new service types to the platform
-- **[Adding Service Types](apps/cli/docs/ADDING_SERVICE_TYPES.md)** - Extend service type definitions
-- **[Adding Commands](apps/cli/docs/ADDING_COMMANDS.md)** - Add new CLI commands
-
-### Quick Overview
-
-1. **Study existing platforms** in `apps/cli/src/platforms/` (AWS, Container, POSIX)
-2. **Implement the Platform interface** for your target platform
-3. **Add platform-specific resources** and deployment logic
-4. **Write tests** for platform operations
-5. **Document the platform** in `docs/system/platforms/YOUR_PLATFORM.md`
-
-Follow the [Adding Platforms guide](apps/cli/docs/ADDING_PLATFORMS.md) for step-by-step instructions.
-
-### Platform PR Checklist
-
-When submitting a new platform:
-
-- [ ] Platform implements complete `Platform` interface
-- [ ] Unit tests for platform implementation (>80% coverage)
-- [ ] Integration tests for deployment workflow
-- [ ] Documentation in `docs/system/platforms/PLATFORM.md`
-- [ ] Updated [docs/system/CONTAINER-TOPOLOGY.md](docs/system/CONTAINER-TOPOLOGY.md) with the new platform option
-- [ ] Example environment configuration
-- [ ] Cost estimation guidance
-- [ ] Migration guide from existing platforms
-
-### Platform Examples to Follow
-
-Study existing platforms as reference:
-
-- **[AWS](apps/cli/src/platforms/aws/)** - Most complete implementation (ECS, RDS, ALB, CloudFront)
-- **[Container](apps/cli/src/platforms/container/)** - Container runtime abstraction
-- **[POSIX](apps/cli/src/platforms/posix/)** - Local development platform
+If you want to improve how stacks are launched, the launcher (Go, `apps/launcher/`) is the place.
 
 ## 🔄 Pull Request Process
 
@@ -335,7 +306,6 @@ All contributions should include appropriate tests. We have comprehensive testin
 
 - **[System Testing Guide](docs/development/TESTING.md)** - Overall testing strategy, Vitest, MSW v2, frontend testing
 - **[Backend Testing Guide](apps/backend/docs/TESTING.md)** - Jest, unit tests, Prisma database tests
-- **[CLI Testing Guide](apps/cli/TESTING.md)** - Platform tests, command tests, mocking
 
 ### Quick Start
 
@@ -348,7 +318,6 @@ npm test
 ```bash
 cd apps/backend && npm test     # Backend tests (Jest)
 cd apps/frontend && npm test    # Frontend tests (Vitest)
-cd apps/cli && npm test         # CLI tests
 ```
 
 ### Test Requirements for PRs
@@ -378,7 +347,7 @@ Update docs when you:
 - **System-wide**: `docs/` - Architecture, deployment, testing
 - **Backend**: `apps/backend/docs/` - Backend-specific guides
 - **Frontend**: `apps/frontend/docs/` - Frontend-specific guides
-- **CLI**: `apps/cli/README.md` - CLI usage
+- **CLI**: `apps/cli/README.md` — deprecated; use the [launcher](apps/launcher/README.md)
 - **Platforms**: `docs/system/platforms/` - Platform-specific deployment
 
 ### Documentation Style

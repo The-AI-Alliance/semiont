@@ -1,124 +1,45 @@
-# Semiont CLI
+# @semiont/cli — deprecated
 
 [![npm version](https://img.shields.io/npm/v/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli)
-[![npm downloads](https://img.shields.io/npm/dm/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli)
 [![License](https://img.shields.io/npm/l/@semiont/cli.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The Semiont CLI provides two categories of commands:
+**This package no longer provides any commands.** It ships a single entry point that prints a
+deprecation notice and exits.
 
-| Category | Commands | Auth model |
-|----------|----------|------------|
-| **Knowledge Base** | `init`, `backup`, `restore`, `verify`, `export`, `import` | None / `--environment` |
-| **Infrastructure** | `local`, `provision`, `start`, `stop`, `check`, `publish`, `update`, `useradd`, `clean`, `watch` | `--environment` |
+## Use the launcher instead
 
-> **Knowledge work lives in the launcher.** `login`, `browse`, `gather`, `mark`, `match`, `bind`,
-> `listen`, `yield`, and `beckon` are verbs of the host-installed `semiont` launcher (see
-> [apps/launcher](../launcher/README.md)), not of this package. For programmatic use, reach the same
-> capabilities through [`@semiont/sdk`](../../packages/sdk/README.md).
-
----
-
-## Installation
+The `semiont` launcher is a single static binary — no npm, no Node.js:
 
 ```bash
-npm install -g @semiont/cli
-semiont --help
+brew install the-ai-alliance/semiont/semiont
 ```
 
-Or from source:
+Then, from your knowledge-base directory:
 
 ```bash
-cd apps/cli && npm run build && npm link
+semiont start        # bring the stack up
+semiont status       # container state + per-service health
+semiont logs         # follow service logs
+semiont stop         # tear down
 ```
 
----
+It also carries the knowledge-work verbs — `login`, `browse`, `gather`, `mark`, `match`, `bind`,
+`listen`, `yield`, `beckon`. See [apps/launcher](../launcher/README.md).
 
-## Common Options
+## Where everything went
 
-All commands support:
+| Was | Now |
+|---|---|
+| `browse`, `gather`, `mark`, `match`, `bind`, `beckon`, `listen`, `yield`, `login` | the [launcher](../launcher/README.md) |
+| `init`, `start`, `stop`, `clean` | the [launcher](../launcher/README.md) |
+| `backup`, `restore`, `export`, `import` | backend endpoints under `/api/{admin,moderate}/exchange/*`, and the browser UI — see [Backup & Restore](../../docs/system/administration/BACKUP.md) and [Linked Data Exchange](../../docs/protocol/EXCHANGE.md) |
+| `provision`, `check`, `watch`, `useradd`, `verify`, `publish`, `update`, `mv` | removed |
+| programmatic access | [`@semiont/sdk`](../../packages/sdk/README.md) |
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--dry-run` | | Preview changes without applying |
-| `--verbose` | `-v` | Show detailed output |
-| `--quiet` | `-q` | Suppress progress output |
-| `--output <format>` | `-o` | `summary` \| `table` \| `json` \| `yaml` |
+Deploying the container images (including on a cloud container platform) is covered by
+[Deployment](../../docs/system/administration/DEPLOYMENT.md).
 
----
+## Exit codes
 
-## Quick Start
-
-```bash
-# 1. Initialize a project
-semiont init
-
-# 2. Provision and start services
-semiont provision -e local
-semiont start -e local
-
-# 3. Confirm health
-semiont check -e local
-```
-
----
-
-## Command Categories
-
-### Knowledge Base Commands
-
-These commands manage the knowledge base itself. `init` needs no flags; the others take `--environment`.
-
-For full details see [Knowledge Base Commands](./docs/KNOWLEDGE-BASE.md).
-
-```bash
-semiont init
-semiont backup -e production --out backup.tar.gz
-semiont restore -e production --file backup.tar.gz
-semiont verify --file backup.tar.gz
-semiont export -e local --out export.json
-semiont import -e local --file export.json
-```
-
----
-
-### Infrastructure Commands
-
-These commands manage service lifecycle and deployment. They require `--environment` (or a default set in `~/.semiontconfig`).
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--environment <env>` | `-e` | Target environment. Fallback: `$SEMIONT_ENV` → `defaults.environment` in `~/.semiontconfig` |
-
-For full details see [Infrastructure Commands](./docs/INFRASTRUCTURE.md).
-
-```bash
-# Service lifecycle
-semiont provision -e local
-semiont start -e local
-semiont check -e local
-semiont stop -e local
-semiont watch -e local
-
-# Administration
-semiont useradd -e local --email user@example.com
-semiont clean -e local
-```
-
----
-
-## Further Reading
-
-- [Knowledge Base Commands](./docs/KNOWLEDGE-BASE.md) — init, backup, restore, verify, export, import
-- [Infrastructure Commands](./docs/INFRASTRUCTURE.md) — service lifecycle, deployment, administration
-- [Architecture Overview](./docs/ARCHITECTURE.md)
-- [Managing Environments](./docs/ADDING_ENVIRONMENTS.md)
-- [Adding Commands](./docs/ADDING_COMMANDS.md)
-- [Adding Platforms](./docs/ADDING_PLATFORMS.md)
-- [Adding Services](./docs/ADDING_SERVICES.md)
-- [Adding Service Types](./docs/ADDING_SERVICE_TYPES.md)
-
----
-
-## License
-
-Apache License 2.0 — see the LICENSE file for details.
+`--version` and `--help` print the notice and exit `0`. Any other invocation exits `1`, so scripts
+and container entrypoints fail loudly rather than continuing as though the work had happened.

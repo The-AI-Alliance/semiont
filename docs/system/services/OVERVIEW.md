@@ -228,7 +228,6 @@ semiont rollback --environment production
 
 ### CLI Integration
 - [CLI README](../../../apps/cli/README.md) - Complete CLI documentation
-- [Adding Services](../../../apps/cli/docs/ADDING_SERVICES.md) - Extend service types
 
 ## Troubleshooting
 

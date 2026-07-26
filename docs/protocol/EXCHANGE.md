@@ -40,23 +40,18 @@ The import creates new resources from the archive. Progress is reported in phase
 
 **Note**: Import adds data to the existing knowledge base. It does not replace or overwrite existing resources.
 
-## CLI: Export and Import
+## API: Export and Import
 
-```bash
-# Export current state as JSON-LD
-semiont export --out export.tar.gz
+Export and import are backend operations, driven by the GUI above or called directly (moderator
+role):
 
-# Include archived resources
-semiont export --include-archived --out full-export.tar.gz
+- `POST /api/moderate/exchange/export` — export current state as JSON-LD
+- `POST /api/moderate/exchange/import` — import from a JSON-LD archive
 
-# Import from a JSON-LD archive
-semiont import --file export.tar.gz
+Imported resources carry the identity supplied by the request; absent one, the import defaults to
+`did:web:localhost:users:{system-user}`.
 
-# Specify user identity for imported resources
-semiont import --file export.tar.gz --user-id did:web:example.com:users:alice
-```
-
-When no `--user-id` is provided, the import defaults to `did:web:localhost:users:{system-user}`.
+There is **no** `semiont export` / `semiont import` command — the CLI does not talk to the API.
 
 ## Archive Format
 

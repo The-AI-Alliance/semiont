@@ -1190,7 +1190,6 @@ jobs:
 ### Application Testing Documentation
 - [Frontend Testing](../../apps/frontend/README.md#testing) - Frontend-specific testing setup, scripts, and philosophy
 - [Backend Testing](../../apps/backend/README.md#testing) - Backend API testing and integration tests
-- [CLI Testing](../../apps/cli/TESTING.md) - CLI command testing and validation
 
 ### End-to-End Testing
 - [tests/e2e/README.md](../../tests/e2e/README.md) - Suite overview, current spec list, full stack-rebuild flow

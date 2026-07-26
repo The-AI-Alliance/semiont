@@ -36,15 +36,20 @@ If the archive is invalid or replay fails, an error phase is reported with the f
 
 **Warning**: Restore adds data to the existing knowledge base. It does not wipe existing data first.
 
-## CLI
+## API
 
-The CLI supports both formats:
+Full backup and restore are backend operations, driven by the GUI above or called directly:
 
-- `semiont backup` / `semiont restore` — full backup archives (the format described in this document)
-- `semiont verify` — validates a backup archive offline without importing it (no running services needed)
-- `semiont export` / `semiont import` — the [Linked Data exchange format](../../protocol/EXCHANGE.md)
+- `POST /api/admin/exchange/backup` — download a full backup archive (admin)
+- `POST /api/admin/exchange/restore` — restore from an archive (admin)
+- `POST /api/moderate/exchange/export` / `/import` — the [Linked Data exchange format](../../protocol/EXCHANGE.md)
 
-See [Knowledge Base Commands](../../../apps/cli/docs/KNOWLEDGE-BASE.md) for usage.
+The SDK wraps the first two as `backup()` and `restore()`; see
+[`@semiont/sdk`](../../../packages/sdk/README.md). The archive format below is what those endpoints
+produce and consume.
+
+`@semiont/cli` is deprecated and provides no commands at all — there is no CLI path for backup,
+restore, export, or import.
 
 ## Backup Archive Format
 
