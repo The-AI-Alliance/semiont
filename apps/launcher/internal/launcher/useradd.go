@@ -141,6 +141,16 @@ func Useradd(args []string) int {
 		rest = append(rest, args[i])
 	}
 
+	// Asking for both a password and a generated one is a contradiction, and
+	// it must be REFUSED here: --password-stdin is stripped above and re-added
+	// only when a password is actually read, so forwarding alone would let the
+	// backend's own mutual-exclusion check never see the pair — the user would
+	// silently get a generated password they did not ask to keep.
+	if generate && wantStdin {
+		u.fail("--password-stdin and --generate-password are contradictory: one supplies a password, the other invents one.")
+		return 1
+	}
+
 	// Which stack? The shared knowledge-verb ladder (stackselect.go).
 	target, ok := selectVerbStack(u, "useradd", loadStackSet(), repo, wantLocal)
 	if !ok {

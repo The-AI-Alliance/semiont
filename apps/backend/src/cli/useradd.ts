@@ -44,7 +44,11 @@ interface Options {
   upsert: boolean;
 }
 
-const USAGE = `Usage: semiont-useradd --email <email> (--password-stdin | --generate-password) [options]
+const USAGE = `Usage: semiont-useradd --email <email> [--password-stdin | --generate-password] [options]
+
+Creating a user requires a password, so one of --password-stdin or
+--generate-password. Updating an existing one does not: pass --password-stdin
+only when the point is to CHANGE the password.
 
   --email <email>       User email address (required)
   --password-stdin      Read the password from stdin, first line (min 8 chars)
@@ -97,8 +101,16 @@ function parseArgs(argv: string[]): Options {
  * history. Stdin has none of those properties.
  */
 async function readPasswordFromStdin(): Promise<string> {
+  // Stop at the first newline rather than draining to EOF: a password is one
+  // line, and waiting for the stream to close would hang an interactive run
+  // (`docker exec -it … --password-stdin`) after the user pressed Enter, until
+  // they thought to send Ctrl-D.
   const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+  for await (const chunk of process.stdin) {
+    const buf = Buffer.from(chunk);
+    chunks.push(buf);
+    if (buf.includes(0x0a)) break;
+  }
   // split() on empty input yields [''], but noUncheckedIndexedAccess types the
   // index access as possibly-undefined regardless — empty stdin is a refusal
   // either way, two lines down.

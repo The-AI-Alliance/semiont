@@ -1420,6 +1420,18 @@ func TestUseradd(t *testing.T) {
 		t.Error("--generate-password must not also ask for a password on stdin")
 	}
 
+	// Asking for both a supplied and a generated password is refused HERE. The
+	// launcher strips --password-stdin and re-adds it only when it actually
+	// read one, so forwarding alone would hand the backend just
+	// --generate-password — its own mutual-exclusion check would never fire and
+	// the user would silently get a password they did not ask to keep.
+	if _, stderr, code := s.run(t, "useradd", "--email", "b@c.co",
+		"--generate-password", "--password-stdin"); code != 1 {
+		t.Errorf("contradictory password flags should be refused, got exit %d", code)
+	} else {
+		mustContain(t, "stderr", stderr, "contradictory")
+	}
+
 	// --update on an existing user needs no password (the backend only
 	// requires one to CREATE), so nothing is prompted or piped.
 	if err := os.Truncate(s.log, 0); err != nil {

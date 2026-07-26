@@ -185,7 +185,13 @@ func runWithStdin(name, input string, args ...string) error {
 // error.
 func runVisibleWithStdin(secret, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
-	cmd.Stdin = strings.NewReader(secret + "\n")
+	// No secret, no stdin: feeding a stray newline to a child that never asked
+	// for input is a difference with no purpose, and useradd deliberately omits
+	// -i in that case. A nil Stdin gets the child /dev/null, which is also what
+	// keeps it from consuming the caller's own input.
+	if secret != "" {
+		cmd.Stdin = strings.NewReader(secret + "\n")
+	}
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	return cmd.Run()
 }
