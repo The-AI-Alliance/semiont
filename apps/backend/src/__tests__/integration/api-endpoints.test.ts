@@ -282,7 +282,7 @@ describe('API Endpoints Integration Tests', () => {
       
       const data = await res.json() as StatusResponse;
       expect(data.status).toBe('operational');
-      expect(data.version).toBe('0.1.0');
+      expect(data.version).toBe(PACKAGE_VERSION);
       expect(data.features).toEqual({
         semanticContent: 'planned',
         collaboration: 'planned',
@@ -305,7 +305,7 @@ describe('API Endpoints Integration Tests', () => {
       const data = await res.json() as HealthResponse;
       expect(data.status).toBe('operational');
       expect(data.message).toBe('Semiont API is running');
-      expect(data.version).toBe('0.1.0');
+      expect(data.version).toBe(PACKAGE_VERSION);
       expect(data.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/);
       expect(data.database).toBe('connected');
       expect(data.environment).toBeDefined();

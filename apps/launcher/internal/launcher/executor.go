@@ -52,7 +52,7 @@ type executor interface {
 	recordBrowser(id, image, version string, port int)
 	dumpLogs(container, svc string)                             // failed health gate: show the crash where it is
 	verifyRemoteModels(role, base, key string, models []string) // record /v1/models metadata; warn on unlisted
-	ensureModels(base string, models []modelNeed)             // pull configured ollama models that are absent
+	ensureModels(base string, models []modelNeed)               // pull configured ollama models that are absent
 	stateMounts(role, image, root string) ([]string, bool)      // persistent-state run args; !ok = refuse (data written by another image)
 	val(live, plan string) string                               // mode-scoped value (kb root, admin password)
 	rtName() string
