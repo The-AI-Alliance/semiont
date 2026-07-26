@@ -550,6 +550,14 @@ func runtimeCmd(base string, args []string) {
 		fmt.Fprintln(os.Stderr, name+" err")
 	case "exec":
 		// The launcher's useradd bridge: exec <handle> semiont useradd <args…>.
+		// Drain stdin and record it: the password crosses THERE, never in argv,
+		// so a test can only prove the secret arrived by reading what the pipe
+		// carried. Draining also keeps the writer from seeing EPIPE.
+		if in, err := io.ReadAll(os.Stdin); err == nil && len(in) > 0 {
+			if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+				_ = os.WriteFile(filepath.Join(dir, "exec-stdin.txt"), in, 0o600)
+			}
+		}
 		// FAKERT_EXEC_FAIL models the in-container CLI failing.
 		if os.Getenv("FAKERT_EXEC_FAIL") != "" {
 			fmt.Fprintln(os.Stderr, "Error: useradd failed")

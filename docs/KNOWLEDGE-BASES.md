@@ -17,7 +17,7 @@ whole stack, including the Semiont browser at http://localhost:3000:
 ```bash
 brew install the-ai-alliance/semiont/semiont   # once
 semiont start
-semiont useradd --email admin@example.com --password <choose-a-password> --admin
+semiont useradd --email admin@example.com --admin   # prompts for the password
 ```
 
 `semiont logs` follows the stack, `semiont status` health-checks it, and

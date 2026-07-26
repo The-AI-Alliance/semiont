@@ -34,7 +34,7 @@ semiont start
 One command brings up the whole stack from published, attested container images — including the Semiont browser. Create your admin user and sign in at **http://localhost:3000**:
 
 ```bash
-semiont useradd --email admin@example.com --password <choose-a-password> --admin
+semiont useradd --email admin@example.com --admin   # prompts for the password
 ```
 
 Explore the knowledge bases:
