@@ -141,12 +141,31 @@ func Useradd(args []string) int {
 		rest = append(rest, args[i])
 	}
 
-	// Who supplies the password? The backend requires one only to CREATE, so
-	// an --update that isn't explicitly changing the password needs none, and
+	// Which stack? The shared knowledge-verb ladder (stackselect.go).
+	target, ok := selectVerbStack(u, "useradd", loadStackSet(), repo, wantLocal)
+	if !ok {
+		return 1
+	}
+
+	rt, handle := "", ""
+	if target == nil {
+		if rt, handle = backendHandle(); rt == "" {
+			u.fail("useradd needs a running backend, and none was found under any installed runtime.")
+			fmt.Fprintln(os.Stderr, "  Start the stack first:  semiont start")
+			return 1
+		}
+	}
+
+	// The password is read LAST, after every refusal this command can make.
+	// Nobody should be asked to type a secret by an invocation that was
+	// already going to be rejected for contradictory flags or a missing
+	// backend — the prompt would also bury the actual error.
+	//
+	// Who supplies it? The backend requires one only to CREATE, so an --update
+	// that isn't explicitly changing the password needs none, and
 	// --generate-password means the backend invents its own.
-	needPassword := !generate && (!update || wantStdin)
 	password := ""
-	if needPassword {
+	if !generate && (!update || wantStdin) {
 		pw, ok := readPassword(u)
 		if !ok {
 			return 1
@@ -155,21 +174,8 @@ func Useradd(args []string) int {
 		rest = append(rest, "--password-stdin")
 	}
 
-	// Which stack? The shared knowledge-verb ladder (stackselect.go).
-	target, ok := selectVerbStack(u, "useradd", loadStackSet(), repo, wantLocal)
-	if !ok {
-		return 1
-	}
-
 	if target != nil {
 		return useraddCodespace(u, target, rest, password)
-	}
-
-	rt, handle := backendHandle()
-	if rt == "" {
-		u.fail("useradd needs a running backend, and none was found under any installed runtime.")
-		fmt.Fprintln(os.Stderr, "  Start the stack first:  semiont start")
-		return 1
 	}
 	// `semiont-useradd` is a bin the backend package declares, linked onto PATH
 	// by its image. -i attaches stdin so the password can cross that way; it is
