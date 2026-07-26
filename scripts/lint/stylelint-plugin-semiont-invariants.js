@@ -204,6 +204,11 @@ function needsDarkThemeSupport(prop) {
 // that change nothing — a rule mixing one of these with a real color still
 // warns, because the real color is what needs the variant.
 function isThemeIndependentValue(value) {
+  const normalized = value
+    .replace(/\s*!important\s*$/i, '')
+    .trim()
+    .toLowerCase();
+
   return [
     'transparent',
     'inherit',
@@ -212,7 +217,7 @@ function isThemeIndependentValue(value) {
     'unset',
     'initial',
     'revert',
-  ].includes(value.trim().toLowerCase());
+  ].includes(normalized);
 }
 
 const plugin = stylelint.createPlugin(
