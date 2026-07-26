@@ -118,7 +118,7 @@ NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=example.com
 
 # Backend  
 DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
-JWT_SECRET=test-secret-for-ci
+JWT_SECRET=test-secret-key-for-testing-32char   # requireJwtSecret() rejects < 32 chars
 GOOGLE_CLIENT_ID=test-client-id
 GOOGLE_CLIENT_SECRET=test-client-secret
 ```
