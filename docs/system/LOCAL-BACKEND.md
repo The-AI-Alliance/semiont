@@ -21,8 +21,9 @@ The launcher pulls the published, attested Semiont service images
 (`ghcr.io/the-ai-alliance/semiont-{backend,worker,smelter,weaver,frontend}`),
 starts them alongside the infrastructure containers (Neo4j, Qdrant,
 PostgreSQL), and bind-mounts the KB's config at runtime — KB repos build no
-images. Pass `--email` and `--password` to create an admin user on startup;
-`--config <name>` selects an inference config (`--list-configs` to see them);
+images. Nothing auto-creates an account: `semiont useradd` makes the first
+admin (and every user after), prompting for the password rather than taking
+it as an argument. `--config <name>` selects an inference config (`--list-configs` to see them);
 `SEMIONT_VERSION` pins the image version (`local` consumes images built from
 a monorepo working tree by
 [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh)). `semiont
