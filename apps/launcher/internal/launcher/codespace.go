@@ -352,7 +352,7 @@ func startCodespace(u *ui, opts startOptions) int {
 	fmt.Println()
 	// No account exists yet — nothing auto-creates one. This is the actual next
 	// step after a first start, so it leads the follow-ups.
-	fmt.Printf("  First user:    %s\n", u.bold("semiont useradd --repo "+repo+" --email you@example.com --password <pass> --admin"))
+	fmt.Printf("  First user:    %s\n", u.bold("semiont useradd --repo "+repo+" --email you@example.com --admin"))
 	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
 	fmt.Printf("  Follow logs:   %s %s\n", u.bold("semiont logs --repo "+repo), u.dim("(bare logs when unambiguous)"))
 	// "Halt billing" overpromised: stopping halts COMPUTE billing; storage
