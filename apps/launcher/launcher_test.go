@@ -1781,8 +1781,7 @@ func TestCodespaceStartCreates(t *testing.T) {
 		// tighter account default cannot silently shorten the KB's life.
 		"--idle-timeout 60m --retention-period 720h",
 		"gh codespace create --repo "+csRepo+" --machine premiumLinux",
-		"gh codespace ports forward 4000:4000 -c fake-cs-1", // <codespacePort>:<localPort>
-		"gh codespace ssh -c fake-cs-1 -- cat /workspaces/*/.devcontainer/admin.json")
+		"gh codespace ports forward 4000:4000 -c fake-cs-1") // <codespacePort>:<localPort>
 	mustContain(t, "stdout", stdout,
 		"KB repo: "+csRepo,
 		"Starting a CODESPACE for", "as PUSHED", "uncommitted changes",
@@ -1793,21 +1792,25 @@ func TestCodespaceStartCreates(t *testing.T) {
 		// on the first probe and the follower is killed before it can
 		// exec, so the argv log may legitimately never see it.
 		"gh codespace logs --follow -c fake-cs-1",
-		"Reading admin credentials",
 		"Semiont KB is up in codespace fake-cs-1",
 		"Semiont KB         http://localhost:4000",
 		// Codespace start ENSURES the local Browser (a runtime exists in
 		// this scenario), so the summary names the live endpoint.
 		"Semiont Browser    http://localhost:3000",
-		"admin@example.com", "fake-admin-pw",
+		// Nothing auto-creates an account, so the summary leads the
+		// follow-ups with the command that makes the first one.
+		"First user:", "semiont useradd --repo "+csRepo,
 		"local uncommitted changes don't travel",
 		"Halt compute:")
 	b, _ := os.ReadFile(statePathFor(s.home))
 	mustContain(t, "stack.json", string(b),
 		`"runtime": "codespace"`, `"codespace": "fake-cs-1"`, `"repo": "pingel-org/foo-kb"`,
 		`"forwardPid"`, `"forwardPort": 4000`)
-	if strings.Contains(string(b), "fake-admin-pw") {
-		t.Fatalf("credentials persisted to stack.json:\n%s", b)
+	// No credentials exist to leak any more — the launcher neither reads nor
+	// prints them. Assert the record stays free of any password-shaped field so
+	// a future feature cannot quietly reintroduce one.
+	if strings.Contains(strings.ToLower(string(b)), "password") {
+		t.Fatalf("a password-shaped field reached stack.json:\n%s", b)
 	}
 	// Placement is never sticky: no machine-wide runtime preference written.
 	if rb, err := os.ReadFile(rootsPathFor(s.home)); err == nil && strings.Contains(string(rb), `"runtime": "codespace"`) {
@@ -2090,22 +2093,30 @@ func TestCodespaceMachineInertOnResume(t *testing.T) {
 		"--machine largePremiumLinux ignored", "keeps the class it was created with")
 }
 
-func TestCodespaceCredentialFailureShowsGhError(t *testing.T) {
-	// A failed credentials read must report what gh SAID, not guess between
-	// causes in prose — and must not block an otherwise healthy stack.
+func TestCodespaceSshFailureDoesNotBlockAHealthyStack(t *testing.T) {
+	// The ssh at the end of a codespace start is a nicety — it backfills the
+	// recorded KB identity. A failure there must not fail an otherwise healthy
+	// stack, and must not stop the summary being printed.
+	//
+	// (This test previously covered the same invariant for an admin-credentials
+	// read at the same point. That read is gone — nothing auto-creates an
+	// admin — but reconcileDid still reaches over ssh here, so the invariant is
+	// still worth pinning.)
 	s := newCodespaceScenario(t)
 	s.extraEnv = append(s.extraEnv, "FAKERT_GH_SSH_FAIL=1")
 	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
 	if code != 0 {
-		t.Fatalf("an unreadable admin.json must not fail the start: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("a failed ssh must not fail the start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "stdout", stdout,
-		"Could not read admin credentials over ssh yet",
-		"gh: failed to start SSH server", // gh's own words, surfaced
-		"Usually setup is still finishing",
-		"Semiont KB is up in codespace") // stack still reported up
-	if strings.Contains(stdout, "Connect as ") {
-		t.Errorf("printed credentials it never read:\n%s", stdout)
+		"Semiont KB is up in codespace", // stack still reported up
+		"First user:")                   // and the next step still told
+	// The launcher must never print credentials: it has none, and no KB
+	// auto-creates an account for it to have.
+	for _, forbidden := range []string{"Connect as ", "Reading admin credentials", "admin.json"} {
+		if strings.Contains(stdout, forbidden) {
+			t.Errorf("stdout still speaks of auto-created credentials (%q):\n%s", forbidden, stdout)
+		}
 	}
 }
 
@@ -2432,7 +2443,9 @@ func TestCodespaceStatus(t *testing.T) {
 		"re-establishing",
 		"KB", "healthy", "http://localhost:4000/api/health",
 		"run inside the codespace via compose",
-		"admin@example.com", "fake-admin-pw")
+		// No credentials: status reports where to connect and how to make a
+		// user, never an account it cannot vouch for.
+		"connect at Host localhost, Port 4000", "semiont useradd --repo "+csRepo)
 
 	// Stopped: honest stopped-but-existing, scriptably unhealthy.
 	s.killServes()
@@ -2539,7 +2552,7 @@ func TestCodespaceDryRunAndLogs(t *testing.T) {
 		"gh api /repos/"+csRepo+"/codespaces/machines",
 		"gh codespace create --repo "+csRepo+" --machine <machine>",
 		"gh codespace ports forward",
-		"cat .devcontainer/admin.json")
+		"cat /workspaces/*/.semiont/config")
 	if log, _ := os.ReadFile(s.log); strings.Contains(string(log), "gh ") {
 		t.Errorf("dry-run invoked gh:\n%s", log)
 	}

@@ -177,21 +177,23 @@ semiont stop
   Codespace placement is never sticky — every codespace start says
   `--runtime codespace` (or rides an existing record).
 - `semiont useradd` creates or updates users in the RUNNING stack: the
-  launcher execs the in-container Semiont CLI's `useradd` inside the backend
+  launcher execs the backend's own `semiont-useradd` inside the backend
   container (record-driven runtime + container ID, name-scan fallback) and
   passes every other flag through verbatim (`--admin`, `--generate-password`,
-  `--update`, `--upsert`, …). It works against **codespace stacks too** —
-  one hop further out, `gh codespace ssh -- docker exec …` — with every
-  argument shell-quoted, because that remote side runs through a shell
-  (the local `exec` path does not, so a password with spaces or `$` is only
-  a hazard on the codespace route). A codespace generates its FIRST admin at
-  creation, so `useradd` there is for everything after: more users, role
-  grants, password changes. With several stacks recorded it refuses to
-  guess — `--repo <owner/name>` picks a codespace stack, `--runtime` the
-  local one (the same vocabulary `stop` uses). This replaced `start --email/--password`: the
-  admin password used to ride into the backend container as an env var,
-  readable via `inspect` for the stack's whole lifetime — now it exists only
-  in one exec's argv, redacted in the echoed command and the invocation log.
+  `--update`, `--upsert`, …). The backend owns the user schema, the password
+  hashing and the database write; this launcher only decides which stack is
+  meant. It works against **codespace stacks too** — one hop further out,
+  `gh codespace ssh -- docker exec …` — with every argument shell-quoted,
+  because that remote side runs through a shell (the local `exec` path does
+  not, so a password with spaces or `$` is only a hazard on the codespace
+  route). **Nothing auto-creates an account, codespace or local**: a fresh
+  stack has no users, so this is how the first admin comes to exist. With
+  several stacks recorded it refuses to guess — `--repo <owner/name>` picks a
+  codespace stack, `--runtime` the local one (the same vocabulary `stop`
+  uses). This replaced `start --email/--password`: the admin password used to
+  ride into the backend container as an env var, readable via `inspect` for
+  the stack's whole lifetime — now it exists only in one exec's argv, redacted
+  in the echoed command and the invocation log.
 - `semiont start --dry-run` prints the exact runtime commands a real run would
   execute — the legibility answer to "what does this binary actually do".
 - **`semiont status` reports in three layers** — LOCAL STACK (the one stack

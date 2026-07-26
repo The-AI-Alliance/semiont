@@ -36,9 +36,9 @@ is running means local; a clone whose origin names a codespace stack, with
 no local stack, means that one) — anywhere less certain, useradd refuses to
 guess: say which with --repo or --runtime.
 
-A codespace generates its FIRST admin at creation — semiont status prints
-those credentials. Use useradd there for everything after that: more users,
-role grants, password changes.
+NOTHING auto-creates an account — local and codespace alike. A fresh stack has
+no users at all, so this is how the first admin comes to exist, and how every
+later user, role grant, and password change happens.
 
 Examples:
   # First admin after a fresh local start
