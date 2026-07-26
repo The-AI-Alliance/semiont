@@ -35,15 +35,33 @@ for (const raw of readFileSync(allowlistPath, 'utf8').split('\n')) {
 }
 
 // --- Exceptions (package name → human-verified SPDX id) --------------------
+//
+// A trailing `*` is a prefix wildcard, same as the allowlist above. It exists
+// for generators that name their output with a content hash (Prisma 7 emits its
+// client as `prisma-client-<hash of the schema>`), where the name changes
+// whenever the source does and an exact entry would silently go stale.
 
 const exceptions = new Map();
+const exceptionPrefixes = [];
 if (exceptionsPath) {
   for (const raw of readFileSync(exceptionsPath, 'utf8').split('\n')) {
     const line = raw.replace(/#.*/, '').trim();
     if (!line) continue;
     const [name, spdx] = line.split(/\s+/);
-    if (name && spdx) exceptions.set(name, spdx);
+    if (!name || !spdx) continue;
+    if (name.endsWith('*')) exceptionPrefixes.push([name.slice(0, -1), spdx]);
+    else exceptions.set(name, spdx);
   }
+}
+
+// The verified SPDX id for a package with no license of its own, or undefined.
+// Exact entries win over prefixes; the result is still checked against the
+// allowlist by the caller, so an exception can only ever rescue a package TO a
+// permissive license, never past the policy.
+function exceptionFor(pkgName) {
+  if (exceptions.has(pkgName)) return exceptions.get(pkgName);
+  const hit = exceptionPrefixes.find(([p]) => pkgName.startsWith(p));
+  return hit?.[1];
 }
 
 // True if a single SPDX license id is permitted by the allowlist.
@@ -124,9 +142,12 @@ for (const pkg of packages) {
   // An exception supplies a verified license ONLY when the scanner found none;
   // a real detected license (even a bad one) is never masked.
   let viaException = false;
-  if (license === null && exceptions.has(pkg.name)) {
-    license = exceptions.get(pkg.name);
-    viaException = true;
+  if (license === null) {
+    const verified = exceptionFor(pkg.name);
+    if (verified !== undefined) {
+      license = verified;
+      viaException = true;
+    }
   }
 
   if (license === null) {
