@@ -111,6 +111,9 @@ Environment:
                         locally-built :local images and skips the pull)
   SEMIONT_WORKER_SECRET Shared backend/sidecar secret (default: generated per
                         run; --service rejoins the running stack's secret)
+  JWT_SECRET            The backend's token-signing key, min 32 chars (default:
+                        generated ONCE per KB root and kept, so tokens survive
+                        a restart; changing it invalidates every issued token)
 
 Examples:
   # Fully local with Ollama (default, no API key needed)
@@ -664,9 +667,11 @@ func tracesArgs() []string {
 // backendArgs: the backend takes the four dependency hosts but must NOT
 // receive BACKEND_HOST (publicURL derives from it; see the DID/site.domain
 // history before ever changing this). Admin seeding deliberately does NOT
-// ride in here — `semiont useradd` execs the in-container CLI instead, so
-// no password ever sits in the container's inspectable env.
-func backendArgs(kbRoot, stage, addr, secret, version string, port int, userEnv, otel []string) []string {
+// ride in here — `semiont useradd` execs the backend's own `semiont-useradd`
+// instead, so no password ever sits in the container's inspectable env.
+// jwt is the token-signing key — backend-only, deliberately not in sidecarArgs:
+// the sidecars present agent tokens the backend minted and never sign anything.
+func backendArgs(kbRoot, stage, addr, secret, jwt, version string, port int, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-backend", // no --rm: see providedRunArgs
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", "8G",
 		"--volume", kbRoot + ":/kb",
@@ -678,7 +683,8 @@ func backendArgs(kbRoot, stage, addr, secret, version string, port int, userEnv,
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "OLLAMA_HOST="+addr,
-		"--env", "SEMIONT_WORKER_SECRET="+secret)
+		"--env", "SEMIONT_WORKER_SECRET="+secret,
+		"--env", "JWT_SECRET="+jwt)
 	return append(a, image("backend", version))
 }
 

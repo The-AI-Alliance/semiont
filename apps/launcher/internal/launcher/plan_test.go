@@ -210,8 +210,23 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			if name == "anthropic.toml" {
 				wantPull = []string{"nomic-embed-text"}
 			}
-			if strings.Join(plan.OllamaModels, ",") != strings.Join(wantPull, ",") {
-				t.Errorf("ollama models: got %v want %v", plan.OllamaModels, wantPull)
+			if strings.Join(modelNames(plan.OllamaModels), ",") != strings.Join(wantPull, ",") {
+				t.Errorf("ollama models: got %v want %v", modelNames(plan.OllamaModels), wantPull)
+			}
+			// Each model carries the ROLE that asked for it, so a failed pull
+			// can name what stops working. Note the anthropic config: its
+			// inference runs on Claude, so the ONE ollama-served model is
+			// embedding-only — a set that crosses no role boundary, unlike
+			// ollama-gemma's.
+			wantRoles := map[string][]string{
+				"gemma4:26b":       {roleInference},
+				"gemma4:e2b":       {roleInference},
+				"nomic-embed-text": {roleEmbedding},
+			}
+			for _, m := range plan.OllamaModels {
+				if got, want := strings.Join(m.Roles, "+"), strings.Join(wantRoles[m.Name], "+"); got != want {
+					t.Errorf("%s roles: got %q want %q", m.Name, got, want)
+				}
 			}
 			if plan.BackendPort != 4000 {
 				t.Errorf("backend port: got %d want 4000", plan.BackendPort)

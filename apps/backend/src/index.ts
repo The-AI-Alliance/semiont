@@ -1,29 +1,20 @@
-// Environment variables are loaded via Node's --env-file flag (see package.json)
-// Construct DATABASE_URL from components if not already set
-// MUST be done before any Prisma imports!
-let databaseUrlConstructed = false;
-if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
-  const dbPort = process.env.DB_PORT;
-  const dbName = process.env.DB_NAME;
-
-  if (!dbPort) {
-    throw new Error('DB_PORT is required when constructing DATABASE_URL from components');
-  }
-  if (!dbName) {
-    throw new Error('DB_NAME is required when constructing DATABASE_URL from components');
-  }
-
-  const url = new URL('postgresql://localhost');
-  url.username = process.env.DB_USER;
-  url.password = process.env.DB_PASSWORD; // Automatically URL-encoded by URL class
-  url.hostname = process.env.DB_HOST;
-  url.port = dbPort;
-  url.pathname = `/${dbName}`;
-  url.searchParams.set('sslmode', 'require');
-
-  process.env.DATABASE_URL = url.toString();
-  databaseUrlConstructed = true;
-}
+// DATABASE_URL arrives already set: the container's CMD derives it from
+// services.database (src/cli/db-url.ts) before this process starts, and an
+// explicitly-provided one takes precedence over that.
+//
+// It is deliberately NOT assembled here. A DB_HOST/DB_USER/DB_PASSWORD component
+// form used to live at the top of this file, claiming "MUST be done before any
+// Prisma imports!" — a requirement it could not meet, for two reasons:
+//
+//   1. `prisma migrate deploy` runs as a separate process before the server and
+//      reads process.env.DATABASE_URL via prisma.config.ts, so it never saw a
+//      value assembled in here at all.
+//   2. The bundler emits module bodies in dependency order, so src/db.ts's
+//      module-scope client construction ran BEFORE this file's top-level code.
+//      The adapter got `connectionString: undefined`.
+//
+// Deriving it outside the process fixes both. Do not reintroduce an in-process
+// assembly here without re-checking those two facts.
 
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
@@ -49,6 +40,13 @@ const config = loadEnvironmentConfig(projectRoot, env);
 if (!config.services?.backend) {
   throw new Error('services.backend is required in environment config');
 }
+
+// Checked HERE, with the other startup requirements, rather than only in
+// JWTService.initialize below: this runs before startMakeMeaning dials the graph
+// and vector stores, so a missing secret costs a millisecond instead of a full
+// make-meaning startup. Same rule either way — requireJwtSecret is the one copy.
+const { requireJwtSecret } = await import('./auth/jwt');
+requireJwtSecret();
 
 const backendService = config.services.backend;
 
@@ -77,16 +75,6 @@ const logger = getLogger();
     monitorLogger.log(level, 'event-loop delay', { meanMs, p99Ms, maxMs });
     h.reset();
   }, 30_000).unref();
-}
-
-// Log database configuration after logger is initialized
-if (databaseUrlConstructed) {
-  logger.info('DATABASE_URL constructed from environment components', {
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    database: process.env.DB_NAME,
-    ssl: 'required'
-  });
 }
 
 // Create global EventBus for real-time events
@@ -260,6 +248,18 @@ if (config.env?.NODE_ENV !== 'test') {
   const { initObservabilityNode } = await import('@semiont/observability/node');
   initObservabilityNode({ serviceName: 'semiont-backend' });
 
+  // BEFORE serve(), and deliberately unguarded: this validates JWT_SECRET,
+  // site.domain, and site.oauthAllowedDomains — without all three the process
+  // cannot authenticate anyone, so it must not accept connections.
+  //
+  // It used to run inside the serve callback wrapped in a try/catch that only
+  // logged, which meant a missing secret or site config produced a container
+  // that listened, answered /api/health with 200 (that endpoint returns 200
+  // unconditionally), reported healthy in `semiont status` — and failed every
+  // sign-in. Failing here instead makes the misconfiguration undeployable.
+  const { JWTService } = await import('./auth/jwt');
+  JWTService.initialize(config);
+
   serve({
     fetch: app.fetch,
     port: port,
@@ -278,17 +278,6 @@ if (config.env?.NODE_ENV !== 'test') {
       credentials: 'disabled',
       auth: 'Authorization: Bearer; media tokens via ?token= for /api/resources/:id',
     });
-
-    // Initialize JWT Service with configuration
-    try {
-      const { JWTService } = await import('./auth/jwt');
-      JWTService.initialize(config);
-    } catch (error) {
-      logger.error('Failed to initialize JWT Service', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-    }
 
     // Pre-load entity types from graph database for performance
     try {

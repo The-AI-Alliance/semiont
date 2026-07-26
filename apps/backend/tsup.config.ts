@@ -9,7 +9,11 @@ const { version } = JSON.parse(
 ) as { version: string };
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  // Two entries besides the server, both run as their own processes:
+  //   db-url  — the container's CMD, before `migrate deploy` and before the
+  //             server (see src/cli/db-url.ts for why it cannot live in index.ts)
+  //   useradd — `semiont useradd` execs it via `container exec`
+  entry: ['src/index.ts', 'src/cli/db-url.ts', 'src/cli/useradd.ts'],
   format: ['esm'],
   dts: false,
   clean: true,

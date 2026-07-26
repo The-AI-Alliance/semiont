@@ -100,11 +100,12 @@ semiont logs --service database
 semiont logs --service backend | grep -iE "prisma|database|connection"
 ```
 
-On a slow first boot, PostgreSQL can still be initializing when the backend tries to migrate. The backend exits; restart it once the database is ready:
+A full `semiont start` should not race the database: it waits for PostgreSQL to open its port **and** to be reachable from inside a container before it starts anything that depends on it, and dumps the database's logs if that wait times out (20s). So on a launcher-managed start, "the backend came up before the database was ready" is a bug worth reporting, not a retry.
 
-```bash
-semiont start --service backend
-```
+Two cases where you *are* on your own:
+
+- **`semiont start --service backend`** restarts one service without re-checking its dependencies. If you restart the backend while the database is down, it will fail to migrate.
+- **An external database** (`platform = "external"` pointing off-stack) is verified for reachability but never waited on — the launcher does not own its lifecycle.
 
 For schema drift, migration state, and reset procedures, see the [Database Guide](DATABASE.md).
 

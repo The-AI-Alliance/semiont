@@ -42,6 +42,7 @@ type executor interface {
 	otelDetect(addr string) []string       // --service: OTel iff traces is up
 	recoverSecret() (string, bool)         // --service: rejoin the running stack's secret
 	workerSecret() (string, bool)          // full start: env or generated
+	jwtSecret(root string) (string, bool)  // backend token-signing key: env, else persisted per-root, else generated
 	ollamaVolume(opts startOptions) string // model-cache choice (prompt is live-only)
 	record(role, id, image, provided, endpoint, driver string)
 	providerOf(role string) string        // how an already-recorded role was provided
@@ -51,7 +52,7 @@ type executor interface {
 	recordBrowser(id, image, version string, port int)
 	dumpLogs(container, svc string)                             // failed health gate: show the crash where it is
 	verifyRemoteModels(role, base, key string, models []string) // record /v1/models metadata; warn on unlisted
-	ensureModels(base string, models []string)                  // pull configured ollama models that are absent
+	ensureModels(base string, models []modelNeed)             // pull configured ollama models that are absent
 	stateMounts(role, image, root string) ([]string, bool)      // persistent-state run args; !ok = refuse (data written by another image)
 	val(live, plan string) string                               // mode-scoped value (kb root, admin password)
 	rtName() string
@@ -355,6 +356,22 @@ func (x *liveExec) workerSecret() (string, bool) {
 	return fullStartSecret(x.u)
 }
 
+// jwtSecret is per-root and persisted, so a --service backend restart resolves
+// the SAME value a full start did — no inspect-based recovery needed (contrast
+// recoverSecret, which exists because the worker secret is never persisted).
+//
+// root is PASSED rather than read off x, which is only populated on the
+// --service path. Today x.root would still resolve correctly on a full start —
+// start Chdir()s into the root after applying the --root > SEMIONT_ROOT > cwd
+// precedence, so an empty root falls back to cwd and lands in the same place.
+// This does not lean on that: the flow already holds the resolved root, and
+// depending on a chdir performed a few hundred lines away in another function
+// is the kind of coupling that breaks silently and keys a signing key off the
+// wrong directory.
+func (x *liveExec) jwtSecret(root string) (string, bool) {
+	return loadOrCreateJWTSecret(x.u, root)
+}
+
 func (x *liveExec) ollamaVolume(opts startOptions) string {
 	return chooseOllamaVolume(x.u, opts)
 }
@@ -511,7 +528,7 @@ func (x *liveExec) recordBrowser(id, img, version string, port int) {
 	})
 }
 
-func (x *liveExec) ensureModels(base string, models []string) {
+func (x *liveExec) ensureModels(base string, models []modelNeed) {
 	ensureOllamaModels(x.u, base, models)
 }
 
@@ -717,6 +734,10 @@ func (x *planExec) recoverSecret() (string, bool) {
 
 func (x *planExec) workerSecret() (string, bool) { return "<worker-secret>", true }
 
+// Dry-run reaches for nothing: no file is read and none is minted, so a plan
+// never has the side effect of creating a root's signing key.
+func (x *planExec) jwtSecret(root string) (string, bool) { return "<jwt-secret>", true }
+
 func (x *planExec) ollamaVolume(opts startOptions) string {
 	volume := "<ollama-volume>"
 	switch opts.ollamaCache {
@@ -756,9 +777,10 @@ func (x *planExec) verifyRemoteModels(role, base, _ string, models []string) {
 
 // --dry-run reaches for nothing: which models are ABSENT is a runtime fact,
 // so the plan can only name what would be checked.
-func (x *planExec) ensureModels(base string, models []string) {
+func (x *planExec) ensureModels(base string, models []modelNeed) {
 	if len(models) > 0 {
-		x.c("ensure ollama models present at %s (pull each missing one): %s", base, strings.Join(models, ", "))
+		x.c("ensure %s models present at %s (pull each missing one): %s",
+			strings.Join(modelRoles(models), ", "), base, strings.Join(modelNames(models), ", "))
 	}
 }
 

@@ -498,7 +498,7 @@ Beyond that, the backend reads from the environment directly:
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Postgres connection string — or `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` |
+| `DATABASE_URL` | Postgres connection string. In the container image the CMD derives it from `services.database` (`src/cli/db-url.ts`) when unset; set it explicitly to override, e.g. for an external or TLS-requiring database |
 | `JWT_SECRET` | Token signing; minimum 32 characters |
 | `SEMIONT_WORKER_SECRET` | Shared secret for the software-agent token exchange |
 

@@ -433,7 +433,11 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 // fetch fails — host health alone doesn't prove the path they need).
 func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
 	port := fc.plan.BackendPort
-	bArgs := backendArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, fc.version, port, fc.userEnv, otel)
+	jwt, ok := x.jwtSecret(fc.root)
+	if !ok {
+		return 1
+	}
+	bArgs := backendArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, jwt, fc.version, port, fc.userEnv, otel)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Backend failed to start.")

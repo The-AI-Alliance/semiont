@@ -10,6 +10,7 @@
 
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
+import { JWTService } from '../auth/jwt';
 import { DatabaseConnection } from '../db';
 import { User } from '@prisma/client';
 import { validateRequestBody } from '../middleware/validate-openapi';
@@ -227,16 +228,11 @@ adminRouter.delete('/api/admin/users/:id', async (c) => {
  * Requires authentication + admin role
  */
 adminRouter.get('/api/admin/oauth/config', async (c) => {
-  // Get OAuth configuration from environment
-  const allowedDomainsEnv = process.env.OAUTH_ALLOWED_DOMAINS;
-  if (!allowedDomainsEnv) {
-    throw new Error('OAUTH_ALLOWED_DOMAINS environment variable is not configured');
-  }
-
-  const allowedDomains = allowedDomainsEnv
-    .split(',')
-    .map(d => d.trim())
-    .filter(d => d.length > 0);
+  // site.oauthAllowedDomains, via the service that already owns and validates it
+  // at startup. This used to parse an OAUTH_ALLOWED_DOMAINS env var and throw
+  // when absent — a second source of truth for the same fact, supplied only by
+  // the retired CLI, so the endpoint 500'd for every admin once the CLI went.
+  const allowedDomains = JWTService.getAllowedDomains();
 
   // Check which providers are configured
   const providers = [];

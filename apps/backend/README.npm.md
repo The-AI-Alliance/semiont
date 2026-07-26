@@ -33,7 +33,9 @@ Requires in the environment:
 
 - `SEMIONT_ROOT` — path to the knowledge-base working tree
 - `SEMIONT_ENV` — environment name in `~/.semiontconfig` (e.g. `local`)
-- `DATABASE_URL` — or `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`
+- `DATABASE_URL` — Postgres connection string. The container image derives one
+  from `services.database` in the config when this is unset; running the package
+  directly has no such step, so set it yourself.
 - `JWT_SECRET` — minimum 32 characters
 - `SEMIONT_WORKER_SECRET` — for the software-agent token exchange
 

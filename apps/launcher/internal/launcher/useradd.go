@@ -9,9 +9,10 @@ import (
 const useraddUsage = `Usage: semiont useradd --email <email> (--password <pass> | --generate-password) [options]
 
 Create or update a user in a RUNNING Semiont stack, local or codespace. The
-launcher execs the Semiont CLI inside the backend container ('semiont' there
-is the knowledge-work CLI; this launcher is the stack operator) and passes
-every other flag through verbatim. Options the in-container CLI understands:
+launcher execs 'semiont-useradd' inside the backend container and passes every
+other flag through verbatim — the backend owns the user schema, the password
+hashing, and the database write; this launcher only decides which stack is
+meant. Options that command understands:
 
   --email <email>       User email address (required)
   --password <pass>     Password (min 8 characters)
@@ -47,12 +48,23 @@ Examples:
   semiont useradd --repo The-AI-Alliance/my-kb --email alice@example.com --generate-password
 `
 
-// Useradd implements `semiont useradd` — a thin exec bridge to the
-// in-container CLI's useradd (the same verb the backend entrypoint runs for
-// its worker user). The launcher contributes only what it knows: which stack
-// is meant, and the sharpest handle into its backend. Everything else passes
-// through verbatim — the in-container CLI owns validation, hashing, and the
+// Useradd implements `semiont useradd` — a thin exec bridge to the backend's
+// own `semiont-useradd`. The launcher contributes only what it knows: which
+// stack is meant, and the sharpest handle into its backend. Everything else
+// passes through verbatim — the backend owns validation, hashing, and the
 // database write.
+//
+// It goes through the container rather than dialing postgres directly on
+// purpose. Two columns have no database-side default (`id` via `@default(cuid())`
+// and `updatedAt` via `@updatedAt`, both applied client-side by Prisma), so an
+// outside writer would have to reproduce those, the physical column names, and
+// argon2's PHC parameters — and would then break SILENTLY on any future
+// migration that adds a NOT NULL column. Keeping the write with the schema's
+// owner also keeps this launcher technology-agnostic: it runs containers, and
+// need not know that postgres or argon2 exist.
+//
+// (It no longer targets `semiont useradd`: that was the retired @semiont/cli,
+// which the backend image stopped shipping — the bridge dangled until this.)
 //
 // This replaced `start --email/--password`: the admin password used to ride
 // into the backend container as an env var, readable via `inspect` for the
@@ -73,7 +85,7 @@ func Useradd(args []string) int {
 
 	// --repo and --runtime are the ONLY flags the launcher consumes rather
 	// than forwards (they select a stack); everything else stays verbatim so
-	// the in-container CLI can grow flags without touching this file.
+	// `semiont-useradd` can grow flags without touching this file.
 	repo, wantLocal := "", false
 	rest := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
@@ -114,7 +126,11 @@ func Useradd(args []string) int {
 		fmt.Fprintln(os.Stderr, "  Start the stack first:  semiont start")
 		return 1
 	}
-	execArgs := append([]string{"exec", handle, "semiont", "useradd"}, rest...)
+	// `semiont-useradd` is a bin the backend package declares, linked onto PATH
+	// by its image. A bare command name, so argv (which carries the password)
+	// crosses without a shell — see the codespace path below for what a shell
+	// would cost.
+	execArgs := append([]string{"exec", handle, "semiont-useradd"}, rest...)
 	u.echoCmd(rt, execArgs...)
 	if err := runVisible(rt, execArgs...); err != nil {
 		u.fail("useradd failed inside the backend container (see output above).")
@@ -159,7 +175,7 @@ func useraddCodespace(u *ui, st *stackState, args []string) int {
 // redact set, the --password VALUE is replaced before quoting, so the echoed
 // string is otherwise identical to the real one.
 func remoteUseraddCmd(args []string, redact bool) string {
-	cmd := "docker exec semiont-backend semiont useradd"
+	cmd := "docker exec semiont-backend semiont-useradd"
 	for i, a := range args {
 		v := a
 		if redact && i > 0 && args[i-1] == "--password" {
