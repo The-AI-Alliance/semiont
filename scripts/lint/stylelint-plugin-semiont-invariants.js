@@ -197,6 +197,29 @@ function needsDarkThemeSupport(prop) {
   return themeProperties.includes(prop);
 }
 
+// Values that resolve identically in every theme, so a dark variant for them
+// would be a provable no-op: `inherit` defers to an ancestor (which carries
+// its own dark variant, if it needs one), and the rest carry no color of
+// their own. Keeps the dark-variant invariant from demanding duplicate rules
+// that change nothing — a rule mixing one of these with a real color still
+// warns, because the real color is what needs the variant.
+function isThemeIndependentValue(value) {
+  const normalized = value
+    .replace(/\s*!important\s*$/i, '')
+    .trim()
+    .toLowerCase();
+
+  return [
+    'transparent',
+    'inherit',
+    'currentcolor',
+    'none',
+    'unset',
+    'initial',
+    'revert',
+  ].includes(normalized);
+}
+
 const plugin = stylelint.createPlugin(
   ruleName,
   (primaryOption, secondaryOptions, context) => {
@@ -292,7 +315,9 @@ const plugin = stylelint.createPlugin(
           }
 
           // Track selectors with theme-sensitive properties
-          if (needsDarkThemeSupport(prop) && !selector.includes('[data-theme="dark"]')) {
+          if (needsDarkThemeSupport(prop) &&
+              !isThemeIndependentValue(value) &&
+              !selector.includes('[data-theme="dark"]')) {
             selectorsWithThemeProps.add(selector);
           }
         });
@@ -324,7 +349,7 @@ const plugin = stylelint.createPlugin(
                 if (rule.selector === selector) {
                   let hasThemeProperty = false;
                   rule.walkDecls((decl) => {
-                    if (needsDarkThemeSupport(decl.prop)) {
+                    if (needsDarkThemeSupport(decl.prop) && !isThemeIndependentValue(decl.value)) {
                       hasThemeProperty = true;
                     }
                   });

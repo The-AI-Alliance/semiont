@@ -230,6 +230,18 @@
   border-bottom: none;
 }
 
+/* Icon-only collapsed triggers — but the label stays in the accessibility
+   tree rather than `display: none`. Its sibling is a bare emoji span with no
+   accessible name, so hiding the label outright would leave the trigger
+   unnamed for screen readers. Same technique as .semiont-sr-only. */
 .semiont-annotate-toolbar--compact .semiont-dropdown-label {
-  display: none; /* icon-only collapsed triggers; expanded menus keep labels */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
