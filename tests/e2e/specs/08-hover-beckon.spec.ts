@@ -19,16 +19,31 @@ import { test, expect } from '../fixtures/auth';
  * resource has none. Previously it depended on specs 04/05 having run
  * first and created annotations in the lex-ordering window. Self-setup
  * removes that ordering coupling — the spec runs cleanly in isolation.
+ *
+ * Resource choice: pinned to a seeded TEXT resource by name. The self-setup
+ * needs CodeMirror + prose, so Discover's first card (a PDF or a generated
+ * resource, depending on run order and accumulated KB state) would break it
+ * intermittently — a real cross-session flake, not load-related.
  */
 test.describe('hover → beckon', () => {
   test('hovering an annotation fires beckon:hover and BeckonStateUnit fires beckon:sparkle', async ({ signedInPage: page, bus }) => {
-    // Open the first resource on Discover. Either it already has an
-    // annotation in BrowseView (subsequent run, or a prior spec left
-    // one) — or we'll create one ourselves below.
+    // Open a TEXT resource, pinned BY NAME. Taking Discover's first card
+    // was data-order-dependent and is the source of cross-session flakes:
+    // Discover is newest-first, the seed adds two PDFs, and specs 09/16
+    // push freshly generated resources to the top — so `.first()` could
+    // land on a PDF, where the self-setup below has no `.cm-content` to
+    // select in and never fires `mark:create-request` (observed on 0.5.18:
+    // a 30 s timeout on that emit, passing on re-run once ordering moved).
+    // `.first()` still narrows the duplicate seeds the non-idempotent
+    // seeder accumulates — same pattern specs 14/20 use to pin their PDF.
+    // Either the resource already has an annotation in BrowseView (a prior
+    // spec left one) or we create one ourselves below.
     await page.goto('/en/know/discover');
-    const firstCard = page.getByRole('button', { name: /^open resource:/i }).first();
-    await expect(firstCard).toBeVisible({ timeout: 15_000 });
-    await firstCard.click();
+    const textCard = page
+      .getByRole('button', { name: /^open resource:\s*quantum computing primer/i })
+      .first();
+    await expect(textCard).toBeVisible({ timeout: 15_000 });
+    await textCard.click();
     await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
 
     // Annotations render as `[data-annotation-id]` inside BrowseView's
@@ -78,9 +93,13 @@ test.describe('hover → beckon', () => {
       // overlay because that's where the hover handler is bound.)
       //
       // Strategy: skip past the first paragraph break (`\n\n`) and
-      // select 10 chars of body text. Seeded content has the shape
-      // `# Heading\n\nBody…` so the first `\n\n` lands us at the start
-      // of the first body paragraph.
+      // select 10 chars of body text. The seeded text fixtures are plain
+      // prose in `\n\n`-separated paragraphs (no markdown header today —
+      // see scripts/seed.ts), so this lands inside the SECOND paragraph.
+      // Skipping the first block is deliberate and still load-bearing: it
+      // keeps the selection off any leading header a future fixture might
+      // add, which the renderer consumes and which would yield a
+      // persisted-but-invisible annotation.
       //
       // HighlightPanel auto-submits on selection when motivation is
       // `highlighting`, so this single mouseup completes the create
