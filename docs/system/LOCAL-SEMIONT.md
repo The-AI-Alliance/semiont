@@ -19,7 +19,7 @@ brew install the-ai-alliance/semiont/semiont
 git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
 cd gutenberg-kb
 semiont start
-semiont useradd --email admin@example.com --password password --admin
+echo password | semiont useradd --email admin@example.com --admin
 ```
 
 One command starts the whole stack — the five published Semiont images
@@ -47,7 +47,7 @@ Start the stack with Ollama for fully local inference (no API key needed):
 
 ```bash
 semiont start
-semiont useradd --email admin@example.com --password password --admin
+echo password | semiont useradd --email admin@example.com --admin
 ```
 
 On first run, the backend container pulls the inference and embedding models from Ollama. This is a one-time download (~2-4 GB depending on the model) and may take several minutes.

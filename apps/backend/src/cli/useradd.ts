@@ -34,7 +34,7 @@ import { databaseUrlFrom } from '../utils/database-url';
 
 interface Options {
   email: string;
-  password?: string;
+  passwordStdin: boolean;
   generatePassword: boolean;
   name?: string;
   admin: boolean;
@@ -44,10 +44,14 @@ interface Options {
   upsert: boolean;
 }
 
-const USAGE = `Usage: semiont-useradd --email <email> (--password <pass> | --generate-password) [options]
+const USAGE = `Usage: semiont-useradd --email <email> [--password-stdin | --generate-password] [options]
+
+Creating a user requires a password, so one of --password-stdin or
+--generate-password. Updating an existing one does not: pass --password-stdin
+only when the point is to CHANGE the password.
 
   --email <email>       User email address (required)
-  --password <pass>     Password (min 8 characters)
+  --password-stdin      Read the password from stdin, first line (min 8 chars)
   --generate-password   Generate a random password (printed once)
   --name <name>         Display name
   --admin               Grant admin privileges
@@ -60,7 +64,7 @@ const USAGE = `Usage: semiont-useradd --email <email> (--password <pass> | --gen
 
 function parseArgs(argv: string[]): Options {
   const o: Options = {
-    email: '', generatePassword: false, admin: false,
+    email: '', passwordStdin: false, generatePassword: false, admin: false,
     moderator: false, inactive: false, update: false, upsert: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -73,8 +77,8 @@ function parseArgs(argv: string[]): Options {
     };
     switch (a) {
       case '--email': o.email = value(); break;
-      case '--password': o.password = value(); break;
       case '--name': o.name = value(); break;
+      case '--password-stdin': o.passwordStdin = true; break;
       case '--generate-password': o.generatePassword = true; break;
       case '--admin': o.admin = true; break;
       case '--moderator': o.moderator = true; break;
@@ -86,6 +90,35 @@ function parseArgs(argv: string[]): Options {
     }
   }
   return o;
+}
+
+/**
+ * Read the password from stdin's FIRST LINE.
+ *
+ * A password must never travel in argv: `ps` shows a process's command line to
+ * every other user on the host, `docker inspect`/`container inspect` keep it as
+ * long as the container record lives, and the caller's shell records it in
+ * history. Stdin has none of those properties.
+ */
+async function readPasswordFromStdin(): Promise<string> {
+  // Stop at the first newline rather than draining to EOF: a password is one
+  // line, and waiting for the stream to close would hang an interactive run
+  // (`docker exec -it … --password-stdin`) after the user pressed Enter, until
+  // they thought to send Ctrl-D.
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    const buf = Buffer.from(chunk);
+    chunks.push(buf);
+    if (buf.includes(0x0a)) break;
+  }
+  // split() on empty input yields [''], but noUncheckedIndexedAccess types the
+  // index access as possibly-undefined regardless — empty stdin is a refusal
+  // either way, two lines down.
+  const first = Buffer.concat(chunks).toString('utf8').split('\n', 1)[0] ?? '';
+  const password = first.replace(/\r$/, '');
+  if (!password) throw new Error('--password-stdin was given but stdin carried no password');
+  if (password.length < 8) throw new Error('Password must be at least 8 characters long');
+  return password;
 }
 
 /** Same shape the old CLI produced: 16 base64 chars from 12 random bytes. */
@@ -106,8 +139,8 @@ function validate(o: Options): void {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(o.email)) {
     throw new Error(`invalid email format: ${o.email}`);
   }
-  if (o.password !== undefined && o.password.length < 8) {
-    throw new Error('Password must be at least 8 characters long');
+  if (o.passwordStdin && o.generatePassword) {
+    throw new Error('--password-stdin and --generate-password are mutually exclusive');
   }
   if (o.update && o.upsert) {
     throw new Error('--update and --upsert are mutually exclusive');
@@ -137,10 +170,10 @@ async function main(argv: string[]): Promise<number> {
       passwordHash = await argon2.hash(generated);
       // Printed once and never stored: the caller's only chance to capture it.
       process.stdout.write(`Generated password: ${generated}\n`);
-    } else if (o.password) {
-      passwordHash = await argon2.hash(o.password);
+    } else if (o.passwordStdin) {
+      passwordHash = await argon2.hash(await readPasswordFromStdin());
     } else if (!existing) {
-      throw new Error('Password required: use --password or --generate-password');
+      throw new Error('Password required: use --password-stdin or --generate-password');
     }
 
     if (existing) {

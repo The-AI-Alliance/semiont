@@ -14,7 +14,7 @@ repository, and start the stack:
 git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
 cd gutenberg-kb
 semiont start
-semiont useradd --email admin@example.com --password password --admin
+echo password | semiont useradd --email admin@example.com --admin
 ```
 
 The launcher pulls the published, attested Semiont service images

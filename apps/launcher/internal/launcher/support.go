@@ -100,16 +100,14 @@ var echoEnvAllowlist = map[string]bool{
 	"OTEL_EXPORTER_OTLP_ENDPOINT": true,
 }
 
-// redactEnvArgs also redacts the value after a bare --password flag — the
-// useradd exec bridge carries one in its echoed argv.
+// redactEnvArgs blanks secret --env VALUES for display. It no longer special-
+// cases a password argument: useradd sends the password down stdin, so no
+// command the launcher echoes has one to hide. Redaction was only ever a
+// display fix for a secret that was still in argv where `ps` could read it.
 func redactEnvArgs(args []string) []string {
 	out := make([]string, len(args))
 	copy(out, args)
 	for i := 0; i < len(out)-1; i++ {
-		if out[i] == "--password" {
-			out[i+1] = "<redacted>"
-			continue
-		}
 		if out[i] != "--env" {
 			continue
 		}
@@ -174,6 +172,27 @@ func runWithStdin(name, input string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Stdin = strings.NewReader(input)
 	cmd.Stdout, cmd.Stderr = io.Discard, os.Stderr
+	return cmd.Run()
+}
+
+// runVisibleWithStdin is runVisible plus a secret on stdin: output stays
+// visible (useradd's own messages, including a generated password, are the
+// point of running it) while the secret never enters argv. Distinct from
+// runWithStdin, which HIDES stdout because there the output is itself a secret.
+//
+// os/exec ignores EPIPE from the stdin copy, so a child that refuses early and
+// exits without reading surfaces as its own exit status rather than a write
+// error.
+func runVisibleWithStdin(secret, name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	// No secret, no stdin: feeding a stray newline to a child that never asked
+	// for input is a difference with no purpose, and useradd deliberately omits
+	// -i in that case. A nil Stdin gets the child /dev/null, which is also what
+	// keeps it from consuming the caller's own input.
+	if secret != "" {
+		cmd.Stdin = strings.NewReader(secret + "\n")
+	}
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	return cmd.Run()
 }
 

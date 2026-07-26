@@ -56,7 +56,7 @@ births a startable KB in one command (identity from your git origin). Then:
 
 ```sh
 semiont start
-semiont useradd --email admin@example.com --password mypassword --admin
+semiont useradd --email admin@example.com --admin   # prompts for the password
 semiont status
 semiont logs
 semiont stop
@@ -182,7 +182,10 @@ semiont stop
   passes every other flag through verbatim (`--admin`, `--generate-password`,
   `--update`, `--upsert`, …). The backend owns the user schema, the password
   hashing and the database write; this launcher only decides which stack is
-  meant. It works against **codespace stacks too** — one hop further out,
+  meant. The password is the one thing it does NOT pass as an argument: it is
+  prompted for on a terminal (or read from stdin when piped) and fed to
+  `--password-stdin` down the exec's pipe, because argv is readable by every
+  process on the host via `ps` and lands in the caller's shell history. It works against **codespace stacks too** — one hop further out,
   `gh codespace ssh -- docker exec …` — with every argument shell-quoted,
   because that remote side runs through a shell (the local `exec` path does
   not, so a password with spaces or `$` is only a hazard on the codespace

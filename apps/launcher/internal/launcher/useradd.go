@@ -6,16 +6,23 @@ import (
 	"strings"
 )
 
-const useraddUsage = `Usage: semiont useradd --email <email> (--password <pass> | --generate-password) [options]
+const useraddUsage = `Usage: semiont useradd --email <email> [--generate-password] [options]
 
 Create or update a user in a RUNNING Semiont stack, local or codespace. The
 launcher execs 'semiont-useradd' inside the backend container and passes every
 other flag through verbatim — the backend owns the user schema, the password
 hashing, and the database write; this launcher only decides which stack is
-meant. Options that command understands:
+meant.
+
+The password is never typed as an argument. Creating a user prompts for one on
+a terminal, or reads it from stdin when piped:
+
+  semiont useradd --email admin@example.com --admin        # prompts
+  cat pw | semiont useradd --email bot@example.com         # scripted
+
+Options that command understands:
 
   --email <email>       User email address (required)
-  --password <pass>     Password (min 8 characters)
   --generate-password   Generate a random 16-char password (printed once)
   --name <name>         Display name
   --admin               Grant admin privileges
@@ -23,6 +30,8 @@ meant. Options that command understands:
   --inactive            Create the user inactive
   --update              Update an existing user
   --upsert              Create if absent, succeed silently if present
+  --password-stdin      Set the password (implied when creating; say it
+                        explicitly with --update to CHANGE a password)
 
 Launcher-owned (consumed here, not forwarded):
 
@@ -41,8 +50,8 @@ no users at all, so this is how the first admin comes to exist, and how every
 later user, role grant, and password change happens.
 
 Examples:
-  # First admin after a fresh local start
-  semiont useradd --email admin@example.com --password <pass> --admin
+  # First admin after a fresh local start (prompts for the password)
+  semiont useradd --email admin@example.com --admin
 
   # A second user on a codespace KB
   semiont useradd --repo The-AI-Alliance/my-kb --email alice@example.com --generate-password
@@ -66,10 +75,13 @@ Examples:
 // (It no longer targets `semiont useradd`: that was the retired @semiont/cli,
 // which the backend image stopped shipping — the bridge dangled until this.)
 //
-// This replaced `start --email/--password`: the admin password used to ride
-// into the backend container as an env var, readable via `inspect` for the
-// stack's whole lifetime. Here it exists only in one exec's argv (redacted
-// in the echoed command and the invocation log).
+// The password NEVER travels in argv. It used to ride into the container as an
+// env var (readable via `inspect` for the stack's whole lifetime); then as an
+// exec argument, redacted in the echo — but redaction is cosmetic: `ps` shows
+// any process's command line to every user on the host, and the caller's shell
+// wrote it to history besides. Now the launcher reads it (prompting on a
+// terminal, else from stdin) and pipes it to `--password-stdin`, so it exists
+// only in two process memories and the pipe between them.
 func Useradd(args []string) int {
 	u := newUI(false)
 	for _, a := range args {
@@ -85,8 +97,11 @@ func Useradd(args []string) int {
 
 	// --repo and --runtime are the ONLY flags the launcher consumes rather
 	// than forwards (they select a stack); everything else stays verbatim so
-	// `semiont-useradd` can grow flags without touching this file.
+	// `semiont-useradd` can grow flags without touching this file. The
+	// password-bearing flags are READ here as well as forwarded, because the
+	// launcher is what reads the password.
 	repo, wantLocal := "", false
+	generate, update, wantStdin := false, false, false
 	rest := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -106,8 +121,34 @@ func Useradd(args []string) int {
 			wantLocal = true
 			i++
 			continue
+		case "--password":
+			// Removed, not deprecated. It put the secret in argv — visible in
+			// `ps` on the host and in the container, kept by the runtime's
+			// container record, and written to the caller's shell history.
+			u.fail("--password is no longer accepted: a password in argv is visible to every process on the host.")
+			fmt.Fprintln(os.Stderr, "  Let it prompt:   semiont useradd --email <email> --admin")
+			fmt.Fprintln(os.Stderr, "  Or pipe it:      cat pw | semiont useradd --email <email> --admin")
+			fmt.Fprintln(os.Stderr, "  Or generate it:  semiont useradd --email <email> --generate-password")
+			return 1
+		case "--generate-password":
+			generate = true
+		case "--update":
+			update = true
+		case "--password-stdin":
+			wantStdin = true
+			continue // re-added below, exactly once
 		}
 		rest = append(rest, args[i])
+	}
+
+	// Asking for both a password and a generated one is a contradiction, and
+	// it must be REFUSED here: --password-stdin is stripped above and re-added
+	// only when a password is actually read, so forwarding alone would let the
+	// backend's own mutual-exclusion check never see the pair — the user would
+	// silently get a generated password they did not ask to keep.
+	if generate && wantStdin {
+		u.fail("--password-stdin and --generate-password are contradictory: one supplies a password, the other invents one.")
+		return 1
 	}
 
 	// Which stack? The shared knowledge-verb ladder (stackselect.go).
@@ -116,23 +157,47 @@ func Useradd(args []string) int {
 		return 1
 	}
 
-	if target != nil {
-		return useraddCodespace(u, target, rest)
+	rt, handle := "", ""
+	if target == nil {
+		if rt, handle = backendHandle(); rt == "" {
+			u.fail("useradd needs a running backend, and none was found under any installed runtime.")
+			fmt.Fprintln(os.Stderr, "  Start the stack first:  semiont start")
+			return 1
+		}
 	}
 
-	rt, handle := backendHandle()
-	if rt == "" {
-		u.fail("useradd needs a running backend, and none was found under any installed runtime.")
-		fmt.Fprintln(os.Stderr, "  Start the stack first:  semiont start")
-		return 1
+	// The password is read LAST, after every refusal this command can make.
+	// Nobody should be asked to type a secret by an invocation that was
+	// already going to be rejected for contradictory flags or a missing
+	// backend — the prompt would also bury the actual error.
+	//
+	// Who supplies it? The backend requires one only to CREATE, so an --update
+	// that isn't explicitly changing the password needs none, and
+	// --generate-password means the backend invents its own.
+	password := ""
+	if !generate && (!update || wantStdin) {
+		pw, ok := readPassword(u)
+		if !ok {
+			return 1
+		}
+		password = pw
+		rest = append(rest, "--password-stdin")
+	}
+
+	if target != nil {
+		return useraddCodespace(u, target, rest, password)
 	}
 	// `semiont-useradd` is a bin the backend package declares, linked onto PATH
-	// by its image. A bare command name, so argv (which carries the password)
-	// crosses without a shell — see the codespace path below for what a shell
-	// would cost.
-	execArgs := append([]string{"exec", handle, "semiont-useradd"}, rest...)
+	// by its image. -i attaches stdin so the password can cross that way; it is
+	// omitted when there is no password to send, so the echoed command is the
+	// exact command run in both cases.
+	head := []string{"exec"}
+	if password != "" {
+		head = append(head, "-i")
+	}
+	execArgs := append(append(head, handle, "semiont-useradd"), rest...)
 	u.echoCmd(rt, execArgs...)
-	if err := runVisible(rt, execArgs...); err != nil {
+	if err := runVisibleWithStdin(password, rt, execArgs...); err != nil {
 		u.fail("useradd failed inside the backend container (see output above).")
 		return 1
 	}
@@ -143,12 +208,15 @@ func Useradd(args []string) int {
 // the codespace, then docker exec into its backend.
 //
 // CRITICAL: `gh codespace ssh -- cmd` runs the remote side through a SHELL
-// (proven live — a `/workspaces/*` glob expands there). The local path has
-// no shell, so passing argv straight through is safe there; here it is not.
-// An unquoted password containing a space, $, quote or backtick would be
-// mangled or would inject shell into the user's own codespace. So every
-// argument is single-quote escaped before it crosses the wire.
-func useraddCodespace(u *ui, st *stackState, args []string) int {
+// (proven live — a `/workspaces/*` glob expands there). The local path has no
+// shell, so passing argv straight through is safe there; here it is not, and
+// every argument is single-quote escaped before it crosses the wire.
+//
+// The password is exempt from all of that by never being an argument: it goes
+// down ssh's stdin into `docker exec -i`. That removes the sharpest edge of
+// this path — a password containing $, a backtick or a quote used to be one
+// escaping bug away from injecting shell into the user's own codespace.
+func useraddCodespace(u *ui, st *stackState, args []string, password string) int {
 	if !requireGh(u, "useradd against a codespace stack") {
 		return 1
 	}
@@ -157,13 +225,11 @@ func useraddCodespace(u *ui, st *stackState, args []string) int {
 	// same contract --dry-run keeps). Echoing the pre-quoting args instead
 	// would print something that behaves differently if pasted: $VARs would
 	// expand and values with spaces would split.
-	remote := remoteUseraddCmd(args, false)
+	remote := remoteUseraddCmd(args, password != "")
 	sshArgs := []string{"codespace", "ssh", "-c", st.Codespace, "--", remote}
 	u.log("useradd on %s %s", u.bold(st.Repo), u.dim("(codespace "+st.Codespace+")"))
-	// echoCmd's --password redaction can't see inside a composed string, so
-	// the redacted variant is composed the same way instead.
-	u.echoCmd("gh", "codespace", "ssh", "-c", st.Codespace, "--", remoteUseraddCmd(args, true))
-	if err := runVisible("gh", sshArgs...); err != nil {
+	u.echoCmd("gh", "codespace", "ssh", "-c", st.Codespace, "--", remote)
+	if err := runVisibleWithStdin(password, "gh", sshArgs...); err != nil {
 		u.fail("useradd failed inside the codespace's backend (see output above).")
 		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status --repo "+st.Repo)
 		return 1
@@ -172,16 +238,17 @@ func useraddCodespace(u *ui, st *stackState, args []string) int {
 }
 
 // remoteUseraddCmd composes the command the codespace's shell will run. With
-// redact set, the --password VALUE is replaced before quoting, so the echoed
-// string is otherwise identical to the real one.
-func remoteUseraddCmd(args []string, redact bool) string {
-	cmd := "docker exec semiont-backend semiont-useradd"
-	for i, a := range args {
-		v := a
-		if redact && i > 0 && args[i-1] == "--password" {
-			v = "<redacted>"
-		}
-		cmd += " " + shellQuote(v)
+// stdin set, `docker exec -i` keeps the pipe attached through ssh so the
+// password can arrive that way. Nothing here needs redacting any more: no
+// argument carries a secret.
+func remoteUseraddCmd(args []string, stdin bool) string {
+	cmd := "docker exec"
+	if stdin {
+		cmd += " -i"
+	}
+	cmd += " semiont-backend semiont-useradd"
+	for _, a := range args {
+		cmd += " " + shellQuote(a)
 	}
 	return cmd
 }

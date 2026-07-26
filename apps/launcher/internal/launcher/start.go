@@ -124,7 +124,7 @@ Examples:
   semiont start --config anthropic
 
   # First admin user, once the stack is up
-  semiont useradd --email admin@example.com --password <pass> --admin
+  semiont useradd --email admin@example.com --admin
 
   # See available configs
   semiont start --list-configs
@@ -789,7 +789,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 		fmt.Println("  Jaeger UI          http://localhost:16686")
 	}
 	fmt.Println()
-	fmt.Printf("  Add a user:    %s\n", u.bold("semiont useradd --email <email> --password <pass> --admin"))
+	fmt.Printf("  Add a user:    %s\n", u.bold("semiont useradd --email <email> --admin"))
 	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
 	fmt.Printf("  Follow logs:   %s\n", u.bold("semiont logs"))
 	fmt.Printf("  Stop stack:    %s\n", u.bold("semiont stop"))
