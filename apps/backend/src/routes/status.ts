@@ -38,7 +38,7 @@ statusRouter.get('/api/status', async (c) => {
 
   const response: StatusResponse = {
     status: 'operational',
-    version: '0.1.0',
+    version: __SEMIONT_VERSION__,
     features: {
       semanticContent: 'planned',
       collaboration: 'planned',

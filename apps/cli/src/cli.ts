@@ -1,89 +1,60 @@
 /**
- * Semiont CLI - Simplified entry point using dynamic command loader
- * 
- * This provides a unified entry point with:
- * - Dynamic command loading from command modules
- * - Type-safe argument parsing with Zod
- * - Consistent error handling and help generation
+ * Semiont CLI — deprecated.
+ *
+ * Every verb this package once provided now lives elsewhere:
+ *
+ *   - Stack and knowledge-work verbs → the `semiont` launcher, a single static
+ *     binary installed with Homebrew.
+ *   - Programmatic access → `@semiont/sdk`.
+ *   - Backup / restore / export / import → backend endpoints under
+ *     `/api/{admin,moderate}/exchange/*`, surfaced in the browser UI.
+ *
+ * This entry point remains only so an existing install says so out loud instead
+ * of failing obscurely. It performs no work.
  */
 
-import { getPreamble, getPreambleSeparator } from './core/io/cli-colors.js';
-import { printError } from './core/io/cli-logger.js';
-import { getAvailableCommands } from './core/command-discovery.js';
-import { executeCommand as dynamicExecuteCommand, generateGlobalHelp } from './core/command-executor.js';
+import { pathToFileURL } from 'url';
 
 // Injected by esbuild at build time via __SEMIONT_VERSION__ define
 declare const __SEMIONT_VERSION__: string;
 const VERSION: string = __SEMIONT_VERSION__;
 
-// =====================================================================
-// HELPER FUNCTIONS
-// =====================================================================
+const NOTICE = `Deprecated.
 
+@semiont/cli no longer provides any commands.
 
-function printVersion() {
-  console.log(`Semiont CLI v${VERSION}`);
+Install the Semiont launcher instead:
+
+    brew install the-ai-alliance/semiont/semiont
+
+Then run it from your knowledge-base directory:
+
+    semiont start
+
+For programmatic access, use @semiont/sdk (https://www.npmjs.com/package/@semiont/sdk).
+`;
+
+export function main(argv: string[]): number {
+  const arg = argv[0];
+
+  if (arg === '--version' || arg === '-v') {
+    console.log(`@semiont/cli v${VERSION} (deprecated)`);
+    return 0;
+  }
+
+  if (arg === '--help' || arg === '-h' || argv.length === 0) {
+    console.log(NOTICE);
+    return 0;
+  }
+
+  // Anything else was a real request. Say so on stderr and fail, so scripts and
+  // container entrypoints surface it immediately rather than continuing as if
+  // the work had happened.
+  console.error(NOTICE);
+  return 1;
 }
 
-async function printHelp() {
-  // Print preamble first
-  console.log(getPreamble(VERSION));
-  console.log(getPreambleSeparator());
-  console.log();
-  
-  const help = await generateGlobalHelp();
-  console.log(help);
+// Only act when run as the binary — importing this module (tests) must not exit.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exit(main(process.argv.slice(2)));
 }
-
-// =====================================================================
-// MAIN CLI HANDLER
-// =====================================================================
-
-async function main() {
-  const args = process.argv.slice(2);
-  
-  // Handle no arguments
-  if (args.length === 0) {
-    await printHelp();
-    process.exit(0);
-  }
-  
-  // Handle global flags
-  if (args[0] === '--version' || args[0] === '-v') {
-    printVersion();
-    process.exit(0);
-  }
-  
-  if (args[0] === '--help' || args[0] === '-h') {
-    await printHelp();
-    process.exit(0);
-  }
-  
-  // Extract command
-  const command = args[0];
-  
-  // Check if it's a valid command
-  const availableCommands = await getAvailableCommands();
-  if (!command || !availableCommands.includes(command)) {
-    printError(`Unknown command: ${command}`);
-    console.log(`Available commands: ${availableCommands.join(', ')}`);
-    console.log(`Run 'semiont --help' for more information.`);
-    process.exit(1);
-  }
-  
-  // Execute the command using the dynamic loader
-  // The dynamic loader handles everything:
-  // - Loading the command definition
-  // - Parsing arguments with the command's schema
-  // - Validating environment and services
-  // - Executing the handler
-  // - Formatting output
-  // - Setting exit code
-  await dynamicExecuteCommand(command, args.slice(1));
-}
-
-// Run the CLI
-main().catch((error) => {
-  printError(`Unexpected error: ${error.message}`);
-  process.exit(1);
-});

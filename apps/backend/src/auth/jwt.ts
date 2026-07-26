@@ -20,12 +20,40 @@ interface SiteConfig {
   oauthAllowedDomains?: string[];
 }
 
+/**
+ * The JWT_SECRET contract, in one place: present, and at least 32 characters.
+ *
+ * Exported so index.ts can check it among its other module-scope requirements
+ * (SEMIONT_ROOT, services.backend) — i.e. before startMakeMeaning dials the
+ * graph and vector stores. Failing a millisecond in beats failing after those
+ * connections are up, and both paths enforce the same rule because there is
+ * only one copy of it.
+ */
+export function requireJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error(
+      'JWT_SECRET is not set. `semiont start` generates one per knowledge base ' +
+      'and injects it; set JWT_SECRET explicitly to override, or in test setup.'
+    );
+  }
+  if (secret.length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters long');
+  }
+  return secret;
+}
+
 export class JWTService {
   private static siteConfig: SiteConfig | null = null;
 
   /**
    * Initialize JWTService with application configuration
    * Must be called once at application startup before using any other methods
+   *
+   * This is the startup GATE for everything needed to sign a token, JWT_SECRET
+   * included. The secret is otherwise read lazily per operation (getSecret), so
+   * without a gate an absent one surfaced at the first sign-in — after the
+   * container had already reported healthy — rather than refusing to start.
    */
   static initialize(config: { site?: SiteConfig }): void {
     if (!config.site?.domain) {
@@ -36,10 +64,18 @@ export class JWTService {
       throw new Error('site.oauthAllowedDomains is required in environment config');
     }
 
+    // Fail here rather than at first use: validating the same rules getSecret
+    // enforces, at a point where the process can still decline to start.
+    this.requireSecret();
+
     this.siteConfig = {
       domain: config.site.domain,
       oauthAllowedDomains: config.site.oauthAllowedDomains
     };
+  }
+
+  private static requireSecret(): string {
+    return requireJwtSecret();
   }
 
   /**
@@ -66,6 +102,19 @@ export class JWTService {
   }
 
   /**
+   * The email domains permitted to authenticate — `site.oauthAllowedDomains`,
+   * validated at startup by initialize().
+   *
+   * Exposed so nothing has to re-read this from the environment. The admin
+   * endpoint GET /api/admin/oauth/config used to parse an OAUTH_ALLOWED_DOMAINS
+   * env var, which made two sources of truth for one fact; the retired CLI set
+   * that var, so when it went the endpoint became a guaranteed 500.
+   */
+  static getAllowedDomains(): string[] {
+    return this.getSiteConfig().oauthAllowedDomains ?? [];
+  }
+
+  /**
    * Override configuration for testing purposes
    * @param config The configuration to use
    */
@@ -80,16 +129,12 @@ export class JWTService {
     this.siteConfig = null;
   }
   
+  // Injected by `semiont start` (generated once per knowledge base and kept, so
+  // tokens survive a restart), or set explicitly to override. Still re-read per
+  // operation rather than cached: initialize() has already gated it, so this is
+  // the cheap read, not the check.
   private static getSecret(): string {
-    // JWT secret comes from AWS Secrets Manager (injected as env var by ECS) or test setup
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error('JWT_SECRET environment variable not found. This should be injected by AWS Secrets Manager in production or set in test setup.');
-    }
-    if (secret.length < 32) {
-      throw new Error('JWT_SECRET must be at least 32 characters long');
-    }
-    return secret;
+    return this.requireSecret();
   }
 
   static generateToken(

@@ -5,7 +5,8 @@
   "description": "Semiont backend server - pre-built for npm consumption",
   "main": "dist/index.js",
   "bin": {
-    "semiont-backend": "dist/index.js"
+    "semiont-backend": "dist/index.js",
+    "semiont-useradd": "dist/cli/useradd.js"
   },
   "files": [
     "dist",

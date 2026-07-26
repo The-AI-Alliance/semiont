@@ -9,6 +9,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+import { fileURLToPath } from 'url';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig, EventBus } from '@semiont/core';
@@ -30,6 +33,16 @@ interface HealthResponse {
   environment?: string;
   timestamp?: string;
 }
+
+// Read straight off disk rather than from the __SEMIONT_VERSION__ define, so a
+// build config that forgets the define is a test failure rather than a
+// tautology that passes.
+const PACKAGE_VERSION: string = JSON.parse(
+  readFileSync(
+    resolve(fileURLToPath(import.meta.url), '../../../package.json'),
+    'utf-8',
+  ),
+).version;
 
 // Mock make-meaning service to avoid graph initialization at import time
 vi.mock('@semiont/make-meaning', async (importOriginal) => {
@@ -100,9 +113,16 @@ describe('Main Application (index.ts)', () => {
       expect(response.status).toBe(200);
       expect(data.status).toBe('operational');
       expect(data.message).toBe('Semiont API is running');
-      expect(data.version).toBe('0.1.0');
       expect(data.environment).toBeDefined();
       expect(data.timestamp).toBeDefined();
+    });
+
+    it('should report the real package version, not a hardcoded one', async () => {
+      const response = await app.request('http://localhost/api/health');
+      const data = await response.json() as HealthResponse;
+
+      expect(data.version).toBe(PACKAGE_VERSION);
+      expect(data.version).toMatch(/^\d+\.\d+\.\d+/);
     });
   });
 

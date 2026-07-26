@@ -89,6 +89,61 @@ describe('JWT Service', () => {
     JWTService.resetConfig();
   });
 
+  // initialize() is the ONE startup gate for everything the service needs to
+  // sign a token. It already validates site.domain and site.oauthAllowedDomains;
+  // JWT_SECRET is the third input and belongs in the same place.
+  //
+  // Why a gate and not a lazy read: getSecret() runs per token operation, so a
+  // missing secret used to surface at the first sign-in — long after the
+  // container reported healthy — instead of refusing to start. The launcher now
+  // always supplies it, which makes absence a real misconfiguration worth
+  // failing loudly on.
+  describe('initialize — the startup gate', () => {
+    const validConfig = {
+      site: { domain: testDomain, oauthAllowedDomains: testAllowedDomains },
+    };
+    let saved: string | undefined;
+
+    beforeEach(() => {
+      saved = process.env.JWT_SECRET;
+      JWTService.resetConfig();
+    });
+    afterEach(() => {
+      if (saved === undefined) {
+        delete process.env.JWT_SECRET;
+      } else {
+        process.env.JWT_SECRET = saved;
+      }
+    });
+
+    it('throws when JWT_SECRET is absent', () => {
+      delete process.env.JWT_SECRET;
+      expect(() => JWTService.initialize(validConfig)).toThrow(/JWT_SECRET/);
+    });
+
+    it('throws when JWT_SECRET is shorter than 32 characters', () => {
+      process.env.JWT_SECRET = 'too-short';
+      expect(() => JWTService.initialize(validConfig)).toThrow(/32/);
+    });
+
+    it('names the launcher as the supplier, not AWS Secrets Manager', () => {
+      delete process.env.JWT_SECRET;
+      let message = '';
+      try {
+        JWTService.initialize(validConfig);
+      } catch (e) {
+        message = e instanceof Error ? e.message : String(e);
+      }
+      expect(message).toMatch(/semiont start/);
+      expect(message).not.toMatch(/Secrets Manager/i);
+    });
+
+    it('accepts a conforming secret', () => {
+      process.env.JWT_SECRET = 'a'.repeat(32);
+      expect(() => JWTService.initialize(validConfig)).not.toThrow();
+    });
+  });
+
   describe('generateToken', () => {
     it('should generate JWT token with correct payload', () => {
       const expectedToken = 'generated.jwt.token';

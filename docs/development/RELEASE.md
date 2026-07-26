@@ -383,7 +383,7 @@ gh workflow run launcher-release.yml --ref v<version>
 **Stable releases:**
 ```bash
 npm install @semiont/core@latest
-npm install @semiont/cli@latest
+npm install @semiont/cli@latest      # deprecation stub — no commands
 npm install @semiont/backend@latest
 npm install @semiont/frontend@latest
 ```
@@ -391,7 +391,7 @@ npm install @semiont/frontend@latest
 **Development builds:**
 ```bash
 npm install @semiont/core@dev
-npm install @semiont/cli@dev
+npm install @semiont/cli@dev         # deprecation stub — no commands
 npm install @semiont/backend@dev
 npm install @semiont/frontend@dev
 ```
@@ -530,8 +530,8 @@ After releasing:
 - [ ] Publish the frontend container image ([Step 1b](#step-1b-publish-the-frontend-container-image)) and confirm the `:<version>` and `:latest` tags on GHCR
 - [ ] Publish the four service images (`publish-service-images.yml`) and confirm `semiont-backend`, `semiont-worker`, `semiont-smelter`, and `semiont-weaver` carry `:<version>` and `:latest` on GHCR
 - [ ] Publish the launcher ([Step 1c](#step-1c-publish-the-launcher-homebrew--binaries), dispatched `--ref v<version>`) and confirm the four `semiont_<version>_*.tar.gz` archives on the GitHub Release and the updated formula in [`homebrew-semiont`](https://github.com/The-AI-Alliance/homebrew-semiont)
-- [ ] Test launcher installation: `brew install the-ai-alliance/semiont/semiont && semiont version` (upgrades: `brew upgrade semiont`). Note the next item's npm CLI also installs a `semiont` bin — a known, deliberately unresolved collision; `which semiont` tells you which one PATH picked
-- [ ] Test installation: `npm install -g @semiont/cli@latest && semiont init && semiont provision`
+- [ ] Test launcher installation: `brew install the-ai-alliance/semiont/semiont && semiont version` (upgrades: `brew upgrade semiont`). `@semiont/cli` still installs a `semiont` bin, but it is a deprecation stub that runs nothing — if `which semiont` resolves to it, the npm copy is shadowing the launcher
+- [ ] Smoke-test a stack: from a KB directory, `semiont start && semiont status`, then `semiont stop`
 - [ ] Bump version for next cycle: `./scripts/release/version-bump.sh`
 
 ## Questions?

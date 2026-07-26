@@ -13,6 +13,7 @@ package launcher
 // boot gate.
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -222,6 +223,78 @@ func saveRootMeta(dir string, m *rootMeta) {
 func storeDirNonEmpty(dir string) bool {
 	entries, err := os.ReadDir(dir)
 	return err == nil && len(entries) > 0
+}
+
+// jwtSecretPath: <stateRootDir>/jwt-secret. A VALUE, so deliberately not in
+// roots.json (pointers only) and not in meta.json (0644) — its own 0600 file,
+// the same posture as tokens.json.
+func jwtSecretPath(root string) string {
+	dir := stateRootDir(root)
+	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, "jwt-secret")
+}
+
+// loadOrCreateJWTSecret resolves the backend's token-signing key for one root:
+// $JWT_SECRET, else the persisted per-root secret, else a freshly generated one
+// that is persisted before use.
+//
+// Per-ROOT, and PERSISTED — the two properties that matter, both learned the
+// hard way. The secret signs tokens for users who live in this root's postgres
+// store, so it shares their lifecycle (a full `semiont clean` removes the state
+// dir and takes this with it, which is correct: the users went too). And
+// persistence is what the retired CLI's generate-on-boot lacked once it ran
+// inside a container — a fresh secret per start silently invalidates every
+// token already issued, surfacing as `Invalid token signature` and jobs that
+// hang in Yielding forever rather than as an error anyone can read.
+//
+// Contrast the worker secret (fullStartSecret): that one may be regenerated per
+// start because every consumer is a container started in the same run, so
+// nothing outlives it. Tokens DO outlive the stack. Hence the different rule.
+func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
+	if s := os.Getenv("JWT_SECRET"); s != "" {
+		return s, true
+	}
+
+	p := jwtSecretPath(root)
+	if p == "" {
+		u.fail("No home directory resolvable, so the backend's JWT secret cannot be persisted.")
+		fmt.Fprintln(os.Stderr, "  Export one yourself:  export JWT_SECRET=$(openssl rand -hex 32)")
+		return "", false
+	}
+
+	if b, err := os.ReadFile(p); err == nil {
+		if s := strings.TrimSpace(string(b)); s != "" {
+			return s, true
+		}
+	}
+
+	b := make([]byte, 32) // 64 hex chars — comfortably over the backend's 32 minimum
+	if _, err := rand.Read(b); err != nil {
+		u.fail("Generating the backend's JWT secret: %v", err)
+		return "", false
+	}
+	secret := hex.EncodeToString(b)
+
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		u.fail("Creating %s: %v", filepath.Dir(p), err)
+		return "", false
+	}
+	// Not best-effort, unlike saveRootMeta: a secret we failed to persist would
+	// be a DIFFERENT secret next start, and the resulting token failures are far
+	// harder to diagnose than this error.
+	tmp := p + ".tmp"
+	if err := os.WriteFile(tmp, []byte(secret+"\n"), 0o600); err != nil {
+		u.fail("Writing %s: %v", p, err)
+		return "", false
+	}
+	if err := os.Rename(tmp, p); err != nil {
+		_ = os.Remove(tmp)
+		u.fail("Writing %s: %v", p, err)
+		return "", false
+	}
+	return secret, true
 }
 
 // dirSize: total bytes of regular files under path, and whether the path

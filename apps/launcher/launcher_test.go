@@ -114,6 +114,7 @@ type scenario struct {
 	kb             string // also FAKERT_GIT_ROOT unless gitRoot overridden
 	noGitRoot      bool
 	noWorkerSecret bool   // drop SEMIONT_WORKER_SECRET from the env
+	noJWTSecret    bool   // drop JWT_SECRET from the env (exercise generate + persist)
 	cwd            string // launcher working dir; defaults to kb
 	home           string
 	fakertDir      string
@@ -183,6 +184,12 @@ func (s *scenario) env() []string {
 	}
 	if !s.noWorkerSecret {
 		env = append(env, "SEMIONT_WORKER_SECRET=test-worker-secret")
+	}
+	// Pinned for the same reason as the worker secret: a generated one is
+	// random, and the boot goldens compare argv verbatim. Tests that need the
+	// generate-and-persist path set noJWTSecret.
+	if !s.noJWTSecret {
+		env = append(env, "JWT_SECRET=test-jwt-secret-0123456789abcdef")
 	}
 	if !s.noGitRoot {
 		env = append(env, "FAKERT_GIT_ROOT="+s.kb)
@@ -1365,7 +1372,7 @@ func TestUseradd(t *testing.T) {
 	}
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log),
-		"docker exec semiont-backend semiont useradd --email a@b.co --password password123 --admin")
+		"docker exec semiont-backend semiont-useradd --email a@b.co --password password123 --admin")
 	// The echoed command redacts the password; the real argv (above) is intact.
 	mustContain(t, "stdout", stdout, "--password <redacted>")
 	if strings.Contains(stdout, "password123") {
@@ -1382,7 +1389,7 @@ func TestUseradd(t *testing.T) {
 	}
 	log, _ = os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log),
-		"container exec fid-semiont-backend semiont useradd --email b@c.co --generate-password")
+		"container exec fid-semiont-backend semiont-useradd --email b@c.co --generate-password")
 
 	// The in-container CLI failing surfaces as a launcher failure.
 	s.extraEnv = append(s.extraEnv, "FAKERT_EXEC_FAIL=1")
@@ -1774,8 +1781,7 @@ func TestCodespaceStartCreates(t *testing.T) {
 		// tighter account default cannot silently shorten the KB's life.
 		"--idle-timeout 60m --retention-period 720h",
 		"gh codespace create --repo "+csRepo+" --machine premiumLinux",
-		"gh codespace ports forward 4000:4000 -c fake-cs-1", // <codespacePort>:<localPort>
-		"gh codespace ssh -c fake-cs-1 -- cat /workspaces/*/.devcontainer/admin.json")
+		"gh codespace ports forward 4000:4000 -c fake-cs-1") // <codespacePort>:<localPort>
 	mustContain(t, "stdout", stdout,
 		"KB repo: "+csRepo,
 		"Starting a CODESPACE for", "as PUSHED", "uncommitted changes",
@@ -1786,21 +1792,25 @@ func TestCodespaceStartCreates(t *testing.T) {
 		// on the first probe and the follower is killed before it can
 		// exec, so the argv log may legitimately never see it.
 		"gh codespace logs --follow -c fake-cs-1",
-		"Reading admin credentials",
 		"Semiont KB is up in codespace fake-cs-1",
 		"Semiont KB         http://localhost:4000",
 		// Codespace start ENSURES the local Browser (a runtime exists in
 		// this scenario), so the summary names the live endpoint.
 		"Semiont Browser    http://localhost:3000",
-		"admin@example.com", "fake-admin-pw",
+		// Nothing auto-creates an account, so the summary leads the
+		// follow-ups with the command that makes the first one.
+		"First user:", "semiont useradd --repo "+csRepo,
 		"local uncommitted changes don't travel",
 		"Halt compute:")
 	b, _ := os.ReadFile(statePathFor(s.home))
 	mustContain(t, "stack.json", string(b),
 		`"runtime": "codespace"`, `"codespace": "fake-cs-1"`, `"repo": "pingel-org/foo-kb"`,
 		`"forwardPid"`, `"forwardPort": 4000`)
-	if strings.Contains(string(b), "fake-admin-pw") {
-		t.Fatalf("credentials persisted to stack.json:\n%s", b)
+	// No credentials exist to leak any more — the launcher neither reads nor
+	// prints them. Assert the record stays free of any password-shaped field so
+	// a future feature cannot quietly reintroduce one.
+	if strings.Contains(strings.ToLower(string(b)), "password") {
+		t.Fatalf("a password-shaped field reached stack.json:\n%s", b)
 	}
 	// Placement is never sticky: no machine-wide runtime preference written.
 	if rb, err := os.ReadFile(rootsPathFor(s.home)); err == nil && strings.Contains(string(rb), `"runtime": "codespace"`) {
@@ -2083,22 +2093,30 @@ func TestCodespaceMachineInertOnResume(t *testing.T) {
 		"--machine largePremiumLinux ignored", "keeps the class it was created with")
 }
 
-func TestCodespaceCredentialFailureShowsGhError(t *testing.T) {
-	// A failed credentials read must report what gh SAID, not guess between
-	// causes in prose — and must not block an otherwise healthy stack.
+func TestCodespaceSshFailureDoesNotBlockAHealthyStack(t *testing.T) {
+	// The ssh at the end of a codespace start is a nicety — it backfills the
+	// recorded KB identity. A failure there must not fail an otherwise healthy
+	// stack, and must not stop the summary being printed.
+	//
+	// (This test previously covered the same invariant for an admin-credentials
+	// read at the same point. That read is gone — nothing auto-creates an
+	// admin — but reconcileDid still reaches over ssh here, so the invariant is
+	// still worth pinning.)
 	s := newCodespaceScenario(t)
 	s.extraEnv = append(s.extraEnv, "FAKERT_GH_SSH_FAIL=1")
 	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
 	if code != 0 {
-		t.Fatalf("an unreadable admin.json must not fail the start: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("a failed ssh must not fail the start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "stdout", stdout,
-		"Could not read admin credentials over ssh yet",
-		"gh: failed to start SSH server", // gh's own words, surfaced
-		"Usually setup is still finishing",
-		"Semiont KB is up in codespace") // stack still reported up
-	if strings.Contains(stdout, "Connect as ") {
-		t.Errorf("printed credentials it never read:\n%s", stdout)
+		"Semiont KB is up in codespace", // stack still reported up
+		"First user:")                   // and the next step still told
+	// The launcher must never print credentials: it has none, and no KB
+	// auto-creates an account for it to have.
+	for _, forbidden := range []string{"Connect as ", "Reading admin credentials", "admin.json"} {
+		if strings.Contains(stdout, forbidden) {
+			t.Errorf("stdout still speaks of auto-created credentials (%q):\n%s", forbidden, stdout)
+		}
 	}
 }
 
@@ -2123,7 +2141,7 @@ func TestUseraddCodespace(t *testing.T) {
 	remote := stdout[strings.Index(stdout, "remote-cmd: "):]
 	remote = remote[:strings.IndexByte(remote, '\n')]
 	mustContain(t, "remote command", remote,
-		"docker exec semiont-backend semiont useradd",
+		"docker exec semiont-backend semiont-useradd",
 		"'alice@example.com'", "'--admin'")
 	// The dangerous fragment must be inside quotes, never bare syntax.
 	if strings.Contains(remote, "; rm -rf /") || strings.Contains(remote, ";rm -rf / ") {
@@ -2425,7 +2443,9 @@ func TestCodespaceStatus(t *testing.T) {
 		"re-establishing",
 		"KB", "healthy", "http://localhost:4000/api/health",
 		"run inside the codespace via compose",
-		"admin@example.com", "fake-admin-pw")
+		// No credentials: status reports where to connect and how to make a
+		// user, never an account it cannot vouch for.
+		"connect at Host localhost, Port 4000", "semiont useradd --repo "+csRepo)
 
 	// Stopped: honest stopped-but-existing, scriptably unhealthy.
 	s.killServes()
@@ -2532,7 +2552,7 @@ func TestCodespaceDryRunAndLogs(t *testing.T) {
 		"gh api /repos/"+csRepo+"/codespaces/machines",
 		"gh codespace create --repo "+csRepo+" --machine <machine>",
 		"gh codespace ports forward",
-		"cat .devcontainer/admin.json")
+		"cat /workspaces/*/.semiont/config")
 	if log, _ := os.ReadFile(s.log); strings.Contains(string(log), "gh ") {
 		t.Errorf("dry-run invoked gh:\n%s", log)
 	}
@@ -2744,7 +2764,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 		t.Fatalf("useradd --runtime: exit %d\nstderr:\n%s", code, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log), "container exec fid-semiont-backend semiont useradd")
+	mustContain(t, "argv log", string(log), "container exec fid-semiont-backend semiont-useradd")
 
 	// A targeted local stop consumes the local record only.
 	if _, stderr, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
@@ -3636,6 +3656,158 @@ func TestStopVerifiesPortsReleased(t *testing.T) {
 		"Port 9090 is still held by 777 (node)", "the next start will fail on it")
 }
 
+// --- JWT_SECRET supply ---
+
+// The backend signs every token with JWT_SECRET and is the only service that
+// reads it. Nothing in the image supplies it (the retired CLI's `provision`
+// used to generate one), so the launcher must — and must supply the SAME one
+// across restarts, because a changed secret silently invalidates every token
+// already issued: the "job sits in Yielding forever" failure.
+func TestStartInjectsPersistentJWTSecret(t *testing.T) {
+	s := newScenario(t, "container")
+	s.noJWTSecret = true // exercise generate-and-persist, not the env path
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+
+	argv := s.argv(t)
+	first := jwtSecretFromArgv(t, argv)
+	if len(first) < 32 {
+		t.Errorf("JWT_SECRET must be >= 32 chars (the backend rejects shorter); got %d", len(first))
+	}
+
+	// Never printed — it is a signing key, not a status field.
+	if strings.Contains(stdout, first) {
+		t.Error("JWT_SECRET leaked into stdout")
+	}
+
+	// Only the backend gets it: the sidecars authenticate via the worker
+	// secret + agent-token exchange and never sign anything.
+	for _, svc := range []string{"worker", "smelter", "weaver", "frontend"} {
+		for _, line := range strings.Split(argv, "\n") {
+			if strings.Contains(line, "--name semiont-"+svc) && strings.Contains(line, "JWT_SECRET") {
+				t.Errorf("%s must not receive JWT_SECRET: %s", svc, line)
+			}
+		}
+	}
+
+	// Persisted, at 0600, under this root's state dir — so it survives the
+	// stack and can be resolved again rather than re-minted.
+	path := findFile(t, s.home, "jwt-secret")
+	if path == "" {
+		t.Fatal("JWT_SECRET was not persisted: no jwt-secret file under the state dir")
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	if strings.TrimSpace(string(b)) != first {
+		t.Errorf("persisted secret differs from the injected one\nfile: %q\nargv: %q", strings.TrimSpace(string(b)), first)
+	}
+	if info, err := os.Stat(path); err == nil && info.Mode().Perm() != 0o600 {
+		t.Errorf("%s is %o, want 600 — it is a signing key", path, info.Mode().Perm())
+	}
+
+	// Restarting just the backend must rejoin the SAME key. This is the case
+	// that matters operationally: a re-minted secret here would invalidate
+	// every token the running stack's users already hold.
+	out2, err2, code := s.run(t, "start", "--service", "backend")
+	if code != 0 {
+		t.Fatalf("start --service backend: exit %d\nstdout:\n%s\nstderr:\n%s", code, out2, err2)
+	}
+	if second := jwtSecretFromArgv(t, s.argv(t)); second != first {
+		t.Errorf("JWT_SECRET changed on restart — every previously issued token is now invalid\nfirst:  %s\nsecond: %s", first, second)
+	}
+}
+
+// An explicit $JWT_SECRET is the operator's override — it wins over the
+// persisted one, the same precedence $SEMIONT_WORKER_SECRET has.
+func TestStartJWTSecretEnvWins(t *testing.T) {
+	s := newScenario(t, "container")
+	s.noJWTSecret = true // replace the harness default with our own value
+	s.extraEnv = append(s.extraEnv, "JWT_SECRET=an-operator-supplied-secret-of-sufficient-length")
+	if _, _, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("want exit 0, got %d", code)
+	}
+	if got := jwtSecretFromArgv(t, s.argv(t)); got != "an-operator-supplied-secret-of-sufficient-length" {
+		t.Errorf("env JWT_SECRET ignored; got %q", got)
+	}
+}
+
+// Dry-run reaches for nothing and generates nothing: no secret file may
+// appear, and the placeholder stands in for the value.
+func TestStartDryRunDoesNotMintJWTSecret(t *testing.T) {
+	s := newScenario(t, "container")
+	s.noJWTSecret = true // nothing to fall back on: a mint would be visible
+	stdout, _, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d", code)
+	}
+	mustContain(t, "stdout", stdout, "JWT_SECRET=<jwt-secret>")
+	if found := findFile(t, s.home, "jwt-secret"); found != "" {
+		t.Errorf("--dry-run minted a secret at %s", found)
+	}
+}
+
+// The secret is keyed to the KB the start RESOLVED — by did:web identity, so
+// it follows a moved clone — even when the launcher was invoked from outside
+// that KB via --root.
+//
+// This passes today for two independent reasons (the flow passes the resolved
+// root, AND start Chdir()s into it), which is exactly why it is worth pinning:
+// it fences the OUTCOME, so removing either mechanism shows up here as a secret
+// filed under a path- hash of the caller's directory instead of the KB.
+func TestStartJWTSecretKeyedToResolvedRoot(t *testing.T) {
+	s := newScenario(t, "container")
+	s.noJWTSecret = true
+	s.cwd = t.TempDir() // NOT a KB: cwd discovery would find nothing here
+	if _, _, code := s.run(t, "start", "--root", s.kb); code != 0 {
+		t.Fatalf("start --root: exit %d", code)
+	}
+	path := findFile(t, s.home, "jwt-secret")
+	if path == "" {
+		t.Fatal("no jwt-secret written")
+	}
+	if want := filepath.Join("roots", testKBKey, "jwt-secret"); !strings.HasSuffix(path, want) {
+		t.Errorf("secret keyed off the wrong root\n got: %s\nwant suffix: %s", path, want)
+	}
+	if strings.Contains(path, "roots/path-") {
+		t.Errorf("secret keyed off cwd rather than the KB's identity: %s", path)
+	}
+}
+
+// jwtSecretFromArgv extracts the value the backend container was given.
+func jwtSecretFromArgv(t *testing.T, argv string) string {
+	t.Helper()
+	for _, line := range strings.Split(argv, "\n") {
+		if !strings.Contains(line, "--name semiont-backend") {
+			continue
+		}
+		for _, f := range strings.Fields(line) {
+			if v, ok := strings.CutPrefix(f, "JWT_SECRET="); ok {
+				return v
+			}
+		}
+		t.Fatalf("backend run carries no JWT_SECRET:\n%s", line)
+	}
+	t.Fatalf("no backend run in argv:\n%s", argv)
+	return ""
+}
+
+// findFile returns the first path under dir whose basename matches, else "".
+func findFile(t *testing.T, dir, name string) string {
+	t.Helper()
+	var hit string
+	_ = filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
+		if err == nil && info != nil && !info.IsDir() && info.Name() == name && hit == "" {
+			hit = p
+		}
+		return nil
+	})
+	return hit
+}
+
 // --- start --service ---
 
 func TestStartServiceWorker(t *testing.T) {
@@ -4000,6 +4172,34 @@ func TestStartPullsMissingOllamaModels(t *testing.T) {
 	mustContain(t, "warning", stdout+stderr, "Could not pull", "ollama pull")
 }
 
+// A failed pull must name the ROLE that stops working, because that is what
+// tells the user whether they care. inference and embedding are the roles;
+// Ollama is merely the provider that happens to serve both here, so "jobs"
+// (which only describes the worker pool) is wrong for the embedding model.
+func TestFailedModelPullNamesTheAffectedRole(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_OLLAMA_TAGS=", "FAKERT_OLLAMA_PULL_FAILS=1")
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("a failed model pull must not fail the stack: exit %d\nstderr:\n%s", code, stderr)
+	}
+	out := stdout + stderr
+
+	// The default config serves gemma4:* for inference and nomic-embed-text
+	// for embedding, so both roles appear and each must be named correctly.
+	for _, want := range []string{
+		"Could not pull nomic-embed-text — embedding will fail",
+		"Could not pull gemma4:26b — inference will fail",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing role-named warning %q; got:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "jobs that use it") {
+		t.Error("still says 'jobs that use it' — wrong for the embedding model, which the smelter needs, not the worker pool")
+	}
+}
+
 func TestRemoteModelsAreNeverCheckedAgainstOllama(t *testing.T) {
 	// The anthropic config runs every actor and worker on Claude while its
 	// embedding runs on Ollama. The inference row's driver is therefore
@@ -4137,7 +4337,7 @@ func TestBareStopFollowsCwd(t *testing.T) {
 		t.Fatalf("bare useradd in clone: exit %d\nstderr:\n%s", code, stderr)
 	}
 	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
-	mustContain(t, "useradd argv", fresh, "exec", "semiont useradd")
+	mustContain(t, "useradd argv", fresh, "exec", "semiont-useradd")
 	if strings.Contains(fresh, "gh codespace") {
 		t.Errorf("bare useradd in the local clone went to the codespace:\n%s", fresh)
 	}

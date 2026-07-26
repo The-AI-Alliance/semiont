@@ -6,45 +6,37 @@
 
 Pre-built Semiont frontend as a Vite SPA with a zero-dependency Node.js static file server. This package contains the compiled frontend application ready to run with Node.js.
 
-## Installation
+## Running Semiont
+
+Most people should **not** install this package directly. A Semiont stack is run with the `semiont`
+launcher — a single static binary that pulls the published container images:
 
 ```bash
-npm install -g @semiont/frontend
-```
+brew install the-ai-alliance/semiont/semiont
 
-This package is typically installed automatically by `semiont provision` when using the [Semiont CLI](https://www.npmjs.com/package/@semiont/cli).
-
-## Usage
-
-The recommended way to run Semiont is through the CLI:
-
-```bash
-npm install -g @semiont/cli
-semiont init my-project
-cd my-project
-semiont provision
+cd /path/to/your-knowledge-base
 semiont start
 ```
 
-The CLI handles configuration, environment setup, and process management.
-
-## Direct Usage
+This package is what the `semiont-frontend` container image runs inside. To run just the browser
+against an already-running knowledge base, use the published image directly:
 
 ```bash
-PORT=3000 semiont-frontend
-# or
+docker run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
+```
+
+## Direct usage
+
+```bash
+npm install @semiont/frontend
 PORT=3000 node node_modules/@semiont/frontend/server.js
 ```
 
-Requires the `PORT` environment variable to be configured.
-
-## What's Included
-
-- `dist/` - Vite-built static SPA assets
-- `server.js` - Zero-dependency Node.js static file server with SPA fallback
+The SPA is backend-agnostic: it connects to knowledge bases chosen in the browser at runtime, so the
+only environment variable it needs is `PORT`.
 
 ## Links
 
 - [Semiont GitHub](https://github.com/The-AI-Alliance/semiont)
-- [Semiont CLI](https://www.npmjs.com/package/@semiont/cli)
+- [Semiont launcher](https://github.com/The-AI-Alliance/semiont/tree/main/apps/launcher)
 - [Documentation](https://github.com/The-AI-Alliance/semiont#readme)

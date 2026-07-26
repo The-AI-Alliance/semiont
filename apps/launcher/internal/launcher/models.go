@@ -197,32 +197,40 @@ func ollamaBase(endpoint string) string {
 // A model that cannot be listed is never pulled: when Ollama does not answer
 // we know nothing, and blindly pulling would re-download gigabytes a user
 // already has. Same rule status keeps — unknown is not missing.
-func ensureOllamaModels(u *ui, base string, models []string) bool {
+// The narration is deliberately ROLE-framed even though the mechanism is
+// Ollama's: this set is provisioned under the inference banner but can contain
+// the embedding model, so attributing a failure to "Ollama" or to the enclosing
+// section would point the user at the wrong thing. Ollama appears in the output
+// only as the literal remediation command, where it is the truth.
+func ensureOllamaModels(u *ui, base string, models []modelNeed) bool {
 	if len(models) == 0 {
 		return true
 	}
+	roles := strings.Join(modelRoles(models), ", ")
 	facts := fetchModelFacts(base)
 	if !facts.found {
-		u.warn("Could not list Ollama's models at %s — skipping model checks.", base)
+		u.warn("Could not list the models served at %s — skipping %s model checks.", base, roles)
 		return true // not fatal: the stack runs, status will report what it finds
 	}
-	var missing []string
+	var missing []modelNeed
 	for _, m := range models {
-		if _, ok := facts.installed[normalizeModel(m)]; !ok {
+		if _, ok := facts.installed[normalizeModel(m.Name)]; !ok {
 			missing = append(missing, m)
 		}
 	}
 	if len(missing) == 0 {
-		u.ok("Models present %s", u.dim("("+strings.Join(models, ", ")+")"))
+		u.ok("Models present for %s %s", roles, u.dim("("+strings.Join(modelNames(models), ", ")+")"))
 		return true
 	}
-	u.log("Pulling %d missing model(s): %s", len(missing), u.bold(strings.Join(missing, ", ")))
+	u.log("Pulling %d missing model(s): %s", len(missing), u.bold(strings.Join(modelNames(missing), ", ")))
 	for _, m := range missing {
-		if !pullOllamaModel(u, base, m) {
+		if !pullOllamaModel(u, base, m.Name) {
 			// A failed pull is NOT fatal to the stack: the other services are
-			// fine and the user may prefer to pull by hand. Say plainly what
-			// will break, and let status keep reporting it MISSING.
-			u.warn("Could not pull %s — jobs that use it will fail until it is present (ollama pull %s).", m, m)
+			// fine and the user may prefer to pull by hand. Name the ROLE that
+			// stops working — that is what tells the user whether they care —
+			// and let status keep reporting the model MISSING.
+			u.warn("Could not pull %s — %s will fail until it is present (ollama pull %s).",
+				m.Name, strings.Join(m.Roles, " and "), m.Name)
 		}
 	}
 	return true

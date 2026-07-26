@@ -50,7 +50,28 @@ type launchPlan struct {
 	// from the per-role Models (which list what a role uses whoever serves
 	// it): only these can be pulled, and pulling a Claude into Ollama is not
 	// a thing.
-	OllamaModels []string
+	//
+	// Each carries the ROLES that asked for it. One Ollama can serve both
+	// inference and embedding, so this set crosses role boundaries: it is
+	// provisioned under the inference banner but a failure here may be an
+	// EMBEDDING failure. Output must name the role, not the section it
+	// happened to be printed under.
+	OllamaModels []modelNeed
+}
+
+// The two roles a model can be asked to serve. Providers vary (ollama,
+// anthropic, voyage); these do not.
+const (
+	roleInference = "inference"
+	roleEmbedding = "embedding"
+)
+
+// modelNeed: a model that must be present, and the roles that asked for it —
+// the sibling of portNeed. (Not ollamaModel, which is Ollama's /api/tags
+// response shape: what it HAS, not what the config wants.)
+type modelNeed struct {
+	Name  string
+	Roles []string // roleInference and/or roleEmbedding
 }
 
 // driverSpec: what the config does NOT declare about a driver — the
@@ -116,26 +137,71 @@ func ollamaBindingModels(env *envConfig) []string {
 	return out
 }
 
-func ollamaModels(env *envConfig) []string {
-	seen := map[string]bool{}
-	var out []string
-	add := func(m string) {
-		if m != "" && !seen[m] {
-			seen[m] = true
-			out = append(out, m)
+func ollamaModels(env *envConfig) []modelNeed {
+	idx := map[string]*modelNeed{}
+	var names []string
+	add := func(name, role string) {
+		if name == "" {
+			return
 		}
+		m, ok := idx[name]
+		if !ok {
+			m = &modelNeed{Name: name}
+			idx[name] = m
+			names = append(names, name)
+		}
+		for _, r := range m.Roles {
+			if r == role {
+				return
+			}
+		}
+		m.Roles = append(m.Roles, role)
 	}
+	// Every actor/worker binding is the INFERENCE role however many bindings
+	// name the same model; the embedding role is added last, so Roles ends up
+	// deterministically ordered despite Go's map iteration.
 	for _, bindings := range []map[string]bindingCfg{env.Actors, env.Workers} {
 		for _, b := range bindings {
 			if b.Inference.Type == "ollama" {
-				add(b.Inference.Model)
+				add(b.Inference.Model, roleInference)
 			}
 		}
 	}
 	if env.Embedding != nil && env.Embedding.Type == "ollama" {
-		add(env.Embedding.Model)
+		add(env.Embedding.Model, roleEmbedding)
 	}
-	sort.Strings(out)
+	sort.Strings(names)
+	out := make([]modelNeed, 0, len(names))
+	for _, n := range names {
+		out = append(out, *idx[n])
+	}
+	return out
+}
+
+// modelNames: just the names, for the places that only need the list.
+func modelNames(models []modelNeed) []string {
+	out := make([]string, 0, len(models))
+	for _, m := range models {
+		out = append(out, m.Name)
+	}
+	return out
+}
+
+// modelRoles: the union of roles across a model set, in a stable order — what
+// a provisioning step is FOR, said in role terms rather than provider terms.
+func modelRoles(models []modelNeed) []string {
+	var out []string
+	for _, want := range []string{roleInference, roleEmbedding} {
+		for _, m := range models {
+			for _, r := range m.Roles {
+				if r == want {
+					out = append(out, want)
+					goto next
+				}
+			}
+		}
+	next:
+	}
 	return out
 }
 

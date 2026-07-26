@@ -1,20 +1,13 @@
 /**
- * Health Check Route - Spec-First Version
+ * Health Check Route
  *
- * This is a proof of concept demonstrating the new spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - No Zod schemas (GET endpoint has no request body)
- * - Types come from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * Plain Hono, no Zod schemas (a GET with no request body), response type
+ * generated from the OpenAPI spec.
  */
 
 import { Hono } from 'hono';
 import { DatabaseConnection } from '../db';
 import type { components } from '@semiont/core';
-import { getLogger } from '../logger';
-
-// Lazy initialization to avoid calling getLogger() at module load time
-const getRouteLogger = () => getLogger().child({ component: 'health' });
 
 type HealthResponse = components['schemas']['HealthResponse'];
 
@@ -33,41 +26,12 @@ healthRouter.get('/api/health', async (c) => {
     throw new Error('NODE_ENV environment variable is required');
   }
 
-  // Check if startup script had issues (for internal monitoring)
-  let startupFailed = false;
-  try {
-    const fs = await import('fs');
-    if (fs.existsSync('/tmp/startup_status')) {
-      const startupStatus = fs.readFileSync('/tmp/startup_status', 'utf-8').trim();
-      if (startupStatus.startsWith('FAILED')) {
-        startupFailed = true;
-        // Log internally but don't expose details
-        getRouteLogger().error('Startup script failure detected', { startupStatus });
-      }
-    }
-  } catch (e) {
-    // Ignore file read errors
-  }
-
-  if (startupFailed) {
-    // Return unhealthy but don't expose internal details
-    const response: HealthResponse = {
-      status: 'offline',
-      message: 'Service is experiencing issues',
-      version: '0.1.0',
-      timestamp: new Date().toISOString(),
-      database: 'unknown',
-      environment: nodeEnv,
-    };
-    return c.json(response, 200);  // Always return 200 for health checks (ALB requirement)
-  }
-
   const dbStatus = await DatabaseConnection.checkHealth();
 
   const response: HealthResponse = {
     status: 'operational',
     message: 'Semiont API is running',
-    version: '0.1.0',
+    version: __SEMIONT_VERSION__,
     timestamp: new Date().toISOString(),
     database: dbStatus ? 'connected' : 'disconnected',
     environment: nodeEnv,

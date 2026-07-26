@@ -6,11 +6,15 @@ This Model Context Protocol (MCP) server provides AI applications with access to
 
 ## Features
 
-Provides MCP tools for:
-- Document management (create, read, update, list, search)
-- Annotation operations (create, link to documents, generate documents)
-- Document highlights and references
-- Event history access
+Ten MCP tools, named by flow:
+
+- **browse** — read resources, their highlights, and their references
+- **mark** — create annotations, or have an LLM detect them
+- **bind** — link a reference annotation to its target resource
+- **gather** — assemble LLM context for an annotation
+- **yield** — create a resource from content, or generate one from an annotation
+
+See [Available tools](#available-tools) for each tool's parameters.
 
 ## Architecture
 
@@ -56,326 +60,209 @@ npm run build
 
 ## Authentication
 
-The MCP server uses JWT tokens for API authentication. There are two types of tokens:
-- **Refresh Token**: Long-lived (30 days), used to obtain access tokens
-- **Access Token**: Short-lived (1 hour), used for API requests
+The server needs exactly two environment variables:
 
-### Automatic Authentication Setup (Recommended)
+| Variable | Meaning |
+|---|---|
+| `SEMIONT_API_URL` | Backend base URL, e.g. `http://localhost:4000` |
+| `SEMIONT_ACCESS_TOKEN` | A bearer access token |
 
-The easiest way to authenticate is through the browser-based OAuth flow:
+Both are required — the process exits at startup if either is missing.
+
+`semiont login` obtains a token against a running stack and stores it in the
+launcher's state home (`~/Library/Application Support/semiont/tokens.json` on
+macOS, `~/.local/state/semiont/tokens.json` on Linux, mode 0600):
 
 ```bash
-# Use the CLI to provision MCP with OAuth authentication
-semiont provision --service mcp
-
-# This will:
-# 1. Open your browser for Google OAuth login
-# 2. Generate a 30-day refresh token
-# 3. Store it in ~/.config/semiont/mcp-auth-{environment}.json
+semiont login --email you@example.com     # password read from stdin
 ```
 
-### Manual Configuration
-
-If you need to manually configure authentication:
+Read the `token` field for your stack's key out of that file and export it:
 
 ```bash
-# API endpoint (defaults to local development)
 export SEMIONT_API_URL=http://localhost:4000
-
-# Refresh token for authentication (30-day validity)
-export SEMIONT_REFRESH_TOKEN=your-refresh-token-here
+export SEMIONT_ACCESS_TOKEN=$(python3 -c \
+  "import json,pathlib,sys; print(json.load(open(sys.argv[1]))['local']['token'])" \
+  ~/Library/Application\ Support/semiont/tokens.json)
 ```
 
-### Getting Tokens Manually
-
-1. **Via Browser OAuth Flow**:
-   ```bash
-   # Open browser to authenticate and get refresh token
-   open "http://localhost:3000/api/auth/mcp-setup?callback=http://localhost:8080"
-   
-   # This will:
-   # - Redirect to Google OAuth login
-   # - Generate a 30-day refresh token
-   # - Redirect to callback with token as query parameter
-   ```
-
-2. **Via Frontend Login** (get access token):
-   ```bash
-   # 1. Start the Semiont platform
-   semiont start
-   
-   # 2. Visit http://localhost:3000 and login with Google
-   
-   # 3. Open browser DevTools and find the access token in:
-   #    - localStorage: 'token' key
-   #    - Or Network tab: Authorization header in API requests
-   #    Note: This is a 1-hour access token, not a refresh token
-   ```
-
-3. **Via Direct API Call** (if you have Google OAuth token):
-   ```bash
-   curl -X POST http://localhost:4000/api/auth/google \
-     -H "Content-Type: application/json" \
-     -d '{"access_token": "your-google-oauth-token"}'
-   ```
-
-4. **For Testing** (create a test user directly):
-   ```bash
-   semiont exec --service backend \
-     "npx ts-node -e \"
-       const { PrismaClient } = require('@prisma/client');
-       const jwt = require('jsonwebtoken');
-       const prisma = new PrismaClient();
-       
-       async function createTestUser() {
-         const user = await prisma.user.create({
-           data: {
-             email: 'test@example.com',
-             name: 'Test User',
-             provider: 'google',
-             providerId: 'test-' + Date.now(),
-             domain: 'example.com'
-           }
-         });
-         
-         const token = jwt.sign(
-           { userId: user.id, email: user.email },
-           process.env.JWT_SECRET,
-           { expiresIn: '7d' }
-         );
-         
-         console.log('Token:', token);
-       }
-       
-       createTestUser();
-     \""
-   ```
+**Access tokens are short-lived and this server does not refresh them.** It
+holds a `SemiontClient` over a fixed token for the life of the process, so a
+long-running session stops working when the token expires and the process must
+be restarted with a fresh one. For anything long-running, prefer a
+`SemiontSession` (`@semiont/sdk`), which refreshes; see
+[the SDK README](../sdk/README.md).
 
 ## Usage
 
-### Desktop Apps (Claude Desktop)
+### Claude Desktop
 
-1. **Provision MCP authentication**:
-   ```bash
-   semiont provision --service mcp --environment production
-   ```
-   This will:
-   - Open your browser for OAuth authentication
-   - Generate a long-lived refresh token (30 days)
-   - Store credentials in `~/.config/semiont/mcp-auth-<env>.json`
+Add the built server to your Claude Desktop configuration, passing the two
+environment variables:
 
-2. **Configure Claude Desktop**:
-   Add to your Claude Desktop configuration:
-   ```json
-   {
-     "mcpServers": {
-       "semiont": {
-         "command": "semiont",
-         "args": ["start", "--service", "mcp", "--environment", "production"]
-       }
-     }
-   }
-   ```
+```json
+{
+  "mcpServers": {
+    "semiont": {
+      "command": "node",
+      "args": ["/absolute/path/to/semiont/packages/mcp-server/dist/index.js"],
+      "env": {
+        "SEMIONT_API_URL": "http://localhost:4000",
+        "SEMIONT_ACCESS_TOKEN": "<your access token>"
+      }
+    }
+  }
+}
+```
 
-3. **The MCP server will**:
-   - Automatically refresh access tokens (1-hour expiry)
-   - Provide Semiont API access to Claude
-   - Handle authentication transparently
+The stack must be running (`semiont start`) for the server to reach the backend.
 
-### Programmatic Usage
+### Programmatic usage
 
 ```javascript
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { spawn } from 'child_process';
 
-// Start the MCP server
-const serverProcess = spawn('node', ['dist/index.js'], {
-  env: {
-    ...process.env,
-    SEMIONT_API_URL: 'https://your-domain.com',
-    SEMIONT_API_TOKEN: 'your-access-token' // Note: Use refresh token flow for production
-  }
-});
-
-// Create MCP client
 const transport = new StdioClientTransport({
   command: 'node',
-  args: ['dist/index.js'],
+  args: ['packages/mcp-server/dist/index.js'],
+  env: {
+    ...process.env,
+    SEMIONT_API_URL: 'http://localhost:4000',
+    SEMIONT_ACCESS_TOKEN: process.env.SEMIONT_ACCESS_TOKEN,
+  },
 });
 
-const client = new Client({
-  name: 'semiont-client',
-  version: '1.0.0',
-}, {
-  capabilities: {}
-});
-
+const client = new Client({ name: 'semiont-client', version: '1.0.0' }, { capabilities: {} });
 await client.connect(transport);
 
-// List available tools
-const tools = await client.request({
-  method: 'tools/list'
-});
+const tools = await client.request({ method: 'tools/list' });
 
-// Call the hello tool
 const result = await client.request({
   method: 'tools/call',
   params: {
-    name: 'semiont_hello',
-    arguments: {
-      name: 'AI Assistant'
-    }
-  }
+    name: 'browse_resources',
+    arguments: { search: 'ontology', limit: 5 },
+  },
 });
 
 console.log(result);
 ```
 
-## Available Tools
+## Available tools
 
-### `semiont_hello`
+Every tool returns its result as a JSON string in a single `text` content block.
 
-Get a personalized greeting from Semiont.
+### browse
 
-**Parameters**:
-- `name` (optional, string): Name for personalized greeting (max 100 characters)
+| Tool | Required | Optional |
+|---|---|---|
+| `browse_resource` — get a resource with its annotations and references | `id` | |
+| `browse_resources` — list resources | | `search`, `archived` (default `false`), `limit` (default `20`) |
+| `browse_highlights` — highlighting annotations for a resource | `resourceId` | |
+| `browse_references` — linking annotations for a resource | `resourceId` | |
 
-**Returns**:
-- Message with greeting
-- Platform information
-- Timestamp
-- Authenticated user (if token provided)
+### mark
 
-**Example**:
-```json
-{
-  "name": "semiont_hello",
-  "arguments": {
-    "name": "John Doe"
-  }
-}
-```
+| Tool | Required | Optional |
+|---|---|---|
+| `mark_annotation` — create an annotation (highlight, comment, reference, tag) | `resourceId`, `selectionData` (`{offset, length, text}`) | `entityTypes` |
+| `mark_assist` — AI-assisted annotation: detect entities, highlights, assessments, comments, or tags | `resourceId` | `entityTypes`, `language`, `sourceLanguage` |
 
-**Response**:
-```
-Hello, John Doe! Welcome to Semiont.
+`language` is a BCP-47 tag for what the LLM writes (stamped on `TextualBody.language`); `sourceLanguage` describes the source resource and feeds the prompt.
 
-Platform: Semiont Semantic Knowledge Platform
-Timestamp: 2024-01-15T10:30:00.000Z
-Authenticated as: user@example.com
-```
+### bind
+
+| Tool | Required |
+|---|---|
+| `bind_body` — link a reference annotation to a target resource | `sourceResourceId`, `annotationId`, `targetResourceId` |
+
+### gather
+
+| Tool | Required | Optional |
+|---|---|---|
+| `gather_annotation` — gather LLM context for an annotation (passage + graph context) | `resourceId`, `annotationId` | `contextWindow` (default `2000`) |
+
+### yield
+
+| Tool | Required | Optional |
+|---|---|---|
+| `yield_resource` — create a resource from content | `name`, `content`, `storageUri` | `entityTypes`, `contentType` (default `text/plain`) |
+| `yield_from_annotation` — generate a resource from an annotation using AI | `resourceId`, `annotationId`, `storageUri` | `prompt`, `language`, `sourceLanguage` |
+
+`storageUri` looks like `file://docs/my-resource.md`.
 
 ## Development
 
 ```bash
-# Install dependencies
-npm install
-
-# Run in development mode (with auto-reload)
-npm run dev
-
-# Build for production
-npm run build
-
-# Run tests (when added)
-npm test
+npm run dev              # tsx src/index.ts — no build step
+npm run build            # tsc
+npm start                # node dist/index.js
+npm test                 # vitest run
+npm run test:coverage
 ```
+
+`dev` and `start` both need `SEMIONT_API_URL` and `SEMIONT_ACCESS_TOKEN` in the
+environment.
 
 ## Testing the MCP Server
 
 ```bash
-# Test directly with npx
-npx @modelcontextprotocol/inspector \
-  node packages/mcp-server/dist/index.js
-
-# This opens a web interface where you can:
-# 1. See available tools
-# 2. Test calling the semiont_hello tool
-# 3. View request/response details
+SEMIONT_API_URL=http://localhost:4000 \
+SEMIONT_ACCESS_TOKEN="$SEMIONT_ACCESS_TOKEN" \
+npx @modelcontextprotocol/inspector node packages/mcp-server/dist/index.js
 ```
 
-## Extending the Server
+The inspector opens a web interface listing the registered tools, where you can
+call one and see the request and response.
 
-To add more Semiont API endpoints:
+## Extending the server
 
-1. Add new tool definitions in `ListToolsRequestSchema` handler
-2. Add corresponding execution logic in `CallToolRequestSchema` handler
-3. Update this README with the new tools
+Adding a tool takes three edits, all in `src/`:
 
-Example for adding a status endpoint:
+1. A tool definition in the `ListToolsRequestSchema` handler ([`src/index.ts`](src/index.ts))
+2. A `case` in the `CallToolRequestSchema` handler dispatching to a handler function
+3. The handler itself in [`src/handlers.ts`](src/handlers.ts), taking `(semiont: SemiontClient, args)` and returning `McpResult`
 
-```typescript
-// In ListToolsRequestSchema handler
-{
-  name: 'semiont_status',
-  description: 'Get Semiont platform status',
-  inputSchema: {
-    type: 'object',
-    properties: {},
-  },
-}
+Handlers call the client's verb namespaces — `semiont.browse.*`, `semiont.mark.*`,
+and so on. They never construct HTTP requests: the transport, auth, and retry
+behaviour belong to the client. If the capability you need is not on
+`SemiontClient` yet, add it to `@semiont/sdk` rather than reaching around it from
+here.
 
-// In CallToolRequestSchema handler
-if (request.params.name === 'semiont_status') {
-  const response = await fetch(`${SEMIONT_API_URL}/api/status`, {
-    headers: { 'Authorization': `Bearer ${SEMIONT_API_TOKEN}` },
-  });
-  const data = await response.json();
-  return {
-    content: [{
-      type: 'text',
-      text: `Status: ${data.status}\nVersion: ${data.version}`
-    }],
-  };
-}
-```
-
-## Token Management
-
-The MCP server automatically handles token refresh:
-1. Uses refresh token to get initial access token
-2. Monitors access token expiration (1 hour)
-3. Automatically refreshes access token before expiration
-4. Refresh tokens are valid for 30 days
-
-When a refresh token expires after 30 days, you'll need to re-authenticate:
-```bash
-semiont provision --service mcp
-```
+Then document the tool in [Available tools](#available-tools) above.
 
 ## Troubleshooting
 
-### "Authentication failed"
-- Ensure `SEMIONT_REFRESH_TOKEN` is set with a valid refresh token
-- Check refresh token hasn't expired (tokens expire after 30 days)
-- For expired tokens, run `semiont provision --service mcp` to re-authenticate
-- Verify the Semiont backend is running
+**Startup fails immediately**
 
-### "Connection refused"
-- Check Semiont platform is running: `semiont check`
-- Verify `SEMIONT_API_URL` matches your backend URL
-- Ensure backend is accessible from MCP server
+The process throws if `SEMIONT_API_URL` or `SEMIONT_ACCESS_TOKEN` is unset. In a
+Claude Desktop config, they must be in the server entry's `env` block — the
+desktop app does not inherit your shell environment.
 
-### "Unknown tool"
-- Tool name must be exactly `semiont_hello`
-- Check for typos in the tool name
+**401 / authentication failed**
 
-## Security Notes
+The access token expired. This server does not refresh tokens; get a new one
+(`semiont login`) and restart the process. See [Authentication](#authentication).
 
-- Never commit tokens to version control
-- Refresh tokens expire after 30 days and need renewal
-- Access tokens expire after 1 hour (automatically refreshed by the server)
-- Use environment variables or secure credential storage for tokens
-- The MCP server implements automatic token refresh for long-running sessions
+**Connection refused**
 
-## Future Enhancements
+```bash
+semiont status     # is the stack up, and is the backend healthy?
+```
 
-Planned additions:
-- [ ] Automatic token refresh
-- [ ] More Semiont API endpoints
-- [ ] Caching for frequently accessed data
-- [ ] Rate limiting and retry logic
-- [ ] WebSocket support for real-time updates
-- [ ] Semantic search capabilities
-- [ ] Knowledge graph operations
+Check that `SEMIONT_API_URL` matches the backend's port (4000 by default).
+
+**Unknown tool**
+
+Tool names are exactly the ten listed under [Available tools](#available-tools) —
+flow-prefixed and snake_cased, e.g. `browse_resources`, not `browseResources`.
+
+## Security notes
+
+- Tokens are bearer credentials. Never commit them; keep them out of shell
+  history and out of the repo.
+- `semiont login` stores tokens at mode 0600 in the launcher's state home.
+- Access tokens are short-lived by design. This server holds one for its
+  lifetime and does not renew it — restart it with a fresh token rather than
+  reaching for a longer-lived credential.

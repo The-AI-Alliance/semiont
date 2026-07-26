@@ -31,7 +31,7 @@ The deeper story splits across the docs below — each focused on one diagram an
 Day-2 concerns — deploying, securing, observing, scaling, troubleshooting:
 
 - **[administration/](administration/)** — `AUTHENTICATION.md`, `AUTHORIZATION` / RBAC, `SECURITY.md`, `DEPLOYMENT.md`, `CONFIGURATION.md`, `OBSERVABILITY.md`, `BACKUP.md`, `IMAGES.md`, `MAINTENANCE.md`, `SCALING.md`, `TROUBLESHOOTING.md`
-- **[platforms/](platforms/)** — per-platform notes: `AWS.md`, `Container.md`, `POSIX.md`, `External.md`, `Mock.md`
+- **[platforms/](platforms/)** — how stacks are run, and `AWS.md` for scheduling the images yourself
 - **[services/](services/)** — service catalog: `OVERVIEW.md`, `SECRETS.md`
 
 ## Project layout & local-run

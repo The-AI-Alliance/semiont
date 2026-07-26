@@ -48,6 +48,7 @@ export interface LoggerConfig {
  * Environment variables:
  * - LOG_LEVEL: error | warn | info | http | debug (fallback if no config provided)
  * - LOG_FORMAT: json | simple (default: json)
+ * - LOG_DIR: where to write log files. UNSET MEANS NO FILE LOGGING.
  * - NODE_ENV: development | production | test
  */
 function getLoggerConfig(logLevel?: LogLevel): LoggerConfig {
@@ -64,11 +65,24 @@ function getLoggerConfig(logLevel?: LogLevel): LoggerConfig {
     };
   }
 
-  return {
-    level,
-    format,
-    transports: ['console', 'file'],
-  };
+  // File logging is OPT-IN on LOG_DIR, not the default.
+  //
+  // It used to be unconditional here, with createTransports falling back to the
+  // relative path 'logs' when LOG_DIR was unset. The retired CLI always set
+  // LOG_DIR (to its per-project state dir), so that fallback never fired. Once
+  // the CLI went, the container ran with LOG_DIR unset and WORKDIR /kb — and
+  // winston created /kb/logs/, inside the user's knowledge base, which is a git
+  // repo they commit.
+  //
+  // Stdout is the contract for the container anyway: node is PID 1 and
+  // `semiont logs` reads the runtime's stream, so the files were duplication as
+  // well as pollution. Anyone who does want files sets LOG_DIR to a real path.
+  const transports: ('console' | 'file')[] = ['console'];
+  if (process.env.LOG_DIR) {
+    transports.push('file');
+  }
+
+  return { level, format, transports };
 }
 
 /**
@@ -111,7 +125,9 @@ function createTransports(config: LoggerConfig): winston.transport[] {
   }
 
   if (config.transports.includes('file')) {
-    const logDir = process.env.LOG_DIR ?? 'logs';
+    // Guaranteed set: getLoggerConfig only requests 'file' when LOG_DIR is
+    // present. No relative fallback — that is what wrote into the KB.
+    const logDir = process.env.LOG_DIR!;
     transports.push(
       new winston.transports.File({
         filename: `${logDir}/error.log`,

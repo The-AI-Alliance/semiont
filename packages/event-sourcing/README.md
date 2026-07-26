@@ -149,7 +149,7 @@ This split keeps projection-update tests pure (single-digit milliseconds, no fil
 
 #### Why startup rebuild exists
 
-The materialized views directory (`stateDir`) is **ephemeral by design** — it's safe to wipe (container recreation, `semiont destroy`, dev cleanup), and the event log under `.semiont/events/` is the single source of truth. `rebuildAll` is what makes "ephemeral" safe: any time `stateDir` goes empty, the next process start repopulates it from the event log.
+The materialized views directory (`stateDir`) is **ephemeral by design** — it's safe to wipe (container recreation, `semiont clean`, dev cleanup), and the event log under `.semiont/events/` is the single source of truth. `rebuildAll` is what makes "ephemeral" safe: any time `stateDir` goes empty, the next process start repopulates it from the event log.
 
 This makes the views layer the third leg of a symmetric pattern: the three derived read models (graph, vectors, materialized views) each have exactly one explicit rebuild method called from one place at startup:
 

@@ -28,9 +28,8 @@ export SEMIONT_ENV=local
 
 # Full stack development
 semiont start              # Start everything (database + backend + frontend)
-semiont start --force      # Fresh start with clean database
 semiont stop               # Stop all services
-semiont check              # Check service health
+semiont status              # Check service health
 
 # Frontend development
 semiont start --service frontend  # Start frontend only
@@ -39,7 +38,7 @@ semiont stop --service frontend   # Stop frontend service
 # Backend + database
 semiont start --service backend   # Start backend only
 semiont start --service database  # Start database only
-semiont restart --service backend # Restart backend with fresh connection
+semiont start --service backend   # Restart backend, leaving the rest of the stack up
 ```
 
 ### Development Modes
@@ -57,7 +56,7 @@ semiont restart --service backend # Restart backend with fresh connection
 - Fast iteration for UI/UX work
 - **Perfect for component development and styling**
 
-**3. Backend-Connected Development** (`semiont start --service backend,frontend`)
+**3. Backend-Connected Development** (`semiont start`, then iterate with `npm run dev`)
 - Start backend and frontend together
 - Real API integration
 - **Perfect for testing API integration**
@@ -103,17 +102,22 @@ semiont start
 
 **Backend integration testing**:
 ```bash
-semiont start --service backend,frontend
-# Frontend + real backend + database
-# Perfect for testing API integration without manual backend setup
+semiont start
+# Then run the frontend from source against it:
+cd apps/frontend && npm run dev
+# The stack's backend serves real data while Vite serves the SPA with HMR
 ```
 
 **Fresh start** (reset data):
 ```bash
-semiont restart --force
-# Clean restart with fresh connections
-# Perfect when you need to reset state
+semiont stop
+semiont clean     # Removes PostgreSQL, Qdrant, and Neo4j state
+semiont start
 ```
+
+`semiont clean` is the only thing that removes persistent stack state — `stop`
+deliberately leaves it so the next `start` reuses it. It does not touch the event
+log, which lives in the KB's git repo.
 
 ## Manual Development Setup
 
@@ -402,7 +406,7 @@ Environment variables are configured automatically based on your environment con
 - Monitor Network waterfall in dev tools
 
 ### Build Errors
-- Run `npm run type-check` to identify TypeScript errors
+- Run `npm run typecheck` to identify TypeScript errors
 - Verify all environment variables are set
 - Check for unused imports or missing dependencies
 - Clear Vite cache: `rm -rf node_modules/.vite`
@@ -437,7 +441,7 @@ Environment variables are configured automatically based on your environment con
 **Symptoms**: `npm run build` fails with errors
 
 **Solutions**:
-- Run `npm run type-check` to identify TypeScript errors
+- Run `npm run typecheck` to identify TypeScript errors
 - Verify all environment variables are set
 - Check for unused imports or missing dependencies
 - Update dependencies: `npm update`

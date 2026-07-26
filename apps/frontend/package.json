@@ -33,9 +33,8 @@
     "test:a11y": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run -t \"Accessibility\"",
     "test:a11y:watch": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest -t \"Accessibility\"",
     "test:typecheck": "vitest typecheck",
-    "type-check": "tsc --noEmit",
-    "type-check:test": "tsc --noEmit -p tsconfig.test.json",
-    "type-check:all": "npm run type-check && npm run type-check:test"
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "typecheck:all": "npm run typecheck && npm run typecheck:test"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",

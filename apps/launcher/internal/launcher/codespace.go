@@ -21,8 +21,8 @@ import (
 // --codespace disambiguation corner). The launcher keeps at most ONE
 // codespace per repo: it resumes what exists, and creates only when nothing
 // does. Inside the codespace the stack stays on compose — the launcher
-// orchestrates the outside only (create, wait, forward, credentials,
-// lifecycle) by shelling out to `gh`, which owns auth and the tunnel client.
+// orchestrates the outside only (create, wait, forward, lifecycle) by shelling
+// out to `gh`, which owns auth and the tunnel client.
 
 // The KB (backend, remote port 4000) is the ONLY port a codespace stack
 // forwards: the browser's Knowledge Bases panel connects to KBs by
@@ -304,10 +304,13 @@ func startCodespace(u *ui, opts startOptions) int {
 	}
 	u.ok("KB healthy %s", u.dim("("+took(d)+")"))
 
-	creds := fetchAdminCreds(u, name)
-	// Free piggyback: the stack is up and we are already ssh-ing. Only fires
+	// The stack is up, so this is the cheapest moment to reach in. Only fires
 	// when nothing is recorded — a --repo-only start (no clone to read) has
 	// no other way to ever learn this.
+	//
+	// (This used to ride along with an admin-credentials read, and called
+	// itself a free piggyback on that ssh. The credentials read is gone — no
+	// KB auto-creates an admin — so this ssh is now its own cost.)
 	reconcileDid(u, newSt, false)
 
 	fmt.Println()
@@ -346,11 +349,10 @@ func startCodespace(u *ui, opts startOptions) int {
 		}
 		fmt.Printf("  %s\n", u.dim(line))
 	}
-	if creds != nil {
-		fmt.Printf("  Connect as %s / %s %s\n",
-			u.bold(creds.Email), u.bold(creds.Password), u.dim("(generated at creation; never stored by the launcher)"))
-	}
 	fmt.Println()
+	// No account exists yet — nothing auto-creates one. This is the actual next
+	// step after a first start, so it leads the follow-ups.
+	fmt.Printf("  First user:    %s\n", u.bold("semiont useradd --repo "+repo+" --email you@example.com --password <pass> --admin"))
 	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
 	fmt.Printf("  Follow logs:   %s %s\n", u.bold("semiont logs --repo "+repo), u.dim("(bare logs when unambiguous)"))
 	// "Halt billing" overpromised: stopping halts COMPUTE billing; storage
@@ -875,53 +877,8 @@ func spawnForward(u *ui, name string, kbPort int) (int, <-chan struct{}, int) {
 	return pid, dead, 0
 }
 
-type adminCreds struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-// fetchAdminCreds reads the §1 credentials — generated once at post-create
-// INSIDE the codespace. Mirror image of `semiont secret` (an output, not an
-// input) but same discipline: announced before the reach, read fresh,
-// displayed on purpose, never persisted or logged. A failed read degrades
-// (returns nil, caller omits the line) rather than blocking a healthy stack;
-// the usual cause is setup still finishing, the rare one a devcontainer
-// predating the sshd feature — so report gh's OWN words instead of guessing
-// between them.
-func fetchAdminCreds(u *ui, name string) *adminCreds {
-	// ABSOLUTE (globbed) path: `gh codespace ssh` lands in /home/vscode, not
-	// the workspace, so the relative form the recipe used silently fails
-	// with "No such file or directory". The glob expands remotely and does
-	// not depend on the workspace directory's name. Found live 2026-07-20.
-	const credPath = "/workspaces/*/.devcontainer/admin.json"
-	u.log("Reading admin credentials %s", u.dim("(gh codespace ssh -c "+name+" -- cat "+credPath+" — generated at creation, never stored locally)"))
-	// captureBoth, not capture: gh reports WHY on stderr, and discarding it
-	// forces this code to guess between causes out loud. Show what gh said.
-	out, err := captureBoth("gh", "codespace", "ssh", "-c", name, "--", "cat", credPath)
-	if err != nil {
-		u.warn("Could not read admin credentials over ssh yet.")
-		if msg := strings.TrimSpace(out); msg != "" {
-			for _, line := range strings.Split(msg, "\n") {
-				fmt.Println("    gh: " + line)
-			}
-		}
-		fmt.Println("    Usually setup is still finishing inside the codespace (sshd comes up with it) —")
-		fmt.Println("    semiont status re-reads them. If it persists, the devcontainer may predate the")
-		fmt.Println("    sshd feature: recreate from current main, or open the codespace and read")
-		fmt.Println("    .devcontainer/admin.json from its terminal (which starts in the workspace).")
-		return nil
-	}
-	var c adminCreds
-	if json.Unmarshal([]byte(out), &c) != nil || c.Email == "" {
-		u.warn("admin.json was unreadable; see the codespace's .devcontainer/admin.json directly.")
-		return nil
-	}
-	return &c
-}
-
 // reconcileDid keeps a codespace stack's recorded did:web honest against the
-// KB actually running there, by reading .semiont/config over the same ssh
-// channel the credentials use.
+// KB actually running there, by reading .semiont/config over ssh.
 //
 // It reaches out in exactly two situations, because an ssh WAKES a stopped
 // codespace — which costs money and ~20 seconds, and no reporting command may
@@ -963,9 +920,12 @@ func reconcileDid(u *ui, st *stackState, force bool) {
 	}
 }
 
-// fetchRemoteDid reads the codespace's committed identity card. Same shape
-// and same absolute-glob path discipline as fetchAdminCreds: `gh codespace
-// ssh` lands in /home/vscode, not the workspace.
+// fetchRemoteDid reads the codespace's committed identity card. Note the
+// ABSOLUTE globbed path: `gh codespace ssh` lands in /home/vscode, not the
+// workspace, so a relative path silently fails with "No such file or
+// directory". The glob expands remotely and does not depend on the workspace
+// directory's name. (Found live 2026-07-20, on the since-removed admin.json
+// read that shared this shape.)
 func fetchRemoteDid(u *ui, name string) (string, bool) {
 	const cfgPath = "/workspaces/*/.semiont/config"
 	u.log("Reading KB identity %s", u.dim("(gh codespace ssh -c "+name+" -- cat "+cfgPath+")"))
@@ -1000,7 +960,7 @@ func renderCodespacePlan(opts startOptions, repo, recorded string) {
 	}
 	fmt.Println("gh codespace ports forward 4000:<kb-port> -c <codespace>   # <codespacePort>:<localPort>; detached; pid + port recorded")
 	fmt.Println("# wait: http://localhost:<kb-port>/api/health (600s)")
-	fmt.Println("gh codespace ssh -c <codespace> -- cat .devcontainer/admin.json   # credentials (displayed, never stored)")
+	fmt.Println("gh codespace ssh -c <codespace> -- cat /workspaces/*/.semiont/config   # KB identity, when the record lacks one")
 }
 
 // stopCodespace: `semiont stop` for a codespace stack. Stop halts billing
@@ -1165,11 +1125,13 @@ func statusCodespace(u *ui, st *stackState, refresh bool) int {
 	fmt.Printf("  KB          %s  %s\n", mark, u.dim(url))
 	fmt.Printf("  %s\n", u.dim("(browser, sidecars, and infra run inside the codespace via compose)"))
 
-	if creds := fetchAdminCreds(u, st.Codespace); creds != nil {
-		fmt.Printf("  Connect (Host localhost, Port %d) as %s / %s\n", st.ForwardPort, u.bold(creds.Email), u.bold(creds.Password))
-	}
-	// Available, and already ssh-ing for the credentials above: backfill a
-	// missing identity for free, or re-verify a recorded one on --refresh.
+	fmt.Printf("  %s\n", u.dim(fmt.Sprintf("(connect at Host localhost, Port %d — semiont useradd --repo %s creates a user)", st.ForwardPort, st.Repo)))
+
+	// Backfill a missing identity, or re-verify a recorded one on --refresh.
+	//
+	// (This used to describe itself as free because an admin-credentials read
+	// had already opened the ssh. That read is gone — no KB auto-creates an
+	// admin — so this is now the only reach here.)
 	reconcileDid(u, st, refresh)
 
 	u.section("LOCAL")

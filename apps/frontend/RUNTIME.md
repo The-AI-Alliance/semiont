@@ -24,6 +24,6 @@ The frontend source code is located at:
 ## Commands
 
 - Start: `semiont start --service frontend --environment local`
-- Check: `semiont check --service frontend --environment local`
+- Check: `semiont status`
 - Stop: `semiont stop --service frontend --environment local`
 - Logs: `tail -f logs/app.log`

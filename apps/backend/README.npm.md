@@ -6,45 +6,46 @@
 
 Pre-built Semiont backend server for npm consumption. This package contains the compiled backend application with Prisma schema and migrations.
 
-## Installation
+## Running Semiont
+
+Most people should **not** install this package directly. A Semiont stack is run with the `semiont`
+launcher — a single static binary that pulls the published container images:
 
 ```bash
-npm install -g @semiont/backend
-```
+brew install the-ai-alliance/semiont/semiont
 
-This package is typically installed automatically by `semiont provision` when using the [Semiont CLI](https://www.npmjs.com/package/@semiont/cli).
-
-## Usage
-
-The recommended way to run Semiont is through the CLI:
-
-```bash
-npm install -g @semiont/cli
-semiont init my-project
-cd my-project
-semiont provision
+cd /path/to/your-knowledge-base
 semiont start
 ```
 
-The CLI handles configuration, database setup, and process management.
+This package is what the `semiont-backend` container image runs inside.
 
-## Direct Usage
+## Direct usage
 
 ```bash
-semiont-backend
-# or
+npm install @semiont/backend
+
+npx prisma migrate deploy --schema=node_modules/@semiont/backend/prisma/schema.prisma
 node node_modules/@semiont/backend/dist/index.js
 ```
 
-Requires `DATABASE_URL` and other environment variables to be configured.
+Requires in the environment:
 
-## What's Included
+- `SEMIONT_ROOT` — path to the knowledge-base working tree
+- `SEMIONT_ENV` — environment name in `~/.semiontconfig` (e.g. `local`)
+- `DATABASE_URL` — Postgres connection string. The container image derives one
+  from `services.database` in the config when this is unset; running the package
+  directly has no such step, so set it yourself.
+- `JWT_SECRET` — minimum 32 characters
+- `SEMIONT_WORKER_SECRET` — for the software-agent token exchange
 
-- `dist/` - Compiled backend application (Hono server)
-- `prisma/` - Prisma schema and migrations
+## What's included
+
+- `dist/` — compiled backend application (Hono server)
+- `prisma/` — Prisma schema and migrations
 
 ## Links
 
 - [Semiont GitHub](https://github.com/The-AI-Alliance/semiont)
-- [Semiont CLI](https://www.npmjs.com/package/@semiont/cli)
+- [Semiont launcher](https://github.com/The-AI-Alliance/semiont/tree/main/apps/launcher)
 - [Documentation](https://github.com/The-AI-Alliance/semiont#readme)

@@ -68,20 +68,20 @@ container run -d --name semiont-qdrant -p 6333:6333 -v <home>/.local/share/semio
 # wait: http://localhost:6333/readyz (15s)
 # probe: host Ollama at http://localhost:11434/api/version
 # if present — probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:11434/api/version" — and use it
-# ensure ollama models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
+# ensure inference, embedding models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # else:
 container stop semiont-ollama
 container rm semiont-ollama
 # require free port: 11434
 container run -d --name semiont-ollama -p 11434:11434 -m 24G -v <ollama-volume>:/root/.ollama ollama/ollama
 # wait: http://localhost:11434/api/version (30s)
-# ensure ollama models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
+# ensure inference, embedding models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # embedding: externally provided at localhost:11434 — verify reachability, launch nothing
 # database state: <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres (created if absent; reused across restarts)
 container run -d --name semiont-postgres -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
 # wait: tcp localhost:5432 (20s)
 # probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432
-container run -d --name semiont-backend --publish 4000:4000 --memory 8G --volume <kb-root>:/kb --volume <config-stage>/backend.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env POSTGRES_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env SEMIONT_WORKER_SECRET=<worker-secret> ghcr.io/the-ai-alliance/semiont-backend:latest
+container run -d --name semiont-backend --publish 4000:4000 --memory 8G --volume <kb-root>:/kb --volume <config-stage>/backend.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env POSTGRES_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env SEMIONT_WORKER_SECRET=<worker-secret> --env JWT_SECRET=<jwt-secret> ghcr.io/the-ai-alliance/semiont-backend:latest
 # wait: http://localhost:4000/api/health (120s)
 # probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:4000/api/health" (up to 20 tries)
 container run -d --name semiont-worker --memory 2G --publish 9090:9090 --volume <config-stage>/worker.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env SEMIONT_WORKER_SECRET=<worker-secret> ghcr.io/the-ai-alliance/semiont-worker:latest

@@ -5,6 +5,11 @@ package launcher
 // <dataDir>/roots/<key>; this command is the only way that data dies —
 // stop deliberately leaves it, and start's database image-mismatch refusal
 // names this command as the way out.
+//
+// The root dir also holds the generated `jwt-secret` (loadOrCreateJWTSecret),
+// so an UNSCOPED clean removes it along with the stores: the accounts its
+// tokens name are in the postgres data going away, so keeping the key would
+// preserve nothing. A --store clean targets one subdir and leaves it.
 
 import (
 	"fmt"
@@ -17,6 +22,11 @@ const cleanUsage = `Usage: semiont clean [options]
 Remove the persistent local-stack state (PostgreSQL, Qdrant, Neo4j data)
 for one local semiont root. The stack must be stopped first — state is
 never removed while a recorded stack may be mounting it.
+
+An unscoped clean also removes this root's generated JWT secret, so every
+token issued against it stops verifying — which is consistent, since the
+user accounts those tokens name lived in the PostgreSQL data just removed.
+A --store clean keeps the secret.
 
 Options:
   --store <role>   Remove one store only: database, vectors, or graph

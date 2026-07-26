@@ -212,32 +212,40 @@ Some operations run asynchronously via background job workers:
 
 ## Common Commands
 
+From `apps/frontend/`:
+
 ```bash
 # Development
-npm run dev              # Start development server
-npm run dev:mock         # Start with mock API (no backend)
-npm run build            # Production build
+npm run dev              # Vite dev server
+npm run dev:mock         # Against a mock API (no backend needed)
+npm run dev:fast         # Skip the prebuild typecheck
+npm run build            # Production build (typechecks first)
 
 # Testing
-npm test                 # Run all tests
-npm run test:unit        # Unit tests only
-npm run test:integration # Integration tests only
-npm run test:coverage    # Tests with coverage report
+npm test                 # Everything
+npm run test:unit        # Excludes integration
+npm run test:integration # Integration only
+npm run test:security    # Admin page/layout + validation
+npm run test:a11y        # Accessibility assertions
+npm run test:coverage    # With an HTML report in coverage/
+npm run test:watch       # Watch mode
 
-# Type Checking
-npm run type-check       # TypeScript validation
-
-# Performance
-npm run perf             # Full performance analysis
-npm run analyze          # Bundle size analysis
-
-# Using Semiont CLI
-semiont start            # Start all services
-semiont test --service frontend  # Run frontend tests
-semiont check --service frontend # Check health
+# Types
+npm run typecheck        # tsc --noEmit
+npm run typecheck:all    # Source + test tsconfigs
 ```
 
-**See**: [Development Guide](./docs/DEVELOPMENT.md#local-development-with-semiont-cli) for complete CLI usage.
+Running the whole stack is the launcher's job, not npm's:
+
+```bash
+semiont start                       # Bring the stack up
+semiont status                      # Container state + per-service health
+semiont start --service frontend    # Restart just this service
+semiont logs --service frontend
+```
+
+**See**: [Development Guide](./docs/DEVELOPMENT.md) and
+[docs/development/TESTING.md](../../docs/development/TESTING.md).
 
 ## Contributing
 

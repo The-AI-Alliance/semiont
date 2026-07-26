@@ -6,12 +6,25 @@ import { email, accessToken } from '@semiont/core';
  */
 
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+import { fileURLToPath } from 'url';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig, EventBus } from '@semiont/core';
 import type { MakeMeaningService } from '@semiont/make-meaning';
 import { loadEnvironmentConfig } from '../../utils/config';
 import { JWTService } from '../../auth/jwt';
+
+// Read straight off disk rather than from the __SEMIONT_VERSION__ define, so a
+// build config that forgets the define is a test failure rather than a
+// tautology that passes.
+const PACKAGE_VERSION: string = JSON.parse(
+  readFileSync(
+    resolve(fileURLToPath(import.meta.url), '../../../../package.json'),
+    'utf-8',
+  ),
+).version;
 
 type Variables = {
   user: User;
@@ -248,7 +261,7 @@ describe('API Endpoints Integration Tests', () => {
       const data = await res.json() as StatusResponse;
       expect(data.message).toBe('Ready to build the future of knowledge management!');
       expect(data.status).toBe('operational');
-      expect(data.version).toBe('0.1.0');
+      expect(data.version).toBe(PACKAGE_VERSION);
       expect(data.authenticatedAs).toBe('test@example.com');
     });
 
@@ -269,7 +282,7 @@ describe('API Endpoints Integration Tests', () => {
       
       const data = await res.json() as StatusResponse;
       expect(data.status).toBe('operational');
-      expect(data.version).toBe('0.1.0');
+      expect(data.version).toBe(PACKAGE_VERSION);
       expect(data.features).toEqual({
         semanticContent: 'planned',
         collaboration: 'planned',
@@ -292,7 +305,7 @@ describe('API Endpoints Integration Tests', () => {
       const data = await res.json() as HealthResponse;
       expect(data.status).toBe('operational');
       expect(data.message).toBe('Semiont API is running');
-      expect(data.version).toBe('0.1.0');
+      expect(data.version).toBe(PACKAGE_VERSION);
       expect(data.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/);
       expect(data.database).toBe('connected');
       expect(data.environment).toBeDefined();

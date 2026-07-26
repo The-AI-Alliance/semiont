@@ -1,188 +1,104 @@
 # Local Development Guide
 
-This guide explains how to run Semiont locally for development.
+Local development is built around **[`./scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh)**:
+it builds your working tree into the real service images, and the launcher runs those. What you test
+is what ships.
+
+> The old workflow (`npm install -g @semiont/cli`, then `semiont init/provision/start` against host
+> processes) is gone — `@semiont/cli` is a deprecation stub with no commands.
 
 ## Prerequisites
 
-- **Node.js** v20 or higher
-- **npm** (comes with Node.js)
-- **Container runtime** — Apple Container, Docker, or Podman (for PostgreSQL containers)
-- **Git**
+- **Node.js 24+** — [nodejs.org](https://nodejs.org/)
+- **A container engine** — [Apple Container](https://github.com/apple/container), Docker, or Podman
+- **The `semiont` launcher** — `brew install the-ai-alliance/semiont/semiont`
+- **A knowledge-base repo** to run against — see [KNOWLEDGE-BASES.md](../KNOWLEDGE-BASES.md)
+  (`semiont-template-kb` is the canonical starting point)
 
-## Setup
+## The loop
 
-There are two paths for local development:
-
-### Path A: Using Published npm Packages (Recommended)
-
-The simplest way to get started. The CLI automatically installs `@semiont/backend` and `@semiont/frontend` from npm during `semiont provision`.
-
-#### 1. Install the CLI
+`local-build.sh` builds every package, publishes them to a throwaway local Verdaccio registry, and
+builds all five service images tagged `:local` (never pushed). Images are loaded into every
+responsive container engine on the machine, so the KB's `--runtime` choice is independent of which
+engine built them.
 
 ```bash
-npm install -g @semiont/cli
+# 1. From the monorepo — build packages and the five :local images
+./scripts/ci/local-build.sh
+
+# 2. From your KB — run the stack against them
+cd /path/to/your-kb
+SEMIONT_VERSION=local semiont start
+
+# 3. Iterate — rebuild only what changed
+./scripts/ci/local-build.sh --package backend --image backend
+
+# 4. Done for the day
+semiont stop
+container rm -f semiont-verdaccio
 ```
 
-#### 2. Create Your Project Directory
+`SEMIONT_VERSION=local` is what makes the launcher skip the registry pull and use your images.
+Without it you get the published ones.
+
+Full flag reference — `--package`, `--image`, `CONTAINER_RUNTIME`, what the Verdaccio step does — is
+in **[scripts/ci/README.md](../../scripts/ci/README.md)**.
+
+## Working on one package, without a stack
+
+Most changes don't need a running stack:
 
 ```bash
-mkdir my_semiont_project
-cd my_semiont_project
+npm ci --include=optional
+npm run build:packages                  # all libraries, dependency-ordered
+npm run typecheck                       # tsc --noEmit across workspaces
+npm test --workspace=@semiont/sdk       # one workspace
 ```
 
-#### 3. Set Environment Variables
+See [TESTING.md](./TESTING.md) for per-workspace commands and the vitest watch-mode traps.
+
+## Stack operations
+
+Launcher verbs, run from the KB directory — see [apps/launcher](../../apps/launcher/README.md):
 
 ```bash
-export SEMIONT_ROOT=$(pwd)                      # Path to your project directory
-export SEMIONT_ENV=local                        # Target environment
+semiont status                    # container state + per-service health
+semiont logs                      # follow service logs
+semiont stop --service frontend   # stop one service
 ```
 
-> **Important**: `SEMIONT_ROOT` tells the CLI where your project is located, so you can run commands from any directory.
-
-#### 4. Initialize the Project
-
-```bash
-semiont init --verbose
-```
-
-Continue from [Step 6: Review the Configuration](#6-review-the-configuration) below.
-
-### Path B: Building from Source
-
-Use this when developing the CLI, backend, or frontend themselves, or when you need unreleased changes.
-
-#### 1. Clone the Repository
-
-```bash
-git clone https://github.com/The-AI-Alliance/semiont.git
-cd semiont
-```
-
-#### 2. Build and Install the CLI
-
-```bash
-npm install
-npm run build
-npm run install:cli
-```
-
-#### 3. Create Your Project Directory
-
-```bash
-cd ..
-mkdir my_semiont_project
-cd my_semiont_project
-```
-
-#### 4. Set Environment Variables
-
-```bash
-export SEMIONT_REPO=~/path/to/semiont          # Path to the cloned repository
-export SEMIONT_ROOT=$(pwd)                      # Path to your project directory
-export SEMIONT_ENV=local                        # Target environment
-```
-
-> **Important**: When `SEMIONT_REPO` is set, the CLI uses the source repository for backend and frontend instead of npm packages. This is useful for active development on those apps.
-
-### 5. Initialize the Project
-
-```bash
-semiont init --verbose
-```
-
-This creates `semiont.json` and `environments/local.json` in your project directory.
-
-### 6. Review the Configuration
-
-```bash
-cat environments/local.json
-```
-
-This file defines all services (backend, frontend, database, proxy, etc.) and their configuration. Edit it to set Neo4j credentials, inference provider (Anthropic API key or Ollama endpoint), or adjust ports.
-
-### 7. Provision Services
-
-```bash
-semiont provision --verbose
-```
-
-This generates `.env` files for the backend and frontend, processes proxy configuration, and pushes the database schema. If `SEMIONT_REPO` is not set, it automatically installs `@semiont/backend` and `@semiont/frontend` from npm.
-
-### 8. Start Services
-
-```bash
-semiont start --verbose
-```
-
-This starts the database container, backend, frontend, and Envoy proxy.
-
-### 9. Verify Everything is Running
-
-```bash
-semiont check
-```
-
-### 10. Create an Admin User
-
-```bash
-semiont useradd --email you@example.com --generate-password --admin
-```
-
-Note the generated password from the output.
-
-### 11. Check the Logs
-
-```bash
-tail -f apps/backend/logs/combined.log
-```
-
-### 12. Access the Application
-
-Open http://localhost:8080 in your browser and log in with the admin credentials from step 10.
-
-## Service Ports
+## Service ports
 
 | Service | Port | URL |
 |---------|------|-----|
-| Envoy Proxy | 8080 | http://localhost:8080 (main entry point) |
-| Frontend | 3000 | http://localhost:3000 (direct) |
-| Backend | 4000 | http://localhost:4000 (direct) |
+| Frontend | 3000 | http://localhost:3000 |
+| Backend | 4000 | http://localhost:4000 |
 | PostgreSQL | 5432 | postgresql://localhost:5432 |
+| Worker / Smelter / Weaver | 9090 / 9091 / 9092 | health endpoints |
 
-## Common Tasks
+## Database operations
 
-### Start/Stop Services
-
-```bash
-semiont start --service backend
-semiont stop --service backend
-semiont check
-```
-
-### Database Operations
+Prisma is driven from the backend workspace:
 
 ```bash
 cd apps/backend
-npx prisma studio          # Open Prisma Studio GUI
-npx prisma migrate dev     # Run migrations
-npx prisma generate        # Generate Prisma Client
+npx prisma studio          # database browser
+npx prisma migrate dev     # create + apply a migration
+npx prisma generate        # regenerate the client
 ```
 
-### Re-provision After Config Changes
-
-```bash
-semiont provision --service frontend  # Updates .env.local from config
-semiont provision --service backend   # Updates backend configuration
-```
+The backend container runs `npx prisma migrate deploy` itself at startup, so a fresh stack needs no
+manual migration step.
 
 ## Additional Documentation
 
-- **[AUTHENTICATION.md](../system/administration/AUTHENTICATION.md)** - Authentication setup, OAuth configuration, admin users
-- **[CONFIGURATION.md](../system/administration/CONFIGURATION.md)** - Environment variables, service configuration
-- **[TESTING.md](./TESTING.md)** - Running tests, test commands
-- **[TROUBLESHOOTING.md](../system/administration/TROUBLESHOOTING.md)** - Common issues, port conflicts, database problems
-- **[System Documentation](../system/README.md)** - System architecture, component overview
-- **[DEPLOYMENT.md](../system/administration/DEPLOYMENT.md)** - Production deployment
+- **[scripts/ci/README.md](../../scripts/ci/README.md)** — `local-build.sh` in full
+- **[TESTING.md](./TESTING.md)** — running tests, test commands
+- **[CONTAINER-TOPOLOGY.md](../system/CONTAINER-TOPOLOGY.md)** — what runs where, and which layer runs it
+- **[AUTHENTICATION.md](../system/administration/AUTHENTICATION.md)** — authentication setup, OAuth, admin users
+- **[CONFIGURATION.md](../system/administration/CONFIGURATION.md)** — the `~/.semiontconfig` schema
+- **[TROUBLESHOOTING.md](../system/administration/TROUBLESHOOTING.md)** — common issues, port conflicts, database problems
+- **[System Documentation](../system/README.md)** — architecture, component overview
 
 ## Getting Help
 

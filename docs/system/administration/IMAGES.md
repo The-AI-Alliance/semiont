@@ -71,7 +71,7 @@ carries. All four run `node:24-alpine` (the frontend runs `node:26-alpine`).
 
 | Image | What runs | Bundled packages | Port | Dockerfile |
 |---|---|---|---|---|
-| `semiont-backend` | API server + bus gateway (role driven through the CLI) | `@semiont/cli`, `@semiont/backend` | 4000 | [apps/backend/Dockerfile](../../../apps/backend/Dockerfile) |
+| `semiont-backend` | API server + bus gateway | `@semiont/backend` | 4000 | [apps/backend/Dockerfile](../../../apps/backend/Dockerfile) |
 | `semiont-worker` | annotation/generation worker pool | `@semiont/jobs` | 9090 | [packages/jobs/Dockerfile](../../../packages/jobs/Dockerfile) |
 | `semiont-smelter` | embedding/vector pipeline actor | `@semiont/make-meaning` | 9091 | [packages/make-meaning/Dockerfile.smelter](../../../packages/make-meaning/Dockerfile.smelter) |
 | `semiont-weaver` | graph-projection actor | `@semiont/make-meaning` | 9092 | [packages/make-meaning/Dockerfile.weaver](../../../packages/make-meaning/Dockerfile.weaver) |

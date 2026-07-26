@@ -235,9 +235,9 @@ Add these scripts to `package.json` for type checking:
 ```json
 {
   "scripts": {
-    "type-check": "tsc --noEmit",
-    "type-check:test": "tsc --noEmit -p tsconfig.test.json",
-    "type-check:all": "npm run type-check && npm run type-check:test"
+    "typecheck": "tsc --noEmit",
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "typecheck:all": "npm run typecheck && npm run typecheck:test"
   }
 }
 ```
@@ -907,204 +907,98 @@ The operational depth lives in [`tests/e2e/docs/`](../../tests/e2e/docs/):
 
 ## Running Tests
 
-### Using the Semiont CLI
+Tests run through each workspace's npm scripts — vitest underneath. There is no
+`semiont test` command: the `semiont` launcher runs knowledge bases, not this
+monorepo's test suite.
 
-The recommended way to run tests is through the `semiont` CLI, which provides intelligent test type filtering and coverage reporting:
+### Per-workspace scripts
+
+Backend (`apps/backend/`):
 
 ```bash
-# Run all tests with coverage (default behavior)
-semiont test
-
-# Run tests by service and suite
-semiont test --service frontend --suite unit     # Frontend unit tests
-semiont test --service backend --suite integration # Backend integration tests  
-semiont test --service all --suite security      # Security tests on all services
-
-# Run tests by environment
-semiont test --environment local              # Local tests (default, uses mocks)
-semiont test --environment staging --suite integration        # Integration tests against staging
-semiont test --environment production --suite e2e             # E2E tests on production
-
-# Run tests by suite only (all services)
-semiont test --suite unit               # Unit tests for all services
-semiont test --suite integration        # Integration tests for all services
-semiont test --suite security          # Security tests for all services
-semiont test --suite e2e               # E2E tests for all services
-
-# Run tests by service only (all suites)  
-semiont test --service frontend         # All frontend tests
-semiont test --service backend          # All backend tests
-semiont test --service database         # Database-specific tests
-
-# Additional options
-semiont test --no-coverage     # Skip coverage reporting
-semiont test --watch           # Watch mode for development
-semiont test --verbose         # Detailed output
-semiont test --dry-run         # Show what would be tested
+npm test                    # Everything
+npm run test:unit           # Excludes integration
+npm run test:integration    # Spins up PostgreSQL (see below)
+npm run test:api            # Admin endpoints, docs, auth middleware
+npm run test:security        # Name-pattern: security
+npm run test:coverage       # Everything, with coverage
+npm run test:watch          # Watch mode
 ```
 
-### Local Development Environment for Testing
-
-For integration and API tests that require a database, the Semiont CLI provides an instant local development environment:
+Frontend (`apps/frontend/`):
 
 ```bash
-# 🚀 Quick start - full environment for integration tests
-export SEMIONT_ENV=local
-semiont start
-
-# This automatically starts:
-# ✅ PostgreSQL container with correct schema
-# ✅ Backend API server with database connection  
-# ✅ Frontend connected to real API
-
-# Then run integration tests against real services
-semiont test --suite integration
-
-# Or run specific database-dependent tests
-semiont test --service backend --suite integration
+npm test                    # Everything
+npm run test:unit           # Excludes integration
+npm run test:integration    # Name-pattern: integration
+npm run test:security       # Admin page/layout + validation
+npm run test:a11y           # Accessibility assertions
+npm run test:coverage       # Everything, with coverage
+npm run test:watch          # Watch mode
 ```
 
-**Benefits for Testing:**
-- **Real Database**: Integration tests use actual PostgreSQL instead of mocks
-- **Consistent Environment**: Everyone gets identical test setup across machines
-- **Zero Configuration**: No manual database setup or connection strings needed
-- **Fresh Data**: Use `--reset` flag for clean test data between runs
+From the repo root, `npm test` fans out to every workspace that defines a `test`
+script (`--workspaces --if-present`), and `npm run typecheck` does the same for
+`tsc --noEmit`.
 
-**Testing Workflow with Local Environment:**
-
-1. **Start local environment**:
-   ```bash
-   export SEMIONT_ENV=local
-   semiont start  # Fresh database with sample data
-   ```
-
-2. **Run tests against real services**:
-   ```bash
-   semiont test --suite integration     # All integration tests
-   semiont test --service backend --suite integration # Backend-specific integration
-   ```
-
-3. **Stop services when done**:
-   ```bash
-   semiont stop
-   ```
-
-**Database-Only Testing:**
-
-For backend tests that only need a database:
+To target one workspace from the root, use `--workspace`:
 
 ```bash
-# Start just the database
-export SEMIONT_ENV=local
-semiont start --service database
-
-# Run backend tests
-semiont test --service backend
-
-# Clean up
-semiont stop --service database
+npm run test:unit --workspace=apps/backend
 ```
 
-### Container Runtime Support
+### Run them in a container
 
-The local development environment supports both **Docker** and **Podman** container runtimes:
+This repo's `node_modules` carries **musl** native binaries (rolldown,
+lightningcss), so use an Alpine image — a glibc `node:24` fails with a
+`*.linux-<arch>-gnu.node` module-not-found:
 
-#### Docker (Default)
-Works out of the box with no additional configuration.
-
-#### Podman Setup
-Podman is fully supported and often provides better performance and security. Here's how to configure it:
-
-**Linux (Recommended):**
 ```bash
-# 1. Enable Podman socket (rootless - more secure)
+container run --rm -v "$(pwd)":/work -w /work node:24-alpine \
+  sh -c 'npm run test:unit --workspace=apps/backend'
+```
+
+`tsc --noEmit` is libc-agnostic and runs under either image.
+
+### Integration tests need a container runtime
+
+Backend integration tests provision a real PostgreSQL with
+[`@testcontainers/postgresql`](https://node.testcontainers.org/) rather than
+mocking the database — see `apps/backend/src/__tests__/setup/database.ts`. Docker
+works with no configuration. For Podman, point testcontainers at its socket:
+
+**Linux (rootless):**
+```bash
 systemctl --user enable --now podman.socket
-
-# 2. Set environment variables
 export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
-export TESTCONTAINERS_RYUK_DISABLED=true
-
-# 3. Start development environment
-export SEMIONT_ENV=local
-semiont start
 ```
 
 **macOS:**
 ```bash
-# 1. Set up Podman machine
-podman machine init
-podman machine start
-
-# 2. Configure environment
+podman machine init && podman machine start
 export DOCKER_HOST="$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
-export TESTCONTAINERS_RYUK_DISABLED=true
-
-# 3. Start development environment  
-export SEMIONT_ENV=local
-semiont start
 ```
 
-**Alternative: .testcontainers.properties**
-Create a `.testcontainers.properties` file in your project root:
+Ryuk (the testcontainers reaper) is disabled by the test setup itself, so there
+is no `TESTCONTAINERS_RYUK_DISABLED` to export. If you prefer file-based
+configuration, a `.testcontainers.properties` in the repo root works too:
+
 ```properties
-# For rootless Podman (recommended)
 docker.host=unix:///run/user/1000/podman/podman.sock
 ryuk.disabled=true
-
-# Or for rootful Podman
-docker.host=unix:///run/podman/podman.sock
-ryuk.privileged=true
 ```
 
-**Benefits of Podman:**
-- **Better Security**: Rootless containers by default
-- **Better Performance**: No VM overhead on Linux
-- **Resource Efficiency**: Lower memory usage than Docker Desktop
-- **Daemonless**: No background daemon required
+### Coverage
 
-### Performance Benefits
+`npm run test:coverage` writes an HTML report to
+`apps/{frontend,backend}/coverage/index.html` alongside the console summary.
 
-Targeted test execution provides significant performance improvements:
+### End-to-end tests
 
-- **Unit tests**: ~1007 frontend + 176 backend tests (excludes integration)
-- **Integration tests**: ~5 frontend + 41 backend tests (massive speedup!)
-- **API tests**: ~77 frontend + 60 backend endpoint tests
-- **Security tests**: ~5 focused security validation tests
+E2E tests run against a live stack, not a workspace script — see
+[End-to-End Tests](#end-to-end-tests) above for the environment they need and how
+to bring the stack up.
 
-### Coverage Reporting
-
-The CLI automatically generates:
-- **Console coverage tables** with color-coded metrics
-- **Directory-level breakdowns** showing coverage by code area
-- **HTML reports** for detailed analysis (`apps/{frontend,backend}/coverage/index.html`)
-
-Coverage reporting is enabled by default and can be disabled with `--no-coverage`.
-
-### Direct npm Scripts
-
-You can also run tests directly via npm in each app directory:
-
-#### Frontend (`apps/frontend/`)
-```bash
-npm test                    # All tests
-npm run test:unit          # Unit tests only
-npm run test:integration   # Integration tests only
-npm run test:api           # API route tests only
-npm run test:security      # Security tests only
-npm run test:coverage      # All tests with coverage
-npm run test:watch         # Watch mode
-```
-
-#### Backend (`apps/backend/`)
-```bash
-npm test                    # All tests
-npm run test:unit          # Unit tests only  
-npm run test:integration   # Integration tests only
-npm run test:api           # API tests only
-npm run test:security      # Security tests only
-npm run test:coverage      # All tests with coverage
-npm run test:watch         # Watch mode
-```
 
 ## Debugging Tests
 
@@ -1146,51 +1040,38 @@ npm run test:watch         # Watch mode
 
 ## Continuous Integration
 
-### GitHub Actions Configuration
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) is the authority on
+what passes. It runs on every push and pull request, on Node 24, with these jobs:
 
-```yaml
-name: Frontend Tests
+| Job | What it covers |
+|---|---|
+| `test-frontend` | `npm run typecheck` + `npm test` for `apps/frontend` |
+| `test-backend` | typecheck, `npm test`, and `npm run test:integration` for `apps/backend`, against a `postgres:15` service container |
+| `test-cli` | `apps/cli` build (which typechecks) + its unit tests |
+| `test-comprehensive` | frontend and backend suites again, backend integration included, against a `postgres:15` service container |
+| `validate-config` | `npm ci --include=optional` + `npm run build:packages` |
+| `check-phantom-deps` | imports not declared in the importing package's `package.json` |
+| `build-all` | every workspace builds, and `tsc --noEmit` across the monorepo |
+| `generated-artifacts` | drift checks: bus registry vs generated code, the bundled OpenAPI spec vs `packages/sdk-go/client_gen.go`, and Go schema coverage |
+| `test-launcher` | `apps/launcher` Go tests |
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+In CI the backend's integration tests reach the `postgres:15` service container
+via `DATABASE_URL` rather than starting testcontainers.
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-        
-      - name: Run type checking
-        run: npm run type-check
-        
-      - name: Run tests with coverage
-        run: npm run test:coverage
-        
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
-        with:
-          directory: ./coverage
-```
+Four other workflows carry test gates of their own:
+[`security-tests.yml`](../../.github/workflows/security-tests.yml),
+[`accessibility-tests.yml`](../../.github/workflows/accessibility-tests.yml),
+[`architecture-compliance.yml`](../../.github/workflows/architecture-compliance.yml),
+and [`package-tests.yml`](../../.github/workflows/package-tests.yml).
+
+Locally, prefer the targeted script for the code you changed over re-running
+everything — CI runs the full matrix.
 
 ## Related Documentation
 
 ### Application Testing Documentation
 - [Frontend Testing](../../apps/frontend/README.md#testing) - Frontend-specific testing setup, scripts, and philosophy
 - [Backend Testing](../../apps/backend/README.md#testing) - Backend API testing and integration tests
-- [CLI Testing](../../apps/cli/TESTING.md) - CLI command testing and validation
 
 ### End-to-End Testing
 - [tests/e2e/README.md](../../tests/e2e/README.md) - Suite overview, current spec list, full stack-rebuild flow
