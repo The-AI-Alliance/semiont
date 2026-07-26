@@ -279,7 +279,7 @@ jobs:
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
-          JWT_SECRET: test-secret-for-ci
+          JWT_SECRET: test-secret-key-for-testing-32char
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
 
@@ -287,7 +287,7 @@ jobs:
         run: npm run test:coverage
         env:
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
-          JWT_SECRET: test-secret-for-ci
+          JWT_SECRET: test-secret-key-for-testing-32char
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
 
@@ -300,7 +300,7 @@ jobs:
         run: npm run build:fast
         env:
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
-          JWT_SECRET: test-secret-for-ci
+          JWT_SECRET: test-secret-key-for-testing-32char
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
 
@@ -312,7 +312,7 @@ jobs:
           export SEMIONT_ENV=ci
           export NODE_ENV=test
           export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
-          export JWT_SECRET=test-secret-for-ci
+          export JWT_SECRET=test-secret-key-for-testing-32char
           export GOOGLE_CLIENT_ID=test-client-id
           export GOOGLE_CLIENT_SECRET=test-client-secret
 
