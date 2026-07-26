@@ -1,400 +1,164 @@
 # Semiont Maintenance Guide
 
-This document outlines all maintenance procedures and schedules for the Semiont semantic knowledge platform infrastructure on AWS.
+Routine maintenance for a Semiont deployment and for this repository.
 
-For distributed tracing, RED metrics, and trace-tagged log fields,
-see [Observability](./OBSERVABILITY.md). The structured logs referenced
-below are auto-tagged with `trace_id` and `span_id` when an OTel
-exporter is configured, so log queries can jump to the corresponding
-trace in the APM UI.
+This covers the **container stack the `semiont` launcher runs** — the deployment this repo supports. For diagnosing a specific failure, see [Troubleshooting](TROUBLESHOOTING.md). For distributed tracing, RED metrics, and trace-tagged log fields, see [Observability](OBSERVABILITY.md); structured logs are auto-tagged with `trace_id` and `span_id` when an OTel exporter is configured, so a log query can jump to the corresponding trace.
 
-## Authentication System Notes
+## What actually needs maintaining
 
-### API Authentication Model
+A launcher-run stack has no scheduled operational chores — no scaling to tune, no backup window to watch, no alarms to review. What does need attention:
 
-The backend implements secure-by-default authentication:
-- All API routes require JWT authentication automatically
-- Public endpoints must be explicitly allowed in `PUBLIC_ENDPOINTS` array
-- Authentication middleware is applied globally to `/api/*` routes
+| Concern | Cadence | Why |
+|---|---|---|
+| [Dependency and CVE updates](#dependencies-and-cves) | Weekly (automated) | Published images fail their own CVE gate otherwise |
+| [Image upgrades](#upgrading-a-stack) | When a version ships | Database migrations ride along with the image |
+| [Event log git hygiene](#the-event-log-is-the-thing-to-protect) | Continuous | The event log is the system of record |
+| [Secret rotation](#secret-rotation) | On compromise or policy | Rotation invalidates live tokens |
+| [Persistent state growth](#persistent-state-and-disk) | Occasionally | Stores grow; orphaned state accumulates |
+| [Log review](#log-review) | On symptom | Not on a schedule — this is not multi-tenant infrastructure |
 
-### Required Authentication Configuration
+## Dependencies and CVEs
 
-For proper authentication operation, ensure:
+[Dependabot](../../../.github/dependabot.yml) opens PRs weekly across five ecosystems: npm (repo root and `tests/e2e`), Go modules (`apps/launcher`), GitHub Actions, and Docker base images (`apps/frontend`, `apps/desktop`). Related packages are grouped so they move together: `react`, `bundler-binaries`, `opentelemetry`, and `prisma`.
 
-1. **JWT Secret**: Configured in AWS Secrets Manager (minimum 32 characters)
-   ```bash
-   semiont configure production set jwt-secret
-   ```
+Two things to know when reviewing those PRs:
 
-2. **OAuth Credentials**: Google OAuth client ID and secret configured
-   ```bash
-   semiont configure production set oauth/google
-   ```
+**Native binaries must stay in lockstep.** `@rolldown/binding-*` and `lightningcss-*` are pinned per-platform in `optionalDependencies`. A tool bump that moves one without the others produces a CI failure of the form `cannot find module *.linux-x64-gnu.node`. That is what the `bundler-binaries` group exists to prevent — do not merge a partial set.
 
-3. **OAuth Allowed Domain List**: Email domains allowed to authenticate configured in environment JSON
-   ```json
-   {
-     "site": {
-       "oauthAllowedDomains": ["example.com"]
-     }
-   }
-   ```
+**For a CVE fix, move the consumer forward rather than pinning around it.** Bump the package that pulls in the vulnerable transitive dependency, regenerate the lockfile from scratch, accept the resulting drift, and validate with a real `npm ci`. Overrides and surgical lockfile edits are a last resort, not the default.
 
-### Authentication Monitoring
+### The publish gates
 
-Check authentication system health:
-- Monitor failed authentication attempts in CloudWatch logs
-- Review JWT expiration patterns and refresh rates
-- Verify OAuth callback success rates
-- Check for unauthorized API access attempts
+Image publishing enforces this rather than trusting it. [`publish-service-images.yml`](../../../.github/workflows/publish-service-images.yml), per image:
 
-## Daily Maintenance
+1. Verifies the matching `@semiont/*` npm package version exists — an image always bundles published packages, never a working tree
+2. Trivy-scans the amd64 build for `HIGH`/`CRITICAL` CVEs and fails on any unfixed finding
+3. Checks license policy against [`.github/licenses/exceptions.txt`](../../../.github/licenses/exceptions.txt)
+4. Pushes with version, `sha-<commit>`, and optionally `latest` tags
+5. Publishes build-provenance and SBOM attestations as OCI artifacts
 
-### Automated Daily Tasks
+These gates fail **one at a time**: fixing a CVE finding can reveal a license finding behind it. The `semiont-backend` image faces the longest stack of them, because it keeps npm at runtime — so npm's own bundle and prisma's dependency tree are both in scope.
 
-These tasks are handled automatically by AWS services:
+The exceptions file is permissive-only by principle: it records licenses judged acceptable, never suppressions of findings.
 
-- **ECS Health Checks:** Continuous monitoring and replacement of unhealthy tasks
-- **RDS Automated Backups:** Daily backups during maintenance window
-- **CloudWatch Metrics Collection:** Continuous monitoring of all services
-- **Auto Scaling:** Automatic scaling based on CPU/memory thresholds
+See [Container Images](IMAGES.md) for the full publishing process and how to verify an image you pulled.
 
-### Daily Monitoring Checklist (5 minutes)
+## Upgrading a stack
 
-**CloudWatch Dashboard Review:**
-
-- [ ] Check Semiont-Monitoring dashboard for any anomalies
-- [ ] Verify both ECS services (frontend/backend) are running desired number of tasks
-- [ ] Review ALB request count and response times for both target groups
-- [ ] Check database CPU and connection metrics
-- [ ] Monitor dual-service health endpoints (`/api/health`)
-
-**Log Review:**
+The image version selects the schema version — migrations ship inside the image, and `prisma migrate deploy` runs before the server starts. So upgrading is:
 
 ```bash
-# Check recent ECS logs for errors (both services)
-semiont watch logs --service backend | grep -i error
-semiont watch logs --service frontend | grep -i error
-
-# Or use AWS CLI directly
-aws logs filter-log-events --log-group-name SemiontLogGroup \
-  --start-time $(date -d "1 day ago" +%s)000 \
-  --filter-pattern "ERROR"
-
-# Check overall service status
-semiont check
+semiont stop
+SEMIONT_VERSION=0.5.21 semiont start
 ```
 
-## Weekly Maintenance
-
-### Every Monday (15 minutes)
-
-**Security Review:**
-
-- [ ] Review WAF blocked requests and rule effectiveness
-- [ ] Check CloudTrail logs for unusual API activity  
-- [ ] Verify all secrets are still properly configured in Secrets Manager
-- [ ] Review SNS alert history for any missed notifications
-- [ ] Verify OAuth domain restrictions are working correctly
-- [ ] Check for any unauthorized access attempts in application logs
-
-**Performance Review:**
-
-- [ ] Analyze ECS auto-scaling events for both services from past week
-- [ ] Review RDS performance insights (if enabled)
-- [ ] Check CloudFront cache hit ratio and optimization opportunities
-- [ ] Verify EFS usage patterns and storage growth
-- [ ] Monitor frontend/backend API communication performance
-- [ ] Review database query performance and connection pooling
-
-**Commands for Weekly Review:**
+Watch the backend come up. A migration failure means the container exits rather than serving against a mismatched schema:
 
 ```bash
-# Check WAF blocked requests
-WEB_ACL_ARN=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`WebACLArn`].OutputValue' --output text)
-aws wafv2 get-sampled-requests --web-acl-arn $WEB_ACL_ARN \
-  --rule-metric-name RateLimitMetric --scope REGIONAL \
-  --time-window StartTime=$(date -d "7 days ago" -u +"%Y-%m-%dT%H:%M:%SZ"),EndTime=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --max-items 100
-
-# Review auto-scaling events for both services
-aws application-autoscaling describe-scaling-activities \
-  --service-namespace ecs --resource-id service/SemiontCluster/semiont-frontend
-aws application-autoscaling describe-scaling-activities \
-  --service-namespace ecs --resource-id service/SemiontCluster/semiont-backend
-
-# Check EFS file system usage
-EFS_ID=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`EFSFileSystemId`].OutputValue' --output text)
-aws efs describe-file-systems --file-system-id $EFS_ID --query 'FileSystems[0].SizeInBytes'
+semiont logs --service backend
+semiont status
 ```
 
-## Monthly Maintenance
+If `start` refuses because persisted database state was written by a different image version, read the refusal before working around it — it is protecting a store from corruption. The way out is [`semiont clean`](DATABASE.md#resetting), which discards that state.
 
-### First Monday of Every Month (30 minutes)
+## The event log is the thing to protect
 
-**Security Updates:**
+`.semiont/events/` in the KB's git repo is the system of record. The graph, the vector store, and the materialized views are projections — all rebuildable, none worth backing up.
 
-- [ ] Review and update WAF managed rule sets if new versions available
-- [ ] Rotate database passwords in Secrets Manager
-- [ ] Review IAM permissions and remove unused policies
-- [ ] Update application dependencies (npm audit and updates)
-- [ ] Review and update OAuth client credentials if needed
-- [ ] Update Next.js and Hono frameworks to latest stable versions
-
-**Infrastructure Review:**
-
-- [ ] Review cost trends and optimize resource allocation
-- [ ] Check for AWS service updates or deprecation notices
-- [ ] Review backup retention and test restore procedures (Data Stack)
-- [ ] Update CDK dependencies for both stacks if needed
-- [ ] Review EFS backup policies and test file restoration
-- [ ] Validate two-stack deployment model is working efficiently
-
-**Update Procedures:**
+That makes maintenance mostly git discipline:
 
 ```bash
-# Rotate database password
-DB_SECRET_NAME=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretName`].OutputValue' --output text)
-aws secretsmanager rotate-secret --secret-id $DB_SECRET_NAME
-
-# Update application dependencies
-cd apps/frontend && npm update && npm audit fix
-cd ../backend && npm update && npm audit fix
-
-# Update CDK dependencies
-cd ../../packages/cloud
-npm update
-npm audit fix
-
-# Deploy updates (two-stack model)
-npx cdk diff SemiontDataStack
-npx cdk diff SemiontAppStack
-npx cdk deploy SemiontAppStack  # Deploy app stack first for most updates
-
-# Restart services to pick up changes
-semiont restart
+cd /path/to/kb
+git status .semiont/events        # Uncommitted events are unprotected
+git add .semiont/events && git commit -m "events"
+git push
 ```
 
-## Quarterly Maintenance
+Untracked event files are not disposable. If events appear to be missing, check git history before concluding anything was lost — see [Troubleshooting](TROUBLESHOOTING.md).
 
-### Every 3 Months (2 hours)
+With `gitSync` enabled, every append stages the event log file, and once committed, git's object hashes make tampering evident. See [Storage Layout](../../../packages/event-sourcing/docs/STORAGE-LAYOUT.md).
 
-**Comprehensive Security Audit:**
+For archive export and restore, see [BACKUP.md](BACKUP.md). PostgreSQL holds user accounts only — backing it up is not backing up the knowledge base.
 
-- [ ] Full penetration testing of public endpoints (frontend and API)
-- [ ] Review all security groups and NACLs
-- [ ] Audit CloudTrail logs for the quarter
-- [ ] Update SSL certificates if using custom domains
-- [ ] Review and update backup/disaster recovery procedures
-- [ ] Audit OAuth configuration and domain restrictions
-- [ ] Review EFS access patterns and file permissions
-- [ ] Test WAF rules against current threat landscape
+## Secret rotation
 
-**Performance Optimization:**
+Three secrets matter, and rotating them is not free:
 
-- [ ] Right-size ECS tasks for both services based on 3-month usage patterns
-- [ ] Optimize RDS instance class based on performance metrics
-- [ ] Review CloudFront distributions and caching strategies
-- [ ] Analyze and optimize EFS performance mode and throughput
-- [ ] Review frontend/backend service communication efficiency
-- [ ] Optimize database connection pooling and query performance
+**`JWT_SECRET`** — signs every token. Rotating it invalidates every token previously issued, including tokens held by running workers. The symptom of a rotation nobody re-authenticated after is `Invalid token signature` in the backend log, and jobs that never start. Plan a rotation as "every client must re-authenticate," and restart the whole stack rather than one service. Minimum 32 characters, enforced at startup ([`auth/jwt.ts`](../../../apps/backend/src/auth/jwt.ts)).
 
-**Stack Updates:**
+**`SEMIONT_WORKER_SECRET`** — the shared secret the worker, smelter, and weaver exchange at `POST /api/tokens/agent` for a JWT. It must match across the whole stack. `semiont start --service worker` rejoins the running stack's secret automatically; a service started by hand does not.
 
-- [ ] Data Stack: Update to latest PostgreSQL minor version
-- [ ] App Stack: Update ECS platform version if available
-- [ ] Both Stacks: Review and update CDK to latest version
-- [ ] Test disaster recovery procedures for both stacks
-- [ ] Update Node.js runtime versions for ECS tasks
-- [ ] Review and update EFS backup and restore procedures
+**Provider API keys** (`ANTHROPIC_API_KEY` and friends) — referenced from config as `${ANTHROPIC_API_KEY}` and read from the launcher's environment, so rotating one is an environment change plus a restart of whatever consumes it.
 
-**Cost Optimization Review:**
+Individual user sessions can be revoked without touching `JWT_SECRET`: `tokenVersion` on the user row is bumped on logout, invalidating that user's tokens alone.
 
-- [ ] Analyze 3-month cost trends
-- [ ] Identify opportunities for Reserved Instance purchases
-- [ ] Review S3 storage costs and lifecycle policies
-- [ ] Adjust budget alerts based on actual usage patterns
+See [SECRETS.md](../services/SECRETS.md) and [AUTHENTICATION.md](AUTHENTICATION.md).
 
-## Annual Maintenance
+## Persistent state and disk
 
-### Once Per Year (4 hours)
-
-**Major Version Updates:**
-
-- [ ] Plan Next.js major version upgrade for frontend
-- [ ] Plan Node.js major version upgrade for both services
-- [ ] PostgreSQL major version upgrade planning
-- [ ] Review architecture for new AWS service opportunities
-- [ ] Complete security compliance audit
-- [ ] Evaluate framework performance and compatibility
-
-**Disaster Recovery Testing:**
-
-- [ ] Full backup and restore testing
-- [ ] Multi-region failover testing (if implemented)
-- [ ] Document recovery time objectives (RTO) and recovery point objectives (RPO)
-
-**Business Continuity:**
-
-- [ ] Update emergency contact procedures
-- [ ] Review and update incident response playbooks
-- [ ] Train team on new features and procedures
-- [ ] Update documentation and runbooks
-
-## Emergency Procedures
-
-### High Priority Alerts (Immediate Response)
-
-**Application Down:**
+`semiont stop` deliberately leaves PostgreSQL, Qdrant, and Neo4j data behind so the next `start` reuses it. Over time, and across KB roots, that accumulates:
 
 ```bash
-# Quick status check for both services
-semiont check
-
-# Check ECS service status for both services
-aws ecs describe-services --cluster SemiontCluster \
-  --services semiont-frontend semiont-backend
-
-# Check ALB target health for both target groups
-FRONTEND_TG_ARN=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`FrontendTargetGroupArn`].OutputValue' --output text)
-BACKEND_TG_ARN=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`BackendTargetGroupArn`].OutputValue' --output text)
-aws elbv2 describe-target-health --target-group-arn $FRONTEND_TG_ARN
-aws elbv2 describe-target-health --target-group-arn $BACKEND_TG_ARN
-
-# Restart services if needed
-semiont restart
-# Or restart individual services
-semiont restart --service frontend
-semiont restart --service backend
+semiont status --verbose      # Per-root state and its disk consumption
 ```
 
-**Database Connection Issues:**
+The verbose report calls out **orphaned** state — state whose KB directory no longer exists — along with the `clean` command that removes it. `semiont clean` is the only thing that deletes persistent state; it requires the stack stopped, and it never touches the event log:
 
 ```bash
-# Check database connectivity from backend service
-semiont exec --service backend 'pg_isready -h $DB_HOST -p $DB_PORT'
-
-# Check RDS instance status
-DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
-aws rds describe-db-instances --db-instance-identifier $DB_IDENTIFIER
-
-# Check database connections
-aws cloudwatch get-metric-statistics --namespace AWS/RDS \
-  --metric-name DatabaseConnections --dimensions Name=DBInstanceIdentifier,Value=$DB_IDENTIFIER \
-  --start-time $(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Average
+semiont clean --dry-run              # What would go, and how big
+semiont clean --store vectors        # One store: database, graph, or vectors
+semiont clean --root <path|name|key> # Another root, including an orphan
 ```
 
-**High Cost Alert:**
+The Ollama model cache is separate, and can be large:
 
 ```bash
-# Check current month costs
-aws ce get-cost-and-usage --time-period Start=$(date -d "$(date +%Y-%m-01)" +%Y-%m-%d),End=$(date +%Y-%m-%d) \
-  --granularity MONTHLY --metrics BlendedCost
-
-# Identify high-cost services
-aws ce get-cost-and-usage --time-period Start=$(date -d "7 days ago" +%Y-%m-%d),End=$(date +%Y-%m-%d) \
-  --granularity DAILY --metrics BlendedCost --group-by Type=DIMENSION,Key=SERVICE
-
-# Check for unexpected ECS scaling
-semiont check
-
-# Review service scaling history
-aws application-autoscaling describe-scaling-activities \
-  --service-namespace ecs --resource-id service/SemiontCluster/semiont-frontend
-aws application-autoscaling describe-scaling-activities \
-  --service-namespace ecs --resource-id service/SemiontCluster/semiont-backend
+semiont start --clean-ollama         # Remove the model cache volume and exit
 ```
 
-## Maintenance Windows
+## Log review
 
-### Preferred Maintenance Times
-
-- **Daily automated tasks:** 02:00-04:00 UTC (low traffic period)
-- **Weekly manual tasks:** Monday 09:00-10:00 UTC  
-- **Monthly updates:** First Monday 09:00-11:00 UTC
-- **Emergency maintenance:** Any time with 15-minute notification
-
-### Maintenance Notifications
+Services log structured JSON to stdout. There is no aggregation layer and no retention policy to manage — the container engine holds the logs, and containers run without `--rm` so a crashed service's logs survive.
 
 ```bash
-# Send maintenance notification via SNS
-SNS_TOPIC_ARN=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`SNSTopicArn`].OutputValue' --output text)
-aws sns publish --topic-arn $SNS_TOPIC_ARN \
-  --message "Scheduled maintenance starting at $(date)" \
-  --subject "Semiont Platform Maintenance Notification"
+semiont logs                                    # All five services
+semiont logs --service backend | grep -i error
 ```
 
-## Monitoring Maintenance Tasks
+Review on symptom, not on a schedule. When something is wrong, [Troubleshooting](TROUBLESHOOTING.md) starts from `semiont status`.
 
-### CloudWatch Alarms Review
+## Authentication notes
 
-- [ ] Verify all alarms are properly configured and responding for both services
-- [ ] Test alarm notifications end-to-end
-- [ ] Review alarm thresholds based on historical data
-- [ ] Clean up obsolete or redundant alarms
-- [ ] Ensure frontend and backend services have separate monitoring
-- [ ] Verify database connection and performance alarms
+Auth is applied **per router**, not globally with a public-endpoint allowlist. Each router that needs it installs `authMiddleware` itself:
 
-### Log Management
+| Router | Protected paths |
+|---|---|
+| `resources` | `/api/resources/*`, `/api/clone-tokens/*`, `/resources/*` ([`routes/resources/shared.ts`](../../../apps/backend/src/routes/resources/shared.ts)) |
+| `admin` | `/api/admin/*` (plus `adminMiddleware`) |
+| `exchange` | `/api/admin/exchange/*`, `/api/moderate/exchange/*` (plus admin / moderator middleware) |
+| `status` | `/api/status` |
+| `bus` | `/bus/emit`, `/bus/subscribe` |
 
-```bash
-# Check log group retention settings
-aws logs describe-log-groups --log-group-name-prefix Semiont
+`/api/health` and the root router are intentionally unauthenticated.
 
-# Archive old logs if needed
-LOG_GROUP_NAME=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`LogGroupName`].OutputValue' --output text)
-aws logs create-export-task --log-group-name $LOG_GROUP_NAME \
-  --from-time $(date -d "30 days ago" +%s)000 --to-time $(date -d "7 days ago" +%s)000 \
-  --destination semiont-log-archive-bucket
+The maintenance consequence: **a new router is unauthenticated until you say otherwise.** Adding one means deciding its auth explicitly, and reviewing that decision belongs in the PR review — there is no global default to fall back on.
 
-# Clean up old log streams
-# Note: This would be a manual AWS CLI operation
-aws logs delete-log-stream --log-group-name $LOG_GROUP_NAME --log-stream-name <stream-name>
-```
+`site.oauthAllowedDomains` is required in the environment config and gates which email domains may authenticate.
 
-## Compliance and Auditing
+## Repository maintenance
 
-### Security Compliance
+- **Generated artifacts** — the `generated-artifacts` CI job fails on drift between the bus registry and generated code, between the bundled OpenAPI spec and `packages/sdk-go/client_gen.go`, and on Go schema coverage. When a spec changes, regenerate rather than hand-editing the output.
+- **Phantom dependencies** — the `check-phantom-deps` job fails on imports not declared in the importing package's `package.json`. The monorepo hoists, so an undeclared dependency works locally and breaks for external consumers.
+- **Internal `@semiont/*` pins** — apps must pin workspace siblings to `"*"`. An exact pin that does not match the workspace version installs the *published* copy nested, silently shadowing the workspace so the app builds against stale types.
 
-- [ ] Review access patterns and user permissions quarterly
-- [ ] Maintain audit trail of all administrative changes
-- [ ] Document all maintenance activities with timestamps
-- [ ] Regular review of AWS Config compliance rules
+## Related
 
-### Change Management
-
-- [ ] All infrastructure changes via CDK version control (two-stack model)
-- [ ] Pre-production testing for all changes
-- [ ] Rollback procedures documented and tested for both stacks
-- [ ] Approval process for production changes
-- [ ] Separate deployment procedures for infrastructure vs application changes
-- [ ] Database migration testing and rollback procedures
-
-## Automation Opportunities
-
-Consider implementing these automations to reduce manual maintenance:
-
-1. **Automated Security Updates:** Lambda function to check for and apply npm security updates
-2. **Cost Optimization:** Automated right-sizing based on CloudWatch metrics for both services
-3. **Health Check Automation:** Self-healing infrastructure with auto-restart capabilities
-4. **Backup Verification:** Automated EFS backup testing and validation
-5. **OAuth Token Refresh:** Automated OAuth credential rotation and validation
-6. **Database Migration Testing:** Automated Prisma schema validation and testing
-
-## Documentation Updates
-
-This maintenance guide should be reviewed and updated:
-
-- [ ] After any significant infrastructure changes
-- [ ] Following incident response activities
-- [ ] When new AWS services are adopted
-- [ ] At minimum annually during the annual maintenance cycle
-
-## Contact Information
-
-**Primary:** Platform team - <platform@company.com>  
-**Secondary:** On-call engineer - <oncall@company.com>
-**Emergency:** 24/7 support line - +1-555-SUPPORT
-**OAuth Issues:** <authentication@company.com>
-**Database Issues:** <dba@company.com>
+- [Troubleshooting](TROUBLESHOOTING.md) — diagnosing a specific failure
+- [Observability](OBSERVABILITY.md) — traces, metrics, log correlation
+- [Container Images](IMAGES.md) — publishing, versioning, attestations
+- [Database Guide](DATABASE.md) — migrations, resets
+- [BACKUP.md](BACKUP.md) — archive format, export, restore
+- [SECRETS.md](../services/SECRETS.md) — credential handling
+- [AUTHENTICATION.md](AUTHENTICATION.md) — accounts, JWTs, OAuth
+- [SECURITY.md](SECURITY.md) — reporting vulnerabilities
+- [SCALING.md](SCALING.md) — capacity considerations

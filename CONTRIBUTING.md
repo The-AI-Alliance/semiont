@@ -160,7 +160,7 @@ npm run test:backend
 npm run test:frontend
 
 # Type check
-npm run type-check
+npm run typecheck
 
 # Lint
 npm run lint
@@ -225,7 +225,7 @@ If you want to improve how stacks are launched, the launcher (Go, `apps/launcher
 2. **Run all checks**:
    ```bash
    npm test
-   npm run type-check
+   npm run typecheck
    npm run lint
    npm run build
    ```

@@ -1,167 +1,133 @@
 # Database Management Guide
 
-This guide explains how Semiont manages its PostgreSQL database for **user authentication**, including schema management, migrations, and operational procedures.
+How Semiont manages its PostgreSQL database, including schema definition, migrations, and operational procedures.
 
-**Important**: PostgreSQL is used ONLY for user authentication. Document and annotation metadata is stored in the Event Store (JSONL files) and Projections (sharded JSON files) - see [Knowledge System](../KNOWLEDGE-SYSTEM.md).
+**PostgreSQL stores user authentication only.** Resource and annotation data lives in the event log (`.semiont/events/`) and its projections — see [Knowledge System](../KNOWLEDGE-SYSTEM.md) and the [event-sourcing package](../../../packages/event-sourcing/). There is no document or annotation table, and none should be added; see [Adding tables](#adding-tables).
 
 ## Overview
 
-Semiont uses PostgreSQL **exclusively for user authentication**, managed through AWS RDS with the following components:
+- **Engine**: PostgreSQL 15 (`postgres:15.18-alpine` when the launcher provisions it)
+- **ORM**: [Prisma](https://www.prisma.io/) — [schema](../../../apps/backend/prisma/schema.prisma)
+- **Migrations**: versioned migration files under [`apps/backend/prisma/migrations/`](../../../apps/backend/prisma/migrations/), applied with `prisma migrate deploy` when the backend container starts
+- **Connection**: pooled by Prisma Client
+- **Scope**: the `users` table, nothing else
 
-- **Database Engine**: PostgreSQL 15.x on AWS RDS
-- **ORM**: Prisma for schema definition and database access ([see schema](../../../apps/backend/prisma/schema.prisma))
-- **Migration Strategy**: Automatic migrations on backend startup
-- **Connection Management**: Connection pooling via Prisma Client
-- **Scope**: User authentication ONLY - no document/annotation metadata
+In a launcher-managed stack, PostgreSQL runs as the `semiont-postgres` container, and the backend reaches it over the stack network. See [Container Topology](../CONTAINER-TOPOLOGY.md).
 
-**Data Architecture**: Semiont uses an immutable event log with materialized views where all document and annotation metadata flows through:
-- **Event Store**: Immutable event log in JSONL files - source of truth for all changes (see [Event Sourcing Package](../../../packages/event-sourcing/))
-- **ViewStorage**: Materialized current state optimized for fast queries (see [Event Sourcing Package](../../../packages/event-sourcing/))
+## Schema
 
-**PostgreSQL does NOT store document or annotation metadata** - it only stores user authentication data (users table). See [W3C Web Annotation](../../protocol/W3C-WEB-ANNOTATION.md) and [Event Sourcing Package](../../../packages/event-sourcing/) for how annotations flow through the system.
-
-## Database Architecture
-
-### Data Infrastructure
-
-- **AWS RDS PostgreSQL**: Multi-AZ deployment in private subnets
-- **Security Groups**: Database access restricted to ECS tasks only
-- **Encryption**: Data encrypted at rest and in transit
-- **Backups**: Automated daily backups with 7-day retention
-- **Credentials**: Stored securely in AWS Secrets Manager
-
-### Schema Definition
-
-The database schema is defined in `../prisma/schema.prisma`:
+The whole schema is one model:
 
 ```prisma
-// Example current schema
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  image     String?
-  domain    String
-  provider  String   @default("google")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String?
+  image           String?   // Profile picture from OAuth provider
+  provider        String    // 'password', 'google', 'github', etc.
+  providerId      String    // OAuth provider's user ID (or email for password users)
+  passwordHash    String?   // bcrypt — NULL for OAuth users, required for password provider
+  domain          String    // Email domain for access control
+  isActive        Boolean   @default(true)
+  isAdmin         Boolean   @default(false)
+  isModerator     Boolean   @default(false)
+  termsAcceptedAt DateTime?
+  lastLogin       DateTime?
+  tokenVersion    Int       @default(0) // bumped on logout to revoke this user's tokens
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
+  @@unique([provider, providerId])
   @@map("users")
 }
 ```
 
-## Migration Management
+[`schema.prisma`](../../../apps/backend/prisma/schema.prisma) is the authority — read it rather than this excerpt when it matters.
 
-### Automatic Migrations
+## Migrations
 
-Semiont uses **automatic migrations on startup** rather than traditional migration files:
+The backend container applies migrations on startup, before the server process starts. From [`apps/backend/Dockerfile`](../../../apps/backend/Dockerfile):
 
-1. **On Backend Startup**: The backend container automatically runs `npx prisma db push`
-2. **Schema Sync**: Prisma compares the schema file to the database and applies changes
-3. **No Migration Files**: Changes are applied directly from the schema definition
-4. **Safe Deployment**: Prisma only applies non-destructive changes automatically
-
-### Migration Process
-
-```javascript
-// From apps/backend/src/index.ts
-async function runMigrations() {
-  try {
-    console.log('📝 Running database migrations...');
-    const { execSync } = require('child_process');
-    execSync('npx prisma db push', { stdio: 'inherit' });
-    console.log('✅ Database migrations completed');
-  } catch (error) {
-    console.error('❌ Migration failed:', error);
-    // Server continues to start even if migrations fail
-  }
-}
+```dockerfile
+CMD set -e; \
+    (cd "$BACKEND_DIR" && npx prisma migrate deploy --schema=prisma/schema.prisma); \
+    exec node "$BACKEND_DIR/dist/index.js"
 ```
 
-### Why This Approach?
+`migrate deploy` applies any migration in `prisma/migrations/` that the database has not recorded yet. It never generates migrations and never resets data. If it fails, the container exits — the server does not start against a database whose schema it does not match.
 
-- **Simplicity**: No migration file management
-- **Consistency**: Schema definition is the single source of truth
-- **Development Speed**: Fast iteration during development
-- **Automatic Deployment**: No manual migration steps required
+Because migrations ship inside the image, **the image version determines the schema version**. Upgrading a stack to a newer `SEMIONT_VERSION` is what applies new migrations.
 
-## Database Operations
+### Adding a migration
 
-### Connecting to the Database
-
-Database credentials are managed through AWS Secrets Manager and automatically injected into the ECS containers.
-
-#### From Local Development
+Migrations are authored against a database, from `apps/backend/`:
 
 ```bash
-# Get database connection string
-SECRET_NAME=$(aws cloudformation describe-stacks \
-  --stack-name YourDataStackName \
-  --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretName`].OutputValue' \
-  --output text)
-
-DATABASE_URL=$(aws secretsmanager get-secret-value \
-  --secret-id "$SECRET_NAME" \
-  --query 'SecretString' \
-  --output text | jq -r '"postgresql://" + .username + ":" + .password + "@" + .host + ":" + (.port|tostring) + "/" + .dbname')
-
-# Use with Prisma commands
-DATABASE_URL="$DATABASE_URL" npx prisma studio
+npx prisma migrate dev --name add_something
 ```
 
-#### From ECS Container
+This writes a new timestamped directory under `prisma/migrations/`, applies it locally, and regenerates the client. Commit the migration directory — it is part of the source, and CI and the published image both depend on it.
+
+## Operating on the database
+
+The `semiont` launcher has no `exec` verb. Reach into a running container with your container engine directly. Containers are named `semiont-<service>`:
 
 ```bash
-# Access backend container
-semiont exec --service backend /bin/sh
-
-# Inside container, Prisma uses DATABASE_URL automatically
-npx prisma studio --port 5555 --hostname 0.0.0.0
+container exec -it semiont-backend sh     # or: docker exec -it semiont-backend sh
+container exec -it semiont-postgres psql -U postgres semiont
 ```
 
-### Common Database Tasks
-
-#### Viewing Database Status
+Prisma lives inside the backend package, so prisma commands need its directory. `BACKEND_DIR` is set in the image:
 
 ```bash
-# Check database connection from backend
-semiont exec --service backend "npx prisma db pull --print"
+# Confirm the backend can reach the database and see the expected schema
+container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma db pull --print'
 
-# View current schema
-semiont exec --service backend "cat prisma/schema.prisma"
+# Migration state: which migrations are applied, which are pending
+container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate status'
+
+# The schema the image shipped with
+container exec semiont-backend sh -c 'cat "$BACKEND_DIR/prisma/schema.prisma"'
 ```
 
-#### Manual Schema Changes
+### Prisma Studio
 
-1. **Update Schema**: Edit `../prisma/schema.prisma`
-2. **Rebuild the backend image** so the new schema ships in it
-3. **Automatic Migration**: Backend container will apply changes on startup
-
-#### Prisma Studio (Database Browser)
+Studio is a browser UI over the database. Run it from the host against the stack's PostgreSQL rather than from inside the container — the port is already exposed and you avoid a second port mapping:
 
 ```bash
-# From local machine (requires database access)
-DATABASE_URL="postgresql://..." npx prisma studio
-
-# From ECS container (recommended)
-semiont exec --service backend "npx prisma studio --port 5555 --hostname 0.0.0.0"
-# Then access via port forwarding or ALB
+cd apps/backend
+DATABASE_URL="postgresql://postgres:localpass@localhost:5432/semiont" npx prisma studio
 ```
 
-#### Resetting Database
+Those are the values `semiont init` generates into `~/.semiontconfig` under
+`[environments.local.database]` (`name`, `user`, `password`, `port`). Read that
+block rather than assuming them — they are configurable, and a stack pointed at an
+external PostgreSQL will differ.
+
+### Resetting
+
+`semiont clean` removes the stack's persistent state — PostgreSQL, Qdrant, and Neo4j volumes — so the next `semiont start` comes up with an empty database and re-applies every migration. This deletes all users. It does **not** touch the event log, which lives in the KB's git repo.
 
 ```bash
-# WARNING: This will delete all data
-semiont exec --service backend "npx prisma db push --force-reset"
+semiont stop
+semiont clean                      # every store
+semiont clean --store database     # PostgreSQL only, leaving graph and vectors
+semiont clean --dry-run            # what would go, and how big
+semiont start
 ```
 
-## Schema Evolution
+The stack must be stopped first — `clean` refuses to remove state a recorded
+stack may still be mounting.
 
-### Adding New Tables
+Prefer this to `prisma db push --force-reset`: it resets the whole stack consistently, rather than leaving the graph and vector stores holding state for users that no longer exist.
 
-**Note**: PostgreSQL is used ONLY for user authentication. Do NOT add document or annotation models here - those belong in the Event Store and Projections (JSON files).
+## Schema evolution
 
-Example: Adding an audit log for user authentication events:
+### Adding tables
+
+PostgreSQL holds authentication only. Resources, annotations, and their relationships belong in the event log — adding them here would create a second system of record that the event log cannot reconcile with. See [the event log is the system of record](../KNOWLEDGE-SYSTEM.md).
+
+Authentication-adjacent tables are legitimate. An audit log of sign-in events, for example:
 
 ```prisma
 model AuditLog {
@@ -176,238 +142,110 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// Update User model to include relation
 model User {
   // ... existing fields
-  auditLogs  AuditLog[]
+  auditLogs AuditLog[]
 }
 ```
 
-2. Rebuild the backend image so the new schema ships in it, then restart the stack.
+Then generate the migration (`npx prisma migrate dev --name add_audit_log`), commit it, and rebuild the backend image.
 
-3. Verify migration in logs:
+### Modifying existing tables
 
-```bash
-semiont watch logs --service backend
-```
+`migrate deploy` applies whatever the migration says, including destructive changes — the safety lives in review of the generated SQL, not in the deploy step. When `prisma migrate dev` generates a migration that would drop data, it says so; read the SQL it produced before committing.
 
-### Modifying Existing Tables
+Adding a required column to a populated table needs the usual two-step: add it nullable with a backfill, then tighten it in a second migration.
 
-**Safe Changes** (applied automatically):
-- Adding optional columns
-- Adding indexes
-- Creating new tables
-- Adding relations
-
-**Unsafe Changes** (require manual intervention):
-- Dropping columns
-- Changing column types
-- Making columns required
-- Dropping tables
-
-For unsafe changes, use `--force-reset` or manual SQL:
+### Verifying a migration applied
 
 ```bash
-# For development environments only
-semiont exec --service backend "npx prisma db push --force-reset"
+semiont logs --service backend | grep -i migrat
+container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate status'
 ```
 
-## Backup and Recovery
+## Backup and recovery
 
-### Automated Backups
+The database holds user accounts. The knowledge itself — every resource, annotation, and reference — is in the KB's git repo, so backing up the database is not backing up the knowledge base. See [BACKUP.md](BACKUP.md) for the event log and content.
 
-- **Daily Snapshots**: Automatic RDS snapshots at 3 AM UTC
-- **Retention**: 7 days for automated snapshots
-- **Point-in-Time Recovery**: Available for up to 7 days
-
-### Manual Backup
+To dump and restore the user table:
 
 ```bash
-# Create manual snapshot
-aws rds create-db-snapshot \
-  --db-instance-identifier your-db-instance \
-  --db-snapshot-identifier manual-backup-$(date +%Y%m%d-%H%M) \
-  --region your-region
+container exec semiont-postgres pg_dump -U postgres semiont > users-$(date +%Y%m%d).sql
+container exec -i semiont-postgres psql -U postgres semiont < users-20260101.sql
 ```
 
-### Disaster Recovery
+Losing the database loses user accounts and their credentials; it does not lose knowledge. Recreate accounts with `semiont useradd`.
 
-1. **Restore from Snapshot**: Use AWS Console or CLI to restore RDS instance
-2. **Update Connection**: Update database endpoint in Secrets Manager
-3. **Redeploy**: Deploy app stack to pick up new database connection
-4. **Verify**: Test application functionality
+## Health and monitoring
 
-## Monitoring and Maintenance
-
-### Database Health Checks
-
-The backend includes automatic database health monitoring:
-
-```javascript
-// From apps/backend/src/index.ts
-app.get('/api/health', async (c) => {
-  let dbStatus = 'unknown';
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    dbStatus = 'connected';
-  } catch (error) {
-    dbStatus = 'disconnected';
-  }
-  // ... return status
-});
-```
-
-### Performance Monitoring
+The backend reports database reachability at `GET /api/health`:
 
 ```bash
-# Check database metrics
-aws cloudwatch get-metric-statistics \
-  --namespace AWS/RDS \
-  --metric-name CPUUtilization \
-  --dimensions Name=DBInstanceIdentifier,Value=your-db-instance \
-  --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
-  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
-  --period 300 \
-  --statistics Average \
-  --region your-region
+curl -s http://localhost:4000/api/health
 ```
 
-### Log Analysis
+`database` is `connected` or `disconnected`, from a `SELECT 1` in `DatabaseConnection.checkHealth()` ([`apps/backend/src/db.ts`](../../../apps/backend/src/db.ts)). `semiont status` surfaces the same check per service.
+
+For query-level inspection:
 
 ```bash
-# View database logs
-semiont watch logs --service backend | grep -i database
+# Active connections and long-running queries
+container exec semiont-postgres psql -U postgres semiont \
+  -c "SELECT pid, state, now() - query_start AS duration, query FROM pg_stat_activity WHERE state = 'active';"
 
-# Check for connection issues
-semiont watch logs --service backend | grep -i "prisma\|database\|connection"
+# Database-related backend logs
+semiont logs --service backend | grep -iE "prisma|database|connection"
 ```
-
-## Security Considerations
-
-### Access Control
-
-- **Network Isolation**: Database in private subnets, no internet access
-- **Security Groups**: Only ECS tasks can connect to database
-- **Encryption**: TLS in transit, AES-256 at rest
-- **IAM Integration**: Uses IAM roles for RDS authentication where possible
-
-### Credential Management
-
-- **AWS Secrets Manager**: Database credentials rotated automatically
-- **No Hardcoded Passwords**: All credentials injected at runtime
-- **Least Privilege**: Database user has only necessary permissions
-
-### Audit Trail
-
-- **CloudTrail**: All database management operations logged
-- **RDS Logs**: Query logging enabled for security analysis
-- **Application Logs**: Database operations logged in application
 
 ## Troubleshooting
 
-### Common Issues
+### The backend container exits at startup
 
-#### Connection Timeouts
-
-```bash
-# Check security groups
-aws ec2 describe-security-groups --group-ids your-security-group-id
-
-# Verify database endpoint
-aws rds describe-db-instances --db-instance-identifier your-db-instance
-```
-
-#### Migration Failures
+`migrate deploy` failed, so the server never started. The reason is in the logs:
 
 ```bash
-# Check migration logs
-semiont watch logs --service backend | grep -A 10 -B 10 "Running database migrations"
-
-# Manual migration
-semiont exec --service backend "npx prisma db push --accept-data-loss"
+semiont logs --service backend
 ```
 
-#### Schema Drift
+Usual causes: PostgreSQL not up yet (the launcher orders startup, but a slow first boot can still race), wrong credentials, or a migration that conflicts with the database's recorded history.
+
+### Connection refused / timeouts
 
 ```bash
-# Compare schema to database
-semiont exec --service backend "npx prisma db pull"
-
-# Reset to match schema
-semiont exec --service backend "npx prisma db push --force-reset"
+container ps --all | grep semiont-postgres
+container exec semiont-postgres pg_isready -U postgres
+semiont logs --service database
 ```
 
-### Emergency Procedures
+### Schema drift
 
-#### Database Locked
+A database changed outside migrations no longer matches the schema the image ships:
 
-1. **Check Active Connections**:
-   ```sql
-   SELECT * FROM pg_stat_activity WHERE state = 'active';
-   ```
+```bash
+container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate status'
+container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma db pull --print'
+```
 
-2. **Kill Long-Running Queries**:
-   ```sql
-   SELECT pg_terminate_backend(pid) FROM pg_stat_activity 
-   WHERE query_start < now() - interval '5 minutes';
-   ```
+Reconcile by writing a migration that captures the intended state. If the database is disposable, `semiont clean` and start fresh.
 
-#### Corruption Recovery
+### Long-running queries blocking work
 
-1. **Stop Application**: Scale ECS services to 0
-2. **Restore from Backup**: Use most recent clean snapshot
-3. **Update Connection**: Point application to restored database
-4. **Restart Application**: Scale ECS services back up
+```bash
+container exec semiont-postgres psql -U postgres semiont \
+  -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query_start < now() - interval '5 minutes' AND state = 'active';"
+```
 
-## Development Workflow
+## Security
 
-### Local Development
+- The database is not published outside the stack network except for the port the launcher maps for local development.
+- Credentials come from configuration, never from the image; see [CONFIGURATION.md](CONFIGURATION.md) and [SECRETS.md](../services/SECRETS.md).
+- Passwords are bcrypt hashes in `passwordHash`; OAuth users have none.
+- `tokenVersion` is bumped on logout, which revokes every token previously issued to that user.
 
-1. **Set up Local Database**:
-   ```bash
-   docker run --name semiont-postgres -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=semiont -p 5432:5432 -d postgres:15
-   ```
+## Related
 
-2. **Connect to Local DB**:
-   ```bash
-   export DATABASE_URL="postgresql://postgres:dev@localhost:5432/semiont"
-   npx prisma db push
-   ```
-
-3. **Sync with Production Schema**:
-   ```bash
-   # Pull production schema
-   DATABASE_URL="production_url" npx prisma db pull
-   
-   # Apply to local
-   npx prisma db push
-   ```
-
-### Staging Environment
-
-- **Separate RDS Instance**: Isolated from production
-- **Data Refresh**: Periodic refresh from production snapshots
-- **Migration Testing**: Test schema changes before production
-
-## Future Considerations
-
-### Scaling Strategy
-
-- **Read Replicas**: For read-heavy workloads
-- **Connection Pooling**: PgBouncer for high-concurrency applications
-- **Sharding**: Database partitioning for massive scale
-
-### Advanced Features
-
-- **Point-in-Time Recovery**: More granular backup strategy
-- **Cross-Region Replication**: Disaster recovery across regions
-- **Database Monitoring**: Enhanced monitoring with custom metrics
-
-### Migration to Traditional Migrations
-
-If the project grows and requires more controlled migrations:
-
-1. **Switch to `prisma migrate`**: Use traditional migration files
-2. **Version Control**: Store migration files in git
-3. **Deployment Pipeline**: Run migrations as separate deployment step
-4. **Rollback Strategy**: Implement migration rollback procedures
+- [Container Topology](../CONTAINER-TOPOLOGY.md) — where PostgreSQL sits among the containers
+- [CONFIGURATION.md](CONFIGURATION.md) — how the backend is told where the database is
+- [SECRETS.md](../services/SECRETS.md) — credential handling
+- [BACKUP.md](BACKUP.md) — backing up the knowledge, which is not in PostgreSQL
+- [Knowledge System](../KNOWLEDGE-SYSTEM.md) — where resource and annotation data actually lives

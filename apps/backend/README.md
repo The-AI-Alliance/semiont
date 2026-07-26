@@ -372,7 +372,7 @@ semiont start
 npm test
 
 # Type check
-npm run type-check
+npm run typecheck
 
 # Database GUI
 npx prisma studio
@@ -426,7 +426,7 @@ We welcome contributions! Please read:
 **"Cannot connect to database"**
 ```bash
 # Check PostgreSQL is running
-semiont check --service database
+semiont status
 ```
 
 **"JWT_SECRET too short"**

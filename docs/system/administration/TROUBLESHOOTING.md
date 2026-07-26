@@ -1,706 +1,255 @@
 # Semiont Troubleshooting Guide
 
-This guide provides commands to view logs, perform health checks, and resolve common issues with the Semiont semantic knowledge platform infrastructure.
+Diagnosing a Semiont stack: reading logs, checking health, and resolving the failures that actually happen.
 
-For protocol-level diagnostics — distributed traces across processes,
-RED metrics, the `busLog` grep timeline, and trace-correlated log
-fields — see [Observability](./OBSERVABILITY.md). Every structured
-log line below is auto-tagged with `trace_id` and `span_id` when an
-OTel exporter is configured; filter by those fields to jump straight
-from a failing log line to the trace span tree.
+This guide covers the **container stack the `semiont` launcher runs**. That is the deployment this repo supports; see [Deployment](DEPLOYMENT.md) for what running the images elsewhere would involve.
 
-## Quick Health Check Commands
+For protocol-level diagnostics — distributed traces across processes, RED metrics, the `busLog` grep timeline, and trace-correlated log fields — see [Observability](OBSERVABILITY.md). Every structured log line is auto-tagged with `trace_id` and `span_id` when an OTel exporter is configured, so you can filter by those fields to jump from a failing log line to the trace span tree.
 
-### Overall System Health
+## First three commands
+
+Almost every investigation starts here:
 
 ```bash
-# Quick health check using management scripts
-semiont check
-
-# Check all stack resources
-aws cloudformation describe-stack-resources --stack-name SemiontDataStack
-aws cloudformation describe-stack-resources --stack-name SemiontAppStack
-
-# Get all stack outputs
-aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs'
-aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs'
-
-# Quick service status check for both services
-aws ecs describe-services --cluster SemiontCluster --services semiont-frontend semiont-backend --query 'services[*].{Service:serviceName,Status:status,Running:runningCount,Desired:desiredCount}'
+semiont status                     # What is up, and what is healthy
+semiont logs                       # Follow all five Semiont services
+semiont logs --service backend     # Follow one
 ```
 
-## Log Access Commands
+`semiont status` reports container state per service (running / exited / absent, across every installed runtime) plus a health probe per role. Every role but `traces` counts toward its exit status, so it works as a script gate.
 
-### ECS Container Logs
+`semiont status --verbose` adds the launcher's own paths on this host — config, cache, log, state, staging, model cache — plus each root's persistent stack state and its disk consumption. Orphaned state is called out with the `clean` command that removes it.
+
+`semiont logs` follows the five Semiont services as `[svc]`-prefixed streams. With `--service`, it follows any one service including the infrastructure roles: `backend`, `worker`, `smelter`, `weaver`, `frontend`, `database`, `graph`, `vectors`, `inference`, `traces`. Ctrl-C stops *following* — it does not stop the stack.
+
+Containers run without `--rm`, deliberately: a crashed container stays inspectable and its logs survive. If a service shows as `exited`, its logs are still there.
+
+## Reaching into a container
+
+The launcher has no `exec` verb. Use your container engine; containers are named `semiont-<service>`:
 
 ```bash
-# Using management scripts (recommended)
-semiont watch logs --service frontend
-semiont watch logs --service backend
-semiont watch logs  # Follow both services
-
-# List log streams
-LOG_GROUP=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`LogGroupName`].OutputValue' --output text)
-aws logs describe-log-streams --log-group-name $LOG_GROUP --order-by LastEventTime --descending
-
-# Get recent logs (last 1 hour)
-aws logs filter-log-events --log-group-name $LOG_GROUP \
-  --start-time $(($(date +%s) - 3600))000
-
-# Get logs with error filter
-aws logs filter-log-events --log-group-name $LOG_GROUP \
-  --filter-pattern "[timestamp, request_id, level=ERROR || level=CRITICAL]" \
-  --start-time $(($(date +%s) - 3600))000
-
-# Follow logs in real-time (requires AWS CLI v2)
-aws logs tail $LOG_GROUP --follow
+container exec -it semiont-backend sh        # or docker exec / podman exec
+container ps --all | grep semiont
+container inspect semiont-backend
 ```
 
-### Database Logs
+The backend image sets `BACKEND_DIR` to the installed package, which prisma commands need:
 
 ```bash
-# Get RDS instance identifier
-DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
-
-# List available log files
-aws rds describe-db-log-files --db-instance-identifier $DB_IDENTIFIER
-
-# Download recent error log
-aws rds download-db-log-file-portion --db-instance-identifier $DB_IDENTIFIER \
-  --log-file-name error/postgresql.log --starting-token 0
-
-# Check database connection from backend
-semiont exec --service backend 'pg_isready -h $DB_HOST -p $DB_PORT'
+container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate status'
 ```
 
-### Load Balancer Access Logs
+## Common failures
+
+### The stack starts but nothing responds
 
 ```bash
-# Get ALB ARN
-ALB_ARN=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerArn`].OutputValue' --output text)
-
-# Check if access logging is enabled
-aws elbv2 describe-load-balancer-attributes --load-balancer-arn $ALB_ARN --query 'Attributes[?Key==`access_logs.s3.enabled`]'
-
-# Check target group health for both services
-FRONTEND_TG=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`FrontendTargetGroupArn`].OutputValue' --output text)
-BACKEND_TG=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`BackendTargetGroupArn`].OutputValue' --output text)
-
-aws elbv2 describe-target-health --target-group-arn $FRONTEND_TG
-aws elbv2 describe-target-health --target-group-arn $BACKEND_TG
+semiont status
 ```
 
-### CloudTrail Logs (API Activity)
+Read which service is unhealthy before anything else. The frontend has no health probe — it is a static file server — so a "frontend problem" is usually a backend problem seen through the browser.
+
+If the backend shows `exited`, the usual cause is that `prisma migrate deploy` failed at startup. The backend's `CMD` runs migrations *before* `exec node`, so a migration failure means the server never started:
 
 ```bash
-# Look for recent API calls related to the stacks
-aws logs filter-log-events --log-group-name CloudTrail/SemiontEvents \
-  --filter-pattern "{ $.sourceIPAddress != \"*.amazonaws.com\" && $.eventName = *Semiont* }" \
-  --start-time $(($(date +%s) - 86400))000
-
-# Check for OAuth-related events
-aws logs filter-log-events --log-group-name CloudTrail/SemiontEvents \
-  --filter-pattern "{ $.eventName = *Secret* || $.eventName = *OAuth* }" \
-  --start-time $(($(date +%s) - 86400))000
+semiont logs --service backend
 ```
 
-## Manual Health Checks
+### Backend container exits immediately
 
-### ECS Service Health
+Its startup contract is strict, and each unmet requirement throws:
+
+| Missing | Symptom |
+|---|---|
+| `SEMIONT_ROOT` | `SEMIONT_ROOT environment variable is not set` |
+| `services.backend` in the environment config | `services.backend is required in environment config` |
+| `NODE_ENV` | `NODE_ENV environment variable is required` (thrown from `/api/health`) |
+| `DATABASE_URL` (or the `DB_*` set) | Prisma connection error during `migrate deploy` |
+| `JWT_SECRET` under 32 characters | Startup validation failure |
+| `SEMIONT_WORKER_SECRET` | Backend starts, but no agent can get a token — see below |
+
+See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
+
+### Workers, smelter, or weaver never pick up work
+
+These three authenticate by exchanging `SEMIONT_WORKER_SECRET` at `POST /api/tokens/agent` for a JWT carrying a typed Software-agent DID. If the secret does not match the backend's, the exchange fails and they sit idle:
 
 ```bash
-# Using management scripts (recommended)
-semiont check
-
-# Detailed ECS service status for both services
-aws ecs describe-services --cluster SemiontCluster --services semiont-frontend semiont-backend
-
-# List running tasks per service
-aws ecs list-tasks --cluster SemiontCluster --service-name semiont-frontend
-aws ecs list-tasks --cluster SemiontCluster --service-name semiont-backend
-
-# Get task details for frontend
-FRONTEND_TASK=$(aws ecs list-tasks --cluster SemiontCluster --service-name semiont-frontend --query 'taskArns[0]' --output text)
-aws ecs describe-tasks --cluster SemiontCluster --tasks $FRONTEND_TASK
-
-# Get task details for backend
-BACKEND_TASK=$(aws ecs list-tasks --cluster SemiontCluster --service-name semiont-backend --query 'taskArns[0]' --output text)
-aws ecs describe-tasks --cluster SemiontCluster --tasks $BACKEND_TASK
-
-# Check task definitions
-aws ecs describe-task-definition --task-definition semiont-frontend
-aws ecs describe-task-definition --task-definition semiont-backend
+semiont logs --service worker | grep -iE "token|auth|secret"
 ```
 
-### Database Health
+A service restarted with `semiont start --service worker` rejoins the running stack's worker secret automatically. One started by hand with a stale secret will not.
+
+### A job sits in "Yielding" forever
+
+If `JWT_SECRET` changed between when a token was issued and when it was presented, the backend rejects the token with `Invalid token signature` — the generation job is never created, while the client polls for a result that will never arrive.
 
 ```bash
-# Quick database check from backend
-semiont exec --service backend 'pg_isready -h $DB_HOST -p $DB_PORT'
-
-# RDS instance status
-DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
-aws rds describe-db-instances --db-instance-identifier $DB_IDENTIFIER --query 'DBInstances[0].{Status:DBInstanceStatus,Endpoint:Endpoint.Address,Engine:Engine,Version:EngineVersion}'
-
-# Database connection test from backend service
-semiont exec --service backend 'npx prisma db pull --print'
-
-# Check database metrics
-aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name CPUUtilization \
-  --dimensions Name=DBInstanceIdentifier,Value=$DB_IDENTIFIER \
-  --start-time $(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Average
-
-# Check database connections
-aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name DatabaseConnections \
-  --dimensions Name=DBInstanceIdentifier,Value=$DB_IDENTIFIER \
-  --start-time $(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Maximum
+semiont logs --service backend | grep -i "invalid token"
 ```
 
-### Load Balancer Health
+Reconnecting the knowledge base gets a fresh token. Rotating `JWT_SECRET` invalidates every token previously issued, so treat a rotation as requiring every client to re-authenticate.
+
+### Database connection failures
 
 ```bash
-# Get ALB DNS and test access
-ALB_DNS=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDNS`].OutputValue' --output text)
-
-# Test frontend health
-curl -I http://$ALB_DNS
-
-# Test backend API health
-curl -I http://$ALB_DNS/api/health
-curl http://$ALB_DNS/api/health | jq .
-
-# ALB status details
-ALB_ARN=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerArn`].OutputValue' --output text)
-aws elbv2 describe-load-balancers --load-balancer-arns $ALB_ARN
-
-# Target group health for both services
-FRONTEND_TG=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`FrontendTargetGroupArn`].OutputValue' --output text)
-BACKEND_TG=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`BackendTargetGroupArn`].OutputValue' --output text)
-
-echo "Frontend Target Health:"
-aws elbv2 describe-target-health --target-group-arn $FRONTEND_TG
-
-echo "Backend Target Health:"
-aws elbv2 describe-target-health --target-group-arn $BACKEND_TG
+container ps --all | grep semiont-postgres
+container exec semiont-postgres pg_isready -U postgres
+semiont logs --service database
+semiont logs --service backend | grep -iE "prisma|database|connection"
 ```
 
-### CloudFront Distribution Health
+On a slow first boot, PostgreSQL can still be initializing when the backend tries to migrate. The backend exits; restart it once the database is ready:
 
 ```bash
-# Get distribution details
-DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
-aws cloudfront get-distribution --id $DISTRIBUTION_ID --query 'Distribution.{Status:Status,DomainName:DomainName,Origins:Origins}'
-
-# Test CloudFront endpoint
-CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDomainName`].OutputValue' --output text)
-curl -I https://$CLOUDFRONT_DOMAIN
-
-# Check cache statistics
-aws cloudwatch get-metric-statistics --namespace AWS/CloudFront --metric-name CacheHitRate \
-  --dimensions Name=DistributionId,Value=$DISTRIBUTION_ID Name=Global,Value=Global \
-  --start-time $(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Average
+semiont start --service backend
 ```
 
-### EFS File System Health
+For schema drift, migration state, and reset procedures, see the [Database Guide](DATABASE.md).
+
+### Port already in use
+
+`semiont start` preflights the ports each role needs and refuses rather than half-starting. The ports in play:
+
+| Port | Role |
+|---|---|
+| 3000 | frontend |
+| 4000 | backend |
+| 5432 | database (PostgreSQL) |
+| 6333 | vectors (Qdrant) |
+| 7474, 7687 | graph (Neo4j HTTP, Bolt) |
+| 9090, 9091, 9092 | worker, smelter, weaver |
+| 11434 | inference (Ollama) |
+| 16686, 4318 | traces (Jaeger UI, OTLP) |
 
 ```bash
-# Get EFS file system ID
-EFS_ID=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`EFSFileSystemId`].OutputValue' --output text)
-
-# Check EFS file system status
-aws efs describe-file-systems --file-system-id $EFS_ID
-
-# Check mount targets
-aws efs describe-mount-targets --file-system-id $EFS_ID
-
-# Check EFS metrics
-aws cloudwatch get-metric-statistics --namespace AWS/EFS --metric-name ClientConnections \
-  --dimensions Name=FileSystemId,Value=$EFS_ID \
-  --start-time $(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Average
-
-# Check file system usage from backend
-semiont exec --service backend 'df -h | grep efs'
+lsof -i :4000
 ```
 
-### WAF Status
+A stale container from a previous run is the most common squatter — and stopping via the *wrong* runtime is a silent no-op that leaves the real stack running. A bare `semiont stop` sweeps every installed runtime, which is why it is the safe form:
 
 ```bash
-# Get Web ACL ARN
-WEB_ACL_ARN=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`WebACLArn`].OutputValue' --output text)
-
-# Get Web ACL details
-aws wafv2 get-web-acl --scope REGIONAL --id ${WEB_ACL_ARN##*/} --name ${WEB_ACL_ARN##*/} --query 'WebACL.{Name:Name,Rules:Rules[].Name}'
-
-# Check recent blocked requests
-aws wafv2 get-sampled-requests --web-acl-arn $WEB_ACL_ARN \
-  --rule-metric-name RateLimitMetric --scope REGIONAL \
-  --time-window StartTime=$(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ"),EndTime=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --max-items 10
-
-# Check WAF metrics
-aws cloudwatch get-metric-statistics --namespace AWS/WAFV2 --metric-name BlockedRequests \
-  --dimensions Name=WebACL,Value=${WEB_ACL_ARN##*/} Name=Region,Value=$(aws configure get region) Name=Rule,Value=ALL \
-  --start-time $(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Sum
+semiont stop                    # Sweeps every installed runtime
+semiont stop --runtime docker   # Only if you mean exactly that one
 ```
 
-## Common Issues and Solutions
+`--port` moves the browser port only (with `--service frontend`); every other port belongs to the KB's config.
 
-### 1. Application Not Loading
+### Graph or vectors unavailable
 
-**Symptoms:**
-
-- HTTP 502/503 errors from load balancer
-- "Service Unavailable" messages
-- No response from frontend or backend
-- OAuth sign-in failures
-
-**Diagnostic Commands:**
+Both degrade rather than fail — core features keep working without them. See [Graph Architecture](../../../packages/graph/docs/ARCHITECTURE.md#graceful-degradation).
 
 ```bash
-# Quick status check
-semiont check
-
-# Check ECS service health for both services
-aws ecs describe-services --cluster SemiontCluster --services semiont-frontend semiont-backend --query 'services[*].{Service:serviceName,Running:runningCount,Pending:pendingCount,Desired:desiredCount}'
-
-# Check task failures
-semiont watch logs --service frontend | grep -i error
-semiont watch logs --service backend | grep -i error
-
-# Get detailed task information
-FRONTEND_TASK=$(aws ecs list-tasks --cluster SemiontCluster --service-name semiont-frontend --query 'taskArns[0]' --output text)
-BACKEND_TASK=$(aws ecs list-tasks --cluster SemiontCluster --service-name semiont-backend --query 'taskArns[0]' --output text)
-
-aws ecs describe-tasks --cluster SemiontCluster --tasks $FRONTEND_TASK --query 'tasks[0].containers[0].{Name:name,Status:lastStatus,Reason:reason,Health:healthStatus}'
-aws ecs describe-tasks --cluster SemiontCluster --tasks $BACKEND_TASK --query 'tasks[0].containers[0].{Name:name,Status:lastStatus,Reason:reason,Health:healthStatus}'
+semiont logs --service graph
+curl -s http://localhost:6333/readyz
+curl -s http://localhost:7474
 ```
 
-**Common Causes & Solutions:**
+### Inference failures
 
-- **Database connection failure:** Check security groups, verify database is running
-- **Memory/CPU limits exceeded:** Review CloudWatch metrics, adjust task definition
-- **Container image build issues:** Check image exists and is accessible
-- **Environment variable misconfiguration:** Verify Secrets Manager values
-- **OAuth misconfiguration:** Check Google OAuth credentials in Secrets Manager
-- **Frontend/Backend communication issues:** Verify ALB routing rules
-
-**Resolution Steps:**
+With an Anthropic config, `ANTHROPIC_API_KEY` must be set in the environment the launcher runs in — the generated config references it as `${ANTHROPIC_API_KEY}`. With an Ollama config, the model has to actually be pulled:
 
 ```bash
-# Restart all services
-semiont restart
-
-# Or restart individual services
-semiont restart --service frontend
-semiont restart --service backend
-
-# Force service deployment to restart tasks
-aws ecs update-service --cluster SemiontCluster --service semiont-frontend --force-new-deployment
-aws ecs update-service --cluster SemiontCluster --service semiont-backend --force-new-deployment
-
-# Scale services down and up
-aws ecs update-service --cluster SemiontCluster --service semiont-frontend --desired-count 0
-aws ecs update-service --cluster SemiontCluster --service semiont-backend --desired-count 0
-# Wait a moment
-aws ecs update-service --cluster SemiontCluster --service semiont-frontend --desired-count 1
-aws ecs update-service --cluster SemiontCluster --service semiont-backend --desired-count 1
+curl -s http://localhost:11434/api/version
+curl -s http://localhost:11434/api/tags        # Which models are present
+semiont logs --service worker | grep -iE "inference|model"
 ```
 
-### 2. Database Connection Issues
-
-**Symptoms:**
-
-- Backend API returning database errors
-- "Could not connect to database" in backend logs
-- Prisma connection pool exhaustion
-- Slow API response times
-
-**Diagnostic Commands:**
+### Authentication and sign-in failures
 
 ```bash
-# Test database connectivity from backend
-semiont exec --service backend 'pg_isready -h $DB_HOST -p $DB_PORT'
-
-# Check Prisma connection
-semiont exec --service backend 'npx prisma db pull --print'
-
-# Check RDS instance status
-DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
-aws rds describe-db-instances --db-instance-identifier $DB_IDENTIFIER --query 'DBInstances[0].{Status:DBInstanceStatus,MultiAZ:MultiAZ,AvailabilityZone:AvailabilityZone}'
-
-# Check database connections metric
-aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name DatabaseConnections \
-  --dimensions Name=DBInstanceIdentifier,Value=$DB_IDENTIFIER \
-  --start-time $(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Maximum
-
-# Verify security groups
-DB_SG=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecurityGroupId`].OutputValue' --output text)
-aws ec2 describe-security-groups --group-ids $DB_SG
+semiont logs --service backend | grep -iE "oauth|auth|jwt"
+container exec semiont-backend sh -c 'env | grep -E "^(JWT_SECRET|GOOGLE)" | sed "s/=.*/=<set>/"'
 ```
 
-**Common Causes & Solutions:**
+Note the `sed` — do not print secret values to a terminal or into a bug report.
 
-- **Security group misconfiguration:** Verify ECS security group can access database port 5432
-- **Database instance stopped/rebooting:** Check RDS console for maintenance events
-- **Prisma connection pool exhaustion:** Increase pool size in backend configuration
-- **Network connectivity:** Verify VPC subnets and routing
-- **Database schema issues:** Check backend logs for schema sync errors
-- **Transaction deadlocks:** Monitor for long-running queries
+Accounts are created with `semiont useradd`; see [AUTHENTICATION.md](AUTHENTICATION.md).
 
-### 3. High CPU/Memory Usage
+### "Missing documents" after a restart
 
-**Symptoms:**
-
-- Slow application response times
-- Auto-scaling events triggered frequently
-- High CloudWatch metrics for ECS tasks
-- Frontend or backend service degradation
-- Memory leaks in Node.js processes
-
-**Diagnostic Commands:**
+Check the event log before concluding data was lost. `.semiont/events/` in the KB's git repo is the system of record; the graph, the vector store, and the materialized views are all projections of it. Untracked event files are not disposable, and deleted ones are recoverable:
 
 ```bash
-# Check service metrics using management scripts
-semiont check
-
-# Check ECS service metrics for both services
-aws cloudwatch get-metric-statistics --namespace AWS/ECS --metric-name CPUUtilization \
-  --dimensions Name=ServiceName,Value=semiont-frontend Name=ClusterName,Value=SemiontCluster \
-  --start-time $(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Average
-
-aws cloudwatch get-metric-statistics --namespace AWS/ECS --metric-name CPUUtilization \
-  --dimensions Name=ServiceName,Value=semiont-backend Name=ClusterName,Value=SemiontCluster \
-  --start-time $(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Average
-
-# Check auto-scaling activity
-aws application-autoscaling describe-scaling-activities --service-namespace ecs --resource-id service/SemiontCluster/semiont-frontend
-aws application-autoscaling describe-scaling-activities --service-namespace ecs --resource-id service/SemiontCluster/semiont-backend
+cd /path/to/kb
+git status .semiont/events
+git log --all -- .semiont/events
+git restore --source=<commit> .semiont/events/<file>
 ```
 
-**Resolution Steps:**
+A projection that disagrees with the event log is a bug in the projection, not missing data. Views repopulate from the log whenever their directory is empty at startup.
 
-- Increase task CPU/memory limits in CDK and redeploy
-- Optimize application code (memory leaks, inefficient algorithms)
-- Enable API response caching in backend
-- Consider horizontal scaling with more tasks
-- Review and optimize Prisma queries
-- Implement request rate limiting
+### An image-version mismatch on start
 
-### 4. CloudFront Caching Issues
-
-**Symptoms:**
-
-- Stale content being served
-- Cache hit ratio low
-- Frontend assets not updating
-- API responses being cached incorrectly
-
-**Diagnostic Commands:**
+`semiont start` refuses to bring up a database whose persisted state was written by a different image version, and names `semiont clean` as the way out. That refusal is protecting you from a corrupt store — read it before reaching for the workaround.
 
 ```bash
-# Get CloudFront distribution details
-DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
-CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDomainName`].OutputValue' --output text)
-
-# Check cache statistics
-aws cloudwatch get-metric-statistics --namespace AWS/CloudFront --metric-name CacheHitRate \
-  --dimensions Name=DistributionId,Value=$DISTRIBUTION_ID Name=Global,Value=Global \
-  --start-time $(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Average
-
-# Test cache headers for frontend
-curl -I https://$CLOUDFRONT_DOMAIN/
-
-# Test cache headers for API (should bypass cache)
-curl -I https://$CLOUDFRONT_DOMAIN/api/health
+semiont stop
+semiont clean --dry-run          # What would go, and how big
+semiont clean --store database
+semiont start
 ```
 
-**Resolution Steps:**
+## Emergency procedures
+
+### Full restart
 
 ```bash
-# Create cache invalidation
-aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
-
-# Check invalidation status
-INVALIDATION_ID=$(aws cloudfront list-invalidations --distribution-id $DISTRIBUTION_ID --query 'InvalidationList.Items[0].Id' --output text)
-aws cloudfront get-invalidation --distribution-id $DISTRIBUTION_ID --id $INVALIDATION_ID
+semiont stop
+semiont start
 ```
 
-### 5. WAF Blocking Legitimate Traffic
-
-**Symptoms:**
-
-- Users receiving 403 Forbidden errors
-- Rate limiting affecting normal usage
-- Legitimate API requests being blocked
-- OAuth callbacks being blocked
-
-**Diagnostic Commands:**
+Persistent state survives this by design. To also discard PostgreSQL, Qdrant, and Neo4j data:
 
 ```bash
-# Get WAF ARN
-WEB_ACL_ARN=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`WebACLArn`].OutputValue' --output text)
-
-# Check WAF blocked requests
-aws wafv2 get-sampled-requests --web-acl-arn $WEB_ACL_ARN \
-  --rule-metric-name CommonRuleSetMetric --scope REGIONAL \
-  --time-window StartTime=$(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ"),EndTime=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --max-items 100
-
-# Check rate limit metrics
-aws cloudwatch get-metric-statistics --namespace AWS/WAFV2 --metric-name BlockedRequests \
-  --dimensions Name=WebACL,Value=${WEB_ACL_ARN##*/} Name=Region,Value=$(aws configure get region) Name=Rule,Value=RateLimitRule \
-  --start-time $(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Sum
+semiont stop
+semiont clean
+semiont start
 ```
 
-**Resolution Steps:**
+Neither touches the event log.
 
-- Review and adjust WAF rules in AWS Console
-- Add IP allowlist for trusted sources
-- Increase rate limiting thresholds if appropriate
-- Temporarily disable problematic rules for investigation
-
-### 6. EFS File System Issues
-
-**Symptoms:**
-
-- File upload/download failures
-- "Permission denied" errors
-- Slow file operations
-- Mount point not accessible
-
-**Diagnostic Commands:**
+### Restart one service
 
 ```bash
-# Check EFS mount from backend service
-semiont exec --service backend 'df -h | grep efs'
-semiont exec --service backend 'ls -la /mnt/efs'
-
-# Get EFS file system ID and check status
-EFS_ID=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`EFSFileSystemId`].OutputValue' --output text)
-aws efs describe-file-systems --file-system-id $EFS_ID
-
-# Check mount targets
-aws efs describe-mount-targets --file-system-id $EFS_ID
-
-# Check EFS performance metrics
-aws cloudwatch get-metric-statistics --namespace AWS/EFS --metric-name PercentIOLimit \
-  --dimensions Name=FileSystemId,Value=$EFS_ID \
-  --start-time $(date -d "1 hour ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Average
-
-# Test file operations from backend
-semiont exec --service backend 'touch /mnt/efs/test.txt && echo "test" > /mnt/efs/test.txt && cat /mnt/efs/test.txt && rm /mnt/efs/test.txt'
+semiont start --service backend
 ```
 
-### 7. OAuth Authentication Issues
+`--service` takes exactly one name — there is no `--service all` and no comma list.
 
-**Symptoms:**
-
-- "Sign in with Google" not working
-- "invalid_client" errors
-- Domain not allowed errors
-- Session not persisting
-
-**Diagnostic Commands:**
+### Long-running queries blocking the database
 
 ```bash
-# Check OAuth configuration
-semiont configure show
+container exec semiont-postgres psql -U postgres semiont \
+  -c "SELECT pid, state, now() - query_start AS duration, query FROM pg_stat_activity WHERE state = 'active';"
 
-# Check OAuth environment variables (the backend exchanges the Google credential and mints JWTs)
-semiont exec --service backend 'env | grep -E "(GOOGLE|OAUTH|JWT_SECRET)"'
-
-# Check backend auth logs
-semiont watch logs --service backend | grep -i "oauth\|google\|auth"
+container exec semiont-postgres psql -U postgres semiont \
+  -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query_start < now() - interval '5 minutes' AND state = 'active';"
 ```
 
-**Common Causes & Solutions:**
-
-- **Invalid OAuth credentials:** Verify Google Client ID and Secret are correct
-- **Wrong redirect URI:** Ensure redirect URI in Google Console matches your domain
-- **Domain restrictions:** Check OAuth domain configuration in `/environments/[env].json`
-- **JWT secret missing:** Verify `JWT_SECRET` is set on the backend
-- **HTTPS requirement:** OAuth requires HTTPS in production
-
-### 8. Cost Budget Exceeded
-
-**Symptoms:**
-
-- Budget alert notifications
-- Unexpected high AWS costs
-- Services consuming more resources than anticipated
-
-**Diagnostic Commands:**
+### Capturing state for a bug report
 
 ```bash
-# Check current month costs
-aws ce get-cost-and-usage --time-period Start=$(date -d "$(date +%Y-%m-01)" +%Y-%m-%d),End=$(date +%Y-%m-%d) \
-  --granularity MONTHLY --metrics BlendedCost
-
-# Get cost breakdown by service
-aws ce get-cost-and-usage --time-period Start=$(date -d "7 days ago" +%Y-%m-%d),End=$(date +%Y-%m-%d) \
-  --granularity DAILY --metrics BlendedCost --group-by Type=DIMENSION,Key=SERVICE
-
-# Check service scaling
-semiont check
-
-# Check for runaway auto-scaling
-aws application-autoscaling describe-scaling-activities --service-namespace ecs --resource-id service/SemiontCluster/semiont-frontend
-aws application-autoscaling describe-scaling-activities --service-namespace ecs --resource-id service/SemiontCluster/semiont-backend
+semiont status --verbose > status.txt
+container inspect semiont-backend > backend-inspect.json
+semiont logs --service backend > backend.log 2>&1     # Ctrl-C when you have enough
 ```
 
-**Cost Optimization Actions:**
+Scrub secrets before attaching any of it: `JWT_SECRET`, `SEMIONT_WORKER_SECRET`, `ANTHROPIC_API_KEY`, and database passwords all live in container environments.
 
-- Scale down ECS services if over-provisioned
-- Review RDS instance sizing
-- Optimize CloudFront caching to reduce origin requests
-- Clean up unused resources
-- Consider using Fargate Spot for development
-- Review EFS throughput mode (bursting vs provisioned)
+## Dry-run anything
 
-## Emergency Procedures
+`semiont start --dry-run` prints the exact runtime commands a real run would execute, without executing them. When the question is "what is the launcher actually doing", that is the authoritative answer — better than inferring it from documentation, including this page.
 
-### Complete Service Restart
+## Related
 
-```bash
-# Restart all services using management scripts
-semiont restart
-
-# Or manually scale services to 0 and back using AWS CLI
-aws ecs update-service --cluster SemiontCluster --service semiont-frontend --desired-count 0
-aws ecs update-service --cluster SemiontCluster --service semiont-backend --desired-count 0
-# Wait for services to stop
-sleep 30
-aws ecs update-service --cluster SemiontCluster --service semiont-frontend --desired-count 2
-aws ecs update-service --cluster SemiontCluster --service semiont-backend --desired-count 2
-
-# Using AWS CLI directly
-aws ecs update-service --cluster SemiontCluster --service semiont-frontend --desired-count 0
-aws ecs update-service --cluster SemiontCluster --service semiont-backend --desired-count 0
-aws ecs wait services-stable --cluster SemiontCluster --services semiont-frontend semiont-backend
-aws ecs update-service --cluster SemiontCluster --service semiont-frontend --desired-count 2
-aws ecs update-service --cluster SemiontCluster --service semiont-backend --desired-count 2
-```
-
-### Database Emergency Procedures
-
-```bash
-# Get database identifier
-DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
-
-# Create manual database snapshot
-aws rds create-db-snapshot --db-instance-identifier $DB_IDENTIFIER --db-snapshot-identifier emergency-snapshot-$(date +%Y%m%d%H%M%S)
-
-# Check for blocking queries
-semiont exec --service backend 'psql $DATABASE_URL -c "SELECT pid, now() - pg_stat_activity.query_start AS duration, query FROM pg_stat_activity WHERE (now() - pg_stat_activity.query_start) > interval \'5 minutes\';"'
-
-# Reboot database (last resort)
-aws rds reboot-db-instance --db-instance-identifier $DB_IDENTIFIER
-
-# Sync database schema manually if needed
-semiont exec --service backend 'npx prisma db push'
-```
-
-### Enable Enhanced Monitoring (During Incidents)
-
-```bash
-# Enable ECS Container Insights (if not already enabled)
-aws ecs put-account-setting --name containerInsights --value enabled
-
-# Enable RDS Performance Insights
-DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
-aws rds modify-db-instance --db-instance-identifier $DB_IDENTIFIER --enable-performance-insights
-
-# Enable execute command for debugging
-aws ecs update-service --cluster SemiontCluster --service semiont-frontend --enable-execute-command
-aws ecs update-service --cluster SemiontCluster --service semiont-backend --enable-execute-command
-
-# Access containers for live debugging
-semiont exec --service frontend /bin/sh
-semiont exec --service backend /bin/sh
-```
-
-## Monitoring and Alerting Verification
-
-### Test Alert Notifications
-
-```bash
-# Get alarm names from CloudFormation
-FRONTEND_CPU_ALARM=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`FrontendCPUAlarmName`].OutputValue' --output text)
-BACKEND_CPU_ALARM=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`BackendCPUAlarmName`].OutputValue' --output text)
-
-# Trigger test alarms
-aws cloudwatch set-alarm-state --alarm-name $FRONTEND_CPU_ALARM --state-value ALARM --state-reason "Testing alert system"
-aws cloudwatch set-alarm-state --alarm-name $BACKEND_CPU_ALARM --state-value ALARM --state-reason "Testing alert system"
-
-# Reset alarms
-aws cloudwatch set-alarm-state --alarm-name $FRONTEND_CPU_ALARM --state-value OK --state-reason "Test complete"
-aws cloudwatch set-alarm-state --alarm-name $BACKEND_CPU_ALARM --state-value OK --state-reason "Test complete"
-```
-
-### Verify SNS Subscriptions
-
-```bash
-# List SNS topic subscriptions
-SNS_TOPIC_ARN=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`SNSTopicArn`].OutputValue' --output text)
-aws sns list-subscriptions-by-topic --topic-arn $SNS_TOPIC_ARN
-
-# Send test notification
-aws sns publish --topic-arn $SNS_TOPIC_ARN --message "Test notification from Semiont troubleshooting" --subject "Test Alert"
-```
-
-## Performance Baselines
-
-### Establish Performance Baselines
-
-```bash
-# Get ALB ARN for metrics
-ALB_ARN=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerArn`].OutputValue' --output text)
-LB_SUFFIX=$(echo $ALB_ARN | cut -d'/' -f2-)
-
-# Get average response time over last 24 hours
-aws cloudwatch get-metric-statistics --namespace AWS/ApplicationELB --metric-name TargetResponseTime \
-  --dimensions Name=LoadBalancer,Value=$LB_SUFFIX \
-  --start-time $(date -d "24 hours ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 3600 --statistics Average
-
-# Get typical CPU usage for both services
-aws cloudwatch get-metric-statistics --namespace AWS/ECS --metric-name CPUUtilization \
-  --dimensions Name=ServiceName,Value=semiont-frontend Name=ClusterName,Value=SemiontCluster \
-  --start-time $(date -d "24 hours ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 3600 --statistics Average
-
-aws cloudwatch get-metric-statistics --namespace AWS/ECS --metric-name CPUUtilization \
-  --dimensions Name=ServiceName,Value=semiont-backend Name=ClusterName,Value=SemiontCluster \
-  --start-time $(date -d "24 hours ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
-  --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 3600 --statistics Average
-
-# Check API health endpoint response times
-for i in {1..10}; do
-  curl -w "Time: %{time_total}s\n" -o /dev/null -s http://$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDNS`].OutputValue' --output text)/api/health
-done
-```
-
-Use these baselines to detect performance degradation and set appropriate alarm thresholds.
-
-## Additional Resources
-
-- **Management Scripts**: Use `semiont --help` for all available commands
-- **Application Logs**: Both services log to CloudWatch with structured JSON format
-- **Health Endpoints**:
-  - Frontend: `http://<ALB-DNS>/`
-  - Backend API: `http://<ALB-DNS>/api/health`
-- **Database**: Prisma-based PostgreSQL with automatic schema synchronization
-- **OAuth**: Google OAuth with domain restrictions configured in environment JSON files
-
-This troubleshooting guide should be updated as new issues are discovered and resolved.
+- [Observability](OBSERVABILITY.md) — traces, metrics, and the `busLog` timeline
+- [Database Guide](DATABASE.md) — migrations, schema drift, resets
+- [Configuration Guide](CONFIGURATION.md) — where every setting comes from
+- [Authentication](AUTHENTICATION.md) — accounts, JWTs, OAuth
+- [Container Topology](../CONTAINER-TOPOLOGY.md) — which container talks to which
+- [Services Overview](../services/OVERVIEW.md) — ports, health probes, dependencies
+- [Container Images](IMAGES.md) — versions, tags, attestations
+- [Maintenance](MAINTENANCE.md) — routine operations
+- [launcher README](../../../apps/launcher/README.md) — every verb and flag

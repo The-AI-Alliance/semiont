@@ -28,10 +28,6 @@ jobs:
           npm ci --include=optional
           npm run build:packages
 
-      - name: Build CLI
-        run: |
-          cd apps/cli && npm run build && npm link
-
       - name: Run frontend type check
         run: |
           echo "Running frontend TypeScript type check..."
@@ -88,11 +84,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-backend-tsc-
 
-      - name: Install dependencies and CLI
+      - name: Install dependencies
         run: |
           npm ci --include=optional
           npm run build:packages
-          cd apps/cli && npm run build && npm link
 
       - name: Generate Prisma Client
         run: |
@@ -152,45 +147,20 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and CLI
+      - name: Install dependencies
         run: |
           npm ci --include=optional
           npm run build:packages
-          cd apps/cli && npm run build && npm link
 
-      - name: Validate CLI installation
-        run: |
-          semiont --version
-          semiont --help
-
-      - name: Run CLI type check
-        run: |
-          echo "Running CLI TypeScript type check..."
-          cd apps/cli
-          npm run typecheck
+      # @semiont/cli is a deprecated stub that provides no commands. It is still
+      # published, so CI verifies it bundles, typechecks, and prints its notice.
+      - name: Build CLI (deprecated stub, includes typecheck)
+        run: cd apps/cli && npm run build
         env:
           CI: true
 
       - name: Run CLI unit tests
-        run: |
-          echo "Running CLI package unit tests..."
-          cd apps/cli && npm run test:unit
-        env:
-          CI: true
-      
-      - name: Test CLI commands with dry-run
-        run: |
-          echo "Testing CLI commands with dry-run..."
-          # First initialize a project to create environment configs
-          semiont init --dry-run
-          
-          # Test help for various commands
-          semiont --help
-          semiont start --help
-          semiont provision --help
-          semiont check --help
-          
-          echo "CLI commands validated successfully"
+        run: cd apps/cli && npm run test:unit
         env:
           CI: true
 
@@ -224,11 +194,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and CLI
+      - name: Install dependencies
         run: |
           npm ci --include=optional
           npm run build:packages
-          cd apps/cli && npm run build && npm link
 
       - name: Generate Prisma Client
         run: |
@@ -244,7 +213,6 @@ jobs:
           # Run tests for each package
           cd apps/frontend && npm test && cd ../..
           cd apps/backend && npm test && npm run test:integration && cd ../..
-          cd apps/cli && npm run test:unit && cd ../..
 
           echo "All tests completed successfully"
         env:
@@ -273,17 +241,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and CLI
+      - name: Install dependencies
         run: |
           npm ci --include=optional
           npm run build:packages
-          cd apps/cli && npm run build && npm link
-
-      - name: Validate CLI installation
-        run: |
-          # Verify the CLI is installed and working
-          semiont --version
-          semiont --help
 
   check-phantom-deps:
     name: Phantom Dependency Check
@@ -324,18 +285,15 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and CLI
+      - name: Install dependencies
         run: |
           npm ci --include=optional
           npm run build:packages
-          cd apps/cli && npm run build && npm link
 
       - name: Build all applications
         run: |
           # Build all workspaces
           npm run build
-          # Validate CLI still works after build
-          semiont --version
           echo "All applications built successfully"
         env:
           CI: true

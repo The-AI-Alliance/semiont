@@ -153,7 +153,7 @@ Two layers, easy to conflate:
 
 ```bash
 semiont start --environment local
-semiont check --service all
+semiont status
 ```
 
 See **[CLI Documentation](../../apps/cli/README.md)** and **[administration/CONFIGURATION.md](administration/CONFIGURATION.md)** for full configuration details.

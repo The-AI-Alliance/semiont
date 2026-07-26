@@ -1,10 +1,8 @@
 # Stage 1: install. Unlike the other service images, the backend does NOT discard
 # npm afterward — the runtime stage copies it over for `npx prisma` (see below).
 #
-# The backend image drives the role through the `@semiont/cli` global bin
-# (`semiont provision/start/useradd`), which loads the service package from the
-# semiont data dir. So we install two trees: the CLI globally, and the backend
-# package plus its lazy peers into the prefix the CLI reads services from.
+# The image runs @semiont/backend directly — there is no CLI layer. The package
+# and its lazy peers install into /home/semiont/.local/share/semiont.
 # neo4j-driver and @qdrant/js-client-rest are lazy peers of @semiont/graph and
 # @semiont/vector (loaded at connect time) — the backend dials both, so they are
 # bundled here explicitly rather than installed at startup.
@@ -23,7 +21,6 @@ ARG SEMIONT_VERSION=latest
 # the time of the pin. (brace-expansion 5.0.7 later drew its own CVE — patched below.)
 RUN npm config set registry $NPM_REGISTRY && \
     npm install -g npm@12.0.1 && \
-    npm install -g @semiont/cli@${SEMIONT_VERSION} && \
     npm install @semiont/backend@${SEMIONT_VERSION} neo4j-driver @qdrant/js-client-rest \
       --prefix /home/semiont/.local/share/semiont && \
     npm cache clean --force
@@ -71,16 +68,15 @@ RUN apk upgrade --no-cache && \
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 semiont
 
-# The global @semiont/cli (with its hoisted deps) and the `semiont` bin symlink,
-# plus the backend package + lazy peers the CLI loads services from.
+# npm/npx (pinned + patched in the installer stage) for `npx prisma`, plus the
+# backend package and its lazy peers.
 COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=installer /usr/local/bin /usr/local/bin
 COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont /home/semiont/.local/share/semiont
 
-# The backend KEEPS npm/npx (see the base-image note above): at runtime
-# `semiont provision` runs `npx prisma generate` and `semiont start` runs
-# `npx prisma migrate`, so removing npx makes the backend fail to start
-# (spawnSync npx ENOENT). npm is pinned to 12.0.1 in the installer stage above,
+# The backend KEEPS npm/npx (see the base-image note above): the entrypoint runs
+# `npx prisma migrate deploy` before starting, so removing npx makes the backend
+# fail to start. npm is pinned to 12.0.1 in the installer stage above,
 # with its bundled brace-expansion patched there, so keeping npm is clean for the
 # Trivy gate.
 #
@@ -91,7 +87,7 @@ COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont 
 #   - `elkjs`: pulled by @prisma/studio-core (via prisma@7.9.0) for Prisma
 #     Studio's graph layout. It is EPL-2.0 — not on the license allowlist — and
 #     is lazy-loaded only by the Studio GUI, which the backend never runs (it
-#     shells out to `npx prisma generate`/`migrate`). studio-core itself stays:
+#     shells out to `npx prisma migrate deploy`). studio-core itself stays:
 #     it is Apache-2.0 and prisma's CLI top-level-requires it (removing it breaks
 #     `prisma generate`), while removing only elkjs leaves the CLI working.
 #   - `find-my-way`: the HTTP router @prisma/dev pins at exactly 9.6.0 (so no
@@ -121,11 +117,25 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:4000/api/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-CMD semiont provision --service backend --verbose && \
-    semiont provision --service embedding --verbose && \
-    semiont start --service backend --verbose && \
-    if [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then \
-      semiont useradd --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" --admin --upsert; \
-    fi && \
-    semiont useradd --email worker@semiont.local --generate-password --upsert && \
-    tail -f /home/semiont/.local/state/semiont/*/backend/app.log
+# The KB working tree is bind-mounted at /kb and the TOML config at
+# ~/.semiontconfig; the backend reads both (see src/index.ts). These were injected
+# by the CLI before it was retired — they are fixed inside the container, so bake
+# them here.
+ENV SEMIONT_ROOT=/kb
+ENV SEMIONT_ENV=local
+ENV BACKEND_DIR=/home/semiont/.local/share/semiont/node_modules/@semiont/backend
+
+# Apply pending migrations, then hand the container over to node. `exec` makes
+# node PID 1, so it receives SIGTERM directly and logs to stdout — unlike the
+# retired CLI path, which detached node and kept the container alive with
+# `tail -f` on a log file.
+#
+# Required in the environment (no longer computed by the CLI):
+#   DATABASE_URL   — or DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD, which
+#                    src/index.ts assembles into one
+#   JWT_SECRET     — >= 32 chars
+#   SEMIONT_WORKER_SECRET — for the agent-token exchange
+# Optional: ADMIN_EMAIL / ADMIN_PASSWORD are read by the stack operator, not here.
+CMD set -e; \
+    (cd "$BACKEND_DIR" && npx prisma migrate deploy --schema=prisma/schema.prisma); \
+    exec node "$BACKEND_DIR/dist/index.js"

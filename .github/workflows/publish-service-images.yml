@@ -43,9 +43,7 @@ jobs:
         include:
           - service: backend
             dockerfile: apps/backend/Dockerfile
-            # The backend image drives the role through @semiont/cli and loads
-            # the service from @semiont/backend — both must exist at the version.
-            verify_packages: '@semiont/cli @semiont/backend'
+            verify_packages: '@semiont/backend'
           - service: worker
             dockerfile: packages/jobs/Dockerfile
             verify_packages: '@semiont/jobs'

@@ -51,7 +51,7 @@ role):
 Imported resources carry the identity supplied by the request; absent one, the import defaults to
 `did:web:localhost:users:{system-user}`.
 
-There is **no** `semiont export` / `semiont import` command — the CLI does not talk to the API.
+There is **no** `export` / `import` command — exchange is an API concern, reached through `@semiont/sdk`.
 
 ## Archive Format
 

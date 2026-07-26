@@ -2,7 +2,7 @@
 
 Run the Semiont Browser locally. The browser is a static SPA that connects to a running backend. For the broader browser-persona docs (running it as an end user, accessibility, shortcuts, features), see **[README.md](README.md)**.
 
-## Container (no npm required)
+## Container
 
 Run the published browser image directly (substitute `docker` or `podman` for `container` as needed):
 
@@ -20,34 +20,6 @@ frontend container as part of the full stack (see
 [Local Backend Setup](../system/LOCAL-BACKEND.md)) — the standalone
 `container run` is for pointing a browser at an already-running KB.
 
-## npm
-
-```bash
-npm install -g @semiont/cli
-semiont init
-semiont provision --service frontend
-semiont start --service frontend
-```
-
-### Prerequisites
-
-- **Node.js 20+** — [nodejs.org](https://nodejs.org/)
-- **Backend running** at http://localhost:4000
-
-### Service management
-
-```bash
-semiont start --service frontend
-semiont stop --service frontend
-semiont check --service frontend
-```
-
-### Logs
-
-```bash
-tail -f ~/.local/state/semiont/frontend/app.log
-```
-
 ## Desktop App
 
 The frontend is also available as a native desktop application (macOS, Linux). See [apps/desktop/README.md](../../apps/desktop/README.md) for download links, per-platform install notes, and the macOS Gatekeeper workaround.
@@ -60,9 +32,7 @@ Open **http://localhost:3000** and enter the backend URL (e.g. **http://localhos
 |---------|------|-----|
 | Frontend | 3000 | http://localhost:3000 |
 
-## Paths
+## Logs
 
-| Path | Contents |
-|------|----------|
-| `~/.local/state/semiont/frontend/` | Frontend log files |
-| `$XDG_RUNTIME_DIR/semiont/frontend/` | Frontend PID file |
+The frontend container logs to stdout — `semiont logs --service frontend` from a KB directory, or
+your container engine's `logs` command for a standalone `container run`.

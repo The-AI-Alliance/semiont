@@ -58,16 +58,15 @@ export SEMIONT_ENV=local
 
 # Full stack development
 semiont start              # Start everything (database + backend + frontend)
-semiont start --force      # Fresh start with clean database
 semiont stop               # Stop all services
-semiont check              # Check service health
+semiont status              # Check service health
 
 # Service-specific commands
 semiont start --service database  # Start PostgreSQL container
 semiont start --service backend   # Start backend (auto-starts database if needed)
 semiont start --service frontend  # Start frontend only
 semiont stop --service backend    # Stop backend service
-semiont restart --service backend # Restart backend with fresh connection
+semiont start --service backend   # Restart backend, leaving the rest of the stack up
 ```
 
 ## Why Use Semiont CLI?
@@ -109,32 +108,50 @@ semiont start
 semiont stop
 ```
 
-### Backend-Only Development
+### Restarting one service
 
 ```bash
-semiont local backend start
-# Only database + backend running
+semiont start --service backend    # Rebuild-free restart of just the backend
+semiont start --service database   # Just PostgreSQL
 ```
 
-### Frontend with Mock API
+`--service` takes one name: `backend`, `worker`, `smelter`, `weaver`, `frontend`,
+`database`, `graph`, `vectors`, `inference`, or `traces`. The rest of the stack is
+left untouched, and a restarted service rejoins the running stack's worker secret
+automatically.
+
+### Frontend against a mock API
+
+The mock lives in the frontend's own dev server, not in the launcher:
 
 ```bash
-semiont local frontend start --mock
-# Only frontend running, no backend needed
+cd apps/frontend && npm run dev:mock
 ```
 
-### Fresh Start (Reset Database)
+### Fresh start (reset the database)
 
 ```bash
-semiont local start --reset
-# Clean database with sample data
+semiont stop
+semiont clean                      # Removes PostgreSQL, Qdrant, and Neo4j state
+semiont clean --store database     # Or just PostgreSQL
+semiont start
 ```
+
+`stop` deliberately leaves persistent state so the next `start` reuses it;
+`clean` is the only thing that removes it. Neither touches the event log, which
+lives in the KB's git repo.
 
 ## Container Runtime Options
 
-The Semiont CLI automatically detects and works with both **Docker** and **Podman**.
+The launcher works with **Apple Container**, **Docker**, and **Podman**. By default
+it uses the runtime a successful `start` last used (recorded per machine), falling
+back to the first one found on `PATH`. Choose explicitly with `--runtime`:
 
-### Using Podman Instead of Docker
+```bash
+semiont start --runtime podman
+```
+
+### Using Podman
 
 For better security and performance, you can use Podman:
 
@@ -150,10 +167,9 @@ systemctl --user enable --now podman.socket
 
 # 3. Set environment variables
 export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
-export TESTCONTAINERS_RYUK_DISABLED=true
 
-# 4. Use Semiont CLI normally - it will detect Podman automatically
-semiont local start
+# 4. Bring the stack up on Podman
+semiont start --runtime podman
 ```
 
 **macOS Setup:**
@@ -168,10 +184,9 @@ podman machine start
 
 # 3. Configure environment
 export DOCKER_HOST="$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
-export TESTCONTAINERS_RYUK_DISABLED=true
 
-# 4. Use normally
-semiont local start
+# 4. Bring the stack up on Podman
+semiont start --runtime podman
 ```
 
 **Benefits of Using Podman:**
@@ -180,7 +195,10 @@ semiont local start
 - **Lower Resource Usage**: More efficient than Docker Desktop
 - **No Background Daemon**: Containers run without persistent daemon
 
-The Semiont CLI will automatically detect your container runtime and configure accordingly.
+`DOCKER_HOST` matters for the backend's **integration tests**, which provision
+PostgreSQL with `@testcontainers/postgresql`; the launcher itself is told which
+runtime to use by `--runtime`. Ryuk is disabled by the test setup, so there is no
+`TESTCONTAINERS_RYUK_DISABLED` to export.
 
 ## Manual Setup (Alternative)
 
@@ -190,7 +208,7 @@ If you prefer manual setup or need to understand the internals:
 
 - Node.js 18+ (recommend using nvm)
 - Docker (for PostgreSQL container)
-- Secrets configured via `semiont secrets` command
+- A `~/.semiontconfig` with credentials for the database, graph, and inference — `semiont init` generates one
 
 ### Manual Database Setup
 
@@ -415,7 +433,7 @@ const prisma = new PrismaClient({
    - Nodemon restarts only on file changes
 
 3. **Type Checking**
-   - Run `npm run type-check` periodically
+   - Run `npm run typecheck` periodically
    - VS Code shows errors in real-time
 
 ## Troubleshooting
@@ -461,44 +479,39 @@ kill -9 <PID>
 
 ## Configuration Management
 
-The backend uses environment-specific configuration files from `/config/environments/`:
+Configuration is TOML, read from two files at startup ([`src/index.ts`](../src/index.ts)):
 
-**1. Environment Configuration** - Edit `/config/environments/[env].json`:
+| File | Contents | Committed? |
+|---|---|---|
+| `<SEMIONT_ROOT>/.semiont/config` | Project anchor: the KB's name and its permanent `did:web` identity | Yes |
+| `~/.semiontconfig` | Per-environment settings: database, graph, vectors, embedding, inference | No |
 
-```json
-{
-  "services": {
-    "backend": {
-      "port": 3001,
-      "deployment": { "type": "aws" }
-    },
-    "database": {
-      "name": "semiont_prod",
-      "deployment": { "type": "aws" }
-    }
-  },
-  "aws": {
-    "region": "us-east-2",
-    "accountId": "123456789012"
-  }
-}
-```
+Two environment variables select what to load:
 
-**2. Secrets Management** - Use the semiont CLI:
+- `SEMIONT_ROOT` — path to the knowledge-base working tree. **Required**; the process throws without it.
+- `SEMIONT_ENV` — which `[environments.<name>]` block to read. Defaults to `local`.
 
-```bash
-# Production secrets (AWS Secrets Manager)
-semiont configure production set oauth/google
-semiont configure staging set jwt-secret
+`loadEnvironmentConfig(projectRoot, env)` merges them into an `EnvironmentConfig`
+(`@semiont/core`). `services.backend` must be present or startup fails.
 
-# Check secret status
-semiont configure production get oauth/google
-```
+Beyond that, the backend reads from the environment directly:
 
-**3. Adding New Configuration**:
-- Add to appropriate environment JSON file in `/config/environments/`
-- Update validation in `src/config/env.ts` if needed
-- Configuration is loaded automatically based on SEMIONT_ENV
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string — or `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` |
+| `JWT_SECRET` | Token signing; minimum 32 characters |
+| `SEMIONT_WORKER_SECRET` | Shared secret for the software-agent token exchange |
+
+`semiont init` generates both TOML files. See the
+[Configuration Guide](../../../docs/system/administration/CONFIGURATION.md) for the
+full schema, and [SECRETS.md](../../../docs/system/services/SECRETS.md) for
+credential handling.
+
+### Adding a configuration key
+
+1. Add it to the TOML schema and to `EnvironmentConfig` in `@semiont/core`
+2. Thread it through `loadEnvironmentConfig` / [`src/utils/config.ts`](../src/utils/config.ts)
+3. Read it off `config` at the call site — not from `process.env`, so one loader stays the single source of truth
 
 ## Related Documentation
 

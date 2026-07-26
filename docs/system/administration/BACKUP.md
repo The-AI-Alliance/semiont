@@ -96,7 +96,7 @@ The manifest is a JSONL file. The first line is the header; subsequent lines are
 {"stream": "4feadd89-...", "eventCount": 12}
 ```
 
-Each stream summary records the stream's event count, which `semiont verify` checks against the actual stream contents.
+Each stream summary records the stream's event count, so a reader can check the manifest against the actual stream contents.
 
 ### Event Streams (`.semiont/events/`)
 
@@ -111,7 +111,7 @@ Content-addressed files stored at the archive root: `{checksum}.{ext}` (e.g., `5
 
 ## Integrity
 
-Backup archives carry no per-event integrity metadata. During restore, the importer validates the manifest (presence, format, version) and warns about event streams that are listed in the manifest but missing from the archive; restore proceeds regardless. For offline validation before restoring, `semiont verify` additionally checks each stream's event count and the content blob count against the manifest.
+Backup archives carry no per-event integrity metadata. During restore, the importer validates the manifest (presence, format, version) and warns about event streams that are listed in the manifest but missing from the archive; restore proceeds regardless. There is no offline archive-validation command — the manifest's per-stream event counts and blob count are the material for one, but nothing ships that reads them.
 
 Integrity of the live event log is provided by git at the commit level: when `gitSync` is enabled, every append stages the event log file, and once committed, git's object hashes make tampering evident. See [Storage Layout](../../../packages/event-sourcing/docs/STORAGE-LAYOUT.md) for details.
 

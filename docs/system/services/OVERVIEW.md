@@ -1,119 +1,148 @@
 # Services Overview
 
-This document provides a deployment-focused overview of Semiont services. For API documentation, see the individual package documentation.
+A deployment-focused overview of Semiont's services. For API documentation, see the individual package docs.
 
-## Service Catalog
+## Service catalog
 
-### Application Layer
+Five services run Semiont code. Each is a published container image; see [Container Images](../administration/IMAGES.md) and [Container Topology](../CONTAINER-TOPOLOGY.md).
 
-| Service | Type | Package/Location | Documentation |
-|---------|------|-----------------|---------------|
-| **Frontend** | Web App | `apps/frontend/` | [README](../../../apps/frontend/README.md) |
-| **Backend** | API Server | `apps/backend/` | [README](../../../apps/backend/README.md) |
-| **MCP Server** | AI Integration | `@semiont/mcp-server` | [Package](../../../packages/mcp-server/) |
+| Service | Port | What runs | Bundled package | Docs |
+|---|---|---|---|---|
+| **frontend** | 3000 | Static server for the Semiont Browser SPA | `semiont-frontend` | [README](../../../apps/frontend/README.md) |
+| **backend** | 4000 | API server + unified bus gateway; Stower, Browser, Gatherer, Matcher | `semiont-backend` | [README](../../../apps/backend/README.md) |
+| **worker** | 9090 | Annotation/generation worker pool | `@semiont/jobs` | [API](../../../packages/jobs/docs/API.md) |
+| **smelter** | 9091 | Embedding/vector pipeline actor | `@semiont/make-meaning` | [Package](../../../packages/make-meaning/) |
+| **weaver** | 9092 | Graph-projection actor | `@semiont/make-meaning` | [Package](../../../packages/make-meaning/) |
 
-### Data Layer
+For what the actors inside those containers are responsible for, see [Knowledge System](../KNOWLEDGE-SYSTEM.md).
 
-| Service | Type | Package | API Docs |
-|---------|------|---------|----------|
-| **Content Store** | Filesystem | `@semiont/content` | [API](../../../packages/content/docs/API.md) |
-| **Event Store** | Filesystem | `@semiont/event-sourcing` | [README](../../../packages/event-sourcing/README.md), [Storage Layout](../../../packages/event-sourcing/docs/STORAGE-LAYOUT.md) |
-| **Graph Database** | Multiple Providers | `@semiont/graph` | [API](../../../packages/graph/docs/API.md), [Architecture](../../../packages/graph/docs/ARCHITECTURE.md) |
-| **Vector Store** | Qdrant / Memory | `@semiont/vectors` | [Package](../../../packages/vectors/) |
-| **PostgreSQL** | User Auth Only | Backend Implementation | [Database Guide](../administration/DATABASE.md) |
+### Infrastructure dependencies
 
-### Compute Layer
+| Role | Product | Port | Purpose |
+|---|---|---|---|
+| **database** | PostgreSQL | 5432 | User authentication only — see [Database Guide](../administration/DATABASE.md) |
+| **graph** | Neo4j | 7474, 7687 | Graph projection of the event log |
+| **vectors** | Qdrant | 6333 | Embeddings and semantic search |
+| **inference** | Ollama | 11434 | Local LLM + embeddings (or Anthropic instead, for LLM) |
+| **traces** | Jaeger | 16686, 4318 | OTLP traces + metrics; on by default, `--no-observe` skips it |
 
-| Service | Type | Package | API Docs |
-|---------|------|---------|----------|
-| **Inference** | LLM Service | `@semiont/inference` | [API](../../../packages/inference/docs/API.md) |
-| **Job Worker** | Background Jobs | `@semiont/jobs` | [API](../../../packages/jobs/docs/API.md) |
+`embedding` is a role with no container of its own: in practice it is either the Ollama that `inference` already provides, or a remote service.
 
-## Service Management
+### Storage substrate
 
-All services are managed through the Semiont CLI:
+| Store | Package | Where it lives |
+|---|---|---|
+| **Event log** | `@semiont/event-sourcing` | `.semiont/events/` in the KB git repo — the system of record ([Storage Layout](../../../packages/event-sourcing/docs/STORAGE-LAYOUT.md)) |
+| **Content store** | `@semiont/content` | Content-addressed blobs ([API](../../../packages/content/docs/API.md)) |
+| **Graph** | `@semiont/graph` | Neo4j or in-memory ([API](../../../packages/graph/docs/API.md), [Architecture](../../../packages/graph/docs/ARCHITECTURE.md)) |
+| **Vectors** | `@semiont/vectors` | Qdrant or in-memory ([Package](../../../packages/vectors/)) |
+| **Users** | Prisma / PostgreSQL | The `users` table, nothing else |
 
-### Basic Commands
+The event log is the system of record; the graph, the vector store, and the materialized views are projections of it. A disagreement between a projection and the log is a bug in the projection.
+
+## Service management
+
+The stack is managed by the `semiont` launcher — a single static binary, installed with Homebrew, that drives your container runtime:
 
 ```bash
-# Start all services
-semiont start --environment local
-
-# Start specific service
-semiont start --service backend --environment local
-
-# Check service status
-semiont check --service all --environment local
-
-# Stop services
-semiont stop --service all --environment local
-
-# View logs
-tail -f ~/.local/state/semiont/{project}/backend/app.log
-
-# Watch service status
-semiont watch --environment local
+brew install the-ai-alliance/semiont/semiont
 ```
 
-### Service Configuration
+Run these from a knowledge-base directory:
 
-Services are configured per environment in `~/.semiontconfig`:
+```bash
+semiont start                      # Whole stack
+semiont start --list-configs       # Which inference configs this KB ships
+semiont start --config anthropic   # Bring it up on a named config
+
+semiont status                     # Container state + per-service health
+semiont logs                       # Follow every service
+semiont logs --service backend     # One service
+
+semiont start --service backend    # Restart just one service, leaving the rest up
+semiont stop                       # Tear the stack down
+semiont stop --service worker      # Stop one service
+semiont clean                      # Remove persistent state (PostgreSQL, Qdrant, Neo4j)
+```
+
+`--service` takes one of `backend`, `worker`, `smelter`, `weaver`, `frontend`, `database`, `graph`, `vectors`, `inference`, or `traces`. Omitting it means the whole stack — there is no `--service all`. `semiont stop` deliberately leaves persistent state behind so the next `start` reuses it; `semiont clean` is the only thing that removes it.
+
+Run `semiont <command> --help` for a command's options and `semiont --help` for the full verb list.
+
+Services log to stdout, so `semiont logs` is the way to read them — there are no per-service log files.
+
+The launcher has no `exec` verb. To get a shell in a running service, use your container engine; containers are named `semiont-<service>`:
+
+```bash
+container exec -it semiont-backend sh    # or: docker exec -it semiont-backend sh
+```
+
+### Configuration
+
+Services are configured per environment in `~/.semiontconfig`. `semiont init` generates it; the shape is:
 
 ```toml
-[environments.local.backend]
-port = 4000
-publicURL = "http://localhost:4000"
+[defaults]
+environment = "local"
 
-[environments.local.make-meaning.graph]
-type = "memory"   # or: neo4j
+[environments.local.backend]
+platform = "posix"
+port = 4000
+publicURL = "http://${BACKEND_HOST:-localhost}:4000"
+
+[environments.local.graph]
+platform = "external"
+type = "neo4j"
+uri = "bolt://${NEO4J_HOST}:7687"
+username = "neo4j"
+password = "localpass"
+database = "neo4j"
+
+[environments.local.vectors]
+type = "qdrant"          # or: memory
+host = "${QDRANT_HOST}"
+port = 6333
+
+[environments.local.embedding]
+platform = "external"
+type = "ollama"
+model = "nomic-embed-text"
+baseURL = "http://${OLLAMA_HOST}:11434"
+
+[environments.local.embedding.chunking]
+chunkSize = 512
+overlap = 64
+
+# Provider credentials
+[environments.local.inference.anthropic]
+platform = "external"
+apiKey = "${ANTHROPIC_API_KEY}"
+
+# Bindings: which provider and model each consumer uses
+[environments.local.actors.gatherer.inference]
+type = "anthropic"
+model = "claude-haiku-4-5-20251001"
 
 [environments.local.workers.default.inference]
 type = "anthropic"
 model = "claude-haiku-4-5-20251001"
-apiKey = "${ANTHROPIC_API_KEY}"
 
-[environments.local.vectors]
-type = "qdrant"           # or: memory
-host = "localhost"
-port = 6333
-
-[environments.local.vectors.embedding]
-provider = "voyage"       # or: ollama
-model = "voyage-3"
-
-[environments.local.vectors.chunking]
-maxTokens = 512
-overlap = 64
+[environments.local.database]
+platform = "external"
+host = "${POSTGRES_HOST}"
+port = 5432
+name = "semiont"
+user = "postgres"
+password = "localpass"
 ```
 
-See [Configuration Guide](../administration/CONFIGURATION.md) for the full schema.
+Note the split: `[environments.local.inference.<provider>]` carries a provider's credentials, while `[environments.local.{actors.<actor>,workers.<pool>}.inference]` binds one consumer to a `(type, model)` pair. That is what lets a lighter model serve high-volume annotation workers while the Gatherer uses a stronger one.
 
-## Platform Support
+See the [Configuration Guide](../administration/CONFIGURATION.md) for the full schema.
 
-Services can run on different platforms:
+## Service dependencies
 
-### Development (POSIX)
-- Local processes
-- Filesystem storage
-- Neo4j or in-memory graph
-- Qdrant or in-memory vectors
-- PostgreSQL
-
-### Containers (Apple Container / Docker / Podman)
-- Volume mounts
-- Network isolation
-- Neo4j, Qdrant, PostgreSQL as containers
-
-### Production (AWS)
-- ECS Fargate tasks
-- RDS PostgreSQL
-- S3/EFS storage
-- Neptune graph database
-- Qdrant (self-hosted or Qdrant Cloud)
-
-## Service Dependencies
-
-### Startup Order
+### Startup order
 
 ```mermaid
 graph LR
@@ -121,156 +150,93 @@ graph LR
     GRAPH[Neo4j] --> BE
     VECTORS[Qdrant] --> BE
     BE --> FE[Frontend]
-    BE --> MCP[MCP Server]
-    BE --> JW[Job Worker]
+    BE --> W[Worker]
+    BE --> SM[Smelter]
+    BE --> WV[Weaver]
 ```
 
-### Runtime Dependencies
+`semiont start` handles this ordering: the infrastructure containers come up first, then the backend, then everything that talks to the backend's bus.
 
-- **Frontend** → Backend API
-- **Backend** → Database (users), Event Store, Graph (optional), Vector Store (optional)
-- **Job Worker** → Event Store, Inference
-- **MCP Server** → Backend API
+### Runtime dependencies
 
-## Service Communication
+- **Frontend** → nothing. It serves static assets; the SPA in the user's browser talks to the backend directly.
+- **Backend** → PostgreSQL (users), event log, graph, vector store, inference
+- **Worker** → backend bus, inference
+- **Smelter** → backend bus, vector store, embeddings
+- **Weaver** → backend bus, graph
+- **MCP server** → backend bus
 
-### REST API
-- Frontend to Backend
-- MCP Server to Backend
-- External clients to Backend
+## Service communication
 
-### Server-Sent Events (SSE)
-- Backend to Frontend (real-time updates)
-- Job progress streaming
+Every actor that runs Semiont code is a bus participant. The backend exposes exactly two runtime endpoints carrying domain traffic — `POST /bus/emit` and `GET /bus/subscribe` (SSE, with dynamic channel subscription and Last-Event-ID replay). Every other HTTP route serves auth, admin, exchange, binary content, or infrastructure.
 
-### Event Bus
-- Event Store to Weaver
-- Event Store to SSE subscribers
+The worker, smelter, and weaver authenticate via `POST /api/tokens/agent`, exchanging `SEMIONT_WORKER_SECRET` plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID.
 
-## Health Checks
+See [Container Topology](../CONTAINER-TOPOLOGY.md) for the full picture.
 
-All services expose health endpoints:
+## Health checks
 
-| Service | Health Endpoint | Checks |
-|---------|----------------|---------|
-| Frontend | `/api/health` | Vite SPA status |
-| Backend | `/api/health` | Database, Event Store |
-| MCP Server | `/health` | Backend connectivity |
+`semiont status` probes each role at a fixed endpoint and reports the result alongside container state. The probes it uses:
 
-## Monitoring
+| Role | Probe |
+|---|---|
+| backend | `http://localhost:4000/api/health` |
+| worker | `http://localhost:9090/health` |
+| smelter | `http://localhost:9091/health` |
+| weaver | `http://localhost:9092/health` |
+| database | TCP connect on 5432 |
+| graph | `http://localhost:7474` |
+| vectors | `http://localhost:6333/readyz` |
+| inference / embedding | `http://localhost:11434/api/version` |
+| traces | `http://localhost:16686` |
 
-### Logs
-- Application logs: stdout/stderr
-- Structured logging: JSON format
-- Log aggregation: CloudWatch (AWS)
+Every role but `traces` counts toward the exit status, so `semiont status` is usable as a gate in a script. The frontend has no probe — it is a static file server with nothing to be unhealthy about.
 
-### Metrics
-- Service uptime
-- Request latency
-- Error rates
-- Queue depths
+The backend's `/api/health` reports database reachability and the environment name; the rest are liveness.
 
-## Deployment Patterns
+## Observability
 
-### Local Development
+Local stacks run Jaeger by default (`--no-observe` skips it). The backend, worker, smelter, and weaver export OTLP traces and metrics to it; the UI is at http://localhost:16686. Application logs go to stdout as structured JSON — read them with `semiont logs`.
 
-```bash
-# Start core services
-semiont start --service database --environment local
-semiont start --service backend --environment local
-semiont start --service frontend --environment local
+## Platform support
 
-# Optional services
-semiont start --service graph --environment local
-```
+The launcher runs the stack in containers on **Apple Container, Docker, or Podman** (`--runtime`), locally or on a GitHub-hosted machine (`--runtime codespace`).
 
-### Staging
-
-```bash
-# Deploy to staging
-semiont deploy --environment staging
-
-# Run migrations
-semiont exec --service backend --environment staging \
-  "npx prisma migrate deploy"
-
-# Check deployment
-semiont check --environment staging
-```
-
-### Production
-
-```bash
-# Blue-green deployment
-semiont deploy --environment production --strategy blue-green
-
-# Monitor deployment
-semiont watch --environment production
-
-# Rollback if needed
-semiont rollback --environment production
-```
-
-## Service-Specific Documentation
-
-### System
-- [Database Management](../administration/DATABASE.md) - PostgreSQL setup (user auth)
-- [Filesystem Patterns](../FILESYSTEM.md) - Storage implementation
-- [Knowledge System](../KNOWLEDGE-SYSTEM.md) - Event processing and storage architecture
-
-### Package APIs
-- [@semiont/event-sourcing](../../../packages/event-sourcing/docs/) - Event store patterns
-- [@semiont/graph](../../../packages/graph/docs/) - Graph database providers
-- [@semiont/inference](../../../packages/inference/docs/) - LLM integration
-- [@semiont/jobs](../../../packages/jobs/docs/) - Job queue patterns
-- [@semiont/vectors](../../../packages/vectors/) - Vector store and embeddings
-- [@semiont/content](../../../packages/content/docs/) - Content addressing
-
-### CLI Integration
-- [CLI README](../../../apps/cli/README.md) - Complete CLI documentation
+Nothing in the architecture requires containers: the packages are plain Node, so the same code can run as bare processes, as ECS Fargate tasks, or as Kubernetes pods. What the launcher supports today is the container path; running the published images anywhere else is not supported by this repo. See [Deployment](../administration/DEPLOYMENT.md) and [Platforms](../platforms/README.md).
 
 ## Troubleshooting
 
-### Common Issues
+**A service won't start**
 
-**Service won't start**
 ```bash
-# Check logs
-tail -100 ~/.local/state/semiont/{project}/backend/app.log
-
-# Check environment
-semiont config --environment local
-
-# Verify dependencies
-semiont check --service all
+semiont status                     # Which service is unhealthy
+semiont logs --service backend     # Why
 ```
+
+Containers are started without `--rm`, so a crashed container stays inspectable and its logs survive.
 
 **Database connection failed**
-```bash
-# Check database service
-semiont check --service database
 
-# Test connection
-semiont exec --service backend "npx prisma db pull"
+```bash
+semiont status
+container exec semiont-postgres pg_isready -U postgres
+semiont logs --service database
 ```
 
-**Graph database unavailable**
-- Graph is optional - core features work without it
-- Check [Graph Architecture](../../../packages/graph/docs/ARCHITECTURE.md#graceful-degradation)
+See the [Database Guide](../administration/DATABASE.md).
 
-## Migration Notes
+**Graph or vectors unavailable**
 
-### From Service Docs to Package Docs
+Both degrade rather than fail — core features work without them. See [Graph Architecture](../../../packages/graph/docs/ARCHITECTURE.md#graceful-degradation).
 
-The detailed technical documentation has moved to package-specific locations:
+More at [TROUBLESHOOTING.md](../administration/TROUBLESHOOTING.md).
 
-| Old Location | New Location |
-|--------------|--------------|
-| `docs/services/EVENT-STORE.md` | `packages/event-sourcing/docs/` |
-| `docs/services/GRAPH.md` | `packages/graph/docs/` |
-| `docs/services/INFERENCE.md` | `packages/inference/docs/` |
-| `docs/services/JOB-WORKER.md` | `packages/jobs/docs/` |
-| `docs/services/REPRESENTATION-STORE.md` | `packages/content/docs/` |
-| `docs/services/DATABASE.md` | `docs/system/administration/DATABASE.md` |
+## Related
 
-This reorganization follows the principle of colocating documentation with code for better maintainability.
+- [Container Topology](../CONTAINER-TOPOLOGY.md) — how the containers are partitioned and how they talk
+- [Container Images](../administration/IMAGES.md) — what is published, and its supply-chain attestations
+- [Knowledge System](../KNOWLEDGE-SYSTEM.md) — the actors and how knowledge flows
+- [Configuration Guide](../administration/CONFIGURATION.md) — the full config schema
+- [Database Guide](../administration/DATABASE.md) — PostgreSQL and Prisma
+- [Filesystem Patterns](../FILESYSTEM.md) — storage layout on disk
+- [launcher README](../../../apps/launcher/README.md) — every verb, in detail

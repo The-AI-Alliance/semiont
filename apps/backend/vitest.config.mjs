@@ -1,10 +1,18 @@
 import { defineConfig } from 'vitest/config';
 import path from 'path';
+import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  // Build-time defines the bundle gets from tsup.config.ts. Tests assert on the
+  // real version, so it comes from the same package.json the bundle reads.
+  define: {
+    __SEMIONT_VERSION__: JSON.stringify(
+      JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')).version,
+    ),
+  },
   test: {
     globals: true,
     environment: 'node',

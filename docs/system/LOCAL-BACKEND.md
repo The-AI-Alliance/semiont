@@ -4,7 +4,7 @@ Run the Semiont backend locally. Both paths below use `~/.semiontconfig` for inf
 
 For a stack on GitHub's machine rather than your own, the launcher's codespace placement (`semiont start --runtime codespace`) is covered in **[Knowledge Bases](../KNOWLEDGE-BASES.md)**.
 
-## Container (no npm required)
+## Running the stack
 
 Install the [`semiont` launcher](../../apps/launcher/README.md)
 (`brew install the-ai-alliance/semiont/semiont`), clone a knowledge base
@@ -33,70 +33,6 @@ Anthropic config. See the [KB README](https://github.com/The-AI-Alliance/gutenbe
 
 The authoritative compose files and inference presets live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository under `.semiont/`; the image inventory and supply-chain verification are in [Container Images](./administration/IMAGES.md).
 
-## npm
-
-```bash
-npm install -g @semiont/cli neo4j-driver
-semiont serve
-```
-
-`semiont serve` initializes the project, provisions and starts the database and backend, and creates an admin user.
-
-### Prerequisites
-
-- **Node.js 20+** — [nodejs.org](https://nodejs.org/)
-- **Container runtime** — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/) (for PostgreSQL)
-- **Inference** — `ANTHROPIC_API_KEY` or [Ollama](https://ollama.com/)
-- **Neo4j** — [Neo4j Aura](https://neo4j.com/cloud/aura/) (free) or local
-
-### Step by step
-
-```bash
-# 1. Install
-npm install -g @semiont/cli neo4j-driver
-
-# 2. Initialize a project
-mkdir my-kb && cd my-kb
-semiont init
-
-# 3. Set credentials
-export NEO4J_URI=bolt://localhost:7687
-export NEO4J_USERNAME=neo4j
-export NEO4J_PASSWORD=your-password
-export NEO4J_DATABASE=neo4j
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# 4. Provision and start
-semiont provision
-semiont start
-semiont check
-
-# 5. Create admin user
-semiont useradd --email you@example.com --generate-password --admin
-```
-
-The backend runs at **http://localhost:4000**.
-
-### Service management
-
-```bash
-semiont start --service backend
-semiont stop --service backend
-semiont check
-```
-
-### Logs
-
-```bash
-tail -f ~/.local/state/semiont/{project}/backend/app.log
-```
-
-### Re-provision after config changes
-
-```bash
-semiont provision --service backend
-```
-
 ## Ports
 
 | Service | Port | URL |
@@ -110,8 +46,9 @@ semiont provision --service backend
 
 | Path | Contents |
 |------|----------|
-| `~/.semiontconfig` | Global config: inference, database, graph credentials |
-| `~/.config/semiont/{project}/` | Generated secrets (JWT_SECRET) |
-| `~/.local/share/semiont/{project}/database/` | PostgreSQL data directory |
-| `~/.local/state/semiont/{project}/backend/` | Backend log files |
-| `$XDG_RUNTIME_DIR/semiont/{project}/` | Backend PID file |
+| `~/.semiontconfig` | Global config: inference, database, graph credentials (mounted into the backend) |
+| `.semiont/config` | Project anchor: KB name and `did:web` site identity (committed) |
+| `.semiont/events/` | The event log — system of record (committed) |
+
+Service logs go to stdout — `semiont logs`. Database, graph, and vector data live in the container
+volumes the launcher manages; `semiont clean` removes them.

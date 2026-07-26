@@ -40,11 +40,6 @@ jobs:
           npm ci --include=optional
           npm run build:packages
 
-      - name: Build and install CLI
-        run: |
-          cd ../..
-          cd apps/cli && npm run build && npm link
-
       - name: Run security tests
         run: npm run test:security
         env:
@@ -228,23 +223,27 @@ jobs:
           npm ci --include=optional
           npm run build:packages
 
-      - name: Build and install CLI
-        run: |
-          cd ../..
-          cd apps/cli && npm run build && npm link
-      
       - name: Setup test database and config
         run: |
-          # Initialize project configuration
+          # Project anchor (.semiont/config) — written directly; there is no CLI to init with
           cd ../..
-          semiont init --name "test-project" --environments "ci" --force
+          mkdir -p .semiont
+          printf '%s\n' \
+            '[project]' \
+            'name = "test-project"' \
+            '' \
+            '[site]' \
+            'domain = "localhost"' \
+            'siteName = "Semiont CI"' \
+            'adminEmail = "admin@localhost"' \
+            'oauthAllowedDomains = ["localhost"]' \
+            > .semiont/config
           # Write ~/.semiontconfig with ci environment so backend can start
           printf '%s\n' \
             '[environments.ci.backend]' \
             'platform = "posix"' \
             'port = 4000' \
             'publicURL = "http://localhost:4000"' \
-            'corsOrigin = "http://localhost:3000"' \
             '' \
             '[environments.ci.site]' \
             'domain = "localhost"' \

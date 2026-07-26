@@ -72,65 +72,32 @@ Testing in the Semiont frontend is split between two packages following the comp
 
 ## Running Tests
 
-### Using Semiont CLI (Recommended)
+Run these from `apps/frontend/`:
 
 ```bash
-# With SEMIONT_ENV set (e.g., export SEMIONT_ENV=local)
+npm test                    # Everything
+npm run test:unit           # Excludes integration tests
+npm run test:integration    # Integration tests only (signup flows, etc.)
+npm run test:security       # Admin page/layout + validation
+npm run test:a11y           # Accessibility assertions
+npm run test:coverage       # Everything, with an HTML report in coverage/
+npm run test:watch          # Watch mode
+npm run test:ui             # Vitest UI
 
-# Run all frontend tests with coverage
-semiont test --service frontend
-
-# Run specific test types for frontend
-semiont test --service frontend --suite unit         # Unit tests only
-semiont test --service frontend --suite integration  # Integration tests only
-semiont test --service frontend --suite security    # Security tests only
-
-# Override environment for staging tests
-semiont test --environment staging --service frontend --suite integration
-
-# Watch mode for development
-semiont test --service frontend --suite unit --watch
-
-# Skip coverage reporting for faster runs
-semiont test --service frontend --no-coverage
+npm run typecheck           # tsc --noEmit
+npm run typecheck:all       # Source + test tsconfigs
+npm run build               # Typechecks as a prebuild step
 ```
 
-### Direct npm Scripts
+Every script sets `SEMIONT_ENV` itself (`unit` or `integration`) — you do not need
+to export it. To run one of them from the repo root instead, use
+`npm run test:unit --workspace=apps/frontend`.
 
-```bash
-# Run all tests
-npm test
+There is no `semiont test` command: the `semiont` launcher runs knowledge bases,
+not this monorepo's test suite.
 
-# Run specific test types
-npm run test:unit          # Unit tests (excludes integration tests)
-npm run test:integration   # Integration tests only (signup flows, etc.)
-npm run test:api           # API route tests only
-npm run test:security      # Security-focused tests only
-
-# Run tests with coverage report
-npm run test:coverage
-
-# Run tests in watch mode (development)
-npm run test:watch
-
-# Type checking
-npm run type-check
-
-# Build (includes type checking)
-npm run build
-
-# Performance testing
-npm run perf
-```
-
-### Performance Benefits
-
-Specific test type filtering provides significant performance improvements:
-
-- **Unit tests**: Fast execution by excluding integration tests
-- **Integration tests**: Massive speedup for testing user flows
-- **API tests**: Focuses on Next.js API routes
-- **Security tests**: Authentication, GDPR compliance, and validation tests
+For running these in a container, integration-test prerequisites, and the CI
+matrix, see [docs/development/TESTING.md](../../../docs/development/TESTING.md).
 
 ## Test Stack
 
@@ -433,13 +400,13 @@ Tests benefit from the same strict TypeScript checking as the main codebase:
 
 ```bash
 # Type check main code
-npm run type-check
+npm run typecheck
 
 # Type check test files
-npm run type-check:test
+npm run typecheck:test
 
 # Type check everything
-npm run type-check:all
+npm run typecheck:all
 ```
 
 A separate `tsconfig.test.json` extends the main TypeScript config to include test files, ensuring type safety across all code.
