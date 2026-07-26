@@ -71,6 +71,16 @@ describe('Annotate Bar display forms (Phase 3)', () => {
   it('stylesheet carries the compact form (static gate — icon-only, chromeless)', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/components/toolbar/Toolbar.css'), 'utf8');
     expect(css).toMatch(/\.semiont-annotate-toolbar--compact\s*\{/);
-    expect(css).toMatch(/\.semiont-annotate-toolbar--compact\s+\.semiont-dropdown-label\s*\{[^}]*display:\s*none/);
+
+    // Icon-only VISUALLY, but the label stays in the accessibility tree: its
+    // sibling is a bare emoji span with no accessible name, so `display: none`
+    // would leave the collapsed trigger unnamed for screen readers. The
+    // clipped-1px technique (same as .semiont-sr-only) is the contract.
+    const compactLabel = css.match(
+      /\.semiont-annotate-toolbar--compact\s+\.semiont-dropdown-label\s*\{([^}]*)\}/,
+    );
+    expect(compactLabel).not.toBeNull();
+    expect(compactLabel![1]).toMatch(/clip:\s*rect\(0,\s*0,\s*0,\s*0\)/);
+    expect(compactLabel![1]).not.toMatch(/display:\s*none/);
   });
 });
