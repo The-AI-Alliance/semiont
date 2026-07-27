@@ -1,5 +1,10 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // One-shot emit: incremental state would let a wiped dist stay partial,
+    // because tsc trusts the cache's claim that an output already exists.
+    "incremental": false
+  },
   "exclude": [
     "node_modules",
     "dist",
