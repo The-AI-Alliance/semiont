@@ -225,7 +225,7 @@ describe('markAssist', () => {
   it.each([
     ['comment-annotation' as const, { commentsFound: 4, commentsCreated: 4 }, 4],
     ['assessment-annotation' as const, { assessmentsFound: 5, assessmentsCreated: 5 }, 5],
-    ['tag-annotation' as const, { tagsFound: 6, tagsCreated: 6 }, 6],
+    ['tag-annotation' as const, { tagsFound: 6, tagsCreated: 6, byCategory: { Topic: 6 } }, 6],
   ])('reads the %s count', async (jobType, result, expected) => {
     const { client, mark } = createStub();
     const complete: MarkAssistEvent = {
