@@ -98,7 +98,7 @@ export async function browseResources(semiont: McpClient, args: any): Promise<Mc
   return {
     content: [{
       type: 'text',
-      text: `Found ${resources.length} resources:\n${resources.map((d: any) => `- ${d.name} (${d['@id'] ?? d.id}) — ${d.entityTypes?.join(', ') || 'no types'}`).join('\n')}`,
+      text: `Found ${resources.length} resources:\n${resources.map(d => `- ${d.name} (${d['@id']}) — ${d.entityTypes?.join(', ') || 'no types'}`).join('\n')}`,
     }],
   };
 }
@@ -177,7 +177,7 @@ export async function markAssist(semiont: McpClient, args: any): Promise<McpResu
         sourceLanguage: args?.sourceLanguage,
       }).pipe(
         tap((e) => {
-          if (e.kind === 'progress') progressMessages.push(`${e.data.stage}: ${e.data.percentage ?? 0}%`);
+          if (e.kind === 'progress') progressMessages.push(`${e.data.stage}: ${e.data.percentage}%`);
         }),
       ),
     );

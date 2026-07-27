@@ -1,24 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
-import { of, throwError, type Observable } from 'rxjs';
-import { annotationId, resourceId } from '@semiont/core';
-import type {
-  Annotation,
-  AnnotationId,
-  BodyOperation,
-  GatheredContext,
-  Motivation,
-  ResourceDescriptor,
-  ResourceId,
-} from '@semiont/core';
-import type {
-  CreateAnnotationInput,
-  CreateResourceInput,
-  GatherAnnotationProgress,
-  GenerationOptions,
-  MarkAssistEvent,
-  MarkAssistOptions,
-  YieldGenerationEvent,
-} from '@semiont/sdk';
+import { describe, expect, it } from 'vitest';
+import { of, throwError } from 'rxjs';
+import { annotationId } from '@semiont/core';
+import type { MarkAssistEvent, YieldGenerationEvent } from '@semiont/sdk';
 
 import {
   bindBody,
@@ -32,121 +15,18 @@ import {
   markAssist,
   yieldFromAnnotation,
   yieldResource,
-  type McpClient,
   type McpResult,
 } from './handlers.js';
 import { TOOLS } from './tools.js';
-
-// ── Fixtures ────────────────────────────────────────────────────────────────
-
-const RESOURCE: ResourceDescriptor = {
-  '@context': 'https://schema.org',
-  '@id': resourceId('res-iliad'),
-  name: 'The Iliad',
-  representations: [],
-  entityTypes: ['Book', 'Poem'],
-};
-
-const HIGHLIGHT: Annotation = {
-  '@context': 'http://www.w3.org/ns/anno.jsonld',
-  type: 'Annotation',
-  id: annotationId('anno-highlight'),
-  motivation: 'highlighting',
-  target: {
-    source: 'res-iliad',
-    selector: [
-      { type: 'TextPositionSelector', start: 0, end: 15 },
-      { type: 'TextQuoteSelector', exact: 'Sing, O goddess' },
-    ],
-  },
-};
-
-const BOUND_REFERENCE: Annotation = {
-  '@context': 'http://www.w3.org/ns/anno.jsonld',
-  type: 'Annotation',
-  id: annotationId('anno-reference'),
-  motivation: 'linking',
-  target: { source: 'res-iliad', selector: [{ type: 'TextQuoteSelector', exact: 'Achilles' }] },
-  body: [{ type: 'SpecificResource', source: 'res-achilles', purpose: 'linking' }],
-};
-
-const UNBOUND_REFERENCE: Annotation = {
-  '@context': 'http://www.w3.org/ns/anno.jsonld',
-  type: 'Annotation',
-  id: annotationId('anno-unbound'),
-  motivation: 'linking',
-  target: { source: 'res-iliad', selector: [{ type: 'TextQuoteSelector', exact: 'Patroclus' }] },
-};
-
-const CONTEXT: GatheredContext = {
-  focus: {
-    kind: 'annotation',
-    annotation: BOUND_REFERENCE,
-    sourceResource: RESOURCE,
-    selected: { text: 'Achilles' },
-  },
-  graph: { nodes: [], edges: [] },
-  metadata: { language: 'grc' },
-};
-
-/** What `gather.annotation` actually resolves to: the envelope, not the context. */
-const GATHER_COMPLETE: GatherAnnotationProgress = {
-  correlationId: 'corr-1',
-  annotationId: 'anno-reference',
-  response: CONTEXT,
-};
-
-const ASSIST_COMPLETE: MarkAssistEvent = {
-  kind: 'complete',
-  data: {
-    resourceId: 'res-iliad',
-    jobId: 'job-1',
-    jobType: 'reference-annotation',
-    result: { totalFound: 7, totalEmitted: 7, errors: 0 },
-  },
-};
-
-const GENERATION_COMPLETE: YieldGenerationEvent = {
-  kind: 'complete',
-  data: { resourceId: 'res-iliad', jobId: 'job-2', jobType: 'generation' },
-};
-
-// ── Stub client ─────────────────────────────────────────────────────────────
-
-function createStub() {
-  const browse = {
-    resource: vi.fn<(id: ResourceId) => Promise<ResourceDescriptor>>(async () => RESOURCE),
-    resources: vi.fn<(filters: { limit?: number; archived?: boolean; search?: string }) => Promise<ResourceDescriptor[]>>(async () => [RESOURCE]),
-    annotations: vi.fn<(id: ResourceId) => Promise<Annotation[]>>(async () => [HIGHLIGHT, BOUND_REFERENCE, UNBOUND_REFERENCE]),
-  };
-  const mark = {
-    annotation: vi.fn<(input: CreateAnnotationInput) => Promise<{ annotationId: AnnotationId }>>(
-      async () => ({ annotationId: annotationId('anno-new') }),
-    ),
-    assist: vi.fn<(id: ResourceId, motivation: Motivation, options: MarkAssistOptions) => Observable<MarkAssistEvent>>(
-      () => of(ASSIST_COMPLETE),
-    ),
-  };
-  const bind = {
-    body: vi.fn<(r: ResourceId, a: AnnotationId, ops: BodyOperation[]) => Promise<void>>(async () => {}),
-  };
-  const gather = {
-    annotation: vi.fn<(r: ResourceId, a: AnnotationId, options?: { contextWindow?: number }) => Promise<GatherAnnotationProgress>>(
-      async () => GATHER_COMPLETE,
-    ),
-  };
-  const yieldNamespace = {
-    resource: vi.fn<(data: CreateResourceInput) => Promise<{ resourceId: ResourceId }>>(
-      async () => ({ resourceId: resourceId('res-new') }),
-    ),
-    fromAnnotation: vi.fn<(r: ResourceId, a: AnnotationId, options: GenerationOptions) => Observable<YieldGenerationEvent>>(
-      () => of(GENERATION_COMPLETE),
-    ),
-  };
-
-  const client: McpClient = { browse, mark, bind, gather, yield: yieldNamespace };
-  return { client, browse, mark, bind, gather, yield: yieldNamespace };
-}
+import {
+  ASSIST_COMPLETE,
+  BOUND_REFERENCE,
+  CONTEXT,
+  GENERATION_COMPLETE,
+  HIGHLIGHT,
+  RESOURCE,
+  createStub,
+} from './__fixtures__/stub-client.js';
 
 /** Every handler answers with exactly one text block. */
 function text(result: McpResult): string {
@@ -192,6 +72,14 @@ describe('browseResources', () => {
 
     expect(text(result)).toBe('Found 1 resources:\n- The Iliad (res-iliad) — Book, Poem');
   });
+
+  it('says so when a resource carries no entity types', async () => {
+    const { client, browse } = createStub();
+    browse.resources.mockResolvedValue([{ ...RESOURCE, entityTypes: undefined }]);
+
+    expect(text(await browseResources(client, {})))
+      .toBe('Found 1 resources:\n- The Iliad (res-iliad) — no types');
+  });
 });
 
 describe('browseHighlights', () => {
@@ -202,6 +90,19 @@ describe('browseHighlights', () => {
 
     expect(browse.annotations).toHaveBeenCalledWith('res-iliad');
     expect(text(result)).toBe('Found 1 highlights:\n- Sing, O goddess');
+  });
+
+  it('falls back to the annotation id when no quoted text is available', async () => {
+    const { client, browse } = createStub();
+    browse.annotations.mockResolvedValue([
+      // Whole-resource target: a bare IRI, no selector at all.
+      { ...HIGHLIGHT, id: annotationId('anno-whole'), target: 'res-iliad' },
+      // Position-only selector, not wrapped in an array.
+      { ...HIGHLIGHT, id: annotationId('anno-position'), target: { source: 'res-iliad', selector: { type: 'TextPositionSelector', start: 0, end: 3 } } },
+    ]);
+
+    expect(text(await browseHighlights(client, { resourceId: 'res-iliad' })))
+      .toBe('Found 2 highlights:\n- anno-whole\n- anno-position');
   });
 });
 
@@ -215,6 +116,16 @@ describe('browseReferences', () => {
     expect(text(result)).toBe(
       'Found 2 references:\n- Achilles → res-achilles\n- Patroclus → stub (no link)',
     );
+  });
+
+  it('falls back to the annotation id when the target is a bare IRI', async () => {
+    const { client, browse } = createStub();
+    browse.annotations.mockResolvedValue([
+      { ...BOUND_REFERENCE, id: annotationId('anno-whole'), target: 'res-iliad' },
+    ]);
+
+    expect(text(await browseReferences(client, { resourceId: 'res-iliad' })))
+      .toBe('Found 1 references:\n- anno-whole → res-achilles');
   });
 });
 
@@ -309,6 +220,46 @@ describe('markAssist', () => {
 
     expect(text(await markAssist(client, { resourceId: 'res-iliad' })))
       .toContain('Found 3 entities.');
+  });
+
+  it.each([
+    ['comment-annotation' as const, { commentsFound: 4, commentsCreated: 4 }, 4],
+    ['assessment-annotation' as const, { assessmentsFound: 5, assessmentsCreated: 5 }, 5],
+    ['tag-annotation' as const, { tagsFound: 6, tagsCreated: 6 }, 6],
+  ])('reads the %s count', async (jobType, result, expected) => {
+    const { client, mark } = createStub();
+    const complete: MarkAssistEvent = {
+      kind: 'complete',
+      data: { resourceId: 'res-iliad', jobId: 'job-1', jobType, result },
+    };
+    mark.assist.mockReturnValue(of(complete));
+
+    expect(text(await markAssist(client, { resourceId: 'res-iliad' })))
+      .toContain(`Found ${expected} entities.`);
+  });
+
+  it('reports zero when the completion carries no result', async () => {
+    const { client, mark } = createStub();
+    const complete: MarkAssistEvent = {
+      kind: 'complete',
+      data: { resourceId: 'res-iliad', jobId: 'job-1', jobType: 'reference-annotation' },
+    };
+    mark.assist.mockReturnValue(of(complete));
+
+    expect(text(await markAssist(client, { resourceId: 'res-iliad' })))
+      .toContain('Found 0 entities.');
+  });
+
+  it('reports zero when the stream ends on a progress event', async () => {
+    const { client, mark } = createStub();
+    const progress: MarkAssistEvent = {
+      kind: 'progress',
+      data: { stage: 'analyzing', percentage: 40, message: 'reading' },
+    };
+    mark.assist.mockReturnValue(of(progress));
+
+    expect(text(await markAssist(client, { resourceId: 'res-iliad' })))
+      .toBe('Detection complete. Found 0 entities.\nanalyzing: 40%');
   });
 
   it('returns an error result when the job fails', async () => {
@@ -408,6 +359,16 @@ describe('yieldResource', () => {
     });
 
     expect(yieldNamespace.resource.mock.calls[0]![0]).toMatchObject({ format: 'text/markdown', entityTypes: [] });
+  });
+
+  it('uploads an empty file when no content is given', async () => {
+    const { client, yield: yieldNamespace } = createStub();
+
+    await yieldResource(client, { name: 'Empty', storageUri: 'file://docs/empty.md' });
+
+    const input = yieldNamespace.resource.mock.calls[0]![0];
+    if (!(input.file instanceof File)) throw new Error('expected a File upload');
+    expect(await input.file.text()).toBe('');
   });
 });
 
@@ -525,5 +486,15 @@ describe('callTool', () => {
 
     expect(result.isError).toBe(true);
     expect(text(result)).toBe('Error: connection refused');
+  });
+
+  it('handles a rejection that is not an Error', async () => {
+    const { client, browse } = createStub();
+    browse.resource.mockRejectedValue('just a string');
+
+    const result = await callTool(client, 'browse_resource', { id: 'res-iliad' });
+
+    expect(result.isError).toBe(true);
+    expect(text(result)).toBe('Error: Unknown error');
   });
 });

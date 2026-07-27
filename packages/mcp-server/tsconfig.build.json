@@ -3,6 +3,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "**/*.test.ts"
+    "**/*.test.ts",
+    "**/__fixtures__"
   ]
 }
