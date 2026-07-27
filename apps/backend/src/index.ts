@@ -235,6 +235,13 @@ app.get('/api/openapi.json', (c) => {
   const openApiContent = fs.readFileSync(openApiPath, 'utf-8');
   const openApiSpec = JSON.parse(openApiContent);
 
+  // Stamp the running build's version over the spec file's placeholder. The
+  // committed spec carries a fixed `info.version` (OpenAPI requires the field)
+  // that no release step rewrites, so serving it verbatim would report a
+  // version this build is not. Same treatment as `servers` below: the file is
+  // the contract, the response describes the instance answering.
+  openApiSpec.info = { ...openApiSpec.info, version: __SEMIONT_VERSION__ };
+
   // Update server URL dynamically
   const port = backendService.port || 4000;
   const apiUrl = backendService.publicURL || `http://localhost:${port}`;
