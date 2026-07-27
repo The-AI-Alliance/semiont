@@ -1,12 +1,16 @@
 # Semiont Protocol
 
-Semiont is infrastructure for **collaborative knowledge work** — humans and AI agents working the same corpus as peers, possibly across rooms or cities, possibly across time. This page is the conceptual spine: what the protocol contains, why it is shaped this way, and what it guarantees.
+**Semiont accumulates mappings and builds the structures to navigate them.**
 
-It is a *protocol* rather than an API for one reason: the participants are heterogeneous and the corpus outlives them. A person in a browser, an agent proposing references, a script ingesting sources, and a background worker doing analysis all need the same surface — and the knowledge they produce has to remain intelligible after every one of those clients has been rewritten. Anything that conforms can act as a peer; the knowledge base does not distinguish between humans and AI agents.
+A mapping is a claim that some passage relates to some thing — a highlight, a comment, an entity reference, a resolved link between a mention and its target. Every one is anchored to a specific passage, attributed to the participant who asserted it, timestamped, and appended to a log that is never rewritten. Mappings only accumulate. The knowledge graph, the vector index, and the materialized views are projections built over them, so that what has accumulated can be navigated at corpus scale.
+
+This is a *protocol* rather than an API because the participants are heterogeneous and the corpus outlives them. A person in a browser, an agent proposing references, a script ingesting sources, and a background worker doing analysis all need the same surface — and the mappings they deposit have to stay intelligible after every one of those clients has been rewritten. Anything that conforms can act as a peer; the knowledge base does not distinguish between humans and AI agents.
+
+This page is the conceptual spine: what the protocol contains, why it is shaped this way, and what it guarantees.
 
 ## The eight verbs
 
-Every operation belongs to one of eight composable flows — *browse, bind, yield, mark, frame, gather, match, beckon*. Taken in the order you tend to meet them:
+Every operation belongs to one of eight composable flows — *browse, bind, yield, mark, frame, gather, match, beckon*. Some deposit mappings, some navigate them, and one coordinates the participants doing both. Taken in the order you tend to meet them:
 
 **Browse and Bind are ordinary wiki actions.** If you have used a wiki, you already know these.
 
