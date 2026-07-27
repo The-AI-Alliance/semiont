@@ -42,7 +42,7 @@ import type { components, EventMap } from '@semiont/core';
 import { SemiontClient, APIError, HttpTransport, HttpContentTransport } from '../client';
 import type { SemiontError } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
-import type { KnowledgeBase } from './knowledge-base';
+import type { KbTarget } from './knowledge-base';
 import {
   clearStoredSession,
   getStoredSession,
@@ -59,7 +59,7 @@ import type { SessionStorage } from './session-storage';
 export type UserInfo = components['schemas']['UserResponse'];
 
 export interface SemiontSessionConfig {
-  kb: KnowledgeBase;
+  kb: KbTarget;
   /** Persistence adapter. Reads/writes tokens via this. */
   storage: SessionStorage;
   /**
@@ -98,7 +98,7 @@ export interface SemiontSessionConfig {
 }
 
 export class SemiontSession {
-  readonly kb: KnowledgeBase;
+  readonly kb: KbTarget;
   readonly client: SemiontClient;
   readonly token$: BehaviorSubject<AccessToken | null>;
   readonly user$: BehaviorSubject<UserInfo | null>;
@@ -351,7 +351,7 @@ export class SemiontSession {
    * `onError`) match `SemiontSessionConfig` exactly.
    */
   static fromHttp(opts: {
-    kb: KnowledgeBase;
+    kb: KbTarget;
     storage: SessionStorage;
     baseUrl: BaseUrl | string;
     token?: AccessToken | string | null;
@@ -389,7 +389,7 @@ export class SemiontSession {
    * OAuth refresh-token grant, interactive re-prompt). The default
    * uses the refresh token returned by `auth.password`.
    *
-   * `kb` is required and must be a full `KnowledgeBase`. The `id` field
+   * `kb` is required and must be a full `KbTarget`. The `id` field
    * is the storage key for this session — distinct scripts sharing the
    * same `SessionStorage` instance must use distinct ids to avoid
    * trampling each other's tokens. The factory does not synthesize a
@@ -405,7 +405,7 @@ export class SemiontSession {
    * returned session's `ready` promise has already resolved.
    */
   static async signInHttp(opts: {
-    kb: KnowledgeBase;
+    kb: KbTarget;
     storage: SessionStorage;
     baseUrl: BaseUrl | string;
     email: string;

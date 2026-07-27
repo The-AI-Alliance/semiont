@@ -89,6 +89,15 @@ function isKnowledgeBase(entry: unknown): entry is KnowledgeBase {
   if (typeof e.id !== 'string' || typeof e.label !== 'string' || typeof e.email !== 'string') {
     return false;
   }
+  // `did` is required (KB-IDENTITY-VS-ADDRESS decision 8). Entries persisted
+  // before that rule have none, and without this check they would load and
+  // violate the type at runtime — the identity join would then compare
+  // against `undefined` and silently never match, which is the failure mode
+  // that plan exists to end. Per the storage stance (no back-compat layer),
+  // they drop and the user re-adds; the cost is a one-time list clear, paid
+  // once, in exchange for every loaded KB actually having the identity its
+  // type promises.
+  if (typeof e.did !== 'string') return false;
   const ep = e.endpoint as Record<string, unknown> | undefined;
   if (!ep || typeof ep !== 'object') return false;
   if (ep.kind === 'http') {

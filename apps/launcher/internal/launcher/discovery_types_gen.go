@@ -10,10 +10,17 @@ import "reflect"
 // the discovery document (see DiscoveryDocument). Endpoints and identity only —
 // never credentials; login remains the consumer's per-KB business.
 type DiscoveredKB struct {
-	// The KB's did:web identifier as recorded from its committed .semiont/config —
-	// the permanent identity stamped into its event log. Prefer this as a merge key:
-	// ports are reallocated across restarts; the did follows the KB.
-	Did *string `json:"did,omitempty,omitzero"`
+	// The KB's did:web identifier, from its committed .semiont/config — "did:web:" +
+	// the [site] domain, verbatim. REQUIRED: a KB that declares no domain has no
+	// identity to publish, and the launcher refuses to start it rather than inventing
+	// or defaulting one. NOT unique within a document: a did names the knowledge
+	// base, not a running copy of it, so a local clone and a codespace of the same
+	// repo legitimately share one and both are published. host:port is the unique
+	// field (at most one entry per address), so consumers look up by ADDRESS and use
+	// the did to VERIFY that the copy they reached is the KB they meant — an address
+	// alone cannot say which KB is which, and an identity alone cannot say which
+	// copy.
+	Did string `json:"did"`
 
 	// Hostname the KB is reachable on from this machine (today always "localhost" —
 	// local stacks bind locally and codespace KBs arrive through a local port
@@ -77,6 +84,9 @@ func (j *DiscoveredKB) UnmarshalJSON(value []byte) error {
 	var raw map[string]interface{}
 	if err := json.Unmarshal(value, &raw); err != nil {
 		return err
+	}
+	if _, ok := raw["did"]; raw != nil && !ok {
+		return fmt.Errorf("field did in DiscoveredKB: required")
 	}
 	if _, ok := raw["host"]; raw != nil && !ok {
 		return fmt.Errorf("field host in DiscoveredKB: required")

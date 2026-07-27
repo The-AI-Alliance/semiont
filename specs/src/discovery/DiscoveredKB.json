@@ -1,11 +1,11 @@
 {
   "title": "DiscoveredKB",
   "type": "object",
-  "description": "One knowledge base the Semiont launcher manages on this machine, as published in the discovery document (see DiscoveryDocument). Endpoints and identity only — never credentials; login remains the consumer's per-KB business.",
+  "description": "One knowledge base the Semiont launcher manages on this machine, as published in the discovery document (see DiscoveryDocument). Endpoints and identity only \u2014 never credentials; login remains the consumer's per-KB business.",
   "properties": {
     "host": {
       "type": "string",
-      "description": "Hostname the KB is reachable on from this machine (today always \"localhost\" — local stacks bind locally and codespace KBs arrive through a local port forward)"
+      "description": "Hostname the KB is reachable on from this machine (today always \"localhost\" \u2014 local stacks bind locally and codespace KBs arrive through a local port forward)"
     },
     "port": {
       "type": "integer",
@@ -21,11 +21,11 @@
     },
     "repo": {
       "type": "string",
-      "description": "owner/name GitHub slug — present for codespace placements, where the repo is the stack's identity"
+      "description": "owner/name GitHub slug \u2014 present for codespace placements, where the repo is the stack's identity"
     },
     "did": {
       "type": "string",
-      "description": "The KB's did:web identifier as recorded from its committed .semiont/config — the permanent identity stamped into its event log. Prefer this as a merge key: ports are reallocated across restarts; the did follows the KB."
+      "description": "The KB's did:web identifier, from its committed .semiont/config \u2014 \"did:web:\" + the [site] domain, verbatim. REQUIRED: a KB that declares no domain has no identity to publish, and the launcher refuses to start it rather than inventing or defaulting one. NOT unique within a document: a did names the knowledge base, not a running copy of it, so a local clone and a codespace of the same repo legitimately share one and both are published. host:port is the unique field (at most one entry per address), so consumers look up by ADDRESS and use the did to VERIFY that the copy they reached is the KB they meant \u2014 an address alone cannot say which KB is which, and an identity alone cannot say which copy."
     },
     "siteName": {
       "type": "string",
@@ -33,13 +33,14 @@
     },
     "managedBy": {
       "type": "string",
-      "description": "The agent that owns this entry's lifecycle (the launcher writes \"semiont-launcher\"). Consumers treat managed entries as authoritative for themselves — upsert on appearance, remove on disappearance — and never touch entries they did not write."
+      "description": "The agent that owns this entry's lifecycle (the launcher writes \"semiont-launcher\"). Consumers treat managed entries as authoritative for themselves \u2014 upsert on appearance, remove on disappearance \u2014 and never touch entries they did not write."
     }
   },
   "required": [
     "host",
     "port",
     "placement",
+    "did",
     "managedBy"
   ]
 }

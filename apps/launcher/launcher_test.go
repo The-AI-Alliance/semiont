@@ -694,21 +694,117 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 	}
 }
 
-func TestStatePathHashKeyWithoutDid(t *testing.T) {
+func TestStartWarnsWhenEnvConfigOverridesIdentity(t *testing.T) {
+	// KB-IDENTITY-VS-ADDRESS P4 (decision 10). A KB has ONE committed identity
+	// (.semiont/config [site] domain) but the semiontconfig's environment
+	// section can carry its own [site], and the TOML loader resolves the
+	// agents' domain as `resolved.site ?? projectSite` — so an environment
+	// [site] replaces the KB's committed identity for every agent did, while
+	// the KB's own did (from the committed file) stays put. One logical KB,
+	// two identity roots.
+	//
+	// It WARNS rather than refuses: overriding can be deliberate (decision
+	// 10). What is forbidden is doing it invisibly. The launcher's own
+	// generated configs never contain a [site] section, so a divergence means
+	// a human hand-edited one — a small, deliberate population worth telling.
+	withSite := func(t *testing.T, s *scenario, site string) {
+		t.Helper()
+		writeKBConfig(t, s, "sited", stdGraph+stdVectors+stdEmbedding+stdDatabase+site)
+	}
+
+	// 1. A DIFFERENT domain: legitimate, but the operator should know.
 	s := newScenario(t, "container")
-	// A KB with no [site] domain has no did:web — the state key falls back
-	// to a stable hash of the root path.
+	withSite(t, s, "[environments.local.site]\ndomain = \"elsewhere.example:other-kb\"\n")
+	stdout, stderr, code := s.run(t, "start", "--config", "sited", "--dry-run")
+	if code != 0 {
+		t.Fatalf("divergent site must warn, not refuse: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// Asserted on STDOUT alone, not stdout+stderr: a warning split across two
+	// streams reads fine in a terminal and falls apart the moment either is
+	// piped, and a combined assertion cannot tell the difference.
+	mustContain(t, "divergence warning", stdout,
+		"example.github.io:test-kb", // the KB's committed identity
+		"elsewhere.example:other-kb",
+		"agent identities")
+
+	// 2. A [site] section with NO domain — the one nobody intends. The loader
+	// substitutes the literal 'localhost', so agents land under
+	// did:web:localhost and collide with every other such KB on the machine.
+	s2 := newScenario(t, "container")
+	withSite(t, s2, "[environments.local.site]\noauthAllowedDomains = [\"example.com\"]\n")
+	stdout, stderr, code = s2.run(t, "start", "--config", "sited", "--dry-run")
+	if code != 0 {
+		t.Fatalf("domain-less site must warn, not refuse: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "localhost warning", stdout, "did:web:localhost", "declares no domain")
+
+	// 3. No environment [site] at all — every launcher-generated config. This
+	// is the case that must stay SILENT; a warning here would be pure noise
+	// on the overwhelmingly common path.
+	s3 := newScenario(t, "container")
+	stdout, stderr, code = s3.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("plain start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// Assert on the warning's OWN phrases, not generic words: the scenario's
+	// tmpdir carries this test's name, so "identity"/"overrid" match the paths
+	// in every plan line and would fail no matter what the code did.
+	for _, noisy := range []string{"agent identities", "did:web:localhost"} {
+		if strings.Contains(stdout+stderr, noisy) {
+			t.Errorf("a config with no [site] section must not warn (%q):\n%s", noisy, stdout+stderr)
+		}
+	}
+
+	// 4. A KB with no committed domain already REFUSES (decision 8); it must
+	// not also collect this warning. Two messages for one condition is worse
+	// than one.
+	s4 := newScenario(t, "container")
+	withSite(t, s4, "[environments.local.site]\ndomain = \"elsewhere.example:other-kb\"\n")
+	if err := os.WriteFile(filepath.Join(s4.kb, ".semiont", "config"),
+		[]byte("[project]\nname = \"No Did KB\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code = s4.run(t, "start", "--config", "sited", "--dry-run")
+	if code != 1 {
+		t.Fatalf("did-less KB must still refuse: exit %d", code)
+	}
+	if strings.Contains(stdout+stderr, "elsewhere.example:other-kb") {
+		t.Errorf("refusal must not also carry the override warning:\n%s", stdout+stderr)
+	}
+}
+
+func TestStartRefusesKBWithoutDid(t *testing.T) {
+	// A did:web is REQUIRED (KB-IDENTITY-VS-ADDRESS decision 8, 2026-07-27).
+	// The launcher publishes a discovery document in which `did` is a required
+	// field, so a KB with no [site] domain cannot be represented — and the
+	// alternative to refusing is worse than it looks: the backend's TOML
+	// loader defaults a domain-less [site] to the literal "localhost", so
+	// every such KB on a machine would report one fabricated, colliding
+	// did:web:localhost. An address wearing a name is the category error this
+	// whole plan is about. Identity is declared, never defaulted.
+	s := newScenario(t, "container")
 	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "config"),
 		[]byte("[project]\nname = \"No Did KB\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// Refused even in --dry-run: a plan for a KB that cannot be identified is
+	// not a plan worth printing.
+	_, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 1 {
+		t.Fatalf("did-less start: want exit 1, got %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stderr", stderr, "did:web", "[site]", "domain")
+
+	// And the fix-it must be actionable: adding the domain makes it start.
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "config"),
+		[]byte("[project]\nname = \"No Did KB\"\n\n[site]\ndomain = \"example.github.io:no-did-kb\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	stdout, stderr, code := s.run(t, "start", "--dry-run")
 	if code != 0 {
-		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("declared-domain start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	if !regexp.MustCompile(`roots/path-[0-9a-f]{12}/postgres`).MatchString(stdout) {
-		t.Errorf("dry-run must show a path-hash state key; stdout:\n%s", stdout)
-	}
+	mustContain(t, "state key", stdout, "roots/example.github.io-no-did-kb/postgres")
 }
 
 // --- clean ---
@@ -4639,6 +4735,137 @@ func TestDiscoveryFileTracksStacks(t *testing.T) {
 		t.Fatal("local stop")
 	}
 	mustContain(t, "empty view", disc(), `"kbs": []`)
+}
+
+func TestDiscoveryOneEntryPerAddress(t *testing.T) {
+	// KB-IDENTITY-VS-ADDRESS P1. A published entry is a promise about what
+	// lives at an address, and only one process can bind a port — so two
+	// entries claiming one address means at most one promise is true. Live
+	// 2026-07-24: a local stack on :4000 and a codespace forward record that
+	// still claimed :4000 were both published, and the Browser rendered the
+	// user's own KB under the other repo's name.
+	//
+	// The sequence below is the one that produced it, start to finish:
+	// dropCollidingForwards kills a forward the local stack needs and zeroes
+	// its PID, but KEEPS ForwardPort — so the resolver itself leaves the
+	// record shape the writer published as a live address.
+	s := newCodespaceScenario(t)
+	discPath := filepath.Join(s.home, ".local", "state", "semiont", "discovery", "kbs.json")
+	entries := func(t *testing.T) []struct {
+		Port      int    `json:"port"`
+		Placement string `json:"placement"`
+		Repo      string `json:"repo"`
+	} {
+		t.Helper()
+		var doc struct {
+			Kbs []struct {
+				Port      int    `json:"port"`
+				Placement string `json:"placement"`
+				Repo      string `json:"repo"`
+			} `json:"kbs"`
+		}
+		b, err := os.ReadFile(discPath)
+		if err != nil {
+			t.Fatalf("discovery view: %v", err)
+		}
+		if err := json.Unmarshal(b, &doc); err != nil {
+			t.Fatalf("discovery view is not valid JSON: %v\n%s", err, b)
+		}
+		return doc.Kbs
+	}
+
+	// The codespace forward takes :4000 first — nothing else holds it.
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("codespace start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if got := entries(t); len(got) != 1 || got[0].Port != 4000 || got[0].Placement != "codespace" {
+		t.Fatalf("want the forward published on :4000, got %+v", got)
+	}
+
+	// The local stack now needs :4000. The forward is dropped for it — and
+	// after this, exactly one thing answers there.
+	if _, stderr, code := s.run(t, "start", "--runtime", "container"); code != 0 {
+		t.Fatalf("local start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	got := entries(t)
+	claims := 0
+	for _, e := range got {
+		if e.Port == 4000 {
+			claims++
+			if e.Placement != "local" {
+				t.Errorf("the stack that actually holds :4000 must be the one published, got %+v", e)
+			}
+		}
+	}
+	if claims != 1 {
+		t.Errorf("want exactly one entry claiming :4000, got %d:\n%+v", claims, got)
+	}
+
+	// Stopping the local stack frees the address, but the dropped forward is
+	// not running either — its record still carries the port. An address
+	// nothing is serving must not be advertised as reachable.
+	if _, stderr, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
+		t.Fatalf("local stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	for _, e := range entries(t) {
+		if e.Port == 4000 {
+			t.Errorf("a dropped forward is still advertised at :4000:\n%+v", entries(t))
+		}
+	}
+}
+
+func TestDiscoveryPublishesOneKBInTwoPlaces(t *testing.T) {
+	// A did identifies a KNOWLEDGE BASE, not a running copy of one, so two
+	// entries sharing a did is normal and will be COMMON: a local clone and a
+	// codespace of the same repo are one KB reachable at two addresses. The
+	// address is what is unique (P1); the identity deliberately is not.
+	//
+	// This pins the launcher against the tempting inverse — "one entry per
+	// identity" — which would silently hide whichever copy lost the tie, and
+	// against a consumer assuming did is a primary key.
+	s := newCodespaceScenario(t)
+	// The codespace's committed identity is the SAME KB as the local clone.
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_GH_KBCONFIG=[site]\ndomain = \"example.github.io:test-kb\"\n")
+
+	if _, stderr, code := s.run(t, "start", "--runtime", "container"); code != 0 {
+		t.Fatalf("local start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("codespace start: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	var doc struct {
+		Kbs []struct {
+			Port      int    `json:"port"`
+			Placement string `json:"placement"`
+			Did       string `json:"did"`
+		} `json:"kbs"`
+	}
+	b, err := os.ReadFile(filepath.Join(s.home, ".local", "state", "semiont", "discovery", "kbs.json"))
+	if err != nil {
+		t.Fatalf("discovery view: %v", err)
+	}
+	if err := json.Unmarshal(b, &doc); err != nil {
+		t.Fatalf("discovery view: %v\n%s", err, b)
+	}
+	const did = "did:web:example.github.io:test-kb"
+	byPlacement := map[string]int{}
+	for _, e := range doc.Kbs {
+		if e.Did != did {
+			t.Errorf("entry does not carry the shared identity: %+v", e)
+		}
+		byPlacement[e.Placement] = e.Port
+	}
+	if len(doc.Kbs) != 2 {
+		t.Fatalf("one KB in two places must publish two entries, got %d:\n%s", len(doc.Kbs), b)
+	}
+	if byPlacement["local"] == 0 || byPlacement["codespace"] == 0 {
+		t.Errorf("want both a local and a codespace entry, got %+v", doc.Kbs)
+	}
+	if byPlacement["local"] == byPlacement["codespace"] {
+		t.Errorf("two copies of one KB must still hold distinct addresses: %+v", doc.Kbs)
+	}
 }
 
 func TestBrowserOutlivesTheStack(t *testing.T) {

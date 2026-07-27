@@ -48,6 +48,56 @@ if (!config.services?.backend) {
 const { requireJwtSecret } = await import('./auth/jwt');
 requireJwtSecret();
 
+// ── KB identity (KB-IDENTITY-VS-ADDRESS decisions 8 + 10) ────────────────
+//
+// One check over two values, because they are two branches of one question —
+// "is this knowledge base's identity sound?" — asked of the same pair at the
+// same moment. Splitting them into separate passes is how one drifts from
+// the other.
+//
+//   committed  = `[site] domain` from <root>/.semiont/config — the KB's own
+//                permanent identity, the string the launcher turns into
+//                did:web and publishes, and what /api/status reports.
+//   effective  = config.site.domain — what THIS process will mint AGENT dids
+//                from (JWTService.getDomainForAgent).
+//
+// Deliberately NOT read from EnvironmentConfig for the committed side: the
+// TOML loader defaults a domain-less `[site]` to the literal 'localhost' and
+// lets the environment section override the project's, so it can report an
+// identity the KB never declared.
+{
+  const committedDomain = new SemiontProject(projectRoot).siteDomain();
+
+  // Decision 8 — a knowledge base declares its identity or does not run.
+  // `semiont start` already refuses this; a backend launched another way
+  // (docker, npm, a script) must refuse too, or /api/status would owe a
+  // required `did` it cannot produce. Refusing is what makes that field
+  // satisfiable by construction rather than conditionally true.
+  if (!committedDomain) {
+    throw new Error(
+      `This knowledge base declares no identity: [site] domain is missing from ${projectRoot}/.semiont/config.\n` +
+        'A knowledge base declares its identity or does not run — it is permanent, and has no safe default ' +
+        "(inferring one from an address is how two KBs end up sharing a fabricated 'did:web:localhost').\n" +
+        'Add:\n\n  [site]\n  domain = "your-org.github.io:your-kb-repo"\n',
+    );
+  }
+
+  // Decision 10 — the agents' domain MAY legitimately differ (a deployment
+  // can mint agent identities elsewhere), so this warns rather than refuses.
+  // What it must never do is happen silently: the KB would be did:web:A
+  // while everything it generates is attributed to did:web:B:agents:… .
+  const effectiveDomain = config.site?.domain;
+  if (effectiveDomain !== committedDomain) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[identity] KB is "${committedDomain}" (committed .semiont/config) but agents will be minted under ` +
+        `"${effectiveDomain}" (environment config). The KB's own did is unaffected; only agent identities move. ` +
+        'If unintended, remove the `site` section from this environment in ~/.semiontconfig — note that a ' +
+        "section without a `domain` key silently resolves to 'localhost'.",
+    );
+  }
+}
+
 const backendService = config.services.backend;
 
 // Import logging utilities

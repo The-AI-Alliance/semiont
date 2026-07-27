@@ -3,8 +3,12 @@
  *
  * DID:WEB shapes used in Semiont:
  *
- *   Person:   did:web:<host>:users:<email%40host>
- *   Software: did:web:<host>:agents:<provider>:<model>
+ *   Knowledge base: did:web:<domain>
+ *   Person:         did:web:<domain>:users:<email%40host>
+ *   Software:       did:web:<domain>:agents:<provider>:<model>
+ *
+ * `<domain>` is the KB's committed `[site] domain` — one identity, with its
+ * people and software peers named beneath it.
  *
  * `didToAgent` is the inverse: parse the DID, recognize whether the
  * subject is a person or a software peer, and return a typed Agent.
@@ -18,6 +22,26 @@
 import type { components } from './types';
 
 type Agent = components['schemas']['Agent'];
+
+/**
+ * The knowledge base's own did:web identity, from its committed
+ * `[site] domain` (`SemiontProject.siteDomain()`).
+ *
+ * Format: `did:web:<domain>` — the domain **verbatim, never encoded**. The
+ * config already stores it in did:web colon-path form
+ * (`the-ai-alliance.github.io:semiont-caselaw-kb`), so encoding those colons
+ * would mint a string nothing else in the system produces. The launcher
+ * mints the identical string in Go (`kbconfig.go` `didWeb()`), and the two
+ * MUST agree byte-for-byte: the Browser joins discovered KBs to connected
+ * ones on this value, and a mismatch fails silently — looking implemented
+ * while never matching (.plans/KB-IDENTITY-VS-ADDRESS.md).
+ *
+ * A KB has no did when it declares no domain; identity is declared, never
+ * defaulted or inferred from an address.
+ */
+export function kbDid(domain: string): string {
+  return `did:web:${domain}`;
+}
 
 /**
  * Convert a user object to a DID:WEB identifier.

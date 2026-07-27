@@ -53,6 +53,15 @@ const KB = {
   id: KB_ID,
   label: 'Test',
   email: 'test@example.com',
+  // A registered KB carries its identity: `did` is required, and
+  // `loadKnowledgeBases` FILTERS OUT stored entries without one
+  // (KB-IDENTITY-VS-ADDRESS decision 8 — a knowledge base declares its
+  // identity or does not run). Omit this and the seeded KB is dropped at
+  // load, the browser holds zero KBs, no session is constructed, and every
+  // assertion in this file fails as "expected `me` to be called" — the
+  // symptom is three layers from the cause. Typed fixtures catch this at
+  // `tsc`; this one is seeded as JSON, so only the suite can.
+  did: 'did:web:example.github.io:test-kb',
   endpoint: { kind: 'http' as const, host: 'localhost', port: 4000, protocol: 'http' as const },
 };
 
