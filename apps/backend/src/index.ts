@@ -27,15 +27,17 @@ import { loadEnvironmentConfig, makeMeaningConfigFrom } from './utils/config';
 
 import { User } from '@prisma/client';
 
-// Load configuration from .semiont/config + ~/.semiontconfig (TOML)
-// SEMIONT_ROOT and SEMIONT_ENV are read from environment
-const env = process.env.SEMIONT_ENV || 'local';
+// Load configuration from .semiont/config + ~/.semiontconfig (TOML).
+// The environment is resolved by the loader from `[defaults] environment` — the
+// SAME key the launcher selects from (config.go) — so one config selects it for
+// both halves. No SEMIONT_ENV read and no 'local' default here: those disagreed
+// across entry points and silently loaded the wrong (empty) section.
 const projectRoot = process.env.SEMIONT_ROOT;
 if (!projectRoot) {
   throw new Error('SEMIONT_ROOT environment variable is not set');
 }
 
-const config = loadEnvironmentConfig(projectRoot, env);
+const config = loadEnvironmentConfig(projectRoot);
 
 if (!config.services?.backend) {
   throw new Error('services.backend is required in environment config');
@@ -92,8 +94,10 @@ requireJwtSecret();
     console.warn(
       `[identity] KB is "${committedDomain}" (committed .semiont/config) but agents will be minted under ` +
         `"${effectiveDomain}" (environment config). The KB's own did is unaffected; only agent identities move. ` +
-        'If unintended, remove the `site` section from this environment in ~/.semiontconfig — note that a ' +
-        "section without a `domain` key silently resolves to 'localhost'.",
+        'If unintended, remove the `site` section for this environment from the KB\'s ' +
+        '`.semiont/semiontconfig/<name>.toml` — that file is the source of truth; inside the container it is ' +
+        'only mounted read-only at ~/.semiontconfig, so editing it there does not persist. Note that a ' +
+        "`site` section without a `domain` key silently resolves to 'localhost'.",
     );
   }
 }

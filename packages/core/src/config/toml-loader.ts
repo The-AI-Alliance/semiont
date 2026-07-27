@@ -228,42 +228,69 @@ function requirePlatform(value: string | undefined, serviceName: string): Platfo
  * Parse ~/.semiontconfig and .semiont/config and return EnvironmentConfig.
  *
  * @param projectRoot - Path to the project root (contains .semiont/config)
- * @param environment - Environment name (e.g. 'local', 'production')
+ * @param environment - Environment name (e.g. 'local', 'production'); when
+ *   undefined, resolved from SEMIONT_ENV, then `[defaults] environment`
  * @param globalConfigPath - Path to ~/.semiontconfig (caller resolves ~ expansion)
  * @param reader - File reader abstraction
  * @param env - Environment variables for ${VAR} resolution
  */
 export function loadTomlConfig(
   projectRoot: string | null,
-  environment: string,
+  environment: string | undefined,
   globalConfigPath: string,
   reader: TomlFileReader,
   env: Record<string, string | undefined>
 ): EnvironmentConfig {
-  // 1. Read project config from .semiont/config (skipped when no project root)
+  // 1. Read + parse project config from .semiont/config (skipped when no project root)
   const projectConfigContent = projectRoot ? reader.readIfExists(`${projectRoot}/.semiont/config`) : null;
-  let projectName = 'semiont-project';
-  let projectVersion: string | undefined;
-  let projectSite: EnvironmentSection['site'] | undefined;
-  let projectEnvSection: EnvironmentSection = {};
-  if (projectConfigContent) {
-    const projectConfig = parseToml(projectConfigContent) as {
-      project?: { name?: string; version?: string };
-      site?: EnvironmentSection['site'];
-      environments?: Record<string, EnvironmentSection>;
-    };
-    projectName = projectConfig.project?.name ?? projectName;
-    projectVersion = projectConfig.project?.version;
-    projectSite = projectConfig.site;
-    projectEnvSection = projectConfig.environments?.[environment] ?? {};
-  }
+  const projectConfig = projectConfigContent
+    ? (parseToml(projectConfigContent) as {
+        project?: { name?: string; version?: string };
+        site?: EnvironmentSection['site'];
+        environments?: Record<string, EnvironmentSection>;
+      })
+    : undefined;
+  const projectName = projectConfig?.project?.name ?? 'semiont-project';
+  const projectVersion = projectConfig?.project?.version;
+  const projectSite = projectConfig?.site;
 
   // 2. Read global config (optional — missing config yields empty environments)
   const globalContent = reader.readIfExists(globalConfigPath);
   const raw = globalContent ? (parseToml(globalContent) as SemiontConfigFile) : ({} as SemiontConfigFile);
 
-  // 3. Deep-merge: project base + user overrides (user wins on conflicts)
-  const userEnvSection: EnvironmentSection = raw.environments?.[environment] ?? {};
+  // 3. Resolve WHICH environment to load. `[defaults] environment` is the key the
+  //    launcher selects from (config.go: cfg.Defaults.Environment); the backend
+  //    resolves from the SAME key so one config selects the environment for both
+  //    halves. Precedence: explicit arg > SEMIONT_ENV (override, incl. tests) >
+  //    [defaults] environment. There is NO silent 'local'/'development' fallback —
+  //    an unselected environment is a config error, not a default.
+  const resolvedEnvironment = environment ?? env.SEMIONT_ENV ?? raw.defaults?.environment;
+  if (!resolvedEnvironment) {
+    throw new Error(
+      'No environment selected: pass one explicitly, set SEMIONT_ENV, or declare ' +
+        '`[defaults] environment` in ~/.semiontconfig.',
+    );
+  }
+
+  // 4. A named environment with no [environments.X] section ANYWHERE is a config
+  //    error, not a silent empty {}. The silent {} is what let a KB declaring
+  //    `environment = "staging"` (with no [environments.staging]) load nothing and
+  //    let every downstream default fire — including site.domain -> 'localhost',
+  //    the fabricated colliding did:web:localhost identity. Fail loud instead.
+  const projectHasSection =
+    projectConfig?.environments != null && resolvedEnvironment in projectConfig.environments;
+  const globalHasSection = raw.environments != null && resolvedEnvironment in raw.environments;
+  if (!projectHasSection && !globalHasSection) {
+    throw new Error(
+      `Environment "${resolvedEnvironment}" is selected but no [environments.${resolvedEnvironment}] ` +
+        'section exists in the project (.semiont/config) or global (~/.semiontconfig) config. ' +
+        'Declare the section, or select an environment that exists.',
+    );
+  }
+
+  // 5. Deep-merge: project base + user overrides (user wins on conflicts)
+  const projectEnvSection: EnvironmentSection = projectConfig?.environments?.[resolvedEnvironment] ?? {};
+  const userEnvSection: EnvironmentSection = raw.environments?.[resolvedEnvironment] ?? {};
   const envSection: EnvironmentSection = deepMerge(
     projectEnvSection as Record<string, unknown>,
     userEnvSection as Record<string, unknown>
@@ -296,7 +323,7 @@ export function loadTomlConfig(
       } else {
         if (!flatInference.type) {
           throw new Error(
-            `[environments.${environment}.inference] is missing 'type'. ` +
+            `[environments.${resolvedEnvironment}.inference] is missing 'type'. ` +
             `Add type = "anthropic" or use [inference.anthropic] sub-section.`
           );
         }
@@ -310,7 +337,7 @@ export function loadTomlConfig(
       } else {
         if (!flatInference.type) {
           throw new Error(
-            `[environments.${environment}.inference] is missing 'type'. ` +
+            `[environments.${resolvedEnvironment}.inference] is missing 'type'. ` +
             `Add type = "ollama" or use [inference.ollama] sub-section.`
           );
         }
@@ -502,7 +529,7 @@ export function loadTomlConfig(
     } : undefined,
     logLevel: resolved.logLevel,
     _metadata: {
-      environment,
+      environment: resolvedEnvironment,
       projectRoot,
       projectName,
       projectVersion,
@@ -528,7 +555,7 @@ export function createTomlConfigLoader(
   globalConfigPath: string,
   env: Record<string, string | undefined>
 ) {
-  return (projectRoot: string | null, environment: string): EnvironmentConfig => {
+  return (projectRoot: string | null, environment?: string): EnvironmentConfig => {
     return loadTomlConfig(projectRoot, environment, globalConfigPath, reader, env);
   };
 }

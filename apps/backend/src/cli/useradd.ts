@@ -155,7 +155,7 @@ async function main(argv: string[]): Promise<number> {
   if (!projectRoot) {
     throw new Error('SEMIONT_ROOT is not set — cannot locate the knowledge base config');
   }
-  const config = loadEnvironmentConfig(projectRoot, process.env.SEMIONT_ENV ?? 'local');
+  const config = loadEnvironmentConfig(projectRoot);
 
   // An explicit DATABASE_URL still wins, matching the container CMD's precedence.
   const connectionString = process.env.DATABASE_URL || databaseUrlFrom(config);
