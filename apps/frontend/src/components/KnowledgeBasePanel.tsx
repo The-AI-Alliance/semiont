@@ -517,9 +517,11 @@ export function KnowledgeBasePanel() {
             ))}
             {unregisteredDiscovered.map((d) => (
               <div
-                /* Key on the ADDRESS: one KB in two places shares a did
-                   (decision 9), so a did-based key collides across copies. */
-                key={endpointKey(d.host, d.port)}
+                /* Key on the PAIR. Decision 9's table spells out why neither
+                   half works alone: a did repeats across copies of one KB, an
+                   address repeats across contested claimants — and this list
+                   deliberately renders both. Only did+address is unique. */
+                key={`${d.did}@${endpointKey(d.host, d.port)}`}
                 className="semiont-panel-item semiont-panel-item--clickable"
                 style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', cursor: 'pointer', padding: '0.5rem 0.75rem' }}
                 onClick={() => openAddForm({

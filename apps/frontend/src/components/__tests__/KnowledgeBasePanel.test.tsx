@@ -419,6 +419,24 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.getByText(/2 knowledge bases claim localhost:4000 — one is likely stale/i)).toBeInTheDocument();
     });
 
+    it('keys contested claimants distinctly — the PAIR identifies an entry', () => {
+      // Copilot review, PR #1108: P3b keyed rows on the address to stop twins
+      // colliding, which traded one collision for the other — two claimants at
+      // ONE address (kept visible on purpose) then shared a key, letting React
+      // reuse DOM nodes across rows. Decision 9's table already said it:
+      // neither field alone identifies an entry, the pair does.
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      discoveryHolder.current = { state: { kind: 'managed', kbs: [claimantA, claimantB] }, kbs: [claimantA, claimantB] };
+
+      render(<KnowledgeBasePanel />);
+
+      expect(errorSpy.mock.calls.flat().join(' ')).not.toMatch(/same key/i);
+      // Both claimants keep their own identity in their own row.
+      expect(screen.getByText('Caselaw Knowledge Base')).toBeInTheDocument();
+      expect(screen.getByText('Synthetic Family')).toBeInTheDocument();
+      errorSpy.mockRestore();
+    });
+
     it('does not cry conflict for a single claimant', () => {
       discoveryHolder.current = { state: { kind: 'managed', kbs: [claimantA] }, kbs: [claimantA] };
       render(<KnowledgeBasePanel />);
