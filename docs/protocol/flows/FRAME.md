@@ -1,6 +1,6 @@
 # Frame Flow
 
-**Purpose**: Define and evolve the KB's **schema layer** — the conceptual vocabulary the other seven flows are expressed in. Where yield/mark/match/bind/gather/browse/beckon act on content (resources, annotations, references, attention), Frame acts on what *kinds* of things exist: entity types and tag schemas today, eventually relation/predicate types and ontology imports.
+**Purpose**: Define and evolve the KB's **schema layer** — the conceptual vocabulary the other seven flows are expressed in. Where browse/bind/yield/mark/gather/match/beckon act on content (resources, annotations, references, attention), Frame acts on what *kinds* of things exist: entity types and tag schemas today, eventually relation/predicate types and ontology imports.
 
 **Related Documentation**:
 - [Mark Flow](./MARK.md) - Annotation CRUD operates within the entity-type vocabulary Frame defines, and `mark.assist(rid, 'tagging', ...)` resolves `schemaId` against the per-KB tag-schema registry Frame writes to
@@ -9,7 +9,7 @@
 
 ## Overview
 
-Frame is the schema-layer flow — the eighth flow alongside yield, mark, match, bind, gather, browse, and beckon. It owns the conceptual vocabulary the KB's content is expressed in.
+Frame is the schema-layer flow — the one that stands apart from browse, bind, yield, mark, gather, match, and beckon. It owns the conceptual vocabulary the KB's content is expressed in.
 
 The mental model: when a participant joins a KB, the *content* (resources, annotations) is what they see; the *frame* is what they implicitly use to make sense of that content — what types of entities exist (Person, Organization, Concept, ...), what taxonomies are available (a "biological domain" schema with categories Biology / Chemistry / ...), what kinds of relations the KB recognizes. Mark and the other content flows consume the frame; Frame methods evolve it.
 

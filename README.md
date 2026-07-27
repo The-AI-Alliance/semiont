@@ -74,7 +74,7 @@ For local-network access notes, supply-chain verification, the native [desktop a
 
 ## Automate
 
-Everything the browser does travels over the same event bus, and the **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how you speak it: a type-safe TypeScript client organized around the **[eight composable flows](docs/protocol/flows/README.md)** — frame, yield, mark, match, bind, gather, browse, beckon — so scripts, services, and AI agents work a knowledge base as peers of the humans in the browser:
+Everything the browser does travels over the same event bus, and the **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how you speak it: a type-safe TypeScript client organized around the **[eight composable flows](docs/protocol/flows/README.md)** — browse, bind, yield, mark, frame, gather, match, beckon — so scripts, services, and AI agents work a knowledge base as peers of the humans in the browser:
 
 ```typescript
 import { SemiontClient } from '@semiont/sdk';

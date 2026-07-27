@@ -6,14 +6,14 @@ Frame is the schema-layer flow — it operates on the conceptual vocabulary the 
 
 | Flow | Who does it | What happens |
 |------|-------------|-------------|
-| **[Frame](FRAME.md)** | Curator, Schema Agent, Admin | Define and evolve the KB's schema vocabulary |
-| **[Mark](MARK.md)** | Analyst, Author, Marker Agent | Create W3C annotations on resources |
 | **[Browse](BROWSE.md)** | Reader, Analyst, Marker Agent | Route attention to panels, annotations, resources |
-| **[Beckon](BECKON.md)** | Reader, Analyst, Marker Agent | Coordinate which annotation has visual attention |
-| **[Match](MATCHER.md)** | Analyst, Linker Agent, Matcher | Retrieve and rank candidate resources for an entity reference |
 | **[Bind](BIND.md)** | Analyst, Linker Agent, Matcher | Resolve references to concrete resources |
-| **[Gather](GATHER.md)** | Generator Agent, Linker Agent, Gatherer | Assemble surrounding context for downstream use |
 | **[Yield](YIELD.md)** | Author, Generator Agent, Content Streams | Produce new resources in the knowledge base |
+| **[Mark](MARK.md)** | Analyst, Author, Marker Agent | Create W3C annotations on resources |
+| **[Frame](FRAME.md)** | Curator, Schema Agent, Admin | Define and evolve the KB's schema vocabulary |
+| **[Gather](GATHER.md)** | Generator Agent, Linker Agent, Gatherer | Assemble surrounding context for downstream use |
+| **[Match](MATCHER.md)** | Analyst, Linker Agent, Matcher | Retrieve and rank candidate resources for an entity reference |
+| **[Beckon](BECKON.md)** | Reader, Analyst, Marker Agent | Coordinate which annotation has visual attention |
 
 ## How Flows Relate
 
