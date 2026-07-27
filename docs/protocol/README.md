@@ -96,7 +96,6 @@ For product framing and getting a knowledge base running, see the **[project REA
 - **[CHANNELS.md](CHANNELS.md)** — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts
 - **[TRANSPORT-CONTRACT.md](TRANSPORT-CONTRACT.md)** — abstract `ITransport` guarantees every transport must honor
 - **[TRANSPORT-HTTP.md](TRANSPORT-HTTP.md)** — HTTP+SSE wire format
-- **[API.md](API.md)** — REST endpoint reference
 - **[RBAC.md](RBAC.md)** — roles and permissions
 - **[EXCHANGE.md](EXCHANGE.md)** — import/export and interchange
 - **[W3C-WEB-ANNOTATION.md](W3C-WEB-ANNOTATION.md)** + **[W3C-SELECTORS.md](W3C-SELECTORS.md)** — standards compliance

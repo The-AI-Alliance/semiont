@@ -7,7 +7,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 ### 📚 Documentation
 - **[Architecture](./docs/ARCHITECTURE.md)** - Infrastructure management patterns, design principles
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, manual setup
-- **[API Reference](../../docs/protocol/API.md)** - API endpoints, request/response formats
+- **[Semiont Protocol](../../docs/protocol/README.md)** - The eight verbs and the bus this backend serves
 - **[Authentication](./docs/AUTHENTICATION.md)** - JWT tokens, OAuth, MCP authentication
 - **[Event-Bus Protocol](../../docs/protocol/EVENT-BUS.md)** - SSE streaming, channels, scoping, correlation
 - **[Logging](./docs/LOGGING.md)** - Winston logging, log levels, debugging 401s
@@ -227,7 +227,7 @@ Clean separation of concerns:
 - **Frontend**: the static Vite + React SPA - no server routes (#557 removed Next.js)
 - **No routing conflicts** - simple ALB host/path rules
 
-See [API Reference](../../docs/protocol/API.md) for complete endpoint documentation.
+Only `POST /bus/emit` and `GET /bus/subscribe` carry domain traffic; the rest of `/api/*` is auth, admin, media, exchange, and health. See the [Semiont Protocol](../../docs/protocol/README.md) for the bus surface and the [OpenAPI spec](../../specs/README.md) for endpoint schemas.
 
 ## Project Structure
 
@@ -447,7 +447,7 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 - [Local Setup](../../docs/system/LOCAL-BACKEND.md) - Run the backend locally (container or npm)
 - [Architecture](./docs/ARCHITECTURE.md) - **Infrastructure management patterns (REQUIRED READING)**
 - [Development Guide](./docs/DEVELOPMENT.md) - Complete local development setup
-- [API Reference](../../docs/protocol/API.md) - All API endpoints and examples
+- [Semiont Protocol](../../docs/protocol/README.md) - The eight verbs and the bus this backend serves
 - [Authentication](./docs/AUTHENTICATION.md) - JWT, OAuth, MCP implementation
 - [Event-Bus Protocol](../../docs/protocol/EVENT-BUS.md) - SSE streaming, channels, scoping, correlation
 - [Database](../../docs/system/administration/DATABASE.md) - PostgreSQL setup for user authentication

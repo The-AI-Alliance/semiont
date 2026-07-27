@@ -4,7 +4,7 @@ This document describes Semiont's implementation of W3C Web Annotation selectors
 
 **Related Documentation:**
 - [W3C Web Annotation Implementation](./W3C-WEB-ANNOTATION.md) - Complete annotation architecture
-- [API Reference](./API.md) - REST API endpoints
+- [Semiont Protocol](./README.md) - The eight verbs and the bus these annotations travel on
 - [OpenAPI Specification](../../specs/openapi.json) - Machine-readable API spec
 - [@semiont/core Utilities](../../packages/core/docs/Utilities.md) - Implementation aids: fuzzy anchoring, SVG selector parsing, position validation
 

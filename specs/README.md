@@ -173,7 +173,7 @@ See [src/paths/](src/paths/) for complete list.
 
 High-level guides in [docs/protocol/](../docs/protocol/):
 
-- **[API.md](../docs/protocol/API.md)** - API overview, capabilities, and quick reference
+- **[README.md](../docs/protocol/README.md)** - The protocol: the eight verbs, the bus, and what holds across them
 - **[W3C-WEB-ANNOTATION.md](../docs/protocol/W3C-WEB-ANNOTATION.md)** - W3C Annotation Model details
 - **[W3C-SELECTORS.md](../docs/protocol/W3C-SELECTORS.md)** - Selector specifications
 
@@ -231,11 +231,12 @@ Generated from `npm run openapi:stats`:
 - [Root README](../README.md) - Project overview
 - [System Documentation](../docs/system/README.md) - System architecture index
 - [Backend README](../apps/backend/README.md) - Backend implementation
-- [API Client README](../packages/http-transport/README.md) - TypeScript SDK
+- [@semiont/http-transport](../packages/http-transport/README.md) - HTTP + SSE wire adapters
+- [@semiont/sdk](../packages/sdk/README.md) - The TypeScript client built over them
 
 ---
 
-**For API usage**: Start with [docs/protocol/API.md](../docs/protocol/API.md)
+**For API usage**: Start with [docs/protocol/README.md](../docs/protocol/README.md), then [@semiont/http-transport](../packages/http-transport/docs/API-Reference.md) for the wire adapters
 
 **For spec editing**: Edit files in [src/](src/), then run `npm run openapi:bundle`
 

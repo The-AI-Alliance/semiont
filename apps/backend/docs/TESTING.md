@@ -574,7 +574,7 @@ npm run test:watch
 - **[System Testing Guide](../../../docs/development/TESTING.md)** - Complete testing strategy including frontend (Vitest, MSW v2, React Testing Library)
 - [Development Guide](./DEVELOPMENT.md) - Setting up test environment
 - [Contributing Guide](../../../CONTRIBUTING.md) - Testing requirements for PRs
-- [API Reference](../../../docs/protocol/API.md) - API endpoints to test
+- [Semiont Protocol](../../../docs/protocol/README.md) - The eight verbs and the bus under test
 
 ---
 

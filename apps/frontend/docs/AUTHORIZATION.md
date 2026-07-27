@@ -315,7 +315,7 @@ const permissions = {
 ## Related Documentation
 
 - [Authentication Architecture](./AUTHENTICATION.md) - 401 handling and session management
-- [API Documentation](../../../docs/protocol/API.md) - API error handling details
+- [@semiont/http-transport Reference](../../../packages/http-transport/docs/API-Reference.md#apierror) - `APIError` shape and HTTP error handling
 - [Backend RBAC](../../../docs/system/administration/SECURITY.md) - Server-side permission system
 
 ## Contributing

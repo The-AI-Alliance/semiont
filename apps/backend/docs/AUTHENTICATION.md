@@ -5,7 +5,7 @@ Backend developer's guide to implementing and debugging authentication in the Se
 **Related Documentation:**
 - **[System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md)** - **Read this first!** The complete bearer-only authentication model, flows, and diagrams
 - [Main README](../README.md) - Backend overview
-- [API Reference](../../../docs/protocol/API.md) - API endpoints
+- [Semiont Protocol](../../../docs/protocol/README.md) - The eight verbs and the bus
 - [Development Guide](./DEVELOPMENT.md) - Local setup
 
 **Scope**: This document is a practical guide for backend developers. For the complete authentication architecture and flow diagrams, see the [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md).
@@ -395,7 +395,7 @@ See [System Authentication Architecture](../../../docs/system/administration/AUT
 ## Related Documentation
 
 - **[System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md)** - Complete auth flows and implementation
-- [API Reference](../../../docs/protocol/API.md) - Authentication endpoint details
+- [@semiont/http-transport Reference](../../../packages/http-transport/docs/API-Reference.md) - How clients carry the bearer token and refresh it
 - [Development Guide](./DEVELOPMENT.md) - Setting up OAuth credentials locally
 - [Testing Guide](./TESTING.md) - Testing authenticated endpoints
 

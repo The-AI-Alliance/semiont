@@ -4,7 +4,7 @@ Complete guide to local development for the Semiont backend service.
 
 **Related Documentation:**
 - [Main README](../README.md) - Backend overview
-- [API Documentation](../../../docs/protocol/API.md) - API endpoints reference
+- [Semiont Protocol](../../../docs/protocol/README.md) - The eight verbs and the bus
 - [Testing Guide](./TESTING.md) - Running tests
 - [Deployment Guide](../../../docs/system/administration/DEPLOYMENT.md) - Deployment procedures
 
@@ -515,7 +515,7 @@ credential handling.
 
 ## Related Documentation
 
-- [API Documentation](../../../docs/protocol/API.md) - API endpoints and request/response formats
+- [Semiont Protocol](../../../docs/protocol/README.md) - The eight verbs and the bus
 - [Authentication Guide](./AUTHENTICATION.md) - JWT, OAuth, and MCP authentication
 - [Testing Guide](./TESTING.md) - Running and writing tests
 - [Deployment Guide](../../../docs/system/administration/DEPLOYMENT.md) - Production deployment procedures
