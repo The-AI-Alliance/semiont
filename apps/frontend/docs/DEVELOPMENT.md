@@ -71,7 +71,7 @@ semiont start --service backend   # Restart backend, leaving the rest of the sta
 - **Smart Dependencies**: Frontend auto-starts backend when needed
 - **Consistent Environment**: Everyone gets identical setup
 - **Zero Configuration**: No environment files, API URLs, or manual setup
-- **No Separate Install**: `@semiont/frontend` is bundled with the CLI — `semiont provision` just creates runtime directories
+- **No Separate Install**: `@semiont/frontend` ships inside the frontend image — nothing to install per project
 - **Easy Reset**: Fresh database with sample data via `--reset`
 - **Focused Development**: Mock mode for UI work, real API mode for integration
 - **Container Runtime Flexibility**: Works with Apple Container, Docker, or Podman (auto-detected)

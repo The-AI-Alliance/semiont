@@ -69,21 +69,29 @@ The server needs exactly two environment variables:
 
 Both are required — the process exits at startup if either is missing.
 
-`semiont login` obtains a token against a running stack and stores it in the
-launcher's state home (`~/Library/Application Support/semiont/tokens.json` on
-macOS, `~/.local/state/semiont/tokens.json` on Linux, mode 0600):
+`semiont login` obtains a token against a running stack. It authenticates an
+existing account, so a fresh stack needs one created first:
 
 ```bash
+semiont useradd --email you@example.com --admin
 semiont login --email you@example.com     # password read from stdin
 ```
 
-Read the `token` field for your stack's key out of that file and export it:
+Both read the password from stdin — prompted with echo off on a terminal, or
+piped (`echo "$PASSWORD" | semiont login --email you@example.com`) for scripts.
+
+The token lands in the launcher's state home, mode 0600:
+`~/Library/Application Support/semiont/tokens.json` on macOS,
+`$XDG_STATE_HOME/semiont/tokens.json` on Linux (`~/.local/state/semiont/` when
+that variable is unset). Entries are keyed by stack — `local` for a local
+stack, `codespace:<owner>/<name>` for a codespace. Read the `token` field for
+your stack's key and export it:
 
 ```bash
 export SEMIONT_API_URL=http://localhost:4000
 export SEMIONT_ACCESS_TOKEN=$(python3 -c \
-  "import json,pathlib,sys; print(json.load(open(sys.argv[1]))['local']['token'])" \
-  ~/Library/Application\ Support/semiont/tokens.json)
+  "import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]]['token'])" \
+  ~/Library/Application\ Support/semiont/tokens.json local)
 ```
 
 **Access tokens are short-lived and this server does not refresh them.** It

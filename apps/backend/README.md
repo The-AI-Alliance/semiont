@@ -25,7 +25,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 [![npm version](https://img.shields.io/npm/v/@semiont/backend.svg)](https://www.npmjs.com/package/@semiont/backend)
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/backend.svg)](https://www.npmjs.com/package/@semiont/backend)
 
-The backend is published as `@semiont/backend` on npm with pre-built dist and Prisma schema. When using the Semiont CLI, `semiont provision` automatically installs this package unless `SEMIONT_REPO` is set (which directs the CLI to use a local source checkout instead).
+The backend is published as `@semiont/backend` on npm with pre-built dist and Prisma schema. The published backend image installs it at build time, pinned to `SEMIONT_VERSION`, and runs it directly — nothing installs it into a project.
 
 ## Quick Start
 
