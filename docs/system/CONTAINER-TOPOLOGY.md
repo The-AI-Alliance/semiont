@@ -120,7 +120,7 @@ For the wire-level event protocol, see **[../protocol/EVENT-BUS.md](../protocol/
 
 ## Deployment platforms
 
-Services run on different platforms, configured in `~/.semiontconfig` per environment. Each platform is a different adapter for hosting the same npm packages — the partition into "frontend / backend / worker / smelter" is a deployment choice (which adapter you pick), not an architectural one.
+Services run on different platforms, configured per environment in the KB's `.semiont/semiontconfig/<name>.toml`. Each platform is a different adapter for hosting the same npm packages — the partition into "frontend / backend / worker / smelter" is a deployment choice (which adapter you pick), not an architectural one.
 
 ### How stacks are run
 

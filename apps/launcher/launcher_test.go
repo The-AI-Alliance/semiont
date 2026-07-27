@@ -4420,11 +4420,15 @@ func TestRemoteModelsAreNeverCheckedAgainstOllama(t *testing.T) {
 // serveAnthropicModels: a fake /v1/models on a local port, listing exactly
 // the given ids. Reached via the config's [inference.anthropic] endpoint —
 // the same override a proxy would use, so no launcher test-mode exists.
-func serveAnthropicModels(t *testing.T, port int, ids ...string) {
+// serveAnthropicModels starts a fake /v1/models on an EPHEMERAL port and
+// returns it. Fixed ports made these tests collide with anything else holding
+// the number — observed in CI, not just locally — and the number was never
+// meaningful: the launcher is told the endpoint by flag or config.
+func serveAnthropicModels(t *testing.T, ids ...string) int {
 	t.Helper()
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("port %d unavailable for models API simulation: %v", port, err)
+		t.Fatalf("no ephemeral port for models API simulation: %v", err)
 	}
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/models" {
@@ -4449,6 +4453,7 @@ func serveAnthropicModels(t *testing.T, port int, ids ...string) {
 	})}
 	go srv.Serve(ln)
 	t.Cleanup(func() { srv.Close() })
+	return ln.Addr().(*net.TCPAddr).Port
 }
 
 func TestRemoteModelMetadataAndAvailability(t *testing.T) {
@@ -4456,11 +4461,11 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 	// metadata for listed models, and — the actionable part — a configured
 	// model NOT listed for this key (withdrawn, or a typo) is called out at
 	// start and marked in status, instead of surfacing as a failed job.
-	serveAnthropicModels(t, 41435, "claude-sonnet-4-5-20250929") // haiku deliberately absent
+	anthPort := serveAnthropicModels(t, "claude-sonnet-4-5-20250929") // haiku deliberately absent
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "anthropic-meta",
 		stdGraph+stdVectors+stdDatabase+
-			"[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:41435\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n"+
+			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
 			"[environments.local.workers.tag.inference]\ntype = \"anthropic\"\nmodel = \"claude-haiku-4-5-20251001\"\n\n")
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
@@ -5153,11 +5158,13 @@ func TestInitGeneratesStartableConfig(t *testing.T) {
 // (/v2/library/<m>/manifests/<t> — what exists to pull). init reaches them
 // through --ollama-base / --ollama-registry, the proxy knobs that double as
 // test seams.
-func serveOllamaFixtures(t *testing.T, port int, installed []string, pullable []string) {
+// serveOllamaFixtures starts a fake Ollama on an EPHEMERAL port and returns
+// it — same reasoning as serveAnthropicModels.
+func serveOllamaFixtures(t *testing.T, installed []string, pullable []string) int {
 	t.Helper()
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("port %d unavailable: %v", port, err)
+		t.Fatalf("no ephemeral port for the Ollama simulation: %v", err)
 	}
 	known := map[string]bool{}
 	for _, m := range pullable {
@@ -5189,6 +5196,7 @@ func serveOllamaFixtures(t *testing.T, port int, installed []string, pullable []
 	})}
 	go srv.Serve(ln)
 	t.Cleanup(func() { srv.Close() })
+	return ln.Addr().(*net.TCPAddr).Port
 }
 
 func TestInitAnthropicPickerValidatesAgainstLiveList(t *testing.T) {
@@ -5196,11 +5204,12 @@ func TestInitAnthropicPickerValidatesAgainstLiveList(t *testing.T) {
 	// a withdrawn or typo'd id is a REFUSAL naming what exists, not a KB
 	// whose jobs fail later (the claude-fable-5 lesson). Without --model,
 	// the ONE editorial default picks the newest capable model and says so.
-	serveAnthropicModels(t, 41436, "claude-sonnet-4-9", "claude-haiku-4-5")
+	anthPort := serveAnthropicModels(t, "claude-sonnet-4-9", "claude-haiku-4-5")
+	regPort := serveOllamaFixtures(t, nil, []string{"nomic-embed-text:latest"})
 	base := []string{"init", "--domain", "d.io:kb", "--yes",
 		"--inference", "anthropic", "--embedding", "ollama:nomic-embed-text",
-		"--anthropic-endpoint", "http://localhost:41436", "--ollama-registry", "http://localhost:41437"}
-	serveOllamaFixtures(t, 41437, nil, []string{"nomic-embed-text:latest"})
+		"--anthropic-endpoint", fmt.Sprintf("http://localhost:%d", anthPort),
+		"--ollama-registry", fmt.Sprintf("http://localhost:%d", regPort)}
 
 	s := newScenario(t, "container")
 	s.cwd = t.TempDir()
@@ -5237,10 +5246,11 @@ func TestInitOllamaModelsValidatedByRegistry(t *testing.T) {
 	// (start's pull machinery finishes the job); bogus is REFUSED with the
 	// registry's own 404; an unreachable registry degrades to
 	// accept-with-warning — unknown is not missing, init edition.
-	serveOllamaFixtures(t, 41438, []string{"gemma4:26b"}, []string{"gemma4:e2b:latest", "gemma4:e2b", "nomic-embed-text:latest"})
+	ollPort := serveOllamaFixtures(t, []string{"gemma4:26b"}, []string{"gemma4:e2b:latest", "gemma4:e2b", "nomic-embed-text:latest"})
+	ollURL := fmt.Sprintf("http://localhost:%d", ollPort)
 	base := []string{"init", "--domain", "d.io:kb", "--yes", "--inference", "ollama",
 		"--embedding", "ollama:nomic-embed-text",
-		"--ollama-base", "http://localhost:41438", "--ollama-registry", "http://localhost:41438"}
+		"--ollama-base", ollURL, "--ollama-registry", ollURL}
 
 	s := newScenario(t, "container")
 	s.cwd = t.TempDir()
@@ -5454,10 +5464,10 @@ func TestInitCopilotHardening(t *testing.T) {
 	// not need --force.
 	s2 := newScenario(t, "container")
 	s2.cwd = t.TempDir()
-	serveOllamaFixtures(t, 41451, nil, nil) // registry knows nothing
+	badURL := fmt.Sprintf("http://localhost:%d", serveOllamaFixtures(t, nil, nil)) // registry knows nothing
 	_, _, code = s2.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes",
 		"--inference", "ollama", "--model", "totally-fake:9b", "--embedding", "ollama:nomic-embed-text",
-		"--ollama-base", "http://localhost:41451", "--ollama-registry", "http://localhost:41451")
+		"--ollama-base", badURL, "--ollama-registry", badURL)
 	if code != 1 {
 		t.Fatalf("bad model: want refusal, got %d", code)
 	}
@@ -5508,16 +5518,16 @@ func TestInitCopilotHardening(t *testing.T) {
 	// (6) the generated anthropic config honors --anthropic-endpoint.
 	s6 := newScenario(t, "container")
 	s6.cwd = t.TempDir()
-	serveAnthropicModels(t, 41452, "m")
+	anthURL := fmt.Sprintf("http://localhost:%d", serveAnthropicModels(t, "m"))
 	s6.extraEnv = append(s6.extraEnv, "ANTHROPIC_API_KEY=k")
 	if _, stderr, code := s6.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes",
 		"--inference", "anthropic", "--model", "m", "--embedding", "ollama:nomic-embed-text",
-		"--anthropic-endpoint", "http://localhost:41452",
+		"--anthropic-endpoint", anthURL,
 		"--ollama-base", "http://127.0.0.1:1", "--ollama-registry", "http://127.0.0.1:1"); code != 0 {
 		t.Fatalf("endpoint init: %d\n%s", code, stderr)
 	}
 	cfg, _ := os.ReadFile(filepath.Join(s6.cwd, ".semiont", "semiontconfig", "anthropic.toml"))
-	mustContain(t, "endpoint honored", string(cfg), `endpoint = "http://localhost:41452"`)
+	mustContain(t, "endpoint honored", string(cfg), fmt.Sprintf(`endpoint = "%s"`, anthURL))
 }
 
 func TestStatusService(t *testing.T) {

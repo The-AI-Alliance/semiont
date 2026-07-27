@@ -13,22 +13,19 @@ Complete guide to local development for the Semiont backend service.
 ### 🚀 Instant Setup with Semiont CLI (Recommended)
 
 ```bash
-# Set your development environment
-export SEMIONT_ENV=local
-
-# From project root - starts everything automatically!
+# From inside a knowledge-base repo — starts everything automatically!
 semiont start
 
 # This will:
-# ✅ Start PostgreSQL container with correct schema
-# ✅ Start backend with proper environment
-# ✅ Start frontend connected to backend
+# ✅ Start PostgreSQL, Neo4j, Qdrant, and Ollama containers
+# ✅ Start backend, worker, smelter, and weaver with the KB's config
+# ✅ Ensure the Browser is running
 # 🎉 Ready to develop in ~30 seconds!
 ```
 
 **That's it!** Your complete development environment is running:
 - **Frontend**: http://localhost:3000
-- **Backend**: http://localhost:3001
+- **Backend**: http://localhost:4000
 - **Database**: PostgreSQL in Docker container
 
 ### 🛠 Manual Setup (Alternative)
@@ -53,11 +50,8 @@ npm start
 ## Essential CLI Commands
 
 ```bash
-# Set your environment once
-export SEMIONT_ENV=local
-
 # Full stack development
-semiont start              # Start everything (database + backend + frontend)
+semiont start              # Start everything (infrastructure + the five services)
 semiont stop               # Stop all services
 semiont status              # Check service health
 
@@ -85,10 +79,9 @@ semiont start --service backend   # Restart backend, leaving the rest of the sta
 Run once:
 
 ```bash
-cd /your/project/root
-npm install  # Installs dependencies for all apps
-semiont init --name "my-project"  # Initialize configuration
-export SEMIONT_ENV=local  # Set default environment
+brew install the-ai-alliance/semiont/semiont
+cd /your/knowledge-base
+semiont init --name "my-project"   # Writes .semiont/config + a semiontconfig
 ```
 
 ### Daily Development
@@ -101,7 +94,7 @@ semiont start
 
 # Your services are now running! Develop normally...
 # Frontend: http://localhost:3000
-# Backend: http://localhost:3001
+# Backend: http://localhost:4000
 # Database: Managed automatically
 
 # When done developing
@@ -208,7 +201,7 @@ If you prefer manual setup or need to understand the internals:
 
 - Node.js 18+ (recommend using nvm)
 - Docker (for PostgreSQL container)
-- A `~/.semiontconfig` with credentials for the database, graph, and inference — `semiont init` generates one
+- A KB with `.semiont/semiontconfig/<name>.toml` holding credentials for the database, graph, and inference — `semiont init` generates one
 
 ### Manual Database Setup
 
@@ -258,7 +251,7 @@ npx prisma db push
 # Run with hot reload
 npm run dev
 
-# Server starts on http://localhost:3001
+# Server starts on http://localhost:4000
 ```
 
 **3. Database Development**
@@ -484,12 +477,13 @@ Configuration is TOML, read from two files at startup ([`src/index.ts`](../src/i
 | File | Contents | Committed? |
 |---|---|---|
 | `<SEMIONT_ROOT>/.semiont/config` | Project anchor: the KB's name and its permanent `did:web` identity | Yes |
-| `~/.semiontconfig` | Per-environment settings: database, graph, vectors, embedding, inference | No |
+| `<SEMIONT_ROOT>/.semiont/semiontconfig/<name>.toml` | Per-environment settings: database, graph, vectors, embedding, inference | Yes |
 
-Two environment variables select what to load:
+The launcher stages a per-service copy of that config and mounts it into each
+container at `/home/semiont/.semiontconfig`, which is the path the process reads.
 
 - `SEMIONT_ROOT` — path to the knowledge-base working tree. **Required**; the process throws without it.
-- `SEMIONT_ENV` — which `[environments.<name>]` block to read. Defaults to `local`.
+- The environment block comes from `[defaults] environment` inside the config file.
 
 `loadEnvironmentConfig(projectRoot, env)` merges them into an `EnvironmentConfig`
 (`@semiont/core`). `services.backend` must be present or startup fails.

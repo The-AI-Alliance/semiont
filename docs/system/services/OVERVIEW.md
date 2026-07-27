@@ -79,7 +79,7 @@ container exec -it semiont-backend sh    # or: docker exec -it semiont-backend s
 
 ### Configuration
 
-Services are configured per environment in `~/.semiontconfig`. `semiont init` generates it; the shape is:
+Services are configured per environment in the KB's `.semiont/semiontconfig/<name>.toml`. `semiont init` generates one and `semiont start --config <name>` selects it; the shape is:
 
 ```toml
 [defaults]

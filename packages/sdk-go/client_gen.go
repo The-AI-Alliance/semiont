@@ -1603,8 +1603,8 @@ type DirectoryEntry struct {
 
 // DiscoveredKB One knowledge base the Semiont launcher manages on this machine, as published in the discovery document (see DiscoveryDocument). Endpoints and identity only — never credentials; login remains the consumer's per-KB business.
 type DiscoveredKB struct {
-	// Did The KB's did:web identifier as recorded from its committed .semiont/config — the permanent identity stamped into its event log. Prefer this as a merge key: ports are reallocated across restarts; the did follows the KB.
-	Did *string `json:"did,omitempty"`
+	// Did The KB's did:web identifier, from its committed .semiont/config — "did:web:" + the [site] domain, verbatim. REQUIRED: a KB that declares no domain has no identity to publish, and the launcher refuses to start it rather than inventing or defaulting one. NOT unique within a document: a did names the knowledge base, not a running copy of it, so a local clone and a codespace of the same repo legitimately share one and both are published. host:port is the unique field (at most one entry per address), so consumers look up by ADDRESS and use the did to VERIFY that the copy they reached is the KB they meant — an address alone cannot say which KB is which, and an identity alone cannot say which copy.
+	Did string `json:"did"`
 
 	// Host Hostname the KB is reachable on from this machine (today always "localhost" — local stacks bind locally and codespace KBs arrive through a local port forward)
 	Host string `json:"host"`
@@ -3278,7 +3278,10 @@ type SpecificResourceType string
 // StatusResponse defines model for StatusResponse.
 type StatusResponse struct {
 	AuthenticatedAs *string `json:"authenticatedAs,omitempty"`
-	Features        struct {
+
+	// Did The knowledge base's did:web identity — 'did:web:' + the committed [site] domain, byte-identical to the string the launcher publishes in its discovery document. REQUIRED: a KB that declares no domain does not run (the launcher refuses to start it, and the backend refuses to boot), so a response without this field means the caller reached something that bypassed both. Identifies WHICH knowledge base this is; it does NOT identify which running copy — one KB reachable at two addresses (a local clone and a codespace of one repo) reports the same did at both. Use it to verify what you connected to, not to select among discovered entries.
+	Did      string `json:"did"`
+	Features struct {
 		Collaboration   string `json:"collaboration"`
 		Rbac            string `json:"rbac"`
 		SemanticContent string `json:"semanticContent"`

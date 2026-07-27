@@ -29,13 +29,10 @@ The backend is published as `@semiont/backend` on npm with pre-built dist and Pr
 
 ## Quick Start
 
-### 🚀 Instant Setup with Semiont CLI (Recommended)
+### 🚀 Instant setup with the `semiont` launcher (recommended)
 
 ```bash
-# Set your development environment
-export SEMIONT_ENV=local
-
-# Start everything (database + backend + frontend)
+# From inside a knowledge-base repo — starts everything
 semiont start
 
 # 🎉 Ready to develop in ~30 seconds!
@@ -43,8 +40,8 @@ semiont start
 
 **Your services are now running:**
 - **Frontend**: http://localhost:3000
-- **Backend**: http://localhost:3001
-- **API Docs**: http://localhost:3001/api
+- **Backend**: http://localhost:4000
+- **API Docs**: http://localhost:4000/api
 - **Database**: PostgreSQL in Docker container
 
 For complete development setup, see [Development Guide](./docs/DEVELOPMENT.md).
@@ -75,18 +72,22 @@ docker pull ghcr.io/the-ai-alliance/semiont-backend:dev
 # Run with configuration
 docker run -d \
   -p 4000:4000 \
-  -v $(pwd):/app/config \
-  -e SEMIONT_ROOT=/app/config \
-  -e SEMIONT_ENV=production \
+  -v $(pwd):/app/kb \
+  -v $(pwd)/.semiont/semiontconfig/anthropic.toml:/home/semiont/.semiontconfig:ro \
+  -e SEMIONT_ROOT=/app/kb \
   --name semiont-backend \
-  ghcr.io/the-ai-alliance/semiont-backend:dev
+  ghcr.io/the-ai-alliance/semiont-backend:latest
 ```
 
-**Configuration Requirements:**
-- `SEMIONT_ROOT` - Path to directory containing `semiont.json` and `environments/` subdirectory
-- `SEMIONT_ENV` - Environment name (e.g., `production`, `staging`, `development`)
+**Configuration requirements:**
+- `SEMIONT_ROOT` — the KB root, containing `.semiont/config` and `.semiont/events/`
+- A config TOML mounted at `/home/semiont/.semiontconfig` — this is what
+  `semiont start` does for you, staging a per-service copy of the KB's
+  `.semiont/semiontconfig/<name>.toml`. The environment block comes from
+  `[defaults] environment` inside that file.
 
-All other configuration (database, secrets, AI keys) comes from JSON files in `SEMIONT_ROOT/environments/{SEMIONT_ENV}.json`.
+Secrets (`JWT_SECRET`, `SEMIONT_WORKER_SECRET`, inference API keys) are passed as
+environment variables — never in the config file.
 
 **Multi-platform Support:** linux/amd64, linux/arm64
 
@@ -332,7 +333,7 @@ See [Make-Meaning Package](../../packages/make-meaning/) for implementation deta
 ## API Documentation
 
 ### Interactive API Explorer
-- **Local**: http://localhost:3001/api
+- **Local**: http://localhost:4000/api
 - **Production**: https://your-domain.com/api
 
 Features:
@@ -359,7 +360,7 @@ SEMIONT_ROOT=/path/to/kb npm run rebuild-graph
 SEMIONT_ROOT=/path/to/kb npm run rebuild-graph -- <resourceId>
 ```
 
-The command reads `~/.semiontconfig` for database credentials, graph, and vector store settings. Set `SEMIONT_ENV` or pass `--environment <env>` to select a non-default environment.
+The command reads the KB's `.semiont/semiontconfig/<name>.toml` for database credentials, graph, and vector store settings — the environment block named by its `[defaults] environment`.
 
 The vector store has no backend CLI: the smelter worker (`@semiont/make-meaning/smelter-main`) reconciles Qdrant against the KS catalog on every startup — re-embedding missing resources and annotations and deleting orphaned vectors. To recover from a wiped Qdrant volume, just restart the smelter; to force a full re-embed, wipe the Qdrant volume first and then restart it.
 

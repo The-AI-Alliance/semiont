@@ -69,10 +69,11 @@ This project is part of [The AI Alliance](https://thealliance.ai/) and follows t
    ```bash
    npm install
    ```
-4. **Set up local environment**:
+4. **Set up a knowledge base to develop against** (in a separate directory):
    ```bash
-   export SEMIONT_ENV=local
+   brew install the-ai-alliance/semiont/semiont
    semiont init --name "dev-project"
+   semiont start
    ```
 5. **Run tests** to verify setup:
    ```bash
