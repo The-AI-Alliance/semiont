@@ -724,12 +724,34 @@ type creationLogTail struct {
 	u        *ui
 	cmd      *exec.Cmd
 	mu       sync.Mutex
-	lines    []string // ring: the newest creationLogWindow lines
+	lines    []string // ring: the newest creationLogWindow lines (the display)
 	rendered int      // lines currently drawn on the terminal
 	lastBeat time.Time
+	// The display window is far too small to explain a failure: in the live
+	// case the devcontainer marker sat ~18 lines below the real cause (a
+	// backend refusing to boot), so a report built from `lines` would show
+	// the stack trace and none of the reason. This wider ring exists only to
+	// be printed when the hooks fail.
+	context []string
+	failed  string // the marker line, latched on first sight
 }
 
 const creationLogWindow = 6
+
+// creationLogContext is what gets printed when hooks fail — enough to carry
+// the cause above the marker, not so much that it buries it.
+const creationLogContext = 60
+
+// hookFailureContextLines is how much of that ring gets printed — enough to
+// reach past the devcontainer's own stack trace to the failing command's
+// output, without burying the marker.
+const hookFailureContextLines = 18
+
+// hookFailure matches the devcontainer CLI announcing that one of the
+// lifecycle commands failed. Only an explicit non-zero exit counts: the tail
+// ENDING is legal and must stay benign (gh can drop a follow for its own
+// reasons), so EOF is never a failure — this is the one signal that is.
+var hookFailure = regexp.MustCompile(`(onCreateCommand|updateContentCommand|postCreateCommand|postStartCommand) from devcontainer\.json failed with exit code [1-9][0-9]*`)
 
 // startCreationLogTail spawns the follower. CREATE path only: a resumed
 // codespace's creation log is stale history and tailing it would narrate
@@ -761,6 +783,13 @@ func startCreationLogTail(u *ui, name string) *creationLogTail {
 			lt.lines = append(lt.lines, line)
 			if len(lt.lines) > creationLogWindow {
 				lt.lines = lt.lines[len(lt.lines)-creationLogWindow:]
+			}
+			lt.context = append(lt.context, line)
+			if len(lt.context) > creationLogContext {
+				lt.context = lt.context[len(lt.context)-creationLogContext:]
+			}
+			if lt.failed == "" && hookFailure.MatchString(line) {
+				lt.failed = line
 			}
 			lt.mu.Unlock()
 		}
@@ -834,6 +863,20 @@ func splitCRLines(data []byte, atEOF bool) (int, []byte, error) {
 
 // stop kills the follower and, on a terminal, collapses the window so the
 // final transcript keeps only the launcher's own lines.
+// failure reports the latched hook-failure marker and the surrounding log,
+// or "" while the hooks are merely still running. Nil-safe, like tick/stop.
+func (lt *creationLogTail) failure() (string, []string) {
+	if lt == nil {
+		return "", nil
+	}
+	lt.mu.Lock()
+	defer lt.mu.Unlock()
+	if lt.failed == "" {
+		return "", nil
+	}
+	return lt.failed, append([]string(nil), lt.context...)
+}
+
 func (lt *creationLogTail) stop() {
 	if lt == nil {
 		return
@@ -1429,6 +1472,26 @@ func waitForRemoteKB(u *ui, name string, created bool) int {
 			fmt.Fprintln(os.Stderr, "  If the forward dies immediately, the stack inside the codespace is probably still coming up.")
 			tail.stop()
 			return 0
+		}
+		// Hooks that FAILED will never produce a stack, so waiting out the
+		// budget is time spent on a foregone conclusion — and the timeout
+		// message blames the KB for a setup error. The devcontainer says so
+		// in the log this wait is already streaming; read it.
+		if marker, context := tail.failure(); marker != "" {
+			tail.stop()
+			u.fail("The codespace's setup failed after %s — its stack will not come up.", took(time.Since(t0)))
+			fmt.Fprintln(os.Stderr, "  "+marker)
+			// The marker is the announcement, not the reason: print the run-up
+			// to it, which is where the failing command said what went wrong.
+			if n := len(context); n > 1 {
+				fmt.Fprintln(os.Stderr, "\n  Log leading up to it:")
+				for _, l := range context[max(0, n-hookFailureContextLines):] {
+					fmt.Fprintln(os.Stderr, "    "+l)
+				}
+			}
+			fmt.Fprintf(os.Stderr, "\n  Full log:  gh codespace logs -c %s\n", name)
+			fmt.Fprintf(os.Stderr, "  The codespace exists; delete it once fixed:  semiont stop --repo <owner/name> --delete\n")
+			return 1
 		}
 		if !time.Now().Before(deadline) {
 			break

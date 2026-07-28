@@ -149,6 +149,7 @@ func git(args []string) {
 //	FAKERT_GH_CS_NAME       name printed by `codespace create` (default "fake-cs-1")
 //	FAKERT_GH_CREATE_FAILS  N leading 503 failures before create succeeds (cursor file)
 //	FAKERT_GH_SSH_FAIL      ssh fails with the no-sshd error
+//	FAKERT_GH_HOOKS_FAIL    the devcontainer lifecycle command fails (stack never comes up)
 //	FAKERT_GH_ADMIN         admin.json content for `ssh -- cat .devcontainer/admin.json`
 //	FAKERT_GH_KBCONFIG      .semiont/config content for `ssh -- cat .semiont/config`
 //	FAKERT_OLLAMA_TAGS      models the fake Ollama already has (comma separated)
@@ -424,6 +425,19 @@ func ghCodespace(args []string, joined string) {
 		// treats the stream as decoration, never a gate).
 		fmt.Println("2026-01-01 00:00:00.000Z: Running onCreateCommand...")
 		fmt.Println("2026-01-01 00:00:01.000Z: Pulling semiont-backend:latest")
+		// FAKERT_GH_HOOKS_FAIL: the devcontainer's lifecycle command failed —
+		// the stack will never come up, so waiting is pointless. Shaped like
+		// the live 2026-07-27 log: the CAUSE (a service refusing to boot)
+		// several lines above the devcontainer's own announcement, which is
+		// why the launcher must print the run-up and not just the marker.
+		if os.Getenv("FAKERT_GH_HOOKS_FAIL") != "" {
+			fmt.Println("semiont-backend  | Error: JWT_SECRET is not set. `semiont start` generates one per knowledge base and injects it")
+			fmt.Println("semiont-backend  |     at requireJwtSecret (file:///home/semiont/.local/share/semiont/node_modules/@semiont/backend/dist/index.js:219:11)")
+			fmt.Println("2026-01-01 00:00:02.000Z: Retry after fixing with:  bash .devcontainer/post-start.sh")
+			fmt.Println("2026-01-01 00:00:02.100Z: postStartCommand from devcontainer.json failed with exit code 1. Skipping any further user-provided commands.")
+			fmt.Println("2026-01-01 00:00:02.200Z: devcontainer process exited with exit code 1")
+			return
+		}
 		fmt.Println("2026-01-01 00:00:02.000Z: postCreateCommand done")
 	case "stop", "delete":
 		// argv log is the observable, but state must follow too: a stopped

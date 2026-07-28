@@ -2013,6 +2013,43 @@ func TestCodespaceWaitsForRemoteBeforeForwarding(t *testing.T) {
 	}
 }
 
+func TestCodespaceHookFailureFailsFastWithTheCause(t *testing.T) {
+	// Live 2026-07-27: the devcontainer hooks failed, the creation log said so
+	// in plain text — "postStartCommand from devcontainer.json failed with
+	// exit code 1" — and the launcher waited out its whole readiness budget
+	// anyway, because the log was rendered but never read. A stack whose setup
+	// failed will never come up; waiting is time spent on a foregone
+	// conclusion, and the eventual timeout blames the KB for a setup error.
+	//
+	// Failing FAST is only half of it: the marker is the announcement, not the
+	// reason. The cause sat ~18 lines above it (a backend refusing to boot),
+	// so the report must carry the run-up or it is merely quick and useless.
+	s := newCodespaceScenario(t)
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_GH_HOOKS_FAIL=1",
+		"FAKERT_REMOTE_DOWN=1") // the stack never answers, as it cannot
+	start := time.Now()
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	elapsed := time.Since(start)
+
+	if code == 0 {
+		t.Fatalf("a failed devcontainer setup must fail the start\nstdout:\n%s", stdout)
+	}
+	// The readiness budget is minutes; this must not approach it.
+	if elapsed > 90*time.Second {
+		t.Errorf("waited %s on hooks that had already failed", elapsed.Round(time.Second))
+	}
+	both := stdout + stderr
+	mustContain(t, "diagnosis", both,
+		"setup failed",          // named as a setup failure...
+		"postStartCommand",      // ...quoting the devcontainer's marker
+		"JWT_SECRET is not set", // ...and the CAUSE from the run-up
+		"gh codespace logs")     // ...with the way to see the rest
+	if strings.Contains(both, "did not come up inside") {
+		t.Errorf("a setup failure was reported as a readiness timeout:\n%s", both)
+	}
+}
+
 func TestCodespaceForwardDeathFailsFast(t *testing.T) {
 	// The mid-wait forward death observed live 2026-07-23: the tunnel
 	// bound, then its process died while the health gate polled — and the
