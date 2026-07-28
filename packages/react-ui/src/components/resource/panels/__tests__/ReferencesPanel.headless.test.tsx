@@ -84,4 +84,93 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
     fireEvent.click(entryText);
     expect(client.browse.click).toHaveBeenCalledWith('ref-1', 'linking');
   });
+
+  describe('incoming references — terminal load failure', () => {
+    // `referencedByLoading` alone cannot distinguish "still in flight" from
+    // "dead" (B15), so the panel used to render "Loading..." for ever.
+    // See .plans/PANEL-FAILURE-STATES.md
+
+    const base = () => {
+      const { session } = fakeSession();
+      return {
+        session,
+        resourceId: 'res-1' as const,
+        annotations: [],
+        isAssisting: false,
+        progress: null,
+        pendingAnnotation: null,
+        allEntityTypes: [],
+        Link: TestLink,
+        routes: testRoutes,
+      };
+    };
+
+    it('reports the failure instead of an endless loading line', () => {
+      render(
+        <ReferencesPanel
+          {...(base() as any)}
+          referencedBy={[]}
+          referencedByLoading
+          referencedByError={new Error('Resource not found')}
+        />,
+      );
+
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+      expect(screen.getByText(/Could not load incoming references/)).toBeInTheDocument();
+    });
+
+    it('offers a retry that calls back', () => {
+      const onRetryReferencedBy = vi.fn();
+      render(
+        <ReferencesPanel
+          {...(base() as any)}
+          referencedBy={[]}
+          referencedByError={new Error('boom')}
+          onRetryReferencedBy={onRetryReferencedBy}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(onRetryReferencedBy).toHaveBeenCalledTimes(1);
+    });
+
+    it('with no error, a still-loading list keeps its loading affordance', () => {
+      render(
+        <ReferencesPanel
+          {...(base() as any)}
+          referencedBy={[]}
+          referencedByLoading
+        />,
+      );
+
+      expect(screen.queryByText(/Could not load incoming references/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('entity types — terminal load failure', () => {
+    // The picker's empty branch says "no entity types", which is a claim about
+    // the knowledge base. On a failed load it is false — the KB may have
+    // plenty. See .plans/PANEL-FAILURE-STATES.md
+
+    it('does not present a failed entity-type load as "none exist"', () => {
+      const { session } = fakeSession();
+      render(
+        <ReferencesPanel
+          session={session}
+          resourceId="res-1"
+          annotations={[]}
+          isAssisting={false}
+          progress={null}
+          pendingAnnotation={null}
+          allEntityTypes={[]}
+          entityTypesError={new Error('boom')}
+          Link={TestLink}
+          routes={testRoutes}
+        />,
+      );
+
+      expect(screen.queryByText('No entity types available')).not.toBeInTheDocument();
+      expect(screen.getByText(/Could not load entity types/)).toBeInTheDocument();
+    });
+  });
 });

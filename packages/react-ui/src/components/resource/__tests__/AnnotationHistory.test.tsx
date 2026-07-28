@@ -4,8 +4,6 @@ import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { AnnotationHistory } from '../AnnotationHistory';
 import { renderWithProviders } from '../../../test-utils';
-import type { ResourceId } from '@semiont/core';
-import { BehaviorSubject } from 'rxjs';
 
 // Mock @semiont/core - must use importOriginal to preserve EventBus etc.
 vi.mock('@semiont/core', async (importOriginal) => {
@@ -22,32 +20,13 @@ vi.mock('../../../contexts/TranslationContext', () => ({
     const translations: Record<string, string> = {
       history: 'History',
       loading: 'Loading...',
+      failed: 'Could not load history.',
+      retry: 'Try again',
     };
     return translations[key] || key;
   }),
   TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
-
-const eventsSubject = new BehaviorSubject<any[] | undefined>(undefined);
-const annotationsSubject = new BehaviorSubject<any[] | undefined>(undefined);
-
-const stableMockClient = {
-  browse: {
-    events: () => eventsSubject.asObservable(),
-    annotations: () => annotationsSubject.asObservable(),
-  },
-};
-const stableMockSession = { client: stableMockClient };
-const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);
-const stableMockBrowser = { activeSession$: stableActiveSession$ };
-
-vi.mock('../../../session/SemiontProvider', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../session/SemiontProvider')>();
-  return {
-    ...actual,
-    useSemiont: () => stableMockBrowser,
-  };
-});
 
 // Mock HistoryEvent to avoid deep rendering and mocking all its dependencies
 const MockHistoryEvent = vi.fn(({ event }: any) => (
@@ -62,8 +41,6 @@ vi.mock('../HistoryEvent', () => ({
 
 import { getAnnotationUriFromEvent } from '@semiont/core';
 const mockGetAnnotationUri = getAnnotationUriFromEvent as ReturnType<typeof vi.fn>;
-
-const testRId = 'res-1' as ResourceId;
 
 /** Returns flat StoredEventResponse shape (matches API response) */
 function makeStoredEvent(id: string, type: string, seq: number, overrides: Record<string, any> = {}): any {
@@ -91,16 +68,13 @@ describe('AnnotationHistory', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetAnnotationUri.mockReturnValue(null);
-    eventsSubject.next(undefined);
-    annotationsSubject.next([]);
   });
 
   it('renders loading state', () => {
-    eventsSubject.next(undefined);
-
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRId}
+        events={[]}
+        eventsLoading
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -110,12 +84,64 @@ describe('AnnotationHistory', () => {
     expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 
-  it('renders null when no events', () => {
-    eventsSubject.next([]);
+  describe('terminal load failure', () => {
+    // The panel used to derive `loading` from `eventsData === undefined` and
+    // hard-code `const error = false`, so a failed load sat on "Loading..."
+    // for ever and the error branch below it was unreachable.
+    // See .plans/PANEL-FAILURE-STATES.md
 
+    it('reports the failure instead of staying on the loading text', () => {
+      renderWithProviders(
+        <AnnotationHistory
+          events={[]}
+          eventsLoading={false}
+          eventsError={new Error('Resource not found')}
+          Link={MockLink}
+          routes={mockRoutes}
+        />
+      );
+
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+      expect(screen.getByText('Could not load history.')).toBeInTheDocument();
+    });
+
+    it('offers a retry that calls back', async () => {
+      const onRetryEvents = vi.fn();
+      const { default: userEvent } = await import('@testing-library/user-event');
+
+      renderWithProviders(
+        <AnnotationHistory
+          events={[]}
+          eventsError={new Error('boom')}
+          onRetryEvents={onRetryEvents}
+          Link={MockLink}
+          routes={mockRoutes}
+        />
+      );
+
+      await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(onRetryEvents).toHaveBeenCalledTimes(1);
+    });
+
+    it('the failure beats the loading state — a dead request is not still loading', () => {
+      renderWithProviders(
+        <AnnotationHistory
+          events={[]}
+          eventsLoading
+          eventsError={new Error('boom')}
+          Link={MockLink}
+          routes={mockRoutes}
+        />
+      );
+
+      expect(screen.getByText('Could not load history.')).toBeInTheDocument();
+    });
+  });
+
+  it('renders null when no events', () => {
     const { container } = renderWithProviders(
       <AnnotationHistory
-        rUri={testRId}
+        events={[]}
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -130,11 +156,10 @@ describe('AnnotationHistory', () => {
       makeStoredEvent('e1', 'mark:added', 1),
       makeStoredEvent('e2', 'mark:added', 2),
     ];
-    eventsSubject.next(events);
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRId}
+        events={events}
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -155,11 +180,10 @@ describe('AnnotationHistory', () => {
       makeStoredEvent('e4', 'job:completed', 4),
       makeStoredEvent('e5', 'mark:body-updated', 5),
     ];
-    eventsSubject.next(events);
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRId}
+        events={events}
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -173,12 +197,11 @@ describe('AnnotationHistory', () => {
 
   it('passes isRelated when hovered annotation matches event', () => {
     const events = [makeStoredEvent('e1', 'mark:added', 1)];
-    eventsSubject.next(events);
     mockGetAnnotationUri.mockReturnValue('ann-1');
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRId}
+        events={events}
         hoveredAnnotationId="ann-1"
         Link={MockLink}
         routes={mockRoutes}
@@ -192,11 +215,10 @@ describe('AnnotationHistory', () => {
 
   it('renders history panel structure with title and list', () => {
     const events = [makeStoredEvent('e1', 'mark:added', 1)];
-    eventsSubject.next(events);
 
     const { container } = renderWithProviders(
       <AnnotationHistory
-        rUri={testRId}
+        events={events}
         Link={MockLink}
         routes={mockRoutes}
       />

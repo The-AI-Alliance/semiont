@@ -85,7 +85,7 @@ describe('createResourceViewerPageStateUnit', () => {
     tc = clientWithNamespaces({ annotations$ });
     const stateUnit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
 
-    const anns = await firstValueFrom(stateUnit.annotations$);
+    const anns = await firstValueFrom(stateUnit.annotations.value$);
     expect(anns).toHaveLength(1);
 
     stateUnit.dispose();
@@ -109,7 +109,7 @@ describe('createResourceViewerPageStateUnit', () => {
     tc = clientWithNamespaces();
     const stateUnit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
 
-    const types = await firstValueFrom(stateUnit.entityTypes$);
+    const types = await firstValueFrom(stateUnit.entityTypes.value$);
     expect(types).toEqual(['Person']);
 
     stateUnit.dispose();
@@ -120,7 +120,7 @@ describe('createResourceViewerPageStateUnit', () => {
     tc = clientWithNamespaces({ events$ });
     const stateUnit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
 
-    const events = await firstValueFrom(stateUnit.events$);
+    const events = await firstValueFrom(stateUnit.events.value$);
     expect(events).toEqual([{ id: 'e1', type: 'mark:added' }]);
 
     stateUnit.dispose();
@@ -131,7 +131,7 @@ describe('createResourceViewerPageStateUnit', () => {
     tc = clientWithNamespaces({ referencedBy$ });
     const stateUnit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
 
-    const refs = await firstValueFrom(stateUnit.referencedBy$);
+    const refs = await firstValueFrom(stateUnit.referencedBy.value$);
     expect(refs).toEqual([{ resourceId: 'r2' }]);
 
     stateUnit.dispose();
@@ -236,6 +236,94 @@ describe('createResourceViewerPageStateUnit', () => {
     expect(wizard.open).toBe(false);
 
     stateUnit.dispose();
+  });
+});
+
+describe('createResourceViewerPageStateUnit — list failure states', () => {
+  // A cache-backed list has three outcomes, not two. `browse.*()` delivers a
+  // terminal failure as an RxJS error (B15) once the B14 retry is exhausted
+  // with nothing stored — and a key that failed has no value either, so a
+  // (value | not-yet) model reports a dead request as an eternal spinner.
+  // Two panels do exactly that today: ReferencesPanel via
+  // `referencedByLoading = raw === undefined`, and AnnotationHistory via
+  // `loading = eventsData === undefined`.
+  // See .plans/PANEL-FAILURE-STATES.md
+
+  const RETURNED_TO_CALLER = ['annotations', 'entityTypes', 'events', 'referencedBy'] as const;
+
+  it.each(RETURNED_TO_CALLER)('%s: stops reporting loading and surfaces the reason on terminal failure', async (name) => {
+    const subject = new BehaviorSubject<any>(undefined);
+    const tc = clientWithNamespaces({ [`${name}$`]: subject } as any);
+    const unit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
+    const list = (unit as any)[name];
+
+    expect(await firstValueFrom(list.loading$)).toBe(true);
+    expect(await firstValueFrom(list.error$)).toBeNull();
+
+    subject.error(new Error('Resource not found'));
+
+    expect(await firstValueFrom(list.loading$)).toBe(false);
+    expect((await firstValueFrom(list.error$) as Error | null)?.message).toBe('Resource not found');
+
+    unit.dispose();
+    tc.bus.destroy();
+  });
+
+  it.each(RETURNED_TO_CALLER)('%s: keeps an empty value alongside the failure, so callers still render a list', async (name) => {
+    const subject = new BehaviorSubject<any>(undefined);
+    const tc = clientWithNamespaces({ [`${name}$`]: subject } as any);
+    const unit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
+    const list = (unit as any)[name];
+
+    subject.error(new Error('boom'));
+
+    expect(await firstValueFrom(list.value$)).toEqual([]);
+    unit.dispose();
+    tc.bus.destroy();
+  });
+
+  it('retry() clears the error, re-enters loading, and re-subscribes so a fresh attempt can succeed', async () => {
+    // B15: a fresh observe() clears the failure marker and starts a new attempt
+    // chain, so recovery needs a NEW subscription — the errored one is dead.
+    const attempts: Array<BehaviorSubject<any>> = [];
+    const tc = makeTestClient({
+      browse: {
+        annotations: () => new BehaviorSubject<unknown[] | undefined>([]).asObservable(),
+        entityTypes: () => new BehaviorSubject<string[] | undefined>([]).asObservable(),
+        events: () => new BehaviorSubject<unknown[] | undefined>([]).asObservable(),
+        referencedBy: () => {
+          const s = new BehaviorSubject<any>(undefined);
+          attempts.push(s);
+          return s.asObservable();
+        },
+        resourceRepresentation: vi.fn().mockResolvedValue({
+          data: new TextEncoder().encode('hello').buffer,
+          contentType: 'text/plain',
+        }),
+      },
+      auth: { mediaToken: vi.fn().mockResolvedValue({ token: 'tok' }) },
+      mark: { annotation: vi.fn(), delete: vi.fn(), assist: vi.fn(() => new Observable(() => {})) },
+      gather: { annotation: vi.fn(() => new Observable(() => {})) },
+      match: { search: vi.fn(() => new Observable(() => {})) },
+      yield: { fromAnnotation: vi.fn(() => new Observable(() => {})) },
+      bind: { body: vi.fn().mockResolvedValue(undefined) },
+    });
+    const unit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
+
+    attempts[0]!.error(new Error('nope'));
+    expect(await firstValueFrom(unit.referencedBy.error$)).not.toBeNull();
+
+    unit.referencedBy.retry();
+    expect(attempts.length).toBeGreaterThan(1);
+    expect(await firstValueFrom(unit.referencedBy.error$)).toBeNull();
+    expect(await firstValueFrom(unit.referencedBy.loading$)).toBe(true);
+
+    attempts[attempts.length - 1]!.next([{ id: 'ref-1' }]);
+    expect(await firstValueFrom(unit.referencedBy.loading$)).toBe(false);
+    expect(await firstValueFrom(unit.referencedBy.value$)).toHaveLength(1);
+
+    unit.dispose();
+    tc.bus.destroy();
   });
 });
 
