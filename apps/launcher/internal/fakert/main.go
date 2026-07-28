@@ -149,6 +149,7 @@ func git(args []string) {
 //	FAKERT_GH_CS_NAME       name printed by `codespace create` (default "fake-cs-1")
 //	FAKERT_GH_CREATE_FAILS  N leading 503 failures before create succeeds (cursor file)
 //	FAKERT_GH_SSH_FAIL      ssh fails with the no-sshd error
+//	FAKERT_GH_SSH_FAIL_FIRST  ssh fails for the first n attempts, then works
 //	FAKERT_GH_HOOKS_FAIL    the devcontainer lifecycle command fails (stack never comes up)
 //	FAKERT_GH_ADMIN         admin.json content for `ssh -- cat .devcontainer/admin.json`
 //	FAKERT_GH_KBCONFIG      .semiont/config content for `ssh -- cat .semiont/config`
@@ -197,6 +198,25 @@ func bumpRemoteProbe() int {
 	}
 	n := remoteProbeCount() + 1
 	_ = os.WriteFile(filepath.Join(dir, "remote-probes"), []byte(strconv.Itoa(n)), 0o644)
+	return n
+}
+
+// sshFailFirst / bumpSSHAttempt model sshd arriving late on a fresh create.
+func sshFailFirst() int {
+	n, _ := strconv.Atoi(os.Getenv("FAKERT_GH_SSH_FAIL_FIRST"))
+	return n
+}
+
+func bumpSSHAttempt() int {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return 0
+	}
+	p := filepath.Join(dir, "ssh-attempts")
+	b, _ := os.ReadFile(p)
+	n, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	n++
+	_ = os.WriteFile(p, []byte(strconv.Itoa(n)), 0o644)
 	return n
 }
 
@@ -381,7 +401,20 @@ func ghCodespace(args []string, joined string) {
 		// destroys the tunnel. The old fake bound and parked unconditionally,
 		// which is why every test agreed a forward that binds is a forward
 		// that works.
+		// A forward attempt is a readiness probe too — the launcher may have no
+		// ssh to ask, and then this is the ONLY way it can learn the stack is
+		// up. Counting only ssh probes made a stack that comes up "after n
+		// probes" unreachable on that path, and the retry loop ran forever.
+		bumpRemoteProbe()
 		if remoteDown() {
+			// The pidfile is what makes the fake `ps` report this process as
+			// "gh", which forwardProcAlive requires — without it the launcher
+			// calls a live tunnel dead and never dials, so the death-on-first-
+			// contact this branch exists to model never happens.
+			if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+				_ = os.WriteFile(filepath.Join(dir, "serve-gh-forward-"+forwardLocalPort(args)+".pid"),
+					[]byte(strconv.Itoa(os.Getpid())), 0o644)
+			}
 			go func() {
 				ln, err := net.Listen("tcp", "127.0.0.1:"+forwardLocalPort(args))
 				if err != nil {
@@ -436,6 +469,12 @@ func ghCodespace(args []string, joined string) {
 			fmt.Println("2026-01-01 00:00:02.000Z: Retry after fixing with:  bash .devcontainer/post-start.sh")
 			fmt.Println("2026-01-01 00:00:02.100Z: postStartCommand from devcontainer.json failed with exit code 1. Skipping any further user-provided commands.")
 			fmt.Println("2026-01-01 00:00:02.200Z: devcontainer process exited with exit code 1")
+			// The stream does NOT stop at the failure. Enough trailing lines to
+			// overflow the report window, so a report built from the live ring
+			// would lose the cause entirely — which is the bug this models.
+			for i := 0; i < 30; i++ {
+				fmt.Printf("2026-01-01 00:00:03.%03dZ: Finished configuring codespace (trailing %d)\n", i, i)
+			}
 			return
 		}
 		fmt.Println("2026-01-01 00:00:02.000Z: postCreateCommand done")
@@ -450,7 +489,11 @@ func ghCodespace(args []string, joined string) {
 			}
 		}
 	case "ssh":
-		if os.Getenv("FAKERT_GH_SSH_FAIL") != "" {
+		// FAKERT_GH_SSH_FAIL: ssh never works. FAKERT_GH_SSH_FAIL_FIRST=n: it
+		// fails for the first n attempts and then works — sshd coming up
+		// during a fresh create, which is the case that must NOT be mistaken
+		// for a codespace that will never answer.
+		if os.Getenv("FAKERT_GH_SSH_FAIL") != "" || bumpSSHAttempt() <= sshFailFirst() {
 			fmt.Fprintln(os.Stderr, "failed to start SSH server")
 			os.Exit(1)
 		}
