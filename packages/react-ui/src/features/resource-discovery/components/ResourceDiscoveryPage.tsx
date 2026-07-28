@@ -65,8 +65,8 @@ export interface ResourceDiscoveryPageProps {
     archived: string;
     created: string;
     loadingKnowledgeBase: string;
-    recentFailed?: string;
-    retry?: string;
+    recentFailed: string;
+    retry: string;
   };
 
   // Component dependencies
@@ -131,10 +131,10 @@ export function ResourceDiscoveryPage({
   if (recentError) {
     return (
       <div className="semiont-page__loading">
-        <p className="semiont-page__loading-text">{t.recentFailed ?? 'Could not load resources.'}</p>
+        <p className="semiont-page__loading-text">{t.recentFailed}</p>
         {onRetryRecent && (
           <button type="button" onClick={onRetryRecent} className="semiont-button" data-variant="secondary">
-            {t.retry ?? 'Try again'}
+            {t.retry}
           </button>
         )}
       </div>

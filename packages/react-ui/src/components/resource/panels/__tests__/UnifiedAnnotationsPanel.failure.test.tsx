@@ -10,15 +10,19 @@
  *
  * See .plans/PANEL-FAILURE-STATES.md
  */
+import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
+import type { RouteBuilder } from '../../../../contexts/RoutingContext';
 import { UnifiedAnnotationsPanel } from '../UnifiedAnnotationsPanel';
 import { ANNOTATORS } from '../../../../lib/annotation-registry';
 
 const TestLink = ({ href, children, ...rest }: any) => <a href={href} {...rest}>{children}</a>;
-const testRoutes = { resourceDetail: (id: string) => `/r/${id}` } as any;
+const testRoutes = {
+  resourceDetail: (id: string) => `/r/${id}`,
+} as unknown as RouteBuilder;
 
 function fakeSession(): SemiontSession {
   return {
@@ -27,7 +31,9 @@ function fakeSession(): SemiontSession {
   } as unknown as SemiontSession;
 }
 
-const base = () => ({
+type PanelProps = React.ComponentProps<typeof UnifiedAnnotationsPanel>;
+
+const base = (): PanelProps => ({
   session: fakeSession(),
   annotations: [],
   annotators: ANNOTATORS,
@@ -42,7 +48,7 @@ describe('UnifiedAnnotationsPanel — annotations load failure', () => {
   it('reports the failure rather than presenting an empty annotation set as fact', () => {
     render(
       <UnifiedAnnotationsPanel
-        {...(base() as any)}
+        {...base()}
         annotationsError={new Error('Resource not found')}
       />,
     );
@@ -54,7 +60,7 @@ describe('UnifiedAnnotationsPanel — annotations load failure', () => {
     const onRetryAnnotations = vi.fn();
     render(
       <UnifiedAnnotationsPanel
-        {...(base() as any)}
+        {...base()}
         annotationsError={new Error('boom')}
         onRetryAnnotations={onRetryAnnotations}
       />,
@@ -65,7 +71,7 @@ describe('UnifiedAnnotationsPanel — annotations load failure', () => {
   });
 
   it('says nothing about failure when the annotations are merely empty', () => {
-    render(<UnifiedAnnotationsPanel {...(base() as any)} />);
+    render(<UnifiedAnnotationsPanel {...base()} />);
 
     expect(screen.queryByText(/Could not load annotations/)).not.toBeInTheDocument();
   });

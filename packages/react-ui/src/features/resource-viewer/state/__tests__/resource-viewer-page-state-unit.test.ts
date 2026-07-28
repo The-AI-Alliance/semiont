@@ -3,7 +3,7 @@ import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { annotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
-import { createResourceViewerPageStateUnit } from '../resource-viewer-page-state-unit';
+import { createResourceViewerPageStateUnit, type ResourceViewerPageStateUnit } from '../resource-viewer-page-state-unit';
 import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing';
 import { makeTestClient, type TestClient } from '../../../../__tests__/test-client';
 
@@ -249,13 +249,67 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
   // `loading = eventsData === undefined`.
   // See .plans/PANEL-FAILURE-STATES.md
 
-  const RETURNED_TO_CALLER = ['annotations', 'entityTypes', 'events', 'referencedBy'] as const;
+  /**
+   * One case per cache-backed list. Each builds its OWN correctly-typed
+   * subject and returns the list off the unit, so the shared assertions below
+   * need no indexing by name and no cast.
+   */
+  /** The slice of `ListState<T>` these shared assertions read. */
+  interface ListProbe {
+    value$: Observable<unknown>;
+    loading$: Observable<boolean>;
+    error$: Observable<Error | null>;
+  }
 
-  it.each(RETURNED_TO_CALLER)('%s: stops reporting loading and surfaces the reason on terminal failure', async (name) => {
-    const subject = new BehaviorSubject<any>(undefined);
-    const tc = clientWithNamespaces({ [`${name}$`]: subject } as any);
-    const unit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
-    const list = (unit as any)[name];
+  const LIST_CASES: ReadonlyArray<{
+    name: string;
+    start: () => {
+      subject: { error: (e: Error) => void };
+      tc: TestClient;
+      unit: ResourceViewerPageStateUnit;
+      list: ListProbe;
+    };
+  }> = [
+    {
+      name: 'annotations',
+      start: () => {
+        const subject = new BehaviorSubject<unknown[] | undefined>(undefined);
+        const tc = clientWithNamespaces({ annotations$: subject });
+        const unit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
+        return { subject, tc, unit, list: unit.annotations };
+      },
+    },
+    {
+      name: 'entityTypes',
+      start: () => {
+        const subject = new BehaviorSubject<string[] | undefined>(undefined);
+        const tc = clientWithNamespaces({ entityTypes$: subject });
+        const unit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
+        return { subject, tc, unit, list: unit.entityTypes };
+      },
+    },
+    {
+      name: 'events',
+      start: () => {
+        const subject = new BehaviorSubject<unknown[] | undefined>(undefined);
+        const tc = clientWithNamespaces({ events$: subject });
+        const unit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
+        return { subject, tc, unit, list: unit.events };
+      },
+    },
+    {
+      name: 'referencedBy',
+      start: () => {
+        const subject = new BehaviorSubject<unknown[] | undefined>(undefined);
+        const tc = clientWithNamespaces({ referencedBy$: subject });
+        const unit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
+        return { subject, tc, unit, list: unit.referencedBy };
+      },
+    },
+  ];
+
+  it.each(LIST_CASES)('$name: stops reporting loading and surfaces the reason on terminal failure', async ({ start }) => {
+    const { subject, tc, unit, list } = start();
 
     expect(await firstValueFrom(list.loading$)).toBe(true);
     expect(await firstValueFrom(list.error$)).toBeNull();
@@ -263,17 +317,14 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
     subject.error(new Error('Resource not found'));
 
     expect(await firstValueFrom(list.loading$)).toBe(false);
-    expect((await firstValueFrom(list.error$) as Error | null)?.message).toBe('Resource not found');
+    expect((await firstValueFrom(list.error$))?.message).toBe('Resource not found');
 
     unit.dispose();
     tc.bus.destroy();
   });
 
-  it.each(RETURNED_TO_CALLER)('%s: keeps an empty value alongside the failure, so callers still render a list', async (name) => {
-    const subject = new BehaviorSubject<any>(undefined);
-    const tc = clientWithNamespaces({ [`${name}$`]: subject } as any);
-    const unit = createResourceViewerPageStateUnit(tc.client, RID, 'en', mockBrowse());
-    const list = (unit as any)[name];
+  it.each(LIST_CASES)('$name: keeps an empty value alongside the failure, so callers still render a list', async ({ start }) => {
+    const { subject, tc, unit, list } = start();
 
     subject.error(new Error('boom'));
 
@@ -285,14 +336,14 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
   it('retry() clears the error, re-enters loading, and re-subscribes so a fresh attempt can succeed', async () => {
     // B15: a fresh observe() clears the failure marker and starts a new attempt
     // chain, so recovery needs a NEW subscription — the errored one is dead.
-    const attempts: Array<BehaviorSubject<any>> = [];
+    const attempts: Array<BehaviorSubject<unknown[] | undefined>> = [];
     const tc = makeTestClient({
       browse: {
         annotations: () => new BehaviorSubject<unknown[] | undefined>([]).asObservable(),
         entityTypes: () => new BehaviorSubject<string[] | undefined>([]).asObservable(),
         events: () => new BehaviorSubject<unknown[] | undefined>([]).asObservable(),
         referencedBy: () => {
-          const s = new BehaviorSubject<any>(undefined);
+          const s = new BehaviorSubject<unknown[] | undefined>(undefined);
           attempts.push(s);
           return s.asObservable();
         },

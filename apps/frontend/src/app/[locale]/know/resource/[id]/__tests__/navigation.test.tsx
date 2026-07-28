@@ -71,7 +71,7 @@ const harness = vi.hoisted(() => {
     // Per-instance identity: distinct even for successive sessions of the
     // same KB, which is exactly the re-authentication case.
     id: `session-${++sessionSeq}`,
-    client: { tag: clientTag } as any,
+    client: { tag: clientTag },
     kb: { id: kbId, label: 'localhost', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' },
     streamState$: new BehaviorSubject('initial'),
   });
@@ -83,27 +83,19 @@ vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>(
     '@semiont/react-ui',
   );
+  const { of } = await vi.importActual<typeof import('rxjs')>('rxjs');
   return {
     ...actual,
     useSemiont: () => harness.browser,
     createResourceLoaderStateUnit: (client: any, rId: string) => {
       vmFactoryCalls.push(rId);
       vmFactoryClients.push(client?.tag ?? 'none');
+      // Real rxjs rather than hand-rolled subscribe stubs: correctly typed,
+      // and it exercises the same delivery path the component sees.
       return {
-        resource$: {
-          subscribe: (observer: any) => {
-            const next = typeof observer === 'function' ? observer : observer.next?.bind(observer);
-            if (next) next({ '@id': rId, name: `Resource ${rId}` });
-            return { unsubscribe: () => {} };
-          },
-        } as any,
-        isLoading$: {
-          subscribe: (observer: any) => {
-            const next = typeof observer === 'function' ? observer : observer.next?.bind(observer);
-            if (next) next(false);
-            return { unsubscribe: () => {} };
-          },
-        } as any,
+        resource$: of({ '@id': rId, name: `Resource ${rId}` }),
+        isLoading$: of(false),
+        error$: of(null),
         invalidate: () => {},
         dispose: () => {},
       };

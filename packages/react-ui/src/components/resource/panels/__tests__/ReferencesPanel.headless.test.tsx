@@ -90,7 +90,8 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
     // "dead" (B15), so the panel used to render "Loading..." for ever.
     // See .plans/PANEL-FAILURE-STATES.md
 
-    const base = () => {
+    type PanelProps = React.ComponentProps<typeof ReferencesPanel>;
+    const base = (): PanelProps => {
       const { session } = fakeSession();
       return {
         session,
@@ -108,7 +109,7 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
     it('reports the failure instead of an endless loading line', () => {
       render(
         <ReferencesPanel
-          {...(base() as any)}
+          {...base()}
           referencedBy={[]}
           referencedByLoading
           referencedByError={new Error('Resource not found')}
@@ -123,7 +124,7 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
       const onRetryReferencedBy = vi.fn();
       render(
         <ReferencesPanel
-          {...(base() as any)}
+          {...base()}
           referencedBy={[]}
           referencedByError={new Error('boom')}
           onRetryReferencedBy={onRetryReferencedBy}
@@ -137,7 +138,7 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
     it('with no error, a still-loading list keeps its loading affordance', () => {
       render(
         <ReferencesPanel
-          {...(base() as any)}
+          {...base()}
           referencedBy={[]}
           referencedByLoading
         />,
