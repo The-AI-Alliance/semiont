@@ -19,7 +19,8 @@ const translations: Record<string, string> = {
   'KnowledgeBasePanel.statusSignedOut': 'Signed out',
   'KnowledgeBasePanel.statusUnreachable': 'Unreachable',
   'KnowledgeBasePanel.unknownName': 'Unknown',
-  'KnowledgeBasePanel.identityUnverifiable': 'Connected, but could not determine which knowledge base this is.',
+  'KnowledgeBasePanel.identityCheckFailed': 'Signed in, but the identity check could not reach this knowledge base.',
+  'KnowledgeBasePanel.identityNotReported': 'Signed in, but this knowledge base did not report an identity.',
   'KnowledgeBasePanel.addressConflict': '{{count}} knowledge bases claim {{address}} — one is likely stale.',
   'KnowledgeBasePanel.connectToAddress': 'Connect to {{address}}',
   'KnowledgeBasePanel.connectedToOther': 'Connected to {{actual}}, not {{expected}}.',
@@ -130,12 +131,18 @@ vi.mock('@semiont/sdk', async () => {
   return { ...actual, SemiontClient: MockSemiontClient };
 });
 
+const { httpTransportConfigs } = vi.hoisted(() => ({ httpTransportConfigs: [] as any[] }));
+
 vi.mock('@semiont/http-transport', async () => {
   const actual = await vi.importActual<typeof import('@semiont/http-transport')>('@semiont/http-transport');
-  return {
-    ...actual,
-    SemiontClient: vi.fn(),
-  };
+  // Capture the transport config so a test can see whether the identity check
+  // was given a token source at all.
+  class MockHttpTransport {
+    config: any;
+    constructor(config: any) { this.config = config; httpTransportConfigs.push(config); }
+  }
+  class MockHttpContentTransport { constructor(_t: any) {} }
+  return { ...actual, HttpTransport: MockHttpTransport, HttpContentTransport: MockHttpContentTransport };
 });
 
 vi.mock('@semiont/core', async () => {
@@ -151,6 +158,7 @@ vi.mock('@semiont/core', async () => {
 describe('KnowledgeBasePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    httpTransportConfigs.length = 0;
     kbs$.next([kb1, kb2]);
     // Panel reads `activeKnowledgeBase` from `activeSession$?.kb`, so a session
     // with `kb: kb1` emulates "kb1 is active".
@@ -265,8 +273,41 @@ describe('KnowledgeBasePanel', () => {
       await connect();
 
       await waitFor(() => {
-        expect(screen.getByText(/could not determine which knowledge base/i)).toBeInTheDocument();
+        expect(screen.getByText(/identity check could not reach/i)).toBeInTheDocument();
       });
+      expect(mockBrowser.addKb).not.toHaveBeenCalled();
+    });
+
+    it('sends the access token with the identity check', async () => {
+      // The bug this pins (found live 2026-07-28): the throwaway client was
+      // built with no token source, so `/api/status` — which REQUIRES auth —
+      // was called unauthenticated and 401'd on every connect. Before P3a the
+      // 401 was swallowed and the label silently fell back to `host:port`;
+      // after P3a it blocked connecting outright. The session factory's
+      // `performValidate` had the correct pattern (seed `token$`) all along.
+      let tokenAtIdentityCheck: string | null = null;
+      mockAdminStatus.mockImplementation(async () => {
+        const source = httpTransportConfigs.find((c) => c?.token$);
+        tokenAtIdentityCheck = source?.token$?.getValue() ?? null;
+        return { projectName: 'Caselaw Knowledge Base', did: 'did:web:caselaw.example' };
+      });
+
+      await connect();
+
+      await waitFor(() => expect(mockBrowser.addKb).toHaveBeenCalled());
+      expect(tokenAtIdentityCheck).toBe('tok');
+    });
+
+    it('distinguishes an unreachable identity check from a KB that reports none', async () => {
+      // One message for both left the live failure undiagnosable from the UI.
+      mockAdminStatus.mockResolvedValue({ projectName: 'Nameless' });
+
+      await connect();
+
+      await waitFor(() => {
+        expect(screen.getByText(/did not report an identity/i)).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/could not reach/i)).not.toBeInTheDocument();
       expect(mockBrowser.addKb).not.toHaveBeenCalled();
     });
 
