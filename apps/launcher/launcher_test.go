@@ -2013,6 +2013,90 @@ func TestCodespaceWaitsForRemoteBeforeForwarding(t *testing.T) {
 	}
 }
 
+func TestCodespaceWaitsOutATransientSshOutage(t *testing.T) {
+	// Live 2026-07-28 (semiont-caselaw-kb): on a FRESH create sshd is
+	// installed during the devcontainer build, so ssh is unreachable exactly
+	// during the window the readiness gate exists for. Treating the first
+	// "cannot ask" as permanent skipped the wait, built the tunnel into a
+	// stack that was still coming up, and reproduced the original bug —
+	// politely, with a warning that predicted it.
+	//
+	// The launcher no longer waits on ssh at all when ssh cannot answer: it
+	// probes by FORWARDING, and a tunnel that dies "connection refused" is
+	// the not-ready answer, so it waits and retries. Same conclusion, no
+	// timer — and a codespace that never grows an sshd is never stalled.
+	s := newCodespaceScenario(t)
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_GH_SSH_FAIL_FIRST=2",  // sshd arrives on the 3rd attempt
+		"FAKERT_REMOTE_READY_AFTER=4") // the stack a beat after that
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code != 0 {
+		t.Fatalf("a late sshd must not fail the start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	both := stdout + stderr
+	// It must have WAITED, not bailed: the give-up warning names the grace
+	// period, and reaching it here would mean the outage was called permanent.
+	if strings.Contains(both, "continuing without the stack check") {
+		t.Errorf("a transient ssh outage was treated as permanent:\n%s", both)
+	}
+	if strings.Contains(both, "died") {
+		t.Errorf("the forward was built before the stack was ready:\n%s", both)
+	}
+}
+
+func TestCodespaceHookFailureFailsFastWithTheCause(t *testing.T) {
+	// Live 2026-07-27: the devcontainer hooks failed, the creation log said so
+	// in plain text — "postStartCommand from devcontainer.json failed with
+	// exit code 1" — and the launcher waited out its whole readiness budget
+	// anyway, because the log was rendered but never read. A stack whose setup
+	// failed will never come up; waiting is time spent on a foregone
+	// conclusion, and the eventual timeout blames the KB for a setup error.
+	//
+	// Failing FAST is only half of it: the marker is the announcement, not the
+	// reason. The cause sat ~18 lines above it (a backend refusing to boot),
+	// so the report must carry the run-up or it is merely quick and useless.
+	s := newCodespaceScenario(t)
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_GH_HOOKS_FAIL=1",
+		"FAKERT_REMOTE_DOWN=1") // the stack never answers, as it cannot
+	start := time.Now()
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	elapsed := time.Since(start)
+
+	if code == 0 {
+		t.Fatalf("a failed devcontainer setup must fail the start\nstdout:\n%s", stdout)
+	}
+	// The readiness budget is minutes; this must not approach it.
+	if elapsed > 90*time.Second {
+		t.Errorf("waited %s on hooks that had already failed", elapsed.Round(time.Second))
+	}
+	both := stdout + stderr
+	mustContain(t, "diagnosis", both,
+		"setup failed",          // named as a setup failure...
+		"postStartCommand",      // ...quoting the devcontainer's marker
+		"JWT_SECRET is not set", // ...and the CAUSE from the run-up
+		"gh codespace logs")     // ...with the way to see the rest
+	if strings.Contains(both, "did not come up inside") {
+		t.Errorf("a setup failure was reported as a readiness timeout:\n%s", both)
+	}
+	// The stream does NOT stop at the failure — the fake emits 30 trailing
+	// lines, as the real one does — and the readiness loop only looks every
+	// few seconds. Reporting from the LIVE ring would let those lines push the
+	// cause out of the window, so the context is snapshotted at the latch.
+	// The JWT assertion above proves the cause survived; this proves the
+	// window is not merely the tail of the stream.
+	if strings.Contains(both, "trailing 29") {
+		t.Errorf("the report window drifted past the failure into later output:\n%s", both)
+	}
+	// The marker is the headline. Repeating it inside its own run-up is noise,
+	// and its presence there would mean the snapshot included itself.
+	if i := strings.Index(both, "Log leading up to it:"); i >= 0 {
+		if strings.Contains(both[i:], "postStartCommand from devcontainer.json failed") {
+			t.Errorf("the marker is duplicated inside its own run-up:\n%s", both[i:])
+		}
+	}
+}
+
 func TestCodespaceForwardDeathFailsFast(t *testing.T) {
 	// The mid-wait forward death observed live 2026-07-23: the tunnel
 	// bound, then its process died while the health gate polled — and the

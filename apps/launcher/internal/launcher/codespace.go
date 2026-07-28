@@ -232,43 +232,23 @@ func startCodespace(u *ui, opts startOptions) int {
 	// Readiness is therefore asked over ssh, which does not touch the
 	// tunnel, and the tunnel is built only once the answer is yes. On a
 	// resume the first probe usually succeeds, so the fast path stays fast.
+	askable := true
 	if code := waitForRemoteKB(u, name, created); code != 0 {
-		return code
+		if code != remoteAskUnavailable {
+			return code
+		}
+		// ssh cannot tell us. Probing by FORWARDING is the same question
+		// asked through a different door: gh exits with "connection refused"
+		// when the remote port has nothing behind it, so a tunnel that dies
+		// that way IS the not-ready answer — and one that survives is both
+		// the answer and the tunnel we wanted.
+		askable = false
+		u.log("Cannot check the stack over ssh — probing by connecting instead")
 	}
-	pid, fwdDead, code := spawnForward(u, name, kbPort)
+	pid, fwdDead, code := establishForward(u, name, kbPort, askable)
 	if code != 0 {
 		return code
 	}
-	// A forward that never binds is the failure mode that wasted the whole
-	// health budget in testing: gh can exit, or stay up forwarding nothing.
-	// Confirm the port actually answers before gating on the stack.
-	bound := false
-	for i := 0; i < 30; i++ {
-		if forwardAlive(pid, kbPort) {
-			bound = true
-			break
-		}
-		// A forward that EXITED cannot bind later — the usual cause is the
-		// local port already being in use (gh fails "address already in
-		// use" and dies at once). Watching the same death channel the
-		// health gate uses turns 30s of vagueness into an instant, honest
-		// diagnosis naming the port.
-		select {
-		case <-fwdDead:
-			u.fail("The port forward exited before it could bind — localhost:%d is probably already in use.", kbPort)
-			fmt.Fprintf(os.Stderr, "  See what holds it:  lsof -ti :%d\n", kbPort)
-			fmt.Fprintf(os.Stderr, "  Try it directly:    gh codespace ports forward %d:%d -c %s\n", kbRemotePort, kbPort, name)
-			return 1
-		default:
-		}
-		time.Sleep(time.Second)
-	}
-	if !bound {
-		u.fail("The port forward did not come up on localhost:%d within 30s.", kbPort)
-		fmt.Fprintf(os.Stderr, "  Try it directly:  gh codespace ports forward %d:%d -c %s\n", kbRemotePort, kbPort, name)
-		return 1
-	}
-
 	// The record binds the stack to its executor before the health gate —
 	// belief, verified by status; a failed wait leaves an honest record.
 	newSt := &stackState{
@@ -724,12 +704,35 @@ type creationLogTail struct {
 	u        *ui
 	cmd      *exec.Cmd
 	mu       sync.Mutex
-	lines    []string // ring: the newest creationLogWindow lines
+	lines    []string // ring: the newest creationLogWindow lines (the display)
 	rendered int      // lines currently drawn on the terminal
 	lastBeat time.Time
+	// The display window is far too small to explain a failure: in the live
+	// case the devcontainer marker sat ~18 lines below the real cause (a
+	// backend refusing to boot), so a report built from `lines` would show
+	// the stack trace and none of the reason. This wider ring exists only to
+	// be printed when the hooks fail.
+	context []string
+	failed  string   // the marker line, latched on first sight
+	preMark []string // context AS OF the latch — see the scanner
 }
 
 const creationLogWindow = 6
+
+// creationLogContext is what gets printed when hooks fail — enough to carry
+// the cause above the marker, not so much that it buries it.
+const creationLogContext = 60
+
+// hookFailureContextLines is how much of that ring gets printed — enough to
+// reach past the devcontainer's own stack trace to the failing command's
+// output, without burying the marker.
+const hookFailureContextLines = 18
+
+// hookFailure matches the devcontainer CLI announcing that one of the
+// lifecycle commands failed. Only an explicit non-zero exit counts: the tail
+// ENDING is legal and must stay benign (gh can drop a follow for its own
+// reasons), so EOF is never a failure — this is the one signal that is.
+var hookFailure = regexp.MustCompile(`(onCreateCommand|updateContentCommand|postCreateCommand|postStartCommand) from devcontainer\.json failed with exit code [1-9][0-9]*`)
 
 // startCreationLogTail spawns the follower. CREATE path only: a resumed
 // codespace's creation log is stale history and tailing it would narrate
@@ -761,6 +764,21 @@ func startCreationLogTail(u *ui, name string) *creationLogTail {
 			lt.lines = append(lt.lines, line)
 			if len(lt.lines) > creationLogWindow {
 				lt.lines = lt.lines[len(lt.lines)-creationLogWindow:]
+			}
+			// Snapshot BEFORE this line joins the ring, so the saved context
+			// is what led UP TO the marker and excludes the marker itself.
+			// The stream does not stop at the failure — `gh … logs --follow`
+			// keeps emitting, and the readiness loop only looks every few
+			// seconds — so reporting from the live ring would let the arriving
+			// lines push the actual cause out of the window, and would print
+			// the marker twice.
+			if lt.failed == "" && hookFailure.MatchString(line) {
+				lt.failed = line
+				lt.preMark = append([]string(nil), lt.context...)
+			}
+			lt.context = append(lt.context, line)
+			if len(lt.context) > creationLogContext {
+				lt.context = lt.context[len(lt.context)-creationLogContext:]
 			}
 			lt.mu.Unlock()
 		}
@@ -834,6 +852,20 @@ func splitCRLines(data []byte, atEOF bool) (int, []byte, error) {
 
 // stop kills the follower and, on a terminal, collapses the window so the
 // final transcript keeps only the launcher's own lines.
+// failure reports the latched hook-failure marker and the surrounding log,
+// or "" while the hooks are merely still running. Nil-safe, like tick/stop.
+func (lt *creationLogTail) failure() (string, []string) {
+	if lt == nil {
+		return "", nil
+	}
+	lt.mu.Lock()
+	defer lt.mu.Unlock()
+	if lt.failed == "" {
+		return "", nil
+	}
+	return lt.failed, append([]string(nil), lt.preMark...)
+}
+
 func (lt *creationLogTail) stop() {
 	if lt == nil {
 		return
@@ -1420,15 +1452,35 @@ func waitForRemoteKB(u *ui, name string, created bool) int {
 			tail.stop()
 			return 0
 		case remoteUnknown:
-			// Cannot ask, so cannot wait: ssh is a nicety here, and a stack
-			// that is actually healthy must still start. Proceed to the
-			// forward — with the caveat named, because if the stack is NOT
-			// up this is precisely the case where the tunnel dies on first
-			// contact and the reason will look like a forward problem.
-			u.warn("Could not reach %s over ssh to check the stack — continuing without that check.", name)
-			fmt.Fprintln(os.Stderr, "  If the forward dies immediately, the stack inside the codespace is probably still coming up.")
+			// ssh cannot answer — on a fresh create sshd is still being
+			// installed, which is exactly this window. Say so and let the
+			// caller probe by FORWARDING instead: a tunnel into a stack that
+			// is not up dies with "connection refused", which is the same
+			// answer this probe would have given. Waiting on ssh here would
+			// stall a codespace that never grows an sshd; guessing "ready"
+			// would rebuild the original bug (live 2026-07-28, caselaw-kb).
 			tail.stop()
-			return 0
+			return remoteAskUnavailable
+		}
+		// Hooks that FAILED will never produce a stack, so waiting out the
+		// budget is time spent on a foregone conclusion — and the timeout
+		// message blames the KB for a setup error. The devcontainer says so
+		// in the log this wait is already streaming; read it.
+		if marker, context := tail.failure(); marker != "" {
+			tail.stop()
+			u.fail("The codespace's setup failed after %s — its stack will not come up.", took(time.Since(t0)))
+			fmt.Fprintln(os.Stderr, "  "+marker)
+			// The marker is the announcement, not the reason: print the run-up
+			// to it, which is where the failing command said what went wrong.
+			if n := len(context); n > 0 {
+				fmt.Fprintln(os.Stderr, "\n  Log leading up to it:")
+				for _, l := range context[max(0, n-hookFailureContextLines):] {
+					fmt.Fprintln(os.Stderr, "    "+l)
+				}
+			}
+			fmt.Fprintf(os.Stderr, "\n  Full log:  gh codespace logs -c %s\n", name)
+			fmt.Fprintf(os.Stderr, "  The codespace exists; delete it once fixed:  semiont stop --repo <owner/name> --delete\n")
+			return 1
 		}
 		if !time.Now().Before(deadline) {
 			break
@@ -1449,6 +1501,9 @@ const (
 	// One `gh codespace ssh` per probe — seconds of resolution would only
 	// buy ssh handshakes.
 	remoteReadyPoll = 5 * time.Second
+	// Sentinel return: ssh could not answer, so readiness is unknown and the
+	// caller must find out another way.
+	remoteAskUnavailable = -1
 )
 
 // remoteReadiness is what the codespace can tell us about its own stack.
@@ -1544,4 +1599,129 @@ func lastForwardError(pid int) string {
 		return ""
 	}
 	return fl.String()
+}
+
+// forwardOutcome is what one attempt at a tunnel told us. The distinction
+// that matters is remoteEmpty: it is the only one that means "try again",
+// because it says something about the STACK rather than the forward.
+type forwardOutcome int
+
+const (
+	forwardUp          forwardOutcome = iota // bound, and answering
+	forwardRemoteEmpty                       // died: nothing listening on the codespace side
+	forwardDied                              // died for any other reason
+	forwardNeverBound                        // stayed up but never took the port
+)
+
+// forwardBindTries bounds one attempt: a tunnel that has not bound in this
+// long is not going to.
+const forwardBindTries = 30
+
+// forwardSettle is how long a tunnel must outlive its first connection before
+// it counts as working — the death it may die arrives just after the dial.
+const forwardSettle = time.Second
+
+// tryForward makes one attempt and reports how it went, with gh's own last
+// words when it died.
+//
+// forwardAlive DIALS the port, which is what kills a tunnel whose remote is
+// empty. That is deliberate here: the death is the measurement.
+func tryForward(u *ui, name string, kbPort int) (int, <-chan struct{}, forwardOutcome, string) {
+	pid, dead, code := spawnForward(u, name, kbPort)
+	if code != 0 {
+		return 0, nil, forwardDied, ""
+	}
+	for i := 0; i < forwardBindTries; i++ {
+		if forwardAlive(pid, kbPort) {
+			// The dial that just succeeded is ALSO what kills a tunnel whose
+			// remote is empty: gh accepts locally, then fails to open the
+			// channel through and exits — so "the dial worked" is not "the
+			// tunnel works" (live 2026-07-28: the bind check passed and the
+			// forward died a second later). It has to survive being used.
+			select {
+			case <-dead:
+				ghErr := lastForwardError(pid)
+				if remoteRefused(ghErr) {
+					return pid, nil, forwardRemoteEmpty, ghErr
+				}
+				return pid, nil, forwardDied, ghErr
+			case <-time.After(forwardSettle):
+				return pid, dead, forwardUp, ""
+			}
+		}
+		select {
+		case <-dead:
+			ghErr := lastForwardError(pid)
+			if remoteRefused(ghErr) {
+				return pid, nil, forwardRemoteEmpty, ghErr
+			}
+			return pid, nil, forwardDied, ghErr
+		default:
+		}
+		time.Sleep(time.Second)
+	}
+	return pid, nil, forwardNeverBound, lastForwardError(pid)
+}
+
+// establishForward brings up the port forward, retrying while the tunnel dies
+// because the remote side is not listening YET.
+//
+// When ssh answered (askable), the stack is already known healthy, so any
+// death is a genuine forward fault and is reported at once. When ssh could
+// not answer, the tunnel is the only instrument left: gh exits with
+// "connection refused" while the remote port is empty, so that death means
+// "not ready" and the answer is to wait and try again — not to fail, and not
+// to assume the stack is up, which is what rebuilt the original bug
+// (live 2026-07-28, semiont-caselaw-kb).
+func establishForward(u *ui, name string, kbPort int, askable bool) (int, <-chan struct{}, int) {
+	deadline := time.Now().Add(remoteReadyBudget)
+	announced := false
+	for {
+		pid, dead, outcome, ghErr := tryForward(u, name, kbPort)
+		if outcome == forwardUp {
+			return pid, dead, 0
+		}
+		// The one retriable case, and only while we have no better instrument.
+		if outcome == forwardRemoteEmpty && !askable && time.Now().Before(deadline) {
+			if !announced {
+				u.log("The stack is not accepting connections yet — waiting for it %s",
+					u.dim("(the codespace is still coming up)"))
+				announced = true
+			}
+			retireForward(pid)
+			time.Sleep(remoteReadyPoll)
+			continue
+		}
+		retireForward(pid)
+		switch outcome {
+		case forwardNeverBound:
+			u.fail("The port forward did not come up on localhost:%d within %ds.", kbPort, forwardBindTries)
+		case forwardRemoteEmpty:
+			u.fail("Nothing is listening on the codespace's port %d — its stack is not up.", kbRemotePort)
+		default:
+			u.fail("The port forward exited before it could bind — localhost:%d is probably already in use.", kbPort)
+			fmt.Fprintf(os.Stderr, "  See what holds it:  lsof -ti :%d\n", kbPort)
+		}
+		if ghErr != "" {
+			fmt.Fprintf(os.Stderr, "  gh said: %s\n", ghErr)
+		}
+		fmt.Fprintf(os.Stderr, "  Try it directly:  gh codespace ports forward %d:%d -c %s\n", kbRemotePort, kbPort, name)
+		return 0, nil, 1
+	}
+}
+
+// retireForward ends an attempt: nothing from it may outlive the try, and the
+// next attempt needs the local port back.
+func retireForward(pid int) {
+	if pid == 0 {
+		return
+	}
+	_ = syscall.Kill(pid, syscall.SIGTERM)
+	time.Sleep(200 * time.Millisecond) // let the bind release
+}
+
+// remoteRefused recognises gh reporting that the codespace end of the tunnel
+// has nothing listening — the stack is still coming up, not a broken forward.
+func remoteRefused(ghErr string) bool {
+	return strings.Contains(ghErr, "connect failed") || strings.Contains(ghErr, "Connection refused")
 }
