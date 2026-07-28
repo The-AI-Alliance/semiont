@@ -1,16 +1,10 @@
 'use client';
 
-import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { capabilitiesOf, resourceId as toResourceId } from '@semiont/core';
 import { ANNOTATORS } from '../../lib/annotation-registry';
-import { segmentTextWithAnnotations } from '../../lib/text-segmentation';
 import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';
-import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
-
-// Lazy load PDF component to avoid SSR issues with browser PDF.js loading
-const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
-
-import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
+import { defaultAnnotateRenderers, type AnnotateMediaRenderers } from './annotate-renderers';
 import type { EditorView } from '@codemirror/view';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
@@ -48,6 +42,8 @@ interface Props {
   onModeChange?: (mode: boolean) => void;
   /** Render the built-in bar (default). false → no bar; selection capture and drawing stay live. */
   showToolbar?: boolean;
+  /** Override the annotating media renderers (render mode → renderer); merged over the defaults. */
+  renderers?: AnnotateMediaRenderers;
 }
 
 /**
@@ -73,6 +69,7 @@ export function AnnotateView({
   newAnnotationIds,
   onModeChange,
   showToolbar = true,
+  renderers,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -81,7 +78,6 @@ export function AnnotateView({
   const { highlights, references, assessments, comments, tags } = annotations;
 
   const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
-  const segments = segmentTextWithAnnotations(content, allAnnotations);
 
   // Extract UI state
   const { selectedMotivation, selectedClick, selectedShape, hoveredAnnotationId, scrollToAnnotationId } = uiState;
@@ -196,135 +192,71 @@ export function AnnotateView({
     };
   }, [selectedMotivation, content, resourceUri]);
 
-  // Route to the annotation viewer for this media type's render mode.
-  switch (render) {
-    case 'text':
-      return (
-        <div className="semiont-annotate-view" data-mime-type="text" ref={containerRef}>
-          {showToolbar && (
-          <AnnotateToolbar
-            selectedMotivation={selectedMotivation}
-            selectedClick={selectedClick}
-            selectedShape={selectedShape}
-            mediaType={mimeType}
-            annotateMode={annotateMode}
-            annotators={ANNOTATORS}
-            onModeChange={onModeChange}
-            onClickActionChange={handleToolbarClickActionChange}
-            onSelectionChange={handleToolbarSelectionChange}
-            onShapeChange={handleToolbarShapeChange}
-          />
-          )}
-          <div className="semiont-annotate-view__content">
-            <CodeMirrorRenderer
-            content={content}
-            segments={segments}
-            editable={false}
-            newAnnotationIds={newAnnotationIds}
-            {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
-            {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
-            sourceView={true}
-            showLineNumbers={showLineNumbers}
-            hoverDelayMs={hoverDelayMs}
-            enableWidgets={enableWidgets}
-            session={session}
-            {...(getTargetResourceName && { getTargetResourceName })}
-            {...(generatingReferenceId !== undefined && { generatingReferenceId })}
-          />
+  // One shell for every render mode; the registry supplies the content.
+  // Previously a three-way `switch` that repeated this wrapper, the toolbar
+  // block and the content div verbatim in each branch — any toolbar prop
+  // change had to be made three times and stayed correct only by vigilance.
+  // See .plans/ANNOTATE-RENDERER-REGISTRY.md
+  const mediaRenderers: AnnotateMediaRenderers = { ...defaultAnnotateRenderers, ...renderers };
+  const Renderer = mediaRenderers[render];
 
-          </div>
+  // D4: a registry MISS is explicit here, unlike the browse side where it
+  // falls through to text harmlessly. Annotating an unknown type is not
+  // harmless, and the toolbar is deliberately absent in this branch.
+  if (!Renderer) {
+    return (
+      <div ref={containerRef} className="semiont-annotate-view semiont-annotate-view--unsupported" data-mime-type="unsupported">
+        <div className="semiont-annotate-view__empty">
+          <p className="semiont-annotate-view__empty-message">
+            Annotation not supported for {mimeType}
+          </p>
+          <a
+            href={`/api/resources/${resourceUri}`}
+            download
+            className="semiont-button semiont-button--primary"
+          >
+            Download File
+          </a>
         </div>
-      );
-
-    case 'pdf':
-      // PDF annotation support (spatial, FragmentSelector)
-      return (
-        <div className="semiont-annotate-view" data-mime-type="pdf" ref={containerRef}>
-          {showToolbar && (
-          <AnnotateToolbar
-            selectedMotivation={selectedMotivation}
-            selectedClick={selectedClick}
-            selectedShape={selectedShape}
-            mediaType={mimeType}
-            annotateMode={annotateMode}
-            annotators={ANNOTATORS}
-            onModeChange={onModeChange}
-            onClickActionChange={handleToolbarClickActionChange}
-            onSelectionChange={handleToolbarSelectionChange}
-            onShapeChange={handleToolbarShapeChange}
-          />
-          )}
-          <div className="semiont-annotate-view__content">
-            {content && (
-              <Suspense fallback={<div className="semiont-annotate-view__loading">Loading PDF viewer...</div>}>
-                <PdfAnnotationCanvas
-                  pdfUrl={content}
-                  resourceUri={resourceUri}
-                  existingAnnotations={allAnnotations}
-                  drawingMode={selectedMotivation ? selectedShape : null}
-                  selectedMotivation={selectedMotivation}
-                  session={session}
-                  hoveredAnnotationId={hoveredAnnotationId || null}
-                  hoverDelayMs={hoverDelayMs}
-                />
-              </Suspense>
-            )}
-          </div>
-        </div>
-      );
-
-    case 'image':
-      // PNG, JPEG, etc. - full annotation support
-      return (
-        <div className="semiont-annotate-view" data-mime-type="image" ref={containerRef}>
-          {showToolbar && (
-          <AnnotateToolbar
-            selectedMotivation={selectedMotivation}
-            selectedClick={selectedClick}
-            selectedShape={selectedShape}
-            mediaType={mimeType}
-            annotateMode={annotateMode}
-            annotators={ANNOTATORS}
-            onModeChange={onModeChange}
-            onClickActionChange={handleToolbarClickActionChange}
-            onSelectionChange={handleToolbarSelectionChange}
-            onShapeChange={handleToolbarShapeChange}
-          />
-          )}
-          <div className="semiont-annotate-view__content">
-            {content && (
-              <SvgDrawingCanvas
-                imageUrl={content}
-                resourceUri={resourceUri}
-                existingAnnotations={allAnnotations}
-                drawingMode={selectedMotivation ? selectedShape : null}
-                selectedMotivation={selectedMotivation}
-                session={session}
-                hoveredAnnotationId={hoveredAnnotationId || null}
-                hoverDelayMs={hoverDelayMs}
-              />
-            )}
-          </div>
-        </div>
-      );
-
-    case 'none':
-    default:
-      return (
-        <div ref={containerRef} className="semiont-annotate-view semiont-annotate-view--unsupported" data-mime-type="unsupported">
-          <div className="semiont-annotate-view__empty">
-            <p className="semiont-annotate-view__empty-message">
-              Annotation not supported for {mimeType}
-            </p>
-            <a
-              href={`/api/resources/${resourceUri}`}
-              download
-              className="semiont-button semiont-button--primary"
-            >
-              Download File
-            </a>
-          </div>
-        </div>
-      );
+      </div>
+    );
   }
+
+  return (
+    <div className="semiont-annotate-view" data-mime-type={render} ref={containerRef}>
+      {showToolbar && (
+        <AnnotateToolbar
+          selectedMotivation={selectedMotivation}
+          selectedClick={selectedClick}
+          selectedShape={selectedShape}
+          mediaType={mimeType}
+          annotateMode={annotateMode}
+          annotators={ANNOTATORS}
+          onModeChange={onModeChange}
+          onClickActionChange={handleToolbarClickActionChange}
+          onSelectionChange={handleToolbarSelectionChange}
+          onShapeChange={handleToolbarShapeChange}
+        />
+      )}
+      <div className="semiont-annotate-view__content">
+        <Renderer
+          content={content}
+          mimeType={mimeType}
+          resourceUri={resourceUri}
+          annotations={allAnnotations}
+          session={session}
+          drawingMode={selectedMotivation ? selectedShape : null}
+          selectedMotivation={selectedMotivation}
+          hoveredAnnotationId={hoveredAnnotationId}
+          hoverDelayMs={hoverDelayMs}
+          newAnnotationIds={newAnnotationIds}
+          scrollToAnnotationId={scrollToAnnotationId}
+          showLineNumbers={showLineNumbers}
+          enableWidgets={enableWidgets}
+          {...(getTargetResourceName && { getTargetResourceName })}
+          generatingReferenceId={generatingReferenceId}
+        />
+      </div>
+    </div>
+  );
 }
