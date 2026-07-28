@@ -1,6 +1,6 @@
 # Local Backend Setup
 
-Run the Semiont backend locally. Both paths below use `~/.semiontconfig` for inference providers, database credentials, graph, and vector store settings — see the **[Configuration Guide](./administration/CONFIGURATION.md)**.
+Run the Semiont backend locally. Inference providers, database credentials, graph, and vector store settings all come from the KB's own `.semiont/semiontconfig/<name>.toml` — see the **[Configuration Guide](./administration/CONFIGURATION.md)**.
 
 For a stack on GitHub's machine rather than your own, the launcher's codespace placement (`semiont start --runtime codespace`) is covered in **[Knowledge Bases](../KNOWLEDGE-BASES.md)**.
 
@@ -47,7 +47,7 @@ The authoritative compose files and inference presets live in the [semiont-templ
 
 | Path | Contents |
 |------|----------|
-| `~/.semiontconfig` | Global config: inference, database, graph credentials (mounted into the backend) |
+| `.semiont/semiontconfig/<name>.toml` | Environment config: inference, database, graph credentials (committed; the launcher stages a copy and mounts it into each service at `~/.semiontconfig`) |
 | `.semiont/config` | Project anchor: KB name and `did:web` site identity (committed) |
 | `.semiont/events/` | The event log — system of record (committed) |
 

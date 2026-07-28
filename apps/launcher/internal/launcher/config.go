@@ -79,6 +79,20 @@ type envConfig struct {
 	Database  *databaseCfg           `toml:"database"`
 	Actors    map[string]bindingCfg  `toml:"actors"`
 	Workers   map[string]bindingCfg  `toml:"workers"`
+	// Site is read ONLY to detect that it exists (KB-IDENTITY-VS-ADDRESS P4).
+	// The launcher never writes one — confgen.go emits no [site] section — so
+	// its presence means a human added it, and the backend's TOML loader then
+	// resolves the AGENTS' domain from it instead of the KB's committed
+	// .semiont/config. The launcher does not act on the value; it reports the
+	// divergence and lets the operator judge.
+	Site *siteCfg `toml:"site"`
+}
+
+// siteCfg mirrors only what the identity check needs. Domain is a pointer so
+// "section present, domain absent" — the case that silently becomes
+// 'localhost' — is distinguishable from "no section at all".
+type siteCfg struct {
+	Domain *string `toml:"domain"`
 }
 
 type backendCfg struct {

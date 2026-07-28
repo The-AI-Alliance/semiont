@@ -58,6 +58,7 @@ vi.mock('@semiont/react-ui', async () => {
 });
 
 const DISCOVERED = {
+  did: 'did:web:local.example',
   host: 'localhost',
   port: 4001,
   placement: 'local' as const,

@@ -16,88 +16,75 @@ Complete guide to local development workflows, common tasks, debugging, and trou
 - [CSS and Styling Workflow](#css-and-styling-workflow)
 - [Related Documentation](#related-documentation)
 
-## Local Development with Semiont CLI
+## Local Development with the `semiont` launcher
 
-The recommended way to develop the frontend is using the Semiont CLI, which automatically manages dependencies and environment configuration.
+A running stack comes from the [`semiont` launcher](../../launcher/README.md) — a
+host-installed binary that drives your container runtime. It is run **from a
+knowledge-base repo**, not from this monorepo: the KB supplies the config, the
+launcher pulls the service images.
 
-###Essential Commands
+### Essential commands
 
 ```bash
-# Set your environment once
-export SEMIONT_ENV=local
+# From inside a KB clone
+semiont start                     # The whole stack, plus the Browser on :3000
+semiont status                    # Per-service container state + health probes
+semiont logs                      # Follow all services, [svc]-prefixed
+semiont stop                      # Tear the stack down
 
-# Full stack development
-semiont start              # Start everything (database + backend + frontend)
-semiont stop               # Stop all services
-semiont status              # Check service health
-
-# Frontend development
-semiont start --service frontend  # Start frontend only
-semiont stop --service frontend   # Stop frontend service
-
-# Backend + database
-semiont start --service backend   # Start backend only
-semiont start --service database  # Start database only
-semiont start --service backend   # Restart backend, leaving the rest of the stack up
+# One service at a time (backend | frontend | worker | smelter | weaver | database)
+semiont start --service backend   # Start or restart just the backend
+semiont stop --service frontend   # Close the Browser (it survives a bare `stop`)
 ```
 
-### Development Modes
+`semiont start --config <name>` picks which of the KB's
+`.semiont/semiontconfig/*.toml` to run (`--list-configs` lists them), and
+`semiont start --dry-run` prints the exact runtime commands a real run would
+execute.
 
-**1. Full Stack Development** (`semiont start`)
-- Complete development environment in one command
-- PostgreSQL container with schema applied automatically
-- Backend API with database connection
-- Frontend with real API integration
-- **Perfect for full-stack feature development**
+### Two development modes
 
-**2. Frontend-Only Development** (`semiont start --service frontend`)
-- Start just the frontend service
-- Configure mock API in environment settings if needed
-- Fast iteration for UI/UX work
-- **Perfect for component development and styling**
+**Against a stack, iterating on this package** — start the stack, then run the
+Vite dev server from `apps/frontend` with `npm run dev` and point it at the
+running backend on `:4000`. Fast HMR against real data; the stack's own frontend
+container keeps serving the built SPA on `:3000` independently.
 
-**3. Backend-Connected Development** (`semiont start`, then iterate with `npm run dev`)
-- Start backend and frontend together
-- Real API integration
-- **Perfect for testing API integration**
+**Against locally built images** — when your change needs to be exercised as the
+*shipped* container (or you changed a package the backend imports), rebuild with
+[`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) and restart the
+stack with `SEMIONT_VERSION=local semiont start`. Without that variable the
+launcher pulls the published images and your changes are invisible.
 
-**4. Manual Development** (`npm run dev` - traditional approach)
-- Requires manual backend/database setup
-- Full control over environment configuration
-- **For developers who prefer manual environment management**
+### What the launcher gives you
 
-### Why Use Semiont CLI for Frontend?
+- **One command, whole stack** — five Semiont services plus PostgreSQL, Neo4j,
+  Qdrant, and Ollama, wired together.
+- **No per-project install** — `@semiont/frontend` ships inside the frontend
+  image; nothing to `npm install` per KB.
+- **Runtime flexibility** — Apple Container, Docker, or Podman, auto-detected
+  (`--runtime` forces one).
+- **The Browser is machine-level** — any `start` ensures it, and it survives
+  `stop`, because it views every KB rather than belonging to one.
 
-- **Smart Dependencies**: Frontend auto-starts backend when needed
-- **Consistent Environment**: Everyone gets identical setup
-- **Zero Configuration**: No environment files, API URLs, or manual setup
-- **No Separate Install**: `@semiont/frontend` is bundled with the CLI — `semiont provision` just creates runtime directories
-- **Easy Reset**: Fresh database with sample data via `--reset`
-- **Focused Development**: Mock mode for UI work, real API mode for integration
-- **Container Runtime Flexibility**: Works with Apple Container, Docker, or Podman (auto-detected)
+### First-time setup
 
-### Development Workflow with Semiont CLI
-
-**First time setup** (run once):
 ```bash
-cd /your/project/root
-npm install  # Installs dependencies for all apps
-semiont init --name "my-project"  # Initialize configuration
-export SEMIONT_ENV=local  # Set default environment
+brew install the-ai-alliance/semiont/semiont
+git clone <a-kb-repo> && cd <a-kb-repo>
+semiont start
+semiont useradd --email admin@example.com --admin   # prompts for the password
 ```
 
-**Frontend-focused development** (UI/UX work):
+**Browser only** (point it at an existing KB):
 ```bash
 semiont start --service frontend
-# Only frontend running (configure mock API in environment if needed)
-# Perfect for component development, styling, layout work
+# Serves the built SPA on :3000; connect it to any running backend
 ```
 
 **Full-stack development** (feature work):
 ```bash
 semiont start
-# Complete environment: database + backend + frontend
-# Perfect for implementing features that need real API integration
+# Five Semiont services + PostgreSQL, Neo4j, Qdrant, Ollama
 ```
 
 **Backend integration testing**:
@@ -127,7 +114,7 @@ If you prefer manual setup or need to understand the internals:
 
 **1. Standard Development** (`npm run dev`)
 - Uses Vite dev server with hot reload
-- Requires backend API running on port 3001
+- Requires backend API running on port 4000
 
 **2. Mock API Development** (`npm run dev:mock`) - Recommended for UI work
 - Starts mock API server on port 3001

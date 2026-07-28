@@ -120,7 +120,7 @@ For the wire-level event protocol, see **[../protocol/EVENT-BUS.md](../protocol/
 
 ## Deployment platforms
 
-Services run on different platforms, configured in `~/.semiontconfig` per environment. Each platform is a different adapter for hosting the same npm packages — the partition into "frontend / backend / worker / smelter" is a deployment choice (which adapter you pick), not an architectural one.
+Services run on different platforms, configured per environment in the KB's `.semiont/semiontconfig/<name>.toml`. Each platform is a different adapter for hosting the same npm packages — the partition into "frontend / backend / worker / smelter" is a deployment choice (which adapter you pick), not an architectural one.
 
 ### How stacks are run
 
@@ -147,16 +147,11 @@ The constraint is the **port contracts** — the bus (`/bus/emit`, `/bus/subscri
 
 Two layers, easy to conflate:
 
-- **Operator entry points.** A KB stack is driven by the host-installed [`semiont` launcher](../../apps/launcher/README.md) — `semiont start` / `logs` / `status` / `stop` (runtime-portable, `--runtime` to force one) — or by `docker compose` against `.semiont/compose/backend.yml`. Operators do not invoke the Semiont CLI directly.
+- **Operator entry points.** A KB stack is driven by the host-installed [`semiont` launcher](../../apps/launcher/README.md) — `semiont start` / `logs` / `status` / `stop` (runtime-portable, `--runtime` to force one) — or by `docker compose` against `.semiont/compose/backend.yml`.
   In **Codespaces both are true at once**, at different layers: `semiont start --runtime codespace` drives the outside (create/resume the VM, wait for health, forward the KB, read credentials, stop or delete), while *inside* the codespace the devcontainer hooks bring the stack up with `docker compose` exactly as above. The launcher never reaches into the container to manage services.
-- **The CLI inside the containers.** Each published image's entrypoint uses the Semiont CLI to provision and start its own service (e.g. the backend runs `semiont provision --service backend && semiont start --service backend`). Monorepo developers on the POSIX platform can drive the same CLI directly:
+- **No CLI inside the containers.** Each published image runs its own service directly, as PID 1. The backend image derives `DATABASE_URL`, applies pending Prisma migrations, then `exec`s `node dist/index.js`; the frontend image runs `node node_modules/@semiont/frontend/server.js`. Nothing in an image shells out to a Semiont CLI.
 
-```bash
-semiont start --environment local
-semiont status
-```
-
-See **[CLI Documentation](../../apps/cli/README.md)** and **[administration/CONFIGURATION.md](administration/CONFIGURATION.md)** for full configuration details.
+See **[the launcher](../../apps/launcher/README.md)** and **[administration/CONFIGURATION.md](administration/CONFIGURATION.md)** for full configuration details.
 
 For the per-service catalog (storage, AI, infrastructure), see **[services/OVERVIEW.md](services/OVERVIEW.md)**.
 For how stacks are deployed, and what running them elsewhere would require of you, see **[administration/DEPLOYMENT.md](administration/DEPLOYMENT.md)**; for how the images are built and published, **[administration/IMAGES.md](administration/IMAGES.md)**.

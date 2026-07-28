@@ -38,6 +38,7 @@ const KB = {
   id: 'kb-factory',
   label: 'Factory KB',
   email: 'me@example.com',
+  did: 'did:web:example.github.io:test-kb',
   endpoint: { kind: 'http' as const, host: 'localhost', port: 4000, protocol: 'http' as const },
 };
 

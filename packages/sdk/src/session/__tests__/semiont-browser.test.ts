@@ -42,12 +42,14 @@ const KB_A = {
   id: 'kb-a',
   label: 'KB A',
   email: 'a@example.com',
+  did: 'did:web:example.github.io:kb-a',
   endpoint: { kind: 'http' as const, host: 'localhost', port: 4000, protocol: 'http' as const },
 };
 const KB_B = {
   id: 'kb-b',
   label: 'KB B',
   email: 'b@example.com',
+  did: 'did:web:example.github.io:kb-b',
   endpoint: { kind: 'http' as const, host: 'example.com', port: 443, protocol: 'https' as const },
 };
 
@@ -110,7 +112,7 @@ describe('SemiontBrowser — KB list', () => {
   it('addKb persists to storage and activates the new KB', async () => {
     const browser = makeBrowser();
     const kb = browser.addKb(
-      { label: KB_A.label, email: KB_A.email, endpoint: KB_A.endpoint },
+      { label: KB_A.label, email: KB_A.email, did: KB_A.did, endpoint: KB_A.endpoint },
       freshJwt(),
       'refresh',
     );
@@ -122,15 +124,64 @@ describe('SemiontBrowser — KB list', () => {
     await browser.dispose();
   });
 
+  it("round-trips a KB's did through registration and storage (identity survives a reload)", async () => {
+    // The did is what a client joins discovered KBs to connected ones on
+    // (.plans/KB-IDENTITY-VS-ADDRESS.md). It is captured once at auth time
+    // from the KB's own /api/status, so if registration or the storage
+    // round-trip dropped it the join would silently never match — the
+    // failure mode this whole plan exists to end. Pinned here because
+    // `isKnowledgeBase` validates required fields only: a future rewrite
+    // that normalizes entries could quietly strip optional identity.
+    const DID = 'did:web:the-ai-alliance.github.io:semiont-caselaw-kb';
+    const browser = makeBrowser();
+    const kb = browser.addKb(
+      { label: KB_A.label, email: KB_A.email, endpoint: KB_A.endpoint, did: DID },
+      freshJwt(),
+      'refresh',
+    );
+
+    expect(kb.did).toBe(DID);
+    expect(browser.kbs$.getValue().find((k) => k.id === kb.id)?.did).toBe(DID);
+
+    // …and survives the persist/rehydrate cycle a page reload performs.
+    const persisted = JSON.parse(storage.get(STORAGE_KEY) ?? '[]') as Array<{ id: string; did?: string }>;
+    expect(persisted.find((k) => k.id === kb.id)?.did).toBe(DID);
+
+    await browser.dispose();
+
+    const reloaded = makeBrowser(); // same storage — a fresh page load
+    expect(reloaded.kbs$.getValue().find((k) => k.id === kb.id)?.did).toBe(DID);
+    await reloaded.dispose();
+  });
+
+  it('drops a stored KB that predates the did requirement, rather than loading one without identity', async () => {
+    // Decision 8 made `did` required; entries persisted before it have none.
+    // Loading them would satisfy the type only by lying — the identity join
+    // would compare against `undefined` and silently never match. Per the
+    // storage stance (no back-compat layer) they drop and the user re-adds:
+    // a one-time list clear, in exchange for every loaded KB actually having
+    // the identity its type promises.
+    storage.set(STORAGE_KEY, JSON.stringify([
+      { id: 'legacy', label: 'Pre-did KB', email: 'a@example.com', endpoint: KB_A.endpoint },
+      { id: 'current', label: 'KB A', email: 'a@example.com', endpoint: KB_A.endpoint, did: 'did:web:example.github.io:kb-a' },
+    ]));
+
+    const browser = makeBrowser();
+    const ids = browser.kbs$.getValue().map((k) => k.id);
+
+    expect(ids).toEqual(['current']);
+    await browser.dispose();
+  });
+
   it('removeKb clears the KB and, if active, activates a fallback (or null)', async () => {
     const browser = makeBrowser();
     const a = browser.addKb(
-      { label: KB_A.label, email: KB_A.email, endpoint: KB_A.endpoint },
+      { label: KB_A.label, email: KB_A.email, did: KB_A.did, endpoint: KB_A.endpoint },
       freshJwt(),
       'r',
     );
     const b = browser.addKb(
-      { label: KB_B.label, email: KB_B.email, endpoint: KB_B.endpoint },
+      { label: KB_B.label, email: KB_B.email, did: KB_B.did, endpoint: KB_B.endpoint },
       freshJwt(),
       'r',
     );
@@ -147,7 +198,7 @@ describe('SemiontBrowser — KB list', () => {
   it('updateKb edits the record in kbs$', async () => {
     const browser = makeBrowser();
     const kb = browser.addKb(
-      { label: KB_A.label, email: KB_A.email, endpoint: KB_A.endpoint },
+      { label: KB_A.label, email: KB_A.email, did: KB_A.did, endpoint: KB_A.endpoint },
       freshJwt(),
       'r',
     );

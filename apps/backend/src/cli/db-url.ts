@@ -43,8 +43,7 @@ if (!projectRoot) {
 }
 
 try {
-  const env = process.env.SEMIONT_ENV ?? 'local';
-  process.stdout.write(databaseUrlFrom(loadEnvironmentConfig(projectRoot, env)));
+  process.stdout.write(databaseUrlFrom(loadEnvironmentConfig(projectRoot)));
 } catch (error) {
   process.stderr.write(
     `Could not derive DATABASE_URL from config: ${error instanceof Error ? error.message : String(error)}\n` +

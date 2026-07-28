@@ -6,7 +6,7 @@
 import { vi, beforeAll, afterEach, afterAll } from 'vitest';
 import { setupServer } from 'msw/node';
 import { handlers } from './mocks/server';
-import { promises as fs } from 'fs';
+import { promises as fs, mkdirSync, writeFileSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import type { EnvironmentConfig } from '@semiont/core';
 
@@ -83,6 +83,23 @@ process.env.NODE_ENV = 'test';
 process.env.SEMIONT_ENV = 'unit';
 process.env.SEMIONT_ROOT = testDir;
 process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
+
+// The KB's own committed config. Written SYNCHRONOUSLY here, not in
+// `beforeAll`: boot reads it when a test file imports the app, which for some
+// files happens at module load — before any hook has run.
+//
+// `[site] domain` is the KB's permanent identity, and boot now refuses a KB
+// without one (KB-IDENTITY-VS-ADDRESS decision 8), so a fixture lacking it is
+// not a valid knowledge base. The value mirrors the mocked environment
+// config's `site.domain` on purpose: matching keeps these fixtures in the
+// ordinary, non-diverged case and therefore silent (a mismatch warns —
+// decision 10).
+mkdirSync(`${testDir}/.semiont`, { recursive: true });
+writeFileSync(
+  `${testDir}/.semiont/config`,
+  '[project]\nname = "semiont-backend-unit"\n\n[site]\ndomain = "localhost"\n',
+  'utf-8',
+);
 
 // Setup MSW server for mocking HTTP requests
 const server = setupServer(...handlers);

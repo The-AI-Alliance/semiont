@@ -1,51 +1,69 @@
 # Secrets Management
 
-Semiont stores secrets in a dedicated file outside the project directory, separate from `~/.semiontconfig`, following XDG conventions.
+Two kinds of secret reach a running stack, and the launcher treats them
+differently: it generates and keeps the backend's token-signing key, and it only
+*points at* everything else.
 
-## Secrets File
+## The backend's JWT secret
 
-**Path**: `$XDG_CONFIG_HOME/semiont/secrets` (default: `~/.config/semiont/secrets`)
-**Permissions**: mode 0600 (owner read/write only)
-**Format**: TOML
+`JWT_SECRET` signs and validates bearer tokens. The frontend never sees it — it
+holds only the bearer token the backend returns. The backend refuses to start if
+it is unset or shorter than 32 characters.
 
-```toml
-[secrets]
-JWT_SECRET = "..."   # Backend-only: signs and validates bearer JWTs
+`semiont start` resolves it in this order:
+
+1. `$JWT_SECRET` from the environment, when set
+2. the KB root's `jwt-secret` file, mode 0600
+3. a freshly generated 64-hex-character value, persisted to that file before use
+
+**Path**: `~/Library/Application Support/semiont/roots/<root>/jwt-secret` on
+macOS; `$XDG_DATA_HOME/semiont/roots/<root>/jwt-secret` on Linux
+(`~/.local/share/semiont/` when that variable is unset).
+
+Per-root and persistent, both deliberately: the secret signs tokens for the users
+in that root's PostgreSQL store, so it shares their lifecycle. A new secret
+invalidates every token already issued. An unscoped `semiont clean` removes the
+root's state directory and this secret with it — consistent, since the accounts
+those tokens name are in the PostgreSQL data being removed. A `--store` clean
+keeps it.
+
+`SEMIONT_WORKER_SECRET` (the backend/sidecar agent-token exchange) follows the
+opposite rule: generated per run unless you export one, because every consumer is
+a container started in that same run and nothing outlives it.
+
+## Config secrets — pointers, not values
+
+Inference API keys and the like are never stored by the launcher. `semiont secret`
+registers *where a value comes from* — a `{provider, path}` pointer, machine-wide
+in `roots.json` — and every `semiont start` reads it fresh by running the
+provider's own CLI with the terminal attached, so its authorization prompt works.
+
+```bash
+semiont secret set ANTHROPIC_API_KEY                          # interactive
+semiont secret set ANTHROPIC_API_KEY op://OSS/Anthropic/credential
+semiont secret list                                           # pointers, never values
+semiont secret rm ANTHROPIC_API_KEY
 ```
 
-This file is:
-- Never committed to version control
-- Never synced or backed up by default (unlike `~/.semiontconfig`)
-- Generated automatically by `semiont provision` on first run (generates a random JWT secret)
-- Read by `semiont start` — secrets are merged into the environment of spawned processes
+Exporting the variable yourself always wins, and is the escape hatch on a machine
+with no secret manager installed.
 
-## JWT Secret
+**Providers**: 1Password today — `op://<vault>/<item>/<field>`, requires the `op`
+CLI on PATH. The URI scheme selects from a provider registry; supporting an OS
+keychain or a cloud secrets manager means adding an entry to it.
 
-The JWT secret is used by the **backend** to sign and validate bearer tokens. The frontend is a pure SPA and never sees it — it only holds the bearer token the backend returns. Storing the secret in the secrets file ensures it persists across re-provisions without ever appearing in a config file that might be synced or accidentally committed.
+### Codespace stacks
 
-### First provision
-```
-semiont provision
-# → No secrets file found. Generating JWT secret...
-# → Wrote ~/.config/semiont/secrets (mode 0600)
-```
+A codespace runs on GitHub's machine and cannot reach your local provider, so the
+value has to live there too:
 
-### Subsequent provisions
-```
-semiont provision
-# → Secrets file found. Using existing JWT secret.
+```bash
+semiont secret push ANTHROPIC_API_KEY --repo owner/name
 ```
 
-## Future: External Secret Stores
-
-The secrets file can be replaced by an OS keychain or external secrets manager — analogous to `git config --global credential.helper osxkeychain`. Planned support includes:
-
-- macOS Keychain (`osxkeychain`)
-- AWS Secrets Manager
-- HashiCorp Vault
-- 1Password
-
-When an external store is configured, `semiont start` retrieves secrets from it rather than the local file. The secrets file becomes optional.
+This resolves the pointer, hands the value to `gh` on stdin (never argv), and
+*adds* the repo to the secret's existing selection rather than replacing it. It is
+the one place the launcher moves a value instead of pointing at one.
 
 ## Related Documentation
 

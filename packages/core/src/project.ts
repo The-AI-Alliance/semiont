@@ -120,6 +120,41 @@ export class SemiontProject {
   }
 
   /**
+   * The KB's permanent identity literal — `[site] domain` from the committed
+   * `.semiont/config`, which `kbDid()` renders as `did:web:<domain>`.
+   * `undefined` when the section or key is absent.
+   *
+   * Reads the committed file DIRECTLY, and deliberately not
+   * `EnvironmentConfig.site.domain`, which is the same value only by
+   * accident: the TOML loader defaults a domain-less `[site]` to the string
+   * `'localhost'` (so every domain-less KB on a machine would claim one
+   * fabricated `did:web:localhost`) and lets the environment section
+   * override the KB's own declaration. Either would report an identity the
+   * launcher never minted — an address wearing a name, which is the whole
+   * category error .plans/KB-IDENTITY-VS-ADDRESS.md exists to end. Identity
+   * is declared or absent; it is never defaulted.
+   */
+  siteDomain(): string | undefined {
+    const configPath = path.join(this.root, '.semiont', 'config');
+    if (!fs.existsSync(configPath)) return undefined;
+    const content = fs.readFileSync(configPath, 'utf-8');
+    let inSiteSection = false;
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('#')) continue;
+      if (trimmed === '[site]') { inSiteSection = true; continue; }
+      if (trimmed.startsWith('[')) { inSiteSection = false; continue; }
+      if (!inSiteSection) continue;
+      const eq = trimmed.indexOf('=');
+      if (eq < 0) continue;
+      if (trimmed.slice(0, eq).trim() !== 'domain') continue;
+      const value = trimmed.slice(eq + 1).trim().replace(/^"(.*)"$/, '$1');
+      return value === '' ? undefined : value;
+    }
+    return undefined;
+  }
+
+  /**
    * Read [git] sync from .semiont/config.
    * Defaults to false if the section or key is absent.
    */

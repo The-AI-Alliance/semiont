@@ -39,12 +39,17 @@
     "gitBranch": {
       "type": "string",
       "description": "Current git branch of the knowledge base repository"
+    },
+    "did": {
+      "type": "string",
+      "description": "The knowledge base's did:web identity — 'did:web:' + the committed [site] domain, byte-identical to the string the launcher publishes in its discovery document. REQUIRED: a KB that declares no domain does not run (the launcher refuses to start it, and the backend refuses to boot), so a response without this field means the caller reached something that bypassed both. Identifies WHICH knowledge base this is; it does NOT identify which running copy — one KB reachable at two addresses (a local clone and a codespace of one repo) reports the same did at both. Use it to verify what you connected to, not to select among discovered entries."
     }
   },
   "required": [
     "status",
     "version",
     "features",
-    "message"
+    "message",
+    "did"
   ]
 }

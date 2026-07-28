@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { userToDid, userToAgent, didToAgent, agentToDid, softwareToAgent } from '../did-utils';
+import { userToDid, userToAgent, didToAgent, agentToDid, softwareToAgent, kbDid } from '../did-utils';
 
 describe('@semiont/core - did-utils', () => {
   describe('userToDid', () => {
@@ -230,6 +230,34 @@ describe('@semiont/core - did-utils', () => {
       expect(agentFromDid['@type']).toBe('Software');
       expect((agentFromDid as { provider?: string }).provider).toBe('ollama');
       expect((agentFromDid as { model?: string }).model).toBe('gemma2:27b');
+    });
+  });
+
+  /**
+   * The KB's own identity — not a person's, not an agent's. The launcher
+   * mints the identical string in Go (`kbconfig.go` didWeb():
+   * `"did:web:" + Domain`), and the two must agree byte-for-byte or the
+   * Browser's identity join silently never matches
+   * (.plans/KB-IDENTITY-VS-ADDRESS.md).
+   */
+  describe('kbDid', () => {
+    it('is did:web: + the declared domain, VERBATIM — colon-path form untouched', () => {
+      expect(kbDid('the-ai-alliance.github.io:semiont-caselaw-kb'))
+        .toBe('did:web:the-ai-alliance.github.io:semiont-caselaw-kb');
+    });
+
+    it('does NOT url-encode the domain (unlike the agent/user path segments)', () => {
+      // Colons here are did:web path separators, not data — encoding them
+      // would produce a string the launcher never mints.
+      const did = kbDid('example.org:kb');
+      expect(did).not.toContain('%3A');
+      expect(did).toBe('did:web:example.org:kb');
+    });
+
+    it("prefixes its own agents' dids — one KB identity, its agents beneath it", () => {
+      const domain = 'the-ai-alliance.github.io:semiont-caselaw-kb';
+      const agent = agentToDid({ domain, provider: 'anthropic', model: 'claude-haiku-4-5' });
+      expect(agent.startsWith(`${kbDid(domain)}:agents:`)).toBe(true);
     });
   });
 });

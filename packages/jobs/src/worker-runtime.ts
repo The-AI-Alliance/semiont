@@ -35,7 +35,7 @@ import {
   kbBackendUrl,
   setStoredSession,
   type HttpEndpoint,
-  type KnowledgeBase,
+  type KbTarget,
 } from '@semiont/sdk';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { BehaviorSubject } from 'rxjs';
@@ -246,7 +246,7 @@ export async function startAgentWorker(
 
   const kbId = `agent-${inference.type}-${inference.model}-${hostname()}`;
   const endpoint: HttpEndpoint = { kind: 'http', host, port, protocol };
-  const kb: KnowledgeBase = {
+  const kb: KbTarget = {
     id: kbId,
     label: `${inference.type} / ${inference.model} @ ${host}`,
     email: `agent@${host}`,

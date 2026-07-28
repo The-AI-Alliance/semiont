@@ -124,17 +124,22 @@ settleTimeoutMs = 45000
     ).toThrow('Environment variable MY_API_KEY is not set');
   });
 
-  it('returns empty config when global config file is not found', () => {
-    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(null), {});
-    expect(config.services?.backend).toBeUndefined();
+  it('resolves from the project config when the global config file is absent', () => {
+    // A missing ~/.semiontconfig is fine as long as SOME config declares the
+    // selected environment — here the project's .semiont/config does.
+    const projectWithLocal = `[project]\nname = "test-project"\n${MINIMAL_TOML}`;
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(null, projectWithLocal), {});
+    expect(config.services?.backend?.port).toBe(3001);
     expect(config._metadata?.environment).toBe('local');
   });
 
-  it('returns empty services for unknown environment', () => {
-    const config = loadTomlConfig('/project', 'staging', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
-
-    // staging is not defined in MINIMAL_TOML — no error, just empty
-    expect(config.services?.backend).toBeUndefined();
+  it('throws for a named environment with no [environments.X] section', () => {
+    // The silent `?? {}` here is exactly what let a mis-declared environment
+    // load an empty section — every downstream default then fires, including
+    // site.domain -> 'localhost', fabricating a did:web:localhost identity.
+    expect(() =>
+      loadTomlConfig('/project', 'staging', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {})
+    ).toThrow(/staging/);
   });
 
   it('sets _metadata.environment and projectRoot', () => {
@@ -142,5 +147,50 @@ settleTimeoutMs = 45000
 
     expect(config._metadata?.environment).toBe('local');
     expect(config._metadata?.projectRoot).toBe('/my/project');
+  });
+});
+
+describe('loadTomlConfig — environment resolution (one config selects it)', () => {
+  // `[defaults] environment` is the key the launcher reads (config.go:
+  // cfg.Defaults.Environment). The backend must resolve from the SAME key so a
+  // KB's declared environment selects the section for BOTH halves.
+  const DEFAULTS_STAGING = `
+[defaults]
+environment = "staging"
+
+[environments.staging.backend]
+platform = "posix"
+port = 5005
+publicURL = "http://localhost:5005"
+
+[environments.local.backend]
+platform = "posix"
+port = 3001
+publicURL = "http://localhost:3001"
+`;
+
+  it('resolves the environment from [defaults] environment when none is passed', () => {
+    const config = loadTomlConfig('/project', undefined, '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), {});
+    expect(config._metadata?.environment).toBe('staging');
+    expect(config.services?.backend?.port).toBe(5005);
+  });
+
+  it('uses SEMIONT_ENV over [defaults] when no environment is passed', () => {
+    const config = loadTomlConfig('/project', undefined, '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), { SEMIONT_ENV: 'local' });
+    expect(config._metadata?.environment).toBe('local');
+    expect(config.services?.backend?.port).toBe(3001);
+  });
+
+  it('lets an explicit environment win over SEMIONT_ENV and [defaults]', () => {
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), { SEMIONT_ENV: 'staging' });
+    expect(config._metadata?.environment).toBe('local');
+    expect(config.services?.backend?.port).toBe(3001);
+  });
+
+  it('throws when nothing selects an environment (no arg, no SEMIONT_ENV, no [defaults])', () => {
+    // MINIMAL_TOML declares [environments.local] but no [defaults] environment.
+    expect(() =>
+      loadTomlConfig('/project', undefined, '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {})
+    ).toThrow(/environment/i);
   });
 });

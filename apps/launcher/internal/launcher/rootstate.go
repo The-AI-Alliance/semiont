@@ -52,10 +52,19 @@ func dataDir() string {
 
 var keyUnsafe = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
-// rootKey names a root's state directory. The KB's did:web domain when
-// declared — identity travels with the KB, so a moved clone keeps its state
-// — else "path-" + a stable hash of the absolute root path. meta.json keeps
-// the unsanitized truth so status and clean can always name the root.
+// rootKey names a root's state directory: the KB's did:web domain, sanitized
+// — identity travels with the KB, so a moved clone keeps its state.
+//
+// The "path-" + hash branch below is NOT a fallback for did-less KBs any
+// more: since identity became required (KB-IDENTITY-VS-ADDRESS decision 8)
+// `start` refuses a KB that declares no [site] domain, so no new path-keyed
+// directory can be created. It survives because directories created BEFORE
+// that rule still exist on disk, and `clean` — the only way that data dies —
+// must be able to name them. Delete it once no such directory can plausibly
+// remain, not before: the alternative is bytes nothing can remove.
+//
+// meta.json keeps the unsanitized truth so status and clean can always name
+// the root.
 func rootKey(root string) string {
 	return stateKeyFor(loadKBIdentity(root).didWeb(), root)
 }
