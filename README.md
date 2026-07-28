@@ -37,7 +37,11 @@ knowledge bases — is in **[docs/KNOWLEDGE-BASES.md](docs/KNOWLEDGE-BASES.md)**
 
 ### 2. Start it
 
-Install the `semiont` launcher — a single static binary — plus one of [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/) if you don't already have one:
+Three prerequisites — no npm or Node.js among them:
+
+- **A container runtime** — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/), auto-detected
+- **An inference provider** — [Ollama](https://ollama.com/) for fully local inference (it downloads several GB of models on first run), or an [Anthropic](https://www.anthropic.com/) API key for cloud
+- **The `semiont` launcher** — a single static binary:
 
 ```bash
 brew install the-ai-alliance/semiont/semiont
