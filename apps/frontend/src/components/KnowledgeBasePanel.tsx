@@ -203,6 +203,9 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
     status = await client.admin!.status();
   } catch (e) {
     throw new IdentityUnverifiableError('unreachable', e instanceof Error ? e.message : String(e));
+  } finally {
+    transport.dispose();
+    token$.complete();
   }
   if (!status.did) throw new IdentityUnverifiableError('not-reported', 'status reported no did');
 
