@@ -587,7 +587,14 @@
     "discoveredTitle": "Fundet på denne maskine",
     "managedBadge": "Administreret af launcher",
     "placementLocal": "lokal",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Ukendt",
+    "anotherCopy": "en anden kopi af den videnbase, du er forbundet til",
+    "addressConflict": "{{count}} videnbaser hævder {{address}} — én er sandsynligvis forældet.",
+    "connectToAddress": "Opret forbindelse til {{address}}",
+    "connectedToOther": "Forbundet til {{actual}}, ikke {{expected}}.",
+    "identityCheckFailed": "Logget ind, men identitetstjekket kunne ikke nå denne videnbase.",
+    "identityNotReported": "Logget ind, men denne videnbase rapporterede ingen identitet."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ingen videnbaser",

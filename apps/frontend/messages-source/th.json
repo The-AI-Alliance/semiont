@@ -587,7 +587,14 @@
     "discoveredTitle": "พบในเครื่องนี้",
     "managedBadge": "จัดการโดย launcher",
     "placementLocal": "ในเครื่อง",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "ไม่ทราบ",
+    "anotherCopy": "สำเนาอีกชุดหนึ่งของฐานความรู้ที่คุณเชื่อมต่ออยู่",
+    "addressConflict": "ฐานความรู้ {{count}} แห่งอ้างสิทธิ์ {{address}} — หนึ่งในนั้นน่าจะล้าสมัย",
+    "connectToAddress": "เชื่อมต่อกับ {{address}}",
+    "connectedToOther": "เชื่อมต่อกับ {{actual}} ไม่ใช่ {{expected}}",
+    "identityCheckFailed": "เข้าสู่ระบบแล้ว แต่การตรวจสอบตัวตนไม่สามารถเข้าถึงฐานความรู้นี้ได้",
+    "identityNotReported": "เข้าสู่ระบบแล้ว แต่ฐานความรู้นี้ไม่ได้รายงานตัวตน"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "ไม่มีฐานความรู้",

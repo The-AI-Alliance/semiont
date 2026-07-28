@@ -587,7 +587,14 @@
     "discoveredTitle": "موجود على هذا الجهاز",
     "managedBadge": "مُدار بواسطة المُشغِّل",
     "placementLocal": "محلي",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "غير معروف",
+    "anotherCopy": "نسخة أخرى من قاعدة المعرفة التي أنت متصل بها",
+    "addressConflict": "{{count}} من قواعد المعرفة تدّعي امتلاك العنوان {{address}} — من المرجّح أن إحداها قديمة.",
+    "connectToAddress": "الاتصال بـ{{address}}",
+    "connectedToOther": "متصل بـ{{actual}}، وليس {{expected}}.",
+    "identityCheckFailed": "تم تسجيل الدخول، لكن تعذّر على التحقق من الهوية الوصول إلى قاعدة المعرفة هذه.",
+    "identityNotReported": "تم تسجيل الدخول، لكن قاعدة المعرفة هذه لم تُبلِغ عن أي هوية."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "لا توجد قواعد معرفة",

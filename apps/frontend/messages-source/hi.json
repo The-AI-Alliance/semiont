@@ -587,7 +587,14 @@
     "discoveredTitle": "इस मशीन पर मिला",
     "managedBadge": "लॉन्चर द्वारा प्रबंधित",
     "placementLocal": "स्थानीय",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "अज्ञात",
+    "anotherCopy": "उस ज्ञान आधार की एक और प्रति जिससे आप जुड़े हुए हैं",
+    "addressConflict": "{{count}} ज्ञान आधार {{address}} होने का दावा करते हैं — इनमें से एक संभवतः पुराना है।",
+    "connectToAddress": "{{address}} से जुड़ें",
+    "connectedToOther": "{{actual}} से जुड़ा हुआ, {{expected}} से नहीं।",
+    "identityCheckFailed": "साइन इन हैं, लेकिन पहचान जांच इस ज्ञान आधार तक नहीं पहुंच सकी।",
+    "identityNotReported": "साइन इन हैं, लेकिन इस ज्ञान आधार ने कोई पहचान नहीं दी।"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "कोई ज्ञान आधार नहीं",

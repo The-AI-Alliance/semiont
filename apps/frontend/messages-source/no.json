@@ -587,7 +587,14 @@
     "discoveredTitle": "Funnet på denne maskinen",
     "managedBadge": "Administrert av launcher",
     "placementLocal": "lokal",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Ukjent",
+    "anotherCopy": "en annen kopi av kunnskapsbasen du er koblet til",
+    "addressConflict": "{{count}} kunnskapsbaser hevder {{address}} — én er sannsynligvis utdatert.",
+    "connectToAddress": "Koble til {{address}}",
+    "connectedToOther": "Tilkoblet {{actual}}, ikke {{expected}}.",
+    "identityCheckFailed": "Logget inn, men identitetssjekken kunne ikke nå denne kunnskapsbasen.",
+    "identityNotReported": "Logget inn, men denne kunnskapsbasen rapporterte ingen identitet."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ingen kunnskapsbaser",

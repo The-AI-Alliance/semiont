@@ -587,7 +587,14 @@
     "discoveredTitle": "Encontrado en este equipo",
     "managedBadge": "Gestionado por el lanzador",
     "placementLocal": "local",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Desconocido",
+    "anotherCopy": "otra copia de la base de conocimiento a la que estás conectado",
+    "addressConflict": "{{count}} bases de conocimiento reclaman {{address}} — es probable que una esté obsoleta.",
+    "connectToAddress": "Conectar a {{address}}",
+    "connectedToOther": "Conectado a {{actual}}, no a {{expected}}.",
+    "identityCheckFailed": "Sesión iniciada, pero la verificación de identidad no pudo alcanzar esta base de conocimiento.",
+    "identityNotReported": "Sesión iniciada, pero esta base de conocimiento no informó ninguna identidad."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Sin bases de conocimiento",

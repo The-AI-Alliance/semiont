@@ -587,7 +587,14 @@
     "discoveredTitle": "Löytyi tältä koneelta",
     "managedBadge": "Käynnistimen hallinnassa",
     "placementLocal": "paikallinen",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Tuntematon",
+    "anotherCopy": "toinen kopio tietopankista, johon olet yhteydessä",
+    "addressConflict": "{{count}} tietopankkia ilmoittaa osoitteekseen {{address}} — yksi on todennäköisesti vanhentunut.",
+    "connectToAddress": "Yhdistä osoitteeseen {{address}}",
+    "connectedToOther": "Yhdistetty kohteeseen {{actual}}, ei {{expected}}.",
+    "identityCheckFailed": "Kirjautunut sisään, mutta identiteetin tarkistus ei tavoittanut tätä tietopankkia.",
+    "identityNotReported": "Kirjautunut sisään, mutta tämä tietopankki ei ilmoittanut identiteettiä."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ei tietopankkeja",

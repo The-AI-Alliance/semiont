@@ -587,7 +587,14 @@
     "discoveredTitle": "Gevonden op deze machine",
     "managedBadge": "Beheerd door launcher",
     "placementLocal": "lokaal",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Onbekend",
+    "anotherCopy": "een andere kopie van de kennisbasis waarmee je verbonden bent",
+    "addressConflict": "{{count}} kennisbases claimen {{address}} — één is waarschijnlijk verouderd.",
+    "connectToAddress": "Verbinden met {{address}}",
+    "connectedToOther": "Verbonden met {{actual}}, niet met {{expected}}.",
+    "identityCheckFailed": "Ingelogd, maar de identiteitscontrole kon deze kennisbasis niet bereiken.",
+    "identityNotReported": "Ingelogd, maar deze kennisbasis heeft geen identiteit gerapporteerd."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Geen kennisbases",

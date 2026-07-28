@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { BehaviorSubject } from 'rxjs';
 import { SemiontClient, defaultProtocol, isValidHostname, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
-import { baseUrl } from '@semiont/core';
+import { accessToken, baseUrl, type AccessToken } from '@semiont/core';
 import type { DiscoveredKB } from '@semiont/core';
 import {
   useSemiont,
@@ -166,39 +167,64 @@ function ReauthForm({ t, kb, onSubmit, onCancel, error, isSubmitting }: {
  * decision 8), and there is nothing legitimate to fall back to: inventing one
  * from the address is the exact category error that document exists to end.
  * Decision 7's third verification outcome, made explicit.
+ *
+ * The two reasons are kept apart deliberately: collapsing them into one
+ * message made a live auth bug undiagnosable from the UI (2026-07-28).
  */
-class IdentityUnverifiableError extends Error {}
+class IdentityUnverifiableError extends Error {
+  constructor(readonly reason: 'unreachable' | 'not-reported', detail: string) {
+    super(detail);
+  }
+}
 
 async function authenticateWithBackend(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; refreshToken: string; did: string; label: string; gitBranch?: string }> {
   const origin = `${protocol}://${host}:${port}`;
-  const transport = new HttpTransport({ baseUrl: baseUrl(origin) });
+  // `/api/status` REQUIRES authentication, so the transport needs a token
+  // source: without one the identity check goes out unauthenticated and 401s
+  // on every connect (found live 2026-07-28 — previously swallowed, which is
+  // why labels silently fell back to `host:port`). Same pattern the session
+  // factory's `performValidate` uses.
+  const token$ = new BehaviorSubject<AccessToken | null>(null);
+  const transport = new HttpTransport({ baseUrl: baseUrl(origin), token$ });
   const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
-  const authResult = await client.auth!.password(emailStr, password);
-  const token = authResult.token;
-  const refreshToken = authResult.refreshToken;
-  if (!token) throw new Error('No access token received');
-  if (!refreshToken) throw new Error('No refresh token received');
-
-  // The KB names itself: identity is read from the KB we actually reached,
-  // never inferred from the discovered row the user happened to click.
-  let status;
+  // The cleanup wraps EVERY exit, not just the status call. The transport
+  // subscribes to token$ the moment it is constructed, so a throw before the
+  // status check — a rejected password, a response missing either token —
+  // leaked it. Scoping the finally to the narrow try covered the one failure
+  // that happened to be on screen and none of the earlier ones.
   try {
-    status = await client.admin!.status();
-  } catch {
-    throw new IdentityUnverifiableError('status unavailable');
-  }
-  if (!status.did) throw new IdentityUnverifiableError('no did reported');
+    const authResult = await client.auth!.password(emailStr, password);
+    const token = authResult.token;
+    const refreshToken = authResult.refreshToken;
+    if (!token) throw new Error('No access token received');
+    if (!refreshToken) throw new Error('No refresh token received');
+    // Every later call on this client is now authenticated.
+    token$.next(accessToken(token));
 
-  return {
-    token,
-    refreshToken,
-    did: status.did,
-    // Absence is stored as absence — the WORD "Unknown" is a render concern
-    // (decision 7), and `host:port` is an address, never a name.
-    label: status.projectName ?? '',
-    ...(status.gitBranch ? { gitBranch: status.gitBranch } : {}),
-  };
+    // The KB names itself: identity is read from the KB we actually reached,
+    // never inferred from the discovered row the user happened to click.
+    let status;
+    try {
+      status = await client.admin!.status();
+    } catch (e) {
+      throw new IdentityUnverifiableError('unreachable', e instanceof Error ? e.message : String(e));
+    }
+    if (!status.did) throw new IdentityUnverifiableError('not-reported', 'status reported no did');
+
+    return {
+      token,
+      refreshToken,
+      did: status.did,
+      // Absence is stored as absence — the WORD "Unknown" is a render concern
+      // (decision 7), and `host:port` is an address, never a name.
+      label: status.projectName ?? '',
+      ...(status.gitBranch ? { gitBranch: status.gitBranch } : {}),
+    };
+  } finally {
+    transport.dispose();
+    token$.complete();
+  }
 }
 
 export function KnowledgeBasePanel() {
@@ -305,6 +331,16 @@ export function KnowledgeBasePanel() {
     setConnectNotice(null);
   };
 
+  // An unreachable identity check and a KB that reports no identity are
+  // different problems with different fixes; one message for both hid a live
+  // auth bug for a whole release.
+  const identityAwareMessage = (err: unknown): string => {
+    if (err instanceof IdentityUnverifiableError) {
+      return err.reason === 'unreachable' ? t('identityCheckFailed') : t('identityNotReported');
+    }
+    return err instanceof Error ? err.message : String(err);
+  };
+
   const handleAdd = async (host: string, port: number, protocol: 'http' | 'https', email: string, password: string) => {
     setAddError(null);
     setAddSubmitting(true);
@@ -318,11 +354,7 @@ export function KnowledgeBasePanel() {
         signIn(existing.id, token, refreshToken);
         setAddForm(null);
       } catch (err) {
-        setAddError(
-          err instanceof IdentityUnverifiableError
-            ? t('identityUnverifiable')
-            : err instanceof Error ? err.message : String(err),
-        );
+        setAddError(identityAwareMessage(err));
       } finally {
         setAddSubmitting(false);
       }
@@ -352,11 +384,7 @@ export function KnowledgeBasePanel() {
       );
       setAddForm(null);
     } catch (err) {
-      setAddError(
-        err instanceof IdentityUnverifiableError
-          ? t('identityUnverifiable')
-          : err instanceof Error ? err.message : String(err),
-      );
+      setAddError(identityAwareMessage(err));
     } finally {
       setAddSubmitting(false);
     }

@@ -587,7 +587,14 @@
     "discoveredTitle": "Bu makinede bulundu",
     "managedBadge": "Başlatıcı tarafından yönetiliyor",
     "placementLocal": "yerel",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Bilinmiyor",
+    "anotherCopy": "bağlı olduğunuz bilgi tabanının başka bir kopyası",
+    "addressConflict": "{{count}} bilgi tabanı {{address}} için hak iddia ediyor — biri büyük olasılıkla eski.",
+    "connectToAddress": "{{address}} adresine bağlan",
+    "connectedToOther": "{{actual}} ile bağlanıldı, {{expected}} ile değil.",
+    "identityCheckFailed": "Giriş yapıldı ancak kimlik kontrolü bu bilgi tabanına ulaşamadı.",
+    "identityNotReported": "Giriş yapıldı ancak bu bilgi tabanı bir kimlik bildirmedi."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Bilgi tabanı yok",

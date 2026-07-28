@@ -1980,6 +1980,39 @@ func TestCodespaceStartCreates(t *testing.T) {
 	}
 }
 
+func TestCodespaceWaitsForRemoteBeforeForwarding(t *testing.T) {
+	// A FRESH create could never succeed in one command (live 2026-07-27).
+	// `gh codespace ports forward` binds locally at once but EXITS the first
+	// time a local connection cannot be opened through to the remote port
+	// ("ssh: rejected: connect failed"). Devcontainer hooks take minutes, so
+	// the launcher's own bind check — forwardAlive(), which DIALS the port —
+	// killed the tunnel it was checking, and the death surfaced a step later
+	// as "the port forward died after 1s — the stack may be fine."
+	//
+	// The checker must not destroy the thing it checks: readiness is asked
+	// over ssh (which does not touch the tunnel), and the forward is only
+	// established once the remote answers.
+	s := newCodespaceScenario(t)
+	s.extraEnv = append(s.extraEnv, "FAKERT_REMOTE_READY_AFTER=3") // up on the 3rd probe
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
+	if code != 0 {
+		t.Fatalf("a stack that comes up mid-wait must succeed: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	// The readiness question was asked over ssh, before any forward existed.
+	log := s.argv(t)
+	sshAt := strings.Index(log, "api/health")
+	fwdAt := strings.Index(log, "ports forward")
+	if sshAt < 0 {
+		t.Fatalf("readiness was never asked over ssh:\n%s", log)
+	}
+	if fwdAt >= 0 && fwdAt < sshAt {
+		t.Errorf("the forward was established before the remote was known ready — the ordering that killed it:\n%s", log)
+	}
+	if strings.Contains(stdout+stderr, "died") {
+		t.Errorf("no forward should have died:\n%s\n%s", stdout, stderr)
+	}
+}
+
 func TestCodespaceForwardDeathFailsFast(t *testing.T) {
 	// The mid-wait forward death observed live 2026-07-23: the tunnel
 	// bound, then its process died while the health gate polled — and the

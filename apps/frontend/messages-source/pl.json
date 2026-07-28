@@ -587,7 +587,14 @@
     "discoveredTitle": "Znaleziono na tym komputerze",
     "managedBadge": "Zarządzane przez launcher",
     "placementLocal": "lokalny",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Nieznana",
+    "anotherCopy": "kolejna kopia bazy wiedzy, z którą masz połączenie",
+    "addressConflict": "{{count}} bazy wiedzy zgłaszają adres {{address}} — jedna z nich jest prawdopodobnie nieaktualna.",
+    "connectToAddress": "Połącz z {{address}}",
+    "connectedToOther": "Połączono z {{actual}}, a nie z {{expected}}.",
+    "identityCheckFailed": "Zalogowano, ale sprawdzenie tożsamości nie mogło nawiązać połączenia z tą bazą wiedzy.",
+    "identityNotReported": "Zalogowano, ale ta baza wiedzy nie zgłosiła żadnej tożsamości."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Brak baz wiedzy",

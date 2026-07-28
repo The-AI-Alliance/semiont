@@ -156,8 +156,64 @@ func git(args []string) {
 //	FAKERT_OLLAMA_PULL_FAILS  /api/pull answers with an error
 //	FAKERT_SKIP_SERVE       host ports to leave unbound (crashed-after-start containers)
 //
-// `codespace ports forward A:B …` binds every host port and parks (the fake
-// dev tunnel), writing a serve pidfile so killServes reaps it.
+// remoteDown reports whether the codespace's KB is still unreachable. With
+// FAKERT_REMOTE_READY_AFTER=n the nth ssh probe is the first to succeed, so a
+// test can model a stack that comes up partway through the wait.
+func remoteDown() bool {
+	if os.Getenv("FAKERT_REMOTE_DOWN") != "" {
+		return true
+	}
+	after := os.Getenv("FAKERT_REMOTE_READY_AFTER")
+	if after == "" {
+		return false
+	}
+	n, err := strconv.Atoi(after)
+	if err != nil {
+		return false
+	}
+	return remoteProbeCount() < n
+}
+
+// remoteProbeCount reads the ssh-probe tally without incrementing it.
+func remoteProbeCount() int {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return 0
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "remote-probes"))
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	return n
+}
+
+// bumpRemoteProbe records one ssh readiness probe and returns the new tally.
+func bumpRemoteProbe() int {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return 0
+	}
+	n := remoteProbeCount() + 1
+	_ = os.WriteFile(filepath.Join(dir, "remote-probes"), []byte(strconv.Itoa(n)), 0o644)
+	return n
+}
+
+// forwardLocalPort digs the LOCAL port out of `A:B` (real gh listens on B).
+func forwardLocalPort(args []string) string {
+	for _, a := range args {
+		if pair := strings.SplitN(a, ":", 2); len(pair) == 2 {
+			if _, err := strconv.Atoi(pair[1]); err == nil {
+				return pair[1]
+			}
+		}
+	}
+	return "0"
+}
+
+// `codespace ports forward A:B …` binds the LOCAL port and parks (the fake
+// dev tunnel), writing a serve pidfile so killServes reaps it — unless the
+// remote is down, in which case it dies on first contact like the real thing.
 func ghCmd(args []string) {
 	joined := strings.Join(args, " ")
 	switch {
@@ -311,6 +367,37 @@ func ghCodespace(args []string, joined string) {
 				}()
 			}
 		}
+		// FAKERT_REMOTE_DOWN / FAKERT_REMOTE_READY_AFTER: the REMOTE side is
+		// not listening yet. This is the behaviour that made a fresh create
+		// unusable live on 2026-07-27, and the fake could not express it: a
+		// real `gh codespace ports forward` binds locally straight away, then
+		// EXITS the first time a local connection cannot be opened through to
+		// the remote port —
+		//
+		//   ssh: rejected: connect failed (Connection refused)
+		//
+		// so any probe through the tunnel while the stack is still coming up
+		// destroys the tunnel. The old fake bound and parked unconditionally,
+		// which is why every test agreed a forward that binds is a forward
+		// that works.
+		if remoteDown() {
+			go func() {
+				ln, err := net.Listen("tcp", "127.0.0.1:"+forwardLocalPort(args))
+				if err != nil {
+					os.Exit(1)
+				}
+				c, err := ln.Accept() // the first probe is the fatal one
+				if err == nil {
+					c.Close()
+				}
+				fmt.Fprintln(os.Stderr, "error connecting to tunnel: connect to forwarded port failed: "+
+					"error connecting to forwarded port: failed to open streaming channel: "+
+					"failed to open port forward channel: failed to open channel: "+
+					"ssh: rejected: connect failed (Connection refused)")
+				os.Exit(1)
+			}()
+			select {} // park until that goroutine exits the process
+		}
 		if os.Getenv("FAKERT_GH_FORWARD_SICK") != "" {
 			// Scoped to THIS process: __serve children of `run -d` never
 			// see it, so container health fakes stay healthy.
@@ -369,6 +456,20 @@ func ghCodespace(args []string, joined string) {
 				body = `{"email":"admin@example.com","password":"fake-admin-pw"}`
 			}
 			fmt.Println(body)
+		case strings.Contains(joined, "api/health"):
+			// The readiness probe that does NOT go through the tunnel — the
+			// only way to ask "is the stack up?" without destroying the
+			// forward while it is still coming up. Each call is tallied so a
+			// test can say "ready on the nth probe".
+			// The launcher's probe is `curl … && echo READY || echo WAIT`, so
+			// the sentinel — not the exit code — is the answer. A vanished
+			// sentinel is how it detects that ssh itself failed.
+			bumpRemoteProbe()
+			if remoteDown() {
+				fmt.Println("SEMIONT_KB_WAIT")
+				return
+			}
+			fmt.Println("SEMIONT_KB_READY")
 		case strings.Contains(joined, ".semiont/config"):
 			// The KB's committed identity card, as the codespace holds it.
 			// FAKERT_GH_KBCONFIG overrides so a test can stage DRIFT — a

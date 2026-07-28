@@ -587,7 +587,14 @@
     "discoveredTitle": "在此计算机上找到",
     "managedBadge": "由启动器管理",
     "placementLocal": "本地",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "未知",
+    "anotherCopy": "您所连接的知识库的另一个副本",
+    "addressConflict": "{{count}} 个知识库都声称拥有 {{address}} — 其中一个可能已过时。",
+    "connectToAddress": "连接到 {{address}}",
+    "connectedToOther": "已连接到 {{actual}}，而非 {{expected}}。",
+    "identityCheckFailed": "已登录，但身份检查无法访问此知识库。",
+    "identityNotReported": "已登录，但此知识库未报告任何身份。"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "没有知识库",

@@ -587,7 +587,14 @@
     "discoveredTitle": "Βρέθηκε σε αυτόν τον υπολογιστή",
     "managedBadge": "Διαχειρίζεται από τον launcher",
     "placementLocal": "τοπικό",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Άγνωστο",
+    "anotherCopy": "ένα ακόμη αντίγραφο της βάσης γνώσης με την οποία είστε συνδεδεμένοι",
+    "addressConflict": "{{count}} βάσεις γνώσης διεκδικούν τη διεύθυνση {{address}} — μία είναι πιθανώς παρωχημένη.",
+    "connectToAddress": "Σύνδεση με {{address}}",
+    "connectedToOther": "Συνδεδεμένο με {{actual}}, όχι με {{expected}}.",
+    "identityCheckFailed": "Έχετε συνδεθεί, αλλά ο έλεγχος ταυτότητας δεν μπόρεσε να προσεγγίσει αυτή τη βάση γνώσης.",
+    "identityNotReported": "Έχετε συνδεθεί, αλλά αυτή η βάση γνώσης δεν ανέφερε ταυτότητα."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Δεν υπάρχουν βάσεις γνώσης",

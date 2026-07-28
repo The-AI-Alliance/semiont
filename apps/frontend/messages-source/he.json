@@ -587,7 +587,14 @@
     "discoveredTitle": "נמצא במחשב זה",
     "managedBadge": "מנוהל על ידי המשגר",
     "placementLocal": "מקומי",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "לא ידוע",
+    "anotherCopy": "עותק נוסף של בסיס הידע שאליו אתה מחובר",
+    "addressConflict": "{{count}} בסיסי ידע טוענים לכתובת {{address}} — קרוב לוודאי שאחד מהם מיושן.",
+    "connectToAddress": "התחבר לכתובת {{address}}",
+    "connectedToOther": "מחובר אל {{actual}}, לא אל {{expected}}.",
+    "identityCheckFailed": "מחובר, אך בדיקת הזהות לא הצליחה להגיע אל בסיס ידע זה.",
+    "identityNotReported": "מחובר, אך בסיס ידע זה לא דיווח על זהות."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "אין בסיסי ידע",
