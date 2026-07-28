@@ -23,6 +23,12 @@ export const STORAGE_KEY = 'semiont.knowledgeBases';
 export const ACTIVE_KEY = 'semiont.activeKnowledgeBaseId';
 /** Per-KB open-resource tabs: Record<kbId, OpenResource[]>. */
 export const OPEN_RESOURCES_BY_KB_KEY = 'semiont.openResourcesByKb';
+/**
+ * Per-KB "where was I": Record<kbId, resourceId>. Scoped like the tabs it
+ * sits beside — a global last-viewed id sends the landing redirect into the
+ * previously active KB's resource, which the new backend 404s.
+ */
+export const LAST_VIEWED_RESOURCE_BY_KB_KEY = 'semiont.lastViewedResourceByKb';
 
 /** Refresh the access token this many milliseconds before it expires. */
 export const REFRESH_BEFORE_EXP_MS = 5 * 60 * 1000;

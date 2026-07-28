@@ -36,7 +36,7 @@ import { createHttpSessionFactory } from '../http-session-factory';
 import { getBrowser } from '../registry';
 import { __resetForTests } from '../testing';
 import { storageKey, seedStoredSession, TestStorage } from './test-storage-helpers';
-import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY } from '../storage';
+import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY } from '../storage';
 
 const KB_A = {
   id: 'kb-a',
@@ -400,6 +400,90 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     storage.set('openDocuments', JSON.stringify([{ id: 'old', name: 'Old', openedAt: 1 }]));
     const browser = await makeConnectedBrowser();
     expect(browser.openResources$.getValue()).toEqual([]);
+    await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — last viewed resource (KB-scoped)', () => {
+  // "Which resource was I last looking at" is per-KB state, exactly like the
+  // tabs it sits beside. Held globally it sends the /know landing redirect
+  // into the PREVIOUS KB's resource after a switch — a guaranteed 404.
+  // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+
+  async function makeConnectedBrowser() {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    seedStoredSession(storage, KB_B.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A, KB_B]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null), take(1)));
+    return browser;
+  }
+
+  const liveSession = (browser: SemiontBrowser) =>
+    firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null), take(1)));
+
+  it('records against the active KB and never leaks across a switch', async () => {
+    const browser = await makeConnectedBrowser();
+
+    browser.setLastViewedResource('res-in-a');
+    expect(browser.lastViewedResource$.getValue()).toBe('res-in-a');
+
+    await browser.setActiveKb(KB_B.id);
+    await liveSession(browser);
+    // KB_B has never been viewed — it must NOT inherit KB_A's resource.
+    expect(browser.lastViewedResource$.getValue()).toBeNull();
+
+    browser.setLastViewedResource('res-in-b');
+    expect(browser.lastViewedResource$.getValue()).toBe('res-in-b');
+
+    await browser.setActiveKb(KB_A.id);
+    await liveSession(browser);
+    expect(browser.lastViewedResource$.getValue()).toBe('res-in-a');
+
+    await browser.dispose();
+  });
+
+  it('persists per KB under the dedicated key', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.setLastViewedResource('res-in-a');
+
+    const stored = JSON.parse(storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY)!) as Record<string, string>;
+    expect(stored[KB_A.id]).toBe('res-in-a');
+    expect(stored[KB_B.id]).toBeUndefined();
+
+    await browser.dispose();
+  });
+
+  it('is null while no KB is connected, and does not record', async () => {
+    const browser = await makeConnectedBrowser();
+    await browser.signOut(KB_A.id);
+
+    expect(browser.lastViewedResource$.getValue()).toBeNull();
+    browser.setLastViewedResource('res-while-signed-out');
+    expect(storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY)).toBeNull();
+
+    await browser.dispose();
+  });
+
+  it('removeKb reaps the stored last-viewed resource for that KB', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.setLastViewedResource('res-in-a');
+
+    browser.removeKb(KB_A.id);
+    const stored = JSON.parse(storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY) ?? '{}') as Record<string, unknown>;
+    expect(stored[KB_A.id]).toBeUndefined();
+
+    await browser.dispose();
+  });
+
+  it('cross-tab writes to the per-KB key update the projection', async () => {
+    const browser = await makeConnectedBrowser();
+    const payload = JSON.stringify({ [KB_A.id]: 'res-from-other-tab' });
+    storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, payload);
+    storage.dispatch(LAST_VIEWED_RESOURCE_BY_KB_KEY, payload);
+
+    expect(browser.lastViewedResource$.getValue()).toBe('res-from-other-tab');
     await browser.dispose();
   });
 });

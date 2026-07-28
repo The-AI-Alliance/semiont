@@ -1,18 +1,23 @@
 /**
- * Regression test for resource-to-resource navigation.
+ * Regression tests for the two axes a `ResourceLoaderStateUnit` is bound to:
+ * the `:id` param and the live session.
  *
- * Previously, clicking between open-resource tabs in the left nav
- * changed the URL but didn't update the page content. Root cause:
- * `useStateUnit` runs its factory exactly once at mount and React
- * Router keeps `KnowledgeResourcePage` mounted across `:id` param
- * changes, so the `ResourceLoaderStateUnit` stayed bound to the first rId
- * forever.
+ * `useStateUnit` runs its factory exactly once at mount, and React Router
+ * keeps `KnowledgeResourcePage` mounted across both a `:id` param change and
+ * an `activeSession$` swap. So the loader has to be forced to rebuild by a
+ * key that covers BOTH, or it stays bound to whatever it captured first.
  *
- * Fix: split into a thin outer wrapper that reads the `:id` param and
- * an inner component keyed on `rId` so a different id forces a remount.
+ * - `:id` axis — clicking between open-resource tabs changed the URL but not
+ *   the content, because the factory never re-ran.
+ * - session axis — switching KB (or re-authenticating, which reconstructs the
+ *   session under an unchanged `kb.id`) left the loader holding a DISPOSED
+ *   client, whose cache is inert by B16: no fetch, no emission, and the page
+ *   sits on "Loading resource..." forever.
+ *   See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
  *
- * This test locks the fix in: when the URL param the page reads
- * changes, the state unit factory must be re-invoked with the new value.
+ * Fix: a thin outer wrapper reads the `:id` param and the session, gates
+ * render on the session, and keys the inner component on `${session.id}:${rId}`
+ * so a change to either forces a remount.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -30,8 +35,14 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+const routerReplaceCalls: string[] = [];
+
 vi.mock('@/i18n/routing', () => ({
   useLocale: () => 'en',
+  useRouter: () => ({
+    replace: (path: string) => { routerReplaceCalls.push(path); },
+    push: (path: string) => { routerReplaceCalls.push(path); },
+  }),
 }));
 vi.mock('@/lib/routing', () => ({
   Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
@@ -41,26 +52,43 @@ vi.mock('@/components/toolbar/ToolbarPanels', () => ({
   ToolbarPanels: () => null,
 }));
 
+/** Resource ids the loader factory was invoked with, in order. */
 const vmFactoryCalls: string[] = [];
+/** Client tags the loader factory was invoked with, in order — the session axis. */
+const vmFactoryClients: string[] = [];
+
+/**
+ * Test handle onto the mocked `activeSession$`, so a test can swap the live
+ * session the way `setActiveKb`/`signIn` do in production. Built through
+ * `vi.hoisted` because the `vi.mock` factory below runs before module-scope
+ * consts initialize.
+ */
+const harness = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { BehaviorSubject } = require('rxjs') as typeof import('rxjs');
+  let sessionSeq = 0;
+  const makeSession = (clientTag: string, kbId = 'kb-a') => ({
+    // Per-instance identity: distinct even for successive sessions of the
+    // same KB, which is exactly the re-authentication case.
+    id: `session-${++sessionSeq}`,
+    client: { tag: clientTag } as any,
+    kb: { id: kbId, label: 'localhost', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' },
+    streamState$: new BehaviorSubject('initial'),
+  });
+  const session$ = new BehaviorSubject<any>(makeSession('c1'));
+  return { session$, makeSession, browser: { activeSession$: session$ } };
+});
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>(
     '@semiont/react-ui',
   );
-  const { BehaviorSubject } = await vi.importActual<typeof import('rxjs')>('rxjs');
-  const stableMockClient = {} as any;
-  const TEST_KB = { id: 'test', label: 'localhost', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' };
-  const stableActiveSession$ = new BehaviorSubject<any>({
-    client: stableMockClient,
-    kb: TEST_KB,
-    streamState$: new BehaviorSubject('initial'),
-  });
-  const stableMockBrowser = { activeSession$: stableActiveSession$ };
   return {
     ...actual,
-    useSemiont: () => stableMockBrowser,
-    createResourceLoaderStateUnit: (_client: any, rId: string) => {
+    useSemiont: () => harness.browser,
+    createResourceLoaderStateUnit: (client: any, rId: string) => {
       vmFactoryCalls.push(rId);
+      vmFactoryClients.push(client?.tag ?? 'none');
       return {
         resource$: {
           subscribe: (observer: any) => {
@@ -91,6 +119,10 @@ import KnowledgeResourcePage from '../page';
 describe('KnowledgeResourcePage navigation', () => {
   beforeEach(() => {
     vmFactoryCalls.length = 0;
+    vmFactoryClients.length = 0;
+    routerReplaceCalls.length = 0;
+    // Reset to a single live session on KB "kb-a" between tests.
+    harness.session$.next(harness.makeSession('c1'));
   });
 
   it('creates a fresh ResourceLoaderStateUnit when the :id param changes', () => {
@@ -136,5 +168,49 @@ describe('KnowledgeResourcePage navigation', () => {
     act(() => { rerender(<KnowledgeResourcePage />); });
 
     expect(vmFactoryCalls).toEqual(['A']);
+  });
+
+  it('rebuilds the state unit against the NEW client when the session is replaced for the SAME kb (re-auth)', () => {
+    mockedParamsId = 'A';
+    render(<KnowledgeResourcePage />);
+    expect(vmFactoryClients).toEqual(['c1']);
+
+    // `signIn` on an already-active KB disposes the session and constructs a
+    // fresh one under an unchanged `kb.id`. Keyed on `kb.id` this transition
+    // is invisible and the loader keeps the disposed client.
+    act(() => { harness.session$.next(harness.makeSession('c2', 'kb-a')); });
+
+    expect(vmFactoryClients).toEqual(['c1', 'c2']);
+    expect(vmFactoryCalls).toEqual(['A', 'A']);
+    expect(routerReplaceCalls).toEqual([]);
+  });
+
+  it('shows the loading state and builds no state unit while there is no active session', () => {
+    mockedParamsId = 'A';
+    render(<KnowledgeResourcePage />);
+    expect(vmFactoryClients).toEqual(['c1']);
+
+    // The activation gap: setActiveKb nulls activeSession$ before the
+    // replacement arrives. Nothing may be constructed against a null client.
+    act(() => { harness.session$.next(null); });
+
+    expect(screen.getByTestId('loading')).toBeTruthy();
+    expect(vmFactoryClients).toEqual(['c1']);
+  });
+
+  it('redirects to /know when the active KB changes instead of reloading a foreign resource id', () => {
+    mockedParamsId = 'A';
+    render(<KnowledgeResourcePage />);
+    expect(vmFactoryClients).toEqual(['c1']);
+
+    // A real KB switch: activeSession$ nulls, then a session for a DIFFERENT
+    // kb arrives. `A` belongs to kb-a and means nothing to kb-b, so the page
+    // must leave rather than ask kb-b for it.
+    act(() => { harness.session$.next(null); });
+    act(() => { harness.session$.next(harness.makeSession('c2', 'kb-b')); });
+
+    expect(routerReplaceCalls).toEqual(['/know']);
+    // No loader was built for kb-b against kb-a's resource id.
+    expect(vmFactoryClients).toEqual(['c1']);
   });
 });

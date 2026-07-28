@@ -7,11 +7,12 @@
  * All other concerns (data loading, events, UI state) are handled by ResourceViewerPage.
  */
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { useLocale } from '@/i18n/routing';
+import { useLocale, useRouter } from '@/i18n/routing';
 import { useSemiont, useObservable, useStateUnit, createResourceLoaderStateUnit } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
+import type { SemiontSession } from '@semiont/sdk';
 import { Link, routes } from '@/lib/routing';
 
 // Feature components
@@ -20,44 +21,89 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import type { SemiontResource } from '@semiont/react-ui';
 
 /**
- * Main page component - handles only routing and initial resource load.
+ * Main page component — routing, session gating, and initial resource load.
  *
- * The inner component is keyed on `rId` so that navigation between
- * resources (URL-param change without component unmount) forces a full
- * remount. Without this, `useStateUnit`'s factory closes over the
- * initial `rId` and never re-runs, and the URL changes but the content
- * stays on the first-loaded resource.
+ * `useStateUnit` runs its factory exactly once per mount, and React Router
+ * keeps this component mounted across BOTH a `:id` param change and an
+ * `activeSession$` swap. So the inner component is keyed on the pair
+ * `${session.id}:${rId}` — either changing forces a full remount:
+ *
+ *  - `rId` — otherwise the URL changes and the content stays on the
+ *    first-loaded resource (tab-to-tab navigation in the left nav).
+ *  - `session.id` — otherwise the loader keeps a DISPOSED client after a KB
+ *    switch or a re-authentication, and a disposed cache is inert by B16:
+ *    no fetch, no emission, "Loading resource..." forever. `kb.id` is not
+ *    enough here; `signIn` rebuilds the session under an unchanged `kb.id`.
+ *    See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+ *
+ * Rendering is gated on a live session, so the inner component receives a
+ * real one as a prop and can never read a session other than the one it is
+ * keyed on.
  */
 export default function KnowledgeResourcePage() {
   const params = useParams();
   const rId = resourceId(params?.id as string);
-  return <KnowledgeResourcePageInner key={rId} rId={rId} />;
+  const router = useRouter();
+  const session = useObservable(useSemiont().activeSession$) ?? null;
+  const kbId = session?.kb.id ?? null;
+
+  // The KB this route's id belongs to, latched on first sight. A later
+  // different value means the id is FOREIGN to the now-active KB: it
+  // identifies nothing there, so loading it would only earn a 404 (and the
+  // B14/B15 retry-then-throw that follows). Leave instead — /know resolves
+  // the new KB's own last-viewed resource.
+  const boundKbId = useRef<string | null>(null);
+  if (boundKbId.current === null && kbId !== null) boundKbId.current = kbId;
+  const foreignKb = kbId !== null && boundKbId.current !== null && boundKbId.current !== kbId;
+
+  const redirected = useRef(false);
+  useEffect(() => {
+    if (!foreignKb || redirected.current) return;
+    redirected.current = true;
+    router.replace('/know');
+  }, [foreignKb, router]);
+
+  if (!session || foreignKb) return <ResourceLoadingState />;
+
+  return <KnowledgeResourcePageInner key={`${session.id}:${rId}`} session={session} rId={rId} />;
 }
 
-function KnowledgeResourcePageInner({ rId }: { rId: ReturnType<typeof resourceId> }) {
+function KnowledgeResourcePageInner({
+  session,
+  rId,
+}: {
+  session: SemiontSession;
+  rId: ReturnType<typeof resourceId>;
+}) {
   const locale = useLocale();
 
-  const session = useObservable(useSemiont().activeSession$);
-  const streamStatus = useObservable(session?.streamState$) ?? 'initial';
-  const activeKnowledgeBase = session?.kb ?? null;
+  const streamStatus = useObservable(session.streamState$) ?? 'initial';
+  const activeKnowledgeBase = session.kb;
 
-  const semiont = session?.client;
-  const loader = useStateUnit(() => createResourceLoaderStateUnit(semiont!, rId));
+  const loader = useStateUnit(() => createResourceLoaderStateUnit(session.client, rId));
   const resourceData = useObservable(loader.resource$);
   const isLoading = useObservable(loader.isLoading$) ?? true;
+  const loadError = useObservable(loader.error$) ?? null;
 
   // Log error for debugging
   useEffect(() => {
-    if (!isLoading && !resourceData) {
+    if (loadError) {
+      console.error(`[Document] Resource ${rId} failed to load:`, loadError.message);
+    } else if (!isLoading && !resourceData) {
       console.error(`[Document] Resource ${rId} not found`);
     }
-  }, [isLoading, rId, resourceData]);
+  }, [isLoading, loadError, rId, resourceData]);
 
   const refetchDocument = useCallback(async () => {
     loader.invalidate();
   }, [loader]);
 
-  // Early return: loading first, then error/not-found
+  // Early return: a terminal failure carries the reason, so it beats both the
+  // spinner and the generic not-found. Without this branch the load is stuck
+  // in "loading" forever — a failed key has no value either.
+  if (loadError) {
+    return <ResourceErrorState error={loadError} onRetry={refetchDocument} />;
+  }
   if (isLoading) {
     return <ResourceLoadingState />;
   }
@@ -80,7 +126,7 @@ function KnowledgeResourcePageInner({ rId }: { rId: ReturnType<typeof resourceId
       ToolbarPanels={ToolbarPanels}
       refetchDocument={refetchDocument}
       streamStatus={streamStatus}
-      knowledgeBaseName={activeKnowledgeBase?.label}
+      knowledgeBaseName={activeKnowledgeBase.label}
     />
   );
 }

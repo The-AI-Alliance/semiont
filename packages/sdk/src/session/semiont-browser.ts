@@ -27,6 +27,7 @@ import {
   isJwtExpired,
   loadKnowledgeBases,
   OPEN_RESOURCES_BY_KB_KEY,
+  LAST_VIEWED_RESOURCE_BY_KB_KEY,
   saveKnowledgeBases,
   setStoredSession,
 } from './storage';
@@ -58,6 +59,17 @@ function loadOpenResourcesByKb(storage: SessionStorage): Record<string, OpenReso
   try {
     const stored = storage.get(OPEN_RESOURCES_BY_KB_KEY);
     if (stored) return JSON.parse(stored) as Record<string, OpenResource[]>;
+  } catch {
+    // Ignore parse errors
+  }
+  return {};
+}
+
+/** Per-KB last-viewed resource: Record<kbId, resourceId>. */
+function loadLastViewedByKb(storage: SessionStorage): Record<string, string> {
+  try {
+    const stored = storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY);
+    if (stored) return JSON.parse(stored) as Record<string, string>;
   } catch {
     // Ignore parse errors
   }
@@ -100,6 +112,12 @@ export class SemiontBrowser {
    */
   readonly sessionActivating$: BehaviorSubject<boolean>;
   readonly openResources$: BehaviorSubject<OpenResource[]>;
+  /**
+   * The active, connected KB's last-viewed resource id — "where was I?" for
+   * a landing route to resume from. Per-KB like `openResources$`: null while
+   * nothing is connected, and never carrying one KB's id into another.
+   */
+  readonly lastViewedResource$: BehaviorSubject<string | null>;
   readonly error$: Subject<SemiontSessionError>;
   readonly identityToken$: BehaviorSubject<string | null>;
 
@@ -118,6 +136,8 @@ export class SemiontBrowser {
   private activating: Promise<void> | null = null;
   /** Per-KB tab lists; `openResources$` projects the active, connected KB's. */
   private openByKb: Record<string, OpenResource[]> = {};
+  /** Per-KB last-viewed resource; `lastViewedResource$` projects the active, connected KB's. */
+  private lastViewedByKb: Record<string, string> = {};
 
   constructor(config: SemiontBrowserConfig) {
     this.storage = config.storage;
@@ -137,6 +157,8 @@ export class SemiontBrowser {
     this.sessionActivating$ = new BehaviorSubject<boolean>(false);
     this.openByKb = loadOpenResourcesByKb(this.storage);
     this.openResources$ = new BehaviorSubject<OpenResource[]>([]);
+    this.lastViewedByKb = loadLastViewedByKb(this.storage);
+    this.lastViewedResource$ = new BehaviorSubject<string | null>(null);
     this.error$ = new Subject<SemiontSessionError>();
     this.identityToken$ = new BehaviorSubject<string | null>(null);
 
@@ -147,18 +169,26 @@ export class SemiontBrowser {
       else this.storage.delete(ACTIVE_KEY);
     });
 
-    // The visible tab list is a projection of the active, CONNECTED KB
-    // (gate: a live session). Connect/disconnect/switch all surface as
-    // activeSession$ transitions, so one subscription re-projects for all
-    // three; CRUD and cross-tab writes refresh explicitly.
-    this.activeSession$.subscribe(() => this.refreshOpenResources());
+    // The visible tab list and the last-viewed resource are projections of
+    // the active, CONNECTED KB (gate: a live session). Connect/disconnect/
+    // switch all surface as activeSession$ transitions, so one subscription
+    // re-projects both; CRUD and cross-tab writes refresh explicitly.
+    this.activeSession$.subscribe(() => {
+      this.refreshOpenResources();
+      this.refreshLastViewedResource();
+    });
 
-    // Sync the per-KB map from other contexts (cross-tab/cross-process).
+    // Sync the per-KB maps from other contexts (cross-tab/cross-process).
     this.unsubscribeStorage = this.storage.subscribe?.((key, newValue) => {
-      if (key !== OPEN_RESOURCES_BY_KB_KEY || !newValue) return;
+      if (!newValue) return;
       try {
-        this.openByKb = JSON.parse(newValue) as Record<string, OpenResource[]>;
-        this.refreshOpenResources();
+        if (key === OPEN_RESOURCES_BY_KB_KEY) {
+          this.openByKb = JSON.parse(newValue) as Record<string, OpenResource[]>;
+          this.refreshOpenResources();
+        } else if (key === LAST_VIEWED_RESOURCE_BY_KB_KEY) {
+          this.lastViewedByKb = JSON.parse(newValue) as Record<string, string>;
+          this.refreshLastViewedResource();
+        }
       } catch {
         // Ignore parse errors
       }
@@ -224,6 +254,12 @@ export class SemiontBrowser {
       delete rest[id];
       this.openByKb = rest;
       this.persistOpenResources();
+    }
+    if (this.lastViewedByKb[id]) {
+      const rest = { ...this.lastViewedByKb };
+      delete rest[id];
+      this.lastViewedByKb = rest;
+      this.storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, JSON.stringify(this.lastViewedByKb));
     }
     const next = this.kbs$.getValue().filter((kb) => kb.id !== id);
     this.kbs$.next(next);
@@ -527,6 +563,29 @@ export class SemiontBrowser {
     });
   }
 
+  // ── Last viewed resource (per-KB; the visible value is a projection) ──
+
+  private refreshLastViewedResource(): void {
+    const kbId = this.activeKbId$.getValue();
+    const session = this.activeSession$.getValue();
+    this.lastViewedResource$.next(kbId && session ? this.lastViewedByKb[kbId] ?? null : null);
+  }
+
+  /**
+   * Record the resource the user is looking at, against the active KB.
+   * Inert without an active, connected KB — the same gate the tabs use, so
+   * a view that somehow renders during the activation gap cannot attribute
+   * its resource to whichever KB happens to arrive next.
+   */
+  setLastViewedResource(resourceId: string): void {
+    const kbId = this.activeKbId$.getValue();
+    if (!kbId || !this.activeSession$.getValue()) return;
+    if (this.lastViewedByKb[kbId] === resourceId) return;
+    this.lastViewedByKb = { ...this.lastViewedByKb, [kbId]: resourceId };
+    this.storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, JSON.stringify(this.lastViewedByKb));
+    this.refreshLastViewedResource();
+  }
+
   // ── Lifecycle ─────────────────────────────────────────────────────────
 
   async dispose(): Promise<void> {
@@ -550,6 +609,7 @@ export class SemiontBrowser {
     this.activeSession$.complete();
     this.activeSignals$.complete();
     this.openResources$.complete();
+    this.lastViewedResource$.complete();
     this.error$.complete();
     this.identityToken$.complete();
     this.eventBus.destroy();

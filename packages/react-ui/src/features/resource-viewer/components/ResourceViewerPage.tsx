@@ -286,14 +286,15 @@ export function ResourceViewerPage({
     });
   }, [browser]);
 
-  // Add resource to open tabs when it loads
+  // Add resource to open tabs when it loads, and record it as this KB's
+  // last-viewed for the /know landing route to resume from. Both are per-KB
+  // state owned by the browser — a global last-viewed id sends that redirect
+  // into the previously active KB's resource after a switch.
   useEffect(() => {
     if (resource && rUri) {
       const mediaType = getPrimaryMediaType(resource);
       browser.addOpenResource(rUri, resource.name, mediaType || undefined, resource.storageUri);
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('lastViewedDocumentId', rUri);
-      }
+      browser.setLastViewedResource(rUri);
     }
   }, [resource, rUri, browser]);
 

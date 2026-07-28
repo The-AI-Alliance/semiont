@@ -37,7 +37,7 @@ Key observables the UI reads:
   indicator.** UIs that want a spinner during session construction
   must AND-gate on this, otherwise they stick on the spinner
   forever after sign-out (see [Sign-out semantics](#sign-out-semantics)).
-- `openResources$`, `identityToken$`, `error$`
+- `openResources$`, `lastViewedResource$` (both per-KB projections of the active, connected KB), `identityToken$`, `error$`
 
 ### `SemiontProvider` + `useSemiont()` (React surface)
 

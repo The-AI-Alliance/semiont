@@ -20,6 +20,15 @@ import type { Observable } from 'rxjs';
  *   ready yet (e.g. `semiont?.browse.events(rUri)` when the active session is
  *   still loading). In that case the hook is a no-op and returns undefined.
  * - Unsubscribes automatically on unmount or when `obs$` changes.
+ * - A source ERROR is terminal absence: the hook keeps its last value and
+ *   reports the reason. It does not surface the error as state — a hook whose
+ *   whole contract is "the current value" has nowhere to put one. Callers that
+ *   must RENDER a failure need it modelled by the thing they observe (see
+ *   `createResourceLoaderStateUnit`'s `error$`); this handler exists so the
+ *   error is not left unhandled, which RxJS rethrows asynchronously — the
+ *   `Uncaught BusRequestError` seen in the field whenever a cache key
+ *   exhausted its B14 retry with nothing stored (B15).
+ *   See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
  */
 export function useObservable<T>(obs$: Observable<T> | null | undefined): T | undefined {
   const [value, setValue] = useState<T | undefined>(() => {
@@ -29,7 +38,16 @@ export function useObservable<T>(obs$: Observable<T> | null | undefined): T | un
   });
   useEffect(() => {
     if (!obs$) return;
-    const sub = obs$.subscribe(setValue);
+    const sub = obs$.subscribe({
+      next: setValue,
+      error: (e: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[useObservable] source errored; the value stays at its last emission:',
+          e instanceof Error ? e.message : e,
+        );
+      },
+    });
     return () => sub.unsubscribe();
   }, [obs$]);
   return value;

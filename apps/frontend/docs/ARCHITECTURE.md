@@ -157,7 +157,7 @@ SemiontProvider (app root) → SemiontBrowser singleton (library-side, outside R
     ├── owns: kbs$ (KB list), activeKbId$ (active KB) — persisted via the storage adapter
     ├── owns: activeSession$ — the active KB's SemiontSession (its SemiontClient + access/refresh tokens)
     ├── owns: activeSignals$ — session-expired / permission-denied modal signals
-    ├── owns: openResources$, identityToken$
+    ├── owns: openResources$, lastViewedResource$ (per-KB), identityToken$
     └── useSemiont() → SemiontBrowser   (components read observables via useObservable)
         └── Application Components
 ```

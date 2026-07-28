@@ -81,6 +81,40 @@ describe('useObservable', () => {
     expect(result.current).toBeUndefined();
   });
 
+  describe('source errors', () => {
+    // A next-only subscriber gives RxJS nowhere to deliver an error, so it
+    // rethrows it asynchronously — the `Uncaught BusRequestError` seen in
+    // the field whenever a cache key exhausted its B14 retry with nothing
+    // stored (B15 errors that key's observable).
+    // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md (D4)
+
+    it('handles the error instead of letting RxJS rethrow it', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const subject = new Subject<string>();
+      renderHook(() => useObservable(subject));
+
+      // With no error handler attached this throws out of `.error()`.
+      expect(() => {
+        act(() => { subject.error(new Error('Resource not found')); });
+      }).not.toThrow();
+
+      expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it('keeps the last emitted value and reports the reason', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const subject = new BehaviorSubject<string>('last-good');
+      const { result } = renderHook(() => useObservable(subject));
+
+      act(() => { subject.error(new Error('boom')); });
+
+      expect(result.current).toBe('last-good');
+      expect(consoleError.mock.calls.some((c) => c.some((a) => String(a).includes('boom')))).toBe(true);
+      consoleError.mockRestore();
+    });
+  });
+
   it('unsubscribes the previous subscription when observable changes', () => {
     const unsubscribeSpy = vi.fn();
     const firstSubject = new BehaviorSubject<string>('first');
