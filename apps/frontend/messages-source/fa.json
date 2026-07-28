@@ -587,7 +587,14 @@
     "discoveredTitle": "یافت‌شده روی این دستگاه",
     "managedBadge": "مدیریت‌شده توسط راه‌انداز",
     "placementLocal": "محلی",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "ناشناخته",
+    "anotherCopy": "یک نسخهٔ دیگر از پایگاه دانشی که به آن متصل هستید",
+    "addressConflict": "{{count}} پایگاه دانش آدرس {{address}} را ادعا می‌کنند — احتمالاً یکی منسوخ شده است.",
+    "connectToAddress": "اتصال به {{address}}",
+    "connectedToOther": "متصل به {{actual}}، نه {{expected}}.",
+    "identityCheckFailed": "وارد شده‌اید، اما بررسی هویت نتوانست به این پایگاه دانش دسترسی پیدا کند.",
+    "identityNotReported": "وارد شده‌اید، اما این پایگاه دانش هویتی گزارش نکرد."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "هیچ پایگاه دانشی وجود ندارد",

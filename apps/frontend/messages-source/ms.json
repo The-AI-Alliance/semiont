@@ -587,7 +587,14 @@
     "discoveredTitle": "Ditemui pada mesin ini",
     "managedBadge": "Diurus oleh launcher",
     "placementLocal": "tempatan",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Tidak diketahui",
+    "anotherCopy": "satu lagi salinan pangkalan pengetahuan yang anda sambungkan",
+    "addressConflict": "{{count}} pangkalan pengetahuan menuntut {{address}} — satu berkemungkinan sudah lapuk.",
+    "connectToAddress": "Sambung ke {{address}}",
+    "connectedToOther": "Disambungkan ke {{actual}}, bukan {{expected}}.",
+    "identityCheckFailed": "Telah log masuk, tetapi semakan identiti tidak dapat menghubungi pangkalan pengetahuan ini.",
+    "identityNotReported": "Telah log masuk, tetapi pangkalan pengetahuan ini tidak melaporkan sebarang identiti."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Tiada pangkalan pengetahuan",

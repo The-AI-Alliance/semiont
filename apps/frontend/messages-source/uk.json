@@ -587,7 +587,14 @@
     "discoveredTitle": "Знайдено на цьому комп'ютері",
     "managedBadge": "Керується лаунчером",
     "placementLocal": "локальний",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Невідомо",
+    "anotherCopy": "інша копія бази знань, до якої ви підключені",
+    "addressConflict": "{{count}} баз знань претендують на {{address}} — одна з них, імовірно, застаріла.",
+    "connectToAddress": "Підключитися до {{address}}",
+    "connectedToOther": "Підключено до {{actual}}, а не до {{expected}}.",
+    "identityCheckFailed": "Ви увійшли, але перевірка ідентичності не змогла зв'язатися з цією базою знань.",
+    "identityNotReported": "Ви увійшли, але ця база знань не повідомила ідентичність."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Немає баз знань",

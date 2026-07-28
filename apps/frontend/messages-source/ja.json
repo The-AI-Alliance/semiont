@@ -587,7 +587,14 @@
     "discoveredTitle": "このマシンで見つかりました",
     "managedBadge": "ランチャーで管理",
     "placementLocal": "ローカル",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "不明",
+    "anotherCopy": "接続中のナレッジベースの別のコピー",
+    "addressConflict": "{{count}} 件のナレッジベースが {{address}} を主張しています — いずれかが古い可能性があります。",
+    "connectToAddress": "{{address}} に接続",
+    "connectedToOther": "{{expected}} ではなく {{actual}} に接続されています。",
+    "identityCheckFailed": "サインイン済みですが、アイデンティティの確認でこのナレッジベースに到達できませんでした。",
+    "identityNotReported": "サインイン済みですが、このナレッジベースはアイデンティティを報告しませんでした。"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "ナレッジベースがありません",

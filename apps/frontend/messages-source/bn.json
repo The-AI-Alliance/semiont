@@ -587,7 +587,14 @@
     "discoveredTitle": "এই মেশিনে পাওয়া গেছে",
     "managedBadge": "লঞ্চার দ্বারা পরিচালিত",
     "placementLocal": "স্থানীয়",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "অজানা",
+    "anotherCopy": "আপনি যে জ্ঞান ভাণ্ডারে সংযুক্ত আছেন তার আরেকটি অনুলিপি",
+    "addressConflict": "{{count}}টি জ্ঞান ভাণ্ডার {{address}} দাবি করছে — সম্ভবত একটি পুরনো।",
+    "connectToAddress": "{{address}}-এ সংযুক্ত হন",
+    "connectedToOther": "{{actual}}-এ সংযুক্ত, {{expected}}-এ নয়।",
+    "identityCheckFailed": "সাইন ইন হয়েছে, কিন্তু পরিচয় যাচাই এই জ্ঞান ভাণ্ডারে পৌঁছাতে পারেনি।",
+    "identityNotReported": "সাইন ইন হয়েছে, কিন্তু এই জ্ঞান ভাণ্ডার কোনো পরিচয় জানায়নি।"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "কোনো জ্ঞান ভাণ্ডার নেই",

@@ -587,7 +587,14 @@
     "discoveredTitle": "Encontrado nesta máquina",
     "managedBadge": "Gerenciado pelo launcher",
     "placementLocal": "local",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Desconhecido",
+    "anotherCopy": "outra cópia da base de conhecimento à qual você está conectado",
+    "addressConflict": "{{count}} bases de conhecimento reivindicam {{address}} — uma provavelmente está desatualizada.",
+    "connectToAddress": "Conectar a {{address}}",
+    "connectedToOther": "Conectado a {{actual}}, não {{expected}}.",
+    "identityCheckFailed": "Conectado, mas a verificação de identidade não conseguiu acessar esta base de conhecimento.",
+    "identityNotReported": "Conectado, mas esta base de conhecimento não informou uma identidade."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Nenhuma base de conhecimento",

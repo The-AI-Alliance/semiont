@@ -587,7 +587,14 @@
     "discoveredTitle": "Auf diesem Computer gefunden",
     "managedBadge": "Vom Launcher verwaltet",
     "placementLocal": "lokal",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Unbekannt",
+    "anotherCopy": "eine weitere Kopie der Wissensbasis, mit der Sie verbunden sind",
+    "addressConflict": "{{count}} Wissensbasen beanspruchen {{address}} — eine ist wahrscheinlich veraltet.",
+    "connectToAddress": "Mit {{address}} verbinden",
+    "connectedToOther": "Verbunden mit {{actual}}, nicht mit {{expected}}.",
+    "identityCheckFailed": "Angemeldet, aber die Identitätsprüfung konnte diese Wissensbasis nicht erreichen.",
+    "identityNotReported": "Angemeldet, aber diese Wissensbasis hat keine Identität gemeldet."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Keine Wissensbasen",

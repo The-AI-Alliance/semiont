@@ -587,7 +587,14 @@
     "discoveredTitle": "Ditemukan di mesin ini",
     "managedBadge": "Dikelola oleh launcher",
     "placementLocal": "lokal",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Tidak diketahui",
+    "anotherCopy": "salinan lain dari basis pengetahuan yang terhubung dengan Anda",
+    "addressConflict": "{{count}} basis pengetahuan mengklaim {{address}} — salah satunya kemungkinan sudah usang.",
+    "connectToAddress": "Hubungkan ke {{address}}",
+    "connectedToOther": "Terhubung ke {{actual}}, bukan {{expected}}.",
+    "identityCheckFailed": "Sudah masuk, tetapi pemeriksaan identitas tidak dapat menjangkau basis pengetahuan ini.",
+    "identityNotReported": "Sudah masuk, tetapi basis pengetahuan ini tidak melaporkan identitas."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Tidak ada basis pengetahuan",

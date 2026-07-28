@@ -587,7 +587,14 @@
     "discoveredTitle": "Hittades på den här datorn",
     "managedBadge": "Hanteras av launcher",
     "placementLocal": "lokal",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Okänd",
+    "anotherCopy": "en annan kopia av kunskapsbasen du är ansluten till",
+    "addressConflict": "{{count}} kunskapsbaser gör anspråk på {{address}} — en är troligen inaktuell.",
+    "connectToAddress": "Anslut till {{address}}",
+    "connectedToOther": "Ansluten till {{actual}}, inte {{expected}}.",
+    "identityCheckFailed": "Inloggad, men identitetskontrollen kunde inte nå den här kunskapsbasen.",
+    "identityNotReported": "Inloggad, men den här kunskapsbasen rapporterade ingen identitet."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Inga kunskapsbaser",

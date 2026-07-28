@@ -587,7 +587,14 @@
     "discoveredTitle": "Nalezeno v tomto počítači",
     "managedBadge": "Spravováno spouštěčem",
     "placementLocal": "místní",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Neznámý",
+    "anotherCopy": "další kopie znalostní báze, ke které jste připojeni",
+    "addressConflict": "{{count}} znalostních bází si nárokuje {{address}} — jedna je pravděpodobně zastaralá.",
+    "connectToAddress": "Připojit k {{address}}",
+    "connectedToOther": "Připojeno k {{actual}}, ne k {{expected}}.",
+    "identityCheckFailed": "Přihlášeno, ale kontrola identity nemohla tuto znalostní bázi kontaktovat.",
+    "identityNotReported": "Přihlášeno, ale tato znalostní báze neuvedla žádnou identitu."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Žádné znalostní báze",

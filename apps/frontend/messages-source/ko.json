@@ -587,7 +587,14 @@
     "discoveredTitle": "이 컴퓨터에서 발견됨",
     "managedBadge": "런처에서 관리",
     "placementLocal": "로컬",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "알 수 없음",
+    "anotherCopy": "연결된 지식 베이스의 다른 사본",
+    "addressConflict": "지식 베이스 {{count}}개가 {{address}}을(를) 주장합니다 — 하나는 오래된 것일 수 있습니다.",
+    "connectToAddress": "{{address}}에 연결",
+    "connectedToOther": "{{expected}}이(가) 아닌 {{actual}}에 연결되었습니다.",
+    "identityCheckFailed": "로그인되었지만 신원 확인이 이 지식 베이스에 연결하지 못했습니다.",
+    "identityNotReported": "로그인되었지만 이 지식 베이스가 신원을 보고하지 않았습니다."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "지식 베이스 없음",

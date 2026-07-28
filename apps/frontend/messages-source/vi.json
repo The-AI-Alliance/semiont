@@ -587,7 +587,14 @@
     "discoveredTitle": "Được tìm thấy trên máy này",
     "managedBadge": "Được quản lý bởi trình khởi chạy",
     "placementLocal": "cục bộ",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Không xác định",
+    "anotherCopy": "một bản sao khác của cơ sở kiến thức mà bạn đang kết nối",
+    "addressConflict": "{{count}} cơ sở kiến thức cùng khai báo {{address}} — một trong số đó có thể đã lỗi thời.",
+    "connectToAddress": "Kết nối với {{address}}",
+    "connectedToOther": "Đã kết nối với {{actual}}, không phải {{expected}}.",
+    "identityCheckFailed": "Đã đăng nhập, nhưng việc kiểm tra danh tính không thể tiếp cận cơ sở kiến thức này.",
+    "identityNotReported": "Đã đăng nhập, nhưng cơ sở kiến thức này không báo cáo danh tính nào."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Không có cơ sở kiến thức",

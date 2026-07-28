@@ -587,7 +587,14 @@
     "discoveredTitle": "Găsit pe această mașină",
     "managedBadge": "Gestionat de launcher",
     "placementLocal": "local",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Necunoscut",
+    "anotherCopy": "altă copie a bazei de cunoștințe la care ești conectat",
+    "addressConflict": "{{count}} baze de cunoștințe revendică {{address}} — una este probabil învechită.",
+    "connectToAddress": "Conectare la {{address}}",
+    "connectedToOther": "Conectat la {{actual}}, nu {{expected}}.",
+    "identityCheckFailed": "Conectat, dar verificarea identității nu a putut accesa această bază de cunoștințe.",
+    "identityNotReported": "Conectat, dar această bază de cunoștințe nu a raportat o identitate."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Nicio bază de cunoștințe",

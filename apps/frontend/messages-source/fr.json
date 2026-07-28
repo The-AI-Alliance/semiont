@@ -587,7 +587,14 @@
     "discoveredTitle": "Trouvé sur cette machine",
     "managedBadge": "Géré par le lanceur",
     "placementLocal": "local",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Inconnu",
+    "anotherCopy": "une autre copie de la base de connaissances à laquelle vous êtes connecté",
+    "addressConflict": "{{count}} bases de connaissances revendiquent {{address}} — l'une est probablement obsolète.",
+    "connectToAddress": "Se connecter à {{address}}",
+    "connectedToOther": "Connecté à {{actual}}, et non à {{expected}}.",
+    "identityCheckFailed": "Connecté, mais la vérification d'identité n'a pas pu joindre cette base de connaissances.",
+    "identityNotReported": "Connecté, mais cette base de connaissances n'a signalé aucune identité."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Aucune base de connaissances",
