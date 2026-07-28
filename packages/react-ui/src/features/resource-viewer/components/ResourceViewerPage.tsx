@@ -20,6 +20,7 @@ import { JsonLdPanel } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
+import type { BrowseMediaRenderers, AnnotateMediaRenderers } from '@semiont/react-ui';
 import { useObservable } from '@semiont/react-ui';
 import { useResourceContent } from '../../../hooks/useResourceContent';
 import { useMediaToken } from '../../../hooks/useMediaToken';
@@ -92,6 +93,14 @@ export interface ResourceViewerPageProps {
    * Name of the active knowledge base (for display in panels)
    */
   knowledgeBaseName?: string | undefined;
+
+  /**
+   * Media-renderer overrides, forwarded to `ResourceViewer`. Present at this
+   * tier too so a host embedding the whole page — not just the viewer — can
+   * still swap a renderer. See .plans/ANNOTATE-RENDERER-REGISTRY.md (D5)
+   */
+  browseRenderers?: BrowseMediaRenderers;
+  annotateRenderers?: AnnotateMediaRenderers;
 }
 
 /**
@@ -126,6 +135,8 @@ export function ResourceViewerPage({
   refetchDocument,
   streamStatus,
   knowledgeBaseName,
+  browseRenderers,
+  annotateRenderers,
 }: ResourceViewerPageProps) {
   // Translations
   const tw = useTranslations('ReferenceWizard');
@@ -512,6 +523,8 @@ export function ResourceViewerPage({
                   showLineNumbers={showLineNumbers}
                   hoverDelayMs={hoverDelayMs}
                   hoveredAnnotationId={hoveredAnnotationId}
+                  {...(browseRenderers && { browseRenderers })}
+                  {...(annotateRenderers && { annotateRenderers })}
                 />
               )}
             </ErrorBoundary>

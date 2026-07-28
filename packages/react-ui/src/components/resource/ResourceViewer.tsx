@@ -3,7 +3,9 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
+import type { AnnotateMediaRenderers } from './annotate-renderers';
 import { BrowseView, type ReferenceHover } from './BrowseView';
+import type { BrowseMediaRenderers } from './browse-renderers';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
 import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, components, EventMap, AnchorRect } from '@semiont/core';
@@ -75,6 +77,22 @@ interface Props {
    * this makes that opt-out a contract instead of a CSS override.
    */
   showToolbar?: boolean;
+  /**
+   * Override the read-only / annotating media renderers respectively; each is
+   * merged over its defaults by the view below.
+   *
+   * Two flat props rather than one nested object: the registries are
+   * separately typed (`MediaRendererProps` vs `AnnotateMediaRendererProps`)
+   * and nesting them would imply an interchangeability that does not exist.
+   *
+   * Forwarding them is what makes the registries reachable at all for a host
+   * that imports `ResourceViewer` — the documented entry point. Before this,
+   * reaching `BrowseView`'s `renderers` meant dropping to `BrowseView`
+   * directly and reimplementing the browse/annotate switching this component
+   * exists to provide. See .plans/ANNOTATE-RENDERER-REGISTRY.md (D5)
+   */
+  browseRenderers?: BrowseMediaRenderers;
+  annotateRenderers?: AnnotateMediaRenderers;
 }
 
 /**
@@ -110,6 +128,8 @@ export function ResourceViewer({
   shape: shapeProp,
   onShapeChange,
   showToolbar = true,
+  browseRenderers,
+  annotateRenderers,
 }: Props) {
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
@@ -343,6 +363,7 @@ export function ResourceViewer({
           showToolbar={showToolbar}
           session={session}
           newAnnotationIds={newAnnotationIds}
+          {...(annotateRenderers && { renderers: annotateRenderers })}
         />
       ) : (
         <BrowseView
@@ -361,6 +382,7 @@ export function ResourceViewer({
           onLinkClick={onLinkClick}
           onReferenceHover={onReferenceHover}
           inline={inline}
+          {...(browseRenderers && { renderers: browseRenderers })}
         />
       )}
 
