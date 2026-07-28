@@ -1,6 +1,6 @@
 {
   "name": "@semiont/cli",
-  "version": "0.5.22",
+  "version": "0.5.23",
   "description": "Deprecated — install the Semiont launcher instead (brew install the-ai-alliance/semiont/semiont)",
   "type": "module",
   "bin": {
