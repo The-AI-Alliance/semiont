@@ -188,36 +188,43 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
   const transport = new HttpTransport({ baseUrl: baseUrl(origin), token$ });
   const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
-  const authResult = await client.auth!.password(emailStr, password);
-  const token = authResult.token;
-  const refreshToken = authResult.refreshToken;
-  if (!token) throw new Error('No access token received');
-  if (!refreshToken) throw new Error('No refresh token received');
-  // Every later call on this client is now authenticated.
-  token$.next(accessToken(token));
-
-  // The KB names itself: identity is read from the KB we actually reached,
-  // never inferred from the discovered row the user happened to click.
-  let status;
+  // The cleanup wraps EVERY exit, not just the status call. The transport
+  // subscribes to token$ the moment it is constructed, so a throw before the
+  // status check — a rejected password, a response missing either token —
+  // leaked it. Scoping the finally to the narrow try covered the one failure
+  // that happened to be on screen and none of the earlier ones.
   try {
-    status = await client.admin!.status();
-  } catch (e) {
-    throw new IdentityUnverifiableError('unreachable', e instanceof Error ? e.message : String(e));
+    const authResult = await client.auth!.password(emailStr, password);
+    const token = authResult.token;
+    const refreshToken = authResult.refreshToken;
+    if (!token) throw new Error('No access token received');
+    if (!refreshToken) throw new Error('No refresh token received');
+    // Every later call on this client is now authenticated.
+    token$.next(accessToken(token));
+
+    // The KB names itself: identity is read from the KB we actually reached,
+    // never inferred from the discovered row the user happened to click.
+    let status;
+    try {
+      status = await client.admin!.status();
+    } catch (e) {
+      throw new IdentityUnverifiableError('unreachable', e instanceof Error ? e.message : String(e));
+    }
+    if (!status.did) throw new IdentityUnverifiableError('not-reported', 'status reported no did');
+
+    return {
+      token,
+      refreshToken,
+      did: status.did,
+      // Absence is stored as absence — the WORD "Unknown" is a render concern
+      // (decision 7), and `host:port` is an address, never a name.
+      label: status.projectName ?? '',
+      ...(status.gitBranch ? { gitBranch: status.gitBranch } : {}),
+    };
   } finally {
     transport.dispose();
     token$.complete();
   }
-  if (!status.did) throw new IdentityUnverifiableError('not-reported', 'status reported no did');
-
-  return {
-    token,
-    refreshToken,
-    did: status.did,
-    // Absence is stored as absence — the WORD "Unknown" is a render concern
-    // (decision 7), and `host:port` is an address, never a name.
-    label: status.projectName ?? '',
-    ...(status.gitBranch ? { gitBranch: status.gitBranch } : {}),
-  };
 }
 
 export function KnowledgeBasePanel() {

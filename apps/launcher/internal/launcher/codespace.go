@@ -1413,8 +1413,20 @@ func waitForRemoteKB(u *ui, name string, created bool) int {
 	t0 := time.Now()
 	deadline := t0.Add(remoteReadyBudget)
 	for {
-		if remoteKBHealthy(name) {
+		switch askRemoteKB(name) {
+		case remoteReady:
 			u.ok("Stack ready inside the codespace %s", u.dim("("+took(time.Since(t0))+")"))
+			tail.stop()
+			return 0
+		case remoteUnknown:
+			// Cannot ask, so cannot wait: ssh is a nicety here, and a stack
+			// that is actually healthy must still start. Proceed to the
+			// forward — with the caveat named, because if the stack is NOT
+			// up this is precisely the case where the tunnel dies on first
+			// contact and the reason will look like a forward problem.
+			u.warn("Could not reach %s over ssh to check the stack — continuing without that check.", name)
+			fmt.Fprintln(os.Stderr, "  If the forward dies immediately, the stack inside the codespace is probably still coming up.")
+			tail.stop()
 			return 0
 		}
 		if !time.Now().Before(deadline) {
@@ -1423,6 +1435,7 @@ func waitForRemoteKB(u *ui, name string, created bool) int {
 		tail.tick(time.Since(t0))
 		time.Sleep(remoteReadyPoll)
 	}
+	tail.stop()
 	u.fail("The stack did not come up inside %s within %s.", name, took(remoteReadyBudget))
 	fmt.Fprintf(os.Stderr, "  Look inside:  gh codespace ssh -c %s -- 'docker ps; docker logs --tail 50 semiont-backend'\n", name)
 	fmt.Fprintln(os.Stderr, "  A crash-looping backend is the usual cause; its logs name the reason.")
@@ -1437,13 +1450,42 @@ const (
 	remoteReadyPoll = 5 * time.Second
 )
 
-// remoteKBHealthy asks the codespace whether its backend serves health. Any
-// non-zero exit (ssh down, curl refused, VM still booting) reads as "not yet"
-// — this is a readiness poll, and its only job is to say when to stop waiting.
-func remoteKBHealthy(name string) bool {
-	probe := fmt.Sprintf("curl -sf -o /dev/null -m 5 http://localhost:%d/api/health", kbRemotePort)
-	return runSilent("gh", "codespace", "ssh", "-c", name, "--", probe) == nil
+// remoteReadiness is what the codespace can tell us about its own stack.
+type remoteReadiness int
+
+const (
+	remoteReady    remoteReadiness = iota // the KB answered inside the VM
+	remoteNotReady                        // ssh worked; the KB is not up yet
+	remoteUnknown                         // ssh itself is unusable — we cannot ask
+)
+
+// askRemoteKB asks the codespace whether its backend serves health, and — the
+// part that matters — distinguishes "not ready" from "could not ask".
+//
+// ssh is a NICETY in this flow, never a gate: it can fail while the stack is
+// perfectly healthy (no sshd, auth trouble), and blocking on it would fail a
+// start that would otherwise have worked. Exit codes alone cannot separate
+// "curl refused" from "ssh died", so the remote command prints a sentinel and
+// we read stdout: no sentinel means the question never reached the VM.
+func askRemoteKB(name string) remoteReadiness {
+	probe := fmt.Sprintf(
+		"curl -sf -o /dev/null -m 5 http://localhost:%d/api/health && echo %s || echo %s",
+		kbRemotePort, readySentinel, notReadySentinel)
+	out, _ := capture("gh", "codespace", "ssh", "-c", name, "--", probe)
+	switch {
+	case strings.Contains(out, readySentinel):
+		return remoteReady
+	case strings.Contains(out, notReadySentinel):
+		return remoteNotReady
+	default:
+		return remoteUnknown
+	}
 }
+
+const (
+	readySentinel    = "SEMIONT_KB_READY"
+	notReadySentinel = "SEMIONT_KB_WAIT"
+)
 
 // --- forward stderr, kept so a death can be explained ---
 

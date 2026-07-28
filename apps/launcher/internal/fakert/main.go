@@ -461,12 +461,15 @@ func ghCodespace(args []string, joined string) {
 			// only way to ask "is the stack up?" without destroying the
 			// forward while it is still coming up. Each call is tallied so a
 			// test can say "ready on the nth probe".
-			n := bumpRemoteProbe()
+			// The launcher's probe is `curl … && echo READY || echo WAIT`, so
+			// the sentinel — not the exit code — is the answer. A vanished
+			// sentinel is how it detects that ssh itself failed.
+			bumpRemoteProbe()
 			if remoteDown() {
-				fmt.Fprintf(os.Stderr, "curl: (7) Failed to connect to localhost port 4000 after 1 ms: Connection refused (probe %d)\n", n)
-				os.Exit(7)
+				fmt.Println("SEMIONT_KB_WAIT")
+				return
 			}
-			fmt.Println("200")
+			fmt.Println("SEMIONT_KB_READY")
 		case strings.Contains(joined, ".semiont/config"):
 			// The KB's committed identity card, as the codespace holds it.
 			// FAKERT_GH_KBCONFIG overrides so a test can stage DRIFT — a

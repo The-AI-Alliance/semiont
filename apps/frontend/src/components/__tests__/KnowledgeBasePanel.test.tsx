@@ -131,7 +131,10 @@ vi.mock('@semiont/sdk', async () => {
   return { ...actual, SemiontClient: MockSemiontClient };
 });
 
-const { httpTransportConfigs } = vi.hoisted(() => ({ httpTransportConfigs: [] as any[] }));
+const { httpTransportConfigs, httpTransportDisposals } = vi.hoisted(() => ({
+  httpTransportConfigs: [] as any[],
+  httpTransportDisposals: [] as any[],
+}));
 
 vi.mock('@semiont/http-transport', async () => {
   const actual = await vi.importActual<typeof import('@semiont/http-transport')>('@semiont/http-transport');
@@ -140,6 +143,13 @@ vi.mock('@semiont/http-transport', async () => {
   class MockHttpTransport {
     config: any;
     constructor(config: any) { this.config = config; httpTransportConfigs.push(config); }
+    // The real transport subscribes to token$ and starts an SSE actor once a
+    // token arrives, so the throwaway auth client MUST be disposed. Recording
+    // the call rather than stubbing it silently: a mock that merely tolerates
+    // dispose() would let the leak come back unnoticed, and the missing method
+    // took the whole connect-flow suite red.
+    disposed = false;
+    dispose() { this.disposed = true; httpTransportDisposals.push(this.config); }
   }
   class MockHttpContentTransport { constructor(_t: any) {} }
   return { ...actual, HttpTransport: MockHttpTransport, HttpContentTransport: MockHttpContentTransport };
@@ -159,6 +169,7 @@ describe('KnowledgeBasePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     httpTransportConfigs.length = 0;
+    httpTransportDisposals.length = 0;
     kbs$.next([kb1, kb2]);
     // Panel reads `activeKnowledgeBase` from `activeSession$?.kb`, so a session
     // with `kb: kb1` emulates "kb1 is active".
@@ -296,6 +307,21 @@ describe('KnowledgeBasePanel', () => {
 
       await waitFor(() => expect(mockBrowser.addKb).toHaveBeenCalled());
       expect(tokenAtIdentityCheck).toBe('tok');
+    });
+
+    it('disposes the throwaway transport even when auth fails', async () => {
+      // The transport subscribes to token$ as soon as it is constructed, and
+      // starts an SSE actor once a token arrives — so a connect attempt that
+      // throws must still tear it down. The original cleanup sat in a finally
+      // scoped to the /api/status call, which covered the one failure on
+      // screen and left every earlier one leaking: a rejected password, or a
+      // response missing either token.
+      mockAuthPassword.mockRejectedValue(new Error('bad password'));
+
+      await connect();
+
+      await waitFor(() => expect(httpTransportDisposals.length).toBeGreaterThan(0));
+      expect(mockBrowser.addKb).not.toHaveBeenCalled();
     });
 
     it('distinguishes an unreachable identity check from a KB that reports none', async () => {
