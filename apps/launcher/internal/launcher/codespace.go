@@ -218,6 +218,23 @@ func startCodespace(u *ui, opts startOptions) int {
 	if code := ensureCodespaceAvailable(u, repo, name); code != 0 {
 		return code
 	}
+	// THE STACK MUST BE UP BEFORE THE TUNNEL EXISTS. `gh codespace ports
+	// forward` binds locally at once but exits the first time a connection
+	// cannot be opened through to the remote port ("ssh: rejected: connect
+	// failed"). A fresh create runs devcontainer hooks for minutes, so any
+	// probe through the tunnel during that window destroys it — including
+	// the launcher's own bind check, which DIALS the port. The checker was
+	// killing the thing it checked (live 2026-07-27; every fresh create
+	// reported "the port forward died after 1s — the stack may be fine",
+	// which was exactly backwards: the stack was down, and that is why the
+	// forward died).
+	//
+	// Readiness is therefore asked over ssh, which does not touch the
+	// tunnel, and the tunnel is built only once the answer is yes. On a
+	// resume the first probe usually succeeds, so the fast path stays fast.
+	if code := waitForRemoteKB(u, name, created); code != 0 {
+		return code
+	}
 	pid, fwdDead, code := spawnForward(u, name, kbPort)
 	if code != 0 {
 		return code
@@ -267,38 +284,29 @@ func startCodespace(u *ui, opts startOptions) int {
 	}
 	saveStack(newSt)
 
-	// Health, not VM state, is readiness ("Available ≠ hooks finished" —
-	// on a fresh create the devcontainer hooks run minutes past Available).
-	// Each path narrates ITS wait: a resume borrowing the fresh-create
-	// wording promised minutes for a gate that usually opens in seconds.
-	if created {
-		u.log("Waiting for the stack %s", u.dim("(a fresh create runs devcontainer hooks — image and model pulls take minutes)"))
-	} else {
-		u.log("Waiting for the stack %s", u.dim("(resume: the VM wakes already provisioned — usually seconds)"))
-	}
-	// A fresh create narrates its hooks: tail the creation log while the
-	// health gate waits. Resume tails nothing — its creation log is old.
-	var tail *creationLogTail
-	if created {
-		tail = startCreationLogTail(u, name)
-	}
-	// Each tick renders the window AND takes the forward's pulse: a tunnel
-	// that dies mid-wait must fail in seconds with the true diagnosis, not
-	// burn the whole budget blaming a KB that may be healthy (observed
-	// live 2026-07-23 — 600s spent polling a defunct forward).
+	// The stack is already known healthy (waitForRemoteKB, over ssh). What
+	// is unproven is the TUNNEL, so this gate asks a different question and
+	// gets a short budget: the KB answered a moment ago inside the VM, so
+	// anything slow here is the forward, not the stack.
+	//
+	// The tick still takes the forward's pulse. A tunnel can die mid-wait
+	// for reasons unrelated to readiness (observed live 2026-07-23 — 600s
+	// spent polling a defunct forward), and reporting that as a sick KB
+	// sends the reader to the wrong machine.
 	tick := func(elapsed time.Duration) bool {
-		tail.tick(elapsed)
 		select {
 		case <-fwdDead:
-			u.fail("The port forward (pid %d) died after %s — the stack may be fine.", pid, took(elapsed))
+			u.fail("The port forward (pid %d) died after %s.", pid, took(elapsed))
+			if last := lastForwardError(pid); last != "" {
+				fmt.Fprintf(os.Stderr, "  gh said: %s\n", last)
+			}
 			fmt.Fprintln(os.Stderr, "  Rerun to respawn it:  semiont start --runtime codespace --repo "+repo)
 			return false
 		default:
 			return true
 		}
 	}
-	d, ok := waitForHTTPTick(u, "KB (through the forward)", fmt.Sprintf("http://localhost:%d/api/health", kbPort), 600, tick)
-	tail.stop()
+	d, ok := waitForHTTPTick(u, "KB (through the forward)", fmt.Sprintf("http://localhost:%d/api/health", kbPort), 60, tick)
 	if !ok {
 		return 1
 	}
@@ -857,12 +865,20 @@ func spawnForward(u *ui, name string, kbPort int) (int, <-chan struct{}, int) {
 		fmt.Sprintf("%d:%d", kbRemotePort, kbPort), "-c", name}
 	u.echoCmd("gh", args...)
 	cmd := exec.Command("gh", args...)
-	cmd.Stdout, cmd.Stderr = nil, nil
+	// Keep gh's stderr. It was discarded, so a dead forward could be
+	// reported but never EXPLAINED — and gh's own message is the whole
+	// diagnosis ("ssh: rejected: connect failed (Connection refused)" means
+	// the remote port is not listening; "address already in use" means the
+	// local one is taken). A bounded buffer: this is one or two lines, and
+	// an unbounded one would grow for the life of a long-running tunnel.
+	cmd.Stdout = nil
+	cmd.Stderr = newForwardLog()
 	if err := cmd.Start(); err != nil {
 		u.fail("Could not start the port forward: %v", err)
 		return 0, nil, 1
 	}
 	pid := cmd.Process.Pid
+	rememberForwardLog(pid, cmd.Stderr)
 	// A reaping Wait (not Release): the observed mid-wait death left a
 	// ZOMBIE, and a zombie still passes kill-0 aliveness — only Wait both
 	// reaps it and yields a truthful death signal for the health gate.
@@ -1371,4 +1387,118 @@ func forwardAlive(pid, port int) bool {
 	}
 	conn.Close()
 	return true
+}
+
+// waitForRemoteKB blocks until the KB answers INSIDE the codespace, asked over
+// ssh so nothing touches the port forward (which does not exist yet, and which
+// a premature probe would destroy — see the call site).
+//
+// The probe is `curl` against localhost:4000 in the VM: the same question the
+// health gate asks, one hop earlier, where a "connection refused" costs
+// nothing. Each attempt is a fresh `gh codespace ssh`, so the cadence is slow
+// on purpose — ssh setup dwarfs the request, and a fresh create is a
+// minutes-long wait where seconds of resolution buy nothing.
+func waitForRemoteKB(u *ui, name string, created bool) int {
+	if created {
+		u.log("Waiting for the stack %s", u.dim("(a fresh create runs devcontainer hooks — image and model pulls take minutes)"))
+	} else {
+		u.log("Waiting for the stack %s", u.dim("(resume: the VM wakes already provisioned — usually seconds)"))
+	}
+	// A fresh create narrates its hooks while the gate waits; a resume has
+	// only a stale creation log, so it tails nothing.
+	var tail *creationLogTail
+	if created {
+		tail = startCreationLogTail(u, name)
+	}
+	t0 := time.Now()
+	deadline := t0.Add(remoteReadyBudget)
+	for {
+		if remoteKBHealthy(name) {
+			u.ok("Stack ready inside the codespace %s", u.dim("("+took(time.Since(t0))+")"))
+			return 0
+		}
+		if !time.Now().Before(deadline) {
+			break
+		}
+		tail.tick(time.Since(t0))
+		time.Sleep(remoteReadyPoll)
+	}
+	u.fail("The stack did not come up inside %s within %s.", name, took(remoteReadyBudget))
+	fmt.Fprintf(os.Stderr, "  Look inside:  gh codespace ssh -c %s -- 'docker ps; docker logs --tail 50 semiont-backend'\n", name)
+	fmt.Fprintln(os.Stderr, "  A crash-looping backend is the usual cause; its logs name the reason.")
+	return 1
+}
+
+const (
+	// Long enough for a cold create: image pulls plus model pulls.
+	remoteReadyBudget = 15 * time.Minute
+	// One `gh codespace ssh` per probe — seconds of resolution would only
+	// buy ssh handshakes.
+	remoteReadyPoll = 5 * time.Second
+)
+
+// remoteKBHealthy asks the codespace whether its backend serves health. Any
+// non-zero exit (ssh down, curl refused, VM still booting) reads as "not yet"
+// — this is a readiness poll, and its only job is to say when to stop waiting.
+func remoteKBHealthy(name string) bool {
+	probe := fmt.Sprintf("curl -sf -o /dev/null -m 5 http://localhost:%d/api/health", kbRemotePort)
+	return runSilent("gh", "codespace", "ssh", "-c", name, "--", probe) == nil
+}
+
+// --- forward stderr, kept so a death can be explained ---
+
+// forwardLog is a last-lines ring for a forward's stderr. gh emits at most a
+// line or two, but the process can live for hours; an unbounded buffer would
+// be a slow leak for output nobody reads unless something dies.
+type forwardLog struct {
+	mu   sync.Mutex
+	last string
+}
+
+func newForwardLog() *forwardLog { return &forwardLog{} }
+
+func (f *forwardLog) Write(p []byte) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if line := strings.TrimSpace(string(p)); line != "" {
+		f.last = lastLine(line)
+	}
+	return len(p), nil
+}
+
+func (f *forwardLog) String() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.last
+}
+
+func lastLine(s string) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
+}
+
+var (
+	forwardLogsMu sync.Mutex
+	forwardLogs   = map[int]*forwardLog{}
+)
+
+func rememberForwardLog(pid int, w any) {
+	fl, ok := w.(*forwardLog)
+	if !ok {
+		return
+	}
+	forwardLogsMu.Lock()
+	defer forwardLogsMu.Unlock()
+	forwardLogs[pid] = fl
+}
+
+// lastForwardError returns the final stderr line a forward produced, or "".
+func lastForwardError(pid int) string {
+	forwardLogsMu.Lock()
+	fl := forwardLogs[pid]
+	forwardLogsMu.Unlock()
+	if fl == nil {
+		return ""
+	}
+	return fl.String()
 }
