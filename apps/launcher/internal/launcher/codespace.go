@@ -1410,6 +1410,7 @@ func waitForRemoteKB(u *ui, name string, created bool) int {
 	if created {
 		tail = startCreationLogTail(u, name)
 	}
+	defer tail.stop()
 	t0 := time.Now()
 	deadline := t0.Add(remoteReadyBudget)
 	for {
