@@ -77,7 +77,9 @@
     "justNow": "अभी-अभी",
     "minutesAgo": "{{count}}मि पहले",
     "hoursAgo": "{{count}}घं पहले",
-    "daysAgo": "{{count}}दि पहले"
+    "daysAgo": "{{count}}दि पहले",
+    "failed": "इतिहास लोड नहीं हो सका।",
+    "retry": "पुनः प्रयास करें"
   },
   "CommentsPanel": {
     "title": "टिप्पणियां",
@@ -171,7 +173,9 @@
     "reference": "संदर्भ",
     "assessment": "मूल्यांकन",
     "comment": "टिप्पणियां",
-    "tag": "टैग"
+    "tag": "टैग",
+    "annotationsFailed": "एनोटेशन लोड नहीं हो सके।",
+    "retry": "पुनः प्रयास करें"
   },
   "StatisticsPanel": {
     "title": "सांख्यिकी",
@@ -220,7 +224,10 @@
     "loading": "लोड हो रहा है...",
     "loadingEllipsis": "लोड हो रहा है...",
     "untitledResource": "शीर्षकहीन संसाधन",
-    "noText": "कोई टेक्स्ट नहीं"
+    "noText": "कोई टेक्स्ट नहीं",
+    "incomingReferencesFailed": "इनकमिंग संदर्भ लोड नहीं हो सके।",
+    "retry": "पुनः प्रयास करें",
+    "entityTypesFailed": "इकाई प्रकार लोड नहीं हो सके।"
   },
   "KeyboardShortcuts": {
     "title": "कीबोर्ड शॉर्टकट",

@@ -77,7 +77,9 @@
     "justNow": "právě teď",
     "minutesAgo": "před {{count}} min",
     "hoursAgo": "před {{count}} hod",
-    "daysAgo": "před {{count}} dny"
+    "daysAgo": "před {{count}} dny",
+    "failed": "Historii se nepodařilo načíst.",
+    "retry": "Zkusit znovu"
   },
   "CommentsPanel": {
     "title": "Komentáře",
@@ -171,7 +173,9 @@
     "reference": "Reference",
     "assessment": "Hodnocení",
     "comment": "Komentáře",
-    "tag": "Štítky"
+    "tag": "Štítky",
+    "annotationsFailed": "Anotace se nepodařilo načíst.",
+    "retry": "Zkusit znovu"
   },
   "StatisticsPanel": {
     "title": "Statistiky",
@@ -220,7 +224,10 @@
     "loading": "načítání...",
     "loadingEllipsis": "Načítání...",
     "untitledResource": "Zdroj bez názvu",
-    "noText": "Žádný text"
+    "noText": "Žádný text",
+    "incomingReferencesFailed": "Příchozí reference se nepodařilo načíst.",
+    "retry": "Zkusit znovu",
+    "entityTypesFailed": "Typy entit se nepodařilo načíst."
   },
   "KeyboardShortcuts": {
     "title": "Klávesové zkratky",

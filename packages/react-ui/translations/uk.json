@@ -77,7 +77,9 @@
     "justNow": "щойно",
     "minutesAgo": "{{count}}хв тому",
     "hoursAgo": "{{count}}год тому",
-    "daysAgo": "{{count}}дн тому"
+    "daysAgo": "{{count}}дн тому",
+    "failed": "Не вдалося завантажити історію.",
+    "retry": "Спробувати знову"
   },
   "CommentsPanel": {
     "title": "Коментарі",
@@ -171,7 +173,9 @@
     "reference": "Посилання",
     "assessment": "Оцінки",
     "comment": "Коментарі",
-    "tag": "Теги"
+    "tag": "Теги",
+    "annotationsFailed": "Не вдалося завантажити анотації.",
+    "retry": "Спробувати знову"
   },
   "StatisticsPanel": {
     "title": "Статистика",
@@ -220,7 +224,10 @@
     "loading": "завантаження...",
     "loadingEllipsis": "Завантаження...",
     "untitledResource": "Ресурс без назви",
-    "noText": "Немає тексту"
+    "noText": "Немає тексту",
+    "incomingReferencesFailed": "Не вдалося завантажити вхідні посилання.",
+    "retry": "Спробувати знову",
+    "entityTypesFailed": "Не вдалося завантажити типи сутностей."
   },
   "KeyboardShortcuts": {
     "title": "Комбінації клавіш",

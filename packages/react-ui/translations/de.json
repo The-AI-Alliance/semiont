@@ -77,7 +77,9 @@
     "justNow": "gerade eben",
     "minutesAgo": "vor {{count}} Min.",
     "hoursAgo": "vor {{count}} Std.",
-    "daysAgo": "vor {{count}} T."
+    "daysAgo": "vor {{count}} T.",
+    "failed": "Verlauf konnte nicht geladen werden.",
+    "retry": "Erneut versuchen"
   },
   "CommentsPanel": {
     "title": "Kommentare",
@@ -171,7 +173,9 @@
     "reference": "Referenzen",
     "assessment": "Bewertungen",
     "comment": "Kommentare",
-    "tag": "Tags"
+    "tag": "Tags",
+    "annotationsFailed": "Annotationen konnten nicht geladen werden.",
+    "retry": "Erneut versuchen"
   },
   "StatisticsPanel": {
     "title": "Statistiken",
@@ -220,7 +224,10 @@
     "loading": "Wird geladen...",
     "loadingEllipsis": "Wird geladen...",
     "untitledResource": "Unbenannte Ressource",
-    "noText": "Kein Text"
+    "noText": "Kein Text",
+    "incomingReferencesFailed": "Eingehende Referenzen konnten nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "entityTypesFailed": "Entitätstypen konnten nicht geladen werden."
   },
   "KeyboardShortcuts": {
     "title": "Tastenkombinationen",

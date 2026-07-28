@@ -77,7 +77,9 @@
     "justNow": "vừa xong",
     "minutesAgo": "{{count}} phút trước",
     "hoursAgo": "{{count}} giờ trước",
-    "daysAgo": "{{count}} ngày trước"
+    "daysAgo": "{{count}} ngày trước",
+    "failed": "Không thể tải lịch sử.",
+    "retry": "Thử lại"
   },
   "CommentsPanel": {
     "title": "Bình luận",
@@ -171,7 +173,9 @@
     "reference": "Tham chiếu",
     "assessment": "Đánh giá",
     "comment": "Bình luận",
-    "tag": "Thẻ"
+    "tag": "Thẻ",
+    "annotationsFailed": "Không thể tải chú thích.",
+    "retry": "Thử lại"
   },
   "StatisticsPanel": {
     "title": "Thống kê",
@@ -220,7 +224,10 @@
     "loading": "đang tải...",
     "loadingEllipsis": "Đang tải...",
     "untitledResource": "Tài nguyên chưa có tiêu đề",
-    "noText": "Không có văn bản"
+    "noText": "Không có văn bản",
+    "incomingReferencesFailed": "Không thể tải tham chiếu đến.",
+    "retry": "Thử lại",
+    "entityTypesFailed": "Không thể tải loại thực thể."
   },
   "KeyboardShortcuts": {
     "title": "Phím tắt",

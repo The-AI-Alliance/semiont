@@ -77,7 +77,9 @@
     "justNow": "baru saja",
     "minutesAgo": "{{count}}m lalu",
     "hoursAgo": "{{count}}j lalu",
-    "daysAgo": "{{count}}h lalu"
+    "daysAgo": "{{count}}h lalu",
+    "failed": "Tidak dapat memuat riwayat.",
+    "retry": "Coba lagi"
   },
   "CommentsPanel": {
     "title": "Komentar",
@@ -171,7 +173,9 @@
     "reference": "Referensi",
     "assessment": "Penilaian",
     "comment": "Komentar",
-    "tag": "Tag"
+    "tag": "Tag",
+    "annotationsFailed": "Tidak dapat memuat anotasi.",
+    "retry": "Coba lagi"
   },
   "StatisticsPanel": {
     "title": "Statistik",
@@ -220,7 +224,10 @@
     "loading": "memuat...",
     "loadingEllipsis": "Memuat...",
     "untitledResource": "Sumber Daya Tanpa Judul",
-    "noText": "Tidak ada teks"
+    "noText": "Tidak ada teks",
+    "incomingReferencesFailed": "Tidak dapat memuat referensi masuk.",
+    "retry": "Coba lagi",
+    "entityTypesFailed": "Tidak dapat memuat tipe entitas."
   },
   "KeyboardShortcuts": {
     "title": "Pintasan Keyboard",

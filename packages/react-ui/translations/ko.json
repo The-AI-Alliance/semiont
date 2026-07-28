@@ -77,7 +77,9 @@
     "justNow": "방금",
     "minutesAgo": "{{count}}분 전",
     "hoursAgo": "{{count}}시간 전",
-    "daysAgo": "{{count}}일 전"
+    "daysAgo": "{{count}}일 전",
+    "failed": "기록을 불러올 수 없습니다.",
+    "retry": "다시 시도"
   },
   "CommentsPanel": {
     "title": "댓글",
@@ -171,7 +173,9 @@
     "reference": "참조",
     "assessment": "평가",
     "comment": "댓글",
-    "tag": "태그"
+    "tag": "태그",
+    "annotationsFailed": "주석을 불러올 수 없습니다.",
+    "retry": "다시 시도"
   },
   "StatisticsPanel": {
     "title": "통계",
@@ -220,7 +224,10 @@
     "loading": "로딩 중...",
     "loadingEllipsis": "로딩 중...",
     "untitledResource": "제목 없는 리소스",
-    "noText": "텍스트 없음"
+    "noText": "텍스트 없음",
+    "incomingReferencesFailed": "수신 참조를 불러올 수 없습니다.",
+    "retry": "다시 시도",
+    "entityTypesFailed": "개체 유형을 불러올 수 없습니다."
   },
   "KeyboardShortcuts": {
     "title": "키보드 단축키",

@@ -77,7 +77,9 @@
     "justNow": "הרגע",
     "minutesAgo": "לפני {{count}} ד'",
     "hoursAgo": "לפני {{count}} ש'",
-    "daysAgo": "לפני {{count}} י'"
+    "daysAgo": "לפני {{count}} י'",
+    "failed": "לא ניתן לטעון את ההיסטוריה.",
+    "retry": "נסה שוב"
   },
   "CommentsPanel": {
     "title": "תגובות",
@@ -171,7 +173,9 @@
     "reference": "הפניות",
     "assessment": "הערכות",
     "comment": "תגובות",
-    "tag": "תגיות"
+    "tag": "תגיות",
+    "annotationsFailed": "לא ניתן לטעון את ההערות.",
+    "retry": "נסה שוב"
   },
   "StatisticsPanel": {
     "title": "סטטיסטיקה",
@@ -220,7 +224,10 @@
     "loading": "טוען...",
     "loadingEllipsis": "טוען...",
     "untitledResource": "משאב ללא כותרת",
-    "noText": "אין טקסט"
+    "noText": "אין טקסט",
+    "incomingReferencesFailed": "לא ניתן לטעון את ההפניות הנכנסות.",
+    "retry": "נסה שוב",
+    "entityTypesFailed": "לא ניתן לטעון את סוגי הישויות."
   },
   "KeyboardShortcuts": {
     "title": "קיצורי מקלדת",

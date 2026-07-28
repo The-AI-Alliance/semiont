@@ -77,7 +77,9 @@
     "justNow": "zojuist",
     "minutesAgo": "{{count}}m geleden",
     "hoursAgo": "{{count}}u geleden",
-    "daysAgo": "{{count}}d geleden"
+    "daysAgo": "{{count}}d geleden",
+    "failed": "Kan de geschiedenis niet laden.",
+    "retry": "Opnieuw proberen"
   },
   "CommentsPanel": {
     "title": "Opmerkingen",
@@ -171,7 +173,9 @@
     "reference": "Referenties",
     "assessment": "Beoordelingen",
     "comment": "Opmerkingen",
-    "tag": "Labels"
+    "tag": "Labels",
+    "annotationsFailed": "Kan de annotaties niet laden.",
+    "retry": "Opnieuw proberen"
   },
   "StatisticsPanel": {
     "title": "Statistieken",
@@ -220,7 +224,10 @@
     "loading": "laden...",
     "loadingEllipsis": "Laden...",
     "untitledResource": "Naamloze bron",
-    "noText": "Geen tekst"
+    "noText": "Geen tekst",
+    "incomingReferencesFailed": "Kan de inkomende referenties niet laden.",
+    "retry": "Opnieuw proberen",
+    "entityTypesFailed": "Kan de entiteitstypen niet laden."
   },
   "KeyboardShortcuts": {
     "title": "Sneltoetsen",

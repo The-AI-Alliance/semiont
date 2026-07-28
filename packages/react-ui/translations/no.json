@@ -77,7 +77,9 @@
     "justNow": "akkurat nå",
     "minutesAgo": "{{count}}m siden",
     "hoursAgo": "{{count}}t siden",
-    "daysAgo": "{{count}}d siden"
+    "daysAgo": "{{count}}d siden",
+    "failed": "Kunne ikke laste historikken.",
+    "retry": "Prøv igjen"
   },
   "CommentsPanel": {
     "title": "Kommentarer",
@@ -171,7 +173,9 @@
     "reference": "Referanser",
     "assessment": "Vurderinger",
     "comment": "Kommentarer",
-    "tag": "Merker"
+    "tag": "Merker",
+    "annotationsFailed": "Kunne ikke laste annoteringene.",
+    "retry": "Prøv igjen"
   },
   "StatisticsPanel": {
     "title": "Statistikk",
@@ -220,7 +224,10 @@
     "loading": "laster...",
     "loadingEllipsis": "Laster...",
     "untitledResource": "Ressurs uten tittel",
-    "noText": "Ingen tekst"
+    "noText": "Ingen tekst",
+    "incomingReferencesFailed": "Kunne ikke laste innkommende referanser.",
+    "retry": "Prøv igjen",
+    "entityTypesFailed": "Kunne ikke laste entitetstyper."
   },
   "KeyboardShortcuts": {
     "title": "Tastatursnarveier",
