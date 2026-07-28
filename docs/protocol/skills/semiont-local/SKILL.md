@@ -63,7 +63,7 @@ Run `semiont <command> --help` for a command's options, and `semiont --help` for
 |------|----------|
 | `.semiont/config` | Project anchor: KB name and permanent `did:web` identity (committed) |
 | `.semiont/events/` | The event log — the system of record (committed) |
-| `~/.semiontconfig` | Global config: inference provider, database, graph/vector drivers |
+| `.semiont/semiontconfig/<name>.toml` | Environment config: inference provider, database, graph/vector drivers (committed; `--config` selects one) |
 
 Service logs go to stdout (`semiont logs`); durable service data lives in container volumes the
 launcher manages.
@@ -74,8 +74,10 @@ launcher manages.
   inference key, and an unset `SEMIONT_WORKER_SECRET`.
 - **`semiont status` is the diagnostic command.** If something isn't working after `start`, run it to
   see which service is unhealthy, then `semiont logs --service <name>`.
-- **Config lives in `~/.semiontconfig`.** If inference or the database isn't working, inspect that
-  file first. `semiont start --list-configs` shows the presets a KB ships.
+- **Config lives in the KB, at `.semiont/semiontconfig/<name>.toml`.** If inference or the database
+  isn't working, inspect the config the stack was started with first —
+  `semiont start --list-configs` shows the presets a KB ships. (`~/.semiontconfig` is only the path
+  that file is mounted at *inside* each container; there is no such file on the host to edit.)
 - **Restart after config changes** — `semiont stop && semiont start`. There is no separate provision
   step.
 - **The KB directory is a git repo.** Resource files, `.semiont/config`, and `.semiont/events/` are

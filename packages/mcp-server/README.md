@@ -69,21 +69,29 @@ The server needs exactly two environment variables:
 
 Both are required — the process exits at startup if either is missing.
 
-`semiont login` obtains a token against a running stack and stores it in the
-launcher's state home (`~/Library/Application Support/semiont/tokens.json` on
-macOS, `~/.local/state/semiont/tokens.json` on Linux, mode 0600):
+`semiont login` obtains a token against a running stack. It authenticates an
+existing account, so a fresh stack needs one created first:
 
 ```bash
+semiont useradd --email you@example.com --admin
 semiont login --email you@example.com     # password read from stdin
 ```
 
-Read the `token` field for your stack's key out of that file and export it:
+Both read the password from stdin — prompted with echo off on a terminal, or
+piped (`echo "$PASSWORD" | semiont login --email you@example.com`) for scripts.
+
+The token lands in the launcher's state home, mode 0600:
+`~/Library/Application Support/semiont/tokens.json` on macOS,
+`$XDG_STATE_HOME/semiont/tokens.json` on Linux (`~/.local/state/semiont/` when
+that variable is unset). Entries are keyed by stack — `local` for a local
+stack, `codespace:<owner>/<name>` for a codespace. Read the `token` field for
+your stack's key and export it:
 
 ```bash
 export SEMIONT_API_URL=http://localhost:4000
 export SEMIONT_ACCESS_TOKEN=$(python3 -c \
-  "import json,pathlib,sys; print(json.load(open(sys.argv[1]))['local']['token'])" \
-  ~/Library/Application\ Support/semiont/tokens.json)
+  "import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]]['token'])" \
+  ~/Library/Application\ Support/semiont/tokens.json local)
 ```
 
 **Access tokens are short-lived and this server does not refresh them.** It
@@ -151,7 +159,9 @@ console.log(result);
 
 ## Available tools
 
-Every tool returns its result as a JSON string in a single `text` content block.
+Every tool answers with a single `text` content block. `browse_resource` and
+`gather_annotation` return JSON; the rest return a short summary line. A tool
+that fails answers the same way, with `isError` set.
 
 ### browse
 
@@ -188,7 +198,7 @@ Every tool returns its result as a JSON string in a single `text` content block.
 | Tool | Required | Optional |
 |---|---|---|
 | `yield_resource` — create a resource from content | `name`, `content`, `storageUri` | `entityTypes`, `contentType` (default `text/plain`) |
-| `yield_from_annotation` — generate a resource from an annotation using AI | `resourceId`, `annotationId`, `storageUri` | `prompt`, `language`, `sourceLanguage` |
+| `yield_from_annotation` — generate a resource from an annotation using AI | `resourceId`, `annotationId`, `storageUri` | `title` (default `Generated`), `prompt`, `language`, `sourceLanguage` |
 
 `storageUri` looks like `file://docs/my-resource.md`.
 
@@ -220,15 +230,19 @@ call one and see the request and response.
 
 Adding a tool takes three edits, all in `src/`:
 
-1. A tool definition in the `ListToolsRequestSchema` handler ([`src/index.ts`](src/index.ts))
-2. A `case` in the `CallToolRequestSchema` handler dispatching to a handler function
-3. The handler itself in [`src/handlers.ts`](src/handlers.ts), taking `(semiont: SemiontClient, args)` and returning `McpResult`
+1. A tool definition in `TOOLS` ([`src/tools.ts`](src/tools.ts)) — the `tools/list` payload
+2. The handler in [`src/handlers.ts`](src/handlers.ts), taking `(semiont: McpClient, args)` and returning `McpResult`
+3. A `case` in `callTool` (same file) routing the tool name to that handler
+
+[`src/index.ts`](src/index.ts) is wiring only — config, transports, and the four
+request handlers — so none of the above touches it.
 
 Handlers call the client's verb namespaces — `semiont.browse.*`, `semiont.mark.*`,
 and so on. They never construct HTTP requests: the transport, auth, and retry
-behaviour belong to the client. If the capability you need is not on
-`SemiontClient` yet, add it to `@semiont/sdk` rather than reaching around it from
-here.
+behaviour belong to the client. `McpClient` names the slice of `SemiontClient`
+the handlers use; widen it when a new handler needs another namespace method. If
+the capability you need is not on `SemiontClient` yet, add it to `@semiont/sdk`
+rather than reaching around it from here.
 
 Then document the tool in [Available tools](#available-tools) above.
 

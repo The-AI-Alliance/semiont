@@ -42,10 +42,28 @@ func writeDiscovery(ss *stackSet) {
 		}
 		return &v
 	}
+	// AT MOST ONE ENTRY PER ADDRESS (KB-IDENTITY-VS-ADDRESS P1). An entry is a
+	// promise about what lives at a `host:port`, and only one process can bind
+	// a port — so two entries claiming one address means at most one promise
+	// is true. A consumer cannot repair that from the outside: it has an
+	// address, and an address cannot say which KB is which. Live 2026-07-24,
+	// two entries claimed localhost:4000 and the Browser rendered the user's
+	// own KB under the other repo's name.
+	//
+	// The local stack is published first and wins the address: `start`
+	// verified the port was free and its containers bound it, which is the
+	// strongest claim available here. A codespace forward must then prove it
+	// still exists.
+	// `did` is REQUIRED in the schema, so an entry without one cannot be
+	// published at all. `start` refuses a KB that declares no [site] domain,
+	// which is where a user gets a fix-it they can act on; these guards are
+	// the last resort that keeps a malformed document off disk if a record
+	// predating that rule is still in the set.
+	claimed := map[int]bool{}
 	kbs := []DiscoveredKB{}
-	if st := ss.Stacks["local"]; st != nil {
+	if st := ss.Stacks["local"]; st != nil && st.KBDid != "" {
 		e := DiscoveredKB{Host: "localhost", Port: 4000, Placement: DiscoveredKBPlacementLocal,
-			Did: opt(st.KBDid), ManagedBy: "semiont-launcher"}
+			Did: st.KBDid, ManagedBy: "semiont-launcher"}
 		// The backend endpoint carries the real port when the config moved it.
 		if b, ok := st.Services["backend"]; ok {
 			if p := portFromEndpoint(b.Endpoint); p != 0 {
@@ -55,15 +73,36 @@ func writeDiscovery(ss *stackSet) {
 		if ident := loadKBIdentity(st.KBRoot); ident != nil {
 			e.SiteName = opt(ident.SiteName)
 		}
+		claimed[e.Port] = true
 		kbs = append(kbs, e)
 	}
 	for _, c := range codespaceStacks(ss) {
 		if c.ForwardPort == 0 {
 			continue // no local endpoint to offer
 		}
+		if c.KBDid == "" {
+			// A remote KB the launcher cannot identify. Unlike the local case
+			// there is no config here to fix, so this cannot be a refusal —
+			// see the plan's open question on codespace enforcement.
+			continue
+		}
+		// A forward that no longer runs is an address nothing answers.
+		// dropCollidingForwards zeroes the PID when it kills a forward the
+		// local stack needs but KEEPS the port, so the record that resolved a
+		// collision is exactly the record that used to be republished as live.
+		// forwardProcAlive, not forwardAlive: the question is whether OUR
+		// forward still exists, and dialing the port would answer "yes" for
+		// whoever else took it — the confusion this whole rule exists to end.
+		if !forwardProcAlive(c.ForwardPID) {
+			continue
+		}
+		if claimed[c.ForwardPort] {
+			continue // someone with a better claim already published it
+		}
+		claimed[c.ForwardPort] = true
 		kbs = append(kbs, DiscoveredKB{
 			Host: "localhost", Port: c.ForwardPort, Placement: DiscoveredKBPlacementCodespace,
-			Repo: opt(c.Repo), Did: opt(c.KBDid), ManagedBy: "semiont-launcher",
+			Repo: opt(c.Repo), Did: c.KBDid, ManagedBy: "semiont-launcher",
 		})
 	}
 	b, err := json.MarshalIndent(DiscoveryDocument{Version: 1, Kbs: kbs}, "", "  ")

@@ -25,18 +25,15 @@ The frontend is published as `@semiont/frontend` on npm as a pre-built Vite SPA 
 
 ## Quick Start
 
-### Using Semiont CLI (Recommended)
+### Using the `semiont` launcher (recommended)
 
 ```bash
-# Set your development environment
-export SEMIONT_ENV=local
-
-# Start everything (database + backend + frontend)
+# From inside a knowledge-base repo — start everything
 semiont start
 
 # Your services are now running:
 # - Frontend: http://localhost:3000
-# - Backend: http://localhost:3001
+# - Backend: http://localhost:4000
 # - Database: PostgreSQL in Docker container
 ```
 

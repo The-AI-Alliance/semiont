@@ -332,7 +332,9 @@ describe('API Endpoints Integration Tests', () => {
       const data = await res.json() as OpenAPISpec;
       expect(data.info).toBeDefined();
       expect(data.info.title).toBe('Semiont API');
-      expect(data.info.version).toBe('0.1.0');
+      // The served spec reports the running build, not the spec file's
+      // placeholder — see the info stamp in index.ts.
+      expect(data.info.version).toBe(PACKAGE_VERSION);
       expect(data.paths).toBeDefined();
       expect(data.components).toBeDefined();
     });

@@ -273,7 +273,13 @@
     "discoveredTitle": "Found on this machine",
     "managedBadge": "Managed by launcher",
     "placementLocal": "local",
-    "placementCodespace": "codespace"
+    "placementCodespace": "codespace",
+    "unknownName": "Unknown",
+    "identityUnverifiable": "Connected, but could not determine which knowledge base this is.",
+    "anotherCopy": "another copy of the knowledge base you're connected to",
+    "addressConflict": "{{count}} knowledge bases claim {{address}} — one is likely stale.",
+    "connectToAddress": "Connect to {{address}}",
+    "connectedToOther": "Connected to {{actual}}, not {{expected}}."
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "No knowledge bases",

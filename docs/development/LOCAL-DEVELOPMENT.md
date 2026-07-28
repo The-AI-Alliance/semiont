@@ -96,7 +96,7 @@ manual migration step.
 - **[TESTING.md](./TESTING.md)** — running tests, test commands
 - **[CONTAINER-TOPOLOGY.md](../system/CONTAINER-TOPOLOGY.md)** — what runs where, and which layer runs it
 - **[AUTHENTICATION.md](../system/administration/AUTHENTICATION.md)** — authentication setup, OAuth, admin users
-- **[CONFIGURATION.md](../system/administration/CONFIGURATION.md)** — the `~/.semiontconfig` schema
+- **[CONFIGURATION.md](../system/administration/CONFIGURATION.md)** — the `.semiont/semiontconfig/*.toml` schema
 - **[TROUBLESHOOTING.md](../system/administration/TROUBLESHOOTING.md)** — common issues, port conflicts, database problems
 - **[System Documentation](../system/README.md)** — architecture, component overview
 

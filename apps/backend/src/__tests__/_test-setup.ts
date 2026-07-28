@@ -96,6 +96,21 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
   await fs.writeFile(join(testDir, '.semiontconfig'), MINIMAL_SEMIONTCONFIG, 'utf-8');
   process.env.HOME = testDir;
 
+  // The KB's OWN committed config. Distinct from `.semiontconfig` above (that
+  // is the environment/machine config): `[site] domain` here is the KB's
+  // permanent identity, which boot now requires — a knowledge base declares
+  // its identity or does not run (KB-IDENTITY-VS-ADDRESS decision 8). A
+  // fixture without it is not a valid KB, so writing it is a correction, not
+  // an accommodation. The domain matches the environment's on purpose: these
+  // fixtures should represent the ordinary, non-diverged case and stay silent
+  // (a mismatch warns — decision 10).
+  await fs.mkdir(join(testDir, '.semiont'), { recursive: true });
+  await fs.writeFile(
+    join(testDir, '.semiont', 'config'),
+    '[project]\nname = "semiont-backend-test"\n\n[site]\ndomain = "test.local"\n',
+    'utf-8',
+  );
+
   process.env.SEMIONT_ROOT = testDir;
   process.env.SEMIONT_ENV = environment;
 

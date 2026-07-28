@@ -99,7 +99,8 @@ cd apps/backend
 DATABASE_URL="postgresql://postgres:localpass@localhost:5432/semiont" npx prisma studio
 ```
 
-Those are the values `semiont init` generates into `~/.semiontconfig` under
+Those are the values `semiont init` generates into the KB's
+`.semiont/semiontconfig/<name>.toml` under
 `[environments.local.database]` (`name`, `user`, `password`, `port`). Read that
 block rather than assuming them — they are configurable, and a stack pointed at an
 external PostgreSQL will differ.

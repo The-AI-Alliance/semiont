@@ -8,8 +8,8 @@
  * `version` compatibility gate (unknown → absent + diagnostic, never a
  * partial parse), the TYPED absent-vs-managed distinction ("no launcher
  * detected" vs "launcher manages nothing"), and the poll/diff subscription
- * (merge key `did ?? host:port` — ports are reallocated across restarts; the
- * did follows the KB).
+ * (merge key `host:port` — the address is the unique field; a did names the
+ * KB and is shared by its running copies).
  *
  * IO is abstracted, deliberately: `httpDiscovery` speaks the frontend
  * image's polling contract (ETag/If-None-Match → 304 short-circuit, and the
@@ -98,15 +98,29 @@ export function parseDiscoveryDocument(text: string): DiscoveryState {
       return absent('invalid', `kb entry has unknown placement ${JSON.stringify(placement)}`);
     }
     if (repo !== undefined && !isString(repo)) return absent('invalid', 'kb "repo" must be a string');
-    if (did !== undefined && !isString(did)) return absent('invalid', 'kb "did" must be a string');
     if (siteName !== undefined && !isString(siteName)) return absent('invalid', 'kb "siteName" must be a string');
+    // `did` is REQUIRED (KB-IDENTITY-VS-ADDRESS decision 8): a knowledge base
+    // declares its identity or does not run. Rejecting the whole document
+    // rather than skipping the entry is deliberate and matches this
+    // validator's other required fields and the `version` gate — a partial
+    // parse would silently hide a running KB, which is the failure class the
+    // plan exists to end. In practice this means a document written by a
+    // launcher older than the requirement reads as "no launcher detected"
+    // until that launcher is updated, which is honest: this client cannot
+    // vouch for what such a document says.
+    if (!isString(did)) {
+      return absent(
+        'invalid',
+        'kb entry has no "did" — identity is required; this document was likely written by a launcher predating that rule',
+      );
+    }
     kbs.push({
       host,
       port,
       placement,
       managedBy,
+      did,
       ...(repo !== undefined ? { repo } : {}),
-      ...(did !== undefined ? { did } : {}),
       ...(siteName !== undefined ? { siteName } : {}),
     });
   }
@@ -167,8 +181,19 @@ export function httpDiscovery(url: string = DISCOVERY_URL_PATH): DiscoveryTransp
   };
 }
 
-/** Merge key: ports are reallocated across restarts; the did follows the KB. */
-const keyOf = (kb: DiscoveredKB): string => kb.did ?? `${kb.host}:${kb.port}`;
+/**
+ * Merge key: the ADDRESS, which is the field the producer guarantees unique
+ * (one entry per `host:port` — KB-IDENTITY-VS-ADDRESS P1/decision 5).
+ *
+ * NOT the did, and not `did ?? host:port`. A did says *which knowledge base*,
+ * and is deliberately **not** unique: a local clone and a codespace of the
+ * same repo are one KB reachable at two addresses, and both are published
+ * (decision 9). Keying on it collapsed those two copies into one and made
+ * the diff lie about a running stack — a phantom `updated` for the shadowed
+ * copy on every poll, and a stopped copy whose removal never fired because
+ * its twin kept the key alive. The did's job is verification, not selection.
+ */
+const keyOf = (kb: DiscoveredKB): string => `${kb.host}:${kb.port}`;
 
 const sameKb = (a: DiscoveredKB, b: DiscoveredKB): boolean =>
   a.host === b.host && a.port === b.port && a.placement === b.placement &&
@@ -206,6 +231,28 @@ export function subscribeDiscovery(
         const nextKbs = result.kind === 'managed' ? result.kbs : [];
         const prev = new Map(prevKbs.map((kb) => [keyOf(kb), kb]));
         const next = new Map(nextKbs.map((kb) => [keyOf(kb), kb]));
+
+        // Two entries at ONE ADDRESS: internally inconsistent, because only
+        // one process can bind a port — at most one claim is true. (Two
+        // entries sharing a DID is the opposite: one KB in two places, the
+        // common case, and keying on the address means it no longer reaches
+        // this branch at all — decision 9.) Merging silently is how the
+        // predecessor defect hid for a release: the loser vanished with no
+        // trace (decision 4 — ambiguity is shown, never resolved by
+        // guessing). The producer is the cure; this is the consumer refusing
+        // to hide the symptom. Every entry still reaches the subscriber in
+        // `state.kbs` — the diff is what collapses, so the panel can render
+        // all claimants and say so.
+        if (next.size !== nextKbs.length) {
+          const seen = new Set<string>();
+          const duplicated = [...new Set(nextKbs.map(keyOf).filter((k) => seen.size === seen.add(k).size))];
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[discovery DUPLICATE] ${nextKbs.length - next.size} entr${nextKbs.length - next.size === 1 ? 'y' : 'ies'} share a merge key ` +
+              `(${duplicated.join(', ')}); at most one claim can be true. Diff membership collapses them — ` +
+              'render every claimant from state.kbs rather than trusting added/removed for these.',
+          );
+        }
 
         const added = nextKbs.filter((kb) => !prev.has(keyOf(kb)));
         const removed = prevKbs.filter((kb) => !next.has(keyOf(kb)));

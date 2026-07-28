@@ -32,7 +32,10 @@ node node_modules/@semiont/backend/dist/index.js
 Requires in the environment:
 
 - `SEMIONT_ROOT` — path to the knowledge-base working tree
-- `SEMIONT_ENV` — environment name in `~/.semiontconfig` (e.g. `local`)
+- A config TOML readable at `~/.semiontconfig` — the container image mounts the
+  KB's `.semiont/semiontconfig/<name>.toml` there; running the package directly
+  means placing or symlinking one yourself. The environment block comes from its
+  `[defaults] environment`.
 - `DATABASE_URL` — Postgres connection string. The container image derives one
   from `services.database` in the config when this is unset; running the package
   directly has no such step, so set it yourself.
