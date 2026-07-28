@@ -251,7 +251,9 @@
     "noResultsFound": "Không tìm thấy kết quả cho '{{query}}'. Đang hiển thị tài nguyên gần đây thay thế.",
     "noResourcesAvailable": "Không có tài nguyên nào. Hãy tạo tài liệu đầu tiên của bạn để bắt đầu.",
     "composeFirstResource": "Soạn thảo tài nguyên đầu tiên",
-    "loadingKnowledgeBase": "Đang tải cơ sở tri thức..."
+    "loadingKnowledgeBase": "Đang tải cơ sở tri thức...",
+    "recentFailed": "Không thể tải tài nguyên.",
+    "retry": "Thử lại"
   },
   "Compose": {
     "title": "Tài nguyên mới",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Nhập thẻ thực thể mới...",
     "adding": "Đang thêm...",
     "addTag": "Thêm thẻ",
-    "errorFailedToAdd": "Không thể thêm thẻ"
+    "errorFailedToAdd": "Không thể thêm thẻ",
+    "loadFailed": "Không thể tải loại thực thể.",
+    "retry": "Thử lại"
   },
   "ModerateTagSchemas": {
     "loading": "Đang tải...",

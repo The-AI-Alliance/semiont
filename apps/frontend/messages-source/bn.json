@@ -251,7 +251,9 @@
     "noResultsFound": "'{{query}}'-এর জন্য কোনো ফলাফল পাওয়া যায়নি। পরিবর্তে সাম্প্রতিক সম্পদ দেখানো হচ্ছে।",
     "noResourcesAvailable": "কোনো সম্পদ উপলব্ধ নেই। শুরু করতে আপনার প্রথম নথি তৈরি করুন।",
     "composeFirstResource": "প্রথম সম্পদ রচনা করুন",
-    "loadingKnowledgeBase": "জ্ঞানভাণ্ডার লোড হচ্ছে..."
+    "loadingKnowledgeBase": "জ্ঞানভাণ্ডার লোড হচ্ছে...",
+    "recentFailed": "রিসোর্স লোড করা যায়নি।",
+    "retry": "আবার চেষ্টা করুন"
   },
   "Compose": {
     "title": "নতুন সম্পদ",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "নতুন সত্তা ট্যাগ লিখুন...",
     "adding": "যোগ হচ্ছে...",
     "addTag": "ট্যাগ যোগ করুন",
-    "errorFailedToAdd": "ট্যাগ যোগ করতে ব্যর্থ"
+    "errorFailedToAdd": "ট্যাগ যোগ করতে ব্যর্থ",
+    "loadFailed": "সত্তার ধরন লোড করা যায়নি।",
+    "retry": "আবার চেষ্টা করুন"
   },
   "ModerateTagSchemas": {
     "loading": "লোড হচ্ছে...",

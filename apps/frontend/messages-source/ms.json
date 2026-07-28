@@ -251,7 +251,9 @@
     "noResultsFound": "Tiada hasil ditemui untuk '{{query}}'. Menunjukkan sumber terkini sebaliknya.",
     "noResourcesAvailable": "Tiada sumber tersedia. Cipta dokumen pertama anda untuk bermula.",
     "composeFirstResource": "Karang Sumber Pertama",
-    "loadingKnowledgeBase": "Memuatkan pangkalan pengetahuan..."
+    "loadingKnowledgeBase": "Memuatkan pangkalan pengetahuan...",
+    "recentFailed": "Tidak dapat memuatkan sumber.",
+    "retry": "Cuba lagi"
   },
   "Compose": {
     "title": "Sumber Baharu",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Masukkan tag entiti baharu...",
     "adding": "Menambah...",
     "addTag": "Tambah Tag",
-    "errorFailedToAdd": "Gagal menambah tag"
+    "errorFailedToAdd": "Gagal menambah tag",
+    "loadFailed": "Tidak dapat memuatkan jenis entiti.",
+    "retry": "Cuba lagi"
   },
   "ModerateTagSchemas": {
     "loading": "Memuatkan...",

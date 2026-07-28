@@ -251,7 +251,9 @@
     "noResultsFound": "نتیجه‌ای برای «{{query}}» یافت نشد. در عوض منابع اخیر نمایش داده می‌شوند.",
     "noResourcesAvailable": "منبعی موجود نیست. اولین سند خود را ایجاد کنید تا شروع کنید.",
     "composeFirstResource": "ایجاد اولین منبع",
-    "loadingKnowledgeBase": "در حال بارگذاری پایگاه دانش..."
+    "loadingKnowledgeBase": "در حال بارگذاری پایگاه دانش...",
+    "recentFailed": "بارگذاری منابع ممکن نشد.",
+    "retry": "تلاش مجدد"
   },
   "Compose": {
     "title": "منبع جدید",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "برچسب موجودیت جدید وارد کنید...",
     "adding": "در حال افزودن...",
     "addTag": "افزودن برچسب",
-    "errorFailedToAdd": "افزودن برچسب ناموفق بود"
+    "errorFailedToAdd": "افزودن برچسب ناموفق بود",
+    "loadFailed": "بارگذاری انواع موجودیت ممکن نشد.",
+    "retry": "تلاش مجدد"
   },
   "ModerateTagSchemas": {
     "loading": "در حال بارگذاری...",

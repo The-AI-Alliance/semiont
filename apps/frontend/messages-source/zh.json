@@ -251,7 +251,9 @@
     "noResultsFound": "未找到「{{query}}」的结果。改为显示最近的资源。",
     "noResourcesAvailable": "没有可用的资源。创建您的第一个文档以开始。",
     "composeFirstResource": "创建第一个资源",
-    "loadingKnowledgeBase": "正在加载知识库..."
+    "loadingKnowledgeBase": "正在加载知识库...",
+    "recentFailed": "无法加载资源。",
+    "retry": "重试"
   },
   "Compose": {
     "title": "新资源",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "输入新实体标签...",
     "adding": "添加中...",
     "addTag": "添加标签",
-    "errorFailedToAdd": "添加标签失败"
+    "errorFailedToAdd": "添加标签失败",
+    "loadFailed": "无法加载实体类型。",
+    "retry": "重试"
   },
   "ModerateTagSchemas": {
     "loading": "加载中...",

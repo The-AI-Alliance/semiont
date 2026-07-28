@@ -251,7 +251,9 @@
     "noResultsFound": "Keine Ergebnisse für \"{{query}}\" gefunden. Stattdessen werden neueste Ressourcen angezeigt.",
     "noResourcesAvailable": "Keine Ressourcen verfügbar. Erstellen Sie Ihr erstes Dokument, um zu beginnen.",
     "composeFirstResource": "Erste Ressource erstellen",
-    "loadingKnowledgeBase": "Wissensdatenbank wird geladen..."
+    "loadingKnowledgeBase": "Wissensdatenbank wird geladen...",
+    "recentFailed": "Ressourcen konnten nicht geladen werden.",
+    "retry": "Erneut versuchen"
   },
   "Compose": {
     "title": "Neue Ressource",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Neues Entitäts-Tag eingeben...",
     "adding": "Wird hinzugefügt...",
     "addTag": "Tag hinzufügen",
-    "errorFailedToAdd": "Tag konnte nicht hinzugefügt werden"
+    "errorFailedToAdd": "Tag konnte nicht hinzugefügt werden",
+    "loadFailed": "Entitätstypen konnten nicht geladen werden.",
+    "retry": "Erneut versuchen"
   },
   "ModerateTagSchemas": {
     "loading": "Wird geladen...",

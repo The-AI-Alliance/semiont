@@ -251,7 +251,9 @@
     "noResultsFound": "لم يتم العثور على نتائج لـ «{{query}}». عرض الموارد الحديثة بدلًا من ذلك.",
     "noResourcesAvailable": "لا توجد موارد متاحة. أنشئ أول مستند لك للبدء.",
     "composeFirstResource": "إنشاء أول مورد",
-    "loadingKnowledgeBase": "جارٍ تحميل قاعدة المعرفة..."
+    "loadingKnowledgeBase": "جارٍ تحميل قاعدة المعرفة...",
+    "recentFailed": "تعذّر تحميل الموارد.",
+    "retry": "إعادة المحاولة"
   },
   "Compose": {
     "title": "مورد جديد",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "أدخل علامة كيان جديدة...",
     "adding": "جارٍ الإضافة...",
     "addTag": "إضافة علامة",
-    "errorFailedToAdd": "فشل في إضافة العلامة"
+    "errorFailedToAdd": "فشل في إضافة العلامة",
+    "loadFailed": "تعذّر تحميل أنواع الكيانات.",
+    "retry": "إعادة المحاولة"
   },
   "ModerateTagSchemas": {
     "loading": "جارٍ التحميل...",

@@ -251,7 +251,9 @@
     "noResultsFound": "Nie znaleziono wyników dla \"{{query}}\". Wyświetlanie ostatnich zasobów.",
     "noResourcesAvailable": "Brak dostępnych zasobów. Utwórz swój pierwszy dokument, aby rozpocząć.",
     "composeFirstResource": "Utwórz pierwszy zasób",
-    "loadingKnowledgeBase": "Ładowanie bazy wiedzy..."
+    "loadingKnowledgeBase": "Ładowanie bazy wiedzy...",
+    "recentFailed": "Nie można załadować zasobów.",
+    "retry": "Spróbuj ponownie"
   },
   "Compose": {
     "title": "Nowy zasób",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Wprowadź nowy tag encji...",
     "adding": "Dodawanie...",
     "addTag": "Dodaj tag",
-    "errorFailedToAdd": "Nie udało się dodać tagu"
+    "errorFailedToAdd": "Nie udało się dodać tagu",
+    "loadFailed": "Nie można załadować typów encji.",
+    "retry": "Spróbuj ponownie"
   },
   "ModerateTagSchemas": {
     "loading": "Ładowanie...",

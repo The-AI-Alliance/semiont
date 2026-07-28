@@ -251,7 +251,9 @@
     "noResultsFound": "לא נמצאו תוצאות עבור «{{query}}». מציג משאבים אחרונים במקום.",
     "noResourcesAvailable": "אין משאבים זמינים. צרו את המסמך הראשון שלכם כדי להתחיל.",
     "composeFirstResource": "חיבור משאב ראשון",
-    "loadingKnowledgeBase": "טוען מאגר ידע..."
+    "loadingKnowledgeBase": "טוען מאגר ידע...",
+    "recentFailed": "לא ניתן לטעון את המשאבים.",
+    "retry": "נסה שוב"
   },
   "Compose": {
     "title": "משאב חדש",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "הזינו תגית ישות חדשה...",
     "adding": "מוסיף...",
     "addTag": "הוספת תגית",
-    "errorFailedToAdd": "הוספת התגית נכשלה"
+    "errorFailedToAdd": "הוספת התגית נכשלה",
+    "loadFailed": "לא ניתן לטעון את סוגי הישויות.",
+    "retry": "נסה שוב"
   },
   "ModerateTagSchemas": {
     "loading": "טוען...",

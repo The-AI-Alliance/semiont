@@ -251,7 +251,9 @@
     "noResultsFound": "「{{query}}」の検索結果が見つかりません。代わりに最近のリソースを表示しています。",
     "noResourcesAvailable": "利用可能なリソースがありません。最初のドキュメントを作成して始めましょう。",
     "composeFirstResource": "最初のリソースを作成",
-    "loadingKnowledgeBase": "ナレッジベースを読み込み中..."
+    "loadingKnowledgeBase": "ナレッジベースを読み込み中...",
+    "recentFailed": "リソースを読み込めませんでした。",
+    "retry": "再試行"
   },
   "Compose": {
     "title": "新しいリソース",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "新しいエンティティタグを入力...",
     "adding": "追加中...",
     "addTag": "タグを追加",
-    "errorFailedToAdd": "タグの追加に失敗しました"
+    "errorFailedToAdd": "タグの追加に失敗しました",
+    "loadFailed": "エンティティタイプを読み込めませんでした。",
+    "retry": "再試行"
   },
   "ModerateTagSchemas": {
     "loading": "読み込み中...",

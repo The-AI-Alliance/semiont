@@ -251,7 +251,9 @@
     "noResultsFound": "No se encontraron resultados para \"{{query}}\". Mostrando recursos recientes en su lugar.",
     "noResourcesAvailable": "No hay recursos disponibles. Crea tu primer documento para comenzar.",
     "composeFirstResource": "Redactar Primer Recurso",
-    "loadingKnowledgeBase": "Cargando base de conocimiento..."
+    "loadingKnowledgeBase": "Cargando base de conocimiento...",
+    "recentFailed": "No se pudieron cargar los recursos.",
+    "retry": "Intentar de nuevo"
   },
   "Compose": {
     "title": "Nuevo Recurso",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Ingrese nueva etiqueta de entidad...",
     "adding": "Agregando...",
     "addTag": "Agregar Etiqueta",
-    "errorFailedToAdd": "No se pudo agregar la etiqueta"
+    "errorFailedToAdd": "No se pudo agregar la etiqueta",
+    "loadFailed": "No se pudieron cargar los tipos de entidad.",
+    "retry": "Intentar de nuevo"
   },
   "ModerateTagSchemas": {
     "loading": "Cargando...",
