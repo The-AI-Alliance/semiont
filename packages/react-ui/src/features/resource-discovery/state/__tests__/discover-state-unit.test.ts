@@ -48,7 +48,7 @@ describe('createDiscoverStateUnit', () => {
     const { client } = mockClient();
     const stateUnit = createDiscoverStateUnit(client, mockBrowse());
 
-    const recent = await firstValueFrom(stateUnit.recentResources$);
+    const recent = await firstValueFrom(stateUnit.recent.value$);
     expect(recent).toEqual([{ '@id': 'r1' }]);
 
     stateUnit.dispose();
@@ -58,7 +58,7 @@ describe('createDiscoverStateUnit', () => {
     const { client } = mockClient();
     const stateUnit = createDiscoverStateUnit(client, mockBrowse());
 
-    const types = await firstValueFrom(stateUnit.entityTypes$);
+    const types = await firstValueFrom(stateUnit.entityTypes.value$);
     expect(types).toEqual(['Person']);
 
     stateUnit.dispose();
@@ -69,7 +69,7 @@ describe('createDiscoverStateUnit', () => {
     const { client } = mockClient({ entityTypes$ });
     const stateUnit = createDiscoverStateUnit(client, mockBrowse());
 
-    const types = await firstValueFrom(stateUnit.entityTypes$);
+    const types = await firstValueFrom(stateUnit.entityTypes.value$);
     expect(types).toEqual([]);
 
     stateUnit.dispose();
@@ -80,11 +80,11 @@ describe('createDiscoverStateUnit', () => {
     const { client } = mockClient({ resources$ });
     const stateUnit = createDiscoverStateUnit(client, mockBrowse());
 
-    const loading = await firstValueFrom(stateUnit.isLoadingRecent$);
+    const loading = await firstValueFrom(stateUnit.recent.loading$);
     expect(loading).toBe(true);
 
     resources$.next([]);
-    const loaded = await firstValueFrom(stateUnit.isLoadingRecent$.pipe(filter((l) => !l)));
+    const loaded = await firstValueFrom(stateUnit.recent.loading$.pipe(filter((l) => !l)));
     expect(loaded).toBe(false);
 
     stateUnit.dispose();
@@ -105,7 +105,7 @@ describe('createDiscoverStateUnit', () => {
     const { client, resourceCalls } = mockClient();
     const stateUnit = createDiscoverStateUnit(client, mockBrowse());
 
-    await firstValueFrom(stateUnit.recentResources$);
+    await firstValueFrom(stateUnit.recent.value$);
 
     expect(resourceCalls).toHaveLength(1);
     expect(resourceCalls[0]).toEqual({ limit: 10, archived: false });
@@ -119,7 +119,7 @@ describe('createDiscoverStateUnit', () => {
     const stateUnit = createDiscoverStateUnit(client, mockBrowse());
 
     // Prime the first subscription so the switchMap is live.
-    const sub = stateUnit.recentResources$.subscribe();
+    const sub = stateUnit.recent.value$.subscribe();
 
     stateUnit.setSelectedEntityType('Person');
 
@@ -248,7 +248,7 @@ describe('createDiscoverStateUnit', () => {
     const { client, resourceCalls } = mockClient();
     const stateUnit = createDiscoverStateUnit(client, mockBrowse());
 
-    const sub = stateUnit.recentResources$.subscribe();
+    const sub = stateUnit.recent.value$.subscribe();
     stateUnit.setSelectedEntityType('Person');
     stateUnit.setSelectedEntityType('');
 
@@ -271,5 +271,68 @@ describe('DiscoverStateUnit — StateUnit axioms', () => {
       surfaces: (u) => [u.selectedEntityType$],
       invocations: (u) => [() => u.setSelectedEntityType('')],
     });
+  });
+});
+
+describe('createDiscoverStateUnit — terminal load failure', () => {
+  // `isLoadingRecent$` was `recent$.pipe(map(r => r === undefined))`, so a
+  // terminally failed list (B15) — which has no value either — left
+  // /know/discover spinning for ever. Same defect as the References and
+  // History panels. See .plans/PANEL-FAILURE-STATES.md
+
+  it('recent: stops loading and surfaces the reason instead of spinning for ever', async () => {
+    const resources$ = new BehaviorSubject<unknown[] | undefined>(undefined);
+    const { client } = mockClient({ resources$ });
+    const unit = createDiscoverStateUnit(client, mockBrowse());
+
+    expect(await firstValueFrom(unit.recent.loading$)).toBe(true);
+    resources$.error(new Error('Resource not found'));
+
+    expect(await firstValueFrom(unit.recent.loading$)).toBe(false);
+    expect((await firstValueFrom(unit.recent.error$) as Error | null)?.message)
+      .toBe('Resource not found');
+
+    unit.dispose();
+  });
+
+  it('entityTypes: same, and keeps an empty list to render', async () => {
+    const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);
+    const { client } = mockClient({ entityTypes$ });
+    const unit = createDiscoverStateUnit(client, mockBrowse());
+
+    entityTypes$.error(new Error('boom'));
+
+    expect(await firstValueFrom(unit.entityTypes.loading$)).toBe(false);
+    expect(await firstValueFrom(unit.entityTypes.error$)).not.toBeNull();
+    expect(await firstValueFrom(unit.entityTypes.value$)).toEqual([]);
+
+    unit.dispose();
+  });
+
+  it('recent.retry() re-issues the query and can recover', async () => {
+    // A fresh `observe()` is what clears the B15 marker, so retry must reach
+    // `browse.resources()` again rather than re-subscribing to a dead stream.
+    const attempts: BehaviorSubject<unknown[] | undefined>[] = [];
+    const { client } = mockClient({
+      resourcesFn: () => {
+        const s = new BehaviorSubject<unknown[] | undefined>(undefined);
+        attempts.push(s);
+        return s;
+      },
+    });
+    const unit = createDiscoverStateUnit(client, mockBrowse());
+
+    attempts[0]!.error(new Error('nope'));
+    expect(await firstValueFrom(unit.recent.error$)).not.toBeNull();
+
+    unit.recent.retry();
+    expect(attempts.length).toBeGreaterThan(1);
+    expect(await firstValueFrom(unit.recent.error$)).toBeNull();
+
+    attempts[attempts.length - 1]!.next([{ '@id': 'r1' }]);
+    expect(await firstValueFrom(unit.recent.value$)).toHaveLength(1);
+    expect(await firstValueFrom(unit.recent.loading$)).toBe(false);
+
+    unit.dispose();
   });
 });

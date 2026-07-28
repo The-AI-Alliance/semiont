@@ -694,6 +694,7 @@ export function ResourceViewerPage({
         resourceId={rUri}
         defaultTitle=""
         locale={locale}
+        entityTypeOptions={allEntityTypes}
         onGenerateSubmit={handleResourceGenerateSubmit}
         translations={{
           gatherTitle: tg('gatherTitle'),

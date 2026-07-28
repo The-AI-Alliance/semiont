@@ -25,9 +25,13 @@ export default function DiscoverPage() {
   const stateUnit = useStateUnit(() => createDiscoverStateUnit(semiont!, browseStateUnit));
 
   const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
-  const recentDocuments = useObservable(stateUnit.recentResources$) ?? [];
-  const entityTypes = useObservable(stateUnit.entityTypes$) ?? [];
-  const isLoadingRecent = useObservable(stateUnit.isLoadingRecent$) ?? true;
+  const recentDocuments = useObservable(stateUnit.recent.value$) ?? [];
+  const entityTypes = useObservable(stateUnit.entityTypes.value$) ?? [];
+  // Three states: a terminally failed list has no value either, so deriving
+  // "loading" from `undefined` left this route spinning for ever.
+  // See .plans/PANEL-FAILURE-STATES.md
+  const recentError = useObservable(stateUnit.recent.error$) ?? null;
+  const isLoadingRecent = useObservable(stateUnit.recent.loading$) ?? true;
   const searchQuery = useObservable(stateUnit.search.query$) ?? '';
   const searchState = useObservable(stateUnit.search.state$);
   const searchDocuments = searchState?.results ?? [];
@@ -48,6 +52,8 @@ export default function DiscoverPage() {
       searchDocuments={searchDocuments}
       entityTypes={entityTypes}
       isLoadingRecent={isLoadingRecent}
+      recentError={recentError}
+      onRetryRecent={stateUnit.recent.retry}
       isSearching={isSearching}
       searchQuery={searchQuery}
       onSearchQueryChange={stateUnit.search.setQuery}
@@ -75,6 +81,8 @@ export default function DiscoverPage() {
         archived: t('archived'),
         created: t('created'),
         loadingKnowledgeBase: t('loadingKnowledgeBase'),
+        recentFailed: t('recentFailed'),
+        retry: t('retry'),
       }}
       ToolbarPanels={ToolbarPanels}
     />

@@ -20,6 +20,13 @@ export interface ResourceDiscoveryPageProps {
   searchDocuments: ResourceDescriptor[];
   entityTypes: string[];
   isLoadingRecent: boolean;
+  /**
+   * The recent-resources load failed terminally (B15). Without it, "loading"
+   * derived from an absent value never resolves and this route freezes.
+   * See .plans/PANEL-FAILURE-STATES.md
+   */
+  recentError?: Error | null;
+  onRetryRecent?: () => void;
   isSearching: boolean;
 
   // Controlled search state
@@ -58,6 +65,8 @@ export interface ResourceDiscoveryPageProps {
     archived: string;
     created: string;
     loadingKnowledgeBase: string;
+    recentFailed?: string;
+    retry?: string;
   };
 
   // Component dependencies
@@ -69,6 +78,8 @@ export function ResourceDiscoveryPage({
   searchDocuments,
   entityTypes,
   isLoadingRecent,
+  recentError = null,
+  onRetryRecent,
   isSearching,
   searchQuery,
   onSearchQueryChange,
@@ -115,6 +126,20 @@ export function ResourceDiscoveryPage({
       onNavigateToResourceRef.current(resourceId);
     }
   }, []);
+
+  // A terminally failed load is not still loading — check it first.
+  if (recentError) {
+    return (
+      <div className="semiont-page__loading">
+        <p className="semiont-page__loading-text">{t.recentFailed ?? 'Could not load resources.'}</p>
+        {onRetryRecent && (
+          <button type="button" onClick={onRetryRecent} className="semiont-button" data-variant="secondary">
+            {t.retry ?? 'Try again'}
+          </button>
+        )}
+      </div>
+    );
+  }
 
   // Loading state
   if (isLoadingRecent) {

@@ -5,6 +5,7 @@ import type { SemiontClient } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
+import { trackList, type ListState } from '../../../state/list-state';
 
 const RECENT_LIMIT = 10;
 const SEARCH_LIMIT = 20;
@@ -19,9 +20,8 @@ export interface DiscoverSearchPipeline {
 export interface DiscoverStateUnit extends StateUnit {
   browse: ShellStateUnit;
   search: DiscoverSearchPipeline;
-  recentResources$: Observable<ResourceDescriptor[]>;
-  entityTypes$: Observable<string[]>;
-  isLoadingRecent$: Observable<boolean>;
+  recent: ListState<ResourceDescriptor[]>;
+  entityTypes: ListState<string[]>;
   selectedEntityType$: Observable<string>;
   setSelectedEntityType(value: string): void;
 }
@@ -44,28 +44,27 @@ export function createDiscoverStateUnit(
   const queryInput$ = new Subject<string>();
   disposer.add(() => queryInput$.complete());
 
-  const recent$ = selectedEntityType$.pipe(
-    switchMap((et) =>
-      client.browse.resources({
-        limit: RECENT_LIMIT,
-        archived: false,
-        ...(et ? { entityType: et } : {}),
-      }),
+  // `trackList` holds the single subscription and multicasts through its own
+  // subjects, so the previous `shareReplay` is unnecessary — and it would have
+  // been actively wrong here: a replayed ERROR cannot be retried away, and
+  // retry must reach `browse.resources()` again for B15 to clear the marker.
+  // The thunk therefore rebuilds the whole chain per attempt.
+  const recent = trackList<ResourceDescriptor[]>(
+    () => selectedEntityType$.pipe(
+      switchMap((et) =>
+        client.browse.resources({
+          limit: RECENT_LIMIT,
+          archived: false,
+          ...(et ? { entityType: et } : {}),
+        }),
+      ),
     ),
-    shareReplay({ bufferSize: 1, refCount: true }),
+    [],
   );
+  disposer.add(recent.dispose);
 
-  const recentResources$: Observable<ResourceDescriptor[]> = recent$.pipe(
-    map((r) => r ?? []),
-  );
-
-  const isLoadingRecent$: Observable<boolean> = recent$.pipe(
-    map((r) => r === undefined),
-  );
-
-  const entityTypes$: Observable<string[]> = client.browse.entityTypes().pipe(
-    map((e) => e ?? []),
-  );
+  const entityTypes = trackList<string[]>(() => client.browse.entityTypes(), []);
+  disposer.add(entityTypes.dispose);
 
   const debouncedQuery$ = queryInput$.pipe(
     startWith(''),
@@ -106,9 +105,8 @@ export function createDiscoverStateUnit(
   return {
     browse,
     search,
-    recentResources$,
-    entityTypes$,
-    isLoadingRecent$,
+    recent: recent.state,
+    entityTypes: entityTypes.state,
     selectedEntityType$: selectedEntityType$.asObservable(),
     setSelectedEntityType: (value) => selectedEntityType$.next(value),
     dispose: () => disposer.dispose(),

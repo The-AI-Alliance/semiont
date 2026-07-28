@@ -1,13 +1,13 @@
-import { BehaviorSubject, type Observable, map } from 'rxjs';
+import { BehaviorSubject, type Observable } from 'rxjs';
 import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
+import { trackList, type ListState } from '../../../state/list-state';
 import type { SemiontClient } from '@semiont/sdk';
 
 export interface EntityTagsStateUnit extends StateUnit {
   browse: ShellStateUnit;
-  entityTypes$: Observable<string[]>;
-  isLoading$: Observable<boolean>;
+  entityTypes: ListState<string[]>;
   newTag$: Observable<string>;
   error$: Observable<string>;
   isAdding$: Observable<boolean>;
@@ -28,9 +28,8 @@ export function createEntityTagsStateUnit(
   const error$ = new BehaviorSubject<string>('');
   const isAdding$ = new BehaviorSubject<boolean>(false);
 
-  const raw$ = client.browse.entityTypes();
-  const entityTypes$: Observable<string[]> = raw$.pipe(map((e) => e ?? []));
-  const isLoading$: Observable<boolean> = raw$.pipe(map((e) => e === undefined));
+  const entityTypes = trackList<string[]>(() => client.browse.entityTypes(), []);
+  disposer.add(entityTypes.dispose);
 
   const addTag = async (): Promise<void> => {
     const tag = newTag$.getValue().trim();
@@ -49,8 +48,7 @@ export function createEntityTagsStateUnit(
 
   return {
     browse,
-    entityTypes$,
-    isLoading$,
+    entityTypes: entityTypes.state,
     newTag$: newTag$.asObservable(),
     error$: error$.asObservable(),
     isAdding$: isAdding$.asObservable(),

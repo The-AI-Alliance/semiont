@@ -74,7 +74,7 @@ function ComposeResourceContent() {
   const cloneData = useObservable(stateUnit.cloneData$) ?? null;
   const referenceData = useObservable(stateUnit.referenceData$) ?? null;
   const gatheredContext = useObservable(stateUnit.gatheredContext$) ?? null;
-  const availableEntityTypes = useObservable(stateUnit.entityTypes$) ?? [];
+  const availableEntityTypes = useObservable(stateUnit.entityTypes.value$) ?? [];
   const uploadProgress = useObservable(stateUnit.uploadProgress$) ?? null;
 
   const { setTheme, resolvedTheme } = useTheme();

@@ -23,8 +23,11 @@ export default function EntityTagsPageWrapper() {
   const stateUnit = useStateUnit(() => createEntityTagsStateUnit(client!, browseStateUnit));
 
   const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
-  const entityTypes = useObservable(stateUnit.entityTypes$) ?? [];
-  const isLoading = useObservable(stateUnit.isLoading$) ?? true;
+  const entityTypes = useObservable(stateUnit.entityTypes.value$) ?? [];
+  const isLoading = useObservable(stateUnit.entityTypes.loading$) ?? true;
+  // A terminally failed load is not still loading. Distinct from `error`
+  // below, which is the ADD-tag error. See .plans/PANEL-FAILURE-STATES.md
+  const loadError = useObservable(stateUnit.entityTypes.error$) ?? null;
   const newTag = useObservable(stateUnit.newTag$) ?? '';
   const error = useObservable(stateUnit.error$) ?? '';
   const isAddingTag = useObservable(stateUnit.isAdding$) ?? false;
@@ -36,6 +39,17 @@ export default function EntityTagsPageWrapper() {
     'settings:theme-changed': useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme), [setTheme]),
     'settings:line-numbers-toggled': useCallback(() => toggleLineNumbers(), [toggleLineNumbers]),
   });
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20">
+        <p className="text-gray-600 dark:text-gray-300">{t('loadFailed')}</p>
+        <button type="button" onClick={stateUnit.entityTypes.retry} className="semiont-button" data-variant="secondary">
+          {t('retry')}
+        </button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
