@@ -70,6 +70,15 @@ export interface ActorStateUnit extends StateUnit {
   addChannels(channels: string[], scope?: string): void;
   /** With `scope`: remove channels from that scope's entry (empty entry drops the scope). Without: global channels. */
   removeChannels(channels: string[], scope?: string): void;
+  /**
+   * Correlated-reply retention, client side (BUS-RESUMPTION Phase 2 /
+   * SDK-DEBT S1): register a busRequest correlationId as awaiting its
+   * reply. Every connect body includes the currently-tracked set as
+   * `pendingReplies`, so a reply published while the connection was down
+   * is replayed from the server's retention buffer. The returned disposer
+   * (idempotent) removes the id on settle.
+   */
+  trackReply(correlationId: string): () => void;
   start(): void;
   stop(): void;
 }
@@ -105,6 +114,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   const scopeWatermarks = new Map<string, string>(
     Object.entries(options.loadLastEventIds?.() ?? {}),
   );
+  /** Outstanding busRequest correlationIds — ride every connect body (S1). */
+  const pendingReplies = new Set<string>();
 
   const events$ = new Subject<BusEvent>();
   const state$ = new BehaviorSubject<ConnectionState>('initial');
@@ -256,6 +267,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           ...(watermark !== undefined ? { lastEventId: watermark } : {}),
         };
       }),
+      ...(pendingReplies.size > 0 ? { pendingReplies: [...pendingReplies] } : {}),
     });
     const url = `${baseUrl}/bus/subscribe`;
 
@@ -561,6 +573,16 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         }
       }
       if (changed) scheduleLazyReconnect();
+    },
+
+    trackReply: (correlationId: string) => {
+      pendingReplies.add(correlationId);
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        pendingReplies.delete(correlationId);
+      };
     },
 
     start: () => {

@@ -4,7 +4,8 @@ import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { EventBus, EventMap, StoredEvent } from '@semiont/core';
-import { CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
+import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
+import type { Subscription } from 'rxjs';
 import {
   SpanKind,
   injectTraceparent,
@@ -87,6 +88,73 @@ interface ScopedSubscription {
 const MAX_SCOPES = 512;
 const SCOPE_WARN_THRESHOLD = 128;
 
+// ── Correlated-reply retention (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1) ──
+
+/** Every reply channel a busRequest can await, derived from the registry. */
+const REPLY_CHANNELS = [
+  ...new Set(Object.values(BUS_OPERATIONS).flatMap((op) => [op.result, op.failure])),
+];
+
+/** A reply older than the caller's 30 s deadline is useless — 2× headroom. */
+export const REPLY_RETENTION_TTL_MS = 60_000;
+export const REPLY_RETENTION_MAX = 1024;
+export const PENDING_REPLIES_MAX = 256;
+
+interface RetainedReply {
+  channel: string;
+  payload: unknown;
+  retainedAt: number;
+}
+
+/**
+ * Bounded retention of correlated replies, so a client whose connection
+ * dropped between its emit and the reply frame can fetch the reply on
+ * reconnect (`pendingReplies` in the subscribe body) instead of burning its
+ * timeout. Subscribes every registry reply channel on the given bus; keeps
+ * `correlationId → reply` in an insertion-ordered map with FIFO cap
+ * eviction and lazy TTL expiry (no timers). Entries are NOT consumed by
+ * lookup — a repeat replay carries the same deterministic id and dedups
+ * client-side. Retention adds no exposure: reply channels are global
+ * fan-out already (channel-level authz is CHANNEL-AUTHZ.md's gap).
+ */
+export function createReplyRetention(
+  eventBus: EventBus,
+  opts: { ttlMs?: number; max?: number; now?: () => number } = {},
+): { lookup(correlationId: string): RetainedReply | undefined; dispose(): void } {
+  const ttlMs = opts.ttlMs ?? REPLY_RETENTION_TTL_MS;
+  const max = opts.max ?? REPLY_RETENTION_MAX;
+  const now = opts.now ?? Date.now;
+  const buffer = new Map<string, RetainedReply>();
+  const subs: Subscription[] = REPLY_CHANNELS.map((channel) =>
+    eventBus.get(channel as keyof EventMap).subscribe((payload) => {
+      const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
+      if (typeof cid !== 'string' || cid.length === 0) return;
+      buffer.delete(cid); // refresh insertion order on re-publish
+      buffer.set(cid, { channel, payload, retainedAt: now() });
+      while (buffer.size > max) {
+        const oldest = buffer.keys().next().value;
+        if (oldest === undefined) break;
+        buffer.delete(oldest);
+      }
+    }),
+  );
+  return {
+    lookup(correlationId) {
+      const entry = buffer.get(correlationId);
+      if (!entry) return undefined;
+      if (now() - entry.retainedAt > ttlMs) {
+        buffer.delete(correlationId);
+        return undefined;
+      }
+      return entry;
+    },
+    dispose() {
+      for (const s of subs) s.unsubscribe();
+      buffer.clear();
+    },
+  };
+}
+
 const isStringArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((x) => typeof x === 'string');
 
@@ -95,13 +163,23 @@ const isStringArray = (v: unknown): v is string[] =>
  * Returns an error message rather than throwing so the route can wrap it
  * in a single HTTPException site.
  */
-function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSubscription[] } | { error: string } {
+function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSubscription[]; pendingReplies: string[] } | { error: string } {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return { error: 'body must be a JSON object' };
   }
-  const { global: rawGlobal, scoped: rawScoped } = raw as { global?: unknown; scoped?: unknown };
+  const { global: rawGlobal, scoped: rawScoped, pendingReplies: rawPending } = raw as {
+    global?: unknown;
+    scoped?: unknown;
+    pendingReplies?: unknown;
+  };
   const global = rawGlobal === undefined ? [] : rawGlobal;
   if (!isStringArray(global)) return { error: '`global` must be an array of channel names' };
+
+  const pendingReplies = rawPending === undefined ? [] : rawPending;
+  if (!isStringArray(pendingReplies)) return { error: '`pendingReplies` must be an array of correlation ids' };
+  if (pendingReplies.length > PENDING_REPLIES_MAX) {
+    return { error: `pendingReplies count ${pendingReplies.length} exceeds the cap of ${PENDING_REPLIES_MAX}` };
+  }
 
   const scopedList = rawScoped === undefined ? [] : rawScoped;
   if (!Array.isArray(scopedList)) return { error: '`scoped` must be an array' };
@@ -124,7 +202,7 @@ function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSub
   if (scoped.length > MAX_SCOPES) {
     return { error: `scope count ${scoped.length} exceeds the per-connection cap of ${MAX_SCOPES}` };
   }
-  return { global, scoped };
+  return { global, scoped, pendingReplies };
 }
 
 export function createBusRouter(authMiddleware: AuthMiddleware) {
@@ -132,15 +210,28 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
   busRouter.use('/bus/*', authMiddleware);
 
+  // One retention buffer per EventBus instance, wired on that bus's first
+  // subscribe. Lazy-on-first-subscribe is not a coverage hole: the attach
+  // gate guarantees a client holds an open connection before any busRequest
+  // emit, so a reply can only exist after some subscribe has run.
+  const retentionByBus = new WeakMap<EventBus, ReturnType<typeof createReplyRetention>>();
+
   busRouter.post('/bus/subscribe', async (c) => {
     const raw: unknown = await c.req.json().catch(() => null);
     const parsed = parseSubscribeBody(raw);
     if ('error' in parsed) {
       throw new HTTPException(400, { message: parsed.error });
     }
-    const { global: channels, scoped } = parsed;
+    const { global: channels, scoped, pendingReplies } = parsed;
     const eventBus = c.get('eventBus');
     const makeMeaning = c.get('makeMeaning');
+
+    let retention = retentionByBus.get(eventBus);
+    if (!retention) {
+      retention = createReplyRetention(eventBus);
+      retentionByBus.set(eventBus, retention);
+    }
+    const replyRetention = retention;
 
     if (scoped.length >= SCOPE_WARN_THRESHOLD) {
       getBusLogger().warn('large scope matrix', { scopeCount: scoped.length, cap: MAX_SCOPES });
@@ -358,6 +449,20 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             });
             await emitResumeGap('query-error', entry.scope, entry.lastEventId);
           }
+        }
+      }
+
+      // ── Correlated-reply replay (BUS-RESUMPTION Phase 2 / S1) ─────────
+      //
+      // Each requested cid found in retention is written as a normal frame
+      // with its DETERMINISTIC ephemeral id (`e-<channel>:<cid>` — stamped
+      // by writeBusEvent from the payload's correlationId), so a copy that
+      // also arrived live during a connection overlap dedups client-side.
+      // Entries are not consumed: a repeat replay is idempotent by id.
+      for (const cid of pendingReplies) {
+        const retained = replyRetention.lookup(cid);
+        if (retained) {
+          await writeBusEvent(retained.channel, retained.payload, undefined);
         }
       }
 

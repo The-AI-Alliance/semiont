@@ -52,6 +52,17 @@ export interface BusRequestPrimitive {
    * `'open'` until disposal.
    */
   state$: Observable<ConnectionState>;
+  /**
+   * Correlated-reply retention, client side (.plans/BUS-RESUMPTION.md
+   * Phase 2 / SDK-DEBT S1). `busRequest` registers its correlationId here
+   * BEFORE emitting and calls the returned disposer on every settle path;
+   * a wire transport includes the currently-tracked ids as
+   * `pendingReplies` in each subscribe body, so a reply published while
+   * the connection was down is replayed from the server's retention
+   * buffer on reconnect. OPTIONAL: an in-process transport that cannot
+   * lose replies omits the surface and `busRequest` behaves as before.
+   */
+  trackReply?(correlationId: string): () => void;
 }
 
 /**
@@ -207,18 +218,34 @@ export async function busRequest<Op extends BusOperationKey>(
   // only the disposed-bus case, where the stream completes and the promise
   // *resolves* `bus.closed`.) Found by the liveness harness's reject-emit
   // schedules (.plans/LIVENESS-AXIOMS.md, P1).
+  //
+  // Reply tracking (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1): register the
+  // cid BEFORE the emit — a reconnect body built while the emit is in flight
+  // must already carry it in `pendingReplies`, or a reply published in the
+  // old-connection-death → new-connection-open gap sits in the server's
+  // retention buffer unasked-for. Released on every settle path; the
+  // never-emitted paths above (closed fast-fail, 'settled' race arm) never
+  // reach this line, so they never track.
+  let releaseTracking: (() => void) | undefined;
   if (emitAllowed) {
+    releaseTracking = bus.trackReply?.(correlationId);
     try {
       await bus.emit(operation as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
     } catch (emitError) {
+      releaseTracking?.();
+      releaseTracking = undefined;
       resultPromise.catch(() => {});
       throw emitError;
     }
   }
 
-  const result = await resultPromise;
-  if (!result.ok) {
-    throw result.error;
+  try {
+    const result = await resultPromise;
+    if (!result.ok) {
+      throw result.error;
+    }
+    return result.response;
+  } finally {
+    releaseTracking?.();
   }
-  return result.response;
 }

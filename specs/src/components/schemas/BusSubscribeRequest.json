@@ -7,6 +7,12 @@
       "items": { "type": "string" },
       "description": "Unscoped channels to subscribe to."
     },
+    "pendingReplies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 256,
+      "description": "Correlation ids of busRequest replies this client still awaits (BUS-RESUMPTION Phase 2). The server replays any matching replies from its bounded retention buffer (TTL 60s) as normal frames with their deterministic `e-<channel>:<cid>` ids, so a reply that ALSO arrived live dedups client-side. At most 256 entries."
+    },
     "scoped": {
       "type": "array",
       "description": "Per-resource-scope subscriptions. Scopes must be unique across entries.",

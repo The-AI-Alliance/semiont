@@ -1009,6 +1009,34 @@ describe('multi-scope subscription matrix', () => {
     su.dispose();
   });
 
+  it('trackReply(cid) rides every connect body until released; empty set omits the field (BUS-RESUMPTION P2)', async () => {
+    mockSSEResponse();
+    const su = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['global:ch'],
+    });
+    su.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    expect(bodyOf(0)).not.toHaveProperty('pendingReplies');
+
+    const release = su.trackReply('cid-1');
+    su.trackReply('cid-2');
+    mockSSEResponse();
+    su.addChannels(['mark:added'], 'res-A'); // trigger a reconnect
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    expect((bodyOf(1) as unknown as { pendingReplies: string[] }).pendingReplies.sort()).toEqual(['cid-1', 'cid-2']);
+
+    release();
+    release(); // idempotent — must not touch cid-2
+    mockSSEResponse();
+    su.addChannels(['mark:added'], 'res-B');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
+    expect((bodyOf(2) as unknown as { pendingReplies: string[] }).pendingReplies).toEqual(['cid-2']);
+
+    su.dispose();
+  });
+
   it('saveLastEventId receives (scope, id) per persisted frame — ephemeral ids are never saved (B17)', async () => {
     const saved: Array<[string, string]> = [];
     const sse = mockSSEResponse();

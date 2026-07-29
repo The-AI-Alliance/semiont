@@ -153,26 +153,37 @@ For each scoped entry carrying a watermark:
 
 Clients that send no watermarks get live-only behavior.
 
-### HTTP-specific quirk: response-lost during a genuine disconnect
+### HTTP-specific quirk: response-lost during a genuine disconnect — NARROWED TO RETENTION BOUNDS
 
-The shared contract defines `busRequest` as at-most-once with a 30s
-timeout. Over HTTP, if the SSE connection is lost during the request
-window, the response is published to a dead subscriber and lost — the
-client sees only the 30s timeout, and there is no retry.
+The shared contract publishes a `busRequest` reply exactly once, at
+publish time. The historical quirk — connection lost during the request
+window ⇒ reply published to a dead subscriber ⇒ 30s timeout with no
+retry — has been closed in layers:
 
-A **channel-set change no longer causes this** (#847): those reconnects
-are make-before-break (see "Reconnect discipline" below), so the old
-connection stays live to deliver the in-flight result while the new one
-takes over. The loss now applies only to a genuine **server/network
-disconnect**, where the old connection is already dead.
+- A **channel-set change no longer causes this** (#847): those
+  reconnects are make-before-break (see "Reconnect discipline" below),
+  so the old connection stays live to deliver the in-flight result
+  while the new one takes over.
+- The **attach gate** (BUS-ATTACH-GATE): no correlated emit leaves
+  before the reply path is `'open'`.
+- **Correlated-reply retention** (BUS-RESUMPTION Phase 2, 2026-07-29):
+  the backend retains recent replies (bounded: 60s TTL / 1024 entries,
+  keyed by correlationId), `busRequest` registers its cid with the
+  transport BEFORE emitting, and every subscribe body carries the
+  outstanding cids as `pendingReplies` — so a reply published while
+  the connection was genuinely down is REPLAYED on reconnect, with its
+  deterministic `e-<channel>:<cid>` id (a copy that also arrived live
+  dedups client-side, same as the make-before-break overlap).
 
-This is the load-bearing HTTP quirk. Consumers that must survive a real
-disconnect either (a) accept the timeout and retry, or (b) layer a cache
-that refetches (`BrowseNamespace` does the latter; its one-shot `await`
-path also refetches fresh — #847).
+What remains lost: a reply older than the retention TTL (the caller's
+own 30s deadline passed long before), retention-cap eviction under
+pathological load, and a backend restart (in-memory buffer;
+multi-instance failover is out of scope). Consumers keep their
+defense-in-depth: the cache's bounded SWR retry (B14) and terminal
+failure (B15) stay, but should fire approximately never.
 
 `LocalTransport` doesn't have this failure mode — in-process
-subscribers never disconnect during a call.
+subscribers never disconnect during a call — and omits `trackReply`.
 
 ## Connection lifecycle (HTTP only)
 
@@ -486,6 +497,15 @@ above is the decision tree.
 A deliberate choice to keep this as a separate section so changes to
 the contract are visible.
 
+- **2026-07-29** — correlated-reply retention landed (BUS-RESUMPTION
+  Phase 2 / SDK-DEBT S1). The backend retains recent replies (60s TTL,
+  1024-entry FIFO); the subscribe body's new `pendingReplies` field
+  (cap 256) names the cids a client still awaits and the server replays
+  matches with their deterministic ids. `busRequest` tracks its cid via
+  the transport's optional `trackReply` BEFORE emitting (a reconnect
+  body built mid-emit must already carry it) and releases on every
+  settle path. The "response-lost during a genuine disconnect" quirk
+  narrows to retention bounds; B14/B15 remain as defense in depth.
 - **2026-07-29** — MULTI-RESOURCE-SCOPE landed. `/bus/subscribe` is
   POST with a JSON subscription matrix (`global` + N `scoped` entries);
   the GET query form and the `Last-Event-ID` header are GONE (clean

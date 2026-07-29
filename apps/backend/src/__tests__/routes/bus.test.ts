@@ -11,7 +11,7 @@ import type {
   EventMetadata,
   components,
 } from '@semiont/core';
-import { createBusRouter } from '../../routes/bus';
+import { createBusRouter, createReplyRetention } from '../../routes/bus';
 import { initializeLogger } from '../../logger';
 
 const TEST_USER_ID = 'did:web:test:users:test' as UserId;
@@ -681,5 +681,91 @@ describe('bus routes', () => {
       const res = await app.request('/bus/subscribe?channel=test%3Aevent');
       expect(res.status).toBe(404);
     });
+  });
+
+  // ── BUS-RESUMPTION.md Phase 2 (SDK-DEBT S1): correlated-reply retention ──
+
+  describe('correlated-reply retention + pendingReplies replay', () => {
+    it('replays a retained reply to a reconnecting subscriber that names its cid, with the deterministic id', async () => {
+      // conn1 is the first subscription on this eventBus — it wires the
+      // retention buffer. (The attach gate guarantees a real client has a
+      // live connection before any busRequest emit, so first-subscribe
+      // wiring is not a coverage hole.)
+      const res1 = await subscribe(app, { global: ['gather:resource-complete'] });
+      expect(res1.status).toBe(200);
+      await new Promise((r) => setTimeout(r, 20));
+
+      // The reply is published while the (conceptual) requester is
+      // disconnected — nothing but retention holds it now.
+      eventBus.get('gather:resource-complete').next({
+        correlationId: 'cid-lost',
+        response: { ok: 1 },
+      } as never);
+
+      // The requester reconnects, naming its outstanding cid.
+      const res2 = await subscribe(app, {
+        global: ['gather:resource-complete'],
+        pendingReplies: ['cid-lost'],
+      });
+      const body = await readSSE(res2, (b) => b.includes('cid-lost'));
+      expect(body).toContain('id: e-gather:resource-complete:cid-lost');
+      expect(body).toContain('"correlationId":"cid-lost"');
+    });
+
+    it('an unknown cid replays nothing', async () => {
+      await subscribe(app, { global: ['test:event'] }); // wire retention
+      const res = await subscribe(app, { global: ['test:event'], pendingReplies: ['never-seen'] });
+      setTimeout(() => eventBus.get('test:event' as any).next({ marker: 1 }), 20);
+      const body = await readSSE(res, (b) => b.includes('marker'));
+      expect(body).not.toContain('never-seen');
+    });
+
+    it('rejects malformed pendingReplies with 400', async () => {
+      expect((await subscribe(app, { global: ['test:event'], pendingReplies: 'nope' })).status).toBe(400);
+      expect((await subscribe(app, { global: ['test:event'], pendingReplies: [1] })).status).toBe(400);
+      const tooMany = Array.from({ length: 257 }, (_, i) => `c-${i}`);
+      expect((await subscribe(app, { global: ['test:event'], pendingReplies: tooMany })).status).toBe(400);
+    });
+  });
+});
+
+describe('createReplyRetention (unit — bounds with an injected clock)', () => {
+  it('expires entries past the TTL, checked lazily on lookup', () => {
+    let clock = 1_000;
+    const bus = new EventBus();
+    const retention = createReplyRetention(bus, { ttlMs: 100, now: () => clock });
+
+    bus.get('gather:resource-complete').next({ correlationId: 'c1', response: {} } as never);
+    expect(retention.lookup('c1')).toBeDefined();
+    clock += 101;
+    expect(retention.lookup('c1')).toBeUndefined();
+    retention.dispose();
+    bus.destroy();
+  });
+
+  it('evicts the oldest entry beyond the cap', () => {
+    const bus = new EventBus();
+    const retention = createReplyRetention(bus, { max: 2, now: () => 1 });
+
+    for (const cid of ['c1', 'c2', 'c3']) {
+      bus.get('gather:resource-complete').next({ correlationId: cid, response: {} } as never);
+    }
+    expect(retention.lookup('c1')).toBeUndefined(); // evicted (FIFO)
+    expect(retention.lookup('c2')).toBeDefined();
+    expect(retention.lookup('c3')).toBeDefined();
+    retention.dispose();
+    bus.destroy();
+  });
+
+  it('retains only correlationId-bearing payloads, on reply channels only', () => {
+    const bus = new EventBus();
+    const retention = createReplyRetention(bus, { now: () => 1 });
+
+    bus.get('gather:resource-complete').next({ response: {} } as never); // no cid
+    // A REQUEST channel also carries a cid — it must not be retained.
+    bus.get('gather:resource-requested' as any).next({ correlationId: 'req-1' });
+    expect(retention.lookup('req-1')).toBeUndefined();
+    retention.dispose();
+    bus.destroy();
   });
 });

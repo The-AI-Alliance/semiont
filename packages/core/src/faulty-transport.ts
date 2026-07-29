@@ -204,6 +204,25 @@ export class FaultyTransport implements ITransport {
     return () => {};
   }
 
+  /**
+   * Correlated-reply tracking (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1),
+   * exposed for assertions: `busRequest` registers each cid here before its
+   * emit and releases on settle, so a test can pin the tracked set at any
+   * point of a request's lifecycle. Delivery in this double is bus-direct
+   * (nothing to replay), so tracking has no behavioral effect.
+   */
+  readonly pendingReplies = new Set<string>();
+
+  trackReply(correlationId: string): () => void {
+    this.pendingReplies.add(correlationId);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.pendingReplies.delete(correlationId);
+    };
+  }
+
   bridgeInto(bus: EventBus): void {
     for (const channel of BRIDGED_CHANNELS) {
       this.bus.get(channel as keyof EventMap).subscribe((payload) => {

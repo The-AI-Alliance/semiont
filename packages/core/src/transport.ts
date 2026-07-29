@@ -184,6 +184,17 @@ export interface ITransport {
   readonly state$: Observable<ConnectionState>;
 
   /**
+   * Correlated-reply retention, client side (BUS-RESUMPTION Phase 2 /
+   * SDK-DEBT S1). `busRequest` registers its correlationId here before
+   * emitting and releases on settle; a wire transport includes the
+   * tracked set as `pendingReplies` on each subscribe body so a reply
+   * published while the connection was down replays from the server's
+   * retention buffer. OPTIONAL: in-process transports that cannot lose
+   * replies omit it.
+   */
+  trackReply?(correlationId: string): () => void;
+
+  /**
    * Stream of transport-level errors surfaced from typed-wire methods or
    * other transport-mediated round-trips, just before they're thrown to
    * the caller. Each emission is a `SemiontError` (or subclass — HTTP

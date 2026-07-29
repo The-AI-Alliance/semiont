@@ -465,3 +465,118 @@ describe('BusRequestError', () => {
     expect(err.details).toBeUndefined();
   });
 });
+
+// ── BUS-RESUMPTION.md Phase 2 (SDK-DEBT S1): reply tracking ───────────────
+
+describe('busRequest reply tracking (correlated-reply retention, client side)', () => {
+  const EMIT = 'gather:resource-requested';
+  const RESULT = 'gather:resource-complete';
+  const FAILURE = 'gather:resource-failed';
+
+  function makeTrackingBus(initialState: ConnectionState = 'open') {
+    const bus = makeBus(RESULT, FAILURE, initialState);
+    const order: string[] = [];
+    const tracked: string[] = [];
+    const released: string[] = [];
+    const originalEmit = bus.emit;
+    bus.emit = vi.fn(async (channel, payload) => {
+      order.push('emit');
+      return originalEmit(channel, payload);
+    }) as BusRequestPrimitive['emit'];
+    const trackingBus = Object.assign(bus, {
+      trackReply: vi.fn((cid: string) => {
+        order.push('track');
+        tracked.push(cid);
+        return () => {
+          released.push(cid);
+        };
+      }),
+    });
+    return { bus: trackingBus, order, tracked, released };
+  }
+
+  it('tracks the cid BEFORE the emit and releases on the success reply', async () => {
+    const { bus, order, tracked, released } = makeTrackingBus();
+    const promise = busRequest(bus, EMIT, {});
+    await Promise.resolve();
+
+    const cid = bus.emitPayload!.correlationId as string;
+    // Track-before-emit is load-bearing: a reconnect body built during the
+    // emit's in-flight window must already carry the cid (see the plan).
+    expect(order).toEqual(['track', 'emit']);
+    expect(tracked).toEqual([cid]);
+    expect(released).toEqual([]);
+
+    bus.resultSubject.next({ correlationId: cid, response: { value: 1 } });
+    await promise;
+    expect(released).toEqual([cid]);
+  });
+
+  it('releases on a failure reply', async () => {
+    const { bus, tracked, released } = makeTrackingBus();
+    const promise = busRequest(bus, EMIT, {});
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+
+    bus.failureSubject.next({ correlationId: cid, message: 'nope' });
+    await expect(promise).rejects.toMatchObject({ code: 'bus.rejected' });
+    expect(tracked).toEqual([cid]);
+    expect(released).toEqual([cid]);
+  });
+
+  it('releases on timeout', async () => {
+    const { bus, released } = makeTrackingBus();
+    const promise = busRequest(bus, EMIT, {}, 20);
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+
+    await expect(promise).rejects.toMatchObject({ code: 'bus.timeout' });
+    expect(released).toEqual([cid]);
+  });
+
+  it('releases when the bus closes before a reply (streams complete)', async () => {
+    const { bus, released } = makeTrackingBus();
+    const promise = busRequest(bus, EMIT, {});
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+
+    bus.resultSubject.complete();
+    bus.failureSubject.complete();
+    await expect(promise).rejects.toMatchObject({ code: 'bus.closed' });
+    expect(released).toEqual([cid]);
+  });
+
+  it('releases on emit rejection', async () => {
+    const { bus, released, tracked } = makeTrackingBus();
+    bus.emit = vi.fn(async () => {
+      throw new Error('emit refused');
+    }) as BusRequestPrimitive['emit'];
+
+    await expect(busRequest(bus, EMIT, {})).rejects.toThrow('emit refused');
+    expect(tracked).toHaveLength(1);
+    expect(released).toEqual(tracked);
+  });
+
+  it('never tracks when the bus is closed before emit (gate fast-fail)', async () => {
+    const { bus, tracked } = makeTrackingBus('closed');
+    await expect(busRequest(bus, EMIT, {})).rejects.toMatchObject({ code: 'bus.closed' });
+    expect(tracked).toEqual([]);
+  });
+
+  it("never tracks when the reply machinery settles before the gate opens (the 'settled' race arm)", async () => {
+    const { bus, tracked } = makeTrackingBus('connecting');
+    // Never opens: the reply timeout settles first, the emit is skipped.
+    await expect(busRequest(bus, EMIT, {}, 20)).rejects.toMatchObject({ code: 'bus.timeout' });
+    expect(bus.emit).not.toHaveBeenCalled();
+    expect(tracked).toEqual([]);
+  });
+
+  it('a primitive without trackReply behaves exactly as today', async () => {
+    const bus = makeBus(RESULT, FAILURE);
+    const promise = busRequest(bus, EMIT, {});
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, response: { ok: 1 } });
+    expect(await promise).toEqual({ ok: 1 });
+  });
+});

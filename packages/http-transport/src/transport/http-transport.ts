@@ -380,6 +380,17 @@ export class HttpTransport implements ITransport, IBackendOperations {
     return this.actor.state$;
   }
 
+  /**
+   * Correlated-reply retention, client side (BUS-RESUMPTION Phase 2 /
+   * SDK-DEBT S1): `busRequest` registers its cid here before emitting;
+   * the actor carries the tracked set as `pendingReplies` on every
+   * subscribe body, so a reply published while the connection was down
+   * replays from the server's retention buffer on reconnect.
+   */
+  trackReply(correlationId: string): () => void {
+    return this.actor.trackReply(correlationId);
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
