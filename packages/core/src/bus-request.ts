@@ -166,7 +166,8 @@ export async function busRequest<Op extends BusOperationKey>(
   if (currentState === 'closed') {
     throw closedBeforeEmit();
   }
-  if (currentState !== 'open') {
+  let emitAllowed = currentState === 'open';
+  if (!emitAllowed) {
     const gate = firstValueFrom(
       bus.state$.pipe(
         filter((s) => s === 'open' || s === 'closed'),
@@ -180,7 +181,7 @@ export async function busRequest<Op extends BusOperationKey>(
       // Either settlement of the reply machinery means "stop waiting, never
       // emit": its timeout rejecting `bus.timeout` at `timeoutMs` (the same
       // moment it would fire today — D4), or its streams completing into the
-      // `bus.closed` default above. The awaited result below carries it.
+      // `bus.closed` default above. The shared tail below carries it.
       resultPromise.then(
         () => 'settled' as const,
         () => 'settled' as const,
@@ -191,15 +192,11 @@ export async function busRequest<Op extends BusOperationKey>(
       // only the reply promise needs detaching — closedBeforeEmit does it.
       throw closedBeforeEmit();
     }
-    if (outcome === 'settled') {
-      const settled = await resultPromise;
-      if (!settled.ok) {
-        throw settled.error;
-      }
-      return settled.response;
-    }
-    // outcome === 'open' → proceed to the one emit (D5: a state flap after
-    // emission cannot re-emit — nothing subscribes to state$ past this point).
+    // 'open' → the one emit below. 'settled' → skip the emit; awaiting the
+    // reply at the tail rethrows its outcome. (D5 holds structurally either
+    // way: nothing subscribes to state$ past this point, so a flap after
+    // emission cannot re-emit.)
+    emitAllowed = outcome === 'open';
   }
 
   // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller — but the
@@ -210,11 +207,13 @@ export async function busRequest<Op extends BusOperationKey>(
   // only the disposed-bus case, where the stream completes and the promise
   // *resolves* `bus.closed`.) Found by the liveness harness's reject-emit
   // schedules (.plans/LIVENESS-AXIOMS.md, P1).
-  try {
-    await bus.emit(operation as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
-  } catch (emitError) {
-    resultPromise.catch(() => {});
-    throw emitError;
+  if (emitAllowed) {
+    try {
+      await bus.emit(operation as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
+    } catch (emitError) {
+      resultPromise.catch(() => {});
+      throw emitError;
+    }
   }
 
   const result = await resultPromise;

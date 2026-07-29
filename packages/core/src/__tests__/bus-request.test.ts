@@ -375,6 +375,46 @@ describe('busRequest attach gate (.plans/BUS-ATTACH-GATE.md)', () => {
     }
   });
 
+  it('flips to closed while waiting → rejects bus.closed without emitting or burning the timeout', async () => {
+    // The race-arm closed path: stop()/dispose() lands MID-WAIT, after the
+    // synchronous sample saw a non-deliverable, non-closed state.
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const bus = makeBus(RESULT, FAILURE, 'connecting');
+      const started = Date.now();
+      const promise = busRequest(bus, EMIT, {}, 30_000);
+
+      await new Promise((r) => setTimeout(r, 10));
+      bus.stateSubject.next('closed');
+
+      await expect(promise).rejects.toMatchObject({ code: 'bus.closed' });
+      expect(Date.now() - started).toBeLessThan(1_000);
+      expect(bus.emit).not.toHaveBeenCalled();
+
+      await new Promise((r) => setTimeout(r, 10));
+      expect(unhandled).toHaveLength(0);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
+  it('state$ completing while waiting is treated as closed (defaultIfEmpty)', async () => {
+    // A transport torn down so hard its state stream just ends: no 'closed'
+    // event, no reply-stream completion — only state$ completing. The gate
+    // must not hang on a vanished state machine.
+    const bus = makeBus(RESULT, FAILURE, 'connecting');
+    const promise = busRequest(bus, EMIT, {}, 30_000);
+
+    await new Promise((r) => setTimeout(r, 10));
+    bus.stateSubject.complete();
+
+    await expect(promise).rejects.toMatchObject({ code: 'bus.closed' });
+    expect(bus.emit).not.toHaveBeenCalled();
+  });
+
   it('one deadline from the call (D4): a primitive that never attaches rejects bus.timeout at timeoutMs, emit never called', async () => {
     const bus = makeBus(RESULT, FAILURE, 'connecting');
     const started = Date.now();
