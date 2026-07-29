@@ -318,7 +318,7 @@ export class BrowseNamespace implements IBrowseNamespace {
             this.degradedScopeWarned.add(rId);
             // eslint-disable-next-line no-console
             console.warn(
-              `[browse DEGRADED] scope contention: observing ${rId} unscoped — its live ` +
+              `[browse SCOPE-CONTENTION] observing ${rId} unscoped — its live ` +
                 `per-resource invalidations are paused until the scope frees (re-subscribe ` +
                 `re-attempts; real fix: .plans/MULTI-RESOURCE-SCOPE.md).`,
             );

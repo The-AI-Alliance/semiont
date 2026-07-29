@@ -31,7 +31,7 @@
  * an invalidate chain's warn can land after the bound when outputs were
  * already notified via the stale value, so asserting there would be flaky.
  * The three breadcrumbs are also pinned individually in the deterministic
- * trio test at the bottom ([browse DEGRADED] can't join the implication:
+ * trio test at the bottom ([browse SCOPE-CONTENTION] can't join the implication:
  * FaultyTransport doesn't expose the per-run scope model).
  */
 
@@ -74,7 +74,7 @@ function loaderOutputs(browse: BrowseNamespace, rid: string): Observable<unknown
 }
 
 describe('liveness axioms over the real BrowseNamespace composition (P2)', () => {
-  // The breadcrumbs ([browse DEGRADED], [cache RETRY]/[cache IDLE]) are
+  // The breadcrumbs ([browse SCOPE-CONTENTION], [cache RETRY]/[cache IDLE]) are
   // always-on by design (L4). The spy keeps property runs quiet AND is the
   // L4 assertion surface: property 1 checks degradation ⇒ ≥1 breadcrumb
   // per run; the trio test below pins each breadcrumb individually.
@@ -219,7 +219,7 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
   it('L4: [cache RETRY] then [cache IDLE] fire when an SWR chain fails and exhausts', async () => {
     // Every request drops its reply → attempt times out (RETRY warn) → the
     // B14 re-issue also drops → exhaustion (IDLE warn) + B15 error to the
-    // value-less key's observers. scopeModel 'multi' keeps [browse DEGRADED]
+    // value-less key's observers. scopeModel 'multi' keeps [browse SCOPE-CONTENTION]
     // out of this scenario's warns.
     const transport = new FaultyTransport({ schedule: [{ kind: 'drop-reply' }], scopeModel: 'multi', makeResponse });
     const bus = new EventBus();
@@ -238,14 +238,14 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
       const warns: string[] = warnSpy.mock.calls.map((c: unknown[]) => String(c[0]));
       expect(warns.some((w) => w.includes('[cache RETRY]'))).toBe(true);
       expect(warns.some((w) => w.includes('[cache IDLE]'))).toBe(true);
-      expect(warns.some((w) => w.includes('[browse DEGRADED]'))).toBe(false);
+      expect(warns.some((w) => w.includes('[browse SCOPE-CONTENTION]'))).toBe(false);
     } finally {
       bus.destroy();
       transport.dispose();
     }
   });
 
-  it('L4: [browse DEGRADED] fires on scope contention — and the degraded loader still loads', async () => {
+  it('L4: [browse SCOPE-CONTENTION] fires on scope contention — and the degraded loader still loads', async () => {
     // Default single-slot-throw, healthy wire: the second distinct rid's
     // withScope hits the contention throw, degrades to unscoped observation
     // (warn), and BOTH loaders still deliver values — degradation is graceful
@@ -267,7 +267,7 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
       expect(values).toHaveLength(4);
       values.forEach((v) => expect(v).toBeDefined());
       const warns: string[] = warnSpy.mock.calls.map((c: unknown[]) => String(c[0]));
-      expect(warns.some((w) => w.includes('[browse DEGRADED]'))).toBe(true);
+      expect(warns.some((w) => w.includes('[browse SCOPE-CONTENTION]'))).toBe(true);
     } finally {
       bus.destroy();
       transport.dispose();
