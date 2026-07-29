@@ -19,9 +19,10 @@
  * fixtures are for testing the transport contract itself.
  */
 
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, throwError } from 'rxjs';
 import type {
   AccessToken,
+  IBackendOperations,
   IContentTransport,
   PutBinaryOptions,
   PutBinaryRequest,
@@ -110,6 +111,14 @@ export interface TestClientOptions {
   /** FaultyTransport scripting: fault schedule, scope model, `makeResponse`. */
   transport?: FaultyTransportConfig;
   /**
+   * Backend operations for the `auth`/`admin` namespaces. Omitted = both are
+   * `undefined` (transport-only client, same as production LocalTransport
+   * setups). Pass `stubBackend()` when a unit under test touches
+   * `client.auth` and the test scripts it via `AuthNamespace.prototype`
+   * spies (the AuthShell precedent).
+   */
+  backend?: IBackendOperations;
+  /**
    * `busRequest` timeout for the browse caches — the deterministic-time
    * knob (LIVENESS-AXIOMS P2a). Pass something small (e.g. 40) when a test
    * drives B14/B15 through timeouts; irrelevant for `reject-emit` faults.
@@ -128,12 +137,47 @@ export interface TestClientOptions {
  * via its config, drive connection state via `transport.state$.next(...)`,
  * and account requests via `transport.requestLog`.
  */
+/**
+ * A COMPLETE `IBackendOperations` whose every method rejects loudly with its
+ * own name — so a unit that touches an op the test didn't script fails with
+ * "not scripted: <op>" instead of a fabricated success. Script behavior via
+ * `AuthNamespace.prototype` / `AdminNamespace.prototype` spies, or spread
+ * overrides over this stub. tsc enforces completeness: a new backend op is a
+ * compile error HERE, not a silent gap.
+ */
+export function stubBackend(): IBackendOperations {
+  const notScripted = (name: string) => () =>
+    Promise.reject(new Error(`stubBackend: not scripted: ${name}`));
+  return {
+    authenticatePassword: notScripted('authenticatePassword'),
+    authenticateGoogle: notScripted('authenticateGoogle'),
+    refreshAccessToken: notScripted('refreshAccessToken'),
+    logout: notScripted('logout'),
+    acceptTerms: notScripted('acceptTerms'),
+    getCurrentUser: notScripted('getCurrentUser'),
+    getMediaToken: notScripted('getMediaToken'),
+    listUsers: notScripted('listUsers'),
+    getUserStats: notScripted('getUserStats'),
+    updateUser: notScripted('updateUser'),
+    getOAuthConfig: notScripted('getOAuthConfig'),
+    backupKnowledgeBase: notScripted('backupKnowledgeBase'),
+    // Observable-returning ops error their stream, same loudness.
+    restoreKnowledgeBase: () =>
+      throwError(() => new Error('stubBackend: not scripted: restoreKnowledgeBase')),
+    exportKnowledgeBase: notScripted('exportKnowledgeBase'),
+    importKnowledgeBase: () =>
+      throwError(() => new Error('stubBackend: not scripted: importKnowledgeBase')),
+    healthCheck: notScripted('healthCheck'),
+    getStatus: notScripted('getStatus'),
+  };
+}
+
 export function createTestClient(options: TestClientOptions = {}): {
   client: SemiontClient;
   transport: FaultyTransport;
 } {
   const transport = new FaultyTransport(options.transport);
-  const client = new SemiontClient(transport, options.content ?? inMemoryContent(), undefined, {
+  const client = new SemiontClient(transport, options.content ?? inMemoryContent(), options.backend, {
     ...(options.busTimeoutMs !== undefined ? { busTimeoutMs: options.busTimeoutMs } : {}),
     ...(options.cachePersistence ? { cachePersistence: options.cachePersistence } : {}),
   });

@@ -12,16 +12,16 @@ import { Link } from '@/i18n/routing';
 import { PageLayout, useToast, useSemiont, useObservable } from '@semiont/react-ui';
 import { WelcomePage } from '@semiont/react-ui';
 import { createWelcomeStateUnit } from '@semiont/react-ui';
-import { useStateUnit } from '@semiont/react-ui';
+import { useSessionStateUnit } from '@semiont/react-ui';
 import type { SemiontSession } from '@semiont/sdk';
 
 /**
- * Gate: `createWelcomeStateUnit` calls `client.auth!.me()` at CONSTRUCTION, so
- * it may not be built before a session exists — and this is the route the user
- * lands on immediately after connecting, when the session is still being
- * constructed. The inner component takes a real session and is keyed on it, so
- * a replacement (KB switch, re-auth) rebuilds against the new client instead of
- * holding the disposed one.
+ * The session gate is API shape now (SESSION-TYPED-FACTORIES.md):
+ * `createWelcomeStateUnit` takes the SESSION, and `useSessionStateUnit`
+ * constructs only when one exists and rebuilds (dispose-first) when it is
+ * replaced — a KB switch or re-auth can no longer leave this page holding a
+ * disposed client. This route is where that crashed in production: the user
+ * lands here immediately after connecting, mid-activation.
  * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
  */
 export default function Welcome() {
@@ -52,10 +52,10 @@ function WelcomeInner({
   const [termsAccepted, setTermsAccepted] = useState(false);
   const toast = useToast();
 
-  const stateUnit = useStateUnit(() => createWelcomeStateUnit(session.client));
+  const stateUnit = useSessionStateUnit(session, createWelcomeStateUnit);
 
-  const userData = useObservable(stateUnit.userData$);
-  const isProcessing = useObservable(stateUnit.isProcessing$) ?? false;
+  const userData = useObservable(stateUnit?.userData$);
+  const isProcessing = useObservable(stateUnit?.isProcessing$) ?? false;
 
   // Redirect if not authenticated or if terms already accepted
   useEffect(() => {
@@ -79,6 +79,7 @@ function WelcomeInner({
       return;
     }
 
+    if (!stateUnit) return;
     try {
       await stateUnit.acceptTerms();
       setTermsAccepted(true);

@@ -41,6 +41,26 @@ function isExternal(id) {
   return false;
 }
 
+// The testing entry must IMPORT the shared surface (`SemiontClient`,
+// `SemiontSession`, …) from '@semiont/sdk' rather than inline private copies:
+// inlined classes are NOMINALLY distinct, so consumers holding index types
+// couldn't pass them where testing types are expected (found via react-ui's
+// welcome pilot; same fix as core's rollup.dts.config.mjs, same day).
+function testingSelfExternal() {
+  return {
+    name: 'testing-self-external',
+    resolveId(source, importer) {
+      if (!importer || !source.startsWith('.')) return null;
+      const base = resolve(dirname(importer), source)
+        .replace(/\.d\.ts$/, '')
+        .split('/')
+        .pop();
+      if (base === 'testing') return null;
+      return { id: '@semiont/sdk', external: true };
+    },
+  };
+}
+
 const entries = [
   { input: 'dist-types/index.d.ts', file: 'dist/index.d.ts' },
   { input: 'dist-types/testing.d.ts', file: 'dist/testing.d.ts' },
@@ -49,6 +69,6 @@ const entries = [
 export default entries.map(({ input, file }) => ({
   input,
   output: { file, format: 'es' },
-  plugins: [dts()],
+  plugins: input.endsWith('testing.d.ts') ? [testingSelfExternal(), dts()] : [dts()],
   external: isExternal,
 }));

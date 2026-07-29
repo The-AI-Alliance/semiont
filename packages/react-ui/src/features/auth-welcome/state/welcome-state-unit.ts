@@ -1,7 +1,7 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
 import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
-import type { SemiontClient } from '@semiont/sdk';
+import type { SemiontSession } from '@semiont/sdk';
 
 export interface WelcomeStateUnit extends StateUnit {
   userData$: Observable<{ termsAcceptedAt?: string } | null>;
@@ -9,9 +9,14 @@ export interface WelcomeStateUnit extends StateUnit {
   acceptTerms(): Promise<void>;
 }
 
+// Session-typed (SESSION-TYPED-FACTORIES.md D1): the parameter is the
+// lifetime this unit must not outlive. This page crashed in production when
+// the unit was constructed with `undefined` during session activation —
+// `useSessionStateUnit` + this signature make that unrepresentable.
 export function createWelcomeStateUnit(
-  client: SemiontClient,
+  session: SemiontSession,
 ): WelcomeStateUnit {
+  const { client } = session;
   const disposer = createDisposer();
 
   const userData$ = new BehaviorSubject<{ termsAcceptedAt?: string } | null>(null);

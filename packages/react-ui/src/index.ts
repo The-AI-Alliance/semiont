@@ -25,6 +25,7 @@ export * from './lib/validation';
 
 // Hooks
 export * from './hooks/useStateUnit';
+export * from './hooks/useSessionStateUnit';
 export * from './hooks/useDebounce';
 export * from './lib/formatTime';
 export * from './hooks/useKeyboardShortcuts';
