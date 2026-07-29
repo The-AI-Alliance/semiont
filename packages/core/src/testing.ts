@@ -20,7 +20,6 @@ export {
   FaultyTransport,
   retryKeyOf,
   type FaultAction,
-  type ScopeModel,
   type FaultyTransportConfig,
   type RequestLogEntry,
 } from './faulty-transport';

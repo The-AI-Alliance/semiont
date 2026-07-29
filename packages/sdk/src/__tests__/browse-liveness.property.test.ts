@@ -4,10 +4,10 @@
  *
  * `BrowseNamespace` + `createCache` + `busRequest` run unmodified on
  * `FaultyTransport` while fast-check draws fault schedules (drop / delay /
- * duplicate / reject-emit) and the scope model (today's single-slot-throw AND
- * the post-MULTI-RESOURCE-SCOPE multi). This generalizes
- * `browse-concurrent-loaders.test.ts` — one hand-picked interleaving — to the
- * interleavings nobody names.
+ * duplicate / reject-emit). Scopes COMPOSE (MULTI-RESOURCE-SCOPE landed —
+ * the old single-slot model and its `scopeModel` knob are gone). This
+ * generalizes `browse-concurrent-loaders.test.ts` — one hand-picked
+ * interleaving — to the interleavings nobody names.
  *
  * L1's "notification" here is a MEANINGFUL one: live queries emit
  * `{ status: 'pending' }` immediately (D1), which would satisfy a naive
@@ -30,9 +30,12 @@
  * (the caller owns retry policy), and the invalidate property is excluded —
  * an invalidate chain's warn can land after the bound when outputs were
  * already notified via the stale value, so asserting there would be flaky.
- * The three breadcrumbs are also pinned individually in the deterministic
- * trio test at the bottom ([browse SCOPE-CONTENTION] can't join the implication:
- * FaultyTransport doesn't expose the per-run scope model).
+ * The two cache breadcrumbs ([cache RETRY]/[cache IDLE]) are also pinned
+ * individually in the deterministic test at the bottom. The third breadcrumb
+ * this suite once pinned — `[browse SCOPE-CONTENTION]` — is GONE with the
+ * degradation path it observed: scopes compose (MULTI-RESOURCE-SCOPE Step 6),
+ * the contention state is unreachable, and its assertion was removed in the
+ * same change (the deliberate axiom-visible L4 edit the plan requires).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -84,10 +87,10 @@ function loaderOutputs(browse: BrowseNamespace, rid: string): Observable<unknown
 }
 
 describe('liveness axioms over the real BrowseNamespace composition (P2)', () => {
-  // The breadcrumbs ([browse SCOPE-CONTENTION], [cache RETRY]/[cache IDLE]) are
-  // always-on by design (L4). The spy keeps property runs quiet AND is the
-  // L4 assertion surface: property 1 checks degradation ⇒ ≥1 breadcrumb
-  // per run; the trio test below pins each breadcrumb individually.
+  // The breadcrumbs ([cache RETRY]/[cache IDLE]) are always-on by design
+  // (L4). The spy keeps property runs quiet AND is the L4 assertion
+  // surface: property 1 checks degradation ⇒ ≥1 breadcrumb per run; the
+  // deterministic test at the bottom pins each breadcrumb individually.
   let warnSpy: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -117,7 +120,6 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
       await assertLivenessAxioms({
         timeoutMs: TIMEOUT_MS,
         retryBudget: 1,
-        scopeModel: 'both',
         makeResponse,
         setup: (transport: FaultyTransport) => {
           const rids = RID_CONFIGS[run++ % RID_CONFIGS.length]!;
@@ -195,7 +197,6 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
         // One key may legitimately see the observe chain (1 + retry) PLUS the
         // invalidate chain (1 + retry) = 4 issues = 1 + 3.
         retryBudget: 3,
-        scopeModel: 'both',
         makeResponse,
         setup: async (transport: FaultyTransport) => {
           const bus = new EventBus();
@@ -224,14 +225,20 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
     60_000,
   );
 
-  // ── L4 trio: each breadcrumb pinned individually (deterministic) ─────────
+  // ── L4 pair: each cache breadcrumb pinned individually (deterministic) ───
+  //
+  // (The suite once pinned a third breadcrumb here — [browse SCOPE-CONTENTION]
+  // firing on scope contention. That state is unreachable since scopes
+  // compose (MULTI-RESOURCE-SCOPE Step 6); the breadcrumb, the degradation
+  // path, and the assertion were removed together — the deliberate
+  // axiom-visible L4 edit logged in the plan. Multi-scope composition itself
+  // is pinned in browse-scope-by-observation + browse-concurrent-loaders.)
 
   it('L4: [cache RETRY] then [cache IDLE] fire when an SWR chain fails and exhausts', async () => {
     // Every request drops its reply → attempt times out (RETRY warn) → the
     // B14 re-issue also drops → exhaustion (IDLE warn) + B15 error to the
-    // value-less key's observers. scopeModel 'multi' keeps [browse SCOPE-CONTENTION]
-    // out of this scenario's warns.
-    const transport = new FaultyTransport({ schedule: [{ kind: 'drop-reply' }], scopeModel: 'multi', makeResponse });
+    // value-less key's observers.
+    const transport = new FaultyTransport({ schedule: [{ kind: 'drop-reply' }], makeResponse });
     const bus = new EventBus();
     const browse = new BrowseNamespace(
       transport, bus, noopContent, { busTimeoutMs: TIMEOUT_MS },
@@ -248,36 +255,6 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
       const warns: string[] = warnSpy.mock.calls.map((c: unknown[]) => String(c[0]));
       expect(warns.some((w) => w.includes('[cache RETRY]'))).toBe(true);
       expect(warns.some((w) => w.includes('[cache IDLE]'))).toBe(true);
-      expect(warns.some((w) => w.includes('[browse SCOPE-CONTENTION]'))).toBe(false);
-    } finally {
-      bus.destroy();
-      transport.dispose();
-    }
-  });
-
-  it('L4: [browse SCOPE-CONTENTION] fires on scope contention — and the degraded loader still loads', async () => {
-    // Default single-slot-throw, healthy wire: the second distinct rid's
-    // withScope hits the contention throw, degrades to unscoped observation
-    // (warn), and BOTH loaders still deliver values — degradation is graceful
-    // AND observable, never silent (the incident's forensic gap).
-    const transport = new FaultyTransport({ makeResponse });
-    const bus = new EventBus();
-    const browse = new BrowseNamespace(
-      transport, bus, noopContent, { busTimeoutMs: TIMEOUT_MS },
-    );
-
-    try {
-      const outputs = [...loaderOutputs(browse, 'res-one'), ...loaderOutputs(browse, 'res-two')];
-      const values = await Promise.all(outputs.map(
-        (o) => new Promise<unknown>((resolve, reject) => {
-          o.subscribe({ next: (v) => resolve(v), error: reject });
-        }),
-      ));
-
-      expect(values).toHaveLength(4);
-      values.forEach((v) => expect(v).toBeDefined());
-      const warns: string[] = warnSpy.mock.calls.map((c: unknown[]) => String(c[0]));
-      expect(warns.some((w) => w.includes('[browse SCOPE-CONTENTION]'))).toBe(true);
     } finally {
       bus.destroy();
       transport.dispose();

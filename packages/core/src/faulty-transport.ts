@@ -36,15 +36,6 @@ export type FaultAction =
   | { kind: 'duplicate-reply' }
   | { kind: 'reject-emit' };
 
-/**
- * Scope-contention behavior of `subscribeToResource`:
- * `single-slot-throw` mirrors today's HttpTransport (one distinct scope at a
- * time; a second distinct scope throws); `multi` mirrors the
- * post-MULTI-RESOURCE-SCOPE world. The same properties run under both so the
- * migration can't silently change liveness behavior.
- */
-export type ScopeModel = 'single-slot-throw' | 'multi';
-
 /** requestLog entry — one per request-channel emit, in arrival order. */
 export interface RequestLogEntry {
   channel: BusOperationKey;
@@ -65,8 +56,6 @@ export interface FaultyTransportConfig {
    * Empty/omitted → every request delivers.
    */
   schedule?: readonly FaultAction[];
-  /** Default `'single-slot-throw'` (today's HttpTransport). */
-  scopeModel?: ScopeModel;
   /**
    * Synthesize the `response` value for a delivered reply. Return `undefined`
    * for a void ack (`{ correlationId }` only). Default: `{}` for every op.
@@ -97,18 +86,14 @@ export class FaultyTransport implements ITransport {
 
   private readonly bus = new EventBus();
   private readonly schedule: readonly FaultAction[];
-  private readonly scopeModel: ScopeModel;
   private readonly makeResponse: (op: BusOperationKey, payload: Record<string, unknown>) => unknown;
   private readonly replyQueues = new Map<BusOperationKey, unknown[]>();
   private requestCount = 0;
-  private activeScope: string | null = null;
-  private scopeRefs = 0;
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private disposed = false;
 
   constructor(cfg: FaultyTransportConfig = {}) {
     this.schedule = cfg.schedule ?? [];
-    this.scopeModel = cfg.scopeModel ?? 'single-slot-throw';
     this.makeResponse = cfg.makeResponse ?? (() => ({}));
   }
 
@@ -211,24 +196,12 @@ export class FaultyTransport implements ITransport {
     return this.bus.get(channel);
   }
 
-  subscribeToResource(rid: ResourceId): () => void {
-    const scope = rid as string;
-    if (this.scopeModel === 'single-slot-throw' && this.activeScope !== null && this.activeScope !== scope) {
-      // Mirrors HttpTransport's one-distinct-scope-at-a-time contention throw.
-      throw new Error(
-        `FaultyTransport: scope slot busy (${this.activeScope}); ` +
-        `unsubscribe before subscribing to ${scope} (scopeModel=single-slot-throw)`,
-      );
-    }
-    this.activeScope = this.activeScope ?? scope;
-    this.scopeRefs += 1;
-    let released = false;
-    return () => {
-      if (released) return;
-      released = true;
-      this.scopeRefs -= 1;
-      if (this.scopeRefs === 0) this.activeScope = null;
-    };
+  subscribeToResource(_rid: ResourceId): () => void {
+    // Mirrors the real HttpTransport: distinct scopes COMPOSE
+    // (MULTI-RESOURCE-SCOPE). Delivery here is bus-direct and never
+    // scope-gated, so acquisition needs no bookkeeping and release
+    // (idempotent by construction) is a no-op.
+    return () => {};
   }
 
   bridgeInto(bus: EventBus): void {

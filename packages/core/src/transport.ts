@@ -152,8 +152,9 @@ export interface ITransport {
    * SDK-internal: this is the scope primitive the SDK's resource-scoped
    * `browse.*` live queries drive on subscribe/teardown (freshness follows
    * observation; #847) — it is not part of the application-facing surface.
-   * Single-scope at a time; multi-scope is deferred
-   * (`.plans/MULTI-RESOURCE-SCOPE.md`).
+   * Distinct resources COMPOSE (`.plans/MULTI-RESOURCE-SCOPE.md`): each
+   * resource's subscriptions are ref-counted independently, and one client
+   * may hold many resource scopes at once on its single connection.
    */
   subscribeToResource(resourceId: ResourceId): () => void;
 

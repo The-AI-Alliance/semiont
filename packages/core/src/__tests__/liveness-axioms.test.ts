@@ -8,13 +8,15 @@
  *   (a)  a no-retry cache double that swallows the rejection   → L2 (swallow)
  *   (a2) an unbounded-retry variant                            → L2 (budget)
  *   (a3) a swallow-into-pending-forever await variant          → L2 (settlement)
- *   (b)  a throw-on-contention scope double                    → L1
+ *   (b)  a swallowed-contention double (the RETIRED single-slot
+ *        scope contract, reproduced locally — the real transport
+ *        composes since MULTI-RESOURCE-SCOPE)                  → L1
  *   (c)  an abort-at-handover connection double                → L3 (lost)
  *   (c2) a double-flush connection double                      → L3 (duplicate)
  *
  * Plus the does-not-cry-wolf positives: compliant doubles (retry once +
- * surface, degrade on contention, drain at handover) stay green across
- * generated fault schedules, scope models, and op interleavings.
+ * surface, drain at handover) stay green across generated fault schedules
+ * and op interleavings.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -38,17 +40,13 @@ const OP = 'browse:resource-requested' as const;
 
 /**
  * The FIXED composition, reconstructed: a cold live-query that starts its
- * request on subscribe, degrades on scope contention (keeps fetching
- * unscoped), retries a faulted request once (B14), and surfaces the final
- * rejection as an error notification.
+ * request on subscribe, acquires its resource's scope (scopes compose —
+ * MULTI-RESOURCE-SCOPE), retries a faulted request once (B14), and surfaces
+ * the final rejection as an error notification.
  */
 function compliantQuery(transport: FaultyTransport, rid: string): Observable<unknown> {
   return new Observable((subscriber) => {
-    try {
-      transport.subscribeToResource(resourceId(rid));
-    } catch {
-      // Contention → degrade: no scoped freshness, but the fetch proceeds.
-    }
+    transport.subscribeToResource(resourceId(rid));
     const attempt = (retriesLeft: number): void => {
       busRequest(transport, OP, { resourceId: rid }, TIMEOUT_MS)
         .then((v) => subscriber.next(v))
@@ -85,19 +83,24 @@ function stormingQuery(transport: FaultyTransport, rid: string): Observable<unkn
   });
 }
 
-/** (b) Pre-fix scope handling: the contention throw is swallowed into an
- * unread error state and the fetch never happens — that output starves. */
-function contentionStarvedQuery(transport: FaultyTransport, rid: string): Observable<unknown> {
-  return new Observable((subscriber) => {
-    try {
-      transport.subscribeToResource(resourceId(rid));
-    } catch {
-      return; // swallowed; no request is ever issued
-    }
-    busRequest(transport, OP, { resourceId: rid }, TIMEOUT_MS)
-      .then((v) => subscriber.next(v))
-      .catch((err: unknown) => subscriber.error(err));
-  });
+/** (b) Pre-fix scope handling, reproduced end-to-end inside the double: the
+ * RETIRED single-slot contract (one distinct scope at a time — the real
+ * transport composes since MULTI-RESOURCE-SCOPE) plus the pre-fix swallow of
+ * its contention throw. The second distinct rid never issues its request —
+ * that output starves, which is exactly what L1 must catch. */
+function makeContentionStarvedQueries(transport: FaultyTransport, rids: readonly string[]): Observable<unknown>[] {
+  let activeScope: string | null = null; // the old one-slot contract, local to the double
+  return rids.map((rid) =>
+    new Observable((subscriber) => {
+      if (activeScope !== null && activeScope !== rid) {
+        return; // contention swallowed; no request is ever issued
+      }
+      activeScope = rid;
+      busRequest(transport, OP, { resourceId: rid }, TIMEOUT_MS)
+        .then((v) => subscriber.next(v))
+        .catch((err: unknown) => subscriber.error(err));
+    }),
+  );
 }
 
 // ── L3 doubles ────────────────────────────────────────────────────────────
@@ -134,7 +137,7 @@ function connectionDouble(mode: 'drain' | 'abort' | 'duplicate'): DeliverySubjec
 
 describe('liveness axioms — the harness has teeth', () => {
   it(
-    'passes a compliant retry-and-surface composition across generated schedules and both scope models (does not cry wolf)',
+    'passes a compliant retry-and-surface composition across generated schedules (does not cry wolf)',
     async () => {
       await assertLivenessAxioms({
         setup: (transport) => ({
@@ -145,7 +148,6 @@ describe('liveness axioms — the harness has teeth', () => {
           ],
         }),
         timeoutMs: TIMEOUT_MS,
-        scopeModel: 'both',
       });
     },
     30_000,
@@ -192,30 +194,17 @@ describe('liveness axioms — the harness has teeth', () => {
     ).rejects.toThrow(/^L2: [\s\S]*settlement #0 did not settle/);
   });
 
-  it('(b) L1: a throw-on-contention double starves the second output', async () => {
+  it('(b) L1: a swallowed-contention double (the retired single-slot contract) starves the second output', async () => {
     await expect(
       assertLivenessAxioms({
         setup: (transport) => ({
-          outputs: ['res-a', 'res-b'].map((rid) => contentionStarvedQuery(transport, rid)),
+          outputs: makeContentionStarvedQueries(transport, ['res-a', 'res-b']),
         }),
         timeoutMs: TIMEOUT_MS,
         scheduleArb: fc.constant([{ kind: 'deliver' }] as const),
-        scopeModel: 'single-slot-throw',
         numRuns: 3,
       }),
     ).rejects.toThrow(/^L1: [\s\S]*output #1 [\s\S]*silently pending/);
-  });
-
-  it('(b-compliant) the same contention, degraded instead of swallowed, passes', async () => {
-    await assertLivenessAxioms({
-      setup: (transport) => ({
-        outputs: ['res-a', 'res-b'].map((rid) => compliantQuery(transport, rid)),
-      }),
-      timeoutMs: TIMEOUT_MS,
-      scheduleArb: fc.constant([{ kind: 'deliver' }] as const),
-      scopeModel: 'single-slot-throw',
-      numRuns: 3,
-    });
   });
 
   it('passes a drain-at-transition connection across generated interleavings (does not cry wolf)', async () => {

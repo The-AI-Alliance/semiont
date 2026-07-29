@@ -46,7 +46,6 @@ export {
   FaultyTransport,
   retryKeyOf,
   type FaultAction,
-  type ScopeModel,
   type FaultyTransportConfig,
   type RequestLogEntry,
 } from '@semiont/core/testing';
