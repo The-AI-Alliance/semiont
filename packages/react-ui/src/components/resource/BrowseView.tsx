@@ -177,8 +177,9 @@ export const BrowseView = memo(function BrowseView({
       if (!referentId || !element) return;
       referentSub?.unsubscribe();
       referentSub = session.client.browse.resource(toResourceId(referentId)).subscribe({
-        next: (referent) => {
-          if (referent === undefined) return; // cache still loading
+        next: (st) => {
+          if (st.status !== 'ready') return; // pending/failed: never fires
+          const referent = st.value;
           referentSub?.unsubscribe();
           referentSub = null;
           referenceHoverFired = true;

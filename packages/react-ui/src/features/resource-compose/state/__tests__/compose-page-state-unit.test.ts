@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { asStates } from '../../../../__tests__/test-client';
 import { sessionOf } from '../../../../__tests__/test-client';
 import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -33,7 +34,7 @@ function mockClient(overrides: {
   const entityTypes$ = overrides.entityTypes$ ?? new BehaviorSubject<string[] | undefined>(['Person']);
   return {
     browse: {
-      entityTypes: () => entityTypes$.asObservable(),
+      entityTypes: () => asStates(entityTypes$.asObservable()),
     },
     yield: {
       fromToken: overrides.fromToken ?? vi.fn().mockResolvedValue({ '@id': 'src-1', representations: [{ mediaType: 'text/plain' }] }),
@@ -209,7 +210,7 @@ describe('createComposePageStateUnit — entity types load failure', () => {
     const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);
     const stateUnit = createComposePageStateUnit(sessionOf(mockClient({ entityTypes$ })), mockBrowse(), {});
 
-    entityTypes$.error(new Error('boom'));
+    entityTypes$.next({ status: 'failed', error: new Error('boom') } as never);
 
     expect(await firstValueFrom(stateUnit.entityTypes.loading$)).toBe(false);
     expect(await firstValueFrom(stateUnit.entityTypes.error$)).not.toBeNull();

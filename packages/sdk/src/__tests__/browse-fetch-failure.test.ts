@@ -125,23 +125,17 @@ describe('browse read — await semantics on fetch failure (Link 3)', () => {
     expect(outcome).toBe('rejected');
   });
 
-  it('subscribe on a value-less key: loading through the retry chain, then errored on exhaustion (B15)', async () => {
-    const seen: Array<unknown> = [];
-    const errors: unknown[] = [];
-    const sub = browse.annotations(rId).subscribe({
-      next: (v) => seen.push(v),
-      error: (e) => errors.push(e),
-    });
+  it('subscribe on a value-less key: pending through the retry chain, then a failed emission on exhaustion (B15/D1)', async () => {
+    const states: Array<{ status: string; error?: Error }> = [];
+    const sub = browse.annotations(rId).subscribe((s) => states.push(s));
 
     await delay(50);
     sub.unsubscribe();
 
     // No value ever emitted (the store was never written — that half of B6
-    // stands)…
-    expect(seen).toEqual([undefined]);
-    // …but the exhausted chain's terminal failure reached the subscriber as
-    // an error notification (B15) — carrying the bus rejection, not silence.
-    expect(errors).toHaveLength(1);
-    expect((errors[0] as Error).message).toContain('boom');
+    // stands): pending, then the exhausted chain's terminal failure as a
+    // `failed` EMISSION (B15/D1) — carrying the bus rejection, not silence.
+    expect(states.map((s) => s.status)).toEqual(['pending', 'failed']);
+    expect((states[1] as { error: Error }).error.message).toContain('boom');
   });
 });

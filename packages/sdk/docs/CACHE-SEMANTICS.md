@@ -1,5 +1,20 @@
 # Cache Semantics
 
+## The emission vocabulary (D1, 2026-07-29)
+
+Live queries emit **`CacheState<T>`** — `{ status: 'pending' } | { status:
+'ready', value: T } | { status: 'failed', error: Error }` — never `T |
+undefined`. Mapping onto the B-items below: the old "initial `undefined`" is
+`pending`; a stored value (including stale-while-revalidate, B7) is `ready`;
+B15's terminal failure is a **`failed` EMISSION — not an RxJS error**. The
+stream never errors and never terminates on failure, so one subscription can
+live through `pending → failed` and a NEW subscription (D3: the per-subscribe
+decision clears the marker) runs the recovery chain. Ergonomics: `isReady` /
+`readyValue` from `@semiont/sdk`; one-shot reads are `.fresh()` (D2 — the
+thenable is dead). Accessors are lazy (D3): calling is pure, the fetch fires
+on first subscribe.
+
+
 This document specifies the behavior of the read-through cache in
 `BrowseNamespace` (and the `createCache` primitive in
 `@semiont/sdk`). It is the behavioral contract that implementation must

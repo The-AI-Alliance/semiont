@@ -27,9 +27,10 @@
  * established pattern for structural mocks in this codebase.
  */
 
-import { BehaviorSubject, Subject } from 'rxjs';
+import { BehaviorSubject, Subject, type Observable, map as rxMap } from 'rxjs';
 import { EventBus } from '@semiont/core';
 import type { ConnectionState, SemiontError } from '@semiont/core';
+import type { CacheState } from '@semiont/sdk';
 import type { SemiontClient, SemiontSession } from '@semiont/sdk';
 import { SemiontSession as RealSemiontSession, httpKb, InMemorySessionStorage } from '@semiont/sdk';
 import type { AccessToken } from '@semiont/core';
@@ -110,4 +111,25 @@ export function sessionOf(client: SemiontClient): SemiontSession {
     client: complete,
     token$: new BehaviorSubject<AccessToken | null>(null),
   });
+}
+
+/**
+ * Adapt a value-typed fixture stream to the cache's CacheState emission
+ * (CACHE-CONTRACT D1): `undefined` → pending, values → ready. Failure is an
+ * EMISSION under D1, so B15-driving fixtures push
+ * `{ status: 'failed', error }` themselves rather than erroring the stream.
+ */
+export function asStates<T>(source: Observable<T | undefined>): Observable<CacheState<T>> {
+  return source.pipe(
+    rxMap((v) => {
+      // Passthrough for fixtures that push explicit states (a `failed`
+      // emission has no value-shaped spelling).
+      if (v !== null && typeof v === 'object' && 'status' in (v as object)) {
+        return v as unknown as CacheState<T>;
+      }
+      return v === undefined
+        ? ({ status: 'pending' } as CacheState<T>)
+        : ({ status: 'ready', value: v } as CacheState<T>);
+    }),
+  );
 }

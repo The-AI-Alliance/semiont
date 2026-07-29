@@ -1,4 +1,5 @@
 import { BehaviorSubject, Subject, combineLatest, of, type Observable } from 'rxjs';
+import { readyValue } from '@semiont/sdk';
 import { debounceTime, distinctUntilChanged, map, startWith, switchMap, shareReplay } from 'rxjs/operators';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
@@ -87,9 +88,9 @@ export function createDiscoverStateUnit(
             ...(et ? { entityType: et } : {}),
           })
           .pipe(
-            map((results) => ({
-              results: results ?? [],
-              isSearching: results === undefined,
+            map((st) => ({
+              results: readyValue(st) ?? [],
+              isSearching: st.status === 'pending',
             })),
             startWith({ results: [] as ResourceDescriptor[], isSearching: true }),
           );

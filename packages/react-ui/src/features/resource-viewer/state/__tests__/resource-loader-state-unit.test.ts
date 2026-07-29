@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { asStates } from '../../../../__tests__/test-client';
 import { sessionOf } from '../../../../__tests__/test-client';
 import { BehaviorSubject, Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -14,7 +15,7 @@ function mockClient(resource$?: BehaviorSubject<unknown>): SemiontClient {
   const invalidate = vi.fn();
   return {
     browse: {
-      resource: () => subject.asObservable(),
+      resource: () => asStates(subject.asObservable()),
       invalidateResourceDetail: invalidate,
     },
   } as unknown as SemiontClient;
@@ -43,9 +44,11 @@ function failingClient() {
     client,
     invalidate,
     /** Fail the most recent attempt the way B15 does. */
-    failLatest: (message: string) => attempts[attempts.length - 1]!.error(new Error(message)),
+    failLatest: (message: string) =>
+      attempts[attempts.length - 1]!.next({ status: 'failed', error: new Error(message) }),
     /** Resolve the most recent attempt with a value. */
-    resolveLatest: (value: unknown) => attempts[attempts.length - 1]!.next(value),
+    resolveLatest: (value: unknown) =>
+      attempts[attempts.length - 1]!.next({ status: 'ready', value }),
     attemptCount: () => attempts.length,
   };
 }

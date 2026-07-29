@@ -17,7 +17,7 @@ import type {
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest } from '@semiont/core';
-import { createCache, type Cache, type CachePersister } from '../cache';
+import { createCache, type CacheState, type Cache, type CachePersister } from '../cache';
 import { sessionStoragePersister } from '../cache-persister';
 import type { SessionStorage } from '../session/session-storage';
 
@@ -94,7 +94,7 @@ export class BrowseNamespace implements IBrowseNamespace {
    * identity — React hooks depending on the observable reference,
    * `distinctUntilChanged` at a higher level — would misbehave.
    */
-  private readonly annotationListObs = new Map<ResourceId, Observable<Annotation[] | undefined>>();
+  private readonly annotationListObs = new Map<ResourceId, Observable<CacheState<Annotation[]>>>();
 
   /**
    * Per-source memo for the scope-acquiring wrapper (#847 Phase 4), keyed by
@@ -302,10 +302,10 @@ export class BrowseNamespace implements IBrowseNamespace {
    * subscription retries acquisition, so degradation is per-subscription —
    * once the scope frees, the next subscribe scopes normally.
    */
-  private withScope<T>(rId: ResourceId, source: Observable<T | undefined>): Observable<T | undefined> {
-    let scoped = this.scopedSources.get(source) as Observable<T | undefined> | undefined;
+  private withScope<S>(rId: ResourceId, source: Observable<S>): Observable<S> {
+    let scoped = this.scopedSources.get(source) as Observable<S> | undefined;
     if (!scoped) {
-      scoped = new Observable<T | undefined>((subscriber) => {
+      scoped = new Observable<S>((subscriber) => {
         let release: (() => void) | null = null;
         try {
           release = this.transport.subscribeToResource(rId);
@@ -359,7 +359,9 @@ export class BrowseNamespace implements IBrowseNamespace {
   annotations(resourceId: ResourceId): CacheObservable<Annotation[]> {
     let obs = this.annotationListObs.get(resourceId);
     if (!obs) {
-      obs = this.annotationListCache.observe(resourceId).pipe(map((r) => r?.annotations as Annotation[] | undefined));
+      obs = this.annotationListCache.observe(resourceId).pipe(
+        map((s): CacheState<Annotation[]> => (s.status === 'ready' ? { status: 'ready', value: s.value.annotations as Annotation[] } : s)),
+      );
       this.annotationListObs.set(resourceId, obs);
     }
     return CacheObservable.from(this.withScope(resourceId, obs), () => this.annotationListCache.fetch(resourceId).then((r) => r.annotations as Annotation[]));

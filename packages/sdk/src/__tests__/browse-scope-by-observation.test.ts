@@ -19,6 +19,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { ConnectionState, IContentTransport, ITransport, ResourceId } from '@semiont/core';
+import { readyValue } from '../cache';
 import { BrowseNamespace } from '../namespaces/browse';
 
 function makeFakeTransport() {
@@ -201,8 +202,8 @@ describe('scope contention degrades to unscoped observation (concurrent-browse-r
     const errors2: unknown[] = [];
 
     // Loader 1 acquires the single scope; loader 2's acquisition throws.
-    browse.resource(rid1).subscribe({ next: (v) => values1.push(v) });
-    browse.resource(rid2).subscribe({ next: (v) => values2.push(v), error: (e) => errors2.push(e) });
+    browse.resource(rid1).subscribe({ next: (s) => values1.push(readyValue(s)) });
+    browse.resource(rid2).subscribe({ next: (s) => values2.push(readyValue(s)), error: (e) => errors2.push(e) });
     await flush();
 
     expect(errors2).toEqual([]); // NOT errored by the scope contention…

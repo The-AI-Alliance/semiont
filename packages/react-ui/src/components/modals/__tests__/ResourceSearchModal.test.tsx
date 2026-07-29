@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { asStates } from '../../../__tests__/test-client';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { BehaviorSubject } from 'rxjs';
 import { renderWithProviders } from '../../../test-utils';
@@ -19,7 +20,7 @@ vi.mock('@headlessui/react', () => ({
 // We mock useSemiont to return a stable browser whose activeSession$ emits a
 // session-shaped object that carries the mock client.
 const browseResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
-const browseResourcesMock = vi.fn(() => browseResourcesSubject.asObservable());
+const browseResourcesMock = vi.fn(() => asStates(browseResourcesSubject.asObservable()));
 const stableMockClient = { browse: { resources: browseResourcesMock } };
 const stableMockSession = { client: stableMockClient };
 const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);

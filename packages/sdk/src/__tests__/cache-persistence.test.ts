@@ -12,7 +12,8 @@
  *    exhausts its retries mutates nothing, so nothing is saved.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { firstValueFrom, filter, take } from 'rxjs';
+import { isReady } from '../cache';
+import { map, firstValueFrom, filter, take } from 'rxjs';
 import { createCache, type CachePersister } from '../cache';
 
 function spyPersister<K, V>(initial: Map<K, V> | null = null) {
@@ -57,7 +58,7 @@ describe('cache persistence (B17)', () => {
     expect(fetchFn).not.toHaveBeenCalled();
 
     // Observing it serves the persisted value FIRST…
-    const seen = await firstValueFrom(cache.observe('k1').pipe(filter((v) => v !== undefined), take(1)));
+    const seen = await firstValueFrom(cache.observe('k1').pipe(filter(isReady), map((s) => s.value), take(1)));
     expect(seen).toBe('rehydrated');
     // …and starts one revalidation chain (one request here; B14 adds a
     // single retry only on failure), whose result supersedes it.
@@ -98,8 +99,10 @@ describe('cache persistence (B17)', () => {
     pushExternal(new Map([['k', 'from-other-tab']]));
 
     expect(cache.get('k')).toBe('from-other-tab');
-    const seen = await firstValueFrom(cache.observe('k').pipe(filter((v) => v === 'from-other-tab'), take(1)));
-    expect(seen).toBe('from-other-tab');
+    const seen = await firstValueFrom(
+      cache.observe('k').pipe(filter((s) => s.status === 'ready' && s.value === 'from-other-tab'), take(1)),
+    );
+    expect(seen).toEqual({ status: 'ready', value: 'from-other-tab' });
 
     cache.dispose();
   });
@@ -130,7 +133,9 @@ describe('cache persistence (B17)', () => {
     const cache = createCache<string, string>(fetchFn, { persister });
 
     const errored = new Promise<Error>((resolve) => {
-      cache.observe('k').subscribe({ error: (e: Error) => resolve(e) });
+      cache.observe('k').subscribe((st) => {
+        if (st.status === 'failed') resolve(st.error);
+      });
     });
     // Drive the B14 attempt + retry to exhaustion under fake timers.
     await vi.runAllTimersAsync();

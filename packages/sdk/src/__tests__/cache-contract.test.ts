@@ -15,7 +15,8 @@
  * `transport.requestLog` is the effect meter.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { isReady } from '../cache';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { createTestClient } from '../testing';
 
@@ -44,7 +45,7 @@ describe('D3 — lazy: the fetch belongs to the first subscription, not the call
 
     const values: unknown[] = [];
     const sub = obs.subscribe((v) => {
-      if (v !== undefined) values.push(v);
+      if (isReady(v)) values.push(v.value);
     });
     await flush();
     expect(transport.requestLog).toHaveLength(1);
@@ -133,5 +134,88 @@ describe('D2 — .fresh(): the explicit one-shot read (Phase 3)', () => {
     void tripwire;
 
     client.dispose();
+  });
+});
+
+describe('D1 — the discriminated emission: pending | ready | failed (Phase 4)', () => {
+  it('cold key: pending, then ready — the three-outcome truth is in the type', async () => {
+    const { client } = createTestClient({ transport: { makeResponse: RESPONSES } });
+
+    const states: Array<string> = [];
+    const sub = client.browse.entityTypes().subscribe((s) => states.push(s.status));
+    await flush();
+
+    expect(states[0]).toBe('pending');
+    expect(states[states.length - 1]).toBe('ready');
+
+    sub.unsubscribe();
+    client.dispose();
+  });
+
+  it('invalidate keeps ready visible (B7 restated): no pending flash behind a stale value', async () => {
+    const { client } = createTestClient({ transport: { makeResponse: RESPONSES } });
+
+    const states: Array<string> = [];
+    const sub = client.browse.entityTypes().subscribe((s) => states.push(s.status));
+    await flush();
+    expect(states[states.length - 1]).toBe('ready');
+
+    const before = states.length;
+    client.browse.invalidateEntityTypes();
+    await flush();
+
+    // Whatever re-emissions the refetch produced, none were 'pending'.
+    expect(states.slice(before)).not.toContain('pending');
+    expect(states[states.length - 1]).toBe('ready');
+
+    sub.unsubscribe();
+    client.dispose();
+  });
+
+  it('exhaustion emits failed — an EMISSION, not a stream death (B15 restated)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { client } = createTestClient({
+      transport: { schedule: [{ kind: 'reject-emit' }], makeResponse: RESPONSES },
+    });
+
+    const states: Array<{ status: string }> = [];
+    let errored = false;
+    const sub = client.browse.entityTypes().subscribe({
+      next: (s) => states.push(s),
+      error: () => {
+        errored = true;
+      },
+    });
+    await vi.waitFor(() => expect(states[states.length - 1]!.status).toBe('failed'));
+
+    // The subscription is ALIVE — failure is a state, not a termination.
+    expect(errored).toBe(false);
+    expect(sub.closed).toBe(false);
+
+    sub.unsubscribe();
+    client.dispose();
+    warn.mockRestore();
+  });
+
+  it('a late subscriber after failure recovers: pending → ready (D3 restated)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { client, transport } = createTestClient({
+      transport: { schedule: [{ kind: 'reject-emit' }, { kind: 'reject-emit' }, { kind: 'deliver' }], makeResponse: RESPONSES },
+    });
+
+    const first: string[] = [];
+    const sub1 = client.browse.entityTypes().subscribe((s) => first.push(s.status));
+    await vi.waitFor(() => expect(first[first.length - 1]).toBe('failed'));
+    sub1.unsubscribe();
+
+    const second: string[] = [];
+    const sub2 = client.browse.entityTypes().subscribe((s) => second.push(s.status));
+    await vi.waitFor(() => expect(second[second.length - 1]).toBe('ready'));
+    expect(second[0]).toBe('pending'); // no stale failed replay
+    expect(transport.requestLog.length).toBeGreaterThanOrEqual(3);
+
+    sub2.unsubscribe();
+    client.dispose();
+    warn.mockRestore();
   });
 });

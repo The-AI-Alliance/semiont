@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { asStates } from '../../../../__tests__/test-client';
 import { sessionOf } from '../../../../__tests__/test-client';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -18,7 +19,7 @@ function mockClient(overrides: {
   const entityTypes$ = overrides.entityTypes$ ?? new BehaviorSubject<string[] | undefined>(['Person', 'Place']);
   return {
     browse: {
-      entityTypes: () => entityTypes$.asObservable(),
+      entityTypes: () => asStates(entityTypes$.asObservable()),
     },
     frame: {
       addEntityType: overrides.addEntityType ?? vi.fn().mockResolvedValue(undefined),
@@ -128,7 +129,7 @@ describe('createEntityTagsStateUnit — terminal load failure', () => {
     const unit = createEntityTagsStateUnit(sessionOf(mockClient({ entityTypes$ })), mockBrowse());
 
     expect(await firstValueFrom(unit.entityTypes.loading$)).toBe(true);
-    entityTypes$.error(new Error('Resource not found'));
+    entityTypes$.next({ status: 'failed', error: new Error('Resource not found') } as never);
 
     expect(await firstValueFrom(unit.entityTypes.loading$)).toBe(false);
     expect(await firstValueFrom(unit.entityTypes.error$)).not.toBeNull();

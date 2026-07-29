@@ -29,6 +29,7 @@
 import { Observable, EmptyError, firstValueFrom, lastValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { ResourceId } from '@semiont/core';
+import type { CacheState } from './cache';
 
 /**
  * Bounded Observable stream — emits zero-or-more progress values, then a
@@ -99,7 +100,7 @@ export class StreamObservable<T> extends Observable<T> implements PromiseLike<T>
  * `Observable<T | undefined>` shape leaks through `.subscribe` and
  * `.pipe` in the natural way.
  */
-export class CacheObservable<T> extends Observable<T | undefined> {
+export class CacheObservable<T> extends Observable<CacheState<T>> {
   /**
    * Optional one-shot fresh-fetch action backing `.fresh()`. When present,
    * `fresh()` resolves to a freshly fetched value and rejects on fetch
@@ -121,8 +122,19 @@ export class CacheObservable<T> extends Observable<T | undefined> {
     if (this.fetchFresh) {
       return this.fetchFresh();
     }
-    // Non-cache wrapper: resolve to the first non-undefined emission.
-    return firstValueFrom(this.pipe(filter((v): v is T => v !== undefined)));
+    // Non-cache wrapper: settle on the first SETTLED state — ready resolves,
+    // failed rejects (a pending-only stream keeps waiting; L2's budget lives
+    // in the underlying request machinery, not here).
+    return firstValueFrom(
+      this.pipe(
+        filter(
+          (s): s is Exclude<CacheState<T>, { status: 'pending' }> => s.status !== 'pending',
+        ),
+      ),
+    ).then((s) => {
+      if (s.status === 'failed') throw s.error;
+      return s.value;
+    });
   }
 
   /**
@@ -142,7 +154,7 @@ export class CacheObservable<T> extends Observable<T | undefined> {
    *
    * Backed by a `WeakMap`, so wrappers are GC'd when their source is.
    */
-  static from<T>(source: Observable<T | undefined>, fetchFresh?: () => Promise<T>): CacheObservable<T> {
+  static from<T>(source: Observable<CacheState<T>>, fetchFresh?: () => Promise<T>): CacheObservable<T> {
     let wrapper = wrapperCache.get(source) as CacheObservable<T> | undefined;
     if (!wrapper) {
       wrapper = new CacheObservable<T>((subscriber) => source.subscribe(subscriber));

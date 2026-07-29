@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { asStates } from '../../../../__tests__/test-client';
 import { sessionOf } from '../../../../__tests__/test-client';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { filter, skip, take, toArray } from 'rxjs/operators';
@@ -35,9 +36,9 @@ function mockClient(overrides: {
     browse: {
       resources: (filters: BrowseFilters = {}) => {
         resourceCalls.push(filters);
-        return resourcesFn(filters).asObservable();
+        return asStates(resourcesFn(filters).asObservable());
       },
-      entityTypes: () => entityTypes$.asObservable(),
+      entityTypes: () => asStates(entityTypes$.asObservable()),
     },
   } as unknown as SemiontClient;
 
@@ -287,7 +288,7 @@ describe('createDiscoverStateUnit — terminal load failure', () => {
     const unit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     expect(await firstValueFrom(unit.recent.loading$)).toBe(true);
-    resources$.error(new Error('Resource not found'));
+    resources$.next({ status: 'failed', error: new Error('Resource not found') } as never);
 
     expect(await firstValueFrom(unit.recent.loading$)).toBe(false);
     expect((await firstValueFrom(unit.recent.error$) as Error | null)?.message)
@@ -301,7 +302,7 @@ describe('createDiscoverStateUnit — terminal load failure', () => {
     const { client } = mockClient({ entityTypes$ });
     const unit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
-    entityTypes$.error(new Error('boom'));
+    entityTypes$.next({ status: 'failed', error: new Error('boom') } as never);
 
     expect(await firstValueFrom(unit.entityTypes.loading$)).toBe(false);
     expect(await firstValueFrom(unit.entityTypes.error$)).not.toBeNull();
@@ -323,7 +324,7 @@ describe('createDiscoverStateUnit — terminal load failure', () => {
     });
     const unit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
-    attempts[0]!.error(new Error('nope'));
+    attempts[0]!.next({ status: 'failed', error: new Error('nope') } as never);
     expect(await firstValueFrom(unit.recent.error$)).not.toBeNull();
 
     unit.recent.retry();

@@ -9,11 +9,11 @@
  * `browse-concurrent-loaders.test.ts` — one hand-picked interleaving — to the
  * interleavings nobody names.
  *
- * L1's "notification" here is a MEANINGFUL one: live-query observables emit an
- * initial `undefined` (the SWR loading state) immediately, which would satisfy
- * a naive next-counter and defang the axiom — so outputs are piped through
- * `filter(v => v !== undefined)`. What must arrive is a value or an error;
- * `undefined` forever is exactly the starvation the axiom forbids.
+ * L1's "notification" here is a MEANINGFUL one: live queries emit
+ * `{ status: 'pending' }` immediately (D1), which would satisfy a naive
+ * next-counter and defang the axiom — so outputs filter pending out and
+ * re-throw `failed` as a stream error for the harness. What must arrive is
+ * ready or failed; `pending` forever is exactly the starvation L1 forbids.
  *
  * Budget accounting (L2, via the transport's requestLog): a mounted loader's
  * key may legitimately issue 1 + B14's one retry; the await-path settlements
@@ -36,7 +36,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { filter } from 'rxjs/operators';
+import { filter, map } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { IContentTransport } from '@semiont/core';
@@ -64,13 +64,23 @@ const noopContent = {
   dispose: () => {},
 } as unknown as IContentTransport;
 
-/** One `useResourceLoader`-shaped mount: resource + annotations live queries. */
+/**
+ * One `useResourceLoader`-shaped mount: resource + annotations live queries.
+ * D1 note: `failed` is an EMISSION now, not a stream error — for the harness
+ * (whose L1 counts value-or-error notifications) a failed state is re-thrown,
+ * preserving the axiom's meaning: `pending` forever is the forbidden state.
+ */
 function loaderOutputs(browse: BrowseNamespace, rid: string): Observable<unknown>[] {
   const id = makeResourceId(rid);
-  return [
-    browse.resource(id).pipe(filter((v) => v !== undefined)),
-    browse.annotations(id).pipe(filter((v) => v !== undefined)),
-  ];
+  const settle = <T,>(obs: Observable<import('../cache').CacheState<T>>): Observable<T> =>
+    obs.pipe(
+      filter((s) => s.status !== 'pending'),
+      map((s) => {
+        if (s.status === 'failed') throw s.error;
+        return s.value;
+      }),
+    );
+  return [settle(browse.resource(id)), settle(browse.annotations(id))];
 }
 
 describe('liveness axioms over the real BrowseNamespace composition (P2)', () => {
@@ -127,14 +137,14 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
           // reject — within the bound; rejection is a permitted outcome.
           const awaitRid = makeResourceId('res-await');
           const settlements = [
-            Promise.resolve(browse.resource(awaitRid)).then(
+            browse.resource(awaitRid).fresh().then(
               (v) => v,
               (e) => {
                 expect(e).toBeInstanceOf(Error);
                 return undefined;
               },
             ),
-            Promise.resolve(browse.annotations(awaitRid)).then(
+            browse.annotations(awaitRid).fresh().then(
               (v) => v,
               (e) => {
                 expect(e).toBeInstanceOf(Error);

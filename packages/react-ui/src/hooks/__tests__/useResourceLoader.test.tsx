@@ -9,6 +9,7 @@
  * Started RED (the hook does not exist) and GREEN once step 2 lands.
  */
 import { describe, it, expect } from 'vitest';
+import { asStates } from '../../__tests__/test-client';
 import { renderHook, act } from '@testing-library/react';
 import { BehaviorSubject } from 'rxjs';
 import { resourceId } from '@semiont/core';
@@ -18,7 +19,13 @@ import { useResourceLoader } from '../useResourceLoader';
 const RES = { '@id': 'res-1', name: 'Doc' };
 
 function makeClient(resource$: BehaviorSubject<unknown>, annotations$: BehaviorSubject<unknown>): SemiontClient {
-  return { browse: { resource: () => resource$, annotations: () => annotations$ } } as unknown as SemiontClient;
+  // D1: hooks consume CacheState — the value-typed fixtures adapt at the seam.
+  return {
+    browse: {
+      resource: () => asStates(resource$),
+      annotations: () => asStates(annotations$),
+    },
+  } as unknown as SemiontClient;
 }
 
 describe('useResourceLoader', () => {

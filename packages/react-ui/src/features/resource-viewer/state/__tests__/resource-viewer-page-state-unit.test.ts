@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { asStates } from '../../../../__tests__/test-client';
 import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { annotationId, resourceId as makeResourceId } from '@semiont/core';
@@ -36,10 +37,10 @@ function clientWithNamespaces(overrides: {
 
   return makeTestSession({
     browse: {
-      annotations: () => annotations$.asObservable(),
-      entityTypes: () => entityTypes$.asObservable(),
-      events: () => events$.asObservable(),
-      referencedBy: () => referencedBy$.asObservable(),
+      annotations: () => asStates(annotations$.asObservable()),
+      entityTypes: () => asStates(entityTypes$.asObservable()),
+      events: () => asStates(events$.asObservable()),
+      referencedBy: () => asStates(referencedBy$.asObservable()),
       resourceRepresentation: overrides.resourceRepresentation ?? vi.fn().mockResolvedValue({
         data: new TextEncoder().encode('hello').buffer,
         contentType: 'text/plain',
@@ -264,7 +265,7 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
   const LIST_CASES: ReadonlyArray<{
     name: string;
     start: () => {
-      subject: { error: (e: Error) => void };
+      subject: { next: (s: never) => void };
       tc: TestSession;
       unit: ResourceViewerPageStateUnit;
       list: ListProbe;
@@ -314,7 +315,7 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
     expect(await firstValueFrom(list.loading$)).toBe(true);
     expect(await firstValueFrom(list.error$)).toBeNull();
 
-    subject.error(new Error('Resource not found'));
+    subject.next({ status: 'failed', error: new Error('Resource not found') } as never);
 
     expect(await firstValueFrom(list.loading$)).toBe(false);
     expect((await firstValueFrom(list.error$))?.message).toBe('Resource not found');
@@ -326,7 +327,7 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
   it.each(LIST_CASES)('$name: keeps an empty value alongside the failure, so callers still render a list', async ({ start }) => {
     const { subject, tc, unit, list } = start();
 
-    subject.error(new Error('boom'));
+    subject.next({ status: 'failed', error: new Error('boom') } as never);
 
     expect(await firstValueFrom(list.value$)).toEqual([]);
     unit.dispose();
@@ -334,16 +335,16 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
   });
 
   it('retry() clears the error, re-enters loading, and re-subscribes so a fresh attempt can succeed', async () => {
-    // B15: a fresh observe() clears the failure marker and starts a new attempt
-    // chain, so recovery needs a NEW subscription — the errored one is dead.
-    const attempts: Array<BehaviorSubject<unknown[] | undefined>> = [];
+    // D1/D3: failure is an EMISSION and recovery is a fresh SUBSCRIPTION —
+    // retry() re-attaches, and the new subscription's chain delivers.
+    const attempts: Array<BehaviorSubject<unknown>> = [];
     const tc = makeTestSession({
       browse: {
-        annotations: () => new BehaviorSubject<unknown[] | undefined>([]).asObservable(),
-        entityTypes: () => new BehaviorSubject<string[] | undefined>([]).asObservable(),
-        events: () => new BehaviorSubject<unknown[] | undefined>([]).asObservable(),
+        annotations: () => new BehaviorSubject<unknown>({ status: 'ready', value: [] }).asObservable(),
+        entityTypes: () => new BehaviorSubject<unknown>({ status: 'ready', value: [] }).asObservable(),
+        events: () => new BehaviorSubject<unknown>({ status: 'ready', value: [] }).asObservable(),
         referencedBy: () => {
-          const s = new BehaviorSubject<unknown[] | undefined>(undefined);
+          const s = new BehaviorSubject<unknown>({ status: 'pending' });
           attempts.push(s);
           return s.asObservable();
         },
@@ -361,7 +362,7 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
     });
     const unit = createResourceViewerPageStateUnit(tc.session, RID, 'en', mockBrowse());
 
-    attempts[0]!.error(new Error('nope'));
+    attempts[0]!.next({ status: 'failed', error: new Error('nope') });
     expect(await firstValueFrom(unit.referencedBy.error$)).not.toBeNull();
 
     unit.referencedBy.retry();
@@ -369,7 +370,7 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
     expect(await firstValueFrom(unit.referencedBy.error$)).toBeNull();
     expect(await firstValueFrom(unit.referencedBy.loading$)).toBe(true);
 
-    attempts[attempts.length - 1]!.next([{ id: 'ref-1' }]);
+    attempts[attempts.length - 1]!.next({ status: 'ready', value: [{ id: 'ref-1' }] });
     expect(await firstValueFrom(unit.referencedBy.loading$)).toBe(false);
     expect(await firstValueFrom(unit.referencedBy.value$)).toHaveLength(1);
 

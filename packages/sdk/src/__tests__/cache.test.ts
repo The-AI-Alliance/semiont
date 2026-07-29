@@ -10,15 +10,23 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { firstValueFrom, filter } from 'rxjs';
-import { createCache } from '../cache';
+import { map, firstValueFrom, filter } from 'rxjs';
+import { createCache, isReady, type CacheState } from '../cache';
+
+/**
+ * Collector projection for sequence assertions: pending → undefined,
+ * ready → value, failed → its Error (D1: failure is an EMISSION — it shows
+ * up IN the sequence now, not on the error callback).
+ */
+const st = <V,>(s: CacheState<V>): V | undefined | Error =>
+  s.status === 'ready' ? s.value : s.status === 'failed' ? s.error : undefined;
 
 function flush(): Promise<void> {
   return new Promise((r) => setTimeout(r, 0));
 }
 
-function firstDefined<T>(obs: import('rxjs').Observable<T | undefined>): Promise<T> {
-  return firstValueFrom(obs.pipe(filter((v): v is T => v !== undefined)));
+function firstDefined<T>(obs: import('rxjs').Observable<CacheState<T>>): Promise<T> {
+  return firstValueFrom(obs.pipe(filter(isReady), map((s) => s.value)));
 }
 
 describe('Cache<K, V>', () => {
@@ -36,8 +44,8 @@ describe('Cache<K, V>', () => {
       let resolveFetch!: (v: string) => void;
       const fetchFn = vi.fn().mockImplementation(() => new Promise<string>((r) => { resolveFetch = r; }));
       const cache = createCache<string, string>(fetchFn);
-      const seen: Array<string | undefined> = [];
-      cache.observe('k1').subscribe((v) => seen.push(v));
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k1').subscribe((s) => seen.push(st(s)));
       expect(seen).toEqual([undefined]);
       resolveFetch('v1');
       await flush();
@@ -78,8 +86,8 @@ describe('Cache<K, V>', () => {
     it('observers never see undefined-after-defined around a successful fetch', async () => {
       const fetchFn = vi.fn().mockResolvedValue('v1');
       const cache = createCache<string, string>(fetchFn);
-      const seen: Array<string | undefined> = [];
-      cache.observe('k').subscribe((v) => seen.push(v));
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe((s) => seen.push(st(s)));
       await firstDefined(cache.observe('k'));
       // Only one undefined at index 0 (initial emission before fetch resolves);
       // everything after must be defined.
@@ -101,18 +109,21 @@ describe('Cache<K, V>', () => {
         .mockRejectedValueOnce(new Error('boom'))
         .mockResolvedValueOnce('v1');
       const cache = createCache<string, string>(fetchFn);
-      const seen: Array<string | undefined> = [];
+      const seen: Array<string | undefined | Error> = [];
       const errors: unknown[] = [];
-      cache.observe('k').subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
+      cache.observe('k').subscribe({ next: (s) => seen.push(st(s)), error: (e) => errors.push(e) });
       await flush();
-      expect(seen).toEqual([undefined]);
-      expect(errors).toHaveLength(1);
-      expect((errors[0] as Error).message).toBe('boom');
+      // D1: failure is an EMISSION — it lands IN the sequence; the stream
+      // never errors and stays alive.
+      expect(errors).toEqual([]);
+      expect(seen[0]).toBeUndefined();
+      expect(seen[seen.length - 1]).toBeInstanceOf(Error);
+      expect((seen[seen.length - 1] as Error).message).toBe('boom');
       expect(cache.get('k')).toBeUndefined(); // store untouched
 
       // Guard + marker released: invalidate triggers a new fetch that
-      // succeeds. The errored subscription is terminal (RxJS), so recovery
-      // is observed via a fresh subscription — the hook-remount shape.
+      // succeeds; recovery observed via a fresh subscription — the
+      // hook-remount shape.
       cache.invalidate('k');
       await flush();
       const late = await firstDefined(cache.observe('k'));
@@ -142,8 +153,8 @@ describe('Cache<K, V>', () => {
         return Promise.resolve(`v${callCount}`);
       });
       const cache = createCache<string, string>(fetchFn);
-      const seen: Array<string | undefined> = [];
-      cache.observe('k').subscribe((v) => seen.push(v));
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe((s) => seen.push(st(s)));
       await firstDefined(cache.observe('k'));
 
       const beforeCount = seen.length;
@@ -152,7 +163,7 @@ describe('Cache<K, V>', () => {
       expect(seen.length).toBe(beforeCount);
       await flush();
 
-      const defined = seen.filter((v): v is string => v !== undefined);
+      const defined = seen.filter((v) => v !== undefined);
       expect(defined).toEqual(['v1', 'v2']); // no undefined in between
       expect(seen.slice(1).every((v) => v !== undefined)).toBe(true);
     });
@@ -237,8 +248,8 @@ describe('Cache<K, V>', () => {
 
     it('observer sees undefined after remove', async () => {
       const cache = createCache<string, string>(vi.fn().mockResolvedValue('v1'));
-      const seen: Array<string | undefined> = [];
-      cache.observe('k').subscribe((v) => seen.push(v));
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe((s) => seen.push(st(s)));
       await firstDefined(cache.observe('k'));
       cache.remove('k');
       expect(seen[seen.length - 1]).toBeUndefined();
@@ -327,9 +338,9 @@ describe('Cache<K, V>', () => {
         .mockRejectedValueOnce(new Error('boom'))
         .mockResolvedValueOnce('v1');
       const cache = createCache<string, string>(fetchFn);
-      const seen: Array<string | undefined> = [];
+      const seen: Array<string | undefined | Error> = [];
       const errors: unknown[] = [];
-      cache.observe('k').subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
+      cache.observe('k').subscribe({ next: (s) => seen.push(st(s)), error: (e) => errors.push(e) });
       // The awaiter joins the (failing) in-flight fetch and sees the rejection…
       await expect(cache.fetch('k')).rejects.toThrow('boom');
       expect(errors).toEqual([]); // …but the subscriber is never errored (B6)
@@ -352,8 +363,8 @@ describe('Cache<K, V>', () => {
         .mockRejectedValueOnce(new Error('bus.timeout: reply lost'))
         .mockResolvedValueOnce('v1');
       const cache = createCache<string, string>(fetchFn);
-      const seen: Array<string | undefined> = [];
-      cache.observe('k').subscribe((v) => seen.push(v));
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe((s) => seen.push(st(s)));
       await flush();
       expect(fetchFn).toHaveBeenCalledTimes(2);
       expect(seen[seen.length - 1]).toBe('v1');
@@ -362,11 +373,11 @@ describe('Cache<K, V>', () => {
     it('caps at one retry: a persistently failing key errors observers (B15) without a tight loop, and a later observe() recovers it', async () => {
       const fetchFn = vi.fn().mockRejectedValue(new Error('down'));
       const cache = createCache<string, string>(fetchFn);
-      const errors: unknown[] = [];
-      cache.observe('k').subscribe({ next: () => {}, error: (e) => errors.push(e) });
+      const states: string[] = [];
+      cache.observe('k').subscribe((s) => states.push(s.status));
       await flush();
       expect(fetchFn).toHaveBeenCalledTimes(2); // attempt + one retry, then idle
-      expect(errors).toHaveLength(1); // …surfaced, not silent (B15)
+      expect(states[states.length - 1]).toBe('failed'); // …surfaced, not silent (B15/D1)
       await flush();
       expect(fetchFn).toHaveBeenCalledTimes(2); // no tight loop
 
@@ -423,15 +434,15 @@ describe('Cache<K, V>', () => {
       const cache = createCache<string, string>(fetchFn);
       const obs = cache.observe('k');
 
-      const firstErrors: unknown[] = [];
-      obs.subscribe({ next: () => {}, error: (e) => firstErrors.push(e) });
-      await flush(); // chain exhausts → the attached subscriber errors (hot push)
-      expect(firstErrors).toHaveLength(1);
+      const firstStates: string[] = [];
+      obs.subscribe((s) => firstStates.push(s.status));
+      await flush(); // chain exhausts → the attached subscriber sees `failed` (hot push)
+      expect(firstStates[firstStates.length - 1]).toBe('failed');
 
       fetchFn.mockResolvedValue('recovered');
-      const seen: Array<string | undefined> = [];
+      const seen: Array<string | undefined | Error> = [];
       const errors: unknown[] = [];
-      obs.subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
+      obs.subscribe({ next: (s) => seen.push(st(s)), error: (e) => errors.push(e) });
       await flush();
       expect(errors).toEqual([]); // no stale replay
       expect(seen[seen.length - 1]).toBe('recovered'); // the fresh chain delivered
@@ -444,8 +455,8 @@ describe('Cache<K, V>', () => {
       await flush(); // exhausted, marker set
 
       const errors: unknown[] = [];
-      const seen: Array<string | undefined> = [];
-      cache.observe('k').subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe({ next: (s) => seen.push(st(s)), error: (e) => errors.push(e) });
       await flush();
       expect(errors).toEqual([]); // marker cleared before the obs was handed out
       expect(seen[seen.length - 1]).toBe('v2');
@@ -484,8 +495,8 @@ describe('Cache<K, V>', () => {
       await flush(); // exhausted, marker set
       await expect(cache.fetch('k')).resolves.toBe('v3'); // await path succeeds → marker cleared
       const errors: unknown[] = [];
-      const seen: Array<string | undefined> = [];
-      obs.subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
+      const seen: Array<string | undefined | Error> = [];
+      obs.subscribe({ next: (s) => seen.push(st(s)), error: (e) => errors.push(e) });
       expect(errors).toEqual([]); // marker gone — no error, and (store populated)
       expect(seen[seen.length - 1]).toBe('v3'); // …no fresh chain either: the value serves
       expect(fetchFn).toHaveBeenCalledTimes(3); // 2 exhaust + 1 fetch(); the late subscribe fetched nothing
@@ -495,9 +506,9 @@ describe('Cache<K, V>', () => {
   describe('dispose()', () => {
     it('completes the store and observers receive no further values', async () => {
       const cache = createCache<string, string>(vi.fn().mockResolvedValue('v'));
-      const seen: Array<string | undefined> = [];
+      const seen: Array<string | undefined | Error> = [];
       cache.observe('k').subscribe({
-        next: (v) => seen.push(v),
+        next: (s) => seen.push(st(s)),
         complete: () => seen.push('COMPLETE' as unknown as string),
       });
       await firstDefined(cache.observe('k'));
@@ -526,7 +537,7 @@ describe('Cache<K, V>', () => {
 
         const events: string[] = [];
         cache.observe('k').subscribe({
-          next: (v) => { if (v !== undefined) events.push('next'); },
+          next: (s) => { if (s.status !== 'pending') events.push('next'); },
           error: () => events.push('error'),
           complete: () => events.push('complete'),
         });

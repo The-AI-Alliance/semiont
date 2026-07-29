@@ -13,6 +13,7 @@
  * `browse.resource` observable so the test controls resolve timing.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { asStates } from '../../../__tests__/test-client';
 import { render, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BehaviorSubject } from 'rxjs';
@@ -53,7 +54,7 @@ const stubRef = makeAnnotation('ref-stub', []);
 function setup(onReferenceHover?: (h: unknown) => void) {
   const referent$ = new BehaviorSubject<ResourceDescriptor | undefined>(undefined);
   const beckonHover = vi.fn();
-  const browseResource = vi.fn(() => referent$);
+  const browseResource = vi.fn(() => asStates(referent$));
   const session = {
     client: {
       browse: { click: vi.fn(), resource: browseResource },

@@ -30,20 +30,20 @@ describe('createTestClient', () => {
     });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const values: unknown[] = [];
-    const errors: unknown[] = [];
-    const sub = client.browse.entityTypes().subscribe({
-      next: (v) => {
-        if (v !== undefined) values.push(v);
-      },
-      error: (e) => errors.push(e),
-    });
+    const states: Array<{ status: string; error?: unknown }> = [];
+    const sub = client.browse.entityTypes().subscribe((s) => states.push(s));
 
-    await vi.waitFor(() => expect(errors).toHaveLength(1), { timeout: 2_000 });
+    await vi.waitFor(
+      () => expect(states[states.length - 1]!.status).toBe('failed'),
+      { timeout: 2_000 },
+    );
 
-    // Three-outcome contract, third outcome: a typed terminal error, no value.
-    expect(values).toEqual([]);
-    expect(errors[0]).toBeInstanceOf(BusRequestError);
+    // Three-outcome contract, third outcome: failed is an EMISSION (D1) —
+    // typed, in-stream, and the subscription stays alive.
+    expect(states.some((s) => s.status === 'ready')).toBe(false);
+    expect(
+      (states[states.length - 1] as { error: unknown }).error,
+    ).toBeInstanceOf(BusRequestError);
 
     // The real pathway's own breadcrumbs — a hand-rolled mock cannot fake
     // these into existence.
@@ -66,8 +66,8 @@ describe('createTestClient', () => {
     });
 
     const values: string[][] = [];
-    const sub = client.browse.entityTypes().subscribe((v) => {
-      if (v !== undefined) values.push(v);
+    const sub = client.browse.entityTypes().subscribe((s) => {
+      if (s.status === 'ready') values.push(s.value);
     });
 
     await vi.waitFor(() => expect(values).toHaveLength(1));

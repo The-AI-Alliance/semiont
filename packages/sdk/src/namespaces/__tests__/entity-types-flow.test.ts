@@ -29,6 +29,7 @@ import type {
 } from '@semiont/core';
 import type { BrowseNamespace } from '../browse';
 import { createTestClient } from '../../testing';
+import { isReady, readyValue } from '../../cache';
 
 import type { Annotation } from '@semiont/core';
 
@@ -141,8 +142,8 @@ function flush(): Promise<void> {
   return new Promise((r) => setTimeout(r, 0));
 }
 
-function firstDefined<T>(obs: import('rxjs').Observable<T | undefined>): Promise<T> {
-  return firstValueFrom(obs.pipe(filter((v): v is T => v !== undefined)));
+function firstDefined<T>(obs: import('rxjs').Observable<import('../../cache').CacheState<T>>): Promise<T> {
+  return firstValueFrom(obs.pipe(filter(isReady), map((s) => s.value)));
 }
 
 describe('entity types — Layer 2 (BrowseNamespace + Cache)', () => {
@@ -183,7 +184,7 @@ describe('entity types — Layer 2 (BrowseNamespace + Cache)', () => {
     await flush();
     await flush();
 
-    const val = await firstValueFrom(browse.entityTypes());
+    const val = readyValue(await firstValueFrom(browse.entityTypes()));
     expect(val).toEqual(NINE_TYPES);
   });
 
@@ -195,8 +196,8 @@ describe('entity types — Layer 2 (BrowseNamespace + Cache)', () => {
     await firstDefined(browse.entityTypes());
 
     let first: string[] | undefined;
-    const sub = browse.entityTypes().subscribe((v) => {
-      if (first === undefined) first = v;
+    const sub = browse.entityTypes().subscribe((s) => {
+      if (first === undefined) first = readyValue(s);
     });
     try {
       expect(first).toEqual(NINE_TYPES);
@@ -213,7 +214,7 @@ describe('entity types — Layer 2 (BrowseNamespace + Cache)', () => {
     await firstDefined(browse.entityTypes());
 
     const emissions: Array<string[] | undefined> = [];
-    const sub = browse.entityTypes().subscribe((v) => emissions.push(v));
+    const sub = browse.entityTypes().subscribe((s) => emissions.push(readyValue(s)));
     try {
       browse.invalidateEntityTypes();
       await flush();
@@ -244,7 +245,7 @@ describe('entity types — Layer 3 (state-unit pipe over real cache)', () => {
     const { browse } = createHarness();
 
     // Mimic the state unit's transform: `client.browse.entityTypes().pipe(map(e => e ?? []))`
-    const vmEntityTypes$ = browse.entityTypes().pipe(map((e) => e ?? []));
+    const vmEntityTypes$ = browse.entityTypes().pipe(map((s) => readyValue(s) ?? []));
 
     const val = await firstValueFrom(vmEntityTypes$.pipe(filter((v) => v.length > 0)));
     expect(val).toEqual(NINE_TYPES);
@@ -271,7 +272,7 @@ describe('entity types — Layer 3 (state-unit pipe over real cache)', () => {
     await firstDefined(browse.entityTypes());
 
     // Now compose a new state-unit pipe — simulates a later ResourceViewerPage mount.
-    const lateVmPipe$ = browse.entityTypes().pipe(map((e) => e ?? []));
+    const lateVmPipe$ = browse.entityTypes().pipe(map((st) => readyValue(st) ?? []));
     const val = await firstValueFrom(lateVmPipe$);
     expect(val).toEqual(NINE_TYPES);
   });
@@ -289,7 +290,7 @@ describe('entity types — Layer 3 (state-unit pipe over real cache)', () => {
       eventBus.get('mark:archived').next(fakeMarkArchived(RID));
       await flush();
 
-      const lateVmPipe$ = browse.entityTypes().pipe(map((e) => e ?? []));
+      const lateVmPipe$ = browse.entityTypes().pipe(map((st) => readyValue(st) ?? []));
       const val = await firstValueFrom(lateVmPipe$);
       expect(val).toEqual(NINE_TYPES);
     },

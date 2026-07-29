@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { readyValue } from '@semiont/sdk';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { map } from 'rxjs/operators';
 import { getResourceId, getPrimaryRepresentation } from '@semiont/core';
@@ -75,7 +76,8 @@ export function ResourceSearchModal({
     createSearchPipeline<SearchResult>(
       (q) =>
         semiontRef.current!.browse.resources({ search: q, limit: SEARCH_LIMIT }).pipe(
-          map((resources) => {
+          map((st) => {
+            const resources = readyValue(st);
             if (resources === undefined) return undefined;
             return resources
               .map(toSearchResult)

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { isReady } from '@semiont/sdk';
 import type { Ref } from 'react';
 import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/core';
@@ -42,7 +43,10 @@ export function TagEntry({
     [session],
   );
   const schemas = useObservable(tagSchemas$);
-  const schema = schemaId && schemas ? schemas.find((s) => s.id === schemaId) ?? null : null;
+  const schema =
+    schemaId && schemas && isReady(schemas)
+      ? schemas.value.find((s) => s.id === schemaId) ?? null
+      : null;
 
   return (
     <div

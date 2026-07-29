@@ -1,4 +1,5 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
+import type { CacheState } from '@semiont/sdk';
 
 /**
  * A cache-backed list in its real states.
@@ -48,7 +49,7 @@ export interface ListState<T> {
  * Returns the state plus its own `dispose`; the owning state unit is expected
  * to register that with its disposer.
  */
-export function trackList<T>(open: () => Observable<T | undefined>, empty: T): {
+export function trackList<T>(open: () => Observable<CacheState<T>>, empty: T): {
   state: ListState<T>;
   dispose: () => void;
 } {
@@ -65,27 +66,32 @@ export function trackList<T>(open: () => Observable<T | undefined>, empty: T): {
   const attach = (): void => {
     if (disposed) return;
     subscription?.unsubscribe();
-    subscription = open().subscribe({
-      next: (value) => {
-        if (error$.getValue() !== null) error$.next(null);
-        // The cache emits `undefined` for a key it has not resolved yet.
-        // Before the first value that IS the loading state (already true);
-        // after one, it can only mean the chain switched to a new key —
-        // revalidate behind the stale value rather than blocking.
-        if (value === undefined) {
+    // D1 (CACHE-CONTRACT): the cache speaks pending | ready | failed, so
+    // this collapses to pattern-matching — and `failed` is an EMISSION, so
+    // the subscription never dies on error (the old dead-errored-observable
+    // hazard is structurally gone; retry() still re-attaches because a fresh
+    // subscription is what clears the failure marker — D3 recovery).
+    subscription = open().subscribe((st) => {
+      switch (st.status) {
+        case 'pending':
+          // Before the first value this IS the loading state (already
+          // true); after one, the chain switched to an unresolved key —
+          // revalidate behind the stale value rather than blocking.
           if (hasValue && !revalidating$.getValue()) revalidating$.next(true);
           return;
-        }
-        hasValue = true;
-        value$.next(value);
-        if (loading$.getValue()) loading$.next(false);
-        if (revalidating$.getValue()) revalidating$.next(false);
-      },
-      error: (e: unknown) => {
-        error$.next(e instanceof Error ? e : new Error(String(e)));
-        if (loading$.getValue()) loading$.next(false);
-        if (revalidating$.getValue()) revalidating$.next(false);
-      },
+        case 'ready':
+          if (error$.getValue() !== null) error$.next(null);
+          hasValue = true;
+          value$.next(st.value);
+          if (loading$.getValue()) loading$.next(false);
+          if (revalidating$.getValue()) revalidating$.next(false);
+          return;
+        case 'failed':
+          error$.next(st.error);
+          if (loading$.getValue()) loading$.next(false);
+          if (revalidating$.getValue()) revalidating$.next(false);
+          return;
+      }
     });
   };
   attach();

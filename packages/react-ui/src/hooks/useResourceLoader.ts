@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { readyValue } from '@semiont/sdk';
 import type { Annotation, ResourceDescriptor, ResourceId } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
 import { groupAnnotations } from '../lib/annotation-groups';
@@ -35,9 +36,18 @@ export function useResourceLoader(client: SemiontClient | null, resourceId: Reso
     setRawAnnotations(undefined);
     setError(null);
     const onError = (e: unknown) => setError(e instanceof Error ? e : new Error(String(e)));
+    // D1: failure arrives as a `failed` EMISSION — routed to the same error
+    // state; pending/ready project to the value-or-undefined these setters
+    // always took.
     const subs = [
-      client.browse.resource(resourceId).subscribe({ next: setResource, error: onError }),
-      client.browse.annotations(resourceId).subscribe({ next: setRawAnnotations, error: onError }),
+      client.browse.resource(resourceId).subscribe((st) => {
+        if (st.status === 'failed') onError(st.error);
+        else setResource(readyValue(st));
+      }),
+      client.browse.annotations(resourceId).subscribe((st) => {
+        if (st.status === 'failed') onError(st.error);
+        else setRawAnnotations(readyValue(st));
+      }),
     ];
     return () => { for (const s of subs) s.unsubscribe(); };
   }, [client, resourceId]);

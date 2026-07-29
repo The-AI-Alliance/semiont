@@ -19,9 +19,10 @@
  * byte-for-byte today's in-memory behavior.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { BehaviorSubject, Subject, firstValueFrom, filter, take } from 'rxjs';
+import { map, BehaviorSubject, Subject, firstValueFrom, filter, take } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { ConnectionState, IContentTransport, ITransport, ResourceDescriptor } from '@semiont/core';
+import { isReady } from '../cache';
 import { BrowseNamespace } from '../namespaces/browse';
 import { sessionStoragePersister } from '../cache-persister';
 import { TestStorage } from '../session/__tests__/test-storage-helpers';
@@ -60,7 +61,7 @@ describe('BrowseNamespace cache rehydration (B17)', () => {
     );
 
     const seen = await firstValueFrom(
-      browse.resource(RID).pipe(filter((r): r is ResourceDescriptor => r !== undefined), take(1)),
+      browse.resource(RID).pipe(filter(isReady), map((s) => s.value), take(1)),
     );
     // Instant paint from disk — the value arrives without waiting on the
     // wire (the inert transport never answers), which is B17's whole point.
@@ -102,7 +103,7 @@ describe('BrowseNamespace cache rehydration (B17)', () => {
       { busTimeoutMs: 50, cachePersistence: { storage, keyPrefix: 'kb-1' } },
     );
     const seen = await firstValueFrom(
-      second.resource(RID).pipe(filter((r): r is ResourceDescriptor => r !== undefined), take(1)),
+      second.resource(RID).pipe(filter(isReady), map((s) => s.value), take(1)),
     );
     // The round trip is proven by the value arriving at all: the transport
     // is inert, so 'Cached Doc' can only have come from storage.

@@ -77,9 +77,35 @@ export interface CachePersister<K, V> {
   subscribe?(onExternalChange: (entries: Map<K, V>) => void): () => void;
 }
 
+/**
+ * The three-outcome truth of a cache read (CACHE-CONTRACT D1, settled
+ * 2026-07-29): pending (nothing to show yet), ready (a value — possibly
+ * stale-while-revalidating, B7), or failed (B15 exhaustion of a value-less
+ * key). `failed` is an EMISSION, not a stream death: the observable never
+ * errors and never terminates on failure, so a subscription survives the
+ * full pending → failed → (resubscribe) → pending → ready life cycle. A
+ * two-state consumer no longer compiles — which is the point (SDK-DEBT L1:
+ * nine call sites shipped against the hidden third outcome).
+ */
+export type CacheState<T> =
+  | { status: 'pending' }
+  | { status: 'ready'; value: T }
+  | { status: 'failed'; error: Error };
+
+/** Type guard for the settled-with-value state — the paved path for
+ * `pipe(filter(isReady), map((s) => s.value))`, replacing the old
+ * `filter((v) => v !== undefined)` idiom. */
+export const isReady = <T,>(s: CacheState<T>): s is { status: 'ready'; value: T } =>
+  s.status === 'ready';
+
+/** Value-or-undefined projection for call sites that want the old shape
+ * EXPLICITLY (the type still forces the choice at the boundary). */
+export const readyValue = <T,>(s: CacheState<T>): T | undefined =>
+  s.status === 'ready' ? s.value : undefined;
+
 export interface Cache<K, V> {
-  /** Observable stream of the value at `key` (SWR). Triggers a fetch if not cached. */
-  observe(key: K): Observable<V | undefined>;
+  /** Observable stream of the state at `key` (SWR live view). Fetch fires on first subscribe. */
+  observe(key: K): Observable<CacheState<V>>;
 
   /**
    * Force a fresh fetch for `key`, update the store (so subscribers see it),
@@ -151,7 +177,7 @@ export function createCache<K, V>(
   const rehydrated = new Set<K>(initialEntries.keys());
   /** In-flight fetch promise per key — dedups concurrent fetches (B3). */
   const inflight = new Map<K, Promise<V>>();
-  const obsCache = new Map<K, Observable<V | undefined>>();
+  const obsCache = new Map<K, Observable<CacheState<V>>>();
 
   /**
    * B16 — disposal is terminal and inert. Once set, no path may issue a
@@ -319,21 +345,31 @@ export function createCache<K, V>(
   };
 
   return {
-    observe(key: K): Observable<V | undefined> {
+    observe(key: K): Observable<CacheState<V>> {
       // B4: return a stable Observable per key.
       let obs = obsCache.get(key);
       if (!obs) {
         const inner = merge(
           store$.pipe(
-            map((m) => m.get(key)),
-            distinctUntilChanged(),
+            map((m): CacheState<V> =>
+              m.has(key)
+                ? { status: 'ready', value: m.get(key) as V }
+                : { status: 'pending' },
+            ),
+            distinctUntilChanged(
+              (a, b) =>
+                a.status === b.status &&
+                (a.status !== 'ready' ||
+                  Object.is(a.value, (b as { status: 'ready'; value: V }).value)),
+            ),
           ),
-          // B15 push: terminal failure of this (value-less) key errors its
-          // subscribers. A throwing `map` turns the event into an RxJS error
-          // notification on this key's observable only.
+          // B15 push: terminal failure of this (value-less) key is an
+          // EMISSION — `{ status: 'failed' }` — never an RxJS error. The
+          // subscription stays alive through failure; recovery is a fresh
+          // subscribe (the D3 per-subscribe decision clears the marker).
           failure$.pipe(
             filter((f) => f.key === key),
-            map((f): V | undefined => { throw f.error; }),
+            map((f): CacheState<V> => ({ status: 'failed', error: f.error })),
           ),
         );
         // D3 (CACHE-CONTRACT, settled 2026-07-29): the fetch decision runs
@@ -342,7 +378,7 @@ export function createCache<K, V>(
         // see its outcome. Every branch is idempotent under concurrent
         // subscribers (`inflight`, marker deletion), so N subscribers cost
         // one chain, same as before.
-        obs = new Observable<V | undefined>((subscriber) => {
+        obs = new Observable<CacheState<V>>((subscriber) => {
           if (disposed) {
             // B16: the store is completed, so the inner observable completes
             // subscribers immediately — just don't issue a fetch for a

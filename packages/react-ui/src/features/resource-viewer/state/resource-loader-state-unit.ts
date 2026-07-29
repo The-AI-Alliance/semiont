@@ -1,3 +1,4 @@
+import { readyValue } from '@semiont/sdk';
 import {
   BehaviorSubject,
   combineLatest,
@@ -50,15 +51,14 @@ export function createResourceLoaderStateUnit(
   const attach = (): void => {
     if (disposed) return;
     subscription?.unsubscribe();
-    subscription = client.browse.resource(resourceId).subscribe({
-      next: (value) => {
-        // A value arrived — the key is live again, whatever came before.
-        if (error$.getValue() !== null) error$.next(null);
-        resource$.next(value);
-      },
-      error: (e: unknown) => {
-        error$.next(e instanceof Error ? e : new Error(String(e)));
-      },
+    subscription = client.browse.resource(resourceId).subscribe((st) => {
+      if (st.status === 'failed') {
+        // D1: failure is an emission — the subscription stays alive.
+        error$.next(st.error);
+        return;
+      }
+      if (st.status === 'ready' && error$.getValue() !== null) error$.next(null);
+      resource$.next(readyValue(st));
     });
   };
   attach();
