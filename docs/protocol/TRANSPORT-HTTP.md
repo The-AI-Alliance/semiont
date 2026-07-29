@@ -40,7 +40,9 @@ Browser / headless client                         Backend
   │    { channel, payload, scope? }  →  202          │
   │ ─────────────────────────────────────►           │
   │                                                  │
-  │    GET  /bus/subscribe?channel=X&scope=&scoped=  │
+  │    POST /bus/subscribe                           │
+  │    { global: [...], scoped: [{scope, channels,   │
+  │      lastEventId?}, ...] }                       │
   │ ◄── event-stream ──────────────────────────────  │
   │                                                  │
 ```
@@ -49,9 +51,13 @@ Browser / headless client                         Backend
   `{channel, payload, scope?}`. 202 on accepted; 400 on validation
   failure or unknown channel; 401 on auth failure.
 
-- `GET /bus/subscribe` — long-lived SSE. Query string selects global
-  channels (`channel=X` may repeat) and a single resource-scoped
-  channel group (`scope=rId&scoped=Y` with `scoped` repeatable).
+- `POST /bus/subscribe` — long-lived SSE (the response streams). The
+  JSON body is a **subscription matrix**: `global` channels plus any
+  number of `scoped` entries — one per resource scope, each naming its
+  channels and optionally that scope's resumption watermark
+  (MULTI-RESOURCE-SCOPE). One connection holds many resource scopes at
+  once. 400 on a malformed body, an empty matrix, duplicate scopes, or
+  more than 512 scopes (warn-logged from 128).
 
 Every event carries an `event:` line of `bus-event` and a `data:` line
 of `{channel, payload, scope?}`.
@@ -95,7 +101,7 @@ deduplication) applies unchanged. HTTP adds:
     coverage of every `EventName` — a new channel added to `EventMap`
     but not `CHANNEL_SCHEMAS` is a build error.
 
-### `GET /bus/subscribe`
+### `POST /bus/subscribe`
 
 - **At-most-once delivery with resumption for persisted events.** A
   connection that wasn't live at publication time doesn't see the live
@@ -125,25 +131,27 @@ shapes:
 | `e-<channel>:<cid>` | Correlation reply (payload carries a `correlationId`). **Deterministic** — the same reply is tagged with the same id on every connection, so a make-before-break overlap dedups it to one emission. | No. |
 | `e-<connectionId>-<counter>` | Any other ephemeral event (no `correlationId`). Unique per connection; no replay meaning. | No. |
 
-Clients SHOULD track the last `id:` seen and send it as the
-`Last-Event-ID` request header on every reconnect. When the server
-receives `Last-Event-ID: p-<scope>-<seq>`:
+Resumption is **per scope** (MULTI-RESOURCE-SCOPE): clients track the
+last persisted (`p-*`) id seen PER SCOPE and send each as the
+`lastEventId` field on that scope's entry in the subscribe body —
+there is no `Last-Event-ID` header. Ephemeral ids are never stored as
+watermarks (the old single-header design let an ephemeral id displace
+the persisted watermark — a silent replay-loss hole this shape closes).
+For each scoped entry carrying a watermark:
 
-1. If the subscription's `scope=` query param matches `<scope>`, the
-   server queries the event store for persisted events in that scope
-   with `sequenceNumber > <seq>`, filtered to the subscribed `scoped=`
-   channels, and replays them before the live tail starts.
+1. If the watermark parses and its embedded scope matches the entry's
+   `scope`, the server queries the event store for persisted events in
+   that scope with `sequenceNumber > <seq>`, filtered to the entry's
+   `channels`, and replays them before the live tail starts. Entries
+   for OTHER scopes replay independently; entries without a watermark
+   are fresh subscriptions — no replay, no gap event.
 2. If replay can't cover the gap (retention window exceeded, scope
    mismatch, unparseable id, query error), the server emits a
-   synthetic `bus:resume-gap` event describing the reason and optional
-   `scope`. The client should treat this as a signal to fall back to
-   blanket invalidation for the affected scope.
+   synthetic `bus:resume-gap` event carrying the reason and the
+   ENTRY's scope. The client should treat this as a signal to fall
+   back to blanket invalidation for that scope.
 
-Ephemeral ids sent back as `Last-Event-ID` are accepted without replay
-and without a gap event — they establish "no resumption context," as
-if no header were sent.
-
-Clients that never send `Last-Event-ID` get live-only behavior.
+Clients that send no watermarks get live-only behavior.
 
 ### HTTP-specific quirk: response-lost during a genuine disconnect
 
@@ -230,9 +238,10 @@ The client-side `ActorStateUnit` handles three reconnect triggers:
 3. **Explicit `stop()` / `dispose()`.** State transitions to `closed`;
    the observable completes. No retry.
 
-On every reconnect, the client sends the last seen `id:` as the
-`Last-Event-ID` request header. For a clean reconnect (no persisted
-events missed), the server replays nothing and live delivery resumes.
+On every reconnect, the client sends each scope's last persisted id as
+that entry's `lastEventId` in the subscribe body. For a clean reconnect
+(no persisted events missed), the server replays nothing and live
+delivery resumes.
 Consumers should NOT revalidate caches on the `reconnecting → open`
 transition — that work is driven by `bus:resume-gap`, which the server
 emits only when it genuinely can't cover the gap.
@@ -397,17 +406,18 @@ Consequence: every race in the cache (stuck guard, invalidate-loop,
 concurrent refetches) is a bug that published SWR implementations have
 documented fixes for, which we rediscover by bisection.
 
-### Scope is per-connection, not per-channel
+### ~~Scope is per-connection, not per-channel~~ — RESOLVED
 
-The SSE URL format takes one `scope=X` and many `scoped=Y` channel
-names within that scope. A single connection can subscribe to many
-channels under one resource scope, but cannot mix two resource scopes.
-
-Floor that matches current UX (one resource viewer at a time). Triggers
-for widening: a UI feature requiring two resource viewers
-simultaneously, a headless client watching many resources in parallel,
-or legitimate different-scope concurrent subscribe calls firing in
-production.
+**Resolved by MULTI-RESOURCE-SCOPE (2026-07-29).** The subscribe body
+is a matrix: one connection subscribes any number of resource scopes
+simultaneously, each with its own channel set and resumption
+watermark. The transport ref-counts subscriptions per resource and
+distinct resources compose — the old one-scope floor (and the
+`subscribeToResource` different-resource throw, and the sdk's interim
+scope-contention degradation) no longer exist. The widening triggers
+this entry named all fired via the embeddable viewer's
+resource-per-chat-message pattern; see
+`.plans/MULTI-RESOURCE-SCOPE.md` for the record.
 
 ### No channel-level authorization
 
@@ -476,6 +486,16 @@ above is the decision tree.
 A deliberate choice to keep this as a separate section so changes to
 the contract are visible.
 
+- **2026-07-29** — MULTI-RESOURCE-SCOPE landed. `/bus/subscribe` is
+  POST with a JSON subscription matrix (`global` + N `scoped` entries);
+  the GET query form and the `Last-Event-ID` header are GONE (clean
+  cutover — resumption watermarks ride per-scope on the body, closing
+  the ephemeral-displaces-watermark replay-loss hole). One connection
+  holds many resource scopes; the transport ref-counts per resource and
+  distinct resources compose. Client-side: scope removals reconnect
+  lazily (`lazyRemoveMs` hysteresis) so hover churn doesn't storm;
+  additions keep the 100 ms debounce; make-before-break + linger-drain
+  unchanged. Scope cap 512/connection.
 - **2026-04-19** — initial draft, reflecting the contract after the
   SIMPLE-BUS work plus the reconnect debounce fix.
 - **2026-04-19** — `Last-Event-ID` resumption landed. Persisted events
