@@ -251,7 +251,9 @@
     "noResultsFound": "Geen resultaten gevonden voor \"{{query}}\". In plaats daarvan worden recente bronnen getoond.",
     "noResourcesAvailable": "Geen bronnen beschikbaar. Maak je eerste document om te beginnen.",
     "composeFirstResource": "Eerste bron samenstellen",
-    "loadingKnowledgeBase": "Kennisbank laden..."
+    "loadingKnowledgeBase": "Kennisbank laden...",
+    "recentFailed": "Kan de bronnen niet laden.",
+    "retry": "Opnieuw proberen"
   },
   "Compose": {
     "title": "Nieuwe bron",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Voer nieuw entiteitslabel in...",
     "adding": "Toevoegen...",
     "addTag": "Label toevoegen",
-    "errorFailedToAdd": "Label toevoegen mislukt"
+    "errorFailedToAdd": "Label toevoegen mislukt",
+    "loadFailed": "Kan de entiteitstypen niet laden.",
+    "retry": "Opnieuw proberen"
   },
   "ModerateTagSchemas": {
     "loading": "Laden...",

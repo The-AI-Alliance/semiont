@@ -99,6 +99,7 @@ export * from './components/resource/AnnotateView';
 export * from './components/resource/AnnotationHistory';
 export * from './components/resource/BrowseView';
 export * from './components/resource/browse-renderers';
+export * from './components/resource/annotate-renderers';
 export * from './components/resource/HistoryEvent';
 export * from './components/resource/ResourceViewer';
 

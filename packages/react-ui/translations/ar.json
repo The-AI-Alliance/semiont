@@ -77,7 +77,9 @@
     "justNow": "الآن",
     "minutesAgo": "منذ {{count}}د",
     "hoursAgo": "منذ {{count}}س",
-    "daysAgo": "منذ {{count}}ي"
+    "daysAgo": "منذ {{count}}ي",
+    "failed": "تعذّر تحميل السجل.",
+    "retry": "إعادة المحاولة"
   },
   "CommentsPanel": {
     "title": "التعليقات",
@@ -171,7 +173,9 @@
     "reference": "المراجع",
     "assessment": "التقييمات",
     "comment": "التعليقات",
-    "tag": "العلامات"
+    "tag": "العلامات",
+    "annotationsFailed": "تعذّر تحميل التعليقات التوضيحية.",
+    "retry": "إعادة المحاولة"
   },
   "StatisticsPanel": {
     "title": "الإحصائيات",
@@ -220,7 +224,10 @@
     "loading": "جارٍ التحميل...",
     "loadingEllipsis": "جارٍ التحميل...",
     "untitledResource": "مورد بدون عنوان",
-    "noText": "لا يوجد نص"
+    "noText": "لا يوجد نص",
+    "incomingReferencesFailed": "تعذّر تحميل المراجع الواردة.",
+    "retry": "إعادة المحاولة",
+    "entityTypesFailed": "تعذّر تحميل أنواع الكيانات."
   },
   "KeyboardShortcuts": {
     "title": "اختصارات لوحة المفاتيح",

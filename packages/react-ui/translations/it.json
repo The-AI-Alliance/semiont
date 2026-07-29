@@ -77,7 +77,9 @@
     "justNow": "proprio ora",
     "minutesAgo": "{{count}}m fa",
     "hoursAgo": "{{count}}h fa",
-    "daysAgo": "{{count}}g fa"
+    "daysAgo": "{{count}}g fa",
+    "failed": "Impossibile caricare la cronologia.",
+    "retry": "Riprova"
   },
   "CommentsPanel": {
     "title": "Commenti",
@@ -171,7 +173,9 @@
     "reference": "Riferimenti",
     "assessment": "Valutazioni",
     "comment": "Commenti",
-    "tag": "Etichette"
+    "tag": "Etichette",
+    "annotationsFailed": "Impossibile caricare le annotazioni.",
+    "retry": "Riprova"
   },
   "StatisticsPanel": {
     "title": "Statistiche",
@@ -220,7 +224,10 @@
     "loading": "caricamento...",
     "loadingEllipsis": "Caricamento...",
     "untitledResource": "Risorsa Senza Titolo",
-    "noText": "Nessun testo"
+    "noText": "Nessun testo",
+    "incomingReferencesFailed": "Impossibile caricare i riferimenti in entrata.",
+    "retry": "Riprova",
+    "entityTypesFailed": "Impossibile caricare i tipi di entità."
   },
   "KeyboardShortcuts": {
     "title": "Scorciatoie da Tastiera",

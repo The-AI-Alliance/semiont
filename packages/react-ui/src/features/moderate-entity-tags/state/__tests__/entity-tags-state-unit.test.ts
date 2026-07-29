@@ -29,7 +29,7 @@ describe('createEntityTagsStateUnit', () => {
   it('exposes entity types from browse namespace', async () => {
     const stateUnit = createEntityTagsStateUnit(mockClient(), mockBrowse());
 
-    const types = await firstValueFrom(stateUnit.entityTypes$);
+    const types = await firstValueFrom(stateUnit.entityTypes.value$);
     expect(types).toEqual(['Person', 'Place']);
 
     stateUnit.dispose();
@@ -39,11 +39,11 @@ describe('createEntityTagsStateUnit', () => {
     const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);
     const stateUnit = createEntityTagsStateUnit(mockClient({ entityTypes$ }), mockBrowse());
 
-    const loading = await firstValueFrom(stateUnit.isLoading$);
+    const loading = await firstValueFrom(stateUnit.entityTypes.loading$);
     expect(loading).toBe(true);
 
     entityTypes$.next(['Tag']);
-    const loaded = await firstValueFrom(stateUnit.isLoading$.pipe(filter((l) => !l)));
+    const loaded = await firstValueFrom(stateUnit.entityTypes.loading$.pipe(filter((l) => !l)));
     expect(loaded).toBe(false);
 
     stateUnit.dispose();
@@ -112,5 +112,28 @@ describe('EntityTagsStateUnit — StateUnit axioms', () => {
       surfaces: (u) => [u.newTag$, u.error$, u.isAdding$],
       invocations: (u) => [() => u.setNewTag(''), () => u.addTag()],
     });
+  });
+});
+
+describe('createEntityTagsStateUnit — terminal load failure', () => {
+  // `isLoading$` was `raw$.pipe(map(e => e === undefined))` and
+  // moderate/entity-tags/page.tsx returns a full-page loading screen off it,
+  // so a failed load froze the route. The existing `error$` is the ADD-tag
+  // error and is deliberately left alone.
+  // See .plans/PANEL-FAILURE-STATES.md
+
+  it('stops loading and surfaces the load failure, distinct from the add-tag error', async () => {
+    const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);
+    const unit = createEntityTagsStateUnit(mockClient({ entityTypes$ }), mockBrowse());
+
+    expect(await firstValueFrom(unit.entityTypes.loading$)).toBe(true);
+    entityTypes$.error(new Error('Resource not found'));
+
+    expect(await firstValueFrom(unit.entityTypes.loading$)).toBe(false);
+    expect(await firstValueFrom(unit.entityTypes.error$)).not.toBeNull();
+    // The add-tag error channel is untouched by a load failure.
+    expect(await firstValueFrom(unit.error$)).toBe('');
+
+    unit.dispose();
   });
 });

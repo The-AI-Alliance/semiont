@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { useResourceGather } from '../../hooks/useResourceGather';
-import { useSemiont } from '../../session/SemiontProvider';
-import { useObservable } from '../../hooks/useObservable';
 import { ConfigureGatherStep, type ResourceGatherConfig } from './ConfigureGatherStep';
 import { GatherContextStep } from './GatherContextStep';
 import { ConfigureGenerationStep, type GenerationConfig } from './ConfigureGenerationStep';
@@ -54,6 +52,11 @@ export interface ResourceGenerateModalProps {
   locale: string;
   gatherDefaults?: Partial<ResourceGatherConfig>;
   /**
+   * Entity types offered in the exclusion picker. Owner-supplied so the
+   * modal cannot present a failed load as an empty vocabulary.
+   */
+  entityTypeOptions?: string[];
+  /**
    * Emit the chosen generation config. The parent runs the job
    * (`client.yield.fromResource(resourceId, …).run(…)`) — mirrors how the
    * annotation wizard delegates `yield.fromAnnotation` to its parent.
@@ -76,13 +79,16 @@ export function ResourceGenerateModal({
   defaultTitle,
   locale,
   gatherDefaults,
+  entityTypeOptions = [],
   onGenerateSubmit,
   translations: t,
 }: ResourceGenerateModalProps) {
   const [step, setStep] = useState<Step>('configure-gather');
   const { context, loading, error, gather, reset } = useResourceGather();
-  const client = useObservable(useSemiont().activeSession$)?.client;
-  const entityTypeOptions = useObservable(client?.browse.entityTypes()) ?? [];
+  // Supplied by the owner, which already tracks the list with its failure
+  // state. Fetching it here could only model (value | not-yet), so a failed
+  // load would render an empty exclusion picker as though the KB had no
+  // entity types. See .plans/PANEL-FAILURE-STATES.md
   const [excludeEntityTypes, setExcludeEntityTypes] = useState<string[]>([]);
 
   // Reset to the first step whenever the modal (re)opens.

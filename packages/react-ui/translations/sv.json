@@ -77,7 +77,9 @@
     "justNow": "just nu",
     "minutesAgo": "{{count}}m sedan",
     "hoursAgo": "{{count}}t sedan",
-    "daysAgo": "{{count}}d sedan"
+    "daysAgo": "{{count}}d sedan",
+    "failed": "Det gick inte att läsa in historiken.",
+    "retry": "Försök igen"
   },
   "CommentsPanel": {
     "title": "Kommentarer",
@@ -171,7 +173,9 @@
     "reference": "Referenser",
     "assessment": "Bedömningar",
     "comment": "Kommentarer",
-    "tag": "Taggar"
+    "tag": "Taggar",
+    "annotationsFailed": "Det gick inte att läsa in annoteringarna.",
+    "retry": "Försök igen"
   },
   "StatisticsPanel": {
     "title": "Statistik",
@@ -220,7 +224,10 @@
     "loading": "laddar...",
     "loadingEllipsis": "Laddar...",
     "untitledResource": "Namnlös resurs",
-    "noText": "Ingen text"
+    "noText": "Ingen text",
+    "incomingReferencesFailed": "Det gick inte att läsa in inkommande referenser.",
+    "retry": "Försök igen",
+    "entityTypesFailed": "Det gick inte att läsa in entitetstyper."
   },
   "KeyboardShortcuts": {
     "title": "Tangentbordsgenvägar",

@@ -77,7 +77,9 @@
     "justNow": "刚刚",
     "minutesAgo": "{{count}}分钟前",
     "hoursAgo": "{{count}}小时前",
-    "daysAgo": "{{count}}天前"
+    "daysAgo": "{{count}}天前",
+    "failed": "无法加载历史。",
+    "retry": "重试"
   },
   "CommentsPanel": {
     "title": "评论",
@@ -171,7 +173,9 @@
     "reference": "引用",
     "assessment": "评估",
     "comment": "评论",
-    "tag": "标签"
+    "tag": "标签",
+    "annotationsFailed": "无法加载注释。",
+    "retry": "重试"
   },
   "StatisticsPanel": {
     "title": "统计",
@@ -220,7 +224,10 @@
     "loading": "加载中...",
     "loadingEllipsis": "加载中...",
     "untitledResource": "无标题资源",
-    "noText": "无文本"
+    "noText": "无文本",
+    "incomingReferencesFailed": "无法加载传入引用。",
+    "retry": "重试",
+    "entityTypesFailed": "无法加载实体类型。"
   },
   "KeyboardShortcuts": {
     "title": "键盘快捷键",

@@ -77,7 +77,9 @@
     "justNow": "μόλις τώρα",
     "minutesAgo": "πριν {{count}}λ",
     "hoursAgo": "πριν {{count}}ώ",
-    "daysAgo": "πριν {{count}}μ"
+    "daysAgo": "πριν {{count}}μ",
+    "failed": "Δεν ήταν δυνατή η φόρτωση του ιστορικού.",
+    "retry": "Δοκιμάστε ξανά"
   },
   "CommentsPanel": {
     "title": "Σχόλια",
@@ -171,7 +173,9 @@
     "reference": "Αναφορές",
     "assessment": "Αξιολογήσεις",
     "comment": "Σχόλια",
-    "tag": "Ετικέτες"
+    "tag": "Ετικέτες",
+    "annotationsFailed": "Δεν ήταν δυνατή η φόρτωση των σχολιασμών.",
+    "retry": "Δοκιμάστε ξανά"
   },
   "StatisticsPanel": {
     "title": "Στατιστικά",
@@ -220,7 +224,10 @@
     "loading": "φόρτωση...",
     "loadingEllipsis": "Φόρτωση...",
     "untitledResource": "Πόρος Χωρίς Τίτλο",
-    "noText": "Χωρίς κείμενο"
+    "noText": "Χωρίς κείμενο",
+    "incomingReferencesFailed": "Δεν ήταν δυνατή η φόρτωση των εισερχόμενων αναφορών.",
+    "retry": "Δοκιμάστε ξανά",
+    "entityTypesFailed": "Δεν ήταν δυνατή η φόρτωση των τύπων οντοτήτων."
   },
   "KeyboardShortcuts": {
     "title": "Συντομεύσεις Πληκτρολογίου",

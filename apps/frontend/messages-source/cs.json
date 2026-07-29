@@ -251,7 +251,9 @@
     "noResultsFound": "Pro «{{query}}» nebyly nalezeny žádné výsledky. Zobrazují se místo toho nedávné zdroje.",
     "noResourcesAvailable": "Žádné zdroje nejsou k dispozici. Vytvořte svůj první dokument a začněte.",
     "composeFirstResource": "Vytvořit první zdroj",
-    "loadingKnowledgeBase": "Načítání znalostní báze..."
+    "loadingKnowledgeBase": "Načítání znalostní báze...",
+    "recentFailed": "Zdroje se nepodařilo načíst.",
+    "retry": "Zkusit znovu"
   },
   "Compose": {
     "title": "Nový zdroj",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Zadejte nový štítek entity...",
     "adding": "Přidávání...",
     "addTag": "Přidat štítek",
-    "errorFailedToAdd": "Přidání štítku selhalo"
+    "errorFailedToAdd": "Přidání štítku selhalo",
+    "loadFailed": "Typy entit se nepodařilo načíst.",
+    "retry": "Zkusit znovu"
   },
   "ModerateTagSchemas": {
     "loading": "Načítání...",

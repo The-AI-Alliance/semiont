@@ -46,6 +46,14 @@ interface UnifiedAnnotationsPanelProps {
 
   // All annotations (grouped internally by motivation)
   annotations: Annotation[];
+  /**
+   * The annotations load failed terminally (B15). Every tab here derives from
+   * the one `annotations` array, so without this the panel presents an empty
+   * array as fact — "no highlights" for a resource that may be full of them.
+   * See .plans/PANEL-FAILURE-STATES.md
+   */
+  annotationsError?: Error | null;
+  onRetryAnnotations?: () => void;
 
   // Annotators (pure static data - no handlers)
   annotators: Record<string, Annotator>;
@@ -65,6 +73,9 @@ interface UnifiedAnnotationsPanelProps {
   generatingReferenceId?: string | null;
   referencedBy?: any[];
   referencedByLoading?: boolean;
+  entityTypesError?: Error | null;
+  referencedByError?: Error | null;
+  onRetryReferencedBy?: () => void;
 
   // Resource context — threaded to every per-motivation panel, which stamps it
   // as `source` on mark:submit (multi-viewer routing).
@@ -173,6 +184,33 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
     const isActive = activeTab === tab;
     return `semiont-unified-panel__tab-button${isActive ? ' semiont-unified-panel__tab-button--active' : ''}`;
   };
+
+  if (props.annotationsError) {
+    // The tabs below all read one array; an empty one after a failed load is
+    // not "no annotations", it is "we do not know".
+    return (
+      <div className="semiont-unified-panel">
+        <h3 className="semiont-unified-panel__title">
+          {t('title')}
+        </h3>
+        <p className="semiont-unified-panel__error">
+          {t('annotationsFailed')}
+          {props.onRetryAnnotations && (
+            <>
+              {' '}
+              <button
+                type="button"
+                onClick={props.onRetryAnnotations}
+                className="semiont-panel__inline-action"
+              >
+                {t('retry')}
+              </button>
+            </>
+          )}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="semiont-unified-panel">
@@ -284,9 +322,12 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 locale={commonProps.locale}
                 sourceLanguage={commonProps.sourceLanguage}
                 allEntityTypes={props.allEntityTypes || []}
+                entityTypesError={props.entityTypesError}
                 generatingReferenceId={props.generatingReferenceId}
                 referencedBy={props.referencedBy}
                 referencedByLoading={props.referencedByLoading}
+                referencedByError={props.referencedByError}
+                onRetryReferencedBy={props.onRetryReferencedBy}
                 Link={props.Link}
                 routes={props.routes}
               />

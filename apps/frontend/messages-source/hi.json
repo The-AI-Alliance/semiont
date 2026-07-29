@@ -251,7 +251,9 @@
     "noResultsFound": "«{{query}}» के लिए कोई परिणाम नहीं मिला। इसके बजाय हाल के संसाधन दिखाए जा रहे हैं।",
     "noResourcesAvailable": "कोई संसाधन उपलब्ध नहीं है। शुरू करने के लिए अपना पहला दस्तावेज़ बनाएं।",
     "composeFirstResource": "पहला संसाधन रचें",
-    "loadingKnowledgeBase": "ज्ञान आधार लोड हो रहा है..."
+    "loadingKnowledgeBase": "ज्ञान आधार लोड हो रहा है...",
+    "recentFailed": "संसाधन लोड नहीं हो सके।",
+    "retry": "पुनः प्रयास करें"
   },
   "Compose": {
     "title": "नया संसाधन",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "नया इकाई टैग दर्ज करें...",
     "adding": "जोड़ा जा रहा है...",
     "addTag": "टैग जोड़ें",
-    "errorFailedToAdd": "टैग जोड़ने में विफल"
+    "errorFailedToAdd": "टैग जोड़ने में विफल",
+    "loadFailed": "इकाई प्रकार लोड नहीं हो सके।",
+    "retry": "पुनः प्रयास करें"
   },
   "ModerateTagSchemas": {
     "loading": "लोड हो रहा है...",

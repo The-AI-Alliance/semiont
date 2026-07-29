@@ -58,9 +58,25 @@ interface Props {
 
   // Reference-specific props
   allEntityTypes: string[];
+  /**
+   * The entity-type list failed to load. Without it the picker's empty branch
+   * asserts "no entity types available" — a claim about the knowledge base
+   * that a failed load cannot support.
+   * See .plans/PANEL-FAILURE-STATES.md
+   */
+  entityTypesError?: Error | null;
   generatingReferenceId?: string | null;
   referencedBy?: ReferencedBy[];
   referencedByLoading?: boolean;
+  /**
+   * The incoming-references load failed terminally (B15). Distinct from
+   * `referencedByLoading` — without it a dead request is indistinguishable
+   * from one still in flight, and the panel says "Loading..." forever.
+   * See .plans/PANEL-FAILURE-STATES.md
+   */
+  referencedByError?: Error | null;
+  /** Retry the failed incoming-references load. */
+  onRetryReferencedBy?: () => void;
   pendingAnnotation: PendingAnnotation | null;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
@@ -91,9 +107,12 @@ export function ReferencesPanel({
   Link,
   routes,
   allEntityTypes,
+  entityTypesError = null,
   generatingReferenceId,
   referencedBy = [],
   referencedByLoading = false,
+  referencedByError = null,
+  onRetryReferencedBy,
   pendingAnnotation,
   scrollToAnnotationId,
   onScrollCompleted,
@@ -403,7 +422,7 @@ export function ReferencesPanel({
                       ))
                     ) : (
                       <p className="semiont-assist-widget__no-types">
-                        {t('noEntityTypes')}
+                        {entityTypesError ? t('entityTypesFailed') : t('noEntityTypes')}
                       </p>
                     )}
                   </div>
@@ -485,13 +504,29 @@ export function ReferencesPanel({
           <div className="semiont-panel__divider">
             <h3 className="semiont-panel__subtitle">
               {t('incomingReferences')} ({referencedBy.length})
-              {referencedByLoading && (
+              {referencedByLoading && !referencedByError && (
                 <span className="semiont-panel__loading-indicator">({t('loading')})</span>
               )}
             </h3>
           </div>
 
-          {referencedBy.length > 0 ? (
+          {referencedByError ? (
+            <p className="semiont-panel__empty-message semiont-panel__empty-message--small">
+              {t('incomingReferencesFailed')}
+              {onRetryReferencedBy && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    onClick={onRetryReferencedBy}
+                    className="semiont-panel__inline-action"
+                  >
+                    {t('retry')}
+                  </button>
+                </>
+              )}
+            </p>
+          ) : referencedBy.length > 0 ? (
             <div className="semiont-panel__list">
               {referencedBy.map((ref) => {
                 const resourceId = ref.target.source;

@@ -3,14 +3,25 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
-import { useSemiont } from '../../session/SemiontProvider';
-import { useObservable } from '../../hooks/useObservable';
-import type { ResourceId } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 import { getAnnotationUriFromEvent, type StoredEventLike } from '@semiont/core';
 import { HistoryEvent } from './HistoryEvent';
 
 interface Props {
-  rUri: ResourceId;
+  /**
+   * The resource's stored events, and how their load is going. Supplied by the
+   * owner (which already holds them on its state unit) rather than fetched
+   * here: a self-fetching panel can only model (value | not-yet), so a
+   * terminal failure (B15) is indistinguishable from a request still in
+   * flight and the panel says "Loading..." for ever.
+   * See .plans/PANEL-FAILURE-STATES.md
+   */
+  events: StoredEventLike[];
+  eventsLoading?: boolean;
+  eventsError?: Error | null;
+  onRetryEvents?: () => void;
+  /** Annotations for the same resource — used to resolve event → annotation. */
+  annotations?: Annotation[];
   hoveredAnnotationId?: string | null;
   onEventHover?: (annotationId: string | null) => void;
   onEventClick?: (annotationId: string | null) => void;
@@ -18,15 +29,21 @@ interface Props {
   routes: RouteBuilder;
 }
 
-export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onEventClick, Link, routes }: Props) {
+export function AnnotationHistory({
+  events: eventsData,
+  eventsLoading = false,
+  eventsError = null,
+  onRetryEvents,
+  annotations = [],
+  hoveredAnnotationId,
+  onEventHover,
+  onEventClick,
+  Link,
+  routes,
+}: Props) {
   const t = useTranslations('AnnotationHistory');
-  const semiont = useObservable(useSemiont().activeSession$)?.client;
-
-  const eventsData = useObservable(semiont?.browse.events(rUri));
-  const annotationsData = useObservable(semiont?.browse.annotations(rUri));
-  const loading = eventsData === undefined;
-  const error = false;
-  const annotations = annotationsData ?? [];
+  const loading = eventsLoading;
+  const error = eventsError;
 
   // Refs to track event elements for scrolling
   const eventRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -34,7 +51,7 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
 
   // Sort events by oldest first (most recent at bottom)
   // Filter out job events - they're represented by mark:body-updated events instead
-  const events: StoredEventLike[] = !eventsData ? [] : (eventsData as StoredEventLike[])
+  const events: StoredEventLike[] = eventsData
     .filter((e) => {
       return e.type !== 'job:started' && e.type !== 'job:progress' && e.type !== 'job:completed';
     })
@@ -70,6 +87,29 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
     }
   }, [hoveredAnnotationId]);
 
+  if (error) {
+    // Previously `return null` behind a hard-coded `const error = false`, so
+    // this branch was unreachable and a failed load simply hung in `loading`.
+    return (
+      <div className="semiont-history-panel">
+        <h3 className="semiont-history-panel__title">
+          {t('history')}
+        </h3>
+        <p className="semiont-history-panel__error">
+          {t('failed')}
+          {onRetryEvents && (
+            <>
+              {' '}
+              <button type="button" onClick={onRetryEvents} className="semiont-panel__inline-action">
+                {t('retry')}
+              </button>
+            </>
+          )}
+        </p>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="semiont-history-panel">
@@ -79,10 +119,6 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
         <div className="semiont-history-panel__loading">{t('loading')}</div>
       </div>
     );
-  }
-
-  if (error) {
-    return null; // Silently fail
   }
 
   if (events.length === 0) {

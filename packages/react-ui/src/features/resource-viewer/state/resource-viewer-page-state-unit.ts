@@ -3,6 +3,7 @@ import type { ResourceId, components } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
+import { trackList, type ListState } from '../../../state/list-state';
 import { createBeckonStateUnit, type BeckonStateUnit } from '@semiont/sdk';
 import { createMarkStateUnit, type MarkStateUnit } from '@semiont/sdk';
 import { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';
@@ -43,11 +44,12 @@ export interface ResourceViewerPageStateUnit extends StateUnit {
   gather: GatherStateUnit;
   yield: YieldStateUnit;
 
-  annotations$: Observable<Annotation[]>;
+  annotations: ListState<Annotation[]>;
+  entityTypes: ListState<string[]>;
+  events: ListState<StoredEventResponse[]>;
+  referencedBy: ListState<ReferencedByEntry[]>;
+  /** Derived from `annotations.value$`; failure/loading live on `annotations`. */
   annotationGroups$: Observable<AnnotationGroups>;
-  entityTypes$: Observable<string[]>;
-  events$: Observable<StoredEventResponse[]>;
-  referencedBy$: Observable<ReferencedByEntry[]>;
   content$: Observable<string>;
   contentLoading$: Observable<boolean>;
   mediaToken$: Observable<string | null>;
@@ -81,23 +83,17 @@ export function createResourceViewerPageStateUnit(
   disposer.add(matchStateUnit);
   disposer.add(yieldStateUnit);
 
-  const annotations$: Observable<Annotation[]> = client.browse.annotations(resourceId).pipe(
-    map((a) => a ?? []),
-  );
+  const annotations = trackList<Annotation[]>(() => client.browse.annotations(resourceId), []);
+  const entityTypes = trackList<string[]>(() => client.browse.entityTypes(), []);
+  const events = trackList<StoredEventResponse[]>(() => client.browse.events(resourceId), []);
+  const referencedBy = trackList<ReferencedByEntry[]>(() => client.browse.referencedBy(resourceId), []);
+  disposer.add(annotations.dispose);
+  disposer.add(entityTypes.dispose);
+  disposer.add(events.dispose);
+  disposer.add(referencedBy.dispose);
 
-  const annotationGroups$: Observable<AnnotationGroups> = annotations$.pipe(map(groupAnnotations));
-
-  const entityTypes$: Observable<string[]> = client.browse.entityTypes().pipe(
-    map((e) => e ?? []),
-  );
-
-  const events$: Observable<StoredEventResponse[]> = client.browse.events(resourceId).pipe(
-    map((e) => e ?? []),
-  );
-
-  const referencedBy$: Observable<ReferencedByEntry[]> = client.browse.referencedBy(resourceId).pipe(
-    map((r) => r ?? []),
-  );
+  const annotationGroups$: Observable<AnnotationGroups> =
+    annotations.state.value$.pipe(map(groupAnnotations));
 
   const content$ = new BehaviorSubject<string>('');
   const contentLoading$ = new BehaviorSubject<boolean>(false);
@@ -157,11 +153,11 @@ export function createResourceViewerPageStateUnit(
     mark,
     gather,
     yield: yieldStateUnit,
-    annotations$,
+    annotations: annotations.state,
+    entityTypes: entityTypes.state,
+    events: events.state,
+    referencedBy: referencedBy.state,
     annotationGroups$,
-    entityTypes$,
-    events$,
-    referencedBy$,
     content$: content$.asObservable(),
     contentLoading$: contentLoading$.asObservable(),
     mediaToken$: mediaToken$.asObservable(),

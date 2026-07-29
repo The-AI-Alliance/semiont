@@ -77,7 +77,9 @@
     "justNow": "à l'instant",
     "minutesAgo": "il y a {{count}}m",
     "hoursAgo": "il y a {{count}}h",
-    "daysAgo": "il y a {{count}}j"
+    "daysAgo": "il y a {{count}}j",
+    "failed": "Impossible de charger l'historique.",
+    "retry": "Réessayer"
   },
   "CommentsPanel": {
     "title": "Commentaires",
@@ -171,7 +173,9 @@
     "reference": "Références",
     "assessment": "Évaluations",
     "comment": "Commentaires",
-    "tag": "Étiquettes"
+    "tag": "Étiquettes",
+    "annotationsFailed": "Impossible de charger les annotations.",
+    "retry": "Réessayer"
   },
   "StatisticsPanel": {
     "title": "Statistiques",
@@ -220,7 +224,10 @@
     "loading": "chargement...",
     "loadingEllipsis": "Chargement...",
     "untitledResource": "Ressource sans titre",
-    "noText": "Aucun texte"
+    "noText": "Aucun texte",
+    "incomingReferencesFailed": "Impossible de charger les références entrantes.",
+    "retry": "Réessayer",
+    "entityTypesFailed": "Impossible de charger les types d'entité."
   },
   "KeyboardShortcuts": {
     "title": "Raccourcis clavier",

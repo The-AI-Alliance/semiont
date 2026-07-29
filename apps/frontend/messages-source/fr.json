@@ -251,7 +251,9 @@
     "noResultsFound": "Aucun résultat trouvé pour « {{query}} ». Affichage des ressources récentes à la place.",
     "noResourcesAvailable": "Aucune ressource disponible. Créez votre premier document pour commencer.",
     "composeFirstResource": "Rédiger la première ressource",
-    "loadingKnowledgeBase": "Chargement de la base de connaissances..."
+    "loadingKnowledgeBase": "Chargement de la base de connaissances...",
+    "recentFailed": "Impossible de charger les ressources.",
+    "retry": "Réessayer"
   },
   "Compose": {
     "title": "Nouvelle ressource",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Saisissez une nouvelle étiquette d'entité...",
     "adding": "Ajout...",
     "addTag": "Ajouter une étiquette",
-    "errorFailedToAdd": "Impossible d'ajouter l'étiquette"
+    "errorFailedToAdd": "Impossible d'ajouter l'étiquette",
+    "loadFailed": "Impossible de charger les types d'entité.",
+    "retry": "Réessayer"
   },
   "ModerateTagSchemas": {
     "loading": "Chargement...",

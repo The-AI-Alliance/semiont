@@ -9,6 +9,7 @@ import {
   createSessionStateUnit,
   useStateUnit,
 } from '@semiont/react-ui';
+import type { SemiontSession } from '@semiont/sdk';
 import { useRouter } from '@/i18n/routing';
 
 // Fallback avatar when image fails to load or is invalid
@@ -26,9 +27,6 @@ export function UserPanel() {
   const userDomain = user?.domain || user?.email?.split('@')[1];
   const isAdmin = user?.isAdmin ?? false;
   const isModerator = user?.isModerator ?? false;
-  const apiClient = session?.client;
-  const sessionStateUnit = useStateUnit(() => createSessionStateUnit(apiClient!));
-  const router = useRouter();
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();
   const sessionTimeFormatted = formatTime(timeRemaining) ?? 'Unknown';
@@ -47,14 +45,6 @@ export function UserPanel() {
 
     return sanitized;
   })();
-
-  const handleSignOut = async () => {
-    await sessionStateUnit.logout();
-    if (activeKnowledgeBase) {
-      await semiont.signOut(activeKnowledgeBase.id);
-    }
-    router.push('/');
-  };
 
   return (
     <div className="semiont-user-panel">
@@ -128,16 +118,47 @@ export function UserPanel() {
           </div>
         )}
 
-        {/* Sign Out Button */}
-        <div className="semiont-panel-divider">
-          <button
-            onClick={handleSignOut}
-            className="semiont-signout-button"
-          >
-            {t('signOut')}
-          </button>
-        </div>
+        {/* Sign Out — only meaningful with a live session to sign out OF.
+            Keyed on the session so the state unit is rebuilt against the
+            replacement rather than holding the client it captured at mount. */}
+        {session && (
+          <SignOutButton
+            key={session.id}
+            session={session}
+            label={t('signOut')}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Owns the session state unit, so it is only ever constructed where a session
+ * is guaranteed. `UserPanel` itself renders inside `ToolbarPanels`, which the
+ * unauthenticated knowledge layout also mounts — there, `activeSession$` is
+ * null and `createSessionStateUnit(session?.client)` would capture `undefined`
+ * and blow up on click.
+ * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+ */
+function SignOutButton({ session, label }: { session: SemiontSession; label: string }) {
+  const semiont = useSemiont();
+  const router = useRouter();
+  const sessionStateUnit = useStateUnit(() => createSessionStateUnit(session.client));
+
+  const handleSignOut = async () => {
+    await sessionStateUnit.logout();
+    if (session.kb) {
+      await semiont.signOut(session.kb.id);
+    }
+    router.push('/');
+  };
+
+  return (
+    <div className="semiont-panel-divider">
+      <button onClick={handleSignOut} className="semiont-signout-button">
+        {label}
+      </button>
     </div>
   );
 }

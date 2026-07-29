@@ -81,7 +81,12 @@ App-level singleton. Owns:
   session is under construction must gate on this; otherwise they
   sit on the spinner forever after every `signOut`, which
   intentionally leaves `activeKbId` set with `session` null.
-- `openResources$` — open-resource list (tab bar)
+- `openResources$` — open-resource list (tab bar). Per-KB: a projection of
+  the active, **connected** KB's tabs, empty while nothing is connected.
+- `lastViewedResource$` — the active, connected KB's last-viewed resource id,
+  for a landing route to resume from (`setLastViewedResource(id)` records it).
+  Per-KB for the same reason as the tabs: one KB's resource id means nothing
+  to another, so a global record sends the resume straight into a 404.
 - `identityToken$` — optional app-level identity bridge: a slot the host populates (via `setIdentityToken()`) with an external OAuth identity token, for environments that bridge one in
 - `error$` — session-level error stream
 - CRUD methods: `addKb`, `removeKb`, `setActiveKb`, `signIn`, `signOut`,

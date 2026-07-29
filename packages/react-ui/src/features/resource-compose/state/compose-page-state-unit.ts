@@ -1,9 +1,10 @@
-import { BehaviorSubject, type Observable, map } from 'rxjs';
+import { BehaviorSubject, type Observable } from 'rxjs';
 import type { GatheredContext, AnnotationId, AccessToken, ResourceDescriptor, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
+import { trackList, type ListState } from '../../../state/list-state';
 import type { SemiontClient } from '@semiont/sdk';
 import { decodeWithCharset, extensionForMediaType } from '@semiont/core';
 import type { UploadProgress } from '@semiont/sdk';
@@ -54,7 +55,7 @@ export interface ComposePageStateUnit extends StateUnit {
   cloneData$: Observable<CloneData | null>;
   referenceData$: Observable<ReferenceData | null>;
   gatheredContext$: Observable<GatheredContext | null>;
-  entityTypes$: Observable<string[]>;
+  entityTypes: ListState<string[]>;
   /**
    * Live upload-progress for the in-flight `save(...)` call. Emits the
    * full `UploadProgress` lifecycle (started → finished) while a save is
@@ -87,9 +88,8 @@ export function createComposePageStateUnit(
   const gatheredContext$ = new BehaviorSubject<GatheredContext | null>(null);
   const uploadProgress$ = new BehaviorSubject<UploadProgress | null>(null);
 
-  const entityTypes$: Observable<string[]> = client.browse.entityTypes().pipe(
-    map((e) => e ?? []),
-  );
+  const entityTypes = trackList<string[]>(() => client.browse.entityTypes(), []);
+  disposer.add(entityTypes.dispose);
 
   // Initialize based on mode
   if (isReferenceMode) {
@@ -192,7 +192,7 @@ export function createComposePageStateUnit(
     cloneData$: cloneData$.asObservable(),
     referenceData$: referenceData$.asObservable(),
     gatheredContext$: gatheredContext$.asObservable(),
-    entityTypes$,
+    entityTypes: entityTypes.state,
     uploadProgress$: uploadProgress$.asObservable(),
     save,
     dispose: () => {

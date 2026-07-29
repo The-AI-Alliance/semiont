@@ -251,7 +251,9 @@
     "noResultsFound": "\"{{query}}\"에 대한 결과가 없습니다. 대신 최근 리소스를 표시합니다.",
     "noResourcesAvailable": "사용 가능한 리소스가 없습니다. 첫 번째 문서를 만들어 시작하세요.",
     "composeFirstResource": "첫 번째 리소스 작성",
-    "loadingKnowledgeBase": "지식 베이스 로딩 중..."
+    "loadingKnowledgeBase": "지식 베이스 로딩 중...",
+    "recentFailed": "리소스를 불러올 수 없습니다.",
+    "retry": "다시 시도"
   },
   "Compose": {
     "title": "새 리소스",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "새 개체 태그 입력...",
     "adding": "추가 중...",
     "addTag": "태그 추가",
-    "errorFailedToAdd": "태그 추가 실패"
+    "errorFailedToAdd": "태그 추가 실패",
+    "loadFailed": "개체 유형을 불러올 수 없습니다.",
+    "retry": "다시 시도"
   },
   "ModerateTagSchemas": {
     "loading": "로딩 중...",

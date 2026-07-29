@@ -77,7 +77,9 @@
     "justNow": "এইমাত্র",
     "minutesAgo": "{{count}} মি. আগে",
     "hoursAgo": "{{count}} ঘ. আগে",
-    "daysAgo": "{{count}} দি. আগে"
+    "daysAgo": "{{count}} দি. আগে",
+    "failed": "ইতিহাস লোড করা যায়নি।",
+    "retry": "আবার চেষ্টা করুন"
   },
   "CommentsPanel": {
     "title": "মন্তব্যসমূহ",
@@ -171,7 +173,9 @@
     "reference": "রেফারেন্সসমূহ",
     "assessment": "মূল্যায়নসমূহ",
     "comment": "মন্তব্যসমূহ",
-    "tag": "ট্যাগসমূহ"
+    "tag": "ট্যাগসমূহ",
+    "annotationsFailed": "টীকা লোড করা যায়নি।",
+    "retry": "আবার চেষ্টা করুন"
   },
   "StatisticsPanel": {
     "title": "পরিসংখ্যান",
@@ -220,7 +224,10 @@
     "loading": "লোড হচ্ছে...",
     "loadingEllipsis": "লোড হচ্ছে...",
     "untitledResource": "শিরোনামবিহীন সম্পদ",
-    "noText": "কোনো পাঠ্য নেই"
+    "noText": "কোনো পাঠ্য নেই",
+    "incomingReferencesFailed": "ইনকামিং রেফারেন্স লোড করা যায়নি।",
+    "retry": "আবার চেষ্টা করুন",
+    "entityTypesFailed": "সত্তার ধরন লোড করা যায়নি।"
   },
   "KeyboardShortcuts": {
     "title": "কীবোর্ড শর্টকাট",

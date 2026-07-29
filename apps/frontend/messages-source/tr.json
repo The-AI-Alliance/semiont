@@ -251,7 +251,9 @@
     "noResultsFound": "«{{query}}» için sonuç bulunamadı. Bunun yerine son kaynaklar gösteriliyor.",
     "noResourcesAvailable": "Kullanılabilir kaynak yok. Başlamak için ilk belgenizi oluşturun.",
     "composeFirstResource": "İlk Kaynağı Oluştur",
-    "loadingKnowledgeBase": "Bilgi tabanı yükleniyor..."
+    "loadingKnowledgeBase": "Bilgi tabanı yükleniyor...",
+    "recentFailed": "Kaynaklar yüklenemedi.",
+    "retry": "Tekrar dene"
   },
   "Compose": {
     "title": "Yeni Kaynak",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Yeni varlık etiketi girin...",
     "adding": "Ekleniyor...",
     "addTag": "Etiket Ekle",
-    "errorFailedToAdd": "Etiket eklenemedi"
+    "errorFailedToAdd": "Etiket eklenemedi",
+    "loadFailed": "Varlık türleri yüklenemedi.",
+    "retry": "Tekrar dene"
   },
   "ModerateTagSchemas": {
     "loading": "Yükleniyor...",

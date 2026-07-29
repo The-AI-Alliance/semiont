@@ -77,7 +77,9 @@
     "justNow": "همین الان",
     "minutesAgo": "{{count}} دقیقه پیش",
     "hoursAgo": "{{count}} ساعت پیش",
-    "daysAgo": "{{count}} روز پیش"
+    "daysAgo": "{{count}} روز پیش",
+    "failed": "بارگذاری تاریخچه ممکن نشد.",
+    "retry": "تلاش مجدد"
   },
   "CommentsPanel": {
     "title": "نظرات",
@@ -171,7 +173,9 @@
     "reference": "ارجاعات",
     "assessment": "ارزیابی‌ها",
     "comment": "نظرات",
-    "tag": "برچسب‌ها"
+    "tag": "برچسب‌ها",
+    "annotationsFailed": "بارگذاری حاشیه‌نویسی‌ها ممکن نشد.",
+    "retry": "تلاش مجدد"
   },
   "StatisticsPanel": {
     "title": "آمار",
@@ -220,7 +224,10 @@
     "loading": "در حال بارگذاری...",
     "loadingEllipsis": "در حال بارگذاری...",
     "untitledResource": "منبع بدون عنوان",
-    "noText": "بدون متن"
+    "noText": "بدون متن",
+    "incomingReferencesFailed": "بارگذاری ارجاعات ورودی ممکن نشد.",
+    "retry": "تلاش مجدد",
+    "entityTypesFailed": "بارگذاری انواع موجودیت ممکن نشد."
   },
   "KeyboardShortcuts": {
     "title": "میانبرهای صفحه‌کلید",

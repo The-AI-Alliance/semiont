@@ -20,6 +20,7 @@ import { JsonLdPanel } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
+import type { BrowseMediaRenderers, AnnotateMediaRenderers } from '@semiont/react-ui';
 import { useObservable } from '@semiont/react-ui';
 import { useResourceContent } from '../../../hooks/useResourceContent';
 import { useMediaToken } from '../../../hooks/useMediaToken';
@@ -92,6 +93,14 @@ export interface ResourceViewerPageProps {
    * Name of the active knowledge base (for display in panels)
    */
   knowledgeBaseName?: string | undefined;
+
+  /**
+   * Media-renderer overrides, forwarded to `ResourceViewer`. Present at this
+   * tier too so a host embedding the whole page — not just the viewer — can
+   * still swap a renderer. See .plans/ANNOTATE-RENDERER-REGISTRY.md (D5)
+   */
+  browseRenderers?: BrowseMediaRenderers;
+  annotateRenderers?: AnnotateMediaRenderers;
 }
 
 /**
@@ -126,6 +135,8 @@ export function ResourceViewerPage({
   refetchDocument,
   streamStatus,
   knowledgeBaseName,
+  browseRenderers,
+  annotateRenderers,
 }: ResourceViewerPageProps) {
   // Translations
   const tw = useTranslations('ReferenceWizard');
@@ -187,12 +198,20 @@ export function ResourceViewerPage({
   const browseStateUnit = useShellStateUnit();
   const stateUnit = useStateUnit(() => createResourceViewerPageStateUnit(semiont!, rUri, locale, browseStateUnit));
 
-  const annotations = useObservable(stateUnit.annotations$) ?? [];
+  const annotations = useObservable(stateUnit.annotations.value$) ?? [];
+  const annotationsError = useObservable(stateUnit.annotations.error$) ?? null;
   const groups = useObservable(stateUnit.annotationGroups$);
-  const allEntityTypes = useObservable(stateUnit.entityTypes$) ?? [];
-  const referencedByRaw = useObservable(stateUnit.referencedBy$);
-  const referencedBy = referencedByRaw ?? [];
-  const referencedByLoading = referencedByRaw === undefined;
+  const allEntityTypes = useObservable(stateUnit.entityTypes.value$) ?? [];
+  const entityTypesError = useObservable(stateUnit.entityTypes.error$) ?? null;
+  // Three states, not two: a terminally failed list has no value EITHER, so
+  // deriving "loading" from `undefined` leaves a dead request spinning for
+  // ever. See .plans/PANEL-FAILURE-STATES.md
+  const referencedBy = useObservable(stateUnit.referencedBy.value$) ?? [];
+  const referencedByLoading = useObservable(stateUnit.referencedBy.loading$) ?? true;
+  const referencedByError = useObservable(stateUnit.referencedBy.error$) ?? null;
+  const events = useObservable(stateUnit.events.value$) ?? [];
+  const eventsLoading = useObservable(stateUnit.events.loading$) ?? true;
+  const eventsError = useObservable(stateUnit.events.error$) ?? null;
   const hoveredAnnotationId = useObservable(stateUnit.beckon.hoveredAnnotationId$) ?? null;
   const pendingAnnotation = useObservable(stateUnit.mark.pendingAnnotation$) ?? null;
   const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
@@ -286,14 +305,15 @@ export function ResourceViewerPage({
     });
   }, [browser]);
 
-  // Add resource to open tabs when it loads
+  // Add resource to open tabs when it loads, and record it as this KB's
+  // last-viewed for the /know landing route to resume from. Both are per-KB
+  // state owned by the browser — a global last-viewed id sends that redirect
+  // into the previously active KB's resource after a switch.
   useEffect(() => {
     if (resource && rUri) {
       const mediaType = getPrimaryMediaType(resource);
       browser.addOpenResource(rUri, resource.name, mediaType || undefined, resource.storageUri);
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('lastViewedDocumentId', rUri);
-      }
+      browser.setLastViewedResource(rUri);
     }
   }, [resource, rUri, browser]);
 
@@ -503,6 +523,8 @@ export function ResourceViewerPage({
                   showLineNumbers={showLineNumbers}
                   hoverDelayMs={hoverDelayMs}
                   hoveredAnnotationId={hoveredAnnotationId}
+                  {...(browseRenderers && { browseRenderers })}
+                  {...(annotateRenderers && { annotateRenderers })}
                 />
               )}
             </ErrorBoundary>
@@ -543,9 +565,14 @@ export function ResourceViewerPage({
                 progress={progress}
                 pendingAnnotation={pendingAnnotation}
                 allEntityTypes={allEntityTypes}
+                annotationsError={annotationsError}
+                onRetryAnnotations={stateUnit.annotations.retry}
+                entityTypesError={entityTypesError}
                 generatingReferenceId={generationProgress?.annotationId ?? null}
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
+                referencedByError={referencedByError}
+                onRetryReferencedBy={stateUnit.referencedBy.retry}
                 resourceId={rUri}
                 locale={locale}
                 sourceLanguage={getLanguage(resource)}
@@ -562,7 +589,11 @@ export function ResourceViewerPage({
             {/* History Panel */}
             {activePanel === 'history' && (
               <AnnotationHistory
-                rUri={rUri}
+                events={events}
+                eventsLoading={eventsLoading}
+                eventsError={eventsError}
+                onRetryEvents={stateUnit.events.retry}
+                annotations={annotations}
                 hoveredAnnotationId={hoveredAnnotationId}
                 onEventHover={handleEventHover}
                 onEventClick={handleEventClick}
@@ -676,6 +707,7 @@ export function ResourceViewerPage({
         resourceId={rUri}
         defaultTitle=""
         locale={locale}
+        entityTypeOptions={allEntityTypes}
         onGenerateSubmit={handleResourceGenerateSubmit}
         translations={{
           gatherTitle: tg('gatherTitle'),

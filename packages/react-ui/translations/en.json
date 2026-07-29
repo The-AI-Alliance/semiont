@@ -77,7 +77,9 @@
     "justNow": "just now",
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
-    "daysAgo": "{{count}}d ago"
+    "daysAgo": "{{count}}d ago",
+    "failed": "Could not load history.",
+    "retry": "Try again"
   },
   "CommentsPanel": {
     "title": "Comments",
@@ -171,7 +173,9 @@
     "reference": "References",
     "assessment": "Assessments",
     "comment": "Comments",
-    "tag": "Tags"
+    "tag": "Tags",
+    "annotationsFailed": "Could not load annotations.",
+    "retry": "Try again"
   },
   "StatisticsPanel": {
     "title": "Statistics",
@@ -220,7 +224,10 @@
     "loading": "loading...",
     "loadingEllipsis": "Loading...",
     "untitledResource": "Untitled Resource",
-    "noText": "No text"
+    "noText": "No text",
+    "incomingReferencesFailed": "Could not load incoming references.",
+    "retry": "Try again",
+    "entityTypesFailed": "Could not load entity types."
   },
   "KeyboardShortcuts": {
     "title": "Keyboard Shortcuts",

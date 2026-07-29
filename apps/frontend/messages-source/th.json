@@ -251,7 +251,9 @@
     "noResultsFound": "ไม่พบผลลัพธ์สำหรับ '{{query}}' แสดงทรัพยากรล่าสุดแทน",
     "noResourcesAvailable": "ไม่มีทรัพยากรที่พร้อมใช้งาน สร้างเอกสารแรกของคุณเพื่อเริ่มต้น",
     "composeFirstResource": "เขียนทรัพยากรแรก",
-    "loadingKnowledgeBase": "กำลังโหลดฐานความรู้..."
+    "loadingKnowledgeBase": "กำลังโหลดฐานความรู้...",
+    "recentFailed": "ไม่สามารถโหลดทรัพยากรได้",
+    "retry": "ลองอีกครั้ง"
   },
   "Compose": {
     "title": "ทรัพยากรใหม่",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "กรอกแท็กเอนทิตีใหม่...",
     "adding": "กำลังเพิ่ม...",
     "addTag": "เพิ่มแท็ก",
-    "errorFailedToAdd": "ไม่สามารถเพิ่มแท็กได้"
+    "errorFailedToAdd": "ไม่สามารถเพิ่มแท็กได้",
+    "loadFailed": "ไม่สามารถโหลดประเภทเอนทิตีได้",
+    "retry": "ลองอีกครั้ง"
   },
   "ModerateTagSchemas": {
     "loading": "กำลังโหลด...",

@@ -77,7 +77,9 @@
     "justNow": "เมื่อสักครู่",
     "minutesAgo": "{{count}} นาทีที่แล้ว",
     "hoursAgo": "{{count}} ชม. ที่แล้ว",
-    "daysAgo": "{{count}} วันที่แล้ว"
+    "daysAgo": "{{count}} วันที่แล้ว",
+    "failed": "ไม่สามารถโหลดประวัติได้",
+    "retry": "ลองอีกครั้ง"
   },
   "CommentsPanel": {
     "title": "ความคิดเห็น",
@@ -171,7 +173,9 @@
     "reference": "การอ้างอิง",
     "assessment": "การประเมิน",
     "comment": "ความคิดเห็น",
-    "tag": "แท็ก"
+    "tag": "แท็ก",
+    "annotationsFailed": "ไม่สามารถโหลดคำอธิบายประกอบได้",
+    "retry": "ลองอีกครั้ง"
   },
   "StatisticsPanel": {
     "title": "สถิติ",
@@ -220,7 +224,10 @@
     "loading": "กำลังโหลด...",
     "loadingEllipsis": "กำลังโหลด...",
     "untitledResource": "ทรัพยากรไม่มีชื่อ",
-    "noText": "ไม่มีข้อความ"
+    "noText": "ไม่มีข้อความ",
+    "incomingReferencesFailed": "ไม่สามารถโหลดการอ้างอิงขาเข้าได้",
+    "retry": "ลองอีกครั้ง",
+    "entityTypesFailed": "ไม่สามารถโหลดประเภทเอนทิตีได้"
   },
   "KeyboardShortcuts": {
     "title": "ปุ่มลัดแป้นพิมพ์",

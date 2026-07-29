@@ -77,7 +77,9 @@
     "justNow": "chiar acum",
     "minutesAgo": "acum {{count}}m",
     "hoursAgo": "acum {{count}}h",
-    "daysAgo": "acum {{count}}z"
+    "daysAgo": "acum {{count}}z",
+    "failed": "Nu s-a putut încărca istoricul.",
+    "retry": "Încearcă din nou"
   },
   "CommentsPanel": {
     "title": "Comentarii",
@@ -171,7 +173,9 @@
     "reference": "Referințe",
     "assessment": "Evaluări",
     "comment": "Comentarii",
-    "tag": "Etichete"
+    "tag": "Etichete",
+    "annotationsFailed": "Nu s-au putut încărca adnotările.",
+    "retry": "Încearcă din nou"
   },
   "StatisticsPanel": {
     "title": "Statistici",
@@ -220,7 +224,10 @@
     "loading": "se încarcă...",
     "loadingEllipsis": "Se încarcă...",
     "untitledResource": "Resursă fără titlu",
-    "noText": "Fără text"
+    "noText": "Fără text",
+    "incomingReferencesFailed": "Nu s-au putut încărca referințele primite.",
+    "retry": "Încearcă din nou",
+    "entityTypesFailed": "Nu s-au putut încărca tipurile de entitate."
   },
   "KeyboardShortcuts": {
     "title": "Comenzi rapide de la tastatură",

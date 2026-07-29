@@ -97,7 +97,27 @@ export interface SemiontSessionConfig {
   onError?: (err: SemiontSessionError) => void;
 }
 
+/**
+ * Instance counter behind `SemiontSession.id`. Deliberately not a UUID: the
+ * id is an in-memory discriminator, never persisted and never sent over the
+ * wire, so it needs no entropy — and a counter has no secure-context
+ * dependency (`crypto.randomUUID` is undefined over plain HTTP from a
+ * non-localhost host; see .plans/bugs/crypto-randomuuid-insecure-context.md).
+ */
+let sessionSeq = 0;
+
 export class SemiontSession {
+  /**
+   * Identity of THIS LIVE SESSION, distinct from `kb.id` (which knowledge
+   * base) — successive sessions for the same KB get different ids.
+   *
+   * Consumers binding derived state to a session need this: `signIn` on an
+   * already-active KB disposes the session and constructs a fresh one under
+   * an unchanged `kb.id`, so anything keyed on `kb.id` alone silently keeps
+   * pointing at the disposed client and its inert (B16) caches.
+   * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+   */
+  readonly id: string;
   readonly kb: KbTarget;
   readonly client: SemiontClient;
   readonly token$: BehaviorSubject<AccessToken | null>;
@@ -129,6 +149,7 @@ export class SemiontSession {
   private disposed = false;
 
   constructor(config: SemiontSessionConfig) {
+    this.id = `session-${++sessionSeq}`;
     this.kb = config.kb;
     this.storage = config.storage;
     this.doRefresh = config.refresh;

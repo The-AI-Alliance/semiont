@@ -77,7 +77,9 @@
     "justNow": "lige nu",
     "minutesAgo": "{{count}}m siden",
     "hoursAgo": "{{count}}t siden",
-    "daysAgo": "{{count}}d siden"
+    "daysAgo": "{{count}}d siden",
+    "failed": "Historikken kunne ikke indlæses.",
+    "retry": "Prøv igen"
   },
   "CommentsPanel": {
     "title": "Kommentarer",
@@ -171,7 +173,9 @@
     "reference": "Referencer",
     "assessment": "Vurderinger",
     "comment": "Kommentarer",
-    "tag": "Tags"
+    "tag": "Tags",
+    "annotationsFailed": "Annoteringerne kunne ikke indlæses.",
+    "retry": "Prøv igen"
   },
   "StatisticsPanel": {
     "title": "Statistik",
@@ -220,7 +224,10 @@
     "loading": "indlæser...",
     "loadingEllipsis": "Indlæser...",
     "untitledResource": "Unavngivet ressource",
-    "noText": "Ingen tekst"
+    "noText": "Ingen tekst",
+    "incomingReferencesFailed": "Indgående referencer kunne ikke indlæses.",
+    "retry": "Prøv igen",
+    "entityTypesFailed": "Enhedstyper kunne ikke indlæses."
   },
   "KeyboardShortcuts": {
     "title": "Tastaturgenveje",

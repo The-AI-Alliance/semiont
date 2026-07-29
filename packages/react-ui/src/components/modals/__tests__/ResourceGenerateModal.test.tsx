@@ -36,6 +36,10 @@ vi.mock('../../../hooks/useResourceGather', () => ({
   }),
 }));
 
+// The modal no longer fetches entity types; the owner supplies them, so a
+// failed load cannot surface as an empty vocabulary. The stable-observable
+// note below is kept because the client mock still backs other calls.
+// See .plans/PANEL-FAILURE-STATES.md
 // Stable observable instance — the modal calls `entityTypes()` inline in
 // render, so a fresh observable each call would re-subscribe every render and
 // loop. The real SDK returns a cached observable; mirror that here.
@@ -93,6 +97,7 @@ function renderModal(props: Partial<React.ComponentProps<typeof ResourceGenerate
       resourceId="res-1"
       defaultTitle="Default Title"
       locale="en"
+      entityTypeOptions={['Person', 'Topic']}
       onGenerateSubmit={onGenerateSubmit}
       translations={T}
       {...props}

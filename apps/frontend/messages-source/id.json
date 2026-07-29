@@ -251,7 +251,9 @@
     "noResultsFound": "Tidak ada hasil yang ditemukan untuk '{{query}}'. Menampilkan sumber daya terbaru sebagai gantinya.",
     "noResourcesAvailable": "Tidak ada sumber daya yang tersedia. Buat dokumen pertama Anda untuk memulai.",
     "composeFirstResource": "Buat Sumber Daya Pertama",
-    "loadingKnowledgeBase": "Memuat basis pengetahuan..."
+    "loadingKnowledgeBase": "Memuat basis pengetahuan...",
+    "recentFailed": "Tidak dapat memuat sumber daya.",
+    "retry": "Coba lagi"
   },
   "Compose": {
     "title": "Sumber Daya Baru",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Masukkan tag entitas baru...",
     "adding": "Menambahkan...",
     "addTag": "Tambah Tag",
-    "errorFailedToAdd": "Gagal menambahkan tag"
+    "errorFailedToAdd": "Gagal menambahkan tag",
+    "loadFailed": "Tidak dapat memuat tipe entitas.",
+    "retry": "Coba lagi"
   },
   "ModerateTagSchemas": {
     "loading": "Memuat...",

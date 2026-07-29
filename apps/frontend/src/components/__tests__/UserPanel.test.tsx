@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { UserPanel } from '../UserPanel';
@@ -21,7 +21,7 @@ vi.mock('@/i18n/routing', () => ({
 // `useSemiont().activeSession$`, and signs out via `semiont.signOut(kb.id)`.
 // The mock browser exposes controllable subjects so tests can flip the shape
 // the panel sees.
-const { mockSignOut, mockUseSessionExpiry, mockFormatTime, mockSanitizeImageURL, mockLogout, mockBrowser, user$, activeSession$ } = vi.hoisted(() => {
+const { mockSignOut, mockUseSessionExpiry, mockFormatTime, mockSanitizeImageURL, mockLogout, mockBrowser, mockClient, user$, activeSession$ } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { BehaviorSubject } = require('rxjs');
   const mockLogout = vi.fn().mockResolvedValue(undefined);
@@ -53,6 +53,7 @@ const { mockSignOut, mockUseSessionExpiry, mockFormatTime, mockSanitizeImageURL,
   };
   return {
     mockSignOut,
+    mockClient,
     mockUseSessionExpiry: vi.fn(),
     mockFormatTime: vi.fn(),
     mockSanitizeImageURL: vi.fn(),
@@ -109,6 +110,21 @@ function setUser(overrides: Record<string, any> = {}) {
   user$.next({ ...translated, ...overrides });
 }
 
+/**
+ * Restore a live session. Needed as its own step because tests may set
+ * `activeSession$` to null, and the `kb` helpers below spread the current
+ * value — spreading null would silently produce a session with no client.
+ */
+function resetSession() {
+  activeSession$.next({
+    id: 'session-1',
+    client: mockClient,
+    kb: ACTIVE_KB,
+    user$,
+    refresh: async () => null,
+  });
+}
+
 function setActiveKnowledgeBase(kb: typeof ACTIVE_KB | null) {
   const current = activeSession$.getValue();
   if (kb === null) {
@@ -141,6 +157,7 @@ describe('UserPanel Component', () => {
       return translations[key] || key;
     });
 
+    resetSession();
     setUser();
     setActiveKnowledgeBase(ACTIVE_KB);
     mockUseSessionExpiry.mockReturnValue({ timeRemaining: 3600000 });
@@ -318,6 +335,38 @@ describe('UserPanel Component', () => {
       expect(mockLogout).toHaveBeenCalled();
       expect(mockSignOut).not.toHaveBeenCalled();
       expect(mockRouterPush).toHaveBeenCalledWith('/');
+    });
+
+    it('offers no Sign Out at all when there is no session', () => {
+      // The panel renders inside ToolbarPanels, which the UNAUTHENTICATED
+      // knowledge layout also mounts — so `activeSession$` really can be null
+      // here. Sign Out then has no client to call and no KB to sign out of;
+      // the state unit built from `session?.client` would capture `undefined`
+      // and the handler would TypeError on `client.auth`.
+      // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+      activeSession$.next(null);
+
+      expect(() => render(<UserPanel />)).not.toThrow();
+      expect(screen.queryByRole('button', { name: 'Sign Out' })).not.toBeInTheDocument();
+    });
+
+    it('signs out through the CURRENT session client after a session swap', async () => {
+      render(<UserPanel />);
+
+      const replacementLogout = vi.fn().mockResolvedValue(undefined);
+      const previous = activeSession$.getValue() as Record<string, unknown>;
+      act(() => {
+        activeSession$.next({
+          ...previous,
+          id: 'session-2',
+          client: { auth: { logout: replacementLogout } },
+        });
+      });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Sign Out' }));
+
+      expect(replacementLogout).toHaveBeenCalled();
+      expect(mockLogout).not.toHaveBeenCalled();
     });
 
     it('should still navigate even if signOut is rapidly clicked', async () => {

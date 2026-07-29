@@ -18,5 +18,6 @@ describe('@semiont/react-ui — embeddable consumer surface', () => {
     expect(typeof reactUi.useSessionEventSubscriptions).toBe('function');
     expect(typeof reactUi.setPdfWorkerSrc).toBe('function');
     expect(typeof reactUi.defaultBrowseRenderers).toBe('object');
+    expect(typeof reactUi.defaultAnnotateRenderers).toBe('object');
   });
 });

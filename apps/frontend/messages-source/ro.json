@@ -251,7 +251,9 @@
     "noResultsFound": "Niciun rezultat găsit pentru «{{query}}». Se afișează resursele recente în schimb.",
     "noResourcesAvailable": "Nu sunt resurse disponibile. Creează primul tău document pentru a începe.",
     "composeFirstResource": "Compune prima resursă",
-    "loadingKnowledgeBase": "Se încarcă baza de cunoștințe..."
+    "loadingKnowledgeBase": "Se încarcă baza de cunoștințe...",
+    "recentFailed": "Nu s-au putut încărca resursele.",
+    "retry": "Încearcă din nou"
   },
   "Compose": {
     "title": "Resursă nouă",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Introduceți o etichetă de entitate nouă...",
     "adding": "Se adaugă...",
     "addTag": "Adaugă etichetă",
-    "errorFailedToAdd": "Nu s-a putut adăuga eticheta"
+    "errorFailedToAdd": "Nu s-a putut adăuga eticheta",
+    "loadFailed": "Nu s-au putut încărca tipurile de entitate.",
+    "retry": "Încearcă din nou"
   },
   "ModerateTagSchemas": {
     "loading": "Se încarcă...",

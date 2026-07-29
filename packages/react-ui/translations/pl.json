@@ -77,7 +77,9 @@
     "justNow": "właśnie teraz",
     "minutesAgo": "{{count}}m temu",
     "hoursAgo": "{{count}}g temu",
-    "daysAgo": "{{count}}d temu"
+    "daysAgo": "{{count}}d temu",
+    "failed": "Nie można załadować historii.",
+    "retry": "Spróbuj ponownie"
   },
   "CommentsPanel": {
     "title": "Komentarze",
@@ -171,7 +173,9 @@
     "reference": "Referencje",
     "assessment": "Oceny",
     "comment": "Komentarze",
-    "tag": "Tagi"
+    "tag": "Tagi",
+    "annotationsFailed": "Nie można załadować adnotacji.",
+    "retry": "Spróbuj ponownie"
   },
   "StatisticsPanel": {
     "title": "Statystyki",
@@ -220,7 +224,10 @@
     "loading": "ładowanie...",
     "loadingEllipsis": "Ładowanie...",
     "untitledResource": "Zasób bez tytułu",
-    "noText": "Brak tekstu"
+    "noText": "Brak tekstu",
+    "incomingReferencesFailed": "Nie można załadować przychodzących referencji.",
+    "retry": "Spróbuj ponownie",
+    "entityTypesFailed": "Nie można załadować typów encji."
   },
   "KeyboardShortcuts": {
     "title": "Skróty klawiszowe",

@@ -251,7 +251,9 @@
     "noResultsFound": "Ingen resultater fundet for «{{query}}». Viser seneste ressourcer i stedet.",
     "noResourcesAvailable": "Ingen ressourcer tilgængelige. Opret dit første dokument for at komme i gang.",
     "composeFirstResource": "Opret første ressource",
-    "loadingKnowledgeBase": "Indlæser vidensbase..."
+    "loadingKnowledgeBase": "Indlæser vidensbase...",
+    "recentFailed": "Ressourcer kunne ikke indlæses.",
+    "retry": "Prøv igen"
   },
   "Compose": {
     "title": "Ny ressource",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Indtast nyt enhedstag...",
     "adding": "Tilføjer...",
     "addTag": "Tilføj tag",
-    "errorFailedToAdd": "Kunne ikke tilføje tag"
+    "errorFailedToAdd": "Kunne ikke tilføje tag",
+    "loadFailed": "Enhedstyper kunne ikke indlæses.",
+    "retry": "Prøv igen"
   },
   "ModerateTagSchemas": {
     "loading": "Indlæser...",

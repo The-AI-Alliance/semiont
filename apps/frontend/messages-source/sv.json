@@ -251,7 +251,9 @@
     "noResultsFound": "Inga resultat hittades för «{{query}}». Visar senaste resurser istället.",
     "noResourcesAvailable": "Inga resurser tillgängliga. Skapa ditt första dokument för att komma igång.",
     "composeFirstResource": "Skapa första resursen",
-    "loadingKnowledgeBase": "Laddar kunskapsbas..."
+    "loadingKnowledgeBase": "Laddar kunskapsbas...",
+    "recentFailed": "Det gick inte att läsa in resurser.",
+    "retry": "Försök igen"
   },
   "Compose": {
     "title": "Ny resurs",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Ange ny entitetstagg...",
     "adding": "Lägger till...",
     "addTag": "Lägg till tagg",
-    "errorFailedToAdd": "Det gick inte att lägga till taggen"
+    "errorFailedToAdd": "Det gick inte att lägga till taggen",
+    "loadFailed": "Det gick inte att läsa in entitetstyper.",
+    "retry": "Försök igen"
   },
   "ModerateTagSchemas": {
     "loading": "Laddar...",

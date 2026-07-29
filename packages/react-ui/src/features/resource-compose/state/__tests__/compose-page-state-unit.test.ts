@@ -115,7 +115,7 @@ describe('createComposePageStateUnit', () => {
   it('exposes entity types', async () => {
     const stateUnit = createComposePageStateUnit(mockClient(), mockBrowse(), {});
 
-    const types = await firstValueFrom(stateUnit.entityTypes$);
+    const types = await firstValueFrom(stateUnit.entityTypes.value$);
     expect(types).toEqual(['Person']);
 
     stateUnit.dispose();
@@ -196,5 +196,24 @@ describe('ComposePageStateUnit — StateUnit axioms', () => {
       },
       surfaces: (u) => [u.mode$, u.loading$, u.cloneData$, u.referenceData$, u.gatheredContext$, u.uploadProgress$],
     });
+  });
+});
+
+describe('createComposePageStateUnit — entity types load failure', () => {
+  // Lower severity than the two hangs: compose defaults to an empty picker,
+  // which misrepresents a failed load as "this KB has no entity types".
+  // See .plans/PANEL-FAILURE-STATES.md
+
+  it('surfaces the failure rather than presenting an empty picker as fact', async () => {
+    const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);
+    const stateUnit = createComposePageStateUnit(mockClient({ entityTypes$ }), mockBrowse(), {});
+
+    entityTypes$.error(new Error('boom'));
+
+    expect(await firstValueFrom(stateUnit.entityTypes.loading$)).toBe(false);
+    expect(await firstValueFrom(stateUnit.entityTypes.error$)).not.toBeNull();
+    expect(await firstValueFrom(stateUnit.entityTypes.value$)).toEqual([]);
+
+    stateUnit.dispose();
   });
 });

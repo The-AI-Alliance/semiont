@@ -77,7 +77,9 @@
     "justNow": "juuri nyt",
     "minutesAgo": "{{count}} min sitten",
     "hoursAgo": "{{count}} t sitten",
-    "daysAgo": "{{count}} pv sitten"
+    "daysAgo": "{{count}} pv sitten",
+    "failed": "Historiaa ei voitu ladata.",
+    "retry": "Yritä uudelleen"
   },
   "CommentsPanel": {
     "title": "Kommentit",
@@ -171,7 +173,9 @@
     "reference": "Viitteet",
     "assessment": "Arvioinnit",
     "comment": "Kommentit",
-    "tag": "Tunnisteet"
+    "tag": "Tunnisteet",
+    "annotationsFailed": "Merkintöjä ei voitu ladata.",
+    "retry": "Yritä uudelleen"
   },
   "StatisticsPanel": {
     "title": "Tilastot",
@@ -220,7 +224,10 @@
     "loading": "ladataan...",
     "loadingEllipsis": "Ladataan...",
     "untitledResource": "Nimetön resurssi",
-    "noText": "Ei tekstiä"
+    "noText": "Ei tekstiä",
+    "incomingReferencesFailed": "Saapuvia viitteitä ei voitu ladata.",
+    "retry": "Yritä uudelleen",
+    "entityTypesFailed": "Entiteettityyppejä ei voitu ladata."
   },
   "KeyboardShortcuts": {
     "title": "Pikanäppäimet",

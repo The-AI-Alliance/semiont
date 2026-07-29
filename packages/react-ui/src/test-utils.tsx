@@ -81,6 +81,7 @@ function createFakeBrowserForTests(
   const sessionActivating$ = new BehaviorSubject<boolean>(false);
   const identityToken$ = new BehaviorSubject<null>(null);
   const openResources$ = new BehaviorSubject<any[]>([]);
+  const lastViewedResource$ = new BehaviorSubject<string | null>(null);
   const kbs$ = new BehaviorSubject<any[]>([]);
   const activeKbId$ = new BehaviorSubject<string | null>(null);
   const error$ = new BehaviorSubject<never>(null as never);
@@ -93,6 +94,7 @@ function createFakeBrowserForTests(
     sessionActivating$,
     identityToken$,
     openResources$,
+    lastViewedResource$,
     kbs$,
     activeKbId$,
     error$,
@@ -107,6 +109,7 @@ function createFakeBrowserForTests(
     removeOpenResource: vi.fn(),
     updateOpenResourceName: vi.fn(),
     reorderOpenResources: vi.fn(),
+    setLastViewedResource: vi.fn(),
     dispose: vi.fn(async () => {}),
     emit: (channel: any, payload: any) => shellBus.get(channel).next(payload),
     on: (channel: any, handler: any) => {
@@ -305,6 +308,7 @@ export function createMockKnowledgeBaseSession(overrides: {
     kbs$: new BehaviorSubject<unknown[]>([]),
     activeKbId$: new BehaviorSubject<string | null>(null),
     openResources$: new BehaviorSubject<unknown[]>([]),
+    lastViewedResource$: new BehaviorSubject<string | null>(null),
     identityToken$: new BehaviorSubject<string | null>(null),
     error$: new BehaviorSubject<unknown>(null),
     addKb: vi.fn(),
@@ -318,6 +322,7 @@ export function createMockKnowledgeBaseSession(overrides: {
     removeOpenResource: vi.fn(),
     updateOpenResourceName: vi.fn(),
     reorderOpenResources: vi.fn(),
+    setLastViewedResource: vi.fn(),
     dispose: vi.fn(async () => {}),
     // App-scoped bus stubs (post-shell-state-unit refactor). Minimal so
     // useEventSubscription(s) can register without exploding.

@@ -195,6 +195,38 @@ describe('SemiontSession — refresh', () => {
   });
 });
 
+describe('SemiontSession — instance identity', () => {
+  // `kb.id` says WHICH knowledge base; `session.id` says WHICH LIVE SESSION
+  // of it. Consumers that bind derived state to a session (React state units
+  // keyed on it) need the second: `signIn` on an already-active KB disposes
+  // and reconstructs the session under an unchanged `kb.id`, and anything
+  // keyed on `kb.id` alone would keep pointing at the disposed client.
+  // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+
+  it('gives every session a distinct id, including successive sessions for the SAME kb', async () => {
+    const first = newSession();
+    const second = newSession();
+    await Promise.all([first.ready, second.ready]);
+
+    expect(first.kb.id).toBe(second.kb.id);
+    expect(typeof first.id).toBe('string');
+    expect(first.id).not.toBe('');
+    expect(first.id).not.toBe(second.id);
+
+    await first.dispose();
+    await second.dispose();
+  });
+
+  it('id is stable across the session lifetime, including after dispose', async () => {
+    const session = newSession();
+    await session.ready;
+    const atStart = session.id;
+
+    await session.dispose();
+    expect(session.id).toBe(atStart);
+  });
+});
+
 describe('SemiontSession — dispose', () => {
   it('completes subjects and calls client.dispose on dispose', async () => {
     const session = newSession();

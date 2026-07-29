@@ -251,7 +251,9 @@
     "noResultsFound": "Tuloksia ei löytynyt haulle \"{{query}}\". Näytetään viimeisimmät resurssit.",
     "noResourcesAvailable": "Resursseja ei ole saatavilla. Luo ensimmäinen asiakirjasi aloittaaksesi.",
     "composeFirstResource": "Luo ensimmäinen resurssi",
-    "loadingKnowledgeBase": "Ladataan tietokantaa..."
+    "loadingKnowledgeBase": "Ladataan tietokantaa...",
+    "recentFailed": "Resursseja ei voitu ladata.",
+    "retry": "Yritä uudelleen"
   },
   "Compose": {
     "title": "Uusi resurssi",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Syötä uusi entiteettitunniste...",
     "adding": "Lisätään...",
     "addTag": "Lisää tunniste",
-    "errorFailedToAdd": "Tunnisteen lisääminen epäonnistui"
+    "errorFailedToAdd": "Tunnisteen lisääminen epäonnistui",
+    "loadFailed": "Entiteettityyppejä ei voitu ladata.",
+    "retry": "Yritä uudelleen"
   },
   "ModerateTagSchemas": {
     "loading": "Ladataan...",

@@ -251,7 +251,9 @@
     "noResultsFound": "No results found for \"{{query}}\". Showing recent resources instead.",
     "noResourcesAvailable": "No resources available. Create your first document to get started.",
     "composeFirstResource": "Compose First Resource",
-    "loadingKnowledgeBase": "Loading knowledge base..."
+    "loadingKnowledgeBase": "Loading knowledge base...",
+    "recentFailed": "Could not load resources.",
+    "retry": "Try again"
   },
   "KnowledgeBasePanel": {
     "title": "Knowledge Bases",
@@ -403,7 +405,9 @@
     "inputPlaceholder": "Enter new entity tag...",
     "adding": "Adding...",
     "addTag": "Add Tag",
-    "errorFailedToAdd": "Failed to add tag"
+    "errorFailedToAdd": "Failed to add tag",
+    "loadFailed": "Could not load entity types.",
+    "retry": "Try again"
   },
   "ModerateTagSchemas": {
     "loading": "Loading...",

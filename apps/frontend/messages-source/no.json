@@ -251,7 +251,9 @@
     "noResultsFound": "Ingen resultater funnet for «{{query}}». Viser nylige ressurser i stedet.",
     "noResourcesAvailable": "Ingen ressurser tilgjengelig. Opprett ditt første dokument for å komme i gang.",
     "composeFirstResource": "Opprett første ressurs",
-    "loadingKnowledgeBase": "Laster kunnskapsbasen..."
+    "loadingKnowledgeBase": "Laster kunnskapsbasen...",
+    "recentFailed": "Kunne ikke laste ressurser.",
+    "retry": "Prøv igjen"
   },
   "Compose": {
     "title": "Ny ressurs",
@@ -361,7 +363,9 @@
     "inputPlaceholder": "Skriv inn nytt entitetsmerke...",
     "adding": "Legger til...",
     "addTag": "Legg til merke",
-    "errorFailedToAdd": "Kunne ikke legge til merke"
+    "errorFailedToAdd": "Kunne ikke legge til merke",
+    "loadFailed": "Kunne ikke laste entitetstyper.",
+    "retry": "Prøv igjen"
   },
   "ModerateTagSchemas": {
     "loading": "Laster...",
