@@ -126,7 +126,7 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
 
     let rig = buildRig(storage, { gated });
     // Warm A so the persisted doc exists (mirrors "resource was open before").
-    rig.cacheA.observe(KEY);
+    rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
     rig.resolvers.shift()!({ upTo: serverSeq });
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
 
@@ -159,7 +159,7 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
     // pending save — a crash does not), kill its timers, rebuild, resume.
     vi.clearAllTimers();
     rig = buildRig(storage, { gated });
-    rig.cacheA.observe(KEY);
+    rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
     // Replay exists ONLY when a bookmark was persisted — a connect with no
     // `Last-Event-ID` is live-only and the server replays nothing. (An
     // absent bookmark used to be modelled as "replay from 1": backwards,
@@ -183,7 +183,7 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
   it('K1 (fix-b keystone): a bystander write while A is mid-refetch does NOT flush the bookmark; the next quiet write does', async () => {
     const storage = new InMemorySessionStorage();
     const rig = buildRig(storage);
-    rig.cacheA.observe(KEY);
+    rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
     rig.resolvers.shift()!({ upTo: 0 });
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
 

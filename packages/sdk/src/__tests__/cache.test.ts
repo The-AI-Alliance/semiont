@@ -413,14 +413,28 @@ describe('Cache<K, V>', () => {
     const exhaust = () =>
       vi.fn().mockRejectedValueOnce(new Error('lost')).mockRejectedValueOnce(new Error('lost'));
 
-    it('replays the failure to a subscriber attaching AFTER exhaustion (held observable, no observe() call)', async () => {
-      const cache = createCache<string, string>(exhaust());
-      const obs = cache.observe('k'); // starts the chain; hold the observable
-      await flush(); // chain exhausts with no subscriber attached
+    it('a subscriber attaching AFTER exhaustion RECOVERS — marker cleared, fresh chain, no stale replay (D3)', async () => {
+      // CACHE-CONTRACT Phase 2 flipped this pin: under subscribe-time
+      // semantics, ARRIVING at a failed key is what the recovery comment
+      // always promised remounts — the marker clears and a fresh chain runs.
+      // Subscribers present AT exhaustion still error via the hot push
+      // (previous test); nobody is ever silently pending (L1).
+      const fetchFn = exhaust();
+      const cache = createCache<string, string>(fetchFn);
+      const obs = cache.observe('k');
+
+      const firstErrors: unknown[] = [];
+      obs.subscribe({ next: () => {}, error: (e) => firstErrors.push(e) });
+      await flush(); // chain exhausts → the attached subscriber errors (hot push)
+      expect(firstErrors).toHaveLength(1);
+
+      fetchFn.mockResolvedValue('recovered');
+      const seen: Array<string | undefined> = [];
       const errors: unknown[] = [];
-      obs.subscribe({ next: () => {}, error: (e) => errors.push(e) });
-      expect(errors).toHaveLength(1);
-      expect((errors[0] as Error).message).toBe('lost');
+      obs.subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
+      await flush();
+      expect(errors).toEqual([]); // no stale replay
+      expect(seen[seen.length - 1]).toBe('recovered'); // the fresh chain delivered
     });
 
     it('observe() after exhaustion clears the marker first: the new subscription waits on the fresh chain, no stale error', async () => {
@@ -462,17 +476,19 @@ describe('Cache<K, V>', () => {
       expect(v).toBe('written'); // no error replay — the write cleared it
     });
 
-    it('a fetch() success while the marker is set clears it for future subscribers', async () => {
+    it('a fetch() success while the marker is set clears it — a later subscriber serves the value, no refetch', async () => {
       const fetchFn = exhaust().mockResolvedValueOnce('v3');
       const cache = createCache<string, string>(fetchFn);
-      const obs = cache.observe('k'); // chain started; hold the observable
+      const obs = cache.observe('k');
+      obs.subscribe({ next: () => {}, error: () => {} }); // subscription starts the chain
       await flush(); // exhausted, marker set
-      await expect(cache.fetch('k')).resolves.toBe('v3'); // await path succeeds
+      await expect(cache.fetch('k')).resolves.toBe('v3'); // await path succeeds → marker cleared
       const errors: unknown[] = [];
       const seen: Array<string | undefined> = [];
       obs.subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
-      expect(errors).toEqual([]); // success cleared the marker — no replay
-      expect(seen[seen.length - 1]).toBe('v3');
+      expect(errors).toEqual([]); // marker gone — no error, and (store populated)
+      expect(seen[seen.length - 1]).toBe('v3'); // …no fresh chain either: the value serves
+      expect(fetchFn).toHaveBeenCalledTimes(3); // 2 exhaust + 1 fetch(); the late subscribe fetched nothing
     });
   });
 

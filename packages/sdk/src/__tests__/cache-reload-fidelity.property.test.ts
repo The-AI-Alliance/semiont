@@ -132,7 +132,7 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
 
     let rig = buildRig(storage);
     // Warm A so a persisted document exists ("the resource was already open").
-    rig.cacheA.observe(KEY);
+    rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
     rig.resolvers.shift()!({ upTo: serverSeq });
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
 
@@ -172,7 +172,7 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
     // storage and resumes.
     vi.clearAllTimers();
     rig = buildRig(storage);
-    rig.cacheA.observe(KEY);
+    rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
     // Replay exists ONLY when a bookmark was persisted. The transport sends
     // `Last-Event-ID` only if it loaded one (`actor-state-unit.ts`: "fresh
     // connections send no header"), and a connect without it gets a
@@ -277,7 +277,7 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
     // Cold baseline: same server truth, empty storage, must fetch.
     const coldStorage = new InMemorySessionStorage();
     const cold = buildRig(coldStorage);
-    cold.cacheA.observe(KEY);
+    cold.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
     while (cold.resolvers.length > 0) cold.resolvers.shift()!({ upTo: warm.serverSeq });
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
     const coldRendered = cold.cacheA.get(KEY)?.upTo ?? 0;

@@ -87,28 +87,28 @@ describe('StreamObservable', () => {
 });
 
 describe('CacheObservable', () => {
-  it('await skips initial undefined and resolves to the first defined value', async () => {
+  it('fresh() (no fetch action) skips initial undefined and resolves to the first defined value', async () => {
     const cache = new CacheObservable<string>((subscriber) => {
       subscriber.next(undefined);
       subscriber.next(undefined);
       subscriber.next('loaded');
     });
-    const result = await cache;
+    const result = await cache.fresh();
     expect(result).toBe('loaded');
   });
 
-  it('await resolves immediately when the value is already present', async () => {
+  it('fresh() (no fetch action) resolves immediately when the value is already present', async () => {
     const cache = new CacheObservable<number>((subscriber) => {
       subscriber.next(42);
     });
-    expect(await cache).toBe(42);
+    expect(await cache.fresh()).toBe(42);
   });
 
-  it('await rejects when the source errors before producing a value', async () => {
+  it('fresh() (no fetch action) rejects when the source errors before producing a value', async () => {
     const cache = new CacheObservable<string>((subscriber) => {
       subscriber.error(new Error('fetch failed'));
     });
-    await expect(cache).rejects.toThrow('fetch failed');
+    await expect(cache.fresh()).rejects.toThrow('fetch failed');
   });
 
   it('subscribe yields every emission including the loading undefined', async () => {
@@ -144,7 +144,7 @@ describe('CacheObservable', () => {
     });
     const wrapped = CacheObservable.from(source);
     expect(wrapped).toBeInstanceOf(CacheObservable);
-    expect(await wrapped).toBe('hello');
+    expect(await wrapped.fresh()).toBe('hello');
   });
 });
 

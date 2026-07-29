@@ -52,16 +52,13 @@
 
 import {
   BehaviorSubject,
-  EMPTY,
   Observable,
   Subject,
-  defer,
   distinctUntilChanged,
   filter,
   map,
   merge,
   skip,
-  throwError,
 } from 'rxjs';
 
 /**
@@ -169,9 +166,11 @@ export function createCache<K, V>(
    * B15 — terminal-failure markers for VALUE-LESS keys. Set when the B14
    * retry also fails and the store holds nothing to serve; delivered to that
    * key's observers as an error notification — pushed via `failure$` to
-   * subscribers attached at exhaustion time, replayed via a subscribe-time
-   * `defer` to later ones. Cleared by observe()/invalidate()/set()/remove()
-   * and by any fetch success, so the error state is always retriable.
+   * subscribers attached at exhaustion time. A LATER subscriber clears the
+   * marker and starts a fresh chain instead of replaying the stale error
+   * (D3 subscribe-time recovery). Also cleared by invalidate()/set()/
+   * remove() and by any fetch success, so the error state is always
+   * retriable.
    */
   const failures = new Map<K, Error>();
   const failure$ = new Subject<{ key: K; error: Error }>();
@@ -321,37 +320,10 @@ export function createCache<K, V>(
 
   return {
     observe(key: K): Observable<V | undefined> {
-      if (disposed) {
-        // B16: the store is completed, so any per-key observable (memoized
-        // or fresh) completes its subscribers immediately — just don't
-        // issue a fetch for a client that no longer exists.
-      } else if (failures.has(key)) {
-        // B15 recovery: an observer acting on a failed key clears the marker
-        // and starts a fresh attempt chain — a hook remount recovers instead
-        // of replaying the stale error.
-        failures.delete(key);
-        runFetchSWR(key);
-      } else if (rehydrated.has(key)) {
-        // B18 — first observation of a restored-from-disk value: serve it
-        // immediately (it is already in the store, so subscribers paint with
-        // no `undefined` flash — B17's actual win is preserved) AND
-        // revalidate in the background, rendering the fresher on arrival.
-        // `runFetch` clears the mark, so this costs at most one revalidation
-        // CHAIN per rehydrated key per session — one request, plus B14's single
-        // bounded retry if it fails; thereafter B2 applies as usual. A failed
-        // chain keeps the persisted value visible (B6) — never worse than not
-        // revalidating at all.
-        runFetchSWR(key);
-      } else if (!store$.value.has(key) && !inflight.has(key)) {
-        // Subscribe path: fire-and-forget, swallow failures so a subscriber
-        // stays at its last value (B6); one bounded retry (B14). The
-        // awaiter's `fetch` surfaces failures instead.
-        runFetchSWR(key);
-      }
       // B4: return a stable Observable per key.
       let obs = obsCache.get(key);
       if (!obs) {
-        obs = merge(
+        const inner = merge(
           store$.pipe(
             map((m) => m.get(key)),
             distinctUntilChanged(),
@@ -363,13 +335,50 @@ export function createCache<K, V>(
             filter((f) => f.key === key),
             map((f): V | undefined => { throw f.error; }),
           ),
-          // B15 replay: a subscriber attaching AFTER the exhaustion moment
-          // must see the failure too (the push above is hot and gone).
-          defer(() => {
-            const error = failures.get(key);
-            return error ? throwError(() => error) : EMPTY;
-          }),
         );
+        // D3 (CACHE-CONTRACT, settled 2026-07-29): the fetch decision runs
+        // per SUBSCRIPTION, not per accessor call — calling an accessor is
+        // pure (render-safe); the effect belongs to the observer that will
+        // see its outcome. Every branch is idempotent under concurrent
+        // subscribers (`inflight`, marker deletion), so N subscribers cost
+        // one chain, same as before.
+        obs = new Observable<V | undefined>((subscriber) => {
+          if (disposed) {
+            // B16: the store is completed, so the inner observable completes
+            // subscribers immediately — just don't issue a fetch for a
+            // client that no longer exists.
+          } else if (failures.has(key)) {
+            // B15 recovery: an observer ARRIVING at a failed key clears the
+            // marker and starts a fresh attempt chain. Under subscribe-time
+            // semantics this subsumes the old "replay the stale error to
+            // late subscribers" branch: a late subscriber gets the fresh
+            // chain (value, or a NEW B15 error on exhaustion) — the recovery
+            // the original B15 comment promised remounts, now delivered on
+            // every remount rather than only ones that re-called the
+            // accessor. Current subscribers still see failures via the hot
+            // B15 push above.
+            failures.delete(key);
+            runFetchSWR(key);
+          } else if (rehydrated.has(key)) {
+            // B18 — first observation of a restored-from-disk value: serve it
+            // immediately (it is already in the store, so subscribers paint
+            // with no `undefined` flash — B17's actual win is preserved) AND
+            // revalidate in the background, rendering the fresher on arrival.
+            // `runFetch` clears the mark, so this costs at most one
+            // revalidation CHAIN per rehydrated key per session — one
+            // request, plus B14's single bounded retry if it fails;
+            // thereafter B2 applies as usual. A failed chain keeps the
+            // persisted value visible (B6) — never worse than not
+            // revalidating at all.
+            runFetchSWR(key);
+          } else if (!store$.value.has(key) && !inflight.has(key)) {
+            // Subscribe path: fire-and-forget, swallow failures so a
+            // subscriber stays at its last value (B6); one bounded retry
+            // (B14). The awaiter's `fetch` surfaces failures instead.
+            runFetchSWR(key);
+          }
+          return inner.subscribe(subscriber);
+        });
         obsCache.set(key, obs);
       }
       return obs;

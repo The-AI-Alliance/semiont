@@ -61,7 +61,7 @@ const noopContent = {
   dispose: () => {},
 } as unknown as IContentTransport;
 
-describe('browse read — one-shot await is fresh (#847 Phase 2)', () => {
+describe('browse read — the one-shot .fresh() read is fresh (#847; D2 made it explicit)', () => {
   let bus: EventBus;
   let browse: BrowseNamespace;
   const rId: ResourceId = makeResourceId('res-1');
@@ -76,16 +76,16 @@ describe('browse read — one-shot await is fresh (#847 Phase 2)', () => {
   });
 
   it('a re-read reflects the latest backend value (not the stale memo)', async () => {
-    const first = await browse.annotations(rId);
+    const first = await browse.annotations(rId).fresh();
     expect(first[0]!.id).toBe('a1');
 
     // Simulates read → write → read: the backend now returns a newer value.
-    const second = await browse.annotations(rId);
+    const second = await browse.annotations(rId).fresh();
     expect(second[0]!.id).toBe('a2'); // fresh, not the cached 'a1'
   });
 
   it('still resolves the first read', async () => {
-    const v = await browse.annotations(rId);
+    const v = await browse.annotations(rId).fresh();
     expect(v).toHaveLength(1);
   });
 });

@@ -814,7 +814,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
           silentChannels: ['browse:agents-requested'],
           busTimeoutMs: 60,
         });
-        await expect(browse.agents()).rejects.toMatchObject({ code: 'bus.timeout' });
+        await expect(browse.agents().fresh()).rejects.toMatchObject({ code: 'bus.timeout' });
       } finally {
         warnSpy.mockRestore();
       }

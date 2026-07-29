@@ -37,14 +37,15 @@ export type McpResult = { content: Array<{ type: 'text'; text: string }>; isErro
  * unchanged. Naming the slice keeps the dependency honest — this is the whole
  * of the SDK surface the MCP server touches — and lets tests supply a stub
  * without casting. Return types are the loosest thing the handlers actually
- * rely on (`PromiseLike` where they await, `Observable` where they pipe), so a
- * stub returns a plain promise or `of(...)`.
+ * rely on (`{ fresh(): Promise<T> }` for one-shot reads — CACHE-CONTRACT D2,
+ * the thenable is dead — `Observable` where they pipe), so a stub returns a
+ * `{ fresh }` handle or `of(...)`.
  */
 export interface McpClient {
   browse: {
-    resource(resourceId: ResourceId): PromiseLike<ResourceDescriptor>;
-    resources(filters: { limit?: number; archived?: boolean; search?: string }): PromiseLike<ResourceDescriptor[]>;
-    annotations(resourceId: ResourceId): PromiseLike<Annotation[]>;
+    resource(resourceId: ResourceId): { fresh(): Promise<ResourceDescriptor> };
+    resources(filters: { limit?: number; archived?: boolean; search?: string }): { fresh(): Promise<ResourceDescriptor[]> };
+    annotations(resourceId: ResourceId): { fresh(): Promise<Annotation[]> };
   };
   mark: {
     annotation(input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }>;
@@ -85,7 +86,7 @@ function gatheredContext(final: GatherAnnotationProgress): GatheredContext {
 // ── Browse ──────────────────────────────────────────────────────────────────
 
 export async function browseResource(semiont: McpClient, args: any): Promise<McpResult> {
-  const data = await semiont.browse.resource(resourceId(args?.id));
+  const data = await semiont.browse.resource(resourceId(args?.id)).fresh();
   return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
 }
 
@@ -94,7 +95,7 @@ export async function browseResources(semiont: McpClient, args: any): Promise<Mc
   if (args?.limit !== undefined) filters.limit = args.limit;
   if (args?.search !== undefined) filters.search = args.search;
   filters.archived = args?.archived ?? false;
-  const resources = await semiont.browse.resources(filters);
+  const resources = await semiont.browse.resources(filters).fresh();
   return {
     content: [{
       type: 'text',
@@ -104,7 +105,7 @@ export async function browseResources(semiont: McpClient, args: any): Promise<Mc
 }
 
 export async function browseHighlights(semiont: McpClient, args: any): Promise<McpResult> {
-  const annotations = await semiont.browse.annotations(resourceId(args?.resourceId));
+  const annotations = await semiont.browse.annotations(resourceId(args?.resourceId)).fresh();
   const highlights = annotations.filter(a => a.motivation === 'highlighting');
   return {
     content: [{
@@ -121,7 +122,7 @@ export async function browseHighlights(semiont: McpClient, args: any): Promise<M
 }
 
 export async function browseReferences(semiont: McpClient, args: any): Promise<McpResult> {
-  const annotations = await semiont.browse.annotations(resourceId(args?.resourceId));
+  const annotations = await semiont.browse.annotations(resourceId(args?.resourceId)).fresh();
   const references = annotations.filter(a => a.motivation === 'linking');
   return {
     content: [{

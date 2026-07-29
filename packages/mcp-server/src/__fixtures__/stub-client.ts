@@ -109,9 +109,9 @@ export const GENERATION_COMPLETE: YieldGenerationEvent = {
  */
 export function createStub() {
   const browse = {
-    resource: vi.fn<(id: ResourceId) => Promise<ResourceDescriptor>>(async () => RESOURCE),
-    resources: vi.fn<(filters: { limit?: number; archived?: boolean; search?: string }) => Promise<ResourceDescriptor[]>>(async () => [RESOURCE]),
-    annotations: vi.fn<(id: ResourceId) => Promise<Annotation[]>>(async () => [HIGHLIGHT, BOUND_REFERENCE, UNBOUND_REFERENCE]),
+    resource: vi.fn<(id: ResourceId) => { fresh(): Promise<ResourceDescriptor> }>(() => ({ fresh: async () => RESOURCE })),
+    resources: vi.fn<(filters: { limit?: number; archived?: boolean; search?: string }) => { fresh(): Promise<ResourceDescriptor[]> }>(() => ({ fresh: async () => [RESOURCE] })),
+    annotations: vi.fn<(id: ResourceId) => { fresh(): Promise<Annotation[]> }>(() => ({ fresh: async () => [HIGHLIGHT, BOUND_REFERENCE, UNBOUND_REFERENCE] })),
   };
   const mark = {
     annotation: vi.fn<(input: CreateAnnotationInput) => Promise<{ annotationId: AnnotationId }>>(

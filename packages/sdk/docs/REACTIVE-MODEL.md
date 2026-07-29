@@ -26,11 +26,11 @@ Everything reactive in the SDK is an RxJS Observable:
 
 Observable is the right primitive for all of these. Promise has no "second value." The cache primitive behind Browse — multicast, per-key dedup, stale-while-revalidate — composes cleanly only because the substrate supports the operators that make it possible. Forcing Promise here would require parallel `observe()` / `get()` methods on every namespace and would lose the collaboration story entirely.
 
-## The sugar: PromiseLike on top
+## The sugar: PromiseLike on top — and where it was deliberately removed
 
 A consumer that doesn't care about progress shouldn't have to learn RxJS to use the SDK.
 
-Two Observable subclasses live in [`packages/sdk/src/awaitable.ts`](../src/awaitable.ts). Both extend `Observable<T>` and implement `PromiseLike<T>` via a `then()` method:
+Two Observable subclasses live in [`packages/sdk/src/awaitable.ts`](../src/awaitable.ts). Both extend `Observable<T>`, but only **StreamObservable** is still thenable — `CacheObservable`'s thenable was DELETED (CACHE-CONTRACT D2, 2026-07-29) in favor of an explicit `.fresh()`:
 
 ```ts
 export class StreamObservable<T> extends Observable<T> implements PromiseLike<T> {
@@ -39,22 +39,22 @@ export class StreamObservable<T> extends Observable<T> implements PromiseLike<T>
   }
 }
 
-export class CacheObservable<T> extends Observable<T | undefined> implements PromiseLike<T> {
-  then(onfulfilled, onrejected) {
+export class CacheObservable<T> extends Observable<T | undefined> {
+  fresh(): Promise<T> {
     // Cache-backed: fetch fresh (a re-read reflects writes), reject on failure.
-    if (this.fetchFresh) return this.fetchFresh().then(onfulfilled, onrejected);
+    if (this.fetchFresh) return this.fetchFresh();
     // Non-cache wrapper (no fetch action): resolve to the first non-undefined emission.
-    return firstValueFrom(this.pipe(filter((v) => v !== undefined))).then(onfulfilled, onrejected);
+    return firstValueFrom(this.pipe(filter((v) => v !== undefined)));
   }
 }
 ```
 
-The asymmetric `then()` semantics are deliberate:
+The asymmetric semantics are deliberate — and the asymmetry in SURFACE is too:
 
 - **`StreamObservable.then`** resolves to the **last** value on completion. Bounded progress streams have a final answer — the search result, the generated resource, the assembled context.
-- **`CacheObservable.then`** **fetches a fresh value** (and rejects on failure), so a one-shot `await` — e.g. a script's `read → write → read` — reflects the write rather than serving a stale memo (#847). `.subscribe(...)`, by contrast, is the stale-while-revalidate live view: it emits the cached value (after an initial `undefined`) and re-emits on invalidation. The split is the point — **`await` = "the value now"; `subscribe` = "the value, kept live."** (A `CacheObservable` with no fetch action — a non-cache wrapper — falls back to resolving on the first non-undefined emission.)
+- **`CacheObservable.fresh()`** **fetches a fresh value** (and rejects on failure), so a one-shot read — e.g. a script's `read → write → read` — reflects the write rather than serving a stale memo (#847). `.subscribe(...)`, by contrast, is the stale-while-revalidate live view: it emits the cached value (after an initial `undefined`) and re-emits on invalidation. The split is the point — **`.fresh()` = "the value now, from the wire"; `subscribe` = "the value, kept live."** It is a METHOD, not a thenable, because the thenable was a landmine: `return client.browse.resource(id)` from any `async` function auto-awaited, silently converting a cache read into a network round trip — a refactor that wrapped a call site in `async` changed its transport behavior with zero diff at the call (SDK-DEBT L2). Now `await client.browse.x(...)` does not compile; the network round trip is always spelled `.fresh()`. (A `CacheObservable` with no fetch action — a non-cache wrapper — `fresh()`es to the first non-undefined emission.) Also since 2026-07-29 (D3): calling a browse accessor is PURE — the fetch fires on first subscribe, so accessors are safe to call from render.
 
-The subclass name documents which semantics apply. `.subscribe(...)` works on both — yields the full sequence including loading states or progress events. `.pipe(...)` returns a plain `Observable<T>` and loses the thenable; once you compose with operators you've explicitly opted into RxJS, and `lastValueFrom` from `rxjs` is the right bridge.
+The subclass name documents which semantics apply. `.subscribe(...)` works on both — yields the full sequence including loading states or progress events. `.pipe(...)` returns a plain `Observable<T>` (and, for StreamObservable, loses the thenable); once you compose with operators you've explicitly opted into RxJS, and `lastValueFrom` from `rxjs` is the right bridge.
 
 A third subclass — `UploadObservable` — is shaped specifically for `yield.resource`. Subscribers see the full upload-progress lifecycle (`started` → optional `progress` → `finished`); awaiting resolves to `{ resourceId }` extracted from the `'finished'` event, preserving the awaited shape from before progress events existed.
 

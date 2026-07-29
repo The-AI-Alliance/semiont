@@ -75,7 +75,7 @@ describe('browseResources', () => {
 
   it('says so when a resource carries no entity types', async () => {
     const { client, browse } = createStub();
-    browse.resources.mockResolvedValue([{ ...RESOURCE, entityTypes: undefined }]);
+    browse.resources.mockReturnValue({ fresh: async () => [{ ...RESOURCE, entityTypes: undefined }] });
 
     expect(text(await browseResources(client, {})))
       .toBe('Found 1 resources:\n- The Iliad (res-iliad) — no types');
@@ -94,12 +94,12 @@ describe('browseHighlights', () => {
 
   it('falls back to the annotation id when no quoted text is available', async () => {
     const { client, browse } = createStub();
-    browse.annotations.mockResolvedValue([
+    browse.annotations.mockReturnValue({ fresh: async () => [
       // Whole-resource target: a bare IRI, no selector at all.
       { ...HIGHLIGHT, id: annotationId('anno-whole'), target: 'res-iliad' },
       // Position-only selector, not wrapped in an array.
       { ...HIGHLIGHT, id: annotationId('anno-position'), target: { source: 'res-iliad', selector: { type: 'TextPositionSelector', start: 0, end: 3 } } },
-    ]);
+    ] });
 
     expect(text(await browseHighlights(client, { resourceId: 'res-iliad' })))
       .toBe('Found 2 highlights:\n- anno-whole\n- anno-position');
@@ -120,9 +120,9 @@ describe('browseReferences', () => {
 
   it('falls back to the annotation id when the target is a bare IRI', async () => {
     const { client, browse } = createStub();
-    browse.annotations.mockResolvedValue([
+    browse.annotations.mockReturnValue({ fresh: async () => [
       { ...BOUND_REFERENCE, id: annotationId('anno-whole'), target: 'res-iliad' },
-    ]);
+    ] });
 
     expect(text(await browseReferences(client, { resourceId: 'res-iliad' })))
       .toBe('Found 1 references:\n- anno-whole → res-achilles');
@@ -480,7 +480,7 @@ describe('callTool', () => {
 
   it('turns a handler failure into an error result rather than throwing', async () => {
     const { client, browse } = createStub();
-    browse.resource.mockRejectedValue(new Error('connection refused'));
+    browse.resource.mockReturnValue({ fresh: () => Promise.reject(new Error('connection refused')) });
 
     const result = await callTool(client, 'browse_resource', { id: 'res-iliad' });
 
@@ -490,7 +490,7 @@ describe('callTool', () => {
 
   it('handles a rejection that is not an Error', async () => {
     const { client, browse } = createStub();
-    browse.resource.mockRejectedValue('just a string');
+    browse.resource.mockReturnValue({ fresh: () => Promise.reject('just a string') });
 
     const result = await callTool(client, 'browse_resource', { id: 'res-iliad' });
 

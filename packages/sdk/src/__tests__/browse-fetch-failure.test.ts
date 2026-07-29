@@ -114,11 +114,11 @@ describe('browse read — await semantics on fetch failure (Link 3)', () => {
     bus.destroy();
   });
 
-  it('await rejects when the bus request fails (does not hang)', async () => {
+  it('.fresh() rejects when the bus request fails (does not hang)', async () => {
     // Today the cache swallows the rejection → the await hangs → 'hung' (RED).
     // After the fix the await rejects → 'rejected' (GREEN).
     const outcome = await Promise.race([
-      browse.annotations(rId).then(() => 'resolved', () => 'rejected'),
+      browse.annotations(rId).fresh().then(() => 'resolved', () => 'rejected'),
       delay(250).then(() => 'hung'),
     ]);
 

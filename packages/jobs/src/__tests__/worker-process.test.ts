@@ -100,8 +100,8 @@ function makeFakeSessionAndAdapter() {
         // Detection jobs gate on the resource's media type before
         // fetching content; default to a text resource so the happy
         // paths proceed.
-        resource: vi.fn(async (_rid: string) => ({
-          representations: [{ mediaType: 'text/plain' }],
+        resource: vi.fn((_rid: string) => ({
+          fresh: async () => ({ representations: [{ mediaType: 'text/plain' }] }),
         })),
         resourceContent: vi.fn(async (_rid: string) => 'the content'),
         // PDF detection ('pdf-text-layer') fetches the raw bytes here; the
@@ -460,8 +460,8 @@ describe('handleJob orchestration', () => {
   describe('detection media-type gate', () => {
     it('fails a detection job on a binary resource before fetching content or calling the processor', async () => {
       const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.browse.resource).mockResolvedValue({
-        representations: [{ mediaType: 'application/zip' }],
+      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+        fresh: async () => ({ representations: [{ mediaType: 'application/zip' }] }),
       } as never);
 
       await expect(
@@ -507,8 +507,10 @@ describe('handleJob orchestration', () => {
       arm();
       vi.mocked(extractPdfTextLayer).mockResolvedValue({ text: 'the quick brown fox', items: [] } as never);
       const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.browse.resource).mockResolvedValue({
+      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+        fresh: async () => ({
         representations: [{ mediaType: 'application/pdf' }],
+      }),
       } as never);
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob(jobType));
@@ -529,8 +531,10 @@ describe('handleJob orchestration', () => {
       // result — rather than crashing or running the model on nothing.
       vi.mocked(extractPdfTextLayer).mockResolvedValue(null);
       const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.browse.resource).mockResolvedValue({
+      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+        fresh: async () => ({
         representations: [{ mediaType: 'application/pdf' }],
+      }),
       } as never);
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
@@ -545,8 +549,10 @@ describe('handleJob orchestration', () => {
 
     it('fails a detection job when the resource has no primary representation', async () => {
       const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.browse.resource).mockResolvedValue({
+      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+        fresh: async () => ({
         representations: [],
+      }),
       } as never);
 
       await expect(
@@ -564,8 +570,10 @@ describe('handleJob orchestration', () => {
         result: { commentsFound: 0, commentsCreated: 0 } as never,
       });
       const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.browse.resource).mockResolvedValue({
+      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+        fresh: async () => ({
         representations: [{ mediaType: 'text/x-custom' }],
+      }),
       } as never);
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('comment-annotation'));
