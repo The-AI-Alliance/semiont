@@ -47,9 +47,18 @@ export function trackList<T>(open: () => Observable<T | undefined>, empty: T): {
     subscription = open().subscribe({
       next: (value) => {
         if (error$.getValue() !== null) error$.next(null);
-        // The cache emits `undefined` for a key it has not resolved yet; that
-        // is the loading state, not a value.
-        if (value === undefined) return;
+        // The cache emits `undefined` for a key it has not resolved yet — the
+        // loading state, not a value. It can arrive AFTER a value, too: a
+        // thunk whose chain `switchMap`s to a new cache key emits `undefined`
+        // for that key first (discover does exactly this when the entity-type
+        // filter changes). Re-entering loading is what keeps the pair honest;
+        // otherwise the previous key's rows read as current while a request
+        // is still in flight. `value$` deliberately keeps the last value, so a
+        // view can render stale-with-spinner rather than flashing empty.
+        if (value === undefined) {
+          if (!loading$.getValue()) loading$.next(true);
+          return;
+        }
         value$.next(value);
         if (loading$.getValue()) loading$.next(false);
       },
