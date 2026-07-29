@@ -28,9 +28,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { IContentTransport, ITransport, ResourceId } from '@semiont/core';
+import type { ConnectionState, IContentTransport, ITransport, ResourceId } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -63,7 +63,7 @@ function makeFakeTransport() {
       subjectFor(channel).asObservable(),
     subscribeToResource: () => () => {},
     bridgeInto: () => {},
-    state$: new Subject(),
+    state$: new BehaviorSubject<ConnectionState>('open'),
     errors$: new Subject(),
     dispose: () => {},
   };

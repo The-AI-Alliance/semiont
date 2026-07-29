@@ -6,9 +6,9 @@
  * (equality matchers ignore those, so this pins the key itself).
  */
 import { describe, it, expect } from 'vitest';
-import { Subject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { EventBus, annotationId } from '@semiont/core';
-import type { AnchorRect, IContentTransport, ITransport } from '@semiont/core';
+import type { ConnectionState, AnchorRect, IContentTransport, ITransport } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
 
 function inertTransport(): ITransport {
@@ -18,7 +18,7 @@ function inertTransport(): ITransport {
     stream: () => new Subject().asObservable(),
     subscribeToResource: () => () => {},
     bridgeInto: () => {},
-    state$: new Subject(),
+    state$: new BehaviorSubject<ConnectionState>('open'),
     errors$: new Subject(),
     dispose: () => {},
   } as unknown as ITransport;

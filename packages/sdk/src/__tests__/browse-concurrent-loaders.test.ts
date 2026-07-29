@@ -19,9 +19,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { IContentTransport, ITransport, ResourceId } from '@semiont/core';
+import type { ConnectionState, IContentTransport, ITransport, ResourceId } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
 
 const flush = () => new Promise<void>((r) => setTimeout(r, 0));
@@ -86,7 +86,7 @@ function makeSingleScopeTransport(opts: { failFirstResourceFetchFor?: string } =
     stream: (channel: string): Observable<Record<string, unknown>> => subjectFor(channel).asObservable(),
     subscribeToResource,
     bridgeInto: () => {},
-    state$: new Subject(),
+    state$: new BehaviorSubject<ConnectionState>('open'),
     errors$: new Subject(),
     dispose: () => {},
   };

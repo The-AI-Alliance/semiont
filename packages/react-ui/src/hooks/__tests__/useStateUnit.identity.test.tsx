@@ -22,6 +22,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BehaviorSubject, map } from 'rxjs';
+import type { ConnectionState } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import { type ITransport, type IContentTransport } from '@semiont/core';
 import { BrowseNamespace } from '@semiont/sdk';
@@ -58,7 +59,7 @@ function makeBrowse(answerEntityTypes: string[]) {
     stream: <K extends never>(channel: K) => transportBus.get(channel),
     subscribeToResource: vi.fn().mockReturnValue(() => {}),
     bridgeInto: vi.fn(),
-    state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
+    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     dispose: vi.fn(),
   } as unknown as ITransport;
   const content: IContentTransport = {
@@ -132,7 +133,7 @@ describe('useStateUnit identity seam — stale client references', () => {
         stream: <K extends never>(channel: K) => deferredTransportBus.get(channel),
         subscribeToResource: vi.fn().mockReturnValue(() => {}),
         bridgeInto: vi.fn(),
-        state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
+        state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
         dispose: vi.fn(),
       } as unknown as ITransport;
       const deferredContent: IContentTransport = {
@@ -190,7 +191,7 @@ describe('useStateUnit identity seam — stale client references', () => {
         stream: <K extends never>(channel: K) => transportBus.get(channel),
         subscribeToResource: vi.fn().mockReturnValue(() => {}),
         bridgeInto: vi.fn(),
-        state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
+        state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
         dispose: vi.fn(),
       } as unknown as ITransport;
       const content: IContentTransport = {

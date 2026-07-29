@@ -16,9 +16,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { IContentTransport, ITransport, ResourceId } from '@semiont/core';
+import type { ConnectionState, IContentTransport, ITransport, ResourceId } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
 
 function makeFakeTransport() {
@@ -60,7 +60,7 @@ function makeFakeTransport() {
     stream: (channel: string): Observable<Record<string, unknown>> => subjectFor(channel).asObservable(),
     subscribeToResource,
     bridgeInto: () => {},
-    state$: new Subject(),
+    state$: new BehaviorSubject<ConnectionState>('open'),
     errors$: new Subject(),
     dispose: () => {},
   };
@@ -180,7 +180,7 @@ describe('scope contention degrades to unscoped observation (concurrent-browse-r
       stream: (channel: string): Observable<Record<string, unknown>> => subjectFor(channel).asObservable(),
       subscribeToResource,
       bridgeInto: () => {},
-      state$: new Subject(),
+      state$: new BehaviorSubject<ConnectionState>('open'),
       errors$: new Subject(),
       dispose: () => {},
     };

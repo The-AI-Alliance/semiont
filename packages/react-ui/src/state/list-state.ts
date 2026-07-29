@@ -3,8 +3,12 @@ import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 /**
  * A cache-backed list in its real states.
  *
- * `loading$` is true only until THIS subscription's first value, and never
- * re-enters — so a blocking spinner keyed on it structurally cannot latch.
+ * `loading$` is true only until THIS subscription's first value; once a value
+ * has arrived it never re-enters — even `retry()` routes through
+ * `revalidating$` then — so a blocking spinner keyed on it structurally
+ * cannot latch over rendered rows. The one deliberate exception is BEFORE any
+ * value: `retry()` on a never-loaded list returns to the blocking state,
+ * because there is nothing to render behind a non-blocking indicator.
  * `revalidating$` is the non-blocking sibling: the thunk's chain has moved to
  * a cache key that is not resolved yet (the cache emits `undefined` for it)
  * while `value$` still holds the previous key's rows. Views keep rendering the
@@ -21,7 +25,10 @@ import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
  */
 export interface ListState<T> {
   value$: Observable<T>;
-  /** True until the first value. Never re-enters. */
+  /**
+   * True until the first value. Never re-enters after one — a `retry()`
+   * before any value (nothing to render) is the sole way back in.
+   */
   loading$: Observable<boolean>;
   /** True while a NEW key's fetch is pending behind a stale `value$`. */
   revalidating$: Observable<boolean>;

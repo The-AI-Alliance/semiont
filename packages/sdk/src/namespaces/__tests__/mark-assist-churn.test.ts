@@ -18,9 +18,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { ITransport, ResourceId } from '@semiont/core';
+import type { ConnectionState, ITransport, ResourceId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { JobNamespace } from '../job';
 import type { MarkAssistEvent } from '../types';
@@ -53,7 +53,7 @@ function makeFakeTransport() {
     },
     stream: (channel: string): Observable<Record<string, unknown>> => subjectFor(channel).asObservable(),
     bridgeInto: () => {},
-    state$: new Subject(),
+    state$: new BehaviorSubject<ConnectionState>('open'),
     errors$: new Subject(),
     dispose: () => {},
   };

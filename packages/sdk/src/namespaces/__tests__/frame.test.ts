@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { FrameNamespace } from '../frame';
-import type { ITransport, TagSchema } from '@semiont/core';
+import type { ConnectionState, ITransport, TagSchema } from '@semiont/core';
 
 // command channel → its confirmed-write reply channels
 const REPLY_FOR: Record<string, { ok: string; failed: string }> = {
@@ -60,7 +60,7 @@ function createMockTransport(opts: { fail?: boolean } = {}): {
     stream: vi.fn((ch: string) => subjectFor(ch).asObservable()),
     subscribeToResource: vi.fn().mockReturnValue(() => {}),
     bridgeInto: vi.fn(),
-    state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
+    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     dispose: vi.fn(),
   } as unknown as ITransport;
 

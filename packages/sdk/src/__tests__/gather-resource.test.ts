@@ -10,9 +10,9 @@
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { ITransport, EventMap } from '@semiont/core';
+import type { ConnectionState, ITransport, EventMap } from '@semiont/core';
 import { GatherNamespace } from '../namespaces/gather';
 
 function makeTransport() {
@@ -32,7 +32,7 @@ function makeTransport() {
     ),
     subscribeToResource: () => () => {},
     bridgeInto: () => {},
-    state$: new Subject(),
+    state$: new BehaviorSubject<ConnectionState>('open'),
     errors$: new Subject(),
     dispose: () => {},
   } as unknown as ITransport;

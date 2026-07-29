@@ -25,8 +25,9 @@ export function workerBusOverEventBus(eventBus: EventBus): WorkerBus {
     // In-process delivery is synchronous — there is no attach window to
     // lose a reply in, so `'open'` is the true state, not a stub. Post-
     // destroy use is guarded upstream: `eventBus.get()` throws on a
-    // destroyed bus before any gate could matter.
-    state$: new BehaviorSubject<ConnectionState>('open'),
+    // destroyed bus before any gate could matter. Published read-only
+    // (X1): the subject's mutators must not leak to consumers.
+    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
 
     emit: async (channel: string, payload: Record<string, unknown>): Promise<void> => {
       eventBus.get(channel as EventName).next(payload as EventMap[EventName]);

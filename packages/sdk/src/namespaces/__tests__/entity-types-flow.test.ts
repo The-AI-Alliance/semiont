@@ -28,7 +28,7 @@ import type {
   UserId,
 } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
-import type { ITransport, IContentTransport } from '@semiont/core';
+import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 
@@ -151,7 +151,7 @@ function createHarness(): Harness {
     stream: <K extends never>(channel: K) => transportBus.get(channel),
     subscribeToResource: vi.fn().mockReturnValue(() => {}),
     bridgeInto: vi.fn(),
-    state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
+    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     dispose: vi.fn(),
   } as unknown as ITransport;
 
