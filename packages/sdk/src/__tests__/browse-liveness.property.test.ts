@@ -39,7 +39,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { filter } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { IContentTransport, ITransport } from '@semiont/core';
+import type { IContentTransport } from '@semiont/core';
 import { assertLivenessAxioms, FaultyTransport } from '@semiont/core/testing';
 import { BrowseNamespace } from '../namespaces/browse';
 
@@ -114,7 +114,7 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
           warnSpy.mockClear(); // per-run L4 window
           const bus = new EventBus();
           const browse = new BrowseNamespace(
-            transport as unknown as ITransport,
+            transport,
             bus,
             noopContent,
             { busTimeoutMs: TIMEOUT_MS },
@@ -190,7 +190,7 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
         setup: async (transport: FaultyTransport) => {
           const bus = new EventBus();
           const browse = new BrowseNamespace(
-            transport as unknown as ITransport,
+            transport,
             bus,
             noopContent,
             { busTimeoutMs: TIMEOUT_MS },
@@ -224,7 +224,7 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
     const transport = new FaultyTransport({ schedule: [{ kind: 'drop-reply' }], scopeModel: 'multi', makeResponse });
     const bus = new EventBus();
     const browse = new BrowseNamespace(
-      transport as unknown as ITransport, bus, noopContent, { busTimeoutMs: TIMEOUT_MS },
+      transport, bus, noopContent, { busTimeoutMs: TIMEOUT_MS },
     );
 
     try {
@@ -253,7 +253,7 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
     const transport = new FaultyTransport({ makeResponse });
     const bus = new EventBus();
     const browse = new BrowseNamespace(
-      transport as unknown as ITransport, bus, noopContent, { busTimeoutMs: TIMEOUT_MS },
+      transport, bus, noopContent, { busTimeoutMs: TIMEOUT_MS },
     );
 
     try {

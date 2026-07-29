@@ -41,15 +41,49 @@ function isExternal(id) {
   return false;
 }
 
+// The testing entry must IMPORT the shared surface (`EventBus`, `ITransport`,
+// `StateUnit`, …) from '@semiont/core' rather than inline private copies of
+// it. Inlined copies of classes with private members (`EventBus`) are
+// NOMINALLY distinct types, so a `FaultyTransport` typed against the inlined
+// `EventBus` was not assignable where consumers hold index types — every
+// consumer needed `as unknown as ITransport` (the sdk liveness suites carried
+// exactly that; .plans/SDK-TESTING-DOUBLE.md, found during Phase 1). Only the
+// shards DECLARED in testing stay bundled; everything else is externalized
+// and rewritten to the package self-reference.
+const TESTING_OWN_SHARDS = new Set([
+  'testing',
+  'faulty-transport',
+  'liveness-axioms',
+  'state-unit-axioms',
+]);
+
+function testingSelfExternal() {
+  return {
+    name: 'testing-self-external',
+    resolveId(source, importer) {
+      if (!importer || !source.startsWith('.')) return null;
+      const base = resolve(dirname(importer), source)
+        .replace(/\.d\.ts$/, '')
+        .split('/')
+        .pop();
+      if (TESTING_OWN_SHARDS.has(base)) return null;
+      return { id: '@semiont/core', external: true };
+    },
+  };
+}
+
 const entries = [
   { input: 'dist-types/index.d.ts', file: 'dist/index.d.ts' },
   { input: 'dist-types/config/node-config-loader.d.ts', file: 'dist/config/node-config-loader.d.ts' },
   { input: 'dist-types/testing.d.ts', file: 'dist/testing.d.ts' },
 ];
 
-export default entries.map(({ input, file }) => ({
-  input,
-  output: { file, format: 'es' },
-  plugins: [dts()],
-  external: isExternal,
-}));
+export default entries.map(({ input, file }) => {
+  const isTesting = input.endsWith('testing.d.ts');
+  return {
+    input,
+    output: { file, format: 'es' },
+    plugins: isTesting ? [testingSelfExternal(), dts()] : [dts()],
+    external: isExternal,
+  };
+});

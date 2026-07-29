@@ -16,8 +16,8 @@
  * Theory C (some handler overwrites the value).
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { BehaviorSubject, filter, firstValueFrom, map } from 'rxjs';
+import { describe, it, expect } from 'vitest';
+import { filter, firstValueFrom, map } from 'rxjs';
 import { EventBus, annotationId, resourceId as makeResourceId } from '@semiont/core';
 import type {
   EventMap,
@@ -27,8 +27,8 @@ import type {
   StoredEvent,
   UserId,
 } from '@semiont/core';
-import { BrowseNamespace } from '../browse';
-import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
+import type { BrowseNamespace } from '../browse';
+import { createTestClient } from '../../testing';
 
 import type { Annotation } from '@semiont/core';
 
@@ -111,62 +111,30 @@ function fakeMarkUnarchived(rId: ResourceId): StoredEvent<EventOfType<'mark:unar
 interface Harness {
   browse: BrowseNamespace;
   eventBus: EventBus;
-  emit: ReturnType<typeof vi.fn>;
 }
 
+// Real client over the scriptable transport (SDK-TESTING-DOUBLE.md Phase 3):
+// this file's original hand-rolled emit-switch was one of the mock-subject
+// harnesses the double retires — the replies below ride the REAL cache, the
+// REAL busRequest, and the client's own bus.
 function createHarness(): Harness {
-  const transportBus = new EventBus();
-
-  const emit = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
-    const correlationId = payload.correlationId as string;
-    let resultChannel: string;
-    let response: Record<string, unknown>;
-    switch (channel) {
-      case 'browse:entity-types-requested':
-        resultChannel = 'browse:entity-types-result';
-        response = { entityTypes: NINE_TYPES };
-        break;
-      case 'browse:annotations-requested':
-        resultChannel = 'browse:annotations-result';
-        response = { annotations: [], total: 0 };
-        break;
-      case 'browse:events-requested':
-        resultChannel = 'browse:events-result';
-        response = { events: [], total: 0, resourceId: 'res-1' };
-        break;
-      default:
-        return;
-    }
-    queueMicrotask(() => {
-      (transportBus.get(resultChannel as never) as { next(v: unknown): void }).next({ correlationId, response });
-    });
-  });
-
-  const transport = {
-    emit,
-    on: <K extends never>(channel: K, handler: (p: never) => void) => {
-      const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
-      return () => sub.unsubscribe();
+  const { client } = createTestClient({
+    transport: {
+      makeResponse: (op) => {
+        switch (op) {
+          case 'browse:entity-types-requested':
+            return { entityTypes: NINE_TYPES };
+          case 'browse:annotations-requested':
+            return { annotations: [], total: 0 };
+          case 'browse:events-requested':
+            return { events: [], total: 0, resourceId: 'res-1' };
+          default:
+            return {};
+        }
+      },
     },
-    stream: <K extends never>(channel: K) => transportBus.get(channel),
-    subscribeToResource: vi.fn().mockReturnValue(() => {}),
-    bridgeInto: vi.fn(),
-    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    dispose: vi.fn(),
-  } as unknown as ITransport;
-
-  const content: IContentTransport = {
-    putBinary: vi.fn(),
-    getBinary: vi.fn(),
-    getBinaryStream: vi.fn(),
-    getResourceGraph: vi.fn(),
-    dispose: vi.fn(),
-  };
-
-  const eventBus = new EventBus();
-  const browse = new BrowseNamespace(transport, eventBus, content);
-
-  return { browse, eventBus, emit };
+  });
+  return { browse: client.browse, eventBus: client.bus };
 }
 
 function flush(): Promise<void> {
@@ -273,7 +241,7 @@ describe('entity types — Layer 3 (state-unit pipe over real cache)', () => {
   const RID = makeResourceId('res-1');
 
   it('vm.entityTypes$ emits [9 strings] via the real cache', async () => {
-    const { browse, emit: _emit } = createHarness();
+    const { browse } = createHarness();
 
     // Mimic the state unit's transform: `client.browse.entityTypes().pipe(map(e => e ?? []))`
     const vmEntityTypes$ = browse.entityTypes().pipe(map((e) => e ?? []));

@@ -120,6 +120,13 @@ export class SemiontClient {
        * adapter (keyPrefix = KB id). Omitted = in-memory-only caches.
        */
       cachePersistence?: { storage: SessionStorage; keyPrefix: string };
+      /**
+       * `busRequest` timeout for the browse caches — threads through to
+       * `BrowseNamespace`'s deterministic-time knob (LIVENESS-AXIOMS P2a).
+       * Production omits it (30 s default); `@semiont/sdk/testing` passes
+       * small values so B14/B15 chains run in test time.
+       */
+      busTimeoutMs?: number;
     },
   ) {
     this.transport = transport;
@@ -130,12 +137,10 @@ export class SemiontClient {
     this.transport.bridgeInto(this.bus);
 
     this.frame  = new FrameNamespace(this.transport);
-    this.browse = new BrowseNamespace(
-      this.transport,
-      this.bus,
-      this.content,
-      options?.cachePersistence ? { cachePersistence: options.cachePersistence } : undefined,
-    );
+    this.browse = new BrowseNamespace(this.transport, this.bus, this.content, {
+      ...(options?.cachePersistence ? { cachePersistence: options.cachePersistence } : {}),
+      ...(options?.busTimeoutMs !== undefined ? { busTimeoutMs: options.busTimeoutMs } : {}),
+    });
     this.mark   = new MarkNamespace(this.transport, this.bus);
     this.bind   = new BindNamespace(this.transport, this.bus);
     this.gather = new GatherNamespace(this.transport, this.bus);

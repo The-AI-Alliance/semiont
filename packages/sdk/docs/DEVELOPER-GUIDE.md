@@ -525,6 +525,46 @@ design record in `.plans/LOCAL-STORAGE.md`).
 
 ---
 
+## Testing your consumer — `@semiont/sdk/testing`
+
+Test consumer behavior against the **real SDK pathway**, not a hand-rolled mock of it.
+The SDK ships a contract double: a real `SemiontClient` (real caches, real
+`busRequest`, real namespaces) over a scriptable transport.
+
+```ts
+import { createTestClient } from '@semiont/sdk/testing';
+
+const { client, transport } = createTestClient({
+  transport: {
+    makeResponse: (op) =>
+      op === 'browse:entity-types-requested' ? { entityTypes: ['Person', 'Place'] } : {},
+  },
+});
+// Subscribe through the client; script the wire through the transport:
+transport.queueReply('browse:resources-requested', pageOne, pageTwo); // sequenced replies
+transport.state$.next('connecting');            // hold the attach gate
+// FaultyTransport config also takes a fault schedule: drop / delay / duplicate / reject.
+```
+
+For state-unit factories — which take a `SemiontSession` — `createTestSession()`
+returns a real session over the same transport (`{ session, client, transport,
+storage, token$ }`).
+
+**The anti-pattern this replaces:** hand-mocked transports encode the author's model
+of the contract, not the contract. Twice in one week (2026-07) a wrong belief shipped
+inside green mock-subject tests, and PR #1113 later found ~20 fixtures whose `state$`
+satisfied the type but not the contract (`'connected' as never`, inert
+`new Subject()`) — invisible to the compiler *because* of the casts. If your test's
+subject is consumer behavior, start from `createTestClient`; bespoke fixtures are for
+testing the transport contract itself.
+
+Deterministic time: pass `busTimeoutMs` (e.g. `40`) when a test drives the cache's
+retry/exhaustion path through timeouts. The cache's own breadcrumbs
+(`[cache RETRY]`, `[cache IDLE]`) landing on `console.warn` are your proof the real
+path ran.
+
+---
+
 ## Where to go deeper
 
 - **[Usage.md](./Usage.md)** — the per-namespace reference: every method, every option.

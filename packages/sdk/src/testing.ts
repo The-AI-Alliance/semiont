@@ -1,0 +1,177 @@
+/**
+ * `@semiont/sdk/testing` — the SDK's contract double, exported where
+ * consumers already look (.plans/SDK-TESTING-DOUBLE.md, drawing down
+ * SDK-DEBT M1).
+ *
+ * One scriptable, REAL-pathway test client: `createTestClient` wires a real
+ * `SemiontClient` — real `createCache`, real `busRequest`, real namespaces —
+ * over a `FaultyTransport` (re-exported below; its home stays
+ * `@semiont/core/testing`). Script the transport, observe through the
+ * client. `createTestSession` wraps the same stack in a real
+ * `SemiontSession` for state-unit factories, which take a session
+ * (.plans/SESSION-TYPED-FACTORIES.md D1).
+ *
+ * Why this exists: twice in one week a wrong belief about the SDK shipped
+ * inside green tests, because hand-rolled mocks encoded the author's model
+ * of the contract instead of the contract (SDK-DEBT M1); PR #1113 then
+ * found ~20 fixtures whose `state$` satisfied the TYPE but not the contract.
+ * Tests whose subject is consumer behavior should start here; bespoke
+ * fixtures are for testing the transport contract itself.
+ */
+
+import { BehaviorSubject } from 'rxjs';
+import type {
+  AccessToken,
+  IContentTransport,
+  PutBinaryOptions,
+  PutBinaryRequest,
+  ResourceId,
+  components,
+} from '@semiont/core';
+import type { SessionStorage } from './session/session-storage';
+import { resourceId as makeResourceId } from '@semiont/core';
+import { FaultyTransport, type FaultyTransportConfig } from '@semiont/core/testing';
+import { SemiontClient } from './client';
+import { SemiontSession } from './session/semiont-session';
+import { httpKb, type KbTarget } from './session/knowledge-base';
+import { InMemorySessionStorage } from './session/session-storage';
+
+type GetResourceResponse = components['schemas']['GetResourceResponse'];
+
+// The transport double's scripting surface, so a consumer test imports ONE
+// module. `FaultyTransport`'s home remains `@semiont/core/testing` — this is
+// the consumer-facing barrel, not a second home.
+export {
+  FaultyTransport,
+  retryKeyOf,
+  type FaultAction,
+  type ScopeModel,
+  type FaultyTransportConfig,
+  type RequestLogEntry,
+} from '@semiont/core/testing';
+
+/**
+ * Minimal in-memory `IContentTransport`. Stores what `putBinary` receives;
+ * `getBinary` throws on unknown ids the way a real transport 404s, so a
+ * test that forgets to seed content fails loudly instead of returning
+ * fabricated bytes.
+ */
+function inMemoryContent(): IContentTransport {
+  const store = new Map<string, { data: ArrayBuffer; contentType: string }>();
+  let seq = 0;
+  const toBuffer = (file: File | Buffer): Promise<ArrayBuffer> =>
+    file instanceof Uint8Array
+      ? Promise.resolve(
+          file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer,
+        )
+      : file.arrayBuffer();
+
+  return {
+    async putBinary(
+      request: PutBinaryRequest,
+      _options?: PutBinaryOptions,
+    ): Promise<{ resourceId: ResourceId }> {
+      const rId = makeResourceId(`test-content-${++seq}`);
+      store.set(rId as string, {
+        data: await toBuffer(request.file),
+        contentType: String(request.format),
+      });
+      return { resourceId: rId };
+    },
+    async getBinary(rId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }> {
+      const hit = store.get(rId as string);
+      if (!hit) throw new Error(`inMemoryContent: no content stored for ${String(rId)}`);
+      return hit;
+    },
+    async getBinaryStream(
+      rId: ResourceId,
+    ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
+      const { data, contentType } = await this.getBinary(rId);
+      return {
+        stream: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array(data));
+            controller.close();
+          },
+        }),
+        contentType,
+      };
+    },
+    async getResourceGraph(rId: ResourceId): Promise<GetResourceResponse> {
+      return { resource: { '@id': String(rId) } } as unknown as GetResourceResponse;
+    },
+    dispose(): void {
+      store.clear();
+    },
+  };
+}
+
+export interface TestClientOptions {
+  /** FaultyTransport scripting: fault schedule, scope model, `makeResponse`. */
+  transport?: FaultyTransportConfig;
+  /**
+   * `busRequest` timeout for the browse caches — the deterministic-time
+   * knob (LIVENESS-AXIOMS P2a). Pass something small (e.g. 40) when a test
+   * drives B14/B15 through timeouts; irrelevant for `reject-emit` faults.
+   */
+  busTimeoutMs?: number;
+  /** Replace the in-memory content transport (e.g. to pre-seed bytes). */
+  content?: IContentTransport;
+  /** B17 persistence, for rehydration tests. Omitted = in-memory caches. */
+  cachePersistence?: { storage: SessionStorage; keyPrefix: string };
+}
+
+/**
+ * A real `SemiontClient` over a scriptable `FaultyTransport`.
+ *
+ * The returned `transport` IS the `FaultyTransport` instance — script faults
+ * via its config, drive connection state via `transport.state$.next(...)`,
+ * and account requests via `transport.requestLog`.
+ */
+export function createTestClient(options: TestClientOptions = {}): {
+  client: SemiontClient;
+  transport: FaultyTransport;
+} {
+  const transport = new FaultyTransport(options.transport);
+  const client = new SemiontClient(transport, options.content ?? inMemoryContent(), undefined, {
+    ...(options.busTimeoutMs !== undefined ? { busTimeoutMs: options.busTimeoutMs } : {}),
+    ...(options.cachePersistence ? { cachePersistence: options.cachePersistence } : {}),
+  });
+  return { client, transport };
+}
+
+export interface TestSessionOptions extends TestClientOptions {
+  /** Override the default test KB target (id 'test-kb'). */
+  kb?: KbTarget;
+}
+
+/**
+ * A real `SemiontSession` over the same scriptable stack — for testing
+ * state-unit factories, which take a session
+ * (.plans/SESSION-TYPED-FACTORIES.md D1). No token is seeded and no
+ * `validate`/`refresh` callbacks are wired, so `session.ready` settles
+ * immediately; tests that need an authenticated shape push into `token$`.
+ */
+export function createTestSession(options: TestSessionOptions = {}): {
+  session: SemiontSession;
+  client: SemiontClient;
+  transport: FaultyTransport;
+  storage: InMemorySessionStorage;
+  token$: BehaviorSubject<AccessToken | null>;
+} {
+  const { client, transport } = createTestClient(options);
+  const storage = new InMemorySessionStorage();
+  const token$ = new BehaviorSubject<AccessToken | null>(null);
+  const kb =
+    options.kb ??
+    httpKb({
+      id: 'test-kb',
+      label: 'Test KB',
+      email: 'test@example.com',
+      host: 'localhost',
+      port: 4000,
+      protocol: 'http',
+    });
+  const session = new SemiontSession({ kb, storage, client, token$ });
+  return { session, client, transport, storage, token$ };
+}
