@@ -194,6 +194,36 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
+  it('never reports `open` while the subscribe fetch is pending — open means the response is streaming', async () => {
+    // The negative direction of the pin above, and the attach signal the
+    // busRequest gate trusts (.plans/BUS-ATTACH-GATE.md, Phase 0): if the
+    // actor ever claimed `open` before the subscribe response's reader
+    // started, the gate would emit into a stream nobody is reading — the
+    // exact loss it exists to prevent.
+    const conn = mockConn({ defer: true });
+
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+    });
+
+    const states: string[] = [];
+    stateUnit.state$.subscribe((s) => states.push(s));
+    stateUnit.start();
+
+    // The fetch has been issued but deliberately not resolved. Give the
+    // event loop time to surface any premature transition.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(states).not.toContain('open');
+    expect(states[states.length - 1]).toBe('connecting');
+
+    conn.open();
+    await vi.waitFor(() => expect(states).toContain('open'));
+
+    stateUnit.dispose();
+  });
+
   it('reassembles an event whose bytes span multiple reader.read() chunks', async () => {
     // Regression: the SSE parser's currentEvent/currentData/currentId
     // state used to be declared inside the read loop, so a large event

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { BehaviorSubject } from 'rxjs';
 import { SemiontClient, defaultProtocol, isValidHostname, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
+import { usePathname } from '@/i18n/routing';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { accessToken, baseUrl, type AccessToken } from '@semiont/core';
 import type { DiscoveredKB } from '@semiont/core';
@@ -228,12 +229,29 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
 }
 
 export function KnowledgeBasePanel() {
+  const pathname = usePathname();
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`KnowledgeBasePanel.${k}`, p as any) as string;
   const semiont = useSemiont();
   const knowledgeBases = useObservable(semiont.kbs$) ?? [];
   const activeKnowledgeBase = useObservable(semiont.activeSession$)?.kb ?? null;
-  const setActiveKnowledgeBase = (id: string) => { void semiont.setActiveKb(id); };
+  const setActiveKnowledgeBase = (id: string) => {
+    // Leave a resource route BEFORE switching. The URL carries the CURRENT
+    // KB's resource id, which identifies nothing in the KB we're moving to —
+    // loading it there earns a 404 and the B14/B15 retry-then-fail chain, and
+    // a "Try Again" that can never succeed.
+    //
+    // This has to happen here, at the initiator. The resource page cannot
+    // infer it after the fact: `KnowledgeLayout` gates `<Outlet />` on a live
+    // session, so the page is unmounted the moment `activeSession$` goes null
+    // and remounts fresh against the new KB — from its own point of view no
+    // switch ever happened.
+    // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+    if (pathname.startsWith('/know/resource/')) {
+      semiont.emit('nav:push', { path: '/know', reason: 'kb-switch' });
+    }
+    void semiont.setActiveKb(id);
+  };
   const addKnowledgeBase = semiont.addKb.bind(semiont);
   const removeKnowledgeBase = semiont.removeKb.bind(semiont);
   const updateKnowledgeBase = semiont.updateKb.bind(semiont);

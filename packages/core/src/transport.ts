@@ -173,6 +173,12 @@ export interface ITransport {
    * Transport-level connection state. For HTTP, reflects the SSE
    * connection's health; for in-process transports, typically `'open'`
    * from construction onward (no connection to lose).
+   *
+   * Load-bearing beyond UI: `busRequest` gates its emit on this
+   * (`BusRequestPrimitive.state$`, .plans/BUS-ATTACH-GATE.md) — no
+   * correlated emit before the reply path exists. Implementers back it
+   * with a `BehaviorSubject` so the current state arrives synchronously
+   * on subscribe.
    */
   readonly state$: Observable<ConnectionState>;
 

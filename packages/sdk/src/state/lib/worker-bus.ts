@@ -14,9 +14,19 @@
  */
 
 import type { Observable } from 'rxjs';
+import type { ConnectionState } from '@semiont/core';
 
 export interface WorkerBus {
   on$<T = Record<string, unknown>>(channel: string): Observable<T>;
   emit(channel: string, payload: Record<string, unknown>): Promise<void>;
+  /**
+   * Connection state of the stream that delivers replies. Required
+   * (.plans/BUS-ATTACH-GATE.md D2): worker-side `busRequest`s gate their
+   * emit on it — a worker's first `job:claim` right after connect is
+   * exactly the attach-window emit the gate exists for. HTTP
+   * `ActorStateUnit` exposes it already; in-process shims report `'open'`
+   * (delivery is synchronous — there is no window).
+   */
+  state$: Observable<ConnectionState>;
   addChannels?(channels: readonly string[]): void;
 }

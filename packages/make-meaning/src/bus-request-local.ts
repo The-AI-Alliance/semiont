@@ -1,5 +1,5 @@
-import type { Observable } from 'rxjs';
-import type { EventBus, EventMap, BusRequestPrimitive } from '@semiont/core';
+import { BehaviorSubject, type Observable } from 'rxjs';
+import type { ConnectionState, EventBus, EventMap, BusRequestPrimitive } from '@semiont/core';
 
 /**
  * Adapt a raw in-process `EventBus` to the `BusRequestPrimitive` that
@@ -19,5 +19,9 @@ export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
       return eventBus.get(channel).asObservable();
     },
+    // In-process delivery is synchronous — no attach window, so `'open'` is
+    // the true state (.plans/BUS-ATTACH-GATE.md). A destroyed bus throws at
+    // `eventBus.get()` before the gate could matter.
+    state$: new BehaviorSubject<ConnectionState>('open'),
   };
 }

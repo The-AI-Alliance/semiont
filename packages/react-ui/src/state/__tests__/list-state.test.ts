@@ -44,16 +44,17 @@ describe('trackList', () => {
     dispose();
   });
 
-  describe('re-entering loading', () => {
-    // `undefined` means "this key is not resolved yet". Ignoring it outright
-    // is only safe if it can never follow a value — but it can: a thunk whose
-    // chain `switchMap`s to a NEW cache key emits `undefined` for that key
-    // first. Leaving `loading$` false there tells the consumer the previous
-    // key's data is current when it is stale and a request is in flight.
-    // Reachable today on /know/discover, where changing the entity-type
-    // filter switches `browse.resources()` to a new key.
+  describe('revalidation — undefined after a value', () => {
+    // `undefined` means "this key is not resolved yet". A stable key can
+    // never go value→undefined (invalidate keeps the value per B7; remove()
+    // is not used on list caches), so a late `undefined` only ever means the
+    // thunk's chain switched to a NEW key — /know/discover does this when the
+    // entity-type filter changes. That is a revalidation behind stale rows,
+    // NOT a return to the blocking loading state: routing it into `loading$`
+    // turns a filter switch into a full-page spinner, and a lost fetch into
+    // one that never resolves.
 
-    it('goes back to loading when the source returns to undefined', async () => {
+    it('enters revalidating — not loading — when the source returns to undefined', async () => {
       const source = new BehaviorSubject<string[] | undefined>(undefined);
       const { state, dispose } = trackList<string[]>(() => source, []);
 
@@ -62,7 +63,22 @@ describe('trackList', () => {
 
       source.next(undefined);
 
-      expect(await firstValueFrom(state.loading$)).toBe(true);
+      expect(await firstValueFrom(state.loading$)).toBe(false);
+      expect(await firstValueFrom(state.revalidating$)).toBe(true);
+      dispose();
+    });
+
+    it('loading$ never re-enters after the first value — a blocking spinner cannot latch', async () => {
+      const source = new BehaviorSubject<string[] | undefined>(undefined);
+      const { state, dispose } = trackList<string[]>(() => source, []);
+      const seen: boolean[] = [];
+      state.loading$.subscribe((l) => seen.push(l));
+
+      source.next(['first']);
+      source.next(undefined);
+      source.next(undefined);
+
+      expect(seen).toEqual([true, false]);
       dispose();
     });
 
@@ -97,13 +113,36 @@ describe('trackList', () => {
       // User picks an entity-type filter: a different cache key, not yet resolved.
       filter$.next('Person');
 
-      expect(await firstValueFrom(state.loading$)).toBe(true);
+      expect(await firstValueFrom(state.loading$)).toBe(false);
+      expect(await firstValueFrom(state.revalidating$)).toBe(true);
+      // Stale rows stay visible while the new key loads.
+      expect(await firstValueFrom(state.value$)).toEqual(['unfiltered']);
 
       forKey('Person').next(['filtered']);
-      expect(await firstValueFrom(state.loading$)).toBe(false);
+      expect(await firstValueFrom(state.revalidating$)).toBe(false);
       expect(await firstValueFrom(state.value$)).toEqual(['filtered']);
       dispose();
     });
+  });
+
+  it('retry with a stale value re-enters revalidating, not loading', async () => {
+    const attempts: Array<Subject<string[] | undefined>> = [];
+    const { state, dispose } = trackList<string[]>(() => {
+      const s = new Subject<string[] | undefined>();
+      attempts.push(s);
+      return s;
+    }, []);
+
+    attempts[0]!.next(['stale']);
+    attempts[0]!.error(new Error('boom'));
+    expect(await firstValueFrom(state.error$)).not.toBeNull();
+
+    state.retry();
+
+    expect(await firstValueFrom(state.loading$)).toBe(false);
+    expect(await firstValueFrom(state.revalidating$)).toBe(true);
+    expect(await firstValueFrom(state.value$)).toEqual(['stale']);
+    dispose();
   });
 
   it('retry clears the error, re-enters loading, and re-subscribes', async () => {

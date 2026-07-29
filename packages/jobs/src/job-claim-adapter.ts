@@ -37,6 +37,10 @@ function workerBusAsPrimitive(bus: WorkerBus): BusRequestPrimitive {
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
       return bus.on$<EventMap[K]>(channel as string);
     },
+    // Pass the real connection state through: a worker's first `job:claim`
+    // fires right after connect — exactly the attach-window emit the gate
+    // exists for (.plans/BUS-ATTACH-GATE.md).
+    state$: bus.state$,
   };
 }
 

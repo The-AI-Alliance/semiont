@@ -13,14 +13,20 @@
  * at the consumer boundary (e.g. the fan-in's `on$<StoredEvent>`), not here.
  */
 
-import type { Observable } from 'rxjs';
-import type { EventBus, EventMap, EventName } from '@semiont/core';
+import { BehaviorSubject, type Observable } from 'rxjs';
+import type { ConnectionState, EventBus, EventMap, EventName } from '@semiont/core';
 import type { WorkerBus } from '@semiont/sdk';
 
 export function workerBusOverEventBus(eventBus: EventBus): WorkerBus {
   return {
     on$: <T = Record<string, unknown>>(channel: string): Observable<T> =>
       eventBus.get(channel as EventName) as unknown as Observable<T>,
+
+    // In-process delivery is synchronous — there is no attach window to
+    // lose a reply in, so `'open'` is the true state, not a stub. Post-
+    // destroy use is guarded upstream: `eventBus.get()` throws on a
+    // destroyed bus before any gate could matter.
+    state$: new BehaviorSubject<ConnectionState>('open'),
 
     emit: async (channel: string, payload: Record<string, unknown>): Promise<void> => {
       eventBus.get(channel as EventName).next(payload as EventMap[EventName]);

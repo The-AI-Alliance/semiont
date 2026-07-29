@@ -36,6 +36,12 @@ export * from './client';
 // results directly without `lastValueFrom`/`firstValueFrom` wrappers.
 export { StreamObservable, CacheObservable, UploadObservable, type UploadProgress } from './awaitable';
 
+// The SWR cache primitive behind every `browse.*` live query. Exported so
+// consumers of its observables (react-ui's `trackList`) can be tested against
+// the REAL B14/B15 semantics instead of mock subjects — mock-only coverage is
+// how a two-state consumer of a three-outcome cache shipped twice.
+export { createCache, type Cache } from './cache';
+
 // `busRequest` / `BusRequestPrimitive` live in @semiont/core (next to the bus
 // protocol they're coupled to) — import those from there. `BusRequestError` (and
 // its `BusRequestErrorCode`) are re-exported below for catch-convenience, so

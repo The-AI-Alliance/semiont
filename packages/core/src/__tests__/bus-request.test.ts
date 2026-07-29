@@ -15,9 +15,10 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { SemiontError } from '../errors';
 import type { EventMap } from '../bus-protocol';
+import type { ConnectionState } from '../transport';
 
 import {
   busRequest,
@@ -30,16 +31,27 @@ interface MockBus extends BusRequestPrimitive {
   emitPayload: Record<string, unknown> | null;
   resultSubject: Subject<unknown>;
   failureSubject: Subject<unknown>;
+  stateSubject: BehaviorSubject<ConnectionState>;
 }
 
-function makeBus(resultChannel: string, failureChannel: string): MockBus {
+// `initialState` defaults to 'open' so the pre-gate tests above keep their
+// exact emit timing: an already-deliverable state takes the synchronous fast
+// path (BUS-ATTACH-GATE.md D4) and the gate is invisible.
+function makeBus(
+  resultChannel: string,
+  failureChannel: string,
+  initialState: ConnectionState = 'open',
+): MockBus {
   const resultSubject = new Subject<unknown>();
   const failureSubject = new Subject<unknown>();
+  const stateSubject = new BehaviorSubject<ConnectionState>(initialState);
   const bus: MockBus = {
     emitChannel: null,
     emitPayload: null,
     resultSubject,
     failureSubject,
+    stateSubject,
+    state$: stateSubject.asObservable(),
     emit: vi.fn(async (channel: keyof EventMap, payload: EventMap[keyof EventMap]) => {
       bus.emitChannel = channel as string;
       bus.emitPayload = payload as Record<string, unknown>;
@@ -287,6 +299,113 @@ describe('busRequest', () => {
     bus.failureSubject.complete();
 
     await expect(promise).rejects.toMatchObject({ code: 'bus.closed' });
+  });
+});
+
+describe('busRequest attach gate (.plans/BUS-ATTACH-GATE.md)', () => {
+  // No correlated emit before the reply path exists: busRequest waits — inside
+  // its existing timeout budget (D4) — for `state$` to report the one
+  // deliverable state, `'open'` (D3 as amended 2026-07-29: `degraded` is a
+  // dropped stream by definition and waits like the rest).
+  const EMIT = 'gather:resource-requested';
+  const RESULT = 'gather:resource-complete';
+  const FAILURE = 'gather:resource-failed';
+
+  it('does not emit while connecting; flip to open → exactly one emit, and the reply resolves', async () => {
+    const bus = makeBus(RESULT, FAILURE, 'connecting');
+    const promise = busRequest(bus, EMIT, { foo: 'bar' });
+
+    // Give a premature emit every chance to surface.
+    await new Promise((r) => setTimeout(r, 10));
+    expect(bus.emit).not.toHaveBeenCalled();
+
+    bus.stateSubject.next('open');
+    await vi.waitFor(() => expect(bus.emit).toHaveBeenCalledTimes(1));
+
+    const cid = bus.emitPayload!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, response: { value: 7 } });
+    expect(await promise).toEqual({ value: 7 });
+  });
+
+  it('degraded waits (D3 as amended) — recovery via connecting → open releases the gate', async () => {
+    const bus = makeBus(RESULT, FAILURE, 'degraded');
+    const promise = busRequest(bus, EMIT, {});
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(bus.emit).not.toHaveBeenCalled();
+
+    // The legitimate recovery edge (actor transition table): degraded →
+    // connecting → open. Only the final hop opens the gate.
+    bus.stateSubject.next('connecting');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(bus.emit).not.toHaveBeenCalled();
+
+    bus.stateSubject.next('open');
+    await vi.waitFor(() => expect(bus.emit).toHaveBeenCalledTimes(1));
+
+    const cid = bus.emitPayload!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, response: { value: 8 } });
+    expect(await promise).toEqual({ value: 8 });
+  });
+
+  it('closed rejects bus.closed without emitting and without burning the timeout', async () => {
+    // Same no-unhandled-rejection discipline as the dispose tests above: the
+    // internal result promise is detached on the closed fast-fail and must
+    // not surface later.
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const bus = makeBus(RESULT, FAILURE, 'closed');
+      const started = Date.now();
+      // 30s budget: if the gate "waited out" the timeout instead of failing
+      // fast, this test would blow vitest's own deadline, and the elapsed
+      // check pins the intent explicitly.
+      await expect(busRequest(bus, EMIT, {}, 30_000)).rejects.toMatchObject({
+        code: 'bus.closed',
+      });
+      expect(Date.now() - started).toBeLessThan(1_000);
+      expect(bus.emit).not.toHaveBeenCalled();
+
+      await new Promise((r) => setTimeout(r, 10));
+      expect(unhandled).toHaveLength(0);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
+  it('one deadline from the call (D4): a primitive that never attaches rejects bus.timeout at timeoutMs, emit never called', async () => {
+    const bus = makeBus(RESULT, FAILURE, 'connecting');
+    const started = Date.now();
+
+    await expect(busRequest(bus, EMIT, {}, 80)).rejects.toMatchObject({
+      code: 'bus.timeout',
+    });
+
+    // At timeoutMs — not timeoutMs + a separate gate wait. A serial
+    // gate-then-timeout implementation would never reject at all here
+    // (the gate has no deadline of its own to fire).
+    expect(Date.now() - started).toBeLessThan(1_500);
+    expect(bus.emit).not.toHaveBeenCalled();
+  });
+
+  it('a state flap after emission does not re-emit (D5)', async () => {
+    const bus = makeBus(RESULT, FAILURE, 'open');
+    const promise = busRequest(bus, EMIT, {});
+
+    await vi.waitFor(() => expect(bus.emit).toHaveBeenCalledTimes(1));
+
+    // Flap: the swap window the actor transition table names.
+    bus.stateSubject.next('reconnecting');
+    bus.stateSubject.next('connecting');
+    bus.stateSubject.next('open');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(bus.emit).toHaveBeenCalledTimes(1);
+
+    const cid = bus.emitPayload!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, response: { value: 9 } });
+    expect(await promise).toEqual({ value: 9 });
   });
 });
 

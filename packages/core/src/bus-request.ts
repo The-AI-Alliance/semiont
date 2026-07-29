@@ -2,6 +2,7 @@ import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxj
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
 import { SemiontError } from './errors';
 import type { EventMap, EventName } from './bus-protocol';
+import type { ConnectionState } from './transport';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 
 /**
@@ -42,6 +43,15 @@ export class BusRequestError extends SemiontError {
 export interface BusRequestPrimitive {
   emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<void>;
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
+  /**
+   * Connection state of the stream that carries replies. Required, not
+   * optional (.plans/BUS-ATTACH-GATE.md D2): `busRequest` gates its emit on
+   * this — no correlated emit before the reply path exists. Implementers back
+   * it with a `BehaviorSubject`, so the current state arrives synchronously
+   * on subscribe; a transport that cannot lose replies (in-process) reports
+   * `'open'` until disposal.
+   */
+  state$: Observable<ConnectionState>;
 }
 
 /**
@@ -123,6 +133,74 @@ export async function busRequest<Op extends BusOperationKey>(
   // Subscribe before emitting so we don't miss an instantaneous reply
   // (which can happen with an in-process LocalTransport bus).
   const resultPromise = firstValueFrom(result$);
+
+  // ── Attach gate (.plans/BUS-ATTACH-GATE.md) ─────────────────────────────
+  // No correlated emit before the reply path exists: the measured failure was
+  // an emit accepted (202) and answered while the session's subscribe stream
+  // had not attached — the reply was published to nobody. Wait, inside the
+  // SAME deadline (the timeout operator above is already ticking — D4), for
+  // the transport to report the one deliverable state. D3 (amended
+  // 2026-07-29): only `'open'` delivers; `'degraded'` is a dropped stream by
+  // definition and waits like `connecting`/`reconnecting`. `'closed'` fails
+  // fast — a request against a closed bus should not burn a timeout.
+  const closedBeforeEmit = () => {
+    // Detach the reply promise before throwing, same discipline as the emit
+    // rejection path below: nobody will await it, and it must not surface
+    // later as an unhandled rejection.
+    resultPromise.catch(() => {});
+    return new BusRequestError(`Bus closed before emit on ${operation}`, 'bus.closed', {
+      channel: operation,
+      correlationId,
+    });
+  };
+
+  // Synchronous fast path: `state$` is BehaviorSubject-backed (see the
+  // interface contract), so the current state lands during subscribe. Already
+  // `'open'` → fall straight through to the emit with zero added microtasks —
+  // the gate can only remove latency, never add it (D4).
+  let currentState: ConnectionState | undefined;
+  bus.state$.subscribe((s) => {
+    currentState = s;
+  }).unsubscribe();
+
+  if (currentState === 'closed') {
+    throw closedBeforeEmit();
+  }
+  if (currentState !== 'open') {
+    const gate = firstValueFrom(
+      bus.state$.pipe(
+        filter((s) => s === 'open' || s === 'closed'),
+        take(1),
+        // `state$` completed without ever attaching: treat as closed.
+        defaultIfEmpty('closed' as ConnectionState),
+      ),
+    );
+    const outcome = await Promise.race([
+      gate,
+      // Either settlement of the reply machinery means "stop waiting, never
+      // emit": its timeout rejecting `bus.timeout` at `timeoutMs` (the same
+      // moment it would fire today — D4), or its streams completing into the
+      // `bus.closed` default above. The awaited result below carries it.
+      resultPromise.then(
+        () => 'settled' as const,
+        () => 'settled' as const,
+      ),
+    ]);
+    if (outcome === 'closed') {
+      // The abandoned race arm cannot reject (filter + defaultIfEmpty), so
+      // only the reply promise needs detaching — closedBeforeEmit does it.
+      throw closedBeforeEmit();
+    }
+    if (outcome === 'settled') {
+      const settled = await resultPromise;
+      if (!settled.ok) {
+        throw settled.error;
+      }
+      return settled.response;
+    }
+    // outcome === 'open' → proceed to the one emit (D5: a state flap after
+    // emission cannot re-emit — nothing subscribes to state$ past this point).
+  }
 
   // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller — but the
   // caller then never awaits `resultPromise`, which is already subscribed and
