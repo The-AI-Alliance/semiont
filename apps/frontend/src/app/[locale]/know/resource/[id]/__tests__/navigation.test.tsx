@@ -87,9 +87,9 @@ vi.mock('@semiont/react-ui', async () => {
   return {
     ...actual,
     useSemiont: () => harness.browser,
-    createResourceLoaderStateUnit: (client: any, rId: string) => {
+    createResourceLoaderStateUnit: (session: any, rId: string) => {
       vmFactoryCalls.push(rId);
-      vmFactoryClients.push(client?.tag ?? 'none');
+      vmFactoryClients.push(session?.client?.tag ?? 'none');
       // Real rxjs rather than hand-rolled subscribe stubs: correctly typed,
       // and it exercises the same delivery path the component sees.
       return {

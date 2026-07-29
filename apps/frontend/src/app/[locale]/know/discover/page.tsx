@@ -9,7 +9,7 @@ import {
   useEventSubscriptions,
   useObservable,
   useSemiont,
-  useStateUnit,
+  useSessionStateUnit,
   ResourceDiscoveryPage,
 } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
@@ -19,24 +19,24 @@ export default function DiscoverPage() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`Discover.${k}`, p as any) as string;
   const router = useRouter();
-  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  const session = useObservable(useSemiont().activeSession$) ?? undefined;
 
   const browseStateUnit = useShellStateUnit();
-  const stateUnit = useStateUnit(() => createDiscoverStateUnit(semiont!, browseStateUnit));
+  const stateUnit = useSessionStateUnit(session, (s) => createDiscoverStateUnit(s, browseStateUnit));
 
-  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
-  const recentDocuments = useObservable(stateUnit.recent.value$) ?? [];
-  const entityTypes = useObservable(stateUnit.entityTypes.value$) ?? [];
+  const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
+  const recentDocuments = useObservable(stateUnit?.recent.value$) ?? [];
+  const entityTypes = useObservable(stateUnit?.entityTypes.value$) ?? [];
   // Three states: a terminally failed list has no value either, so deriving
   // "loading" from `undefined` left this route spinning for ever.
   // See .plans/PANEL-FAILURE-STATES.md
-  const recentError = useObservable(stateUnit.recent.error$) ?? null;
-  const isLoadingRecent = useObservable(stateUnit.recent.loading$) ?? true;
-  const searchQuery = useObservable(stateUnit.search.query$) ?? '';
-  const searchState = useObservable(stateUnit.search.state$);
+  const recentError = useObservable(stateUnit?.recent.error$) ?? null;
+  const isLoadingRecent = useObservable(stateUnit?.recent.loading$) ?? true;
+  const searchQuery = useObservable(stateUnit?.search.query$) ?? '';
+  const searchState = useObservable(stateUnit?.search.state$);
   const searchDocuments = searchState?.results ?? [];
   const isSearching = searchState?.isSearching ?? false;
-  const selectedEntityType = useObservable(stateUnit.selectedEntityType$) ?? '';
+  const selectedEntityType = useObservable(stateUnit?.selectedEntityType$) ?? '';
 
   const { setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
@@ -46,6 +46,8 @@ export default function DiscoverPage() {
     'settings:line-numbers-toggled': useCallback(() => toggleLineNumbers(), [toggleLineNumbers]),
   });
 
+  if (!stateUnit) return null;
+
   return (
     <ResourceDiscoveryPage
       recentDocuments={recentDocuments}
@@ -53,12 +55,12 @@ export default function DiscoverPage() {
       entityTypes={entityTypes}
       isLoadingRecent={isLoadingRecent}
       recentError={recentError}
-      onRetryRecent={stateUnit.recent.retry}
+      onRetryRecent={stateUnit?.recent.retry}
       isSearching={isSearching}
       searchQuery={searchQuery}
-      onSearchQueryChange={stateUnit.search.setQuery}
+      onSearchQueryChange={stateUnit?.search.setQuery}
       selectedEntityType={selectedEntityType}
-      onSelectedEntityTypeChange={stateUnit.setSelectedEntityType}
+      onSelectedEntityTypeChange={stateUnit?.setSelectedEntityType}
       theme={resolvedTheme}
       showLineNumbers={showLineNumbers}
       activePanel={activePanel}

@@ -7,7 +7,7 @@ import {
   useSemiont,
   useObservable,
   createSessionStateUnit,
-  useStateUnit,
+  useSessionStateUnit,
 } from '@semiont/react-ui';
 import type { SemiontSession } from '@semiont/sdk';
 import { useRouter } from '@/i18n/routing';
@@ -144,10 +144,10 @@ export function UserPanel() {
 function SignOutButton({ session, label }: { session: SemiontSession; label: string }) {
   const semiont = useSemiont();
   const router = useRouter();
-  const sessionStateUnit = useStateUnit(() => createSessionStateUnit(session.client));
+  const sessionStateUnit = useSessionStateUnit(session ?? undefined, createSessionStateUnit);
 
   const handleSignOut = async () => {
-    await sessionStateUnit.logout();
+    await sessionStateUnit?.logout();
     if (session.kb) {
       await semiont.signOut(session.kb.id);
     }

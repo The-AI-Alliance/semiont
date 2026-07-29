@@ -32,6 +32,7 @@ echo "🧩 Checking StateUnit pattern (no class / no module-scoped state / fire-
 bash "$COMPLIANCE_DIR/audit-state-unit-no-class.sh"
 bash "$COMPLIANCE_DIR/audit-state-unit-module-state.sh"
 bash "$COMPLIANCE_DIR/audit-fire-and-forget-promise-void.sh"
+bash "$COMPLIANCE_DIR/audit-session-typed-factories.sh"
 echo ""
 
 # Toolbar prefs are controlled props; persistence only in the policy layer

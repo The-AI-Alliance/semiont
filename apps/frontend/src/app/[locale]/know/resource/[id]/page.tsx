@@ -10,7 +10,7 @@
 import { useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useLocale } from '@/i18n/routing';
-import { useSemiont, useObservable, useStateUnit, createResourceLoaderStateUnit } from '@semiont/react-ui';
+import { useSemiont, useObservable, useSessionStateUnit, createResourceLoaderStateUnit } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { Link, routes } from '@/lib/routing';
@@ -23,7 +23,7 @@ import type { SemiontResource } from '@semiont/react-ui';
 /**
  * Main page component — routing, session gating, and initial resource load.
  *
- * `useStateUnit` runs its factory exactly once per mount, and React Router
+ * `useSessionStateUnit` runs its factory exactly once per mount, and React Router
  * keeps this component mounted across BOTH a `:id` param change and an
  * `activeSession$` swap. So the inner component is keyed on the pair
  * `${session.id}:${rId}` — either changing forces a full remount:
@@ -70,10 +70,10 @@ function KnowledgeResourcePageInner({
   const streamStatus = useObservable(session.streamState$) ?? 'initial';
   const activeKnowledgeBase = session.kb;
 
-  const loader = useStateUnit(() => createResourceLoaderStateUnit(session.client, rId));
-  const resourceData = useObservable(loader.resource$);
-  const isLoading = useObservable(loader.isLoading$) ?? true;
-  const loadError = useObservable(loader.error$) ?? null;
+  const loader = useSessionStateUnit(session, (s) => createResourceLoaderStateUnit(s, rId));
+  const resourceData = useObservable(loader?.resource$);
+  const isLoading = useObservable(loader?.isLoading$) ?? true;
+  const loadError = useObservable(loader?.error$) ?? null;
 
   // Log error for debugging
   useEffect(() => {
@@ -85,7 +85,7 @@ function KnowledgeResourcePageInner({
   }, [isLoading, loadError, rId, resourceData]);
 
   const refetchDocument = useCallback(async () => {
-    loader.invalidate();
+    loader?.invalidate();
   }, [loader]);
 
   // Early return: a terminal failure carries the reason, so it beats both the

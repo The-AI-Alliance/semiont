@@ -36,7 +36,7 @@ import { getSelectorType } from '../../../lib/media-shapes';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { createResourceViewerPageStateUnit } from '../state/resource-viewer-page-state-unit';
-import { useStateUnit } from '../../../hooks/useStateUnit';
+import { useSessionStateUnit } from '../../../hooks/useSessionStateUnit';
 import { useShellStateUnit } from '../../../hooks/useShellStateUnit';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
@@ -196,35 +196,40 @@ export function ResourceViewerPage({
 
   // Composite state unit — owns all flow VMs, wizard state, annotations, entity types
   const browseStateUnit = useShellStateUnit();
-  const stateUnit = useStateUnit(() => createResourceViewerPageStateUnit(semiont!, rUri, locale, browseStateUnit));
+  // Session-typed + session-keyed (SESSION-TYPED-FACTORIES.md): no `!`, no
+  // construction without a session, dispose-first rebuild on session swap.
+  const stateUnit = useSessionStateUnit(
+    session ?? undefined,
+    (s) => createResourceViewerPageStateUnit(s, rUri, locale, browseStateUnit),
+  );
 
-  const annotations = useObservable(stateUnit.annotations.value$) ?? [];
-  const annotationsError = useObservable(stateUnit.annotations.error$) ?? null;
-  const groups = useObservable(stateUnit.annotationGroups$);
-  const allEntityTypes = useObservable(stateUnit.entityTypes.value$) ?? [];
-  const entityTypesError = useObservable(stateUnit.entityTypes.error$) ?? null;
+  const annotations = useObservable(stateUnit?.annotations.value$) ?? [];
+  const annotationsError = useObservable(stateUnit?.annotations.error$) ?? null;
+  const groups = useObservable(stateUnit?.annotationGroups$);
+  const allEntityTypes = useObservable(stateUnit?.entityTypes.value$) ?? [];
+  const entityTypesError = useObservable(stateUnit?.entityTypes.error$) ?? null;
   // Three states, not two: a terminally failed list has no value EITHER, so
   // deriving "loading" from `undefined` leaves a dead request spinning for
   // ever. See .plans/PANEL-FAILURE-STATES.md
-  const referencedBy = useObservable(stateUnit.referencedBy.value$) ?? [];
-  const referencedByLoading = useObservable(stateUnit.referencedBy.loading$) ?? true;
-  const referencedByError = useObservable(stateUnit.referencedBy.error$) ?? null;
-  const events = useObservable(stateUnit.events.value$) ?? [];
-  const eventsLoading = useObservable(stateUnit.events.loading$) ?? true;
-  const eventsError = useObservable(stateUnit.events.error$) ?? null;
-  const hoveredAnnotationId = useObservable(stateUnit.beckon.hoveredAnnotationId$) ?? null;
-  const pendingAnnotation = useObservable(stateUnit.mark.pendingAnnotation$) ?? null;
-  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
-  const progress = useObservable(stateUnit.mark.progress$) ?? null;
-  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
-  const scrollToAnnotationId = useObservable(stateUnit.browse.scrollToAnnotationId$) ?? null;
-  const panelInitialTab = useObservable(stateUnit.browse.panelInitialTab$) ?? null;
-  const onScrollCompleted = stateUnit.browse.onScrollCompleted;
-  const generationProgress = useObservable(stateUnit.yield.progress$) ?? null;
-  const gatherContext = useObservable(stateUnit.gather.context$) ?? null;
-  const gatherLoading = useObservable(stateUnit.gather.loading$) ?? false;
-  const gatherError = useObservable(stateUnit.gather.error$) ?? null;
-  const wizardState = useObservable(stateUnit.wizard$);
+  const referencedBy = useObservable(stateUnit?.referencedBy.value$) ?? [];
+  const referencedByLoading = useObservable(stateUnit?.referencedBy.loading$) ?? true;
+  const referencedByError = useObservable(stateUnit?.referencedBy.error$) ?? null;
+  const events = useObservable(stateUnit?.events.value$) ?? [];
+  const eventsLoading = useObservable(stateUnit?.events.loading$) ?? true;
+  const eventsError = useObservable(stateUnit?.events.error$) ?? null;
+  const hoveredAnnotationId = useObservable(stateUnit?.beckon.hoveredAnnotationId$) ?? null;
+  const pendingAnnotation = useObservable(stateUnit?.mark.pendingAnnotation$) ?? null;
+  const assistingMotivation = useObservable(stateUnit?.mark.assistingMotivation$) ?? null;
+  const progress = useObservable(stateUnit?.mark.progress$) ?? null;
+  const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
+  const scrollToAnnotationId = useObservable(stateUnit?.browse.scrollToAnnotationId$) ?? null;
+  const panelInitialTab = useObservable(stateUnit?.browse.panelInitialTab$) ?? null;
+  const onScrollCompleted = stateUnit?.browse.onScrollCompleted;
+  const generationProgress = useObservable(stateUnit?.yield.progress$) ?? null;
+  const gatherContext = useObservable(stateUnit?.gather.context$) ?? null;
+  const gatherLoading = useObservable(stateUnit?.gather.loading$) ?? false;
+  const gatherError = useObservable(stateUnit?.gather.error$) ?? null;
+  const wizardState = useObservable(stateUnit?.wizard$);
   const wizardOpen = wizardState?.open ?? false;
   const wizardAnnotationId = wizardState?.annotationId ?? null;
   const wizardResourceId = wizardState?.resourceId ?? null;
@@ -233,12 +238,12 @@ export function ResourceViewerPage({
   const [generateOpen, setGenerateOpen] = useState(false);
 
   const handleWizardClose = useCallback(() => {
-    stateUnit.closeWizard();
+    stateUnit?.closeWizard();
   }, [stateUnit]);
 
   const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
     clearNewAnnotationId(annotationId(referenceId));
-    stateUnit.yield.generate(referenceId, {
+    stateUnit?.yield.generate(referenceId, {
       title: config.title,
       storageUri: config.storagePath,
       prompt: config.prompt,
@@ -258,7 +263,7 @@ export function ResourceViewerPage({
   // NOT a toast. `generateFromResource` is Phase 6 (the @semiont/sdk session);
   // this is declared RED until that method lands. Do not re-impl it here.
   const handleResourceGenerateSubmit = useCallback((_resourceId: string, config: GenerationConfig) => {
-    stateUnit.yield.generateFromResource({
+    stateUnit?.yield.generateFromResource({
       title: config.title,
       storageUri: config.storagePath,
       ...(config.prompt ? { prompt: config.prompt } : {}),
@@ -566,13 +571,13 @@ export function ResourceViewerPage({
                 pendingAnnotation={pendingAnnotation}
                 allEntityTypes={allEntityTypes}
                 annotationsError={annotationsError}
-                onRetryAnnotations={stateUnit.annotations.retry}
+                onRetryAnnotations={stateUnit?.annotations.retry}
                 entityTypesError={entityTypesError}
                 generatingReferenceId={generationProgress?.annotationId ?? null}
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 referencedByError={referencedByError}
-                onRetryReferencedBy={stateUnit.referencedBy.retry}
+                onRetryReferencedBy={stateUnit?.referencedBy.retry}
                 resourceId={rUri}
                 locale={locale}
                 sourceLanguage={getLanguage(resource)}
@@ -592,7 +597,7 @@ export function ResourceViewerPage({
                 events={events}
                 eventsLoading={eventsLoading}
                 eventsError={eventsError}
-                onRetryEvents={stateUnit.events.retry}
+                onRetryEvents={stateUnit?.events.retry}
                 annotations={annotations}
                 hoveredAnnotationId={hoveredAnnotationId}
                 onEventHover={handleEventHover}

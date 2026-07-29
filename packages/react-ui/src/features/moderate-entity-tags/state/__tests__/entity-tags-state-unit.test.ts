@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { sessionOf } from '../../../../__tests__/test-client';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
@@ -27,7 +28,7 @@ function mockClient(overrides: {
 
 describe('createEntityTagsStateUnit', () => {
   it('exposes entity types from browse namespace', async () => {
-    const stateUnit = createEntityTagsStateUnit(mockClient(), mockBrowse());
+    const stateUnit = createEntityTagsStateUnit(sessionOf(mockClient()), mockBrowse());
 
     const types = await firstValueFrom(stateUnit.entityTypes.value$);
     expect(types).toEqual(['Person', 'Place']);
@@ -37,7 +38,7 @@ describe('createEntityTagsStateUnit', () => {
 
   it('reports loading when entity types are undefined', async () => {
     const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);
-    const stateUnit = createEntityTagsStateUnit(mockClient({ entityTypes$ }), mockBrowse());
+    const stateUnit = createEntityTagsStateUnit(sessionOf(mockClient({ entityTypes$ })), mockBrowse());
 
     const loading = await firstValueFrom(stateUnit.entityTypes.loading$);
     expect(loading).toBe(true);
@@ -50,7 +51,7 @@ describe('createEntityTagsStateUnit', () => {
   });
 
   it('setNewTag updates newTag$', async () => {
-    const stateUnit = createEntityTagsStateUnit(mockClient(), mockBrowse());
+    const stateUnit = createEntityTagsStateUnit(sessionOf(mockClient()), mockBrowse());
 
     stateUnit.setNewTag('Organization');
     const tag = await firstValueFrom(stateUnit.newTag$);
@@ -61,7 +62,7 @@ describe('createEntityTagsStateUnit', () => {
 
   it('addTag calls client and clears newTag$', async () => {
     const addEntityType = vi.fn().mockResolvedValue(undefined);
-    const stateUnit = createEntityTagsStateUnit(mockClient({ addEntityType }), mockBrowse());
+    const stateUnit = createEntityTagsStateUnit(sessionOf(mockClient({ addEntityType })), mockBrowse());
 
     stateUnit.setNewTag('Event');
     await stateUnit.addTag();
@@ -75,7 +76,7 @@ describe('createEntityTagsStateUnit', () => {
 
   it('addTag ignores empty/whitespace input', async () => {
     const addEntityType = vi.fn();
-    const stateUnit = createEntityTagsStateUnit(mockClient({ addEntityType }), mockBrowse());
+    const stateUnit = createEntityTagsStateUnit(sessionOf(mockClient({ addEntityType })), mockBrowse());
 
     stateUnit.setNewTag('   ');
     await stateUnit.addTag();
@@ -87,7 +88,7 @@ describe('createEntityTagsStateUnit', () => {
 
   it('addTag sets error on failure', async () => {
     const addEntityType = vi.fn().mockRejectedValue(new Error('duplicate'));
-    const stateUnit = createEntityTagsStateUnit(mockClient({ addEntityType }), mockBrowse());
+    const stateUnit = createEntityTagsStateUnit(sessionOf(mockClient({ addEntityType })), mockBrowse());
 
     stateUnit.setNewTag('Person');
     await stateUnit.addTag();
@@ -107,7 +108,7 @@ describe('EntityTagsStateUnit — StateUnit axioms', () => {
     assertStateUnitAxioms({
       setup: () => {
         const browse = disposeProbe();
-        return { unit: createEntityTagsStateUnit(mockClient(), browse as unknown as ShellStateUnit), passedIn: [browse] };
+        return { unit: createEntityTagsStateUnit(sessionOf(mockClient()), browse as unknown as ShellStateUnit), passedIn: [browse] };
       },
       surfaces: (u) => [u.newTag$, u.error$, u.isAdding$],
       invocations: (u) => [() => u.setNewTag(''), () => u.addTag()],
@@ -124,7 +125,7 @@ describe('createEntityTagsStateUnit — terminal load failure', () => {
 
   it('stops loading and surfaces the load failure, distinct from the add-tag error', async () => {
     const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);
-    const unit = createEntityTagsStateUnit(mockClient({ entityTypes$ }), mockBrowse());
+    const unit = createEntityTagsStateUnit(sessionOf(mockClient({ entityTypes$ })), mockBrowse());
 
     expect(await firstValueFrom(unit.entityTypes.loading$)).toBe(true);
     entityTypes$.error(new Error('Resource not found'));

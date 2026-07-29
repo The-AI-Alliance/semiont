@@ -13,20 +13,20 @@ import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useEventSub
 import { AdminSecurityPage } from '@semiont/react-ui';
 import type { OAuthProvider } from '@semiont/react-ui';
 import { createAdminSecurityStateUnit } from '@semiont/react-ui';
-import { useStateUnit } from '@semiont/react-ui';
+import { useSessionStateUnit } from '@semiont/react-ui';
 
 export default function AdminSecurity() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminSecurity.${k}`, p as any) as string;
 
-  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  const session = useObservable(useSemiont().activeSession$) ?? undefined;
   const browseStateUnit = useShellStateUnit();
-  const stateUnit = useStateUnit(() => createAdminSecurityStateUnit(semiont!, browseStateUnit));
+  const stateUnit = useSessionStateUnit(session, (s) => createAdminSecurityStateUnit(s, browseStateUnit));
 
-  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
-  const providers = useObservable(stateUnit.providers$) ?? [];
-  const allowedDomains = useObservable(stateUnit.allowedDomains$) ?? [];
-  const isLoading = useObservable(stateUnit.isLoading$) ?? true;
+  const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
+  const providers = useObservable(stateUnit?.providers$) ?? [];
+  const allowedDomains = useObservable(stateUnit?.allowedDomains$) ?? [];
+  const isLoading = useObservable(stateUnit?.isLoading$) ?? true;
 
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();

@@ -8,7 +8,7 @@ import {
 } from 'rxjs';
 import type { ResourceDescriptor, ResourceId } from '@semiont/core';
 import type { StateUnit } from '@semiont/core';
-import type { SemiontClient } from '@semiont/sdk';
+import type { SemiontSession } from '@semiont/sdk';
 
 export interface ResourceLoaderStateUnit extends StateUnit {
   resource$: Observable<ResourceDescriptor | undefined>;
@@ -31,9 +31,10 @@ export interface ResourceLoaderStateUnit extends StateUnit {
  * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md (D4)
  */
 export function createResourceLoaderStateUnit(
-  client: SemiontClient,
+  session: SemiontSession,
   resourceId: ResourceId,
 ): ResourceLoaderStateUnit {
+  const { client } = session;
   const resource$ = new BehaviorSubject<ResourceDescriptor | undefined>(undefined);
   const error$ = new BehaviorSubject<Error | null>(null);
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { sessionOf } from '../../../../__tests__/test-client';
 import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
@@ -51,7 +52,7 @@ function mockClient(overrides: {
 
 describe('createComposePageStateUnit', () => {
   it('defaults to "new" mode', async () => {
-    const stateUnit = createComposePageStateUnit(mockClient(), mockBrowse(), {});
+    const stateUnit = createComposePageStateUnit(sessionOf(mockClient()), mockBrowse(), {});
 
     const mode = await firstValueFrom(stateUnit.mode$);
     expect(mode).toBe('new');
@@ -63,7 +64,7 @@ describe('createComposePageStateUnit', () => {
   });
 
   it('detects reference mode from params', async () => {
-    const stateUnit = createComposePageStateUnit(mockClient(), mockBrowse(), {
+    const stateUnit = createComposePageStateUnit(sessionOf(mockClient()), mockBrowse(), {
       annotationUri: 'ann-1',
       sourceDocumentId: 'doc-1',
       name: 'Reference Doc',
@@ -82,7 +83,7 @@ describe('createComposePageStateUnit', () => {
 
   it('parses storedContext in reference mode', async () => {
     const context = { annotation: { id: 'ann-1' }, sourceContext: 'text' };
-    const stateUnit = createComposePageStateUnit(mockClient(), mockBrowse(), {
+    const stateUnit = createComposePageStateUnit(sessionOf(mockClient()), mockBrowse(), {
       annotationUri: 'ann-1',
       sourceDocumentId: 'doc-1',
       name: 'Ref',
@@ -96,7 +97,7 @@ describe('createComposePageStateUnit', () => {
   });
 
   it('ignores malformed storedContext', async () => {
-    const stateUnit = createComposePageStateUnit(mockClient(), mockBrowse(), {
+    const stateUnit = createComposePageStateUnit(sessionOf(mockClient()), mockBrowse(), {
       annotationUri: 'ann-1',
       sourceDocumentId: 'doc-1',
       name: 'Ref',
@@ -113,7 +114,7 @@ describe('createComposePageStateUnit', () => {
   });
 
   it('exposes entity types', async () => {
-    const stateUnit = createComposePageStateUnit(mockClient(), mockBrowse(), {});
+    const stateUnit = createComposePageStateUnit(sessionOf(mockClient()), mockBrowse(), {});
 
     const types = await firstValueFrom(stateUnit.entityTypes.value$);
     expect(types).toEqual(['Person']);
@@ -123,7 +124,7 @@ describe('createComposePageStateUnit', () => {
 
   it('save in new mode calls yield.resource', async () => {
     const resource = mockUpload('new-3');
-    const stateUnit = createComposePageStateUnit(mockClient({ resource }), mockBrowse(), {});
+    const stateUnit = createComposePageStateUnit(sessionOf(mockClient({ resource })), mockBrowse(), {});
 
     const id = await stateUnit.save({
       mode: 'new',
@@ -143,7 +144,7 @@ describe('createComposePageStateUnit', () => {
   it('save in reference mode calls yield.resource then bind.body', async () => {
     const resource = mockUpload('new-4');
     const body = vi.fn().mockResolvedValue(undefined);
-    const stateUnit = createComposePageStateUnit(mockClient({ resource, body }), mockBrowse(), {
+    const stateUnit = createComposePageStateUnit(sessionOf(mockClient({ resource, body })), mockBrowse(), {
       annotationUri: 'ann-1',
       sourceDocumentId: 'doc-1',
       name: 'Ref',
@@ -167,7 +168,7 @@ describe('createComposePageStateUnit', () => {
 
   it('save in clone mode calls yield.createFromToken', async () => {
     const createFromToken = vi.fn().mockResolvedValue({ resourceId: 'cloned-1' });
-    const stateUnit = createComposePageStateUnit(mockClient({ createFromToken }), mockBrowse(), {
+    const stateUnit = createComposePageStateUnit(sessionOf(mockClient({ createFromToken })), mockBrowse(), {
       mode: 'clone',
       token: 'tok-abc',
     });
@@ -192,7 +193,7 @@ describe('ComposePageStateUnit — StateUnit axioms', () => {
     assertStateUnitAxioms({
       setup: () => {
         const browse = disposeProbe();
-        return { unit: createComposePageStateUnit(mockClient(), browse as unknown as ShellStateUnit, {}), passedIn: [browse] };
+        return { unit: createComposePageStateUnit(sessionOf(mockClient()), browse as unknown as ShellStateUnit, {}), passedIn: [browse] };
       },
       surfaces: (u) => [u.mode$, u.loading$, u.cloneData$, u.referenceData$, u.gatheredContext$, u.uploadProgress$],
     });
@@ -206,7 +207,7 @@ describe('createComposePageStateUnit — entity types load failure', () => {
 
   it('surfaces the failure rather than presenting an empty picker as fact', async () => {
     const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);
-    const stateUnit = createComposePageStateUnit(mockClient({ entityTypes$ }), mockBrowse(), {});
+    const stateUnit = createComposePageStateUnit(sessionOf(mockClient({ entityTypes$ })), mockBrowse(), {});
 
     entityTypes$.error(new Error('boom'));
 

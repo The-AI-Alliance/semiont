@@ -14,7 +14,7 @@ import {
   useLineNumbers,
   useHoverDelay,
   useEventSubscriptions,
-  useStateUnit,
+  useSessionStateUnit,
   Toolbar,
   ComposeLoadingState,
   ResourceComposePage,
@@ -39,7 +39,6 @@ function ComposeResourceContent() {
   // yet, so we don't know if auth succeeded.
   const authLoading = activeKbId != null && session == null;
   const { showError, showSuccess } = useToast();
-  const client = session?.client;
 
   useEffect(() => {
     if (authLoading) return;
@@ -58,7 +57,7 @@ function ComposeResourceContent() {
     sessionStorage.removeItem(contextKey);
   }
 
-  const stateUnit = useStateUnit(() => createComposePageStateUnit(client!, browseStateUnit, {
+  const stateUnit = useSessionStateUnit(session ?? undefined, (s) => createComposePageStateUnit(s, browseStateUnit, {
     mode: searchParams?.get('mode') ?? undefined,
     token: searchParams?.get('token') ?? undefined,
     annotationUri: searchParams?.get('annotationUri') ?? undefined,
@@ -68,14 +67,14 @@ function ComposeResourceContent() {
     storedContext,
   }, authToken ?? undefined));
 
-  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
-  const pageMode = useObservable(stateUnit.mode$) ?? 'new';
-  const isLoading = useObservable(stateUnit.loading$) ?? true;
-  const cloneData = useObservable(stateUnit.cloneData$) ?? null;
-  const referenceData = useObservable(stateUnit.referenceData$) ?? null;
-  const gatheredContext = useObservable(stateUnit.gatheredContext$) ?? null;
-  const availableEntityTypes = useObservable(stateUnit.entityTypes.value$) ?? [];
-  const uploadProgress = useObservable(stateUnit.uploadProgress$) ?? null;
+  const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
+  const pageMode = useObservable(stateUnit?.mode$) ?? 'new';
+  const isLoading = useObservable(stateUnit?.loading$) ?? true;
+  const cloneData = useObservable(stateUnit?.cloneData$) ?? null;
+  const referenceData = useObservable(stateUnit?.referenceData$) ?? null;
+  const gatheredContext = useObservable(stateUnit?.gatheredContext$) ?? null;
+  const availableEntityTypes = useObservable(stateUnit?.entityTypes.value$) ?? [];
+  const uploadProgress = useObservable(stateUnit?.uploadProgress$) ?? null;
 
   const { setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
@@ -87,6 +86,7 @@ function ComposeResourceContent() {
   });
 
   const handleSaveResource = async (params: UISaveResourceParams) => {
+    if (!stateUnit) return;
     try {
       const newResourceId = await stateUnit.save(params);
       if (params.mode === 'reference' && params.annotationUri) {

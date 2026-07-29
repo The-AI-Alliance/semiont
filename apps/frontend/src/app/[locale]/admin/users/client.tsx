@@ -13,21 +13,21 @@ import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useEventSub
 import { AdminUsersPage } from '@semiont/react-ui';
 import type { AdminUser, AdminUserStats } from '@semiont/react-ui';
 import { createAdminUsersStateUnit } from '@semiont/react-ui';
-import { useStateUnit } from '@semiont/react-ui';
+import { useSessionStateUnit } from '@semiont/react-ui';
 
 export default function AdminUsers() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminUsers.${k}`, p as any) as string;
 
-  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  const session = useObservable(useSemiont().activeSession$) ?? undefined;
   const browseStateUnit = useShellStateUnit();
-  const stateUnit = useStateUnit(() => createAdminUsersStateUnit(semiont!, browseStateUnit));
+  const stateUnit = useSessionStateUnit(session, (s) => createAdminUsersStateUnit(s, browseStateUnit));
 
-  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
-  const users = useObservable(stateUnit.users$) ?? [];
-  const userStats = useObservable(stateUnit.stats$) ?? null;
-  const usersLoading = useObservable(stateUnit.usersLoading$) ?? true;
-  const statsLoading = useObservable(stateUnit.statsLoading$) ?? true;
+  const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
+  const users = useObservable(stateUnit?.users$) ?? [];
+  const userStats = useObservable(stateUnit?.stats$) ?? null;
+  const usersLoading = useObservable(stateUnit?.usersLoading$) ?? true;
+  const statsLoading = useObservable(stateUnit?.statsLoading$) ?? true;
 
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
@@ -47,7 +47,7 @@ export default function AdminUsers() {
 
   const handleUpdateUser = useCallback(async (id: string, data: { isAdmin?: boolean; isActive?: boolean }) => {
     try {
-      await stateUnit.updateUser(id, data);
+      await stateUnit?.updateUser(id, data);
     } catch (error) {
       console.error('Failed to update user:', error);
     }

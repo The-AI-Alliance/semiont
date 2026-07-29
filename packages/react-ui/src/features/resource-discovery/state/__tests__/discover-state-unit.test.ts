@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { sessionOf } from '../../../../__tests__/test-client';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { filter, skip, take, toArray } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
@@ -46,7 +47,7 @@ function mockClient(overrides: {
 describe('createDiscoverStateUnit', () => {
   it('exposes recent resources from browse namespace', async () => {
     const { client } = mockClient();
-    const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+    const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     const recent = await firstValueFrom(stateUnit.recent.value$);
     expect(recent).toEqual([{ '@id': 'r1' }]);
@@ -56,7 +57,7 @@ describe('createDiscoverStateUnit', () => {
 
   it('exposes entity types from browse namespace', async () => {
     const { client } = mockClient();
-    const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+    const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     const types = await firstValueFrom(stateUnit.entityTypes.value$);
     expect(types).toEqual(['Person']);
@@ -67,7 +68,7 @@ describe('createDiscoverStateUnit', () => {
   it('falls back to [] when entityTypes() emits undefined', async () => {
     const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);
     const { client } = mockClient({ entityTypes$ });
-    const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+    const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     const types = await firstValueFrom(stateUnit.entityTypes.value$);
     expect(types).toEqual([]);
@@ -78,7 +79,7 @@ describe('createDiscoverStateUnit', () => {
   it('reports loading when resources are undefined', async () => {
     const resources$ = new BehaviorSubject<unknown[] | undefined>(undefined);
     const { client } = mockClient({ resources$ });
-    const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+    const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     const loading = await firstValueFrom(stateUnit.recent.loading$);
     expect(loading).toBe(true);
@@ -92,7 +93,7 @@ describe('createDiscoverStateUnit', () => {
 
   it('exposes a search pipeline', () => {
     const { client } = mockClient();
-    const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+    const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     expect(stateUnit.search).toBeDefined();
     expect(typeof stateUnit.search.setQuery).toBe('function');
@@ -103,7 +104,7 @@ describe('createDiscoverStateUnit', () => {
 
   it('initial selectedEntityType$ is empty and recent fetch carries no entityType', async () => {
     const { client, resourceCalls } = mockClient();
-    const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+    const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     await firstValueFrom(stateUnit.recent.value$);
 
@@ -116,7 +117,7 @@ describe('createDiscoverStateUnit', () => {
 
   it('setSelectedEntityType drives a refetch with the entityType filter', async () => {
     const { client, resourceCalls } = mockClient();
-    const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+    const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     // Prime the first subscription so the switchMap is live.
     const sub = stateUnit.recent.value$.subscribe();
@@ -136,7 +137,7 @@ describe('createDiscoverStateUnit', () => {
     vi.useFakeTimers();
     try {
       const { client, resourceCalls } = mockClient();
-      const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+      const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
       const collected: Array<{ results: unknown[]; isSearching: boolean }> = [];
       const sub = stateUnit.search.state$.subscribe((s) => collected.push(s));
@@ -161,7 +162,7 @@ describe('createDiscoverStateUnit', () => {
       const { client, resourceCalls } = mockClient({
         resourcesFn: (filters) => (filters.search ? results$ : new BehaviorSubject<unknown[] | undefined>([])),
       });
-      const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+      const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
       const sub = stateUnit.search.state$.subscribe();
       stateUnit.setSelectedEntityType('Person');
@@ -191,7 +192,7 @@ describe('createDiscoverStateUnit', () => {
       const { client } = mockClient({
         resourcesFn: () => results$,
       });
-      const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+      const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
       const collected: Array<{ results: unknown[]; isSearching: boolean }> = [];
       const sub = stateUnit.search.state$.subscribe((s) => collected.push(s));
@@ -215,7 +216,7 @@ describe('createDiscoverStateUnit', () => {
       const { client } = mockClient({
         resourcesFn: () => inflight$,
       });
-      const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+      const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
       const collected: Array<{ results: unknown[]; isSearching: boolean }> = [];
       const sub = stateUnit.search.state$.subscribe((s) => collected.push(s));
@@ -234,7 +235,7 @@ describe('createDiscoverStateUnit', () => {
 
   it('search query observable echoes the latest setQuery value', async () => {
     const { client } = mockClient();
-    const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+    const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     const queries = stateUnit.search.query$.pipe(skip(1), take(1), toArray()).toPromise();
     stateUnit.search.setQuery('alpha');
@@ -246,7 +247,7 @@ describe('createDiscoverStateUnit', () => {
 
   it('omits entityType from the filter when the empty sentinel is selected', async () => {
     const { client, resourceCalls } = mockClient();
-    const stateUnit = createDiscoverStateUnit(client, mockBrowse());
+    const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     const sub = stateUnit.recent.value$.subscribe();
     stateUnit.setSelectedEntityType('Person');
@@ -266,7 +267,7 @@ describe('DiscoverStateUnit — StateUnit axioms', () => {
       setup: () => {
         const browse = disposeProbe();
         const { client } = mockClient();
-        return { unit: createDiscoverStateUnit(client, browse as unknown as ShellStateUnit), passedIn: [browse] };
+        return { unit: createDiscoverStateUnit(sessionOf(client), browse as unknown as ShellStateUnit), passedIn: [browse] };
       },
       surfaces: (u) => [u.selectedEntityType$],
       invocations: (u) => [() => u.setSelectedEntityType('')],
@@ -283,7 +284,7 @@ describe('createDiscoverStateUnit — terminal load failure', () => {
   it('recent: stops loading and surfaces the reason instead of spinning for ever', async () => {
     const resources$ = new BehaviorSubject<unknown[] | undefined>(undefined);
     const { client } = mockClient({ resources$ });
-    const unit = createDiscoverStateUnit(client, mockBrowse());
+    const unit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     expect(await firstValueFrom(unit.recent.loading$)).toBe(true);
     resources$.error(new Error('Resource not found'));
@@ -298,7 +299,7 @@ describe('createDiscoverStateUnit — terminal load failure', () => {
   it('entityTypes: same, and keeps an empty list to render', async () => {
     const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);
     const { client } = mockClient({ entityTypes$ });
-    const unit = createDiscoverStateUnit(client, mockBrowse());
+    const unit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     entityTypes$.error(new Error('boom'));
 
@@ -320,7 +321,7 @@ describe('createDiscoverStateUnit — terminal load failure', () => {
         return s;
       },
     });
-    const unit = createDiscoverStateUnit(client, mockBrowse());
+    const unit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
 
     attempts[0]!.error(new Error('nope'));
     expect(await firstValueFrom(unit.recent.error$)).not.toBeNull();
