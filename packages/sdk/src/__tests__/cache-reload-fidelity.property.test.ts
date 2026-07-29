@@ -52,7 +52,7 @@ interface Content { upTo: number }
 interface Rig {
   cacheA: Cache<string, Content>;
   cacheB: Cache<string, Content>;
-  saveLastEventId: (id: string) => void;
+  saveLastEventId: (scope: string, id: string) => void;
   resolvers: Array<(c: Content) => void>;
   dispose: () => void;
 }
@@ -101,8 +101,11 @@ function persistedAUpTo(storage: InMemorySessionStorage): number {
 function bookmarkSeq(storage: InMemorySessionStorage): number {
   const raw = storage.get(BOOKMARK_KEY);
   if (raw === null) return 0;
-  const m = /^p-r1-(\d+)$/.exec(raw);
-  if (!m) throw new Error(`unparseable bookmark ${raw}`);
+  const record = JSON.parse(raw) as Record<string, string>;
+  const id = record['r1'];
+  if (id === undefined) return 0;
+  const m = /^p-r1-(\d+)$/.exec(id);
+  if (!m) throw new Error(`unparseable bookmark ${id}`);
   return Number(m[1]);
 }
 
@@ -141,12 +144,12 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
         case 'arrive':
           serverSeq += 1;
           rig.cacheA.invalidate(KEY);              // apply first…
-          rig.saveLastEventId(`p-r1-${serverSeq}`); // …stash second (the fixed order)
+          rig.saveLastEventId('r1', `p-r1-${serverSeq}`); // …stash second (the fixed order)
           break;
         case 'receiveLegacy':
           serverSeq += 1;
           unapplied += 1;
-          rig.saveLastEventId(`p-r1-${serverSeq}`);
+          rig.saveLastEventId('r1', `p-r1-${serverSeq}`);
           break;
         case 'applyLegacy':
           if (unapplied > 0) { unapplied -= 1; rig.cacheA.invalidate(KEY); }

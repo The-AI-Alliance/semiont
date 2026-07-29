@@ -21,19 +21,29 @@ export interface ActorStateUnitOptions {
   baseUrl: string;
   token: string | (() => string);
   channels: string[];
-  scope?: string;
   reconnectMs?: number;
   /**
-   * B17 (LOCAL-STORAGE) — IO-abstracted persistence for the last seen
-   * PERSISTED event id, so a reloaded client resumes instead of gapping.
-   * `load` runs once at construction; `save` fires per persisted (`p-*`)
-   * id — ephemeral (`e-*`) ids are never saved: the server treats them as
-   * "no resumption context", which after a reload would silently skip the
-   * replay that reconciles rehydrated caches. The transport stays
+   * Remove-side reconnect hysteresis (MULTI-RESOURCE-SCOPE). Scope
+   * additions need liveness quickly (100 ms debounce), but a removal only
+   * narrows delivery — extra events for a just-released scope are
+   * idempotent locally — so remove-only changes wait this long before
+   * reconnecting. Keeps hover-churn (transient per-citation previews)
+   * from turning every mouse pass into a reconnect storm; any addition
+   * flushes pending removals with it on the fast path.
+   */
+  lazyRemoveMs?: number;
+  /**
+   * B17 (LOCAL-STORAGE) — IO-abstracted persistence of the last seen
+   * PERSISTED event id PER SCOPE, so a reloaded client resumes each
+   * scope's replay instead of gapping. `load` runs once at construction;
+   * `save` fires per persisted (`p-*`) id with that frame's scope —
+   * ephemeral (`e-*`) ids are never saved: they carry no replay meaning,
+   * and letting them displace a scope's watermark was exactly the silent
+   * replay-loss hole the single-id design had. The transport stays
    * storage-free; callers wrap their own adapter in these thunks.
    */
-  loadLastEventId?: () => string | null;
-  saveLastEventId?: (id: string) => void;
+  loadLastEventIds?: () => Record<string, string> | null;
+  saveLastEventId?: (scope: string, id: string) => void;
 }
 
 /** Time in the `reconnecting` state before transitioning to `degraded`. */
@@ -56,8 +66,10 @@ export interface ActorStateUnit extends StateUnit {
   on$<T = Record<string, unknown>>(channel: string): Observable<T>;
   emit(channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<void>;
   state$: Observable<ConnectionState>;
+  /** With `scope`: upsert channels into that scope's matrix entry. Without: global channels. */
   addChannels(channels: string[], scope?: string): void;
-  removeChannels(channels: string[]): void;
+  /** With `scope`: remove channels from that scope's entry (empty entry drops the scope). Without: global channels. */
+  removeChannels(channels: string[], scope?: string): void;
   start(): void;
   stop(): void;
 }
@@ -77,12 +89,22 @@ const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState
 };
 
 export function createActorStateUnit(options: ActorStateUnitOptions): ActorStateUnit {
-  const { baseUrl, token: tokenOrGetter, channels: initialChannels, scope: initialScope, reconnectMs = 5_000 } = options;
+  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = 5_000, lazyRemoveMs = 5_000 } = options;
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
   const globalChannels = new Set(initialChannels);
-  const scopedChannels = new Set<string>();
-  let activeScope = initialScope;
+  /** The subscription matrix's scoped half: scope → channels (MULTI-RESOURCE-SCOPE). */
+  const scopedSubscriptions = new Map<string, Set<string>>();
+  /**
+   * Per-scope resumption watermarks: the last PERSISTED (`p-*`) id seen for
+   * each scope. Sent as `lastEventId` on that scope's matrix entry so the
+   * server replays each scope's own gap. A scope keeps its watermark after
+   * its channels are removed — re-subscribing later replays what was missed
+   * in between. Ephemeral ids never touch this map.
+   */
+  const scopeWatermarks = new Map<string, string>(
+    Object.entries(options.loadLastEventIds?.() ?? {}),
+  );
 
   const events$ = new Subject<BusEvent>();
   const state$ = new BehaviorSubject<ConnectionState>('initial');
@@ -151,19 +173,6 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   const superseded = new WeakSet<AbortController>();
   /** Pending linger-abort timers, cleared on stop/dispose. */
   const lingerTimers = new Set<ReturnType<typeof setTimeout>>();
-
-  /**
-   * `Last-Event-ID` of the most recently delivered SSE event from the
-   * server. Sent as a request header on each connect so the server can
-   * replay persisted events missed during the disconnect (see
-   * `apps/backend/src/routes/bus.ts` subscribe handler). Initialised
-   * `null` — fresh connections send no header.
-   *
-   * We track both persisted (`p-*`) and ephemeral (`e-*`) ids. The server
-   * treats ephemeral ids as "no resumption context" and responds live-
-   * only; persisted ids drive replay.
-   */
-  let lastEventId: string | null = options.loadLastEventId?.() ?? null;
 
   /**
    * Recently-delivered event ids, to dedup the make-before-break overlap: the
@@ -235,25 +244,30 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       inflightControllers.clear();
     }
 
-    const params = new URLSearchParams();
-    for (const ch of globalChannels) {
-      params.append('channel', ch);
-    }
-    if (activeScope && scopedChannels.size > 0) {
-      params.append('scope', activeScope);
-      for (const ch of scopedChannels) {
-        params.append('scoped', ch);
-      }
-    }
-    const url = `${baseUrl}/bus/subscribe?${params.toString()}`;
+    // POST subscription matrix (MULTI-RESOURCE-SCOPE): global channels plus
+    // one entry per scope, each carrying its own resumption watermark.
+    const body = JSON.stringify({
+      global: [...globalChannels],
+      scoped: [...scopedSubscriptions.entries()].map(([scope, chans]) => {
+        const watermark = scopeWatermarks.get(scope);
+        return {
+          scope,
+          channels: [...chans],
+          ...(watermark !== undefined ? { lastEventId: watermark } : {}),
+        };
+      }),
+    });
+    const url = `${baseUrl}/bus/subscribe`;
 
     const controller = new AbortController();
     inflightControllers.add(controller);
 
     try {
-      const headers: Record<string, string> = { Authorization: `Bearer ${getToken()}` };
-      if (lastEventId) headers['Last-Event-ID'] = lastEventId;
-      const response = await fetch(url, { headers, signal: controller.signal });
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${getToken()}`,
+        'Content-Type': 'application/json',
+      };
+      const response = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
 
       if (!response.ok || !response.body) {
         throw new Error(`SSE connect failed: ${response.status}`);
@@ -377,7 +391,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
                 if (currentId !== undefined) forgetEventId(currentId);
                 throw err;
               }
-              // The resume position and the persisted bookmark answer "have
+              // The resume watermark and the persisted bookmark answer "have
               // this event's effects been absorbed?" and stay AFTER the apply.
               // The pre-fix order (stash first, then an AWAITED apply) opened a
               // gap where a bystander cache's debounced save could fire
@@ -387,10 +401,15 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
               // Both stay on the LAGGING side, which is safe: a reconnect or
               // crash mid-apply resumes from the previous id and redelivers,
               // and re-invalidation is idempotent.
-              if (currentId !== undefined) {
-                lastEventId = currentId;
-                // B17: persisted ids only — see ActorStateUnitOptions.
-                if (currentId.startsWith('p-')) options.saveLastEventId?.(currentId);
+              //
+              // Watermarks are PER SCOPE and persisted-ids-only: a `p-*` id is
+              // stamped only on scoped deliveries (the frame always carries
+              // `scope`), and ephemeral ids never displace a scope's watermark
+              // — the silent replay-loss hole the old single-id design had.
+              if (currentId !== undefined && currentId.startsWith('p-') && parsed.scope) {
+                scopeWatermarks.set(parsed.scope, currentId);
+                // B17: persist per scope — see ActorStateUnitOptions.
+                options.saveLastEventId?.(parsed.scope, currentId);
               }
             }
             currentEvent = '';
@@ -445,14 +464,31 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   // again, and leave the page stuck in "Loading..." while caches
   // thrashed. With a short debounce the whole sequence collapses into
   // one reconnect after the final channel-set is stable.
+  //
+  // Two cadences (MULTI-RESOURCE-SCOPE remove-side hysteresis): additions
+  // take the fast 100 ms path (a new scope needs liveness now); remove-only
+  // changes wait `lazyRemoveMs` — removal merely narrows delivery, and the
+  // consumer's hover churn would otherwise reconnect on every mouse pass.
+  // The connect body reads current state, so whichever timer fires first
+  // carries ALL pending changes; a fast schedule therefore supersedes any
+  // pending lazy one, and a lazy schedule never preempts a pending fast one.
   let reconnectTimer2: ReturnType<typeof setTimeout> | null = null;
+  let lazyReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   const RECONNECT_DEBOUNCE_MS = 100;
   const scheduleReconnect = () => {
+    if (lazyReconnectTimer) { clearTimeout(lazyReconnectTimer); lazyReconnectTimer = null; }
     if (reconnectTimer2) clearTimeout(reconnectTimer2);
     reconnectTimer2 = setTimeout(() => {
       reconnectTimer2 = null;
       reconnect();
     }, RECONNECT_DEBOUNCE_MS);
+  };
+  const scheduleLazyReconnect = () => {
+    if (reconnectTimer2 || lazyReconnectTimer) return; // a pending flush already covers this change
+    lazyReconnectTimer = setTimeout(() => {
+      lazyReconnectTimer = null;
+      reconnect();
+    }, lazyRemoveMs);
   };
 
   return {
@@ -491,10 +527,14 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     addChannels: (channels: string[], scope?: string) => {
       let changed = false;
       if (scope !== undefined) {
-        for (const ch of channels) {
-          if (!scopedChannels.has(ch)) { scopedChannels.add(ch); changed = true; }
+        let entry = scopedSubscriptions.get(scope);
+        if (!entry) {
+          entry = new Set<string>();
+          scopedSubscriptions.set(scope, entry);
         }
-        if (scope !== activeScope) { activeScope = scope; changed = true; }
+        for (const ch of channels) {
+          if (!entry.has(ch)) { entry.add(ch); changed = true; }
+        }
       } else {
         for (const ch of channels) {
           if (!globalChannels.has(ch)) { globalChannels.add(ch); changed = true; }
@@ -503,14 +543,24 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       if (changed) scheduleReconnect();
     },
 
-    removeChannels: (channels: string[]) => {
+    removeChannels: (channels: string[], scope?: string) => {
       let changed = false;
-      for (const ch of channels) {
-        if (scopedChannels.delete(ch)) changed = true;
-        if (globalChannels.delete(ch)) changed = true;
+      if (scope !== undefined) {
+        const entry = scopedSubscriptions.get(scope);
+        if (entry) {
+          for (const ch of channels) {
+            if (entry.delete(ch)) changed = true;
+          }
+          // The watermark survives the scope's removal deliberately: a later
+          // re-subscribe replays what was missed in between.
+          if (entry.size === 0) scopedSubscriptions.delete(scope);
+        }
+      } else {
+        for (const ch of channels) {
+          if (globalChannels.delete(ch)) changed = true;
+        }
       }
-      if (scopedChannels.size === 0) activeScope = undefined;
-      if (changed) scheduleReconnect();
+      if (changed) scheduleLazyReconnect();
     },
 
     start: () => {
@@ -523,6 +573,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       running = false;
       if (currentState !== 'closed') transition('closed');
       if (reconnectTimer2) { clearTimeout(reconnectTimer2); reconnectTimer2 = null; }
+      if (lazyReconnectTimer) { clearTimeout(lazyReconnectTimer); lazyReconnectTimer = null; }
       if (degradedTimer) { clearTimeout(degradedTimer); degradedTimer = null; }
       disconnect();
     },
@@ -531,6 +582,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       running = false;
       if (currentState !== 'closed') transition('closed');
       if (reconnectTimer2) { clearTimeout(reconnectTimer2); reconnectTimer2 = null; }
+      if (lazyReconnectTimer) { clearTimeout(lazyReconnectTimer); lazyReconnectTimer = null; }
       if (degradedTimer) { clearTimeout(degradedTimer); degradedTimer = null; }
       disconnect();
       events$.complete();

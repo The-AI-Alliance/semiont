@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "description": "Subscription matrix for the bus SSE stream (MULTI-RESOURCE-SCOPE). `global` channels are delivered unscoped; each `scoped` entry subscribes the connection to one resource scope's channels, optionally resuming replay from that scope's last-seen persisted event id. At least one global channel or one scoped entry is required.",
+  "properties": {
+    "global": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Unscoped channels to subscribe to."
+    },
+    "scoped": {
+      "type": "array",
+      "description": "Per-resource-scope subscriptions. Scopes must be unique across entries.",
+      "items": {
+        "type": "object",
+        "required": ["scope", "channels"],
+        "additionalProperties": false,
+        "properties": {
+          "scope": {
+            "type": "string",
+            "description": "Resource scope (a resourceId)."
+          },
+          "channels": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Channels to subscribe within this scope."
+          },
+          "lastEventId": {
+            "type": "string",
+            "description": "This scope's last-seen persisted event id (`p-<scope>-<seq>`). The server replays this scope's persisted events after it before joining the live tail, and emits a scoped `bus:resume-gap` when it cannot cover the gap (unparseable or mismatched id, retention exceeded, or query error)."
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

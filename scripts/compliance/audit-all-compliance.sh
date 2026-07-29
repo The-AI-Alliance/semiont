@@ -4,7 +4,7 @@ set -e
 # Run compliance audits for all workspaces
 # Generates REACT-UI-COMPLIANCE.md and FRONTEND-COMPLIANCE.md
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPLIANCE_DIR="$REPO_ROOT/scripts/compliance"
 
 echo "🔬 Running compliance audits for all workspaces..."

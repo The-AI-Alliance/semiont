@@ -46,7 +46,7 @@ interface Content { upTo: number }
 interface Rig {
   cacheA: Cache<string, Content>;
   cacheB: Cache<string, Content>;
-  saveLastEventId: (id: string) => void;
+  saveLastEventId: (scope: string, id: string) => void;
   resolvers: Array<(c: Content) => void>;
   dispose: () => void;
 }
@@ -101,8 +101,11 @@ function persistedAUpTo(storage: InMemorySessionStorage): number {
 function bookmarkSeq(storage: InMemorySessionStorage): number {
   const raw = storage.get(BOOKMARK_KEY);
   if (raw === null) return 0;
-  const m = /^p-r1-(\d+)$/.exec(raw);
-  if (!m) throw new Error(`unparseable bookmark ${raw}`);
+  const record = JSON.parse(raw) as Record<string, string>;
+  const id = record['r1'];
+  if (id === undefined) return 0;
+  const m = /^p-r1-(\d+)$/.exec(id);
+  if (!m) throw new Error(`unparseable bookmark ${id}`);
   return Number(m[1]);
 }
 
@@ -134,7 +137,7 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
       switch (cmd) {
         case 'deliver':
           serverSeq += 1;
-          rig.saveLastEventId(`p-r1-${serverSeq}`);
+          rig.saveLastEventId('r1', `p-r1-${serverSeq}`);
           rig.cacheA.invalidate(KEY);
           break;
         case 'complete':
@@ -188,7 +191,7 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
 
     // Event 1 arrives: bookmark stashed, A's refetch in flight.
-    rig.saveLastEventId('p-r1-1');
+    rig.saveLastEventId('r1', 'p-r1-1');
     rig.cacheA.invalidate(KEY);
 
     // Bystander B writes its document — pre-fix this flushed p-r1-1 while
@@ -201,7 +204,7 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
     // carries the bookmark through.
     rig.resolvers.shift()!({ upTo: 1 });
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
-    expect(storage.get(BOOKMARK_KEY)).toBe('p-r1-1');
+    expect(JSON.parse(storage.get(BOOKMARK_KEY)!)).toEqual({ r1: 'p-r1-1' });
     expect(persistedAUpTo(storage)).toBe(1);
     rig.dispose();
   });

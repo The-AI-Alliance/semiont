@@ -112,7 +112,7 @@ export function createHttpSessionFactory(): SessionFactory {
       baseUrl: baseUrl(kbBackendUrl(endpoint)),
       token$,
       tokenRefresher: () => session.refresh().then((t) => t ?? null),
-      loadLastEventId: coupled.loadLastEventId,
+      loadLastEventIds: coupled.loadLastEventIds,
       saveLastEventId: coupled.saveLastEventId,
     });
     const content = new HttpContentTransport(transport);

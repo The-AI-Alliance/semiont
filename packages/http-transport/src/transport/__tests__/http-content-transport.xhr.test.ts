@@ -22,6 +22,13 @@ import { HttpTransport, APIError } from '../http-transport';
 import { HttpContentTransport } from '../http-content-transport';
 import { BehaviorSubject } from 'rxjs';
 
+// The transport is constructed with a live token, so its bus actor
+// auto-starts and would otherwise issue a REAL /bus/subscribe fetch from
+// inside this jsdom environment (whose undici body path lacks `Buffer`,
+// yielding unhandled rejections). This suite is about the XHR upload path
+// only — park the SSE fetch on a never-resolving promise.
+vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+
 class FakeXHR {
   static instances: FakeXHR[] = [];
 

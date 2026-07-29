@@ -327,24 +327,18 @@ describe('bus routes', () => {
     });
   });
 
-  describe('GET /bus/subscribe', () => {
-    it('rejects request with no channels with 400', async () => {
-      const res = await app.request('/bus/subscribe');
-      expect(res.status).toBe(400);
-    });
-
-    it('returns SSE content type', async () => {
-      const res = await app.request('/bus/subscribe?channel=test%3Aevent');
-      expect(res.status).toBe(200);
-      expect(res.headers.get('content-type')).toContain('text/event-stream');
-    });
-  });
-
   // ── BUS-RESUMPTION.md behavior ────────────────────────────────────────
+
+  const subscribe = (target: ReturnType<typeof buildApp>, body: unknown) =>
+    target.request('/bus/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
 
   describe('SSE event-id stamping', () => {
     it('stamps ephemeral `id: e-<conn>-<n>` on global channel events', async () => {
-      const res = await app.request('/bus/subscribe?channel=test%3Aevent');
+      const res = await subscribe(app, { global: ['test:event'] });
       expect(res.status).toBe(200);
 
       // Emit after subscription has been set up (give the subscription a tick).
@@ -363,7 +357,7 @@ describe('bus routes', () => {
       // overlap (subscribeToResource) dedups it by event id. A counter id would
       // differ across the two briefly-live connections and the same reply would
       // slip through twice (.plans/bugs/BRIDGE-GAPS.md).
-      const res = await app.request('/bus/subscribe?channel=test%3Aevent');
+      const res = await subscribe(app, { global: ['test:event'] });
       expect(res.status).toBe(200);
 
       setTimeout(() => {
@@ -375,9 +369,9 @@ describe('bus routes', () => {
     });
 
     it('stamps persisted `id: p-<scope>-<seq>` on scoped events with a sequenceNumber', async () => {
-      const res = await app.request(
-        '/bus/subscribe?scope=res-99&scoped=mark%3Aadded',
-      );
+      const res = await subscribe(app, {
+        scoped: [{ scope: 'res-99', channels: ['mark:added'] }],
+      });
       expect(res.status).toBe(200);
 
       setTimeout(() => {
@@ -389,44 +383,27 @@ describe('bus routes', () => {
     });
   });
 
-  describe('Last-Event-ID resumption', () => {
-    it('replays persisted events from the event store when Last-Event-ID is a valid p-<scope>-<seq>', async () => {
-      const queryEvents = vi.fn<QueryEventsStub>().mockResolvedValue([
-        fakeStoredMarkAdded(8, 'res-1', 'replayed-1'),
-        fakeStoredMarkAdded(9, 'res-1', 'replayed-2'),
-      ]);
-      const mm = fakeMakeMeaning(queryEvents);
-      const app2 = buildApp(eventBus, mm);
+  describe('per-scope resumption (replay/live interleaving)', () => {
+    // The basic replay / unparseable / scope-mismatch cases live in the
+    // POST-matrix suite below (per-scope watermarks). This describe keeps
+    // the replay-machinery cases: channel filtering, retention, and the
+    // buffer-during-replay interleave/dedup properties.
 
-      const res = await app2.request(
-        '/bus/subscribe?scope=res-1&scoped=mark%3Aadded',
-        { headers: { 'Last-Event-ID': 'p-res-1-7' } },
-      );
-
-      const body = await readSSE(res, (b) => b.includes('replayed-2'));
-      expect(queryEvents).toHaveBeenCalledWith('res-1', { fromSequence: 8 });
-      expect(body).toContain('replayed-1');
-      expect(body).toContain('replayed-2');
-      expect(body).toMatch(/id: p-res-1-8/);
-      expect(body).toMatch(/id: p-res-1-9/);
-    });
-
-    it('filters replayed events by the subscribed `scoped=` channel set', async () => {
+    it("filters replayed events by the entry's `channels` set", async () => {
       const queryEvents = vi.fn<QueryEventsStub>().mockResolvedValue([
         fakeStoredMarkAdded(8, 'res-1', 'keep-ann'),
         fakeStoredYieldCreated(9, 'skip-res'),
       ]);
       const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
 
-      const res = await app2.request(
-        '/bus/subscribe?scope=res-1&scoped=mark%3Aadded',
-        { headers: { 'Last-Event-ID': 'p-res-1-7' } },
-      );
+      const res = await subscribe(app2, {
+        scoped: [{ scope: 'res-1', channels: ['mark:added'], lastEventId: 'p-res-1-7' }],
+      });
 
       const body = await readSSE(res, (b) => b.includes('keep-ann'));
       expect(body).toContain('keep-ann');
-      // yield:created isn't in the subscribed `scoped=` set so it's
-      // filtered out of the replay.
+      // yield:created isn't in the entry's channel set so it's filtered
+      // out of the replay.
       expect(body).not.toContain('skip-res');
     });
 
@@ -436,50 +413,14 @@ describe('bus routes', () => {
       ]);
       const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
 
-      const res = await app2.request(
-        '/bus/subscribe?scope=res-1&scoped=mark%3Aadded',
-        { headers: { 'Last-Event-ID': 'p-res-1-7' } },
-      );
+      const res = await subscribe(app2, {
+        scoped: [{ scope: 'res-1', channels: ['mark:added'], lastEventId: 'p-res-1-7' }],
+      });
 
       const body = await readSSE(res, (b) => b.includes('bus:resume-gap'));
       expect(body).toContain('"channel":"bus:resume-gap"');
       expect(body).toContain('"reason":"retention-exceeded"');
       expect(body).toContain('"scope":"res-1"');
-    });
-
-    it('emits bus:resume-gap for an unparseable Last-Event-ID', async () => {
-      const res = await app.request('/bus/subscribe?channel=test%3Aevent', {
-        headers: { 'Last-Event-ID': 'not-a-valid-id' },
-      });
-
-      const body = await readSSE(res, (b) => b.includes('bus:resume-gap'));
-      expect(body).toContain('"reason":"unparseable-last-event-id"');
-    });
-
-    it('treats an ephemeral Last-Event-ID as "no resumption" (no gap event, no replay)', async () => {
-      const queryEvents = vi.fn<QueryEventsStub>();
-      const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
-
-      const res = await app2.request('/bus/subscribe?channel=test%3Aevent', {
-        headers: { 'Last-Event-ID': 'e-abc123-5' },
-      });
-
-      setTimeout(() => eventBus.get('test:event' as any).next({ x: 1 }), 20);
-      const body = await readSSE(res, (b) => b.includes('"channel":"test:event"'));
-
-      expect(queryEvents).not.toHaveBeenCalled();
-      expect(body).not.toContain('bus:resume-gap');
-      expect(body).toContain('"channel":"test:event"');
-    });
-
-    it('emits bus:resume-gap when Last-Event-ID scope does not match the subscription scope', async () => {
-      const res = await app.request(
-        '/bus/subscribe?scope=res-DIFFERENT&scoped=mark%3Aadded',
-        { headers: { 'Last-Event-ID': 'p-res-original-3' } },
-      );
-
-      const body = await readSSE(res, (b) => b.includes('bus:resume-gap'));
-      expect(body).toContain('"reason":"scope-mismatch"');
     });
 
     /**
@@ -521,10 +462,9 @@ describe('bus routes', () => {
       });
       const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
 
-      const res = await app2.request(
-        '/bus/subscribe?scope=res-1&scoped=mark%3Aadded',
-        { headers: { 'Last-Event-ID': 'p-res-1-7' } },
-      );
+      const res = await subscribe(app2, {
+        scoped: [{ scope: 'res-1', channels: ['mark:added'], lastEventId: 'p-res-1-7' }],
+      });
 
       // Let the subscribe handler set up its live subscription and start
       // the query. The query is hanging on `resolveQuery` — the server is
@@ -570,10 +510,9 @@ describe('bus routes', () => {
       });
       const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
 
-      const res = await app2.request(
-        '/bus/subscribe?scope=res-1&scoped=mark%3Aadded',
-        { headers: { 'Last-Event-ID': 'p-res-1-7' } },
-      );
+      const res = await subscribe(app2, {
+        scoped: [{ scope: 'res-1', channels: ['mark:added'], lastEventId: 'p-res-1-7' }],
+      });
 
       await new Promise((r) => setTimeout(r, 30));
 
@@ -588,6 +527,159 @@ describe('bus routes', () => {
       expect(matches.length).toBe(1);
       const ids = [...body.matchAll(/^id: (p-res-1-\d+)$/gm)].map((m) => m[1]);
       expect(ids).toEqual(['p-res-1-8']);
+    });
+  });
+
+  // ── MULTI-RESOURCE-SCOPE.md Step 3: POST subscription matrix ──────────
+
+  describe('POST /bus/subscribe (multi-scope matrix)', () => {
+    it("delivers each scope's events to a two-scope connection, tagged with the originating scope", async () => {
+      const res = await subscribe(app, {
+        scoped: [
+          { scope: 'res-A', channels: ['mark:added'] },
+          { scope: 'res-B', channels: ['mark:added'] },
+        ],
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('text/event-stream');
+
+      setTimeout(() => {
+        eventBus.scope('res-A').get('mark:added').next(fakeStoredMarkAdded(1, 'res-A', 'ann-A'));
+        eventBus.scope('res-B').get('mark:added').next(fakeStoredMarkAdded(1, 'res-B', 'ann-B'));
+      }, 20);
+
+      const body = await readSSE(res, (b) => b.includes('ann-A') && b.includes('ann-B'));
+      expect(body).toContain('"scope":"res-A"');
+      expect(body).toContain('"scope":"res-B"');
+      expect(body).toMatch(/id: p-res-A-1/);
+      expect(body).toMatch(/id: p-res-B-1/);
+    });
+
+    it("never leaks scope A's events to a connection subscribed only to scope B (no-leak, design principle 6)", async () => {
+      const res = await subscribe(app, {
+        scoped: [{ scope: 'res-B', channels: ['mark:added'] }],
+      });
+      expect(res.status).toBe(200);
+
+      setTimeout(() => {
+        // A's event first — if it were going to leak, it would arrive
+        // before the B event the predicate waits on.
+        eventBus.scope('res-A').get('mark:added').next(fakeStoredMarkAdded(1, 'res-A', 'leak-A'));
+        eventBus.scope('res-B').get('mark:added').next(fakeStoredMarkAdded(1, 'res-B', 'keep-B'));
+      }, 20);
+
+      const body = await readSSE(res, (b) => b.includes('keep-B'));
+      expect(body).toContain('keep-B');
+      expect(body).not.toContain('leak-A');
+    });
+
+    it('mixes global channels and scoped entries on one connection', async () => {
+      const res = await subscribe(app, {
+        global: ['test:event'],
+        scoped: [{ scope: 'res-A', channels: ['mark:added'] }],
+      });
+      expect(res.status).toBe(200);
+
+      setTimeout(() => {
+        eventBus.get('test:event' as never).next({ x: 1 } as never);
+        eventBus.scope('res-A').get('mark:added').next(fakeStoredMarkAdded(1, 'res-A', 'ann-A'));
+      }, 20);
+
+      const body = await readSSE(res, (b) => b.includes('test:event') && b.includes('ann-A'));
+      // Global event: no scope field, ephemeral id.
+      expect(body).toMatch(/id: e-[0-9a-f-]+-\d+/);
+      expect(body).toContain('"channel":"test:event"');
+      // Scoped event: scope field + persisted id.
+      expect(body).toContain('"scope":"res-A"');
+    });
+
+    it('replays per scope: a watermarked entry replays its gap, a fresh sibling entry stays silent', async () => {
+      const queryEvents = vi.fn<QueryEventsStub>().mockResolvedValue([
+        fakeStoredMarkAdded(8, 'res-1', 'replayed-1'),
+      ]);
+      const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
+
+      const res = await subscribe(app2, {
+        scoped: [
+          { scope: 'res-1', channels: ['mark:added'], lastEventId: 'p-res-1-7' },
+          { scope: 'res-2', channels: ['mark:added'] },
+        ],
+      });
+
+      const body = await readSSE(res, (b) => b.includes('replayed-1'));
+      expect(queryEvents).toHaveBeenCalledTimes(1);
+      expect(queryEvents).toHaveBeenCalledWith('res-1', { fromSequence: 8 });
+      expect(body).toMatch(/id: p-res-1-8/);
+      expect(body).not.toContain('bus:resume-gap');
+    });
+
+    it('emits a SCOPED bus:resume-gap for a mismatched watermark, leaving sibling scopes untouched', async () => {
+      const queryEvents = vi.fn<QueryEventsStub>();
+      const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
+
+      const res = await subscribe(app2, {
+        scoped: [
+          // Watermark's embedded scope disagrees with the entry's scope.
+          { scope: 'res-A', channels: ['mark:added'], lastEventId: 'p-res-B-3' },
+          { scope: 'res-C', channels: ['mark:added'] },
+        ],
+      });
+
+      const body = await readSSE(res, (b) => b.includes('bus:resume-gap'));
+      expect(body).toContain('"reason":"scope-mismatch"');
+      expect(body).toContain('"scope":"res-A"');
+      expect(body).not.toContain('"scope":"res-C"');
+      expect(queryEvents).not.toHaveBeenCalled();
+    });
+
+    it('emits a SCOPED bus:resume-gap for an unparseable watermark', async () => {
+      const res = await subscribe(app, {
+        scoped: [{ scope: 'res-A', channels: ['mark:added'], lastEventId: 'garbage' }],
+      });
+
+      const body = await readSSE(res, (b) => b.includes('bus:resume-gap'));
+      expect(body).toContain('"reason":"unparseable-last-event-id"');
+      expect(body).toContain('"scope":"res-A"');
+    });
+
+    it('rejects an empty matrix with 400', async () => {
+      expect((await subscribe(app, {})).status).toBe(400);
+      expect((await subscribe(app, { global: [], scoped: [] })).status).toBe(400);
+    });
+
+    it('rejects a malformed body with 400', async () => {
+      const res = await app.request('/bus/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not json',
+      });
+      expect(res.status).toBe(400);
+      expect((await subscribe(app, { scoped: [{ scope: 'res-A' }] })).status).toBe(400);
+      expect((await subscribe(app, { scoped: [{ channels: ['x'] }] })).status).toBe(400);
+      expect((await subscribe(app, { scoped: [{ scope: '', channels: ['x'] }] })).status).toBe(400);
+    });
+
+    it('rejects duplicate scopes with 400', async () => {
+      const res = await subscribe(app, {
+        scoped: [
+          { scope: 'res-A', channels: ['mark:added'] },
+          { scope: 'res-A', channels: ['mark:removed'] },
+        ],
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a matrix above the 512-scope cap with 400', async () => {
+      const scoped = Array.from({ length: 513 }, (_, i) => ({
+        scope: `res-${i}`,
+        channels: ['mark:added'],
+      }));
+      expect((await subscribe(app, { scoped })).status).toBe(400);
+    });
+
+    it('the GET form is gone (clean cutover — no back-compat)', async () => {
+      const res = await app.request('/bus/subscribe?channel=test%3Aevent');
+      expect(res.status).toBe(404);
     });
   });
 });

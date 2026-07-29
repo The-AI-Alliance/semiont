@@ -27,49 +27,8 @@ describe('createActorStateUnit', () => {
     mockFetch.mockReset();
   });
 
-  it('start connects to SSE with channel params', async () => {
-    mockSSEResponse();
-
-    const stateUnit = createActorStateUnit({
-      baseUrl: 'http://localhost:4000',
-      token: 'tok',
-      channels: ['gather:requested', 'gather:cancelled'],
-    });
-
-    stateUnit.start();
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
-
-    const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toBe(
-      'http://localhost:4000/bus/subscribe?channel=gather%3Arequested&channel=gather%3Acancelled',
-    );
-
-    stateUnit.dispose();
-  });
-
-  it('addChannels with scope uses scoped param', async () => {
-    mockSSEResponse();
-
-    const stateUnit = createActorStateUnit({
-      baseUrl: 'http://localhost:4000',
-      token: 'tok',
-      channels: ['browse:resources-result'],
-    });
-
-    stateUnit.start();
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
-
-    mockSSEResponse();
-    stateUnit.addChannels(['mark:added'], 'res-123');
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
-
-    const url = mockFetch.mock.calls[1][0] as string;
-    expect(url).toContain('channel=browse%3Aresources-result');
-    expect(url).toContain('scoped=mark%3Aadded');
-    expect(url).toContain('scope=res-123');
-
-    stateUnit.dispose();
-  });
+  // The connect wire shape (POST + subscription-matrix body) is pinned in
+  // the 'multi-scope subscription matrix' describe at the bottom.
 
   it('on$ delivers typed events filtered by channel', async () => {
     const sse = mockSSEResponse();
@@ -159,7 +118,6 @@ describe('createActorStateUnit', () => {
       baseUrl: 'http://localhost:4000',
       token: 'tok',
       channels: [],
-      scope: 'res-42',
     });
 
     await stateUnit.emit('mark:added', { annotationId: 'a-1' });
@@ -347,7 +305,7 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('removeChannels also drives reconnecting → connecting → open', async () => {
+  it('removeChannels also drives reconnecting → connecting → open (on the lazy cadence)', async () => {
     mockSSEResponse();
     mockSSEResponse();
     mockSSEResponse();
@@ -356,6 +314,7 @@ describe('createActorStateUnit', () => {
       baseUrl: 'http://localhost:4000',
       token: 'tok',
       channels: ['test:event'],
+      lazyRemoveMs: 150,
     });
 
     stateUnit.start();
@@ -367,7 +326,7 @@ describe('createActorStateUnit', () => {
     const states: string[] = [];
     stateUnit.state$.subscribe((s) => states.push(s));
 
-    stateUnit.removeChannels(['mark:added']);
+    stateUnit.removeChannels(['mark:added'], 'res-1');
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
     await vi.waitFor(() => expect(states.lastIndexOf('open')).toBeGreaterThan(states.indexOf('reconnecting')));
 
@@ -526,99 +485,11 @@ describe('createActorStateUnit', () => {
     expect(() => stateUnit.dispose()).not.toThrow();
   });
 
-  // ── BUS-RESUMPTION.md behavior ────────────────────────────────────────
-
-  it('tracks the last SSE id and sends it as Last-Event-ID on the next connect', async () => {
-    const sse1 = mockSSEResponse();
-
-    const stateUnit = createActorStateUnit({
-      baseUrl: 'http://localhost:4000',
-      token: 'tok',
-      channels: ['mark:added'],
-    });
-
-    stateUnit.start();
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
-
-    // Server sends a persisted event with id: p-res-1-47
-    sse1.push(
-      'event: bus-event\nid: p-res-1-47\ndata: ' +
-        JSON.stringify({ channel: 'mark:added', payload: { foo: 'bar' } }) +
-        '\n\n',
-    );
-    // Give the parser a tick to process the frame.
-    await Promise.resolve();
-    await Promise.resolve();
-
-    // Trigger a reconnect via addChannels.
-    mockSSEResponse();
-    stateUnit.addChannels(['other:channel']);
-    // RECONNECT_DEBOUNCE_MS = 100 in actor-state-unit; wait past it.
-    await new Promise((r) => setTimeout(r, 120));
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
-
-    const initOpts = mockFetch.mock.calls[1][1] as { headers: Record<string, string> };
-    expect(initOpts.headers['Last-Event-ID']).toBe('p-res-1-47');
-
-    stateUnit.dispose();
-  });
-
-  // ── B17 (LOCAL-STORAGE W4): lastEventId across reloads ────────────────
-
-  it('loads a persisted last event id and sends it on the FIRST connect', async () => {
-    mockSSEResponse();
-
-    const stateUnit = createActorStateUnit({
-      baseUrl: 'http://localhost:4000',
-      token: 'tok',
-      channels: ['mark:added'],
-      loadLastEventId: () => 'p-res-1-40',
-    });
-
-    stateUnit.start();
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
-
-    const initOpts = mockFetch.mock.calls[0][1] as { headers: Record<string, string> };
-    expect(initOpts.headers['Last-Event-ID']).toBe('p-res-1-40');
-
-    stateUnit.dispose();
-  });
-
-  it('saves persisted ids as they arrive — and only persisted ids (e-* is live-only context)', async () => {
-    const sse = mockSSEResponse();
-    const saved: string[] = [];
-
-    const stateUnit = createActorStateUnit({
-      baseUrl: 'http://localhost:4000',
-      token: 'tok',
-      channels: ['mark:added'],
-      saveLastEventId: (id) => saved.push(id),
-    });
-
-    stateUnit.start();
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
-
-    sse.push(
-      'event: bus-event\nid: p-res-1-47\ndata: ' +
-        JSON.stringify({ channel: 'mark:added', payload: { foo: 'bar' } }) +
-        '\n\n',
-    );
-    sse.push(
-      'event: bus-event\nid: e-mark:added:abc\ndata: ' +
-        JSON.stringify({ channel: 'mark:added', payload: { foo: 'baz' } }) +
-        '\n\n',
-    );
-    await Promise.resolve();
-    await Promise.resolve();
-
-    await vi.waitFor(() => expect(saved.length).toBeGreaterThan(0));
-    // An ephemeral id must never be persisted: the server treats it as
-    // "no resumption context", which after a reload would silently skip
-    // the replay that reconciles rehydrated caches.
-    expect(saved).toEqual(['p-res-1-47']);
-
-    stateUnit.dispose();
-  });
+  // ── BUS-RESUMPTION.md / B17 behavior ──────────────────────────────────
+  //
+  // Watermark tracking, seeding, and persistence are per-scope now and
+  // pinned in the 'multi-scope subscription matrix' describe at the
+  // bottom. What stays here is the apply/stash ORDERING invariant.
 
   it('stashes an id only AFTER the event has been applied to on$ subscribers (the receive→apply gap)', async () => {
     // .plans/bugs/annotation-lost-on-immediate-reload-after-create.md: the
@@ -645,30 +516,12 @@ describe('createActorStateUnit', () => {
 
     sse.push(
       'event: bus-event\nid: p-res-1-48\ndata: ' +
-        JSON.stringify({ channel: 'mark:added', payload: { foo: 'bar' } }) +
+        JSON.stringify({ channel: 'mark:added', payload: { foo: 'bar' }, scope: 'res-1' }) +
         '\n\n',
     );
 
     await vi.waitFor(() => expect(order).toContain('stash'));
     expect(order).toEqual(['apply', 'stash']);
-
-    stateUnit.dispose();
-  });
-
-  it('does not send Last-Event-ID header on the first connect', async () => {
-    mockSSEResponse();
-
-    const stateUnit = createActorStateUnit({
-      baseUrl: 'http://localhost:4000',
-      token: 'tok',
-      channels: ['test:event'],
-    });
-
-    stateUnit.start();
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
-
-    const initOpts = mockFetch.mock.calls[0][1] as { headers: Record<string, string> };
-    expect(initOpts.headers['Last-Event-ID']).toBeUndefined();
 
     stateUnit.dispose();
   });
@@ -970,5 +823,218 @@ describe('ActorStateUnit — StateUnit axioms', () => {
       setup: () => createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: ['gather:requested'] }),
       surfaces: (u) => [u.state$],
     });
+  });
+});
+
+// ── MULTI-RESOURCE-SCOPE Step 4: multi-scope subscription matrix ─────────
+
+describe('multi-scope subscription matrix', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    mockFetch.mockReset();
+  });
+
+  type MatrixBody = {
+    global: string[];
+    scoped: Array<{ scope: string; channels: string[]; lastEventId?: string }>;
+  };
+  const bodyOf = (callIndex: number): MatrixBody =>
+    JSON.parse((mockFetch.mock.calls[callIndex]![1] as { body: string }).body) as MatrixBody;
+
+  it('connects via POST with the subscription matrix body (no query params, no Last-Event-ID header)', async () => {
+    mockSSEResponse();
+    const su = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['gather:requested'],
+    });
+    su.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    const [url, opts] = mockFetch.mock.calls[0] as [string, { method?: string; body?: string; headers: Record<string, string> }];
+    expect(url).toBe('http://localhost:4000/bus/subscribe');
+    expect(opts.method).toBe('POST');
+    expect(JSON.parse(opts.body!)).toEqual({ global: ['gather:requested'], scoped: [] });
+    expect(opts.headers['Last-Event-ID']).toBeUndefined();
+
+    su.dispose();
+  });
+
+  it('two scope additions inside the debounce window → ONE reconnect carrying BOTH scopes', async () => {
+    mockSSEResponse();
+    const su = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['global:ch'],
+    });
+    su.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    mockSSEResponse();
+    su.addChannels(['mark:added'], 'res-A');
+    su.addChannels(['mark:added'], 'res-B'); // pre-fix: silently overwrote activeScope
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    // Debounce collapsed both into one reconnect; no third follows.
+    await new Promise((r) => setTimeout(r, 200));
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    const body = bodyOf(1);
+    expect(body.global).toEqual(['global:ch']);
+    expect(body.scoped).toHaveLength(2);
+    expect(body.scoped).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ scope: 'res-A', channels: ['mark:added'] }),
+        expect.objectContaining({ scope: 'res-B', channels: ['mark:added'] }),
+      ]),
+    );
+
+    su.dispose();
+  });
+
+  it('scope removals alone reconnect LAZILY (hysteresis) — not on the fast debounce', async () => {
+    mockSSEResponse();
+    const su = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['global:ch'],
+      lazyRemoveMs: 300,
+    });
+    su.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    mockSSEResponse();
+    su.addChannels(['mark:added'], 'res-A');
+    su.addChannels(['mark:added'], 'res-B');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    mockSSEResponse();
+    su.removeChannels(['mark:added'], 'res-A');
+    // Fast debounce window passes with NO reconnect — removal is lazy.
+    await new Promise((r) => setTimeout(r, 150));
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // The lazy window elapses — now the reconnect fires, without res-A.
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3), { timeout: 1000 });
+    const body = bodyOf(2);
+    expect(body.scoped).toEqual([expect.objectContaining({ scope: 'res-B', channels: ['mark:added'] })]);
+
+    su.dispose();
+  });
+
+  it('a pending removal is flushed by the next addition on the fast debounce', async () => {
+    mockSSEResponse();
+    const su = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['global:ch'],
+      lazyRemoveMs: 5_000, // far away — the fast flush must carry the removal
+    });
+    su.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    mockSSEResponse();
+    su.addChannels(['mark:added'], 'res-A');
+    su.addChannels(['mark:added'], 'res-B');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    mockSSEResponse();
+    su.removeChannels(['mark:added'], 'res-A');
+    su.addChannels(['mark:added'], 'res-C');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
+    const body = bodyOf(2);
+    const scopes = body.scoped.map((s) => s.scope).sort();
+    expect(scopes).toEqual(['res-B', 'res-C']);
+
+    su.dispose();
+  });
+
+  it('per-scope watermarks: a persisted frame updates its scope entry; ephemeral frames never do', async () => {
+    mockSSEResponse();
+    const su = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['global:ch'],
+    });
+    su.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    const sse2 = mockSSEResponse();
+    su.addChannels(['mark:added'], 'res-A');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    sse2.push(sseChunkId(
+      'bus-event',
+      JSON.stringify({ channel: 'mark:added', payload: { seq: 5 }, scope: 'res-A' }),
+      'p-res-A-5',
+    ));
+    sse2.push(sseChunkId(
+      'bus-event',
+      JSON.stringify({ channel: 'mark:added', payload: {}, scope: 'res-A' }),
+      'e-conn-9',
+    ));
+    await new Promise((r) => setTimeout(r, 20));
+
+    mockSSEResponse();
+    su.addChannels(['mark:added'], 'res-B');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
+
+    const body = bodyOf(2);
+    const entryA = body.scoped.find((s) => s.scope === 'res-A');
+    const entryB = body.scoped.find((s) => s.scope === 'res-B');
+    expect(entryA?.lastEventId).toBe('p-res-A-5'); // the e-* frame must not overwrite
+    expect(entryB?.lastEventId).toBeUndefined();
+
+    su.dispose();
+  });
+
+  it('loadLastEventIds seeds per-scope watermarks for later subscriptions (B17)', async () => {
+    mockSSEResponse();
+    const su = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['global:ch'],
+      loadLastEventIds: () => ({ 'res-A': 'p-res-A-9' }),
+    });
+    su.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    mockSSEResponse();
+    su.addChannels(['mark:added'], 'res-A');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    const body = bodyOf(1);
+    expect(body.scoped).toEqual([
+      { scope: 'res-A', channels: ['mark:added'], lastEventId: 'p-res-A-9' },
+    ]);
+
+    su.dispose();
+  });
+
+  it('saveLastEventId receives (scope, id) per persisted frame — ephemeral ids are never saved (B17)', async () => {
+    const saved: Array<[string, string]> = [];
+    const sse = mockSSEResponse();
+    const su = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['global:ch'],
+      saveLastEventId: (scope, id) => saved.push([scope, id]),
+    });
+    su.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    sse.push(sseChunkId(
+      'bus-event',
+      JSON.stringify({ channel: 'mark:added', payload: { seq: 7 }, scope: 'res-A' }),
+      'p-res-A-7',
+    ));
+    sse.push(sseChunkId(
+      'bus-event',
+      JSON.stringify({ channel: 'mark:added', payload: {}, scope: 'res-A' }),
+      'e-conn-3',
+    ));
+
+    await vi.waitFor(() => expect(saved.length).toBeGreaterThan(0));
+    expect(saved).toEqual([['res-A', 'p-res-A-7']]);
+
+    su.dispose();
   });
 });

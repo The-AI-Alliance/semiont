@@ -143,28 +143,28 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
     return { storage, writes, inner };
   }
 
-  it('saveLastEventId alone writes nothing — the id must never lead the caches', () => {
+  it('saveLastEventId alone writes nothing — the ids must never lead the caches', () => {
     const { storage, writes } = recordingStorage();
     const coupled = coupledLastEventId(storage, ID_KEY);
 
-    coupled.saveLastEventId('p-res-1-47');
+    coupled.saveLastEventId('res-1', 'p-res-1-47');
 
     expect(writes).toHaveLength(0);
     expect(storage.get(ID_KEY)).toBeNull();
   });
 
-  it('a cache-document write flushes the pending id — document first, id second', () => {
+  it('a cache-document write flushes the pending ids — document first, ids second', () => {
     const { storage, writes } = recordingStorage();
     const coupled = coupledLastEventId(storage, ID_KEY);
 
-    coupled.saveLastEventId('p-res-1-47');
+    coupled.saveLastEventId('res-1', 'p-res-1-47');
     coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":1}');
 
     expect(writes.map(([k]) => k)).toEqual(['semiont.cache.kb-1.resource', ID_KEY]);
-    expect(storage.get(ID_KEY)).toBe('p-res-1-47');
+    expect(JSON.parse(storage.get(ID_KEY)!)).toEqual({ 'res-1': 'p-res-1-47' });
   });
 
-  it('with no pending id, a document write is just a document write', () => {
+  it('with no pending ids, a document write is just a document write', () => {
     const { storage, writes } = recordingStorage();
     const coupled = coupledLastEventId(storage, ID_KEY);
 
@@ -173,25 +173,45 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
     expect(writes.map(([k]) => k)).toEqual(['semiont.cache.kb-1.resource']);
   });
 
-  it('multiple events before one flush persist the latest id exactly once', () => {
+  it('multiple events before one flush persist the latest id per scope exactly once', () => {
     const { storage, writes } = recordingStorage();
     const coupled = coupledLastEventId(storage, ID_KEY);
 
-    coupled.saveLastEventId('p-res-1-47');
-    coupled.saveLastEventId('p-res-1-48');
+    coupled.saveLastEventId('res-1', 'p-res-1-47');
+    coupled.saveLastEventId('res-1', 'p-res-1-48');
+    coupled.saveLastEventId('res-2', 'p-res-2-5');
     coupled.storage.set('semiont.cache.kb-1.annotations', '{"doc":2}');
     coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":3}');
 
-    expect(storage.get(ID_KEY)).toBe('p-res-1-48');
+    expect(JSON.parse(storage.get(ID_KEY)!)).toEqual({ 'res-1': 'p-res-1-48', 'res-2': 'p-res-2-5' });
     expect(writes.filter(([k]) => k === ID_KEY)).toHaveLength(1);
   });
 
-  it('loadLastEventId round-trips what a flush persisted', () => {
+  it('a later flush MERGES onto stored watermarks — other scopes survive', () => {
     const { storage } = recordingStorage();
     const coupled = coupledLastEventId(storage, ID_KEY);
-    coupled.saveLastEventId('p-res-1-47');
+
+    coupled.saveLastEventId('res-1', 'p-res-1-47');
+    coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":1}');
+    coupled.saveLastEventId('res-2', 'p-res-2-9');
+    coupled.storage.set('semiont.cache.kb-1.annotations', '{"doc":2}');
+
+    expect(JSON.parse(storage.get(ID_KEY)!)).toEqual({ 'res-1': 'p-res-1-47', 'res-2': 'p-res-2-9' });
+  });
+
+  it('loadLastEventIds round-trips what a flush persisted', () => {
+    const { storage } = recordingStorage();
+    const coupled = coupledLastEventId(storage, ID_KEY);
+    coupled.saveLastEventId('res-1', 'p-res-1-47');
     coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":1}');
 
-    expect(coupledLastEventId(storage, ID_KEY).loadLastEventId()).toBe('p-res-1-47');
+    expect(coupledLastEventId(storage, ID_KEY).loadLastEventIds()).toEqual({ 'res-1': 'p-res-1-47' });
+  });
+
+  it('a pre-multi-scope single-id bookmark reads as "nothing stored"', () => {
+    const { storage } = recordingStorage();
+    storage.set(ID_KEY, 'p-res-1-47'); // old format: the raw id, not JSON
+
+    expect(coupledLastEventId(storage, ID_KEY).loadLastEventIds()).toBeNull();
   });
 });

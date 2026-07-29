@@ -118,11 +118,12 @@ export interface HttpTransportConfig {
   /** Optional 401-recovery hook. See {@link TokenRefresher}. */
   tokenRefresher?: TokenRefresher;
   /**
-   * B17 — persistence thunks for the last seen persisted SSE id, passed
-   * through to the actor state unit. See {@link ActorStateUnitOptions}.
+   * B17 — persistence thunks for the last seen persisted SSE id PER
+   * SCOPE, passed through to the actor state unit. See
+   * {@link ActorStateUnitOptions}.
    */
-  loadLastEventId?: () => string | null;
-  saveLastEventId?: (id: string) => void;
+  loadLastEventIds?: () => Record<string, string> | null;
+  saveLastEventId?: (scope: string, id: string) => void;
 }
 
 export class HttpTransport implements ITransport, IBackendOperations {
@@ -271,7 +272,7 @@ export class HttpTransport implements ITransport, IBackendOperations {
         baseUrl: this.baseUrl,
         token: () => this.token$.getValue() ?? '',
         channels: [...BRIDGED_CHANNELS],
-        ...(this.config.loadLastEventId ? { loadLastEventId: this.config.loadLastEventId } : {}),
+        ...(this.config.loadLastEventIds ? { loadLastEventIds: this.config.loadLastEventIds } : {}),
         ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
       });
       for (const channel of BRIDGED_CHANNELS) {
@@ -380,7 +381,7 @@ export class HttpTransport implements ITransport, IBackendOperations {
       this.activeResource.refCount--;
       if (this.activeResource.refCount > 0) return;
       for (const sub of this.activeResource.bridgeSubs) sub.unsubscribe();
-      this.actor.removeChannels([...RESOURCE_SCOPED_CHANNELS]);
+      this.actor.removeChannels([...RESOURCE_SCOPED_CHANNELS], this.activeResource.resourceId as string);
       this.activeResource = null;
     };
   }
