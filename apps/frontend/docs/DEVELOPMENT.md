@@ -6,7 +6,7 @@ Complete guide to local development workflows, common tasks, debugging, and trou
 
 ## Table of Contents
 
-- [Local Development with Semiont CLI](#local-development-with-semiont-cli)
+- [Local Development with the `semiont` launcher](#local-development-with-the-semiont-launcher)
 - [Manual Development Setup](#manual-development-setup)
 - [Common Development Tasks](#common-development-tasks)
 - [Environment Variables](#environment-variables)
@@ -599,7 +599,7 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 ### System Documentation
 - [System Documentation](../../../docs/system/README.md) - Overall platform
 - [Backend README](../../backend/README.md) - Backend API
-- [CLI README](../../cli/README.md) - CLI usage
+- [Launcher README](../../launcher/README.md) - `semiont` launcher usage
 
 ---
 

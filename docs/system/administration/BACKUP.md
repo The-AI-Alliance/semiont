@@ -48,7 +48,7 @@ The SDK wraps the first two as `backup()` and `restore()`; see
 [`@semiont/sdk`](../../../packages/sdk/README.md). The archive format below is what those endpoints
 produce and consume.
 
-`@semiont/cli` is deprecated and provides no commands at all — there is no CLI path for backup,
+There is no CLI at all any more — so no CLI path for backup,
 restore, export, or import.
 
 ## Backup Archive Format

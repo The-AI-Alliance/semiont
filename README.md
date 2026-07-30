@@ -93,7 +93,7 @@ Built on the SDK:
 - **[React components](packages/react-ui/README.md)** (`@semiont/react-ui`) — embed the resource viewer and annotation UI in your own app.
 - **[Agent Skills](docs/protocol/skills/)** — ready-made skill definitions for agentic coding assistants like Claude Code.
 
-There is also a **[CLI](apps/cli/README.md)** for working from the terminal. See **[docs/protocol/](docs/protocol/README.md)** for the protocol overview, design tenets, and value proposition.
+There is also the **[`semiont` launcher](apps/launcher/README.md)** for bringing up a stack from the terminal. See **[docs/protocol/](docs/protocol/README.md)** for the protocol overview, design tenets, and value proposition.
 
 ## Contributing
 

@@ -3,9 +3,9 @@
 How a Semiont stack is actually deployed today, and what is left to you if you want to run it on a
 cloud container platform.
 
-> **The CLI no longer deploys anything to a cloud.** The AWS platform, its CDK templates, and the
-> `semiont publish` / `semiont update` commands have been **removed** from `@semiont/cli`. There is
-> no first-party image-publishing or rollout tooling for a cloud target. Semiont ships container
+> **Nothing here deploys to a cloud.** The AWS platform, its CDK templates, and the old
+> `publish` / `update` commands have all been **removed**, along with the CLI that carried them.
+> There is no first-party image-publishing or rollout tooling for a cloud target. Semiont ships container
 > images; running them somewhere is deployment, and beyond the two supported paths below it is **an
 > exercise for the reader**.
 
