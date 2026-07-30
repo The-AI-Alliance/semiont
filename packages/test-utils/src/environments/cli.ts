@@ -23,7 +23,6 @@ export class CLITestEnvironment {
    * Setup environment variables
    */
   static setupEnvironment(testDir?: string) {
-    process.env.SEMIONT_ENV = 'test';
     if (testDir) {
       fs.mkdirSync(path.join(testDir, '.semiont'), { recursive: true });
       process.chdir(testDir);

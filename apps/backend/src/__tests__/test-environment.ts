@@ -85,7 +85,6 @@ export class BackendTestEnvironment {
   private setEnvironmentVariables(environment: 'unit' | 'integration') {
     const baseVars = {
       NODE_ENV: 'test',
-      SEMIONT_ENV: environment,
       JWT_SECRET: 'test-secret-key-for-testing-32char',
     };
 

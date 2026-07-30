@@ -33,7 +33,7 @@ describe('SSE Event Flow - End-to-End', () => {
     testDir = path.join(tmpdir(), `semiont-test-e2e-${uuidv4()}`);
     await fsPromises.mkdir(testDir, { recursive: true });
 
-    // SEMIONT_ROOT and SEMIONT_ENV are set by the global test setup
+    // SEMIONT_ROOT is set by the global test setup
     const { createEventStore } = await import('@semiont/event-sourcing');
     const project = new SemiontProject(testDir);
     eventStore = createEventStore(project, coreEventBus, mockLogger);

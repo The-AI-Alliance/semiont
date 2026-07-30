@@ -89,9 +89,9 @@ npm run typecheck:all       # Source + test tsconfigs
 npm run build               # Typechecks as a prebuild step
 ```
 
-Every script sets `SEMIONT_ENV` itself (`unit` or `integration`) — you do not need
-to export it. To run one of them from the repo root instead, use
-`npm run test:unit --workspace=apps/frontend`.
+Every script sets `SEMIONT_ROOT` itself — you do not need to export it. (The frontend
+tests read no environment config, so there is no environment to select.) To run one of
+them from the repo root instead, use `npm run test:unit --workspace=apps/frontend`.
 
 There is no `semiont test` command: the `semiont` launcher runs knowledge bases,
 not this monorepo's test suite.

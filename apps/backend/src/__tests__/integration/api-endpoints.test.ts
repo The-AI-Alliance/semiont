@@ -207,9 +207,7 @@ describe('API Endpoints Integration Tests', () => {
     // Load config and initialize JWT Service
     const projectRoot = process.env.SEMIONT_ROOT;
     if (!projectRoot) throw new Error("SEMIONT_ROOT not set");
-    const environment = process.env.SEMIONT_ENV || 'integration';
-
-    const config = loadEnvironmentConfig(projectRoot, environment);
+    const config = loadEnvironmentConfig(projectRoot, 'integration');
     JWTService.initialize(config);
 
     // Import app after test setup has set DATABASE_URL to avoid Prisma validation errors

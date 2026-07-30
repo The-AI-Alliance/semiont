@@ -41,7 +41,6 @@ export class BackendTestEnvironment {
    */
   static setupEnvironment(env: 'unit' | 'integration' = 'unit') {
     process.env.NODE_ENV = 'test';
-    process.env.SEMIONT_ENV = env;
     process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
     
     if (env === 'unit') {
