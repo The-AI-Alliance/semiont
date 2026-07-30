@@ -21,7 +21,20 @@ interface SiteConfig {
 }
 
 /**
- * The JWT_SECRET contract, in one place: present, and at least 32 characters.
+ * The JWT_SECRET contract, in one place: present, and every member at least 32
+ * characters.
+ *
+ * `JWT_SECRET` is an ordered **key ring** — a comma-separated list where the
+ * FIRST value signs and EVERY value verifies. A single value (the ordinary
+ * case) is simply a ring of one. The ring exists so that changing the signing
+ * secret is a soft transition rather than a cliff: set `JWT_SECRET=<new>,<old>`
+ * and every outstanding token keeps verifying until its next refresh re-mints
+ * it under the new key, then drop the tail. Without it, a secret change
+ * invalidates every live access AND refresh token at once — and refresh cannot
+ * heal it, because refresh must itself verify a token first.
+ *
+ * Comma is unambiguous as a delimiter: generated secrets are hex
+ * (`semiont start`) and the documented manual recipe is `openssl rand -hex 32`.
  *
  * Exported so index.ts can check it among its other module-scope requirements
  * (SEMIONT_ROOT, services.backend) — i.e. before startMakeMeaning dials the
@@ -29,18 +42,24 @@ interface SiteConfig {
  * connections are up, and both paths enforce the same rule because there is
  * only one copy of it.
  */
-export function requireJwtSecret(): string {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
+export function requireJwtSecret(): string[] {
+  const raw = process.env.JWT_SECRET;
+  if (!raw) {
     throw new Error(
       'JWT_SECRET is not set. `semiont start` generates one per knowledge base ' +
       'and injects it; set JWT_SECRET explicitly to override, or in test setup.'
     );
   }
-  if (secret.length < 32) {
-    throw new Error('JWT_SECRET must be at least 32 characters long');
+  const ring = raw.split(',').map(s => s.trim()).filter(Boolean);
+  if (ring.length === 0) {
+    throw new Error('JWT_SECRET is empty');
   }
-  return secret;
+  // EACH member, not the joined string: `<valid>,short` is over 32 characters
+  // in total while carrying a secret that is not.
+  if (ring.some(s => s.length < 32)) {
+    throw new Error('JWT_SECRET must be at least 32 characters long (each value, if a comma-separated ring)');
+  }
+  return ring;
 }
 
 export class JWTService {
@@ -74,7 +93,7 @@ export class JWTService {
     };
   }
 
-  private static requireSecret(): string {
+  private static requireSecret(): string[] {
     return requireJwtSecret();
   }
 
@@ -133,8 +152,41 @@ export class JWTService {
   // tokens survive a restart), or set explicitly to override. Still re-read per
   // operation rather than cached: initialize() has already gated it, so this is
   // the cheap read, not the check.
+  //
+  // `current` signs; `[current, ...previous]` verify (see requireJwtSecret).
+  private static getSecrets(): { current: string; previous: string[] } {
+    const [current, ...previous] = this.requireSecret();
+    return { current: current!, previous };
+  }
+
+  /** The signing key — the head of the ring. Never falls back down it. */
   private static getSecret(): string {
-    return this.requireSecret();
+    return this.getSecrets().current;
+  }
+
+  /**
+   * Verify against each ring member in turn, newest first.
+   *
+   * Returns the decoded payload from the first secret that accepts the
+   * signature. Expiry and not-yet-valid are properties of the TOKEN rather than
+   * of which key signed it, so they abort immediately instead of walking the
+   * ring — and they must be tested BEFORE `JsonWebTokenError`, which they both
+   * extend. Getting that order wrong is how an expired token comes back as
+   * "Invalid token signature".
+   */
+  private static verifyAcrossRing(token: string, onExpired: () => Error): jwt.JwtPayload | string {
+    const { current, previous } = this.getSecrets();
+    for (const secret of [current, ...previous]) {
+      try {
+        return jwt.verify(token, secret);
+      } catch (error) {
+        if (error instanceof jwt.TokenExpiredError) throw onExpired();
+        if (error instanceof jwt.NotBeforeError) throw new Error('Token not active yet');
+        if (error instanceof jwt.JsonWebTokenError) continue; // wrong key — try the next
+        throw error;
+      }
+    }
+    throw new jwt.JsonWebTokenError('invalid signature');
   }
 
   static generateToken(
@@ -151,37 +203,30 @@ export class JWTService {
   }
 
   static verifyToken(token: string): ValidatedJWTPayload {
+    let decoded: jwt.JwtPayload | string;
     try {
-      // First, verify JWT signature and basic structure
-      const decoded = jwt.verify(token, this.getSecret());
-
-      // Then validate the payload structure and content
-      const result = JWTPayloadSchema.safeParse(decoded);
-
-      if (!result.success) {
-        throw new Error(`Invalid token payload: ${result.error.message}`);
-      }
-
-      // Brand the string types for type safety
-      return {
-        ...result.data,
-        userId: makeUserId(result.data.userId),
-        email: makeEmail(result.data.email),
-      };
+      // Signature: accepted by any secret in the ring (expiry/not-before abort).
+      decoded = this.verifyAcrossRing(token, () => new Error('Token has expired'));
     } catch (error) {
       if (error instanceof jwt.JsonWebTokenError) {
         throw new Error('Invalid token signature');
       }
-      if (error instanceof jwt.TokenExpiredError) {
-        throw new Error('Token has expired');
-      }
-      if (error instanceof jwt.NotBeforeError) {
-        throw new Error('Token not active yet');
-      }
-
-      // Re-throw validation errors or other errors
       throw error;
     }
+
+    // Payload validation is terminal — a correctly signed token with a bad
+    // payload is not a "try the next key" case, so it sits outside the ring loop.
+    const result = JWTPayloadSchema.safeParse(decoded);
+    if (!result.success) {
+      throw new Error(`Invalid token payload: ${result.error.message}`);
+    }
+
+    // Brand the string types for type safety
+    return {
+      ...result.data,
+      userId: makeUserId(result.data.userId),
+      email: makeEmail(result.data.email),
+    };
   }
 
   static generateMediaToken(resourceId: string, userId: string): string {
@@ -192,9 +237,9 @@ export class JWTService {
   static verifyMediaToken(token: string, resourceId: string): void {
     let decoded: jwt.JwtPayload;
     try {
-      decoded = jwt.verify(token, this.getSecret()) as jwt.JwtPayload;
+      decoded = this.verifyAcrossRing(token, () => new Error('Media token expired')) as jwt.JwtPayload;
     } catch (error) {
-      if (error instanceof jwt.TokenExpiredError) throw new Error('Media token expired');
+      if (error instanceof Error && error.message === 'Media token expired') throw error;
       throw new Error('Invalid media token');
     }
     if (decoded['purpose'] !== 'media') throw new Error('Invalid media token');

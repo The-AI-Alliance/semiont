@@ -10,7 +10,8 @@
  * simulate the post-logout state by returning a bumped user from findUnique.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import jwt from 'jsonwebtoken';
 
 // The real @semiont/make-meaning (pulled in by the mock's importOriginal below)
 // transitively loads pdfjs-dist, which references DOMMatrix at module load. The
@@ -142,5 +143,72 @@ describe('SDK-AUTH-CORS Phase 2 — per-user token revocation', () => {
       headers: { Authorization: `Bearer ${goodToken}` },
     });
     expect(res.status).toBe(200);
+  });
+});
+
+/**
+ * JWT-SECRET-ROTATION Half B — where the key ring meets the revocation epoch.
+ *
+ * The ring WIDENS which signatures verify (during a rotation window); the epoch
+ * NARROWS which tokens are accepted (after a logout). They compose, and the
+ * epoch must always win — a rotation is not an amnesty. Unit coverage of the
+ * ring itself lives in `jwt-rotation.test.ts`; these two go through the real
+ * `POST /api/tokens/refresh` because the grace path only matters end-to-end.
+ */
+describe('JWT-SECRET-ROTATION — refresh across a secret rotation', () => {
+  const OLD_SECRET = 'previous-secret-aaaaaaaaaaaaaaaaaaaaaaaa';
+  const NEW_SECRET = 'current-secret-bbbbbbbbbbbbbbbbbbbbbbbbb';
+  let originalSecret: string | undefined;
+
+  beforeEach(() => {
+    originalSecret = process.env.JWT_SECRET;
+  });
+
+  afterEach(() => {
+    if (originalSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = originalSecret;
+  });
+
+  it('refreshes a token signed under the PREVIOUS secret and re-mints under the current one', async () => {
+    const user = fakeUser({ tokenVersion: 0 });
+    mockPrismaUser.findUnique.mockResolvedValue(user);
+
+    // Minted before the rotation...
+    process.env.JWT_SECRET = OLD_SECRET;
+    const refreshToken = mintToken(user, 0, '30d');
+
+    // ...and presented after it, with the old secret still in the ring.
+    process.env.JWT_SECRET = `${NEW_SECRET},${OLD_SECRET}`;
+    const res = await app.request('/api/tokens/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as { access_token: string };
+
+    // The session heals: the new access token is signed with the CURRENT secret,
+    // so dropping the old one after the window retires it cleanly.
+    expect(() => jwt.verify(body.access_token, NEW_SECRET)).not.toThrow();
+    expect(() => jwt.verify(body.access_token, OLD_SECRET)).toThrow();
+  });
+
+  it('the revocation epoch still wins over the grace path → 401', async () => {
+    // Signed under a ring member, but revoked: the user's epoch has moved on.
+    const user = fakeUser({ tokenVersion: 1 });
+    mockPrismaUser.findUnique.mockResolvedValue(user);
+
+    process.env.JWT_SECRET = OLD_SECRET;
+    const staleRefresh = mintToken(user, 0, '30d');
+
+    process.env.JWT_SECRET = `${NEW_SECRET},${OLD_SECRET}`;
+    const res = await app.request('/api/tokens/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: staleRefresh }),
+    });
+
+    expect(res.status).toBe(401);
   });
 });
