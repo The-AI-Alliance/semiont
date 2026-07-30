@@ -72,8 +72,8 @@ Examples:
 // owner also keeps this launcher technology-agnostic: it runs containers, and
 // need not know that postgres or argon2 exist.
 //
-// (It no longer targets `semiont useradd`: that was the retired @semiont/cli,
-// which the backend image stopped shipping — the bridge dangled until this.)
+// (The exec target is the backend image's own `semiont-useradd` bin, not a
+// `semiont useradd` subcommand: there is no CLI inside the image to host one.)
 //
 // The password NEVER travels in argv. It used to ride into the container as an
 // env var (readable via `inspect` for the stack's whole lifetime); then as an

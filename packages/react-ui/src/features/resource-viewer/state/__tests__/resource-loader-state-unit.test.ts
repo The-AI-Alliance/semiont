@@ -6,7 +6,7 @@ import { filter } from 'rxjs/operators';
 import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
 import { createResourceLoaderStateUnit } from '../resource-loader-state-unit';
-import { assertStateUnitAxioms } from '@semiont/core/testing';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
 const RID = makeResourceId('res-1');
 

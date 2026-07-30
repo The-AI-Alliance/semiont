@@ -5,12 +5,12 @@
 - [Orientation](#orientation)
 - [Setup](#setup)
 - [Browse — Reading Resources and Annotations](#browse)
-- [Frame — Schema Vocabulary](#frame)
-- [Mark — Annotation CRUD and AI Assist](#mark)
 - [Bind — Reference Linking](#bind)
+- [Yield — Resource Creation and Generation](#yield)
+- [Mark — Annotation CRUD and AI Assist](#mark)
+- [Frame — Schema Vocabulary](#frame)
 - [Gather — LLM Context Assembly](#gather)
 - [Match — Semantic Search](#match)
-- [Yield — Resource Creation and Generation](#yield)
 - [Beckon — Attention Coordination](#beckon)
 - [Auth — Authentication](#auth)
 - [Admin — Administration](#admin)
@@ -57,7 +57,7 @@ const semiont = await SemiontClient.signInHttp({
   password: 'pwd',
 });
 
-// ...use semiont.browse / mark / bind / gather / match / yield / etc.
+// ...use semiont.browse / bind / yield / mark / frame / gather / match / beckon
 
 semiont.dispose();
 ```
@@ -76,6 +76,7 @@ import { SemiontSession, InMemorySessionStorage, type KnowledgeBase } from '@sem
 const kb: KnowledgeBase = {
   id: 'my-watcher',
   label: 'My Watcher',
+  did: 'did:web:my-watcher.example',
   email: 'me@example.com',
   endpoint: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
 };
@@ -149,7 +150,7 @@ const semiont = new SemiontClient(transport, new HttpContentTransport(transport)
 token$.next(accessToken(newToken));
 ```
 
-`@semiont/sdk` re-exports the brand-cast functions (`accessToken`, `baseUrl`, `resourceId`, `annotationId`, `entityType`) and the common branded types from `@semiont/core` for one-import convenience.
+`@semiont/sdk` re-exports the brand-cast functions (`accessToken`, `baseUrl`, `resourceId`, `annotationId`, `entityType`, `jobId`, `userDID`) and the common branded types from `@semiont/core` for one-import convenience.
 
 ### Public bus access
 
@@ -209,117 +210,6 @@ const history = await semiont.browse.annotationHistory(resourceId, annotationId)
 const files = await semiont.browse.files('/docs', 'mtime');
 ```
 
-## Frame
-
-The schema-layer flow. Frame operates on the KB's conceptual vocabulary — what *kinds* of things exist (entity types) and what structural-analysis taxonomies are recognized (tag schemas). Where the other seven flows act on content, Frame acts on the schema layer the content is expressed in. Live reads of either vocabulary stay on Browse (`browse.entityTypes()`, `browse.tagSchemas()`) — Frame owns writes; Browse owns reads.
-
-### Entity types
-
-```typescript
-// Add a single entity type
-await semiont.frame.addEntityType('Person');
-
-// Add multiple in one call
-await semiont.frame.addEntityTypes(['Location', 'Organization', 'Event']);
-
-// Live-read the current vocabulary (lives on Browse, not Frame)
-semiont.browse.entityTypes().subscribe((types) => {
-  console.log('Current vocabulary:', types);
-});
-```
-
-Adding the same entity type twice is idempotent — the backend dedupes; the second `frame:add-entity-type` for an existing tag is a no-op.
-
-### Tag schemas
-
-Tag schemas are structural-analysis frameworks (IRAC, IMRAD, Toulmin, custom). They're **runtime-registered per knowledge base** — the SDK ships the type, the KB owns the schema data and registers it via `frame.addTagSchema(...)` at session/skill startup. The dispatcher embeds the resolved schema in worker job params at job-creation time, so an unknown `schemaId` rejects synchronously with `Tag schema not registered: <id>`.
-
-```typescript
-import type { TagSchema } from '@semiont/sdk';
-
-// Define the schema (typically lives in your KB's `src/tag-schemas.ts`).
-const LEGAL_IRAC_SCHEMA: TagSchema = {
-  id: 'legal-irac',
-  name: 'Legal Analysis (IRAC)',
-  description: 'Issue / Rule / Application / Conclusion framework for legal reasoning',
-  domain: 'legal',
-  tags: [
-    { name: 'Issue',       description: 'The legal question to be resolved',  examples: ['What must the court decide?'] },
-    { name: 'Rule',        description: 'The relevant law or legal principle', examples: ['What law applies?'] },
-    { name: 'Application', description: 'How the rule applies to the facts',  examples: ['How does the law apply here?'] },
-    { name: 'Conclusion',  description: 'The resolution',                       examples: ['What is the holding?'] },
-  ],
-};
-
-// Register at startup. Idempotent — re-runs with identical content
-// are silent at the projection layer; differing content overwrites
-// and logs a warning.
-await semiont.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
-
-// Now mark.assist with motivation 'tagging' can use it.
-await semiont.mark.assist(rId, 'tagging', {
-  schemaId: LEGAL_IRAC_SCHEMA.id,
-  categories: LEGAL_IRAC_SCHEMA.tags.map((t) => t.name),
-});
-
-// Live-read registered schemas (Browse, not Frame). The cache
-// invalidates on `frame:tag-schema-added` so it stays current as new
-// schemas land.
-semiont.browse.tagSchemas().subscribe((schemas) => {
-  console.log('Registered schemas:', schemas.map((s) => s.id));
-});
-```
-
-For the full per-flow contract — including the `__system__`-stream event-sourcing layer, projection materialization, and "most-recent wins + log warning" conflict semantics — see [`docs/protocol/flows/FRAME.md`](../../../docs/protocol/flows/FRAME.md). Schema-evolution operations (rename / remove / version / migrate) are deferred, not yet scheduled.
-
-## Mark
-
-Commands return Promises that resolve on backend acceptance. Results appear on browse Observables via the bus gateway. `mark.annotation` takes the W3C-shaped annotation directly — `target.source` is the resource the annotation is anchored on, and the resulting `annotationId` is already branded so you can pass it to other namespace methods (`bind.body`, `gather.annotation`, etc.) without a manual cast.
-
-For entity-type vocabulary writes, see [Frame](#frame) — those moved off Mark when Frame was promoted to flow status.
-
-```typescript
-// Create an annotation. The wire layer derives `resourceId` from
-// `input.target.source`.
-const { annotationId } = await semiont.mark.annotation({
-  motivation: 'highlighting',
-  target: {
-    source: resourceId,
-    selector: [
-      { type: 'TextPositionSelector', start: 0, end: 11 },
-      { type: 'TextQuoteSelector', exact: 'Hello World' },
-    ],
-  },
-  // highlighting annotations carry no body — motivation + target is
-  // the whole annotation per the W3C Web Annotation Model.
-});
-
-// Delete an annotation
-await semiont.mark.delete(resourceId, annotationId);
-
-// Archive / unarchive
-await semiont.mark.archive(resourceId);
-await semiont.mark.unarchive(resourceId);
-
-// Replace a resource's own entity-type classification — replace/diff:
-// pass the current types and the desired full set; the backend diffs
-// them into mark:entity-tag-added / -removed events, so the change
-// surfaces in browse.resources({ entityType }). (Stamps the resource
-// with types from the Frame vocabulary — defining the vocabulary
-// itself is frame.addEntityTypes.)
-await semiont.mark.updateEntityTypes(resourceId, ['Draft'], ['Draft', 'Question']);
-
-// AI-assisted annotation — StreamObservable<MarkAssistEvent>: subscribe
-// for progress, await for the final event.
-semiont.mark.assist(resourceId, 'linking', {
-  entityTypes: ['Person', 'Organization'],
-}).subscribe({
-  next: (event) => console.log(event.kind, event),
-  error: (err) => console.error('Failed:', err.message),
-  complete: () => console.log('Done'),
-});
-```
-
 ## Bind
 
 One method. The result arrives on `semiont.browse.annotations()` via the enriched `mark:body-updated` event.
@@ -328,51 +218,6 @@ One method. The result arrives on `semiont.browse.annotations()` via the enriche
 await semiont.bind.body(resourceId, annotationId, [
   { op: 'add', item: { type: 'SpecificResource', source: targetResourceId, purpose: 'linking' } },
 ]);
-```
-
-## Gather
-
-`gather.annotation` is long-running — a `StreamObservable` of progress then the gathered
-context. The terminal completion event carries the `GatheredContext` directly on `.response`.
-
-```typescript
-semiont.gather.annotation(resourceId, annotationId, { contextWindow: 2000 }).subscribe({
-  next: (progress) => {
-    if ('response' in progress) {
-      console.log('Context:', progress.response);
-    } else {
-      console.log(`Gathering: ${progress.percentage}%`);
-    }
-  },
-  error: (err) => console.error('Failed:', err.message),
-});
-```
-
-`gather.resource` gathers context for a **whole resource** (no annotation anchor). Unlike
-`gather.annotation` it's a request/reply with no progress stream, so it resolves the
-`GatheredContext` directly as a `Promise`:
-
-```typescript
-const context = await semiont.gather.resource(resourceId, {
-  depth: 2,
-  maxResources: 10,
-  excludeEntityTypes: ['Draft'],   // omit these entity types from the semantic recall
-});
-```
-
-## Match
-
-Long-running. Returns a `StreamObservable` of scored results — `await` for the final emission, or `subscribe` for streaming progress. `referenceId` is typed as `AnnotationId` (the annotation containing the reference body to search candidates for).
-
-```typescript
-semiont.match.search(resourceId, referenceId, gatheredContext, {
-  limit: 10,
-  useSemanticScoring: true,
-}).subscribe({
-  next: (result) => {
-    console.log('Results:', result.response);
-  },
-});
 ```
 
 ## Yield
@@ -443,7 +288,163 @@ semiont.yield.fromResource(resourceId, {
 // Clone
 const { token } = await semiont.yield.cloneToken(resourceId);
 const source = await semiont.yield.fromToken(token);
-await semiont.yield.createFromToken({ token, name: 'Clone', /* ... */ });
+await semiont.yield.createFromToken({ token, name: 'Clone', content });
+```
+
+## Mark
+
+Commands return Promises that resolve on backend acceptance. Results appear on browse Observables via the bus gateway. `mark.annotation` takes the W3C-shaped annotation directly — `target.source` is the resource the annotation is anchored on, and the resulting `annotationId` is already branded so you can pass it to other namespace methods (`bind.body`, `gather.annotation`, etc.) without a manual cast.
+
+For entity-type vocabulary writes, see [Frame](#frame) — those moved off Mark when Frame was promoted to flow status.
+
+```typescript
+// Create an annotation. The wire layer derives `resourceId` from
+// `input.target.source`.
+const { annotationId } = await semiont.mark.annotation({
+  motivation: 'highlighting',
+  target: {
+    source: resourceId,
+    selector: [
+      { type: 'TextPositionSelector', start: 0, end: 11 },
+      { type: 'TextQuoteSelector', exact: 'Hello World' },
+    ],
+  },
+  // highlighting annotations carry no body — motivation + target is
+  // the whole annotation per the W3C Web Annotation Model.
+});
+
+// Delete an annotation
+await semiont.mark.delete(resourceId, annotationId);
+
+// Archive / unarchive
+await semiont.mark.archive(resourceId);
+await semiont.mark.unarchive(resourceId);
+
+// Replace a resource's own entity-type classification — replace/diff:
+// pass the current types and the desired full set; the backend diffs
+// them into mark:entity-tag-added / -removed events, so the change
+// surfaces in browse.resources({ entityType }). (Stamps the resource
+// with types from the Frame vocabulary — defining the vocabulary
+// itself is frame.addEntityTypes.)
+await semiont.mark.updateEntityTypes(resourceId, ['Draft'], ['Draft', 'Question']);
+
+// AI-assisted annotation — StreamObservable<MarkAssistEvent>: subscribe
+// for progress, await for the final event.
+semiont.mark.assist(resourceId, 'linking', {
+  entityTypes: ['Person', 'Organization'],
+}).subscribe({
+  next: (event) => console.log(event.kind, event),
+  error: (err) => console.error('Failed:', err.message),
+  complete: () => console.log('Done'),
+});
+```
+
+## Frame
+
+The schema-layer flow. Frame operates on the KB's conceptual vocabulary — what *kinds* of things exist (entity types) and what structural-analysis taxonomies are recognized (tag schemas). Where the other seven flows act on content, Frame acts on the schema layer the content is expressed in. Live reads of either vocabulary stay on Browse (`browse.entityTypes()`, `browse.tagSchemas()`) — Frame owns writes; Browse owns reads.
+
+### Entity types
+
+```typescript
+// Add a single entity type
+await semiont.frame.addEntityType('Person');
+
+// Add multiple in one call
+await semiont.frame.addEntityTypes(['Location', 'Organization', 'Event']);
+
+// Live-read the current vocabulary (lives on Browse, not Frame)
+semiont.browse.entityTypes().subscribe((types) => {
+  console.log('Current vocabulary:', types);
+});
+```
+
+Adding the same entity type twice is idempotent — the backend dedupes; the second `frame:add-entity-type` for an existing tag is a no-op.
+
+### Tag schemas
+
+Tag schemas are structural-analysis frameworks (IRAC, IMRAD, Toulmin, custom). They're **runtime-registered per knowledge base** — the SDK ships the type, the KB owns the schema data and registers it via `frame.addTagSchema(...)` at session/skill startup. The dispatcher embeds the resolved schema in worker job params at job-creation time, so an unknown `schemaId` rejects synchronously with `Tag schema not registered: <id>`.
+
+```typescript
+import type { TagSchema } from '@semiont/sdk';
+
+// Define the schema (typically lives in your KB's `src/tag-schemas.ts`).
+const LEGAL_IRAC_SCHEMA: TagSchema = {
+  id: 'legal-irac',
+  name: 'Legal Analysis (IRAC)',
+  description: 'Issue / Rule / Application / Conclusion framework for legal reasoning',
+  domain: 'legal',
+  tags: [
+    { name: 'Issue',       description: 'The legal question to be resolved',  examples: ['What must the court decide?'] },
+    { name: 'Rule',        description: 'The relevant law or legal principle', examples: ['What law applies?'] },
+    { name: 'Application', description: 'How the rule applies to the facts',  examples: ['How does the law apply here?'] },
+    { name: 'Conclusion',  description: 'The resolution',                       examples: ['What is the holding?'] },
+  ],
+};
+
+// Register at startup. Idempotent — re-runs with identical content
+// are silent at the projection layer; differing content overwrites
+// and logs a warning.
+await semiont.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
+
+// Now mark.assist with motivation 'tagging' can use it.
+await semiont.mark.assist(rId, 'tagging', {
+  schemaId: LEGAL_IRAC_SCHEMA.id,
+  categories: LEGAL_IRAC_SCHEMA.tags.map((t) => t.name),
+});
+
+// Live-read registered schemas (Browse, not Frame). The cache
+// invalidates on `frame:tag-schema-added` so it stays current as new
+// schemas land.
+semiont.browse.tagSchemas().subscribe((st) => {
+  if (st.status === 'ready') console.log('Registered schemas:', st.value.map((s) => s.id));
+});
+```
+
+For the full per-flow contract — including the `__system__`-stream event-sourcing layer, projection materialization, and "most-recent wins + log warning" conflict semantics — see [`docs/protocol/flows/FRAME.md`](../../../docs/protocol/flows/FRAME.md). Schema-evolution operations (rename / remove / version / migrate) are deferred, not yet scheduled.
+
+## Gather
+
+`gather.annotation` is long-running — a `StreamObservable` of progress then the gathered
+context. The terminal completion event carries the `GatheredContext` directly on `.response`.
+
+```typescript
+semiont.gather.annotation(resourceId, annotationId, { contextWindow: 2000 }).subscribe({
+  next: (progress) => {
+    if ('response' in progress) {
+      console.log('Context:', progress.response);
+    } else {
+      console.log(`Gathering: ${progress.percentage}%`);
+    }
+  },
+  error: (err) => console.error('Failed:', err.message),
+});
+```
+
+`gather.resource` gathers context for a **whole resource** (no annotation anchor). Unlike
+`gather.annotation` it's a request/reply with no progress stream, so it resolves the
+`GatheredContext` directly as a `Promise`:
+
+```typescript
+const context = await semiont.gather.resource(resourceId, {
+  depth: 2,
+  maxResources: 10,
+  excludeEntityTypes: ['Draft'],   // omit these entity types from the semantic recall
+});
+```
+
+## Match
+
+Long-running. Returns a `StreamObservable` of scored results — `await` for the final emission, or `subscribe` for streaming progress. `referenceId` is typed as `AnnotationId` (the annotation containing the reference body to search candidates for).
+
+```typescript
+semiont.match.search(resourceId, referenceId, gatheredContext, {
+  limit: 10,
+  useSemanticScoring: true,
+}).subscribe({
+  next: (result) => {
+    console.log('Results:', result.response);
+  },
+});
 ```
 
 ## Beckon
@@ -459,9 +460,9 @@ semiont.beckon.attention(resourceId, annotationId);
 Like `admin`, the `auth` namespace lives on `IBackendOperations` and is `undefined` on a `SemiontClient` constructed without a backend. HTTP-context callers narrow with `!`:
 
 ```typescript
-const auth = await semiont.auth!.password('user@example.com', 'password');
-const auth = await semiont.auth!.google(credential);
-const auth = await semiont.auth!.refresh(refreshToken);
+const signedIn = await semiont.auth!.password('user@example.com', 'password');
+const viaGoogle = await semiont.auth!.google(credential);
+const renewed = await semiont.auth!.refresh(refreshToken);
 await semiont.auth!.logout();
 const user = await semiont.auth!.me();
 await semiont.auth!.acceptTerms();
@@ -590,9 +591,9 @@ contract.
 
 Worker-side adapters live with their domain and consume the transport-neutral `WorkerBus` interface that `@semiont/sdk` exports. `createJobClaimAdapter` is in `@semiont/jobs` (internal to its worker process, not exported from the package root); `createSmelterActorStateUnit` is in `@semiont/make-meaning`. `WorkerBus` is a small contract (`on$(channel)`, `emit(channel, payload)`, optional `addChannels(...)`). The HTTP `ActorStateUnit` from `@semiont/http-transport` satisfies it structurally; an in-process worker can wrap an `EventBus` in a small shim. Inside the `@semiont/jobs` worker process, the adapter reaches for the HTTP actor like this:
 
-```typescript
+```typescript no-check
 import type { HttpTransport } from '@semiont/sdk';
-import { createJobClaimAdapter } from './job-claim-adapter';
+import { createJobClaimAdapter } from './job-claim-adapter.js';
 
 // session.client.transport is the bus-shaped ITransport. For HTTP-backed
 // workers, narrow to HttpTransport to access the underlying ActorStateUnit.
@@ -720,12 +721,12 @@ if (error instanceof APIError) {
 ```typescript
 import { HttpTransport, HttpContentTransport } from '@semiont/sdk';
 import { SemiontClient } from '@semiont/sdk';
-import { baseUrl } from '@semiont/core';
+import { baseUrl, type AccessToken } from '@semiont/sdk';
 import { BehaviorSubject } from 'rxjs';
 
 const transport = new HttpTransport({
   baseUrl: baseUrl('http://localhost:4000'),
-  token$: new BehaviorSubject(null),
+  token$: new BehaviorSubject<AccessToken | null>(null),
   logger,    // Logger instance: winston / pino / etc.
 });
 const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);

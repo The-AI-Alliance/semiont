@@ -21,7 +21,6 @@ Modular packages for the Semiont platform. For the layered design, dependency gr
 | [@semiont/ontology](https://www.npmjs.com/package/@semiont/ontology) | [![npm](https://img.shields.io/npm/v/@semiont/ontology)](https://www.npmjs.com/package/@semiont/ontology) | [ontology](./ontology/) | Entity types, tag schemas, W3C annotation vocabularies |
 | [@semiont/react-ui](https://www.npmjs.com/package/@semiont/react-ui) | [![npm](https://img.shields.io/npm/v/@semiont/react-ui)](https://www.npmjs.com/package/@semiont/react-ui) | [react-ui](./react-ui/) | React components and hooks; `useStateUnit` / `useObservable` adapters over the SDK's state-unit layer |
 | [@semiont/sdk](https://www.npmjs.com/package/@semiont/sdk) | [![npm](https://img.shields.io/npm/v/@semiont/sdk)](https://www.npmjs.com/package/@semiont/sdk) | [sdk](./sdk/) | `SemiontClient`, verb-oriented namespaces, `SemiontSession` + `SemiontBrowser`, state units, `bus-request` + cache. Transport-agnostic — pair with `@semiont/http-transport` (HTTP) or `@semiont/make-meaning` (in-process) |
-| [@semiont/test-utils](https://www.npmjs.com/package/@semiont/test-utils) | - | [test-utils](./test-utils/) | Shared test utilities, mock factories, fixtures |
 | [@semiont/vectors](https://www.npmjs.com/package/@semiont/vectors) | [![npm](https://img.shields.io/npm/v/@semiont/vectors)](https://www.npmjs.com/package/@semiont/vectors) | [vectors](./vectors/) | Vector storage (Qdrant + in-memory), embedding providers (Voyage, Ollama), chunking, semantic search |
 
 ## Getting Started

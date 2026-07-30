@@ -243,7 +243,7 @@ apps/backend/
 ├── src/
 │   ├── __tests__/            # Test suites
 │   ├── auth/                 # Authentication (JWT, OAuth)
-│   ├── cli/                  # Rebuild CLIs (graph, projections, vectors)
+│   ├── cli/                  # Bundled entrypoints: db-url, useradd, rebuild-graph, rebuild-projections
 │   ├── lib/                  # SSE helpers
 │   ├── middleware/           # HTTP middleware (auth, logging, security headers, OpenAPI validation)
 │   ├── routes/               # Modular route definitions (thin EventBus wrappers)
@@ -431,8 +431,9 @@ semiont status
 ```
 
 **"JWT_SECRET too short"**
-- Must be at least 32 characters
-- Generate: `openssl rand -base64 32`
+- Each key must be at least 32 characters (`JWT_SECRET` may be a comma-separated
+  rotation ring; the check is per key)
+- Generate: `openssl rand -hex 32`
 
 **"Port already in use"**
 ```bash

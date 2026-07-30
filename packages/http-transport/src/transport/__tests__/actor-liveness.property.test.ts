@@ -28,7 +28,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fc from 'fast-check';
 import { Subject, map } from 'rxjs';
-import { assertExactlyOnceDelivery, type DeliverySubject, type DeliveryOp } from '@semiont/core/testing';
+import { assertExactlyOnceDelivery, type DeliverySubject, type DeliveryOp } from '@semiont/core/testing/axioms';
 import { createActorStateUnit } from '../actor-state-unit';
 import { mockFetch, mockConn, createSSEStream, sseChunkId } from './helpers/mock-conn';
 

@@ -11,12 +11,12 @@ import (
 	"time"
 )
 
-// KB-root discovery, adopted from apps/cli (config-loader.ts): SEMIONT_ROOT
-// is an explicit override analogous to GIT_DIR — strictly validated, never
-// silently ignored — else the root is found by walking up from cwd looking
-// for .semiont/. git is deliberately NOT part of discovery; whether the root
-// must also be a git clone is a separate invariant, enforced only where the
-// /kb mount makes it real (full start, --service backend).
+// KB-root discovery: SEMIONT_ROOT is an explicit override analogous to
+// GIT_DIR — strictly validated, never silently ignored — else the root is
+// found by walking up from cwd looking for .semiont/. git is deliberately NOT
+// part of discovery; whether the root must also be a git clone is a separate
+// invariant, enforced only where the /kb mount makes it real (full start,
+// --service backend).
 //
 // Today there is one root; the plural-ready shape (status's SEMIONT ROOTS
 // section, the source annotation) anticipates supporting many.

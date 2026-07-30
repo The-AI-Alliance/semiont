@@ -85,8 +85,8 @@ jobs:
 
           # Pull the published-package list from version.json (the
           # workspace's single source of truth). Library packages live
-          # under `packages/`; apps under `apps/` (cli) or `.npm-stage/`
-          # (backend, frontend, via the `stage` field).
+          # under `packages/`; both published apps (backend, frontend)
+          # publish from `.npm-stage/` via the `stage` field.
           MANIFEST=$(node -e "
             const v = JSON.parse(require('fs').readFileSync('version.json', 'utf-8'));
             for (const [name, pkg] of Object.entries(v.packages)) {
@@ -118,12 +118,7 @@ jobs:
               [[ "$kind" == "lib" ]] && echo "npm install $name@$TAG"
             done <<< "$MANIFEST"
             while IFS=$'\t' read -r name kind; do
-              [[ "$kind" == "app" ]] || continue
-              if [[ "$name" == "@semiont/cli" ]]; then
-                echo "npm install -g $name@$TAG"
-              else
-                echo "npm install $name@$TAG"
-              fi
+              [[ "$kind" == "app" ]] && echo "npm install $name@$TAG"
             done <<< "$MANIFEST"
             echo '```'
           } >> $GITHUB_STEP_SUMMARY

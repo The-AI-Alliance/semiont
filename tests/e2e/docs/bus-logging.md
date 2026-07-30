@@ -60,7 +60,7 @@ window.__SEMIONT_BUS_LOG__ = true;
 
 Clears on refresh.
 
-### Node (backend, worker, smelter, CLI, MCP, tests)
+### Node (backend, worker, smelter, MCP, tests)
 
 Process-env toggle, read once at module load:
 
@@ -68,10 +68,9 @@ Process-env toggle, read once at module load:
 SEMIONT_BUS_LOG=1 <command>
 ```
 
-For local POSIX backend dev: setting `SEMIONT_BUS_LOG=1` in the parent
-shell flows through automatically — `apps/cli`'s POSIX backend-start
-spreads `process.env` into the child. Container/ECS deployments need
-the variable added to their compose / task-definition env list.
+The backend runs in a container, so the variable has to reach the
+container: pass it with `semiont start --env SEMIONT_BUS_LOG=1`, or add it
+to the service's env list in a KB's `.semiont/compose/backend.yml`.
 
 ## A typical full-trace timeline
 

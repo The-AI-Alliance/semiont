@@ -10,7 +10,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { EventBus } from '@semiont/core';
-import { assertStateUnitAxioms } from '@semiont/core/testing';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import { createWeaveProgress, WeaveProgressTimeout } from '../weave-progress';
 
 describe('WeaveProgress', () => {

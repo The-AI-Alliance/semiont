@@ -72,8 +72,10 @@ export type {
   AccessToken,
   AnnotationId,
   BaseUrl,
+  JobId,
   RefreshToken,
   ResourceId,
+  UserDID,
   UserId,
   // Verb / shape types
   Annotation,
@@ -90,6 +92,9 @@ export type {
   ConnectionState,
   IContentTransport,
   ITransport,
+  // The state-unit contract — the pattern every layer's factories implement
+  // (docs/STATE-UNITS.md); it lives in core so layers below the sdk share it.
+  StateUnit,
   // Transport-neutral error-code vocabulary (route on `error.code`).
   TransportErrorCode,
   BusRequestErrorCode,
@@ -100,8 +105,10 @@ export {
   annotationId,
   baseUrl,
   entityType,
+  jobId,
   refreshToken,
   resourceId,
+  userDID,
   userId,
   // Unified error base — every Semiont-thrown error extends this.
   SemiontError,

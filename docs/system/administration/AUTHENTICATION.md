@@ -37,13 +37,13 @@ graph TB
 
     App -->|"1. POST /api/tokens/password<br/>or /api/tokens/google"| TokenGen
     Google -.->|OAuth credential| App
-    TokenGen -->|"2. JWT in body (10-min access + 30-day refresh)"| App
+    TokenGen -->|"2. JWT in body (access + refresh)"| App
     TokenGen --> Users
 
     App -->|"3. Authorization: Bearer <access>"| MW
     MW -->|"validate sig + tokenVersion + load user"| Users
     MW --> API
-    App -->|"4. SDK Session: POST /api/tokens/refresh<br/>(30-day refresh → new 10-min access)"| TokenGen
+    App -->|"4. SDK Session: POST /api/tokens/refresh<br/>(refresh → new access)"| TokenGen
     App -->|"5. POST /api/users/logout → bump tokenVersion (204)"| Users
 ```
 
@@ -66,13 +66,24 @@ graph TB
 | **Agent** | 24 hours | `Authorization: Bearer` | Software-agent identity for background workers (`/api/tokens/agent`). |
 | **Media** | 5 minutes | `?token=` query param | Resource-scoped token for `GET /api/resources/:id` (images, PDFs) where a header can't be set. |
 
+This table is the only place these values are written down; everywhere else says
+"short-lived" and links here. Each one is one `grep` from its mint site — check a
+row against the literal, not against another document:
+
+| Token | Minted at | Literal |
+|---|---|---|
+| Access | [`apps/backend/src/routes/auth.ts:128`](../../../apps/backend/src/routes/auth.ts#L128) | `generateToken(jwtPayload, '10m')` |
+| Refresh | [`apps/backend/src/routes/auth.ts:129`](../../../apps/backend/src/routes/auth.ts#L129) | `generateToken(jwtPayload, '30d')` |
+| Agent | [`apps/backend/src/routes/auth.ts:430`](../../../apps/backend/src/routes/auth.ts#L430) | `}, '24h')` |
+| Media | [`apps/backend/src/auth/jwt.ts:189`](../../../apps/backend/src/auth/jwt.ts#L189) | `expiresIn: '5m'` |
+
 Every JWT carries the user's **`tokenVersion`** at mint time (a required claim — there is no compatibility default). Both access-validation and `/api/tokens/refresh` reject when `payload.tokenVersion !== user.tokenVersion`.
 
 ### Revocation — what logout does
 
 `POST /api/users/logout` increments `User.tokenVersion` and returns **`204`**. That single bump:
 
-- **Kills the 30-day refresh token** — `/refresh` now rejects it, so no new access tokens can be minted.
+- **Kills the refresh token** — `/refresh` now rejects it, so no new access tokens can be minted.
 - **Rejects live access tokens** on their next request — the per-request user load makes the epoch check ~free.
 
 So logout is **immediate and all-devices**. (Per-device logout would need a per-session table; deliberately deferred — the epoch doesn't preclude adding it later.)
@@ -129,7 +140,7 @@ Admin routes require a valid token **plus** `isAdmin: true`, returning `403` oth
 
 1. **Signature** — HMAC-SHA256 against `JWT_SECRET`.
 2. **Payload structure** — runtime Zod validation; `tokenVersion` is a **required** claim (a token minted before the field fails `safeParse` → re-login, the correct revoke-on-rollout posture).
-3. **Expiration** — access tokens are short-lived (10 minutes).
+3. **Expiration** — access tokens are short-lived.
 4. **User + epoch** — the user is loaded from the DB; rejected if absent, not `isActive`, or `payload.tokenVersion !== user.tokenVersion` (revoked).
 5. **Domain** — email domain checked against the allowed list.
 
@@ -197,12 +208,52 @@ There are **no** `NEXTAUTH_*` variables — the frontend is a pure SPA with no a
 
 Store `JWT_SECRET` and OAuth credentials in secure secret storage (e.g. AWS Secrets Manager); never commit them; use different secrets per environment; rotate regularly. See [Configuration Guide](./CONFIGURATION.md).
 
+Nothing generates the signing key at request time, and the backend **refuses to boot** without one rather than surfacing the problem at first sign-in. Who supplies it depends on where the stack runs:
+
+| Placement | Supplied by | Where it lives |
+|---|---|---|
+| local | `semiont start` | `<state-root>/jwt-secret`, mode `0600`, one per KB root |
+| codespace | `.devcontainer/post-create.sh` | `.devcontainer/.env` inside the codespace |
+
+Both announce which key they used — `Token-signing key: generated and persisted at …` / `reused from …` / `from JWT_SECRET in the environment`. Neither ever prints the key. If tokens start failing, that line tells you whether the key changed.
+
+### Rotating `JWT_SECRET` without signing everyone out
+
+`JWT_SECRET` is an **ordered, comma-separated list**: the first key signs, *every* key verifies. A single value is the one-key case and behaves exactly as before.
+
+Replacing the key outright is what causes an outage: it invalidates every access **and** refresh token at once, and refresh cannot heal it — `/api/tokens/refresh` verifies the presented token with the current key before issuing anything, so every session needs a fresh sign-in. Rotating through the list avoids that entirely.
+
+```bash
+# 1. Mint a new key and put it FIRST, keeping the old one behind it.
+export JWT_SECRET="$(openssl rand -hex 32),$OLD_SECRET"
+semiont start --service backend        # or restart however you deploy
+
+# 2. Nothing breaks. New tokens are signed with the new key; tokens already
+#    issued still verify against the old one, and each re-mints under the new
+#    key at its next refresh.
+
+# 3. Once every outstanding refresh token has had a chance to refresh
+#    (refresh TTL is 30 days), drop the tail:
+export JWT_SECRET="$NEW_SECRET"
+semiont start --service backend
+```
+
+**Retiring the old key early is what breaks sessions** — any refresh token that has not been used since the rotation dies with it. Wait a full refresh TTL, or accept that the stragglers re-authenticate.
+
+Details worth knowing:
+
+- **Each key must be at least 32 characters.** The check is per key, not on the whole string — `<valid>,short` would otherwise pass trivially. `semiont start` refuses such a value up front rather than letting the backend crash-loop.
+- **A comma cannot appear in a key**, so the delimiter is unambiguous: generated keys are hex, and the documented recipe is `openssl rand -hex 32`.
+- **Logout still wins.** Revocation is a `tokenVersion` epoch check that runs independently of the key ring: a token revoked by signing out stays revoked even though its signature verifies against a ring member. A rotation is not an amnesty.
+- **Media tokens** (`?token=`) sign and verify through the same ring, so they rotate with everything else. Their 5-minute TTL makes the grace window academic, but they are not on a separate path.
+- **Two keys is the normal maximum.** The ring exists for a rotation window, not as a key store; trial verification costs one extra HMAC per key on the failing path.
+
 ## Security Best Practices
 
 ### Token handling
 
-1. **Bearer tokens live in JS memory**, not cookies — the SDK holds them and attaches them explicitly. There is no httpOnly cookie. The XSS trade-off (a 30-day refresh token in JS) is mitigated by **revocability**: logout bumps `tokenVersion` and instantly invalidates it.
-2. **Short access TTL (10 min)** limits the window of a leaked access token; revocation is at the `/refresh` boundary and on every request.
+1. **Bearer tokens live in JS memory**, not cookies — the SDK holds them and attaches them explicitly. There is no httpOnly cookie. The XSS trade-off (a long-lived refresh token in JS) is mitigated by **revocability**: logout bumps `tokenVersion` and instantly invalidates it.
+2. **The short access TTL** limits the window of a leaked access token; revocation is at the `/refresh` boundary and on every request.
 3. **Always use HTTPS in production.**
 4. **Open CORS is intentional and safe here** because no credentials are carried (see [Security](./SECURITY.md)). Never re-introduce credentialed CORS or origin-reflection.
 
@@ -221,7 +272,7 @@ Store `JWT_SECRET` and OAuth credentials in secure secret storage (e.g. AWS Secr
 **"Unauthorized" (401)**
 - Confirm the `Authorization: Bearer <token>` header is present and well-formed.
 - A raw browser navigation to a protected resource is unauthenticated by design — use the SDK or a media `?token=`.
-- The token may be expired (10-minute access TTL) — let the SDK Session refresh, or re-authenticate.
+- The token may be expired — let the SDK Session refresh, or re-authenticate.
 - After a **logout** anywhere, *all* of that user's existing tokens are revoked (the `tokenVersion` epoch advanced) — re-authenticate.
 
 **Refresh fails (session ends)**
@@ -242,5 +293,5 @@ Store `JWT_SECRET` and OAuth credentials in secure secret storage (e.g. AWS Secr
 
 ---
 
-**Authentication**: bearer-only JWT (10-min access + 30-day refresh) with a per-user `tokenVersion` revocation epoch; `?token=` media tokens; open CORS.
+**Authentication**: bearer-only JWT (short-lived access + long-lived refresh) with a per-user `tokenVersion` revocation epoch; `?token=` media tokens; open CORS.
 **Last Updated**: 2026-06-20

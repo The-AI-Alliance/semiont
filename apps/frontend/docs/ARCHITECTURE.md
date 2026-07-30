@@ -165,12 +165,12 @@ SemiontProvider (app root) → SemiontBrowser singleton (library-side, outside R
 **Authentication Flow:**
 1. User adds a KB and submits credentials → `SemiontSession.signInHttp` POSTs to that KB's backend → backend returns access + refresh tokens in the response body
 2. The browser activates the session (`activeSession$`), marks the KB active (`activeKbId$`), and persists the session via the storage adapter
-3. On reload/switch the browser restores the stored session; the client uses its in-memory access token, re-minting from the refresh token as it nears the 10-minute expiry
+3. On reload/switch the browser restores the stored session; the client uses its in-memory access token, re-minting from the refresh token as it nears expiry
 4. A 401 that can't be refreshed → the session's signals set the expiry flag → `SessionExpiredModal` surfaces
 
 **Token Management:**
 - Bearer-only: every request carries `Authorization: Bearer <jwt>` — there is no cookie and no ambient credential
-- The per-KB session (10-minute access token + 30-day refresh token) is held in memory and persisted per-KB via the storage adapter (localStorage on web), so it survives reload
+- The per-KB session (short-lived access token + long-lived refresh token — TTLs in [Authentication](../../../docs/system/administration/AUTHENTICATION.md)) is held in memory and persisted per-KB via the storage adapter (localStorage on web), so it survives reload
 - The browser exposes mutations (`addKnowledgeBase`, `signIn`, `signOut`); `signOut(kbId)` calls the backend logout, bumping `tokenVersion` to revoke the refresh token and all live access tokens server-side (all devices)
 
 ### Authentication Hooks

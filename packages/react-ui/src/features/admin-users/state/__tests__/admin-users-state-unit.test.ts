@@ -5,7 +5,7 @@ import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
 import { createAdminUsersStateUnit } from '../admin-users-state-unit';
-import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing';
+import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing/axioms';
 
 function mockBrowse(): ShellStateUnit {
   return { dispose: vi.fn() } as unknown as ShellStateUnit;

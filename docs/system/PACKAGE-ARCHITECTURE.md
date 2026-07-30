@@ -1,6 +1,6 @@
 # Package Architecture
 
-Semiont is a monorepo. Workspace packages are organized in layers from low-level primitives to high-level application logic; consumers (`apps/backend`, `apps/frontend`, `apps/cli`) sit on top.
+Semiont is a monorepo. Workspace packages are organized in layers from low-level primitives to high-level application logic; consumers (`apps/backend`, `apps/frontend`) sit on top.
 
 For the per-package descriptions and npm metadata, see **[../../packages/README.md](../../packages/README.md)** — alphabetized table with one-line descriptions of every published `@semiont/*` package.
 
@@ -11,7 +11,6 @@ graph BT
     %% Layer 5: Application Consumers
     backend["apps/backend<br/><i>Hono API server</i>"]
     frontend["apps/frontend<br/><i>Vite + React SPA</i>"]
-    cli["apps/cli<br/><i>Environment management</i>"]
 
     %% Layer 4: Application Logic
     meaning["@semiont/make-meaning<br/><b>startMakeMeaning()</b><br/><i>Infrastructure orchestrator</i><br/>EventStore, GraphDB, RepStore,<br/>InferenceClient, JobQueue, Workers"]
@@ -47,13 +46,6 @@ graph BT
     frontend --> sdk
     frontend --> api
     frontend --> obs
-    cli --> meaning
-    cli --> sdk
-    cli --> graph_pkg
-    cli --> event
-    cli --> content
-    cli --> api
-    cli --> core
 
     %% Application logic dependencies
     meaning --> event
@@ -117,7 +109,7 @@ graph BT
     class sdk,event,graph_pkg layer2
     class inference,jobs layer3
     class meaning,react,mcp layer4
-    class backend,frontend,cli layer5
+    class backend,frontend layer5
 ```
 
 Edges in the graph reflect the actual `package.json` `dependencies` field for each workspace package.

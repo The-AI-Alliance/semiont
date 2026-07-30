@@ -238,8 +238,13 @@ jobs:
             'adminEmail = "admin@localhost"' \
             'oauthAllowedDomains = ["localhost"]' \
             > .semiont/config
-          # Write ~/.semiontconfig with ci environment so backend can start
+          # Write ~/.semiontconfig with ci environment so backend can start.
+          # `[defaults] environment` is how the backend selects it — the same key a real
+          # KB uses and the launcher reads. No SEMIONT_ENV export anywhere.
           printf '%s\n' \
+            '[defaults]' \
+            'environment = "ci"' \
+            '' \
             '[environments.ci.backend]' \
             'platform = "posix"' \
             'port = 4000' \
@@ -307,16 +312,16 @@ jobs:
       - name: Start backend for API security verification
         run: |
           # Start backend using the ci environment configuration
+          # (selected by `[defaults] environment = "ci"` in ~/.semiontconfig)
           cd ../..
           export SEMIONT_ROOT=$(pwd)
-          export SEMIONT_ENV=ci
           export NODE_ENV=test
           export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
           export JWT_SECRET=test-secret-key-for-testing-32char
           export GOOGLE_CLIENT_ID=test-client-id
           export GOOGLE_CLIENT_SECRET=test-client-secret
 
-          echo "Starting backend with SEMIONT_ENV=ci..."
+          echo "Starting backend in the ci environment..."
           cd apps/backend
           nohup npm start > backend.log 2>&1 &
           APP_PID=$!

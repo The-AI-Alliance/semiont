@@ -82,5 +82,6 @@ launcher manages.
   step.
 - **The KB directory is a git repo.** Resource files, `.semiont/config`, and `.semiont/events/` are
   committed; secrets never are.
-- **Do not suggest `npm install -g @semiont/cli`.** That package is a deprecation stub with no
-  commands; if `which semiont` points at it, the npm copy is shadowing the launcher.
+- **Never suggest installing `semiont` from npm.** The `semiont` command comes from Homebrew only.
+  A long-deprecated npm package also installed a `semiont` bin; if `which semiont` does not resolve
+  to the brew copy, that leftover is shadowing the launcher.

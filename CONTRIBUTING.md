@@ -173,7 +173,7 @@ Write clear, descriptive commit messages:
 
 ```bash
 git commit -m "Add GCP deployment support"
-git commit -m "Fix database connection timeout in CLI"
+git commit -m "Fix database connection timeout in backend"
 git commit -m "Clarify authentication flow in API docs"
 ```
 
@@ -201,8 +201,8 @@ Then create a Pull Request from your fork to `The-AI-Alliance/semiont:main` on G
 
 Semiont ships as container images (`semiont-backend`, `semiont-frontend`, `semiont-worker`,
 `semiont-smelter`, `semiont-weaver`) plus the infrastructure containers a stack needs. There is no
-per-platform plugin system: the CLI's old `(platform × serviceType × command)` handler matrix —
-and the `@semiont/cli` package itself — have been removed.
+per-platform plugin system: the old `(platform × serviceType × command)` handler matrix has been
+removed.
 
 Stacks are brought up by the host-installed [`semiont` launcher](apps/launcher/README.md) or by
 `docker compose` against a KB's `.semiont/compose/backend.yml`. Running the images on another
@@ -348,7 +348,7 @@ Update docs when you:
 - **System-wide**: `docs/` - Architecture, deployment, testing
 - **Backend**: `apps/backend/docs/` - Backend-specific guides
 - **Frontend**: `apps/frontend/docs/` - Frontend-specific guides
-- **CLI**: `apps/cli/README.md` — deprecated; use the [launcher](apps/launcher/README.md)
+- **Launcher**: `apps/launcher/README.md` - The host-installed `semiont` command
 - **Platforms**: `docs/system/platforms/` - Platform-specific deployment
 
 ### Documentation Style

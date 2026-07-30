@@ -7,8 +7,10 @@ let isDatabaseSetup = false;
 let testEnv: TestEnvironmentConfig | null = null;
 
 beforeAll(async () => {
-  // Create proper Semiont project structure for integration tests
-  testEnv = await setupTestEnvironment();
+  // Create proper Semiont project structure for integration tests.
+  // The environment is passed explicitly — it used to arrive via SEMIONT_ENV=integration
+  // in the npm script, which is exactly the ambient input this harness no longer relies on.
+  testEnv = await setupTestEnvironment('integration');
 
   // Ensure integration test environment is properly configured
   process.env.NODE_ENV = 'test';

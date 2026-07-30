@@ -47,7 +47,7 @@ See the **[Quick Start](https://github.com/The-AI-Alliance/semiont#quick-start)*
 
 ## How it works
 
-Humans and AI agents are architectural equals: every operation — whether it comes from the GUI, the [TypeScript SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk), [agent skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills), or the [CLI](https://github.com/The-AI-Alliance/semiont/tree/main/apps/cli) — travels the same event bus, speaking the same **[eight verbs](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/README.md)**: *browse, bind, yield, mark, frame, gather, match, beckon*. Any workflow can be done manually, automated by an agent, or shared between the two. The **[protocol docs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol)** cover the design in depth.
+Humans and AI agents are architectural equals: every operation — whether it comes from the GUI, the [TypeScript SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk), [agent skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills), or the [`semiont` launcher](https://github.com/The-AI-Alliance/semiont/tree/main/apps/launcher) — travels the same event bus, speaking the same **[eight verbs](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/README.md)**: *browse, bind, yield, mark, frame, gather, match, beckon*. Any workflow can be done manually, automated by an agent, or shared between the two. The **[protocol docs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol)** cover the design in depth.
 
 ## Open Source & Community
 

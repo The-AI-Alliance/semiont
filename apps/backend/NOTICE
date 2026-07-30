@@ -14,12 +14,12 @@ components:
   Git - GPL-2.0-only License
 
   npm dependencies (installed at build time from https://registry.npmjs.org):
-    @semiont/cli - Apache-2.0 License (The AI Alliance)
     @semiont/backend - Apache-2.0 License (The AI Alliance)
     neo4j-driver - Apache-2.0 License (Neo4j, Inc.)
     @qdrant/js-client-rest - Apache-2.0 License (Qdrant)
 
 Each npm dependency's full license text is available in its respective
 node_modules/<package>/LICENSE file within the image, under
-/usr/local/lib/node_modules (the CLI) and
+/usr/local/lib/node_modules (npm itself, kept at runtime for
+`npx prisma migrate deploy`) and
 /home/semiont/.local/share/semiont/node_modules (the backend and its peers).

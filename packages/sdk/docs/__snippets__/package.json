@@ -1,0 +1,17 @@
+{
+  "name": "@semiont/sdk-docs-snippets",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "SAFE-DOCS fixture: compile-checks the sdk docs' code fences against dist through the exports map, the way an external consumer resolves them",
+  "scripts": {
+    "check": "node check.mjs"
+  },
+  "devDependencies": {
+    "@semiont/react-ui": "*",
+    "@semiont/sdk": "*",
+    "@types/react": "^19.2.16",
+    "rxjs": "^7.8.1",
+    "typescript": "^6.0.2"
+  }
+}

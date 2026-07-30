@@ -22,9 +22,9 @@ async function rebuildProjections(rId?: string, environment?: string) {
   if (!projectRoot) {
     throw new Error('SEMIONT_ROOT environment variable is not set');
   }
-  // environment: an explicit --environment flag, else the loader resolves it
-  // (SEMIONT_ENV, then `[defaults] environment`). No local 'development' default —
-  // that disagreed with the backend's 'local' and hid the wrong-section load.
+  // environment: an explicit --environment flag, else the loader resolves it from
+  // `[defaults] environment`. No local 'development' default — that disagreed with
+  // the backend's 'local' and hid the wrong-section load.
   const config = loadEnvironmentConfig(projectRoot, environment);
 
   // Initialize logger

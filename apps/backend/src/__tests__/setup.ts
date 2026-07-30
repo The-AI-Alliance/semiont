@@ -80,7 +80,6 @@ vi.mock('../utils/config', () => ({
 
 // Set minimal required environment variables
 process.env.NODE_ENV = 'test';
-process.env.SEMIONT_ENV = 'unit';
 process.env.SEMIONT_ROOT = testDir;
 process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
 

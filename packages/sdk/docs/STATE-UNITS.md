@@ -37,7 +37,7 @@ interface StateUnit {
 }
 ```
 
-`StateUnit` lives in `@semiont/core` — so every layer (`@semiont/sdk`, `@semiont/http-transport`, `@semiont/react-ui`, …) implements the same interface without a dependency cycle, and the `@semiont/core/testing` axiom harness can verify any of them. That's the entire structural commitment the type system catches. Implementing this interface is a claim that you're following the pattern; the rest is enforced below the type system — by the axiom suite and CI compliance scripts for the testable subset, and by review for the remainder (see [§ How these rules are enforced](#how-these-rules-are-enforced)). A reader who sees `extends StateUnit` should expect everything below.
+`StateUnit` lives in `@semiont/core` — so every layer (`@semiont/sdk`, `@semiont/http-transport`, `@semiont/react-ui`, …) implements the same interface without a dependency cycle, and the `@semiont/core/testing/axioms` harness can verify any of them. (App consumers import it from `@semiont/sdk`, which re-exports it — same one-import convenience as the branded types.) That's the entire structural commitment the type system catches. Implementing this interface is a claim that you're following the pattern; the rest is enforced below the type system — by the axiom suite and CI compliance scripts for the testable subset, and by review for the remainder (see [§ How these rules are enforced](#how-these-rules-are-enforced)). A reader who sees `extends StateUnit` should expect everything below.
 
 ## Anatomy
 
@@ -67,7 +67,7 @@ export function createFooStateUnit(session: SemiontSession): FooStateUnit {
     loading$.next(true);
     error$.next(null);
     subs.push(
-      client.someFlow.run(input).subscribe({
+      client.mark.assist(input.resourceId, 'linking', {}).subscribe({
         next: (r) => result$.next(r),
         error: (e) => { error$.next(e); loading$.next(false); },
         complete: () => loading$.next(false),
@@ -167,7 +167,7 @@ All state lives in the closure. **No module-scoped mutable state** — no module
 
 Every piece of state a consumer cares about is exposed as `Observable<T>` — not as a getter, not as a snapshot method, not as a callback. Consumers subscribe; they don't poll.
 
-```ts
+```ts no-check
 // ✅
 loading$: Observable<boolean>;
 
@@ -210,14 +210,14 @@ A few specific shapes are wrong and worth calling out:
 
 ## How these rules are enforced
 
-The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The executable spec IS the harness — `assertStateUnitAxioms` in `@semiont/core/testing`, invoked once from each state unit's test file; its property definitions are the authoritative statements of the axioms below.
+The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The executable spec IS the harness — `assertStateUnitAxioms` from `@semiont/core/testing/axioms`, invoked once from each state unit's test file; its property definitions are the authoritative statements of the axioms below.
 
 Five enforcement tiers:
 
 | Tier | Mechanism | Rules |
 |---|---|---|
 | **Axioms** — property-based (fast-check) | `assertStateUnitAxioms`, per unit | **A5** idempotent & total dispose · **A5b** post-dispose inertness · **A6** subscribers see `complete` · **X3-runtime** instance isolation |
-| **Liveness axioms** — property-based (fast-check), composition-level | `assertLivenessAxioms` / `assertExactlyOnceDelivery` from `@semiont/core/testing`, driving `FaultyTransport` (sdk) and the mock-conn SSE harness (http-transport) | **L1** subscriptions never silently pend forever · **L2** every `busRequest` settles within timeout × retry budget · **L3** exactly-once delivery across handovers (drain-over-abort) · **L4** degraded modes emit breadcrumbs |
+| **Liveness axioms** — property-based (fast-check), composition-level | `assertLivenessAxioms` / `assertExactlyOnceDelivery` from `@semiont/core/testing/axioms`, driving `FaultyTransport` (sdk) and the mock-conn SSE harness (http-transport) | **L1** subscriptions never silently pend forever · **L2** every `busRequest` settles within timeout × retry budget · **L3** exactly-once delivery across handovers (drain-over-abort) · **L4** degraded modes emit breadcrumbs |
 | **Structural assertions** — single-shot | `assertStateUnitAxioms`, per unit | **A1** plain-object identity · **X1** no raw origin Subject on the surface · **A7-passed** don't dispose injected deps · **A7-owned** do dispose constructed children |
 | **Static compliance** — CI grep (`scripts/compliance/`, run by `architecture-compliance.yml`) | bash + grep | **A1-static** no `class` in state-unit files · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces · **session-typed factories** — no `!`-asserted factory args; `useStateUnit` confined to the shell allowlist |
 | **Conventions** — code review only | — | **A3-interior** internal state in Subjects · **X2** no `Promise<T>` on long-running ops · **X6** no dual bus+field exposure of the same state |
@@ -249,7 +249,7 @@ Every state unit's test carries an `assertStateUnitAxioms({...})` block — all 
 5. **Track every internal subscription.** Use a `Subscription[]` or `createDisposer()`. On `dispose()`, unsubscribe all of them and complete every Subject you own.
 6. **Compose by parameter, not by ownership.** Take collaborators as arguments. Don't dispose passed-in collaborators.
 7. **No module-scoped state.** Everything mutable lives in the closure.
-8. **Add the axiom block.** In the unit's test file, call `assertStateUnitAxioms({ setup, surfaces?, invocations?, ownedChildSurfaces? })` from `@semiont/core/testing` — it checks the lifecycle and composition axioms (A1/X1/A5/A5b/A6/X3/A7) for you. Mirror an existing `*-state-unit.test.ts`; see [§ How these rules are enforced](#how-these-rules-are-enforced).
+8. **Add the axiom block.** In the unit's test file, call `assertStateUnitAxioms({ setup, surfaces?, invocations?, ownedChildSurfaces? })` from `@semiont/core/testing/axioms` (add `fast-check` to your devDependencies — the doubles at `@semiont/core/testing` need no such thing) — it checks the lifecycle and composition axioms (A1/X1/A5/A5b/A6/X3/A7) for you. Mirror an existing `*-state-unit.test.ts`; see [§ How these rules are enforced](#how-these-rules-are-enforced).
 
 ## Why "state unit" and not "view-model"
 

@@ -24,9 +24,9 @@ import { execFileSync } from 'child_process';
  *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
  *   backendPidFile  — runtimeDir/backend.pid
  *
- * Note: frontend paths are NOT project-scoped. The frontend service is bundled
- * with the CLI and uses fixed XDG paths keyed by "frontend", not project name.
- * See apps/cli/src/platforms/posix/handlers/frontend-paths.ts.
+ * Note: the frontend has no entry here, deliberately. It serves static assets
+ * from its own container image and keeps no per-project state on the host, so
+ * there is nothing to derive from a project root.
  */
 export class SemiontProject {
   readonly root: string;

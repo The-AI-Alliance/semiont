@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { createActorStateUnit } from '../actor-state-unit';
-import { assertStateUnitAxioms } from '@semiont/core/testing';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 // The SSE/fetch harness lives in helpers/mock-conn.ts (shared with the
 // liveness property suite). Importing it stubs the global fetch.
 import {

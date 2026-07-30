@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BehaviorSubject, Subject, firstValueFrom } from 'rxjs';
 import { take, toArray } from 'rxjs/operators';
 import { createSmelterActorStateUnit } from '../smelter-actor-state-unit';
-import { assertStateUnitAxioms } from '@semiont/core/testing';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import type { WorkerBus } from '@semiont/sdk';
 import type { ConnectionState } from '@semiont/core';
 

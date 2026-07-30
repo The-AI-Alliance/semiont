@@ -5,7 +5,7 @@ set -euo pipefail
 #
 # Usage:
 #   ./scripts/ci/build.sh                        # build everything
-#   ./scripts/ci/build.sh --package cli,backend   # build only CLI and backend
+#   ./scripts/ci/build.sh --package core,backend  # build only core and backend
 #   ./scripts/ci/build.sh --start-from react-ui   # skip packages before react-ui
 #
 # The list of packages and the build order come from `version.json`
@@ -14,9 +14,9 @@ set -euo pipefail
 # `--package` / `--start-from` CLI args.
 #
 # Library packages (under `packages/`) are built first, in the order
-# version.json lists them. Apps (`backend`, `frontend`, `cli`) are
-# built after libraries — `cli` last because it bundles the staged
-# frontend artifacts.
+# version.json lists them; apps (`backend`, `frontend`) follow.
+# App staging (.npm-stage/) is the publish flow's job — see
+# scripts/ci/publish.sh, which runs publish-npm-apps.mjs itself.
 #
 # Dependencies are always installed. OpenAPI spec is always bundled.
 
@@ -49,7 +49,7 @@ done
 
 # Read package manifest. ALL = bare names (basename of each `dir`) in
 # the order version.json lists them, restricted to packages that ship
-# to npm. Non-publishable entries (test-utils, mcp-server, desktop) are
+# to npm. Non-publishable entries (mcp-server, desktop) are
 # out of scope for this script — desktop in particular has a Rust/Tauri
 # build that doesn't run in the CI node container.
 read_manifest() {
@@ -128,27 +128,13 @@ done <<< "$MANIFEST"
 
 banner "BUILD APPS"
 
-# Build any non-cli apps first (backend / frontend / desktop).
 while IFS=$'\t' read -r bare name kind; do
-  [[ "$kind" == "app" && "$bare" != "cli" ]] || continue
+  [[ "$kind" == "app" ]] || continue
   if should_build "$bare"; then
     step "Building $name..."
     npm run build --workspace="$name"
     ok "$name"
   fi
 done <<< "$MANIFEST"
-
-# Stage backend + frontend, then build CLI — the CLI bundles
-# dist/frontend/ from .npm-stage/frontend, so staging must happen
-# between the frontend build and the cli build.
-if should_build cli; then
-  step "Staging apps for CLI bundling..."
-  node scripts/ci/publish-npm-apps.mjs
-  ok "Apps staged"
-
-  step "Building CLI..."
-  npm run build --workspace=@semiont/cli
-  ok "CLI"
-fi
 
 banner "BUILD COMPLETE ✓"

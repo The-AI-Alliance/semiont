@@ -18,10 +18,10 @@ const nodeTomlFileReader = {
  * then selects the given environment overlay.
  *
  * This is the canonical config loader for any Node.js process. The environment
- * is resolved by the loader itself — explicit `environment` arg > SEMIONT_ENV >
- * `[defaults] environment` — so entry points call this WITHOUT reading
- * SEMIONT_ENV (or inventing a default); one config selects the environment for
- * the backend the same way the launcher selects it.
+ * is resolved by the loader itself — an explicit `environment` argument, else
+ * `[defaults] environment` from the committed config — so entry points call this
+ * without selecting one; one config selects the environment for the backend the
+ * same way the launcher selects it. There is no environment-variable override.
  */
 export function loadEnvironmentConfig(
   projectRoot: string,

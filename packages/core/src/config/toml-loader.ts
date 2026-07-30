@@ -229,7 +229,7 @@ function requirePlatform(value: string | undefined, serviceName: string): Platfo
  *
  * @param projectRoot - Path to the project root (contains .semiont/config)
  * @param environment - Environment name (e.g. 'local', 'production'); when
- *   undefined, resolved from SEMIONT_ENV, then `[defaults] environment`
+ *   undefined, resolved from `[defaults] environment`
  * @param globalConfigPath - Path to ~/.semiontconfig (caller resolves ~ expansion)
  * @param reader - File reader abstraction
  * @param env - Environment variables for ${VAR} resolution
@@ -261,13 +261,17 @@ export function loadTomlConfig(
   // 3. Resolve WHICH environment to load. `[defaults] environment` is the key the
   //    launcher selects from (config.go: cfg.Defaults.Environment); the backend
   //    resolves from the SAME key so one config selects the environment for both
-  //    halves. Precedence: explicit arg > SEMIONT_ENV (override, incl. tests) >
-  //    [defaults] environment. There is NO silent 'local'/'development' fallback —
-  //    an unselected environment is a config error, not a default.
-  const resolvedEnvironment = environment ?? env.SEMIONT_ENV ?? raw.defaults?.environment;
+  //    halves. TWO inputs only — an explicit argument (tests pass one) and the
+  //    committed config — and they cannot contradict each other, because the
+  //    explicit one is legible at the call site. There is deliberately NO ambient
+  //    environment variable in this chain: `SEMIONT_ENV` was removed because an
+  //    invisible input that can disagree with the staged config is precisely the
+  //    bug shape #1108 fixed. And no silent 'local'/'development' fallback — an
+  //    unselected environment is a config error, not a default.
+  const resolvedEnvironment = environment ?? raw.defaults?.environment;
   if (!resolvedEnvironment) {
     throw new Error(
-      'No environment selected: pass one explicitly, set SEMIONT_ENV, or declare ' +
+      'No environment selected: pass one explicitly, or declare ' +
         '`[defaults] environment` in ~/.semiontconfig.',
     );
   }

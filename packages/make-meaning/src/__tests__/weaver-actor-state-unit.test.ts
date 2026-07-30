@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject, Subject } from 'rxjs';
 import type { WorkerBus } from '@semiont/sdk';
 import type { ConnectionState } from '@semiont/core';
-import { assertStateUnitAxioms } from '@semiont/core/testing';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import { createWeaverActorStateUnit, WEAVER_CHANNELS } from '../weaver-actor-state-unit';
 
 function fakeBus() {

@@ -96,3 +96,57 @@ describe('FaultyTransport.queueReply', () => {
     transport.dispose();
   });
 });
+
+// ── SDK-TESTING-DOUBLE gap 6: payload assertions off the requestLog ──────
+//
+// A consumer asserting what its orchestrator actually SENT (envelope shape,
+// gather options, job params) previously had to hand-roll a per-channel
+// `transport.on(...)` wire recorder, because the log carried only accounting
+// fields. The payload rides the entry now — one arrival-ordered surface.
+
+describe('requestLog payloads', () => {
+  it('carries the emitted payload on each entry, in arrival order', async () => {
+    const transport = new FaultyTransport({ makeResponse: () => ({ resources: [], total: 0, offset: 0 }) });
+
+    await busRequest(transport, OP, { limit: 10, entityType: 'Concept' }, 5_000);
+    await busRequest(transport, OP, { limit: 25 }, 5_000);
+
+    expect(transport.requestLog).toHaveLength(2);
+    expect(transport.requestLog[0]!.payload).toMatchObject({ limit: 10, entityType: 'Concept' });
+    expect(transport.requestLog[1]!.payload).toMatchObject({ limit: 25 });
+    // The correlationId busRequest minted is on the payload too — the entry
+    // is what went on the wire, not a cleaned copy.
+    expect(transport.requestLog[0]!.payload.correlationId).toBe(transport.requestLog[0]!.correlationId);
+
+    transport.dispose();
+  });
+
+  it('snapshots the payload — a later mutation of the caller object cannot rewrite history', async () => {
+    const transport = new FaultyTransport({ makeResponse: () => ({ resources: [], total: 0, offset: 0 }) });
+
+    const payload: Record<string, unknown> = { limit: 10 };
+    await busRequest(transport, OP, payload, 5_000);
+    payload.limit = 999;
+
+    expect(transport.requestLog[0]!.payload.limit).toBe(10);
+
+    transport.dispose();
+  });
+
+  it('logs the payload even when the wire eats the request (drop / reject)', async () => {
+    const transport = new FaultyTransport({
+      schedule: [{ kind: 'reject-emit' }],
+      makeResponse: () => ({ resources: [], total: 0, offset: 0 }),
+    });
+
+    await expect(busRequest(transport, OP, { limit: 3 }, 50)).rejects.toThrow();
+
+    // reject-emit never reached the backend, but the ATTEMPT is what a
+    // consumer asserting "did we send it?" needs to see.
+    expect(transport.requestLog).toHaveLength(1);
+    expect(transport.requestLog[0]!.action.kind).toBe('reject-emit');
+    expect(transport.requestLog[0]!.payload).toMatchObject({ limit: 3 });
+
+    transport.dispose();
+  });
+});

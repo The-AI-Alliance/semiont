@@ -32,7 +32,7 @@ write('version.json', versionJson);
 console.log('  version.json -> ' + version);
 
 // Stamp every package.json in version.json — including non-published ones
-// (test-utils, mcp-server, desktop) so the workspace stays version-coherent.
+// (mcp-server, desktop) so the workspace stays version-coherent.
 for (const pkg of Object.values(versionJson.packages)) {
   const path = pkg.dir + '/package.json';
   const json = read(path);

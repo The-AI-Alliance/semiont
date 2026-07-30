@@ -1,9 +1,9 @@
 # Platforms
 
-> **The CLI's platform abstraction is gone.** `@semiont/cli` once carried a
+> **The platform abstraction is gone.** A retired CLI once carried a
 > `(platform × serviceType × command)` handler matrix — `posix`, `container`, `aws`, `external`,
-> `mock` — that provisioned and started services. That package is now a deprecation stub, and the
-> matrix has been deleted along with it. There is no per-platform configuration to write.
+> `mock` — that provisioned and started services. Both the matrix and the CLI have been deleted.
+> There is no per-platform configuration to write.
 
 ## How Semiont runs now
 

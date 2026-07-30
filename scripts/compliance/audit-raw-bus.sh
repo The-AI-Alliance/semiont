@@ -49,6 +49,15 @@ set -euo pipefail
 #                                          same reason
 #   - **/__tests__/**                   — tests may assert on bus behavior
 #   - **/test-utils.tsx                 — test helpers
+#   - **/.generated/**                  — build output, not source. The SAFE-DOCS gate
+#                                          extracts every doc code fence into
+#                                          packages/sdk/docs/__snippets__/.generated/*.ts
+#                                          to type-check it; REACTIVE-MODEL.md documents
+#                                          `client.bus.get(...)` as the *sanctioned*
+#                                          advanced surface (client.bus is public API,
+#                                          explicitly "not @internal"), so auditing those
+#                                          extracts flags the documentation of a legal
+#                                          escape hatch. Same class as /dist/ above.
 #   - packages/react-ui/src/contexts/useEventSubscription.ts — generic hook
 #                                          (uses session.subscribe internally)
 #
@@ -60,6 +69,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 filter_allowlist() {
   grep -v "/node_modules/" \
     | grep -v "/dist/" \
+    | grep -v "/\.generated/" \
     | grep -v "__tests__/" \
     | grep -v "/test-utils\." \
     | grep -v "^packages/sdk/src/" \

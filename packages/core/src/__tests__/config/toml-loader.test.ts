@@ -175,22 +175,28 @@ publicURL = "http://localhost:3001"
     expect(config.services?.backend?.port).toBe(5005);
   });
 
-  it('uses SEMIONT_ENV over [defaults] when no environment is passed', () => {
+  // `SEMIONT_ENV` is NOT an input. It was removed as a resolution input because an
+  // ambient variable can disagree with the config the launcher just staged — the same
+  // shape of bug as the hard-coded 'local' that #1108 removed. The chain is now two
+  // inputs that cannot contradict each other: an explicit argument (tests) and
+  // `[defaults] environment` (everything else).
+  it('ignores SEMIONT_ENV entirely — it is not an input to resolution', () => {
     const config = loadTomlConfig('/project', undefined, '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), { SEMIONT_ENV: 'local' });
+    expect(config._metadata?.environment).toBe('staging');
+    expect(config.services?.backend?.port).toBe(5005);
+  });
+
+  it('lets an explicit environment win over [defaults]', () => {
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), {});
     expect(config._metadata?.environment).toBe('local');
     expect(config.services?.backend?.port).toBe(3001);
   });
 
-  it('lets an explicit environment win over SEMIONT_ENV and [defaults]', () => {
-    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), { SEMIONT_ENV: 'staging' });
-    expect(config._metadata?.environment).toBe('local');
-    expect(config.services?.backend?.port).toBe(3001);
-  });
-
-  it('throws when nothing selects an environment (no arg, no SEMIONT_ENV, no [defaults])', () => {
+  it('throws when nothing selects an environment (no arg, no [defaults]) even if SEMIONT_ENV is set', () => {
     // MINIMAL_TOML declares [environments.local] but no [defaults] environment.
+    // SEMIONT_ENV=local must NOT rescue it — that is the input being removed.
     expect(() =>
-      loadTomlConfig('/project', undefined, '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {})
+      loadTomlConfig('/project', undefined, '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), { SEMIONT_ENV: 'local' })
     ).toThrow(/environment/i);
   });
 });

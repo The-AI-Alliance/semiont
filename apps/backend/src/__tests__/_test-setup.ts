@@ -76,12 +76,13 @@ export interface TestEnvironmentConfig {
  * Create a test environment with:
  * - Temporary directory for event store data
  * - In-memory EnvironmentConfig (no filesystem config files)
- * - SEMIONT_ROOT and SEMIONT_ENV set in process.env
+ * - SEMIONT_ROOT set in process.env; the environment selected by `[defaults]`
+ *   in the generated .semiontconfig (as a real KB does)
  *
  * @param envName - Optional environment name (defaults to 'unit')
  */
 export async function setupTestEnvironment(envName?: string): Promise<TestEnvironmentConfig> {
-  const environment = envName || process.env.SEMIONT_ENV || 'unit';
+  const environment = envName ?? 'unit';
 
   // mkdtemp, not Date.now(): parallel test files calling this in the same
   // millisecond must not share (and mutually clobber) one directory.
@@ -92,8 +93,16 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
 
   // Write a minimal .semiontconfig so loadEnvironmentConfig works without a real user home dir.
   // Set HOME to testDir so os.homedir() returns it.
+  //
+  // `[defaults] environment` is prepended rather than baked into the constant because the
+  // constant declares BOTH sections and the caller picks one. This is how a real KB selects
+  // its environment, so the fixture selects it the same way — no ambient SEMIONT_ENV.
   const originalHome = process.env.HOME;
-  await fs.writeFile(join(testDir, '.semiontconfig'), MINIMAL_SEMIONTCONFIG, 'utf-8');
+  await fs.writeFile(
+    join(testDir, '.semiontconfig'),
+    `[defaults]\nenvironment = "${environment}"\n${MINIMAL_SEMIONTCONFIG}`,
+    'utf-8',
+  );
   process.env.HOME = testDir;
 
   // The KB's OWN committed config. Distinct from `.semiontconfig` above (that
@@ -112,7 +121,6 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
   );
 
   process.env.SEMIONT_ROOT = testDir;
-  process.env.SEMIONT_ENV = environment;
 
   const config: EnvironmentConfig = {
     services: {
@@ -148,7 +156,6 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
         delete process.env.HOME;
       }
       delete process.env.SEMIONT_ROOT;
-      delete process.env.SEMIONT_ENV;
       await fs.rm(testDir, { recursive: true, force: true });
     },
   };

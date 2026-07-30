@@ -19,7 +19,7 @@ Brief description of the changes in this PR.
 
 - [ ] Frontend (`apps/frontend`)
 - [ ] Backend (`apps/backend`)
-- [ ] CLI (`apps/cli`)
+- [ ] Launcher (`apps/launcher`)
 - [ ] HTTP Transport (`packages/http-transport`)
 - [ ] Core (`packages/core`)
 - [ ] MCP Server (`packages/mcp-server`)

@@ -196,7 +196,7 @@ Backend-specific endpoints beyond the public login routes (`/api/tokens/password
 
 ### `POST /api/tokens/refresh`
 
-Exchange a 30-day refresh token for a new 10-minute access token. This is the path
+Exchange a refresh token for a new access token. This is the path
 the SDK `Session` drives to keep a client signed in without re-prompting.
 
 - **Auth**: Public (the refresh token is supplied in the request body)
@@ -232,7 +232,7 @@ Mint a short-lived, resource-scoped **media token** for header-less fetches
 ### `POST /api/users/logout`
 
 Revoke the caller's sessions. Increments the user's `tokenVersion`, which instantly
-invalidates the 30-day refresh token **and** every live access token on its next
+invalidates the refresh token **and** every live access token on its next
 request — server-side, all devices.
 
 - **Auth**: Requires a valid access token
@@ -240,8 +240,8 @@ request — server-side, all devices.
 
 > **MCP clients.** The previous browser-mediated MCP token-provisioning flow has been
 > **removed**. Today `packages/mcp-server` runs single-backend with a **static**
-> `SEMIONT_ACCESS_TOKEN` (from env) that does **not** refresh — so it stops working at the
-> 10-minute access-token TTL, or when a logout bumps `tokenVersion`. A refreshing
+> `SEMIONT_ACCESS_TOKEN` (from env) that does **not** refresh — so it stops working when
+> the access token expires, or when a logout bumps `tokenVersion`. A refreshing
 > provisioning flow is being rebuilt; this guide will document it once it lands.
 
 ## JWT Token Structure
@@ -252,7 +252,7 @@ differ only in lifetime. Every token carries the user's `tokenVersion` at mint
 time — the middleware rejects it once the stored `tokenVersion` moves ahead (see
 logout, above). Software-agent tokens additionally carry an `agentDid`.
 
-### Access Token (10-minute expiration)
+### Access Token
 
 ```json
 {
@@ -267,7 +267,7 @@ logout, above). Software-agent tokens additionally carry an `agentDid`.
 }
 ```
 
-### Refresh Token (30-day expiration)
+### Refresh Token
 
 Held by the SDK `Session`, which exchanges it for fresh access tokens via
 `POST /api/tokens/refresh`. Same claims as the access token (including
@@ -289,7 +289,7 @@ The backend validates tokens through multiple layers:
 
 - **Router-level protection** - Routes protected via router.use() middleware
 - **Comprehensive test coverage** - route-auth-coverage.test.ts validates all routes
-- **Environment validation** - JWT_SECRET must be 32+ characters
+- **Environment validation** - each key in JWT_SECRET must be 32+ characters (it may be a comma-separated rotation ring)
 - **Request validation** - All inputs validated with Zod schemas
 - **SQL injection prevention** - Prisma ORM with parameterized queries
 - **CORS** - open (`origin: '*'`, no credentials); safe because auth is bearer-only, not cookie-based
@@ -316,12 +316,28 @@ This test ensures no authentication regressions occur when adding or modifying r
 **"Unauthorized" Error (401)**:
 
 ```bash
-# Check JWT secret matches
-echo $JWT_SECRET | wc -c  # Must be 32+ characters
+# JWT_SECRET is an ordered, comma-separated KEY RING: the first key signs,
+# every key verifies. Check each key's length, not the joined string.
+echo "$JWT_SECRET" | tr ',' '\n' | awk '{ print NR": "length($0)" chars" }'  # each must be 32+
 
-# Test token manually
-node -e "console.log(require('jsonwebtoken').verify('TOKEN', process.env.JWT_SECRET))"
+# Test a token manually against every key in the ring (prints the payload
+# from whichever one accepts it).
+node -e '
+  const jwt = require("jsonwebtoken");
+  const token = process.argv[1];
+  for (const secret of process.env.JWT_SECRET.split(",").map(s => s.trim())) {
+    try { console.log(jwt.verify(token, secret)); process.exit(0); } catch {}
+  }
+  console.error("no key in JWT_SECRET verifies this token");
+  process.exit(1);
+' "TOKEN"
 ```
+
+Verifying against `process.env.JWT_SECRET` directly only works when the ring holds a
+single key — with a rotation in progress it passes the whole comma-joined string as one
+secret and always fails. See
+[Rotating `JWT_SECRET`](../../../docs/system/administration/AUTHENTICATION.md#rotating-jwt_secret-without-signing-everyone-out)
+for the rotation procedure.
 
 **"Forbidden" Error (403)**:
 
@@ -343,7 +359,7 @@ LOG_LEVEL=debug
 
 **Refresh Token Exchange Fails**:
 
-- Check the refresh token hasn't expired (30 days) or been revoked by a logout (`tokenVersion` bump)
+- Check the refresh token hasn't expired or been revoked by a logout (`tokenVersion` bump)
 - Verify the `POST /api/tokens/refresh` endpoint is accessible
 - Ensure the refresh token is sent as `{ "refreshToken": "…" }` in the body
 
@@ -363,8 +379,8 @@ console.log('Auth attempt:', {
 **2. Verify JWT Secret**:
 
 ```bash
-# In development
-echo "JWT_SECRET length: $(echo -n $JWT_SECRET | wc -c)"
+# In development — per key, since JWT_SECRET may be a rotation ring
+echo "$JWT_SECRET" | tr ',' '\n' | awk '{ print "key "NR": "length($0)" chars" }'
 ```
 
 **3. Check User Context**:

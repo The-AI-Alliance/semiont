@@ -3237,8 +3237,8 @@ func TestSemiontRootOverride(t *testing.T) {
 }
 
 func TestSemiontRootInvalid(t *testing.T) {
-	// Strict, matching apps/cli: an invalid override is an error, never
-	// silently ignored in favor of discovery.
+	// Strict: an invalid override is an error, never silently ignored in
+	// favor of discovery.
 	s := newScenario(t, "container")
 	for _, tc := range []struct{ root, want string }{
 		{filepath.Join(t.TempDir(), "nope"), "points to non-existent directory"},
@@ -3938,6 +3938,97 @@ func TestStopVerifiesPortsReleased(t *testing.T) {
 }
 
 // --- JWT_SECRET supply ---
+
+// A-3 (JWT-SECRET-ROTATION.md): loadOrCreateJWTSecret returned silently on all
+// three paths, so the incident that motivated the whole plan — a silently
+// regenerated secret invalidating every live token — was invisible in logs.
+// Which path supplied the key is the one fact that makes that class
+// diagnosable after the fact, and it costs one line.
+func TestStartNamesWhereTheJWTSecretCameFrom(t *testing.T) {
+	// 1. Freshly generated, because nothing supplied or persisted one.
+	s := newScenario(t, "container")
+	s.noJWTSecret = true
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "provenance", stdout, "Token-signing key", "generated")
+	secret := jwtSecretFromArgv(t, s.argv(t))
+	if strings.Contains(stdout+stderr, secret) {
+		t.Error("the provenance line leaked the key itself")
+	}
+
+	// 2. A later start REUSES the persisted one, and says so. Distinguishing
+	// this from "generated" is the whole point: the incident looked exactly
+	// like a normal start. (--service backend, as the sibling test does: a
+	// second full start re-detects host Ollama and refuses, unrelated to this.)
+	stdout, stderr, code = s.run(t, "start", "--service", "backend")
+	if code != 0 {
+		t.Fatalf("restart: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "provenance", stdout, "Token-signing key", "reused")
+	if strings.Contains(stdout, "generated") {
+		t.Errorf("a reused key was reported as generated:\n%s", stdout)
+	}
+
+}
+
+// The third provenance path gets its own scenario: the fake services of a
+// previous one hold the stack's fixed ports until that test ends.
+func TestStartNamesAnOperatorSuppliedJWTSecret(t *testing.T) {
+	s := newScenario(t, "container") // the harness supplies JWT_SECRET
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("env start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "provenance", stdout, "Token-signing key", "JWT_SECRET")
+}
+
+// The backend now reads JWT_SECRET as an ordered, comma-separated RING: the
+// first value signs, every value verifies (JWT-SECRET-ROTATION.md decision D).
+// The launcher only carries it — but carrying it correctly means passing a
+// ring through untouched, and refusing a member the backend would reject at
+// boot, where the launcher can still say what to do about it.
+func TestStartCarriesAJWTSecretRing(t *testing.T) {
+	const newKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	const oldKey = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+	s := newScenario(t, "container")
+	s.noJWTSecret = true
+	s.extraEnv = append(s.extraEnv, "JWT_SECRET="+newKey+","+oldKey)
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("a rotation ring must start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// Verbatim: re-joining or trimming would change what signs and what
+	// verifies, and the backend is the only component entitled to split it.
+	if got := jwtSecretFromArgv(t, s.argv(t)); got != newKey+","+oldKey {
+		t.Errorf("ring was not passed through verbatim:\ngot  %q\nwant %q", got, newKey+","+oldKey)
+	}
+	// Rotation is a state worth naming — and the count is safe to print.
+	mustContain(t, "provenance", stdout, "2 keys")
+	for _, k := range []string{newKey, oldKey} {
+		if strings.Contains(stdout+stderr, k) {
+			t.Error("a key leaked into the output")
+		}
+	}
+
+}
+
+// A short MEMBER is the trap a whole-string length check misses — "<valid>,short"
+// passes trivially. The backend validates each key and refuses to boot, so
+// catching it here, where the fix-it can be printed, beats a crash-loop.
+// Its own scenario: the previous test's fake services hold the stack ports.
+func TestStartRefusesAShortJWTSecretRingMember(t *testing.T) {
+	s := newScenario(t, "container")
+	s.noJWTSecret = true
+	s.extraEnv = append(s.extraEnv, "JWT_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,short")
+	_, stderr, code := s.run(t, "start")
+	if code != 1 {
+		t.Fatalf("a short ring member must be refused, got exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stderr", stderr, "32", "JWT_SECRET", "openssl rand -hex 32")
+}
 
 // The backend signs every token with JWT_SECRET and is the only service that
 // reads it. Nothing in the image supplies it (the retired CLI's `provision`

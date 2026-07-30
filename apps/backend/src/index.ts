@@ -30,8 +30,9 @@ import { User } from '@prisma/client';
 // Load configuration from .semiont/config + ~/.semiontconfig (TOML).
 // The environment is resolved by the loader from `[defaults] environment` — the
 // SAME key the launcher selects from (config.go) — so one config selects it for
-// both halves. No SEMIONT_ENV read and no 'local' default here: those disagreed
-// across entry points and silently loaded the wrong (empty) section.
+// both halves. Nothing is selected here — no environment variable, no 'local'
+// default: those disagreed across entry points and silently loaded the wrong
+// (empty) section.
 const projectRoot = process.env.SEMIONT_ROOT;
 if (!projectRoot) {
   throw new Error('SEMIONT_ROOT environment variable is not set');

@@ -21,7 +21,7 @@ The Semiont browser provides a rich annotation experience for building semantic 
 [![npm version](https://img.shields.io/npm/v/@semiont/frontend.svg)](https://www.npmjs.com/package/@semiont/frontend)
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/frontend.svg)](https://www.npmjs.com/package/@semiont/frontend)
 
-The frontend is published as `@semiont/frontend` on npm as a pre-built Vite SPA with a minimal Node.js static file server. It is bundled directly inside `@semiont/cli` — no separate installation step is required. When the CLI starts the frontend service, it runs the bundled `server.js` from its own `node_modules`.
+The frontend is published as `@semiont/frontend` on npm as a pre-built Vite SPA with a minimal Node.js static file server. It also ships as the `semiont-frontend` container image, which is how a stack actually serves it — the launcher runs that image, and `server.js` serves the pre-built SPA inside it.
 
 ## Quick Start
 
@@ -287,7 +287,7 @@ We welcome contributions! Please read:
 - [Backend README](../backend/README.md) - Backend API server
 - [MCP Server README](../../packages/mcp-server/README.md) - AI integration via Model Context Protocol
 - [API Client README](../../packages/http-transport/README.md) - Type-safe TypeScript client
-- [CLI README](../cli/README.md) - Command-line interface
+- [Launcher README](../launcher/README.md) - The host-installed `semiont` command
 
 ### External Resources
 - [Vite Documentation](https://vitejs.dev/)

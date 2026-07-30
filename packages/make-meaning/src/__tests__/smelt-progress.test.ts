@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { EventBus } from '@semiont/core';
-import { assertStateUnitAxioms } from '@semiont/core/testing';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import { createSmeltProgress, SmeltProgressTimeout } from '../smelt-progress';
 
 describe('SmeltProgress', () => {

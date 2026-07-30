@@ -66,20 +66,10 @@
       "version": "0.5.24",
       "publish": true
     },
-    "@semiont/test-utils": {
-      "dir": "packages/test-utils",
-      "version": "0.5.24",
-      "publish": false
-    },
     "@semiont/mcp-server": {
       "dir": "packages/mcp-server",
       "version": "0.5.24",
       "publish": false
-    },
-    "@semiont/cli": {
-      "dir": "apps/cli",
-      "version": "0.5.24",
-      "publish": true
     },
     "semiont-backend": {
       "dir": "apps/backend",

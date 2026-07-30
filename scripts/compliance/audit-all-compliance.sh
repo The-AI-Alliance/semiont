@@ -44,6 +44,11 @@ echo ""
 echo "🕸️  Checking Weaver invariants (no event-store/fs, standalone-only, single mark/signal writer, channel↔fold sync)..."
 bash "$COMPLIANCE_DIR/audit-weaver-invariants.sh"
 echo ""
+# SDK doc snippets compile against dist (SAFE-DOCS; post-build — FAILS if dist is
+# missing, since a gate that silently skips proves nothing; run build:packages first)
+echo "📚 Checking sdk doc snippets..."
+bash "$COMPLIANCE_DIR/audit-doc-snippets.sh"
+echo ""
 
 # React-UI source code
 echo "📦 Auditing packages/react-ui source..."

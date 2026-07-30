@@ -3,7 +3,7 @@ import { sessionOf } from '../../__tests__/test-client';
 import { firstValueFrom } from 'rxjs';
 import type { SemiontClient } from '@semiont/sdk';
 import { createSessionStateUnit } from '../session-state-unit';
-import { assertStateUnitAxioms } from '@semiont/core/testing';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
 function mockClient(logout?: ReturnType<typeof vi.fn>): SemiontClient {
   return {

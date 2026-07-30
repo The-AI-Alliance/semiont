@@ -413,7 +413,7 @@ stale-while-revalidate, in-flight dedup, and event-driven invalidation
 by hand. See
 [`packages/sdk/docs/CACHE-SEMANTICS.md`](../../packages/sdk/docs/CACHE-SEMANTICS.md).
 The constraint we're honoring is framework-agnosticism — the same
-client is used by React, the CLI, MCP server, and workers.
+client is used by React, the MCP server, and workers.
 
 Consequence: every race in the cache (stuck guard, invalidate-loop,
 concurrent refetches) is a bug that published SWR implementations have

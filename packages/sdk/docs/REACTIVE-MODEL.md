@@ -33,20 +33,32 @@ A consumer that doesn't care about progress shouldn't have to learn RxJS to use 
 Two Observable subclasses live in [`packages/sdk/src/awaitable.ts`](../src/awaitable.ts). Both extend `Observable<T>`, but only **StreamObservable** is still thenable — `CacheObservable`'s thenable was DELETED (2026-07-29) in favor of an explicit `.fresh()`:
 
 ```ts
+import { Observable, lastValueFrom, firstValueFrom } from 'rxjs';
+import { filter } from 'rxjs/operators';
+import type { CacheState } from '@semiont/sdk';
+
 export class StreamObservable<T> extends Observable<T> implements PromiseLike<T> {
-  then(onfulfilled, onrejected) {
+  then<R1 = T, R2 = never>(
+    onfulfilled?: ((value: T) => R1 | PromiseLike<R1>) | null,
+    onrejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,
+  ): Promise<R1 | R2> {
     return lastValueFrom(this).then(onfulfilled, onrejected);
   }
 }
 
 // Live queries emit CacheState<T> = pending | ready | failed — see CACHE-SEMANTICS.md.
 export class CacheObservable<T> extends Observable<CacheState<T>> {
+  /** Cache-backed instances carry a one-shot fresh-fetch action. */
+  private fetchFresh?: () => Promise<T>;
+
   fresh(): Promise<T> {
     // Cache-backed: fetch fresh (a re-read reflects writes), reject on failure.
     if (this.fetchFresh) return this.fetchFresh();
     // Non-cache wrapper (no fetch action): settle on the first non-pending
     // state — resolve `ready.value`, reject `failed.error`.
-    return firstNonPending(this);
+    return firstValueFrom(
+      this.pipe(filter((s): s is Exclude<CacheState<T>, { status: 'pending' }> => s.status !== 'pending')),
+    ).then((s) => (s.status === 'ready' ? s.value : Promise.reject(s.error)));
   }
 }
 ```
@@ -105,7 +117,7 @@ semiont.browse.resource(rId).subscribe((st) => {
 });
 
 // 3. Want progress events from a stream? subscribe.
-semiont.mark.assist(rId, 'linking').subscribe((event) => {
+semiont.mark.assist(rId, 'linking', {}).subscribe((event) => {
   if (event.kind === 'progress') updateProgress(event);
   else if (event.kind === 'complete') celebrate();
 });
@@ -130,7 +142,7 @@ Four idiomatic shapes. The script-author who's never heard of RxJS uses the firs
 When you want **both** progress *and* the terminal result from a single execution, use **`.run(onNext)`**: it subscribes once, delivers every emission to `onNext`, and resolves the terminal value.
 
 ```ts
-const done = await semiont.mark.assist(rId, 'linking').run((event) => {
+const done = await semiont.mark.assist(rId, 'linking', {}).run((event) => {
   if (event.kind === 'progress') updateProgress(event);   // every progress emission
 });                                                        // resolves the terminal event
 ```
@@ -197,7 +209,7 @@ The bus is the SDK's substrate for cross-participant coordination. Three legitim
 
 ```ts
 client.beckon.hover(annotationId);
-client.mark.changeShape('rectangle');
+client.browse.click(annotationId, 'commenting');
 const ctx = await client.gather.annotation(rId, aId);
 ```
 
@@ -209,7 +221,7 @@ This is the right path **when a namespace method exists** for what you want. It 
 
 ```ts
 const unsub = session.subscribe('mark:added', (event) => {
-  console.log('Annotation added:', event.annotation);
+  console.log('Annotation added:', event.payload.annotation);
 });
 // later: unsub();
 ```
@@ -218,15 +230,15 @@ The escape hatch for **observing a channel that doesn't have a typed namespace g
 
 - React hooks like `useEventSubscription` that take a channel name as a prop.
 - Daemons reacting to domain events (`mark:added`, `yield:created`, etc.) that no namespace exposes a typed listener for.
-- Agentic code subscribing to collaboration signals from other participants (`mark:shape-changed`, `beckon:hover`) to drive its own behavior.
+- Agentic code subscribing to collaboration signals from other participants (`beckon:hover`, `beckon:sparkle`) to drive its own behavior.
 
 This path is sanctioned. It's typed against `EventMap` from `@semiont/core`, so the channel name and payload type stay aligned. The disposer cleans up on call.
 
 ### 3. Direct `client.bus.get(channel)` / `client.transport.emit(channel, ...)` — advanced
 
 ```ts
-client.bus.get('mark:added').pipe(...).subscribe(...);
-await client.transport.emit('match:search-requested', { ... });
+client.bus.get('mark:added').subscribe((event) => log(event));
+await client.transport.emit('beckon:hover', { annotationId: null });
 ```
 
 The lowest-level path. Reach for it when:
@@ -247,7 +259,7 @@ import { filter } from 'rxjs/operators';
 
 const result = await lastValueFrom(
   semiont.match.search(rId, refId, ctx)
-    .pipe(filter((e) => e.score > 0.9))
+    .pipe(filter((e) => e.response.length > 0))
 );
 ```
 
