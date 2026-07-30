@@ -1078,6 +1078,7 @@ const MANUAL_REQUEST_VALIDATION = new Map<string, string>([
   ['MediaTokenRequest', 'auth handler does manual field presence check on resourceId'],
   ['CookieConsentRequest', 'handler enforces necessary=true alongside shape check'],
   ['BusEmitRequest', 'bus emit validates per-channel payload shape, not the envelope'],
+  ['BusSubscribeRequest', 'subscribe validates the matrix in-body (parseSubscribeBody) — semantic checks the schema cannot express: duplicate scopes, per-connection caps, non-empty entries — before streamSSE takes the response'],
 ]);
 
 describe('Request-Body Validation', () => {
