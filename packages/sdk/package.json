@@ -1,7 +1,7 @@
 {
   "name": "@semiont/sdk",
-  "version": "0.5.23",
-  "description": "Semiont SDK \u2014 SemiontClient, namespaces, session/browser, state units, and the bus-request/cache helpers. Transport-agnostic; pair with @semiont/http-transport (HttpTransport) or @semiont/make-meaning (LocalTransport) for the wire.",
+  "version": "0.5.24",
+  "description": "Semiont SDK — SemiontClient, namespaces, session/browser, state units, and the bus-request/cache helpers. Transport-agnostic; pair with @semiont/http-transport (HttpTransport) or @semiont/make-meaning (LocalTransport) for the wire.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
