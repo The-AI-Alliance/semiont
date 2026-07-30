@@ -1,20 +1,21 @@
 /**
- * `@semiont/core/testing` — test-only utilities for verifying cross-package
- * invariants. Not part of the runtime surface; consumers import it from their
- * test suites and must have `fast-check` in their own devDependencies.
+ * `@semiont/core/testing` — the test doubles, free of any `fast-check`
+ * requirement. Not part of the runtime surface; consumers import it from
+ * their test suites.
  *
- * Lives in core (not sdk) so every layer — including `http-transport`, which is
- * below sdk — can share one harness without dependency cycles. Two axiom
- * families: the StateUnit axioms (`.plans/STATE-UNIT-AXIOMS.md`, per-unit
- * safety) and the liveness axioms (`.plans/LIVENESS-AXIOMS.md`,
- * composition-level liveness over `FaultyTransport`).
+ * Lives in core (not sdk) so every layer — including `http-transport`, which
+ * is below sdk — can share one double without dependency cycles. The
+ * consumer-facing client/session entry points that wrap this transport live
+ * in `@semiont/sdk/testing` (`createTestClient`, `createTestSession`), which
+ * composes this module across the existing dependency edge.
+ *
+ * The property-based AXIOM harnesses (`assertStateUnitAxioms`,
+ * `assertLivenessAxioms`, `assertExactlyOnceDelivery`) moved to
+ * **`@semiont/core/testing/axioms`** — they need `fast-check`, an optional
+ * peerDependency, and keeping them here made that optionality a lie for every
+ * consumer of the double (SDK-TESTING-DOUBLE gap 7). Import them from the
+ * subpath, and add `fast-check` to your devDependencies when you do.
  */
-export {
-  assertStateUnitAxioms,
-  disposeProbe,
-  type StateUnitAxiomSpec,
-  type DisposeProbe,
-} from './state-unit-axioms';
 
 export {
   FaultyTransport,
@@ -23,16 +24,3 @@ export {
   type FaultyTransportConfig,
   type RequestLogEntry,
 } from './faulty-transport';
-
-export {
-  assertLivenessAxioms,
-  assertExactlyOnceDelivery,
-  arbFaultAction,
-  arbFaultSchedule,
-  arbDeliveryOps,
-  type LivenessScenario,
-  type LivenessAxiomSpec,
-  type DeliverySubject,
-  type DeliveryOp,
-  type DeliveryAxiomSpec,
-} from './liveness-axioms';

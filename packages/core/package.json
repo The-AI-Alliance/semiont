@@ -20,6 +20,11 @@
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js",
       "default": "./dist/testing.js"
+    },
+    "./testing/axioms": {
+      "types": "./dist/testing/axioms.d.ts",
+      "import": "./dist/testing/axioms.js",
+      "default": "./dist/testing/axioms.js"
     }
   },
   "engines": {

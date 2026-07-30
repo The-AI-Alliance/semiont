@@ -48,6 +48,18 @@ export interface RequestLogEntry {
    * the same key are the same logical request re-issued.
    */
   retryKey: string;
+  /**
+   * The payload as emitted — envelope, options, params, `correlationId` and
+   * all. This is the surface for "assert what my orchestrator actually SENT"
+   * (SDK-TESTING-DOUBLE gap 6): without it every consumer harness re-invented
+   * a per-channel `transport.on(...)` wire recorder alongside this log.
+   *
+   * SHALLOW snapshot: the top level is copied at emit time, so a caller that
+   * mutates its own payload object afterwards cannot rewrite history. Nested
+   * objects are shared by reference — deep-freeze is not worth the cost in a
+   * double, and no in-repo caller mutates nested request payloads.
+   */
+  payload: Record<string, unknown>;
 }
 
 export interface FaultyTransportConfig {
@@ -141,6 +153,7 @@ export class FaultyTransport implements ITransport {
       action,
       correlationId: typeof record.correlationId === 'string' ? record.correlationId : undefined,
       retryKey: retryKeyOf(name, record),
+      payload: { ...record },
     });
 
     if (action.kind === 'reject-emit') {

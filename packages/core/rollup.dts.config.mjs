@@ -41,33 +41,33 @@ function isExternal(id) {
   return false;
 }
 
-// The testing entry must IMPORT the shared surface (`EventBus`, `ITransport`,
-// `StateUnit`, …) from '@semiont/core' rather than inline private copies of
-// it. Inlined copies of classes with private members (`EventBus`) are
-// NOMINALLY distinct types, so a `FaultyTransport` typed against the inlined
-// `EventBus` was not assignable where consumers hold index types — every
-// consumer needed `as unknown as ITransport` (the sdk liveness suites carried
-// exactly that; .plans/SDK-TESTING-DOUBLE.md, found during Phase 1). Only the
-// shards DECLARED in testing stay bundled; everything else is externalized
-// and rewritten to the package self-reference.
-const TESTING_OWN_SHARDS = new Set([
-  'testing',
-  'faulty-transport',
-  'liveness-axioms',
-  'state-unit-axioms',
-]);
-
-function testingSelfExternal() {
+// A test-only entry must IMPORT the shared surface (`EventBus`, `ITransport`,
+// `StateUnit`, …) rather than inline private copies of it. Inlined copies of
+// classes with private members (`EventBus`) are NOMINALLY distinct types, so a
+// `FaultyTransport` typed against the inlined `EventBus` was not assignable
+// where consumers hold index types — every consumer needed
+// `as unknown as ITransport` (the sdk liveness suites carried exactly that,
+// found during the testing-double work). Only the shards an entry DECLARES
+// stay bundled; everything else is externalized to the package specifier that
+// actually owns it.
+//
+// Per-entry ownership matters since the axioms split: `faulty-transport` is
+// OWNED by `dist/testing.d.ts` and must be EXTERNAL to `dist/testing/
+// axioms.d.ts` — otherwise the axioms bundle inlines a second, nominally
+// distinct `FaultyTransport`, and a consumer holding one from
+// `@semiont/core/testing` could not pass it where the axiom harness expects
+// one. That is the same nominal-inlining bug, one level over.
+function selfExternal({ ownShards, redirects = {} }) {
   return {
-    name: 'testing-self-external',
+    name: 'dts-self-external',
     resolveId(source, importer) {
       if (!importer || !source.startsWith('.')) return null;
       const base = resolve(dirname(importer), source)
         .replace(/\.d\.ts$/, '')
         .split('/')
         .pop();
-      if (TESTING_OWN_SHARDS.has(base)) return null;
-      return { id: '@semiont/core', external: true };
+      if (ownShards.has(base)) return null;
+      return { id: redirects[base] ?? '@semiont/core', external: true };
     },
   };
 }
@@ -75,15 +75,24 @@ function testingSelfExternal() {
 const entries = [
   { input: 'dist-types/index.d.ts', file: 'dist/index.d.ts' },
   { input: 'dist-types/config/node-config-loader.d.ts', file: 'dist/config/node-config-loader.d.ts' },
-  { input: 'dist-types/testing.d.ts', file: 'dist/testing.d.ts' },
+  {
+    input: 'dist-types/testing.d.ts',
+    file: 'dist/testing.d.ts',
+    selfExternal: { ownShards: new Set(['testing', 'faulty-transport']) },
+  },
+  {
+    input: 'dist-types/testing/axioms.d.ts',
+    file: 'dist/testing/axioms.d.ts',
+    selfExternal: {
+      ownShards: new Set(['axioms', 'state-unit-axioms', 'liveness-axioms']),
+      redirects: { 'faulty-transport': '@semiont/core/testing' },
+    },
+  },
 ];
 
-export default entries.map(({ input, file }) => {
-  const isTesting = input.endsWith('testing.d.ts');
-  return {
-    input,
-    output: { file, format: 'es' },
-    plugins: isTesting ? [testingSelfExternal(), dts()] : [dts()],
-    external: isExternal,
-  };
-});
+export default entries.map(({ input, file, selfExternal: cfg }) => ({
+  input,
+  output: { file, format: 'es' },
+  plugins: cfg ? [selfExternal(cfg), dts()] : [dts()],
+  external: isExternal,
+}));
