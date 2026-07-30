@@ -135,7 +135,7 @@ describe('TagEntry', () => {
       // transport's HTTP plumbing.
       const { SemiontWrapper, client, session } = createTestSemiontWrapper();
       vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
-        CacheObservable.from(of([NER_SCHEMA]))
+        CacheObservable.from(of({ status: 'ready' as const, value: [NER_SCHEMA] }))
       );
       render(<TagEntry {...defaultProps} session={session} />, { wrapper: SemiontWrapper });
 
@@ -149,7 +149,7 @@ describe('TagEntry', () => {
       // misses, the schema-name `<span>` is not rendered.
       const { SemiontWrapper, client, session } = createTestSemiontWrapper();
       vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
-        CacheObservable.from(of([]))
+        CacheObservable.from(of({ status: 'ready' as const, value: [] }))
       );
       const { container } = render(<TagEntry {...defaultProps} session={session} />, { wrapper: SemiontWrapper });
 

@@ -9,7 +9,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
 import { EventBus, annotationId, resourceId } from '@semiont/core';
-import type { EventMap } from '@semiont/core';
+import type { ConnectionState, EventMap } from '@semiont/core';
 import { BeckonNamespace } from '../beckon';
 import { BindNamespace } from '../bind';
 import { BrowseNamespace } from '../browse';
@@ -43,7 +43,7 @@ function makeMockTransport(): ITransport {
     importKnowledgeBase: vi.fn(),
     healthCheck: vi.fn(),
     getStatus: vi.fn(),
-    state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
+    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     dispose: vi.fn(),
   } as unknown as ITransport;
 }

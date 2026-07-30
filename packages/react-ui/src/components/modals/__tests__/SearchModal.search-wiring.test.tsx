@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { asStates } from '../../../__tests__/test-client';
 import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { BehaviorSubject } from 'rxjs';
 import { renderWithProviders } from '../../../test-utils';
@@ -33,7 +34,7 @@ vi.mock('@headlessui/react', () => ({
 
 // Mock the http-transport Observable surface
 const browseResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
-const browseResourcesMock = vi.fn(() => browseResourcesSubject.asObservable());
+const browseResourcesMock = vi.fn(() => asStates(browseResourcesSubject.asObservable()));
 
 // Stable client reference — useSemiont is called on every render, so a
 // fresh object literal would invalidate useMemo deps and restart the RxJS

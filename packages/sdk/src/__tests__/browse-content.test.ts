@@ -9,9 +9,9 @@
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { Subject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { IContentTransport, ITransport, ResourceId } from '@semiont/core';
+import type { ConnectionState, IContentTransport, ITransport, ResourceId } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
 
 function inertTransport(): ITransport {
@@ -21,7 +21,7 @@ function inertTransport(): ITransport {
     stream: () => new Subject().asObservable(),
     subscribeToResource: () => () => {},
     bridgeInto: () => {},
-    state$: new Subject(),
+    state$: new BehaviorSubject<ConnectionState>('open'),
     errors$: new Subject(),
     dispose: () => {},
   } as unknown as ITransport;

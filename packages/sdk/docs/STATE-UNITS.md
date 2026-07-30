@@ -20,7 +20,7 @@ Whatever the underlying logic, the consumer's view is the same: Observable field
 
 State units exist so the same logic runs in many environments without rewriting:
 
-- **Browser apps** consume them via React hooks (`useStateUnit`, `useObservable`).
+- **Browser apps** consume them via React hooks (`useSessionStateUnit` for session-scoped units — it recreates the unit when the session changes; `useStateUnit` only for browser-lifetime shell units; `useObservable` for individual streams).
 - **CLIs and MCP servers** await on the awaitable subclasses (`StreamObservable`, `CacheObservable`).
 - **Workers and daemons** subscribe directly with RxJS operators.
 - **AI agents** observing what a human is doing connect to the same buses and the same units.
@@ -51,7 +51,9 @@ export interface FooStateUnit extends StateUnit {
   trigger(input: Input): void;
 }
 
-export function createFooStateUnit(client: SemiontClient): FooStateUnit {
+export function createFooStateUnit(session: SemiontSession): FooStateUnit {
+  const { client } = session;
+
   // Internal state — Subjects held in the closure.
   const loading$ = new BehaviorSubject<boolean>(false);
   const error$ = new BehaviorSubject<Error | null>(null);
@@ -92,6 +94,14 @@ export function createFooStateUnit(client: SemiontClient): FooStateUnit {
 Six things in this code recur in every state unit:
 
 1. **Factory function, not class.** The "instance" is a closure capturing private state.
+   And note the parameter: **session-scoped factories take a `SemiontSession`, not a
+   bare `SemiontClient`** (2026-07-29). A client can be
+   disposed and replaced under a live unit on a KB switch; the session is the stable
+   identity, and destructuring `client` inside the factory pins the unit to the client
+   it was built for — exchange callbacks and subscriptions then capture that session by
+   construction. A CI ratchet (`scripts/compliance/audit-session-typed-factories.sh`)
+   keeps new factories on this signature; the only sanctioned `useStateUnit` consumers
+   are browser-lifetime shell units.
 2. **Internal state in Subjects.** `BehaviorSubject<T>` for current-value semantics; `Subject<T>` for event streams.
 3. **Public surface is `.asObservable()` views.** Consumers can subscribe but can't push values.
 4. **Inputs go through methods.** No direct property assignment; fields are `readonly`.
@@ -124,7 +134,7 @@ When an outer state unit takes an inner state unit as a constructor argument, th
 ```ts
 // ✅ outer takes inner as a parameter — does not own it
 export function createComposePageStateUnit(
-  client: SemiontClient,
+  session: SemiontSession,
   shellStateUnit: ShellStateUnit,  // owned by caller
   params: ComposeParams,
 ): ComposePageStateUnit {
@@ -200,16 +210,16 @@ A few specific shapes are wrong and worth calling out:
 
 ## How these rules are enforced
 
-The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The axiom ledger and FOPL specs live in [`.plans/STATE-UNIT-AXIOMS.md`](../../../.plans/STATE-UNIT-AXIOMS.md); the harness is `assertStateUnitAxioms` in `@semiont/core/testing`, invoked once from each state unit's test file.
+The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The executable spec IS the harness — `assertStateUnitAxioms` in `@semiont/core/testing`, invoked once from each state unit's test file; its property definitions are the authoritative statements of the axioms below.
 
 Five enforcement tiers:
 
 | Tier | Mechanism | Rules |
 |---|---|---|
 | **Axioms** — property-based (fast-check) | `assertStateUnitAxioms`, per unit | **A5** idempotent & total dispose · **A5b** post-dispose inertness · **A6** subscribers see `complete` · **X3-runtime** instance isolation |
-| **Liveness axioms** — property-based (fast-check), composition-level | `assertLivenessAxioms` / `assertExactlyOnceDelivery` from `@semiont/core/testing`, driving `FaultyTransport` (sdk) and the mock-conn SSE harness (http-transport); ledger in [`.plans/LIVENESS-AXIOMS.md`](../../../.plans/LIVENESS-AXIOMS.md) | **L1** subscriptions never silently pend forever · **L2** every `busRequest` settles within timeout × retry budget · **L3** exactly-once delivery across handovers (drain-over-abort) · **L4** degraded modes emit breadcrumbs |
+| **Liveness axioms** — property-based (fast-check), composition-level | `assertLivenessAxioms` / `assertExactlyOnceDelivery` from `@semiont/core/testing`, driving `FaultyTransport` (sdk) and the mock-conn SSE harness (http-transport) | **L1** subscriptions never silently pend forever · **L2** every `busRequest` settles within timeout × retry budget · **L3** exactly-once delivery across handovers (drain-over-abort) · **L4** degraded modes emit breadcrumbs |
 | **Structural assertions** — single-shot | `assertStateUnitAxioms`, per unit | **A1** plain-object identity · **X1** no raw origin Subject on the surface · **A7-passed** don't dispose injected deps · **A7-owned** do dispose constructed children |
-| **Static compliance** — CI grep (`scripts/compliance/`, run by `architecture-compliance.yml`) | bash + grep | **A1-static** no `class` in state-unit files · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces |
+| **Static compliance** — CI grep (`scripts/compliance/`, run by `architecture-compliance.yml`) | bash + grep | **A1-static** no `class` in state-unit files · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces · **session-typed factories** — no `!`-asserted factory args; `useStateUnit` confined to the shell allowlist |
 | **Conventions** — code review only | — | **A3-interior** internal state in Subjects · **X2** no `Promise<T>` on long-running ops · **X6** no dual bus+field exposure of the same state |
 
 Every state unit's test carries an `assertStateUnitAxioms({...})` block — all 18 units across `@semiont/sdk`, `@semiont/http-transport`, `@semiont/make-meaning`, and `@semiont/react-ui`. (The one remaining gap: there is no meta-check yet that every *new* factory adds a block.)
@@ -232,7 +242,7 @@ Every state unit's test carries an `assertStateUnitAxioms({...})` block — all 
 
 ## Writing a new state unit — checklist
 
-1. **Decide the surface.** What state does the consumer need to observe? Each piece becomes an `Observable<T>` field. What inputs does the consumer push? Each becomes a method or an input Subject the unit observes.
+1. **Decide the surface.** What state does the consumer need to observe? Each piece becomes an `Observable<T>` field. What inputs does the consumer push? Each becomes a method or an input Subject the unit observes. If the unit touches a session-scoped client, the factory takes `SemiontSession` (destructure `client` inside) — see Anatomy note 1.
 2. **Hold internal state in private Subjects.** `BehaviorSubject<T>` for current-value semantics; `Subject<T>` for event-stream semantics.
 3. **Expose `.asObservable()` on the public surface.** Never expose the raw Subject.
 4. **Decide activation timing.** Does the factory return ready-to-subscribe, or does it need an explicit `start()`? Either is fine; `dispose()` must work either way.

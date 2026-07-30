@@ -52,16 +52,13 @@
 
 import {
   BehaviorSubject,
-  EMPTY,
   Observable,
   Subject,
-  defer,
   distinctUntilChanged,
   filter,
   map,
   merge,
   skip,
-  throwError,
 } from 'rxjs';
 
 /**
@@ -80,9 +77,35 @@ export interface CachePersister<K, V> {
   subscribe?(onExternalChange: (entries: Map<K, V>) => void): () => void;
 }
 
+/**
+ * The three-outcome truth of a cache read (CACHE-CONTRACT D1, settled
+ * 2026-07-29): pending (nothing to show yet), ready (a value — possibly
+ * stale-while-revalidating, B7), or failed (B15 exhaustion of a value-less
+ * key). `failed` is an EMISSION, not a stream death: the observable never
+ * errors and never terminates on failure, so a subscription survives the
+ * full pending → failed → (resubscribe) → pending → ready life cycle. A
+ * two-state consumer no longer compiles — which is the point (SDK-DEBT L1:
+ * nine call sites shipped against the hidden third outcome).
+ */
+export type CacheState<T> =
+  | { status: 'pending' }
+  | { status: 'ready'; value: T }
+  | { status: 'failed'; error: Error };
+
+/** Type guard for the settled-with-value state — the paved path for
+ * `pipe(filter(isReady), map((s) => s.value))`, replacing the old
+ * `filter((v) => v !== undefined)` idiom. */
+export const isReady = <T,>(s: CacheState<T>): s is { status: 'ready'; value: T } =>
+  s.status === 'ready';
+
+/** Value-or-undefined projection for call sites that want the old shape
+ * EXPLICITLY (the type still forces the choice at the boundary). */
+export const readyValue = <T,>(s: CacheState<T>): T | undefined =>
+  s.status === 'ready' ? s.value : undefined;
+
 export interface Cache<K, V> {
-  /** Observable stream of the value at `key` (SWR). Triggers a fetch if not cached. */
-  observe(key: K): Observable<V | undefined>;
+  /** Observable stream of the state at `key` (SWR live view). Fetch fires on first subscribe. */
+  observe(key: K): Observable<CacheState<V>>;
 
   /**
    * Force a fresh fetch for `key`, update the store (so subscribers see it),
@@ -154,7 +177,7 @@ export function createCache<K, V>(
   const rehydrated = new Set<K>(initialEntries.keys());
   /** In-flight fetch promise per key — dedups concurrent fetches (B3). */
   const inflight = new Map<K, Promise<V>>();
-  const obsCache = new Map<K, Observable<V | undefined>>();
+  const obsCache = new Map<K, Observable<CacheState<V>>>();
 
   /**
    * B16 — disposal is terminal and inert. Once set, no path may issue a
@@ -169,9 +192,11 @@ export function createCache<K, V>(
    * B15 — terminal-failure markers for VALUE-LESS keys. Set when the B14
    * retry also fails and the store holds nothing to serve; delivered to that
    * key's observers as an error notification — pushed via `failure$` to
-   * subscribers attached at exhaustion time, replayed via a subscribe-time
-   * `defer` to later ones. Cleared by observe()/invalidate()/set()/remove()
-   * and by any fetch success, so the error state is always retriable.
+   * subscribers attached at exhaustion time. A LATER subscriber clears the
+   * marker and starts a fresh chain instead of replaying the stale error
+   * (D3 subscribe-time recovery). Also cleared by invalidate()/set()/
+   * remove() and by any fetch success, so the error state is always
+   * retriable.
    */
   const failures = new Map<K, Error>();
   const failure$ = new Subject<{ key: K; error: Error }>();
@@ -320,56 +345,76 @@ export function createCache<K, V>(
   };
 
   return {
-    observe(key: K): Observable<V | undefined> {
-      if (disposed) {
-        // B16: the store is completed, so any per-key observable (memoized
-        // or fresh) completes its subscribers immediately — just don't
-        // issue a fetch for a client that no longer exists.
-      } else if (failures.has(key)) {
-        // B15 recovery: an observer acting on a failed key clears the marker
-        // and starts a fresh attempt chain — a hook remount recovers instead
-        // of replaying the stale error.
-        failures.delete(key);
-        runFetchSWR(key);
-      } else if (rehydrated.has(key)) {
-        // B18 — first observation of a restored-from-disk value: serve it
-        // immediately (it is already in the store, so subscribers paint with
-        // no `undefined` flash — B17's actual win is preserved) AND
-        // revalidate in the background, rendering the fresher on arrival.
-        // `runFetch` clears the mark, so this costs at most one revalidation
-        // CHAIN per rehydrated key per session — one request, plus B14's single
-        // bounded retry if it fails; thereafter B2 applies as usual. A failed
-        // chain keeps the persisted value visible (B6) — never worse than not
-        // revalidating at all.
-        runFetchSWR(key);
-      } else if (!store$.value.has(key) && !inflight.has(key)) {
-        // Subscribe path: fire-and-forget, swallow failures so a subscriber
-        // stays at its last value (B6); one bounded retry (B14). The
-        // awaiter's `fetch` surfaces failures instead.
-        runFetchSWR(key);
-      }
+    observe(key: K): Observable<CacheState<V>> {
       // B4: return a stable Observable per key.
       let obs = obsCache.get(key);
       if (!obs) {
-        obs = merge(
+        const inner = merge(
           store$.pipe(
-            map((m) => m.get(key)),
-            distinctUntilChanged(),
+            map((m): CacheState<V> =>
+              m.has(key)
+                ? { status: 'ready', value: m.get(key) as V }
+                : { status: 'pending' },
+            ),
+            distinctUntilChanged(
+              (a, b) =>
+                a.status === b.status &&
+                (a.status !== 'ready' ||
+                  Object.is(a.value, (b as { status: 'ready'; value: V }).value)),
+            ),
           ),
-          // B15 push: terminal failure of this (value-less) key errors its
-          // subscribers. A throwing `map` turns the event into an RxJS error
-          // notification on this key's observable only.
+          // B15 push: terminal failure of this (value-less) key is an
+          // EMISSION — `{ status: 'failed' }` — never an RxJS error. The
+          // subscription stays alive through failure; recovery is a fresh
+          // subscribe (the D3 per-subscribe decision clears the marker).
           failure$.pipe(
             filter((f) => f.key === key),
-            map((f): V | undefined => { throw f.error; }),
+            map((f): CacheState<V> => ({ status: 'failed', error: f.error })),
           ),
-          // B15 replay: a subscriber attaching AFTER the exhaustion moment
-          // must see the failure too (the push above is hot and gone).
-          defer(() => {
-            const error = failures.get(key);
-            return error ? throwError(() => error) : EMPTY;
-          }),
         );
+        // D3 (CACHE-CONTRACT, settled 2026-07-29): the fetch decision runs
+        // per SUBSCRIPTION, not per accessor call — calling an accessor is
+        // pure (render-safe); the effect belongs to the observer that will
+        // see its outcome. Every branch is idempotent under concurrent
+        // subscribers (`inflight`, marker deletion), so N subscribers cost
+        // one chain, same as before.
+        obs = new Observable<CacheState<V>>((subscriber) => {
+          if (disposed) {
+            // B16: the store is completed, so the inner observable completes
+            // subscribers immediately — just don't issue a fetch for a
+            // client that no longer exists.
+          } else if (failures.has(key)) {
+            // B15 recovery: an observer ARRIVING at a failed key clears the
+            // marker and starts a fresh attempt chain. Under subscribe-time
+            // semantics this subsumes the old "replay the stale error to
+            // late subscribers" branch: a late subscriber gets the fresh
+            // chain (value, or a NEW B15 error on exhaustion) — the recovery
+            // the original B15 comment promised remounts, now delivered on
+            // every remount rather than only ones that re-called the
+            // accessor. Current subscribers still see failures via the hot
+            // B15 push above.
+            failures.delete(key);
+            runFetchSWR(key);
+          } else if (rehydrated.has(key)) {
+            // B18 — first observation of a restored-from-disk value: serve it
+            // immediately (it is already in the store, so subscribers paint
+            // with no `undefined` flash — B17's actual win is preserved) AND
+            // revalidate in the background, rendering the fresher on arrival.
+            // `runFetch` clears the mark, so this costs at most one
+            // revalidation CHAIN per rehydrated key per session — one
+            // request, plus B14's single bounded retry if it fails;
+            // thereafter B2 applies as usual. A failed chain keeps the
+            // persisted value visible (B6) — never worse than not
+            // revalidating at all.
+            runFetchSWR(key);
+          } else if (!store$.value.has(key) && !inflight.has(key)) {
+            // Subscribe path: fire-and-forget, swallow failures so a
+            // subscriber stays at its last value (B6); one bounded retry
+            // (B14). The awaiter's `fetch` surfaces failures instead.
+            runFetchSWR(key);
+          }
+          return inner.subscribe(subscriber);
+        });
         obsCache.set(key, obs);
       }
       return obs;

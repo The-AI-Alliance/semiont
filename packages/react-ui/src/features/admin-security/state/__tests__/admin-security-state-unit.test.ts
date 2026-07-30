@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { sessionOf } from '../../../../__tests__/test-client';
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
@@ -20,7 +21,7 @@ describe('createAdminSecurityStateUnit', () => {
       providers: [{ name: 'google' }],
       allowedDomains: ['example.com'],
     });
-    const stateUnit = createAdminSecurityStateUnit(mockClient(getOAuthConfig), mockBrowse());
+    const stateUnit = createAdminSecurityStateUnit(sessionOf(mockClient(getOAuthConfig)), mockBrowse());
 
     const providers = await firstValueFrom(stateUnit.providers$.pipe(filter((p) => p.length > 0)));
     expect(providers).toEqual([{ name: 'google' }]);
@@ -32,8 +33,8 @@ describe('createAdminSecurityStateUnit', () => {
   });
 
   it('starts loading, resolves to false', async () => {
-    const stateUnit = createAdminSecurityStateUnit(
-      mockClient(vi.fn().mockResolvedValue({ providers: [], allowedDomains: [] })),
+    const stateUnit = createAdminSecurityStateUnit(sessionOf(
+      mockClient(vi.fn().mockResolvedValue({ providers: [], allowedDomains: [] }))),
       mockBrowse(),
     );
 
@@ -42,8 +43,8 @@ describe('createAdminSecurityStateUnit', () => {
   });
 
   it('sets loading false on error', async () => {
-    const stateUnit = createAdminSecurityStateUnit(
-      mockClient(vi.fn().mockRejectedValue(new Error('fail'))),
+    const stateUnit = createAdminSecurityStateUnit(sessionOf(
+      mockClient(vi.fn().mockRejectedValue(new Error('fail')))),
       mockBrowse(),
     );
 
@@ -52,8 +53,8 @@ describe('createAdminSecurityStateUnit', () => {
   });
 
   it('defaults to empty arrays when response has no providers/domains', async () => {
-    const stateUnit = createAdminSecurityStateUnit(
-      mockClient(vi.fn().mockResolvedValue({})),
+    const stateUnit = createAdminSecurityStateUnit(sessionOf(
+      mockClient(vi.fn().mockResolvedValue({}))),
       mockBrowse(),
     );
 
@@ -74,7 +75,7 @@ describe('AdminSecurityStateUnit — StateUnit axioms', () => {
       setup: () => {
         const browse = disposeProbe();
         const client = mockClient(vi.fn().mockResolvedValue({ providers: [], allowedDomains: [] }));
-        return { unit: createAdminSecurityStateUnit(client, browse as unknown as ShellStateUnit), passedIn: [browse] };
+        return { unit: createAdminSecurityStateUnit(sessionOf(client), browse as unknown as ShellStateUnit), passedIn: [browse] };
       },
       surfaces: (u) => [u.providers$, u.allowedDomains$, u.isLoading$],
     });

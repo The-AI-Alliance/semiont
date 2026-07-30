@@ -17,7 +17,7 @@ import type {
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest } from '@semiont/core';
-import { createCache, type Cache, type CachePersister } from '../cache';
+import { createCache, type CacheState, type Cache, type CachePersister } from '../cache';
 import { sessionStoragePersister } from '../cache-persister';
 import type { SessionStorage } from '../session/session-storage';
 
@@ -94,7 +94,7 @@ export class BrowseNamespace implements IBrowseNamespace {
    * identity — React hooks depending on the observable reference,
    * `distinctUntilChanged` at a higher level — would misbehave.
    */
-  private readonly annotationListObs = new Map<ResourceId, Observable<Annotation[] | undefined>>();
+  private readonly annotationListObs = new Map<ResourceId, Observable<CacheState<Annotation[]>>>();
 
   /**
    * Per-source memo for the scope-acquiring wrapper (#847 Phase 4), keyed by
@@ -280,63 +280,33 @@ export class BrowseNamespace implements IBrowseNamespace {
    * events flowing — so `mark:*` / entity-tag invalidations reach this cache —
    * with no separate `subscribeToResource` call from the consumer.
    *
-   * The one-shot `await` path does NOT go through here (it resolves via the
-   * cache's `fetch` — see `CacheObservable.from`'s `fetchFresh`), so a
+   * The one-shot `.fresh()` path does NOT go through here (it resolves via
+   * the cache's `fetch` — see `CacheObservable.from`'s `fetchFresh`), so a
    * one-shot read acquires no scope.
    *
    * Memoized per source so the wrapped observable is stable per key (B4/B11).
    * Each subscription calls `subscribeToResource(rId)`; the transport
-   * ref-counts concurrent subscriptions for the same resource onto a single
-   * SSE scope. Single-scope model unchanged — multi-scope is deferred (see
-   * `.plans/MULTI-RESOURCE-SCOPE.md`).
-   *
-   * Scope acquisition can FAIL under that single-scope model — another
-   * resource already holds the scope, which is the normal state of affairs
-   * for N distinct-rid loaders mounted together (the embeddable-viewer
-   * "resource per chat message" pattern). That must DEGRADE, not error the
-   * live query: correlated replies are globally bridged, so the initial load
-   * and all store updates still flow unscoped; only this resource's broadcast
-   * invalidations are missed while degraded. Erroring instead starved every
-   * such subscriber silently and permanently
-   * (.plans/bugs/concurrent-browse-resource-starvation.md). Each new
-   * subscription retries acquisition, so degradation is per-subscription —
-   * once the scope frees, the next subscribe scopes normally.
+   * ref-counts per resource, and DISTINCT resources COMPOSE onto the one SSE
+   * connection's subscription matrix (MULTI-RESOURCE-SCOPE) — N mounted
+   * loaders on N resources are all fully live. The single-scope contention
+   * state (and its `[browse SCOPE-CONTENTION]` degradation,
+   * starvation-fix P2.5) no longer exists: acquisition cannot fail.
    */
-  private withScope<T>(rId: ResourceId, source: Observable<T | undefined>): Observable<T | undefined> {
-    let scoped = this.scopedSources.get(source) as Observable<T | undefined> | undefined;
+  private withScope<S>(rId: ResourceId, source: Observable<S>): Observable<S> {
+    let scoped = this.scopedSources.get(source) as Observable<S> | undefined;
     if (!scoped) {
-      scoped = new Observable<T | undefined>((subscriber) => {
-        let release: (() => void) | null = null;
-        try {
-          release = this.transport.subscribeToResource(rId);
-        } catch {
-          // Scope held by another resource — observe unscoped (degraded).
-          // Always-on warn (once per resource): silent degradation is how the
-          // starvation incident stayed invisible to a full evidence chain —
-          // see .plans/bugs/concurrent-browse-resource-starvation.md.
-          if (!this.degradedScopeWarned.has(rId)) {
-            this.degradedScopeWarned.add(rId);
-            // eslint-disable-next-line no-console
-            console.warn(
-              `[browse DEGRADED] scope contention: observing ${rId} unscoped — its live ` +
-                `per-resource invalidations are paused until the scope frees (re-subscribe ` +
-                `re-attempts; real fix: .plans/MULTI-RESOURCE-SCOPE.md).`,
-            );
-          }
-        }
+      scoped = new Observable<S>((subscriber) => {
+        const release = this.transport.subscribeToResource(rId);
         const inner = source.subscribe(subscriber);
         return () => {
           inner.unsubscribe();
-          release?.();
+          release();
         };
       });
       this.scopedSources.set(source, scoped);
     }
     return scoped;
   }
-
-  /** One degradation warn per resource per namespace lifetime — signal, not spam. */
-  private readonly degradedScopeWarned = new Set<ResourceId>();
 
   // ── Live queries ────────────────────────────────────────────────────────
   //
@@ -359,7 +329,9 @@ export class BrowseNamespace implements IBrowseNamespace {
   annotations(resourceId: ResourceId): CacheObservable<Annotation[]> {
     let obs = this.annotationListObs.get(resourceId);
     if (!obs) {
-      obs = this.annotationListCache.observe(resourceId).pipe(map((r) => r?.annotations as Annotation[] | undefined));
+      obs = this.annotationListCache.observe(resourceId).pipe(
+        map((s): CacheState<Annotation[]> => (s.status === 'ready' ? { status: 'ready', value: s.value.annotations as Annotation[] } : s)),
+      );
       this.annotationListObs.set(resourceId, obs);
     }
     return CacheObservable.from(this.withScope(resourceId, obs), () => this.annotationListCache.fetch(resourceId).then((r) => r.annotations as Annotation[]));

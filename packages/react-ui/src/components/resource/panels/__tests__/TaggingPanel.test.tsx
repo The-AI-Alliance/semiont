@@ -56,7 +56,7 @@ const TEST_TAG_SCHEMAS: TagSchema[] = [
 const renderWithEventBus = (component: React.ReactElement<{ session: SemiontSession | null }>, tracker?: ReturnType<typeof createEventTracker>) => {
   const { SemiontWrapper, eventBus, client, session } = createTestSemiontWrapper();
   vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
-    CacheObservable.from(of(TEST_TAG_SCHEMAS))
+    CacheObservable.from(of({ status: 'ready' as const, value: TEST_TAG_SCHEMAS }))
   );
   if (tracker) tracker._attach(eventBus);
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -74,7 +74,7 @@ const renderWithEventBus = (component: React.ReactElement<{ session: SemiontSess
 const renderWithEmptyRegistry = (component: React.ReactElement<{ session: SemiontSession | null }>) => {
   const { SemiontWrapper, client, session } = createTestSemiontWrapper();
   vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
-    CacheObservable.from(of([]))
+    CacheObservable.from(of({ status: 'ready' as const, value: [] }))
   );
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontWrapper>{children}</SemiontWrapper>

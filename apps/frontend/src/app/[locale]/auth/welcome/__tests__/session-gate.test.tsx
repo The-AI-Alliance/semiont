@@ -1,14 +1,13 @@
 /**
  * `/auth/welcome` must not build its state unit before a session exists.
  *
- * `createWelcomeStateUnit` calls `client.auth!.me()` *at construction*
- * (welcome-state-unit.ts:20), and this page reaches it through
- * `session?.client` — so mounting during the activation gap dereferences
- * `undefined` and throws. The page even computes `isLoading` for exactly that
- * state, but only after the construction has already happened.
- *
- * This is the route you land on straight after connecting, which is precisely
- * when the session is still being constructed.
+ * Since SESSION-TYPED-FACTORIES landed, this is enforced by API shape:
+ * `createWelcomeStateUnit` takes the SESSION and the page constructs it
+ * through `useSessionStateUnit`, which builds nothing until a session exists
+ * and rebuilds (dispose-first) on swap. These pins now guard that hook-level
+ * gate at the page altitude — the route you land on straight after
+ * connecting, precisely when the session is still being constructed (the
+ * original production crash).
  *
  * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
  */
@@ -24,7 +23,7 @@ vi.mock('@/i18n/routing', () => ({
   Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
 }));
 
-/** Clients the welcome state unit was constructed against, in order. */
+/** Clients (via their session) the unit was constructed against, in order. */
 const welcomeFactoryClients: Array<string | undefined> = [];
 
 const harness = vi.hoisted(() => {
@@ -54,10 +53,10 @@ vi.mock('@semiont/react-ui', async () => {
     ...actual,
     useSemiont: () => harness.browser,
     useToast: () => ({ showError: () => {}, showSuccess: () => {} }),
-    createWelcomeStateUnit: (client: any) => {
-      welcomeFactoryClients.push(client?.tag);
-      // Mirrors the real unit: it touches the client immediately.
-      void client.auth;
+    createWelcomeStateUnit: (session: any) => {
+      welcomeFactoryClients.push(session?.client?.tag);
+      // Mirrors the real unit: it dereferences the session immediately.
+      void session.client.auth;
       return {
         userData$: new BehaviorSubject<unknown>(null),
         isProcessing$: new BehaviorSubject(false),

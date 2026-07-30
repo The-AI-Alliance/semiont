@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { isReady } from '@semiont/sdk';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useObservable } from '../../../hooks/useObservable';
 import type { SemiontSession } from '@semiont/sdk';
@@ -91,7 +92,11 @@ export function TaggingPanel({
     () => session?.client.browse.tagSchemas() ?? null,
     [session],
   );
-  const schemasObserved = useObservable(tagSchemas$);
+  const schemasState = useObservable(tagSchemas$);
+  // D1 unwrap: value-or-undefined, with the third outcome explicit — a
+  // failed registry read renders like still-loading here (the panel's
+  // failure UI is PANEL-FAILURE-STATES follow-up work, not this migration).
+  const schemasObserved = schemasState && isReady(schemasState) ? schemasState.value : undefined;
   const schemas = schemasObserved ?? [];
   // True only AFTER the registry has resolved AND it's empty — distinct
   // from the initial-loading state (`schemasObserved === undefined`),

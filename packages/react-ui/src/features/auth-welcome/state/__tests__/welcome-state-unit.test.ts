@@ -1,26 +1,37 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { SemiontClient } from '@semiont/sdk';
+import type { SemiontSession } from '@semiont/sdk';
+import { AuthNamespace } from '@semiont/sdk';
+import { createTestSession, stubBackend } from '@semiont/sdk/testing';
 import { createWelcomeStateUnit } from '../welcome-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing';
 
-function mockClient(overrides: {
-  getMe?: ReturnType<typeof vi.fn>;
-  acceptTerms?: ReturnType<typeof vi.fn>;
-} = {}): SemiontClient {
-  return {
-    auth: {
-      me: overrides.getMe ?? vi.fn().mockResolvedValue({ termsAcceptedAt: undefined }),
-      acceptTerms: overrides.acceptTerms ?? vi.fn().mockResolvedValue(undefined),
-    },
-  } as unknown as SemiontClient;
+// Real session over the scriptable transport (SESSION-TYPED-FACTORIES pilot);
+// auth behavior scripted by prototype spies, the AuthShell precedent — the
+// previous `as unknown as SemiontClient` hand-mock was the M1 disease.
+let getMe: ReturnType<typeof vi.spyOn>;
+let acceptTermsSpy: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  getMe = vi.spyOn(AuthNamespace.prototype, 'me');
+  getMe.mockResolvedValue({ termsAcceptedAt: undefined } as never);
+  acceptTermsSpy = vi.spyOn(AuthNamespace.prototype, 'acceptTerms');
+  acceptTermsSpy.mockResolvedValue(undefined as never);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function makeSession(): SemiontSession {
+  return createTestSession({ backend: stubBackend() }).session;
 }
 
 describe('createWelcomeStateUnit', () => {
   it('fetches user data on creation', async () => {
-    const getMe = vi.fn().mockResolvedValue({ termsAcceptedAt: '2026-01-01' });
-    const stateUnit = createWelcomeStateUnit(mockClient({ getMe }));
+    getMe.mockResolvedValue({ termsAcceptedAt: '2026-01-01' } as never);
+    const stateUnit = createWelcomeStateUnit(makeSession());
 
     const data = await firstValueFrom(stateUnit.userData$.pipe(filter((d) => d !== null)));
     expect(data).toEqual({ termsAcceptedAt: '2026-01-01' });
@@ -29,8 +40,8 @@ describe('createWelcomeStateUnit', () => {
   });
 
   it('initializes with null userData and not processing', async () => {
-    const getMe = vi.fn().mockReturnValue(new Promise(() => {}));
-    const stateUnit = createWelcomeStateUnit(mockClient({ getMe }));
+    getMe.mockReturnValue(new Promise(() => {}) as never);
+    const stateUnit = createWelcomeStateUnit(makeSession());
 
     const data = await firstValueFrom(stateUnit.userData$);
     const processing = await firstValueFrom(stateUnit.isProcessing$);
@@ -41,14 +52,13 @@ describe('createWelcomeStateUnit', () => {
   });
 
   it('acceptTerms sets isProcessing and updates userData', async () => {
-    const acceptTerms = vi.fn().mockResolvedValue(undefined);
-    const stateUnit = createWelcomeStateUnit(mockClient({ acceptTerms }));
+    const stateUnit = createWelcomeStateUnit(makeSession());
 
     await firstValueFrom(stateUnit.userData$.pipe(filter((d) => d !== null)));
 
     await stateUnit.acceptTerms();
 
-    expect(acceptTerms).toHaveBeenCalledOnce();
+    expect(acceptTermsSpy).toHaveBeenCalledOnce();
 
     const data = await firstValueFrom(stateUnit.userData$);
     expect(data?.termsAcceptedAt).toBeDefined();
@@ -60,8 +70,8 @@ describe('createWelcomeStateUnit', () => {
   });
 
   it('acceptTerms resets isProcessing on error', async () => {
-    const acceptTerms = vi.fn().mockRejectedValue(new Error('fail'));
-    const stateUnit = createWelcomeStateUnit(mockClient({ acceptTerms }));
+    acceptTermsSpy.mockRejectedValue(new Error('fail') as never);
+    const stateUnit = createWelcomeStateUnit(makeSession());
 
     await firstValueFrom(stateUnit.userData$.pipe(filter((d) => d !== null)));
 
@@ -74,8 +84,8 @@ describe('createWelcomeStateUnit', () => {
   });
 
   it('handles getMe failure gracefully', async () => {
-    const getMe = vi.fn().mockRejectedValue(new Error('unauthorized'));
-    const stateUnit = createWelcomeStateUnit(mockClient({ getMe }));
+    getMe.mockRejectedValue(new Error('unauthorized') as never);
+    const stateUnit = createWelcomeStateUnit(makeSession());
 
     await vi.waitFor(() => expect(getMe).toHaveBeenCalled());
 
@@ -89,7 +99,7 @@ describe('createWelcomeStateUnit', () => {
 describe('WelcomeStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     assertStateUnitAxioms({
-      setup: () => createWelcomeStateUnit(mockClient()),
+      setup: () => createWelcomeStateUnit(makeSession()),
       surfaces: (u) => [u.userData$, u.isProcessing$],
       invocations: (u) => [() => u.acceptTerms()],
     });

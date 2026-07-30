@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import { isReady } from '@semiont/sdk';
 import { useTranslation } from 'react-i18next';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
@@ -41,8 +42,10 @@ export default function TagSchemasPageWrapper() {
     [session],
   );
   const schemasObserved = useObservable(tagSchemas$);
-  const schemas = schemasObserved ?? [];
-  const isLoading = schemasObserved === undefined;
+  // D1 unwrap: the third outcome is explicit — a failed registry read shows
+  // as not-loading with an empty list here (failure UI is follow-up work).
+  const schemas = schemasObserved && isReady(schemasObserved) ? schemasObserved.value : [];
+  const isLoading = schemasObserved === undefined || schemasObserved.status === 'pending';
 
   return (
     <TagSchemasPage

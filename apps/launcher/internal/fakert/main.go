@@ -1308,8 +1308,22 @@ func serve(ports []string) {
 					return
 				}
 				if r.URL.Path == "/bus/subscribe" {
-					q := r.URL.Query()
-					sub := busSubscribe(append(q["channel"], q["scoped"]...))
+					// POST subscription matrix (MULTI-RESOURCE-SCOPE); the GET
+					// query form is gone. Delivery here stays flat by channel —
+					// this fake never scope-gates, same as before.
+					var matrix struct {
+						Global []string `json:"global"`
+						Scoped []struct {
+							Scope    string   `json:"scope"`
+							Channels []string `json:"channels"`
+						} `json:"scoped"`
+					}
+					_ = json.NewDecoder(r.Body).Decode(&matrix)
+					chans := append([]string{}, matrix.Global...)
+					for _, e := range matrix.Scoped {
+						chans = append(chans, e.Channels...)
+					}
+					sub := busSubscribe(chans)
 					defer busUnsubscribe(sub)
 					w.Header().Set("Content-Type", "text/event-stream")
 					w.WriteHeader(http.StatusOK)

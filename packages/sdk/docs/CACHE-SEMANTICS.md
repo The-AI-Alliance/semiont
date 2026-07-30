@@ -1,5 +1,38 @@
 # Cache Semantics
 
+## The emission vocabulary
+
+Live queries emit **`CacheState<T>`**:
+
+```ts
+type CacheState<T> =
+  | { status: 'pending' }              // no value yet; a fetch may be in flight
+  | { status: 'ready';  value: T }     // a stored value (incl. stale-while-revalidate, B7)
+  | { status: 'failed'; error: Error } // terminal failure of a value-less key (B15)
+```
+
+Three rules carry most of the contract (all landed 2026-07-29):
+
+1. **`failed` is an EMISSION, not an RxJS error.** The stream never errors
+   and never terminates on failure, so one subscription can live through
+   `pending → failed`, and a NEW subscription runs the recovery chain (the
+   per-subscribe decision clears the failure marker — see B15).
+2. **One-shot reads are `.fresh()`** — the thenable is dead. `await
+   client.browse.x(...)` does not compile; the network round trip is always
+   spelled explicitly.
+3. **Accessors are lazy**: calling a live-query method is pure — safe
+   from render — and the fetch decision runs on first subscribe.
+
+Ergonomics: `isReady` / `readyValue` from `@semiont/sdk` unwrap states in
+pipes and handlers.
+
+This is the **three-outcome contract** — the name source comments and
+tests use for it: a live query has exactly these three observable
+outcomes, all visible in the type (a two-state consumer does not
+compile), none of them terminal for the stream — and the would-be
+fourth outcome, `pending` forever, is a liveness violation the property
+suites test for.
+
 This document specifies the behavior of the read-through cache in
 `BrowseNamespace` (and the `createCache` primitive in
 `@semiont/sdk`). It is the behavioral contract that implementation must
@@ -36,7 +69,7 @@ Known cases that motivated this:
 |---|---|
 | **Key** | A value identifying one logical cache entry. For `resource(id)` the key is `id`; for `resources(filters)` the key is `JSON.stringify(filters)`; for `entityTypes()` the key is the empty tuple. Keys are per-cache, not global. |
 | **Entry** | The current value (or absence) associated with a key. |
-| **Observer** | A caller who holds an `Observable<V \| undefined>` returned from a live-query method (e.g. `browse.resource(id)`). Observers receive the current value and every subsequent change. |
+| **Observer** | A caller who holds the `Observable<CacheState<V>>` returned from a live-query method (e.g. `browse.resource(id)`). Observers receive the current state and every subsequent change. |
 | **Fetch** | An async operation (via `busRequest`) that produces a value to store. |
 | **In-flight** | A fetch whose promise has not settled. Each key may have at most one in-flight fetch at a time. |
 | **Invalidate** | A caller-initiated signal that the cache entry is out of date and must be refetched. |
@@ -77,8 +110,8 @@ Consequences:
    Either we have a value (`fresh`) or we don't (`empty`). Invalidate
    means "schedule a refetch without erasing the current value."
 2. **Two orthogonal facts**: "is there a value?" and "is a fetch in
-   flight?" Observers get the first as `V | undefined`. The second is
-   the private `fetching*` guard and is not exposed.
+   flight?" Observers get the first as `pending` vs `ready` states. The
+   second is the private `fetching*` guard and is not exposed.
 3. **Empty is terminal only until an observer or invalidate acts.**
    Each act gets one bounded retry (B14); after that the key goes idle
    until the next act. There is no standing retry loop.
@@ -92,10 +125,11 @@ live view). The second path:
 - **`fetch(key)` — one-shot, always fresh.** Forces a fetch (bypassing the
   memo), updates the store so subscribers see it too, and resolves with the
   value — *rejecting* on failure. Concurrent calls for the same key dedup-join
-  one in-flight fetch. This backs the awaitable's `then` (`await browse.X(id)`),
-  so a `read → write → read` in one process reflects the write rather than
-  serving the memo (#847). A failed `fetch` still leaves the store untouched
-  for subscribers (B6); only the `fetch` caller sees the rejection.
+  one in-flight fetch. This backs `CacheObservable.fresh()`
+  (`browse.X(id).fresh()`), so a `read → write → read` in one process reflects
+  the write rather than serving the memo (#847). A failed `fetch` still leaves
+  the store untouched for subscribers (B6); only the `fetch` caller sees the
+  rejection.
 
 ## Core behaviors
 
@@ -104,10 +138,11 @@ the `observe` / subscribe path.
 
 ### B1 — First observation triggers a fetch
 
-The first call to a live-query method for a key that is `empty` and
-not `fetching` MUST trigger exactly one fetch. The returned
-`Observable` MUST emit `undefined` until the fetch resolves, then emit
-the value.
+The first SUBSCRIBE to a live-query observable for a key that is `empty`
+and not `fetching` MUST trigger exactly one fetch (the accessor call
+itself is pure; the fetch decision runs per subscribe). The observable
+MUST emit `{ status: 'pending' }` until the fetch resolves, then the
+`ready` value.
 
 ### B2 — Subsequent observations reuse the cached value
 
@@ -127,13 +162,14 @@ All observers MUST see the same resolved value.
 Successive live-query calls for the same key MUST return the same
 `Observable` instance, so that subscribers compose predictably and
 share upstream work. (Implementation: the `*Obs$` memoization
-`Map<K, Observable<V | undefined>>` in `BrowseNamespace`.)
+`Map<K, Observable<CacheState<V>>>` in `BrowseNamespace`, plus the
+per-source `withScope` memo.)
 
 ### B5 — Fetch success updates the store atomically
 
 On successful fetch, the new value MUST be written in a single
 `BehaviorSubject.next(newMap)` transition. Observers see the old
-value, then the new value; never a transient `undefined`.
+`ready` value, then the new one; never a transient `pending`.
 
 ### B6 — Fetch failure leaves the previous state intact
 
@@ -145,8 +181,8 @@ cases (success, failure, cancellation) via the `finally` block.
 Boundary: stale-beats-error presumes a stale value to serve. A
 previously-`empty` key stays `empty` through the B14 retry chain — but
 if that chain EXHAUSTS with the key still value-less, B15 applies: the
-terminal failure is surfaced to that key's observers as an error
-notification, not absorbed into eternal `undefined`.
+terminal failure is surfaced to that key's observers as a `failed`
+EMISSION, not absorbed into eternal `pending`.
 
 ### B7 — Invalidate is stale-while-revalidate
 
@@ -168,7 +204,7 @@ page-remount feedback loop documented above.
 ### B8 — Invalidate of an empty key is valid
 
 `invalidate(key)` on an `empty` key is equivalent to first
-observation: triggers one fetch, observers see `undefined` until it
+observation: triggers one fetch, observers see `pending` until it
 resolves. It is not an error.
 
 ### B9 — Invalidate during in-flight fetch does NOT coalesce
@@ -183,7 +219,9 @@ invalidation), so the fetch will never resolve. If invalidate
 coalesced with an orphaned fetch, the cache would be stuck with its
 old value until the busRequest's 30-second timeout fired. This was
 the "Loading resource…" that never resolves bug fixed in commit
-845c6b24.
+845c6b24. (Orphaned in-flight replies are far rarer since correlated-
+reply retention landed, 2026-07-29 — but the semantics
+here are unchanged: B9 is about not trusting an in-flight guard.)
 
 The cost is that two in-flight fetches for the same key can exist
 briefly. Semantics: whichever resolves first writes its result;
@@ -227,11 +265,15 @@ empty or stale-fresh) until the next observe/invalidate acts.
 Rationale: the swallowed paths hide failures from subscribers by design
 (B6), which means a lost one-shot reply — e.g. a `busRequest` whose SSE
 result raced a connection swap and timed out
-(`.plans/bugs/concurrent-browse-resource-starvation.md`) — previously
+(the 2026-07-05 concurrent-loaders starvation incident) — previously
 starved every subscriber of a never-loaded key **silently and
-permanently**: no retry, no error, `undefined` forever. One bounded
-retry converts "reply lost" from permanent starvation into one slow
-load, without a standing retry loop hammering a genuinely-down backend.
+permanently**: no retry, no failure signal, `pending` forever. One
+bounded retry converts "reply lost" from permanent starvation into one
+slow load, without a standing retry loop hammering a genuinely-down
+backend. (Since correlated-reply retention landed, 2026-07-29, a
+reply lost to a genuine disconnect replays on reconnect, so
+this retry should fire approximately never; it stays as defense in
+depth.)
 
 Boundaries:
 
@@ -242,42 +284,45 @@ Boundaries:
 3. An invalidate during a retry chain disowns it (B9) — the chain's
    late success may still write (last-write-wins, same as B9).
 
-Liveness: B14's one-retry budget is pinned by axioms **L1/L2**
-(`.plans/LIVENESS-AXIOMS.md`) — L2's settlement bound on the swallowed
+Liveness: B14's one-retry budget is pinned by liveness axioms **L1/L2**
+(`assertLivenessAxioms` from `@semiont/core/testing`) — L2's settlement bound on the swallowed
 paths is `timeoutMs × (1 + this retry)`, enforced against the real
 `BrowseNamespace` + cache + `busRequest` composition by the property
 suite ([browse-liveness.property.test.ts](../src/__tests__/browse-liveness.property.test.ts)).
 Changing the retry count is a policy change that must edit L2's budget
 visibly, not drift past it.
 
-### B15 — Terminal failure of a value-less key errors its observers
+### B15 — Terminal failure of a value-less key is a `failed` EMISSION
 
 When the B14 retry ALSO fails and the key holds **no cached value**, the
 key is marked failed and the failure MUST be delivered to that key's
-observers as an **error notification** — never `undefined` forever:
+observers as a **`{ status: 'failed', error }` emission** — never
+`pending` forever, and never an RxJS error (the stream does not die):
 
-1. Subscribers attached at exhaustion time are errored (push).
-2. Subscribers attaching later see the same error (replay at subscribe
-   time), until an act clears the marker.
-3. The marker is cleared — and the key thereby returns to plain `empty`
-   — by `observe()` (which also starts a fresh attempt chain, so a
-   remount recovers), `invalidate`, `set`, `remove`, or any fetch
-   success. The error state is always retriable; nothing is latched.
+1. Subscribers attached at exhaustion time receive the `failed` state
+   (push). Their subscription stays alive — a later recovery on the
+   same key flows to them without resubscribing.
+2. A subscriber ARRIVING at a failed key runs RECOVERY, not replay
+   (D3): the subscribe-time decision clears the marker and starts a
+   fresh attempt chain — so a component remount recovers by
+   construction.
+3. The marker is also cleared by `invalidate`, `set`, `remove`, or any
+   fetch success. The failed state is always retriable; nothing is
+   latched.
 4. Keys WITH a cached value never come here — B6 stale-beats-error is
    unchanged.
-5. An errored subscription is terminal (RxJS semantics); recovery
-   applies to subsequent subscriptions. This matches hook consumption:
-   a remount calls the live-query method again → fresh subscription.
 
-Rationale: liveness (`.plans/LIVENESS-AXIOMS.md`, axiom L1 — found by
-the P2 property suite as
-`.plans/bugs/valueless-key-terminal-failure-starves-observers.md`).
+Rationale: liveness axiom L1 — found by the property suite
+([browse-liveness.property.test.ts](../src/__tests__/browse-liveness.property.test.ts))
+as the valueless-key starvation bug (2026-07-05).
 B14 converted "reply lost" into one slow load when the retry succeeds;
 B15 covers the remaining corner — retry ALSO fails — where "idle" was
 indistinguishable from the pre-B14 permanent silent starvation for
-value-less keys. The `[cache IDLE]` breadcrumb (L4) is unchanged; B15
-adds the in-band signal consumers can actually react to
-(`useResourceLoader`'s `error` callback now fires).
+value-less keys. Delivering failure as an emission rather than a stream
+error (2026-07-29) removed the dead-errored-observable hazard:
+consumers pattern-match three states on one subscription instead of
+wiring error callbacks whose streams then have to be re-created. The
+`[cache IDLE]` breadcrumb (L4) is unchanged.
 
 ### B16 — Disposal is terminal and inert
 
@@ -305,10 +350,9 @@ Rationale: a B14 retry straddling client teardown resolves `bus.closed`
 (`busRequest`'s disposed-bus path) — a teardown artifact, not a data
 failure. Pre-B16 the B15 push then errored observers at shutdown
 (disposal noise; it escaped as a flaky unhandled rejection in a
-make-meaning test — see `.plans/LIVENESS-AXIOMS.md`, the 2026-07-05 CI-escape
-entry). B16 makes the push structurally impossible after disposal
+make-meaning test — a 2026-07-05 CI escape). B16 makes the push structurally impossible after disposal
 instead of special-casing the `bus.closed` error code, which would have
-carved a silent exception into liveness axiom L1 (per its D1 binding:
+carved a silent exception into liveness axiom L1 (whose standing rule is:
 policy changes must edit the axiom visibly, not drift). L1 holds
 unconditionally: live client → terminal failures error observers (B15);
 disposed client → observers were completed at disposal, so none exist
@@ -358,7 +402,7 @@ should be updated with the known value directly — no fetch needed.
 
 Conventional method name: `update<Entity>InPlace(key, value)`.
 
-This satisfies B5 (atomic update, no transient `undefined`) and
+This satisfies B5 (atomic update, no transient `pending`) and
 avoids the roundtrip of an invalidate-triggered refetch. It also
 ensures both related caches stay in sync when a handler has reason
 to update more than one.
@@ -367,14 +411,16 @@ to update more than one.
 
 A bare `connected$: false → true` transition does NOT trigger cache
 invalidation. The server stamps every persisted event on
-`/bus/subscribe` with `id: p-<scope>-<seq>`; the client sends the
-last seen id as `Last-Event-ID` on reconnect; the server replays
-persisted events missed during the gap. The usual reconnect path
-(mount-churn, scope-change, brief network blip) finishes with
-**zero events missed** — no cache invalidation needed.
+`/bus/subscribe` with `id: p-<scope>-<seq>`; the client tracks a
+watermark PER SCOPE and sends each as `lastEventId` on that scope's
+entry in the subscribe-matrix body (multi-resource scope, 2026-07-29 — there is no
+`Last-Event-ID` header); the server replays each scope's persisted
+events missed during the gap. The usual reconnect path (mount-churn,
+scope-change, brief network blip) finishes with **zero events missed**
+— no cache invalidation needed.
 
-When the server can't cover the gap — retention window exceeded,
-`Last-Event-ID` unparseable, scope mismatch — it emits a
+When the server can't cover a scope's gap — retention window exceeded,
+watermark unparseable, scope mismatch — it emits a scoped
 `bus:resume-gap` event. On that event, the cache MUST invalidate:
 
 - If `scope` is provided: every key related to that scope
@@ -456,7 +502,7 @@ event payload contains the full annotation, so a refetch is
 wasteful.
 
 `invalidateResourceLists` wholesale-replaces the store with an
-empty Map. This violates B7: observers see `undefined` until the
+empty Map. This violates B7: observers see `pending` until the
 next observation. The fix is per-key SWR: iterate the current
 filter keys, clear guards, issue refetches, keep values in the
 map until refetches return.
@@ -479,7 +525,7 @@ downstream and would silently skip updates. Confirm every
 ### A4 — Every cache Map has a matching `*Obs$` memo
 
 For every `Map<K, V>` stored in a `BehaviorSubject`, a matching
-`Map<K, Observable<V | undefined>>` memoizes the per-key observable.
+`Map<K, Observable<CacheState<V>>>` memoizes the per-key observable.
 Without the memo, every live-query call creates a new observable,
 breaking B4.
 
@@ -506,32 +552,33 @@ changing a behavior must update both this doc and the test.
 
 An optional `CachePersister` on `createCache` (and the
 `sessionStoragePersister` adapter over the `SessionStorage` seam) gives a
-cache durable, per-KB rehydration (.plans/LOCAL-STORAGE.md):
+cache durable, per-KB rehydration:
 
 1. **Load-on-construct.** `persister.load()` seeds the store before the
    first observation, so a rehydrated key serves **synchronously** — no
-   `undefined` flash, no waiting on the wire to paint. (It does issue one
+   `pending` flash, no waiting on the wire to paint. (It does issue one
    revalidation request; see B18.)
 2. **Rehydrated data is stale-until-reconciled**, and reconciliation is
    **two independent layers** — neither sufficient alone:
-   - *Replay*, when it is available: the transport reconnects with the
-     persisted `Last-Event-ID` (persisted `p-*` ids only — an ephemeral
-     `e-*` id means "no resumption context" server-side and is never
-     saved), replayed events invalidate through the normal handlers, and
-     `bus:resume-gap` blanket-invalidates as always. The persisted id is
-     COUPLED to the cache flush (`coupledLastEventId`): stashed per event,
-     written only alongside a cache-document write, and **only while every
-     persisted cache is quiescent** (B17-Q's flush gate) — so the bookmark
-     may lag the persisted caches (harmless: replay re-invalidates
-     idempotently) but can never lead them and silently skip a reconciling
-     event. Note the transport stashes an id only AFTER the event has been
-     applied to subscribers, so an id is never flushable before its effects
-     are pending.
+   - *Replay*, when it is available: the transport reconnects with each
+     scope's persisted watermark (`lastEventId` on that scope's
+     subscribe-matrix entry — persisted `p-*` ids only; ephemeral `e-*`
+     ids carry no replay meaning and are never saved), replayed events
+     invalidate through the normal handlers, and scoped `bus:resume-gap`
+     blanket-invalidates as always. The persisted watermark record is
+     COUPLED to the cache flush (`coupledLastEventId`): stashed per
+     event under its scope, written only alongside a cache-document
+     write, and **only while every persisted cache is quiescent**
+     (B17-Q's flush gate) — so the bookmark may lag the persisted caches
+     (harmless: replay re-invalidates idempotently) but can never lead
+     them and silently skip a reconciling event. Note the transport
+     stashes an id only AFTER the event has been applied to subscribers,
+     so an id is never flushable before its effects are pending.
    - *Revalidation on rehydrate* (B18), which covers what replay cannot:
-     when NO bookmark was persisted, the reconnect carries no
-     `Last-Event-ID` and the server replays **nothing** — measured as the
-     actual state at failure time in
-     `.plans/bugs/annotation-lost-on-immediate-reload-after-create.md`.
+     when NO watermark was persisted for a scope, that scope's entry
+     carries no `lastEventId` and the server replays **nothing** for it
+     — measured as the actual state at failure time in
+     the annotation-lost-on-immediate-reload incident (2026-07-24).
 3. **Settled values only.** The store never contains B15 failure markers,
    so neither does the persisted document; a previously-failed key
    rehydrates as absent and refetches on first observation.
@@ -592,16 +639,15 @@ background request per observed key.
 - 2026-07-05 — B15 added (terminal failure of a value-less key errors
   its observers, retriable); B6 narrowed to its true scope
   (stale-beats-error requires a stale value). Driven by the
-  LIVENESS-AXIOMS P2 property suite falsifying L1/L2 against the real
-  composition (valueless-key-terminal-failure-starves-observers.md).
+  liveness property suite falsifying L1/L2 against the real
+  composition (the valueless-key starvation bug).
 - 2026-07-21 — B17 added (opt-in persistence: load-on-construct
   rehydration reconciled by resumption; values-only; flush-then-inert
   dispose; version-gated; cross-context via the SessionStorage seam).
-  Execution record in .plans/LOCAL-STORAGE.md.
 - 2026-07-24 — **B18 added, and B17.1/B17.2 corrected — a declared
   behavior change.** B17 as written promised "a rehydrated key issues NO
   fetch", resting reconciliation entirely on replay. Measurement
-  (.plans/bugs/annotation-lost-on-immediate-reload-after-create.md) showed
+  (the annotation-lost-on-immediate-reload incident) showed
   that at failure time there is **no persisted bookmark at all**, so replay
   is not merely late — it does not happen, and the stale document is served
   forever. B18 makes rehydrated values revalidate on first observation
@@ -611,3 +657,13 @@ background request per observed key.
   `persistenceSettled`) and the transport's apply-before-stash ordering.
   Three pins that encoded the old promise were updated deliberately
   (`cache-persistence`, `cache-rehydration`, and the property teeth).
+- 2026-07-29 — **The `CacheState` era, and the doc body
+  rewritten in its vocabulary.** Emissions are `CacheState<V>` (`pending` /
+  `ready` / `failed`), never `V | undefined`; B15 reframed — terminal failure
+  is a `failed` EMISSION (streams never error/terminate) and a late subscriber
+  runs RECOVERY, not replay; one-shot reads are `.fresh()` (the thenable is
+  dead); accessors are lazy (calling is pure, the fetch decision runs per
+  subscribe — B1 restated). Same day: B13/B17 resumption wording moved to the
+  per-scope subscribe-matrix watermarks (multi-resource scope), and B9/B14
+  notes record that correlated-reply retention makes
+  the lost-reply paths defense-in-depth rather than the common case.

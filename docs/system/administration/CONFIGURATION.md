@@ -11,7 +11,7 @@ Semiont uses a two-layer TOML configuration model, and **both layers live in the
 > `image` key per role section to override its default container image. The
 > launcher reads only
 > those keys and ignores the rest; this document remains the schema's source of
-> truth. See `apps/launcher/README.md` and `.plans/LAUNCHER-CONFIG-SYNC.md`.
+> truth. See `apps/launcher/README.md`.
 
 ## Configuration Layers
 

@@ -38,6 +38,35 @@ func (f *fakeBackend) server(t *testing.T) *httptest.Server {
 		w.WriteHeader(http.StatusAccepted)
 	})
 	mux.HandleFunc("/bus/subscribe", func(w http.ResponseWriter, r *http.Request) {
+		// The real route is POST-only with a JSON subscription matrix
+		// (MULTI-RESOURCE-SCOPE) — the GET query form 404s, an empty
+		// matrix 400s. Enforcing that here keeps this fake honest about
+		// the wire the client must speak.
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		var matrix struct {
+			Global []string `json:"global"`
+			Scoped []struct {
+				Scope    string   `json:"scope"`
+				Channels []string `json:"channels"`
+			} `json:"scoped"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&matrix); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if len(matrix.Global) == 0 && len(matrix.Scoped) == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		for _, e := range matrix.Scoped {
+			if e.Scope == "" || len(e.Channels) == 0 {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+		}
 		if f.subscribe != nil {
 			f.subscribe(r)
 		}

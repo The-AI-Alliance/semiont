@@ -4,7 +4,8 @@ import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { EventBus, EventMap, StoredEvent } from '@semiont/core';
-import { CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
+import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
+import type { Subscription } from 'rxjs';
 import {
   SpanKind,
   injectTraceparent,
@@ -29,15 +30,20 @@ const getBusLogger = () => getLogger().child({ component: 'bus' });
  * - Persisted domain events (the set named in `PERSISTED_EVENT_TYPES` and
  *   delivered on the scoped bus via `eventBus.scope(rId)`) get an id of
  *   the form `p-<scope>-<sequenceNumber>`. These ids are resumable — a
- *   client sending `Last-Event-ID: p-<scope>-<N>` on reconnect receives
- *   replay of events with sequenceNumber > N in that scope before
- *   joining the live tail.
+ *   client reconnecting with `lastEventId: p-<scope>-<N>` on that scope's
+ *   entry in the POST /bus/subscribe matrix receives replay of events
+ *   with sequenceNumber > N in that scope before joining the live tail.
+ *   Resumption is PER SCOPE (MULTI-RESOURCE-SCOPE): each scoped entry
+ *   carries its own watermark; entries without one are fresh
+ *   subscriptions and get neither replay nor gap event.
  *
  * - All other events — command responses, progress, ephemeral signals —
  *   get an id of the form `e-<connectionId>-<counter>`. These ids are
- *   unique per connection but carry no replay meaning; if the client
- *   sends one of them on reconnect, the server replies with a synthetic
- *   `bus:resume-gap` so the client falls back to cache invalidation.
+ *   unique per connection and carry no replay meaning; clients never
+ *   store them as watermarks. A watermark the server cannot honor
+ *   (unparseable, wrong scope, retention exceeded, query error) yields a
+ *   scoped synthetic `bus:resume-gap` so the client falls back to cache
+ *   invalidation for that scope.
  */
 const PERSISTED_ID_PREFIX = 'p-';
 const EPHEMERAL_ID_PREFIX = 'e-';
@@ -66,21 +72,169 @@ function extractSequence(payload: unknown): number | null {
   return typeof seq === 'number' && Number.isFinite(seq) ? seq : null;
 }
 
+/** One scoped entry of the POST /bus/subscribe subscription matrix. */
+interface ScopedSubscription {
+  scope: string;
+  channels: string[];
+  lastEventId?: string;
+}
+
+/**
+ * Per-connection scope cap (MULTI-RESOURCE-SCOPE, open question 6). The
+ * named consumer's normal working set is 40–60 scopes (one per chat
+ * message), so the cap is a runaway guard, not a budget — provisional
+ * pending the subscription-explosion benchmark (plan risk 5).
+ */
+const MAX_SCOPES = 512;
+const SCOPE_WARN_THRESHOLD = 128;
+
+// ── Correlated-reply retention (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1) ──
+
+/** Every reply channel a busRequest can await, derived from the registry. */
+const REPLY_CHANNELS = [
+  ...new Set(Object.values(BUS_OPERATIONS).flatMap((op) => [op.result, op.failure])),
+];
+
+/** A reply older than the caller's 30 s deadline is useless — 2× headroom. */
+export const REPLY_RETENTION_TTL_MS = 60_000;
+export const REPLY_RETENTION_MAX = 1024;
+export const PENDING_REPLIES_MAX = 256;
+
+interface RetainedReply {
+  channel: string;
+  payload: unknown;
+  retainedAt: number;
+}
+
+/**
+ * Bounded retention of correlated replies, so a client whose connection
+ * dropped between its emit and the reply frame can fetch the reply on
+ * reconnect (`pendingReplies` in the subscribe body) instead of burning its
+ * timeout. Subscribes every registry reply channel on the given bus; keeps
+ * `correlationId → reply` in an insertion-ordered map with FIFO cap
+ * eviction and lazy TTL expiry (no timers). Entries are NOT consumed by
+ * lookup — a repeat replay carries the same deterministic id and dedups
+ * client-side. Retention adds no exposure: reply channels are global
+ * fan-out already (channel-level authz is CHANNEL-AUTHZ.md's gap).
+ */
+export function createReplyRetention(
+  eventBus: EventBus,
+  opts: { ttlMs?: number; max?: number; now?: () => number } = {},
+): { lookup(correlationId: string): RetainedReply | undefined; dispose(): void } {
+  const ttlMs = opts.ttlMs ?? REPLY_RETENTION_TTL_MS;
+  const max = opts.max ?? REPLY_RETENTION_MAX;
+  const now = opts.now ?? Date.now;
+  const buffer = new Map<string, RetainedReply>();
+  const subs: Subscription[] = REPLY_CHANNELS.map((channel) =>
+    eventBus.get(channel as keyof EventMap).subscribe((payload) => {
+      const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
+      if (typeof cid !== 'string' || cid.length === 0) return;
+      buffer.delete(cid); // refresh insertion order on re-publish
+      buffer.set(cid, { channel, payload, retainedAt: now() });
+      while (buffer.size > max) {
+        const oldest = buffer.keys().next().value;
+        if (oldest === undefined) break;
+        buffer.delete(oldest);
+      }
+    }),
+  );
+  return {
+    lookup(correlationId) {
+      const entry = buffer.get(correlationId);
+      if (!entry) return undefined;
+      if (now() - entry.retainedAt > ttlMs) {
+        buffer.delete(correlationId);
+        return undefined;
+      }
+      return entry;
+    },
+    dispose() {
+      for (const s of subs) s.unsubscribe();
+      buffer.clear();
+    },
+  };
+}
+
+const isStringArray = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.every((x) => typeof x === 'string');
+
+/**
+ * Validate the subscription-matrix body (schema: BusSubscribeRequest).
+ * Returns an error message rather than throwing so the route can wrap it
+ * in a single HTTPException site.
+ */
+function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSubscription[]; pendingReplies: string[] } | { error: string } {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { error: 'body must be a JSON object' };
+  }
+  const { global: rawGlobal, scoped: rawScoped, pendingReplies: rawPending } = raw as {
+    global?: unknown;
+    scoped?: unknown;
+    pendingReplies?: unknown;
+  };
+  const global = rawGlobal === undefined ? [] : rawGlobal;
+  if (!isStringArray(global)) return { error: '`global` must be an array of channel names' };
+
+  const pendingReplies = rawPending === undefined ? [] : rawPending;
+  if (!isStringArray(pendingReplies)) return { error: '`pendingReplies` must be an array of correlation ids' };
+  if (pendingReplies.length > PENDING_REPLIES_MAX) {
+    return { error: `pendingReplies count ${pendingReplies.length} exceeds the cap of ${PENDING_REPLIES_MAX}` };
+  }
+
+  const scopedList = rawScoped === undefined ? [] : rawScoped;
+  if (!Array.isArray(scopedList)) return { error: '`scoped` must be an array' };
+  const scoped: ScopedSubscription[] = [];
+  const seenScopes = new Set<string>();
+  for (const entry of scopedList) {
+    if (entry === null || typeof entry !== 'object') return { error: 'each `scoped` entry must be an object' };
+    const { scope, channels, lastEventId } = entry as Record<string, unknown>;
+    if (typeof scope !== 'string' || scope === '') return { error: 'each `scoped` entry needs a non-empty `scope`' };
+    if (!isStringArray(channels) || channels.length === 0) return { error: `scoped entry "${scope}" needs a non-empty \`channels\` array` };
+    if (lastEventId !== undefined && typeof lastEventId !== 'string') return { error: `scoped entry "${scope}" has a non-string \`lastEventId\`` };
+    if (seenScopes.has(scope)) return { error: `duplicate scope "${scope}" in matrix` };
+    seenScopes.add(scope);
+    scoped.push({ scope, channels, ...(lastEventId !== undefined ? { lastEventId } : {}) });
+  }
+
+  if (global.length === 0 && scoped.length === 0) {
+    return { error: 'At least one global channel or scoped entry is required' };
+  }
+  if (scoped.length > MAX_SCOPES) {
+    return { error: `scope count ${scoped.length} exceeds the per-connection cap of ${MAX_SCOPES}` };
+  }
+  return { global, scoped, pendingReplies };
+}
+
 export function createBusRouter(authMiddleware: AuthMiddleware) {
   const busRouter = new Hono<{ Variables: { user: User; principalDid: string; eventBus: EventBus; makeMeaning: MakeMeaning } }>();
 
   busRouter.use('/bus/*', authMiddleware);
 
-  busRouter.get('/bus/subscribe', (c) => {
-    const channels = c.req.queries('channel') ?? [];
-    const scopedChannels = c.req.queries('scoped') ?? [];
-    const scope = c.req.query('scope');
+  // One retention buffer per EventBus instance, wired on that bus's first
+  // subscribe. Lazy-on-first-subscribe is not a coverage hole: the attach
+  // gate guarantees a client holds an open connection before any busRequest
+  // emit, so a reply can only exist after some subscribe has run.
+  const retentionByBus = new WeakMap<EventBus, ReturnType<typeof createReplyRetention>>();
+
+  busRouter.post('/bus/subscribe', async (c) => {
+    const raw: unknown = await c.req.json().catch(() => null);
+    const parsed = parseSubscribeBody(raw);
+    if ('error' in parsed) {
+      throw new HTTPException(400, { message: parsed.error });
+    }
+    const { global: channels, scoped, pendingReplies } = parsed;
     const eventBus = c.get('eventBus');
     const makeMeaning = c.get('makeMeaning');
-    const lastEventId = c.req.header('Last-Event-ID');
 
-    if (channels.length === 0 && scopedChannels.length === 0) {
-      throw new HTTPException(400, { message: 'At least one channel or scoped parameter is required' });
+    let retention = retentionByBus.get(eventBus);
+    if (!retention) {
+      retention = createReplyRetention(eventBus);
+      retentionByBus.set(eventBus, retention);
+    }
+    const replyRetention = retention;
+
+    if (scoped.length >= SCOPE_WARN_THRESHOLD) {
+      getBusLogger().warn('large scope matrix', { scopeCount: scoped.length, cap: MAX_SCOPES });
     }
 
     return streamSSE(c, async (stream) => {
@@ -99,9 +253,11 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       getBusLogger().info('SSE subscribe', {
         connectionId,
         channels,
-        scopedChannels,
-        ...(scope ? { scope } : {}),
-        ...(lastEventId ? { lastEventId } : {}),
+        scopes: scoped.map((s) => ({
+          scope: s.scope,
+          channels: s.channels,
+          ...(s.lastEventId ? { lastEventId: s.lastEventId } : {}),
+        })),
       });
 
       // Tier 3: track active SSE subscribers via UpDownCounter. Connect
@@ -187,10 +343,10 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         }
       };
 
-      const emitResumeGap = async (reason: string, gapScope?: string) => {
+      const emitResumeGap = async (reason: string, gapScope?: string, lastSeenId?: string) => {
         const payload: { scope?: string; lastSeenId?: string; reason: string } = { reason };
         if (gapScope !== undefined) payload.scope = gapScope;
-        if (lastEventId !== undefined) payload.lastSeenId = lastEventId;
+        if (lastSeenId !== undefined) payload.lastSeenId = lastSeenId;
         await stream.writeSSE({
           event: 'bus-event',
           data: JSON.stringify({ channel: 'bus:resume-gap', payload }),
@@ -227,9 +383,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         }
       };
 
-      const willReplay = Boolean(
-        lastEventId && parsePersistedId(lastEventId) && scope && scopedChannels.length > 0,
-      );
+      const willReplay = scoped.some((entry) => entry.lastEventId !== undefined);
       if (willReplay) mode = 'buffering';
 
       const subs = channels.map((channel) =>
@@ -237,62 +391,78 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           emitOrBuffer(channel, payload, undefined);
         }),
       );
-      if (scope && scopedChannels.length > 0) {
-        const scopedBus = eventBus.scope(scope);
-        for (const channel of scopedChannels) {
+      for (const entry of scoped) {
+        const scopedBus = eventBus.scope(entry.scope);
+        for (const channel of entry.channels) {
           subs.push(
             scopedBus.get(channel as keyof EventMap).subscribe((payload) => {
-              emitOrBuffer(channel, payload, scope);
+              emitOrBuffer(channel, payload, entry.scope);
             }),
           );
         }
       }
       stream.onAbort(() => subs.forEach((s) => s.unsubscribe()));
 
-      // ── Replay phase ──────────────────────────────────────────────────
+      // ── Replay phase (per scope) ──────────────────────────────────────
       //
-      // Failure modes:
-      //   - unparseable Last-Event-ID (not `p-*` or malformed): emit
-      //     `bus:resume-gap` and continue with live tail only.
-      //   - scope mismatch (Last-Event-ID scope ≠ subscription scope):
-      //     same — gap event, no replay.
-      //   - event-store query fails: same — gap event, continue live.
+      // Each scoped entry carrying a `lastEventId` watermark replays its
+      // own gap; entries without one are fresh subscriptions (their caches
+      // fetch anyway) and get neither replay nor gap event. Failure modes,
+      // per entry — the gap event carries the ENTRY's scope, since that is
+      // the scope whose caches need blanket invalidation:
+      //   - unparseable watermark (not `p-*` or malformed): scoped
+      //     `bus:resume-gap`, continue with live tail only.
+      //   - scope mismatch (watermark's embedded scope ≠ entry scope):
+      //     same — scoped gap event, no replay.
+      //   - event-store query fails: same — scoped gap event, continue live.
       //   - replay succeeds but earliest returned seq > N+1: the gap is
-      //     outside the retention window. Replay what we have and emit
-      //     `bus:resume-gap`.
-      if (lastEventId) {
-        const parsed = parsePersistedId(lastEventId);
+      //     outside the retention window. Replay what we have and emit the
+      //     scoped `bus:resume-gap`.
+      for (const entry of scoped) {
+        if (entry.lastEventId === undefined) continue;
+        const parsed = parsePersistedId(entry.lastEventId);
         if (!parsed) {
-          if (!lastEventId.startsWith(EPHEMERAL_ID_PREFIX)) {
-            await emitResumeGap('unparseable-last-event-id');
-          }
-          // else: ephemeral id — no replay meaning; continue without gap event
-        } else if (!scope || parsed.scope !== scope || scopedChannels.length === 0) {
-          await emitResumeGap('scope-mismatch', parsed.scope);
+          await emitResumeGap('unparseable-last-event-id', entry.scope, entry.lastEventId);
+        } else if (parsed.scope !== entry.scope) {
+          await emitResumeGap('scope-mismatch', entry.scope, entry.lastEventId);
         } else {
           try {
-            const rId = makeResourceId(scope);
-            const allowedTypes = new Set(scopedChannels);
+            const rId = makeResourceId(entry.scope);
+            const allowedTypes = new Set(entry.channels);
             const events = await makeMeaning.knowledgeSystem.kb.eventStore.log.queryEvents(rId, {
               fromSequence: parsed.sequence + 1,
             });
             const replayable: StoredEvent[] = events.filter((e) => allowedTypes.has(e.type as string));
 
             if (events.length > 0 && events[0]!.metadata.sequenceNumber > parsed.sequence + 1) {
-              await emitResumeGap('retention-exceeded', scope);
+              await emitResumeGap('retention-exceeded', entry.scope, entry.lastEventId);
             }
 
             for (const ev of replayable) {
-              await writeBusEvent(ev.type as string, ev, scope);
+              await writeBusEvent(ev.type as string, ev, entry.scope);
             }
           } catch (err) {
             getBusLogger().warn('bus resume query failed', {
-              scope,
+              scope: entry.scope,
               fromSequence: parsed.sequence + 1,
               error: err instanceof Error ? err.message : String(err),
             });
-            await emitResumeGap('query-error', scope);
+            await emitResumeGap('query-error', entry.scope, entry.lastEventId);
           }
+        }
+      }
+
+      // ── Correlated-reply replay (BUS-RESUMPTION Phase 2 / S1) ─────────
+      //
+      // Each requested cid found in retention is written as a normal frame
+      // with its DETERMINISTIC ephemeral id (`e-<channel>:<cid>` — stamped
+      // by writeBusEvent from the payload's correlationId), so a copy that
+      // also arrived live during a connection overlap dedups client-side.
+      // Entries are not consumed: a repeat replay is idempotent by id.
+      for (const cid of pendingReplies) {
+        const retained = replyRetention.lookup(cid);
+        if (retained) {
+          await writeBusEvent(retained.channel, retained.payload, undefined);
         }
       }
 

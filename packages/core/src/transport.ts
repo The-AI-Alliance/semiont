@@ -152,8 +152,9 @@ export interface ITransport {
    * SDK-internal: this is the scope primitive the SDK's resource-scoped
    * `browse.*` live queries drive on subscribe/teardown (freshness follows
    * observation; #847) — it is not part of the application-facing surface.
-   * Single-scope at a time; multi-scope is deferred
-   * (`.plans/MULTI-RESOURCE-SCOPE.md`).
+   * Distinct resources COMPOSE (`.plans/MULTI-RESOURCE-SCOPE.md`): each
+   * resource's subscriptions are ref-counted independently, and one client
+   * may hold many resource scopes at once on its single connection.
    */
   subscribeToResource(resourceId: ResourceId): () => void;
 
@@ -173,8 +174,25 @@ export interface ITransport {
    * Transport-level connection state. For HTTP, reflects the SSE
    * connection's health; for in-process transports, typically `'open'`
    * from construction onward (no connection to lose).
+   *
+   * Load-bearing beyond UI: `busRequest` gates its emit on this
+   * (`BusRequestPrimitive.state$`, .plans/BUS-ATTACH-GATE.md) — no
+   * correlated emit before the reply path exists. Implementers back it
+   * with a `BehaviorSubject` so the current state arrives synchronously
+   * on subscribe.
    */
   readonly state$: Observable<ConnectionState>;
+
+  /**
+   * Correlated-reply retention, client side (BUS-RESUMPTION Phase 2 /
+   * SDK-DEBT S1). `busRequest` registers its correlationId here before
+   * emitting and releases on settle; a wire transport includes the
+   * tracked set as `pendingReplies` on each subscribe body so a reply
+   * published while the connection was down replays from the server's
+   * retention buffer. OPTIONAL: in-process transports that cannot lose
+   * replies omit it.
+   */
+  trackReply?(correlationId: string): () => void;
 
   /**
    * Stream of transport-level errors surfaced from typed-wire methods or

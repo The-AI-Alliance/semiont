@@ -8,8 +8,9 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Subject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import type { WorkerBus } from '@semiont/sdk';
+import type { ConnectionState } from '@semiont/core';
 import { assertStateUnitAxioms } from '@semiont/core/testing';
 import { createWeaverActorStateUnit, WEAVER_CHANNELS } from '../weaver-actor-state-unit';
 
@@ -31,6 +32,9 @@ function fakeBus() {
       cs.forEach((c) => channels.add(c));
     }),
     on$: vi.fn((channel: string) => getStream(channel).asObservable()),
+    // In-process fixture: replies are pushed synchronously onto the streams
+    // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
+    state$: new BehaviorSubject<ConnectionState>('open'),
     // Required by the WorkerBus shape; the fan-in never emits — the Weaver
     // itself emits weave:applied through its own bus handle.
     emit: vi.fn(async () => {}),

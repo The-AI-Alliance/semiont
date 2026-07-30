@@ -45,18 +45,23 @@ manages. Per-flow contracts: [`docs/protocol/flows`](https://github.com/The-AI-A
 
 ### 2. One call, two ways to consume
 
-Every long-lived value is an `Observable` that *also* implements `PromiseLike<T>` — `await`
-it for the final value, `.subscribe(...)` it for progress or live updates, from the same call.
+Every long-lived value is an `Observable` with an explicit one-shot path — from the same
+call, take the value once or keep it live:
 
 ```ts
-const resource = await client.browse.resource(rId);          // one-shot — no rxjs import
-client.browse.resource(rId).subscribe((r) => render(r));     // live — same call
+const resource = await client.browse.resource(rId).fresh();   // one-shot fresh read — no rxjs import
+client.browse.resource(rId).subscribe((st) => {               // live — same call, typed states
+  if (st.status === 'ready') render(st.value);                // pending | ready | failed
+});
+const found = await client.match.search(rId, refId, ctx);     // bounded streams ARE awaitable
 ```
 
-Methods return one of: `Promise<T>` (atomic backend ops), an awaitable Observable subclass
-(`StreamObservable` for bounded progress, `CacheObservable` for live queries,
-`UploadObservable` for uploads), or `void` (collaboration signals — below). The per-method
-table and the `.run()` rule for progress-plus-result live in
+Methods return one of: `Promise<T>` (atomic backend ops), `StreamObservable` /
+`UploadObservable` (bounded progress — thenable, `await` resolves the final value),
+`CacheObservable` (live queries — `.subscribe(...)` for `CacheState` emissions,
+`.fresh()` for the explicit network read; deliberately NOT thenable, so a cache read can
+never silently become a round trip), or `void` (collaboration signals — below). The
+per-method table and the `.run()` rule for progress-plus-result live in
 [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md).
 
 ### 3. Collaboration primitives
@@ -117,7 +122,7 @@ const semiont = await SemiontClient.signInHttp({
   email: 'me@example.com',
   password: 'pwd',
 });
-const resources = await semiont.browse.resources({ limit: 10 });
+const resources = await semiont.browse.resources({ limit: 10 }).fresh();
 semiont.dispose();
 ```
 
@@ -135,7 +140,7 @@ const session = await SemiontSession.signInHttp({
   email: 'me@example.com',
   password: 'pwd',
 });
-const resources = await session.client.browse.resources({ limit: 10 });
+const resources = await session.client.browse.resources({ limit: 10 }).fresh();
 await session.dispose();
 ```
 
@@ -158,6 +163,9 @@ From here, the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob
 takes over — every recipe assumes exactly this setup.
 
 ## Documentation
+
+The full map — every doc's role, and a reading order by audience — is
+[`docs/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/README.md).
 
 - **[`docs/DEVELOPER-GUIDE.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/DEVELOPER-GUIDE.md) — start here to build.** Task-ordered recipes, connect through teardown.
 - [`docs/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/Usage.md) — per-namespace API tour with concrete examples, plus SSE and error handling.

@@ -85,7 +85,11 @@ describe('KnowledgeResourcePage — terminal load failure', () => {
 
   const failLatest = (message: string) =>
     act(() => {
-      (harness.attempts[harness.attempts.length - 1] as Subject<unknown>).error(new Error(message));
+      // D1: failure is an EMISSION, not a stream death.
+      (harness.attempts[harness.attempts.length - 1] as Subject<unknown>).next({
+        status: 'failed',
+        error: new Error(message),
+      });
     });
 
   it('shows the error state with the reason, not an endless spinner', () => {
@@ -110,8 +114,8 @@ describe('KnowledgeResourcePage — terminal load failure', () => {
 
     act(() => {
       (harness.attempts[harness.attempts.length - 1] as Subject<unknown>).next({
-        '@id': 'res-A',
-        name: 'Recovered',
+        status: 'ready',
+        value: { '@id': 'res-A', name: 'Recovered' },
       });
     });
     expect(screen.getByTestId('viewer')).toBeInTheDocument();

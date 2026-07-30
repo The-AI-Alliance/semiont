@@ -9,7 +9,7 @@ import { createMarkStateUnit, type MarkStateUnit } from '@semiont/sdk';
 import { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';
 import { createMatchStateUnit } from '@semiont/sdk';
 import { createYieldStateUnit, type YieldStateUnit } from '@semiont/sdk';
-import type { SemiontClient } from '@semiont/sdk';
+import type { SemiontSession } from '@semiont/sdk';
 import { decodeWithCharset, textExtractionOf } from '@semiont/core';
 import { groupAnnotations } from '../../../lib/annotation-groups';
 import type { ReferencedByEntry } from '@semiont/sdk';
@@ -58,13 +58,18 @@ export interface ResourceViewerPageStateUnit extends StateUnit {
   closeWizard(): void;
 }
 
+// Session-typed (SESSION-TYPED-FACTORIES.md D1): the parameter is the
+// lifetime this unit must not outlive. The internal flow units below keep
+// the narrower client — their lifetime is THIS unit's disposer, which is now
+// session-bound; that is layering, not a loophole.
 export function createResourceViewerPageStateUnit(
-  client: SemiontClient,
+  session: SemiontSession,
   resourceId: ResourceId,
   locale: string,
   browse: ShellStateUnit,
   options?: { mediaType?: string },
 ): ResourceViewerPageStateUnit {
+  const { client } = session;
   const disposer = createDisposer();
 
   const beckon = createBeckonStateUnit(client);

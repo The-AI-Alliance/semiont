@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { BehaviorSubject, firstValueFrom, filter } from 'rxjs';
+import { map, BehaviorSubject, firstValueFrom, filter } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
-import type { ITransport, IContentTransport } from '@semiont/core';
+import { isReady } from '../../cache';
+import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
@@ -51,7 +52,7 @@ function createMockTransport(responses: ResponseMap): { transport: ITransport; e
     stream: <K extends never>(channel: K) => transportBus.get(channel),
     subscribeToResource: vi.fn().mockReturnValue(() => {}),
     bridgeInto: vi.fn(),
-    state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
+    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     dispose: vi.fn(),
   } as unknown as ITransport;
 
@@ -123,8 +124,8 @@ function makeContent(): IContentTransport {
   };
 }
 
-function firstDefined<T>(obs: import('rxjs').Observable<T | undefined>): Promise<T> {
-  return firstValueFrom(obs.pipe(filter((v): v is T => v !== undefined)));
+function firstDefined<T>(obs: import('rxjs').Observable<import('../../cache').CacheState<T>>): Promise<T> {
+  return firstValueFrom(obs.pipe(filter(isReady), map((s) => s.value)));
 }
 
 describe('BrowseNamespace', () => {

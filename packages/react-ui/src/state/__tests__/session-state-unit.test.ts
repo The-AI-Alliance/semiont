@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { sessionOf } from '../../__tests__/test-client';
 import { firstValueFrom } from 'rxjs';
 import type { SemiontClient } from '@semiont/sdk';
 import { createSessionStateUnit } from '../session-state-unit';
@@ -12,14 +13,14 @@ function mockClient(logout?: ReturnType<typeof vi.fn>): SemiontClient {
 
 describe('createSessionStateUnit', () => {
   it('initializes not logging out', async () => {
-    const stateUnit = createSessionStateUnit(mockClient());
+    const stateUnit = createSessionStateUnit(sessionOf(mockClient()));
     expect(await firstValueFrom(stateUnit.isLoggingOut$)).toBe(false);
     stateUnit.dispose();
   });
 
   it('logout calls client.logout', async () => {
     const logout = vi.fn().mockResolvedValue(undefined);
-    const stateUnit = createSessionStateUnit(mockClient(logout));
+    const stateUnit = createSessionStateUnit(sessionOf(mockClient(logout)));
     await stateUnit.logout();
     expect(logout).toHaveBeenCalledOnce();
     expect(await firstValueFrom(stateUnit.isLoggingOut$)).toBe(false);
@@ -28,7 +29,7 @@ describe('createSessionStateUnit', () => {
 
   it('logout resets isLoggingOut on error', async () => {
     const logout = vi.fn().mockRejectedValue(new Error('network'));
-    const stateUnit = createSessionStateUnit(mockClient(logout));
+    const stateUnit = createSessionStateUnit(sessionOf(mockClient(logout)));
     await stateUnit.logout();
     expect(await firstValueFrom(stateUnit.isLoggingOut$)).toBe(false);
     stateUnit.dispose();
@@ -38,7 +39,7 @@ describe('createSessionStateUnit', () => {
 describe('SessionStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     assertStateUnitAxioms({
-      setup: () => createSessionStateUnit(mockClient()),
+      setup: () => createSessionStateUnit(sessionOf(mockClient())),
       surfaces: (u) => [u.isLoggingOut$],
       invocations: (u) => [() => u.logout()],
     });

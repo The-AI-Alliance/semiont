@@ -14,6 +14,12 @@
  * session while the URL still names the previous KB's resource, which is
  * the actual defect fixed in
  * .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+ *
+ * NOTE (SESSION-TYPED-FACTORIES, landed 2026-07-29): the API now enforces what
+ * this gate guards — factories take a `SemiontSession` and construction goes
+ * through `useSessionStateUnit`, which builds nothing without a session. These
+ * layout gates remain as defense in depth and UX (loading order), not as the
+ * safety mechanism.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';

@@ -52,7 +52,7 @@ interface Content { upTo: number }
 interface Rig {
   cacheA: Cache<string, Content>;
   cacheB: Cache<string, Content>;
-  saveLastEventId: (id: string) => void;
+  saveLastEventId: (scope: string, id: string) => void;
   resolvers: Array<(c: Content) => void>;
   dispose: () => void;
 }
@@ -101,8 +101,11 @@ function persistedAUpTo(storage: InMemorySessionStorage): number {
 function bookmarkSeq(storage: InMemorySessionStorage): number {
   const raw = storage.get(BOOKMARK_KEY);
   if (raw === null) return 0;
-  const m = /^p-r1-(\d+)$/.exec(raw);
-  if (!m) throw new Error(`unparseable bookmark ${raw}`);
+  const record = JSON.parse(raw) as Record<string, string>;
+  const id = record['r1'];
+  if (id === undefined) return 0;
+  const m = /^p-r1-(\d+)$/.exec(id);
+  if (!m) throw new Error(`unparseable bookmark ${id}`);
   return Number(m[1]);
 }
 
@@ -132,7 +135,7 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
 
     let rig = buildRig(storage);
     // Warm A so a persisted document exists ("the resource was already open").
-    rig.cacheA.observe(KEY);
+    rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
     rig.resolvers.shift()!({ upTo: serverSeq });
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
 
@@ -141,12 +144,12 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
         case 'arrive':
           serverSeq += 1;
           rig.cacheA.invalidate(KEY);              // apply first…
-          rig.saveLastEventId(`p-r1-${serverSeq}`); // …stash second (the fixed order)
+          rig.saveLastEventId('r1', `p-r1-${serverSeq}`); // …stash second (the fixed order)
           break;
         case 'receiveLegacy':
           serverSeq += 1;
           unapplied += 1;
-          rig.saveLastEventId(`p-r1-${serverSeq}`);
+          rig.saveLastEventId('r1', `p-r1-${serverSeq}`);
           break;
         case 'applyLegacy':
           if (unapplied > 0) { unapplied -= 1; rig.cacheA.invalidate(KEY); }
@@ -172,7 +175,7 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
     // storage and resumes.
     vi.clearAllTimers();
     rig = buildRig(storage);
-    rig.cacheA.observe(KEY);
+    rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
     // Replay exists ONLY when a bookmark was persisted. The transport sends
     // `Last-Event-ID` only if it loaded one (`actor-state-unit.ts`: "fresh
     // connections send no header"), and a connect without it gets a
@@ -277,7 +280,7 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
     // Cold baseline: same server truth, empty storage, must fetch.
     const coldStorage = new InMemorySessionStorage();
     const cold = buildRig(coldStorage);
-    cold.cacheA.observe(KEY);
+    cold.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
     while (cold.resolvers.length > 0) cold.resolvers.shift()!({ upTo: warm.serverSeq });
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
     const coldRendered = cold.cacheA.get(KEY)?.upTo ?? 0;

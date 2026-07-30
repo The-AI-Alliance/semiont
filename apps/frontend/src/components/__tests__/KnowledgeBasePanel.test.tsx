@@ -65,7 +65,7 @@ const kb2: KnowledgeBase = {
 // vi.hoisted: the mock factory below needs these in scope.
 const {
   
-  kbs$, activeSession$, mockBrowser,
+  kbs$, activeSession$, mockBrowser, mockEmit,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { BehaviorSubject } = require('rxjs');
@@ -82,6 +82,7 @@ const {
     signIn: vi.fn(),
     signOut: vi.fn(),
     getKbSessionStatus: (id: string) => id === 'kb-1' ? 'authenticated' : 'signed-out',
+    emit: vi.fn(),
   };
   return {
     mockSetActiveKb: mockBrowser.setActiveKb,
@@ -93,6 +94,7 @@ const {
     kbs$,
     activeSession$,
     mockBrowser,
+    mockEmit: mockBrowser.emit,
   };
 });
 
@@ -103,6 +105,12 @@ const discoveryHolder = vi.hoisted(() => ({
     state: import('@semiont/sdk').DiscoveryState | null;
     kbs: import('@semiont/core').DiscoveredKB[];
   },
+}));
+
+const pathHolder = vi.hoisted(() => ({ current: '/know/discover' }));
+
+vi.mock('@/i18n/routing', () => ({
+  usePathname: () => pathHolder.current,
 }));
 
 vi.mock('@semiont/react-ui', async () => {
@@ -701,6 +709,38 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.queryByTitle('Managed by launcher')).not.toBeInTheDocument();
       // The adopted row survives — it is the user's registered KB.
       expect(screen.getByText('Production')).toBeInTheDocument();
+    });
+  });
+
+  describe('switching KB away from a resource route', () => {
+    // The route carries the PREVIOUS KB's resource id, which means nothing to
+    // the KB being switched to — asking for it earns a 404 and the B14/B15
+    // retry-then-fail chain. The panel is where the switch is initiated, so it
+    // is the only place that knows a switch is happening BEFORE the layout
+    // tears the resource page down.
+    // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+
+    beforeEach(() => {
+      pathHolder.current = '/know/resource/res-from-kb-1';
+    });
+
+    it('navigates to /know so the new KB resolves its own last-viewed resource', async () => {
+      kbs$.next([kb1, kb2]);
+      render(<KnowledgeBasePanel />);
+
+      await userEvent.click(screen.getByText('Production'));
+
+      expect(mockEmit).toHaveBeenCalledWith('nav:push', expect.objectContaining({ path: '/know' }));
+    });
+
+    it('stays put when the current route carries no resource id', async () => {
+      pathHolder.current = '/know/discover';
+      kbs$.next([kb1, kb2]);
+      render(<KnowledgeBasePanel />);
+
+      await userEvent.click(screen.getByText('Production'));
+
+      expect(mockEmit).not.toHaveBeenCalled();
     });
   });
 });

@@ -87,9 +87,9 @@ vi.mock('@semiont/react-ui', async () => {
   return {
     ...actual,
     useSemiont: () => harness.browser,
-    createResourceLoaderStateUnit: (client: any, rId: string) => {
+    createResourceLoaderStateUnit: (session: any, rId: string) => {
       vmFactoryCalls.push(rId);
-      vmFactoryClients.push(client?.tag ?? 'none');
+      vmFactoryClients.push(session?.client?.tag ?? 'none');
       // Real rxjs rather than hand-rolled subscribe stubs: correctly typed,
       // and it exercises the same delivery path the component sees.
       return {
@@ -190,19 +190,25 @@ describe('KnowledgeResourcePage navigation', () => {
     expect(vmFactoryClients).toEqual(['c1']);
   });
 
-  it('redirects to /know when the active KB changes instead of reloading a foreign resource id', () => {
+  it('leaves the KB-switch redirect to the switch INITIATOR, not to itself', () => {
+    // This page cannot detect a KB switch: `KnowledgeLayout` gates <Outlet />
+    // on a live session, so it is unmounted the instant `activeSession$` goes
+    // null and remounts fresh against the replacement. A latch here observed
+    // nothing and was dead in production while THIS test — which renders the
+    // page with no layout above it — passed. The behaviour now lives in
+    // `KnowledgeBasePanel`, where the switch is initiated and the page is
+    // still mounted; see its "switching KB away from a resource route" specs.
+    //
+    // What this page still owes: rebuild against whatever session it is given,
+    // which the `${session.id}:${rId}` key provides and the pins above cover.
     mockedParamsId = 'A';
     render(<KnowledgeResourcePage />);
-    expect(vmFactoryClients).toEqual(['c1']);
 
-    // A real KB switch: activeSession$ nulls, then a session for a DIFFERENT
-    // kb arrives. `A` belongs to kb-a and means nothing to kb-b, so the page
-    // must leave rather than ask kb-b for it.
     act(() => { harness.session$.next(null); });
     act(() => { harness.session$.next(harness.makeSession('c2', 'kb-b')); });
 
-    expect(routerReplaceCalls).toEqual(['/know']);
-    // No loader was built for kb-b against kb-a's resource id.
-    expect(vmFactoryClients).toEqual(['c1']);
+    expect(routerReplaceCalls).toEqual([]);
+    // It does rebuild for the new session rather than holding the old client.
+    expect(vmFactoryClients).toEqual(['c1', 'c2']);
   });
 });

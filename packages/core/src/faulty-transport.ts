@@ -36,15 +36,6 @@ export type FaultAction =
   | { kind: 'duplicate-reply' }
   | { kind: 'reject-emit' };
 
-/**
- * Scope-contention behavior of `subscribeToResource`:
- * `single-slot-throw` mirrors today's HttpTransport (one distinct scope at a
- * time; a second distinct scope throws); `multi` mirrors the
- * post-MULTI-RESOURCE-SCOPE world. The same properties run under both so the
- * migration can't silently change liveness behavior.
- */
-export type ScopeModel = 'single-slot-throw' | 'multi';
-
 /** requestLog entry — one per request-channel emit, in arrival order. */
 export interface RequestLogEntry {
   channel: BusOperationKey;
@@ -65,8 +56,6 @@ export interface FaultyTransportConfig {
    * Empty/omitted → every request delivers.
    */
   schedule?: readonly FaultAction[];
-  /** Default `'single-slot-throw'` (today's HttpTransport). */
-  scopeModel?: ScopeModel;
   /**
    * Synthesize the `response` value for a delivered reply. Return `undefined`
    * for a void ack (`{ correlationId }` only). Default: `{}` for every op.
@@ -97,18 +86,31 @@ export class FaultyTransport implements ITransport {
 
   private readonly bus = new EventBus();
   private readonly schedule: readonly FaultAction[];
-  private readonly scopeModel: ScopeModel;
   private readonly makeResponse: (op: BusOperationKey, payload: Record<string, unknown>) => unknown;
+  private readonly replyQueues = new Map<BusOperationKey, unknown[]>();
   private requestCount = 0;
-  private activeScope: string | null = null;
-  private scopeRefs = 0;
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private disposed = false;
 
   constructor(cfg: FaultyTransportConfig = {}) {
     this.schedule = cfg.schedule ?? [];
-    this.scopeModel = cfg.scopeModel ?? 'single-slot-throw';
     this.makeResponse = cfg.makeResponse ?? (() => ({}));
+  }
+
+  /**
+   * Queue responses for `op`, consumed FIFO — one per request that reaches
+   * the simulated backend — before falling back to `makeResponse`
+   * (SDK-TESTING-DOUBLE.md, gap 2). The queue scripts the BACKEND; the fault
+   * schedule scripts the WIRE. Consequences, deliberately: `duplicate-reply`
+   * replays one entry's body twice, and a `drop-reply` still consumes its
+   * entry (the backend answered; the wire ate it) — so "first reply lost,
+   * the retry sees the NEXT page" is expressible. `reject-emit` consumes
+   * nothing: that request never reached the backend.
+   */
+  queueReply(op: BusOperationKey, ...responses: unknown[]): void {
+    const q = this.replyQueues.get(op) ?? [];
+    q.push(...responses);
+    this.replyQueues.set(op, q);
   }
 
   // ── Bus primitives ──────────────────────────────────────────────────────
@@ -150,9 +152,16 @@ export class FaultyTransport implements ITransport {
     // simulator plays backend: synthesize the registry reply per the action.
     this.bus.get(channel).next(payload);
 
+    // The backend's answer is computed ONCE per request that reaches it —
+    // the reply QUEUE scripts the backend, the fault schedule scripts the
+    // wire (SDK-TESTING-DOUBLE.md Phase 2). So `duplicate-reply` replays the
+    // same body twice, and a `drop-reply` still consumes its queue entry:
+    // the backend answered, the wire ate it.
+    const queue = this.replyQueues.get(name);
+    const response = queue && queue.length > 0 ? queue.shift() : this.makeResponse(name, record);
+
     const reply = (): void => {
       if (this.disposed) return;
-      const response = this.makeResponse(name, record);
       const replyPayload = response === undefined
         ? { correlationId: record.correlationId }
         : { correlationId: record.correlationId, response };
@@ -187,23 +196,30 @@ export class FaultyTransport implements ITransport {
     return this.bus.get(channel);
   }
 
-  subscribeToResource(rid: ResourceId): () => void {
-    const scope = rid as string;
-    if (this.scopeModel === 'single-slot-throw' && this.activeScope !== null && this.activeScope !== scope) {
-      // Mirrors HttpTransport's one-distinct-scope-at-a-time contention throw.
-      throw new Error(
-        `FaultyTransport: scope slot busy (${this.activeScope}); ` +
-        `unsubscribe before subscribing to ${scope} (scopeModel=single-slot-throw)`,
-      );
-    }
-    this.activeScope = this.activeScope ?? scope;
-    this.scopeRefs += 1;
+  subscribeToResource(_rid: ResourceId): () => void {
+    // Mirrors the real HttpTransport: distinct scopes COMPOSE
+    // (MULTI-RESOURCE-SCOPE). Delivery here is bus-direct and never
+    // scope-gated, so acquisition needs no bookkeeping and release
+    // (idempotent by construction) is a no-op.
+    return () => {};
+  }
+
+  /**
+   * Correlated-reply tracking (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1),
+   * exposed for assertions: `busRequest` registers each cid here before its
+   * emit and releases on settle, so a test can pin the tracked set at any
+   * point of a request's lifecycle. Delivery in this double is bus-direct
+   * (nothing to replay), so tracking has no behavioral effect.
+   */
+  readonly pendingReplies = new Set<string>();
+
+  trackReply(correlationId: string): () => void {
+    this.pendingReplies.add(correlationId);
     let released = false;
     return () => {
       if (released) return;
       released = true;
-      this.scopeRefs -= 1;
-      if (this.scopeRefs === 0) this.activeScope = null;
+      this.pendingReplies.delete(correlationId);
     };
   }
 

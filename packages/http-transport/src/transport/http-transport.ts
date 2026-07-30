@@ -11,7 +11,7 @@
  */
 
 import ky, { HTTPError, type KyInstance } from 'ky';
-import { BehaviorSubject, Observable, Subject, type Subscription } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type {
   AccessToken,
   BaseUrl,
@@ -118,11 +118,12 @@ export interface HttpTransportConfig {
   /** Optional 401-recovery hook. See {@link TokenRefresher}. */
   tokenRefresher?: TokenRefresher;
   /**
-   * B17 — persistence thunks for the last seen persisted SSE id, passed
-   * through to the actor state unit. See {@link ActorStateUnitOptions}.
+   * B17 — persistence thunks for the last seen persisted SSE id PER
+   * SCOPE, passed through to the actor state unit. See
+   * {@link ActorStateUnitOptions}.
    */
-  loadLastEventId?: () => string | null;
-  saveLastEventId?: (id: string) => void;
+  loadLastEventIds?: () => Record<string, string> | null;
+  saveLastEventId?: (scope: string, id: string) => void;
 }
 
 export class HttpTransport implements ITransport, IBackendOperations {
@@ -142,11 +143,15 @@ export class HttpTransport implements ITransport, IBackendOperations {
   private _actorStarted = false;
   private disposed = false;
 
-  private activeResource: {
-    resourceId: ResourceId;
-    refCount: number;
-    bridgeSubs: Subscription[];
-  } | null = null;
+  /**
+   * Per-resource subscription ref-counts (MULTI-RESOURCE-SCOPE). Distinct
+   * resources COMPOSE — each key's first subscribe adds its scoped channels
+   * to the actor's matrix, its last release removes them; keys are fully
+   * independent. Local fan-out for scoped channels is a SINGLETON wired in
+   * the actor getter (one delivery per event regardless of how many scopes
+   * are held), so entries here are counts only.
+   */
+  private readonly scopeRefCounts = new Map<string, number>();
 
   /** Buses we've been asked to bridge wire events into. */
   private readonly bridges: EventBus[] = [];
@@ -271,10 +276,17 @@ export class HttpTransport implements ITransport, IBackendOperations {
         baseUrl: this.baseUrl,
         token: () => this.token$.getValue() ?? '',
         channels: [...BRIDGED_CHANNELS],
-        ...(this.config.loadLastEventId ? { loadLastEventId: this.config.loadLastEventId } : {}),
+        ...(this.config.loadLastEventIds ? { loadLastEventIds: this.config.loadLastEventIds } : {}),
         ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
       });
-      for (const channel of BRIDGED_CHANNELS) {
+      // One fan-in per channel, wired once for the actor's lifetime — the
+      // globally-bridged set AND the resource-scoped set (disjoint by the
+      // bus-invariants guard). Scoped events only arrive for scopes in the
+      // actor's matrix (backend-authoritative filtering), so an always-on
+      // scoped fan-in delivers nothing while no scope is held — and exactly
+      // ONCE per event however many scopes are held (the per-scope
+      // bridge-subs design would have duplicated delivery N×).
+      for (const channel of [...BRIDGED_CHANNELS, ...RESOURCE_SCOPED_CHANNELS]) {
         this._actor.on$<Record<string, unknown>>(channel).subscribe((payload) => {
           for (const bus of this.bridges) {
             (bus.get(channel as keyof EventMap) as { next(v: unknown): void }).next(payload);
@@ -343,45 +355,24 @@ export class HttpTransport implements ITransport, IBackendOperations {
   }
 
   subscribeToResource(resourceId: ResourceId): () => void {
-    if (this.activeResource) {
-      if (this.activeResource.resourceId !== resourceId) {
-        throw new Error(
-          `HttpTransport already subscribed to resource ${this.activeResource.resourceId}; ` +
-            `call the unsubscribe returned from the previous subscribeToResource before subscribing to ${resourceId}.`,
-        );
-      }
-      this.activeResource.refCount++;
-      return this.makeUnsubscriber();
+    const key = resourceId as string;
+    const count = this.scopeRefCounts.get(key) ?? 0;
+    this.scopeRefCounts.set(key, count + 1);
+    if (count === 0) {
+      this.actor.addChannels([...RESOURCE_SCOPED_CHANNELS], key);
     }
 
-    this.actor.addChannels([...RESOURCE_SCOPED_CHANNELS], resourceId as string);
-
-    const bridgeSubs: Subscription[] = [];
-    for (const channel of RESOURCE_SCOPED_CHANNELS) {
-      bridgeSubs.push(
-        this.actor.on$<Record<string, unknown>>(channel).subscribe((payload) => {
-          for (const bus of this.bridges) {
-            (bus.get(channel as keyof EventMap) as { next(v: unknown): void }).next(payload);
-          }
-        }),
-      );
-    }
-
-    this.activeResource = { resourceId, refCount: 1, bridgeSubs };
-    return this.makeUnsubscriber();
-  }
-
-  private makeUnsubscriber(): () => void {
     let called = false;
     return () => {
       if (called) return;
       called = true;
-      if (!this.activeResource) return;
-      this.activeResource.refCount--;
-      if (this.activeResource.refCount > 0) return;
-      for (const sub of this.activeResource.bridgeSubs) sub.unsubscribe();
-      this.actor.removeChannels([...RESOURCE_SCOPED_CHANNELS]);
-      this.activeResource = null;
+      const remaining = (this.scopeRefCounts.get(key) ?? 0) - 1;
+      if (remaining > 0) {
+        this.scopeRefCounts.set(key, remaining);
+        return;
+      }
+      this.scopeRefCounts.delete(key);
+      this.actor.removeChannels([...RESOURCE_SCOPED_CHANNELS], key);
     };
   }
 
@@ -389,13 +380,21 @@ export class HttpTransport implements ITransport, IBackendOperations {
     return this.actor.state$;
   }
 
+  /**
+   * Correlated-reply retention, client side (BUS-RESUMPTION Phase 2 /
+   * SDK-DEBT S1): `busRequest` registers its cid here before emitting;
+   * the actor carries the tracked set as `pendingReplies` on every
+   * subscribe body, so a reply published while the connection was down
+   * replays from the server's retention buffer on reconnect.
+   */
+  trackReply(correlationId: string): () => void {
+    return this.actor.trackReply(correlationId);
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    if (this.activeResource) {
-      for (const sub of this.activeResource.bridgeSubs) sub.unsubscribe();
-      this.activeResource = null;
-    }
+    this.scopeRefCounts.clear();
     if (this._actor) {
       this._actor.dispose();
       this._actor = null;

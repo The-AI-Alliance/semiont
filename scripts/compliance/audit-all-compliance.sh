@@ -4,7 +4,7 @@ set -e
 # Run compliance audits for all workspaces
 # Generates REACT-UI-COMPLIANCE.md and FRONTEND-COMPLIANCE.md
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPLIANCE_DIR="$REPO_ROOT/scripts/compliance"
 
 echo "🔬 Running compliance audits for all workspaces..."
@@ -32,6 +32,7 @@ echo "🧩 Checking StateUnit pattern (no class / no module-scoped state / fire-
 bash "$COMPLIANCE_DIR/audit-state-unit-no-class.sh"
 bash "$COMPLIANCE_DIR/audit-state-unit-module-state.sh"
 bash "$COMPLIANCE_DIR/audit-fire-and-forget-promise-void.sh"
+bash "$COMPLIANCE_DIR/audit-session-typed-factories.sh"
 echo ""
 
 # Toolbar prefs are controlled props; persistence only in the policy layer

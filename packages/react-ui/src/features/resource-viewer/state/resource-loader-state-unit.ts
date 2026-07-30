@@ -1,3 +1,4 @@
+import { readyValue } from '@semiont/sdk';
 import {
   BehaviorSubject,
   combineLatest,
@@ -8,7 +9,7 @@ import {
 } from 'rxjs';
 import type { ResourceDescriptor, ResourceId } from '@semiont/core';
 import type { StateUnit } from '@semiont/core';
-import type { SemiontClient } from '@semiont/sdk';
+import type { SemiontSession } from '@semiont/sdk';
 
 export interface ResourceLoaderStateUnit extends StateUnit {
   resource$: Observable<ResourceDescriptor | undefined>;
@@ -31,9 +32,10 @@ export interface ResourceLoaderStateUnit extends StateUnit {
  * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md (D4)
  */
 export function createResourceLoaderStateUnit(
-  client: SemiontClient,
+  session: SemiontSession,
   resourceId: ResourceId,
 ): ResourceLoaderStateUnit {
+  const { client } = session;
   const resource$ = new BehaviorSubject<ResourceDescriptor | undefined>(undefined);
   const error$ = new BehaviorSubject<Error | null>(null);
 
@@ -49,15 +51,14 @@ export function createResourceLoaderStateUnit(
   const attach = (): void => {
     if (disposed) return;
     subscription?.unsubscribe();
-    subscription = client.browse.resource(resourceId).subscribe({
-      next: (value) => {
-        // A value arrived — the key is live again, whatever came before.
-        if (error$.getValue() !== null) error$.next(null);
-        resource$.next(value);
-      },
-      error: (e: unknown) => {
-        error$.next(e instanceof Error ? e : new Error(String(e)));
-      },
+    subscription = client.browse.resource(resourceId).subscribe((st) => {
+      if (st.status === 'failed') {
+        // D1: failure is an emission — the subscription stays alive.
+        error$.next(st.error);
+        return;
+      }
+      if (st.status === 'ready' && error$.getValue() !== null) error$.next(null);
+      resource$.next(readyValue(st));
     });
   };
   attach();

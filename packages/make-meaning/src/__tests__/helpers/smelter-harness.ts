@@ -14,8 +14,8 @@
  */
 
 import { vi } from 'vitest';
-import { Observable, Subject } from 'rxjs';
-import type { Logger, EventMap, IContentTransport, components } from '@semiont/core';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import type { ConnectionState, Logger, EventMap, IContentTransport, components } from '@semiont/core';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive } from '@semiont/core';
 import type { SmelterEvent } from '../../smelter-actor-state-unit';
@@ -166,6 +166,8 @@ export function createFakeKsBus(
 
   return {
     emitted,
+    // In-process fake — replies are queued on emit, so 'open' is the truth.
+    state$: new BehaviorSubject<ConnectionState>('open'),
     async emit<K extends keyof EventMap>(name: K, payload: EventMap[K]): Promise<void> {
       const request = payload as Record<string, unknown>;
       emitted.push({ channel: name as string, payload: request });

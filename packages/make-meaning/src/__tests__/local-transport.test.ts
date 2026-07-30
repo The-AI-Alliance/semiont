@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { isReady } from '@semiont/sdk';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -34,7 +35,7 @@ import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } fro
 
 const SETTLE_MS = 5_000;
 
-const defined = <T>(v: T | undefined): v is T => v !== undefined;
+// D1: live queries emit CacheState — settle on ready and unwrap.
 
 const silentLogger: Logger = {
   debug: vi.fn(),
@@ -148,7 +149,7 @@ describe('SemiontClient over LocalTransport', () => {
     it('returns an empty list for an empty knowledge base', async () => {
       const h = await bootHarness();
       try {
-        const resources = await firstValueFrom(h.client.browse.resources({}).pipe(filter(defined)));
+        const resources = await firstValueFrom(h.client.browse.resources({}).pipe(filter(isReady), map((st) => st.value)));
         expect(resources).toHaveLength(0);
       } finally {
         await h.dispose();
@@ -159,7 +160,7 @@ describe('SemiontClient over LocalTransport', () => {
       const h = await bootHarness();
       try {
         const id = await h.seedResource({ name: 'overview', content: 'hello world' });
-        const resources = await firstValueFrom(h.client.browse.resources({}).pipe(filter(defined)));
+        const resources = await firstValueFrom(h.client.browse.resources({}).pipe(filter(isReady), map((st) => st.value)));
         expect(resources).toHaveLength(1);
         const got = resources[0]!;
         expect(got['@id'] ?? got.id).toBe(id);
@@ -173,7 +174,7 @@ describe('SemiontClient over LocalTransport', () => {
       const h = await bootHarness();
       try {
         const id = await h.seedResource({ name: 'doc', content: 'body' });
-        const resource = await firstValueFrom(h.client.browse.resource(id).pipe(filter(defined)));
+        const resource = await firstValueFrom(h.client.browse.resource(id).pipe(filter(isReady), map((st) => st.value)));
         expect(resource).toBeDefined();
         expect(resource['@id'] ?? resource.id).toBe(id);
       } finally {
@@ -256,7 +257,7 @@ describe('SemiontClient over LocalTransport', () => {
           },
         });
 
-        const list = await firstValueFrom(h.client.browse.annotations(rId).pipe(filter(defined)));
+        const list = await firstValueFrom(h.client.browse.annotations(rId).pipe(filter(isReady), map((st) => st.value)));
         expect(list.length).toBeGreaterThan(0);
         expect(list.map((a) => a.id)).toContain(annotationId);
       } finally {
@@ -291,7 +292,7 @@ describe('SemiontClient over LocalTransport', () => {
         // Cache may still hold the pre-delete snapshot; observe a fresh fetch
         // by invalidating then waiting on the next emission.
         h.client.browse.invalidateAnnotationList(rId);
-        const list = await firstValueFrom(h.client.browse.annotations(rId).pipe(filter(defined)));
+        const list = await firstValueFrom(h.client.browse.annotations(rId).pipe(filter(isReady), map((st) => st.value)));
         expect(list.map((a) => a.id)).not.toContain(aIdStr);
       } finally {
         await h.dispose();
@@ -331,7 +332,7 @@ describe('SemiontClient over LocalTransport', () => {
         );
 
         h.client.browse.invalidateAnnotationList(sourceId);
-        const list = await firstValueFrom(h.client.browse.annotations(sourceId).pipe(filter(defined)));
+        const list = await firstValueFrom(h.client.browse.annotations(sourceId).pipe(filter(isReady), map((st) => st.value)));
         const linked = list.find((a) => a.id === aIdStr);
         expect(linked).toBeDefined();
         const bodies = Array.isArray(linked!.body) ? linked!.body : (linked!.body ? [linked!.body] : []);
@@ -362,7 +363,7 @@ describe('SemiontClient over LocalTransport', () => {
         );
 
         h.client.browse.invalidateEntityTypes();
-        const result = await firstValueFrom(h.client.browse.entityTypes().pipe(filter(defined)));
+        const result = await firstValueFrom(h.client.browse.entityTypes().pipe(filter(isReady), map((st) => st.value)));
         expect(result).toContain(tag);
       } finally {
         await h.dispose();
@@ -401,7 +402,7 @@ describe('SemiontClient over LocalTransport', () => {
         );
 
         h.client.browse.invalidateTagSchemas();
-        const result = await firstValueFrom(h.client.browse.tagSchemas().pipe(filter(defined)));
+        const result = await firstValueFrom(h.client.browse.tagSchemas().pipe(filter(isReady), map((st) => st.value)));
         const found = result.find((s) => s.id === schema.id);
         expect(found, 'registered schema should appear in browse.tagSchemas()').toBeDefined();
         expect(found!.tags.map((t) => t.name)).toEqual(['X', 'Y']);
@@ -413,7 +414,7 @@ describe('SemiontClient over LocalTransport', () => {
     it('client.dispose() does not throw and tears down the transport', async () => {
       const h = await bootHarness();
       try {
-        await firstValueFrom(h.client.browse.resources({}).pipe(filter(defined)));
+        await firstValueFrom(h.client.browse.resources({}).pipe(filter(isReady), map((st) => st.value)));
         expect(() => h.client.dispose()).not.toThrow();
       } finally {
         // Avoid double-disposing the client; harness.dispose() guards.

@@ -270,6 +270,9 @@
       "BusEmitRequest": {
         "$ref": "components/schemas/BusEmitRequest.json"
       },
+      "BusSubscribeRequest": {
+        "$ref": "components/schemas/BusSubscribeRequest.json"
+      },
       "CloneResourceWithTokenResponse": {
         "$ref": "components/schemas/CloneResourceWithTokenResponse.json"
       },

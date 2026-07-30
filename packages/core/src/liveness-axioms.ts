@@ -26,7 +26,7 @@
 
 import * as fc from 'fast-check';
 import type { Observable, Subscription } from 'rxjs';
-import { FaultyTransport, type FaultAction, type ScopeModel } from './faulty-transport';
+import { FaultyTransport, type FaultAction } from './faulty-transport';
 
 // ── L1/L2: liveness over a composition on FaultyTransport ────────────────
 
@@ -57,8 +57,6 @@ export interface LivenessAxiomSpec {
   retryBudget?: number;
   /** Override the generated fault schedules (teeth tests pin one). */
   scheduleArb?: fc.Arbitrary<readonly FaultAction[]>;
-  /** Scope model(s) to run under. Default `'single-slot-throw'`. */
-  scopeModel?: ScopeModel | 'both';
   /** Passed through to FaultyTransport (reply synthesis). */
   makeResponse?: (operation: string, payload: Record<string, unknown>) => unknown;
   /** fast-check run budget (default 25 — CI-fast; crank locally). */
@@ -129,20 +127,15 @@ export async function assertLivenessAxioms(spec: LivenessAxiomSpec): Promise<voi
   const retryBudget = spec.retryBudget ?? 1;
   const slack = spec.slackFactor ?? 4;
   const scheduleArb = spec.scheduleArb ?? arbFaultSchedule();
-  const scopeArb: fc.Arbitrary<ScopeModel> =
-    spec.scopeModel === 'both'
-      ? fc.constantFrom<ScopeModel>('single-slot-throw', 'multi')
-      : fc.constant(spec.scopeModel ?? 'single-slot-throw');
 
   const slot = { violation: null as Error | null };
   await runLabeled('liveness', slot, () =>
     fc.assert(
-      fc.asyncProperty(scheduleArb, scopeArb, async (schedule, scopeModel) => {
+      fc.asyncProperty(scheduleArb, async (schedule) => {
         const delayTotal = schedule.reduce((n, a) => n + (a.kind === 'delay' ? a.ms : 0), 0);
         const bound = (spec.timeoutMs * (1 + retryBudget) + delayTotal) * slack;
         const transport = new FaultyTransport({
           schedule,
-          scopeModel,
           ...(spec.makeResponse ? { makeResponse: spec.makeResponse } : {}),
         });
         const scenario = await spec.setup(transport);
@@ -222,7 +215,7 @@ export async function assertLivenessAxioms(spec: LivenessAxiomSpec): Promise<voi
               if (!seen) {
                 throw new Error(
                   `L1: output #${i} received no next/error within ${bound}ms ` +
-                  `under schedule ⟨${describeSchedule(schedule)}⟩ (scope=${scopeModel}) — silently pending`,
+                  `under schedule ⟨${describeSchedule(schedule)}⟩ — silently pending`,
                 );
               }
             });

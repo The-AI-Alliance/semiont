@@ -186,7 +186,7 @@ async function handleJobInner(
   // annotation in its params, not the source bytes, so it is not prepared here.
   let source: Awaited<ReturnType<typeof prepareDetection>> = null;
   if (jobType !== 'generation') {
-    const descriptor = await session.client.browse.resource(resourceId as never);
+    const descriptor = await session.client.browse.resource(resourceId as never).fresh();
     const mediaType = getPrimaryMediaType(descriptor);
     const strategy = mediaType ? textExtractionOf(mediaType) : 'none';
     if (strategy === 'none') {

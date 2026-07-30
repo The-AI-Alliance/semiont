@@ -18,19 +18,21 @@ import type { AnnotationsCollection } from '../../types/annotation-props';
 /**
  * ResourceViewer - Display and interact with resource content and annotations
  *
- * This component uses event-driven architecture for real-time updates:
- * - Subscribes to make-meaning events (mark:added, mark:removed, mark:body-updated)
- * - Automatically invalidates cache when annotations change
- * - No manual refetch needed - events handle cache invalidation
+ * Real-time updates arrive through the sdk, not through this component:
+ * the client's BrowseNamespace invalidates the right resource's annotation
+ * list on mark:added/mark:removed (payload-keyed) and patches
+ * mark:body-updated in place, so the live queries feeding `annotations`
+ * refresh on their own. The viewer subscribes only to `browse:click`
+ * (annotation-click routing).
  *
  * Bring-your-own-session: the `session` (SemiontSession) and the host's
  * navigation / panel callbacks come in as props — no SemiontProvider required.
- * Every event it subscribes to is session-scoped (mark:*, browse:click) and
- * reaches it via `session.subscribe`. Translations fall back to built-in English
- * when no TranslationProvider is mounted; caching flows through `session.client.browse.*`.
+ * Every event it subscribes to is session-scoped and reaches it via
+ * `session.subscribe`. Translations fall back to built-in English when no
+ * TranslationProvider is mounted; caching flows through `session.client.browse.*`.
  *
  * Event flow:
- *   make-meaning → EventLog → SSE → EventBus → ResourceViewer → Cache invalidation
+ *   make-meaning → EventLog → SSE → EventBus → sdk cache invalidation → live queries
  */
 interface Props {
   resource: SemiontResource & { content: string };
@@ -100,9 +102,6 @@ interface Props {
  * panel opening invokes the host's `onOpenPanel` callback — the host owns
  * the panel and any `panel:open` emission.
  *
- * @subscribes mark:added - New annotation was added. Payload: { annotation: Annotation }
- * @subscribes mark:removed - Annotation was removed. Payload: { annotationId: string }
- * @subscribes mark:body-updated - Annotation was updated. Payload: { annotation: Annotation }
  * @subscribes browse:click - User clicked on annotation. Payload: { annotationId: string, motivation, anchorRect? }
  */
 export function ResourceViewer({
@@ -160,12 +159,13 @@ export function ResourceViewer({
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
 
-  const semiont = session?.client;
-
-  // One invalidation for every annotation mutation event (added/removed/body-updated).
-  const handleAnnotationsChanged = useCallback(() => {
-    semiont?.browse.invalidateAnnotationList(rUri);
-  }, [semiont, rUri]);
+  // NOTE deliberately NO mark:* invalidation here (MULTI-RESOURCE-SCOPE
+  // Step 5). The sdk's BrowseNamespace already invalidates the RIGHT
+  // resource's annotation list on mark:added/mark:removed (payload-keyed,
+  // once per event) and patches mark:body-updated in place. A viewer-side
+  // handler on these session-wide channels was pure duplication — and with
+  // N viewers on one session (the embeddable resource-per-chat-message
+  // pattern), an O(N) refetch amplification on every mark event.
 
   // Remaining toolbar preferences — same controlled/uncontrolled split as mode.
   const [internalSelectionMotivation, setInternalSelectionMotivation] = useState<SelectionMotivation | null>('linking');
@@ -306,11 +306,6 @@ export function ResourceViewer({
 
   // Single subscription call per file (see scripts/compliance/audit-hooks-ordering.ts).
   useSessionEventSubscriptions(session, {
-    // Annotation cache invalidation
-    'mark:added': handleAnnotationsChanged,
-    'mark:removed': handleAnnotationsChanged,
-    'mark:body-updated': handleAnnotationsChanged,
-
     // Annotation clicks
     'browse:click': handleAnnotationClickEvent,
   });

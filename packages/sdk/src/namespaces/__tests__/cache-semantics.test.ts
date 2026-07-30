@@ -10,11 +10,12 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { firstValueFrom, filter, BehaviorSubject } from 'rxjs';
+import { map, firstValueFrom, filter, BehaviorSubject } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import type { components, StoredEvent, EventOfType, EventMetadata, UserId, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
+import { isReady, readyValue } from '../../cache';
 import type { ITransport, IContentTransport } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
@@ -253,8 +254,8 @@ function createHarness(opts: HarnessOptions = {}) {
   return { browse, eventBus, emitSpy, state };
 }
 
-function firstDefined<T>(obs: import('rxjs').Observable<T | undefined>): Promise<T> {
-  return firstValueFrom(obs.pipe(filter((v): v is T => v !== undefined)));
+function firstDefined<T>(obs: import('rxjs').Observable<import('../../cache').CacheState<T>>): Promise<T> {
+  return firstValueFrom(obs.pipe(filter(isReady), map((s) => s.value)));
 }
 
 // Tick past queued microtasks so values propagate.
@@ -360,7 +361,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
     it('observers never see a transient undefined around the success write', async () => {
       const { browse } = createHarness();
       const seen: Array<ResourceDescriptor | undefined> = [];
-      browse.resource(RID).subscribe((v) => seen.push(v));
+      browse.resource(RID).subscribe((s) => seen.push(readyValue(s)));
       await firstDefined(browse.resource(RID));
       // The only undefined should be the initial emission before the fetch resolves.
       // Subsequent values should be defined; no undefined-after-defined transitions.
@@ -376,12 +377,12 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       // key's observers — not `undefined` forever (LIVENESS-AXIOMS L1; see
       // .plans/bugs/valueless-key-terminal-failure-starves-observers.md).
       const { browse, emitSpy, state } = createHarness({ rejectNext: 2 });
-      const seen: Array<ResourceDescriptor | undefined> = [];
-      const errors: unknown[] = [];
-      browse.resource(RID).subscribe({ next: (v) => seen.push(v), error: (e) => errors.push(e) });
+      const states: string[] = [];
+      browse.resource(RID).subscribe((s) => states.push(s.status));
       await flush();
-      expect(seen).toEqual([undefined]);
-      expect(errors).toHaveLength(1); // surfaced through withScope + CacheObservable
+      // D1: the terminal failure is a `failed` EMISSION through withScope +
+      // CacheObservable — never a stream error, never silence.
+      expect(states).toEqual(['pending', 'failed']);
       expect(emitSpy).toHaveBeenCalledTimes(2); // attempt + B14 retry, then idle
 
       // Guard + marker released: a subsequent fetch succeeds and a fresh
@@ -413,7 +414,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
     it('observer keeps seeing the stale value during the refetch — no undefined flash', async () => {
       const { browse, state } = createHarness();
       const seen: Array<ResourceDescriptor | undefined> = [];
-      browse.resource(RID).subscribe((v) => seen.push(v));
+      browse.resource(RID).subscribe((s) => seen.push(readyValue(s)));
       await firstDefined(browse.resource(RID));
 
       // Change the server-side response.
@@ -439,9 +440,10 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       // Two rejections exhaust the observe attempt + its B14 retry first.
       const { browse, emitSpy, state } = createHarness({ rejectNext: 2 });
       const seen: Array<ResourceDescriptor | undefined> = [];
-      // Value-less exhaustion also errors this subscriber (B15) — absorbed;
-      // this test is about the in-flight guard, not the notification.
-      browse.resource(RID).subscribe({ next: (v) => seen.push(v), error: () => {} });
+      // Value-less exhaustion emits `failed` to this subscriber (B15/D1) —
+      // projected to undefined here; this test is about the in-flight guard,
+      // not the notification.
+      browse.resource(RID).subscribe({ next: (s) => seen.push(readyValue(s)), error: () => {} });
       await flush(); // Attempt + B14 retry both reject; guard releases in finally.
 
       state.rejectRemaining = 0;
@@ -722,7 +724,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
 
         const events: string[] = [];
         browse.resource(RID).subscribe({
-          next: (v) => { if (v !== undefined) events.push('next'); },
+          next: (s) => { if (s.status !== 'pending') events.push('next'); },
           error: () => events.push('error'),
           complete: () => events.push('complete'),
         });
@@ -782,7 +784,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       const { browse } = createHarness();
       const events: string[] = [];
       browse.agents().subscribe({
-        next: (v) => { if (v !== undefined) events.push('next'); },
+        next: (s) => { if (s.status !== 'pending') events.push('next'); },
         error: () => events.push('error'),
         complete: () => events.push('complete'),
       });
@@ -814,7 +816,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
           silentChannels: ['browse:agents-requested'],
           busTimeoutMs: 60,
         });
-        await expect(browse.agents()).rejects.toMatchObject({ code: 'bus.timeout' });
+        await expect(browse.agents().fresh()).rejects.toMatchObject({ code: 'bus.timeout' });
       } finally {
         warnSpy.mockRestore();
       }

@@ -1,6 +1,6 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
 import type { StateUnit } from '@semiont/core';
-import type { SemiontClient } from '@semiont/sdk';
+import type { SemiontSession } from '@semiont/sdk';
 
 export interface SessionStateUnit extends StateUnit {
   isLoggingOut$: Observable<boolean>;
@@ -8,8 +8,9 @@ export interface SessionStateUnit extends StateUnit {
 }
 
 export function createSessionStateUnit(
-  client: SemiontClient,
+  session: SemiontSession,
 ): SessionStateUnit {
+  const { client } = session;
   const isLoggingOut$ = new BehaviorSubject<boolean>(false);
 
   const logout = async (): Promise<void> => {

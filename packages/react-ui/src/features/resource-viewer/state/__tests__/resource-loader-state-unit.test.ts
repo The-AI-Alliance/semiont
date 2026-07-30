@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
+import { asStates } from '../../../../__tests__/test-client';
+import { sessionOf } from '../../../../__tests__/test-client';
 import { BehaviorSubject, Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { resourceId as makeResourceId } from '@semiont/core';
@@ -13,7 +15,7 @@ function mockClient(resource$?: BehaviorSubject<unknown>): SemiontClient {
   const invalidate = vi.fn();
   return {
     browse: {
-      resource: () => subject.asObservable(),
+      resource: () => asStates(subject.asObservable()),
       invalidateResourceDetail: invalidate,
     },
   } as unknown as SemiontClient;
@@ -42,16 +44,18 @@ function failingClient() {
     client,
     invalidate,
     /** Fail the most recent attempt the way B15 does. */
-    failLatest: (message: string) => attempts[attempts.length - 1]!.error(new Error(message)),
+    failLatest: (message: string) =>
+      attempts[attempts.length - 1]!.next({ status: 'failed', error: new Error(message) }),
     /** Resolve the most recent attempt with a value. */
-    resolveLatest: (value: unknown) => attempts[attempts.length - 1]!.next(value),
+    resolveLatest: (value: unknown) =>
+      attempts[attempts.length - 1]!.next({ status: 'ready', value }),
     attemptCount: () => attempts.length,
   };
 }
 
 describe('createResourceLoaderStateUnit', () => {
   it('exposes resource from browse namespace', async () => {
-    const stateUnit = createResourceLoaderStateUnit(mockClient(), RID);
+    const stateUnit = createResourceLoaderStateUnit(sessionOf(mockClient()), RID);
     const resource = await firstValueFrom(stateUnit.resource$.pipe(filter((r) => r !== undefined)));
     expect((resource as { name: string }).name).toBe('Test');
     stateUnit.dispose();
@@ -59,7 +63,7 @@ describe('createResourceLoaderStateUnit', () => {
 
   it('reports loading when resource is undefined', async () => {
     const subject = new BehaviorSubject<unknown>(undefined);
-    const stateUnit = createResourceLoaderStateUnit(mockClient(subject), RID);
+    const stateUnit = createResourceLoaderStateUnit(sessionOf(mockClient(subject)), RID);
     expect(await firstValueFrom(stateUnit.isLoading$)).toBe(true);
 
     subject.next({ '@id': 'res-1' });
@@ -69,7 +73,7 @@ describe('createResourceLoaderStateUnit', () => {
 
   it('invalidate calls browse.invalidateResourceDetail', () => {
     const client = mockClient();
-    const stateUnit = createResourceLoaderStateUnit(client, RID);
+    const stateUnit = createResourceLoaderStateUnit(sessionOf(client), RID);
     stateUnit.invalidate();
     expect(client.browse.invalidateResourceDetail).toHaveBeenCalledWith(RID);
     stateUnit.dispose();
@@ -85,7 +89,7 @@ describe('createResourceLoaderStateUnit — terminal failure (B15)', () => {
 
   it('surfaces a terminal failure on error$ instead of leaving it undelivered', async () => {
     const h = failingClient();
-    const stateUnit = createResourceLoaderStateUnit(h.client, RID);
+    const stateUnit = createResourceLoaderStateUnit(sessionOf(h.client), RID);
     const seen: Array<Error | null> = [];
     stateUnit.error$.subscribe((e) => seen.push(e));
 
@@ -99,7 +103,7 @@ describe('createResourceLoaderStateUnit — terminal failure (B15)', () => {
 
   it('stops reporting loading once the request has terminally failed', async () => {
     const h = failingClient();
-    const stateUnit = createResourceLoaderStateUnit(h.client, RID);
+    const stateUnit = createResourceLoaderStateUnit(sessionOf(h.client), RID);
     const loading: boolean[] = [];
     stateUnit.isLoading$.subscribe((l) => loading.push(l));
 
@@ -114,7 +118,7 @@ describe('createResourceLoaderStateUnit — terminal failure (B15)', () => {
 
   it('an error notification does not tear the unit down — invalidate starts a fresh attempt that can succeed', async () => {
     const h = failingClient();
-    const stateUnit = createResourceLoaderStateUnit(h.client, RID);
+    const stateUnit = createResourceLoaderStateUnit(sessionOf(h.client), RID);
     h.failLatest('Resource not found');
     expect(await firstValueFrom(stateUnit.error$)).not.toBeNull();
 
@@ -134,7 +138,7 @@ describe('createResourceLoaderStateUnit — terminal failure (B15)', () => {
 
   it('a value arriving after a failure clears the error', async () => {
     const h = failingClient();
-    const stateUnit = createResourceLoaderStateUnit(h.client, RID);
+    const stateUnit = createResourceLoaderStateUnit(sessionOf(h.client), RID);
     h.failLatest('transient');
     stateUnit.invalidate();
     h.resolveLatest({ '@id': 'res-1', name: 'Test' });
@@ -149,7 +153,7 @@ describe('ResourceLoaderStateUnit — StateUnit axioms', () => {
     // Owns resource$/error$ and a live subscription to client.browse, so
     // dispose completes them and detaches; invalidate is inert afterwards.
     assertStateUnitAxioms({
-      setup: () => createResourceLoaderStateUnit(mockClient(), RID),
+      setup: () => createResourceLoaderStateUnit(sessionOf(mockClient()), RID),
       invocations: (u) => [() => u.invalidate()],
     });
   });

@@ -3,7 +3,7 @@ import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
 import { trackList, type ListState } from '../../../state/list-state';
-import type { SemiontClient } from '@semiont/sdk';
+import type { SemiontSession } from '@semiont/sdk';
 
 export interface EntityTagsStateUnit extends StateUnit {
   browse: ShellStateUnit;
@@ -16,9 +16,10 @@ export interface EntityTagsStateUnit extends StateUnit {
 }
 
 export function createEntityTagsStateUnit(
-  client: SemiontClient,
+  session: SemiontSession,
   browse: ShellStateUnit,
 ): EntityTagsStateUnit {
+  const { client } = session;
   const disposer = createDisposer();
   // `browse` (ShellStateUnit) is a *passed-in* dependency owned by the caller
   // (`useShellStateUnit`), not this unit — do NOT add it to the disposer (it's the

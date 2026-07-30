@@ -2,7 +2,7 @@ import { BehaviorSubject, type Observable } from 'rxjs';
 import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
-import type { SemiontClient } from '@semiont/sdk';
+import type { SemiontSession } from '@semiont/sdk';
 
 export interface AdminSecurityStateUnit extends StateUnit {
   browse: ShellStateUnit;
@@ -12,9 +12,10 @@ export interface AdminSecurityStateUnit extends StateUnit {
 }
 
 export function createAdminSecurityStateUnit(
-  client: SemiontClient,
+  session: SemiontSession,
   browse: ShellStateUnit,
 ): AdminSecurityStateUnit {
+  const { client } = session;
   const disposer = createDisposer();
   // `browse` (ShellStateUnit) is a *passed-in* dependency owned by the caller
   // (`useShellStateUnit`), not this unit — do NOT add it to the disposer (it's the

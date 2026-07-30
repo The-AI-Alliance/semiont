@@ -7,11 +7,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Subject, firstValueFrom } from 'rxjs';
+import { BehaviorSubject, Subject, firstValueFrom } from 'rxjs';
 import { take, toArray } from 'rxjs/operators';
 import { createSmelterActorStateUnit } from '../smelter-actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing';
 import type { WorkerBus } from '@semiont/sdk';
+import type { ConnectionState } from '@semiont/core';
 
 function fakeBus() {
   const channels = new Set<string>();
@@ -31,6 +32,9 @@ function fakeBus() {
       cs.forEach((c) => channels.add(c));
     }),
     on$: vi.fn((channel: string) => getStream(channel).asObservable()),
+    // In-process fixture: replies are pushed synchronously onto the streams
+    // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
+    state$: new BehaviorSubject<ConnectionState>('open'),
     // Required by the WorkerBus shape; the smelter state unit is a silent
     // sink (SMELTER-AXIOMS.md, D3) and never calls it.
     emit: vi.fn(async () => {}),

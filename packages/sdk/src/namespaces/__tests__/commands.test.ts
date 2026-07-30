@@ -7,7 +7,7 @@ import { GatherNamespace } from '../gather';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
 import { JobNamespace } from '../job';
-import type { ITransport, IContentTransport, GatheredContext } from '@semiont/core';
+import type { ConnectionState, ITransport, IContentTransport, GatheredContext } from '@semiont/core';
 
 const RID = resourceId('res-1');
 const AID = annotationId('ann-1');
@@ -60,7 +60,7 @@ function createMockTransport(
     importKnowledgeBase: vi.fn(),
     healthCheck: vi.fn(),
     getStatus: vi.fn(),
-    state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
+    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     dispose: vi.fn(),
   } as unknown as ITransport;
 
@@ -851,7 +851,7 @@ function makeDeferredEmitTransport(emitPromise: Promise<unknown>): { transport: 
     importKnowledgeBase: vi.fn(),
     healthCheck: vi.fn(),
     getStatus: vi.fn(),
-    state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
+    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     dispose: vi.fn(),
   } as unknown as ITransport;
   return { transport, emitSpy, bus };

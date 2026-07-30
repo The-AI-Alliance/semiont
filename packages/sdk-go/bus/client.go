@@ -6,7 +6,8 @@ package bus
 //
 // Wire shape, as the backend implements it (apps/backend/src/routes/bus.ts):
 //   POST /bus/emit          {channel, payload, scope?}
-//   GET  /bus/subscribe     ?channel=…&scoped=…&scope=…  (SSE, bearer)
+//   POST /bus/subscribe     {global: [...], scoped: [{scope, channels, lastEventId?}, ...]}
+//     (SSE response, bearer; MULTI-RESOURCE-SCOPE — the GET query form is gone)
 //     every frame is `event: bus-event` with `data: {channel, payload, scope?}`
 //     — the SSE event name is NOT the channel; the channel is inside the data.
 //     `event: ping` frames are keep-alives and carry nothing.
@@ -18,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -119,22 +119,37 @@ func (s *Subscription) Err() error { return <-s.errBox }
 // on that to establish the stream before emitting, so a reply cannot land
 // before anyone is listening.
 func (c *Client) Subscribe(ctx context.Context, channels, scoped []Channel, scope string) (*Subscription, error) {
-	q := url.Values{}
-	for _, ch := range channels {
-		q.Add("channel", string(ch))
-	}
-	for _, ch := range scoped {
-		q.Add("scoped", string(ch))
-	}
-	if scope != "" {
-		q.Set("scope", scope)
-	}
 	if len(channels) == 0 && len(scoped) == 0 {
 		return nil, fmt.Errorf("subscribe: at least one channel or scoped channel is required")
 	}
+	if len(scoped) > 0 && scope == "" {
+		return nil, fmt.Errorf("subscribe: scoped channels require a scope")
+	}
+
+	// POST subscription matrix (MULTI-RESOURCE-SCOPE). This client's signature
+	// is a single-scope convenience — it produces a one-entry matrix over a
+	// wire that composes N scopes.
+	type scopedEntry struct {
+		Scope    string   `json:"scope"`
+		Channels []string `json:"channels"`
+	}
+	body := struct {
+		Global []string      `json:"global"`
+		Scoped []scopedEntry `json:"scoped"`
+	}{Global: make([]string, 0, len(channels)), Scoped: []scopedEntry{}}
+	for _, ch := range channels {
+		body.Global = append(body.Global, string(ch))
+	}
+	if len(scoped) > 0 {
+		entry := scopedEntry{Scope: scope, Channels: make([]string, 0, len(scoped))}
+		for _, ch := range scoped {
+			entry.Channels = append(entry.Channels, string(ch))
+		}
+		body.Scoped = append(body.Scoped, entry)
+	}
 
 	sctx, cancel := context.WithCancel(ctx)
-	resp, err := c.request(sctx, http.MethodGet, "/bus/subscribe?"+q.Encode(), nil)
+	resp, err := c.request(sctx, http.MethodPost, "/bus/subscribe", body)
 	if err != nil {
 		cancel()
 		return nil, err

@@ -17,13 +17,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type { EventMap, components } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { calculateChecksum } from '@semiont/content';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
-import type { BusRequestPrimitive } from '@semiont/core';
+import type { BusRequestPrimitive, ConnectionState } from '@semiont/core';
 import { Smelter } from '../smelter';
 import type { SmelterEvent } from '../smelter-actor-state-unit';
 import {
@@ -507,6 +507,9 @@ describe('Smelter.reconcile', () => {
       stream<K extends keyof EventMap>(): Observable<EventMap[K]> {
         return new Subject<EventMap[K]>();
       },
+      // 'open' so the attach gate lets the emit proceed — this fixture's
+      // failure mode is the emit itself throwing, not a detached stream.
+      state$: new BehaviorSubject<ConnectionState>('open'),
     };
     const smelter = new Smelter(
       new Subject<SmelterEvent>(),

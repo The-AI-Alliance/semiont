@@ -2,6 +2,7 @@ import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxj
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
 import { SemiontError } from './errors';
 import type { EventMap, EventName } from './bus-protocol';
+import type { ConnectionState } from './transport';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 
 /**
@@ -42,6 +43,26 @@ export class BusRequestError extends SemiontError {
 export interface BusRequestPrimitive {
   emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<void>;
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
+  /**
+   * Connection state of the stream that carries replies. Required, not
+   * optional (.plans/BUS-ATTACH-GATE.md D2): `busRequest` gates its emit on
+   * this — no correlated emit before the reply path exists. Implementers back
+   * it with a `BehaviorSubject`, so the current state arrives synchronously
+   * on subscribe; a transport that cannot lose replies (in-process) reports
+   * `'open'` until disposal.
+   */
+  state$: Observable<ConnectionState>;
+  /**
+   * Correlated-reply retention, client side (.plans/BUS-RESUMPTION.md
+   * Phase 2 / SDK-DEBT S1). `busRequest` registers its correlationId here
+   * BEFORE emitting and calls the returned disposer on every settle path;
+   * a wire transport includes the currently-tracked ids as
+   * `pendingReplies` in each subscribe body, so a reply published while
+   * the connection was down is replayed from the server's retention
+   * buffer on reconnect. OPTIONAL: an in-process transport that cannot
+   * lose replies omits the surface and `busRequest` behaves as before.
+   */
+  trackReply?(correlationId: string): () => void;
 }
 
 /**
@@ -124,6 +145,71 @@ export async function busRequest<Op extends BusOperationKey>(
   // (which can happen with an in-process LocalTransport bus).
   const resultPromise = firstValueFrom(result$);
 
+  // ── Attach gate (.plans/BUS-ATTACH-GATE.md) ─────────────────────────────
+  // No correlated emit before the reply path exists: the measured failure was
+  // an emit accepted (202) and answered while the session's subscribe stream
+  // had not attached — the reply was published to nobody. Wait, inside the
+  // SAME deadline (the timeout operator above is already ticking — D4), for
+  // the transport to report the one deliverable state. D3 (amended
+  // 2026-07-29): only `'open'` delivers; `'degraded'` is a dropped stream by
+  // definition and waits like `connecting`/`reconnecting`. `'closed'` fails
+  // fast — a request against a closed bus should not burn a timeout.
+  const closedBeforeEmit = () => {
+    // Detach the reply promise before throwing, same discipline as the emit
+    // rejection path below: nobody will await it, and it must not surface
+    // later as an unhandled rejection.
+    resultPromise.catch(() => {});
+    return new BusRequestError(`Bus closed before emit on ${operation}`, 'bus.closed', {
+      channel: operation,
+      correlationId,
+    });
+  };
+
+  // Synchronous fast path: `state$` is BehaviorSubject-backed (see the
+  // interface contract), so the current state lands during subscribe. Already
+  // `'open'` → fall straight through to the emit with zero added microtasks —
+  // the gate can only remove latency, never add it (D4).
+  let currentState: ConnectionState | undefined;
+  bus.state$.subscribe((s) => {
+    currentState = s;
+  }).unsubscribe();
+
+  if (currentState === 'closed') {
+    throw closedBeforeEmit();
+  }
+  let emitAllowed = currentState === 'open';
+  if (!emitAllowed) {
+    const gate = firstValueFrom(
+      bus.state$.pipe(
+        filter((s) => s === 'open' || s === 'closed'),
+        take(1),
+        // `state$` completed without ever attaching: treat as closed.
+        defaultIfEmpty('closed' as ConnectionState),
+      ),
+    );
+    const outcome = await Promise.race([
+      gate,
+      // Either settlement of the reply machinery means "stop waiting, never
+      // emit": its timeout rejecting `bus.timeout` at `timeoutMs` (the same
+      // moment it would fire today — D4), or its streams completing into the
+      // `bus.closed` default above. The shared tail below carries it.
+      resultPromise.then(
+        () => 'settled' as const,
+        () => 'settled' as const,
+      ),
+    ]);
+    if (outcome === 'closed') {
+      // The abandoned race arm cannot reject (filter + defaultIfEmpty), so
+      // only the reply promise needs detaching — closedBeforeEmit does it.
+      throw closedBeforeEmit();
+    }
+    // 'open' → the one emit below. 'settled' → skip the emit; awaiting the
+    // reply at the tail rethrows its outcome. (D5 holds structurally either
+    // way: nothing subscribes to state$ past this point, so a flap after
+    // emission cannot re-emit.)
+    emitAllowed = outcome === 'open';
+  }
+
   // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller — but the
   // caller then never awaits `resultPromise`, which is already subscribed and
   // will REJECT with `bus.timeout` at `timeoutMs` (the request never left, so
@@ -132,16 +218,34 @@ export async function busRequest<Op extends BusOperationKey>(
   // only the disposed-bus case, where the stream completes and the promise
   // *resolves* `bus.closed`.) Found by the liveness harness's reject-emit
   // schedules (.plans/LIVENESS-AXIOMS.md, P1).
-  try {
-    await bus.emit(operation as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
-  } catch (emitError) {
-    resultPromise.catch(() => {});
-    throw emitError;
+  //
+  // Reply tracking (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1): register the
+  // cid BEFORE the emit — a reconnect body built while the emit is in flight
+  // must already carry it in `pendingReplies`, or a reply published in the
+  // old-connection-death → new-connection-open gap sits in the server's
+  // retention buffer unasked-for. Released on every settle path; the
+  // never-emitted paths above (closed fast-fail, 'settled' race arm) never
+  // reach this line, so they never track.
+  let releaseTracking: (() => void) | undefined;
+  if (emitAllowed) {
+    releaseTracking = bus.trackReply?.(correlationId);
+    try {
+      await bus.emit(operation as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
+    } catch (emitError) {
+      releaseTracking?.();
+      releaseTracking = undefined;
+      resultPromise.catch(() => {});
+      throw emitError;
+    }
   }
 
-  const result = await resultPromise;
-  if (!result.ok) {
-    throw result.error;
+  try {
+    const result = await resultPromise;
+    if (!result.ok) {
+      throw result.error;
+    }
+    return result.response;
+  } finally {
+    releaseTracking?.();
   }
-  return result.response;
 }

@@ -15,9 +15,10 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { SemiontError } from '../errors';
 import type { EventMap } from '../bus-protocol';
+import type { ConnectionState } from '../transport';
 
 import {
   busRequest,
@@ -30,16 +31,27 @@ interface MockBus extends BusRequestPrimitive {
   emitPayload: Record<string, unknown> | null;
   resultSubject: Subject<unknown>;
   failureSubject: Subject<unknown>;
+  stateSubject: BehaviorSubject<ConnectionState>;
 }
 
-function makeBus(resultChannel: string, failureChannel: string): MockBus {
+// `initialState` defaults to 'open' so the pre-gate tests above keep their
+// exact emit timing: an already-deliverable state takes the synchronous fast
+// path (BUS-ATTACH-GATE.md D4) and the gate is invisible.
+function makeBus(
+  resultChannel: string,
+  failureChannel: string,
+  initialState: ConnectionState = 'open',
+): MockBus {
   const resultSubject = new Subject<unknown>();
   const failureSubject = new Subject<unknown>();
+  const stateSubject = new BehaviorSubject<ConnectionState>(initialState);
   const bus: MockBus = {
     emitChannel: null,
     emitPayload: null,
     resultSubject,
     failureSubject,
+    stateSubject,
+    state$: stateSubject.asObservable(),
     emit: vi.fn(async (channel: keyof EventMap, payload: EventMap[keyof EventMap]) => {
       bus.emitChannel = channel as string;
       bus.emitPayload = payload as Record<string, unknown>;
@@ -290,6 +302,153 @@ describe('busRequest', () => {
   });
 });
 
+describe('busRequest attach gate (.plans/BUS-ATTACH-GATE.md)', () => {
+  // No correlated emit before the reply path exists: busRequest waits — inside
+  // its existing timeout budget (D4) — for `state$` to report the one
+  // deliverable state, `'open'` (D3 as amended 2026-07-29: `degraded` is a
+  // dropped stream by definition and waits like the rest).
+  const EMIT = 'gather:resource-requested';
+  const RESULT = 'gather:resource-complete';
+  const FAILURE = 'gather:resource-failed';
+
+  it('does not emit while connecting; flip to open → exactly one emit, and the reply resolves', async () => {
+    const bus = makeBus(RESULT, FAILURE, 'connecting');
+    const promise = busRequest(bus, EMIT, { foo: 'bar' });
+
+    // Give a premature emit every chance to surface.
+    await new Promise((r) => setTimeout(r, 10));
+    expect(bus.emit).not.toHaveBeenCalled();
+
+    bus.stateSubject.next('open');
+    await vi.waitFor(() => expect(bus.emit).toHaveBeenCalledTimes(1));
+
+    const cid = bus.emitPayload!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, response: { value: 7 } });
+    expect(await promise).toEqual({ value: 7 });
+  });
+
+  it('degraded waits (D3 as amended) — recovery via connecting → open releases the gate', async () => {
+    const bus = makeBus(RESULT, FAILURE, 'degraded');
+    const promise = busRequest(bus, EMIT, {});
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(bus.emit).not.toHaveBeenCalled();
+
+    // The legitimate recovery edge (actor transition table): degraded →
+    // connecting → open. Only the final hop opens the gate.
+    bus.stateSubject.next('connecting');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(bus.emit).not.toHaveBeenCalled();
+
+    bus.stateSubject.next('open');
+    await vi.waitFor(() => expect(bus.emit).toHaveBeenCalledTimes(1));
+
+    const cid = bus.emitPayload!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, response: { value: 8 } });
+    expect(await promise).toEqual({ value: 8 });
+  });
+
+  it('closed rejects bus.closed without emitting and without burning the timeout', async () => {
+    // Same no-unhandled-rejection discipline as the dispose tests above: the
+    // internal result promise is detached on the closed fast-fail and must
+    // not surface later.
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const bus = makeBus(RESULT, FAILURE, 'closed');
+      const started = Date.now();
+      // 30s budget: if the gate "waited out" the timeout instead of failing
+      // fast, this test would blow vitest's own deadline, and the elapsed
+      // check pins the intent explicitly.
+      await expect(busRequest(bus, EMIT, {}, 30_000)).rejects.toMatchObject({
+        code: 'bus.closed',
+      });
+      expect(Date.now() - started).toBeLessThan(1_000);
+      expect(bus.emit).not.toHaveBeenCalled();
+
+      await new Promise((r) => setTimeout(r, 10));
+      expect(unhandled).toHaveLength(0);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
+  it('flips to closed while waiting → rejects bus.closed without emitting or burning the timeout', async () => {
+    // The race-arm closed path: stop()/dispose() lands MID-WAIT, after the
+    // synchronous sample saw a non-deliverable, non-closed state.
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const bus = makeBus(RESULT, FAILURE, 'connecting');
+      const started = Date.now();
+      const promise = busRequest(bus, EMIT, {}, 30_000);
+
+      await new Promise((r) => setTimeout(r, 10));
+      bus.stateSubject.next('closed');
+
+      await expect(promise).rejects.toMatchObject({ code: 'bus.closed' });
+      expect(Date.now() - started).toBeLessThan(1_000);
+      expect(bus.emit).not.toHaveBeenCalled();
+
+      await new Promise((r) => setTimeout(r, 10));
+      expect(unhandled).toHaveLength(0);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
+  it('state$ completing while waiting is treated as closed (defaultIfEmpty)', async () => {
+    // A transport torn down so hard its state stream just ends: no 'closed'
+    // event, no reply-stream completion — only state$ completing. The gate
+    // must not hang on a vanished state machine.
+    const bus = makeBus(RESULT, FAILURE, 'connecting');
+    const promise = busRequest(bus, EMIT, {}, 30_000);
+
+    await new Promise((r) => setTimeout(r, 10));
+    bus.stateSubject.complete();
+
+    await expect(promise).rejects.toMatchObject({ code: 'bus.closed' });
+    expect(bus.emit).not.toHaveBeenCalled();
+  });
+
+  it('one deadline from the call (D4): a primitive that never attaches rejects bus.timeout at timeoutMs, emit never called', async () => {
+    const bus = makeBus(RESULT, FAILURE, 'connecting');
+    const started = Date.now();
+
+    await expect(busRequest(bus, EMIT, {}, 80)).rejects.toMatchObject({
+      code: 'bus.timeout',
+    });
+
+    // At timeoutMs — not timeoutMs + a separate gate wait. A serial
+    // gate-then-timeout implementation would never reject at all here
+    // (the gate has no deadline of its own to fire).
+    expect(Date.now() - started).toBeLessThan(1_500);
+    expect(bus.emit).not.toHaveBeenCalled();
+  });
+
+  it('a state flap after emission does not re-emit (D5)', async () => {
+    const bus = makeBus(RESULT, FAILURE, 'open');
+    const promise = busRequest(bus, EMIT, {});
+
+    await vi.waitFor(() => expect(bus.emit).toHaveBeenCalledTimes(1));
+
+    // Flap: the swap window the actor transition table names.
+    bus.stateSubject.next('reconnecting');
+    bus.stateSubject.next('connecting');
+    bus.stateSubject.next('open');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(bus.emit).toHaveBeenCalledTimes(1);
+
+    const cid = bus.emitPayload!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, response: { value: 9 } });
+    expect(await promise).toEqual({ value: 9 });
+  });
+});
+
 describe('BusRequestError', () => {
   it('is a SemiontError with the structured code on `code`', () => {
     const err = new BusRequestError('boom', 'bus.timeout', { foo: 'bar' });
@@ -304,5 +463,120 @@ describe('BusRequestError', () => {
   it('details is optional', () => {
     const err = new BusRequestError('x', 'bus.rejected');
     expect(err.details).toBeUndefined();
+  });
+});
+
+// ── BUS-RESUMPTION.md Phase 2 (SDK-DEBT S1): reply tracking ───────────────
+
+describe('busRequest reply tracking (correlated-reply retention, client side)', () => {
+  const EMIT = 'gather:resource-requested';
+  const RESULT = 'gather:resource-complete';
+  const FAILURE = 'gather:resource-failed';
+
+  function makeTrackingBus(initialState: ConnectionState = 'open') {
+    const bus = makeBus(RESULT, FAILURE, initialState);
+    const order: string[] = [];
+    const tracked: string[] = [];
+    const released: string[] = [];
+    const originalEmit = bus.emit;
+    bus.emit = vi.fn(async (channel, payload) => {
+      order.push('emit');
+      return originalEmit(channel, payload);
+    }) as BusRequestPrimitive['emit'];
+    const trackingBus = Object.assign(bus, {
+      trackReply: vi.fn((cid: string) => {
+        order.push('track');
+        tracked.push(cid);
+        return () => {
+          released.push(cid);
+        };
+      }),
+    });
+    return { bus: trackingBus, order, tracked, released };
+  }
+
+  it('tracks the cid BEFORE the emit and releases on the success reply', async () => {
+    const { bus, order, tracked, released } = makeTrackingBus();
+    const promise = busRequest(bus, EMIT, {});
+    await Promise.resolve();
+
+    const cid = bus.emitPayload!.correlationId as string;
+    // Track-before-emit is load-bearing: a reconnect body built during the
+    // emit's in-flight window must already carry the cid (see the plan).
+    expect(order).toEqual(['track', 'emit']);
+    expect(tracked).toEqual([cid]);
+    expect(released).toEqual([]);
+
+    bus.resultSubject.next({ correlationId: cid, response: { value: 1 } });
+    await promise;
+    expect(released).toEqual([cid]);
+  });
+
+  it('releases on a failure reply', async () => {
+    const { bus, tracked, released } = makeTrackingBus();
+    const promise = busRequest(bus, EMIT, {});
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+
+    bus.failureSubject.next({ correlationId: cid, message: 'nope' });
+    await expect(promise).rejects.toMatchObject({ code: 'bus.rejected' });
+    expect(tracked).toEqual([cid]);
+    expect(released).toEqual([cid]);
+  });
+
+  it('releases on timeout', async () => {
+    const { bus, released } = makeTrackingBus();
+    const promise = busRequest(bus, EMIT, {}, 20);
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+
+    await expect(promise).rejects.toMatchObject({ code: 'bus.timeout' });
+    expect(released).toEqual([cid]);
+  });
+
+  it('releases when the bus closes before a reply (streams complete)', async () => {
+    const { bus, released } = makeTrackingBus();
+    const promise = busRequest(bus, EMIT, {});
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+
+    bus.resultSubject.complete();
+    bus.failureSubject.complete();
+    await expect(promise).rejects.toMatchObject({ code: 'bus.closed' });
+    expect(released).toEqual([cid]);
+  });
+
+  it('releases on emit rejection', async () => {
+    const { bus, released, tracked } = makeTrackingBus();
+    bus.emit = vi.fn(async () => {
+      throw new Error('emit refused');
+    }) as BusRequestPrimitive['emit'];
+
+    await expect(busRequest(bus, EMIT, {})).rejects.toThrow('emit refused');
+    expect(tracked).toHaveLength(1);
+    expect(released).toEqual(tracked);
+  });
+
+  it('never tracks when the bus is closed before emit (gate fast-fail)', async () => {
+    const { bus, tracked } = makeTrackingBus('closed');
+    await expect(busRequest(bus, EMIT, {})).rejects.toMatchObject({ code: 'bus.closed' });
+    expect(tracked).toEqual([]);
+  });
+
+  it("never tracks when the reply machinery settles before the gate opens (the 'settled' race arm)", async () => {
+    const { bus, tracked } = makeTrackingBus('connecting');
+    // Never opens: the reply timeout settles first, the emit is skipped.
+    await expect(busRequest(bus, EMIT, {}, 20)).rejects.toMatchObject({ code: 'bus.timeout' });
+    expect(bus.emit).not.toHaveBeenCalled();
+    expect(tracked).toEqual([]);
+  });
+
+  it('a primitive without trackReply behaves exactly as today', async () => {
+    const bus = makeBus(RESULT, FAILURE);
+    const promise = busRequest(bus, EMIT, {});
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, response: { ok: 1 } });
+    expect(await promise).toEqual({ ok: 1 });
   });
 });

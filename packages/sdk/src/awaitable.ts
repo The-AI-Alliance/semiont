@@ -29,6 +29,7 @@
 import { Observable, EmptyError, firstValueFrom, lastValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { ResourceId } from '@semiont/core';
+import type { CacheState } from './cache';
 
 /**
  * Bounded Observable stream — emits zero-or-more progress values, then a
@@ -99,26 +100,41 @@ export class StreamObservable<T> extends Observable<T> implements PromiseLike<T>
  * `Observable<T | undefined>` shape leaks through `.subscribe` and
  * `.pipe` in the natural way.
  */
-export class CacheObservable<T> extends Observable<T | undefined> implements PromiseLike<T> {
+export class CacheObservable<T> extends Observable<CacheState<T>> {
   /**
-   * Optional one-shot fresh-fetch action. When present, `then()` (the await
-   * path) resolves to a freshly fetched value and rejects on fetch failure —
-   * so a re-read reflects writes (#847). `.subscribe(...)` never uses it: it
-   * keeps the stale-while-revalidate cached view over `source`.
+   * Optional one-shot fresh-fetch action backing `.fresh()`. When present,
+   * `fresh()` resolves to a freshly fetched value and rejects on fetch
+   * failure — so a re-read reflects writes (#847). `.subscribe(...)` never
+   * uses it: it keeps the stale-while-revalidate cached view over `source`.
    */
   private fetchFresh?: () => Promise<T>;
 
-  then<R1 = T, R2 = never>(
-    onfulfilled?: ((v: T) => R1 | PromiseLike<R1>) | null,
-    onrejected?: ((e: unknown) => R2 | PromiseLike<R2>) | null,
-  ): PromiseLike<R1 | R2> {
+  /**
+   * Explicit one-shot read (CACHE-CONTRACT D2, settled 2026-07-29): a FRESH
+   * network fetch that updates the store (subscribers see it too), resolves
+   * with the value, and REJECTS on failure — the caller owns retry policy
+   * (B14 boundary 1). This replaces the deleted `PromiseLike` surface:
+   * `await client.browse.x(...)` no longer compiles, so a refactor that
+   * wraps a call site in `async` can never again silently convert a cache
+   * read into a network round trip.
+   */
+  fresh(): Promise<T> {
     if (this.fetchFresh) {
-      // One-shot read: fetch fresh (rejects on failure), don't serve the memo.
-      return this.fetchFresh().then(onfulfilled, onrejected);
+      return this.fetchFresh();
     }
-    // Non-cache wrapper: resolve to the first non-undefined emission.
-    return firstValueFrom(this.pipe(filter((v): v is T => v !== undefined)))
-      .then(onfulfilled, onrejected);
+    // Non-cache wrapper: settle on the first SETTLED state — ready resolves,
+    // failed rejects (a pending-only stream keeps waiting; L2's budget lives
+    // in the underlying request machinery, not here).
+    return firstValueFrom(
+      this.pipe(
+        filter(
+          (s): s is Exclude<CacheState<T>, { status: 'pending' }> => s.status !== 'pending',
+        ),
+      ),
+    ).then((s) => {
+      if (s.status === 'failed') throw s.error;
+      return s.value;
+    });
   }
 
   /**
@@ -138,7 +154,7 @@ export class CacheObservable<T> extends Observable<T | undefined> implements Pro
    *
    * Backed by a `WeakMap`, so wrappers are GC'd when their source is.
    */
-  static from<T>(source: Observable<T | undefined>, fetchFresh?: () => Promise<T>): CacheObservable<T> {
+  static from<T>(source: Observable<CacheState<T>>, fetchFresh?: () => Promise<T>): CacheObservable<T> {
     let wrapper = wrapperCache.get(source) as CacheObservable<T> | undefined;
     if (!wrapper) {
       wrapper = new CacheObservable<T>((subscriber) => source.subscribe(subscriber));

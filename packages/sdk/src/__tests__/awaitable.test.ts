@@ -18,6 +18,7 @@ import { describe, expect, it } from 'vitest';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { resourceId as toResourceId } from '@semiont/core';
+import type { CacheState } from '../cache';
 import { CacheObservable, StreamObservable, UploadObservable } from '../awaitable';
 
 describe('StreamObservable', () => {
@@ -87,64 +88,64 @@ describe('StreamObservable', () => {
 });
 
 describe('CacheObservable', () => {
-  it('await skips initial undefined and resolves to the first defined value', async () => {
+  it('fresh() (no fetch action) skips initial undefined and resolves to the first defined value', async () => {
     const cache = new CacheObservable<string>((subscriber) => {
-      subscriber.next(undefined);
-      subscriber.next(undefined);
-      subscriber.next('loaded');
+      subscriber.next({ status: 'pending' });
+      subscriber.next({ status: 'pending' });
+      subscriber.next({ status: 'ready', value: 'loaded' });
     });
-    const result = await cache;
+    const result = await cache.fresh();
     expect(result).toBe('loaded');
   });
 
-  it('await resolves immediately when the value is already present', async () => {
+  it('fresh() (no fetch action) resolves immediately when the value is already present', async () => {
     const cache = new CacheObservable<number>((subscriber) => {
-      subscriber.next(42);
+      subscriber.next({ status: 'ready', value: 42 });
     });
-    expect(await cache).toBe(42);
+    expect(await cache.fresh()).toBe(42);
   });
 
-  it('await rejects when the source errors before producing a value', async () => {
+  it('fresh() (no fetch action) rejects when the source errors before producing a value', async () => {
     const cache = new CacheObservable<string>((subscriber) => {
       subscriber.error(new Error('fetch failed'));
     });
-    await expect(cache).rejects.toThrow('fetch failed');
+    await expect(cache.fresh()).rejects.toThrow('fetch failed');
   });
 
-  it('subscribe yields every emission including the loading undefined', async () => {
-    const seen: Array<string | undefined> = [];
+  it('subscribe yields every emission including the pending state', async () => {
+    const seen: Array<string> = [];
     const cache = new CacheObservable<string>((subscriber) => {
-      subscriber.next(undefined);
-      subscriber.next('value');
+      subscriber.next({ status: 'pending' });
+      subscriber.next({ status: 'ready', value: 'value' });
       subscriber.complete();
     });
     await new Promise<void>((resolve) => {
       cache.subscribe({
-        next: (v) => seen.push(v),
+        next: (st) => seen.push(st.status === 'ready' ? `ready:${st.value}` : st.status),
         complete: () => resolve(),
       });
     });
-    expect(seen).toEqual([undefined, 'value']);
+    expect(seen).toEqual(['pending', 'ready:value']);
   });
 
   it('pipe returns a plain Observable (no longer thenable)', () => {
     const cache = new CacheObservable<number>((subscriber) => {
-      subscriber.next(1);
+      subscriber.next({ status: 'ready', value: 1 });
     });
-    const piped = cache.pipe(map((v) => v ?? 0));
+    const piped = cache.pipe(map((s) => (s.status === 'ready' ? s.value : 0)));
     expect(piped).toBeInstanceOf(Observable);
     expect(piped).not.toBeInstanceOf(CacheObservable);
     expect((piped as unknown as { then?: unknown }).then).toBeUndefined();
   });
 
-  it('CacheObservable.from wraps an existing Observable<T | undefined>', async () => {
-    const source = new Observable<string | undefined>((subscriber) => {
-      subscriber.next(undefined);
-      subscriber.next('hello');
+  it('CacheObservable.from wraps an existing Observable<CacheState<T>>', async () => {
+    const source = new Observable<CacheState<string>>((subscriber) => {
+      subscriber.next({ status: 'pending' });
+      subscriber.next({ status: 'ready', value: 'hello' });
     });
     const wrapped = CacheObservable.from(source);
     expect(wrapped).toBeInstanceOf(CacheObservable);
-    expect(await wrapped).toBe('hello');
+    expect(await wrapped.fresh()).toBe('hello');
   });
 });
 

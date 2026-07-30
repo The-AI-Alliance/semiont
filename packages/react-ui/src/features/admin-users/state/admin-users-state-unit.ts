@@ -3,7 +3,7 @@ import { userDID } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
-import type { SemiontClient } from '@semiont/sdk';
+import type { SemiontSession } from '@semiont/sdk';
 
 export interface AdminUsersStateUnit extends StateUnit {
   browse: ShellStateUnit;
@@ -15,9 +15,10 @@ export interface AdminUsersStateUnit extends StateUnit {
 }
 
 export function createAdminUsersStateUnit(
-  client: SemiontClient,
+  session: SemiontSession,
   browse: ShellStateUnit,
 ): AdminUsersStateUnit {
+  const { client } = session;
   const disposer = createDisposer();
   // `browse` (ShellStateUnit) is a *passed-in* dependency owned by the caller
   // (`useShellStateUnit`), not this unit — do NOT add it to the disposer (it's the

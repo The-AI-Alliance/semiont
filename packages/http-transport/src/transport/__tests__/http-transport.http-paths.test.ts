@@ -25,13 +25,18 @@ vi.mock('ky', () => ({
 }));
 
 // Mock the local actor-state-unit so subscribeToResource ref-counting can be
-// asserted via spies without spinning up a real SSE connection.
+// asserted via spies without spinning up a real SSE connection. `pushEvent`
+// injects a wire event into the CURRENT actor's on$() fan-out (the bridge
+// single-delivery test drives it).
 const actorHarness = {
   addChannels: vi.fn(),
   removeChannels: vi.fn(),
   start: vi.fn(),
   stop: vi.fn(),
   dispose: vi.fn(),
+  pushEvent: (channel: string, payload: Record<string, unknown>): void => {
+    throw new Error(`no actor constructed yet (pushing ${channel} ${JSON.stringify(payload)})`);
+  },
 };
 
 vi.mock('../actor-state-unit', async (importOriginal) => {
@@ -42,6 +47,7 @@ vi.mock('../actor-state-unit', async (importOriginal) => {
     ...actual,
     createActorStateUnit: () => {
       const events$ = new Subject<{ channel: string; payload: Record<string, unknown> }>();
+      actorHarness.pushEvent = (channel, payload) => events$.next({ channel, payload });
       return {
         on$: <T,>(channel: string) =>
           events$.pipe(filter((e) => e.channel === channel), map((e) => e.payload as T)),
@@ -543,10 +549,62 @@ describe('HttpTransport — HTTP wire shape', () => {
       expect(actorHarness.removeChannels.mock.calls.length - removeBefore).toBe(1);
     });
 
-    test('different-resource re-entry throws', () => {
-      transport.subscribeToResource(testResourceId);
+    // ── MULTI-RESOURCE-SCOPE Step 6: distinct resources COMPOSE ──────────
+
+    test('different-resource subscriptions compose — no throw, independent per-scope lifecycles', () => {
       const otherResourceId = resourceId('other-resource');
-      expect(() => transport.subscribeToResource(otherResourceId)).toThrow(/already subscribed to resource/);
+      const addBefore = actorHarness.addChannels.mock.calls.length;
+      const removeBefore = actorHarness.removeChannels.mock.calls.length;
+
+      const releaseA = transport.subscribeToResource(testResourceId);
+      const releaseB = transport.subscribeToResource(otherResourceId);
+      expect(actorHarness.addChannels.mock.calls.length - addBefore).toBe(2);
+      expect(actorHarness.addChannels).toHaveBeenCalledWith(expect.any(Array), testResourceId as unknown as string);
+      expect(actorHarness.addChannels).toHaveBeenCalledWith(expect.any(Array), otherResourceId as unknown as string);
+
+      // Releasing A drops ONLY A's scope; B stays subscribed.
+      releaseA();
+      expect(actorHarness.removeChannels.mock.calls.length - removeBefore).toBe(1);
+      expect(actorHarness.removeChannels).toHaveBeenCalledWith(expect.any(Array), testResourceId as unknown as string);
+
+      releaseB();
+      expect(actorHarness.removeChannels.mock.calls.length - removeBefore).toBe(2);
+      expect(actorHarness.removeChannels).toHaveBeenCalledWith(expect.any(Array), otherResourceId as unknown as string);
+    });
+
+    test('per-scope ref-counting stays independent across resources', () => {
+      const otherResourceId = resourceId('other-resource');
+      const addBefore = actorHarness.addChannels.mock.calls.length;
+      const removeBefore = actorHarness.removeChannels.mock.calls.length;
+
+      const a1 = transport.subscribeToResource(testResourceId);
+      const a2 = transport.subscribeToResource(testResourceId); // ref-counted, no extra add
+      const b1 = transport.subscribeToResource(otherResourceId);
+      expect(actorHarness.addChannels.mock.calls.length - addBefore).toBe(2);
+
+      a1();
+      expect(actorHarness.removeChannels.mock.calls.length - removeBefore).toBe(0);
+      b1(); // B's LAST release — drops B even while A is still held
+      expect(actorHarness.removeChannels.mock.calls.length - removeBefore).toBe(1);
+      a2();
+      expect(actorHarness.removeChannels.mock.calls.length - removeBefore).toBe(2);
+    });
+
+    test('one scoped SSE event reaches a bridged bus exactly ONCE with several scopes subscribed (singleton fan-in)', async () => {
+      const { EventBus } = await import('@semiont/core');
+      const bus = new EventBus();
+      transport.bridgeInto(bus);
+
+      transport.subscribeToResource(testResourceId);
+      transport.subscribeToResource(resourceId('other-resource'));
+
+      const received: unknown[] = [];
+      bus.get('mark:added').subscribe((p) => received.push(p));
+
+      actorHarness.pushEvent('mark:added', { resourceId: 'test-resource-id' });
+      expect(received).toHaveLength(1);
+
+      bus.destroy();
     });
   });
 

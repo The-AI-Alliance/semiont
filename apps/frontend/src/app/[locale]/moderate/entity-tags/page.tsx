@@ -8,7 +8,7 @@ import {
   useLineNumbers,
   useEventSubscriptions,
   useSemiont,
-  useStateUnit,
+  useSessionStateUnit,
   EntityTagsPage,
 } from '@semiont/react-ui';
 import { createEntityTagsStateUnit } from '@semiont/react-ui';
@@ -17,20 +17,20 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 export default function EntityTagsPageWrapper() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`ModerateEntityTags.${k}`, p as any) as string;
-  const client = useObservable(useSemiont().activeSession$)?.client;
+  const session = useObservable(useSemiont().activeSession$) ?? undefined;
 
   const browseStateUnit = useShellStateUnit();
-  const stateUnit = useStateUnit(() => createEntityTagsStateUnit(client!, browseStateUnit));
+  const stateUnit = useSessionStateUnit(session, (s) => createEntityTagsStateUnit(s, browseStateUnit));
 
-  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
-  const entityTypes = useObservable(stateUnit.entityTypes.value$) ?? [];
-  const isLoading = useObservable(stateUnit.entityTypes.loading$) ?? true;
+  const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
+  const entityTypes = useObservable(stateUnit?.entityTypes.value$) ?? [];
+  const isLoading = useObservable(stateUnit?.entityTypes.loading$) ?? true;
   // A terminally failed load is not still loading. Distinct from `error`
   // below, which is the ADD-tag error. See .plans/PANEL-FAILURE-STATES.md
-  const loadError = useObservable(stateUnit.entityTypes.error$) ?? null;
-  const newTag = useObservable(stateUnit.newTag$) ?? '';
-  const error = useObservable(stateUnit.error$) ?? '';
-  const isAddingTag = useObservable(stateUnit.isAdding$) ?? false;
+  const loadError = useObservable(stateUnit?.entityTypes.error$) ?? null;
+  const newTag = useObservable(stateUnit?.newTag$) ?? '';
+  const error = useObservable(stateUnit?.error$) ?? '';
+  const isAddingTag = useObservable(stateUnit?.isAdding$) ?? false;
 
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
@@ -44,7 +44,7 @@ export default function EntityTagsPageWrapper() {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-20">
         <p className="text-gray-600 dark:text-gray-300">{t('loadFailed')}</p>
-        <button type="button" onClick={stateUnit.entityTypes.retry} className="semiont-button" data-variant="secondary">
+        <button type="button" onClick={stateUnit?.entityTypes.retry} className="semiont-button" data-variant="secondary">
           {t('retry')}
         </button>
       </div>
@@ -59,14 +59,16 @@ export default function EntityTagsPageWrapper() {
     );
   }
 
+  if (!stateUnit) return null;
+
   return (
     <EntityTagsPage
       entityTypes={entityTypes}
       isLoading={isLoading}
       error={error}
       newTag={newTag}
-      onNewTagChange={stateUnit.setNewTag}
-      onAddTag={stateUnit.addTag}
+      onNewTagChange={stateUnit?.setNewTag}
+      onAddTag={stateUnit?.addTag}
       isAddingTag={isAddingTag}
       theme={theme}
       showLineNumbers={showLineNumbers}

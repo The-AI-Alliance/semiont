@@ -8,9 +8,10 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Subject, firstValueFrom, skip, take } from 'rxjs';
+import { BehaviorSubject, Subject, firstValueFrom, skip, take } from 'rxjs';
 import { createJobClaimAdapter } from '../job-claim-adapter';
 import type { WorkerBus } from '@semiont/sdk';
+import type { ConnectionState } from '@semiont/core';
 
 function fakeBus() {
   const channels = new Set<string>();
@@ -31,6 +32,9 @@ function fakeBus() {
       cs.forEach((c) => channels.add(c));
     }),
     on$: vi.fn((channel: string) => getStream(channel).asObservable()),
+    // In-process fixture: replies are pushed synchronously onto the streams
+    // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
+    state$: new BehaviorSubject<ConnectionState>('open'),
     emit: vi.fn(async (channel: string, payload: Record<string, unknown>) => {
       emits.push({ channel, payload });
     }),

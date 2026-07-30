@@ -19,51 +19,70 @@ import type { CachePersister } from './cache';
 import type { SessionStorage } from './session/session-storage';
 
 /**
- * B17 — couple the resumption bookmark to the cache flush.
+ * B17 — couple the resumption bookmarks to the cache flush.
  *
- * The persisted `Last-Event-ID` audits the persisted cache documents: on
- * reload the client resumes replay from it, so any event at-or-before it
- * whose effect is NOT in the persisted caches would be silently skipped.
- * Writing the id immediately per event created exactly that hazard (a
- * crash inside the refetch + save-debounce window persisted a bookmark
- * ahead of the caches). Instead: `saveLastEventId` only STASHES the id;
- * the wrapped storage writes it through — document first, id second — on
- * the next cache-document write. The persisted id may therefore LAG the
- * caches (harmless: replay re-invalidates idempotently) but can never
- * lead them. A crash between the two writes leaves the id lagging — the
- * safe direction. Cross-resource cases need no coupling at all: a
- * scope-mismatched resume already yields `bus:resume-gap` → blanket
- * invalidation.
+ * The persisted watermarks audit the persisted cache documents: on reload
+ * the client resumes each scope's replay from its watermark, so any event
+ * at-or-before it whose effect is NOT in the persisted caches would be
+ * silently skipped. Writing ids immediately per event created exactly
+ * that hazard (a crash inside the refetch + save-debounce window
+ * persisted a bookmark ahead of the caches). Instead: `saveLastEventId`
+ * only STASHES the id under its scope; the wrapped storage writes the
+ * whole record through — document first, ids second — on the next
+ * cache-document write. The persisted ids may therefore LAG the caches
+ * (harmless: replay re-invalidates idempotently) but can never lead them.
+ * A crash between the two writes leaves the ids lagging — the safe
+ * direction.
+ *
+ * MULTI-RESOURCE-SCOPE: watermarks are PER SCOPE (`Record<scope, p-*
+ * id>`, JSON under `lastEventIdKey`). A pre-multi-scope single-id
+ * bookmark fails the JSON parse and reads as "nothing stored" — safe:
+ * rehydrated caches reconcile via B18's refetch-on-rehydrate instead of
+ * replay.
  */
 export function coupledLastEventId(
   storage: SessionStorage,
   lastEventIdKey: string,
 ): {
-  /** Hand THIS to `cachePersistence` — its writes carry the bookmark forward. */
+  /** Hand THIS to `cachePersistence` — its writes carry the bookmarks forward. */
   storage: SessionStorage;
-  saveLastEventId: (id: string) => void;
-  loadLastEventId: () => string | null;
+  saveLastEventId: (scope: string, id: string) => void;
+  loadLastEventIds: () => Record<string, string> | null;
   /**
    * B17-Q (C1) — quiescence-gate the flush. Write-ordering alone couples
    * write MOMENTS, not content: doc B's save could flush a bookmark whose
    * event doc A had not yet absorbed (mid-refetch or mid-debounce) — the
    * measured spec-14 bug. With a gate (wired by the session factory to
    * `browse.persistenceSettled()`), a cache-document write carries the
-   * pending id through only when every persisted cache is quiet; otherwise
-   * the id stays pending — lagging, the safe direction — and rides the next
+   * pending ids through only when every persisted cache is quiet; otherwise
+   * the ids stay pending — lagging, the safe direction — and ride the next
    * quiet write.
    */
   setFlushGate: (gate: () => boolean) => void;
 } {
-  let pending: string | null = null;
+  const pending = new Map<string, string>();
   let flushGate: (() => boolean) | null = null;
+  const readStored = (): Record<string, string> => {
+    const raw = storage.get(lastEventIdKey);
+    if (!raw) return {};
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+      return Object.fromEntries(
+        Object.entries(parsed as Record<string, unknown>).filter(([, v]) => typeof v === 'string'),
+      ) as Record<string, string>;
+    } catch {
+      return {};
+    }
+  };
   const coupled: SessionStorage = {
     get: (k) => storage.get(k),
     set: (k, v) => {
       storage.set(k, v);
-      if (pending !== null && (flushGate === null || flushGate())) {
-        storage.set(lastEventIdKey, pending);
-        pending = null;
+      if (pending.size > 0 && (flushGate === null || flushGate())) {
+        const merged = { ...readStored(), ...Object.fromEntries(pending) };
+        storage.set(lastEventIdKey, JSON.stringify(merged));
+        pending.clear();
       }
     },
     delete: (k) => storage.delete(k),
@@ -71,8 +90,11 @@ export function coupledLastEventId(
   };
   return {
     storage: coupled,
-    saveLastEventId: (id) => { pending = id; },
-    loadLastEventId: () => storage.get(lastEventIdKey),
+    saveLastEventId: (scope, id) => { pending.set(scope, id); },
+    loadLastEventIds: () => {
+      const stored = readStored();
+      return Object.keys(stored).length > 0 ? stored : null;
+    },
     setFlushGate: (gate) => { flushGate = gate; },
   };
 }
