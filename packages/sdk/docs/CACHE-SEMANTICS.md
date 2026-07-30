@@ -285,7 +285,7 @@ Boundaries:
    late success may still write (last-write-wins, same as B9).
 
 Liveness: B14's one-retry budget is pinned by liveness axioms **L1/L2**
-(`assertLivenessAxioms` from `@semiont/core/testing`) — L2's settlement bound on the swallowed
+(`assertLivenessAxioms` from `@semiont/core/testing/axioms`) — L2's settlement bound on the swallowed
 paths is `timeoutMs × (1 + this retry)`, enforced against the real
 `BrowseNamespace` + cache + `busRequest` composition by the property
 suite ([browse-liveness.property.test.ts](../src/__tests__/browse-liveness.property.test.ts)).

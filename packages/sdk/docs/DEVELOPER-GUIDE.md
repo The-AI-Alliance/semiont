@@ -559,6 +559,23 @@ For state-unit factories — which take a `SemiontSession` — `createTestSessio
 returns a real session over the same transport (`{ session, client, transport,
 storage, token$ }`).
 
+**Asserting what you sent.** `transport.requestLog` is the arrival-ordered record
+of every request the wire saw — including the payload, so you never need a
+hand-rolled per-channel listener to check an envelope:
+
+```ts
+await orchestrator.run();   // your code, driving the real client
+
+const created = transport.requestLog.filter((e) => e.channel === 'mark:create-request');
+expect(created).toHaveLength(1);
+expect(created[0]!.payload).toMatchObject({ resourceId, request: { motivation: 'linking' } });
+```
+
+Entries carry `{ channel, action, correlationId, retryKey, payload }`: `action` is
+what the fault schedule did to that emit (so a dropped or rejected request is still
+logged — the ATTEMPT is visible), and `retryKey` is stable across re-issues of the
+same logical request, which is how you assert retry budgets.
+
 **The anti-pattern this replaces:** hand-mocked transports encode the author's model
 of the contract, not the contract. Twice in one week (2026-07) a wrong belief shipped
 inside green mock-subject tests, and PR #1113 later found ~20 fixtures whose `state$`

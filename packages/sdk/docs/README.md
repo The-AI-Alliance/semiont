@@ -46,7 +46,9 @@ from day one.
 REACTIVE-MODEL and STATE-UNITS first (the design constraints your change must
 fit), CACHE-SEMANTICS before touching anything the cache backs, and the
 protocol docs before touching anything on the wire. The axiom/liveness
-harnesses in `@semiont/core/testing` are the executable half of these docs.
+harnesses in `@semiont/core/testing/axioms` are the executable half of these docs
+(the test doubles themselves live at `@semiont/core/testing`, free of any
+`fast-check` requirement).
 
 ## The five ideas everything else hangs off
 
