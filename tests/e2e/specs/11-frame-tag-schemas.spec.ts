@@ -142,7 +142,10 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       // The schema must appear in browse.tagSchemas(). The cache
       // backing this method invalidates on `frame:tag-schema-added`,
       // so the await will refetch.
-      const schemas = await client.browse.tagSchemas();
+      // CACHE-CONTRACT D2: cache reads are no longer awaitable — `.fresh()` is
+      // the explicit one-shot network read (rejects on failure). Awaiting the
+      // CacheObservable itself silently yields the observable, not the value.
+      const schemas = await client.browse.tagSchemas().fresh();
       const found = schemas.find((s) => s.id === E2E_TAG_SCHEMA.id);
       expect(
         found,
@@ -163,7 +166,7 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       //
       // Find any seeded resource — we just need a valid resourceId for
       // the call shape.
-      const resources = await client.browse.resources({ limit: 50 });
+      const resources = await client.browse.resources({ limit: 50 }).fresh();
       expect(resources.length, 'seeded KB must have ≥1 resource').toBeGreaterThan(0);
       const target = resources.find((r) => r.name === 'Quantum Computing Primer') ?? resources[0]!;
       const targetId = ridBrand(target['@id']);
@@ -193,7 +196,7 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       // Walk the resource's annotations and pick out the ones this
       // run created — `motivation: 'tagging'` with a classifying body
       // identifying our schema.
-      const annotations = await client.browse.annotations(targetId);
+      const annotations = await client.browse.annotations(targetId).fresh();
       const ours = annotations.filter((a) => {
         if (a.motivation !== 'tagging') return false;
         const bodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];

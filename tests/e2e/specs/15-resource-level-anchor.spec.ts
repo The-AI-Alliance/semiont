@@ -71,12 +71,13 @@ test.describe('resource-level anchor', () => {
 
       // Served by browse.annotations(A) — poll for SSE/cache delivery.
       await expect
-        .poll(async () => (await client.browse.annotations(a)).some((x) => x.id === annotationId), {
+        // CACHE-CONTRACT D2: `.fresh()` is the explicit one-shot read.
+        .poll(async () => (await client.browse.annotations(a).fresh()).some((x) => x.id === annotationId), {
           timeout: 30_000,
         })
         .toBe(true);
 
-      const created = (await client.browse.annotations(a)).find((x) => x.id === annotationId);
+      const created = (await client.browse.annotations(a).fresh()).find((x) => x.id === annotationId);
       expect(created, 'annotation served by browse.annotations').toBeTruthy();
 
       // Source-only: target points at A with NO selector.

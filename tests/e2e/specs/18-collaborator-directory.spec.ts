@@ -79,7 +79,8 @@ test.describe('collaborator directory (browse.agents)', () => {
       // ── 1. Freshness gate: the channel must exist on the running stack ──
       let entries: CollaboratorEntry[];
       try {
-        entries = await client.browse.agents();
+        // CACHE-CONTRACT D2: `.fresh()` is the explicit one-shot read.
+        entries = await client.browse.agents().fresh();
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         throw new Error(
@@ -162,12 +163,12 @@ test.describe('collaborator directory (browse.agents)', () => {
       await expect
         .poll(
           async () =>
-            (await client.browse.annotations(rid)).some((a) => a.generator !== undefined),
+            (await client.browse.annotations(rid).fresh()).some((a) => a.generator !== undefined),
           { timeout: 30_000 },
         )
         .toBe(true);
 
-      const generated = (await client.browse.annotations(rid)).filter((a) => a.generator !== undefined);
+      const generated = (await client.browse.annotations(rid).fresh()).filter((a) => a.generator !== undefined);
       expect(generated.length, 'assist pass produced ≥1 generator-stamped annotation').toBeGreaterThan(0);
 
       for (const ann of generated) {

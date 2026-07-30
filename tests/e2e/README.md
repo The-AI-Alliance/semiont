@@ -22,8 +22,14 @@ container run --rm \
   -e E2E_BACKEND_URL=http://<backend-ip>:4000 \
   -e CI=1 \
   mcr.microsoft.com/playwright:v1.61.0-noble \
-  npx playwright test
+  npm test
 ```
+
+> Use `npm test`, not `npx playwright test`: the `pretest` hook typechecks
+> the specs first (`tsc --noEmit`) and aborts before launching a browser.
+> `tests/e2e` is not a root workspace, so this gate is the ONLY thing that
+> typechecks these files — bypassing it means an SDK signature change
+> surfaces as a runtime `TypeError` minutes in, instead of a file:line.
 
 > If every test fails in the `signIn` fixture with *"Request failed due
 > to a network error"*, the Playwright container can't reach the
@@ -63,7 +69,7 @@ container run --rm \
   -e E2E_BACKEND_URL=http://192.168.64.1:4000 \
   -e CI=1 \
   mcr.microsoft.com/playwright:v1.61.0-noble \
-  npx playwright test
+  npm test
 ```
 
 ## Docs

@@ -774,8 +774,12 @@ container run --rm \
   -e E2E_BACKEND_URL=http://<backend-ip>:4000 \
   -e CI=1 \
   mcr.microsoft.com/playwright:v1.59.1-noble \
-  npx playwright test
+  npm test
 ```
+
+Use `npm test` rather than `npx playwright test`: `pretest` runs
+`tsc --noEmit` over the specs and aborts before any browser starts.
+`tests/e2e` is not a root workspace, so nothing else typechecks it.
 
 Run from the host (with Node + Playwright installed):
 
@@ -792,9 +796,12 @@ npm run test:ui         # Playwright runner UI
 Run a single spec or a single test by title:
 
 ```sh
-npx playwright test specs/02-open-resource.spec.ts
-npx playwright test -g 'opens the first resource'
+npm test -- specs/02-open-resource.spec.ts
+npm test -- -g 'opens the first resource'
 ```
+
+(`npm test -- <args>` keeps the typecheck gate; bare `npx playwright test`
+skips it.)
 
 `--repeat-each 5` is the default flake check — a deterministic test passes 5/5; a race fails a fraction of the time. Reach for it before claiming a flake is fixed.
 

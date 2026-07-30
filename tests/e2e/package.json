@@ -4,6 +4,8 @@
   "private": true,
   "description": "End-to-end smoke tests. Runs against a locally-running backend and frontend; see README.md.",
   "scripts": {
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run typecheck",
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
