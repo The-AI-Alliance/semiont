@@ -26,6 +26,13 @@ Three rules carry most of the contract (all landed 2026-07-29):
 Ergonomics: `isReady` / `readyValue` from `@semiont/sdk` unwrap states in
 pipes and handlers.
 
+This is the **three-outcome contract** — the name source comments and
+tests use for it: a live query has exactly these three observable
+outcomes, all visible in the type (a two-state consumer does not
+compile), none of them terminal for the stream — and the would-be
+fourth outcome, `pending` forever, is a liveness violation the property
+suites test for.
+
 This document specifies the behavior of the read-through cache in
 `BrowseNamespace` (and the `createCache` primitive in
 `@semiont/sdk`). It is the behavioral contract that implementation must
