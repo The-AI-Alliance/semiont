@@ -8,34 +8,9 @@
 
 You don't run Semiont from this repository. **This repo is the platform source** — it publishes the npm packages and the container images. You run Semiont from a **knowledge-base repo**: a separate, small repository holding your documents, configuration, and startup scripts, whose stack *pulls* the published, attested `ghcr.io/the-ai-alliance/semiont-*` images (KB repos build no images of their own).
 
-Three steps: clone a KB repo → start it → connect.
+Four steps: install → get a knowledge base → start it → connect.
 
-### 1. Clone a knowledge-base repo
-
-Not this repo — one of these:
-
-**Try a demo** — [semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb), public-domain literature from Project Gutenberg:
-
-```bash
-git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
-```
-
-**Start a new project** — birth one in place with the launcher (identity from your git origin, config synthesized and validated live):
-
-```bash
-semiont init --yes --inference anthropic --embedding ollama:nomic-embed-text
-```
-
-…or clone [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb), the empty template:
-
-```bash
-git clone https://github.com/The-AI-Alliance/semiont-template-kb.git
-```
-
-The full catalog — seven demo KBs across different domains, plus community
-knowledge bases — is in **[docs/KNOWLEDGE-BASES.md](docs/KNOWLEDGE-BASES.md)**.
-
-### 2. Start it
+### 1. Install
 
 Three prerequisites — no npm or Node.js among them:
 
@@ -47,7 +22,29 @@ Three prerequisites — no npm or Node.js among them:
 brew install the-ai-alliance/semiont/semiont
 ```
 
-Then `cd` into the KB repo you just cloned — **not this repo** — and run:
+### 2. Get a knowledge base
+
+Not this repo — every command below runs from a KB.
+
+**Try a demo** — [semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb), public-domain literature from Project Gutenberg:
+
+```bash
+git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
+cd semiont-gutenberg-kb
+```
+
+**Or start a new project** — `semiont init` births one in place, stamping its identity from your git origin and synthesizing a config it validates before writing:
+
+```bash
+semiont init --yes --inference anthropic --embedding ollama:nomic-embed-text
+```
+
+The full catalog — seven demo KBs across different domains, plus community
+knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semiont-template-kb) — is in **[docs/KNOWLEDGE-BASES.md](docs/KNOWLEDGE-BASES.md)**.
+
+### 3. Start it
+
+From inside the KB — **not this repo**:
 
 ```bash
 semiont start
@@ -55,7 +52,7 @@ semiont start
 
 One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **and ensures the Semiont browser is running at http://localhost:3000**. `semiont logs` follows the stack and `semiont stop` tears it down — the browser stays up (it's the machine-level viewer of every KB, not a stack member; `semiont stop --service frontend` closes it). `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
 
-### 3. Connect
+### 4. Connect
 
 Create your admin user:
 
