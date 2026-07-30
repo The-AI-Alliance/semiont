@@ -1457,6 +1457,27 @@ type BusEmitRequest struct {
 	Scope *string `json:"scope,omitempty"`
 }
 
+// BusSubscribeRequest Subscription matrix for the bus SSE stream (MULTI-RESOURCE-SCOPE). `global` channels are delivered unscoped; each `scoped` entry subscribes the connection to one resource scope's channels, optionally resuming replay from that scope's last-seen persisted event id. At least one global channel or one scoped entry is required.
+type BusSubscribeRequest struct {
+	// Global Unscoped channels to subscribe to.
+	Global *[]string `json:"global,omitempty"`
+
+	// PendingReplies Correlation ids of busRequest replies this client still awaits (BUS-RESUMPTION Phase 2). The server replays any matching replies from its bounded retention buffer (TTL 60s) as normal frames with their deterministic `e-<channel>:<cid>` ids, so a reply that ALSO arrived live dedups client-side. At most 256 entries.
+	PendingReplies *[]string `json:"pendingReplies,omitempty"`
+
+	// Scoped Per-resource-scope subscriptions. Scopes must be unique across entries.
+	Scoped *[]struct {
+		// Channels Channels to subscribe within this scope.
+		Channels []string `json:"channels"`
+
+		// LastEventId This scope's last-seen persisted event id (`p-<scope>-<seq>`). The server replays this scope's persisted events after it before joining the live tail, and emits a scoped `bus:resume-gap` when it cannot cover the gap (unparseable or mismatched id, retention exceeded, or query error).
+		LastEventId *string `json:"lastEventId,omitempty"`
+
+		// Scope Resource scope (a resourceId).
+		Scope string `json:"scope"`
+	} `json:"scoped,omitempty"`
+}
+
 // CloneResourceWithTokenResponse defines model for CloneResourceWithTokenResponse.
 type CloneResourceWithTokenResponse struct {
 	// ExpiresAt ISO 8601 timestamp when token expires
@@ -3626,21 +3647,6 @@ type PostApiTokensAgentJSONBody struct {
 	Secret string `json:"secret"`
 }
 
-// GetBusSubscribeParams defines parameters for GetBusSubscribe.
-type GetBusSubscribeParams struct {
-	// Channel Unscoped channels to subscribe to. Repeat the parameter for multiple channels. At least one of `channel` or `scoped` is required.
-	Channel *[]string `form:"channel,omitempty" json:"channel,omitempty"`
-
-	// Scoped Resource-scoped channels to subscribe to (requires `scope`). Repeat for multiple.
-	Scoped *[]string `form:"scoped,omitempty" json:"scoped,omitempty"`
-
-	// Scope Resource scope for scoped channels (typically a resourceId).
-	Scope *string `form:"scope,omitempty" json:"scope,omitempty"`
-
-	// LastEventID Id of the last event the client received. On reconnect, the server replays persisted events after this id and emits `bus:resume-gap` if the gap exceeds the replay cap.
-	LastEventID *string `json:"Last-Event-ID,omitempty"`
-}
-
 // PostResourcesMultipartBody defines parameters for PostResources.
 type PostResourcesMultipartBody struct {
 	// EntityTypes JSON-stringified array of entity type names
@@ -3706,6 +3712,9 @@ type PostApiTokensRefreshJSONRequestBody = TokenRefreshRequest
 
 // PostBusEmitJSONRequestBody defines body for PostBusEmit for application/json ContentType.
 type PostBusEmitJSONRequestBody = BusEmitRequest
+
+// PostBusSubscribeJSONRequestBody defines body for PostBusSubscribe for application/json ContentType.
+type PostBusSubscribeJSONRequestBody = BusSubscribeRequest
 
 // PostResourcesMultipartRequestBody defines body for PostResources for multipart/form-data ContentType.
 type PostResourcesMultipartRequestBody PostResourcesMultipartBody
@@ -9413,8 +9422,10 @@ type ClientInterface interface {
 
 	PostBusEmit(ctx context.Context, body PostBusEmitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetBusSubscribe request
-	GetBusSubscribe(ctx context.Context, params *GetBusSubscribeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PostBusSubscribeWithBody request with any body
+	PostBusSubscribeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostBusSubscribe(ctx context.Context, body PostBusSubscribeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostResourcesWithBody request with any body
 	PostResourcesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -9810,8 +9821,20 @@ func (c *Client) PostBusEmit(ctx context.Context, body PostBusEmitJSONRequestBod
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetBusSubscribe(ctx context.Context, params *GetBusSubscribeParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetBusSubscribeRequest(c.Server, params)
+func (c *Client) PostBusSubscribeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostBusSubscribeRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostBusSubscribe(ctx context.Context, body PostBusSubscribeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostBusSubscribeRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -10657,8 +10680,19 @@ func NewPostBusEmitRequestWithBody(server string, contentType string, body io.Re
 	return req, nil
 }
 
-// NewGetBusSubscribeRequest generates requests for GetBusSubscribe
-func NewGetBusSubscribeRequest(server string, params *GetBusSubscribeParams) (*http.Request, error) {
+// NewPostBusSubscribeRequest calls the generic PostBusSubscribe builder with application/json body
+func NewPostBusSubscribeRequest(server string, body PostBusSubscribeJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostBusSubscribeRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostBusSubscribeRequestWithBody generates requests for PostBusSubscribe with any type of body
+func NewPostBusSubscribeRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -10676,79 +10710,12 @@ func NewGetBusSubscribeRequest(server string, params *GetBusSubscribeParams) (*h
 		return nil, err
 	}
 
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Channel != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "channel", *params.Channel, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Scoped != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "scoped", *params.Scoped, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Scope != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "scope", *params.Scope, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	req, err := http.NewRequest("POST", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
 
-	if params != nil {
-
-		if params.LastEventID != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Last-Event-ID", *params.LastEventID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("Last-Event-ID", headerParam0)
-		}
-
-	}
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -10981,8 +10948,10 @@ type ClientWithResponsesInterface interface {
 
 	PostBusEmitWithResponse(ctx context.Context, body PostBusEmitJSONRequestBody, reqEditors ...RequestEditorFn) (*PostBusEmitResponse, error)
 
-	// GetBusSubscribeWithResponse request
-	GetBusSubscribeWithResponse(ctx context.Context, params *GetBusSubscribeParams, reqEditors ...RequestEditorFn) (*GetBusSubscribeResponse, error)
+	// PostBusSubscribeWithBodyWithResponse request with any body
+	PostBusSubscribeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostBusSubscribeResponse, error)
+
+	PostBusSubscribeWithResponse(ctx context.Context, body PostBusSubscribeJSONRequestBody, reqEditors ...RequestEditorFn) (*PostBusSubscribeResponse, error)
 
 	// PostResourcesWithBodyWithResponse request with any body
 	PostResourcesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostResourcesResponse, error)
@@ -11565,7 +11534,7 @@ func (r PostBusEmitResponse) StatusCode() int {
 	return 0
 }
 
-type GetBusSubscribeResponse struct {
+type PostBusSubscribeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *ErrorResponse
@@ -11573,7 +11542,7 @@ type GetBusSubscribeResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetBusSubscribeResponse) Status() string {
+func (r PostBusSubscribeResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -11581,7 +11550,7 @@ func (r GetBusSubscribeResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetBusSubscribeResponse) StatusCode() int {
+func (r PostBusSubscribeResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -11939,13 +11908,21 @@ func (c *ClientWithResponses) PostBusEmitWithResponse(ctx context.Context, body 
 	return ParsePostBusEmitResponse(rsp)
 }
 
-// GetBusSubscribeWithResponse request returning *GetBusSubscribeResponse
-func (c *ClientWithResponses) GetBusSubscribeWithResponse(ctx context.Context, params *GetBusSubscribeParams, reqEditors ...RequestEditorFn) (*GetBusSubscribeResponse, error) {
-	rsp, err := c.GetBusSubscribe(ctx, params, reqEditors...)
+// PostBusSubscribeWithBodyWithResponse request with arbitrary body returning *PostBusSubscribeResponse
+func (c *ClientWithResponses) PostBusSubscribeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostBusSubscribeResponse, error) {
+	rsp, err := c.PostBusSubscribeWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetBusSubscribeResponse(rsp)
+	return ParsePostBusSubscribeResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostBusSubscribeWithResponse(ctx context.Context, body PostBusSubscribeJSONRequestBody, reqEditors ...RequestEditorFn) (*PostBusSubscribeResponse, error) {
+	rsp, err := c.PostBusSubscribe(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostBusSubscribeResponse(rsp)
 }
 
 // PostResourcesWithBodyWithResponse request with arbitrary body returning *PostResourcesResponse
@@ -12861,15 +12838,15 @@ func ParsePostBusEmitResponse(rsp *http.Response) (*PostBusEmitResponse, error) 
 	return response, nil
 }
 
-// ParseGetBusSubscribeResponse parses an HTTP response from a GetBusSubscribeWithResponse call
-func ParseGetBusSubscribeResponse(rsp *http.Response) (*GetBusSubscribeResponse, error) {
+// ParsePostBusSubscribeResponse parses an HTTP response from a PostBusSubscribeWithResponse call
+func ParsePostBusSubscribeResponse(rsp *http.Response) (*PostBusSubscribeResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetBusSubscribeResponse{
+	response := &PostBusSubscribeResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
