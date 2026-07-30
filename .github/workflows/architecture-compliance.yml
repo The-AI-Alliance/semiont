@@ -25,6 +25,15 @@ jobs:
       - name: Install dependencies
         run: npm ci --include=optional
 
+      - name: Build packages (doc-snippets gate checks docs against dist)
+        run: npm run build:packages
+
+      - name: Run Doc Snippets Audit
+        run: |
+          echo "::group::Doc Snippets Audit (sdk docs' code fences compile against dist through the exports map)"
+          ./scripts/compliance/audit-doc-snippets.sh
+          echo "::endgroup::"
+
       - name: Run Raw Bus Access Audit
         run: |
           echo "::group::Raw Bus Access Audit (forbid client.emit/.on/.stream outside the SDK)"

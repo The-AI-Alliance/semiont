@@ -123,6 +123,8 @@ promise. Subscribe to it — in React, via react-ui's `useObservable` — and yo
 get a `CacheState`:
 
 ```tsx
+import { useObservable } from '@semiont/react-ui';
+
 const state = useObservable(session.client.browse.resources());
 // state: { status: 'pending' }
 //      | { status: 'ready',  value: ResourceDescriptor[] }
@@ -156,7 +158,7 @@ verbs compose:
 ```ts
 import { SemiontSession } from '@semiont/sdk';
 
-const session = await SemiontSession.signInHttp({ /* endpoint + credentials */ });
+const session = await SemiontSession.signInHttp({ kb, storage, baseUrl, email, password });
 const { client } = session;
 
 // 1. Persist the question as a document in its own right.

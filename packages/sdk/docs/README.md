@@ -23,6 +23,15 @@ Rules of placement:
   it. If a change doesn't fit one home, it's probably two changes.
 - Contract docs (CACHE-SEMANTICS, and the protocol docs below) carry
   **revision logs** — behavior changes append a dated entry.
+- **Code fences are compile-checked.** Every ` ```ts `/` ```tsx `/
+  ` ```typescript ` fence in these docs is extracted and type-checked against
+  the built packages (plus an await-thenable pass) by
+  `scripts/compliance/audit-doc-snippets.sh` — CI fails on snippet rot. Names
+  a snippet doesn't define come from the ambient prelude at
+  [`__snippets__/prelude.ts`](./__snippets__/prelude.ts); extend the prelude
+  rather than adding boilerplate to a snippet. Mark a fence ` ```ts no-check `
+  ONLY for genuine pseudocode or display-only shapes — exemptions are counted
+  and the census should hold flat or shrink.
 - Wire-level truth lives OUTSIDE this package, in
   [`docs/protocol/`](../../../docs/protocol/) —
   [TRANSPORT-CONTRACT.md](../../../docs/protocol/TRANSPORT-CONTRACT.md) (what

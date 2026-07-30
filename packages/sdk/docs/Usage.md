@@ -76,6 +76,7 @@ import { SemiontSession, InMemorySessionStorage, type KnowledgeBase } from '@sem
 const kb: KnowledgeBase = {
   id: 'my-watcher',
   label: 'My Watcher',
+  did: 'did:web:my-watcher.example',
   email: 'me@example.com',
   endpoint: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
 };
@@ -149,7 +150,7 @@ const semiont = new SemiontClient(transport, new HttpContentTransport(transport)
 token$.next(accessToken(newToken));
 ```
 
-`@semiont/sdk` re-exports the brand-cast functions (`accessToken`, `baseUrl`, `resourceId`, `annotationId`, `entityType`) and the common branded types from `@semiont/core` for one-import convenience.
+`@semiont/sdk` re-exports the brand-cast functions (`accessToken`, `baseUrl`, `resourceId`, `annotationId`, `entityType`, `jobId`, `userDID`) and the common branded types from `@semiont/core` for one-import convenience.
 
 ### Public bus access
 
@@ -287,7 +288,7 @@ semiont.yield.fromResource(resourceId, {
 // Clone
 const { token } = await semiont.yield.cloneToken(resourceId);
 const source = await semiont.yield.fromToken(token);
-await semiont.yield.createFromToken({ token, name: 'Clone', /* ... */ });
+await semiont.yield.createFromToken({ token, name: 'Clone', content });
 ```
 
 ## Mark
@@ -394,8 +395,8 @@ await semiont.mark.assist(rId, 'tagging', {
 // Live-read registered schemas (Browse, not Frame). The cache
 // invalidates on `frame:tag-schema-added` so it stays current as new
 // schemas land.
-semiont.browse.tagSchemas().subscribe((schemas) => {
-  console.log('Registered schemas:', schemas.map((s) => s.id));
+semiont.browse.tagSchemas().subscribe((st) => {
+  if (st.status === 'ready') console.log('Registered schemas:', st.value.map((s) => s.id));
 });
 ```
 
@@ -459,9 +460,9 @@ semiont.beckon.attention(resourceId, annotationId);
 Like `admin`, the `auth` namespace lives on `IBackendOperations` and is `undefined` on a `SemiontClient` constructed without a backend. HTTP-context callers narrow with `!`:
 
 ```typescript
-const auth = await semiont.auth!.password('user@example.com', 'password');
-const auth = await semiont.auth!.google(credential);
-const auth = await semiont.auth!.refresh(refreshToken);
+const signedIn = await semiont.auth!.password('user@example.com', 'password');
+const viaGoogle = await semiont.auth!.google(credential);
+const renewed = await semiont.auth!.refresh(refreshToken);
 await semiont.auth!.logout();
 const user = await semiont.auth!.me();
 await semiont.auth!.acceptTerms();
@@ -590,9 +591,9 @@ contract.
 
 Worker-side adapters live with their domain and consume the transport-neutral `WorkerBus` interface that `@semiont/sdk` exports. `createJobClaimAdapter` is in `@semiont/jobs` (internal to its worker process, not exported from the package root); `createSmelterActorStateUnit` is in `@semiont/make-meaning`. `WorkerBus` is a small contract (`on$(channel)`, `emit(channel, payload)`, optional `addChannels(...)`). The HTTP `ActorStateUnit` from `@semiont/http-transport` satisfies it structurally; an in-process worker can wrap an `EventBus` in a small shim. Inside the `@semiont/jobs` worker process, the adapter reaches for the HTTP actor like this:
 
-```typescript
+```typescript no-check
 import type { HttpTransport } from '@semiont/sdk';
-import { createJobClaimAdapter } from './job-claim-adapter';
+import { createJobClaimAdapter } from './job-claim-adapter.js';
 
 // session.client.transport is the bus-shaped ITransport. For HTTP-backed
 // workers, narrow to HttpTransport to access the underlying ActorStateUnit.
@@ -720,12 +721,12 @@ if (error instanceof APIError) {
 ```typescript
 import { HttpTransport, HttpContentTransport } from '@semiont/sdk';
 import { SemiontClient } from '@semiont/sdk';
-import { baseUrl } from '@semiont/core';
+import { baseUrl, type AccessToken } from '@semiont/sdk';
 import { BehaviorSubject } from 'rxjs';
 
 const transport = new HttpTransport({
   baseUrl: baseUrl('http://localhost:4000'),
-  token$: new BehaviorSubject(null),
+  token$: new BehaviorSubject<AccessToken | null>(null),
   logger,    // Logger instance: winston / pino / etc.
 });
 const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);

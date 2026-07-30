@@ -163,7 +163,7 @@ await session.client.mark.assist(resourceId, 'linking', { entityTypes: ['Person'
   .run((ev) => { if (ev.kind === 'progress') log(ev.data.currentEntityType); });
 
 // structured tagging:
-await session.client.mark.assist(resourceId, 'tagging', { schemaId: 'legal-irac', categories: [...] });
+await session.client.mark.assist(resourceId, 'tagging', { schemaId: 'legal-irac', categories: ['issue', 'rule', 'application', 'conclusion'] });
 ```
 
 The resource's **own** classification — the `entityTypes` stamped at creation (§5) — can
@@ -525,7 +525,10 @@ debounced with a flush on dispose, and stored documents are version-gated
 Constructing a client directly (no factory)? Opt in explicitly:
 
 ```ts
-const client = new SemiontClient(transport, content, backend, {
+import { SemiontClient, HttpTransport, HttpContentTransport, baseUrl as brandBaseUrl } from '@semiont/sdk';
+
+const raw = new HttpTransport({ baseUrl: brandBaseUrl('http://localhost:4000'), token$ });
+const client = new SemiontClient(raw, new HttpContentTransport(raw), raw, {
   cachePersistence: { storage, keyPrefix: kbId },
 });
 ```

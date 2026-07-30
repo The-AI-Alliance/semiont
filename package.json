@@ -6,6 +6,7 @@
   "workspaces": [
     "apps/*",
     "packages/*",
+    "packages/sdk/docs/__snippets__",
     "demo"
   ],
   "scripts": {

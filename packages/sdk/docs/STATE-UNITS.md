@@ -37,7 +37,7 @@ interface StateUnit {
 }
 ```
 
-`StateUnit` lives in `@semiont/core` — so every layer (`@semiont/sdk`, `@semiont/http-transport`, `@semiont/react-ui`, …) implements the same interface without a dependency cycle, and the `@semiont/core/testing/axioms` harness can verify any of them. That's the entire structural commitment the type system catches. Implementing this interface is a claim that you're following the pattern; the rest is enforced below the type system — by the axiom suite and CI compliance scripts for the testable subset, and by review for the remainder (see [§ How these rules are enforced](#how-these-rules-are-enforced)). A reader who sees `extends StateUnit` should expect everything below.
+`StateUnit` lives in `@semiont/core` — so every layer (`@semiont/sdk`, `@semiont/http-transport`, `@semiont/react-ui`, …) implements the same interface without a dependency cycle, and the `@semiont/core/testing/axioms` harness can verify any of them. (App consumers import it from `@semiont/sdk`, which re-exports it — same one-import convenience as the branded types.) That's the entire structural commitment the type system catches. Implementing this interface is a claim that you're following the pattern; the rest is enforced below the type system — by the axiom suite and CI compliance scripts for the testable subset, and by review for the remainder (see [§ How these rules are enforced](#how-these-rules-are-enforced)). A reader who sees `extends StateUnit` should expect everything below.
 
 ## Anatomy
 
@@ -67,7 +67,7 @@ export function createFooStateUnit(session: SemiontSession): FooStateUnit {
     loading$.next(true);
     error$.next(null);
     subs.push(
-      client.someFlow.run(input).subscribe({
+      client.mark.assist(input.resourceId, 'linking', {}).subscribe({
         next: (r) => result$.next(r),
         error: (e) => { error$.next(e); loading$.next(false); },
         complete: () => loading$.next(false),
@@ -167,7 +167,7 @@ All state lives in the closure. **No module-scoped mutable state** — no module
 
 Every piece of state a consumer cares about is exposed as `Observable<T>` — not as a getter, not as a snapshot method, not as a callback. Consumers subscribe; they don't poll.
 
-```ts
+```ts no-check
 // ✅
 loading$: Observable<boolean>;
 
