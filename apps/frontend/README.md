@@ -287,7 +287,7 @@ We welcome contributions! Please read:
 - [Backend README](../backend/README.md) - Backend API server
 - [MCP Server README](../../packages/mcp-server/README.md) - AI integration via Model Context Protocol
 - [API Client README](../../packages/http-transport/README.md) - Type-safe TypeScript client
-- [CLI README](../cli/README.md) - Command-line interface
+- [Launcher README](../launcher/README.md) - The host-installed `semiont` command
 
 ### External Resources
 - [Vite Documentation](https://vitejs.dev/)

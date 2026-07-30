@@ -46,13 +46,6 @@ graph BT
     frontend --> sdk
     frontend --> api
     frontend --> obs
-    cli --> meaning
-    cli --> sdk
-    cli --> graph_pkg
-    cli --> event
-    cli --> content
-    cli --> api
-    cli --> core
 
     %% Application logic dependencies
     meaning --> event
@@ -116,7 +109,7 @@ graph BT
     class sdk,event,graph_pkg layer2
     class inference,jobs layer3
     class meaning,react,mcp layer4
-    class backend,frontend,cli layer5
+    class backend,frontend layer5
 ```
 
 Edges in the graph reflect the actual `package.json` `dependencies` field for each workspace package.

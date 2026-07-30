@@ -39,7 +39,8 @@ semiont/
 ├── apps/                       # Application packages
 │   ├── frontend/               # Vite + React frontend SPA
 │   ├── backend/                # Hono backend API server
-│   └── cli/                    # Semiont management CLI
+│   ├── launcher/               # Go `semiont` launcher (brew-installed)
+│   └── desktop/                # Desktop app
 ├── packages/                   # Shared workspace packages (see packages/README.md)
 │   ├── core/                   # OpenAPI types, branded IDs, event protocol
 │   ├── http-transport/             # HTTP transport adapter (HttpTransport, HttpContentTransport)

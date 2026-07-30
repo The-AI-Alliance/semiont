@@ -127,7 +127,7 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Build order:"
       echo "  http-transport, ontology, core, content, event-sourcing, graph, inference,"
-      echo "  jobs, make-meaning, react-ui, backend, frontend, cli"
+      echo "  jobs, make-meaning, react-ui, backend, frontend"
       exit 0
       ;;
     *) fail "Unknown argument: $1" >&2; exit 1 ;;

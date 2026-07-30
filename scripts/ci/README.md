@@ -43,7 +43,7 @@ SEMIONT_VERSION=local semiont start
 echo password | semiont useradd --email admin@example.com --admin
 
 # 3. Iterate — edit code, rebuild only what changed:
-./scripts/ci/local-build.sh --package cli,backend --image backend
+./scripts/ci/local-build.sh --package core,backend --image backend
 # Verdaccio restarts fresh each run; the publish step always publishes all
 # packages, and --image narrows which images are rebuilt.
 
@@ -69,9 +69,9 @@ Package names for `--package`:
 
 | Libraries | Apps |
 |-----------|------|
-| http-transport, ontology, core, content | cli |
-| event-sourcing, graph, inference | backend |
-| jobs, make-meaning, react-ui | frontend |
+| http-transport, ontology, core, content | backend |
+| event-sourcing, graph, inference | frontend |
+| jobs, make-meaning, react-ui | |
 
 The publish step always publishes all packages regardless of `--package`.
 

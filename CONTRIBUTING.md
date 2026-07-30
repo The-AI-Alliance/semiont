@@ -173,7 +173,7 @@ Write clear, descriptive commit messages:
 
 ```bash
 git commit -m "Add GCP deployment support"
-git commit -m "Fix database connection timeout in CLI"
+git commit -m "Fix database connection timeout in backend"
 git commit -m "Clarify authentication flow in API docs"
 ```
 

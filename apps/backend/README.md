@@ -243,7 +243,7 @@ apps/backend/
 ├── src/
 │   ├── __tests__/            # Test suites
 │   ├── auth/                 # Authentication (JWT, OAuth)
-│   ├── cli/                  # Rebuild CLIs (graph, projections, vectors)
+│   ├── cli/                  # Bundled entrypoints: db-url, useradd, rebuild-graph, rebuild-projections
 │   ├── lib/                  # SSE helpers
 │   ├── middleware/           # HTTP middleware (auth, logging, security headers, OpenAPI validation)
 │   ├── routes/               # Modular route definitions (thin EventBus wrappers)

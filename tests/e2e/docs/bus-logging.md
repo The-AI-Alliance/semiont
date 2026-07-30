@@ -60,7 +60,7 @@ window.__SEMIONT_BUS_LOG__ = true;
 
 Clears on refresh.
 
-### Node (backend, worker, smelter, CLI, MCP, tests)
+### Node (backend, worker, smelter, MCP, tests)
 
 Process-env toggle, read once at module load:
 
