@@ -119,9 +119,10 @@ A user is always authenticated against a specific Knowledge Base; there is
 - `activeSignals$` — that session's session-expired / permission-denied signals
 
 Switching KBs swaps `activeSession$` atomically. Each `SemiontSession` owns its
-own `SemiontClient` and the per-KB **bearer token in JS memory** — a 10-minute
-access token re-minted from a 30-day refresh token. Bearer-only: no cookie, no
-ambient credential.
+own `SemiontClient` and the per-KB **bearer token in JS memory** — a short-lived
+access token re-minted from a long-lived refresh token
+([TTLs](../../../docs/system/administration/AUTHENTICATION.md)). Bearer-only: no
+cookie, no ambient credential.
 
 - **Sign in** — `SemiontSession.signInHttp({ … })` exchanges credentials for the
   JWT (returned in the response body) and activates the session.

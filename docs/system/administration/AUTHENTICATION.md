@@ -37,13 +37,13 @@ graph TB
 
     App -->|"1. POST /api/tokens/password<br/>or /api/tokens/google"| TokenGen
     Google -.->|OAuth credential| App
-    TokenGen -->|"2. JWT in body (10-min access + 30-day refresh)"| App
+    TokenGen -->|"2. JWT in body (access + refresh)"| App
     TokenGen --> Users
 
     App -->|"3. Authorization: Bearer <access>"| MW
     MW -->|"validate sig + tokenVersion + load user"| Users
     MW --> API
-    App -->|"4. SDK Session: POST /api/tokens/refresh<br/>(30-day refresh → new 10-min access)"| TokenGen
+    App -->|"4. SDK Session: POST /api/tokens/refresh<br/>(refresh → new access)"| TokenGen
     App -->|"5. POST /api/users/logout → bump tokenVersion (204)"| Users
 ```
 
@@ -66,13 +66,24 @@ graph TB
 | **Agent** | 24 hours | `Authorization: Bearer` | Software-agent identity for background workers (`/api/tokens/agent`). |
 | **Media** | 5 minutes | `?token=` query param | Resource-scoped token for `GET /api/resources/:id` (images, PDFs) where a header can't be set. |
 
+This table is the only place these values are written down; everywhere else says
+"short-lived" and links here. Each one is one `grep` from its mint site — check a
+row against the literal, not against another document:
+
+| Token | Minted at | Literal |
+|---|---|---|
+| Access | [`apps/backend/src/routes/auth.ts:128`](../../../apps/backend/src/routes/auth.ts#L128) | `generateToken(jwtPayload, '10m')` |
+| Refresh | [`apps/backend/src/routes/auth.ts:129`](../../../apps/backend/src/routes/auth.ts#L129) | `generateToken(jwtPayload, '30d')` |
+| Agent | [`apps/backend/src/routes/auth.ts:430`](../../../apps/backend/src/routes/auth.ts#L430) | `}, '24h')` |
+| Media | [`apps/backend/src/auth/jwt.ts:189`](../../../apps/backend/src/auth/jwt.ts#L189) | `expiresIn: '5m'` |
+
 Every JWT carries the user's **`tokenVersion`** at mint time (a required claim — there is no compatibility default). Both access-validation and `/api/tokens/refresh` reject when `payload.tokenVersion !== user.tokenVersion`.
 
 ### Revocation — what logout does
 
 `POST /api/users/logout` increments `User.tokenVersion` and returns **`204`**. That single bump:
 
-- **Kills the 30-day refresh token** — `/refresh` now rejects it, so no new access tokens can be minted.
+- **Kills the refresh token** — `/refresh` now rejects it, so no new access tokens can be minted.
 - **Rejects live access tokens** on their next request — the per-request user load makes the epoch check ~free.
 
 So logout is **immediate and all-devices**. (Per-device logout would need a per-session table; deliberately deferred — the epoch doesn't preclude adding it later.)
@@ -129,7 +140,7 @@ Admin routes require a valid token **plus** `isAdmin: true`, returning `403` oth
 
 1. **Signature** — HMAC-SHA256 against `JWT_SECRET`.
 2. **Payload structure** — runtime Zod validation; `tokenVersion` is a **required** claim (a token minted before the field fails `safeParse` → re-login, the correct revoke-on-rollout posture).
-3. **Expiration** — access tokens are short-lived (10 minutes).
+3. **Expiration** — access tokens are short-lived.
 4. **User + epoch** — the user is loaded from the DB; rejected if absent, not `isActive`, or `payload.tokenVersion !== user.tokenVersion` (revoked).
 5. **Domain** — email domain checked against the allowed list.
 
@@ -201,8 +212,8 @@ Store `JWT_SECRET` and OAuth credentials in secure secret storage (e.g. AWS Secr
 
 ### Token handling
 
-1. **Bearer tokens live in JS memory**, not cookies — the SDK holds them and attaches them explicitly. There is no httpOnly cookie. The XSS trade-off (a 30-day refresh token in JS) is mitigated by **revocability**: logout bumps `tokenVersion` and instantly invalidates it.
-2. **Short access TTL (10 min)** limits the window of a leaked access token; revocation is at the `/refresh` boundary and on every request.
+1. **Bearer tokens live in JS memory**, not cookies — the SDK holds them and attaches them explicitly. There is no httpOnly cookie. The XSS trade-off (a long-lived refresh token in JS) is mitigated by **revocability**: logout bumps `tokenVersion` and instantly invalidates it.
+2. **The short access TTL** limits the window of a leaked access token; revocation is at the `/refresh` boundary and on every request.
 3. **Always use HTTPS in production.**
 4. **Open CORS is intentional and safe here** because no credentials are carried (see [Security](./SECURITY.md)). Never re-introduce credentialed CORS or origin-reflection.
 
@@ -221,7 +232,7 @@ Store `JWT_SECRET` and OAuth credentials in secure secret storage (e.g. AWS Secr
 **"Unauthorized" (401)**
 - Confirm the `Authorization: Bearer <token>` header is present and well-formed.
 - A raw browser navigation to a protected resource is unauthenticated by design — use the SDK or a media `?token=`.
-- The token may be expired (10-minute access TTL) — let the SDK Session refresh, or re-authenticate.
+- The token may be expired — let the SDK Session refresh, or re-authenticate.
 - After a **logout** anywhere, *all* of that user's existing tokens are revoked (the `tokenVersion` epoch advanced) — re-authenticate.
 
 **Refresh fails (session ends)**
@@ -242,5 +253,5 @@ Store `JWT_SECRET` and OAuth credentials in secure secret storage (e.g. AWS Secr
 
 ---
 
-**Authentication**: bearer-only JWT (10-min access + 30-day refresh) with a per-user `tokenVersion` revocation epoch; `?token=` media tokens; open CORS.
+**Authentication**: bearer-only JWT (short-lived access + long-lived refresh) with a per-user `tokenVersion` revocation epoch; `?token=` media tokens; open CORS.
 **Last Updated**: 2026-06-20

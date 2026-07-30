@@ -43,7 +43,7 @@ Authentication is handled through OAuth providers configured in the environment:
 - GitHub OAuth
 - GitLab OAuth
 
-Sessions use bearer JWTs: 10-minute access tokens, 30-day refresh tokens, revocable per-user via a `tokenVersion` epoch (logout revokes all of a user's tokens).
+Sessions use bearer JWTs: short-lived access tokens re-minted from long-lived refresh tokens, revocable per-user via a `tokenVersion` epoch (logout revokes all of a user's tokens). [Authentication](../system/administration/AUTHENTICATION.md) states the TTLs.
 
 ### Development
 

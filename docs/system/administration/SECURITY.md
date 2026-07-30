@@ -13,7 +13,7 @@ Semiont implements **bearer-only** authentication — an `Authorization: Bearer`
 - **Google OAuth**: Secure authentication via Google Identity Platform (production environments)
 - **GitHub OAuth**: Secure authentication via GitHub (production environments)
 - **GitLab OAuth**: Secure authentication via GitLab (production environments)
-- **Bearer JWTs**: 10-minute access tokens, 30-day refresh tokens, with a per-user `tokenVersion` revocation epoch (logout revokes all of a user's tokens)
+- **Bearer JWTs**: short-lived access tokens and long-lived refresh tokens (TTLs in [Authentication](./AUTHENTICATION.md)), with a per-user `tokenVersion` revocation epoch (logout revokes all of a user's tokens)
 
 ### Authorization
 
@@ -111,7 +111,7 @@ export OAUTH_ALLOWED_DOMAINS="example.com,example.org"
 | Error Details | Full stack traces | Generic error messages |
 | Debug Logging | Enabled | Disabled |
 | CORS | Open (`*`, bearer-only) | Open (`*`, bearer-only) |
-| JWT Expiration | 10 min (access), 30 days (refresh) | 10 min (access), 30 days (refresh) |
+| JWT Expiration | Same as production | See [Authentication](./AUTHENTICATION.md) |
 
 ## Security Best Practices for Operators
 
@@ -119,7 +119,7 @@ export OAUTH_ALLOWED_DOMAINS="example.com,example.org"
 
 1. **OAuth Configuration**: Configure OAuth providers with appropriate redirect URIs
 2. **Domain Restrictions**: Set OAUTH_ALLOWED_DOMAINS to restrict user registration by email domain
-3. **Token Expiration**: Access tokens are short-lived (10 min); refresh tokens last 30 days; a logout revokes all of a user's tokens (see [Authentication](./AUTHENTICATION.md))
+3. **Token Expiration**: Access tokens are short-lived and refresh tokens long-lived; a logout revokes all of a user's tokens (TTLs and revocation in [Authentication](./AUTHENTICATION.md))
 4. **API Keys**: Rotate API keys and secrets regularly
 5. **Admin Accounts**: Limit admin role assignments to trusted users
 

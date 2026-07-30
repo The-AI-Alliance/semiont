@@ -169,7 +169,7 @@ Referenced-by lookups are a deterministic single-index query and live on the Bro
 
 **Implementation**: [src/clone-token-manager.ts](../src/clone-token-manager.ts)
 
-Manages the lifecycle of temporary clone tokens for resource cloning. In-memory token store with 15-minute expiry.
+Manages the lifecycle of temporary clone tokens for resource cloning. In-memory token store with a short expiry — the **Implementation** link above is the literal.
 
 | Request Event | Handler | Result Event |
 |--------------|---------|-------------|

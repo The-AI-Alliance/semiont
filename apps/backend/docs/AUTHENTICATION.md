@@ -196,7 +196,7 @@ Backend-specific endpoints beyond the public login routes (`/api/tokens/password
 
 ### `POST /api/tokens/refresh`
 
-Exchange a 30-day refresh token for a new 10-minute access token. This is the path
+Exchange a refresh token for a new access token. This is the path
 the SDK `Session` drives to keep a client signed in without re-prompting.
 
 - **Auth**: Public (the refresh token is supplied in the request body)
@@ -232,7 +232,7 @@ Mint a short-lived, resource-scoped **media token** for header-less fetches
 ### `POST /api/users/logout`
 
 Revoke the caller's sessions. Increments the user's `tokenVersion`, which instantly
-invalidates the 30-day refresh token **and** every live access token on its next
+invalidates the refresh token **and** every live access token on its next
 request — server-side, all devices.
 
 - **Auth**: Requires a valid access token
@@ -240,8 +240,8 @@ request — server-side, all devices.
 
 > **MCP clients.** The previous browser-mediated MCP token-provisioning flow has been
 > **removed**. Today `packages/mcp-server` runs single-backend with a **static**
-> `SEMIONT_ACCESS_TOKEN` (from env) that does **not** refresh — so it stops working at the
-> 10-minute access-token TTL, or when a logout bumps `tokenVersion`. A refreshing
+> `SEMIONT_ACCESS_TOKEN` (from env) that does **not** refresh — so it stops working when
+> the access token expires, or when a logout bumps `tokenVersion`. A refreshing
 > provisioning flow is being rebuilt; this guide will document it once it lands.
 
 ## JWT Token Structure
@@ -252,7 +252,7 @@ differ only in lifetime. Every token carries the user's `tokenVersion` at mint
 time — the middleware rejects it once the stored `tokenVersion` moves ahead (see
 logout, above). Software-agent tokens additionally carry an `agentDid`.
 
-### Access Token (10-minute expiration)
+### Access Token
 
 ```json
 {
@@ -267,7 +267,7 @@ logout, above). Software-agent tokens additionally carry an `agentDid`.
 }
 ```
 
-### Refresh Token (30-day expiration)
+### Refresh Token
 
 Held by the SDK `Session`, which exchanges it for fresh access tokens via
 `POST /api/tokens/refresh`. Same claims as the access token (including
@@ -343,7 +343,7 @@ LOG_LEVEL=debug
 
 **Refresh Token Exchange Fails**:
 
-- Check the refresh token hasn't expired (30 days) or been revoked by a logout (`tokenVersion` bump)
+- Check the refresh token hasn't expired or been revoked by a logout (`tokenVersion` bump)
 - Verify the `POST /api/tokens/refresh` endpoint is accessible
 - Ensure the refresh token is sent as `{ "refreshToken": "…" }` in the body
 

@@ -67,7 +67,7 @@ Located in the "Manage" section below the Archive button:
 ### Workflow
 
 1. **Initiate Clone**: User clicks "Clone" button
-2. **Token Generation**: Backend creates temporary token (15-minute expiry)
+2. **Token Generation**: Backend creates a short-lived token
 3. **Redirect**: User redirected to `/know/create?mode=clone&token=xxx`
 4. **Edit Copy**: Create page loads source document for editing
 5. **Save**: Creates new document with provenance link
@@ -156,7 +156,7 @@ router.push(`/know/create?mode=clone&token=${token}`);
 ## Error Handling
 
 - **Archive**: Shows alert on failure, document state unchanged
-- **Clone Token Expiry**: Returns error if token expired (15 minutes)
+- **Clone Token Expiry**: Returns error if the token expired — see [CloneTokenManager](../../../docs/system/KNOWLEDGE-SYSTEM.md#clonetokenmanager) for the lifetime
 - **Clone Token Invalid**: Returns error if token doesn't exist or belongs to another user
 
 ## Security Considerations
@@ -164,6 +164,6 @@ router.push(`/know/create?mode=clone&token=${token}`);
 1. **Archive**: Only document owner can archive/unarchive
 2. **Clone Tokens**: 
    - Single use (deleted after use)
-   - Time-limited (15 minutes)
+   - Time-limited
    - User-scoped (can't use another user's token)
    - Stored in memory (cleared on server restart)
