@@ -208,6 +208,46 @@ There are **no** `NEXTAUTH_*` variables — the frontend is a pure SPA with no a
 
 Store `JWT_SECRET` and OAuth credentials in secure secret storage (e.g. AWS Secrets Manager); never commit them; use different secrets per environment; rotate regularly. See [Configuration Guide](./CONFIGURATION.md).
 
+Nothing generates the signing key at request time, and the backend **refuses to boot** without one rather than surfacing the problem at first sign-in. Who supplies it depends on where the stack runs:
+
+| Placement | Supplied by | Where it lives |
+|---|---|---|
+| local | `semiont start` | `<state-root>/jwt-secret`, mode `0600`, one per KB root |
+| codespace | `.devcontainer/post-create.sh` | `.devcontainer/.env` inside the codespace |
+
+Both announce which key they used — `Token-signing key: generated and persisted at …` / `reused from …` / `from JWT_SECRET in the environment`. Neither ever prints the key. If tokens start failing, that line tells you whether the key changed.
+
+### Rotating `JWT_SECRET` without signing everyone out
+
+`JWT_SECRET` is an **ordered, comma-separated list**: the first key signs, *every* key verifies. A single value is the one-key case and behaves exactly as before.
+
+Replacing the key outright is what causes an outage: it invalidates every access **and** refresh token at once, and refresh cannot heal it — `/api/tokens/refresh` verifies the presented token with the current key before issuing anything, so every session needs a fresh sign-in. Rotating through the list avoids that entirely.
+
+```bash
+# 1. Mint a new key and put it FIRST, keeping the old one behind it.
+export JWT_SECRET="$(openssl rand -hex 32),$OLD_SECRET"
+semiont start --service backend        # or restart however you deploy
+
+# 2. Nothing breaks. New tokens are signed with the new key; tokens already
+#    issued still verify against the old one, and each re-mints under the new
+#    key at its next refresh.
+
+# 3. Once every outstanding refresh token has had a chance to refresh
+#    (refresh TTL is 30 days), drop the tail:
+export JWT_SECRET="$NEW_SECRET"
+semiont start --service backend
+```
+
+**Retiring the old key early is what breaks sessions** — any refresh token that has not been used since the rotation dies with it. Wait a full refresh TTL, or accept that the stragglers re-authenticate.
+
+Details worth knowing:
+
+- **Each key must be at least 32 characters.** The check is per key, not on the whole string — `<valid>,short` would otherwise pass trivially. `semiont start` refuses such a value up front rather than letting the backend crash-loop.
+- **A comma cannot appear in a key**, so the delimiter is unambiguous: generated keys are hex, and the documented recipe is `openssl rand -hex 32`.
+- **Logout still wins.** Revocation is a `tokenVersion` epoch check that runs independently of the key ring: a token revoked by signing out stays revoked even though its signature verifies against a ring member. A rotation is not an amnesty.
+- **Media tokens** (`?token=`) sign and verify through the same ring, so they rotate with everything else. Their 5-minute TTL makes the grace window academic, but they are not on a separate path.
+- **Two keys is the normal maximum.** The ring exists for a rotation window, not as a key store; trial verification costs one extra HMAC per key on the failing path.
+
 ## Security Best Practices
 
 ### Token handling

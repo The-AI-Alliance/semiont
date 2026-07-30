@@ -113,7 +113,13 @@ Environment:
                         run; --service rejoins the running stack's secret)
   JWT_SECRET            The backend's token-signing key, min 32 chars (default:
                         generated ONCE per KB root and kept, so tokens survive
-                        a restart; changing it invalidates every issued token)
+                        a restart). An ordered, comma-separated LIST rotates
+                        without logging anyone out: the first key signs, every
+                        key still verifies. Set JWT_SECRET=<new>,<old> for the
+                        window, then drop the old one once every token has
+                        refreshed under the new key (refresh TTL: 30 days).
+                        Replacing the key outright still invalidates every
+                        token already issued
 
 Examples:
   # Fully local with Ollama (default, no API key needed)

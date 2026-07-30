@@ -263,6 +263,28 @@ func jwtSecretPath(root string) string {
 // nothing outlives it. Tokens DO outlive the stack. Hence the different rule.
 func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 	if s := os.Getenv("JWT_SECRET"); s != "" {
+		// The backend reads this as an ordered RING: the first value signs,
+		// every value verifies, so `<new>,<old>` keeps outstanding tokens
+		// working across a deliberate rotation (JWT-SECRET-ROTATION.md). The
+		// launcher only carries it — splitting is the backend's business, and
+		// re-joining a parsed ring here could only introduce a difference.
+		//
+		// Validate each MEMBER though. The backend refuses to boot on a short
+		// one, and a whole-string length check happily passes "<valid>,short"
+		// — so the trap is caught here, where the fix-it can be printed,
+		// rather than as a crash-loop inside a container.
+		keys := strings.Split(s, ",")
+		for i, k := range keys {
+			if len(strings.TrimSpace(k)) < 32 {
+				u.fail("JWT_SECRET key %d of %d is %d characters; the backend requires at least 32 and will refuse to start.",
+					i+1, len(keys), len(strings.TrimSpace(k)))
+				fmt.Fprintln(os.Stderr, "  JWT_SECRET is an ordered list: the first key signs, every key verifies.")
+				fmt.Fprintln(os.Stderr, "  Generate one:  openssl rand -hex 32")
+				fmt.Fprintln(os.Stderr, "  Rotate with:   export JWT_SECRET=$(openssl rand -hex 32),$OLD")
+				return "", false
+			}
+		}
+		u.log("Token-signing key: %s", u.dim(jwtProvenance("from JWT_SECRET in the environment", len(keys))))
 		return s, true
 	}
 
@@ -275,6 +297,7 @@ func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 
 	if b, err := os.ReadFile(p); err == nil {
 		if s := strings.TrimSpace(string(b)); s != "" {
+			u.log("Token-signing key: %s", u.dim(jwtProvenance("reused from "+p, len(strings.Split(s, ",")))))
 			return s, true
 		}
 	}
@@ -303,7 +326,22 @@ func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 		u.fail("Writing %s: %v", p, err)
 		return "", false
 	}
+	// Say so loudly. A silently regenerated key invalidates every token already
+	// issued, and the incident that produced this whole plan looked exactly
+	// like an ordinary start — jobs wedged in Yielding, no line anywhere saying
+	// the key had changed underneath them.
+	u.log("Token-signing key: %s", u.dim(jwtProvenance("generated and persisted at "+p, 1)))
 	return secret, true
+}
+
+// jwtProvenance renders one provenance line. The VALUE never appears — this
+// says where the key came from and, when the operator supplied a rotation
+// ring, how many are being honoured. A count is safe; a key is not.
+func jwtProvenance(source string, keys int) string {
+	if keys > 1 {
+		return fmt.Sprintf("%s — %d keys (rotation ring: the first signs, all verify)", source, keys)
+	}
+	return source
 }
 
 // dirSize: total bytes of regular files under path, and whether the path
