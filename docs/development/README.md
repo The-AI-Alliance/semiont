@@ -55,8 +55,7 @@ semiont/
 │   ├── make-meaning/           # Context assembly, detection, reasoning
 │   ├── react-ui/               # React components and hooks
 │   ├── mcp-server/             # Model Context Protocol server
-│   ├── observability/          # OpenTelemetry helpers (withSpan, traceparent, init)
-│   └── test-utils/             # Testing utilities and mock factories
+│   └── observability/          # OpenTelemetry helpers (withSpan, traceparent, init)
 ├── docs/                       # Documentation, organized by persona
 │   ├── browser/                # End-user: the browser app, features, accessibility, keyboard nav
 │   ├── development/            # Contributor-facing (this file, LOCAL-DEVELOPMENT, RELEASE, TESTING)

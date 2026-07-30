@@ -49,7 +49,7 @@ done
 
 # Read package manifest. ALL = bare names (basename of each `dir`) in
 # the order version.json lists them, restricted to packages that ship
-# to npm. Non-publishable entries (test-utils, mcp-server, desktop) are
+# to npm. Non-publishable entries (mcp-server, desktop) are
 # out of scope for this script — desktop in particular has a Rust/Tauri
 # build that doesn't run in the CI node container.
 read_manifest() {

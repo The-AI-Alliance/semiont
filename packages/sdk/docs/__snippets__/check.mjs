@@ -28,7 +28,7 @@
 
 import { createRequire } from 'node:module';
 import {
-  readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, existsSync,
+  readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync,
 } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
