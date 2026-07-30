@@ -6,17 +6,11 @@
 
 ## Quick Start
 
-You don't run Semiont from this repository. **This repo is the platform source** — it publishes the npm packages and the container images. You run Semiont from a **knowledge-base repo**: a separate, small repository holding your documents, configuration, and startup scripts, whose stack *pulls* the published, attested `ghcr.io/the-ai-alliance/semiont-*` images (KB repos build no images of their own).
-
 Four steps: install → get a knowledge base → start it → connect.
 
 ### 1. Install
 
-Three prerequisites — no npm or Node.js among them:
-
-- **A container runtime** — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/), auto-detected
-- **An inference provider** — [Ollama](https://ollama.com/) for fully local inference (it downloads several GB of models on first run), or an [Anthropic](https://www.anthropic.com/) API key for cloud
-- **The `semiont` launcher** — a single static binary:
+The `semiont` launcher is a single static binary — no npm, no Node.js:
 
 ```bash
 brew install the-ai-alliance/semiont/semiont
@@ -44,7 +38,7 @@ knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semi
 
 ### 3. Start it
 
-From inside the KB — **not this repo**:
+You'll need a container runtime — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/), auto-detected — and an inference provider: [Ollama](https://ollama.com/) for fully local inference (it downloads several GB of models on first run), or an [Anthropic](https://www.anthropic.com/) API key for cloud. Then, from inside the KB — **not this repo**:
 
 ```bash
 semiont start
@@ -71,29 +65,30 @@ semiont start --service frontend            # http://localhost:3000
 semiont start --service frontend --port 3001   # 3000 busy? move the browser
 ```
 
-For local-network access notes, supply-chain verification, the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, and frontend dev setup, see **[docs/browser/](docs/browser/README.md)**.
+For local-network access notes, supply-chain verification, and the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, see **[docs/browser/](docs/browser/README.md)**.
 
 ## Automate
 
-Everything the browser does travels over the same event bus, and the **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how you speak it: a type-safe TypeScript client organized around the **[eight composable flows](docs/protocol/flows/README.md)** — browse, bind, yield, mark, frame, gather, match, beckon — so scripts, services, and AI agents work a knowledge base as peers of the humans in the browser:
+Everything the browser does travels over one event bus, and the **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how you speak it — a type-safe TypeScript client whose namespaces are the **[eight verbs](docs/protocol/flows/README.md)**: browse, bind, yield, mark, frame, gather, match, beckon. Your app never calls the backend's HTTP API directly; the SDK is the boundary.
+
+Here is a grounded answer — gather context by traversing the graph, then generate from it, with each claim cited back to its source:
 
 ```typescript
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontSession } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signInHttp({ baseUrl: 'http://localhost:4000', email, password });
+const { client } = await SemiontSession.signInHttp({ kb, storage, baseUrl, email, password });
 
-await semiont.mark.assist(resourceId, 'linking', { entityTypes: ['Person', 'Place'] }); // AI-detect references
-const context = await semiont.gather.resource(resourceId);                              // LLM-ready grounding
+const context = await client.gather.resource(questionId, { excludeEntityTypes: ['Question'] });
+
+const answer = await client.yield.fromResource(questionId, {
+  title: question, storageUri: 'file://generated/answer.md', context,
+  task: 'answer', structure: 'prose', cite: true,   // cite → linking annotations from claim to source
+}).run((e) => { if (e.kind === 'progress') showProgress(e.data); });
 ```
 
-Start with the **[SDK Usage guide](packages/sdk/docs/Usage.md)**, then the **[Developer Guide](packages/sdk/docs/DEVELOPER-GUIDE.md)** for end-to-end recipes.
+New here? **[INTRODUCTION](packages/sdk/docs/INTRODUCTION.md)** is the orientation chapter — read it first, then the **[Developer Guide](packages/sdk/docs/DEVELOPER-GUIDE.md)** to build, with **[Usage](packages/sdk/docs/Usage.md)** open as the reference.
 
-Built on the SDK:
-
-- **[React components](packages/react-ui/README.md)** (`@semiont/react-ui`) — embed the resource viewer and annotation UI in your own app.
-- **[Agent Skills](docs/protocol/skills/)** — ready-made skill definitions for agentic coding assistants like Claude Code.
-
-There is also the **[`semiont` launcher](apps/launcher/README.md)** for bringing up a stack from the terminal. See **[docs/protocol/](docs/protocol/README.md)** for the protocol overview, design tenets, and value proposition.
+Built on the SDK: **[@semiont/react-ui](packages/react-ui/README.md)** embeds the resource viewer and annotation UI in your own app, and **[Agent Skills](docs/protocol/skills/)** are ready-made definitions for agentic coding assistants. A **[Go SDK](packages/sdk-go/README.md)** exists; more languages are planned — the contract is specified independently of any of them in **[docs/protocol/](docs/protocol/README.md)**.
 
 ## Contributing
 
@@ -105,6 +100,7 @@ There is also the **[`semiont` launcher](apps/launcher/README.md)** for bringing
 
 - **[Development docs](docs/development/README.md)** — codebase layout, build status badges, Codespaces shortcut, where to read next.
 - **[System architecture](docs/system/README.md)** — actor model, knowledge system, container topology, package architecture.
+- **[Frontend development](apps/frontend/docs/DEVELOPMENT.md)** — running the Browser from source against a stack.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — branch/PR workflow, commit conventions, platform-contribution playbook.
 
 ## 📜 License
