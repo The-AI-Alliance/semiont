@@ -55,7 +55,7 @@ Browser / headless client                         Backend
   JSON body is a **subscription matrix**: `global` channels plus any
   number of `scoped` entries — one per resource scope, each naming its
   channels and optionally that scope's resumption watermark
-  (MULTI-RESOURCE-SCOPE). One connection holds many resource scopes at
+  (multi-resource scope, 2026-07-29). One connection holds many resource scopes at
   once. 400 on a malformed body, an empty matrix, duplicate scopes, or
   more than 512 scopes (warn-logged from 128).
 
@@ -131,7 +131,7 @@ shapes:
 | `e-<channel>:<cid>` | Correlation reply (payload carries a `correlationId`). **Deterministic** — the same reply is tagged with the same id on every connection, so a make-before-break overlap dedups it to one emission. | No. |
 | `e-<connectionId>-<counter>` | Any other ephemeral event (no `correlationId`). Unique per connection; no replay meaning. | No. |
 
-Resumption is **per scope** (MULTI-RESOURCE-SCOPE): clients track the
+Resumption is **per scope** (since 2026-07-29): clients track the
 last persisted (`p-*`) id seen PER SCOPE and send each as the
 `lastEventId` field on that scope's entry in the subscribe body —
 there is no `Last-Event-ID` header. Ephemeral ids are never stored as
@@ -164,9 +164,9 @@ retry — has been closed in layers:
   reconnects are make-before-break (see "Reconnect discipline" below),
   so the old connection stays live to deliver the in-flight result
   while the new one takes over.
-- The **attach gate** (BUS-ATTACH-GATE): no correlated emit leaves
+- The **attach gate** (2026-07-29): no correlated emit leaves
   before the reply path is `'open'`.
-- **Correlated-reply retention** (BUS-RESUMPTION Phase 2, 2026-07-29):
+- **Correlated-reply retention** (2026-07-29):
   the backend retains recent replies (bounded: 60s TTL / 1024 entries,
   keyed by correlationId), `busRequest` registers its cid with the
   transport BEFORE emitting, and every subscribe body carries the
@@ -177,8 +177,11 @@ retry — has been closed in layers:
 
 What remains lost: a reply older than the retention TTL (the caller's
 own 30s deadline passed long before), retention-cap eviction under
-pathological load, and a backend restart (in-memory buffer;
-multi-instance failover is out of scope). Consumers keep their
+pathological load, and a backend restart (in-memory buffer). A future
+**multi-instance deployment is the named tripwire**: a reconnect landing
+on a different replica finds no buffer, so replicas must not ship
+without deciding sticky routing vs a shared retention store (see
+TRANSPORT-CONTRACT.md § Delivery guarantees). Consumers keep their
 defense-in-depth: the cache's bounded SWR retry (B14) and terminal
 failure (B15) stay, but should fire approximately never.
 
@@ -263,8 +266,7 @@ until the new fetch resolves (#847), then supersedes them and keeps
 them **draining for `LINGER_MS` before the abort** — aborting at the
 instant of handover discarded replies already buffered on the old
 socket but not yet read by the client's read loop (the
-N-concurrent-loaders starvation,
-`.plans/bugs/concurrent-browse-resource-starvation.md`). A genuine
+N-concurrent-loaders starvation incident, 2026-07-05). A genuine
 disconnect or the initial connect has nothing live to preserve, so it
 aborts up front. Either way the client tracks SSE fetch controllers as
 a set and converges to a single live stream within the drain window:
@@ -300,15 +302,15 @@ starvation fix. Any NEW `.abort()` call must be classifiable as
 consumer-cancel or terminal teardown; a lifecycle-handover abort is the
 buffered-loss bug class reintroduced.
 
-The rule is pinned as liveness axiom **L3**
-(`.plans/LIVENESS-AXIOMS.md`): an event written to any *live*
+The rule is pinned as liveness axiom **L3** (enforced by
+`assertExactlyOnceDelivery` from `@semiont/core/testing`): an event written to any *live*
 connection's stream is delivered to `on$` subscribers exactly once,
 wherever a handover / reconnect / scope change lands relative to it.
 The property suite
 ([actor-liveness.property.test.ts](../../packages/http-transport/src/transport/__tests__/actor-liveness.property.test.ts))
 fast-check-schedules SSE delivery against handover timing over the real
-actor; transport rewrites (e.g. MULTI-RESOURCE-SCOPE) must keep it
-green.
+actor; transport rewrites (e.g. the multi-resource-scope rewrite) must
+keep it green.
 
 During the brief handoff overlap the same live event can arrive on both
 connections. The client dedups by event id (`seenEventIds` in the
@@ -419,7 +421,7 @@ documented fixes for, which we rediscover by bisection.
 
 ### ~~Scope is per-connection, not per-channel~~ — RESOLVED
 
-**Resolved by MULTI-RESOURCE-SCOPE (2026-07-29).** The subscribe body
+**RESOLVED (2026-07-29) by the multi-resource-scope rewrite.** The subscribe body
 is a matrix: one connection subscribes any number of resource scopes
 simultaneously, each with its own channel set and resumption
 watermark. The transport ref-counts subscriptions per resource and
@@ -427,8 +429,7 @@ distinct resources compose — the old one-scope floor (and the
 `subscribeToResource` different-resource throw, and the sdk's interim
 scope-contention degradation) no longer exist. The widening triggers
 this entry named all fired via the embeddable viewer's
-resource-per-chat-message pattern; see
-`.plans/MULTI-RESOURCE-SCOPE.md` for the record.
+resource-per-chat-message pattern.
 
 ### No channel-level authorization
 
@@ -497,8 +498,7 @@ above is the decision tree.
 A deliberate choice to keep this as a separate section so changes to
 the contract are visible.
 
-- **2026-07-29** — correlated-reply retention landed (BUS-RESUMPTION
-  Phase 2 / SDK-DEBT S1). The backend retains recent replies (60s TTL,
+- **2026-07-29** — correlated-reply retention landed. The backend retains recent replies (60s TTL,
   1024-entry FIFO); the subscribe body's new `pendingReplies` field
   (cap 256) names the cids a client still awaits and the server replays
   matches with their deterministic ids. `busRequest` tracks its cid via
@@ -506,7 +506,7 @@ the contract are visible.
   body built mid-emit must already carry it) and releases on every
   settle path. The "response-lost during a genuine disconnect" quirk
   narrows to retention bounds; B14/B15 remain as defense in depth.
-- **2026-07-29** — MULTI-RESOURCE-SCOPE landed. `/bus/subscribe` is
+- **2026-07-29** — multi-resource scope landed. `/bus/subscribe` is
   POST with a JSON subscription matrix (`global` + N `scoped` entries);
   the GET query form and the `Last-Event-ID` header are GONE (clean
   cutover — resumption watermarks ride per-scope on the body, closing
@@ -517,7 +517,7 @@ the contract are visible.
   additions keep the 100 ms debounce; make-before-break + linger-drain
   unchanged. Scope cap 512/connection.
 - **2026-04-19** — initial draft, reflecting the contract after the
-  SIMPLE-BUS work plus the reconnect debounce fix.
+  bus-simplification work plus the reconnect debounce fix.
 - **2026-04-19** — `Last-Event-ID` resumption landed. Persisted events
   now carry `p-<scope>-<seq>` ids; scoped-subscribe requests with
   `Last-Event-ID` trigger event-store replay. `bus:resume-gap` is the

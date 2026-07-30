@@ -3,8 +3,7 @@
 One standalone contract: the schema for `<stateDir>/discovery/kbs.json`,
 which the semiont launcher (Go, `apps/launcher`) regenerates on every stack
 mutation and consumers read from disk (Node) or fetch same-origin via the
-frontend's static server (browsers). Design record:
-`.plans/BROWSER-KB-DISCOVERY.md`.
+frontend's static server (browsers).
 
 ## Why this lives outside `components/schemas/`
 

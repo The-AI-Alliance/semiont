@@ -4,8 +4,7 @@
 `packages/core/src/media-types.ts` is the single source of truth for which
 types Semiont admits (the `SupportedMediaType` enum, authored in the OpenAPI
 spec), their canonical extensions, and their capabilities (render, anchoring,
-text extraction, authorable, uploadable). See
-`.plans/MEDIA-TYPES.md` at the repo root for the design.
+text extraction, authorable, uploadable).
 
 What this package owns is one consumer of that registry:
 

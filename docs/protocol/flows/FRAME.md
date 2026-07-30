@@ -86,7 +86,7 @@ client.browse.tagSchemas().subscribe((schemas) => {
 });
 ```
 
-If `mark.assist` is called with a `schemaId` that isn't in the projection, the dispatcher rejects synchronously with `Tag schema not registered: <id>` — there is no build-time fallback. KBs that ship demo skills typically include a `register-tag-schemas` bootstrap skill plus per-skill self-registration so first-time users see the schemas without needing to run a separate command. Schema-evolution concerns (rename / remove / version / migrate annotation bodies under a renamed category) are deferred — see [`.plans/EVOLVE-TAG-SCHEMA.md`](../../../.plans/EVOLVE-TAG-SCHEMA.md).
+If `mark.assist` is called with a `schemaId` that isn't in the projection, the dispatcher rejects synchronously with `Tag schema not registered: <id>` — there is no build-time fallback. KBs that ship demo skills typically include a `register-tag-schemas` bootstrap skill plus per-skill self-registration so first-time users see the schemas without needing to run a separate command. Schema-evolution concerns (rename / remove / version / migrate annotation bodies under a renamed category) are deferred, not yet scheduled.
 
 ## Events
 
@@ -105,7 +105,7 @@ Frame's wire channels were renamed from `mark:*` to `frame:*` when Frame was pro
 
 Frame is sized to grow. As the KB's schema layer matures, the namespace can absorb:
 
-- **Schema evolution** — `frame.removeTagSchema(id)`, `frame.renameCategory(id, oldName, newName)`, optional schema-id versioning (`legal-irac@v1`). Today the registry is grow-only with most-recent-wins overwrites; rename / remove / version are deferred and tracked in [`.plans/EVOLVE-TAG-SCHEMA.md`](../../../.plans/EVOLVE-TAG-SCHEMA.md).
+- **Schema evolution** — `frame.removeTagSchema(id)`, `frame.renameCategory(id, oldName, newName)`, optional schema-id versioning (`legal-irac@v1`). Today the registry is grow-only with most-recent-wins overwrites; rename / remove / version are deferred, not yet scheduled.
 - **Relation / predicate types** — when the KB grows a typed-relation system on top of W3C annotations (today references are untyped except for entity-type tagging), Frame is where `frame.addRelationType` lives.
 - **Ontology import / export** — bulk schema operations, OWL/RDF round-trip if the system supports them. `frame.importOntology(file)`, `frame.exportOntology()`.
 - **Schema validation rules** — assertions about which entity types can co-occur, required fields, etc.

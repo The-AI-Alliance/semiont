@@ -11,16 +11,16 @@ type CacheState<T> =
   | { status: 'failed'; error: Error } // terminal failure of a value-less key (B15)
 ```
 
-Three rules carry most of the contract (CACHE-CONTRACT D1–D3, 2026-07-29):
+Three rules carry most of the contract (all landed 2026-07-29):
 
 1. **`failed` is an EMISSION, not an RxJS error.** The stream never errors
    and never terminates on failure, so one subscription can live through
    `pending → failed`, and a NEW subscription runs the recovery chain (the
    per-subscribe decision clears the failure marker — see B15).
-2. **One-shot reads are `.fresh()`** — the thenable is dead (D2). `await
+2. **One-shot reads are `.fresh()`** — the thenable is dead. `await
    client.browse.x(...)` does not compile; the network round trip is always
    spelled explicitly.
-3. **Accessors are lazy** (D3): calling a live-query method is pure — safe
+3. **Accessors are lazy**: calling a live-query method is pure — safe
    from render — and the fetch decision runs on first subscribe.
 
 Ergonomics: `isReady` / `readyValue` from `@semiont/sdk` unwrap states in
@@ -132,7 +132,7 @@ the `observe` / subscribe path.
 ### B1 — First observation triggers a fetch
 
 The first SUBSCRIBE to a live-query observable for a key that is `empty`
-and not `fetching` MUST trigger exactly one fetch (D3: the accessor call
+and not `fetching` MUST trigger exactly one fetch (the accessor call
 itself is pure; the fetch decision runs per subscribe). The observable
 MUST emit `{ status: 'pending' }` until the fetch resolves, then the
 `ready` value.
@@ -213,7 +213,7 @@ coalesced with an orphaned fetch, the cache would be stuck with its
 old value until the busRequest's 30-second timeout fired. This was
 the "Loading resource…" that never resolves bug fixed in commit
 845c6b24. (Orphaned in-flight replies are far rarer since correlated-
-reply retention landed — BUS-RESUMPTION Phase 2 — but the semantics
+reply retention landed, 2026-07-29 — but the semantics
 here are unchanged: B9 is about not trusting an in-flight guard.)
 
 The cost is that two in-flight fetches for the same key can exist
@@ -258,13 +258,13 @@ empty or stale-fresh) until the next observe/invalidate acts.
 Rationale: the swallowed paths hide failures from subscribers by design
 (B6), which means a lost one-shot reply — e.g. a `busRequest` whose SSE
 result raced a connection swap and timed out
-(`.plans/bugs/concurrent-browse-resource-starvation.md`) — previously
+(the 2026-07-05 concurrent-loaders starvation incident) — previously
 starved every subscriber of a never-loaded key **silently and
 permanently**: no retry, no failure signal, `pending` forever. One
 bounded retry converts "reply lost" from permanent starvation into one
 slow load, without a standing retry loop hammering a genuinely-down
-backend. (Since correlated-reply retention landed — BUS-RESUMPTION
-Phase 2 — a reply lost to a genuine disconnect replays on reconnect, so
+backend. (Since correlated-reply retention landed, 2026-07-29, a
+reply lost to a genuine disconnect replays on reconnect, so
 this retry should fire approximately never; it stays as defense in
 depth.)
 
@@ -277,8 +277,8 @@ Boundaries:
 3. An invalidate during a retry chain disowns it (B9) — the chain's
    late success may still write (last-write-wins, same as B9).
 
-Liveness: B14's one-retry budget is pinned by axioms **L1/L2**
-(`.plans/LIVENESS-AXIOMS.md`) — L2's settlement bound on the swallowed
+Liveness: B14's one-retry budget is pinned by liveness axioms **L1/L2**
+(`assertLivenessAxioms` from `@semiont/core/testing`) — L2's settlement bound on the swallowed
 paths is `timeoutMs × (1 + this retry)`, enforced against the real
 `BrowseNamespace` + cache + `busRequest` composition by the property
 suite ([browse-liveness.property.test.ts](../src/__tests__/browse-liveness.property.test.ts)).
@@ -305,14 +305,14 @@ observers as a **`{ status: 'failed', error }` emission** — never
 4. Keys WITH a cached value never come here — B6 stale-beats-error is
    unchanged.
 
-Rationale: liveness (`.plans/LIVENESS-AXIOMS.md`, axiom L1 — found by
-the P2 property suite as
-`.plans/bugs/valueless-key-terminal-failure-starves-observers.md`).
+Rationale: liveness axiom L1 — found by the property suite
+([browse-liveness.property.test.ts](../src/__tests__/browse-liveness.property.test.ts))
+as the valueless-key starvation bug (2026-07-05).
 B14 converted "reply lost" into one slow load when the retry succeeds;
 B15 covers the remaining corner — retry ALSO fails — where "idle" was
 indistinguishable from the pre-B14 permanent silent starvation for
 value-less keys. Delivering failure as an emission rather than a stream
-error (CACHE-CONTRACT D1) removed the dead-errored-observable hazard:
+error (2026-07-29) removed the dead-errored-observable hazard:
 consumers pattern-match three states on one subscription instead of
 wiring error callbacks whose streams then have to be re-created. The
 `[cache IDLE]` breadcrumb (L4) is unchanged.
@@ -343,10 +343,9 @@ Rationale: a B14 retry straddling client teardown resolves `bus.closed`
 (`busRequest`'s disposed-bus path) — a teardown artifact, not a data
 failure. Pre-B16 the B15 push then errored observers at shutdown
 (disposal noise; it escaped as a flaky unhandled rejection in a
-make-meaning test — see `.plans/LIVENESS-AXIOMS.md`, the 2026-07-05 CI-escape
-entry). B16 makes the push structurally impossible after disposal
+make-meaning test — a 2026-07-05 CI escape). B16 makes the push structurally impossible after disposal
 instead of special-casing the `bus.closed` error code, which would have
-carved a silent exception into liveness axiom L1 (per its D1 binding:
+carved a silent exception into liveness axiom L1 (whose standing rule is:
 policy changes must edit the axiom visibly, not drift). L1 holds
 unconditionally: live client → terminal failures error observers (B15);
 disposed client → observers were completed at disposal, so none exist
@@ -407,7 +406,7 @@ A bare `connected$: false → true` transition does NOT trigger cache
 invalidation. The server stamps every persisted event on
 `/bus/subscribe` with `id: p-<scope>-<seq>`; the client tracks a
 watermark PER SCOPE and sends each as `lastEventId` on that scope's
-entry in the subscribe-matrix body (MULTI-RESOURCE-SCOPE — there is no
+entry in the subscribe-matrix body (multi-resource scope, 2026-07-29 — there is no
 `Last-Event-ID` header); the server replays each scope's persisted
 events missed during the gap. The usual reconnect path (mount-churn,
 scope-change, brief network blip) finishes with **zero events missed**
@@ -546,7 +545,7 @@ changing a behavior must update both this doc and the test.
 
 An optional `CachePersister` on `createCache` (and the
 `sessionStoragePersister` adapter over the `SessionStorage` seam) gives a
-cache durable, per-KB rehydration (.plans/LOCAL-STORAGE.md):
+cache durable, per-KB rehydration:
 
 1. **Load-on-construct.** `persister.load()` seeds the store before the
    first observation, so a rehydrated key serves **synchronously** — no
@@ -572,7 +571,7 @@ cache durable, per-KB rehydration (.plans/LOCAL-STORAGE.md):
      when NO watermark was persisted for a scope, that scope's entry
      carries no `lastEventId` and the server replays **nothing** for it
      — measured as the actual state at failure time in
-     `.plans/bugs/annotation-lost-on-immediate-reload-after-create.md`.
+     the annotation-lost-on-immediate-reload incident (2026-07-24).
 3. **Settled values only.** The store never contains B15 failure markers,
    so neither does the persisted document; a previously-failed key
    rehydrates as absent and refetches on first observation.
@@ -633,16 +632,15 @@ background request per observed key.
 - 2026-07-05 — B15 added (terminal failure of a value-less key errors
   its observers, retriable); B6 narrowed to its true scope
   (stale-beats-error requires a stale value). Driven by the
-  LIVENESS-AXIOMS P2 property suite falsifying L1/L2 against the real
-  composition (valueless-key-terminal-failure-starves-observers.md).
+  liveness property suite falsifying L1/L2 against the real
+  composition (the valueless-key starvation bug).
 - 2026-07-21 — B17 added (opt-in persistence: load-on-construct
   rehydration reconciled by resumption; values-only; flush-then-inert
   dispose; version-gated; cross-context via the SessionStorage seam).
-  Execution record in .plans/LOCAL-STORAGE.md.
 - 2026-07-24 — **B18 added, and B17.1/B17.2 corrected — a declared
   behavior change.** B17 as written promised "a rehydrated key issues NO
   fetch", resting reconciliation entirely on replay. Measurement
-  (.plans/bugs/annotation-lost-on-immediate-reload-after-create.md) showed
+  (the annotation-lost-on-immediate-reload incident) showed
   that at failure time there is **no persisted bookmark at all**, so replay
   is not merely late — it does not happen, and the stale document is served
   forever. B18 makes rehydrated values revalidate on first observation
@@ -652,13 +650,13 @@ background request per observed key.
   `persistenceSettled`) and the transport's apply-before-stash ordering.
   Three pins that encoded the old promise were updated deliberately
   (`cache-persistence`, `cache-rehydration`, and the property teeth).
-- 2026-07-29 — **The `CacheState` era (CACHE-CONTRACT D1–D3), and the doc body
+- 2026-07-29 — **The `CacheState` era, and the doc body
   rewritten in its vocabulary.** Emissions are `CacheState<V>` (`pending` /
   `ready` / `failed`), never `V | undefined`; B15 reframed — terminal failure
   is a `failed` EMISSION (streams never error/terminate) and a late subscriber
   runs RECOVERY, not replay; one-shot reads are `.fresh()` (the thenable is
   dead); accessors are lazy (calling is pure, the fetch decision runs per
   subscribe — B1 restated). Same day: B13/B17 resumption wording moved to the
-  per-scope subscribe-matrix watermarks (MULTI-RESOURCE-SCOPE), and B9/B14
-  notes record that correlated-reply retention (BUS-RESUMPTION Phase 2) makes
+  per-scope subscribe-matrix watermarks (multi-resource scope), and B9/B14
+  notes record that correlated-reply retention makes
   the lost-reply paths defense-in-depth rather than the common case.

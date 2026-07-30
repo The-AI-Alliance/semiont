@@ -112,8 +112,8 @@ imperative shell*, sometimes *hexagonal architecture*, sometimes just
    missing tag is reported" are exactly the shape fast-check excels
    at, and they only make sense against a pure function.
 
-3. **Schema evolution has a natural home.** The deferred work in
-   [`.plans/EVOLVE-TAG-SCHEMA.md`](../../.plans/EVOLVE-TAG-SCHEMA.md) —
+3. **Schema evolution has a natural home.** The deferred
+   schema-evolution work —
    migrating a category rename, version-bumping a schema id, soft-
    deprecating a category — slots into the reducer module as
    additional pure functions on the same view shapes. No new I/O
@@ -215,6 +215,5 @@ the future Frame work):
 
 ## Related
 
-- [`.plans/EVOLVE-TAG-SCHEMA.md`](../../.plans/EVOLVE-TAG-SCHEMA.md) — deferred schema-evolution work; the reducer pattern is the natural home for migration commands.
 - [`docs/protocol/flows/FRAME.md`](../protocol/flows/FRAME.md) — the schema-layer flow that reads/writes `__system__` projections.
 - Package-level READMEs cross-reference this doc — see [`packages/event-sourcing/README.md`](../../packages/event-sourcing/README.md) and [`packages/make-meaning/README.md`](../../packages/make-meaning/README.md).

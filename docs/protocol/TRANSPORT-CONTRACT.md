@@ -87,12 +87,14 @@ and streaming concerns away from the typed-channel surface.
 
 - Attaches the transport to a single resource's scoped broadcast
   stream. The returned disposer detaches when called.
-- Ref-counted: calling twice with the same resourceId returns two
-  disposers; the underlying scope is torn down only when the last one
-  fires.
-- **One distinct scope at a time.** Calling with a different
-  resourceId while a subscription is live throws. Widening is deferred
-  until a product requirement forces it (`.plans/MULTI-RESOURCE-SCOPE.md`).
+- Ref-counted **per resource**: calling twice with the same resourceId
+  returns two disposers; that resource's scope is torn down only when
+  the last one fires.
+- **Distinct resources COMPOSE.** One transport holds any number of
+  resource scopes concurrently, each with an independent ref-count and
+  release — N mounted viewers on N resources are all live at once. (The
+  historical one-scope-at-a-time floor, and its different-resource
+  throw, were removed 2026-07-29.)
 - **SDK-internal, not consumer-facing.** Application code does not call
   this — the SDK's resource-scoped `browse.*` live queries drive it:
   subscribing acquires the scope, the last unsubscribe releases it
@@ -157,12 +159,45 @@ gateway. Clients do not set this."*
 - **Return value tied to correlationId, not connection.** The caller
   gets exactly one resolution — the first matching result or fail
   event, or a timeout.
+- **Reply tracking.** `busRequest` registers its correlationId with the
+  transport's optional `trackReply` BEFORE emitting and releases it on
+  every settle path. Wire transports carry the tracked set on each
+  subscribe (`pendingReplies`) so a reply published during an outage is
+  replayed from the server's bounded retention buffer on reconnect.
+  In-process transports omit the surface — publishing on the same
+  in-memory bus they read from, they have no outage and no loss.
 
-HTTP-specific: if the SSE connection drops after the emit and the
-result arrives during the outage, it may be lost even on reconnect
-(the result event is ephemeral, not persisted). In-process transports
-that publish on the same in-memory bus they read from have no outage
-and no loss.
+## Delivery guarantees — two tiers, deliberately
+
+The transport delivers two kinds of one-way traffic with DIFFERENT
+durability, and the asymmetry is the design, not a gap:
+
+- **Persisted domain events** (the event-store-backed set): **durable,
+  effectively exactly-once** from the client's perspective. Each scope
+  carries a resumption watermark on the subscribe body; the server
+  replays the gap from the event store; replay/live overlap dedups by
+  stable id; `bus:resume-gap` is the explicit signal when replay cannot
+  cover. Survives client reloads and arbitrary offline windows (bounded
+  only by event-store retention).
+- **Correlated replies** (one-shot `busRequest` results): **at-most-once
+  publication with bounded retained redelivery** — effectively
+  exactly-once for the original requester *within its own deadline
+  envelope* (retention TTL is 2× the default `busRequest` timeout;
+  deterministic `e-<channel>:<cid>` ids dedup replay against any live
+  copy). NOT durable: retention is in-memory, so a backend restart —
+  and, in a future multi-instance deployment, a reconnect landing on a
+  different instance — loses it. Those residuals degrade to exactly the
+  pre-retention outcome (the caller's timeout), never worse; the
+  multi-instance case is the named tripwire that must reopen this
+  design (sticky routing or a shared store) before replicas ship.
+
+Why the tiers differ: a domain event matters forever — every future
+reader needs it. A reply matters only to one caller, only until that
+caller's deadline; durability past the deadline buys nothing. Consumers
+keep their defense-in-depth (the cache's bounded retry and terminal
+`failed` state), but under this contract those paths should fire
+approximately never — a `bus.timeout` that does fire is a real signal
+that the backend is down or slow, not transport weather.
 
 ## Connection state
 

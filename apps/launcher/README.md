@@ -4,8 +4,7 @@ A host-installed CLI that runs a local Semiont stack — Neo4j, Qdrant, Ollama,
 PostgreSQL, the Semiont API server, worker, smelter, weaver, and the frontend —
 by driving your container runtime (Apple `container`, Docker, or Podman)
 directly. It replaces the `.semiont/scripts/{start,logs,stop}.sh` trio that
-used to be synced into every KB repository; the design record is
-`.plans/GO-LAUNCHER.md` in this monorepo.
+used to be synced into every KB repository.
 
 ## Install
 
@@ -20,7 +19,7 @@ no language runtime bleeds onto your host. Besides the launcher you need only
 ## Use
 
 Run from inside a KB clone — or birth one first with **`semiont init`**
-(design record: .plans/LAUNCHER-BIRTH.md). Interactive with full flag
+Interactive with full flag
 parity; `--yes` refuses rather than guessing where no safe default exists.
 What init does:
 
@@ -248,7 +247,7 @@ semiont stop
   -35 — typically only once the event log is non-empty, which masquerades as
   a regression. A warning, not a refusal: eviction state isn't stable, and
   the same setup can run fine for months.
-- **The Browser discovery view** (BROWSER-KB-DISCOVERY.md lane 1): every
+- **The Browser discovery view**: every
   stack mutation regenerates `<state>/discovery/kbs.json` — each managed KB's
   localhost endpoint, placement, did:web and site name; `managedBy:
   semiont-launcher` so the Browser can split managed from manual entries.
@@ -326,7 +325,7 @@ semiont stop
   only when `ANTHROPIC_API_KEY` is already in its environment — status never
   resolves secrets. NO costs: Anthropic exposes no price list programmatically
   (the pricing page is docs-only; actual spend needs the org-level Admin API,
-  a different credential — see GO-LAUNCHER.md follow-ups). An unreachable Ollama reads `unknown`, never `missing`: ignorance
+  a different credential — a deferred follow-up). An unreachable Ollama reads `unknown`, never `missing`: ignorance
   and a finding are different answers. Untagged config names are matched
   against Ollama's `:latest` form. Remote models (Claude, Voyage) list as
   `remote` — there is nothing to install.
@@ -460,8 +459,8 @@ The tests in `launcher_test.go` are the executable spec: golden files under
 `testdata/golden/` pin the exact runtime argv sequences per scenario, and a
 fake-runtime binary (`internal/fakert`) impersonates
 container/docker/podman/git/lsof/ps on a private PATH — tests never touch a
-real runtime. If a behavior change is intended, adjudicate against
-`GO-LAUNCHER.md §3` first, then refresh goldens with
+real runtime. If a behavior change is intended, adjudicate deliberately
+(the goldens are the spec), then refresh them with
 `go test -run <Test> . -update-goldens`.
 
 The suite refuses to run when `/tmp/semiont-config.*` exists (a live stack may

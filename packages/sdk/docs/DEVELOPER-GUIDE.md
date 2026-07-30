@@ -530,8 +530,7 @@ const client = new SemiontClient(transport, content, backend, {
 });
 ```
 
-Full behavioral contract: [CACHE-SEMANTICS.md](CACHE-SEMANTICS.md) **B17** (and the
-design record in `.plans/LOCAL-STORAGE.md`).
+Full behavioral contract: [CACHE-SEMANTICS.md](CACHE-SEMANTICS.md) **B17**.
 
 ---
 

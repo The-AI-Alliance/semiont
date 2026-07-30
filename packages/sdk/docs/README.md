@@ -61,6 +61,9 @@ harnesses in `@semiont/core/testing` are the executable half of these docs.
 4. **Sessions own lifecycle** — token refresh, storage, disposal;
    session-scoped state units take the `SemiontSession`, not a bare client.
 5. **The bus is the substrate** — commands, replies, and collaboration
-   signals all ride one connection with delivery guarantees documented at the
-   protocol layer (resumption per scope, reply retention, exactly-once across
-   handovers).
+   signals all ride one connection, with a deliberate TWO-TIER delivery
+   contract documented at the protocol layer
+   ([TRANSPORT-CONTRACT.md § Delivery guarantees](../../../docs/protocol/TRANSPORT-CONTRACT.md)):
+   persisted domain events are durable and resumable per scope (effectively
+   exactly-once); one-shot correlated replies get deadline-bounded retention
+   (effectively exactly-once within the caller's timeout, not durable).

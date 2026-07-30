@@ -270,7 +270,7 @@ semiont.browse.tagSchemas().subscribe((schemas) => {
 });
 ```
 
-For the full per-flow contract — including the `__system__`-stream event-sourcing layer, projection materialization, and "most-recent wins + log warning" conflict semantics — see [`docs/protocol/flows/FRAME.md`](../../../docs/protocol/flows/FRAME.md). For deferred schema-evolution work (rename / remove / version / migrate), see [`.plans/EVOLVE-TAG-SCHEMA.md`](../../../.plans/EVOLVE-TAG-SCHEMA.md).
+For the full per-flow contract — including the `__system__`-stream event-sourcing layer, projection materialization, and "most-recent wins + log warning" conflict semantics — see [`docs/protocol/flows/FRAME.md`](../../../docs/protocol/flows/FRAME.md). Schema-evolution operations (rename / remove / version / migrate) are deferred, not yet scheduled.
 
 ## Mark
 
@@ -572,7 +572,7 @@ sub.unsubscribe();
 A one-shot read needs no subscription and acquires no scope —
 `semiont.browse.annotations(resourceId).fresh()` fetches a fresh value and returns.
 
-Scopes COMPOSE (MULTI-RESOURCE-SCOPE): one connection holds every observed
+Scopes COMPOSE (multi-resource scope, 2026-07-29): one connection holds every observed
 resource's scope simultaneously — N mounted viewers on N resources are all
 fully live, each ref-counted and released independently.
 

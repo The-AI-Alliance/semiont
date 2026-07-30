@@ -95,7 +95,7 @@ Six things in this code recur in every state unit:
 
 1. **Factory function, not class.** The "instance" is a closure capturing private state.
    And note the parameter: **session-scoped factories take a `SemiontSession`, not a
-   bare `SemiontClient`** (SESSION-TYPED-FACTORIES D1, 2026-07-29). A client can be
+   bare `SemiontClient`** (2026-07-29). A client can be
    disposed and replaced under a live unit on a KB switch; the session is the stable
    identity, and destructuring `client` inside the factory pins the unit to the client
    it was built for — exchange callbacks and subscriptions then capture that session by
@@ -210,14 +210,14 @@ A few specific shapes are wrong and worth calling out:
 
 ## How these rules are enforced
 
-The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The axiom ledger and FOPL specs live in [`.plans/STATE-UNIT-AXIOMS.md`](../../../.plans/STATE-UNIT-AXIOMS.md); the harness is `assertStateUnitAxioms` in `@semiont/core/testing`, invoked once from each state unit's test file.
+The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The executable spec IS the harness — `assertStateUnitAxioms` in `@semiont/core/testing`, invoked once from each state unit's test file; its property definitions are the authoritative statements of the axioms below.
 
 Five enforcement tiers:
 
 | Tier | Mechanism | Rules |
 |---|---|---|
 | **Axioms** — property-based (fast-check) | `assertStateUnitAxioms`, per unit | **A5** idempotent & total dispose · **A5b** post-dispose inertness · **A6** subscribers see `complete` · **X3-runtime** instance isolation |
-| **Liveness axioms** — property-based (fast-check), composition-level | `assertLivenessAxioms` / `assertExactlyOnceDelivery` from `@semiont/core/testing`, driving `FaultyTransport` (sdk) and the mock-conn SSE harness (http-transport); ledger in [`.plans/LIVENESS-AXIOMS.md`](../../../.plans/LIVENESS-AXIOMS.md) | **L1** subscriptions never silently pend forever · **L2** every `busRequest` settles within timeout × retry budget · **L3** exactly-once delivery across handovers (drain-over-abort) · **L4** degraded modes emit breadcrumbs |
+| **Liveness axioms** — property-based (fast-check), composition-level | `assertLivenessAxioms` / `assertExactlyOnceDelivery` from `@semiont/core/testing`, driving `FaultyTransport` (sdk) and the mock-conn SSE harness (http-transport) | **L1** subscriptions never silently pend forever · **L2** every `busRequest` settles within timeout × retry budget · **L3** exactly-once delivery across handovers (drain-over-abort) · **L4** degraded modes emit breadcrumbs |
 | **Structural assertions** — single-shot | `assertStateUnitAxioms`, per unit | **A1** plain-object identity · **X1** no raw origin Subject on the surface · **A7-passed** don't dispose injected deps · **A7-owned** do dispose constructed children |
 | **Static compliance** — CI grep (`scripts/compliance/`, run by `architecture-compliance.yml`) | bash + grep | **A1-static** no `class` in state-unit files · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces · **session-typed factories** — no `!`-asserted factory args; `useStateUnit` confined to the shell allowlist |
 | **Conventions** — code review only | — | **A3-interior** internal state in Subjects · **X2** no `Promise<T>` on long-running ops · **X6** no dual bus+field exposure of the same state |
