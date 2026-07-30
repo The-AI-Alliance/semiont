@@ -63,51 +63,58 @@ by `entry.did ?? host:port` (ports get reallocated; the did follows the KB). A N
 that reads the launcher's file directly supplies its own IO: `textDiscovery(() =>
 readFile(path, 'utf8').catch(() => null))` — same validation, same semantics.
 
-## 2. Consume a call — `await`, `.subscribe`, and the `.run()` rule
+## 2. Consume a call — `await`, `.subscribe`, `.fresh()`, and the `.run()` rule
 
-Every method returns a `Promise<T>` (one value) or one of three awaitable Observables:
-`CacheObservable` (live queries), `StreamObservable` (progress streams), `UploadObservable`
-(uploads). `await` gives the final/loaded value; `.subscribe(...)` gives every emission.
+Every method returns a `Promise<T>` (one value) or one of three Observable subclasses:
+`StreamObservable` (progress streams) and `UploadObservable` (uploads) are **awaitable** —
+`await` gives the final value; `CacheObservable` (live queries) is **not** — `.subscribe(...)`
+gives typed `CacheState` emissions kept live, and the one-shot network read is spelled
+**`.fresh()`** (an `await` on a live query deliberately does not compile).
 
-⚠️ The Observables are **cold** — do **not** both `.subscribe()` *and* `await` the same
+⚠️ Streams and uploads are **cold** — do **not** both `.subscribe()` *and* `await` the same
 instance. Each consumption re-runs the producer; for a job-triggering stream that fires the
 job **twice**. To get progress *and* the terminal result from one execution, use **`.run(onNext)`**.
 
 ```typescript
-const text = await session.client.browse.resourceContent(rId);          // one value
+const text = await session.client.browse.resourceContent(rId);          // one value (Promise)
 
-const sub = session.client.browse.annotations(rId)                      // live query
-  .subscribe((anns) => render(anns));                                    //   (await for one-shot)
+const sub = session.client.browse.annotations(rId)                      // live query — states
+  .subscribe((st) => { if (st.status === 'ready') render(st.value); });
+
+const anns = await session.client.browse.annotations(rId).fresh();      // one-shot fresh read
 
 const done = await session.client.mark.assist(rId, 'linking', { entityTypes })
   .run((ev) => { if (ev.kind === 'progress') showProgress(ev.data); }); // progress + result, ONE run
 ```
 
-→ [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the four-shape design and await-vs-subscribe per method.
+→ [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the four-shape design and consumption per method.
 
 ## 3. Read resources and annotations
 
-`browse.*` reads from materialized views. The live queries return `CacheObservable` — `await`
-for the loaded value (skips the `undefined` loading state), `.subscribe(...)` for
-loading→loaded→re-emit. `resources(...)` takes filters; text and binary content are one-shot reads.
+`browse.*` reads from materialized views. The live queries return `CacheObservable` —
+`.subscribe(...)` for the live view (`CacheState` emissions: `pending` → `ready`,
+re-emitting on change), `.fresh()` for a one-shot fresh value. `resources(...)` takes
+filters; text and binary content are one-shot `Promise` reads.
 
 ```typescript
-const docs    = await session.client.browse.resources({ entityType: 'Concept', limit: 50 });
+const docs    = await session.client.browse.resources({ entityType: 'Concept', limit: 50 }).fresh();
 const content = await session.client.browse.resourceContent(rId);          // Promise<string>
-const types   = await session.client.browse.entityTypes();                 // string[]
+const types   = await session.client.browse.entityTypes().fresh();         // string[]
 
-session.client.browse.annotations(rId).subscribe({
-  next: (anns) => render(anns),        // live, re-emits on change
-  error: (e) => showLoadFailure(e),    // initial load terminally failed — see below
+session.client.browse.annotations(rId).subscribe((st) => {
+  if (st.status === 'ready') render(st.value);        // live, re-emits on change
+  else if (st.status === 'failed') showLoadFailure(st.error);  // terminal load failure — see below
+  // 'pending' — skeleton
 });
 ```
 
-**Pass an `error` handler.** A live query that has no loaded value yet errors its
-subscribers when the fetch chain is exhausted (the fetch plus one bounded retry) — a lost
-or failing load surfaces as an error notification, never as `undefined` forever. The state
-is retriable: a fresh `.subscribe(...)` (e.g. a component remount) starts a new attempt. A
-query that already holds a value never errors — stale-beats-error, the prior value stays
-visible through a failed refetch. → [CACHE-SEMANTICS.md](./CACHE-SEMANTICS.md) (B14–B15).
+**Handle the `failed` state.** A live query that has no loaded value yet delivers a
+`{ status: 'failed', error }` EMISSION when the fetch chain is exhausted (the fetch plus
+one bounded retry) — a lost or failing load surfaces in-band, never as `pending` forever,
+and the stream itself never errors or terminates. Recovery is built in: a NEW subscription
+to the failed key (e.g. a component remount) clears the marker and starts a fresh attempt
+chain. A query that already holds a value never fails — stale-beats-error, the prior value
+stays visible through a failed refetch. → [CACHE-SEMANTICS.md](./CACHE-SEMANTICS.md) (B14–B15).
 
 Live subscriptions are how you get real-time updates: **freshness follows observation** —
 subscribing to `browse.*(rId)` acquires that resource's event scope while observed and
@@ -187,7 +194,7 @@ your dispatch-time attribution and the stored provenance agree by construction:
 ```typescript
 import type { CollaboratorEntry, JobType } from '@semiont/core';
 
-const roster = await session.client.browse.agents();
+const roster = await session.client.browse.agents().fresh();
 const linker = roster.find((e) => e.servesJobTypes?.includes('reference-annotation'));
 // linker?.agent — the Software Agent (name, provider, model, DID '@id') that will
 // serve mark.assist(rId, 'linking', …); entries without servesJobTypes are
@@ -498,19 +505,22 @@ What persists, per KB:
 - Five browse caches — resource descriptors, annotation lists, annotation details,
   entity types, tag schemas — under `semiont.cache.<kbId>.<name>`. Lists, event
   histories, and the collaborator directory deliberately stay in-memory.
-- The last **persisted** SSE event id (`semiont.lastEventId.<kbId>`), written
-  only alongside cache-document flushes so the bookmark can never claim more
-  than the caches contain. Ephemeral (`e-*`) ids are never saved — the server
-  treats them as "no resumption context," which would silently skip the replay
-  that reconciles rehydrated data.
+- The last **persisted** SSE event id PER SCOPE (a record under
+  `semiont.lastEventId.<kbId>`), written only alongside cache-document flushes
+  so the bookmark can never claim more than the caches contain. Ephemeral
+  (`e-*`) ids are never saved — they carry no replay meaning, and letting one
+  displace a scope's watermark was a silent replay-loss hole the per-scope
+  design closes.
 
 How reconciliation works — there is no reconcile code path, only the existing
-contract: rehydrated entries serve synchronously with **no fetch**; the SSE
-reconnect sends the persisted `Last-Event-ID`; replayed events flow through the
-normal handlers and invalidate exactly what changed (stale value stays visible
-while the refetch runs); `bus:resume-gap` blanket-invalidates when replay can't
-cover. Failure states are never persisted, saves are debounced with a flush on
-dispose, and stored documents are version-gated (mismatch reads as empty).
+contract: rehydrated entries serve immediately (plus one background
+revalidation per observed key — B18); the SSE reconnect carries each scope's
+persisted watermark on its subscribe-matrix entry; replayed events flow through
+the normal handlers and invalidate exactly what changed (stale value stays
+visible while the refetch runs); scoped `bus:resume-gap` blanket-invalidates
+when replay can't cover. Failure states are never persisted, saves are
+debounced with a flush on dispose, and stored documents are version-gated
+(mismatch reads as empty).
 
 Constructing a client directly (no factory)? Opt in explicitly:
 

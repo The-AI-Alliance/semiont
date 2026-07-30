@@ -39,12 +39,14 @@ export class StreamObservable<T> extends Observable<T> implements PromiseLike<T>
   }
 }
 
-export class CacheObservable<T> extends Observable<T | undefined> {
+// Live queries emit CacheState<T> = pending | ready | failed — see CACHE-SEMANTICS.md.
+export class CacheObservable<T> extends Observable<CacheState<T>> {
   fresh(): Promise<T> {
     // Cache-backed: fetch fresh (a re-read reflects writes), reject on failure.
     if (this.fetchFresh) return this.fetchFresh();
-    // Non-cache wrapper (no fetch action): resolve to the first non-undefined emission.
-    return firstValueFrom(this.pipe(filter((v) => v !== undefined)));
+    // Non-cache wrapper (no fetch action): settle on the first non-pending
+    // state — resolve `ready.value`, reject `failed.error`.
+    return firstNonPending(this);
   }
 }
 ```
@@ -52,7 +54,7 @@ export class CacheObservable<T> extends Observable<T | undefined> {
 The asymmetric semantics are deliberate — and the asymmetry in SURFACE is too:
 
 - **`StreamObservable.then`** resolves to the **last** value on completion. Bounded progress streams have a final answer — the search result, the generated resource, the assembled context.
-- **`CacheObservable.fresh()`** **fetches a fresh value** (and rejects on failure), so a one-shot read — e.g. a script's `read → write → read` — reflects the write rather than serving a stale memo (#847). `.subscribe(...)`, by contrast, is the stale-while-revalidate live view: it emits the cached value (after an initial `undefined`) and re-emits on invalidation. The split is the point — **`.fresh()` = "the value now, from the wire"; `subscribe` = "the value, kept live."** It is a METHOD, not a thenable, because the thenable was a landmine: `return client.browse.resource(id)` from any `async` function auto-awaited, silently converting a cache read into a network round trip — a refactor that wrapped a call site in `async` changed its transport behavior with zero diff at the call (SDK-DEBT L2). Now `await client.browse.x(...)` does not compile; the network round trip is always spelled `.fresh()`. (A `CacheObservable` with no fetch action — a non-cache wrapper — `fresh()`es to the first non-undefined emission.) Also since 2026-07-29 (D3): calling a browse accessor is PURE — the fetch fires on first subscribe, so accessors are safe to call from render.
+- **`CacheObservable.fresh()`** **fetches a fresh value** (and rejects on failure), so a one-shot read — e.g. a script's `read → write → read` — reflects the write rather than serving a stale memo (#847). `.subscribe(...)`, by contrast, is the stale-while-revalidate live view: it emits `CacheState<T>` — `{ status: 'pending' }` first, then `ready` values, re-emitting on invalidation; a terminal load failure arrives as a `failed` EMISSION, never a stream error (the subscription lives on). The split is the point — **`.fresh()` = "the value now, from the wire"; `subscribe` = "the state, kept live."** `fresh()` is a METHOD, not a thenable, because the thenable was a landmine: `return client.browse.resource(id)` from any `async` function auto-awaited, silently converting a cache read into a network round trip — a refactor that wrapped a call site in `async` changed its transport behavior with zero diff at the call (SDK-DEBT L2). Now `await client.browse.x(...)` does not compile; the network round trip is always spelled `.fresh()`. (A `CacheObservable` with no fetch action — a non-cache wrapper — `fresh()`es to the first non-pending state.) Also since 2026-07-29 (D3): calling a browse accessor is PURE — the fetch fires on first subscribe, so accessors are safe to call from render.
 
 The subclass name documents which semantics apply. `.subscribe(...)` works on both — yields the full sequence including loading states or progress events. `.pipe(...)` returns a plain `Observable<T>` (and, for StreamObservable, loses the thenable); once you compose with operators you've explicitly opted into RxJS, and `lastValueFrom` from `rxjs` is the right bridge.
 
@@ -87,18 +89,19 @@ Plain `Observable<T>` does not appear on the public verb-namespace surface. (It 
 ## What this looks like at the call site
 
 ```ts
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontClient, isReady, readyValue } from '@semiont/sdk';
 
 const semiont = await SemiontClient.signInHttp({ baseUrl, email, password });
 
-// 1. Just want the value? await.
-const resource = await semiont.browse.resource(rId);
-const result = await semiont.match.search(rId, refId, ctx);
+// 1. Just want a value once? Streams await; live queries spell it .fresh().
+const result   = await semiont.match.search(rId, refId, ctx);   // stream: awaitable
+const resource = await semiont.browse.resource(rId).fresh();    // live query: explicit fresh read
 
-// 2. Want to render a loading state or live updates? subscribe.
-semiont.browse.resource(rId).subscribe((r) => {
-  if (r === undefined) showSkeleton();
-  else render(r);
+// 2. Want to render a loading state or live updates? subscribe — states, not maybes.
+semiont.browse.resource(rId).subscribe((st) => {
+  if (st.status === 'pending') showSkeleton();
+  else if (st.status === 'failed') showError(st.error);
+  else render(st.value);
 });
 
 // 3. Want progress events from a stream? subscribe.
@@ -107,18 +110,18 @@ semiont.mark.assist(rId, 'linking').subscribe((event) => {
   else if (event.kind === 'complete') celebrate();
 });
 
-// 4. Want to compose with operators? pipe (and bridge back when you await).
-import { filter, map } from 'rxjs/operators';
-import { lastValueFrom } from '@semiont/sdk';
+// 4. Want to compose with operators? pipe (unwrap states with the shipped helpers).
+import { map, filter } from 'rxjs/operators';
+import { firstValueFrom } from '@semiont/sdk';
 
-const names = await lastValueFrom(
+const names = await firstValueFrom(
   semiont.browse.resources()
-    .pipe(filter((rs): rs is ResourceDescriptor[] => rs !== undefined))
-    .pipe(map((rs) => rs.map((r) => r.name)))
+    .pipe(filter(isReady))
+    .pipe(map((st) => st.value.map((r) => r.name)))
 );
 ```
 
-Four idiomatic shapes, all on the same return value. The script-author who's never heard of RxJS uses the first; the React component uses the second; the live-progress UI uses the third; the data-pipeline author uses the fourth.
+Four idiomatic shapes. The script-author who's never heard of RxJS uses the first; the React component uses the second; the live-progress UI uses the third; the data-pipeline author uses the fourth.
 
 ### One consumption per instance — or use `.run()`
 
@@ -132,7 +135,7 @@ const done = await semiont.mark.assist(rId, 'linking').run((event) => {
 });                                                        // resolves the terminal event
 ```
 
-(`CacheObservable` is exempt — its `await` is a fresh fetch, not a re-subscription, so `await` + `.subscribe(...)` on a live query is fine.)
+(`CacheObservable` is exempt — `.fresh()` is a fresh fetch, not a re-subscription, so `.fresh()` + `.subscribe(...)` on a live query is fine.)
 
 ## Method-by-method assignment
 
@@ -148,7 +151,7 @@ const done = await semiont.mark.assist(rId, 'linking').run((event) => {
 
 - `yield.resource`
 
-**`CacheObservable<T>`** (multicast SWR cache for `.subscribe`; `await` fetches fresh and rejects on failure — #847):
+**`CacheObservable<T>`** (multicast SWR cache emitting `CacheState<T>` for `.subscribe`; `.fresh()` fetches fresh and rejects on failure — #847):
 
 - `browse.resource`
 - `browse.resources`
@@ -158,6 +161,7 @@ const done = await semiont.mark.assist(rId, 'linking').run((event) => {
 - `browse.events`
 - `browse.entityTypes`
 - `browse.tagSchemas`
+- `browse.agents`
 
 **Collaboration signals** (return `void`; emit on the bus, fan out to other participants):
 
@@ -235,7 +239,7 @@ If you find yourself reaching for `transport.emit` from application code repeate
 
 ## Bridging back to RxJS
 
-`@semiont/sdk` re-exports `firstValueFrom` and `lastValueFrom` from RxJS. They're not load-bearing for the typical call site — `await semiont.X.Y(...)` works directly on the thenable subclasses — but they save an import line for the operator-composition case:
+`@semiont/sdk` re-exports `firstValueFrom` and `lastValueFrom` from RxJS. They're not load-bearing for the typical call site — streams are directly awaitable and live queries have `.fresh()` — but they save an import line for the operator-composition case:
 
 ```ts
 import { lastValueFrom } from '@semiont/sdk';
@@ -254,8 +258,8 @@ const result = await lastValueFrom(
 1. **Live queries are genuinely reactive.** Browse reads represent "the current value of this resource, which changes when bus events fire." Promise can't express that. Observable can.
 2. **The `Cache<K,V>` primitive is a real architectural building block.** Multicast, per-key dedup, stale-while-revalidate. The subclass approach lets us keep it without leaking it through the public surface. See [CACHE-SEMANTICS.md](./CACHE-SEMANTICS.md) for the cache's behavioral contract.
 3. **Lifecycle state is BehaviorSubject-shaped.** `token$`, `user$`, `state$` are state over time with synchronous snapshots. Native primitive.
-4. **Sugar costs ~50 lines.** Two subclasses; `then` defined per the JS thenable spec. No alternative shape (Promise-only API, dual-API per method, AsyncIterable conversion) is cheaper or cleaner.
-5. **No information loss.** A Promise-typed return would force a choice between progress and final value for streaming methods. A thenable Observable lets the consumer pick — `await` for final, `subscribe` for progress, both can compose.
+4. **Sugar costs ~50 lines.** Three small subclasses; `then` (streams/uploads) per the JS thenable spec, `.fresh()` (live queries) as an explicit method. No alternative shape (Promise-only API, dual-API per method, AsyncIterable conversion) is cheaper or cleaner.
+5. **No information loss.** A Promise-typed return would force a choice between progress and final value for streaming methods. The subclass surface lets the consumer pick — `await`/`.fresh()` for a value, `subscribe` for progress or live state, both can compose.
 6. **Composes correctly with RxJS.** `.subscribe(...)` works. `.pipe(...)` works (and falls back to plain Observable, which is the right behavior because pipe is composition). No fight with idiomatic RxJS.
 7. **Pattern has precedent.** Apollo's `ObservableQuery`, zen-observable's awaitable subclass. Known shape; just not the stock-RxJS default.
 

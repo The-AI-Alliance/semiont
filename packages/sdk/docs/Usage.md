@@ -16,7 +16,8 @@
 - [Admin — Administration](#admin)
 - [Job — Worker Lifecycle](#job)
 - [KB Discovery — Launcher-Managed Endpoints](#kb-discovery)
-- [SSE Streams](#sse-streams)
+- [Bus Connection](#bus-connection)
+- [Debugging the bus](#debugging-the-bus)
 - [Error Handling](#error-handling)
 - [Logging](#logging)
 
@@ -32,10 +33,10 @@ Three framings hold the SDK's surface together. Skim them once and the per-names
 |---|---|---|
 | `Promise<T>` | past-tense or short noun (`mark.annotation`, `auth.password`) | atomic backend ops — one round-trip, one value |
 | `StreamObservable<T>` | plain verb (`mark.assist`, `gather.annotation`) | long-running progress streams — `await` for the final value, `.subscribe(...)` for every emit |
-| `CacheObservable<T>` | plain noun (`browse.resource`, `browse.annotations`) | live queries — `await` for the loaded value, `.subscribe(...)` for loading-then-loaded re-emits |
+| `CacheObservable<T>` | plain noun (`browse.resource`, `browse.annotations`) | live queries — `.subscribe(...)` for `CacheState` emissions (`pending`/`ready`/`failed`, kept live), `.fresh()` for an explicit one-shot fetch |
 | `void` | imperative or progressive verb (`beckon.hover`, `mark.changeShape`) | collaboration signals — fire-and-forget onto the bus, observed by other participants |
 
-Both Observable subclasses implement `PromiseLike<T>`, so `await` works without learning RxJS. Reach for `.subscribe(...)` when you want progress events or live updates. Full design in [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).
+Streams and uploads are thenable, so `await` works without learning RxJS. Live queries are deliberately NOT thenable — the one-shot network read is always spelled `.fresh()`, and subscribing yields typed states rather than `T | undefined`. Full design in [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).
 
 **Collaboration primitives.** The fourth row above — `void`-returning collaboration signals (`beckon.hover`, `mark.changeShape`, `bind.initiate`, `browse.click`) — is the SDK's distinctive contribution to multi-participant coordination. They look fire-and-forget at the call site; on the bus they fan out across every participant. A human hovers; an AI agent reacts. An agent emits a sparkle; a human's UI lights up. This is *protocol-level* coordination on the same typed namespace surface as data operations. Observers reach the same signals via `session.subscribe(channel, handler)` or `client.bus.get(channel)` — see [`REACTIVE-MODEL.md` § Three paths to the bus](./REACTIVE-MODEL.md#three-paths-to-the-bus).
 
@@ -156,32 +157,37 @@ The client does **not** expose `emit / on / stream` methods. All bus traffic flo
 
 ## Browse
 
-Browse methods read from materialized views. Live queries return `CacheObservable<T>` — an Observable subclass that's also awaitable. `await` resolves to the loaded value (skipping the initial `undefined` "loading" state); `.subscribe(...)` yields the full sequence so reactive consumers can render a loading state.
+Browse methods read from materialized views. Live queries return `CacheObservable<T>`: `.subscribe(...)` yields `CacheState<T>` emissions (`pending` → `ready`, with `failed` as an in-stream state — the subscription never dies), kept live by bus-event invalidation; `.fresh()` is the explicit one-shot fetch.
 
-### Awaitable observables
+### Streams vs live queries
 
-Streaming methods (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`) return `StreamObservable<T>`; live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.referencedBy`, `browse.events`, `browse.entityTypes`) return `CacheObservable<T>`. Both are `Observable<T>` subclasses that implement `PromiseLike<T>` — `await` works directly, `.subscribe(...)` yields the full sequence, `.pipe(...)` composes with RxJS operators (and loses the thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
+Streaming methods (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.referencedBy`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.agents`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
 
 ### Live Queries (subscribe)
 
 ```typescript
+import { isReady, readyValue } from '@semiont/sdk';
+import { filter } from 'rxjs/operators';
+
 // Subscribe to a resource — re-emits on yield:updated, mark:archived, etc.
-semiont.browse.resource(resourceId).subscribe((resource) => {
-  console.log('Resource:', resource?.name);   // resource: ResourceDescriptor | undefined
+semiont.browse.resource(resourceId).subscribe((st) => {
+  if (st.status === 'ready') console.log('Resource:', st.value.name);
+  else if (st.status === 'failed') console.error('Load failed:', st.error);
+  // 'pending' — render a skeleton
 });
 
 // Subscribe to annotations — re-emits on mark:added, mark:removed, mark:body-updated
-semiont.browse.annotations(resourceId).subscribe((annotations) => {
-  console.log('Annotations:', annotations?.length);
+semiont.browse.annotations(resourceId).subscribe((st) => {
+  console.log('Annotations:', readyValue(st)?.length);   // readyValue: value | undefined
 });
 
 // Subscribe to entity types — re-emits on frame:entity-type-added (global stream)
-semiont.browse.entityTypes().subscribe((types) => {
-  console.log('Entity types:', types);
+semiont.browse.entityTypes().pipe(filter(isReady)).subscribe((st) => {
+  console.log('Entity types:', st.value);
 });
 
-// One-shot read — await directly, no firstValueFrom wrapper needed.
-const resource = await semiont.browse.resource(resourceId);   // resource: ResourceDescriptor
+// One-shot read — the network round trip is always spelled .fresh().
+const resource = await semiont.browse.resource(resourceId).fresh();   // ResourceDescriptor; rejects on failure
 ```
 
 ### One-Shot Reads (Promise)
@@ -564,9 +570,21 @@ sub.unsubscribe();
 ```
 
 A one-shot read needs no subscription and acquires no scope —
-`await semiont.browse.annotations(resourceId)` fetches a fresh value and returns.
+`semiont.browse.annotations(resourceId).fresh()` fetches a fresh value and returns.
 
-For HTTP, the underlying connection auto-reconnects with exponential backoff. On reconnect, `BrowseNamespace` invalidates active caches and refetches — no `Last-Event-ID` replay needed.
+Scopes COMPOSE (MULTI-RESOURCE-SCOPE): one connection holds every observed
+resource's scope simultaneously — N mounted viewers on N resources are all
+fully live, each ref-counted and released independently.
+
+For HTTP, the underlying connection auto-reconnects (fixed retry interval,
+with a `degraded` state signal after ~3 s of reconnecting). Reconnects are
+make-before-break and cheap on the caches: the client resumes each scope
+from its persisted-event watermark, the server replays only what was missed,
+and outstanding `busRequest` replies are re-requested from the server's
+retention buffer (`pendingReplies`) — blanket invalidation happens only when
+the server signals `bus:resume-gap`. See
+[TRANSPORT-HTTP.md](../../../docs/protocol/TRANSPORT-HTTP.md) for the wire
+contract.
 
 ### Worker / actor adapters
 
@@ -649,7 +667,7 @@ Bus-layer and session-layer errors keep their own code namespaces:
 | Class | Codes | Thrown by |
 |---|---|---|
 | `APIError` (extends `SemiontError`) | `TransportErrorCode` (above) — plus `APIError.status` for the original HTTP status | HTTP transport (`@semiont/http-transport`) |
-| `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.closed`, `bus.bad-payload`, `bus.unauthorized`, `bus.forbidden`, `bus.not-found` | bus-mediated commands inside namespaces |
+| `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.closed`, `bus.bad-payload`, `bus.unauthorized`, `bus.forbidden`, `bus.not-found` | bus-mediated commands inside namespaces. (`bus.timeout` should be rare: the emit is gated on an open connection, and a reply published during a disconnect replays from the server's retention buffer on reconnect — a timeout that does fire usually means the backend is genuinely down or slow.) |
 | `SemiontSessionError` | `session.auth-failed`, `session.refresh-exhausted`, `session.construct-failed` | the session layer — surfaced on `SemiontBrowser.error$`, not as a per-call rejection |
 
 Catch broadly on `SemiontError` and route on `code`; reach for `APIError` (imported from `@semiont/http-transport`) only when a handler genuinely needs HTTP-specific fields like `status`.
