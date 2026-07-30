@@ -279,9 +279,9 @@ PORT=4000
 # Database
 DATABASE_URL="postgresql://postgres:localpassword@localhost:5432/semiont"
 
-# JWT (use a long random string for local dev)
+# JWT (use a long random string for local dev). May also be an ordered,
+# comma-separated key ring during a rotation — first key signs, all verify.
 JWT_SECRET="local-development-secret-min-32-characters-long"
-JWT_EXPIRES_IN="7d"
 
 # OAuth (optional for local dev)
 GOOGLE_CLIENT_ID="your-google-client-id"
@@ -446,8 +446,9 @@ echo $DATABASE_URL
 
 ### "JWT_SECRET too short"
 
-- Must be at least 32 characters
-- Generate secure secret: `openssl rand -base64 32`
+- Each key must be at least 32 characters — the check is per key, not on the whole
+  string, since `JWT_SECRET` may be a comma-separated rotation ring
+- Generate secure secret: `openssl rand -hex 32`
 
 ### "Prisma client not found"
 
@@ -493,7 +494,7 @@ Beyond that, the backend reads from the environment directly:
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL` | Postgres connection string. In the container image the CMD derives it from `services.database` (`src/cli/db-url.ts`) when unset; set it explicitly to override, e.g. for an external or TLS-requiring database |
-| `JWT_SECRET` | Token signing; minimum 32 characters |
+| `JWT_SECRET` | Token signing. An ordered, comma-separated key ring: the first key signs, every key verifies; minimum 32 characters **per key**. A single value is the one-key case. See [Rotating `JWT_SECRET`](../../../docs/system/administration/AUTHENTICATION.md#rotating-jwt_secret-without-signing-everyone-out) |
 | `SEMIONT_WORKER_SECRET` | Shared secret for the software-agent token exchange |
 
 `semiont init` generates both TOML files. See the

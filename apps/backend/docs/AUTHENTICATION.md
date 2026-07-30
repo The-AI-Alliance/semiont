@@ -289,7 +289,7 @@ The backend validates tokens through multiple layers:
 
 - **Router-level protection** - Routes protected via router.use() middleware
 - **Comprehensive test coverage** - route-auth-coverage.test.ts validates all routes
-- **Environment validation** - JWT_SECRET must be 32+ characters
+- **Environment validation** - each key in JWT_SECRET must be 32+ characters (it may be a comma-separated rotation ring)
 - **Request validation** - All inputs validated with Zod schemas
 - **SQL injection prevention** - Prisma ORM with parameterized queries
 - **CORS** - open (`origin: '*'`, no credentials); safe because auth is bearer-only, not cookie-based
@@ -316,12 +316,28 @@ This test ensures no authentication regressions occur when adding or modifying r
 **"Unauthorized" Error (401)**:
 
 ```bash
-# Check JWT secret matches
-echo $JWT_SECRET | wc -c  # Must be 32+ characters
+# JWT_SECRET is an ordered, comma-separated KEY RING: the first key signs,
+# every key verifies. Check each key's length, not the joined string.
+echo "$JWT_SECRET" | tr ',' '\n' | awk '{ print NR": "length($0)" chars" }'  # each must be 32+
 
-# Test token manually
-node -e "console.log(require('jsonwebtoken').verify('TOKEN', process.env.JWT_SECRET))"
+# Test a token manually against every key in the ring (prints the payload
+# from whichever one accepts it).
+node -e '
+  const jwt = require("jsonwebtoken");
+  const token = process.argv[1];
+  for (const secret of process.env.JWT_SECRET.split(",").map(s => s.trim())) {
+    try { console.log(jwt.verify(token, secret)); process.exit(0); } catch {}
+  }
+  console.error("no key in JWT_SECRET verifies this token");
+  process.exit(1);
+' "TOKEN"
 ```
+
+Verifying against `process.env.JWT_SECRET` directly only works when the ring holds a
+single key — with a rotation in progress it passes the whole comma-joined string as one
+secret and always fails. See
+[Rotating `JWT_SECRET`](../../../docs/system/administration/AUTHENTICATION.md#rotating-jwt_secret-without-signing-everyone-out)
+for the rotation procedure.
 
 **"Forbidden" Error (403)**:
 
@@ -363,8 +379,8 @@ console.log('Auth attempt:', {
 **2. Verify JWT Secret**:
 
 ```bash
-# In development
-echo "JWT_SECRET length: $(echo -n $JWT_SECRET | wc -c)"
+# In development — per key, since JWT_SECRET may be a rotation ring
+echo "$JWT_SECRET" | tr ',' '\n' | awk '{ print "key "NR": "length($0)" chars" }'
 ```
 
 **3. Check User Context**:
