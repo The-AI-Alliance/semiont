@@ -12,11 +12,14 @@ AI agent that gathers context and generates grounded answers, a daemon that inge
 one-shot query script: all reach the same verb namespaces, the same collaboration primitives,
 the same lifecycle observables. Humans and AI agents are peers — the SDK does not distinguish.
 
-> ## 📖 Start with the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/DEVELOPER-GUIDE.md)
+> ## 📖 New here? Start with the [Introduction](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/INTRODUCTION.md)
 >
-> Task-ordered recipes — connect → ingest → enrich → gather → generate (grounded Q&A with
-> inline citations) → annotate → react live → tear down — each a short explanation plus the
-> exact SDK lines. **This README is the map; the guide is the road.** For protocol-level
+> The orientation chapter: what Semiont is, the domain vocabulary, and the three ideas the
+> API falls out of — written for people who build web apps, assuming nothing about AI apps.
+> Then the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/DEVELOPER-GUIDE.md)
+> is the road: task-ordered recipes — connect → ingest → enrich → gather → generate
+> (grounded Q&A with inline citations) → annotate → react live → tear down — each a short
+> explanation plus the exact SDK lines. **This README is the map.** For protocol-level
 > framing (the eight flows, the core tenets), see
 > [`docs/protocol/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/README.md);
 > daemon authors also want the [skill packs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills).
@@ -30,13 +33,13 @@ with a shared corpus. Learn them once and the surface stays small.
 
 | Verb | What it does | Example methods |
 |---|---|---|
-| **frame** | Define and evolve the schema vocabulary (entity types, tag schemas) | `frame.addEntityTypes`, `frame.addTagSchema` |
+| **browse** | Navigate, read, observe — including who's here to collaborate | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
+| **bind** | Resolve ambiguous references to specific resources | `bind.body`, `bind.initiate` |
 | **yield** | Introduce new resources — uploaded or generated from gathered context | `yield.resource`, `yield.fromResource`, `yield.fromAnnotation` |
 | **mark** | Add structured metadata to resources | `mark.annotation`, `mark.assist`, `mark.updateEntityTypes`, `mark.archive` |
-| **match** | Search the corpus for candidate resources | `match.search` |
-| **bind** | Resolve ambiguous references to specific resources | `bind.body`, `bind.initiate` |
+| **frame** | Define and evolve the schema vocabulary (entity types, tag schemas) | `frame.addEntityTypes`, `frame.addTagSchema` |
 | **gather** | Assemble grounding context around a resource or an annotation | `gather.resource`, `gather.annotation` |
-| **browse** | Navigate, read, observe — including who's here to collaborate | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
+| **match** | Search the corpus for candidate resources | `match.search` |
 | **beckon** | Coordinate attention across participants | `beckon.hover`, `beckon.sparkle` |
 
 Each flow is a namespace on `SemiontClient` (`client.mark.X(...)`); the verb is the unit of

@@ -1,11 +1,12 @@
 # `@semiont/sdk` documentation map
 
-Five documents, each with ONE job. They follow the classic four-quadrant split
-(how-to / reference / explanation / contract); knowing a doc's quadrant tells
-you what belongs in it — and what to reject in review.
+Six documents, each with ONE job. They follow the classic four-quadrant split
+(how-to / reference / explanation / contract) plus one orientation doc; knowing
+a doc's quadrant tells you what belongs in it — and what to reject in review.
 
 | Doc | Role | One-line scope |
 |---|---|---|
+| [INTRODUCTION.md](./INTRODUCTION.md) | **Orientation** (read first) | The builder's mental model: the three core ideas, the contract→SDKs→bindings stack, live data, a one-page chat turn, the testing ethos, and the build-vs-adopt case for teams shipping with AI coding tools. No recipes, no reference. |
 | [DEVELOPER-GUIDE.md](./DEVELOPER-GUIDE.md) | **How-to** (and the de-facto tutorial) | Task-ordered recipes: connect → ingest → enrich → gather → generate → annotate → react live → test → tear down. Short prose + the exact lines. |
 | [Usage.md](./Usage.md) | **Reference** | The per-namespace surface: every method family, options, return shapes, error vocabulary, bus debugging. |
 | [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) | **Explanation** | Why the surface is shaped this way: RxJS substrate, the four return shapes, thenable streams vs `.fresh()` live queries, the three paths to the bus. |
@@ -14,10 +15,12 @@ you what belongs in it — and what to reject in review.
 
 Rules of placement:
 
-- A new **recipe** goes in the DEVELOPER-GUIDE; a new **method** goes in
-  Usage.md; a new **design rationale** goes in REACTIVE-MODEL or STATE-UNITS;
-  a new **cache behavior** gets a B-number in CACHE-SEMANTICS *and* a test
-  citing it. If a change doesn't fit one home, it's probably two changes.
+- **Concepts a newcomer needs before any code** go in INTRODUCTION — and
+  nowhere else, so the mental model is taught in exactly one place. A new
+  **recipe** goes in the DEVELOPER-GUIDE; a new **method** goes in Usage.md;
+  a new **design rationale** goes in REACTIVE-MODEL or STATE-UNITS; a new
+  **cache behavior** gets a B-number in CACHE-SEMANTICS *and* a test citing
+  it. If a change doesn't fit one home, it's probably two changes.
 - Contract docs (CACHE-SEMANTICS, and the protocol docs below) carry
   **revision logs** — behavior changes append a dated entry.
 - Wire-level truth lives OUTSIDE this package, in
@@ -30,6 +33,9 @@ Rules of placement:
   docs LINK there; they don't restate wire format.
 
 ## Reading order by audience
+
+**New to Semiont entirely** — [INTRODUCTION.md](./INTRODUCTION.md) first; it
+routes you to the right doc by goal.
 
 **"I want to call the API from a script"** —
 [README](../README.md) § Install & connect, then DEVELOPER-GUIDE recipes 1–10.
@@ -50,22 +56,14 @@ harnesses in `@semiont/core/testing/axioms` are the executable half of these doc
 (the test doubles themselves live at `@semiont/core/testing`, free of any
 `fast-check` requirement).
 
-## The five ideas everything else hangs off
+## Where the concepts live
 
-1. **Eight verbs** — every operation belongs to a flow namespace
-   (`browse`, `mark`, `yield`, `gather`, `match`, `bind`, `frame`, `beckon`).
-2. **Typed return shapes** — `Promise` / awaitable streams /
-   `CacheObservable` (+`.fresh()`) / `void` signals; the shape tells you how
-   to consume.
-3. **`CacheState` live queries** — subscribe and you get
-   `pending | ready | failed` states, kept live by scope-by-observation;
-   failure is in-band and recovery is a fresh subscribe.
-4. **Sessions own lifecycle** — token refresh, storage, disposal;
-   session-scoped state units take the `SemiontSession`, not a bare client.
-5. **The bus is the substrate** — commands, replies, and collaboration
-   signals all ride one connection, with a deliberate TWO-TIER delivery
-   contract documented at the protocol layer
-   ([TRANSPORT-CONTRACT.md § Delivery guarantees](../../../docs/protocol/TRANSPORT-CONTRACT.md)):
-   persisted domain events are durable and resumable per scope (effectively
-   exactly-once); one-shot correlated replies get deadline-bounded retention
-   (effectively exactly-once within the caller's timeout, not durable).
+The mental model — the eight verbs, the typed return shapes, `CacheState` live
+queries, session-owned lifecycle, and the bus's two-tier delivery contract — is
+taught once in [INTRODUCTION](./INTRODUCTION.md) and specified in the docs
+above. It is deliberately NOT restated here: a map that also teaches is a map
+that drifts from the docs it maps.
+
+The canonical order for the eight verbs, used in
+[`docs/protocol/flows/`](../../../docs/protocol/flows/) and everywhere that
+lists them: **browse · bind · yield · mark · frame · gather · match · beckon**.
