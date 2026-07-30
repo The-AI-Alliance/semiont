@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { annotationId } from '@semiont/core';
 import { createBeckonStateUnit, createHoverHandlers, HOVER_DELAY_MS } from '../beckon-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
-import { assertStateUnitAxioms } from '@semiont/core/testing';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
 describe('createBeckonStateUnit', () => {
   let tc: TestClient;

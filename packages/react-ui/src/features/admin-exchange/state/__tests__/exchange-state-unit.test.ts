@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom, of, throwError } from 'rxjs';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
 import { createExchangeStateUnit } from '../exchange-state-unit';
-import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing';
+import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing/axioms';
 
 function mockBrowse(): ShellStateUnit {
   return { dispose: vi.fn() } as unknown as ShellStateUnit;

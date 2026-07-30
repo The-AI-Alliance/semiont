@@ -6,7 +6,7 @@ import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
 import { createComposePageStateUnit } from '../compose-page-state-unit';
-import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing';
+import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing/axioms';
 
 /** Build an `UploadObservable`-shaped mock that emits started → finished. */
 function mockUpload(resourceId: string) {

@@ -4,7 +4,7 @@ import { resourceId as makeResourceId } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
 import { createYieldStateUnit } from '../yield-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
-import { assertStateUnitAxioms } from '@semiont/core/testing';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import type { YieldGenerationEvent } from '../../../namespaces/types';
 
 type JobProgress = components['schemas']['JobProgress'];

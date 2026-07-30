@@ -5,7 +5,7 @@ import type { SemiontSession } from '@semiont/sdk';
 import { AuthNamespace } from '@semiont/sdk';
 import { createTestSession, stubBackend } from '@semiont/sdk/testing';
 import { createWelcomeStateUnit } from '../welcome-state-unit';
-import { assertStateUnitAxioms } from '@semiont/core/testing';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
 // Real session over the scriptable transport (SESSION-TYPED-FACTORIES pilot);
 // auth behavior scripted by prototype spies, the AuthShell precedent — the

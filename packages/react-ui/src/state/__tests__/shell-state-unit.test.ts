@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { components } from '@semiont/core';
 import { createShellStateUnit } from '../shell-state-unit';
-import { assertStateUnitAxioms } from '@semiont/core/testing';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import { SemiontBrowser } from '@semiont/sdk';
 import { createHttpSessionFactory } from '@semiont/sdk';
 import { InMemorySessionStorage } from '@semiont/sdk';

@@ -43,7 +43,8 @@ import { filter, map } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { IContentTransport } from '@semiont/core';
-import { assertLivenessAxioms, FaultyTransport } from '@semiont/core/testing';
+import { FaultyTransport } from '@semiont/core/testing';
+import { assertLivenessAxioms } from '@semiont/core/testing/axioms';
 import { BrowseNamespace } from '../namespaces/browse';
 
 /** Small explicit busRequest timeout — deterministic virtual time (no 30 s). */

@@ -5,7 +5,7 @@ import { filter } from 'rxjs/operators';
 import { annotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
 import { createResourceViewerPageStateUnit, type ResourceViewerPageStateUnit } from '../resource-viewer-page-state-unit';
-import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing';
+import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing/axioms';
 import { makeTestSession, type TestSession } from '../../../../__tests__/test-client';
 
 const RID = makeResourceId('res-1');
