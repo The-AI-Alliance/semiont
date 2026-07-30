@@ -9,13 +9,12 @@
     "demo"
   ],
   "scripts": {
-    "install:cli": "npm run build -w @semiont/mcp-server && cd apps/cli && npm run build && npm link",
     "dev": "npm run dev --workspaces",
     "build": "npm run build:packages && npm run build:apps",
     "build:packages": "node scripts/dev/build-packages.js",
     "generate:bus": "node scripts/bus/generate-ts.mjs && node scripts/bus/generate-go.mjs",
     "generate:bus:check": "node scripts/bus/generate-ts.mjs --check && node scripts/bus/generate-go.mjs --check",
-    "build:apps": "npm run build -w semiont-backend && npm run build -w semiont-frontend && npm run build -w @semiont/cli",
+    "build:apps": "npm run build -w semiont-backend && npm run build -w semiont-frontend",
     "build:all": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint:css": "stylelint '**/*.css' --ignore-path .gitignore",

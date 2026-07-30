@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// KB-root discovery, adopted from apps/cli (config-loader.ts): SEMIONT_ROOT
+// KB-root discovery: SEMIONT_ROOT
 // is an explicit override analogous to GIT_DIR — strictly validated, never
 // silently ignored — else the root is found by walking up from cwd looking
 // for .semiont/. git is deliberately NOT part of discovery; whether the root

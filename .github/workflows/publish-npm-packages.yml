@@ -118,12 +118,7 @@ jobs:
               [[ "$kind" == "lib" ]] && echo "npm install $name@$TAG"
             done <<< "$MANIFEST"
             while IFS=$'\t' read -r name kind; do
-              [[ "$kind" == "app" ]] || continue
-              if [[ "$name" == "@semiont/cli" ]]; then
-                echo "npm install -g $name@$TAG"
-              else
-                echo "npm install $name@$TAG"
-              fi
+              [[ "$kind" == "app" ]] && echo "npm install $name@$TAG"
             done <<< "$MANIFEST"
             echo '```'
           } >> $GITHUB_STEP_SUMMARY

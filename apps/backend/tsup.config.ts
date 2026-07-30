@@ -23,8 +23,8 @@ export default defineConfig({
   target: 'node20',
   platform: 'node',
   noExternal: [],
-  // Same convention as apps/cli: the version is injected at build time, never
-  // read from the environment. See src/types/build-defines.d.ts.
+  // The version is injected at build time, never read from the environment.
+  // See src/types/build-defines.d.ts.
   define: { __SEMIONT_VERSION__: JSON.stringify(version) },
   banner: { js: '#!/usr/bin/env node' },
   async onSuccess() {

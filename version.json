@@ -76,11 +76,6 @@
       "version": "0.5.24",
       "publish": false
     },
-    "@semiont/cli": {
-      "dir": "apps/cli",
-      "version": "0.5.24",
-      "publish": true
-    },
     "semiont-backend": {
       "dir": "apps/backend",
       "stage": ".npm-stage/backend",

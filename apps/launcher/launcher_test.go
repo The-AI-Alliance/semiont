@@ -3237,8 +3237,8 @@ func TestSemiontRootOverride(t *testing.T) {
 }
 
 func TestSemiontRootInvalid(t *testing.T) {
-	// Strict, matching apps/cli: an invalid override is an error, never
-	// silently ignored in favor of discovery.
+	// Strict: an invalid override is an error, never silently ignored in
+	// favor of discovery.
 	s := newScenario(t, "container")
 	for _, tc := range []struct{ root, want string }{
 		{filepath.Join(t.TempDir(), "nope"), "points to non-existent directory"},

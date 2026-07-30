@@ -11,7 +11,6 @@ queries:
 paths:
   - apps/frontend/src
   - apps/backend/src
-  - apps/cli/src
   # Go launcher — module root, not a src/ dir (main.go + internal/)
   - apps/launcher
   - packages/http-transport/src
