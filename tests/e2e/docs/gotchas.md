@@ -3,20 +3,20 @@
 Sharp edges that took real debugging the first time. Documented here
 so future-you doesn't repeat the journey.
 
-## `crypto.randomUUID` requires a secure context
+## `crypto.randomUUID` requires a secure context — the product no longer calls it
 
 `http://localhost` and `http://127.0.0.1` count as secure;
-`http://<any-other-IP>` does not. When the tests run against container
-IPs (e.g. `http://192.168.64.60:3000`), the frontend's calls to
-`crypto.randomUUID` throw "is not a function".
+`http://<any-other-IP>` does not. Browsers expose `crypto.randomUUID`
+only in secure contexts, so on container/LAN IPs (e.g.
+`http://192.168.64.60:3000`) it is `undefined`.
 
-The auth fixture polyfills it via `page.addInitScript` — see
-[`fixtures/auth.ts`](../fixtures/auth.ts).
-
-This is also a latent product bug — any user hitting the frontend via
-HTTP from a non-localhost hostname will hit it. Fix is either to ship
-an internal uuid that doesn't require a secure context, or to require
-HTTPS in production.
+All product ids are generated via `@semiont/core`'s `generateUuid()` /
+`uuidV4()`, built on `crypto.getRandomValues()` — available in every
+context — so the suite needs no polyfill and none exists. If a
+"crypto.randomUUID is not a function" error ever reappears in a test
+run, someone reintroduced a direct call; route it through the core
+helpers instead of re-adding a shim
+(`.plans/bugs/crypto-randomuuid-insecure-context.md`).
 
 ## LoginForm's host field resets the protocol
 

@@ -4,6 +4,7 @@ import { SemiontError } from './errors';
 import type { EventMap, EventName } from './bus-protocol';
 import type { ConnectionState } from './transport';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
+import { uuidV4 } from './id-generation';
 
 /**
  * The value a registered operation resolves to: the `response` field of its
@@ -88,7 +89,7 @@ export async function busRequest<Op extends BusOperationKey>(
   payload: Record<string, unknown>,
   timeoutMs = 30_000,
 ): Promise<BusReply<Op>> {
-  const correlationId = crypto.randomUUID();
+  const correlationId = uuidV4();
   const fullPayload = { ...payload, correlationId };
   const { result: resultChannel, failure: failureChannel } = BUS_OPERATIONS[operation];
 
