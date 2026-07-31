@@ -32,9 +32,9 @@ import type { TagSchema } from '@semiont/core';
  * with the entity-extractor path. With derived budgets this fires only on
  * pathological annotation density.
  */
-function assertNotTruncated(response: InferenceResponse, motivation: string, chunk: number, totalChunks: number): void {
+function assertNotTruncated(response: InferenceResponse, motivation: string, chunk: number, totalChunks: number, outputBudget: number): void {
   if (response.stopReason === 'max_tokens') {
-    throw new Error(`${motivation} detection response truncated (max_tokens) on chunk ${chunk}/${totalChunks} despite the derived output budget — failing the job rather than under-reporting annotations.`);
+    throw new Error(`${motivation} detection response truncated (max_tokens) on chunk ${chunk}/${totalChunks} despite the derived output budget of ${outputBudget} tokens — failing the job rather than under-reporting annotations.`);
   }
 }
 
@@ -71,7 +71,7 @@ async function detectInChunks<T>(
     const response = await boundedGenerateWithMetadata(
       client, buildPrompt(chunks[i]!), outputBudget, temperature, { format: 'json' },
     );
-    assertNotTruncated(response, motivation, i + 1, chunks.length);
+    assertNotTruncated(response, motivation, i + 1, chunks.length, outputBudget);
     collected.push(...parse(response.text));
     if (i < chunks.length - 1) {
       onChunk?.(i + 1, chunks.length);
