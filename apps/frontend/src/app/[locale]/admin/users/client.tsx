@@ -9,7 +9,7 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buttonStyles, Toolbar, useSemiont } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, useShellStateUnit, useObservable, useLineNumbers } from '@semiont/react-ui';
 import { AdminUsersPage } from '@semiont/react-ui';
 import type { AdminUser, AdminUserStats } from '@semiont/react-ui';
 import { createAdminUsersStateUnit } from '@semiont/react-ui';
@@ -29,21 +29,10 @@ export default function AdminUsers() {
   const usersLoading = useObservable(stateUnit?.usersLoading$) ?? true;
   const statsLoading = useObservable(stateUnit?.statsLoading$) ?? true;
 
-  const { theme, setTheme } = useTheme();
-  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const { theme } = useTheme();
+  const { showLineNumbers } = useLineNumbers();
 
-  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
-    setTheme(theme);
-  }, [setTheme]);
 
-  const handleLineNumbersToggled = useCallback(() => {
-    toggleLineNumbers();
-  }, [toggleLineNumbers]);
-
-  useEventSubscriptions({
-    'settings:theme-changed': handleThemeChanged,
-    'settings:line-numbers-toggled': handleLineNumbersToggled,
-  });
 
   const handleUpdateUser = useCallback(async (id: string, data: { isAdmin?: boolean; isActive?: boolean }) => {
     try {

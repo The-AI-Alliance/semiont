@@ -13,7 +13,6 @@ import {
   useObservable,
   useLineNumbers,
   useHoverDelay,
-  useEventSubscriptions,
   useSessionStateUnit,
   Toolbar,
   ComposeLoadingState,
@@ -76,14 +75,9 @@ function ComposeResourceContent() {
   const availableEntityTypes = useObservable(stateUnit?.entityTypes.value$) ?? [];
   const uploadProgress = useObservable(stateUnit?.uploadProgress$) ?? null;
 
-  const { setTheme, resolvedTheme } = useTheme();
-  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const { resolvedTheme } = useTheme();
+  const { showLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();
-
-  useEventSubscriptions({
-    'settings:theme-changed': ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme),
-    'settings:line-numbers-toggled': () => toggleLineNumbers(),
-  });
 
   const handleSaveResource = async (params: UISaveResourceParams) => {
     if (!stateUnit) return;

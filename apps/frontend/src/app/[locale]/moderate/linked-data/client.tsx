@@ -6,7 +6,6 @@ import {
   useShellStateUnit,
   useObservable,
   useLineNumbers,
-  useEventSubscriptions,
   useSemiont,
   useSessionStateUnit,
   LinkedDataPage,
@@ -37,13 +36,8 @@ export default function LinkedDataClient() {
   const importMessage = useObservable(stateUnit?.importMessage$);
   const importResult = useObservable(stateUnit?.importResult$);
 
-  const { theme, setTheme } = useTheme();
-  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
-
-  useEventSubscriptions({
-    'settings:theme-changed': useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme), [setTheme]),
-    'settings:line-numbers-toggled': useCallback(() => toggleLineNumbers(), [toggleLineNumbers]),
-  });
+  const { theme } = useTheme();
+  const { showLineNumbers } = useLineNumbers();
 
   const handleExport = useCallback(async () => {
     if (!stateUnit) return;

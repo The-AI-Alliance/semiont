@@ -1,8 +1,7 @@
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, useShellStateUnit, useObservable, useLineNumbers } from '@semiont/react-ui';
 import { RecentDocumentsPage } from '@semiont/react-ui';
 
 // Authentication is handled by middleware (proxy.ts)
@@ -15,21 +14,10 @@ export default function RecentDocumentsPageWrapper() {
   // Toolbar and settings state
   const browseStateUnit = useShellStateUnit();
   const activePanel = useObservable(browseStateUnit.activePanel$) ?? null;
-  const { theme, setTheme } = useTheme();
-  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const { theme } = useTheme();
+  const { showLineNumbers } = useLineNumbers();
 
-  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
-    setTheme(theme);
-  }, [setTheme]);
 
-  const handleLineNumbersToggled = useCallback(() => {
-    toggleLineNumbers();
-  }, [toggleLineNumbers]);
-
-  useEventSubscriptions({
-    'settings:theme-changed': handleThemeChanged,
-    'settings:line-numbers-toggled': handleLineNumbersToggled,
-  });
 
   return (
     <RecentDocumentsPage
