@@ -29,7 +29,7 @@ describe('id generation in an insecure browsing context (no crypto.randomUUID)',
   });
 
   it('the stub reproduces the broken environment', () => {
-    expect((crypto as Crypto).getRandomValues).toBeTypeOf('function');
+    expect(crypto.getRandomValues).toBeTypeOf('function');
     expect((crypto as { randomUUID?: unknown }).randomUUID).toBeUndefined();
   });
 
