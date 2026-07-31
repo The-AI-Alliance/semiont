@@ -142,12 +142,19 @@ describe('MotivationPrompts', () => {
       expect(prompt).toContain('4 assessments per 2000 words');
     });
 
-    it('should truncate content to 8000 characters', () => {
-      const longContent = 'z'.repeat(10000);
-      const prompt = MotivationPrompts.buildAssessmentPrompt(longContent);
+    it('must not clip content — the chunk is the input budget (Phase 3b, #738)', () => {
+      const longContent = 'z'.repeat(9000) + ' SENTINEL_PAST_8K';
 
-      expect(prompt).toContain('z'.repeat(8000));
-      expect(prompt).not.toContain('z'.repeat(8001));
+      expect(MotivationPrompts.buildAssessmentPrompt(longContent)).toContain('SENTINEL_PAST_8K');
+      expect(MotivationPrompts.buildAssessmentPrompt(longContent, 'assess rigor')).toContain('SENTINEL_PAST_8K');
+    });
+
+    it('tag prompts were never clipped — guard that stays true', () => {
+      const longContent = 'w'.repeat(9000) + ' SENTINEL_PAST_8K';
+      const prompt = MotivationPrompts.buildTagPrompt(
+        longContent, 'Issue', 'IRAC', 'legal analysis', 'legal', 'the issue', ['What is at stake?'],
+      );
+      expect(prompt).toContain('SENTINEL_PAST_8K');
     });
   });
 

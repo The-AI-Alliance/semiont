@@ -735,6 +735,7 @@ describe('locale threading', () => {
 
       expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
         'content', client, undefined, undefined, 'fr',
+        expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
       );
     });
 
@@ -750,6 +751,7 @@ describe('locale threading', () => {
 
       expect(AnnotationDetection.detectComments).toHaveBeenCalledWith(
         'content', client, undefined, undefined, undefined, 'de', 'fr',
+        expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
       );
     });
 
@@ -765,6 +767,7 @@ describe('locale threading', () => {
 
       expect(AnnotationDetection.detectAssessments).toHaveBeenCalledWith(
         'content', client, undefined, undefined, undefined, 'es', 'pt',
+        expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
       );
     });
 
@@ -799,6 +802,7 @@ describe('locale threading', () => {
       // not a schemaId.
       expect(AnnotationDetection.detectTags).toHaveBeenCalledWith(
         'content', client, SCHEMA_1, 'Issue', 'fr',
+        expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
       );
     });
 
@@ -812,6 +816,7 @@ describe('locale threading', () => {
 
       expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
         'content', client, undefined, undefined, undefined,
+        expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
       );
     });
 

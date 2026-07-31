@@ -33,7 +33,9 @@ export class MotivationPrompts {
   /**
    * Build a prompt for detecting comment-worthy passages
    *
-   * @param content - The text content to analyze (will be truncated to 8000 chars)
+   * @param content - The text content to analyze — a chunk sized by the
+   *   caller from derived provider limits; NEVER re-truncated here (a
+   *   builder-level clip is silent input loss — see #738)
    * @param instructions - Optional user-provided instructions
    * @param tone - Optional tone guidance (e.g., "academic", "conversational")
    * @param density - Optional target number of comments per 2000 words
@@ -64,7 +66,7 @@ ${instructions}${toneGuidance}${densityGuidance}${sourceLang}${bodyLang}
 
 Text to analyze:
 ---
-${content.substring(0, 8000)}
+${content}
 ---
 
 Return a JSON array of comments. Each comment must have:
@@ -100,7 +102,7 @@ Guidelines:
 
 Text to analyze:
 ---
-${content.substring(0, 8000)}
+${content}
 ---
 
 Return a JSON array of comments. Each comment should have:
@@ -123,7 +125,9 @@ Example format:
   /**
    * Build a prompt for detecting highlight-worthy passages
    *
-   * @param content - The text content to analyze (will be truncated to 8000 chars)
+   * @param content - The text content to analyze — a chunk sized by the
+   *   caller from derived provider limits; NEVER re-truncated here (a
+   *   builder-level clip is silent input loss — see #738)
    * @param instructions - Optional user-provided instructions
    * @param density - Optional target number of highlights per 2000 words
    * @returns Formatted prompt string
@@ -149,7 +153,7 @@ ${instructions}${densityGuidance}${sourceLang}
 
 Text to analyze:
 ---
-${content.substring(0, 8000)}
+${content}
 ---
 
 Return a JSON array of highlights. Each highlight must have:
@@ -182,7 +186,7 @@ Guidelines:
 
 Text to analyze:
 ---
-${content.substring(0, 8000)}
+${content}
 ---
 
 Return a JSON array of highlights. Each highlight should have:
@@ -204,7 +208,9 @@ Example format:
   /**
    * Build a prompt for detecting assessment-worthy passages
    *
-   * @param content - The text content to analyze (will be truncated to 8000 chars)
+   * @param content - The text content to analyze — a chunk sized by the
+   *   caller from derived provider limits; NEVER re-truncated here (a
+   *   builder-level clip is silent input loss — see #738)
    * @param instructions - Optional user-provided instructions
    * @param tone - Optional tone guidance (e.g., "critical", "supportive")
    * @param density - Optional target number of assessments per 2000 words
@@ -235,7 +241,7 @@ ${instructions}${toneGuidance}${densityGuidance}${sourceLang}${bodyLang}
 
 Text to analyze:
 ---
-${content.substring(0, 8000)}
+${content}
 ---
 
 Return a JSON array of assessments. Each assessment must have:
@@ -271,7 +277,7 @@ Guidelines:
 
 Text to analyze:
 ---
-${content.substring(0, 8000)}
+${content}
 ---
 
 Return a JSON array of assessments. Each assessment should have:
