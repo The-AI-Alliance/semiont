@@ -409,8 +409,9 @@ test.describe('large-document assisted linking', () => {
         const starts = mine
           .map((a) => {
             const t = Array.isArray(a.target) ? a.target[0] : a.target;
-            const sels = Array.isArray(t?.selector) ? t.selector : [t?.selector];
-            const pos = sels.find((x) => x?.type === 'TextPositionSelector') as { start?: number } | undefined;
+            const sels: Array<{ type?: string; start?: number } | undefined> =
+              Array.isArray(t?.selector) ? t.selector : [t?.selector];
+            const pos = sels.find((x) => x?.type === 'TextPositionSelector');
             return pos?.start;
           })
           .filter((x): x is number => typeof x === 'number');
