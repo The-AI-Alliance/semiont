@@ -329,7 +329,7 @@ export type { GoogleAuthRequest } from './auth-types';
 
 // ID generation
 export { generateUuid, uuidV4 } from './id-generation';
-export { chunkText, DEFAULT_CHUNKING_CONFIG } from './chunking';
+export { chunkText, estimateTokens, DEFAULT_CHUNKING_CONFIG } from './chunking';
 export type { ChunkingConfig } from './chunking';
 
 // State-unit pattern — the disposable contract shared by every layer (sdk,

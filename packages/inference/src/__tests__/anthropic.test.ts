@@ -1,22 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the Anthropic SDK so we can assert the exact request shape and feed
-// canned responses. `vi.hoisted` makes `createMock` available inside the
+// canned responses. `vi.hoisted` makes the mocks available inside the
 // (hoisted) mock factory.
-const { createMock } = vi.hoisted(() => ({ createMock: vi.fn() }));
+const { createMock, retrieveMock, streamMock } = vi.hoisted(() => ({
+  createMock: vi.fn(),
+  retrieveMock: vi.fn(),
+  streamMock: vi.fn(),
+}));
 
 vi.mock('@anthropic-ai/sdk', () => ({
   default: class MockAnthropic {
-    messages = { create: createMock };
+    messages = { create: createMock, stream: streamMock };
+    models = { retrieve: retrieveMock };
   },
 }));
 
 import { AnthropicInferenceClient } from '../implementations/anthropic.js';
-import { OllamaInferenceClient } from '../implementations/ollama.js';
 
 describe('AnthropicInferenceClient - JSON mode is tool-use, not prefill', () => {
   beforeEach(() => {
     createMock.mockReset();
+    retrieveMock.mockReset();
+    streamMock.mockReset();
   });
 
   it('forces a schema-typed tool call (no assistant prefill) for { format: "json" }', async () => {
@@ -86,6 +92,8 @@ describe('AnthropicInferenceClient - JSON mode is tool-use, not prefill', () => 
 describe('AnthropicInferenceClient - plain text mode unchanged', () => {
   beforeEach(() => {
     createMock.mockReset();
+    retrieveMock.mockReset();
+    streamMock.mockReset();
   });
 
   it('returns the text block and offers no tools when format is unset', async () => {
@@ -105,20 +113,91 @@ describe('AnthropicInferenceClient - plain text mode unchanged', () => {
   });
 });
 
-describe('OllamaInferenceClient - grammar path unchanged (guard)', () => {
-  it('sends the array-schema format for { format: "json" }', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ response: '[]', done: true, done_reason: 'stop' }),
+describe('AnthropicInferenceClient - limits() discovery', () => {
+  beforeEach(() => {
+    createMock.mockReset();
+    retrieveMock.mockReset();
+    streamMock.mockReset();
+  });
+
+  it('discovers context/output ceilings from the Models API and caches the result', async () => {
+    retrieveMock.mockResolvedValue({ max_input_tokens: 200_000, max_tokens: 64_000 });
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+    expect(await client.limits()).toEqual({ contextTokens: 200_000, maxOutputTokens: 64_000 });
+    expect(await client.limits()).toEqual({ contextTokens: 200_000, maxOutputTokens: 64_000 });
+
+    // Discovered once, cached across calls.
+    expect(retrieveMock).toHaveBeenCalledTimes(1);
+    expect(retrieveMock).toHaveBeenCalledWith('claude-x');
+  });
+
+  it('throws on discovery failure and does not cache the failure', async () => {
+    retrieveMock.mockRejectedValueOnce(new Error('404: model not found'));
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-unknown');
+    await expect(client.limits()).rejects.toThrow(/limits/i);
+
+    // A later call retries instead of replaying the cached rejection.
+    retrieveMock.mockResolvedValueOnce({ max_input_tokens: 1000, max_tokens: 100 });
+    expect(await client.limits()).toEqual({ contextTokens: 1000, maxOutputTokens: 100 });
+    expect(retrieveMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws when the Models API omits the ceilings', async () => {
+    retrieveMock.mockResolvedValue({ max_input_tokens: null, max_tokens: null });
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+    await expect(client.limits()).rejects.toThrow(/ceiling/i);
+  });
+});
+
+describe('AnthropicInferenceClient - large output budgets stream internally', () => {
+  beforeEach(() => {
+    createMock.mockReset();
+    retrieveMock.mockReset();
+    streamMock.mockReset();
+  });
+
+  it('streams above the SDK non-streaming ceiling (json mode end-to-end)', async () => {
+    // The SDK refuses non-streaming create() above ~21,333 output tokens
+    // (its projected duration exceeds the 10-minute timeout). A derived
+    // 64K budget must therefore stream internally — same interface, same
+    // response handling.
+    streamMock.mockReturnValue({
+      finalMessage: async () => ({
+        content: [{ type: 'tool_use', id: 't', name: 'emit', input: { items: [{ exact: 'A' }] } }],
+        stop_reason: 'tool_use',
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }),
     });
-    vi.stubGlobal('fetch', fetchMock);
 
-    const client = new OllamaInferenceClient('llama3', 'http://localhost:11434');
-    await client.generateText('p', 100, 0, { format: 'json' });
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+    const res = await client.generateTextWithMetadata('p', 64_000, 0, { format: 'json' });
 
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.format).toEqual({ type: 'array', items: {} });
+    expect(streamMock).toHaveBeenCalledTimes(1);
+    expect(createMock).not.toHaveBeenCalled();
 
-    vi.unstubAllGlobals();
+    // Forced tool-use rides the streamed request unchanged.
+    const req = streamMock.mock.calls[0][0];
+    expect(req.max_tokens).toBe(64_000);
+    expect(req.tool_choice).toMatchObject({ type: 'tool' });
+
+    // And the response is processed identically (unwrapped top-level array).
+    expect(JSON.parse(res.text)).toEqual([{ exact: 'A' }]);
+  });
+
+  it('keeps plain create() below the ceiling', async () => {
+    createMock.mockResolvedValue({
+      content: [{ type: 'text', text: 'small' }],
+      stop_reason: 'end_turn',
+      usage: {},
+    });
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+    const text = await client.generateText('p', 1000, 0);
+
+    expect(text).toBe('small');
+    expect(streamMock).not.toHaveBeenCalled();
   });
 });
