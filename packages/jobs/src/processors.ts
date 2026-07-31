@@ -444,6 +444,22 @@ export async function processReferenceJob(
     const extractedEntities = await extractEntities(
       content, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger,
       params.sourceLanguage,
+      // Chunk-boundary heartbeat: progress is the worker's liveness signal
+      // (stall watchdog + backend janitor), so multi-chunk extraction must
+      // emit between inference calls. Percentage interpolates within this
+      // entity type's band of the 20–80 range.
+      (completed, total) => {
+        const interpolated = 20 + Math.round(((i + completed / total) / entityTypeNames.length) * 60);
+        onProgress(interpolated, `Detecting ${entityTypeName} entities...`, 'analyzing', {
+          currentEntityType: entityTypeName,
+          processedEntityTypes: i,
+          totalEntityTypes: entityTypeNames.length,
+          entitiesFound: totalFound,
+          entitiesEmitted: totalEmitted,
+          completedEntityTypes: [...completedEntityTypes],
+          requestParams,
+        });
+      },
     );
 
     totalFound += extractedEntities.length;

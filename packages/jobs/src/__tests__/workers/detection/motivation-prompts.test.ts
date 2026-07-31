@@ -53,12 +53,14 @@ describe('MotivationPrompts', () => {
       expect(prompt).toContain('5 comments per 2000 words');
     });
 
-    it('should truncate content to 8000 characters', () => {
-      const longContent = 'x'.repeat(10000);
-      const prompt = MotivationPrompts.buildCommentPrompt(longContent);
+    it('must not clip content — the chunk is the input budget (Phase 3b, #738)', () => {
+      // The caller sizes content via derived provider limits; a builder-level
+      // re-truncation is silent input loss. Sentinel past char 8,000 must
+      // survive in BOTH branches (with and without instructions).
+      const longContent = 'x'.repeat(9000) + ' SENTINEL_PAST_8K';
 
-      expect(prompt).toContain('x'.repeat(8000));
-      expect(prompt).not.toContain('x'.repeat(8001));
+      expect(MotivationPrompts.buildCommentPrompt(longContent)).toContain('SENTINEL_PAST_8K');
+      expect(MotivationPrompts.buildCommentPrompt(longContent, 'focus on terms')).toContain('SENTINEL_PAST_8K');
     });
 
     it('should use different mode with custom instructions', () => {
@@ -94,12 +96,11 @@ describe('MotivationPrompts', () => {
       expect(prompt).toContain('6 highlights per 2000 words');
     });
 
-    it('should truncate content to 8000 characters', () => {
-      const longContent = 'y'.repeat(10000);
-      const prompt = MotivationPrompts.buildHighlightPrompt(longContent);
+    it('must not clip content — the chunk is the input budget (Phase 3b, #738)', () => {
+      const longContent = 'y'.repeat(9000) + ' SENTINEL_PAST_8K';
 
-      expect(prompt).toContain('y'.repeat(8000));
-      expect(prompt).not.toContain('y'.repeat(8001));
+      expect(MotivationPrompts.buildHighlightPrompt(longContent)).toContain('SENTINEL_PAST_8K');
+      expect(MotivationPrompts.buildHighlightPrompt(longContent, 'focus on claims')).toContain('SENTINEL_PAST_8K');
     });
 
     it('should use different mode with custom instructions', () => {

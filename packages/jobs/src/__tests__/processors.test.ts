@@ -781,6 +781,7 @@ describe('locale threading', () => {
 
       expect(extractEntities).toHaveBeenCalledWith(
         'content', ['Location'], client, false, LOGGER, 'fr',
+        expect.any(Function), // chunk-boundary progress heartbeat (Phase 3a)
       );
     });
 
