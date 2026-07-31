@@ -32,6 +32,7 @@ Commands:
   bind      Resolve a linking annotation to its target resource (needs login)
   match     Find resources an annotation could bind to (needs login)
   beckon    Draw attention to a resource or annotation (needs login)
+  frame     Add entity types to the KB's schema vocabulary (needs login)
   listen    Follow the KB's live event stream (needs login)
   secret    Register where config secrets come from (pointers, never values)
   status    Report container state and application health per service
@@ -79,6 +80,8 @@ func main() {
 		code = launcher.Match(rest)
 	case "beckon":
 		code = launcher.Beckon(rest)
+	case "frame":
+		code = launcher.Frame(rest)
 	case "listen":
 		code = launcher.Listen(rest)
 	case "secret":
