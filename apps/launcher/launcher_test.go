@@ -277,6 +277,30 @@ func mustContain(t *testing.T, label, haystack string, needles ...string) {
 	}
 }
 
+// emits returns every /bus/emit body the fake captured, in order, across
+// every run of the scenario. lastEmit is the most recent one — the right
+// assertion for a verb whose final exchange is the interesting one (match
+// gathers before it searches; yield --delegate gathers before it creates a
+// job). A verb that sends SEVERAL commands must be checked against emits.
+func emits(t *testing.T, s *scenario) []string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.jsonl"))
+	if err != nil {
+		t.Fatalf("no emits captured: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		t.Fatal("no emits captured: the file is empty")
+	}
+	return lines
+}
+
+func lastEmit(t *testing.T, s *scenario) string {
+	t.Helper()
+	all := emits(t, s)
+	return all[len(all)-1]
+}
+
 // --- start: full boots against the fake runtime ---
 
 func TestStartDefaultBoot(t *testing.T) {
@@ -5912,11 +5936,8 @@ func TestBrowseListsResources(t *testing.T) {
 	}
 	mustContain(t, "table", stdout, "res-1", "Letter", "res-2", "Email", "2 shown, 2 total")
 	// The request went out on the right operation with our filter.
-	b, err := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
-	if err != nil {
-		t.Fatalf("no emit captured: %v", err)
-	}
-	mustContain(t, "emit", string(b), `"channel":"browse:resources-requested"`, `"limit":5`, `"correlationId"`)
+	b := lastEmit(t, s)
+	mustContain(t, "emit", b, `"channel":"browse:resources-requested"`, `"limit":5`, `"correlationId"`)
 }
 
 func TestBrowseJSONPassesThrough(t *testing.T) {
@@ -5968,8 +5989,8 @@ func TestGatherResourceSummarizes(t *testing.T) {
 	if strings.Contains(stdout, `"graph"`) {
 		t.Errorf("gather dumped raw JSON — it could not parse the real reply:\n%s", stdout)
 	}
-	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
-	mustContain(t, "emit", string(b), `"channel":"gather:resource-requested"`, `"resourceId":"res-1"`, `"includeContent":true`)
+	b := lastEmit(t, s)
+	mustContain(t, "emit", b, `"channel":"gather:resource-requested"`, `"resourceId":"res-1"`, `"includeContent":true`)
 }
 
 func TestGatherAnnotationUsesStreamingOperation(t *testing.T) {
@@ -5979,8 +6000,8 @@ func TestGatherAnnotationUsesStreamingOperation(t *testing.T) {
 		t.Fatalf("gather annotation: exit %d\nstderr:\n%s", code, stderr)
 	}
 	_ = stdout
-	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
-	mustContain(t, "emit", string(b), `"channel":"gather:requested"`, `"annotationId":"ann-7"`, `"resourceId":"res-1"`)
+	b := lastEmit(t, s)
+	mustContain(t, "emit", b, `"channel":"gather:requested"`, `"annotationId":"ann-7"`, `"resourceId":"res-1"`)
 }
 
 func TestMarkCreatesWithSelectorAndBody(t *testing.T) {
@@ -5991,11 +6012,8 @@ func TestMarkCreatesWithSelectorAndBody(t *testing.T) {
 		t.Fatalf("mark: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "ann-42", "commenting")
-	b, err := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
-	if err != nil {
-		t.Fatalf("no emit: %v", err)
-	}
-	mustContain(t, "emit", string(b),
+	b := lastEmit(t, s)
+	mustContain(t, "emit", b,
 		`"channel":"mark:create-request"`,
 		`"TextQuoteSelector"`, `"exact":"the disputed clause"`, `"prefix":"before "`,
 		`"TextualBody"`, `"value":"check this"`,
@@ -6007,8 +6025,8 @@ func TestMarkLinkInfersLinkingMotivation(t *testing.T) {
 	if _, stderr, code := s.run(t, "mark", "res-1", "--link", "res-2"); code != 0 {
 		t.Fatalf("mark --link: exit %d\nstderr:\n%s", code, stderr)
 	}
-	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
-	mustContain(t, "emit", string(b), `"motivation":"linking"`, `"SpecificResource"`, `"source":"res-2"`)
+	b := lastEmit(t, s)
+	mustContain(t, "emit", b, `"motivation":"linking"`, `"SpecificResource"`, `"source":"res-2"`)
 }
 
 func TestMarkSelectorFlagsAreExclusive(t *testing.T) {
@@ -6040,15 +6058,15 @@ func TestBindAddsAndRemovesTarget(t *testing.T) {
 	if _, stderr, code := s.run(t, "bind", "res-1", "ann-1", "res-2"); code != 0 {
 		t.Fatalf("bind: exit %d\nstderr:\n%s", code, stderr)
 	}
-	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
-	mustContain(t, "emit", string(b), `"channel":"bind:update-body"`, `"op":"add"`,
+	b := lastEmit(t, s)
+	mustContain(t, "emit", b, `"channel":"bind:update-body"`, `"op":"add"`,
 		`"source":"res-2"`, `"purpose":"linking"`, `"annotationId":"ann-1"`)
 
 	if _, stderr, code := s.run(t, "bind", "res-1", "ann-1", "--unbind", "res-2"); code != 0 {
 		t.Fatalf("unbind: exit %d\nstderr:\n%s", code, stderr)
 	}
-	b, _ = os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
-	mustContain(t, "emit", string(b), `"op":"remove"`)
+	b = lastEmit(t, s)
+	mustContain(t, "emit", b, `"op":"remove"`)
 }
 
 func TestMatchGathersThenSearches(t *testing.T) {
@@ -6075,8 +6093,8 @@ func TestMatchGathersThenSearches(t *testing.T) {
 		t.Errorf("match fell back to raw JSON — it could not parse the real reply:\n%s", stdout)
 	}
 	// The LAST emit is the search, carrying the gathered context and our flags.
-	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
-	mustContain(t, "search emit", string(b),
+	b := lastEmit(t, s)
+	mustContain(t, "search emit", b,
 		`"channel":"match:search-requested"`, `"referenceId":"ann-1"`,
 		`"limit":5`, `"useSemanticScoring":true`, `"context"`)
 }
@@ -6088,11 +6106,11 @@ func TestBeckonEmitsWithoutClaimingDelivery(t *testing.T) {
 		t.Fatalf("beckon: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "stdout", stdout, "res-1", "ann-2", "no delivery confirmation")
-	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
+	b := lastEmit(t, s)
 	// BeckonFocusEvent carries exactly these two fields; a `message` the
 	// schema does not declare must not reach the wire.
-	mustContain(t, "emit", string(b), `"channel":"beckon:focus"`, `"resourceId":"res-1"`, `"annotationId":"ann-2"`)
-	if strings.Contains(string(b), `"message"`) {
+	mustContain(t, "emit", b, `"channel":"beckon:focus"`, `"resourceId":"res-1"`, `"annotationId":"ann-2"`)
+	if strings.Contains(b, `"message"`) {
 		t.Errorf("emitted a field BeckonFocusEvent does not declare:\n%s", b)
 	}
 }
@@ -6104,6 +6122,71 @@ func TestBeckonNeedsAResource(t *testing.T) {
 		t.Fatal("beckon without a resource must refuse")
 	}
 	mustContain(t, "usage", stdout, "Usage: semiont beckon")
+}
+
+// --- frame: the schema-layer flow ---
+
+// Frame is a FAN-OUT verb: the protocol has no batch add, so N entity types
+// are N `frame:add-entity-type` commands. This asserts against every emit,
+// not the last one — a verb that dropped all but the final tag would pass a
+// last-emit check while losing the caller's work.
+func TestFrameAddsEachEntityTypeSeparately(t *testing.T) {
+	s := busScenario(t)
+	stdout, stderr, code := s.run(t, "frame", "--entity-type", "Person", "--entity-type", "Organization")
+	if code != 0 {
+		t.Fatalf("frame: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Person", "Organization")
+
+	all := emits(t, s)
+	if len(all) != 2 {
+		t.Fatalf("two entity types must produce two commands, got %d:\n%s", len(all), strings.Join(all, "\n"))
+	}
+	mustContain(t, "first emit", all[0], `"channel":"frame:add-entity-type"`, `"tag":"Person"`, `"correlationId"`)
+	mustContain(t, "second emit", all[1], `"channel":"frame:add-entity-type"`, `"tag":"Organization"`)
+	// FrameAddEntityTypeCommand declares `tag` and the SDK's correlationId;
+	// `_userId` is injected by the gateway from the bearer token and must
+	// never be claimed by a client.
+	if strings.Contains(all[0], `"_userId"`) {
+		t.Errorf("client set a field the gateway owns:\n%s", all[0])
+	}
+}
+
+// A rejected add STOPS the run. Continuing would report a success total the
+// backend never agreed to, and the remaining tags are cheap to re-issue —
+// the vocabulary is grow-only, so a rerun costs nothing.
+func TestFrameStopsAtTheFirstRejection(t *testing.T) {
+	s := busScenario(t, "FAKERT_BUS_FAIL=vocabulary is frozen")
+	stdout, stderr, code := s.run(t, "frame", "--entity-type", "Person", "--entity-type", "Organization")
+	if code == 0 {
+		t.Fatalf("a rejected add must fail the command\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "rejection", stdout+stderr, "vocabulary is frozen")
+	if all := emits(t, s); len(all) != 1 {
+		t.Errorf("frame kept going after a rejection: %d commands sent:\n%s", len(all), strings.Join(all, "\n"))
+	}
+}
+
+func TestFrameNeedsAnEntityType(t *testing.T) {
+	s := busScenario(t)
+	stdout, _, code := s.run(t, "frame")
+	if code == 0 {
+		t.Fatal("frame with nothing to add must refuse")
+	}
+	mustContain(t, "usage", stdout, "Usage: semiont frame")
+}
+
+// Bare operands are refused rather than guessed at. Frame owns two schema
+// primitives in the protocol (entity types and tag schemas); a positional
+// would have to mean one of them, and picking silently is how the second
+// one becomes impossible to add later without breaking the first.
+func TestFrameRefusesBarePositionals(t *testing.T) {
+	s := busScenario(t)
+	_, stderr, code := s.run(t, "frame", "Person")
+	if code == 0 {
+		t.Fatal("a bare positional must refuse")
+	}
+	mustContain(t, "refusal", stderr, "--entity-type")
 }
 
 func TestListenRefusesWithoutSession(t *testing.T) {
@@ -6141,12 +6224,9 @@ func TestYieldDelegateFollowsJobToCompletion(t *testing.T) {
 		t.Fatalf("delegate: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "Generating", "drafting", "res-new", "Generated")
-	b, err := os.ReadFile(filepath.Join(s.fakertDir, "bus-emit.json"))
-	if err != nil {
-		t.Fatalf("no emit: %v", err)
-	}
+	b := lastEmit(t, s)
 	// The job carries the gathered context and the generation params.
-	mustContain(t, "job:create emit", string(b),
+	mustContain(t, "job:create emit", b,
 		`"channel":"job:create"`, `"jobType":"generation"`, `"resourceId":"res-src"`,
 		`"storageUri":"file://generated/out.md"`, `"title":"Derived"`, `"task":"summary"`, `"context"`)
 }

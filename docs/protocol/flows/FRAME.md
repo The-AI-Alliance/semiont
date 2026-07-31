@@ -40,6 +40,18 @@ client.browse.entityTypes().subscribe((types) => {
 
 Adding the same entity type twice is idempotent — the backend dedupes; the second `frame:add-entity-type` for an existing tag is a no-op. No SDK-level coordination is needed for concurrent adds across participants.
 
+From the launcher, the same write is `semiont frame`:
+
+```sh
+# Add one or several — repeatable, one command per type on the wire
+semiont frame --entity-type Person --entity-type Organization
+
+# Read the vocabulary back (a Browse read, not a Frame one)
+semiont browse --entity-types
+```
+
+Because the protocol has no batch add, the launcher issues one `frame:add-entity-type` per name and **stops at the first rejection**, naming the types that landed before it. Re-running is safe — the adds that already succeeded become no-ops.
+
 ## Tag schemas
 
 Tag schemas are structural-analysis frameworks (IRAC for legal reasoning, IMRAD for scientific papers, Toulmin for argumentation, custom domain schemas). They're **per-KB runtime-registered** — schema *data* lives with the knowledge base that owns it (typically a `src/tag-schemas.ts` module in the KB repo); the SDK ships only the `TagSchema` and `TagCategory` *types* (from `@semiont/core`).
@@ -115,6 +127,7 @@ The design point: Frame's namespace home gives these features a place to grow th
 ## Implementation
 
 - **Namespace**: [packages/sdk/src/namespaces/frame.ts](../../../packages/sdk/src/namespaces/frame.ts)
+- **Launcher command**: [apps/launcher/internal/launcher/frame.go](../../../apps/launcher/internal/launcher/frame.go) — `semiont frame` (entity types only; tag-schema registration is SDK-side today)
 - **Interface**: [packages/sdk/src/namespaces/types.ts](../../../packages/sdk/src/namespaces/types.ts) — `FrameNamespace`
 - **Tests**: [packages/sdk/src/namespaces/__tests__/frame.test.ts](../../../packages/sdk/src/namespaces/__tests__/frame.test.ts), [packages/make-meaning/src/__tests__/handlers/job-commands.test.ts](../../../packages/make-meaning/src/__tests__/handlers/job-commands.test.ts) (dispatcher schema resolution), [packages/make-meaning/src/__tests__/views/tag-schemas-reader.test.ts](../../../packages/make-meaning/src/__tests__/views/tag-schemas-reader.test.ts), [tests/e2e/specs/11-frame-tag-schemas.spec.ts](../../../tests/e2e/specs/11-frame-tag-schemas.spec.ts) (end-to-end registration + tagging round-trip)
 - **Event channels** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `frame:add-entity-type`, `frame:entity-type-added`, `frame:add-tag-schema`, `frame:tag-schema-added`

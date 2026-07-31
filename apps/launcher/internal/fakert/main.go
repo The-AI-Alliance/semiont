@@ -1120,6 +1120,7 @@ var busScripted = map[string]bool{
 	"browse:resource-requested":     true,
 	"browse:annotations-requested":  true,
 	"browse:entity-types-requested": true,
+	"frame:add-entity-type":         true,
 	"gather:resource-requested":     true,
 	"gather:requested":              true,
 	"mark:create-request":           true,
@@ -1280,9 +1281,17 @@ func serve(ports []string) {
 						Payload map[string]any `json:"payload"`
 					}
 					_ = json.NewDecoder(r.Body).Decode(&body)
+					// EVERY emit is appended, one JSON object per line. A
+					// single last-emit file cannot tell a verb that sent two
+					// commands from one that dropped the first — which is
+					// exactly what a fan-out verb like `frame` must prove.
 					if dir := os.Getenv("FAKERT_DIR"); dir != "" {
 						b, _ := json.Marshal(body)
-						_ = os.WriteFile(filepath.Join(dir, "bus-emit.json"), b, 0o644)
+						if f, err := os.OpenFile(filepath.Join(dir, "bus-emit.jsonl"),
+							os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
+							_, _ = f.Write(append(b, '\n'))
+							_ = f.Close()
+						}
 					}
 					cid, _ := body.Payload["correlationId"].(string)
 					if ch, payload := busReplyFor(body.Channel, cid); ch != "" {
