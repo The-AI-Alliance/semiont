@@ -1,6 +1,7 @@
 import { filter } from 'rxjs/operators';
 import type { AnnotationId, ResourceId, GatheredContext, EventBus, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
+import { uuidV4 } from '@semiont/core';
 import { StreamObservable } from '../awaitable';
 import type { MatchNamespace as IMatchNamespace, MatchSearchProgress } from './types';
 
@@ -22,7 +23,7 @@ export class MatchNamespace implements IMatchNamespace {
     options?: { limit?: number; useSemanticScoring?: boolean },
   ): StreamObservable<MatchSearchProgress> {
     return new StreamObservable<MatchSearchProgress>((subscriber) => {
-      const correlationId = crypto.randomUUID();
+      const correlationId = uuidV4();
 
       const result$ = this.bus.get('match:search-results').pipe(
         filter((e) => e.correlationId === correlationId),

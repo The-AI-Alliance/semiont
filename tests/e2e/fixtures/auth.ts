@@ -5,41 +5,12 @@ import { JaegerCapture, attachJaegerEvidence } from './jaeger';
 import { attachPageErrors, attachPageErrorsArtifact, type PageErrorsCapture } from './page-errors';
 
 /**
- * Polyfill crypto.randomUUID for non-secure-context test environments.
- *
- * The frontend calls `crypto.randomUUID()` (e.g. in busRequest for
- * correlationIds). That API is only defined in secure contexts —
- * HTTPS, `http://localhost`, `http://127.0.0.1`. When tests run against
- * a container IP over HTTP (e.g. `http://192.168.64.60:3000`), it's
- * `undefined` and every emit throws "crypto.randomUUID is not a function".
- *
- * This is also a real product bug — any user accessing the frontend
- * over HTTP from a non-localhost hostname will hit it. TODO: file and
- * fix in the frontend (swap to a uuid library that doesn't require a
- * secure context, or require HTTPS).
- */
-const CRYPTO_POLYFILL = `
-  if (typeof crypto !== 'undefined' && !crypto.randomUUID) {
-    Object.defineProperty(crypto, 'randomUUID', {
-      value: () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        var r = (Math.random() * 16) | 0;
-        var v = c === 'x' ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-      }),
-      configurable: true,
-    });
-  }
-`;
-
-/**
  * Sign in via the real UI form: Connect → host/port/email/password → submit.
  *
  * Leaves the page on `/en/know/discover` with a live authenticated session.
  * Idempotent: re-invocation on an already-signed-in page is a no-op.
  */
 export async function signIn(page: Page): Promise<void> {
-  await page.addInitScript(CRYPTO_POLYFILL);
-
   // Start at the root; the locale redirect drops us on /en and eventually
   // /en/know/discover after session resolution.
   await page.goto('/');

@@ -10,7 +10,7 @@ import { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';
 import { createMatchStateUnit } from '@semiont/sdk';
 import { createYieldStateUnit, type YieldStateUnit } from '@semiont/sdk';
 import type { SemiontSession } from '@semiont/sdk';
-import { decodeWithCharset, textExtractionOf } from '@semiont/core';
+import { decodeWithCharset, textExtractionOf, uuidV4 } from '@semiont/core';
 import { groupAnnotations } from '../../../lib/annotation-groups';
 import type { ReferencedByEntry } from '@semiont/sdk';
 
@@ -144,7 +144,7 @@ export function createResourceViewerPageStateUnit(
       entityTypes: event.entityTypes,
     });
     client.bus.get('gather:requested').next({
-      correlationId: crypto.randomUUID(),
+      correlationId: uuidV4(),
       annotationId: event.annotationId,
       resourceId: event.resourceId,
       options: { contextWindow: 2000 },

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import type { GatheredContext } from '@semiont/core';
+import { uuidV4 } from '@semiont/core';
 import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
 import { useEventSubscription } from '../../contexts/useEventSubscription';
@@ -144,7 +145,7 @@ export function ReferenceWizardModal({
     setIsSearching(true);
     const contextWithHint = userHint ? { ...context, userHint } : context;
     session?.client.match.requestSearch({
-      correlationId: crypto.randomUUID(),
+      correlationId: uuidV4(),
       resourceId,
       referenceId: annotationId,
       context: contextWithHint,

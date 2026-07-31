@@ -13,6 +13,8 @@
  * whatever the passed-in `SessionStorage` does.
  */
 
+import { uuidV4 } from '@semiont/core';
+
 import type { HttpEndpoint, KnowledgeBase } from './knowledge-base';
 import type { SessionStorage } from './session-storage';
 
@@ -173,5 +175,5 @@ export function kbBackendUrl(endpoint: HttpEndpoint): string {
 }
 
 export function generateKbId(): string {
-  return crypto.randomUUID();
+  return uuidV4();
 }

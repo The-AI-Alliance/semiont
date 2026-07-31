@@ -3,7 +3,7 @@ import { filter, map, takeUntil } from 'rxjs/operators';
 import type { AnnotationId, ResourceId, EventBus, GatheredContext } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { StreamObservable } from '../awaitable';
-import { busRequest } from '@semiont/core';
+import { busRequest, uuidV4 } from '@semiont/core';
 import type { GatherNamespace as IGatherNamespace, GatherAnnotationProgress } from './types';
 
 export class GatherNamespace implements IGatherNamespace {
@@ -18,7 +18,7 @@ export class GatherNamespace implements IGatherNamespace {
     options?: { contextWindow?: number },
   ): StreamObservable<GatherAnnotationProgress> {
     return new StreamObservable<GatherAnnotationProgress>((subscriber) => {
-      const correlationId = crypto.randomUUID();
+      const correlationId = uuidV4();
 
       const complete$ = this.bus.get('gather:complete').pipe(
         filter((e) => e.correlationId === correlationId),
