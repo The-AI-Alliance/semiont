@@ -3,6 +3,7 @@ import { screen, fireEvent } from '@testing-library/react';
 import { renderWithProviders } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { SettingsPanel } from '../SettingsPanel';
+import { useLineNumbers } from '../../../contexts/LineNumbersContext';
 
 // Mock LiveRegion
 vi.mock('../../LiveRegion', () => ({
@@ -27,7 +28,6 @@ vi.mock('@semiont/core', async () => {
 
 describe('SettingsPanel', () => {
   const defaultProps = {
-    showLineNumbers: true,
     theme: 'light' as const,
     locale: 'en',
     hoverDelayMs: 150,
@@ -35,6 +35,7 @@ describe('SettingsPanel', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   it('renders settings title', () => {
@@ -49,13 +50,14 @@ describe('SettingsPanel', () => {
     });
 
     it('shows toggle as checked when line numbers enabled', () => {
-      renderWithProviders(<SettingsPanel {...defaultProps} showLineNumbers={true} />);
+      localStorage.setItem('showLineNumbers', 'true');
+      renderWithProviders(<SettingsPanel {...defaultProps} />);
       const toggle = screen.getByRole('switch');
       expect(toggle).toHaveAttribute('aria-checked', 'true');
     });
 
     it('shows toggle as unchecked when line numbers disabled', () => {
-      renderWithProviders(<SettingsPanel {...defaultProps} showLineNumbers={false} />);
+      renderWithProviders(<SettingsPanel {...defaultProps} />);
       const toggle = screen.getByRole('switch');
       expect(toggle).toHaveAttribute('aria-checked', 'false');
     });
@@ -71,6 +73,29 @@ describe('SettingsPanel', () => {
       fireEvent.click(screen.getByRole('switch'));
       expect(handler).toHaveBeenCalled();
       sub.unsubscribe();
+    });
+
+    it('renders the SHARED line-numbers state — a toggle applied elsewhere flips the switch', () => {
+      // The e2e chain is: switch click → bus emit → ToolbarPanels applies
+      // toggleLineNumbers → the switch must flip. The apply step happens in
+      // a DIFFERENT component, so the switch can only flip if all
+      // useLineNumbers consumers share one value. A prop-fed switch over a
+      // per-caller useState is how e2e 13:77/:134/:189 went red.
+      // See .plans/bugs/line-numbers-toggle-desynced-by-hoist.md
+      function OtherConsumer() {
+        const { toggleLineNumbers } = useLineNumbers();
+        return <button data-testid="other-consumer" onClick={toggleLineNumbers} />;
+      }
+      renderWithProviders(
+        <>
+          <OtherConsumer />
+          <SettingsPanel {...defaultProps} />
+        </>
+      );
+
+      expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+      fireEvent.click(screen.getByTestId('other-consumer'));
+      expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
     });
   });
 

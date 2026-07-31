@@ -9,7 +9,7 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buttonStyles, Toolbar, useSemiont } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useShellStateUnit, useObservable, useLineNumbers } from '@semiont/react-ui';
+import { useTheme, useShellStateUnit, useObservable } from '@semiont/react-ui';
 import { AdminUsersPage } from '@semiont/react-ui';
 import type { AdminUser, AdminUserStats } from '@semiont/react-ui';
 import { createAdminUsersStateUnit } from '@semiont/react-ui';
@@ -30,7 +30,6 @@ export default function AdminUsers() {
   const statsLoading = useObservable(stateUnit?.statsLoading$) ?? true;
 
   const { theme } = useTheme();
-  const { showLineNumbers } = useLineNumbers();
 
 
 
@@ -66,7 +65,6 @@ export default function AdminUsers() {
       onAddUser={handleAddUser}
       onExportUsers={handleExportUsers}
       theme={theme}
-      showLineNumbers={showLineNumbers}
       activePanel={activePanel}
       translations={{
         title: t('title'),

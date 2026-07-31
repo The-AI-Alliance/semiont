@@ -18,7 +18,6 @@ const createProps = (overrides?: Partial<AdminExchangePageProps>): AdminExchange
   isImporting: false,
   importPhase: null,
   theme: 'light',
-  showLineNumbers: false,
   activePanel: null,
   translations: {
     title: 'Backup & Restore',

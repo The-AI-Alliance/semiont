@@ -19,7 +19,6 @@ const createMockProps = (overrides?: Partial<EntityTagsPageProps>): EntityTagsPa
   onAddTag: vi.fn(),
   isAddingTag: false,
   theme: 'light',
-  showLineNumbers: false,
   activePanel: null,
   translations: {
     pageTitle: 'Entity Tags',
@@ -344,7 +343,6 @@ describe('EntityTagsPage', () => {
         error: 'Error',
         isAddingTag: true,
         theme: 'dark',
-        showLineNumbers: true,
         activePanel: 'settings',
       });
       render(<EntityTagsPage {...props} />);

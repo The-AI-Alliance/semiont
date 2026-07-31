@@ -18,7 +18,6 @@ const createProps = (overrides?: Partial<LinkedDataPageProps>): LinkedDataPagePr
   isImporting: false,
   importPhase: null,
   theme: 'light',
-  showLineNumbers: false,
   activePanel: null,
   translations: {
     title: 'Export & Import',

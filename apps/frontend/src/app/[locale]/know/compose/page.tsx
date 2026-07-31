@@ -11,7 +11,6 @@ import {
   useTheme,
   useShellStateUnit,
   useObservable,
-  useLineNumbers,
   useHoverDelay,
   useSessionStateUnit,
   Toolbar,
@@ -76,7 +75,6 @@ function ComposeResourceContent() {
   const uploadProgress = useObservable(stateUnit?.uploadProgress$) ?? null;
 
   const { resolvedTheme } = useTheme();
-  const { showLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();
 
   const handleSaveResource = async (params: UISaveResourceParams) => {
@@ -109,7 +107,6 @@ function ComposeResourceContent() {
       availableEntityTypes={availableEntityTypes}
       initialLocale={locale}
       theme={resolvedTheme}
-      showLineNumbers={showLineNumbers}
       hoverDelayMs={hoverDelayMs}
       activePanel={activePanel}
       onSaveResource={handleSaveResource}

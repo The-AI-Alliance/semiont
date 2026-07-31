@@ -28,7 +28,6 @@ export interface EntityTagsPageProps {
 
   // UI state
   theme: 'light' | 'dark' | 'system';
-  showLineNumbers: boolean;
   activePanel: string | null;
 
   // Translations
@@ -55,7 +54,6 @@ export function EntityTagsPage({
   onAddTag,
   isAddingTag,
   theme,
-  showLineNumbers,
   activePanel,
   translations: t,
   ToolbarPanels,
@@ -150,7 +148,6 @@ export function EntityTagsPage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          showLineNumbers={showLineNumbers}
         />
 
         <Toolbar

@@ -23,7 +23,6 @@ export interface AdminDevOpsPageProps {
 
   // UI state
   theme: 'light' | 'dark' | 'system';
-  showLineNumbers: boolean;
   activePanel: string | null;
 
   // Translations
@@ -46,7 +45,6 @@ export interface AdminDevOpsPageProps {
 export function AdminDevOpsPage({
   suggestedFeatures,
   theme,
-  showLineNumbers,
   activePanel,
   translations: t,
   StatusDisplay,
@@ -132,7 +130,6 @@ export function AdminDevOpsPage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          showLineNumbers={showLineNumbers}
         />
 
         <Toolbar

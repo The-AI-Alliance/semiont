@@ -14,7 +14,6 @@ const createMockProps = (overrides?: Partial<RecentDocumentsPageProps>): RecentD
   hasDocuments: false,
   isLoading: false,
   theme: 'light',
-  showLineNumbers: false,
   activePanel: null,
   translations: {
     pageTitle: 'Recent Documents',
@@ -205,13 +204,13 @@ describe('RecentDocumentsPage', () => {
       );
     });
 
-    it('passes showLineNumbers to toolbar panels', () => {
+    it('does not thread showLineNumbers to toolbar panels — the setting is context-backed', () => {
       const ToolbarPanels = vi.fn(() => <div data-testid="toolbar-panels" />);
-      const props = createMockProps({ showLineNumbers: true, ToolbarPanels });
+      const props = createMockProps({ToolbarPanels });
       render(<RecentDocumentsPage {...props} />);
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
-        expect.objectContaining({ showLineNumbers: true }),
+        expect.not.objectContaining({ showLineNumbers: expect.anything() }),
         undefined,
       );
     });
@@ -342,7 +341,6 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps({
         hasDocuments: true,
         theme: 'dark',
-        showLineNumbers: true,
         activePanel: 'settings',
       });
       render(<RecentDocumentsPage {...props} />);

@@ -13,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusDisplay, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useSemiont } from '@semiont/react-ui';
+import { useTheme, useShellStateUnit, useObservable, useSemiont } from '@semiont/react-ui';
 import { AdminDevOpsPage } from '@semiont/react-ui';
 
 // Wrapper component that provides auth props to StatusDisplay.
@@ -40,7 +40,6 @@ export default function DevOpsPage() {
   const browseStateUnit = useShellStateUnit();
   const activePanel = useObservable(browseStateUnit.activePanel$) ?? null;
   const { theme } = useTheme();
-  const { showLineNumbers } = useLineNumbers();
 
 
 
@@ -69,7 +68,6 @@ export default function DevOpsPage() {
     <AdminDevOpsPage
       suggestedFeatures={suggestedFeatures}
       theme={theme}
-      showLineNumbers={showLineNumbers}
       activePanel={activePanel}
       translations={{
         title: t('title'),

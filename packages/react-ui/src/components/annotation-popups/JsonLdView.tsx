@@ -7,7 +7,7 @@ import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { syntaxHighlighting } from '@codemirror/language';
 import { jsonLightTheme, jsonLightHighlightStyle } from '../../lib/codemirror-json-theme';
-import { useLineNumbers } from '../../hooks/useLineNumbers';
+import { useLineNumbers } from '../../contexts/LineNumbersContext';
 
 import type { Annotation } from '@semiont/core';
 

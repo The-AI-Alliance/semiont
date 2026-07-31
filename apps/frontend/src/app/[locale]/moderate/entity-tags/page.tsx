@@ -4,7 +4,6 @@ import {
   useTheme,
   useShellStateUnit,
   useObservable,
-  useLineNumbers,
   useSemiont,
   useSessionStateUnit,
   EntityTagsPage,
@@ -31,7 +30,6 @@ export default function EntityTagsPageWrapper() {
   const isAddingTag = useObservable(stateUnit?.isAdding$) ?? false;
 
   const { theme } = useTheme();
-  const { showLineNumbers } = useLineNumbers();
 
   if (loadError) {
     return (
@@ -64,7 +62,6 @@ export default function EntityTagsPageWrapper() {
       onAddTag={stateUnit?.addTag}
       isAddingTag={isAddingTag}
       theme={theme}
-      showLineNumbers={showLineNumbers}
       activePanel={activePanel}
       translations={{
         pageTitle: t('pageTitle'),

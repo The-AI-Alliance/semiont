@@ -59,7 +59,7 @@ describe('ToolbarPanels — settings application lives with the panel', () => {
   });
 
   it('applies settings:theme-changed itself, so the control works wherever the panel renders', () => {
-    render(<ToolbarPanels activePanel={null} theme="system" showLineNumbers={false} />);
+    render(<ToolbarPanels activePanel={null} theme="system" />);
 
     expect(captured.subs).not.toBeNull();
     const handler = captured.subs!['settings:theme-changed'];
@@ -70,7 +70,7 @@ describe('ToolbarPanels — settings application lives with the panel', () => {
   });
 
   it('applies settings:line-numbers-toggled itself', () => {
-    render(<ToolbarPanels activePanel={null} theme="system" showLineNumbers={false} />);
+    render(<ToolbarPanels activePanel={null} theme="system" />);
 
     const handler = captured.subs!['settings:line-numbers-toggled'];
     expect(handler).toBeDefined();
@@ -80,13 +80,13 @@ describe('ToolbarPanels — settings application lives with the panel', () => {
   });
 
   it('keeps the locale handler registered — the control that always worked must not regress', () => {
-    render(<ToolbarPanels activePanel={null} theme="system" showLineNumbers={false} />);
+    render(<ToolbarPanels activePanel={null} theme="system" />);
 
     expect(captured.subs!['settings:locale-changed']).toBeDefined();
   });
 
   it('subscribes even with no panel open — settings apply regardless of panel visibility', () => {
-    render(<ToolbarPanels activePanel={null} theme="system" showLineNumbers={false} />);
+    render(<ToolbarPanels activePanel={null} theme="system" />);
 
     // The component renders null for activePanel=null, but the hooks above
     // the early return must still have registered the handlers.

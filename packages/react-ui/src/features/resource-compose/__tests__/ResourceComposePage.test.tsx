@@ -10,12 +10,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ResourceComposePage } from '../components/ResourceComposePage';
 import type { ResourceComposePageProps } from '../components/ResourceComposePage';
 import { createTestSemiontWrapper } from '../../../test-utils';
+import { LineNumbersProvider } from '../../../contexts/LineNumbersContext';
 
 // Mock CodeMirrorRenderer to avoid CodeMirror dependencies
 vi.mock('../../../components/CodeMirrorRenderer', () => ({
-  CodeMirrorRenderer: ({ content, onChange, editable }: any) => (
+  CodeMirrorRenderer: ({ content, onChange, editable, showLineNumbers }: any) => (
     <textarea
       data-testid="code-editor"
+      data-line-numbers={String(showLineNumbers)}
       value={content}
       onChange={(e) => editable && onChange?.(e.target.value)}
       disabled={!editable}
@@ -62,7 +64,6 @@ const createMockProps = (overrides?: Partial<ResourceComposePageProps>): Resourc
   availableEntityTypes: ['Document', 'Article', 'Report'],
   initialLocale: 'en',
   theme: 'light',
-  showLineNumbers: false,
   hoverDelayMs: 0,
   activePanel: null,
   onSaveResource: vi.fn().mockResolvedValue(undefined),
@@ -77,7 +78,11 @@ const createMockProps = (overrides?: Partial<ResourceComposePageProps>): Resourc
 // component reaches for via useSemiont/useObservable).
 const renderWithProviders = (ui: React.ReactElement) => {
   const { SemiontWrapper } = createTestSemiontWrapper();
-  return render(<SemiontWrapper>{ui}</SemiontWrapper>);
+  return render(
+    <LineNumbersProvider>
+      <SemiontWrapper>{ui}</SemiontWrapper>
+    </LineNumbersProvider>,
+  );
 };
 
 describe('ResourceComposePage', () => {
@@ -500,11 +505,16 @@ describe('ResourceComposePage', () => {
       expect(editor.value).toBe('New content');
     });
 
-    it('respects showLineNumbers prop', () => {
-      const props = createMockProps({ showLineNumbers: true });
-      renderWithProviders(<ResourceComposePage {...props} />);
+    it('feeds the editor the shared line-numbers setting from context', () => {
+      localStorage.setItem('showLineNumbers', 'true');
+      try {
+        const props = createMockProps({});
+        renderWithProviders(<ResourceComposePage {...props} />);
 
-      expect(screen.getByTestId('code-editor')).toBeInTheDocument();
+        expect(screen.getByTestId('code-editor')).toHaveAttribute('data-line-numbers', 'true');
+      } finally {
+        localStorage.removeItem('showLineNumbers');
+      }
     });
   });
 });

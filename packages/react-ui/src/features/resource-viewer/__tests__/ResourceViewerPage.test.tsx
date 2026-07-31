@@ -12,6 +12,7 @@ import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
 import { ToastProvider } from '../../../components/Toast';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
+import { LineNumbersProvider } from '../../../contexts/LineNumbersContext';
 import { createTestSemiontWrapper } from '../../../test-utils';
 import type { ResourceId } from '@semiont/core';
 
@@ -163,11 +164,13 @@ const renderWithProviders = (ui: React.ReactElement) => {
   const { SemiontWrapper } = createTestSemiontWrapper();
   return render(
     <ThemeProvider>
-      <ToastProvider>
-        <SemiontWrapper>
-          {ui}
-        </SemiontWrapper>
-      </ToastProvider>
+      <LineNumbersProvider>
+        <ToastProvider>
+          <SemiontWrapper>
+            {ui}
+          </SemiontWrapper>
+        </ToastProvider>
+      </LineNumbersProvider>
     </ThemeProvider>
   );
 };

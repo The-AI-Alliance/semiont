@@ -10,7 +10,6 @@ import {
   useShellStateUnit,
   useObservable,
   useTheme,
-  useLineNumbers,
   useKBDiscovery,
 } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
@@ -82,7 +81,6 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
   const browseStateUnit = useShellStateUnit();
   const activePanel = useObservable(browseStateUnit.activePanel$) ?? null;
   const { theme } = useTheme();
-  const { showLineNumbers } = useLineNumbers();
 
   return (
     <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
@@ -94,7 +92,6 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
         </main>
         <ToolbarPanels
           activePanel={activePanel}
-          showLineNumbers={showLineNumbers}
           theme={theme}
         />
         <Toolbar activePanel={activePanel} context="simple" />

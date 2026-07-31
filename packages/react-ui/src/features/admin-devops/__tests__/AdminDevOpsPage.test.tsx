@@ -34,7 +34,6 @@ const createMockProps = (overrides?: Partial<AdminDevOpsPageProps>): AdminDevOps
     },
   ],
   theme: 'light',
-  showLineNumbers: false,
   activePanel: null,
   translations: {
     title: 'DevOps',
@@ -289,13 +288,13 @@ describe('AdminDevOpsPage', () => {
       );
     });
 
-    it('passes showLineNumbers to toolbar panels', () => {
+    it('does not thread showLineNumbers to toolbar panels — the setting is context-backed', () => {
       const ToolbarPanels = vi.fn(() => <div data-testid="toolbar-panels" />);
-      const props = createMockProps({ showLineNumbers: true, ToolbarPanels });
+      const props = createMockProps({ToolbarPanels });
       render(<AdminDevOpsPage {...props} />);
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
-        expect.objectContaining({ showLineNumbers: true }),
+        expect.not.objectContaining({ showLineNumbers: expect.anything() }),
         undefined,
       );
     });
@@ -379,13 +378,6 @@ describe('AdminDevOpsPage', () => {
 
     it('renders with active panel', () => {
       const props = createMockProps({ activePanel: 'settings' });
-      render(<AdminDevOpsPage {...props} />);
-
-      expect(screen.getByText('DevOps')).toBeInTheDocument();
-    });
-
-    it('renders with line numbers enabled', () => {
-      const props = createMockProps({ showLineNumbers: true });
       render(<AdminDevOpsPage {...props} />);
 
       expect(screen.getByText('DevOps')).toBeInTheDocument();
