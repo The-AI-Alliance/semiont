@@ -26,13 +26,20 @@ export function LineNumbersProvider({ children }: { children: ReactNode }) {
     return false;
   });
 
+  // Functional update: subscribers hold this callback inside bus handlers,
+  // so it must flip from the CURRENT value even when the holder's reference
+  // is stale — a closure over showLineNumbers re-applies the old toggle.
+  // The persistence write is idempotent, so StrictMode's double-invoked
+  // updater writes the same value twice, harmlessly.
   const toggleLineNumbers = useCallback(() => {
-    const newMode = !showLineNumbers;
-    setShowLineNumbers(newMode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('showLineNumbers', newMode.toString());
-    }
-  }, [showLineNumbers]);
+    setShowLineNumbers((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('showLineNumbers', next.toString());
+      }
+      return next;
+    });
+  }, []);
 
   return (
     <LineNumbersContext.Provider value={{ showLineNumbers, toggleLineNumbers }}>

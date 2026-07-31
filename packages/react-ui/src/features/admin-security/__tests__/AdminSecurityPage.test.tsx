@@ -346,12 +346,5 @@ describe('AdminSecurityPage', () => {
 
       expect(screen.getByText('Security Settings')).toBeInTheDocument();
     });
-
-    it('renders with line numbers enabled', () => {
-      const props = createMockProps({});
-      render(<AdminSecurityPage {...props} />);
-
-      expect(screen.getByText('Security Settings')).toBeInTheDocument();
-    });
   });
 });

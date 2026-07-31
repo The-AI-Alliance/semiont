@@ -204,13 +204,13 @@ describe('RecentDocumentsPage', () => {
       );
     });
 
-    it('passes showLineNumbers to toolbar panels', () => {
+    it('does not thread showLineNumbers to toolbar panels — the setting is context-backed', () => {
       const ToolbarPanels = vi.fn(() => <div data-testid="toolbar-panels" />);
       const props = createMockProps({ToolbarPanels });
       render(<RecentDocumentsPage {...props} />);
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
-        expect.objectContaining({}),
+        expect.not.objectContaining({ showLineNumbers: expect.anything() }),
         undefined,
       );
     });
