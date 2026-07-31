@@ -58,7 +58,8 @@ func Frame(args []string) int {
 			if !ok {
 				return 1
 			}
-			if strings.TrimSpace(v) == "" {
+			v = strings.TrimSpace(v)
+			if v == "" {
 				u.fail("--entity-type needs a name.")
 				return 1
 			}
