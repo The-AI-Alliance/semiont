@@ -26,6 +26,9 @@ function clientWith(overrides: Partial<InferenceClient>): InferenceClient {
     modelId: 'test-model',
     generateText: vi.fn(async () => 'text'),
     generateTextWithMetadata: vi.fn(async () => ({ text: '[]', stopReason: 'end_turn' })),
+    // Resolves immediately (no timer involvement) so detection call sites get
+    // past budget derivation to the model call under test.
+    limits: vi.fn(async () => ({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 })),
     ...overrides,
   } as InferenceClient;
 }
