@@ -555,6 +555,7 @@ describe('AnnotationContext', () => {
         modelId: 'mock-model',
         generateText: vi.fn().mockResolvedValue('This passage about a fox relates to the Animals topic in the knowledge base.'),
         generateTextWithMetadata: vi.fn(),
+        limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
       };
 
       const result = await AnnotationContext.buildLLMContext(
@@ -612,6 +613,7 @@ describe('AnnotationContext', () => {
         modelId: 'mock-model',
         generateText: vi.fn().mockRejectedValue(new Error('LLM unavailable')),
         generateTextWithMetadata: vi.fn(),
+        limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
       };
 
       const result = await AnnotationContext.buildLLMContext(
