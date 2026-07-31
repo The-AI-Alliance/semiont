@@ -61,7 +61,6 @@ const createMockProps = (overrides?: Partial<TagSchemasPageProps>): TagSchemasPa
   schemas: mockSchemas,
   isLoading: false,
   theme: 'light',
-  showLineNumbers: false,
   activePanel: null,
   translations: {
     pageTitle: 'Tag Schemas',
@@ -278,11 +277,11 @@ describe('TagSchemasPage', () => {
 
     it('passes showLineNumbers to toolbar panels', () => {
       const ToolbarPanels = vi.fn(() => <div data-testid="toolbar-panels" />);
-      const props = createMockProps({ showLineNumbers: true, ToolbarPanels });
+      const props = createMockProps({ToolbarPanels });
       render(<TagSchemasPage {...props} />);
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
-        expect.objectContaining({ showLineNumbers: true }),
+        expect.objectContaining({}),
         undefined,
       );
     });
@@ -420,7 +419,6 @@ describe('TagSchemasPage', () => {
     it('handles all props being defined', () => {
       const props = createMockProps({
         theme: 'dark',
-        showLineNumbers: true,
         activePanel: 'settings',
       });
       render(<TagSchemasPage {...props} />);

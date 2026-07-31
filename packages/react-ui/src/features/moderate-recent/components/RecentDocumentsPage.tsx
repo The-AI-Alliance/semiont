@@ -15,7 +15,6 @@ export interface RecentDocumentsPageProps {
 
   // UI state
   theme: 'light' | 'dark' | 'system';
-  showLineNumbers: boolean;
   activePanel: string | null;
 
   // Translations
@@ -37,7 +36,6 @@ export interface RecentDocumentsPageProps {
 export function RecentDocumentsPage({
   isLoading,
   theme,
-  showLineNumbers,
   activePanel,
   translations: t,
   ToolbarPanels,
@@ -95,7 +93,6 @@ export function RecentDocumentsPage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          showLineNumbers={showLineNumbers}
         />
 
         <Toolbar

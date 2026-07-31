@@ -8,7 +8,7 @@
 import { useTranslation } from 'react-i18next';
 import { Toolbar, useSemiont } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useShellStateUnit, useObservable, useLineNumbers } from '@semiont/react-ui';
+import { useTheme, useShellStateUnit, useObservable } from '@semiont/react-ui';
 import { AdminSecurityPage } from '@semiont/react-ui';
 import type { OAuthProvider } from '@semiont/react-ui';
 import { createAdminSecurityStateUnit } from '@semiont/react-ui';
@@ -28,7 +28,6 @@ export default function AdminSecurity() {
   const isLoading = useObservable(stateUnit?.isLoading$) ?? true;
 
   const { theme } = useTheme();
-  const { showLineNumbers } = useLineNumbers();
 
 
 
@@ -38,7 +37,6 @@ export default function AdminSecurity() {
       allowedDomains={allowedDomains}
       isLoading={isLoading}
       theme={theme}
-      showLineNumbers={showLineNumbers}
       activePanel={activePanel}
       translations={{
         title: t('title'),

@@ -78,7 +78,6 @@ const createMockProps = (overrides?: Partial<AdminUsersPageProps>): AdminUsersPa
   onAddUser: vi.fn(),
   onExportUsers: vi.fn(),
   theme: 'light',
-  showLineNumbers: false,
   activePanel: null,
   translations: createMockTranslations(),
   ToolbarPanels: ({ children }: any) => <div data-testid="toolbar-panels">{children}</div>,

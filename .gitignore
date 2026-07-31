@@ -27,6 +27,8 @@ coverage/
 *.lcov
 .nyc_output
 test-results.json
+playwright-report/
+test-results/
 
 # Logs
 logs

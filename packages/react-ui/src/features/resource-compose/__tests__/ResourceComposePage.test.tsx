@@ -10,6 +10,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ResourceComposePage } from '../components/ResourceComposePage';
 import type { ResourceComposePageProps } from '../components/ResourceComposePage';
 import { createTestSemiontWrapper } from '../../../test-utils';
+import { LineNumbersProvider } from '../../../contexts/LineNumbersContext';
 
 // Mock CodeMirrorRenderer to avoid CodeMirror dependencies
 vi.mock('../../../components/CodeMirrorRenderer', () => ({
@@ -62,7 +63,6 @@ const createMockProps = (overrides?: Partial<ResourceComposePageProps>): Resourc
   availableEntityTypes: ['Document', 'Article', 'Report'],
   initialLocale: 'en',
   theme: 'light',
-  showLineNumbers: false,
   hoverDelayMs: 0,
   activePanel: null,
   onSaveResource: vi.fn().mockResolvedValue(undefined),
@@ -77,7 +77,11 @@ const createMockProps = (overrides?: Partial<ResourceComposePageProps>): Resourc
 // component reaches for via useSemiont/useObservable).
 const renderWithProviders = (ui: React.ReactElement) => {
   const { SemiontWrapper } = createTestSemiontWrapper();
-  return render(<SemiontWrapper>{ui}</SemiontWrapper>);
+  return render(
+    <LineNumbersProvider>
+      <SemiontWrapper>{ui}</SemiontWrapper>
+    </LineNumbersProvider>,
+  );
 };
 
 describe('ResourceComposePage', () => {
@@ -501,7 +505,7 @@ describe('ResourceComposePage', () => {
     });
 
     it('respects showLineNumbers prop', () => {
-      const props = createMockProps({ showLineNumbers: true });
+      const props = createMockProps({});
       renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByTestId('code-editor')).toBeInTheDocument();

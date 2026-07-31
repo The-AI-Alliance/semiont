@@ -39,7 +39,6 @@ export interface LinkedDataPageProps {
 
   // UI state
   theme: 'light' | 'dark' | 'system';
-  showLineNumbers: boolean;
   activePanel: string | null;
 
   // Translations
@@ -63,7 +62,6 @@ export function LinkedDataPage({
   importMessage,
   importResult,
   theme,
-  showLineNumbers,
   activePanel,
   translations: t,
   ToolbarPanels,
@@ -109,7 +107,6 @@ export function LinkedDataPage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          showLineNumbers={showLineNumbers}
         />
         <Toolbar
           context="simple"

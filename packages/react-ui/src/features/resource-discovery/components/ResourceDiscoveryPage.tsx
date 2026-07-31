@@ -40,7 +40,6 @@ export interface ResourceDiscoveryPageProps {
 
   // UI state props
   theme: 'light' | 'dark';
-  showLineNumbers: boolean;
   activePanel: string | null;
 
   // Navigation props
@@ -86,7 +85,6 @@ export function ResourceDiscoveryPage({
   selectedEntityType,
   onSelectedEntityTypeChange,
   theme,
-  showLineNumbers,
   activePanel,
   onNavigateToResource,
   onNavigateToCompose,
@@ -286,7 +284,6 @@ export function ResourceDiscoveryPage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          showLineNumbers={showLineNumbers}
         />
 
         {/* Toolbar - Always visible on the right */}

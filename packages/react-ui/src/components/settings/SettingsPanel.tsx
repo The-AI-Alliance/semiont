@@ -5,10 +5,10 @@ import { LOCALES } from '@semiont/core';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { useLanguageChangeAnnouncements } from '../LiveRegion';
 import { useSemiont } from '../../session/SemiontProvider';
+import { useLineNumbers } from '../../contexts/LineNumbersContext';
 import './SettingsPanel.css';
 
 interface SettingsPanelProps {
-  showLineNumbers: boolean;
   theme: 'light' | 'dark' | 'system';
   locale: string;
   isPendingLocaleChange?: boolean;
@@ -24,7 +24,6 @@ interface SettingsPanelProps {
  * @emits settings:hover-delay-changed - Hover delay changed by user. Payload: { hoverDelayMs: number }
  */
 export function SettingsPanel({
-  showLineNumbers,
   theme,
   locale,
   isPendingLocaleChange = false,
@@ -32,6 +31,11 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const t = useTranslations('Settings');
   const semiont = useSemiont();
+  // The switch renders the SHARED line-numbers state, not a prop snapshot:
+  // its toggle is applied by a bus subscriber in ToolbarPanels, so a prop
+  // fed from any per-route source is a second copy that never updates.
+  // See .plans/bugs/line-numbers-toggle-desynced-by-hoist.md
+  const { showLineNumbers } = useLineNumbers();
   const { announceLanguageChanging, announceLanguageChanged } = useLanguageChangeAnnouncements();
 
   // Track previous locale to detect changes

@@ -32,9 +32,15 @@ vi.mock('../../../lib/codemirror-json-theme', () => ({
 }));
 
 // Mock the hooks the panel consumes — NOT the session/client stack.
-vi.mock('@/hooks/useLineNumbers');
+vi.mock('@/contexts/LineNumbersContext', async () => {
+  const actual = await vi.importActual('@/contexts/LineNumbersContext');
+  // Mock ONLY the hook: renderWithProviders mounts the real
+  // LineNumbersProvider, which an auto-mock would swallow (rendering
+  // nothing), while these tests want a fixed showLineNumbers value.
+  return { ...actual, useLineNumbers: vi.fn() };
+});
 vi.mock('@/hooks/useResourceGraph');
-import { useLineNumbers } from '@/hooks/useLineNumbers';
+import { useLineNumbers } from '@/contexts/LineNumbersContext';
 import { useResourceGraph } from '@/hooks/useResourceGraph';
 
 const RID = resourceId('test-resource-1');

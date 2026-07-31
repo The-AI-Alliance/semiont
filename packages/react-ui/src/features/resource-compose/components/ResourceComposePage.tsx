@@ -15,6 +15,7 @@ import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state
 import { buttonStyles } from '../../../lib/button-styles';
 import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';
 import { useFormAnnouncements } from '../../../components/LiveRegion';
+import { useLineNumbers } from '../../../contexts/LineNumbersContext';
 import { UploadProgressBar } from './UploadProgressBar';
 
 /**
@@ -54,7 +55,6 @@ export interface ResourceComposePageProps {
 
   // UI state
   theme: 'light' | 'dark';
-  showLineNumbers: boolean;
   hoverDelayMs: number;
   activePanel: string | null;
 
@@ -133,7 +133,6 @@ export function ResourceComposePage({
   availableEntityTypes,
   initialLocale,
   theme,
-  showLineNumbers,
   hoverDelayMs,
   activePanel,
   onSaveResource,
@@ -145,6 +144,10 @@ export function ResourceComposePage({
 }: ResourceComposePageProps) {
   // Form announcements
   const { announceFormSubmitting, announceFormSuccess, announceFormError } = useFormAnnouncements();
+
+  // Shared display setting (LineNumbersContext) — was a prop threaded from
+  // the route, which desynced it from the Settings toggle.
+  const { showLineNumbers } = useLineNumbers();
 
   // Form state
   const [newResourceName, setNewResourceName] = useState('');
@@ -746,7 +749,6 @@ export function ResourceComposePage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          showLineNumbers={showLineNumbers}
         />
 
         {/* Toolbar - Always visible on the right */}

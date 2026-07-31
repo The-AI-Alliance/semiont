@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useShellStateUnit, useObservable, useLineNumbers } from '@semiont/react-ui';
+import { useTheme, useShellStateUnit, useObservable } from '@semiont/react-ui';
 import { RecentDocumentsPage } from '@semiont/react-ui';
 
 // Authentication is handled by middleware (proxy.ts)
@@ -15,7 +15,6 @@ export default function RecentDocumentsPageWrapper() {
   const browseStateUnit = useShellStateUnit();
   const activePanel = useObservable(browseStateUnit.activePanel$) ?? null;
   const { theme } = useTheme();
-  const { showLineNumbers } = useLineNumbers();
 
 
 
@@ -24,7 +23,6 @@ export default function RecentDocumentsPageWrapper() {
       hasDocuments={false}
       isLoading={false}
       theme={theme}
-      showLineNumbers={showLineNumbers}
       activePanel={activePanel}
       translations={{
         pageTitle: t('pageTitle'),

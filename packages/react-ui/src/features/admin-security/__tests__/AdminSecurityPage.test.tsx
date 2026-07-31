@@ -21,7 +21,6 @@ const createMockProps = (overrides?: Partial<AdminSecurityPageProps>): AdminSecu
   allowedDomains: ['example.com'],
   isLoading: false,
   theme: 'light',
-  showLineNumbers: false,
   activePanel: null,
   translations: {
     title: 'Security Settings',
@@ -349,7 +348,7 @@ describe('AdminSecurityPage', () => {
     });
 
     it('renders with line numbers enabled', () => {
-      const props = createMockProps({ showLineNumbers: true });
+      const props = createMockProps({});
       render(<AdminSecurityPage {...props} />);
 
       expect(screen.getByText('Security Settings')).toBeInTheDocument();

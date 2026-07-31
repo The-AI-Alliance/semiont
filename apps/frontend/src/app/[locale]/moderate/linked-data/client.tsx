@@ -5,7 +5,6 @@ import {
   useTheme,
   useShellStateUnit,
   useObservable,
-  useLineNumbers,
   useSemiont,
   useSessionStateUnit,
   LinkedDataPage,
@@ -37,7 +36,6 @@ export default function LinkedDataClient() {
   const importResult = useObservable(stateUnit?.importResult$);
 
   const { theme } = useTheme();
-  const { showLineNumbers } = useLineNumbers();
 
   const handleExport = useCallback(async () => {
     if (!stateUnit) return;
@@ -70,7 +68,6 @@ export default function LinkedDataClient() {
       importMessage={importMessage}
       importResult={importResult}
       theme={theme}
-      showLineNumbers={showLineNumbers}
       activePanel={activePanel}
       translations={{
         title: t('title'),

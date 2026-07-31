@@ -27,7 +27,7 @@ import { useMediaToken } from '../../../hooks/useMediaToken';
 import { useToast } from '../../../components/Toast';
 import { useOutcomeToasts } from '../../../hooks/useOutcomeToasts';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { useLineNumbers } from '../../../hooks/useLineNumbers';
+import { useLineNumbers } from '../../../contexts/LineNumbersContext';
 import { useHoverDelay } from '../../../hooks/useHoverDelay';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
@@ -536,7 +536,6 @@ export function ResourceViewerPage({
           <ToolbarPanels
             activePanel={activePanel}
             theme={theme}
-            showLineNumbers={showLineNumbers}
             width={
               activePanel === 'jsonld' ? 'w-[600px]' :
               activePanel === 'annotations' ? 'w-[400px]' :

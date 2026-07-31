@@ -38,7 +38,6 @@ export interface AdminExchangePageProps {
 
   // UI state
   theme: 'light' | 'dark' | 'system';
-  showLineNumbers: boolean;
   activePanel: string | null;
 
   // Translations
@@ -62,7 +61,6 @@ export function AdminExchangePage({
   importMessage,
   importResult,
   theme,
-  showLineNumbers,
   activePanel,
   translations: t,
   ToolbarPanels,
@@ -108,7 +106,6 @@ export function AdminExchangePage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          showLineNumbers={showLineNumbers}
         />
         <Toolbar
           context="simple"

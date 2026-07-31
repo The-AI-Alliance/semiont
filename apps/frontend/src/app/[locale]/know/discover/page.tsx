@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/i18n/routing';
 import {
   useTheme,
-  useLineNumbers,
   useObservable,
   useSemiont,
   useSessionStateUnit,
@@ -37,7 +36,6 @@ export default function DiscoverPage() {
   const selectedEntityType = useObservable(stateUnit?.selectedEntityType$) ?? '';
 
   const { resolvedTheme } = useTheme();
-  const { showLineNumbers } = useLineNumbers();
 
   if (!stateUnit) return null;
 
@@ -55,7 +53,6 @@ export default function DiscoverPage() {
       selectedEntityType={selectedEntityType}
       onSelectedEntityTypeChange={stateUnit?.setSelectedEntityType}
       theme={resolvedTheme}
-      showLineNumbers={showLineNumbers}
       activePanel={activePanel}
       onNavigateToResource={(resourceId) => router.push(`/know/resource/${encodeURIComponent(resourceId)}`)}
       onNavigateToCompose={() => router.push('/know/compose')}

@@ -152,7 +152,6 @@ export interface AdminUsersPageProps {
 
   // UI state
   theme: 'light' | 'dark' | 'system';
-  showLineNumbers: boolean;
   activePanel: string | null;
 
   // Translations
@@ -213,7 +212,6 @@ export function AdminUsersPage({
   onAddUser,
   onExportUsers,
   theme,
-  showLineNumbers,
   activePanel,
   translations: t,
   ToolbarPanels,
@@ -453,7 +451,6 @@ export function AdminUsersPage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          showLineNumbers={showLineNumbers}
         />
 
         <Toolbar

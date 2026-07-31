@@ -13,6 +13,7 @@ import { SemiontClient, type SemiontBrowser, type SemiontSession } from '@semion
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { baseUrl, EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
+import { LineNumbersProvider } from './contexts/LineNumbersContext';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
 import { SemiontProvider } from './session/SemiontProvider';
@@ -209,7 +210,9 @@ export function renderWithProviders(
       <TranslationProvider translationManager={translationManager}>
         <SemiontProvider browser={fakeBrowser}>
           <ToastProvider>
-            {children}
+            <LineNumbersProvider>
+              {children}
+            </LineNumbersProvider>
           </ToastProvider>
         </SemiontProvider>
       </TranslationProvider>

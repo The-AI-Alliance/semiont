@@ -22,8 +22,6 @@ interface ToolbarPanelsProps {
   activePanel: ToolbarPanelType | null;
   /** Theme setting */
   theme: 'light' | 'dark' | 'system';
-  /** Line numbers setting */
-  showLineNumbers: boolean;
   /** Custom panel content for context-specific panels */
   children?: React.ReactNode;
 }
@@ -39,7 +37,6 @@ interface ToolbarPanelsProps {
  * <ToolbarPanels
  *   activePanel={activePanel}
  *   theme={theme}
- *   showLineNumbers={showLineNumbers}
  * />
  *
  * @example
@@ -47,7 +44,6 @@ interface ToolbarPanelsProps {
  * <ToolbarPanels
  *   activePanel={activePanel}
  *   theme={theme}
- *   showLineNumbers={showLineNumbers}
  * >
  *   {activePanel === 'annotations' && <UnifiedAnnotationsPanel ... />}
  *   {activePanel === 'history' && <AnnotationHistory ... />}
@@ -59,7 +55,6 @@ interface ToolbarPanelsProps {
 export function ToolbarPanels({
   activePanel,
   theme,
-  showLineNumbers,
   children
 }: ToolbarPanelsProps) {
   // Source hover-delay from the shared hook so every page that mounts
@@ -166,7 +161,6 @@ export function ToolbarPanels({
         {/* Settings Panel - common to all contexts */}
         {activePanel === 'settings' && (
           <SettingsPanel
-            showLineNumbers={showLineNumbers}
             theme={theme}
             hoverDelayMs={hoverDelayMs}
             locale={locale}

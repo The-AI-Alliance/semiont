@@ -22,7 +22,6 @@ export interface TagSchemasPageProps {
 
   // UI state
   theme: 'light' | 'dark' | 'system';
-  showLineNumbers: boolean;
   activePanel: string | null;
 
   // Translations
@@ -54,7 +53,6 @@ export function TagSchemasPage({
   schemas,
   isLoading,
   theme,
-  showLineNumbers,
   activePanel,
   translations: t,
   ToolbarPanels,
@@ -153,7 +151,6 @@ export function TagSchemasPage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          showLineNumbers={showLineNumbers}
         />
 
         <Toolbar

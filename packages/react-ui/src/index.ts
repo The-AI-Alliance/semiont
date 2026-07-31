@@ -29,7 +29,7 @@ export * from './hooks/useSessionStateUnit';
 export * from './hooks/useDebounce';
 export * from './lib/formatTime';
 export * from './hooks/useKeyboardShortcuts';
-export * from './hooks/useLineNumbers';
+export * from './contexts/LineNumbersContext';
 export * from './hooks/useHoverDelay';
 export * from './hooks/useObservableBrowse';
 export * from './hooks/usePanelWidth';

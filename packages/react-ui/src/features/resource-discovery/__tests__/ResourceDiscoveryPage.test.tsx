@@ -36,7 +36,6 @@ const createMockProps = (overrides?: Partial<ResourceDiscoveryPageProps>): Resou
   selectedEntityType: '',
   onSelectedEntityTypeChange: vi.fn(),
   theme: 'light',
-  showLineNumbers: false,
   activePanel: null,
   onNavigateToResource: vi.fn(),
   onNavigateToCompose: vi.fn(),

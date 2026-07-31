@@ -26,7 +26,6 @@ export interface AdminSecurityPageProps {
 
   // UI state
   theme: 'light' | 'dark' | 'system';
-  showLineNumbers: boolean;
   activePanel: string | null;
 
   // Translations
@@ -60,7 +59,6 @@ export function AdminSecurityPage({
   allowedDomains,
   isLoading,
   theme,
-  showLineNumbers,
   activePanel,
   translations: t,
   ToolbarPanels,
@@ -176,7 +174,6 @@ export function AdminSecurityPage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          showLineNumbers={showLineNumbers}
         />
 
         <Toolbar

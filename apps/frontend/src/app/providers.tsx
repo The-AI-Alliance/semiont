@@ -4,6 +4,7 @@ import {
   LiveRegionProvider,
   TranslationProvider,
   ThemeProvider,
+  LineNumbersProvider,
   SemiontProvider,
 } from '@semiont/react-ui';
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
@@ -41,6 +42,7 @@ import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager
  * 4. LiveRegionProvider      — a11y live region
  * 5. KeyboardShortcutsProvider — keyboard shortcuts
  * 6. ThemeProvider           — theme
+ * 7. LineNumbersProvider     — line-numbers display (shared, like theme)
  *    + NavigationHandler
  */
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -53,8 +55,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <LiveRegionProvider>
             <KeyboardShortcutsProvider>
               <ThemeProvider>
-                <NavigationHandler />
-                {children}
+                <LineNumbersProvider>
+                  <NavigationHandler />
+                  {children}
+                </LineNumbersProvider>
               </ThemeProvider>
             </KeyboardShortcutsProvider>
           </LiveRegionProvider>
