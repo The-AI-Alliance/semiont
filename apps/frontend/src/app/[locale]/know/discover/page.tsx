@@ -1,12 +1,10 @@
 "use client";
 
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/i18n/routing';
 import {
   useTheme,
   useLineNumbers,
-  useEventSubscriptions,
   useObservable,
   useSemiont,
   useSessionStateUnit,
@@ -38,13 +36,8 @@ export default function DiscoverPage() {
   const isSearching = searchState?.isSearching ?? false;
   const selectedEntityType = useObservable(stateUnit?.selectedEntityType$) ?? '';
 
-  const { setTheme, resolvedTheme } = useTheme();
-  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
-
-  useEventSubscriptions({
-    'settings:theme-changed': useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme), [setTheme]),
-    'settings:line-numbers-toggled': useCallback(() => toggleLineNumbers(), [toggleLineNumbers]),
-  });
+  const { resolvedTheme } = useTheme();
+  const { showLineNumbers } = useLineNumbers();
 
   if (!stateUnit) return null;
 

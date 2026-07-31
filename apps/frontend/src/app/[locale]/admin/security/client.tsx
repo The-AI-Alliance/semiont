@@ -5,11 +5,10 @@
  * and delegates rendering to the pure React AdminSecurityPage component.
  */
 
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Toolbar, useSemiont } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, useShellStateUnit, useObservable, useLineNumbers } from '@semiont/react-ui';
 import { AdminSecurityPage } from '@semiont/react-ui';
 import type { OAuthProvider } from '@semiont/react-ui';
 import { createAdminSecurityStateUnit } from '@semiont/react-ui';
@@ -28,21 +27,10 @@ export default function AdminSecurity() {
   const allowedDomains = useObservable(stateUnit?.allowedDomains$) ?? [];
   const isLoading = useObservable(stateUnit?.isLoading$) ?? true;
 
-  const { theme, setTheme } = useTheme();
-  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const { theme } = useTheme();
+  const { showLineNumbers } = useLineNumbers();
 
-  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
-    setTheme(theme);
-  }, [setTheme]);
 
-  const handleLineNumbersToggled = useCallback(() => {
-    toggleLineNumbers();
-  }, [toggleLineNumbers]);
-
-  useEventSubscriptions({
-    'settings:theme-changed': handleThemeChanged,
-    'settings:line-numbers-toggled': handleLineNumbersToggled,
-  });
 
   return (
     <AdminSecurityPage

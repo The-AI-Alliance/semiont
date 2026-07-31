@@ -6,7 +6,6 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { useCallback } from 'react';
 import {
   ChartBarIcon,
   ServerIcon,
@@ -14,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusDisplay, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useEventSubscriptions, useSemiont } from '@semiont/react-ui';
+import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useSemiont } from '@semiont/react-ui';
 import { AdminDevOpsPage } from '@semiont/react-ui';
 
 // Wrapper component that provides auth props to StatusDisplay.
@@ -40,23 +39,10 @@ export default function DevOpsPage() {
   // Toolbar and settings state
   const browseStateUnit = useShellStateUnit();
   const activePanel = useObservable(browseStateUnit.activePanel$) ?? null;
-  const { theme, setTheme } = useTheme();
-  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const { theme } = useTheme();
+  const { showLineNumbers } = useLineNumbers();
 
-  // Handle theme change events
-  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
-    setTheme(theme);
-  }, [setTheme]);
 
-  // Handle line numbers toggle events
-  const handleLineNumbersToggled = useCallback(() => {
-    toggleLineNumbers();
-  }, [toggleLineNumbers]);
-
-  useEventSubscriptions({
-    'settings:theme-changed': handleThemeChanged,
-    'settings:line-numbers-toggled': handleLineNumbersToggled,
-  });
 
   const suggestedFeatures = [
     {

@@ -8,6 +8,8 @@ import {
   useSemiont,
   useObservable,
   useHoverDelay,
+  useTheme,
+  useLineNumbers,
 } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
@@ -89,9 +91,25 @@ export function ToolbarPanels({
     });
   }, [pathname, router, startTransition]);
 
-  // Subscribe to locale change events
+  // APPLYING the settings this panel emits is this component's job, exactly
+  // like locale above. It used to be a per-route subscription — eleven
+  // copies — and the signed-out knowledge layout never got one, so Theme and
+  // Line Numbers were visibly dead when signed out while Language (handled
+  // here) worked. Living here makes "the panel is mounted" and "the panel
+  // works" the same condition; the route copies are deleted, not added to.
+  // See .plans/bugs/settings-theme-and-line-numbers-inert-when-signed-out.md
+  const { setTheme } = useTheme();
+  const { toggleLineNumbers } = useLineNumbers();
+  const handleThemeChanged = useCallback(
+    ({ theme: newTheme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(newTheme),
+    [setTheme],
+  );
+  const handleLineNumbersToggled = useCallback(() => toggleLineNumbers(), [toggleLineNumbers]);
+
   useEventSubscriptions({
     'settings:locale-changed': handleLocaleChanged,
+    'settings:theme-changed': handleThemeChanged,
+    'settings:line-numbers-toggled': handleLineNumbersToggled,
   });
 
   // Don't render container if no panel is active

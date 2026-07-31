@@ -1,4 +1,3 @@
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Toolbar,
@@ -6,7 +5,6 @@ import {
   useShellStateUnit,
   useObservable,
   useLineNumbers,
-  useEventSubscriptions,
   useSemiont,
   useSessionStateUnit,
   EntityTagsPage,
@@ -32,13 +30,8 @@ export default function EntityTagsPageWrapper() {
   const error = useObservable(stateUnit?.error$) ?? '';
   const isAddingTag = useObservable(stateUnit?.isAdding$) ?? false;
 
-  const { theme, setTheme } = useTheme();
-  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
-
-  useEventSubscriptions({
-    'settings:theme-changed': useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme), [setTheme]),
-    'settings:line-numbers-toggled': useCallback(() => toggleLineNumbers(), [toggleLineNumbers]),
-  });
+  const { theme } = useTheme();
+  const { showLineNumbers } = useLineNumbers();
 
   if (loadError) {
     return (

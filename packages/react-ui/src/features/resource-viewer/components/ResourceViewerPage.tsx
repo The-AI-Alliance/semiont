@@ -116,8 +116,6 @@ export interface ResourceViewerPageProps {
  * @subscribes yield:clone - Clone the current resource
  * @subscribes beckon:sparkle - Trigger sparkle animation
  * @subscribes mark:added - Annotation was created (sparkle)
- * @subscribes settings:theme-changed - UI theme changed
- * @subscribes settings:line-numbers-toggled - Line numbers display toggled
  * @subscribes browse:reference-navigate - Navigate to a referenced document
  * @subscribes browse:entity-type-clicked - Navigate filtered by entity type
  *
@@ -159,8 +157,8 @@ export function ResourceViewerPage({
 
   // UI state hooks
   const { showError, showSuccess } = useToast();
-  const { theme, setTheme } = useTheme();
-  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const { theme } = useTheme();
+  const { showLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();
   const { triggerSparkleAnimation, clearNewAnnotationId, newAnnotationIds } = useResourceAnnotations();
 
@@ -380,8 +378,6 @@ export function ResourceViewerPage({
     triggerSparkleAnimation(stored.payload.annotation.id);
   }, [triggerSparkleAnimation]);
 
-  const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
-
   const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
     if (routes.resourceDetail) {
       const path = routes.resourceDetail(resourceId);
@@ -411,8 +407,6 @@ export function ResourceViewerPage({
     'yield:clone': handleResourceClone,
     'beckon:sparkle': handleAnnotationSparkle,
     'mark:added': handleAnnotationAdded,
-    'settings:theme-changed': handleSettingsThemeChanged,
-    'settings:line-numbers-toggled': toggleLineNumbers,
     'browse:reference-navigate': handleReferenceNavigate,
     'browse:entity-type-clicked': handleEntityTypeClicked,
   });
