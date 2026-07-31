@@ -16,29 +16,41 @@ import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
  * Pure SDK round-trip (no browser), per the spec-15/18 pattern — spec 06
  * already covers the browser path for the same flow at small size.
  *
- * ── WHICH STACK TO RUN THIS AGAINST ────────────────────────────────────────
+ * ── DEFAULT OFF (@slow) ────────────────────────────────────────────────────
  *
- * **Best run against the `ollama-gemma` config.** What this spec exercises
- * depends on the provider serving `reference-annotation`, and only one of the
- * two paths actually chunks at this size:
+ * Both tests here are tagged `@slow` and are **excluded from `npm test`**
+ * (which runs `--grep-invert @slow`). Run them deliberately:
  *
- *   - **ollama-gemma (preferred):** a shared context window (Ollama publishes
- *     `maxOutputTokens === contextTokens`), so the derived budget splits it
- *     1:2 input:output and a 170 KB document is genuinely **chunked** — this
- *     spec then guards the per-chunk loop, the per-chunk fail-loud truncation
- *     guard, and the liveness heartbeat end to end.
- *   - **anthropic (what this was authored against):** 200K context / 64K
- *     output means 170 KB (~42K tokens) runs **unchunked**. Still a real
- *     guard — the derived output budget replacing the hardcoded 4000 is the
- *     half that actually resurrects the Evidence table — but the chunk loop
- *     is not exercised. Reaching Anthropic's chunk threshold would need
- *     roughly half a megabyte.
+ *     npm run test:slow                                  # both
+ *     npm run test:slow -- -g "chunk-forcing"            # just the loop guard
  *
- * Either way the assertion is the same and stays honest, which is why it
- * asserts the **outcome** and never chunk counts: whether chunking occurs is
- * provider-dependent by design, so a chunk-count assertion would be green on
- * one provider and meaningless on the other. The deterministic REDs for the
- * chunking machinery live in the P3 unit layer (151 tests).
+ * Why: measured 1.4–8 min (170 KB) and 7.8 min (chunk-forcing) — either one
+ * roughly doubles a ~6-minute full suite, and their value is release-gate
+ * verification, not per-change regression catching.
+ *
+ * ── WHICH PROVIDER, AND WHAT EACH ONE PROVES ───────────────────────────────
+ *
+ * Results here are **model-dependent**, because what the fix does depends on
+ * the provider's window. Measured 2026-07-31 on both:
+ *
+ *   anthropic (sonnet-4-5): 200K context / 64K output.
+ *     Input bound = 200K − 64K − scaffold ≈ 135K tokens ≈ ~540 KB.
+ *     PROVES: the derived output budget — the half that was the proximate
+ *     cause (the hardcoded 4000). This path produced the clean RED→GREEN:
+ *     pre-fix `truncated (max_tokens) — increase max_tokens…`, post-fix
+ *     completes. Also proves the fail-loud guard at the pathological tail
+ *     (`truncated … on chunk 1/1 despite the derived output budget of 64000`).
+ *     Does NOT prove chunking: at 170 KB it runs as chunk 1/1.
+ *
+ *   ollama (gemma4:26b): context_length 262,144 (read live from POST
+ *     /api/show — NOT the ~8K the plan's worked example assumes), shared
+ *     window, so the 1:2 split gives ≈ 87K tokens input ≈ ~340 KB per chunk.
+ *     PROVES: the chunk loop, the per-chunk heartbeat, and overlap dedupe —
+ *     but only above ~340 KB. At 170 KB this path ALSO runs as one chunk.
+ *
+ * Hence the two tests: the 170 KB one is the Evidence-table row (outcome
+ * only, provider-agnostic); the ~750 KB one is sized past BOTH input bounds
+ * so chunking is forced whichever provider serves `reference-annotation`.
  *
  * ── COST ───────────────────────────────────────────────────────────────────
  *
@@ -53,80 +65,76 @@ import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 const TARGET_BYTES = 170_000;
 
 /**
- * Build an entity-DENSE document out of REAL technical concepts.
+ * Build a large document whose entity yield lands BETWEEN the two caps.
  *
- * **Two ways to get this wrong, both measured against a pre-fix stack:**
+ * **Three ways to get this wrong, all measured against real stacks:**
  *
  * 1. **Too sparse.** v1 drew from a fixed 40-term vocabulary; at 170 KB it
- *    produced 48 entities (~2.4K output tokens) — under the old 4000-token
+ *    produced 48 entities (~2.4K output tokens) — under the OLD 4000-token
  *    cap, so it PASSED pre-fix and guarded nothing. The bug is driven by
  *    entity COUNT, not document length (the Evidence table's 6 KB `rfc768`
  *    passed at ~60 entities; the 21 KB `rfc826` failed).
  * 2. **Not real prose.** v2 was dense but built from invented proper nouns
  *    ("the Kestrel-142 protocol") in a repeating template; the model returned
- *    `stopReason: 'refusal'` and 0 entities. That fails pre-fix for the WRONG
- *    reason and would keep failing post-fix.
+ *    `stopReason: 'refusal'` and 0 entities — red for the wrong reason.
+ * 3. **Too dense.** v3 mentioned 5–6 concepts per short paragraph — ~2,000+
+ *    entity OCCURRENCES (every occurrence is its own span, so dedupe does not
+ *    reduce them) ≈ 100K+ output tokens. That overflows even the DERIVED 64K
+ *    budget: post-fix it still failed, with `truncated … on chunk 1/1 despite
+ *    the derived output budget of 64000 tokens`. That is the plan's
+ *    pathological tail failing honestly by design — correct behavior, useless
+ *    as a regression guard.
  *
- * So the fixture must be dense in *genuine* concepts and read as real prose.
- * This composes hundreds of actual technical concepts (real modifier × real
- * head pairs — "speculative prefetching", "hierarchical scheduling", …) into
- * varied sentence shapes across many fields. Deterministic — no RNG, so a
- * flake reproduces.
+ * The guard must land in the window between the caps:
  *
- * If you shrink the vocabulary or flatten the prose, you defang the guard.
+ *   >  ~80 entities  → exceeds the old 4000-token cap  → RED pre-fix
+ *   < ~1280 entities → fits the derived 64K budget     → GREEN post-fix
+ *
+ * So: ONE named concept per paragraph, embedded in ordinary narrative prose
+ * that carries no further extractable terms. ~360 paragraphs at 170 KB gives
+ * a few hundred occurrences — an order of magnitude past the old cap, and
+ * comfortably inside the new one. That is also what a real RFC looks like:
+ * large, genuinely technical, but not concept-saturated.
+ *
+ * Deterministic — no RNG, so a flake reproduces.
  */
-function buildLargeDocument(): string {
-  const modifiers = [
-    'adaptive', 'hierarchical', 'incremental', 'speculative', 'distributed', 'probabilistic',
-    'asynchronous', 'concurrent', 'lock-free', 'append-only', 'copy-on-write', 'write-ahead',
-    'content-addressed', 'log-structured', 'columnar', 'vectorized', 'just-in-time',
-    'ahead-of-time', 'region-based', 'generational', 'reference-counted', 'transactional',
-    'idempotent', 'eventually consistent', 'strongly consistent', 'quorum-based',
-    'gossip-based', 'leaderless',
-  ];
-  const heads = [
-    'caching', 'scheduling', 'replication', 'compression', 'indexing', 'checkpointing',
-    'garbage collection', 'compaction', 'partitioning', 'deduplication', 'prefetching',
-    'batching', 'failover', 'reconciliation', 'serialization', 'query planning',
-    'load shedding', 'rate limiting', 'admission control', 'change capture',
-    'consensus', 'sharding', 'materialization', 'invalidation',
+function buildLargeDocument(targetBytes: number = TARGET_BYTES): string {
+  const concepts = [
+    'adaptive caching', 'hierarchical scheduling', 'incremental replication',
+    'speculative prefetching', 'distributed consensus', 'probabilistic indexing',
+    'asynchronous checkpointing', 'lock-free batching', 'append-only compaction',
+    'copy-on-write partitioning', 'write-ahead logging', 'content-addressed storage',
+    'log-structured merging', 'columnar compression', 'vectorized execution',
+    'just-in-time compilation', 'generational collection', 'reference counting',
+    'transactional memory', 'idempotent retry', 'quorum replication', 'gossip dissemination',
+    'leaderless coordination', 'load shedding', 'admission control', 'change data capture',
+    'query planning', 'cache invalidation', 'connection pooling', 'backpressure propagation',
   ];
   const fields = [
     'storage engines', 'stream processing', 'compiler design', 'operating systems',
     'distributed databases', 'network protocols', 'observability tooling', 'query engines',
   ];
-  const shapes = [
-    (x: string, y: string, f: string) =>
-      `In modern ${f}, ${x} and ${y} are usually introduced together, because the failure ` +
-      `modes each one hides tend to be the failure modes the other exposes.`,
-    (x: string, y: string, f: string) =>
-      `Practitioners in ${f} often reach for ${x} first; only when its overhead becomes ` +
-      `measurable do they reconsider and adopt ${y} alongside it.`,
-    (x: string, y: string, f: string) =>
-      `A recurring result in ${f} is that ${x} degrades gracefully under load while ${y} ` +
-      `degrades sharply, which is why production systems rarely rely on ${y} alone.`,
-    (x: string, y: string, f: string) =>
-      `Benchmarks comparing ${x} against ${y} in ${f} are notoriously sensitive to workload ` +
-      `shape, and results rarely transfer between deployments without recalibration.`,
-    (x: string, y: string, f: string) =>
-      `The literature on ${f} treats ${x} as a special case of ${y}, though implementers ` +
-      `usually keep them separate because their tuning parameters do not compose cleanly.`,
-  ];
 
   const paragraphs: string[] = [];
   let i = 0;
   let total = 0;
-  while (total < TARGET_BYTES) {
+  while (total < targetBytes) {
+    const c = concepts[i % concepts.length]!;
     const f = fields[i % fields.length]!;
-    const c1 = `${modifiers[i % modifiers.length]} ${heads[i % heads.length]}`;
-    const c2 = `${modifiers[(i + 5) % modifiers.length]} ${heads[(i + 7) % heads.length]}`;
-    const c3 = `${modifiers[(i + 11) % modifiers.length]} ${heads[(i + 13) % heads.length]}`;
+    // ONE named concept, then filler narrative with no further technical terms.
     const p =
-      `${shapes[i % shapes.length]!(c1, c2, f)} ` +
-      `${shapes[(i + 2) % shapes.length]!(c3, c1, f)} ` +
-      `Teams that adopt ${c2} without first measuring the cost of ${c3} frequently discover ` +
-      `that the bottleneck simply moved, and that the interaction between ${c1} and ${c3} ` +
-      `now dominates the profile.\n\n`;
+      `Section ${i + 1}. Teams working on ${f} eventually confront ${c}, usually after a ` +
+      `quarter in which the system behaved acceptably right up until it did not. The first ` +
+      `investigation rarely finds anything conclusive; the graphs look ordinary, the error ` +
+      `rate is flat, and the only hint is that certain requests take longer than they used ` +
+      `to for reasons nobody can articulate. Someone eventually reads the original design ` +
+      `document and discovers that an assumption made years earlier no longer holds, though ` +
+      `it held perfectly well at the time and the person who made it had good reasons. The ` +
+      `discussion that follows tends to be less about what to change than about what the ` +
+      `system was ever supposed to guarantee, which turns out to have been written down in ` +
+      `two places that disagree. What finally settles it is usually a measurement nobody ` +
+      `thought to take, produced by someone who joined recently enough to ask why things ` +
+      `work the way they do rather than assuming there was a reason.\n\n`;
     paragraphs.push(p);
     total += p.length;
     i += 1;
@@ -135,9 +143,14 @@ function buildLargeDocument(): string {
 }
 
 test.describe('large-document assisted linking', () => {
-  test('a 170 KB document enriches — assisted linking persists annotations (the Evidence-table stress row)', async () => {
-    // A large single call runs minutes; a chunked Ollama run is longer still.
-    test.setTimeout(900_000);
+  test('a 170 KB document enriches — assisted linking persists annotations (the Evidence-table stress row)', { tag: ['@slow'] }, async () => {
+    // Wall-clock is provider-shaped. Anthropic: ONE large streamed call, a few
+    // minutes. ollama-gemma: the shared window forces ~17-20 chunks at this
+    // size, each its own serialized local inference call — tens of minutes.
+    // Budget for the slower path; the per-chunk progress events below are the
+    // liveness signal, so a genuine stall shows up as a gap rather than as one
+    // long silence ending here.
+    test.setTimeout(2_700_000);
 
     const client = await SemiontClient.signInHttp({
       baseUrl: BACKEND_URL,
@@ -154,15 +167,20 @@ test.describe('large-document assisted linking', () => {
       // Density guard: the bug is driven by ENTITY COUNT, not length. A
       // low-vocabulary fixture of this size passes even pre-fix (measured:
       // 40 terms → 48 entities → ~2.4K tokens, under the old 4000 cap).
-      const distinctNames = new Set(
-        content.match(/\b(?:adaptive|hierarchical|incremental|speculative|distributed|probabilistic|asynchronous|concurrent|lock-free|append-only|copy-on-write|write-ahead|content-addressed|log-structured|columnar|vectorized|just-in-time|ahead-of-time|region-based|generational|reference-counted|transactional|idempotent|eventually consistent|strongly consistent|quorum-based|gossip-based|leaderless) [a-z ]+?(?=\b(?:and|are|is|in|with|against|alongside|without|now|first|,|\.))/g) ?? [],
-      ).size;
+      // Occurrences, not distinct terms: every occurrence is its own span, so
+      // occurrences drive output size. Pin the WINDOW between the two caps —
+      // a fixture outside it guards nothing in one direction or the other.
+      const occurrences = (content.match(/Section \d+\. Teams working on/g) ?? []).length;
       // eslint-disable-next-line no-console
-      console.log(`LARGE_DOC: ${distinctNames} distinct candidate entity names`);
+      console.log(`LARGE_DOC: ${occurrences} concept occurrences (~${occurrences * 50} output tokens)`);
       expect(
-        distinctNames,
-        'fixture must be entity-DENSE — see buildLargeDocument; a sparse fixture guards nothing',
-      ).toBeGreaterThan(200);
+        occurrences,
+        'must exceed the OLD 4000-token cap (~80 entities) or it guards nothing — see buildLargeDocument',
+      ).toBeGreaterThan(150);
+      expect(
+        occurrences,
+        'must fit the DERIVED 64K budget (~1280 entities) or it fails post-fix too — v3 did exactly that',
+      ).toBeLessThan(1000);
       // eslint-disable-next-line no-console
       console.log(`LARGE_DOC: fixture ${content.length} bytes (~${Math.round(content.length / 4)} tokens)`);
 
@@ -221,6 +239,195 @@ test.describe('large-document assisted linking', () => {
         persisted.some((a) => a.motivation === 'linking'),
         'the persisted annotations include the linking references the assist created',
       ).toBe(true);
+    } finally {
+      client.dispose();
+    }
+  });
+
+  /**
+   * Forces the CHUNK LOOP — the half the 170 KB case cannot reach.
+   *
+   * Measured provider input bounds (both read live, not assumed):
+   *   - ollama `gemma4:26b`: context 262,144 (`/api/show`), shared window, so
+   *     the 1:2 split gives ~87K tokens of input per chunk ≈ ~340 KB of text.
+   *   - anthropic sonnet-4-5: 200K context − 64K output − scaffold
+   *     ≈ 135K tokens ≈ ~540 KB.
+   *
+   * ~750 KB exceeds BOTH, so chunking is forced regardless of which provider
+   * serves `reference-annotation`. That is what makes the assertion below
+   * legitimate: the plan says never to assert chunk counts *because* chunking
+   * is provider-dependent at e2e-realistic sizes — true at 170 KB, where this
+   * spec's first test correctly asserts outcome only. Sized deliberately past
+   * both bounds, "chunking occurred" stops being provider-dependent, so this
+   * asserts it as a DELIBERATE, reasoned deviation rather than an oversight.
+   *
+   * The signal: Phase 3's `onChunk` emits N−1 boundary events, surfaced as
+   * interpolated progress strictly between the 20% and 100% milestones. A
+   * single-chunk run emits none (measured on both providers at 170 KB), so
+   * ≥1 such event means the loop genuinely ran.
+   */
+  test('a chunk-forcing document exercises the per-chunk loop and still persists annotations', { tag: ['@slow'] }, async () => {
+    test.setTimeout(2_700_000);
+
+    const client = await SemiontClient.signInHttp({
+      baseUrl: BACKEND_URL,
+      email: E2E_EMAIL,
+      password: E2E_PASSWORD,
+    });
+
+    try {
+      // ~750 KB — past both providers' measured per-chunk input bounds.
+      const content = buildLargeDocument(750_000);
+      // eslint-disable-next-line no-console
+      console.log(`CHUNKED: fixture ${content.length} bytes (~${Math.round(content.length / 4)} tokens)`);
+
+      const rid = ridBrand(
+        (
+          await client.yield.resource({
+            name: `Chunk Forcing Doc ${content.length}B`,
+            storageUri: 'file://e2e/chunk-forcing-doc.txt',
+            file: Buffer.from(content, 'utf-8'),
+            format: 'text/plain',
+            language: 'en',
+          })
+        ).resourceId,
+      );
+
+      const t0 = Date.now();
+      const midBandEvents: number[] = [];
+      const final = await client.mark
+        .assist(rid, 'linking', { entityTypes: ['Concept'] })
+        .run((e) => {
+          if (e.kind !== 'progress') return;
+          const pct = (e.data as { percentage?: number }).percentage;
+          // eslint-disable-next-line no-console
+          console.log(`CHUNKED: +${Date.now() - t0}ms progress ${pct}%`);
+          if (typeof pct === 'number' && pct > 20 && pct < 100) midBandEvents.push(pct);
+        });
+
+      expect(final.kind, 'chunked linking assist completes').toBe('complete');
+      // eslint-disable-next-line no-console
+      console.log(`CHUNKED: ${midBandEvents.length} chunk-boundary events in ${Date.now() - t0}ms`);
+
+      expect(
+        midBandEvents.length,
+        'a document past both providers\' per-chunk input bound must produce chunk-boundary ' +
+          'progress events (Phase 3 onChunk: N chunks → N−1 events); zero means it ran as one ' +
+          'chunk and the loop was never exercised',
+      ).toBeGreaterThan(0);
+
+      await expect
+        .poll(async () => (await client.browse.annotations(rid).fresh()).length, { timeout: 60_000 })
+        .toBeGreaterThan(0);
+      // eslint-disable-next-line no-console
+      console.log(`CHUNKED: ${(await client.browse.annotations(rid).fresh()).length} annotations persisted`);
+    } finally {
+      client.dispose();
+    }
+  });
+
+  /**
+   * Live-stack gate item 4, second half — the #738 input clip is really gone.
+   *
+   * `motivation-prompts.ts` used to hard-code `content.substring(0, 8000)` at
+   * six sites, silently capping the input for **highlight / comment /
+   * assessment** (reference/linking and tagging always passed full content —
+   * which is why the other tests in this file, all `linking`, prove NOTHING
+   * about this). Phase 3b deleted all six.
+   *
+   * The fixture is built so a surviving clip produces ZERO annotations rather
+   * than merely fewer: the first ~10 KB is deliberately low-salience
+   * boilerplate ("the remainder of this document is organized as follows…"),
+   * and every substantive, annotation-worthy claim lives beyond char 8,000.
+   * With the clip present the model would see only the barren prefix; with it
+   * gone, annotations anchor past the old boundary.
+   *
+   * Asserts on `TextPositionSelector.start` — the persisted whole-document
+   * offset, which is exactly what "reconcile against the full document"
+   * guarantees.
+   */
+  test('formerly-clipped motivations annotate beyond char 8,000 (#738 input clip deleted)', { tag: ['@slow'] }, async () => {
+    test.setTimeout(2_700_000);
+
+    const client = await SemiontClient.signInHttp({
+      baseUrl: BACKEND_URL,
+      email: E2E_EMAIL,
+      password: E2E_PASSWORD,
+    });
+
+    try {
+      // ── barren prefix: >10 KB with nothing worth annotating ──
+      let content = '';
+      let n = 0;
+      while (content.length < 10_000) {
+        n += 1;
+        content +=
+          `The remainder of this document is organized as follows. Section ${n} restates the ` +
+          `structure described in the preceding section and introduces no new material. ` +
+          `Readers already familiar with the organization of this document may proceed. ` +
+          `Section ${n + 1} continues in the same manner.\n\n`;
+      }
+      const boundary = content.length;
+
+      // ── substantive content, ALL of it past the old 8,000-char clip ──
+      const claims = [
+        'Write amplification is the ratio of bytes physically written to bytes logically written; it is the single most important number when sizing an LSM tree.',
+        'A read-your-writes guarantee is strictly weaker than linearizability, and conflating the two is the most common source of correctness bugs in replicated stores.',
+        'Backpressure is not rate limiting: rate limiting sheds load at the edge, whereas backpressure propagates scarcity upstream so producers slow down.',
+        'The cost of a cache miss is not the miss itself but the tail latency it introduces once the miss rate exceeds the downstream service\'s headroom.',
+        'Idempotency keys must be scoped to the operation AND the actor; a globally scoped key silently collapses distinct requests from different callers.',
+        'Compaction debt accumulates invisibly: a store can appear healthy for weeks and then degrade sharply once the merge scheduler falls behind arrivals.',
+      ];
+      for (let i = 0; i < 24; i++) {
+        content += `Finding ${i + 1}. ${claims[i % claims.length]} This matters in practice because ` +
+          `systems that ignore it fail in ways their dashboards do not show.\n\n`;
+      }
+      // eslint-disable-next-line no-console
+      console.log(`CLIP: ${content.length} bytes, substantive content starts at char ${boundary}`);
+      expect(boundary, 'the barren prefix must extend past the old 8,000-char clip').toBeGreaterThan(8_000);
+
+      const rid = ridBrand(
+        (
+          await client.yield.resource({
+            name: `Clip Boundary Doc ${content.length}B`,
+            storageUri: 'file://e2e/clip-boundary-doc.txt',
+            file: Buffer.from(content, 'utf-8'),
+            format: 'text/plain',
+            language: 'en',
+          })
+        ).resourceId,
+      );
+
+      // All three formerly-clipped motivations — one at a time, same resource.
+      for (const motivation of ['highlighting', 'commenting', 'assessing'] as const) {
+        const t0 = Date.now();
+        const final = await client.mark.assist(rid, motivation, { language: 'en' }).run(() => {});
+        expect(final.kind, `${motivation} assist completes`).toBe('complete');
+
+        const anns = await client.browse.annotations(rid).fresh();
+        const mine = anns.filter((a) => a.motivation === motivation);
+        const starts = mine
+          .map((a) => {
+            const t = Array.isArray(a.target) ? a.target[0] : a.target;
+            const sels = Array.isArray(t?.selector) ? t.selector : [t?.selector];
+            const pos = sels.find((x) => x?.type === 'TextPositionSelector') as { start?: number } | undefined;
+            return pos?.start;
+          })
+          .filter((x): x is number => typeof x === 'number');
+
+        // eslint-disable-next-line no-console
+        console.log(
+          `CLIP: ${motivation} → ${mine.length} annotations in ${Date.now() - t0}ms; ` +
+            `offsets ${starts.length ? `${Math.min(...starts)}..${Math.max(...starts)}` : '(none)'}`,
+        );
+
+        expect(
+          starts.some((start) => start > 8_000),
+          `${motivation} must anchor at least one annotation beyond char 8,000 — everything ` +
+            `worth annotating in this fixture lives past ${boundary}, so a surviving ` +
+            `content.substring(0, 8000) clip in motivation-prompts.ts yields none (#738)`,
+        ).toBe(true);
+      }
     } finally {
       client.dispose();
     }

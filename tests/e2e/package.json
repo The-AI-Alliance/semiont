@@ -6,7 +6,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "pretest": "npm run typecheck",
-    "test": "playwright test",
+    "test": "playwright test --grep-invert @slow",
+    "pretest:slow": "npm run typecheck",
+    "test:slow": "playwright test --grep @slow",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
     "test:ui": "playwright test --ui",
