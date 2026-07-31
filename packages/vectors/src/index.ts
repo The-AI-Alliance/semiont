@@ -23,5 +23,3 @@ export { createEmbeddingProvider } from './embedding/factory';
 export type { EmbeddingConfig } from './embedding/factory';
 
 // Chunking
-export { chunkText, DEFAULT_CHUNKING_CONFIG } from './chunking';
-export type { ChunkingConfig } from './chunking';

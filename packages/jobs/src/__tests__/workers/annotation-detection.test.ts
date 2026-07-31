@@ -416,4 +416,130 @@ describe('AnnotationDetection', () => {
       expect(result).toBeInstanceOf(Array);
     });
   });
+
+  // ── Phase 3b: input chunking derived from provider limits ─────────────
+  // Small shared-window limits (the Ollama shape) force the derived chunk
+  // budget below the content size; detection must loop chunks, reconcile
+  // every chunk's results against the FULL document, and keep the progress
+  // heartbeat alive at chunk boundaries.
+  describe('chunking (derived from provider limits)', () => {
+    const SMALL_SHARED_LIMITS = { contextTokens: 2400, maxOutputTokens: 2400 };
+    // ALPHASPAN sits near the start; GAMMASPAN past char 8,000 — beyond both
+    // the first chunk and the former substring(0, 8000) prompt clip.
+    const early = 'ALPHASPAN opens the document.';
+    const late = 'GAMMASPAN closes the document.';
+    const bigContent = early + ' ' + 'lorem ipsum dolor sit amet, consectetur adipiscing elit. '.repeat(150) + late;
+
+    const highlight = (exact: string) => JSON.stringify([{ exact }]);
+
+    it('splits oversized content into multiple calls and merges results across chunks', async () => {
+      const client = new MockInferenceClient(
+        [highlight('ALPHASPAN'), highlight('GAMMASPAN')],
+        undefined,
+        SMALL_SHARED_LIMITS,
+      );
+
+      const result = await AnnotationDetection.detectHighlights(bigContent, client);
+
+      expect(client.calls.length).toBeGreaterThan(1);
+      expect(result.some(h => h.exact === 'ALPHASPAN')).toBe(true);
+      expect(result.some(h => h.exact === 'GAMMASPAN')).toBe(true);
+    });
+
+    it('reconciles a late-chunk span to whole-document offsets', async () => {
+      const client = new MockInferenceClient(
+        [highlight('ALPHASPAN'), highlight('GAMMASPAN')],
+        undefined,
+        SMALL_SHARED_LIMITS,
+      );
+
+      const result = await AnnotationDetection.detectHighlights(bigContent, client);
+
+      const gamma = result.find(h => h.exact === 'GAMMASPAN');
+      expect(gamma).toBeDefined();
+      // Offsets index into the full document, not the chunk the model saw.
+      expect(gamma!.start).toBe(bigContent.indexOf('GAMMASPAN'));
+      expect(gamma!.start).toBeGreaterThan(8000);
+    });
+
+    it('throws on max_tokens truncation of any chunk', async () => {
+      const client = new MockInferenceClient(
+        [highlight('ALPHASPAN'), highlight('GAMMASPAN')],
+        ['end_turn', 'max_tokens'],
+        SMALL_SHARED_LIMITS,
+      );
+
+      await expect(
+        AnnotationDetection.detectHighlights(bigContent, client),
+      ).rejects.toThrow(/truncat/i);
+    });
+
+    it('makes one call with a derived (non-literal) output budget when content fits', async () => {
+      const client = new MockInferenceClient([highlight('Climate change')]); // generous default limits
+
+      await AnnotationDetection.detectHighlights(testContent, client);
+
+      expect(client.calls.length).toBe(1);
+      // The old hand-tuned literal is gone; the budget comes from limits().
+      expect(client.calls[0].maxTokens).not.toBe(2000);
+      expect(client.calls[0].maxTokens).toBeGreaterThan(2000);
+    });
+
+    it('reports progress at every chunk boundary (liveness heartbeat contract)', async () => {
+      const client = new MockInferenceClient([highlight('ALPHASPAN')], undefined, SMALL_SHARED_LIMITS);
+      const onChunk = vi.fn();
+
+      await AnnotationDetection.detectHighlights(bigContent, client, undefined, undefined, undefined, onChunk);
+
+      const totalChunks = client.calls.length;
+      expect(totalChunks).toBeGreaterThan(1);
+      expect(onChunk.mock.calls.length).toBe(totalChunks - 1);
+      onChunk.mock.calls.forEach(([completed, total], idx) => {
+        expect(completed).toBe(idx + 1);
+        expect(total).toBe(totalChunks);
+      });
+    });
+
+    it('detectComments and detectAssessments merge across chunks the same way', async () => {
+      const commentsClient = new MockInferenceClient(
+        [
+          JSON.stringify([{ exact: 'ALPHASPAN', comment: 'first' }]),
+          JSON.stringify([{ exact: 'GAMMASPAN', comment: 'second' }]),
+        ],
+        undefined,
+        SMALL_SHARED_LIMITS,
+      );
+      const comments = await AnnotationDetection.detectComments(bigContent, commentsClient);
+      expect(commentsClient.calls.length).toBeGreaterThan(1);
+      expect(comments.some(c => c.exact === 'GAMMASPAN')).toBe(true);
+
+      const assessClient = new MockInferenceClient(
+        [
+          JSON.stringify([{ exact: 'ALPHASPAN', assessment: 'first' }]),
+          JSON.stringify([{ exact: 'GAMMASPAN', assessment: 'second' }]),
+        ],
+        undefined,
+        SMALL_SHARED_LIMITS,
+      );
+      const assessments = await AnnotationDetection.detectAssessments(bigContent, assessClient);
+      expect(assessClient.calls.length).toBeGreaterThan(1);
+      expect(assessments.some(a => a.exact === 'GAMMASPAN')).toBe(true);
+    });
+
+    it('detectTags chunks within the per-category call', async () => {
+      const client = new MockInferenceClient(
+        [highlight('ALPHASPAN'), highlight('GAMMASPAN')],
+        undefined,
+        SMALL_SHARED_LIMITS,
+      );
+
+      const result = await AnnotationDetection.detectTags(
+        bigContent, client, IMRAD_SCHEMA, 'introduction',
+      );
+
+      expect(client.calls.length).toBeGreaterThan(1);
+      expect(result.some(t => t.exact === 'GAMMASPAN')).toBe(true);
+      result.forEach(t => expect(t.category).toBe('introduction'));
+    });
+  });
 });

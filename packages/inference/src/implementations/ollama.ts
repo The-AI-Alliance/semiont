@@ -1,9 +1,19 @@
 // Ollama implementation of InferenceClient interface
 // Uses native Ollama HTTP API (no SDK dependency)
 
+import { estimateTokens, isNumber, isObject } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { InferenceClient, InferenceOptions, InferenceResponse } from '../interface.js';
+import { InferenceClient, InferenceLimits, InferenceOptions, InferenceResponse } from '../interface.js';
+
+// Slack added to the chars/4 prompt estimate when sizing `num_ctx`:
+// proportional to the estimate (the heuristic's error grows with prompt size)
+// plus a small fixed allowance for the model's chat template. The risk profile
+// is asymmetric — an undersized window silently clips input (the exact hole
+// managed num_ctx exists to close) while an oversized one only costs memory —
+// so the slack leans generous. Always capped at the model's real window.
+const NUM_CTX_ESTIMATE_SLACK = 0.2;
+const NUM_CTX_TEMPLATE_ALLOWANCE = 64;
 
 interface OllamaGenerateResponse {
   response: string;
@@ -21,10 +31,47 @@ export class OllamaInferenceClient implements InferenceClient {
   private baseURL: string;
   private logger?: Logger;
 
+  private limitsPromise?: Promise<InferenceLimits>;
+
   constructor(model: string, baseURL?: string, logger?: Logger) {
     this.baseURL = (baseURL || 'http://localhost:11434').replace(/\/+$/, '');
     this.modelId = model;
     this.logger = logger;
+  }
+
+  limits(): Promise<InferenceLimits> {
+    if (!this.limitsPromise) {
+      this.limitsPromise = this.discoverLimits().catch((err: unknown) => {
+        // Never cache a failed discovery — a transient outage would otherwise
+        // pin every future call to the same rejection.
+        this.limitsPromise = undefined;
+        throw err;
+      });
+    }
+    return this.limitsPromise;
+  }
+
+  private async discoverLimits(): Promise<InferenceLimits> {
+    const res = await fetch(`${this.baseURL}/api/show`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: this.modelId }),
+    });
+    if (!res.ok) {
+      throw new Error(
+        `Failed to discover model limits: /api/show returned ${res.status} for '${this.modelId}'`,
+      );
+    }
+    const data: unknown = await res.json();
+    const modelInfo = isObject(data) && isObject(data['model_info']) ? data['model_info'] : undefined;
+    const contextTokens = readContextLength(modelInfo);
+    if (contextTokens === undefined) {
+      throw new Error(`/api/show reports no context length for '${this.modelId}'`);
+    }
+    // Shared window: input and output draw from the same context — there is
+    // no separate output ceiling, so the window is published as both (the
+    // `maxOutputTokens === contextTokens` shape consumers key the split on).
+    return { contextTokens, maxOutputTokens: contextTokens };
   }
 
   async generateText(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<string> {
@@ -40,6 +87,24 @@ export class OllamaInferenceClient implements InferenceClient {
       temperature,
       format: options?.format,
     });
+
+    // Managed context window: size num_ctx to cover this request, capped at
+    // the model's discovered window. Without an explicit num_ctx Ollama uses
+    // the model's *default* window and SILENTLY CLIPS any prompt beyond it —
+    // input loss with no error (found 2026-07-30).
+    const limits = await this.limits();
+    const promptTokens = estimateTokens(prompt);
+    if (promptTokens + maxTokens > limits.contextTokens) {
+      throw new Error(
+        `Prompt (~${promptTokens} tokens) + output budget (${maxTokens}) exceed the ` +
+        `'${this.modelId}' context window (${limits.contextTokens} tokens)`,
+      );
+    }
+    const numCtx = Math.min(
+      limits.contextTokens,
+      promptTokens + maxTokens
+        + Math.ceil(promptTokens * NUM_CTX_ESTIMATE_SLACK) + NUM_CTX_TEMPLATE_ALLOWANCE,
+    );
 
     const url = `${this.baseURL}/api/generate`;
     const start = performance.now();
@@ -61,6 +126,7 @@ export class OllamaInferenceClient implements InferenceClient {
       think: false,
       options: {
         num_predict: maxTokens,
+        num_ctx: numCtx,
         temperature,
       },
     };
@@ -138,6 +204,27 @@ export class OllamaInferenceClient implements InferenceClient {
       stopReason,
     };
   }
+}
+
+/**
+ * The context length lives in `model_info` under an architecture-prefixed key
+ * (e.g. `llama.context_length`); `general.architecture` names the prefix.
+ * Falls back to any `*.context_length` key for models whose metadata omits
+ * the architecture field.
+ */
+function readContextLength(modelInfo: Record<string, unknown> | undefined): number | undefined {
+  if (!modelInfo) return undefined;
+  const arch = modelInfo['general.architecture'];
+  if (typeof arch === 'string') {
+    const direct = modelInfo[`${arch}.context_length`];
+    if (isNumber(direct) && direct > 0) return direct;
+  }
+  const fallbackKey = Object.keys(modelInfo).find(k => k.endsWith('.context_length'));
+  if (fallbackKey !== undefined) {
+    const fallback = modelInfo[fallbackKey];
+    if (isNumber(fallback) && fallback > 0) return fallback;
+  }
+  return undefined;
 }
 
 function mapStopReason(doneReason: string | undefined): string {

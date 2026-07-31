@@ -17,8 +17,12 @@ export const DEFAULT_CHUNKING_CONFIG: ChunkingConfig = {
 
 /**
  * Rough token count estimate: ~4 characters per token for English text.
+ *
+ * Exported as the single token-estimation heuristic: `chunkText` sizes chunks
+ * with it, and inference/detection budget arithmetic must use the same
+ * heuristic so estimates and chunk sizes agree.
  */
-function estimateTokens(text: string): number {
+export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 

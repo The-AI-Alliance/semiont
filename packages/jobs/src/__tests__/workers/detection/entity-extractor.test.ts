@@ -5,7 +5,7 @@
  * Focuses on extraction logic, offset validation, and response parsing.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { MockInferenceClient } from '@semiont/inference';
 import { extractEntities } from '../../../workers/detection/entity-extractor';
 
@@ -219,6 +219,89 @@ describe('extractEntities', () => {
       );
       const sentPrompt = mockInferenceClient.calls[0]?.prompt ?? '';
       expect(sentPrompt).toContain('Source text language: xx');
+    });
+  });
+
+  // ── Phase 3a: input chunking derived from provider limits ─────────────
+  // A shared-window client (maxOutputTokens === contextTokens, the Ollama
+  // shape) with a small window forces the derived chunk budget below the
+  // content size, so extraction must loop chunks. Budgets come from
+  // deriveDetectionBudget — no literals.
+  describe('chunking (derived from provider limits)', () => {
+    // ~9,000 chars of distinct paragraphs; OMEGA_MARKER sits in the last one.
+    const paragraphs = Array.from({ length: 30 }, (_, k) =>
+      `Paragraph ${String(k).padStart(2, '0')}: ${'filler words for bulk '.repeat(12)}PARA_${k} end.`,
+    );
+    const bigText = paragraphs.join('\n\n') + '\n\nFinal note: OMEGA_MARKER closes the document.';
+    const SMALL_SHARED_LIMITS = { contextTokens: 2400, maxOutputTokens: 2400 };
+
+    const entity = (exact: string) => JSON.stringify([{ exact, entityType: 'Person' }]);
+
+    it('splits oversized content into multiple calls that together cover the whole document', async () => {
+      const client = new MockInferenceClient([entity('AAA'), entity('BBB')], undefined, SMALL_SHARED_LIMITS);
+
+      const result = await extractEntities(bigText, ['Person'], client, false, LOGGER);
+
+      expect(client.calls.length).toBeGreaterThan(1);
+      // First chunk must not carry the tail of the document…
+      expect(client.calls[0].prompt).not.toContain('OMEGA_MARKER');
+      // …but some chunk must — coverage reaches the end.
+      expect(client.calls.some(c => c.prompt.includes('OMEGA_MARKER'))).toBe(true);
+      // Output budget is derived, identical per call, and not the old literal.
+      const budgets = new Set(client.calls.map(c => c.maxTokens));
+      expect(budgets.size).toBe(1);
+      expect(client.calls[0].maxTokens).not.toBe(4000);
+      // Entities from different chunks are concatenated.
+      expect(result.some(e => e.exact === 'AAA')).toBe(true);
+      expect(result.some(e => e.exact === 'BBB')).toBe(true);
+    });
+
+    it('throws on max_tokens truncation of any chunk, not just the first', async () => {
+      const client = new MockInferenceClient(
+        [entity('AAA'), entity('BBB')],
+        ['end_turn', 'max_tokens'],
+        SMALL_SHARED_LIMITS,
+      );
+
+      await expect(
+        extractEntities(bigText, ['Person'], client, false, LOGGER),
+      ).rejects.toThrow(/truncat/i);
+    });
+
+    it('passes duplicate entities from adjacent chunks through — dedupe stays in the processor', async () => {
+      const client = new MockInferenceClient([entity('Alice'), entity('Alice')], undefined, SMALL_SHARED_LIMITS);
+
+      const result = await extractEntities(bigText, ['Person'], client, false, LOGGER);
+
+      expect(result.filter(e => e.exact === 'Alice').length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('reports progress at every chunk boundary (liveness heartbeat contract)', async () => {
+      const client = new MockInferenceClient([entity('AAA')], undefined, SMALL_SHARED_LIMITS);
+      const onChunk = vi.fn();
+
+      await extractEntities(bigText, ['Person'], client, false, LOGGER, undefined, onChunk);
+
+      const totalChunks = client.calls.length;
+      expect(totalChunks).toBeGreaterThan(1);
+      // A boundary sits between chunks: N chunks → N−1 boundary events, each
+      // (completedChunks, totalChunks) with completedChunks increasing.
+      expect(onChunk.mock.calls.length).toBe(totalChunks - 1);
+      onChunk.mock.calls.forEach(([completed, total], idx) => {
+        expect(completed).toBe(idx + 1);
+        expect(total).toBe(totalChunks);
+      });
+    });
+
+    it('makes exactly one call and no boundary reports when content fits the derived budget', async () => {
+      const client = new MockInferenceClient([entity('Alice')]); // generous default limits
+      const onChunk = vi.fn();
+
+      const result = await extractEntities('Alice went to Paris.', ['Person'], client, false, LOGGER, undefined, onChunk);
+
+      expect(client.calls.length).toBe(1);
+      expect(onChunk).not.toHaveBeenCalled();
+      expect(result).toHaveLength(1);
     });
   });
 });

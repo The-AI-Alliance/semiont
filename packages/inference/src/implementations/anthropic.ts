@@ -3,7 +3,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { InferenceClient, InferenceOptions, InferenceResponse } from '../interface.js';
+import { InferenceClient, InferenceLimits, InferenceOptions, InferenceResponse } from '../interface.js';
+
+// The SDK refuses non-streaming create() calls whose projected duration
+// exceeds its 10-minute timeout: it throws when
+// (60min × max_tokens) / 128_000 > 10min, i.e. above 128_000/6 ≈ 21,333
+// output tokens (client.js, calculateNonstreamingTimeout). Above that we
+// stream internally and assemble the final message — same request shape,
+// same response handling, same interface.
+const NONSTREAMING_MAX_OUTPUT_TOKENS = Math.floor(128_000 / 6);
 
 // Forced-tool channel for JSON mode. Anthropic has no grammar-constrained
 // sampling like Ollama's `format`; the equivalent hard guarantee is a *tool
@@ -36,6 +44,7 @@ export class AnthropicInferenceClient implements InferenceClient {
   readonly modelId: string;
   private client: Anthropic;
   private logger?: Logger;
+  private limitsPromise?: Promise<InferenceLimits>;
 
   constructor(apiKey: string, model: string, baseURL?: string, logger?: Logger) {
     this.client = new Anthropic({
@@ -44,6 +53,40 @@ export class AnthropicInferenceClient implements InferenceClient {
     });
     this.modelId = model;
     this.logger = logger;
+  }
+
+  limits(): Promise<InferenceLimits> {
+    if (!this.limitsPromise) {
+      this.limitsPromise = this.discoverLimits().catch((err: unknown) => {
+        // Never cache a failed discovery — a transient outage would otherwise
+        // pin every future call to the same rejection.
+        this.limitsPromise = undefined;
+        throw err;
+      });
+    }
+    return this.limitsPromise;
+  }
+
+  private async discoverLimits(): Promise<InferenceLimits> {
+    // The Models API publishes the actual ceilings per model — no
+    // hand-maintained table to go stale when a new model ships.
+    const info = await this.client.models.retrieve(this.modelId).catch((err: unknown) => {
+      throw new Error(
+        `Failed to discover model limits for '${this.modelId}' from the Models API`,
+        { cause: err },
+      );
+    });
+    if (info.max_input_tokens == null || info.max_tokens == null) {
+      throw new Error(`Models API reports no context/output ceilings for '${this.modelId}'`);
+    }
+    return { contextTokens: info.max_input_tokens, maxOutputTokens: info.max_tokens };
+  }
+
+  private requestMessage(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message> {
+    if (params.max_tokens > NONSTREAMING_MAX_OUTPUT_TOKENS) {
+      return this.client.messages.stream(params).finalMessage();
+    }
+    return this.client.messages.create(params);
   }
 
   async generateText(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<string> {
@@ -62,20 +105,22 @@ export class AnthropicInferenceClient implements InferenceClient {
       format: options?.format,
     });
 
+    const params: Anthropic.MessageCreateParamsNonStreaming = {
+      model: this.modelId,
+      max_tokens: maxTokens,
+      temperature,
+      messages: [{ role: 'user', content: prompt }],
+      // JSON mode → force the structured-output tool. No prefill assistant
+      // turn: the constraint now lives in the tool call, not in free text.
+      ...(jsonMode
+        ? { tools: [JSON_ARRAY_TOOL], tool_choice: { type: 'tool' as const, name: JSON_ARRAY_TOOL.name } }
+        : {}),
+    };
+
     const start = performance.now();
-    let response: Awaited<ReturnType<typeof this.client.messages.create>>;
+    let response: Anthropic.Message;
     try {
-      response = await this.client.messages.create({
-        model: this.modelId,
-        max_tokens: maxTokens,
-        temperature,
-        messages: [{ role: 'user', content: prompt }],
-        // JSON mode → force the structured-output tool. No prefill assistant
-        // turn: the constraint now lives in the tool call, not in free text.
-        ...(jsonMode
-          ? { tools: [JSON_ARRAY_TOOL], tool_choice: { type: 'tool' as const, name: JSON_ARRAY_TOOL.name } }
-          : {}),
-      });
+      response = await this.requestMessage(params);
     } catch (err) {
       recordInferenceUsage({
         provider: this.type,

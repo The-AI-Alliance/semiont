@@ -90,8 +90,14 @@ interface InferenceClient {
   readonly type: string;     // 'anthropic' | 'ollama' | 'mock'
   readonly modelId: string;  // configured model name
 
+  limits(): Promise<InferenceLimits>;
   generateText(prompt, maxTokens, temperature, options?): Promise<string>;
   generateTextWithMetadata(prompt, maxTokens, temperature, options?): Promise<InferenceResponse>;
+}
+
+interface InferenceLimits {
+  contextTokens: number;     // context window (Anthropic: max input; Ollama: shared input+output)
+  maxOutputTokens: number;   // max output per generation (Ollama mirrors the shared window here)
 }
 
 interface InferenceResponse {
@@ -115,9 +121,22 @@ Each implementation honors the contract with its provider's mechanism:
 
 Current callers all expect arrays (entity extraction, motivation detection). If an object-emitting caller appears, the option grows a `root: 'array' | 'object'` field — see the notes in [src/interface.ts](src/interface.ts).
 
+### Provider limits
+
+`limits()` publishes the provider's **actual** context/output ceilings for the configured model — discovered from the provider itself, never hand-maintained constants:
+
+- **Anthropic**: the Models API (`models.retrieve`) — `max_input_tokens` / `max_tokens`.
+- **Ollama**: `POST /api/show` — the model's context window. Input and output share that window, so it is published as both fields (`maxOutputTokens === contextTokens` signals a shared window).
+
+Discovery is lazy and cached per client; a failed discovery is **not** cached — the next call retries. When ceilings cannot be determined (unknown model, endpoint unreachable), `limits()` **throws**: fail-loud, never a guessed floor.
+
+Two request-time behaviors ride on the limits:
+- **Ollama sets `num_ctx` explicitly** on every generate request — sized to the prompt estimate + output budget, capped at the model window. Without it, Ollama's model-*default* window silently clips large prompts. A request that genuinely cannot fit **throws** instead of being clipped.
+- **Anthropic streams internally** above the SDK's non-streaming output ceiling (≈21K tokens) — same interface, same response shape.
+
 ### `MockInferenceClient`
 
-A scripted test double ([src/implementations/mock.ts](src/implementations/mock.ts)): construct it with a list of canned responses, then inspect `calls` (recorded prompt/maxTokens/temperature/options per invocation). `reset()` and `setResponses()` helpers included.
+A scripted test double ([src/implementations/mock.ts](src/implementations/mock.ts)): construct it with a list of canned responses, then inspect `calls` (recorded prompt/maxTokens/temperature/options per invocation). `reset()` and `setResponses()` helpers included. An optional third constructor argument injects `InferenceLimits` for chunking/budget tests; the default is generous (1M/1M) so ordinary tests never trip window guards.
 
 ```typescript
 import { MockInferenceClient } from '@semiont/inference';

@@ -24,7 +24,7 @@ import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
 import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from '@semiont/core';
 import type { AccessToken } from '@semiont/core';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
-import type { ChunkingConfig } from '@semiont/vectors';
+import type { ChunkingConfig } from '@semiont/core';
 import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';

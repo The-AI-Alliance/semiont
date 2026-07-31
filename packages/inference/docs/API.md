@@ -5,7 +5,7 @@
 `@semiont/inference` provides provider-agnostic text generation. The package exports exactly:
 
 - `createInferenceClient` — factory selecting an implementation from config
-- `InferenceClient`, `InferenceOptions`, `InferenceResponse` — the interface types
+- `InferenceClient`, `InferenceLimits`, `InferenceOptions`, `InferenceResponse` — the interface types
 - `InferenceClientConfig`, `InferenceClientType` — factory config types
 - `AnthropicInferenceClient`, `OllamaInferenceClient` — provider implementations
 - `MockInferenceClient` — scripted test double
@@ -50,6 +50,8 @@ interface InferenceClient {
   readonly type: string;     // 'anthropic' | 'ollama' | 'mock'
   readonly modelId: string;  // configured model name
 
+  limits(): Promise<InferenceLimits>;
+
   generateText(
     prompt: string,
     maxTokens: number,
@@ -72,6 +74,22 @@ interface InferenceResponse {
 ```
 
 `generateText` is `generateTextWithMetadata` with the metadata dropped.
+
+### InferenceLimits / limits()
+
+```typescript
+interface InferenceLimits {
+  contextTokens: number;    // context window in tokens
+  maxOutputTokens: number;  // max output tokens per generation
+}
+```
+
+`limits()` publishes the provider's **actual** ceilings for the configured model, discovered from the provider itself — never hand-maintained constants. Semantics differ by provider shape:
+
+- **Anthropic** (separate ceilings): `contextTokens` = maximum *input* tokens, `maxOutputTokens` = the output ceiling — both from the Models API (`models.retrieve`).
+- **Ollama** (shared window): input and output draw from one window, published as both fields — so `maxOutputTokens === contextTokens` signals a shared window to budget-derivation consumers.
+
+Discovery is lazy (first call) and cached for the client's lifetime; a failed discovery is **not** cached, so the next call retries. `limits()` **throws** when the ceilings cannot be determined (unknown model, discovery endpoint unreachable) — fail-loud, never a guessed floor.
 
 ### InferenceOptions
 
@@ -105,7 +123,9 @@ const client = new AnthropicInferenceClient(
 const response = await client.generateTextWithMetadata('Hello', 100, 0.7);
 ```
 
-Uses `@anthropic-ai/sdk`'s Messages API. Throws if the response contains no text content block. SDK errors (rate limits, auth, network) propagate unchanged.
+Uses `@anthropic-ai/sdk`'s Messages API. Throws if the response contains no text content block (plain mode) or no `tool_use` block (JSON mode). SDK errors (rate limits, auth, network) propagate unchanged.
+
+`limits()` discovers ceilings via the Models API (`models.retrieve(modelId)` → `max_input_tokens` / `max_tokens`); throws if either is absent. Requests whose `maxTokens` exceeds the SDK's non-streaming ceiling (≈21,333 output tokens — beyond it the SDK refuses non-streaming calls as likely to outlive its 10-minute timeout) are **streamed internally** and assembled via `finalMessage()`: same request shape, same response handling, no interface change.
 
 ## OllamaInferenceClient
 
@@ -123,9 +143,15 @@ const response = await client.generateTextWithMetadata('Hello', 100, 0.7);
 
 Uses Ollama's native HTTP API (`POST /api/generate`, non-streaming, thinking disabled) via `fetch` — no SDK dependency. `maxTokens` maps to `num_predict`. Any model available via `ollama pull` works.
 
+`limits()` discovers the model's context window via `POST /api/show` (the `model_info` key `<architecture>.context_length`, with a `*.context_length` fallback). The window is shared between input and output, so it is published as both `contextTokens` and `maxOutputTokens`.
+
+**Managed `num_ctx`:** every generate request sets `num_ctx` explicitly — sized to the prompt estimate (chars/4 heuristic + slack) plus the output budget, capped at the model window. Without it, Ollama evaluates the prompt inside the model's *default* window and **silently clips** anything beyond it. A request whose prompt estimate + output budget genuinely exceed the window **throws** before reaching the model.
+
 **Stop reason mapping:** Ollama's `done_reason` of `stop` → `end_turn`, `length` → `max_tokens`; anything else passes through (or `unknown`).
 
 **Throws:**
+- `Prompt (~N tokens) + output budget (M) exceed the '<model>' context window` before the request is sent
+- `Failed to discover model limits: /api/show returned <status>` / `/api/show reports no context length` from `limits()`
 - `Ollama API error (<status>): <body>` on non-2xx responses
 - `Empty response from Ollama` when the response body has no text
 
@@ -138,7 +164,8 @@ import { MockInferenceClient } from '@semiont/inference';
 
 const mock = new MockInferenceClient(
   ['first reply', 'second reply'],  // responses (default: ['Mock response'])
-  ['end_turn', 'max_tokens']        // stopReasons? (default: all 'end_turn')
+  ['end_turn', 'max_tokens'],       // stopReasons? (default: all 'end_turn')
+  { contextTokens: 8192, maxOutputTokens: 8192 }  // limits? (default: 1M/1M — generous)
 );
 
 await mock.generateText('hi', 100, 0);

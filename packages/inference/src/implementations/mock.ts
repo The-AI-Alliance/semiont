@@ -1,6 +1,13 @@
 // Mock implementation of InferenceClient for testing
 
-import { InferenceClient, InferenceOptions, InferenceResponse } from '../interface.js';
+import { InferenceClient, InferenceLimits, InferenceOptions, InferenceResponse } from '../interface.js';
+
+// Generous defaults so existing consumers never trip chunking or window
+// guards unless a test injects tighter limits deliberately.
+const GENEROUS_LIMITS: InferenceLimits = {
+  contextTokens: 1_000_000,
+  maxOutputTokens: 1_000_000,
+};
 
 export class MockInferenceClient implements InferenceClient {
   readonly type = 'mock' as const;
@@ -8,11 +15,17 @@ export class MockInferenceClient implements InferenceClient {
   private responses: string[] = [];
   private responseIndex: number = 0;
   private stopReasons: string[] = [];
+  private injectedLimits: InferenceLimits;
   public calls: Array<{ prompt: string; maxTokens: number; temperature: number; options?: InferenceOptions }> = [];
 
-  constructor(responses: string[] = ['Mock response'], stopReasons?: string[]) {
+  constructor(responses: string[] = ['Mock response'], stopReasons?: string[], limits?: InferenceLimits) {
     this.responses = responses;
     this.stopReasons = stopReasons || responses.map(() => 'end_turn');
+    this.injectedLimits = limits ?? GENEROUS_LIMITS;
+  }
+
+  async limits(): Promise<InferenceLimits> {
+    return this.injectedLimits;
   }
 
   async generateText(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<string> {

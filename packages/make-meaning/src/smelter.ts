@@ -43,8 +43,9 @@ import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '
 import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, decodeRepresentation, textExtractionOf } from '@semiont/core';
 import { calculateChecksum } from '@semiont/content';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
-import type { EmbeddingProvider, ChunkingConfig } from '@semiont/vectors';
-import { chunkText } from '@semiont/vectors';
+import type { EmbeddingProvider } from '@semiont/vectors';
+import type { ChunkingConfig } from '@semiont/core';
+import { chunkText } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { busRequest, type BusRequestPrimitive } from '@semiont/core';
 import { partitionByType } from './batch-utils';

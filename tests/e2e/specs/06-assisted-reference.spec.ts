@@ -41,8 +41,18 @@ test.describe('assisted reference detection', () => {
   test('selecting an entity type and clicking Annotate dispatches the job AND persists reference annotations', async ({ signedInPage: page, bus }) => {
     test.setTimeout(120_000);  // includes a real LLM entity-extraction round-trip
 
+    // Pin the Concept-dense TEXT seed BY NAME. Taking Discover's first card
+    // was data-order-dependent: Discover is newest-first, the seed adds two
+    // PDFs, and specs 09/16 push freshly generated resources to the top — so
+    // `.first()` could land on a PDF (no `.cm-content`, no Concept-dense prose)
+    // and the docstring's "the seeded first resource (Photosynthesis)"
+    // assumption would silently not hold. `.first()` still narrows the
+    // duplicate seeds the non-idempotent seeder accumulates. Same fix as
+    // spec 08; specs 14/20 pin their PDFs the same way.
     await page.goto('/en/know/discover');
-    const firstCard = page.getByRole('button', { name: /^open resource:/i }).first();
+    const firstCard = page
+      .getByRole('button', { name: /^open resource:\s*photosynthesis overview/i })
+      .first();
     await expect(firstCard).toBeVisible({ timeout: 15_000 });
     await firstCard.click();
     await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });

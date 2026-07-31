@@ -210,4 +210,19 @@ describe('@semiont/inference - integration', () => {
       expect(mockClient.calls[0].prompt).toBe(unicodePrompt);
     });
   });
+
+  describe('MockInferenceClient.limits', () => {
+    it('defaults to generous limits so existing consumers never chunk', async () => {
+      const limits = await mockClient.limits();
+
+      expect(limits.contextTokens).toBeGreaterThanOrEqual(100_000);
+      expect(limits.maxOutputTokens).toBeGreaterThanOrEqual(100_000);
+    });
+
+    it('accepts injected limits for chunking tests', async () => {
+      const small = new MockInferenceClient(['x'], undefined, { contextTokens: 100, maxOutputTokens: 50 });
+
+      expect(await small.limits()).toEqual({ contextTokens: 100, maxOutputTokens: 50 });
+    });
+  });
 });
