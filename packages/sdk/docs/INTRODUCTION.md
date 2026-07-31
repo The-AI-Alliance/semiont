@@ -51,8 +51,10 @@ AI operations are slow, so they're **jobs**: you create one ("generate an
 answer," "find every Person referenced in this doc"), then progress and
 completion arrive as bus events — the same pattern as watching a CI run. And
 generation is grounded by the graph: before answering, the client *gathers*
-context by traversing links outward from a starting document, instead of hoping
-a similarity search finds the right material.
+context by traversing links outward from a starting document, with vector
+similarity as one input to that assembly rather than the whole retrieval
+strategy — what similarity found arrives as inspectable data in the gathered
+context, not as invisible retrieval you have to hope got it right.
 
 ## The stack, and where your code sits
 
@@ -170,8 +172,9 @@ const { resourceId: questionId } = await client.yield.resource({
   entityTypes: ['Question'],
 });
 
-// 2. Gather context: traverse the graph outward from the question,
-//    excluding prior questions so they never ground an answer.
+// 2. Gather context: assemble material around the question — graph
+//    traversal plus vector similarity — excluding prior questions so
+//    they never ground an answer.
 const context = await client.gather.resource(questionId, {
   excludeEntityTypes: ['Question'],
 });
