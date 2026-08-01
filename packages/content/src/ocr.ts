@@ -48,8 +48,13 @@ function langPath(): string {
  * `Block[]` still satisfies it.
  */
 export interface OcrBbox { x0: number; y0: number; x1: number; y1: number }
+export interface OcrLine {
+    /** The line's own box — the vertical extent shared by its words. */
+    bbox: OcrBbox;
+    words: { text: string; confidence: number; bbox: OcrBbox }[];
+}
 export interface OcrBlock {
-    paragraphs: { lines: { words: { text: string; confidence: number; bbox: OcrBbox }[] }[] }[];
+    paragraphs: { lines: OcrLine[] }[];
 }
 
 /** A recognized word, with the range it occupies in the assembled page text. */
@@ -96,7 +101,23 @@ export function assemblePage(blocks: OcrBlock[] | null): OcrPage {
                         text: value,
                         start,
                         end: text.length,
-                        bbox: word.bbox,
+                        // Horizontal extent from the word, vertical from the
+                        // line. OCR boxes hug their glyphs, so a descender
+                        // ('page') sits lower than its neighbours — and
+                        // `locate()` groups items into lines by comparing `y`
+                        // within a couple of points, a threshold that holds
+                        // because NATIVE runs take y from the shared baseline.
+                        // Passing per-word descenders through would split one
+                        // visual line into several rects and draw a highlight
+                        // as stacked fragments. Nothing is lost: `locate()`
+                        // bounds each line anyway, so per-word vertical extent
+                        // never reaches an annotation.
+                        bbox: {
+                            x0: word.bbox.x0,
+                            x1: word.bbox.x1,
+                            y0: line.bbox.y0,
+                            y1: line.bbox.y1,
+                        },
                         confidence: word.confidence,
                     });
                     wroteWord = true;

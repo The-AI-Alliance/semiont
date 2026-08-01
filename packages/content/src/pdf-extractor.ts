@@ -29,6 +29,22 @@ import { mapWordsToItems } from './ocr-geometry';
 interface OcrPageResult {
   text: string;
   items: PdfTextItem[];
+  /** Per-word confidences, kept only long enough to summarize. */
+  confidences: number[];
+}
+
+/** Words below this are worth an operator's attention. Tesseract reports
+ *  0–100; readable text on a clean scan sits well above this. */
+const LOW_CONFIDENCE = 60;
+
+function summarize(confidences: number[]): ExtractedText['ocrConfidence'] {
+  if (confidences.length === 0) return undefined;
+  const total = confidences.reduce((sum, c) => sum + c, 0);
+  return {
+    mean: Math.round((total / confidences.length) * 10) / 10,
+    lowConfidenceWords: confidences.filter((c) => c < LOW_CONFIDENCE).length,
+    totalWords: confidences.length,
+  };
 }
 
 /**
@@ -54,14 +70,16 @@ async function ocrPages(content: Buffer, pageNumbers?: number[]): Promise<Map<nu
     const images = imagesByPage.get(page)!;
     let text = '';
     const items: PdfTextItem[] = [];
+    const confidences: number[] = [];
     for (const image of images) {
       const result = recognized[cursor++];
       if (!result?.text.trim()) continue;
       if (text) text += '\n';
       items.push(...mapWordsToItems(result.words, image, page, text.length));
+      confidences.push(...result.words.map((word) => word.confidence));
       text += result.text;
     }
-    if (text) byPage.set(page, { text, items });
+    if (text) byPage.set(page, { text, items, confidences });
   }
   return byPage;
 }
@@ -74,15 +92,17 @@ async function ocrPages(content: Buffer, pageNumbers?: number[]): Promise<Map<nu
 function joinPages(byPage: Map<number, OcrPageResult>, baseOffset: number): OcrPageResult {
   let text = '';
   const items: PdfTextItem[] = [];
+  const confidences: number[] = [];
   for (const [, page] of [...byPage.entries()].sort((a, b) => a[0] - b[0])) {
     if (text) text += '\n\n';
     const shift = baseOffset + text.length;
     for (const item of page.items) {
       items.push({ ...item, start: item.start + shift, end: item.end + shift });
     }
+    confidences.push(...page.confidences);
     text += page.text;
   }
-  return { text, items };
+  return { text, items, confidences };
 }
 
 /**
@@ -168,9 +188,15 @@ export const pdfExtractor: ContentExtractor = {
     // empty, not that we never tried.
     if (!layer) {
       const ocr = joinPages(await ocrPages(content), 0);
-      return ocr.text
-        ? { text: ocr.text, items: ocr.items, method: 'ocr', pdfClass: 'B' }
-        : { declined: 'no-text-layer' };
+      if (!ocr.text) return { declined: 'no-text-layer' };
+      const confidence = summarize(ocr.confidences);
+      return {
+        text: ocr.text,
+        items: ocr.items,
+        method: 'ocr',
+        pdfClass: 'B',
+        ...(confidence ? { ocrConfidence: confidence } : {}),
+      };
     }
 
     // One class per document, so a filled form outranks a grid: its values
@@ -204,12 +230,14 @@ export const pdfExtractor: ContentExtractor = {
     // Appended, so the native pages' items keep pointing at the right
     // characters; the OCR'd words are offset to where they actually land.
     const ocr = joinPages(recovered, shaped.text.length);
+    const confidence = summarize(ocr.confidences);
     return {
       ...shaped,
       text: `${shaped.text}${ocr.text}\n`,
       items: [...(shaped.items ?? []), ...ocr.items],
       method: 'ocr',
       pdfClass: hybridClass,
+      ...(confidence ? { ocrConfidence: confidence } : {}),
       ...(stillUnread.length > 0 ? { unreadPages: stillUnread } : {}),
     };
   },

@@ -32,6 +32,24 @@ export interface ExtractedText {
   method: 'text-passthrough' | 'pdf-text-layer' | 'table' | 'form' | 'ocr';
   pdfClass?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
   /**
+   * How well the engine read the pixels, when any of this text came from OCR.
+   *
+   * Extraction quality, deliberately NOT anchor confidence: the two answer
+   * different questions. `AnchorConfidence` asks whether the renderer
+   * relocated a stored span in the current text, and for a PDF the answer is
+   * always "exactly" — the viewrect is absolute. This asks whether the glyphs
+   * under that box were read correctly, which no client can recompute.
+   * Reported for operators rather than stored on annotations, following the
+   * existing rule that anchor-audit detail belongs in logs.
+   */
+  ocrConfidence?: {
+    /** Mean per-word confidence, 0–100. */
+    mean: number;
+    /** Words the engine was unsure of — the number worth acting on. */
+    lowConfidenceWords: number;
+    totalWords: number;
+  };
+  /**
    * 1-indexed pages this extraction could not read — present only when a
    * document is partially covered (class C). Naming the gap is the point:
    * without it a hybrid document embeds its native pages and says nothing

@@ -8,7 +8,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { mapWordsToItems } from '../ocr-geometry';
-import type { OcrWord } from '../ocr';
+import { assemblePage, type OcrBlock, type OcrWord } from '../ocr';
+import { locate } from '../locate';
 
 const word = (text: string, bbox: { x0: number; y0: number; x1: number; y1: number }, start = 0): OcrWord =>
     ({ text, start, end: start + text.length, bbox, confidence: 90 });
@@ -43,6 +44,31 @@ describe('mapWordsToItems', () => {
             1000,
         );
         expect(items.map((i) => [i.start, i.end])).toEqual([[1000, 1005], [1006, 1010]]);
+    });
+
+    it('a recognized line resolves to ONE rect, not one per descender', () => {
+        // The end-to-end reason words share their line's vertical extent:
+        // `locate()` groups items into lines within 2pt of each other, and at
+        // scan scale a descender is worth far more than that. Per-word boxes
+        // would draw this highlight as stacked fragments.
+        const blocks: OcrBlock[] = [
+            {
+                paragraphs: [{
+                    lines: [{
+                        bbox: { x0: 10, y0: 10, x1: 90, y1: 22 },
+                        words: [
+                            { text: 'the', confidence: 90, bbox: { x0: 10, y0: 12, x1: 40, y1: 20 } },
+                            { text: 'page', confidence: 90, bbox: { x0: 50, y0: 12, x1: 90, y1: 22 } },
+                        ],
+                    }],
+                }],
+            },
+        ];
+        const { text, words } = assemblePage(blocks);
+        const items = mapWordsToItems(words, fullPage, 1, 0);
+        const { rects } = locate({ text, items }, 0, text.length);
+        expect(rects).toHaveLength(1);
+        expect(rects[0]!.page).toBe(1);
     });
 
     it('produces a normalized rectangle even when the matrix flips an axis', () => {

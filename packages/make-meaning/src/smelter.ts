@@ -390,6 +390,18 @@ export class Smelter {
         this.logger.debug('Extractor declined', { resourceId, contentType, reason: extracted.declined });
         return { kind: 'skipped', checksum, reason: extracted.declined };
       }
+      if (extracted.ocrConfidence && extracted.ocrConfidence.lowConfidenceWords > 0) {
+        // Extraction quality, not anchor quality: the vectors and any
+        // annotations sit exactly where they belong, but some words under
+        // them may be misread. Reported to operators rather than stored —
+        // no client can recompute it, and it is a property of the document's
+        // text rather than of any one anchor.
+        this.logger.info('OCR read words it was unsure of', {
+          resourceId,
+          contentType,
+          ...extracted.ocrConfidence,
+        });
+      }
       if (extracted.unreadPages?.length) {
         // Partial coverage: this resource embeds, but semantic search cannot
         // see these pages until they are OCR'd. Logged where it is known, so
