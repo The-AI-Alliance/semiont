@@ -155,6 +155,45 @@ const TEXT_PDF_FIXTURE_BASE64 =
 // have text to select.
 //
 // The two PDFs are listed FIRST so they are created first → oldest → sort
+/**
+ * A single-page (612×792) **scanned** PDF: one full-page raster image and no
+ * text operators at all, so `getTextContent()` is empty and the only way to
+ * read it is OCR. Its raster is dark bars — deliberately NOT glyph-shaped, so
+ * the recognizer reliably finds nothing and the job takes the *decline* path
+ * (`22-pdf-scanned-decline.spec.ts`).
+ *
+ * Why not a raster of real words: a synthetic bitmap font is not a typeface,
+ * and tesseract misreads it (measured: "SCANNED" read back as "SCHMNE" at
+ * confidence 0). Asserting recognized *text* therefore needs a genuine scanned
+ * document, which is a live-testing fixture, not a seed constant. What this
+ * fixture pins is the deterministic half: a scan that cannot be read declines
+ * cleanly and adds no garbage annotations.
+ */
+const SCANNED_PDF_FIXTURE_BASE64 =
+  'JVBERi0xLjcKJYGBgYEKCjQgMCBvYmoKPDwKL1R5cGUgL1hPYmplY3QKL1N1YnR5cGUg' +
+  'L0ltYWdlCi9CaXRzUGVyQ29tcG9uZW50IDgKL1dpZHRoIDI0MAovSGVpZ2h0IDE0MAov' +
+  'Q29sb3JTcGFjZSAvRGV2aWNlUkdCCi9GaWx0ZXIgL0ZsYXRlRGVjb2RlCi9MZW5ndGgg' +
+  'MjIyCj4+CnN0cmVhbQp4nO3cQQ0AIBDAMCv4NwlPFJAjS6th7+0NAAAAAAAAAAAAAAAA' +
+  'AHAteEDPlOiZEj1TomdK9EyJninRMyV6pkTPlOiZEj1TomdK9EzJVM8AAAAAAAAAAAAA' +
+  'AAAAAAAAAAC/mf5C0aRnSvRMiZ4p0TMleqZEz5TomRI9U6JnSvRMiZ4p0TMleqZkqmcA' +
+  'AAAAAAAAAAAAAAAAAAAAAIDfTH+haNIzJXqmRM+U6JkSPVOiZ0r0TImeKdEzJXqmRM+U' +
+  '6JkSPVMy1TMAAAAAAAAAAAAAAAAAAAAAAMALB8KyiJ8KZW5kc3RyZWFtCmVuZG9iagoK' +
+  'NiAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDUzCj4+CnN0cmVh' +
+  'bQp4nCvkMlQwAEIImZyLzjUzNAIzzS2NcKjQ98xNTE/VNTewtDCxMDC3sFRwyecK5AIA' +
+  '+w8R2AplbmRzdHJlYW0KZW5kb2JqCgo3IDAgb2JqCjw8Ci9GaWx0ZXIgL0ZsYXRlRGVj' +
+  'b2RlCi9UeXBlIC9PYmpTdG0KL04gNAovRmlyc3QgMjAKL0xlbmd0aCAzMTkKPj4Kc3Ry' +
+  'ZWFtCnic1VJRS8MwEH7Pr7hHfZBc0zRppQzm2orIcEwfRPGhrmFMtJEug/nvvWs2xQfx' +
+  'WcpHcrnvy116XwIICrSGFGwOGWSpgrIU8u7j3YFctGu3FfJ6023hkbIIS3gScuZ3fYBE' +
+  'TCbimztrQ/vq1yKKIGHykbEYfLdbuQHKpm4aRIuIRhMMoqponREKgqKYciqnPcHqA+jM' +
+  'pojplHJNhLFRw/mRmx30Na3ENcypIlfnMf6qy7XqeIf6q59iIuTcd1UbHJxU5wqVwRyT' +
+  'pNCZTh9O6XcMrg3+/z5u7H/j+19f+GPOPF4e8uDYA+OU5dJt/W5Y0diZ13jK0IZk8v7m' +
+  '+cWtxlBevZH0zGKRU8s2L0AfPSLrfbi8DVw/6vhs7rpNe+H35DykzyQKbKHYf9O+94Ed' +
+  'OXqxD9QJR+bgTxJ/Ai/QqG0KZW5kc3RyZWFtCmVuZG9iagoKOCAwIG9iago8PAovU2l6' +
+  'ZSA5Ci9Sb290IDIgMCBSCi9JbmZvIDMgMCBSCi9GaWx0ZXIgL0ZsYXRlRGVjb2RlCi9U' +
+  'eXBlIC9YUmVmCi9MZW5ndGggNDIKL1cgWyAxIDIgMiBdCi9JbmRleCBbIDAgOSBdCj4+' +
+  'CnN0cmVhbQp4nGNgYPj/n4mBnYEBRDCCCCZGBgEIl5mRcQYDUFAUSDDvYmAAAGPrA6oK' +
+  'ZW5kc3RyZWFtCmVuZG9iagoKc3RhcnR4cmVmCjk1NAolJUVPRg==';
+
 // last in Discover (see the module doc); the text specs' `.first()` card
 // stays a text resource.
 const SEED_RESOURCES: readonly SeedSpec[] = [
@@ -171,6 +210,13 @@ const SEED_RESOURCES: readonly SeedSpec[] = [
     format: 'application/pdf',
     language: 'en',
     bytes: Buffer.from(TEXT_PDF_FIXTURE_BASE64, 'base64'),
+  },
+  {
+    name: 'Scanned Smoke PDF',
+    storageUri: 'file://e2e/seed-scanned.pdf',
+    format: 'application/pdf',
+    language: 'en',
+    bytes: Buffer.from(SCANNED_PDF_FIXTURE_BASE64, 'base64'),
   },
   {
     name: 'Quantum Computing Primer',
