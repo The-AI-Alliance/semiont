@@ -394,6 +394,49 @@ export type AnyJob = DetectionJob | GenerationJob | HighlightDetectionJob | Asse
 // Type Guards
 // ============================================================================
 
+const JOB_TYPES: ReadonlySet<string> = new Set<JobType>([
+  'reference-annotation',
+  'generation',
+  'highlight-annotation',
+  'assessment-annotation',
+  'comment-annotation',
+  'tag-annotation',
+]);
+
+/**
+ * Narrow a job type arriving off the bus, where it is only `string`.
+ *
+ * Worth checking rather than asserting: `jobType` is a required, enumerated
+ * field on every job lifecycle command, so an unrecognized value produces a
+ * payload the backend will reject — better caught at the worker with a clear
+ * error than as an opaque emit failure.
+ */
+export function isJobType(value: string): value is JobType {
+  return JOB_TYPES.has(value);
+}
+
+/**
+ * Narrow bus-delivered job params to the shape a processor expects.
+ *
+ * Job params cross the bus as `Record<string, unknown>`. Every params type in
+ * this file requires exactly one field — `resourceId` — with the rest
+ * optional, so that is what gets verified; absent optionals are legitimately
+ * absent, not a validation failure. Callers pass the params type for the job
+ * they have already branched on.
+ */
+export function asJobParams<T extends { resourceId: ResourceId }>(
+  params: Record<string, unknown>,
+): T {
+  if (typeof params.resourceId !== 'string') {
+    throw new Error('Job params are missing a resourceId');
+  }
+  return params as unknown as T;
+}
+
+// Generation params are deliberately NOT covered: generation is the one job
+// that does not read a source resource (it mints one), so it requires no
+// `resourceId` and there is nothing to verify.
+
 export function isPendingJob(job: AnyJob): job is PendingJob<any> {
   return job.status === 'pending';
 }

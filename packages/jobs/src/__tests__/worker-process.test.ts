@@ -423,17 +423,33 @@ describe('handleJob orchestration', () => {
   });
 
   describe('unknown job type', () => {
-    it('calls adapter.failJob with a descriptive message after emitting job:start', async () => {
+    it('fails an unrecognized type without emitting — the lifecycle field is enumerated', async () => {
       const h = makeFakeSessionAndAdapter();
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('weird-thing' as never));
 
-      // job:start fires before the dispatch branch; unknown path calls failJob.
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start']);
+      // `jobType` is a required enum on every job lifecycle command, so an
+      // unrecognized value cannot produce a well-formed `job:start` — the
+      // gateway would reject it. Fail fast instead of sending a doomed emit.
+      expect(h.busEmits).toEqual([]);
       const fail = h.adapterCalls.find(c => c.method === 'failJob');
       expect(fail).toBeDefined();
       expect(fail!.args[0]).toBe(JID);
-      expect(String(fail!.args[1])).toMatch(/Worker not configured for job type: weird-thing/);
+      expect(String(fail!.args[1])).toMatch(/Unrecognized job type: weird-thing/);
+      expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(0);
+    });
+
+    it('emits job:start, then fails a valid type this worker does not serve', async () => {
+      const h = makeFakeSessionAndAdapter();
+      const config = { ...makeConfig(h.session), jobTypes: ['generation'] };
+
+      await handleJob(h.adapter, config, makeJob('highlight-annotation'));
+
+      // A real job type the worker is simply not configured for: the lifecycle
+      // is well-formed, so it starts and then fails.
+      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start']);
+      const fail = h.adapterCalls.find(c => c.method === 'failJob');
+      expect(String(fail!.args[1])).toMatch(/Worker not configured for job type: highlight-annotation/);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(0);
     });
   });

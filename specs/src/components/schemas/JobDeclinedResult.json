@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "description": "Result of a job that completed without doing its work because the resource could not be read. Distinct from a failure: nothing went wrong, there was simply no text to work with — an encrypted or damaged PDF, a scan whose text could not be recognized, or a document that yielded nothing. The reason vocabulary matches the extraction vocabulary the Smelter reports on `smelt:settled`, so one resource declines identically whichever verb asked.",
+  "properties": {
+    "declined": {
+      "type": "boolean",
+      "enum": [true],
+      "description": "Discriminant. Always true — a job that did its work reports one of the other result shapes."
+    },
+    "reason": {
+      "type": "string",
+      "enum": ["no-text-layer", "encrypted", "corrupt", "too-large", "empty"],
+      "description": "Why the resource could not be read."
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable explanation, suitable for showing to the user."
+    }
+  },
+  "required": ["declined", "reason", "message"]
+}

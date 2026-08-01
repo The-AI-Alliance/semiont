@@ -16,6 +16,17 @@
  */
 
 import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob } from './job-claim-adapter';
+import {
+  asJobParams,
+  isJobType,
+  type AssessmentDetectionParams,
+  type CommentDetectionParams,
+  type DetectionParams,
+  type GenerationParams,
+  type HighlightDetectionParams,
+  type JobType,
+  type TagDetectionParams,
+} from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
 import { getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, type EventMap } from '@semiont/core';
@@ -80,7 +91,7 @@ export interface WorkerProcessConfig {
 async function emitEvent<K extends keyof EventMap>(
   session: SemiontSession,
   channel: K,
-  payload: Record<string, unknown>,
+  payload: EventMap[K],
 ): Promise<void> {
   // All worker-emitted bus events are global. `job:complete` / `job:fail`
   // are global, `jobId`-keyed correlation signals (#847): the dispatching
@@ -109,14 +120,15 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
       const message = error instanceof Error ? error.message : String(error);
       logger.error('Job failed', { jobId: job.jobId, error: message, stack: error instanceof Error ? error.stack : undefined });
       const failAnnotationId = (job.params as { referenceId?: string }).referenceId;
-      emitEvent(session, 'job:fail', {
-        resourceId: job.resourceId,
-        userId: job.userId,
-        jobId: job.jobId,
-        jobType: job.type,
-        ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
-        error: message,
-      }).catch(() => {});
+      if (isJobType(job.type)) {
+        emitEvent(session, 'job:fail', {
+          resourceId: job.resourceId,
+          jobId: job.jobId,
+          jobType: job.type,
+          ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
+          error: message,
+        }).catch(() => {});
+      }
       adapter.failJob(job.jobId, message);
     });
   });
@@ -144,7 +156,7 @@ export async function handleJob(
         attrs: {
           'job.type': job.type,
           'job.id': job.jobId,
-          'resource.id': job.resourceId as unknown as string,
+          'resource.id': job.resourceId,
         },
       },
     );
@@ -162,7 +174,15 @@ async function handleJobInner(
   job: ActiveJob,
 ): Promise<void> {
   const { session, inferenceClient, generator } = config;
-  const { userId, jobId, type: jobType } = job;
+  const { userId, jobId } = job;
+  // `jobType` is a required, enumerated field on every lifecycle command, but
+  // arrives off the bus as a plain string. Narrow once here so the emits below
+  // are checked against the wire contract instead of asserted past it.
+  if (!isJobType(job.type)) {
+    adapter.failJob(jobId, `Unrecognized job type: ${job.type}`);
+    return;
+  }
+  const jobType: JobType = job.type;
   // The job arrives off the bus with a plain-string id — this is the entry
   // boundary, so brand once here rather than casting at every call that wants
   // a `ResourceId` (BRAND-UPSTREAM).
@@ -220,7 +240,7 @@ async function handleJobInner(
           declined: true,
           reason: source.declined,
           message: DECLINE_MESSAGES[source.declined],
-        } as never,
+        },
       });
       adapter.completeJob();
       return;
@@ -246,72 +266,72 @@ async function handleJobInner(
 
   if (jobType === 'highlight-annotation') {
     const { annotations, result } = await processHighlightJob(
-      ready!.text, inferenceClient, job.params as never, ready!.buildAnnotation, onProgress,
+      ready!.text, inferenceClient, asJobParams<HighlightDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
     for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
     }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: result as never,
+      result,
     });
     adapter.completeJob();
 
   } else if (jobType === 'comment-annotation') {
     const { annotations, result } = await processCommentJob(
-      ready!.text, inferenceClient, job.params as never, ready!.buildAnnotation, onProgress,
+      ready!.text, inferenceClient, asJobParams<CommentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
     for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
     }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: result as never,
+      result,
     });
     adapter.completeJob();
 
   } else if (jobType === 'assessment-annotation') {
     const { annotations, result } = await processAssessmentJob(
-      ready!.text, inferenceClient, job.params as never, ready!.buildAnnotation, onProgress,
+      ready!.text, inferenceClient, asJobParams<AssessmentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
     for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
     }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: result as never,
+      result,
     });
     adapter.completeJob();
 
   } else if (jobType === 'reference-annotation') {
     const { annotations, result } = await processReferenceJob(
-      ready!.text, inferenceClient, job.params as never, ready!.buildAnnotation, onProgress, config.logger,
+      ready!.text, inferenceClient, asJobParams<DetectionParams>(job.params), ready!.buildAnnotation, onProgress, config.logger,
     );
     for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
     }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: result as never,
+      result,
     });
     adapter.completeJob();
 
   } else if (jobType === 'tag-annotation') {
     const { annotations, result } = await processTagJob(
-      ready!.text, inferenceClient, job.params as never, ready!.buildAnnotation, onProgress,
+      ready!.text, inferenceClient, asJobParams<TagDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
     for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
     }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: result as never,
+      result,
     });
     adapter.completeJob();
 
   } else if (jobType === 'generation') {
     const genResult = await processGenerationJob(
-      inferenceClient, job.params as never, onProgress, config.logger,
+      inferenceClient, job.params as GenerationParams, onProgress, config.logger,
     );
 
     // Content never travels on the bus. Upload via the http-transport's
@@ -354,7 +374,7 @@ async function handleJobInner(
         },
         generator,
       );
-      await emitEvent(session, 'mark:create', { annotation: provenanceRef, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: provenanceRef, resourceId });
     }
 
     // Inline citations (INLINE-CITATIONS P1): the processor resolved the model's
@@ -377,12 +397,12 @@ async function handleJobInner(
         },
         generator,
       );
-      await emitEvent(session, 'mark:create', { annotation: citationRef, userId, resourceId: newResourceId });
+      await emitEvent(session, 'mark:create', { annotation: citationRef, resourceId: newResourceId });
     }
 
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: { resourceId: newResourceId, resourceName: genResult.title } as never,
+      result: { resourceId: newResourceId, resourceName: genResult.title },
     });
     adapter.completeJob();
 

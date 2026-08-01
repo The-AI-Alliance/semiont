@@ -6,6 +6,7 @@
     { "$ref": "./JobHighlightAnnotationResult.json" },
     { "$ref": "./JobAssessmentAnnotationResult.json" },
     { "$ref": "./JobCommentAnnotationResult.json" },
-    { "$ref": "./JobTagAnnotationResult.json" }
+    { "$ref": "./JobTagAnnotationResult.json" },
+    { "$ref": "./JobDeclinedResult.json" }
   ]
 }
