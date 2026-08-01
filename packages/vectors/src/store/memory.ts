@@ -6,7 +6,15 @@
  */
 
 import type { ResourceId, AnnotationId } from '@semiont/core';
-import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions } from './interface';
+import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions, ResourceStamp } from './interface';
+
+function toStamp(point: { payload: { contentChecksum?: string; entityTypes?: string[]; machineRead?: boolean } }): ResourceStamp {
+  return {
+    contentChecksum: point.payload.contentChecksum,
+    entityTypes: point.payload.entityTypes ?? [],
+    ...(point.payload.machineRead ? { machineRead: true } : {}),
+  };
+}
 
 interface StoredPoint {
   id: string;
@@ -95,6 +103,7 @@ export class MemoryVectorStore implements VectorStore {
         motivation: payload.motivation,
         entityTypes: payload.entityTypes,
         text: payload.exactText,
+        ...(payload.machineRead ? { machineRead: true } : {}),
       },
     });
   }
@@ -123,17 +132,19 @@ export class MemoryVectorStore implements VectorStore {
     }
   }
 
-  async listResourceStamps(): Promise<Map<string, { contentChecksum: string | undefined; entityTypes: string[] }>> {
-    const stamps = new Map<string, { contentChecksum: string | undefined; entityTypes: string[] }>();
+  async listResourceStamps(): Promise<Map<string, ResourceStamp>> {
+    const stamps = new Map<string, ResourceStamp>();
     for (const p of this.resources) {
       if (!stamps.has(p.payload.resourceId)) {
-        stamps.set(p.payload.resourceId, {
-          contentChecksum: p.payload.contentChecksum,
-          entityTypes: p.payload.entityTypes ?? [],
-        });
+        stamps.set(p.payload.resourceId, toStamp(p));
       }
     }
     return stamps;
+  }
+
+  async getResourceStamp(resourceId: ResourceId): Promise<ResourceStamp | undefined> {
+    const point = this.resources.find(p => p.payload.resourceId === String(resourceId));
+    return point ? toStamp(point) : undefined;
   }
 
   async listAnnotationIds(): Promise<Set<string>> {

@@ -62,6 +62,23 @@ describe('MemoryVectorStore', () => {
       expect(result!.machineRead).toBeUndefined();
     });
 
+    it('reports a resource stamp for one resource without scanning the rest', async () => {
+      const vec = await embedding.embed('stamped');
+      await store.upsertResourceVectors('res-stamped' as ResourceId, [
+        { chunkIndex: 0, text: 'stamped', embedding: vec },
+      ], 'cs-stamped', ['Question'], true);
+
+      expect(await store.getResourceStamp('res-stamped' as ResourceId)).toEqual({
+        contentChecksum: 'cs-stamped',
+        entityTypes: ['Question'],
+        machineRead: true,
+      });
+    });
+
+    it('reports no stamp for a resource with no vectors', async () => {
+      expect(await store.getResourceStamp('res-absent' as ResourceId)).toBeUndefined();
+    });
+
     it('replaces existing vectors on re-upsert', async () => {
       const vec1 = await embedding.embed('original text');
       await store.upsertResourceVectors('res-1' as ResourceId, [
@@ -235,6 +252,24 @@ describe('MemoryVectorStore', () => {
       expect(results[0].annotationId).toBe('ann-1');
       expect(results[0].resourceId).toBe('res-1');
       expect(results[0].entityTypes).toEqual(['Person']);
+    });
+
+    it('carries the machine-read stamp on an annotation too', async () => {
+      // An annotation over a scanned page quotes OCR'd text, and
+      // annotation-focus gather searches THESE vectors — so the flag has to
+      // ride here as well, or half the gather paths lose it silently.
+      const vec = await embedding.embed('recognized from a scan');
+      await store.upsertAnnotationVector('ann-scan' as AnnotationId, vec, {
+        annotationId: 'ann-scan' as AnnotationId,
+        resourceId: 'res-scan' as ResourceId,
+        motivation: 'highlighting',
+        entityTypes: [],
+        exactText: 'recognized from a scan',
+        machineRead: true,
+      });
+
+      const [result] = await store.searchAnnotations(vec, { limit: 5 });
+      expect(result!.machineRead).toBe(true);
     });
 
     it('deletes annotation vectors', async () => {

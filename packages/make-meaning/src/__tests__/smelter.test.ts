@@ -468,6 +468,28 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
     }
   });
 
+  it('an annotation on a machine-read resource inherits the stamp', async () => {
+    // Annotation-focus gather searches annotation vectors, so a passage that
+    // came from OCR has to say so here too — otherwise half the gather paths
+    // lose the provenance the other half carries.
+    const h = await pdfHarness({ 'res-scan': SCANNED_PDF });
+    vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValueOnce({
+      text: 'recovered from a scan', items: [], method: 'ocr', pdfClass: 'B',
+    });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-scan', payload: {} });
+      await tick();
+      h.events$.next(annotationEvent('res-scan', 'ann-scan', 'recovered from a scan'));
+      await tick();
+
+      const [result] = await h.vectorStore.searchAnnotations(deterministicEmbed('recovered from a scan'), { limit: 5 });
+      expect(result!.annotationId).toBe('ann-scan');
+      expect(result!.machineRead).toBe(true);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
   it('leaves the stamp off a PDF read directly from its text layer', async () => {
     const h = await pdfHarness({ 'res-native': NATIVE_PDF });
     try {

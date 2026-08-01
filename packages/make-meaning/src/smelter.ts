@@ -543,12 +543,20 @@ export class Smelter {
     const aid = makeAnnotationId(annotation.id);
     const embedding = await this.embeddingProvider.embed(exactText);
 
+    // An annotation quotes its resource's text, so it inherits that text's
+    // provenance — but the annotation record does not carry it, and
+    // re-deriving it would mean re-extracting (for a scan, re-running OCR).
+    // Read it from the resource's own stamp instead: one targeted lookup,
+    // trivial beside the embedding call just made.
+    const stamp = await this.vectorStore.getResourceStamp(makeResourceId(rid));
+
     const payload: AnnotationPayload = {
       annotationId: aid,
       resourceId: makeResourceId(rid),
       motivation: annotation.motivation ?? '',
       entityTypes: ((annotation as Record<string, unknown>).entityTypes as string[] | undefined) ?? [],
       exactText,
+      ...(stamp?.machineRead ? { machineRead: true } : {}),
     };
     await this.vectorStore.upsertAnnotationVector(aid, embedding, payload);
     this.logger.info('Indexed annotation', { annotationId: String(aid) });

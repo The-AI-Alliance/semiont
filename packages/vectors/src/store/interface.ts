@@ -20,6 +20,21 @@ export interface AnnotationPayload {
   motivation: string;
   entityTypes: string[];
   exactText: string;
+  /** True when the quoted text was recognized from pixels — see
+   *  `VectorSearchResult.machineRead`. An annotation over a scanned page
+   *  quotes OCR'd text, and annotation-focus gather searches these vectors. */
+  machineRead?: boolean;
+}
+
+/**
+ * What a resource's vectors record about themselves: how fresh they are
+ * (`contentChecksum`), what they are tagged with (`entityTypes`), and how
+ * their text was obtained (`machineRead`).
+ */
+export interface ResourceStamp {
+  contentChecksum: string | undefined;
+  entityTypes: string[];
+  machineRead?: boolean;
 }
 
 export interface VectorSearchResult {
@@ -131,7 +146,14 @@ export interface VectorStore {
    * and the entity-type set (missing stamp reads as `[]`). Drives both the
    * S12 content-staleness diff and the S13 tag-staleness diff.
    */
-  listResourceStamps(): Promise<Map<string, { contentChecksum: string | undefined; entityTypes: string[] }>>;
+  listResourceStamps(): Promise<Map<string, ResourceStamp>>;
+  /**
+   * One resource's stamp, or undefined when it has no vectors. Targeted so
+   * callers that need a single resource — the annotation index path, which
+   * must stamp provenance it cannot derive locally — do not scan the
+   * collection.
+   */
+  getResourceStamp(resourceId: ResourceId): Promise<ResourceStamp | undefined>;
   /** Distinct annotationIds present in the annotations collection. */
   listAnnotationIds(): Promise<Set<string>>;
 }
