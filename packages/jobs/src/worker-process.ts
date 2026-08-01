@@ -194,8 +194,13 @@ async function handleJobInner(
   // Resource-scoped jobs (bulk reference/tag/highlight/comment/
   // assessment detection scanning a whole resource) leave it unset.
   const annotationId = (job.params as { referenceId?: string }).referenceId;
+  // No `userId`: the job lifecycle commands declare only `_userId`, injected by
+  // the gateway from the authenticated session. Spreading an extra field would
+  // put out-of-contract data on a global channel — and would not be caught by
+  // `emitEvent`'s typing, because TypeScript suppresses excess-property checks
+  // for spreads and for variables passed by reference.
   const lifecycleBase = {
-    resourceId, userId, jobId, jobType,
+    resourceId, jobId, jobType,
     ...(annotationId ? { annotationId } : {}),
   };
 

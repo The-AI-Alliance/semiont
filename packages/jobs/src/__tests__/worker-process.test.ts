@@ -422,6 +422,31 @@ describe('handleJob orchestration', () => {
     });
   });
 
+  describe('wire contract', () => {
+    it('emits no field the channel does not declare', async () => {
+      // `emitEvent` is typed `EventMap[K]`, but TypeScript suppresses
+      // excess-property checking for spreads and for variables passed by
+      // reference — so `{ ...lifecycleBase }` can carry an undeclared field
+      // past the compiler. It did: `userId` rode every job lifecycle emit
+      // even though only `_userId` (gateway-injected) is declared. This
+      // pins the payload shapes so the next one is caught here instead.
+      vi.mocked(processHighlightJob).mockResolvedValue({
+        annotations: [{ id: 'a1' }] as never,
+        result: { highlightsFound: 1, highlightsCreated: 1 } as never,
+      });
+      const h = makeFakeSessionAndAdapter();
+
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
+
+      const keysOf = (channel: string) =>
+        Object.keys(h.busEmits.find(e => e.channel === channel)!.payload as object).sort();
+
+      expect(keysOf('job:start')).toEqual(['jobId', 'jobType', 'resourceId']);
+      expect(keysOf('job:complete')).toEqual(['jobId', 'jobType', 'resourceId', 'result']);
+      expect(keysOf('mark:create')).toEqual(['annotation', 'resourceId']);
+    });
+  });
+
   describe('unknown job type', () => {
     it('fails an unrecognized type without emitting — the lifecycle field is enumerated', async () => {
       const h = makeFakeSessionAndAdapter();
