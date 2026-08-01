@@ -26,6 +26,14 @@ export interface ExtractedText {
   blocks?: PdfTextItem[];
   method: 'text-passthrough' | 'pdf-text-layer' | 'table' | 'form' | 'ocr';
   pdfClass?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
+  /**
+   * 1-indexed pages this extraction could not read — present only when a
+   * document is partially covered (class C). Naming the gap is the point:
+   * without it a hybrid document embeds its native pages and says nothing
+   * about the rest, so coverage silently overstates what search can see.
+   * This is the work list OCR consumes.
+   */
+  unreadPages?: number[];
 }
 
 /**

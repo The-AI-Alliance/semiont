@@ -95,11 +95,26 @@ export const pdfExtractor: ContentExtractor = {
       return { declined: classifyPdfError(error) };
     }
     if (!layer) return { declined: 'no-text-layer' };
+
     // One class per document, so a filled form outranks a grid: its values
     // are content that exists nowhere else, while a table's cells are at
     // worst reordered.
-    if (layer.fields.length > 0) return foldFormFields(layer);
-    return shapeTables(layer)
-      ?? { text: layer.text, blocks: layer.items, method: 'pdf-text-layer', pdfClass: 'A' };
+    const shaped = layer.fields.length > 0
+      ? foldFormFields(layer)
+      : shapeTables(layer)
+        ?? { text: layer.text, blocks: layer.items, method: 'pdf-text-layer' as const, pdfClass: 'A' as const };
+
+    // A page with no text-showing operators is scanned: its characters exist
+    // only as pixels. Report those pages rather than dropping them silently —
+    // the document embeds what it can now, and this is the list OCR works
+    // from. 'C' (hybrid) replaces the plain-prose label only; a form or table
+    // keeps its own class, and carries the gap just the same.
+    const unreadPages = layer.pages.filter((page) => !page.hasTextLayer).map((page) => page.pageNumber);
+    if (unreadPages.length === 0) return shaped;
+    return {
+      ...shaped,
+      unreadPages,
+      pdfClass: shaped.pdfClass === 'A' ? 'C' : shaped.pdfClass,
+    };
   },
 };

@@ -390,6 +390,16 @@ export class Smelter {
         this.logger.debug('Extractor declined', { resourceId, contentType, reason: extracted.declined });
         return { kind: 'skipped', checksum, reason: extracted.declined };
       }
+      if (extracted.unreadPages?.length) {
+        // Partial coverage: this resource embeds, but semantic search cannot
+        // see these pages until they are OCR'd. Logged where it is known, so
+        // both the live and batch paths report it exactly once.
+        this.logger.info('Partial extraction coverage', {
+          resourceId,
+          contentType,
+          unreadPages: extracted.unreadPages,
+        });
+      }
       return extracted.text.trim() ? { kind: 'text', text: extracted.text, checksum } : { kind: 'skipped', checksum, reason: 'empty' };
     } catch (error) {
       this.logger.warn('Content unavailable for embedding', { resourceId, error: errField(error) });

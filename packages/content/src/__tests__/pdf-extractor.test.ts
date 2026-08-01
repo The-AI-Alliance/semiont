@@ -55,6 +55,38 @@ describe('pdfExtractor (Phase 1 registry slot)', () => {
     });
 });
 
+describe('class C — hybrid native/scanned routing (Phase 3)', () => {
+    const extract = async (fixture: string) => {
+        const ex = EXTRACTORS['pdf-text-layer'];
+        expect(ex).not.toBeNull();
+        return ex!.extract(readFixture(fixture), 'application/pdf');
+    };
+
+    it('names the pages it could not read, and labels the document hybrid', async () => {
+        const out = await extract('mixed.pdf');
+        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        expect(out.pdfClass).toBe('C');
+        expect(out.unreadPages).toEqual([2]);
+        // Partial coverage still yields what it can — page 1 embeds today.
+        expect(out.text).toContain('native page text');
+    });
+
+    it('a fully native document reports no gap', async () => {
+        const out = await extract('multi-page.pdf');
+        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        expect(out.pdfClass).toBe('A');
+        expect(out.unreadPages).toBeUndefined();
+    });
+
+    // Guard: increment 2 makes nothing newly searchable. A fully scanned
+    // document still declines and still writes no vectors — only OCR
+    // (increment 4) changes that.
+    it('a fully scanned document still declines', async () => {
+        const out = await extract('scanned-image.pdf');
+        expect(out).toEqual({ declined: 'no-text-layer' });
+    });
+});
+
 describe('class D — table structure (Phase 2)', () => {
     const extract = async (fixture: string) => {
         const ex = EXTRACTORS['pdf-text-layer'];
