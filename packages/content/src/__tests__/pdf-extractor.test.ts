@@ -26,7 +26,7 @@ describe('pdfExtractor (Phase 1 registry slot)', () => {
         expect(EXTRACTORS['pdf-text-layer']).not.toBeNull();
     });
 
-    it('class A: extracts the text layer with blocks and pdfClass', async () => {
+    it('class A: extracts the text layer with items and pdfClass', async () => {
         const ex = EXTRACTORS['pdf-text-layer'];
         expect(ex).not.toBeNull();
         const out = await ex!.extract(readFixture('single-line.pdf'), 'application/pdf');
@@ -35,9 +35,9 @@ describe('pdfExtractor (Phase 1 registry slot)', () => {
         expect(out.text).toContain(KNOWN_PHRASE);
         expect(out.method).toBe('pdf-text-layer');
         expect(out.pdfClass).toBe('A');
-        // blocks are the reader's items verbatim — the shared geometry shape.
+        // items are the reader's own, verbatim — the shared geometry shape.
         const layer = await extractPdfTextLayer(readFixture('single-line.pdf'));
-        expect(out.blocks).toEqual(layer!.items);
+        expect(out.items).toEqual(layer!.items);
     });
 
     it("class B: scanned PDF declines 'no-text-layer'", async () => {
@@ -78,10 +78,11 @@ describe('class C — hybrid native/scanned routing (Phase 3)', () => {
         expect(out.unreadPages).toBeUndefined();
     });
 
-    // Guard: increment 2 makes nothing newly searchable. A fully scanned
-    // document still declines and still writes no vectors — only OCR
-    // (increment 4) changes that.
-    it('a fully scanned document still declines', async () => {
+    // The fixture's raster is dark bars, not glyphs, so OCR reads nothing from
+    // it and the document declines. That is the honest outcome for an
+    // unreadable scan — `pdf-ocr.test.ts` stubs the engine to cover the case
+    // where OCR *does* recover text.
+    it('a scan OCR cannot read declines', async () => {
         const out = await extract('scanned-image.pdf');
         expect(out).toEqual({ declined: 'no-text-layer' });
     });
@@ -109,7 +110,7 @@ describe('class D — table structure (Phase 2)', () => {
 
     it('anchors table cells to their page geometry', async () => {
         const out = await extract('table.pdf');
-        const cell = out.blocks?.find((b) => out.text.slice(b.start, b.end) === 'Drug A');
+        const cell = out.items?.find((b) => out.text.slice(b.start, b.end) === 'Drug A');
         expect(cell).toBeDefined();
         expect(cell!.page).toBe(1);
         // Row two of the fixture, first column: x 72, y 720 − 24.
@@ -159,17 +160,17 @@ describe('class E — AcroForm field values (Phase 2)', () => {
 
     it('anchors each folded value with the widget geometry', async () => {
         const out = await extract('form.pdf');
-        // The block's char range must select exactly the value, and carry the
+        // The item's char range must select exactly the value, and carry the
         // field's own rectangle — folding adds text without inventing geometry.
-        const valueBlock = out.blocks?.find(
+        const valueItem = out.items?.find(
             (b) => out.text.slice(b.start, b.end) === 'Ada Lovelace',
         );
-        expect(valueBlock).toBeDefined();
+        expect(valueItem).toBeDefined();
 
         const layer = await extractPdfTextLayer(readFixture('form.pdf'));
         const field = layer!.fields.find((f) => f.name === 'policy.holderName');
         expect(field).toBeDefined();
-        expect(valueBlock).toMatchObject({
+        expect(valueItem).toMatchObject({
             page: field!.page,
             x: field!.x,
             y: field!.y,

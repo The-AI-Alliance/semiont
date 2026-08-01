@@ -105,7 +105,7 @@ describe('buildPdfAnnotation (#736 geometry tail)', () => {
   });
 
   it('attaches a body when provided (e.g. commenting)', () => {
-    const body = { type: 'TextualBody', value: 'a note', format: 'text/plain' };
+    const body = { type: 'TextualBody' as const, value: 'a note', format: 'text/plain' };
     const ann = buildPdfAnnotation(LAYER, RID, USER_DID, GENERATOR, 'commenting',
       { exact: 'alpha', start: 0, end: 5 }, body);
     expect((ann as Record<string, unknown>).body).toEqual(body);
@@ -115,7 +115,7 @@ describe('buildPdfAnnotation (#736 geometry tail)', () => {
     // #737: at detection time a linking reference's body is the entity type as a
     // TextualBody (the SpecificResource target is appended later, at bind). The
     // geometry tail is identical to highlighting; only motivation + body differ.
-    const body = { type: 'TextualBody', value: 'Person', purpose: 'tagging', format: 'text/plain' };
+    const body = { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const, format: 'text/plain' };
     const ann = buildPdfAnnotation(LAYER, RID, USER_DID, GENERATOR, 'linking',
       { exact: 'gamma delta', start: 11, end: 22 }, body);
     expect(ann.motivation).toBe('linking');
@@ -129,8 +129,8 @@ describe('buildPdfAnnotation (#736 geometry tail)', () => {
     // comment and tag hand buildAnnotation an ARRAY of bodies; the geometry tail
     // must pass either shape (single object | array) through verbatim.
     const body = [
-      { type: 'TextualBody', value: 'Rule',   purpose: 'tagging',    format: 'text/plain' },
-      { type: 'TextualBody', value: 'a note', purpose: 'commenting', format: 'text/plain' },
+      { type: 'TextualBody' as const, value: 'Rule',   purpose: 'tagging' as const,    format: 'text/plain' },
+      { type: 'TextualBody' as const, value: 'a note', purpose: 'commenting' as const, format: 'text/plain' },
     ];
     const ann = buildPdfAnnotation(LAYER, RID, USER_DID, GENERATOR, 'tagging',
       { exact: 'alpha', start: 0, end: 5 }, body);

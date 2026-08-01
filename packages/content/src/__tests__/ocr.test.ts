@@ -38,7 +38,11 @@ describe('recognizeImages', () => {
         // point: a missing vendor is a hard failure, not a silent empty read.
         const results = await recognizeImages([image]);
         expect(results).toHaveLength(1);
-        expect(typeof results[0]).toBe('string');
+        expect(results[0]).toMatchObject({ text: expect.any(String), words: expect.any(Array) });
+        // Whatever the engine read, every word must select itself in the text.
+        for (const word of results[0]!.words) {
+            expect(results[0]!.text.slice(word.start, word.end)).toBe(word.text);
+        }
     }, 30_000);
 
     it('recognizes nothing without calling the engine', async () => {

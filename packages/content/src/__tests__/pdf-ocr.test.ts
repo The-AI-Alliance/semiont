@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EXTRACTORS } from '../content-extractor';
-import { recognizeImages } from '../ocr';
+import { recognizeImages, type OcrWord } from '../ocr';
 
 vi.mock('../ocr', () => ({ recognizeImages: vi.fn() }));
 
@@ -25,9 +25,25 @@ const readFixture = (name: string): Buffer => fs.readFileSync(path.join(FIXTURES
 const extract = (fixture: string) =>
     EXTRACTORS['pdf-text-layer']!.extract(readFixture(fixture), 'application/pdf');
 
-/** Every image recognizes as the same known text. */
+/** Every image recognizes as the same known text, as one word per token. */
 const recognizesAs = (text: string) => {
-    vi.mocked(recognizeImages).mockImplementation(async (images = []) => images.map(() => text));
+    vi.mocked(recognizeImages).mockImplementation(async (images = []) =>
+        images.map(() => {
+            const words: OcrWord[] = [];
+            let cursor = 0;
+            for (const token of text.split(' ').filter(Boolean)) {
+                words.push({
+                    text: token,
+                    start: cursor,
+                    end: cursor + token.length,
+                    bbox: { x0: cursor * 10, y0: 0, x1: cursor * 10 + token.length * 8, y1: 16 },
+                    confidence: 90,
+                });
+                cursor += token.length + 1;
+            }
+            return { text, words };
+        }),
+    );
 };
 
 describe('class B — a fully scanned document', () => {
@@ -41,6 +57,33 @@ describe('class B — a fully scanned document', () => {
         expect(out.pdfClass).toBe('B');
         expect(out.method).toBe('ocr');
         expect(out.unreadPages).toBeUndefined();
+    });
+
+    it('anchors every recovered word to a range that selects it', async () => {
+        // The offset invariant, end to end: `buildPdfAnnotation` slices the
+        // text by these ranges and throws if the result does not contain the
+        // match, so drift here surfaces as a failed annotation, not a nudged box.
+        recognizesAs('RECOVERED FROM THE SCAN');
+        const out = await extract('scanned-image.pdf');
+        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        expect(out.items?.length).toBe(4);
+        for (const item of out.items!) {
+            expect(out.text.slice(item.start, item.end)).toMatch(/^(RECOVERED|FROM|THE|SCAN)$/);
+        }
+    });
+
+    it('places words on the page in PDF points, not pixels', async () => {
+        recognizesAs('SCANNED');
+        const out = await extract('scanned-image.pdf');
+        if ('declined' in out) throw new Error('unexpected decline');
+        const [item] = out.items!;
+        // The fixture's raster covers the whole 612×792 page, so any word must
+        // land inside it — pixel coordinates (max 240×140) would not.
+        expect(item!.page).toBe(1);
+        expect(item!.x).toBeGreaterThanOrEqual(0);
+        expect(item!.x + item!.width).toBeLessThanOrEqual(612);
+        expect(item!.y).toBeGreaterThanOrEqual(0);
+        expect(item!.y + item!.height).toBeLessThanOrEqual(792);
     });
 
     it("declines 'no-text-layer' when OCR finds nothing — now meaning it truly failed", async () => {
@@ -69,6 +112,19 @@ describe('class C — a hybrid document', () => {
         expect(out.method).toBe('ocr');
         // The gap is closed: nothing is left unread.
         expect(out.unreadPages).toBeUndefined();
+
+        // Native and OCR'd geometry coexist, and each still selects its own
+        // text — the native items were not disturbed by appending.
+        const native = out.items!.filter((b) => b.page === 1);
+        const scanned = out.items!.filter((b) => b.page === 2);
+        expect(native.length).toBeGreaterThan(0);
+        expect(scanned.length).toBe(5);
+        for (const item of scanned) {
+            expect(out.text.slice(item.start, item.end)).toMatch(/^(TEXT|FROM|THE|SCANNED|PAGE)$/);
+        }
+        // One run, because the fixture draws the phrase in a single call —
+        // native items are text runs, not words.
+        expect(out.text.slice(native[0]!.start, native[0]!.end)).toBe('native page text');
     });
 
     it('still reports a gap for pages OCR could not read', async () => {

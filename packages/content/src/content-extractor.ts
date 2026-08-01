@@ -10,7 +10,7 @@
  *
  * Extraction is ephemeral: `extract` runs at read time, its output feeds the
  * chunker, and is discarded — no stored derived representation. Annotations
- * anchor to native geometry (`blocks`), never to extracted-text offsets, so
+ * anchor to native geometry (`items`), never to extracted-text offsets, so
  * re-extraction can never break an anchor.
  */
 
@@ -22,10 +22,33 @@ import { pdfExtractor } from './pdf-extractor';
 export interface ExtractedText {
   /** Reading-order plain text, ready for the chunker. */
   text: string;
-  /** Native geometry (page+bbox) for callers that anchor; absent for pure text. */
-  blocks?: PdfTextItem[];
+  /**
+   * Positioned text runs indexing `text`, for callers that anchor; absent for
+   * pure text, where character offsets are the anchor. Named `items` to match
+   * `AnchoredText`/`PdfTextLayer` — one concept, one name, and no collision
+   * with the OCR engine's own "blocks" (which are page regions, not runs).
+   */
+  items?: PdfTextItem[];
   method: 'text-passthrough' | 'pdf-text-layer' | 'table' | 'form' | 'ocr';
   pdfClass?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
+  /**
+   * How well the engine read the pixels, when any of this text came from OCR.
+   *
+   * Extraction quality, deliberately NOT anchor confidence: the two answer
+   * different questions. `AnchorConfidence` asks whether the renderer
+   * relocated a stored span in the current text, and for a PDF the answer is
+   * always "exactly" — the viewrect is absolute. This asks whether the glyphs
+   * under that box were read correctly, which no client can recompute.
+   * Reported for operators rather than stored on annotations, following the
+   * existing rule that anchor-audit detail belongs in logs.
+   */
+  ocrConfidence?: {
+    /** Mean per-word confidence, 0–100. */
+    mean: number;
+    /** Words the engine was unsure of — the number worth acting on. */
+    lowConfidenceWords: number;
+    totalWords: number;
+  };
   /**
    * 1-indexed pages this extraction could not read — present only when a
    * document is partially covered (class C). Naming the gap is the point:

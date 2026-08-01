@@ -1,5 +1,5 @@
 import type { PdfCoordinate } from '@semiont/core';
-import type { PdfTextLayer, PdfTextItem } from './pdf-text-layer';
+import type { AnchoredText, PdfTextItem } from './pdf-text-layer';
 
 /**
  * Items whose baseline Y is within this many PDF points are treated as being on
@@ -9,7 +9,7 @@ import type { PdfTextLayer, PdfTextItem } from './pdf-text-layer';
 const SAME_LINE_THRESHOLD_PT = 2;
 
 /**
- * Locates bounding rectangles for a span of text in a PdfTextLayer
+ * Locates bounding rectangles for a span of text in an AnchoredText
  * (single-line or multi-line).
  *
  * Finds all overlapping items [start, end), groups them by page and line, and
@@ -21,11 +21,11 @@ const SAME_LINE_THRESHOLD_PT = 2;
  * instead of re-filtering. Both arrays are empty if no item overlaps the span.
  */
 export function locate(
-    layer: PdfTextLayer,
+    anchored: AnchoredText,
     start: number,
     end: number
 ): { rects: PdfCoordinate[]; overlap: PdfTextItem[] } {
-    const overlap: PdfTextItem[] = layer.items.filter(
+    const overlap: PdfTextItem[] = anchored.items.filter(
         item => item.start < end && item.end > start
     );
     if (overlap.length === 0) return { rects: [], overlap };

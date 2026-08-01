@@ -20,7 +20,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type { EventMap, components } from '@semiont/core';
 import { resourceId as makeResourceId, chunkText } from '@semiont/core';
-import { calculateChecksum, extractPdfTextLayer } from '@semiont/content';
+import { calculateChecksum, extractPdfTextLayer, EXTRACTORS } from '@semiont/content';
+
+vi.mock('@semiont/content', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/content')>();
+  return {
+    ...actual,
+    EXTRACTORS: {
+      ...actual.EXTRACTORS,
+      'pdf-text-layer': { extract: vi.fn(actual.EXTRACTORS['pdf-text-layer']!.extract) },
+    },
+  };
+});
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive, ConnectionState } from '@semiont/core';
@@ -430,6 +441,63 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
         { resourceId: 'res-native', contentChecksum: rawChecksum, outcome: 'indexed' },
       ]);
       expect((await h.vectorStore.listResourceStamps()).get('res-native')?.contentChecksum).toBe(rawChecksum);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('stamps machine-read provenance on vectors whose text came from OCR', async () => {
+    // The chunk reaches its consumers — today, LLM prompts — with no document
+    // attached, and nothing downstream can recompute how the text was
+    // obtained. So the projection that carries the text carries the fact.
+    const h = await pdfHarness({ 'res-scan': SCANNED_PDF });
+    vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValueOnce({
+      text: 'recovered from a scan',
+      items: [],
+      method: 'ocr',
+      pdfClass: 'B',
+    });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-scan', payload: {} });
+      await tick();
+      const [result] = await h.vectorStore.searchResources(deterministicEmbed('recovered from a scan'), { limit: 5 });
+      expect(result!.resourceId).toBe('res-scan');
+      expect(result!.machineRead).toBe(true);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('an annotation on a machine-read resource inherits the stamp', async () => {
+    // Annotation-focus gather searches annotation vectors, so a passage that
+    // came from OCR has to say so here too — otherwise half the gather paths
+    // lose the provenance the other half carries.
+    const h = await pdfHarness({ 'res-scan': SCANNED_PDF });
+    vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValueOnce({
+      text: 'recovered from a scan', items: [], method: 'ocr', pdfClass: 'B',
+    });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-scan', payload: {} });
+      await tick();
+      h.events$.next(annotationEvent('res-scan', 'ann-scan', 'recovered from a scan'));
+      await tick();
+
+      const [result] = await h.vectorStore.searchAnnotations(deterministicEmbed('recovered from a scan'), { limit: 5 });
+      expect(result!.annotationId).toBe('ann-scan');
+      expect(result!.machineRead).toBe(true);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('leaves the stamp off a PDF read directly from its text layer', async () => {
+    const h = await pdfHarness({ 'res-native': NATIVE_PDF });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-native', payload: {} });
+      await tick();
+      const results = await h.vectorStore.searchResources(deterministicEmbed('anything'), { limit: 5 });
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0]!.machineRead).toBeUndefined();
     } finally {
       h.smelter.stop();
     }

@@ -14,10 +14,10 @@ import { extractEntities } from './workers/detection/entity-extractor';
 import { generateResourceFromTopic } from './workers/generation/resource-generation';
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import { didToAgent, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
+import { didToAgent, type Annotation, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
 import { reconcileSelector, createFragmentSelector, type ReconciledSelector } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import { locate, type PdfTextLayer } from '@semiont/content';
+import { locate, type AnchoredText } from '@semiont/content';
 import type {
   HighlightDetectionParams,
   CommentDetectionParams,
@@ -46,10 +46,10 @@ export type SpanMatch = { exact: string; start: number; end: number; prefix?: st
  * so the detection processors themselves stay media-agnostic.
  */
 export type BuildAnnotation = (
-  motivation: string,
+  motivation: Motivation,
   match: SpanMatch,
-  body?: Record<string, unknown> | Record<string, unknown>[],
-) => Record<string, unknown>;
+  body?: Annotation['body'],
+) => Annotation;
 
 /**
  * Progress callback. The three positional args satisfy the minimum
@@ -67,8 +67,12 @@ export type OnProgress = (
 
 type JobProgress = components['schemas']['JobProgress'];
 
+/** The five W3C motivations this system mints — a closed vocabulary, so it is
+ *  typed as one rather than as `string`. */
+export type Motivation = Annotation['motivation'];
+
 export interface ProcessorResult<R> {
-  annotations: Record<string, unknown>[];
+  annotations: Annotation[];
   result: R;
 }
 
@@ -131,9 +135,9 @@ function annotationDedupeKey(ann: Record<string, unknown>): string {
  *
  * Applied identically by every processor below.
  */
-function dedupeAnnotations(annotations: Record<string, unknown>[]): Record<string, unknown>[] {
+function dedupeAnnotations(annotations: Annotation[]): Annotation[] {
   const seen = new Set<string>();
-  const out: Record<string, unknown>[] = [];
+  const out: Annotation[] = [];
   for (const ann of annotations) {
     const key = annotationDedupeKey(ann);
     if (seen.has(key)) continue;
@@ -148,14 +152,14 @@ export function buildTextAnnotation(
   resourceId: ResourceId,
   userId: string,
   generator: Agent,
-  motivation: string,
+  motivation: Motivation,
   match: { exact: string; start: number; end: number; prefix?: string; suffix?: string },
   // Body may be a single AnnotationBody object or a non-empty array of
   // them, OR omitted entirely. W3C treats body as optional; annotations
   // whose motivation alone conveys meaning (highlighting) legitimately
   // skip it. Every other motivation currently passes something; the
   // processor that calls this makes the choice per-motivation.
-  body?: Record<string, unknown> | Record<string, unknown>[],
+  body?: Annotation['body'],
 ) {
   // Write-time invariant. Every selector that reaches storage must be
   // internally consistent with the source content. If a worker bypasses
@@ -241,20 +245,20 @@ export function buildTextAnnotation(
  * than persisting geometry that doesn't back the quoted text.
  */
 export function buildPdfAnnotation(
-  layer: PdfTextLayer,
+  anchored: AnchoredText,
   resourceId: ResourceId,
   userId: string,
   generator: Agent,
-  motivation: string,
+  motivation: Motivation,
   match: { exact: string; start: number; end: number; prefix?: string; suffix?: string },
-  body?: Record<string, unknown> | Record<string, unknown>[],
+  body?: Annotation['body'],
 ) {
   // `locate` returns both the per-line rects and the overlap items it found;
   // reuse `overlap` for the containment check rather than re-scanning layer.items.
-  const { rects, overlap } = locate(layer, match.start, match.end);
+  const { rects, overlap } = locate(anchored, match.start, match.end);
 
   const coveredText = overlap.length
-    ? layer.text.substring(
+    ? anchored.text.substring(
         Math.min(...overlap.map((i) => i.start)),
         Math.max(...overlap.map((i) => i.end)),
       )
@@ -427,7 +431,7 @@ export async function processReferenceJob(
   let totalFound = 0;
   let totalEmitted = 0;
   let errors = 0;
-  const allAnnotations: Record<string, unknown>[] = [];
+  const allAnnotations: Annotation[] = [];
 
   onProgress(10, 'Loading resource...', 'analyzing', { requestParams });
 
@@ -476,8 +480,8 @@ export async function processReferenceJob(
     // The bind flow later appends a SpecificResource (purpose: 'linking')
     // via mark:body-updated to produce the resolved shape. Emitting an
     // empty body would break the append contract.
-    const unresolvedBody = [
-      { type: 'TextualBody', value: entityTypeName, purpose: 'tagging', format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
+    const unresolvedBody: Annotation['body'] = [
+      { type: 'TextualBody' as const, value: entityTypeName, purpose: 'tagging' as const, format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
     ];
 
     for (const entity of extractedEntities) {

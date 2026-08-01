@@ -42,11 +42,102 @@ function langPath(): string {
 }
 
 /**
- * Recognize a batch of PNG images, returning one string per image (empty
+ * The slice of tesseract's recognition tree this module reads. Declared
+ * structurally rather than importing `Tesseract.Block`, so tests can build a
+ * tree without satisfying a dozen fields nothing here looks at; a real
+ * `Block[]` still satisfies it.
+ */
+export interface OcrBbox { x0: number; y0: number; x1: number; y1: number }
+export interface OcrLine {
+    /** The line's own box — the vertical extent shared by its words. */
+    bbox: OcrBbox;
+    words: { text: string; confidence: number; bbox: OcrBbox }[];
+}
+export interface OcrBlock {
+    paragraphs: { lines: OcrLine[] }[];
+}
+
+/** A recognized word, with the range it occupies in the assembled page text. */
+export interface OcrWord {
+    text: string;
+    /** Offsets into `OcrPage.text` — `text.slice(start, end) === word.text`. */
+    start: number;
+    end: number;
+    /** Image pixel space, top-left origin — mapped to PDF points downstream. */
+    bbox: OcrBbox;
+    confidence: number;
+}
+
+export interface OcrPage {
+    text: string;
+    words: OcrWord[];
+}
+
+/**
+ * Assemble a page's text from its recognition tree, recording where each word
+ * lands as it is written.
+ *
+ * The text is built here rather than taken from tesseract's own `data.text`
+ * precisely so the offsets are exact **by construction** — deriving offsets by
+ * searching for words in a separately-produced string is where this kind of
+ * code goes wrong. Words join with a space, lines with a newline, paragraphs
+ * with a blank line.
+ */
+export function assemblePage(blocks: OcrBlock[] | null): OcrPage {
+    let text = '';
+    const words: OcrWord[] = [];
+
+    for (const block of blocks ?? []) {
+        for (const paragraph of block.paragraphs ?? []) {
+            for (const line of paragraph.lines ?? []) {
+                let wroteWord = false;
+                for (const word of line.words ?? []) {
+                    const value = word.text.trim();
+                    if (!value) continue;              // an empty box is not a word
+                    if (wroteWord) text += ' ';
+                    const start = text.length;
+                    text += value;
+                    words.push({
+                        text: value,
+                        start,
+                        end: text.length,
+                        // Horizontal extent from the word, vertical from the
+                        // line. OCR boxes hug their glyphs, so a descender
+                        // ('page') sits lower than its neighbours — and
+                        // `locate()` groups items into lines by comparing `y`
+                        // within a couple of points, a threshold that holds
+                        // because NATIVE runs take y from the shared baseline.
+                        // Passing per-word descenders through would split one
+                        // visual line into several rects and draw a highlight
+                        // as stacked fragments. Nothing is lost: `locate()`
+                        // bounds each line anyway, so per-word vertical extent
+                        // never reaches an annotation.
+                        bbox: {
+                            x0: word.bbox.x0,
+                            x1: word.bbox.x1,
+                            y0: line.bbox.y0,
+                            y1: line.bbox.y1,
+                        },
+                        confidence: word.confidence,
+                    });
+                    wroteWord = true;
+                }
+                if (wroteWord) text += '\n';
+            }
+            text += '\n';
+        }
+    }
+
+    // Only trailing separators are removed, so no recorded offset moves.
+    return { text: text.trimEnd(), words };
+}
+
+/**
+ * Recognize a batch of PNG images, returning one result per image (empty
  * where nothing legible was found). One worker serves the whole batch —
  * startup is the expensive part, not the pages.
  */
-export async function recognizeImages(images: Buffer[]): Promise<string[]> {
+export async function recognizeImages(images: Buffer[]): Promise<OcrPage[]> {
     if (images.length === 0) return [];
     // `cacheMethod: 'none'` — the data is already local, so there is nothing to
     // cache and no reason to write a copy into the working directory.
@@ -55,10 +146,12 @@ export async function recognizeImages(images: Buffer[]): Promise<string[]> {
         cacheMethod: 'none',
     });
     try {
-        const results: string[] = [];
+        const results: OcrPage[] = [];
         for (const image of images) {
-            const { data } = await worker.recognize(image);
-            results.push(data.text.trim());
+            // `blocks: true` is what carries the per-word geometry; without it
+            // tesseract returns text only and `data.blocks` is null.
+            const { data } = await worker.recognize(image, {}, { blocks: true, text: false });
+            results.push(assemblePage(data.blocks));
         }
         return results;
     } finally {

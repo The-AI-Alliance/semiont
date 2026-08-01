@@ -20,6 +20,21 @@ export interface AnnotationPayload {
   motivation: string;
   entityTypes: string[];
   exactText: string;
+  /** True when the quoted text was recognized from pixels — see
+   *  `VectorSearchResult.machineRead`. An annotation over a scanned page
+   *  quotes OCR'd text, and annotation-focus gather searches these vectors. */
+  machineRead?: boolean;
+}
+
+/**
+ * What a resource's vectors record about themselves: how fresh they are
+ * (`contentChecksum`), what they are tagged with (`entityTypes`), and how
+ * their text was obtained (`machineRead`).
+ */
+export interface ResourceStamp {
+  contentChecksum: string | undefined;
+  entityTypes: string[];
+  machineRead?: boolean;
 }
 
 export interface VectorSearchResult {
@@ -29,6 +44,14 @@ export interface VectorSearchResult {
   annotationId?: AnnotationId;
   text: string;
   entityTypes?: string[];
+  /**
+   * Set when this passage's text was recognized from pixels rather than read
+   * from the document. Absent means read directly — the common case — so the
+   * flag is only ever present where it changes how the text should be
+   * trusted. Carried here because a chunk reaches its consumers with no
+   * document attached, and no consumer can recompute it.
+   */
+  machineRead?: boolean;
 }
 
 export interface SearchOptions {
@@ -68,7 +91,14 @@ export interface VectorStore {
    * entity-type set, stamped onto every point so `searchResources` can
    * discriminate by kind (e.g. exclude `['Question']` from recall).
    */
-  upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[]): Promise<void>;
+  /**
+   * Stamp a resource's chunks. `machineRead` records that the text was
+   * recognized from pixels (OCR) rather than read from the document — see
+   * `VectorSearchResult.machineRead`. It rides the embed because that is the
+   * moment extraction provenance is known; `reconcile()` restores it on a
+   * rebuild the same way it restores the checksum.
+   */
+  upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[], machineRead?: boolean): Promise<void>;
   /**
    * Rewrite the `entityTypes` stamp on a resource's existing points —
    * payload-only, no embedding involved (SMELTER-AXIOMS.md, S13: a tag edit
@@ -116,7 +146,14 @@ export interface VectorStore {
    * and the entity-type set (missing stamp reads as `[]`). Drives both the
    * S12 content-staleness diff and the S13 tag-staleness diff.
    */
-  listResourceStamps(): Promise<Map<string, { contentChecksum: string | undefined; entityTypes: string[] }>>;
+  listResourceStamps(): Promise<Map<string, ResourceStamp>>;
+  /**
+   * One resource's stamp, or undefined when it has no vectors. Targeted so
+   * callers that need a single resource — the annotation index path, which
+   * must stamp provenance it cannot derive locally — do not scan the
+   * collection.
+   */
+  getResourceStamp(resourceId: ResourceId): Promise<ResourceStamp | undefined>;
   /** Distinct annotationIds present in the annotations collection. */
   listAnnotationIds(): Promise<Set<string>>;
 }

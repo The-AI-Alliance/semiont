@@ -1,49 +1,79 @@
 import type { SemiontSession } from '@semiont/sdk';
-import type { ResourceId, TextExtraction, components } from '@semiont/core';
-import { extractPdfTextLayer } from '@semiont/content';
+import type { ResourceId, components } from '@semiont/core';
+import { textExtractionOf } from '@semiont/core';
+import { EXTRACTORS, type ExtractionDecline } from '@semiont/content';
 import { buildTextAnnotation, buildPdfAnnotation, type BuildAnnotation } from '../../processors';
 
 type Agent = components['schemas']['Agent'];
 
 /**
- * For one detection job, resolve the text the model detects over and the
- * media-appropriate way to turn a detected span into a stored annotation —
- * keyed by the media-type registry's `TextExtraction` strategy
- * (`textExtractionOf`). The detection processors stay media-agnostic: they take
- * the `.text` and the returned `buildAnnotation` and never see a layer or a
- * media type. Adding a media type is a new `case` here, nothing on the processors.
+ * What a detection job needs to run, or why it cannot.
  *
- * Returns `null` when the resource has no usable text (a scanned/image-only PDF,
- * or a non-textual `'none'` type), so the dispatch can decline cleanly instead
- * of running the model on nothing.
+ * Discriminated the same way `ContentExtractor` reports its own outcome —
+ * `'declined' in result` — so one idiom covers extraction end to end rather
+ * than a `null` that cannot say what went wrong.
+ */
+export type DetectionSource =
+  | { text: string; buildAnnotation: BuildAnnotation }
+  | DetectionDecline;
+
+/**
+ * Why detection could not read a resource. Widens the extractor's own reasons
+ * with the two only a *caller* can observe: no extractor exists for the media
+ * type at all, and extraction succeeded but produced nothing. Same vocabulary
+ * the Smelter reports on `smelt:settled`, so one resource declines identically
+ * whichever verb asked.
+ */
+export type DetectionDecline = {
+  declined: ExtractionDecline['declined'] | 'no-extractor' | 'empty';
+};
+
+/**
+ * For one detection job, resolve the text the model detects over and the
+ * media-appropriate way to turn a detected span into a stored annotation.
+ *
+ * Extraction goes through the **same registry the Smelter embeds from**
+ * (`EXTRACTORS`, keyed by the media-type registry's `TextExtraction`
+ * strategy), so detection and embedding always read a resource identically —
+ * including scanned PDFs, which are read by OCR rather than declined.
+ *
+ * The anchoring model follows the geometry, not the media type: an extraction
+ * that carries positioned runs anchors spatially (page + viewrect), one that
+ * does not anchors by character offset. Detection processors stay
+ * media-agnostic — they take `.text` and the returned `buildAnnotation`, and
+ * never see a layer or a media type.
  */
 export async function prepareDetection(
-  strategy: TextExtraction,
+  mediaType: string,
   session: SemiontSession,
   resourceId: ResourceId,
   userId: string,
   generator: Agent,
-): Promise<{ text: string; buildAnnotation: BuildAnnotation } | null> {
-  switch (strategy) {
-    case 'decode': {
-      const text = await session.client.browse.resourceContent(resourceId as never);
-      return {
-        text,
-        buildAnnotation: (motivation, match, body) =>
-          buildTextAnnotation(text, resourceId, userId, generator, motivation, match, body),
-      };
-    }
-    case 'pdf-text-layer': {
-      const { data } = await session.client.browse.resourceRepresentation(resourceId as never);
-      const layer = await extractPdfTextLayer(new Uint8Array(data));
-      if (!layer) return null; // scanned / image-only PDF — no text layer
-      return {
-        text: layer.text,
-        buildAnnotation: (motivation, match, body) =>
-          buildPdfAnnotation(layer, resourceId, userId, generator, motivation, match, body),
-      };
-    }
-    case 'none':
-      return null;
+): Promise<DetectionSource> {
+  const extractor = EXTRACTORS[textExtractionOf(mediaType)];
+  if (!extractor) return { declined: 'no-extractor' };
+
+  const { data } = await session.client.browse.resourceRepresentation(resourceId);
+  const extracted = await extractor.extract(Buffer.from(data), mediaType);
+  if ('declined' in extracted) return extracted;
+  if (!extracted.text.trim()) return { declined: 'empty' };
+
+  // Positioned runs mean the source has real geometry to anchor to — a PDF's
+  // text layer, its form widgets, its table cells, or OCR'd words. Without
+  // them the text itself is the coordinate system.
+  const items = extracted.items;
+  if (items && items.length > 0) {
+    const anchored = { text: extracted.text, items };
+    return {
+      text: extracted.text,
+      buildAnnotation: (motivation, match, body) =>
+        buildPdfAnnotation(anchored, resourceId, userId, generator, motivation, match, body),
+    };
   }
+
+  return {
+    text: extracted.text,
+    buildAnnotation: (motivation, match, body) =>
+      buildTextAnnotation(extracted.text, resourceId, userId, generator, motivation, match, body),
+  };
 }

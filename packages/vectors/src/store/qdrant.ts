@@ -8,7 +8,7 @@
 import { createHash } from 'crypto';
 import type { QdrantClient, Schemas } from '@qdrant/js-client-rest';
 import type { ResourceId, AnnotationId } from '@semiont/core';
-import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions } from './interface';
+import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions, ResourceStamp } from './interface';
 
 /**
  * Generate a deterministic UUID v5-style ID from an arbitrary string.
@@ -23,6 +23,22 @@ export interface QdrantConfig {
   host: string;
   port: number;
   dimensions: number;
+}
+
+/** The payload fields a stamp is read from — one list for the scroll and the
+ *  targeted read, so the two cannot drift. */
+const STAMP_FIELDS = ['resourceId', 'contentChecksum', 'entityTypes', 'machineRead'];
+
+function toStamp(payload: Record<string, unknown> | null | undefined): ResourceStamp {
+  const checksum = payload?.contentChecksum;
+  const entityTypes = payload?.entityTypes;
+  return {
+    contentChecksum: typeof checksum === 'string' ? checksum : undefined,
+    entityTypes: Array.isArray(entityTypes)
+      ? entityTypes.filter((t): t is string => typeof t === 'string')
+      : [],
+    ...(payload?.machineRead ? { machineRead: true } : {}),
+  };
 }
 
 export class QdrantVectorStore implements VectorStore {
@@ -94,7 +110,7 @@ export class QdrantVectorStore implements VectorStore {
     } catch { /* already indexed, or created concurrently */ }
   }
 
-  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[]): Promise<void> {
+  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[], machineRead?: boolean): Promise<void> {
     // Replace semantics: purge existing chunks first, or a resource that
     // shrinks leaves orphan points at the higher chunk indices.
     await this.deleteResourceVectors(resourceId);
@@ -109,6 +125,9 @@ export class QdrantVectorStore implements VectorStore {
         text: chunk.text,
         contentChecksum,
         entityTypes,
+        // Only stamped when true: absence is the common case and carries no
+        // claim, so a native extraction stores nothing extra.
+        ...(machineRead ? { machineRead: true } : {}),
       },
     }));
 
@@ -130,6 +149,7 @@ export class QdrantVectorStore implements VectorStore {
           motivation: payload.motivation,
           entityTypes: payload.entityTypes,
           text: payload.exactText,
+          ...(payload.machineRead ? { machineRead: true } : {}),
         },
       }],
     });
@@ -177,27 +197,31 @@ export class QdrantVectorStore implements VectorStore {
     });
   }
 
-  async listResourceStamps(): Promise<Map<string, { contentChecksum: string | undefined; entityTypes: string[] }>> {
-    const stamps = new Map<string, { contentChecksum: string | undefined; entityTypes: string[] }>();
+  async getResourceStamp(resourceId: ResourceId): Promise<ResourceStamp | undefined> {
+    const page = await this.qdrant.scroll('resources', {
+      limit: 1,
+      filter: { must: [{ key: 'resourceId', match: { value: String(resourceId) } }] },
+      with_payload: STAMP_FIELDS,
+      with_vector: false,
+    });
+    const point = page.points[0];
+    return point ? toStamp(point.payload) : undefined;
+  }
+
+  async listResourceStamps(): Promise<Map<string, ResourceStamp>> {
+    const stamps = new Map<string, ResourceStamp>();
     let offset: Schemas['ScrollRequest']['offset'] = undefined;
     do {
       const page = await this.qdrant.scroll('resources', {
         limit: 1000,
         offset,
-        with_payload: ['resourceId', 'contentChecksum', 'entityTypes'],
+        with_payload: STAMP_FIELDS,
         with_vector: false,
       });
       for (const point of page.points) {
         const rid = point.payload?.resourceId;
         if (typeof rid !== 'string' || stamps.has(rid)) continue;
-        const checksum = point.payload?.contentChecksum;
-        const entityTypes = point.payload?.entityTypes;
-        stamps.set(rid, {
-          contentChecksum: typeof checksum === 'string' ? checksum : undefined,
-          entityTypes: Array.isArray(entityTypes)
-            ? entityTypes.filter((t): t is string => typeof t === 'string')
-            : [],
-        });
+        stamps.set(rid, toStamp(point.payload));
       }
       offset = page.next_page_offset ?? undefined;
     } while (offset !== undefined && offset !== null);
@@ -296,6 +320,7 @@ export class QdrantVectorStore implements VectorStore {
         annotationId: m.payload.annotationId as AnnotationId | undefined,
         text: m.payload.text as string,
         entityTypes: m.payload.entityTypes as string[] | undefined,
+        ...(m.payload.machineRead ? { machineRead: true } : {}),
       }));
   }
 
@@ -319,6 +344,7 @@ export class QdrantVectorStore implements VectorStore {
         annotationId: payload.annotationId as AnnotationId | undefined,
         text: payload.text as string,
         entityTypes: payload.entityTypes as string[] | undefined,
+        ...(payload.machineRead ? { machineRead: true } : {}),
       };
     });
   }

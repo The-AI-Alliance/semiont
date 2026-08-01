@@ -16,13 +16,24 @@
  */
 
 import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob } from './job-claim-adapter';
+import {
+  asJobParams,
+  isJobType,
+  type AssessmentDetectionParams,
+  type CommentDetectionParams,
+  type DetectionParams,
+  type GenerationParams,
+  type HighlightDetectionParams,
+  type JobType,
+  type TagDetectionParams,
+} from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { getPrimaryMediaType, textExtractionOf, assembleAnnotation, type EventMap } from '@semiont/core';
+import { getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, type EventMap } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import type { Logger, ResourceId, components } from '@semiont/core';
+import type { Logger, components } from '@semiont/core';
 import { deriveStorageUri } from '@semiont/content';
-import { prepareDetection } from './workers/detection/prepare-detection';
+import { prepareDetection, type DetectionDecline } from './workers/detection/prepare-detection';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
 import {
   processHighlightJob,
@@ -32,9 +43,23 @@ import {
   processTagJob,
   processGenerationJob,
   type OnProgress,
+  type BuildAnnotation,
 } from './processors';
 
 type Agent = components['schemas']['Agent'];
+
+/**
+ * What the user is told when a resource cannot be read. Keyed by the
+ * extraction vocabulary, minus `no-extractor` — that one is a user error
+ * (detection asked of a media type that can never yield text) and throws.
+ */
+const DECLINE_MESSAGES: Record<Exclude<DetectionDecline['declined'], 'no-extractor'>, string> = {
+  'no-text-layer': 'This PDF is a scan whose text could not be recognized; there is nothing to detect over.',
+  'encrypted': 'This PDF is password-protected, so its text cannot be read.',
+  'corrupt': 'This PDF could not be parsed — the file may be damaged or truncated.',
+  'too-large': 'This document is too large to extract text from.',
+  'empty': 'This document contains no text to detect over.',
+};
 
 export interface WorkerProcessConfig {
   /**
@@ -66,7 +91,7 @@ export interface WorkerProcessConfig {
 async function emitEvent<K extends keyof EventMap>(
   session: SemiontSession,
   channel: K,
-  payload: Record<string, unknown>,
+  payload: EventMap[K],
 ): Promise<void> {
   // All worker-emitted bus events are global. `job:complete` / `job:fail`
   // are global, `jobId`-keyed correlation signals (#847): the dispatching
@@ -95,14 +120,15 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
       const message = error instanceof Error ? error.message : String(error);
       logger.error('Job failed', { jobId: job.jobId, error: message, stack: error instanceof Error ? error.stack : undefined });
       const failAnnotationId = (job.params as { referenceId?: string }).referenceId;
-      emitEvent(session, 'job:fail', {
-        resourceId: job.resourceId,
-        userId: job.userId,
-        jobId: job.jobId,
-        jobType: job.type,
-        ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
-        error: message,
-      }).catch(() => {});
+      if (isJobType(job.type)) {
+        emitEvent(session, 'job:fail', {
+          resourceId: job.resourceId,
+          jobId: job.jobId,
+          jobType: job.type,
+          ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
+          error: message,
+        }).catch(() => {});
+      }
       adapter.failJob(job.jobId, message);
     });
   });
@@ -130,7 +156,7 @@ export async function handleJob(
         attrs: {
           'job.type': job.type,
           'job.id': job.jobId,
-          'resource.id': job.resourceId as unknown as string,
+          'resource.id': job.resourceId,
         },
       },
     );
@@ -148,7 +174,19 @@ async function handleJobInner(
   job: ActiveJob,
 ): Promise<void> {
   const { session, inferenceClient, generator } = config;
-  const { resourceId, userId, jobId, type: jobType } = job;
+  const { userId, jobId } = job;
+  // `jobType` is a required, enumerated field on every lifecycle command, but
+  // arrives off the bus as a plain string. Narrow once here so the emits below
+  // are checked against the wire contract instead of asserted past it.
+  if (!isJobType(job.type)) {
+    adapter.failJob(jobId, `Unrecognized job type: ${job.type}`);
+    return;
+  }
+  const jobType: JobType = job.type;
+  // The job arrives off the bus with a plain-string id — this is the entry
+  // boundary, so brand once here rather than casting at every call that wants
+  // a `ResourceId` (BRAND-UPSTREAM).
+  const resourceId = makeResourceId(job.resourceId);
 
   // Annotation-scoped jobs (today: generation, triggered from a
   // reference) carry the source annotation through every lifecycle
@@ -156,8 +194,13 @@ async function handleJobInner(
   // Resource-scoped jobs (bulk reference/tag/highlight/comment/
   // assessment detection scanning a whole resource) leave it unset.
   const annotationId = (job.params as { referenceId?: string }).referenceId;
+  // No `userId`: the job lifecycle commands declare only `_userId`, injected by
+  // the gateway from the authenticated session. Spreading an extra field would
+  // put out-of-contract data on a global channel — and would not be caught by
+  // `emitEvent`'s typing, because TypeScript suppresses excess-property checks
+  // for spreads and for variables passed by reference.
   const lifecycleBase = {
-    resourceId, userId, jobId, jobType,
+    resourceId, jobId, jobType,
     ...(annotationId ? { annotationId } : {}),
   };
 
@@ -176,33 +219,38 @@ async function handleJobInner(
   }
 
   // Detection needs the resource's text plus a media-appropriate way to anchor a
-  // detected span. Both come from the media-type registry's extraction strategy
-  // (textExtractionOf, see prepareDetection): 'decode' -> decoded text + text
-  // selectors, 'pdf-text-layer' -> extracted layer + viewrect selectors. Gating
-  // on the strategy up front keeps binary bytes away from the model — a 'none'
-  // type would TextDecoder-decode to mojibake. A scanned PDF (no text layer)
-  // declines cleanly; a non-textual 'none' type is a user error and throws
-  // (surfaces as job:fail via the startWorkerProcess catch). Generation reads the
+  // detected span. Both come from `prepareDetection`, which reads through the
+  // same extractor registry the Smelter embeds from — so a resource that can be
+  // embedded can be detected over, scanned PDFs included.
+  //
+  // Two failures, deliberately distinguished. A media type with no extractor at
+  // all ('none' — a zip, an image) can never yield text, so asking to detect
+  // over it is a user error and throws (surfaces as job:fail). A resource whose
+  // extraction *failed* — encrypted, corrupt, a scan OCR could not read —
+  // declines cleanly and completes the job saying which. Generation reads the
   // annotation in its params, not the source bytes, so it is not prepared here.
-  let source: Awaited<ReturnType<typeof prepareDetection>> = null;
+  let ready: { text: string; buildAnnotation: BuildAnnotation } | null = null;
   if (jobType !== 'generation') {
-    const descriptor = await session.client.browse.resource(resourceId as never).fresh();
+    const descriptor = await session.client.browse.resource(resourceId).fresh();
     const mediaType = getPrimaryMediaType(descriptor);
-    const strategy = mediaType ? textExtractionOf(mediaType) : 'none';
-    if (strategy === 'none') {
-      throw new Error(`Cannot run ${jobType} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
-    }
-    source = await prepareDetection(strategy, session, resourceId as ResourceId, userId, generator);
-    if (!source) {
-      // 'pdf-text-layer' that yielded no text layer: a scanned / image-only PDF.
-      // Decline cleanly (not a crash) — complete the job with a no-text-layer result.
+    const source = await prepareDetection(mediaType ?? '', session, resourceId, userId, generator);
+
+    if ('declined' in source) {
+      if (source.declined === 'no-extractor') {
+        throw new Error(`Cannot run ${jobType} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
+      }
       await emitEvent(session, 'job:complete', {
         ...lifecycleBase,
-        result: { declined: true, reason: 'no-text-layer', message: 'This PDF has no extractable text layer (scanned or image-only); detection is not supported.' } as never,
+        result: {
+          declined: true,
+          reason: source.declined,
+          message: DECLINE_MESSAGES[source.declined],
+        },
       });
       adapter.completeJob();
       return;
     }
+    ready = source;
   }
 
   const onProgress: OnProgress = (percentage, message, stage, extra) => {
@@ -223,72 +271,72 @@ async function handleJobInner(
 
   if (jobType === 'highlight-annotation') {
     const { annotations, result } = await processHighlightJob(
-      source!.text, inferenceClient, job.params as never, source!.buildAnnotation, onProgress,
+      ready!.text, inferenceClient, asJobParams<HighlightDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
     for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
     }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: result as never,
+      result,
     });
     adapter.completeJob();
 
   } else if (jobType === 'comment-annotation') {
     const { annotations, result } = await processCommentJob(
-      source!.text, inferenceClient, job.params as never, source!.buildAnnotation, onProgress,
+      ready!.text, inferenceClient, asJobParams<CommentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
     for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
     }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: result as never,
+      result,
     });
     adapter.completeJob();
 
   } else if (jobType === 'assessment-annotation') {
     const { annotations, result } = await processAssessmentJob(
-      source!.text, inferenceClient, job.params as never, source!.buildAnnotation, onProgress,
+      ready!.text, inferenceClient, asJobParams<AssessmentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
     for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
     }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: result as never,
+      result,
     });
     adapter.completeJob();
 
   } else if (jobType === 'reference-annotation') {
     const { annotations, result } = await processReferenceJob(
-      source!.text, inferenceClient, job.params as never, source!.buildAnnotation, onProgress, config.logger,
+      ready!.text, inferenceClient, asJobParams<DetectionParams>(job.params), ready!.buildAnnotation, onProgress, config.logger,
     );
     for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
     }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: result as never,
+      result,
     });
     adapter.completeJob();
 
   } else if (jobType === 'tag-annotation') {
     const { annotations, result } = await processTagJob(
-      source!.text, inferenceClient, job.params as never, source!.buildAnnotation, onProgress,
+      ready!.text, inferenceClient, asJobParams<TagDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
     for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
     }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: result as never,
+      result,
     });
     adapter.completeJob();
 
   } else if (jobType === 'generation') {
     const genResult = await processGenerationJob(
-      inferenceClient, job.params as never, onProgress, config.logger,
+      inferenceClient, job.params as GenerationParams, onProgress, config.logger,
     );
 
     // Content never travels on the bus. Upload via the http-transport's
@@ -331,7 +379,7 @@ async function handleJobInner(
         },
         generator,
       );
-      await emitEvent(session, 'mark:create', { annotation: provenanceRef, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: provenanceRef, resourceId });
     }
 
     // Inline citations (INLINE-CITATIONS P1): the processor resolved the model's
@@ -354,12 +402,12 @@ async function handleJobInner(
         },
         generator,
       );
-      await emitEvent(session, 'mark:create', { annotation: citationRef, userId, resourceId: newResourceId });
+      await emitEvent(session, 'mark:create', { annotation: citationRef, resourceId: newResourceId });
     }
 
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: { resourceId: newResourceId, resourceName: genResult.title } as never,
+      result: { resourceId: newResourceId, resourceName: genResult.title },
     });
     adapter.completeJob();
 

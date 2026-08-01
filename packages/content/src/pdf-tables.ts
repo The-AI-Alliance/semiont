@@ -102,7 +102,7 @@ export function detectTable(items: PdfTextItem[], text: string): TableCell[][] |
   if (!rows.every((row) => row.length === columnCount)) return null;
 
   // Every column must start at the same offset down the page; ragged left
-  // edges mean prose that happens to wrap into blocks, not a grid.
+  // edges mean prose that happens to wrap into columns, not a grid.
   for (let column = 0; column < columnCount; column++) {
     const lefts = rows.map((row) => row[column]!.x);
     if (Math.max(...lefts) - Math.min(...lefts) > unit) return null;
@@ -115,22 +115,22 @@ export function detectTable(items: PdfTextItem[], text: string): TableCell[][] |
 /**
  * Render a grid as markdown rows, anchoring every cell to the geometry it
  * came from. `offset` is where this text lands in the assembled document, so
- * the returned blocks index the final string.
+ * the returned items index the final string.
  */
 export function renderTable(
   rows: TableCell[][],
   page: number,
   offset: number,
-): { text: string; blocks: PdfTextItem[] } {
+): { text: string; items: PdfTextItem[] } {
   let text = '';
-  const blocks: PdfTextItem[] = [];
+  const items: PdfTextItem[] = [];
   rows.forEach((row, rowIndex) => {
     text += '|';
     for (const cell of row) {
       text += ' ';
       const start = offset + text.length;
       text += cell.text;
-      blocks.push({
+      items.push({
         start,
         end: offset + text.length,
         page,
@@ -145,5 +145,5 @@ export function renderTable(
     // Markdown needs the delimiter row for the header to read as a table.
     if (rowIndex === 0) text += `|${' --- |'.repeat(row.length)}\n`;
   });
-  return { text, blocks };
+  return { text, items };
 }

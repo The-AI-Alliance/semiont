@@ -1306,9 +1306,21 @@ func serve(ports []string) {
 							if msg := os.Getenv("FAKERT_JOB_FAIL"); msg != "" {
 								busPublish("job:fail", map[string]any{"jobId": jobID, "error": msg})
 							} else {
+								// FAKERT_JOB_RESULT=<json>: which member of the
+								// JobResult union this job completes with. A
+								// DECLINE is one of them — a job that ran fine
+								// and deliberately produced nothing.
+								var result any = map[string]any{"resourceId": "res-new", "resourceName": "Generated"}
+								if raw := os.Getenv("FAKERT_JOB_RESULT"); raw != "" {
+									var custom any
+									if json.Unmarshal([]byte(raw), &custom) != nil {
+										custom = map[string]any{}
+									}
+									result = custom
+								}
 								busPublish("job:complete", map[string]any{
 									"jobId": jobID, "resourceId": "res-src", "jobType": "generation",
-									"result": map[string]any{"resourceId": "res-new", "resourceName": "Generated"},
+									"result": result,
 								})
 							}
 						}

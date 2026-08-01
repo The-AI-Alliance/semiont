@@ -270,6 +270,7 @@ Summary:`;
               annotationId: r.annotationId,
               score: r.score,
               entityTypes: r.entityTypes,
+              ...(r.machineRead ? { machineRead: true } : {}),
             })),
           };
           logger?.debug('Semantic context found', { matches: results.length });

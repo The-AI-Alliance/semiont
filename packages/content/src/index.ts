@@ -32,6 +32,7 @@ export {
 export { extractPdfTextLayer } from './extract-pdf-text-layer';
 export { locate } from './locate';
 export type {
+  AnchoredText,
   PdfTextLayer,
   PdfTextItem,
   PdfPageInfo,

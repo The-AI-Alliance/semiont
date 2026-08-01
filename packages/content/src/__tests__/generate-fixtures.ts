@@ -129,6 +129,20 @@ export default async function setup() {
         await mixedDoc.save()
     );
 
+    // Off-origin scaled scan — the placement-transform fixture. Every other
+    // scanned fixture draws its image over the whole page, so the CTM is the
+    // page scale and a left/right multiplication mix-up would still produce
+    // the right answer. Here the image sits at (100, 200) at 300×400, so a
+    // wrong composition lands the geometry somewhere visibly else.
+    const placedDoc = await PDFDocument.create();
+    const placedImage = await placedDoc.embedPng(scanPixels);
+    const placedPage = placedDoc.addPage([612, 792]);
+    placedPage.drawImage(placedImage, { x: 100, y: 200, width: 300, height: 400 });
+    fs.writeFileSync(
+        path.join(FIXTURES, 'scanned-placed.pdf'),
+        await placedDoc.save()
+    );
+
     // Table fixture (class D) — a regular grid: 4 rows × 3 columns drawn at
     // fixed column origins, the shape a trial-report outcome table has. Read
     // in naive reading order the cells interleave; read as a grid the rows

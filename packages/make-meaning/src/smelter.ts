@@ -136,7 +136,7 @@ function isWorkItem(input: SmelterInput): input is SmelterWorkItem {
 type SkipReason = NonNullable<EventMap['smelt:settled']['reason']>;
 
 type FetchedContent =
-  | { kind: 'text'; text: string; checksum: string }
+  | { kind: 'text'; text: string; checksum: string; machineRead: boolean }
   | { kind: 'skipped'; checksum: string; reason: SkipReason }
   | { kind: 'unavailable' };
 
@@ -390,6 +390,18 @@ export class Smelter {
         this.logger.debug('Extractor declined', { resourceId, contentType, reason: extracted.declined });
         return { kind: 'skipped', checksum, reason: extracted.declined };
       }
+      if (extracted.ocrConfidence && extracted.ocrConfidence.lowConfidenceWords > 0) {
+        // Extraction quality, not anchor quality: the vectors and any
+        // annotations sit exactly where they belong, but some words under
+        // them may be misread. Reported to operators rather than stored —
+        // no client can recompute it, and it is a property of the document's
+        // text rather than of any one anchor.
+        this.logger.info('OCR read words it was unsure of', {
+          resourceId,
+          contentType,
+          ...extracted.ocrConfidence,
+        });
+      }
       if (extracted.unreadPages?.length) {
         // Partial coverage: this resource embeds, but semantic search cannot
         // see these pages until they are OCR'd. Logged where it is known, so
@@ -400,7 +412,12 @@ export class Smelter {
           unreadPages: extracted.unreadPages,
         });
       }
-      return extracted.text.trim() ? { kind: 'text', text: extracted.text, checksum } : { kind: 'skipped', checksum, reason: 'empty' };
+      // Provenance for the projection: text recognized from pixels is not the
+      // same claim as text read from the document, and no consumer downstream
+      // can tell the difference once the chunk travels alone.
+      return extracted.text.trim()
+        ? { kind: 'text', text: extracted.text, checksum, machineRead: extracted.method === 'ocr' }
+        : { kind: 'skipped', checksum, reason: 'empty' };
     } catch (error) {
       this.logger.warn('Content unavailable for embedding', { resourceId, error: errField(error) });
       return { kind: 'unavailable' };
@@ -468,7 +485,7 @@ export class Smelter {
       chunkIndex: i, text: t, embedding: embeddings[i],
     }));
 
-    await this.vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks, fetched.checksum, entityTypes);
+    await this.vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks, fetched.checksum, entityTypes, fetched.machineRead);
     await this.emitSettled(rid, fetched.checksum, 'indexed');
     this.logger.info(logMessage, { resourceId: rid, chunks: chunks.length });
   }
@@ -526,12 +543,20 @@ export class Smelter {
     const aid = makeAnnotationId(annotation.id);
     const embedding = await this.embeddingProvider.embed(exactText);
 
+    // An annotation quotes its resource's text, so it inherits that text's
+    // provenance — but the annotation record does not carry it, and
+    // re-deriving it would mean re-extracting (for a scan, re-running OCR).
+    // Read it from the resource's own stamp instead: one targeted lookup,
+    // trivial beside the embedding call just made.
+    const stamp = await this.vectorStore.getResourceStamp(makeResourceId(rid));
+
     const payload: AnnotationPayload = {
       annotationId: aid,
       resourceId: makeResourceId(rid),
       motivation: annotation.motivation ?? '',
       entityTypes: ((annotation as Record<string, unknown>).entityTypes as string[] | undefined) ?? [],
       exactText,
+      ...(stamp?.machineRead ? { machineRead: true } : {}),
     };
     await this.vectorStore.upsertAnnotationVector(aid, embedding, payload);
     this.logger.info('Indexed annotation', { annotationId: String(aid) });
@@ -550,7 +575,7 @@ export class Smelter {
    * embedBatch() call, then index per resource.
    */
   private async batchResourceCreated(events: SmelterInput[]): Promise<number> {
-    const resourceData: { rid: ResourceId; chunks: string[]; checksum: string; entityTypes: string[] }[] = [];
+    const resourceData: { rid: ResourceId; chunks: string[]; checksum: string; entityTypes: string[]; machineRead: boolean }[] = [];
     const allChunks: string[] = [];
 
     for (const event of events) {
@@ -574,7 +599,7 @@ export class Smelter {
       }
 
       const entityTypes = await this.resolveEntityTypes(rid);
-      resourceData.push({ rid: makeResourceId(rid), chunks, checksum: fetched.checksum, entityTypes });
+      resourceData.push({ rid: makeResourceId(rid), chunks, checksum: fetched.checksum, entityTypes, machineRead: fetched.machineRead });
       allChunks.push(...chunks);
     }
 
@@ -583,11 +608,11 @@ export class Smelter {
     const allEmbeddings = await this.embeddingProvider.embedBatch(allChunks);
 
     let offset = 0;
-    for (const { rid, chunks, checksum, entityTypes } of resourceData) {
+    for (const { rid, chunks, checksum, entityTypes, machineRead } of resourceData) {
       const embeddingChunks: EmbeddingChunk[] = chunks.map((t, i) => ({
         chunkIndex: i, text: t, embedding: allEmbeddings[offset + i],
       }));
-      await this.vectorStore.upsertResourceVectors(rid, embeddingChunks, checksum, entityTypes);
+      await this.vectorStore.upsertResourceVectors(rid, embeddingChunks, checksum, entityTypes, machineRead);
       await this.emitSettled(String(rid), checksum, 'indexed');
       this.logger.info('Batch-indexed resource', { resourceId: String(rid), chunks: chunks.length });
       offset += chunks.length;

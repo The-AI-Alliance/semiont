@@ -202,8 +202,16 @@ ${after ? `${after}...` : ''}
     const lines = [...similar]
       .sort((a, b) => b.score - a.score)
       .slice(0, SEMANTIC_MATCH_LIMIT)
-      .map(m => `- ${idLabel(m.resourceId, m.annotationId)} (${m.score.toFixed(2)}) ${m.text.slice(0, SEMANTIC_MATCH_CHARS)}`);
-    semanticContextSection = `\n\nRelated passages from the knowledge base:\n${lines.join('\n')}`;
+      .map(m => `- ${idLabel(m.resourceId, m.annotationId)} (${m.score.toFixed(2)})${m.machineRead ? ' [OCR]' : ''} ${m.text.slice(0, SEMANTIC_MATCH_CHARS)}`);
+    // A passage marked [OCR] was recognized from a scanned image, so its
+    // wording — and especially its digits — may be misread. Saying so is the
+    // whole point of carrying the flag: the model is the only reader of these
+    // passages, and it would otherwise quote a scanned figure as confidently
+    // as a typed one.
+    const ocrNote = similar.some(m => m.machineRead)
+      ? '\nPassages marked [OCR] were read from scanned images by character recognition; treat their exact wording and numbers as uncertain, and say so if you rely on one.'
+      : '';
+    semanticContextSection = `\n\nRelated passages from the knowledge base:\n${lines.join('\n')}${ocrNote}`;
   }
 
   // ── Task framing (YIELD-STRUCTURE D1): canonical tasks map to tested framings;
