@@ -16,13 +16,66 @@
  */
 
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { isObject, isNumber } from '@semiont/core';
+import { isObject, isNumber, isString, isArray } from '@semiont/core';
 import { encodePng } from './png-encode';
 
 /** pdf.js image kinds (`ImageKind` in its API). */
 const GRAYSCALE_1BPP = 1;
 const RGB_24BPP = 2;
 const RGBA_32BPP = 3;
+
+const IDENTITY: readonly number[] = [1, 0, 0, 1, 0, 0];
+
+/** An image painted on a page, with the matrix that placed it. */
+export interface PlacedImage {
+    ref: string;
+    /** Natural pixel dimensions, as reported by the paint operator itself. */
+    width: number;
+    height: number;
+    /** Maps the image's unit square onto the page, in PDF points. */
+    ctm: number[];
+}
+
+/**
+ * Walk an operator list and report every painted image with the matrix in
+ * effect when it was painted.
+ *
+ * Exported for its own tests: the composition ORDER cannot be checked with a
+ * generated fixture, because pdf-lib emits a single combined matrix per image
+ * and identity × M equals M × identity. It is checked directly instead, with
+ * two non-identity transforms.
+ *
+ * Order convention: `ctm = Util.transform(ctm, m)` puts each new matrix on the
+ * right, so it applies to a point FIRST and the enclosing matrices after —
+ * which is what PDF nesting means. `save`/`restore` bracket the stack.
+ */
+export function findPlacedImages(fnArray: number[], argsArray: unknown[][]): PlacedImage[] {
+    const placed: PlacedImage[] = [];
+    const stack: number[][] = [];
+    let ctm: number[] = [...IDENTITY];
+
+    for (let i = 0; i < fnArray.length; i++) {
+        const op = fnArray[i];
+        const args = argsArray[i];
+        if (op === pdfjs.OPS.save) {
+            stack.push([...ctm]);
+        } else if (op === pdfjs.OPS.restore) {
+            ctm = stack.pop() ?? [...IDENTITY];
+        } else if (op === pdfjs.OPS.transform) {
+            if (isArray(args) && args.length >= 6 && args.every(isNumber)) {
+                ctm = pdfjs.Util.transform(ctm, args as number[]);
+            }
+        } else if (op === pdfjs.OPS.paintImageXObject) {
+            const ref = args?.[0];
+            const width = args?.[1];
+            const height = args?.[2];
+            if (isString(ref) && isNumber(width) && isNumber(height)) {
+                placed.push({ ref, width, height, ctm: [...ctm] });
+            }
+        }
+    }
+    return placed;
+}
 
 /**
  * Normalize a decoded pdf.js image to 8-bit RGB, or null for a kind we do
@@ -86,17 +139,29 @@ function resolveImage(page: pdfjs.PDFPageProxy, ref: string): Promise<unknown> {
     });
 }
 
+/** A page image ready for OCR, with everything needed to map results back. */
+export interface PageImage {
+    png: Buffer;
+    /** Pixel dimensions of the decoded raster (may differ from the paint
+     *  operator's declared size if the image was resampled). */
+    width: number;
+    height: number;
+    /** Maps the image's unit square onto the page, in PDF points. */
+    ctm: number[];
+}
+
 /**
  * PNG-encoded images for the given pages (all pages when omitted), keyed by
- * 1-indexed page number. Pages with no usable image are absent from the map.
+ * 1-indexed page number, each with the matrix that placed it. Pages with no
+ * usable image are absent from the map.
  */
 export async function extractPageImages(
     bytes: Uint8Array | Buffer,
     pageNumbers?: number[],
-): Promise<Map<number, Buffer[]>> {
+): Promise<Map<number, PageImage[]>> {
     const wanted = pageNumbers ? new Set(pageNumbers) : null;
     const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) });
-    const byPage = new Map<number, Buffer[]>();
+    const byPage = new Map<number, PageImage[]>();
 
     try {
         const doc = await loadingTask.promise;
@@ -105,13 +170,16 @@ export async function extractPageImages(
             const page = await doc.getPage(pageNum);
             const ops = await page.getOperatorList();
 
-            const images: Buffer[] = [];
-            for (let i = 0; i < ops.fnArray.length; i++) {
-                if (ops.fnArray[i] !== pdfjs.OPS.paintImageXObject) continue;
-                const ref = ops.argsArray[i]?.[0];
-                if (typeof ref !== 'string') continue;
-                const rgb = toRgb(await resolveImage(page, ref));
-                if (rgb) images.push(encodePng(rgb.width, rgb.height, rgb.rgb));
+            const images: PageImage[] = [];
+            for (const placement of findPlacedImages(ops.fnArray, ops.argsArray)) {
+                const rgb = toRgb(await resolveImage(page, placement.ref));
+                if (!rgb) continue;
+                images.push({
+                    png: encodePng(rgb.width, rgb.height, rgb.rgb),
+                    width: rgb.width,
+                    height: rgb.height,
+                    ctm: placement.ctm,
+                });
             }
             if (images.length > 0) byPage.set(pageNum, images);
         }

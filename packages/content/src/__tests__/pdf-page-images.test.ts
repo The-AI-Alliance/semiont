@@ -22,11 +22,11 @@ describe('extractPageImages', () => {
         const byPage = await extractPageImages(readFixture('scanned-image.pdf'));
         const images = byPage.get(1);
         expect(images).toHaveLength(1);
-        expect(images![0]!.subarray(0, 8)).toEqual(PNG_SIGNATURE);
+        expect(images![0]!.png.subarray(0, 8)).toEqual(PNG_SIGNATURE);
         // IHDR width/height are big-endian at fixed offsets — the fixture's
         // raster is 240x140, and extracting (not rendering) preserves it.
-        expect(images![0]!.readUInt32BE(16)).toBe(240);
-        expect(images![0]!.readUInt32BE(20)).toBe(140);
+        expect(images![0]!.png.readUInt32BE(16)).toBe(240);
+        expect(images![0]!.png.readUInt32BE(20)).toBe(140);
     });
 
     it('extracts only the requested pages', async () => {
