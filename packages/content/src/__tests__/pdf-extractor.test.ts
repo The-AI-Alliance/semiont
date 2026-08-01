@@ -55,6 +55,110 @@ describe('pdfExtractor (Phase 1 registry slot)', () => {
     });
 });
 
+describe('class D — table structure (Phase 2)', () => {
+    const extract = async (fixture: string) => {
+        const ex = EXTRACTORS['pdf-text-layer'];
+        expect(ex).not.toBeNull();
+        const out = await ex!.extract(readFixture(fixture), 'application/pdf');
+        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        return out;
+    };
+
+    it('reconstructs a regular grid as markdown rows', async () => {
+        const out = await extract('table.pdf');
+        expect(out.pdfClass).toBe('D');
+        expect(out.method).toBe('table');
+        // Row coherence is the point: a row's cells sit together on one line,
+        // so chunking cannot scatter them.
+        expect(out.text).toContain('| Treatment | Responders | p-value |');
+        expect(out.text).toContain('| Drug A | 12% | 0.03 |');
+        expect(out.text).toContain('| Placebo | 4% | 0.88 |');
+    });
+
+    it('anchors table cells to their page geometry', async () => {
+        const out = await extract('table.pdf');
+        const cell = out.blocks?.find((b) => out.text.slice(b.start, b.end) === 'Drug A');
+        expect(cell).toBeDefined();
+        expect(cell!.page).toBe(1);
+        // Row two of the fixture, first column: x 72, y 720 − 24.
+        expect(Math.abs(cell!.x - 72)).toBeLessThanOrEqual(1);
+        expect(Math.abs(cell!.y - 696)).toBeLessThanOrEqual(2);
+    });
+
+    // Precision over recall: a false table scrambles content, a miss merely
+    // falls back to Phase 1 behavior. Prose must never be read as a grid.
+    it('falls back to class A for single-column prose', async () => {
+        const out = await extract('multi-line.pdf');
+        expect(out.pdfClass).toBe('A');
+        expect(out.text).not.toContain('|');
+    });
+
+    it('falls back to class A for two-column prose', async () => {
+        const out = await extract('multi-column.pdf');
+        expect(out.pdfClass).toBe('A');
+        expect(out.text).not.toContain('|');
+    });
+});
+
+describe('class E — AcroForm field values (Phase 2)', () => {
+    const extract = async (fixture: string) => {
+        const ex = EXTRACTORS['pdf-text-layer'];
+        expect(ex).not.toBeNull();
+        const out = await ex!.extract(readFixture(fixture), 'application/pdf');
+        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        return out;
+    };
+
+    it('folds filled field values into the extracted text', async () => {
+        const out = await extract('form.pdf');
+        expect(out.text).toContain('policy.holderName: Ada Lovelace');
+        expect(out.text).toContain('policy.coverageAmount: $250,000');
+        expect(out.text).toContain('policy.state: NY');
+        // The drawn label text is still there — fields augment, never replace.
+        expect(out.text).toContain('Policy Application');
+        expect(out.pdfClass).toBe('E');
+        expect(out.method).toBe('form');
+    });
+
+    it('omits fields with no value — an empty field is not content', async () => {
+        const out = await extract('form.pdf');
+        expect(out.text).not.toContain('policy.notes');
+    });
+
+    it('anchors each folded value with the widget geometry', async () => {
+        const out = await extract('form.pdf');
+        // The block's char range must select exactly the value, and carry the
+        // field's own rectangle — folding adds text without inventing geometry.
+        const valueBlock = out.blocks?.find(
+            (b) => out.text.slice(b.start, b.end) === 'Ada Lovelace',
+        );
+        expect(valueBlock).toBeDefined();
+
+        const layer = await extractPdfTextLayer(readFixture('form.pdf'));
+        const field = layer!.fields.find((f) => f.name === 'policy.holderName');
+        expect(field).toBeDefined();
+        expect(valueBlock).toMatchObject({
+            page: field!.page,
+            x: field!.x,
+            y: field!.y,
+            width: field!.width,
+            height: field!.height,
+        });
+        // And that geometry is the widget the fixture placed at (72, 700),
+        // 200x20 — within the border inset pdf.js reports.
+        expect(field!.page).toBe(1);
+        expect(Math.abs(field!.x - 72)).toBeLessThanOrEqual(1);
+        expect(Math.abs(field!.y - 700)).toBeLessThanOrEqual(1);
+        expect(Math.abs(field!.width - 200)).toBeLessThanOrEqual(1);
+    });
+
+    it('a document without a form stays class A', async () => {
+        const out = await extract('single-line.pdf');
+        expect(out.pdfClass).toBe('A');
+        expect(out.text).toContain(KNOWN_PHRASE);
+    });
+});
+
 describe('classifyPdfError', () => {
     // pdf.js signals a password-protected document with PasswordException;
     // classify by name so any build of pdf.js matches. Everything else the

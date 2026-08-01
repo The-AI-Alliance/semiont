@@ -24,11 +24,29 @@ export interface PdfTextItem {
     height: number;
 }
 
-/** Page dimensions in PDF points */
+/**
+ * One filled AcroForm field: the value a form carries outside its drawn text
+ * layer. Geometry is the widget's rectangle, in the same PDF-point,
+ * bottom-left-origin space as `PdfTextItem` — so a consumer that folds field
+ * values into text can anchor them like any other run.
+ */
+export interface PdfFormField {
+    name: string;
+    value: string;
+    page: number;   // 1-indexed, matching PdfTextItem
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+/** Page dimensions in PDF points, plus the page's span of `PdfTextLayer.text` */
 export interface PdfPageInfo {
     pageNumber: number;
     widthPt: number;
     heightPt: number;
+    textStart: number;  // Char offset in `PdfTextLayer.text` (inclusive)
+    textEnd: number;    // Char offset in `PdfTextLayer.text` (exclusive)
 }
 
 /**
@@ -40,4 +58,12 @@ export interface PdfTextLayer {
     pages: PdfPageInfo[];
     text: string;
     items: PdfTextItem[];
+    /**
+     * Filled AcroForm field values, empty for a document without a form.
+     * Deliberately NOT folded into `text`: the reader reports what the
+     * document holds, and each consumer projects what it needs — detection
+     * reads `text`/`items` and is unaffected by a form's presence, while the
+     * embedding extractor folds these in (SMELTER-MEDIA-TYPES class E).
+     */
+    fields: PdfFormField[];
 }

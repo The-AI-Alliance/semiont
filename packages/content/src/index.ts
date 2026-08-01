@@ -35,4 +35,5 @@ export type {
   PdfTextLayer,
   PdfTextItem,
   PdfPageInfo,
+  PdfFormField,
 } from './pdf-text-layer';

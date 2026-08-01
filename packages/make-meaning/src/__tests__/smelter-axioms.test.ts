@@ -88,6 +88,10 @@ const textArb = fc.string({ minLength: 1, maxLength: 60 }).filter((s) => s.trim(
 // succeeding (SMELTER-MEDIA-TYPES Phase 1).
 const embeds = (mediaType: string) => textExtractionOf(mediaType) === 'decode';
 
+/** Eligibility: an extractor exists for the type's strategy (P0b). Wider than
+ *  `embeds` — a PDF is eligible and still declines on garbage bytes. */
+const eligible = (mediaType: string) => EXTRACTORS[textExtractionOf(mediaType)] !== null;
+
 // Pools by behavioral outcome: decodable types embed; the rest (binary
 // without an extractor, and pdfs whose garbage bytes decline) are skipped.
 const textMediaArb = fc.constantFrom('text/plain', 'text/markdown', 'text/html; charset=utf-8', 'application/json');
@@ -390,7 +394,6 @@ describe('P0 — pure laws', () => {
   // Phase 1 (SMELTER-MEDIA-TYPES #744) the pdf tier joins ELIGIBILITY: an
   // extractor exists. Eligibility is not success — a scanned/corrupt PDF is
   // eligible and still declines at extraction (never mojibake).
-  const eligible = (m: string) => EXTRACTORS[textExtractionOf(m)] !== null;
   it('P0b: eligibility is exactly "an extractor exists for the strategy"', () => {
     fc.assert(
       fc.property(fc.string({ maxLength: 20 }).map((s) => `text/${s}`), (mt) => {
@@ -653,8 +656,22 @@ describe('Smelter axioms', () => {
 
           await h.smelter.reconcile();
 
+          // Convergence is bounded by stamp trust (S12): reconcile re-reads a
+          // resource only when the catalog's checksum disagrees with the
+          // stamp, so a seeded vector carrying the CURRENT checksum for an
+          // eligible type is left alone — the planner has no evidence it is
+          // wrong, and re-extracting every eligible resource each pass is
+          // exactly what stamps exist to avoid. (Only seeding forges that
+          // state; in production it takes an extractor-version change, which
+          // an operator repairs with a wipe-and-reconcile rebuild.) Types with
+          // no extractor carry no such trust and are purged regardless.
+          const expected = new Set(catalog.filter((e) => embeds(e.mediaType)).map((e) => e.rid));
+          catalog.forEach((e, i) => {
+            if (div.preIndexed[i] && eligible(e.mediaType)) expected.add(e.rid);
+          });
+
           expect(await h.ids()).toEqual({
-            resources: catalog.filter((e) => embeds(e.mediaType)).map((e) => e.rid).sort(),
+            resources: [...expected].sort(),
             annotations: catalog.flatMap((e) => e.annotations.map((a) => a.aid)).sort(),
           });
         } finally {

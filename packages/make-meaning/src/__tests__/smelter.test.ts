@@ -37,7 +37,7 @@ import {
   createContentTransport,
   createFakeKsBus,
 } from './helpers/smelter-harness';
-import { NATIVE_PDF, SCANNED_PDF } from './helpers/pdf-fixtures';
+import { NATIVE_PDF, SCANNED_PDF, TABLE_PDF } from './helpers/pdf-fixtures';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -430,6 +430,23 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
         { resourceId: 'res-native', contentChecksum: rawChecksum, outcome: 'indexed' },
       ]);
       expect((await h.vectorStore.listResourceStamps()).get('res-native')?.contentChecksum).toBe(rawChecksum);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('class D: a tabular PDF embeds row-coherent chunks', async () => {
+    // Phase 2 (#745): the embedded text a row's cells land in must keep them
+    // together — the whole point of shaping before the shared chunker.
+    const h = await pdfHarness({ 'res-table': TABLE_PDF });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-table', payload: {} });
+      await tick();
+      expect(h.embeddingProvider.embedBatch).toHaveBeenCalledTimes(1);
+      const chunks = vi.mocked(h.embeddingProvider.embedBatch).mock.calls[0]![0];
+      const rowChunk = chunks.find((c) => c.includes('Drug A'));
+      expect(rowChunk).toBeDefined();
+      expect(rowChunk).toContain('| Drug A | 12% | 0.03 |');
     } finally {
       h.smelter.stop();
     }

@@ -83,4 +83,59 @@ export default async function setup() {
         path.join(FIXTURES, 'scanned.pdf'),
         await scannedDoc.save()
     );
+
+    // Table fixture (class D) — a regular grid: 4 rows × 3 columns drawn at
+    // fixed column origins, the shape a trial-report outcome table has. Read
+    // in naive reading order the cells interleave; read as a grid the rows
+    // stay coherent.
+    const tableDoc = await PDFDocument.create();
+    const tableFont = await tableDoc.embedFont(StandardFonts.Helvetica);
+    const tablePage = tableDoc.addPage([612, 792]);
+    const tableRows = [
+        ['Treatment', 'Responders', 'p-value'],
+        ['Drug A', '12%', '0.03'],
+        ['Drug B', '9%', '0.21'],
+        ['Placebo', '4%', '0.88'],
+    ];
+    const columnX = [72, 250, 420];
+    tableRows.forEach((row, rowIndex) => {
+        row.forEach((cell, columnIndex) => {
+            tablePage.drawText(cell, {
+                x: columnX[columnIndex]!,
+                y: 720 - rowIndex * 24,
+                size: 12,
+                font: tableFont,
+            });
+        });
+    });
+    fs.writeFileSync(
+        path.join(FIXTURES, 'table.pdf'),
+        await tableDoc.save()
+    );
+
+    // AcroForm fixture (class E) — drawn labels plus filled fields. The
+    // values live only in the form dictionary, never in the text layer:
+    // that gap is what class-E extraction closes.
+    const formDoc = await PDFDocument.create();
+    const formFont = await formDoc.embedFont(StandardFonts.Helvetica);
+    const formPage = formDoc.addPage([612, 792]);
+    formPage.drawText('Policy Application', { x: 72, y: 740, size: 14, font: formFont });
+    const form = formDoc.getForm();
+    const holder = form.createTextField('policy.holderName');
+    holder.setText('Ada Lovelace');
+    holder.addToPage(formPage, { x: 72, y: 700, width: 200, height: 20, font: formFont });
+    const coverage = form.createTextField('policy.coverageAmount');
+    coverage.setText('$250,000');
+    coverage.addToPage(formPage, { x: 72, y: 660, width: 200, height: 20, font: formFont });
+    const state = form.createDropdown('policy.state');
+    state.setOptions(['CA', 'NY']);
+    state.select('NY');
+    state.addToPage(formPage, { x: 72, y: 620, width: 100, height: 20, font: formFont });
+    // An empty field: carries no value, so class-E extraction must not emit it.
+    const notes = form.createTextField('policy.notes');
+    notes.addToPage(formPage, { x: 72, y: 580, width: 200, height: 20, font: formFont });
+    fs.writeFileSync(
+        path.join(FIXTURES, 'form.pdf'),
+        await formDoc.save()
+    );
 }

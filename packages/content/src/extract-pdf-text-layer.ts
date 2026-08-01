@@ -9,7 +9,52 @@
  */
 
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
-import type { PdfTextLayer, PdfPageInfo, PdfTextItem } from './pdf-text-layer';
+import { isObject, isString, isNumber, isArray } from '@semiont/core';
+import type { PdfTextLayer, PdfPageInfo, PdfTextItem, PdfFormField } from './pdf-text-layer';
+
+/**
+ * One entry from pdf.js's `getFieldObjects()` map, narrowed to a filled
+ * field. The API types entries as bare `Object`, so every field is checked:
+ * group entries (a parent with `kidIds`) carry `page: -1` and no value and
+ * are rejected here, leaving the widgets that actually hold content.
+ */
+function toFormField(entry: unknown): PdfFormField | null {
+    if (!isObject(entry)) return null;
+    const { name, value, page, rect } = entry;
+    if (!isString(name) || !isString(value) || !value.trim()) return null;
+    if (!isNumber(page) || page < 0) return null;
+    if (!isArray(rect) || rect.length < 4 || !rect.every(isNumber)) return null;
+    const [x1, y1, x2, y2] = rect as [number, number, number, number];
+    return {
+        name,
+        value: value.trim(),
+        page: page + 1,              // pdf.js reports 0-indexed; PdfTextItem is 1-indexed
+        x: Math.min(x1, x2),
+        y: Math.min(y1, y2),
+        width: Math.abs(x2 - x1),
+        height: Math.abs(y2 - y1),
+    };
+}
+
+/**
+ * Filled AcroForm values, one per field name (first filled widget wins, so a
+ * radio group contributes a single answer). Returns [] for a document with
+ * no form. XFA forms are out of scope: whatever their AcroForm shell exposes
+ * is read the same way, and anything else simply yields no fields.
+ */
+async function readFormFields(doc: pdfjs.PDFDocumentProxy): Promise<PdfFormField[]> {
+    const fieldObjects = await doc.getFieldObjects();
+    if (!fieldObjects) return [];
+    const byName = new Map<string, PdfFormField>();
+    for (const entries of Object.values(fieldObjects)) {
+        if (!isArray(entries)) continue;
+        for (const entry of entries) {
+            const field = toFormField(entry);
+            if (field && !byName.has(field.name)) byName.set(field.name, field);
+        }
+    }
+    return [...byName.values()];
+}
 
 export async function extractPdfTextLayer(
     bytes: Uint8Array | Buffer
@@ -38,12 +83,7 @@ export async function extractPdfTextLayer(
             const page = await doc.getPage(pageNum);
             const viewport = page.getViewport({ scale: 1.0 });
             const content = await page.getTextContent();  // all text items on the page
-
-            pages.push({
-                pageNumber: pageNum,
-                widthPt: viewport.width,
-                heightPt: viewport.height,
-            });
+            const pageTextStart = text.length;
 
             for (const item of content.items) {
                 if (!('str' in item)) continue;  // skip marked-content items (no text)
@@ -79,11 +119,23 @@ export async function extractPdfTextLayer(
             }
 
             text += '\n';  // page break
+
+            pages.push({
+                pageNumber: pageNum,
+                widthPt: viewport.width,
+                heightPt: viewport.height,
+                textStart: pageTextStart,
+                textEnd: text.length,
+            });
         }
 
+        // A document with no drawn text is a scanned page (class B) even when
+        // it carries an AcroForm — form values augment a text layer, they do
+        // not substitute for one. Keeping this condition on text items alone
+        // also keeps the reader's null contract stable for detection.
         if (!hasAnyTextItems) return null;
 
-        return { pages, text, items };
+        return { pages, text, items, fields: await readFormFields(doc) };
     } finally {
         // Release the pdf.js document — Phase 2 runs this in a long-lived worker
         // pool. pdf.js 6.0 removed PDFDocumentProxy.destroy(); teardown moved to
