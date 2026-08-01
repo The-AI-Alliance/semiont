@@ -6283,6 +6283,18 @@ func TestYieldDelegateDeclineFailsUnderJSON(t *testing.T) {
 	mustContain(t, "raw payload", stdout, `"declined":true`, `"no-text-layer"`)
 }
 
+// The other half of the format-independence rule: --json must not turn a
+// SUCCESS into a failure either. Without this, "always fail under --json"
+// passes the decline test above and nothing else notices.
+func TestYieldDelegateJSONSucceedsOnAGeneration(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`)
+	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--json")
+	if code != 0 {
+		t.Fatalf("a completed generation under --json must exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "raw payload", stdout, `"resourceId":"res-new"`)
+}
+
 func TestYieldDelegateNeedsStorageUri(t *testing.T) {
 	s := busScenario(t)
 	_, stderr, code := s.run(t, "yield", "--delegate", "res-src")
