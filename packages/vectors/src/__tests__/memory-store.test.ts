@@ -38,6 +38,30 @@ describe('MemoryVectorStore', () => {
       expect(results[0].text).toBe('Abraham Lincoln was the 16th president');
     });
 
+    it('carries the machine-read stamp back out of search', async () => {
+      // Provenance for text no human or native extractor produced: OCR read it
+      // off pixels. Nothing downstream can recompute that — the chunk reaches
+      // its consumers (today, LLM prompts) with no document attached — so the
+      // projection that carries the text carries the fact.
+      const vec = await embedding.embed('recovered from a scan');
+      await store.upsertResourceVectors('res-scan' as ResourceId, [
+        { chunkIndex: 0, text: 'recovered from a scan', embedding: vec },
+      ], 'cs-scan', [], true);
+
+      const [result] = await store.searchResources(vec, { limit: 5 });
+      expect(result!.machineRead).toBe(true);
+    });
+
+    it('leaves the stamp off text that was read directly', async () => {
+      const vec = await embedding.embed('typed by a person');
+      await store.upsertResourceVectors('res-native' as ResourceId, [
+        { chunkIndex: 0, text: 'typed by a person', embedding: vec },
+      ], 'cs-native', [], false);
+
+      const [result] = await store.searchResources(vec, { limit: 5 });
+      expect(result!.machineRead).toBeUndefined();
+    });
+
     it('replaces existing vectors on re-upsert', async () => {
       const vec1 = await embedding.embed('original text');
       await store.upsertResourceVectors('res-1' as ResourceId, [

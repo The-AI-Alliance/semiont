@@ -29,6 +29,14 @@ export interface VectorSearchResult {
   annotationId?: AnnotationId;
   text: string;
   entityTypes?: string[];
+  /**
+   * Set when this passage's text was recognized from pixels rather than read
+   * from the document. Absent means read directly — the common case — so the
+   * flag is only ever present where it changes how the text should be
+   * trusted. Carried here because a chunk reaches its consumers with no
+   * document attached, and no consumer can recompute it.
+   */
+  machineRead?: boolean;
 }
 
 export interface SearchOptions {
@@ -68,7 +76,14 @@ export interface VectorStore {
    * entity-type set, stamped onto every point so `searchResources` can
    * discriminate by kind (e.g. exclude `['Question']` from recall).
    */
-  upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[]): Promise<void>;
+  /**
+   * Stamp a resource's chunks. `machineRead` records that the text was
+   * recognized from pixels (OCR) rather than read from the document — see
+   * `VectorSearchResult.machineRead`. It rides the embed because that is the
+   * moment extraction provenance is known; `reconcile()` restores it on a
+   * rebuild the same way it restores the checksum.
+   */
+  upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[], machineRead?: boolean): Promise<void>;
   /**
    * Rewrite the `entityTypes` stamp on a resource's existing points —
    * payload-only, no embedding involved (SMELTER-AXIOMS.md, S13: a tag edit

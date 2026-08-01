@@ -94,7 +94,7 @@ export class QdrantVectorStore implements VectorStore {
     } catch { /* already indexed, or created concurrently */ }
   }
 
-  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[]): Promise<void> {
+  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[], machineRead?: boolean): Promise<void> {
     // Replace semantics: purge existing chunks first, or a resource that
     // shrinks leaves orphan points at the higher chunk indices.
     await this.deleteResourceVectors(resourceId);
@@ -109,6 +109,9 @@ export class QdrantVectorStore implements VectorStore {
         text: chunk.text,
         contentChecksum,
         entityTypes,
+        // Only stamped when true: absence is the common case and carries no
+        // claim, so a native extraction stores nothing extra.
+        ...(machineRead ? { machineRead: true } : {}),
       },
     }));
 
@@ -296,6 +299,7 @@ export class QdrantVectorStore implements VectorStore {
         annotationId: m.payload.annotationId as AnnotationId | undefined,
         text: m.payload.text as string,
         entityTypes: m.payload.entityTypes as string[] | undefined,
+        ...(m.payload.machineRead ? { machineRead: true } : {}),
       }));
   }
 
@@ -319,6 +323,7 @@ export class QdrantVectorStore implements VectorStore {
         annotationId: payload.annotationId as AnnotationId | undefined,
         text: payload.text as string,
         entityTypes: payload.entityTypes as string[] | undefined,
+        ...(payload.machineRead ? { machineRead: true } : {}),
       };
     });
   }

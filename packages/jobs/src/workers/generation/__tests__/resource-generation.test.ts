@@ -653,6 +653,36 @@ describe('generateResourceFromTopic', () => {
       expect(prompt).not.toContain('Source document context');
     });
 
+    it('warns the model when a passage was recognized from a scan', async () => {
+      // The model is the only reader of these passages — nobody sees the page
+      // it came from — so without this it would quote a scanned figure as
+      // confidently as a typed one.
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined,
+        makeResourceContext({
+          semanticContext: [
+            { text: 'TYPED-PASSAGE', resourceId: 'r1', score: 0.9 },
+            { text: 'SCANNED-PASSAGE', resourceId: 'r2', score: 0.8, machineRead: true },
+          ],
+        }),
+      );
+
+      const prompt = promptArg();
+      expect(prompt).toMatch(/\[OCR\] SCANNED-PASSAGE/);
+      expect(prompt).toContain('character recognition');
+      // The passage read straight from its document carries no such caveat.
+      expect(prompt).toMatch(/\(0\.90\) TYPED-PASSAGE/);
+    });
+
+    it('says nothing about OCR when no passage was machine-read', async () => {
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined,
+        makeResourceContext({ semanticContext: [{ text: 'TYPED-PASSAGE', resourceId: 'r1', score: 0.9 }] }),
+      );
+
+      expect(promptArg()).not.toContain('character recognition');
+    });
+
     it('grounds the prompt in the resource summary, suggested references, and content', async () => {
       client.setResponses(['# X\n\nbody']);
       const context: GatheredContext = {

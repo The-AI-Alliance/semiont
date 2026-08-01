@@ -167,6 +167,7 @@ export class LLMContext {
             ...(m.annotationId ? { annotationId: m.annotationId } : {}),
             score: m.score,
             ...(m.entityTypes ? { entityTypes: m.entityTypes } : {}),
+            ...(m.machineRead ? { machineRead: true } : {}),
           })),
           ...(excludeEntityTypes.length ? { excludedEntityTypes: excludeEntityTypes } : {}),
         };

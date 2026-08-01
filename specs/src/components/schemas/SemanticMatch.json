@@ -21,6 +21,10 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "Entity types on the matched passage"
+    },
+    "machineRead": {
+      "type": "boolean",
+      "description": "True when this passage's text was recognized from pixels (OCR of a scanned page) rather than read from the document. Absent means read directly — the common case — so the flag is only present where it changes how the text should be trusted. It travels with the passage because a consumer receives the chunk with no document attached and cannot recompute how the text was obtained."
     }
   },
   "required": ["text", "resourceId", "score"]

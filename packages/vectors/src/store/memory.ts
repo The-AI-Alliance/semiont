@@ -19,6 +19,7 @@ interface StoredPoint {
     contentChecksum?: string;
     motivation?: string;
     entityTypes?: string[];
+    machineRead?: boolean;
   };
 }
 
@@ -57,7 +58,7 @@ export class MemoryVectorStore implements VectorStore {
     return this.connected;
   }
 
-  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[]): Promise<void> {
+  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[], machineRead?: boolean): Promise<void> {
     // Remove existing vectors for this resource
     this.resources = this.resources.filter(p => p.payload.resourceId !== String(resourceId));
 
@@ -71,6 +72,9 @@ export class MemoryVectorStore implements VectorStore {
           text: chunk.text,
           contentChecksum,
           entityTypes,
+          // Only stamped when true: absence is the common case and carries no
+          // claim, so a native extraction stores nothing extra.
+          ...(machineRead ? { machineRead: true } : {}),
         },
       });
     }
@@ -228,6 +232,7 @@ export class MemoryVectorStore implements VectorStore {
       annotationId: s.payload.annotationId as AnnotationId | undefined,
       text: s.payload.text,
       entityTypes: s.payload.entityTypes,
+      ...(s.payload.machineRead ? { machineRead: true } : {}),
     };
   }
 }

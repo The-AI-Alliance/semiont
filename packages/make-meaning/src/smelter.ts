@@ -136,7 +136,7 @@ function isWorkItem(input: SmelterInput): input is SmelterWorkItem {
 type SkipReason = NonNullable<EventMap['smelt:settled']['reason']>;
 
 type FetchedContent =
-  | { kind: 'text'; text: string; checksum: string }
+  | { kind: 'text'; text: string; checksum: string; machineRead: boolean }
   | { kind: 'skipped'; checksum: string; reason: SkipReason }
   | { kind: 'unavailable' };
 
@@ -412,7 +412,12 @@ export class Smelter {
           unreadPages: extracted.unreadPages,
         });
       }
-      return extracted.text.trim() ? { kind: 'text', text: extracted.text, checksum } : { kind: 'skipped', checksum, reason: 'empty' };
+      // Provenance for the projection: text recognized from pixels is not the
+      // same claim as text read from the document, and no consumer downstream
+      // can tell the difference once the chunk travels alone.
+      return extracted.text.trim()
+        ? { kind: 'text', text: extracted.text, checksum, machineRead: extracted.method === 'ocr' }
+        : { kind: 'skipped', checksum, reason: 'empty' };
     } catch (error) {
       this.logger.warn('Content unavailable for embedding', { resourceId, error: errField(error) });
       return { kind: 'unavailable' };
@@ -480,7 +485,7 @@ export class Smelter {
       chunkIndex: i, text: t, embedding: embeddings[i],
     }));
 
-    await this.vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks, fetched.checksum, entityTypes);
+    await this.vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks, fetched.checksum, entityTypes, fetched.machineRead);
     await this.emitSettled(rid, fetched.checksum, 'indexed');
     this.logger.info(logMessage, { resourceId: rid, chunks: chunks.length });
   }
@@ -562,7 +567,7 @@ export class Smelter {
    * embedBatch() call, then index per resource.
    */
   private async batchResourceCreated(events: SmelterInput[]): Promise<number> {
-    const resourceData: { rid: ResourceId; chunks: string[]; checksum: string; entityTypes: string[] }[] = [];
+    const resourceData: { rid: ResourceId; chunks: string[]; checksum: string; entityTypes: string[]; machineRead: boolean }[] = [];
     const allChunks: string[] = [];
 
     for (const event of events) {
@@ -586,7 +591,7 @@ export class Smelter {
       }
 
       const entityTypes = await this.resolveEntityTypes(rid);
-      resourceData.push({ rid: makeResourceId(rid), chunks, checksum: fetched.checksum, entityTypes });
+      resourceData.push({ rid: makeResourceId(rid), chunks, checksum: fetched.checksum, entityTypes, machineRead: fetched.machineRead });
       allChunks.push(...chunks);
     }
 
@@ -595,11 +600,11 @@ export class Smelter {
     const allEmbeddings = await this.embeddingProvider.embedBatch(allChunks);
 
     let offset = 0;
-    for (const { rid, chunks, checksum, entityTypes } of resourceData) {
+    for (const { rid, chunks, checksum, entityTypes, machineRead } of resourceData) {
       const embeddingChunks: EmbeddingChunk[] = chunks.map((t, i) => ({
         chunkIndex: i, text: t, embedding: allEmbeddings[offset + i],
       }));
-      await this.vectorStore.upsertResourceVectors(rid, embeddingChunks, checksum, entityTypes);
+      await this.vectorStore.upsertResourceVectors(rid, embeddingChunks, checksum, entityTypes, machineRead);
       await this.emitSettled(String(rid), checksum, 'indexed');
       this.logger.info('Batch-indexed resource', { resourceId: String(rid), chunks: chunks.length });
       offset += chunks.length;
