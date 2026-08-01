@@ -14,12 +14,21 @@ import type { PdfTextLayer, PdfPageInfo, PdfTextItem } from './pdf-text-layer';
 export async function extractPdfTextLayer(
     bytes: Uint8Array | Buffer
 ): Promise<PdfTextLayer | null> {
+    // A private copy, for two pdf.js contracts at once: it refuses Node
+    // Buffers outright ("provide binary data as Uint8Array"), and it CONSUMES
+    // the array it is given — the underlying ArrayBuffer is transferred and
+    // detached, which would silently zero the caller's bytes. Callers keep
+    // their bytes; pdf.js gets its own.
+    const data = new Uint8Array(bytes);
     // pdf.js v5 removed the isEvalSupported option; this path only calls
     // getTextContent (no rendering / no PDF functions).
-    const loadingTask = pdfjs.getDocument({ data: bytes });
-    const doc = await loadingTask.promise;
+    const loadingTask = pdfjs.getDocument({ data });
 
     try {
+        // Inside the try so the finally's destroy() also runs when the
+        // parse rejects (encrypted/corrupt input — the extractor's decline
+        // path classifies that throw).
+        const doc = await loadingTask.promise;
         const pages: PdfPageInfo[] = [];
         const items: PdfTextItem[] = [];
         let text = '';

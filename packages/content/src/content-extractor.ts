@@ -17,6 +17,7 @@
 import type { TextExtraction } from '@semiont/core';
 import { decodeRepresentation } from '@semiont/core';
 import type { PdfTextItem } from './pdf-text-layer';
+import { pdfExtractor } from './pdf-extractor';
 
 export interface ExtractedText {
   /** Reading-order plain text, ready for the chunker. */
@@ -27,13 +28,22 @@ export interface ExtractedText {
   pdfClass?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
 }
 
+/**
+ * A named decline — an extractor that ran and decided it cannot yield text
+ * says why, so the settled signal can carry the class reason (a bare null
+ * could not name its class; SMELTER-MEDIA-TYPES Phase 0 log, note a).
+ */
+export interface ExtractionDecline {
+  declined: 'no-text-layer' | 'encrypted' | 'corrupt' | 'too-large';
+}
+
 export interface ContentExtractor {
   /**
-   * Extract embeddable/annotatable text; `null` ⇒ decline (encrypted,
-   * corrupt, scanned-without-OCR). The caller skips embedding and settles
-   * skipped with the class reason.
+   * Extract embeddable/annotatable text, or decline with the class reason
+   * (scanned-without-OCR, encrypted, corrupt). The caller skips embedding
+   * and settles skipped with that reason.
    */
-  extract(content: Buffer, mediaType: string): Promise<ExtractedText | null>;
+  extract(content: Buffer, mediaType: string): Promise<ExtractedText | ExtractionDecline>;
 }
 
 /** Charset-aware decode of textual bytes — the pre-registry behavior, now
@@ -47,11 +57,10 @@ const passthroughExtractor: ContentExtractor = {
 
 /**
  * Strategy → extractor. A `null` slot is a decline: the strategy names a
- * capability nothing currently provides ('pdf-text-layer' until Phase 1
- * fills it; 'none' permanently).
+ * capability nothing currently provides ('none' permanently).
  */
 export const EXTRACTORS: Record<TextExtraction, ContentExtractor | null> = {
   'decode': passthroughExtractor,
-  'pdf-text-layer': null,
+  'pdf-text-layer': pdfExtractor,
   'none': null,
 };

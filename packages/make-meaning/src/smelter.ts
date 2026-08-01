@@ -55,9 +55,11 @@ import type { SmelterEvent } from './smelter-actor-state-unit';
 // (`.plans/SMELTER-MEDIA-TYPES.md`): both call sites (live fetch and
 // reconcile planning) resolve `EXTRACTORS[textExtractionOf(mediaType)]`,
 // and a null slot declines — settle skipped, reason 'no-extractor' — so
-// binary types never decode to mojibake. Phase 0 fills only 'decode'
-// (charset-aware passthrough, the RFC 2046 text/* fallback included);
-// 'pdf-text-layer' declines until Phase 1 (#744) fills its slot.
+// binary types never decode to mojibake. 'decode' is the charset-aware
+// passthrough (RFC 2046 text/* fallback included); 'pdf-text-layer'
+// extracts native text layers inline and declines scanned/encrypted/
+// corrupt PDFs with their class reason (Phase 3 turns 'no-text-layer'
+// declines into OCR coverage).
 
 export interface ReconcileSummary {
   resourcesEmbedded: number;
@@ -66,6 +68,12 @@ export interface ReconcileSummary {
   resourceVectorsDeleted: number;
   annotationsEmbedded: number;
   annotationVectorsDeleted: number;
+  /** Live resources whose media type has an extractor — the coverage
+   *  denominator (SMELTER-MEDIA-TYPES extraction-coverage). */
+  resourcesEligible: number;
+  /** Resources with vectors after the drain — the coverage numerator;
+   *  eligible − indexed is the decline gap. */
+  resourcesIndexed: number;
 }
 
 export type ReconcileState =
@@ -377,12 +385,12 @@ export class Smelter {
         this.logger.debug('Skipping resource with no extractor for its media type', { resourceId, contentType });
         return { kind: 'skipped', checksum, reason: 'no-extractor' };
       }
-      // Phase 0: only the passthrough is registered, and it never declines —
-      // a null extraction folds into 'empty'. Phase 1 gives extractor
-      // declines their class reasons (no-text-layer/encrypted/corrupt).
       const extracted = await extractor.extract(bytes, contentType);
-      const text = extracted?.text ?? '';
-      return text.trim() ? { kind: 'text', text, checksum } : { kind: 'skipped', checksum, reason: 'empty' };
+      if ('declined' in extracted) {
+        this.logger.debug('Extractor declined', { resourceId, contentType, reason: extracted.declined });
+        return { kind: 'skipped', checksum, reason: extracted.declined };
+      }
+      return extracted.text.trim() ? { kind: 'text', text: extracted.text, checksum } : { kind: 'skipped', checksum, reason: 'empty' };
     } catch (error) {
       this.logger.warn('Content unavailable for embedding', { resourceId, error: errField(error) });
       return { kind: 'unavailable' };
@@ -428,12 +436,18 @@ export class Smelter {
     const fetched = await this.fetchEmbeddableText(rid);
     if (fetched.kind === 'unavailable') return;
     if (fetched.kind === 'skipped') {
+      // A decline is a decision: converge the store too. An eligible
+      // resource whose current bytes yield no text must not keep vectors
+      // from earlier bytes (S11) — transient failures, by contrast, never
+      // reach here and never touch the store (A2).
+      await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
       await this.emitSettled(rid, fetched.checksum, 'skipped', fetched.reason);
       return;
     }
 
     const chunks = chunkText(fetched.text, this.chunkingConfig);
     if (chunks.length === 0) {
+      await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
       await this.emitSettled(rid, fetched.checksum, 'skipped', 'empty');
       return;
     }
@@ -536,12 +550,15 @@ export class Smelter {
       const fetched = await this.fetchEmbeddableText(rid);
       if (fetched.kind === 'unavailable') continue;
       if (fetched.kind === 'skipped') {
+        // Decline = decision: converge the store (S11) — see embedResource.
+        await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
         await this.emitSettled(rid, fetched.checksum, 'skipped', fetched.reason);
         continue;
       }
 
       const chunks = chunkText(fetched.text, this.chunkingConfig);
       if (chunks.length === 0) {
+        await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
         await this.emitSettled(rid, fetched.checksum, 'skipped', 'empty');
         continue;
       }
@@ -733,6 +750,8 @@ export class Smelter {
         resourceVectorsDeleted: work.filter((w) => w.type === 'smelt:purge').length,
         annotationsEmbedded: work.filter((w) => w.type === 'smelt:embed-annotation').length,
         annotationVectorsDeleted: work.filter((w) => w.type === 'smelt:purge-annotation').length,
+        resourcesEligible: embeddable.size,
+        resourcesIndexed: (await this.vectorStore.listResourceStamps()).size,
       };
       this._reconcileState = { phase: 'done', summary };
       this.logger.info('Reconcile complete', { ...summary });

@@ -1,0 +1,21 @@
+/**
+ * Inline PDF fixtures for smelter integration tests.
+ *
+ * Snapshots of @semiont/content's deterministic pdf-lib fixtures
+ * (`generate-fixtures.ts`), inlined as base64 so make-meaning stays
+ * self-contained — no cross-package fixture path, no pdf-lib dependency.
+ * NATIVE_PDF is single-line.pdf (text layer contains 'known phrase from
+ * fixture'); SCANNED_PDF is scanned.pdf (a page with no text items).
+ */
+
+const NATIVE_PDF_B64 =
+  'JVBERi0xLjcKJYGBgYEKCjYgMCBvYmoKPDwKL0ZpbHRlciAvRmxhdGVEZWNvZGUKL0xlbmd0aCAxMTkKPj4Kc3RyZWFtCnicHYoxCgJBDEX7nCK1IGbiTH4GxGJxFgsbIRcQWUXRQhHP76y8Xzw+70VDkPDM+0qr/fT4Tp/b+bSEVM8u8MpJOS6kmeNA6Z8mhvYJx5M2NlizEbCmAjGHWsLaiopZ99F2s1mFI6P0p2w57hQLakFH+gGOsxyCCmVuZHN0cmVhbQplbmRvYmoKCjcgMCBvYmoKPDwKL0ZpbHRlciAvRmxhdGVEZWNvZGUKL1R5cGUgL09ialN0bQovTiA1Ci9GaXJzdCAyNgovTGVuZ3RoIDM2Mwo+PgpzdHJlYW0KeJzVklFLwzAQx9/zKe5RHyTXrE1bGYNtbRVkKJugKD50bRiVkUibyfz23rXbZA/is5Qjubv/XXLpLwAEBWEII4gTCCEaKYhAByGMx0I+fn0YkA/lxnRC3jV1B6+URVjCm5Bzt7MeAjGZiB/tvPTl1m3EUAQBi4+Kh9bVu8q0MC7yokCMEVGHZBpRZbTOyVIyRT7lVEJ7sjg8GMXiEeJoSrliMB0PNZzvtdGhPqeVtJo12aANk8E/nctn5UMP9dd90omQC1dnpTdwkV0rVBoTDKirxujlkp6jNaV3/3e4/v6Ns79OePafC2e9kKvd2vcuBwMhZ2VnOAPy1mw/jW+qUsjcVq5u7AbkU2OntmuOgfOODAxj0xqmqudGLk3ndm1FILGu78ybU/OrGNOEJo+TlNg9oCaf79fvpuql7OZ7f7PyPNUQ4NjC1E05c3viGenTgYI4VUz11FrnmfOecOvpNuzpA/VU/A19JcXmCmVuZHN0cmVhbQplbmRvYmoKCjggMCBvYmoKPDwKL1NpemUgOQovUm9vdCAyIDAgUgovSW5mbyAzIDAgUgovRmlsdGVyIC9GbGF0ZURlY29kZQovVHlwZSAvWFJlZgovTGVuZ3RoIDQxCi9XIFsgMSAyIDIgXQovSW5kZXggWyAwIDkgXQo+PgpzdHJlYW0KeJwVxLERACAMA7G3wx0t+3dsxEYJViGg22xISk6Vljgg3s8XBmIFA7wKZW5kc3RyZWFtCmVuZG9iagoKc3RhcnR4cmVmCjY3MwolJUVPRg==';
+
+const SCANNED_PDF_B64 =
+  'JVBERi0xLjcKJYGBgYEKCjUgMCBvYmoKPDwKL0ZpbHRlciAvRmxhdGVEZWNvZGUKL1R5cGUgL09ialN0bQovTiA0Ci9GaXJzdCAyMAovTGVuZ3RoIDI2Mgo+PgpzdHJlYW0KeJzVUk1LxDAQvedXzFFPmU7TpJVS0H5cRFgWT8oewjYsBdlI2oL+eyfNqngQzxIe+XhvZpK8yQCBQCnIwZSgoMgJ6lrIx/dXB3JnT24W8n4aZ3hmFmEPByFbv54XyETTiG9taxf74k8iBUEWxZ+KXfDjenQB6qEfBkSDiFoxNCJ1PLeMikG8Z45KXjOMuoDPTI6Y3zI3JGiTYiK/aYtLfM8za3XUdEmryrT/qhtr9SkH/XWfqhHywY+dXRxcdTeEpLHEjLNqLJ6u+TuCs4v/v4/b7j/5868v/OFztDeaHFzsgc1luXezX8ORbWddE//LjZO982/cNchDZwSmIu4dJj8ANYuN2wplbmRzdHJlYW0KZW5kb2JqCgo2IDAgb2JqCjw8Ci9TaXplIDcKL1Jvb3QgMiAwIFIKL0luZm8gMyAwIFIKL0ZpbHRlciAvRmxhdGVEZWNvZGUKL1R5cGUgL1hSZWYKL0xlbmd0aCAzNAovVyBbIDEgMiAyIF0KL0luZGV4IFsgMCA3IF0KPj4Kc3RyZWFtCnicFcQxDgAgCASwHsbdB/t3CB2K7nLZstV24pF8BkOPArAKZW5kc3RyZWFtCmVuZG9iagoKc3RhcnR4cmVmCjM4MAolJUVPRg==';
+
+export const NATIVE_PDF: Uint8Array = new Uint8Array(Buffer.from(NATIVE_PDF_B64, 'base64'));
+export const SCANNED_PDF: Uint8Array = new Uint8Array(Buffer.from(SCANNED_PDF_B64, 'base64'));
+
+/** The phrase the native fixture's text layer contains. */
+export const NATIVE_PDF_PHRASE = 'known phrase from fixture';

@@ -16,8 +16,8 @@ describe('EXTRACTORS registry (Phase 0)', () => {
     expect(EXTRACTORS['decode']).not.toBeNull();
   });
 
-  it("resolves 'pdf-text-layer' to null — the Phase 1 slot, empty until #744", () => {
-    expect(EXTRACTORS['pdf-text-layer']).toBeNull();
+  it("resolves 'pdf-text-layer' to the pdf extractor (Phase 1, #744)", () => {
+    expect(EXTRACTORS['pdf-text-layer']).not.toBeNull();
   });
 
   it("resolves 'none' to null — nothing to extract", () => {
@@ -41,7 +41,8 @@ describe('passthrough extractor', () => {
     const ex = EXTRACTORS['decode'];
     expect(ex).not.toBeNull();
     const out = await ex!.extract(latin1, 'text/plain; charset=iso-8859-1');
-    expect(out?.text).toBe('café');
-    expect(out?.method).toBe('text-passthrough');
+    if ('declined' in out) throw new Error('unexpected decline');
+    expect(out.text).toBe('café');
+    expect(out.method).toBe('text-passthrough');
   });
 });

@@ -25,6 +25,7 @@ export {
   EXTRACTORS,
   type ContentExtractor,
   type ExtractedText,
+  type ExtractionDecline,
 } from './content-extractor';
 
 // PDF text-layer extraction
