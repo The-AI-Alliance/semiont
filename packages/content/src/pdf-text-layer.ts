@@ -47,6 +47,14 @@ export interface PdfPageInfo {
     heightPt: number;
     textStart: number;  // Char offset in `PdfTextLayer.text` (inclusive)
     textEnd: number;    // Char offset in `PdfTextLayer.text` (exclusive)
+    /**
+     * Whether this page carries text-showing operators. False means the page
+     * is scanned: its characters exist only as pixels, so reading it needs
+     * OCR rather than `getTextContent`. Per-PAGE, deliberately: a document
+     * mixing native and scanned pages (class C) must route each page
+     * separately, and a single document-level flag cannot express that.
+     */
+    hasTextLayer: boolean;
 }
 
 /**

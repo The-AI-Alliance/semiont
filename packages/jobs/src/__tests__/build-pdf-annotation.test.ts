@@ -29,7 +29,7 @@ const GENERATOR: Agent = {
 // Synthetic two-line layer — "alpha beta" (line 1, y=720) / "gamma delta" (line 2, y=700):
 //   a0 l1 p2 h3 a4 _5 b6 e7 t8 a9 \n10 g11 a12 m13 m14 a15 _16 d17 e18 l19 t20 a21
 const LAYER: PdfTextLayer = {
-  pages: [{ pageNumber: 1, widthPt: 612, heightPt: 792, textStart: 0, textEnd: 22 }],
+  pages: [{ pageNumber: 1, widthPt: 612, heightPt: 792, textStart: 0, textEnd: 22, hasTextLayer: true }],
   text: 'alpha beta\ngamma delta',
   items: [
     { start: 0,  end: 5,  page: 1, x: 72,  y: 720, width: 40, height: 12 }, // alpha
@@ -45,8 +45,8 @@ const LAYER: PdfTextLayer = {
 // straddles the page break.
 const CROSS_PAGE_LAYER: PdfTextLayer = {
   pages: [
-    { pageNumber: 1, widthPt: 612, heightPt: 792, textStart: 0, textEnd: 22 },
-    { pageNumber: 2, widthPt: 612, heightPt: 792, textStart: 11, textEnd: 22 },
+    { pageNumber: 1, widthPt: 612, heightPt: 792, textStart: 0, textEnd: 22, hasTextLayer: true },
+    { pageNumber: 2, widthPt: 612, heightPt: 792, textStart: 11, textEnd: 22, hasTextLayer: true },
   ],
   text: 'alpha beta\ngamma delta',
   items: [

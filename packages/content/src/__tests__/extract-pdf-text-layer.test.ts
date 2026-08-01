@@ -81,6 +81,39 @@ describe('extractPdfTextLayer', () => {
         const layer = await extractPdfTextLayer(readFixture('scanned.pdf'));
         expect(layer).toBeNull();
     });
+
+    it('returns null for a scanned PDF whose page is a raster image', async () => {
+        // The realistic class B: a full-page scan. Text-showing operators are
+        // absent, so there is nothing to read — only pixels to OCR.
+        const layer = await extractPdfTextLayer(readFixture('scanned-image.pdf'));
+        expect(layer).toBeNull();
+    });
+});
+
+describe('per-page classification (Phase 3)', () => {
+    // Routing class C (mixed native + scanned) requires knowing which PAGES
+    // are scanned. A document-level flag cannot express it — the shared
+    // prerequisite this phase and detection's #739 both need.
+
+    it('classifies each page of a mixed document independently', async () => {
+        const layer = await extractPdfTextLayer(readFixture('mixed.pdf'));
+        if (!layer) throw new Error('expected layer, got null');
+        expect(layer.pages.map((p) => p.hasTextLayer)).toEqual([true, false]);
+    });
+
+    it('marks every page of a fully native document as having text', async () => {
+        const layer = await extractPdfTextLayer(readFixture('multi-page.pdf'));
+        if (!layer) throw new Error('expected layer, got null');
+        expect(layer.pages.every((p) => p.hasTextLayer)).toBe(true);
+    });
+
+    it("today's document-level null is exactly 'no page has a text layer'", async () => {
+        // The invariant tying the new per-page flag to the existing contract:
+        // a non-null layer always has at least one page with text.
+        const layer = await extractPdfTextLayer(readFixture('mixed.pdf'));
+        if (!layer) throw new Error('expected layer, got null');
+        expect(layer.pages.some((p) => p.hasTextLayer)).toBe(true);
+    });
 });
 
 

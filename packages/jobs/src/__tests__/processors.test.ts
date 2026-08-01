@@ -85,7 +85,7 @@ const textBuild = (content: string, userId: string = USER_DID): BuildAnnotation 
 // TextPositionSelector), the media-appropriate builder `prepareDetection`
 // hands a `pdf-text-layer` job.
 const PDF_LAYER: PdfTextLayer = {
-  pages: [{ pageNumber: 1, widthPt: 612, heightPt: 792, textStart: 0, textEnd: 22 }],
+  pages: [{ pageNumber: 1, widthPt: 612, heightPt: 792, textStart: 0, textEnd: 22, hasTextLayer: true }],
   text: 'alpha beta\ngamma delta',
   items: [
     { start: 0,  end: 5,  page: 1, x: 72,  y: 720, width: 40, height: 12 }, // alpha

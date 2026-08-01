@@ -77,19 +77,19 @@ export async function extractPdfTextLayer(
         const pages: PdfPageInfo[] = [];
         const items: PdfTextItem[] = [];
         let text = '';
-        let hasAnyTextItems = false;
 
         for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
             const page = await doc.getPage(pageNum);
             const viewport = page.getViewport({ scale: 1.0 });
             const content = await page.getTextContent();  // all text items on the page
             const pageTextStart = text.length;
+            let pageHasText = false;
 
             for (const item of content.items) {
                 if (!('str' in item)) continue;  // skip marked-content items (no text)
 
                 if (item.str.trim()) {
-                    hasAnyTextItems = true;
+                    pageHasText = true;
                     const start = text.length;
                     text += item.str;
                     const end = text.length;  // range covers only this run's own chars
@@ -126,6 +126,7 @@ export async function extractPdfTextLayer(
                 heightPt: viewport.height,
                 textStart: pageTextStart,
                 textEnd: text.length,
+                hasTextLayer: pageHasText,
             });
         }
 
@@ -133,7 +134,7 @@ export async function extractPdfTextLayer(
         // it carries an AcroForm — form values augment a text layer, they do
         // not substitute for one. Keeping this condition on text items alone
         // also keeps the reader's null contract stable for detection.
-        if (!hasAnyTextItems) return null;
+        if (!pages.some((page) => page.hasTextLayer)) return null;
 
         return { pages, text, items, fields: await readFormFields(doc) };
     } finally {
