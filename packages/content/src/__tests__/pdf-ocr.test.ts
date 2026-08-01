@@ -67,8 +67,8 @@ describe('class B — a fully scanned document', () => {
         const out = await extract('scanned-image.pdf');
         if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
         expect(out.items?.length).toBe(4);
-        for (const block of out.items!) {
-            expect(out.text.slice(block.start, block.end)).toMatch(/^(RECOVERED|FROM|THE|SCAN)$/);
+        for (const item of out.items!) {
+            expect(out.text.slice(item.start, item.end)).toMatch(/^(RECOVERED|FROM|THE|SCAN)$/);
         }
     });
 
@@ -76,14 +76,14 @@ describe('class B — a fully scanned document', () => {
         recognizesAs('SCANNED');
         const out = await extract('scanned-image.pdf');
         if ('declined' in out) throw new Error('unexpected decline');
-        const [block] = out.items!;
+        const [item] = out.items!;
         // The fixture's raster covers the whole 612×792 page, so any word must
         // land inside it — pixel coordinates (max 240×140) would not.
-        expect(block!.page).toBe(1);
-        expect(block!.x).toBeGreaterThanOrEqual(0);
-        expect(block!.x + block!.width).toBeLessThanOrEqual(612);
-        expect(block!.y).toBeGreaterThanOrEqual(0);
-        expect(block!.y + block!.height).toBeLessThanOrEqual(792);
+        expect(item!.page).toBe(1);
+        expect(item!.x).toBeGreaterThanOrEqual(0);
+        expect(item!.x + item!.width).toBeLessThanOrEqual(612);
+        expect(item!.y).toBeGreaterThanOrEqual(0);
+        expect(item!.y + item!.height).toBeLessThanOrEqual(792);
     });
 
     it("declines 'no-text-layer' when OCR finds nothing — now meaning it truly failed", async () => {
@@ -119,8 +119,8 @@ describe('class C — a hybrid document', () => {
         const scanned = out.items!.filter((b) => b.page === 2);
         expect(native.length).toBeGreaterThan(0);
         expect(scanned.length).toBe(5);
-        for (const block of scanned) {
-            expect(out.text.slice(block.start, block.end)).toMatch(/^(TEXT|FROM|THE|SCANNED|PAGE)$/);
+        for (const item of scanned) {
+            expect(out.text.slice(item.start, item.end)).toMatch(/^(TEXT|FROM|THE|SCANNED|PAGE)$/);
         }
         // One run, because the fixture draws the phrase in a single call —
         // native items are text runs, not words.

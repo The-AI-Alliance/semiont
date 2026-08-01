@@ -1,13 +1,19 @@
 /**
- * PDF extractor — the 'pdf-text-layer' strategy (SMELTER-MEDIA-TYPES Phase 1).
+ * PDF extractor — the 'pdf-text-layer' strategy (SMELTER-MEDIA-TYPES).
  *
  * Wraps the shared `extractPdfTextLayer` reader (detection's other consumer)
- * and classifies its failures into the decline vocabulary: class A (native
- * text layer) extracts; class B (scanned, no text items) declines
- * 'no-text-layer'; class F (encrypted) and class G (corrupt/truncated)
- * decline from the parser error. Class A runs inline on the smelter's hot
- * path — text-layer reading is cheap and deterministic; OCR (Phase 3) is
- * what moves off it.
+ * and turns a PDF into text plus the geometry that indexes it, by class:
+ *
+ *   A native text layer   → read directly
+ *   B scanned             → read the page pixels by OCR
+ *   C hybrid              → both, with any page still unread reported
+ *   D tables              → grid pages rewritten as markdown rows
+ *   E forms               → AcroForm values folded in, anchored to widgets
+ *   F/G encrypted, corrupt → declined by name, from the parser error
+ *
+ * Everything runs inline. OCR was originally planned off the hot path, but
+ * the Smelter's lanes are per-resource and concurrent, so a slow page delays
+ * only its own resource — see SMELTER-MEDIA-TYPES Design §4 (revised).
  */
 
 import { isObject } from '@semiont/core';
@@ -184,7 +190,7 @@ export const pdfExtractor: ContentExtractor = {
     if (unreadPages.length === 0) return shaped;
 
     // Class C — read the scanned pages and append what OCR recovers. Appended
-    // rather than spliced into reading order, so the blocks already computed
+    // rather than spliced into reading order, so the items already computed
     // for the native pages keep pointing at the right characters; OCR text
     // carries no geometry of its own this phase (mapping pixel boxes back to
     // page points needs the image's placement transform — #739's critical
@@ -195,7 +201,7 @@ export const pdfExtractor: ContentExtractor = {
     if (recovered.size === 0) {
       return { ...shaped, unreadPages: stillUnread, pdfClass: hybridClass };
     }
-    // Appended, so the native pages' blocks keep pointing at the right
+    // Appended, so the native pages' items keep pointing at the right
     // characters; the OCR'd words are offset to where they actually land.
     const ocr = joinPages(recovered, shaped.text.length);
     return {

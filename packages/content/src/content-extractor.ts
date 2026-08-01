@@ -10,7 +10,7 @@
  *
  * Extraction is ephemeral: `extract` runs at read time, its output feeds the
  * chunker, and is discarded — no stored derived representation. Annotations
- * anchor to native geometry (`blocks`), never to extracted-text offsets, so
+ * anchor to native geometry (`items`), never to extracted-text offsets, so
  * re-extraction can never break an anchor.
  */
 
