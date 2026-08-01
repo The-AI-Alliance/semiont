@@ -2939,13 +2939,15 @@
       "channel": "smelt:settled",
       "shape": "custom",
       "validate": null,
-      "ts": "{ resourceId: string; contentChecksum: string; outcome: 'indexed' | 'skipped' }",
+      "ts": "{ resourceId: string; contentChecksum: string; outcome: 'indexed' | 'skipped'; reason?: 'no-extractor' | 'empty' | 'no-text-layer' | 'encrypted' | 'corrupt' | 'too-large' }",
       "docs": {
         "lead": [
           "",
           "  // Signal \u2014 the vector projection's per-resource decision report: emitted",
           "  // by the Smelter after indexing a resource's content ('indexed') or after",
-          "  // deciding not to ('skipped': media gate, empty text). Keyed by the",
+          "  // deciding not to ('skipped', with a `reason` naming the decline \u2014 the",
+          "  // SMELTER-MEDIA-TYPES telemetry vocabulary: 'no-extractor' | 'empty' today,",
+          "  // the PDF decline classes when extraction lands). Keyed by the",
           "  // checksum of the bytes inspected \u2014 \"settled at C\" is read-your-writes for",
           "  // exactly that content. NEVER emitted on transient failures: an error is not",
           "  // a decision (SMELTER-INDEX-SYNC A2). Consumed by the backend-local",
@@ -2956,7 +2958,7 @@
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { resourceId; contentChecksum; outcome }"
+        "trailing": "// { resourceId; contentChecksum; outcome; reason? }"
       }
     },
     {

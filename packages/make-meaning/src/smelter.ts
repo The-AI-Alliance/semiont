@@ -38,10 +38,10 @@
 import { Observable, Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { burstBuffer, errField } from '@semiont/core';
-import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, IContentTransport } from '@semiont/core';
+import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, IContentTransport, EventMap } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, decodeRepresentation, textExtractionOf } from '@semiont/core';
-import { calculateChecksum } from '@semiont/content';
+import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textExtractionOf } from '@semiont/core';
+import { calculateChecksum, EXTRACTORS } from '@semiont/content';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/core';
@@ -51,12 +51,13 @@ import { busRequest, type BusRequestPrimitive } from '@semiont/core';
 import { partitionByType } from './batch-utils';
 import type { SmelterEvent } from './smelter-actor-state-unit';
 
-// The media gate is `textExtractionOf(mediaType) === 'decode'` at both call
-// sites (live fetch and reconcile planning): registry rows plus the RFC 2046
-// text/* fallback — "embed anything that decodes as text" (MEDIA-TYPES.md
-// decision 7). 'pdf-text-layer' types stay out until the per-type extraction
-// dispatch lands (`.plans/SMELTER-MEDIA-TYPES.md`) — binary types decode to
-// mojibake that pollutes the vector space.
+// Media dispatch is the strategy-keyed extractor registry
+// (`.plans/SMELTER-MEDIA-TYPES.md`): both call sites (live fetch and
+// reconcile planning) resolve `EXTRACTORS[textExtractionOf(mediaType)]`,
+// and a null slot declines — settle skipped, reason 'no-extractor' — so
+// binary types never decode to mojibake. Phase 0 fills only 'decode'
+// (charset-aware passthrough, the RFC 2046 text/* fallback included);
+// 'pdf-text-layer' declines until Phase 1 (#744) fills its slot.
 
 export interface ReconcileSummary {
   resourcesEmbedded: number;
@@ -122,9 +123,13 @@ function isWorkItem(input: SmelterInput): input is SmelterWorkItem {
  * (SMELTER-INDEX-SYNC D2); `unavailable` is a transient failure and MUST NOT
  * settle — an error is not a decision (A2).
  */
+/** The decline vocabulary of the settled signal — derived from the wire
+ *  type so the bus registry stays the single source of truth. */
+type SkipReason = NonNullable<EventMap['smelt:settled']['reason']>;
+
 type FetchedContent =
   | { kind: 'text'; text: string; checksum: string }
-  | { kind: 'skipped'; checksum: string }
+  | { kind: 'skipped'; checksum: string; reason: SkipReason }
   | { kind: 'unavailable' };
 
 export class Smelter {
@@ -367,12 +372,17 @@ export class Smelter {
       const { data, contentType } = await this.content.getBinary(makeResourceId(resourceId));
       const bytes = Buffer.from(data);
       const checksum = calculateChecksum(bytes);
-      if (textExtractionOf(contentType) !== 'decode') {
-        this.logger.debug('Skipping resource that does not decode as text', { resourceId, contentType });
-        return { kind: 'skipped', checksum };
+      const extractor = EXTRACTORS[textExtractionOf(contentType)];
+      if (!extractor) {
+        this.logger.debug('Skipping resource with no extractor for its media type', { resourceId, contentType });
+        return { kind: 'skipped', checksum, reason: 'no-extractor' };
       }
-      const text = decodeRepresentation(bytes, contentType);
-      return text.trim() ? { kind: 'text', text, checksum } : { kind: 'skipped', checksum };
+      // Phase 0: only the passthrough is registered, and it never declines —
+      // a null extraction folds into 'empty'. Phase 1 gives extractor
+      // declines their class reasons (no-text-layer/encrypted/corrupt).
+      const extracted = await extractor.extract(bytes, contentType);
+      const text = extracted?.text ?? '';
+      return text.trim() ? { kind: 'text', text, checksum } : { kind: 'skipped', checksum, reason: 'empty' };
     } catch (error) {
       this.logger.warn('Content unavailable for embedding', { resourceId, error: errField(error) });
       return { kind: 'unavailable' };
@@ -385,9 +395,9 @@ export class Smelter {
    * fold. Best-effort — waiters degrade to their bounded timeout; a signal
    * failure must never fail the embed.
    */
-  private async emitSettled(resourceId: string, contentChecksum: string, outcome: 'indexed' | 'skipped'): Promise<void> {
+  private async emitSettled(resourceId: string, contentChecksum: string, outcome: 'indexed' | 'skipped', reason?: SkipReason): Promise<void> {
     try {
-      await this.bus.emit('smelt:settled', { resourceId, contentChecksum, outcome });
+      await this.bus.emit('smelt:settled', { resourceId, contentChecksum, outcome, ...(reason ? { reason } : {}) });
     } catch (error) {
       this.logger.warn('Failed to emit smelt:settled', { resourceId, outcome, error: errField(error) });
     }
@@ -418,13 +428,13 @@ export class Smelter {
     const fetched = await this.fetchEmbeddableText(rid);
     if (fetched.kind === 'unavailable') return;
     if (fetched.kind === 'skipped') {
-      await this.emitSettled(rid, fetched.checksum, 'skipped');
+      await this.emitSettled(rid, fetched.checksum, 'skipped', fetched.reason);
       return;
     }
 
     const chunks = chunkText(fetched.text, this.chunkingConfig);
     if (chunks.length === 0) {
-      await this.emitSettled(rid, fetched.checksum, 'skipped');
+      await this.emitSettled(rid, fetched.checksum, 'skipped', 'empty');
       return;
     }
 
@@ -526,13 +536,13 @@ export class Smelter {
       const fetched = await this.fetchEmbeddableText(rid);
       if (fetched.kind === 'unavailable') continue;
       if (fetched.kind === 'skipped') {
-        await this.emitSettled(rid, fetched.checksum, 'skipped');
+        await this.emitSettled(rid, fetched.checksum, 'skipped', fetched.reason);
         continue;
       }
 
       const chunks = chunkText(fetched.text, this.chunkingConfig);
       if (chunks.length === 0) {
-        await this.emitSettled(rid, fetched.checksum, 'skipped');
+        await this.emitSettled(rid, fetched.checksum, 'skipped', 'empty');
         continue;
       }
 
@@ -651,10 +661,12 @@ export class Smelter {
       // Embeddable live resources, each with the catalog's claims: the primary
       // representation's checksum (the bytes the smelter would read) and the
       // current entity-type set (the discriminator the stamps must carry).
+      // Embeddable ⇔ an extractor exists for the media type's strategy —
+      // the same registry the live fetch resolves (twin gates stay twins).
       const embeddable = new Map<string, { checksum: string | undefined; entityTypes: string[] }>();
       for (const resource of resources) {
         const mediaType = getPrimaryMediaType(resource);
-        if (resource['@id'] && mediaType && textExtractionOf(mediaType) === 'decode') {
+        if (resource['@id'] && mediaType && EXTRACTORS[textExtractionOf(mediaType)] !== null) {
           embeddable.set(resource['@id'], {
             checksum: getPrimaryRepresentation(resource)?.checksum,
             entityTypes: getResourceEntityTypes(resource),

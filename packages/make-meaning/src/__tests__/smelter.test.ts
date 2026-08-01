@@ -19,7 +19,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type { EventMap, components } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
+import { resourceId as makeResourceId, chunkText } from '@semiont/core';
 import { calculateChecksum } from '@semiont/content';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
@@ -309,7 +309,7 @@ describe('Smelter smelt:settled signal', () => {
       h.events$.next({ type: 'yield:created', resourceId: 'res-zip', payload: {} });
       await tick();
       expect(settledSignals(h.bus)).toEqual([
-        { resourceId: 'res-zip', contentChecksum: calculateChecksum(bytes), outcome: 'skipped' },
+        { resourceId: 'res-zip', contentChecksum: calculateChecksum(bytes), outcome: 'skipped', reason: 'no-extractor' },
       ]);
       expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
     } finally {
@@ -323,6 +323,62 @@ describe('Smelter smelt:settled signal', () => {
       h.events$.next({ type: 'yield:created', resourceId: 'res-unreachable', payload: {} });
       await tick();
       expect(settledSignals(h.bus)).toEqual([]);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  // Phase 0 (SMELTER-MEDIA-TYPES #743): skips name their reason — the
+  // decline vocabulary rides the settled signal (D3 as amended), never a
+  // second channel. 'no-extractor' = no registry slot for the strategy;
+  // 'empty' = an extractor ran but yielded nothing embeddable.
+  it("skips with reason 'no-extractor' when no extractor exists for the media type", async () => {
+    const bytes = '%PDF-1.7 pretend PDF bytes';
+    const h = await harness(new Map([['res-pdf', bytes]]), 'application/pdf');
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-pdf', payload: {} });
+      await tick();
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-pdf', contentChecksum: calculateChecksum(bytes), outcome: 'skipped', reason: 'no-extractor' },
+      ]);
+      expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it("skips with reason 'empty' when extraction yields no embeddable text", async () => {
+    const blank = '   \n  \t ';
+    const h = await harness(new Map([['res-blank', blank]]));
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-blank', payload: {} });
+      await tick();
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-blank', contentChecksum: calculateChecksum(blank), outcome: 'skipped', reason: 'empty' },
+      ]);
+      expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  // Phase 0 pin — zero behavior change for text: same chunks reach the
+  // embedder, same checksum stamp, and the indexed signal carries no reason
+  // (a reason names a decline; an index is not a decline). Green before and
+  // after the registry refactor — this is the byte-identity proof.
+  it('pin: markdown passthrough is unchanged — chunks, checksum, reason-less indexed signal', async () => {
+    const text = '# Title\n\n' + 'A paragraph of body prose, repeated to force chunking. '.repeat(40);
+    const h = await harness(new Map([['res-md', text]]), 'text/markdown');
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-md', payload: {} });
+      await tick();
+      const expectedChunks = chunkText(text, { chunkSize: 512, overlap: 64 });
+      expect(expectedChunks.length).toBeGreaterThan(1);
+      expect(h.embeddingProvider.embedBatch).toHaveBeenCalledTimes(1);
+      expect(h.embeddingProvider.embedBatch).toHaveBeenCalledWith(expectedChunks);
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-md', contentChecksum: calculateChecksum(text), outcome: 'indexed' },
+      ]);
     } finally {
       h.smelter.stop();
     }
