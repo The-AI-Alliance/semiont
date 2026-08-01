@@ -19,7 +19,7 @@
 import { describe, it, expect } from 'vitest';
 import { EXTRACTORS } from '../content-extractor';
 import { MAX_PDF_BYTES, withinByteBudget } from '../pdf-extractor';
-import { MAX_IMAGE_PIXELS, withinPixelBudget, extractPageImages } from '../pdf-page-images';
+import { MAX_IMAGE_PIXELS, PEAK_BYTES_PER_PIXEL, withinPixelBudget, extractPageImages } from '../pdf-page-images';
 
 /**
  * A one-page PDF whose image XObject *declares* enormous dimensions while
@@ -81,10 +81,14 @@ describe('input size budget', () => {
     });
 
     it("declines 'too-large' before handing anything to the parser", async () => {
-        // `allocUnsafe` deliberately: only `.length` is read before the
-        // decline, so the pages are never touched and the test does not carry
-        // 200 MB of resident memory to ask a question about a number.
-        const oversized = Buffer.allocUnsafe(MAX_PDF_BYTES + 1);
+        // An empty buffer reporting an oversized length. The guard reads
+        // `.length` and nothing else before declining, so that is the entire
+        // input this needs — allocating 200 MB to ask a question about a
+        // number would only make the suite slower and fragile under a
+        // constrained CI memory limit.
+        const oversized = Buffer.alloc(0);
+        Object.defineProperty(oversized, 'length', { value: MAX_PDF_BYTES + 1 });
+
         const out = await EXTRACTORS['pdf-text-layer']!.extract(oversized, 'application/pdf');
         expect(out).toEqual({ declined: 'too-large' });
     });
@@ -99,6 +103,12 @@ describe('per-image pixel budget', () => {
     it('admits a large-format scan', () => {
         // A0 at 300dpi is around 35 megapixels: big, legitimate, still allowed.
         expect(withinPixelBudget(9933, 3509)).toBe(true);
+    });
+
+    it('admits an ordinary page scanned at high resolution', () => {
+        // US Letter at 600dpi — 5100×6600, ~34 MP. Reachable with a normal
+        // page and a good scanner, so the budget must not reject it.
+        expect(withinPixelBudget(5100, 6600)).toBe(true);
     });
 
     it('rejects an image that would allocate more than the budget', () => {
@@ -129,9 +139,13 @@ describe('per-image pixel budget', () => {
         expect(byPage.size).toBe(0);
     });
 
-    it('states its budget in pixels, so the RGB cost is derivable', () => {
-        // Three bytes per pixel: the constant is the number that matters when
-        // sizing the worker, so it is asserted rather than left implicit.
-        expect(MAX_IMAGE_PIXELS * 3).toBeLessThanOrEqual(256 * 1024 * 1024);
+    it('bounds the whole allocation chain, not just the decoded raster', () => {
+        // Reading one image holds several copies at once — decoded samples,
+        // the RGB conversion, and the PNG scanline buffer — so the cost per
+        // pixel is ~10 bytes, not 3. Asserting against the real multiplier
+        // keeps the budget honest: a future rise in the cap has to reckon
+        // with the peak it actually implies.
+        const peak = MAX_IMAGE_PIXELS * PEAK_BYTES_PER_PIXEL;
+        expect(peak).toBeLessThanOrEqual(512 * 1024 * 1024);
     });
 });

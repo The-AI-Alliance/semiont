@@ -27,16 +27,38 @@ const RGBA_32BPP = 3;
 const IDENTITY: readonly number[] = [1, 0, 0, 1, 0, 0];
 
 /**
- * Largest decoded image this will hold, in pixels. At three bytes per pixel
- * that is ~192 MB of raster for a single page — generous enough for a
- * large-format scan (A0 at 300dpi is ~35 MP) and far above the ordinary case
- * (US Letter at 300dpi is ~8 MP), while refusing an image whose dimensions
- * would allocate without bound.
+ * Largest image this will read, in pixels.
  *
- * A starting point, not a measured optimum: it should be revisited against a
- * real scanned corpus (SMELTER-MEDIA-TYPES, live-testing follow-up).
+ * Sizing this needs the WHOLE allocation chain, not just the decoded raster —
+ * reading one image can hold several copies at once:
+ *
+ *   pdf.js decoded samples   4 bytes/px worst case (RGBA; RGB is 3)
+ *   + `toRgb` conversion     3 bytes/px (RGBA and 1-bit both allocate a copy;
+ *                              plain RGB is passed through, no copy)
+ *   + `encodePng` scanlines  3 bytes/px (`raw`, plus a filter byte per row)
+ *   + deflate output         smaller, but live alongside the above
+ *   ────────────────────────────────────────────────────────────────────
+ *   ≈ 10 bytes/px transient peak for a single image
+ *
+ * So the budget below implies roughly half a gigabyte of transient peak for
+ * one pathological page — the number to size a worker against. Stating three
+ * bytes per pixel here (as an earlier revision did) understated it by ~3× and
+ * gave a false sense of safety.
+ *
+ * Chosen to admit the legitimate large cases with headroom: US Letter at
+ * 600dpi is ~34 MP and A0 at 300dpi is ~35 MP, against an ordinary US Letter
+ * at 300dpi of ~8 MP.
+ *
+ * A starting point, not a measured optimum: revisit against a real scanned
+ * corpus (SMELTER-MEDIA-TYPES, live-testing follow-up). Lowering the peak
+ * itself means removing copies from the chain — passing the decoded samples
+ * straight to the encoder — which is a refactor, not a smaller constant.
  */
-export const MAX_IMAGE_PIXELS = 64_000_000;
+export const MAX_IMAGE_PIXELS = 48_000_000;
+
+/** Worst-case bytes held per pixel while reading one image — the chain above.
+ *  Exported so the budget's real cost is asserted rather than assumed. */
+export const PEAK_BYTES_PER_PIXEL = 10;
 
 /** Whether an image's dimensions are sane and inside the budget. Exported
  *  because the threshold is a judgement, and judgements deserve tests. */
