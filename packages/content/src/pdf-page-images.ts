@@ -26,6 +26,48 @@ const RGBA_32BPP = 3;
 
 const IDENTITY: readonly number[] = [1, 0, 0, 1, 0, 0];
 
+/**
+ * Largest image this will read, in pixels.
+ *
+ * Sizing this needs the WHOLE allocation chain, not just the decoded raster —
+ * reading one image can hold several copies at once:
+ *
+ *   pdf.js decoded samples   4 bytes/px worst case (RGBA; RGB is 3)
+ *   + `toRgb` conversion     3 bytes/px (RGBA and 1-bit both allocate a copy;
+ *                              plain RGB is passed through, no copy)
+ *   + `encodePng` scanlines  3 bytes/px (`raw`, plus a filter byte per row)
+ *   + deflate output         smaller, but live alongside the above
+ *   ────────────────────────────────────────────────────────────────────
+ *   ≈ 10 bytes/px transient peak for a single image
+ *
+ * So the budget below implies roughly half a gigabyte of transient peak for
+ * one pathological page — the number to size a worker against. Stating three
+ * bytes per pixel here (as an earlier revision did) understated it by ~3× and
+ * gave a false sense of safety.
+ *
+ * Chosen to admit the legitimate large cases with headroom: US Letter at
+ * 600dpi is ~34 MP and A0 at 300dpi is ~35 MP, against an ordinary US Letter
+ * at 300dpi of ~8 MP.
+ *
+ * A starting point, not a measured optimum: revisit against a real scanned
+ * corpus (SMELTER-MEDIA-TYPES, live-testing follow-up). Lowering the peak
+ * itself means removing copies from the chain — passing the decoded samples
+ * straight to the encoder — which is a refactor, not a smaller constant.
+ */
+export const MAX_IMAGE_PIXELS = 48_000_000;
+
+/** Worst-case bytes held per pixel while reading one image — the chain above.
+ *  Exported so the budget's real cost is asserted rather than assumed. */
+export const PEAK_BYTES_PER_PIXEL = 10;
+
+/** Whether an image's dimensions are sane and inside the budget. Exported
+ *  because the threshold is a judgement, and judgements deserve tests. */
+export function withinPixelBudget(width: number, height: number): boolean {
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return false;
+    if (width <= 0 || height <= 0) return false;
+    return width * height <= MAX_IMAGE_PIXELS;
+}
+
 /** An image painted on a page, with the matrix that placed it. */
 export interface PlacedImage {
     ref: string;
@@ -172,6 +214,10 @@ export async function extractPageImages(
 
             const images: PageImage[] = [];
             for (const placement of findPlacedImages(ops.fnArray, ops.argsArray)) {
+                // Checked from the paint operator's own dimensions, BEFORE the
+                // image is resolved — refusing after decoding would already
+                // have paid the allocation this guards against.
+                if (!withinPixelBudget(placement.width, placement.height)) continue;
                 const rgb = toRgb(await resolveImage(page, placement.ref));
                 if (!rgb) continue;
                 images.push({

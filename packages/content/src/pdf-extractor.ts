@@ -33,6 +33,29 @@ interface OcrPageResult {
   confidences: number[];
 }
 
+/**
+ * Largest PDF this will attempt, in bytes.
+ *
+ * A PDF is a compressed container, so input size bounds nothing on its own —
+ * but it is the one number available before the parser touches the file, and
+ * refusing here means a hostile or pathological document never gets to expand
+ * inside pdf.js. Chosen to sit above real corpora (a few hundred pages of
+ * scanned FOIA material runs tens of megabytes) while still being a ceiling.
+ *
+ * A starting point, not a measured optimum — revisit against a real corpus
+ * (SMELTER-MEDIA-TYPES, live-testing follow-up). The per-image budget in
+ * `pdf-page-images` guards the decoded side, which is where the unbounded
+ * growth actually lives.
+ */
+export const MAX_PDF_BYTES = 200 * 1024 * 1024;
+
+/** Whether a document is small enough to attempt. Exported because the
+ *  threshold is a judgement, and judgements deserve tests that do not have to
+ *  materialize two hundred megabytes to ask the question. */
+export function withinByteBudget(bytes: number): boolean {
+  return Number.isFinite(bytes) && bytes >= 0 && bytes <= MAX_PDF_BYTES;
+}
+
 /** Words below this are worth an operator's attention. Tesseract reports
  *  0–100; readable text on a clean scan sits well above this. */
 const LOW_CONFIDENCE = 60;
@@ -177,6 +200,11 @@ function shapeTables(layer: PdfTextLayer): ExtractedText | null {
 
 export const pdfExtractor: ContentExtractor = {
   async extract(content) {
+    // Before the parser sees it: everything downstream — parse, image decode,
+    // OCR — expands from these bytes, so this is the only gate that costs
+    // nothing to enforce.
+    if (!withinByteBudget(content.length)) return { declined: 'too-large' };
+
     let layer;
     try {
       layer = await extractPdfTextLayer(content);
