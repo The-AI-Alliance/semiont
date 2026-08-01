@@ -121,16 +121,16 @@ export function renderTable(
   rows: TableCell[][],
   page: number,
   offset: number,
-): { text: string; blocks: PdfTextItem[] } {
+): { text: string; items: PdfTextItem[] } {
   let text = '';
-  const blocks: PdfTextItem[] = [];
+  const items: PdfTextItem[] = [];
   rows.forEach((row, rowIndex) => {
     text += '|';
     for (const cell of row) {
       text += ' ';
       const start = offset + text.length;
       text += cell.text;
-      blocks.push({
+      items.push({
         start,
         end: offset + text.length,
         page,
@@ -145,5 +145,5 @@ export function renderTable(
     // Markdown needs the delimiter row for the header to read as a table.
     if (rowIndex === 0) text += `|${' --- |'.repeat(row.length)}\n`;
   });
-  return { text, blocks };
+  return { text, items };
 }

@@ -22,8 +22,13 @@ import { pdfExtractor } from './pdf-extractor';
 export interface ExtractedText {
   /** Reading-order plain text, ready for the chunker. */
   text: string;
-  /** Native geometry (page+bbox) for callers that anchor; absent for pure text. */
-  blocks?: PdfTextItem[];
+  /**
+   * Positioned text runs indexing `text`, for callers that anchor; absent for
+   * pure text, where character offsets are the anchor. Named `items` to match
+   * `AnchoredText`/`PdfTextLayer` — one concept, one name, and no collision
+   * with the OCR engine's own "blocks" (which are page regions, not runs).
+   */
+  items?: PdfTextItem[];
   method: 'text-passthrough' | 'pdf-text-layer' | 'table' | 'form' | 'ocr';
   pdfClass?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
   /**

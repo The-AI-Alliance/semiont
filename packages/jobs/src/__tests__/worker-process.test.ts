@@ -42,7 +42,7 @@ import {
   processTagJob,
   processGenerationJob,
 } from '../processors';
-import { extractPdfTextLayer } from '@semiont/content';
+import { EXTRACTORS } from '@semiont/content';
 
 // Mock the six processor entry points; keep every other export real.
 // `prepareDetection` imports `buildTextAnnotation`/`buildPdfAnnotation` from
@@ -58,14 +58,17 @@ vi.mock('../processors', async (importOriginal) => ({
   processGenerationJob: vi.fn(),
 }));
 
-// prepareDetection's 'pdf-text-layer' branch runs extractPdfTextLayer over the
-// fetched PDF bytes. Mock only that export so orchestration tests drive the
-// text-layer-vs-scanned decision without real PDF fixtures; everything else in
-// @semiont/content (deriveStorageUri, etc.) stays real.
-vi.mock('@semiont/content', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@semiont/content')>()),
-  extractPdfTextLayer: vi.fn(),
-}));
+// prepareDetection reads through the extractor registry. Stub only the PDF
+// slot so orchestration tests drive the extracted-vs-declined decision without
+// real PDF fixtures; everything else in @semiont/content (deriveStorageUri,
+// the passthrough extractor, etc.) stays real.
+vi.mock('@semiont/content', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/content')>();
+  return {
+    ...actual,
+    EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn() } },
+  };
+});
 
 const RID = 'res-abc';
 const UID = 'did:web:example.com:users:test';
@@ -505,7 +508,9 @@ describe('handleJob orchestration', () => {
 
     it.each(PDF_FANOUT)('fans $jobType out to the pdf-text-layer path', async ({ jobType, arm, lastCall }) => {
       arm();
-      vi.mocked(extractPdfTextLayer).mockResolvedValue({ text: 'the quick brown fox', items: [] } as never);
+      vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValue({
+        text: 'the quick brown fox', items: [], method: 'pdf-text-layer', pdfClass: 'A',
+      });
       const h = makeFakeSessionAndAdapter();
       vi.mocked(h.session.client.browse.resource).mockReturnValue({
         fresh: async () => ({
@@ -526,10 +531,10 @@ describe('handleJob orchestration', () => {
     });
 
     it('declines cleanly (no throw, no processor) for a scanned PDF with no text layer', async () => {
-      // extractPdfTextLayer returns null for a scanned / image-only PDF.
-      // The dispatch declines cleanly — completes the job with a no-text-layer
-      // result — rather than crashing or running the model on nothing.
-      vi.mocked(extractPdfTextLayer).mockResolvedValue(null);
+      // A scan OCR could not read declines by name. The dispatch completes the
+      // job with that reason rather than crashing or running the model on
+      // nothing — and the reason is now the extractor's own, not a guess.
+      vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValue({ declined: 'no-text-layer' });
       const h = makeFakeSessionAndAdapter();
       vi.mocked(h.session.client.browse.resource).mockReturnValue({
         fresh: async () => ({

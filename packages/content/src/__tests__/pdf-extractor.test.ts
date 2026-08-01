@@ -37,7 +37,7 @@ describe('pdfExtractor (Phase 1 registry slot)', () => {
         expect(out.pdfClass).toBe('A');
         // blocks are the reader's items verbatim — the shared geometry shape.
         const layer = await extractPdfTextLayer(readFixture('single-line.pdf'));
-        expect(out.blocks).toEqual(layer!.items);
+        expect(out.items).toEqual(layer!.items);
     });
 
     it("class B: scanned PDF declines 'no-text-layer'", async () => {
@@ -109,7 +109,7 @@ describe('class D — table structure (Phase 2)', () => {
 
     it('anchors table cells to their page geometry', async () => {
         const out = await extract('table.pdf');
-        const cell = out.blocks?.find((b) => out.text.slice(b.start, b.end) === 'Drug A');
+        const cell = out.items?.find((b) => out.text.slice(b.start, b.end) === 'Drug A');
         expect(cell).toBeDefined();
         expect(cell!.page).toBe(1);
         // Row two of the fixture, first column: x 72, y 720 − 24.
@@ -161,7 +161,7 @@ describe('class E — AcroForm field values (Phase 2)', () => {
         const out = await extract('form.pdf');
         // The block's char range must select exactly the value, and carry the
         // field's own rectangle — folding adds text without inventing geometry.
-        const valueBlock = out.blocks?.find(
+        const valueBlock = out.items?.find(
             (b) => out.text.slice(b.start, b.end) === 'Ada Lovelace',
         );
         expect(valueBlock).toBeDefined();

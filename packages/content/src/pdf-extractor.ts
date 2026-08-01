@@ -95,15 +95,15 @@ export function classifyPdfError(error: unknown): 'encrypted' | 'corrupt' {
  * A form's answers live in the form dictionary, not the drawn page, so a
  * naive text-layer read returns the blank labels and loses every value.
  * Each value is appended as a `name: value` line and anchored by its widget
- * rectangle, so `blocks` stays a complete geometry index of `text`.
+ * rectangle, so `items` stays a complete geometry index of `text`.
  */
 function foldFormFields(layer: PdfTextLayer): ExtractedText {
   let text = layer.text;
-  const blocks: PdfTextItem[] = [...layer.items];
+  const items: PdfTextItem[] = [...layer.items];
   for (const field of layer.fields) {
     const start = text.length + `${field.name}: `.length;
     text += `${field.name}: ${field.value}\n`;
-    blocks.push({
+    items.push({
       start,
       end: start + field.value.length,
       page: field.page,
@@ -113,7 +113,7 @@ function foldFormFields(layer: PdfTextLayer): ExtractedText {
       height: field.height,
     });
   }
-  return { text, blocks, method: 'form', pdfClass: 'E' };
+  return { text, items, method: 'form', pdfClass: 'E' };
 }
 
 /**
@@ -125,28 +125,28 @@ function foldFormFields(layer: PdfTextLayer): ExtractedText {
  */
 function shapeTables(layer: PdfTextLayer): ExtractedText | null {
   const pages = layer.pages.map((page) => {
-    const items = layer.items.filter((item) => item.page === page.pageNumber);
-    return { page, items, table: detectTable(items, layer.text) };
+    const pageItems = layer.items.filter((item) => item.page === page.pageNumber);
+    return { page, pageItems, table: detectTable(pageItems, layer.text) };
   });
   if (!pages.some((p) => p.table)) return null;
 
   let text = '';
-  const blocks: PdfTextItem[] = [];
-  for (const { page, items, table } of pages) {
+  const items: PdfTextItem[] = [];
+  for (const { page, pageItems, table } of pages) {
     if (table) {
       const rendered = renderTable(table, page.pageNumber, text.length);
       text += rendered.text;
-      blocks.push(...rendered.blocks);
+      items.push(...rendered.items);
     } else {
       // Verbatim page: copy its slice and shift its runs' offsets to match.
       const shift = text.length - page.textStart;
       text += layer.text.slice(page.textStart, page.textEnd);
-      for (const item of items) {
-        blocks.push({ ...item, start: item.start + shift, end: item.end + shift });
+      for (const item of pageItems) {
+        items.push({ ...item, start: item.start + shift, end: item.end + shift });
       }
     }
   }
-  return { text, blocks, method: 'table', pdfClass: 'D' };
+  return { text, items, method: 'table', pdfClass: 'D' };
 }
 
 export const pdfExtractor: ContentExtractor = {
@@ -163,7 +163,7 @@ export const pdfExtractor: ContentExtractor = {
     if (!layer) {
       const ocr = joinPages(await ocrPages(content), 0);
       return ocr.text
-        ? { text: ocr.text, blocks: ocr.items, method: 'ocr', pdfClass: 'B' }
+        ? { text: ocr.text, items: ocr.items, method: 'ocr', pdfClass: 'B' }
         : { declined: 'no-text-layer' };
     }
 
@@ -173,7 +173,7 @@ export const pdfExtractor: ContentExtractor = {
     const shaped = layer.fields.length > 0
       ? foldFormFields(layer)
       : shapeTables(layer)
-        ?? { text: layer.text, blocks: layer.items, method: 'pdf-text-layer' as const, pdfClass: 'A' as const };
+        ?? { text: layer.text, items: layer.items, method: 'pdf-text-layer' as const, pdfClass: 'A' as const };
 
     // A page with no text-showing operators is scanned: its characters exist
     // only as pixels. Report those pages rather than dropping them silently —
@@ -201,7 +201,7 @@ export const pdfExtractor: ContentExtractor = {
     return {
       ...shaped,
       text: `${shaped.text}${ocr.text}\n`,
-      blocks: [...(shaped.blocks ?? []), ...ocr.items],
+      items: [...(shaped.items ?? []), ...ocr.items],
       method: 'ocr',
       pdfClass: hybridClass,
       ...(stillUnread.length > 0 ? { unreadPages: stillUnread } : {}),

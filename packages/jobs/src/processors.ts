@@ -17,7 +17,7 @@ import { generateAnnotationId } from '@semiont/event-sourcing';
 import { didToAgent, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
 import { reconcileSelector, createFragmentSelector, type ReconciledSelector } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import { locate, type PdfTextLayer } from '@semiont/content';
+import { locate, type AnchoredText } from '@semiont/content';
 import type {
   HighlightDetectionParams,
   CommentDetectionParams,
@@ -241,7 +241,7 @@ export function buildTextAnnotation(
  * than persisting geometry that doesn't back the quoted text.
  */
 export function buildPdfAnnotation(
-  layer: PdfTextLayer,
+  anchored: AnchoredText,
   resourceId: ResourceId,
   userId: string,
   generator: Agent,
@@ -251,10 +251,10 @@ export function buildPdfAnnotation(
 ) {
   // `locate` returns both the per-line rects and the overlap items it found;
   // reuse `overlap` for the containment check rather than re-scanning layer.items.
-  const { rects, overlap } = locate(layer, match.start, match.end);
+  const { rects, overlap } = locate(anchored, match.start, match.end);
 
   const coveredText = overlap.length
-    ? layer.text.substring(
+    ? anchored.text.substring(
         Math.min(...overlap.map((i) => i.start)),
         Math.max(...overlap.map((i) => i.end)),
       )

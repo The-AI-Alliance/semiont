@@ -58,14 +58,26 @@ export interface PdfPageInfo {
 }
 
 /**
+ * Text paired with the geometry that indexes it — the minimum needed to turn a
+ * character range into a Selection.
+ *
+ * This is the contract `locate()` and the annotation builders actually require;
+ * they do not need pages, form fields, or anything else a full layer carries.
+ * Naming it separately lets OCR'd content (recovered from pixels, so not a
+ * "text layer" in the PDF sense) satisfy the same anchoring path.
+ */
+export interface AnchoredText {
+    text: string;
+    items: PdfTextItem[];
+}
+
+/**
  * The full extracted text layer for a PDF.
  * `text` is the reading-order concatenation across all pages.
  * Each `item` is one text run carrying its character range into `text` plus PDF-point geometry.
  */
-export interface PdfTextLayer {
+export interface PdfTextLayer extends AnchoredText {
     pages: PdfPageInfo[];
-    text: string;
-    items: PdfTextItem[];
     /**
      * Filled AcroForm field values, empty for a document without a form.
      * Deliberately NOT folded into `text`: the reader reports what the

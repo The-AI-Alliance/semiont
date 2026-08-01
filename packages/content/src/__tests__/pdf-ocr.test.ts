@@ -66,8 +66,8 @@ describe('class B — a fully scanned document', () => {
         recognizesAs('RECOVERED FROM THE SCAN');
         const out = await extract('scanned-image.pdf');
         if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
-        expect(out.blocks?.length).toBe(4);
-        for (const block of out.blocks!) {
+        expect(out.items?.length).toBe(4);
+        for (const block of out.items!) {
             expect(out.text.slice(block.start, block.end)).toMatch(/^(RECOVERED|FROM|THE|SCAN)$/);
         }
     });
@@ -76,7 +76,7 @@ describe('class B — a fully scanned document', () => {
         recognizesAs('SCANNED');
         const out = await extract('scanned-image.pdf');
         if ('declined' in out) throw new Error('unexpected decline');
-        const [block] = out.blocks!;
+        const [block] = out.items!;
         // The fixture's raster covers the whole 612×792 page, so any word must
         // land inside it — pixel coordinates (max 240×140) would not.
         expect(block!.page).toBe(1);
@@ -115,8 +115,8 @@ describe('class C — a hybrid document', () => {
 
         // Native and OCR'd geometry coexist, and each still selects its own
         // text — the native items were not disturbed by appending.
-        const native = out.blocks!.filter((b) => b.page === 1);
-        const scanned = out.blocks!.filter((b) => b.page === 2);
+        const native = out.items!.filter((b) => b.page === 1);
+        const scanned = out.items!.filter((b) => b.page === 2);
         expect(native.length).toBeGreaterThan(0);
         expect(scanned.length).toBe(5);
         for (const block of scanned) {
