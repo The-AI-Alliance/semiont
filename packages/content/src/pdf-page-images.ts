@@ -26,6 +26,26 @@ const RGBA_32BPP = 3;
 
 const IDENTITY: readonly number[] = [1, 0, 0, 1, 0, 0];
 
+/**
+ * Largest decoded image this will hold, in pixels. At three bytes per pixel
+ * that is ~192 MB of raster for a single page — generous enough for a
+ * large-format scan (A0 at 300dpi is ~35 MP) and far above the ordinary case
+ * (US Letter at 300dpi is ~8 MP), while refusing an image whose dimensions
+ * would allocate without bound.
+ *
+ * A starting point, not a measured optimum: it should be revisited against a
+ * real scanned corpus (SMELTER-MEDIA-TYPES, live-testing follow-up).
+ */
+export const MAX_IMAGE_PIXELS = 64_000_000;
+
+/** Whether an image's dimensions are sane and inside the budget. Exported
+ *  because the threshold is a judgement, and judgements deserve tests. */
+export function withinPixelBudget(width: number, height: number): boolean {
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return false;
+    if (width <= 0 || height <= 0) return false;
+    return width * height <= MAX_IMAGE_PIXELS;
+}
+
 /** An image painted on a page, with the matrix that placed it. */
 export interface PlacedImage {
     ref: string;
@@ -172,6 +192,10 @@ export async function extractPageImages(
 
             const images: PageImage[] = [];
             for (const placement of findPlacedImages(ops.fnArray, ops.argsArray)) {
+                // Checked from the paint operator's own dimensions, BEFORE the
+                // image is resolved — refusing after decoding would already
+                // have paid the allocation this guards against.
+                if (!withinPixelBudget(placement.width, placement.height)) continue;
                 const rgb = toRgb(await resolveImage(page, placement.ref));
                 if (!rgb) continue;
                 images.push({
