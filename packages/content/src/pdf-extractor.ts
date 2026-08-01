@@ -15,6 +15,38 @@ import { extractPdfTextLayer } from './extract-pdf-text-layer';
 import type { ContentExtractor, ExtractedText } from './content-extractor';
 import type { PdfTextLayer, PdfTextItem } from './pdf-text-layer';
 import { detectTable, renderTable } from './pdf-tables';
+import { extractPageImages } from './pdf-page-images';
+import { recognizeImages } from './ocr';
+
+/**
+ * Read the pages that have no text layer by OCR'ing their pixels. Returns
+ * text only for pages that yielded some; a page absent from the map stayed
+ * unread. Pages with no extractable image never reach the engine.
+ */
+async function ocrPages(content: Buffer, pageNumbers?: number[]): Promise<Map<number, string>> {
+  const imagesByPage = await extractPageImages(content, pageNumbers);
+  if (imagesByPage.size === 0) return new Map();
+
+  // One batch for the whole document: worker startup dominates per-page cost.
+  const pages = [...imagesByPage.keys()].sort((a, b) => a - b);
+  const batch = pages.flatMap((page) => imagesByPage.get(page)!);
+  const recognized = await recognizeImages(batch);
+
+  const byPage = new Map<number, string>();
+  let offset = 0;
+  for (const page of pages) {
+    const count = imagesByPage.get(page)!.length;
+    const text = recognized.slice(offset, offset + count).filter((t) => t.trim()).join('\n').trim();
+    offset += count;
+    if (text) byPage.set(page, text);
+  }
+  return byPage;
+}
+
+/** Recovered pages in page order, as one block of text. */
+function joinPages(byPage: Map<number, string>): string {
+  return [...byPage.entries()].sort((a, b) => a[0] - b[0]).map(([, text]) => text).join('\n\n');
+}
 
 /**
  * pdf.js signals a password-protected document with PasswordException.
@@ -94,7 +126,13 @@ export const pdfExtractor: ContentExtractor = {
     } catch (error) {
       return { declined: classifyPdfError(error) };
     }
-    if (!layer) return { declined: 'no-text-layer' };
+    // Class B — no text operators anywhere: the characters exist only as
+    // pixels, so read them. 'no-text-layer' now means OCR genuinely came up
+    // empty, not that we never tried.
+    if (!layer) {
+      const text = joinPages(await ocrPages(content));
+      return text ? { text, method: 'ocr', pdfClass: 'B' } : { declined: 'no-text-layer' };
+    }
 
     // One class per document, so a filled form outranks a grid: its values
     // are content that exists nowhere else, while a table's cells are at
@@ -111,10 +149,25 @@ export const pdfExtractor: ContentExtractor = {
     // keeps its own class, and carries the gap just the same.
     const unreadPages = layer.pages.filter((page) => !page.hasTextLayer).map((page) => page.pageNumber);
     if (unreadPages.length === 0) return shaped;
+
+    // Class C — read the scanned pages and append what OCR recovers. Appended
+    // rather than spliced into reading order, so the blocks already computed
+    // for the native pages keep pointing at the right characters; OCR text
+    // carries no geometry of its own this phase (mapping pixel boxes back to
+    // page points needs the image's placement transform — #739's critical
+    // path, not embedding's).
+    const recovered = await ocrPages(content, unreadPages);
+    const stillUnread = unreadPages.filter((page) => !recovered.has(page));
+    const hybridClass = shaped.pdfClass === 'A' ? 'C' as const : shaped.pdfClass;
+    if (recovered.size === 0) {
+      return { ...shaped, unreadPages: stillUnread, pdfClass: hybridClass };
+    }
     return {
       ...shaped,
-      unreadPages,
-      pdfClass: shaped.pdfClass === 'A' ? 'C' : shaped.pdfClass,
+      text: `${shaped.text}${joinPages(recovered)}\n`,
+      method: 'ocr',
+      pdfClass: hybridClass,
+      ...(stillUnread.length > 0 ? { unreadPages: stillUnread } : {}),
     };
   },
 };

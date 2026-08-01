@@ -1,73 +1,27 @@
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import fs from 'fs';
-import zlib from 'zlib';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { encodePng } from '../png-encode';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(__dirname, 'fixtures');
 
-// ── Minimal PNG encoder ──────────────────────────────────────────────
-//
 // Scanned-PDF fixtures need a real embedded raster: a page whose glyphs
-// exist only as pixels. Encoding one here (deterministically, from node's
-// zlib) keeps the "edit the generator, never the binaries" rule and adds no
-// image dependency to a package that deliberately has none.
-
-const CRC_TABLE = (() => {
-    const table = new Int32Array(256);
-    for (let n = 0; n < 256; n++) {
-        let c = n;
-        for (let k = 0; k < 8; k++) c = (c & 1) ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
-        table[n] = c;
-    }
-    return table;
-})();
-
-function crc32(buf: Buffer): number {
-    let c = -1;
-    for (const byte of buf) c = CRC_TABLE[(c ^ byte) & 0xFF]! ^ (c >>> 8);
-    return (c ^ -1) >>> 0;
-}
-
-function pngChunk(type: string, data: Buffer): Buffer {
-    const length = Buffer.alloc(4);
-    length.writeUInt32BE(data.length);
-    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
-    const crc = Buffer.alloc(4);
-    crc.writeUInt32BE(crc32(body));
-    return Buffer.concat([length, body, crc]);
-}
-
-/** 8-bit RGB PNG from a per-pixel paint function. */
-function encodePng(width: number, height: number, paint: (x: number, y: number) => number): Buffer {
-    const stride = width * 3 + 1;                 // one filter byte per scanline
-    const raw = Buffer.alloc(stride * height, 0xFF);
-    for (let y = 0; y < height; y++) {
-        raw[y * stride] = 0;                      // filter type: none
-        for (let x = 0; x < width; x++) {
-            const value = paint(x, y);
-            raw.fill(value, y * stride + 1 + x * 3, y * stride + 1 + x * 3 + 3);
-        }
-    }
-    const ihdr = Buffer.alloc(13);
-    ihdr.writeUInt32BE(width, 0);
-    ihdr.writeUInt32BE(height, 4);
-    ihdr[8] = 8;   // bit depth
-    ihdr[9] = 2;   // color type: truecolor
-    return Buffer.concat([
-        Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
-        pngChunk('IHDR', ihdr),
-        pngChunk('IDAT', zlib.deflateSync(raw, { level: 9 })),
-        pngChunk('IEND', Buffer.alloc(0)),
-    ]);
-}
+// exist only as pixels. The encoder is `src/png-encode` — the same one that
+// hands pdf.js pixels to the OCR engine, so fixtures and production share it.
 
 /** A crude picture of three lines of text — dark bars on white. */
-const scanPixels = encodePng(240, 140, (x, y) => {
-    const lineTop = [20, 60, 100].some((top) => y >= top && y < top + 14);
-    return lineTop && x >= 20 && x < 220 ? 0x20 : 0xFF;
-});
+const scanPixels = (() => {
+    const width = 240, height = 140;
+    const rgb = new Uint8Array(width * height * 3).fill(0xFF);
+    for (let y = 0; y < height; y++) {
+        const onLine = [20, 60, 100].some((top) => y >= top && y < top + 14);
+        if (!onLine) continue;
+        for (let x = 20; x < 220; x++) rgb.fill(0x20, (y * width + x) * 3, (y * width + x) * 3 + 3);
+    }
+    return encodePng(width, height, rgb);
+})();
 
 /**
  * Vitest globalSetup: regenerate the PDF test fixtures (deterministically, via
@@ -160,9 +114,9 @@ export default async function setup() {
         await scannedImageDoc.save()
     );
 
-    // Mixed fixture (class C) — page 1 native text, page 2 image-only. Today
-    // the reader classifies per document, so this extracts page 1 and drops
-    // page 2 silently; per-page routing is what makes it whole.
+    // Mixed fixture (class C) — page 1 native text, page 2 image-only. Page 1
+    // reads through the text layer, page 2 only through OCR: the two halves
+    // of hybrid routing in one document.
     const mixedDoc = await PDFDocument.create();
     const mixedFont = await mixedDoc.embedFont(StandardFonts.Helvetica);
     const mixedImage = await mixedDoc.embedPng(scanPixels);
