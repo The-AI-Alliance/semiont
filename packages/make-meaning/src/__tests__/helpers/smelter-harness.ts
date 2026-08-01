@@ -86,10 +86,9 @@ export function resourceDescriptor(id: string, mediaType = 'text/plain', checksu
   };
 }
 
-export interface ContentEntry {
-  text: string;
-  mediaType: string;
-}
+export type ContentEntry =
+  | { text: string; mediaType: string }
+  | { bytes: Uint8Array; mediaType: string };
 
 /**
  * IContentTransport over a read function with per-resource media types,
@@ -112,7 +111,7 @@ export function createContentTransport(opts: {
         const entry = opts.read(rid);
         if (entry === 'fail') throw new Error(`injected read failure: ${rid}`);
         if (!entry) throw new Error(`Resource not found: ${rid}`);
-        const bytes = new TextEncoder().encode(entry.text);
+        const bytes = 'bytes' in entry ? entry.bytes : new TextEncoder().encode(entry.text);
         const data = new ArrayBuffer(bytes.byteLength);
         new Uint8Array(data).set(bytes);
         return { data, contentType: entry.mediaType };

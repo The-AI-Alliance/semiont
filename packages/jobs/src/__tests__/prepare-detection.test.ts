@@ -37,7 +37,7 @@ const GENERATOR: Agent = {
 
 // Synthetic two-line layer — same shape build-pdf-annotation.test pins.
 const LAYER: PdfTextLayer = {
-  pages: [{ pageNumber: 1, widthPt: 612, heightPt: 792 }],
+  pages: [{ pageNumber: 1, widthPt: 612, heightPt: 792, textStart: 0, textEnd: 22, hasTextLayer: true }],
   text: 'alpha beta\ngamma delta',
   items: [
     { start: 0,  end: 5,  page: 1, x: 72,  y: 720, width: 40, height: 12 },
@@ -45,6 +45,7 @@ const LAYER: PdfTextLayer = {
     { start: 11, end: 16, page: 1, x: 72,  y: 700, width: 45, height: 12 },
     { start: 17, end: 22, page: 1, x: 125, y: 700, width: 42, height: 12 },
   ],
+  fields: [],
 };
 
 function fakeSession() {

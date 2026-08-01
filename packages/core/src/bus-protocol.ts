@@ -407,13 +407,15 @@ export type EventMap = {
 
   // Signal — the vector projection's per-resource decision report: emitted
   // by the Smelter after indexing a resource's content ('indexed') or after
-  // deciding not to ('skipped': media gate, empty text). Keyed by the
+  // deciding not to ('skipped', with a `reason` naming the decline — the
+  // SMELTER-MEDIA-TYPES telemetry vocabulary: 'no-extractor' | 'empty' today,
+  // the PDF decline classes when extraction lands). Keyed by the
   // checksum of the bytes inspected — "settled at C" is read-your-writes for
   // exactly that content. NEVER emitted on transient failures: an error is not
   // a decision (SMELTER-INDEX-SYNC A2). Consumed by the backend-local
   // `SmeltProgress` fold behind the gather-side barrier. This is the
   // Smelter's single outbound signal (SMELTER-AXIOMS D3, as amended).
-  'smelt:settled': { resourceId: string; contentChecksum: string; outcome: 'indexed' | 'skipped' };
+  'smelt:settled': { resourceId: string; contentChecksum: string; outcome: 'indexed' | 'skipped'; reason?: 'no-extractor' | 'empty' | 'no-text-layer' | 'encrypted' | 'corrupt' | 'too-large' };
 
   // Command — rebuild the graph projection from the event log (full when
   // resourceId is absent, one resource when present). Served by the Weaver;
@@ -713,7 +715,7 @@ export const CHANNEL_SCHEMAS = {
 
   // ── WEAVE FLOW ──────────────────────────────────────────────────
   'weave:applied':                    null, // { resourceId; sequenceNumber }
-  'smelt:settled':                    null, // { resourceId; contentChecksum; outcome }
+  'smelt:settled':                    null, // { resourceId; contentChecksum; outcome; reason? }
   'weave:rebuild':                    'WeaveRebuildCommand',
   'weave:rebuild-ok':                 null, // { correlationId }
   'weave:rebuild-failed':             null, // { correlationId; message }

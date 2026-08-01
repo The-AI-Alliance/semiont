@@ -19,8 +19,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type { EventMap, components } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
-import { calculateChecksum } from '@semiont/content';
+import { resourceId as makeResourceId, chunkText } from '@semiont/core';
+import { calculateChecksum, extractPdfTextLayer } from '@semiont/content';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive, ConnectionState } from '@semiont/core';
@@ -34,8 +34,10 @@ import {
   annotationEvent,
   resourceDescriptor,
   createMockContentTransport,
+  createContentTransport,
   createFakeKsBus,
 } from './helpers/smelter-harness';
+import { NATIVE_PDF, SCANNED_PDF, TABLE_PDF } from './helpers/pdf-fixtures';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -309,7 +311,7 @@ describe('Smelter smelt:settled signal', () => {
       h.events$.next({ type: 'yield:created', resourceId: 'res-zip', payload: {} });
       await tick();
       expect(settledSignals(h.bus)).toEqual([
-        { resourceId: 'res-zip', contentChecksum: calculateChecksum(bytes), outcome: 'skipped' },
+        { resourceId: 'res-zip', contentChecksum: calculateChecksum(bytes), outcome: 'skipped', reason: 'no-extractor' },
       ]);
       expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
     } finally {
@@ -323,6 +325,143 @@ describe('Smelter smelt:settled signal', () => {
       h.events$.next({ type: 'yield:created', resourceId: 'res-unreachable', payload: {} });
       await tick();
       expect(settledSignals(h.bus)).toEqual([]);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  // SMELTER-MEDIA-TYPES: skips name their reason — the decline vocabulary
+  // rides the settled signal (D3 as amended), never a second channel.
+  // 'no-extractor' = no registry slot for the strategy (the zip test above);
+  // extractor declines carry their class ('corrupt' here — truncated bytes
+  // under a pdf media type); 'empty' = extraction yielded nothing embeddable.
+  it("skips with the extractor's class reason when extraction fails — 'corrupt'", async () => {
+    const bytes = '%PDF-1.7 pretend PDF bytes';
+    const h = await harness(new Map([['res-pdf', bytes]]), 'application/pdf');
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-pdf', payload: {} });
+      await tick();
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-pdf', contentChecksum: calculateChecksum(bytes), outcome: 'skipped', reason: 'corrupt' },
+      ]);
+      expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it("skips with reason 'empty' when extraction yields no embeddable text", async () => {
+    const blank = '   \n  \t ';
+    const h = await harness(new Map([['res-blank', blank]]));
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-blank', payload: {} });
+      await tick();
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-blank', contentChecksum: calculateChecksum(blank), outcome: 'skipped', reason: 'empty' },
+      ]);
+      expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  // Phase 0 pin — zero behavior change for text: same chunks reach the
+  // embedder, same checksum stamp, and the indexed signal carries no reason
+  // (a reason names a decline; an index is not a decline). Green before and
+  // after the registry refactor — this is the byte-identity proof.
+  it('pin: markdown passthrough is unchanged — chunks, checksum, reason-less indexed signal', async () => {
+    const text = '# Title\n\n' + 'A paragraph of body prose, repeated to force chunking. '.repeat(40);
+    const h = await harness(new Map([['res-md', text]]), 'text/markdown');
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-md', payload: {} });
+      await tick();
+      const expectedChunks = chunkText(text, { chunkSize: 512, overlap: 64 });
+      expect(expectedChunks.length).toBeGreaterThan(1);
+      expect(h.embeddingProvider.embedBatch).toHaveBeenCalledTimes(1);
+      expect(h.embeddingProvider.embedBatch).toHaveBeenCalledWith(expectedChunks);
+      expect(settledSignals(h.bus)).toEqual([
+        { resourceId: 'res-md', contentChecksum: calculateChecksum(text), outcome: 'indexed' },
+      ]);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+});
+
+describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
+  function settled(bus: { emitted: Array<{ channel: string; payload: Record<string, unknown> }> }) {
+    return bus.emitted.filter((e) => e.channel === 'smelt:settled').map((e) => e.payload);
+  }
+
+  async function pdfHarness(entries: Record<string, Uint8Array>) {
+    const events$ = new Subject<SmelterEvent>();
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const bus = createFakeKsBus(Object.keys(entries).map((rid) => resourceDescriptor(rid, 'application/pdf')));
+    const smelter = new Smelter(
+      events$,
+      vectorStore,
+      embeddingProvider,
+      createContentTransport({
+        read: (rid) => (entries[rid] ? { bytes: entries[rid], mediaType: 'application/pdf' } : undefined),
+      }),
+      bus,
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    return { events$, smelter, bus, embeddingProvider, vectorStore };
+  }
+
+  it('class A: a native PDF embeds — chunks from the text layer, stamp from the raw bytes', async () => {
+    const h = await pdfHarness({ 'res-native': NATIVE_PDF });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-native', payload: {} });
+      await tick();
+      const layer = await extractPdfTextLayer(NATIVE_PDF);
+      const expectedChunks = chunkText(layer!.text, { chunkSize: 512, overlap: 64 });
+      expect(h.embeddingProvider.embedBatch).toHaveBeenCalledWith(expectedChunks);
+      // S12/S14 do not move: the stamp and the settled key are the checksum
+      // of the raw stored bytes — never a hash of the extracted text.
+      const rawChecksum = calculateChecksum(Buffer.from(NATIVE_PDF));
+      expect(settled(h.bus)).toEqual([
+        { resourceId: 'res-native', contentChecksum: rawChecksum, outcome: 'indexed' },
+      ]);
+      expect((await h.vectorStore.listResourceStamps()).get('res-native')?.contentChecksum).toBe(rawChecksum);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('class D: a tabular PDF embeds row-coherent chunks', async () => {
+    // Phase 2 (#745): the embedded text a row's cells land in must keep them
+    // together — the whole point of shaping before the shared chunker.
+    const h = await pdfHarness({ 'res-table': TABLE_PDF });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-table', payload: {} });
+      await tick();
+      expect(h.embeddingProvider.embedBatch).toHaveBeenCalledTimes(1);
+      const chunks = vi.mocked(h.embeddingProvider.embedBatch).mock.calls[0]![0];
+      const rowChunk = chunks.find((c) => c.includes('Drug A'));
+      expect(rowChunk).toBeDefined();
+      expect(rowChunk).toContain('| Drug A | 12% | 0.03 |');
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it("class B: a scanned PDF declines — skipped, reason 'no-text-layer', no vectors", async () => {
+    const h = await pdfHarness({ 'res-scanned': SCANNED_PDF });
+    try {
+      h.events$.next({ type: 'yield:created', resourceId: 'res-scanned', payload: {} });
+      await tick();
+      expect(settled(h.bus)).toEqual([
+        { resourceId: 'res-scanned', contentChecksum: calculateChecksum(Buffer.from(SCANNED_PDF)), outcome: 'skipped', reason: 'no-text-layer' },
+      ]);
+      expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
+      expect((await h.vectorStore.listResourceStamps()).size).toBe(0);
     } finally {
       h.smelter.stop();
     }
@@ -497,6 +636,37 @@ describe('Smelter.reconcile', () => {
 
     expect(summary.resourcesEmbedded).toBe(250);
     expect((await vectorStore.listResourceStamps()).size).toBe(250);
+  });
+
+  it('reports extraction coverage in the summary — eligible vs indexed, declines are the gap', async () => {
+    // Phase 1 (#744): eligibility counts extractor existence (md + pdf; zip
+    // has no extractor), indexed counts what actually embedded (the scanned
+    // pdf declines) — extraction-coverage = indexed/eligible = 1/2 here.
+    const smelter = new Smelter(
+      new Subject<SmelterEvent>(),
+      vectorStore,
+      embeddingProvider,
+      createContentTransport({
+        read: (rid) =>
+          rid === 'res-cov-md' ? { text: 'Covered content.', mediaType: 'text/markdown' }
+          : rid === 'res-cov-pdf' ? { bytes: SCANNED_PDF, mediaType: 'application/pdf' }
+          : undefined,
+      }),
+      createFakeKsBus([
+        resourceDescriptor('res-cov-md', 'text/markdown'),
+        resourceDescriptor('res-cov-pdf', 'application/pdf'),
+        resourceDescriptor('res-cov-zip', 'application/zip'),
+      ]),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    smelters.push(smelter);
+
+    const summary = await smelter.reconcile();
+    expect(summary.resourcesEligible).toBe(2);
+    expect(summary.resourcesIndexed).toBe(1);
   });
 
   it('records failure state when the catalog is unreachable', async () => {

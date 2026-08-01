@@ -20,6 +20,14 @@ export {
   verifyChecksum
 } from './checksum';
 
+// Strategy-keyed text extraction for embedding (SMELTER-MEDIA-TYPES)
+export {
+  EXTRACTORS,
+  type ContentExtractor,
+  type ExtractedText,
+  type ExtractionDecline,
+} from './content-extractor';
+
 // PDF text-layer extraction
 export { extractPdfTextLayer } from './extract-pdf-text-layer';
 export { locate } from './locate';
@@ -27,4 +35,5 @@ export type {
   PdfTextLayer,
   PdfTextItem,
   PdfPageInfo,
+  PdfFormField,
 } from './pdf-text-layer';

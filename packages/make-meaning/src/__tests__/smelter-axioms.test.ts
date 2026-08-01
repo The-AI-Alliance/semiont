@@ -24,6 +24,7 @@ import type { EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import { chunkText } from '@semiont/core';
 import type { ChunkingConfig } from '@semiont/core';
 import { textExtractionOf } from '@semiont/core';
+import { EXTRACTORS } from '@semiont/content';
 import { Smelter, type SmelterTiming } from '../smelter';
 import type { SmelterEvent } from '../smelter-actor-state-unit';
 import { partitionByType } from '../batch-utils';
@@ -79,12 +80,20 @@ async function pump(s: fc.Scheduler, done: () => boolean, maxMs = 4000): Promise
 
 const ridArb = fc.nat(9999).map((n) => `res-${n}`);
 const textArb = fc.string({ minLength: 1, maxLength: 60 }).filter((s) => s.trim().length > 0);
-// The smelter's media gate, as inlined at both smelter.ts call sites:
-// "embed anything that decodes as text" (MEDIA-TYPES.md decision 7).
+// The harness's behavioral gate: which catalog entries actually embed.
+// Decode types do. 'none' types have no extractor. And the harness's
+// "PDFs" carry text bytes — class-G corrupt, declined at extraction — so
+// application/pdf entries never embed here even though the strategy is
+// eligible (P0b): eligibility is an extractor existing, not extraction
+// succeeding (SMELTER-MEDIA-TYPES Phase 1).
 const embeds = (mediaType: string) => textExtractionOf(mediaType) === 'decode';
 
-// Pools by gate outcome: decodable types embed; the rest (binary, and
-// pdf-text-layer until SMELTER-MEDIA-TYPES.md lands its dispatch) are skipped.
+/** Eligibility: an extractor exists for the type's strategy (P0b). Wider than
+ *  `embeds` — a PDF is eligible and still declines on garbage bytes. */
+const eligible = (mediaType: string) => EXTRACTORS[textExtractionOf(mediaType)] !== null;
+
+// Pools by behavioral outcome: decodable types embed; the rest (binary
+// without an extractor, and pdfs whose garbage bytes decline) are skipped.
 const textMediaArb = fc.constantFrom('text/plain', 'text/markdown', 'text/html; charset=utf-8', 'application/json');
 const binaryMediaArb = fc.constantFrom('application/pdf', 'image/png', 'application/octet-stream', 'application/zip');
 const mediaTypeArb = fc.oneof(textMediaArb, binaryMediaArb);
@@ -379,24 +388,26 @@ describe('P0 — pure laws', () => {
     );
   });
 
-  // P0b (FOPL): ∀ m ∈ M: m = "text/" ⧺ s → extraction(m) = decode
-  // — the registry gate never narrows the old text/* prefix gate
-  // (MEDIA-TYPES.md decision 7: "embed anything that decodes as text").
-  // Widened admissions and the deferred pdf tier are pinned as examples;
-  // the gate expression itself is `textExtractionOf(m) === 'decode'`.
-  it('P0b: the media gate embeds exactly what decodes as text', () => {
+  // P0b (FOPL): ∀ m ∈ M: eligible(m) ⇔ EXTRACTORS[extraction(m)] ≠ null,
+  // with ∀ s: extraction("text/" ⧺ s) = decode — the registry gate never
+  // narrows the old text/* prefix gate (MEDIA-TYPES.md decision 7), and at
+  // Phase 1 (SMELTER-MEDIA-TYPES #744) the pdf tier joins ELIGIBILITY: an
+  // extractor exists. Eligibility is not success — a scanned/corrupt PDF is
+  // eligible and still declines at extraction (never mojibake).
+  it('P0b: eligibility is exactly "an extractor exists for the strategy"', () => {
     fc.assert(
       fc.property(fc.string({ maxLength: 20 }).map((s) => `text/${s}`), (mt) => {
         expect(textExtractionOf(mt)).toBe('decode');
+        expect(eligible(mt)).toBe(true);
       }),
       { numRuns: 500 },
     );
-    expect(embeds('application/json')).toBe(true);          // structured text joins the old gate
-    expect(embeds('text/x-foo')).toBe(true);                // registry-miss text/* (RFC 2046 fallback)
-    expect(embeds('application/zip')).toBe(false);          // binary stays out
-    expect(embeds('application/octet-stream')).toBe(false);
-    expect(embeds('application/pdf')).toBe(false);          // pdf-text-layer ≠ decode: deferred to
-    expect(textExtractionOf('application/pdf')).toBe('pdf-text-layer'); // SMELTER-MEDIA-TYPES.md — never mojibake
+    expect(eligible('application/json')).toBe(true);        // structured text joins the old gate
+    expect(eligible('text/x-foo')).toBe(true);              // registry-miss text/* (RFC 2046 fallback)
+    expect(eligible('application/zip')).toBe(false);        // binary stays out — no extractor
+    expect(eligible('application/octet-stream')).toBe(false);
+    expect(eligible('application/pdf')).toBe(true);         // Phase 1: the pdf-text-layer slot is filled
+    expect(textExtractionOf('application/pdf')).toBe('pdf-text-layer');
   });
 });
 
@@ -488,8 +499,11 @@ describe('Smelter axioms', () => {
     );
   }, 30_000);
 
-  // S6 (FOPL): ∀ executions (live or reconcile), ∀ r: vec(final, r) ≠ ∅ → gate(media(r))
-  it('S6: only resources that decode as text ever have vectors, on every path', async () => {
+  // S6 (FOPL): ∀ executions (live or reconcile), ∀ r: vec(final, r) ≠ ∅ →
+  //   extraction(media(r)) yielded text — vectors exist only where an
+  //   extractor exists AND succeeded (Phase 1 widened the gate to the
+  //   registry; the harness's pdf entries are eligible but decline).
+  it('S6: only resources whose extractor yields text ever have vectors, on every path', async () => {
     await fc.assert(
       fc.asyncProperty(catalogArb.filter((c) => c.length > 0), async (catalog) => {
         const expected = catalog.filter((e) => embeds(e.mediaType)).map((e) => e.rid).sort();
@@ -642,8 +656,22 @@ describe('Smelter axioms', () => {
 
           await h.smelter.reconcile();
 
+          // Convergence is bounded by stamp trust (S12): reconcile re-reads a
+          // resource only when the catalog's checksum disagrees with the
+          // stamp, so a seeded vector carrying the CURRENT checksum for an
+          // eligible type is left alone — the planner has no evidence it is
+          // wrong, and re-extracting every eligible resource each pass is
+          // exactly what stamps exist to avoid. (Only seeding forges that
+          // state; in production it takes an extractor-version change, which
+          // an operator repairs with a wipe-and-reconcile rebuild.) Types with
+          // no extractor carry no such trust and are purged regardless.
+          const expected = new Set(catalog.filter((e) => embeds(e.mediaType)).map((e) => e.rid));
+          catalog.forEach((e, i) => {
+            if (div.preIndexed[i] && eligible(e.mediaType)) expected.add(e.rid);
+          });
+
           expect(await h.ids()).toEqual({
-            resources: catalog.filter((e) => embeds(e.mediaType)).map((e) => e.rid).sort(),
+            resources: [...expected].sort(),
             annotations: catalog.flatMap((e) => e.annotations.map((a) => a.aid)).sort(),
           });
         } finally {
@@ -759,7 +787,7 @@ describe('Smelter axioms', () => {
 
   // S14 (FOPL): ∀ K, ∀ reachable r ∈ K delivered a create:
   //   ∃! latest settled(r, checksum(r,K), outcome) ∧
-  //   outcome = indexed ⇔ gate(media(r)) ∧ text(r) non-empty, else skipped;
+  //   outcome = indexed ⇔ extraction(media(r)) yields non-empty text, else skipped;
   //   ∀ unreachable r (transient read failure): ∄ settled(r, ·) — an error
   //   is not a decision (SMELTER-INDEX-SYNC A2). The projection always
   //   states its decision; absence means only "not yet" or "failed".
