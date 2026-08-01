@@ -469,9 +469,33 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 				if json.Unmarshal(ev.Payload, &done) != nil || done.JobId != jobID {
 					continue
 				}
+				// A DECLINE is read first, and by its DISCRIMINANT. Every
+				// generated As*() accessor is a bare json.Unmarshal with no
+				// discriminant check, so a declined result decodes cleanly
+				// into JobGenerationResult with an empty resource id —
+				// indistinguishable, to the check below, from a generation
+				// that simply had no id to print. Ordering alone would not
+				// be enough either: AsJobDeclinedResult succeeds on a
+				// generation too, with Declined false.
+				declined, ok := declinedResult(done.Result)
 				if opts.asJSON {
 					fmt.Println(string(ev.Payload))
+					// The exit code is a property of the outcome, not of the
+					// output format.
+					if ok {
+						return 1
+					}
 					return 0
+				}
+				if ok {
+					// Not a failure — the job ran correctly and found nothing
+					// to work with, so this is deliberately not the job:fail
+					// wording. Non-zero all the same: the caller asked for a
+					// resource and has none, and nothing downstream of a
+					// `yield --delegate && ...` should run.
+					u.fail("Declined (%s): %s", declined.Reason, declined.Message)
+					fmt.Fprintf(os.Stderr, "  Nothing was written to %s.\n", opts.storageURI)
+					return 1
 				}
 				// JobResult is a union over every job type; a generation names
 				// the resource it produced.
@@ -486,6 +510,27 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 			}
 		}
 	}
+}
+
+// declinedResult reads the DECLINE member out of a JobResult, and reports
+// false for every shape that actually did the work.
+//
+// The discriminant is what makes this safe, and it has to be checked
+// explicitly: oapi-codegen's As*() accessors are bare json.Unmarshal calls
+// with no discriminant test, so every union member "decodes" successfully
+// against every other member's payload. AsJobDeclinedResult on a generation
+// result returns a zero-valued struct — err nil, Declined false. Only the
+// schema's `"declined": true` const separates the two, so only reading it
+// tells them apart.
+func declinedResult(r *semiont.JobResult) (semiont.JobDeclinedResult, bool) {
+	if r == nil {
+		return semiont.JobDeclinedResult{}, false
+	}
+	d, err := r.AsJobDeclinedResult()
+	if err != nil || !bool(d.Declined) {
+		return semiont.JobDeclinedResult{}, false
+	}
+	return d, true
 }
 
 type delegateOptions struct {

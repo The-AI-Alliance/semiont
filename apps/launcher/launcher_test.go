@@ -6242,6 +6242,47 @@ func TestYieldDelegateReportsJobFailure(t *testing.T) {
 	mustContain(t, "failure", stdout+stderr, "Generation failed", "model refused")
 }
 
+// A DECLINE completes the job — nothing went wrong, there was simply nothing
+// to work with (an encrypted PDF, a scan with no text layer). No resource
+// exists at the storage URI afterwards, so a ✓ here is the worst of the three
+// outcomes to get wrong: the caller's next step runs against nothing.
+//
+// The trap this guards is specific. Every generated As*() accessor is a bare
+// json.Unmarshal with no discriminant check, so a declined result decodes
+// CLEANLY into JobGenerationResult with an empty resource id — which reads
+// exactly like "a generation with no id to print".
+func TestYieldDelegateReportsADecline(t *testing.T) {
+	s := busScenario(t,
+		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
+		`FAKERT_JOB_RESULT={"declined":true,"reason":"encrypted","message":"the PDF is password-protected"}`)
+	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md")
+	if code == 0 {
+		t.Fatalf("a declined job produced nothing; exit 0 tells a script to carry on\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "decline", stdout+stderr, "encrypted", "the PDF is password-protected")
+	if strings.Contains(stdout, "Yielded") {
+		t.Errorf("claimed a yield that never happened:\n%s", stdout)
+	}
+	// Reported as its own outcome, not dressed up as a crash — the schema is
+	// explicit that a decline is distinct from a failure.
+	if strings.Contains(stdout+stderr, "Generation failed") {
+		t.Errorf("a decline is not a failure:\n%s", stdout+stderr)
+	}
+}
+
+// The exit code must not depend on the output format: --json prints the raw
+// payload and still reports that nothing was produced.
+func TestYieldDelegateDeclineFailsUnderJSON(t *testing.T) {
+	s := busScenario(t,
+		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
+		`FAKERT_JOB_RESULT={"declined":true,"reason":"no-text-layer","message":"scanned pages, no recognizable text"}`)
+	stdout, _, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--json")
+	if code == 0 {
+		t.Fatalf("--json must not turn a decline into a success\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "raw payload", stdout, `"declined":true`, `"no-text-layer"`)
+}
+
 func TestYieldDelegateNeedsStorageUri(t *testing.T) {
 	s := busScenario(t)
 	_, stderr, code := s.run(t, "yield", "--delegate", "res-src")

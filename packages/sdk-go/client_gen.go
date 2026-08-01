@@ -367,6 +367,48 @@ func (e JobCancelRequestJobType) Valid() bool {
 	}
 }
 
+// Defines values for JobDeclinedResultDeclined.
+const (
+	True JobDeclinedResultDeclined = true
+)
+
+// Valid indicates whether the value is a known member of the JobDeclinedResultDeclined enum.
+func (e JobDeclinedResultDeclined) Valid() bool {
+	switch e {
+	case True:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobDeclinedResultReason.
+const (
+	Corrupt     JobDeclinedResultReason = "corrupt"
+	Empty       JobDeclinedResultReason = "empty"
+	Encrypted   JobDeclinedResultReason = "encrypted"
+	NoTextLayer JobDeclinedResultReason = "no-text-layer"
+	TooLarge    JobDeclinedResultReason = "too-large"
+)
+
+// Valid indicates whether the value is a known member of the JobDeclinedResultReason enum.
+func (e JobDeclinedResultReason) Valid() bool {
+	switch e {
+	case Corrupt:
+		return true
+	case Empty:
+		return true
+	case Encrypted:
+		return true
+	case NoTextLayer:
+		return true
+	case TooLarge:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobStatusResponseStatus.
 const (
 	Cancelled JobStatusResponseStatus = "cancelled"
@@ -2172,6 +2214,24 @@ type JobCreatedResult struct {
 	} `json:"response"`
 }
 
+// JobDeclinedResult Result of a job that completed without doing its work because the resource could not be read. Distinct from a failure: nothing went wrong, there was simply no text to work with — an encrypted or damaged PDF, a scan whose text could not be recognized, or a document that yielded nothing. The reasons are the extraction vocabulary the Smelter reports on `smelt:settled`, MINUS `no-extractor`: a media type that can never yield text (a zip, an image) is a bad request rather than a decline, so a worker asked to detect over one throws and the job reports `job:fail`. Everything here is a resource-specific outcome — the same media type would have succeeded on a different document.
+type JobDeclinedResult struct {
+	// Declined Discriminant. Always true — a job that did its work reports one of the other result shapes.
+	Declined JobDeclinedResultDeclined `json:"declined"`
+
+	// Message Human-readable explanation, suitable for showing to the user.
+	Message string `json:"message"`
+
+	// Reason Why the resource could not be read.
+	Reason JobDeclinedResultReason `json:"reason"`
+}
+
+// JobDeclinedResultDeclined Discriminant. Always true — a job that did its work reports one of the other result shapes.
+type JobDeclinedResultDeclined bool
+
+// JobDeclinedResultReason Why the resource could not be read.
+type JobDeclinedResultReason string
+
 // JobFailCommand Command to mark a job as failed
 type JobFailCommand struct {
 	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
@@ -3254,6 +3314,9 @@ type SemanticMatch struct {
 
 	// EntityTypes Entity types on the matched passage
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
+
+	// MachineRead True when this passage's text was recognized from pixels (OCR of a scanned page) rather than read from the document. Absent means read directly — the common case — so the flag is only present where it changes how the text should be trusted. It travels with the passage because a consumer receives the chunk with no document attached and cannot recompute how the text was obtained.
+	MachineRead *bool `json:"machineRead,omitempty"`
 
 	// ResourceId Source resource ID
 	ResourceId string `json:"resourceId"`
@@ -6903,6 +6966,32 @@ func (t *JobResult) FromJobTagAnnotationResult(v JobTagAnnotationResult) error {
 
 // MergeJobTagAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobTagAnnotationResult
 func (t *JobResult) MergeJobTagAnnotationResult(v JobTagAnnotationResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobDeclinedResult returns the union data inside the JobResult as a JobDeclinedResult
+func (t JobResult) AsJobDeclinedResult() (JobDeclinedResult, error) {
+	var body JobDeclinedResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobDeclinedResult overwrites any union data inside the JobResult as the provided JobDeclinedResult
+func (t *JobResult) FromJobDeclinedResult(v JobDeclinedResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobDeclinedResult performs a merge with any union data inside the JobResult, using the provided JobDeclinedResult
+func (t *JobResult) MergeJobDeclinedResult(v JobDeclinedResult) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
