@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Sluiten",
+    "paramsTitle": "Aanvraagparameters:",
+    "processing": "Huidig: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Annotaties",
     "history": "Geschiedenis",
@@ -105,7 +110,9 @@
     "densityDense": "Dicht",
     "fragmentSelected": "Fragment geselecteerd",
     "imageRegionSelected": "Afbeeldingsgebied geselecteerd",
-    "closeProgress": "Sluiten"
+    "complete": "Annotatie voltooid!",
+    "failed": "Annotatie mislukt",
+    "densityPerWords": "{{density}} per 2000 woorden"
   },
   "HighlightPanel": {
     "title": "Markeringen",
@@ -120,7 +127,9 @@
     "densityLabel": "Dichtheid",
     "densitySparse": "Schaars",
     "densityDense": "Dicht",
-    "closeProgress": "Sluiten"
+    "complete": "Annotatie voltooid!",
+    "failed": "Annotatie mislukt",
+    "densityPerWords": "{{density}} per 2000 woorden"
   },
   "AssessmentPanel": {
     "title": "Beoordelingen",
@@ -145,7 +154,9 @@
     "densityDense": "Dicht",
     "fragmentSelected": "Fragment geselecteerd",
     "imageRegionSelected": "Afbeeldingsgebied geselecteerd",
-    "closeProgress": "Sluiten"
+    "complete": "Annotatie voltooid!",
+    "failed": "Annotatie mislukt",
+    "densityPerWords": "{{density}} per 2000 woorden"
   },
   "TaggingPanel": {
     "title": "Labels",
@@ -164,7 +175,9 @@
     "selectCategory": "Categorie selecteren",
     "chooseCategory": "Kies een categorie...",
     "fragmentSelected": "Fragment geselecteerd",
-    "imageRegionSelected": "Afbeeldingsgebied geselecteerd"
+    "imageRegionSelected": "Afbeeldingsgebied geselecteerd",
+    "complete": "Annotatie voltooid!",
+    "failed": "Annotatie mislukt"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Annotaties",
@@ -220,7 +233,6 @@
     "complete": "Annotatie voltooid!",
     "failed": "Annotatie mislukt",
     "current": "Huidig: {{entityType}}",
-    "closeProgress": "Sluiten",
     "loading": "laden...",
     "loadingEllipsis": "Laden...",
     "untitledResource": "Naamloze bron",

@@ -409,6 +409,32 @@ describe('ReferencesPanel Component', () => {
       expect(screen.getByText('Organization:')).toBeInTheDocument();
     });
 
+    it('renders the entity log with the SAME markup the progress display uses', () => {
+      // ASSIST-SURFACE-WARTS Lane B: this form-side log and AssistProgress's
+      // completed-entity log are the same concept. They had two class families
+      // (semiont-assist-widget__log* here, semiont-annotation-log* there) one
+      // panel apart — one concept, one markup.
+      const { container, rerender } = renderWithEventBus(
+        <ReferencesPanel
+          {...panelProps()}
+          isAssisting={false}
+          progress={{
+            stage: 'complete',
+            percentage: 100,
+            message: 'Annotation complete',
+            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+          }}
+        />
+      );
+      rerender(
+        <ReferencesPanel {...panelProps()} isAssisting={false} progress={null} />
+      );
+
+      expect(container.querySelector('.semiont-annotation-log')).toBeInTheDocument();
+      expect(container.querySelector('.semiont-annotation-log-item')).toBeInTheDocument();
+      expect(container.querySelector('.semiont-assist-widget__log')).not.toBeInTheDocument();
+    });
+
     it('should hide entity type selection during detection', () => {
       renderWithEventBus(
         <ReferencesPanel

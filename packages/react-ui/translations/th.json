@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "ปิด",
+    "paramsTitle": "พารามิเตอร์คำขอ:",
+    "processing": "ปัจจุบัน: {{label}}"
+  },
   "Toolbar": {
     "annotations": "คำอธิบายประกอบ",
     "history": "ประวัติ",
@@ -105,7 +110,9 @@
     "densityDense": "หนาแน่น",
     "fragmentSelected": "เลือกส่วนข้อความแล้ว",
     "imageRegionSelected": "เลือกพื้นที่รูปภาพแล้ว",
-    "closeProgress": "ปิด"
+    "complete": "การสร้างคำอธิบายประกอบเสร็จสมบูรณ์!",
+    "failed": "การสร้างคำอธิบายประกอบล้มเหลว",
+    "densityPerWords": "{{density}} ต่อ 2000 คำ"
   },
   "HighlightPanel": {
     "title": "ไฮไลต์",
@@ -120,7 +127,9 @@
     "densityLabel": "ความหนาแน่น",
     "densitySparse": "เบาบาง",
     "densityDense": "หนาแน่น",
-    "closeProgress": "ปิด"
+    "complete": "การสร้างคำอธิบายประกอบเสร็จสมบูรณ์!",
+    "failed": "การสร้างคำอธิบายประกอบล้มเหลว",
+    "densityPerWords": "{{density}} ต่อ 2000 คำ"
   },
   "AssessmentPanel": {
     "title": "การประเมิน",
@@ -145,7 +154,9 @@
     "densityDense": "หนาแน่น",
     "fragmentSelected": "เลือกส่วนข้อความแล้ว",
     "imageRegionSelected": "เลือกพื้นที่รูปภาพแล้ว",
-    "closeProgress": "ปิด"
+    "complete": "การสร้างคำอธิบายประกอบเสร็จสมบูรณ์!",
+    "failed": "การสร้างคำอธิบายประกอบล้มเหลว",
+    "densityPerWords": "{{density}} ต่อ 2000 คำ"
   },
   "TaggingPanel": {
     "title": "แท็ก",
@@ -164,7 +175,9 @@
     "selectCategory": "เลือกหมวดหมู่",
     "chooseCategory": "เลือกหมวดหมู่...",
     "fragmentSelected": "เลือกส่วนข้อความแล้ว",
-    "imageRegionSelected": "เลือกพื้นที่รูปภาพแล้ว"
+    "imageRegionSelected": "เลือกพื้นที่รูปภาพแล้ว",
+    "complete": "การสร้างคำอธิบายประกอบเสร็จสมบูรณ์!",
+    "failed": "การสร้างคำอธิบายประกอบล้มเหลว"
   },
   "UnifiedAnnotationsPanel": {
     "title": "คำอธิบายประกอบ",
@@ -220,7 +233,6 @@
     "complete": "การสร้างคำอธิบายประกอบเสร็จสมบูรณ์!",
     "failed": "การสร้างคำอธิบายประกอบล้มเหลว",
     "current": "ปัจจุบัน: {{entityType}}",
-    "closeProgress": "ปิด",
     "loading": "กำลังโหลด...",
     "loadingEllipsis": "กำลังโหลด...",
     "untitledResource": "ทรัพยากรไม่มีชื่อ",

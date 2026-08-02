@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "关闭",
+    "paramsTitle": "请求参数：",
+    "processing": "当前：{{label}}"
+  },
   "Toolbar": {
     "annotations": "注释",
     "history": "历史",
@@ -105,7 +110,9 @@
     "densityDense": "密集",
     "fragmentSelected": "已选择片段",
     "imageRegionSelected": "已选择图像区域",
-    "closeProgress": "关闭"
+    "complete": "注释完成！",
+    "failed": "注释失败",
+    "densityPerWords": "每 2000 词 {{density}} 个"
   },
   "HighlightPanel": {
     "title": "高亮",
@@ -120,7 +127,9 @@
     "densityLabel": "密度",
     "densitySparse": "稀疏",
     "densityDense": "密集",
-    "closeProgress": "关闭"
+    "complete": "注释完成！",
+    "failed": "注释失败",
+    "densityPerWords": "每 2000 词 {{density}} 个"
   },
   "AssessmentPanel": {
     "title": "评估",
@@ -145,7 +154,9 @@
     "densityDense": "密集",
     "fragmentSelected": "已选择片段",
     "imageRegionSelected": "已选择图像区域",
-    "closeProgress": "关闭"
+    "complete": "注释完成！",
+    "failed": "注释失败",
+    "densityPerWords": "每 2000 词 {{density}} 个"
   },
   "TaggingPanel": {
     "title": "标签",
@@ -164,7 +175,9 @@
     "selectCategory": "选择分类",
     "chooseCategory": "选择一个分类...",
     "fragmentSelected": "已选择片段",
-    "imageRegionSelected": "已选择图像区域"
+    "imageRegionSelected": "已选择图像区域",
+    "complete": "注释完成！",
+    "failed": "注释失败"
   },
   "UnifiedAnnotationsPanel": {
     "title": "注释",
@@ -220,7 +233,6 @@
     "complete": "注释完成！",
     "failed": "注释失败",
     "current": "当前：{{entityType}}",
-    "closeProgress": "关闭",
     "loading": "加载中...",
     "loadingEllipsis": "加载中...",
     "untitledResource": "无标题资源",

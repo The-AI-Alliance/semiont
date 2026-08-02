@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Stäng",
+    "paramsTitle": "Begäranparametrar:",
+    "processing": "Aktuell: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Annoteringar",
     "history": "Historik",
@@ -105,7 +110,9 @@
     "densityDense": "Tät",
     "fragmentSelected": "Fragment valt",
     "imageRegionSelected": "Bildområde valt",
-    "closeProgress": "Stäng"
+    "complete": "Annotering klar!",
+    "failed": "Annotering misslyckades",
+    "densityPerWords": "{{density}} per 2000 ord"
   },
   "HighlightPanel": {
     "title": "Markeringar",
@@ -120,7 +127,9 @@
     "densityLabel": "Täthet",
     "densitySparse": "Gles",
     "densityDense": "Tät",
-    "closeProgress": "Stäng"
+    "complete": "Annotering klar!",
+    "failed": "Annotering misslyckades",
+    "densityPerWords": "{{density}} per 2000 ord"
   },
   "AssessmentPanel": {
     "title": "Bedömningar",
@@ -145,7 +154,9 @@
     "densityDense": "Tät",
     "fragmentSelected": "Fragment valt",
     "imageRegionSelected": "Bildområde valt",
-    "closeProgress": "Stäng"
+    "complete": "Annotering klar!",
+    "failed": "Annotering misslyckades",
+    "densityPerWords": "{{density}} per 2000 ord"
   },
   "TaggingPanel": {
     "title": "Taggar",
@@ -164,7 +175,9 @@
     "selectCategory": "Välj kategori",
     "chooseCategory": "Välj en kategori...",
     "fragmentSelected": "Fragment valt",
-    "imageRegionSelected": "Bildområde valt"
+    "imageRegionSelected": "Bildområde valt",
+    "complete": "Annotering klar!",
+    "failed": "Annotering misslyckades"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Annoteringar",
@@ -220,7 +233,6 @@
     "complete": "Annotering klar!",
     "failed": "Annotering misslyckades",
     "current": "Aktuell: {{entityType}}",
-    "closeProgress": "Stäng",
     "loading": "laddar...",
     "loadingEllipsis": "Laddar...",
     "untitledResource": "Namnlös resurs",

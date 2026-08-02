@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "إغلاق",
+    "paramsTitle": "معاملات الطلب:",
+    "processing": "الحالي: {{label}}"
+  },
   "Toolbar": {
     "annotations": "التعليقات التوضيحية",
     "history": "السجل",
@@ -105,7 +110,9 @@
     "densityDense": "كثيف",
     "fragmentSelected": "تم تحديد جزء",
     "imageRegionSelected": "تم تحديد منطقة من الصورة",
-    "closeProgress": "إغلاق"
+    "complete": "اكتمل التوضيح!",
+    "failed": "فشل التوضيح",
+    "densityPerWords": "{{density}} لكل 2000 كلمة"
   },
   "HighlightPanel": {
     "title": "التمييزات",
@@ -120,7 +127,9 @@
     "densityLabel": "الكثافة",
     "densitySparse": "متفرق",
     "densityDense": "كثيف",
-    "closeProgress": "إغلاق"
+    "complete": "اكتمل التوضيح!",
+    "failed": "فشل التوضيح",
+    "densityPerWords": "{{density}} لكل 2000 كلمة"
   },
   "AssessmentPanel": {
     "title": "التقييمات",
@@ -145,7 +154,9 @@
     "densityDense": "كثيف",
     "fragmentSelected": "تم تحديد جزء",
     "imageRegionSelected": "تم تحديد منطقة من الصورة",
-    "closeProgress": "إغلاق"
+    "complete": "اكتمل التوضيح!",
+    "failed": "فشل التوضيح",
+    "densityPerWords": "{{density}} لكل 2000 كلمة"
   },
   "TaggingPanel": {
     "title": "العلامات",
@@ -164,7 +175,9 @@
     "selectCategory": "اختيار الفئة",
     "chooseCategory": "اختر فئة...",
     "fragmentSelected": "تم تحديد جزء",
-    "imageRegionSelected": "تم تحديد منطقة من الصورة"
+    "imageRegionSelected": "تم تحديد منطقة من الصورة",
+    "complete": "اكتمل التوضيح!",
+    "failed": "فشل التوضيح"
   },
   "UnifiedAnnotationsPanel": {
     "title": "التعليقات التوضيحية",
@@ -220,7 +233,6 @@
     "complete": "اكتمل التوضيح!",
     "failed": "فشل التوضيح",
     "current": "الحالي: {{entityType}}",
-    "closeProgress": "إغلاق",
     "loading": "جارٍ التحميل...",
     "loadingEllipsis": "جارٍ التحميل...",
     "untitledResource": "مورد بدون عنوان",

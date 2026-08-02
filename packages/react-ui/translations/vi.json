@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Đóng",
+    "paramsTitle": "Tham số yêu cầu:",
+    "processing": "Hiện tại: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Chú thích",
     "history": "Lịch sử",
@@ -105,7 +110,9 @@
     "densityDense": "Dày",
     "fragmentSelected": "Đã chọn đoạn văn bản",
     "imageRegionSelected": "Đã chọn vùng hình ảnh",
-    "closeProgress": "Đóng"
+    "complete": "Hoàn thành chú thích!",
+    "failed": "Chú thích thất bại",
+    "densityPerWords": "{{density}} trên 2000 từ"
   },
   "HighlightPanel": {
     "title": "Đánh dấu nổi bật",
@@ -120,7 +127,9 @@
     "densityLabel": "Mật độ",
     "densitySparse": "Thưa",
     "densityDense": "Dày",
-    "closeProgress": "Đóng"
+    "complete": "Hoàn thành chú thích!",
+    "failed": "Chú thích thất bại",
+    "densityPerWords": "{{density}} trên 2000 từ"
   },
   "AssessmentPanel": {
     "title": "Đánh giá",
@@ -145,7 +154,9 @@
     "densityDense": "Dày",
     "fragmentSelected": "Đã chọn đoạn văn bản",
     "imageRegionSelected": "Đã chọn vùng hình ảnh",
-    "closeProgress": "Đóng"
+    "complete": "Hoàn thành chú thích!",
+    "failed": "Chú thích thất bại",
+    "densityPerWords": "{{density}} trên 2000 từ"
   },
   "TaggingPanel": {
     "title": "Thẻ",
@@ -164,7 +175,9 @@
     "selectCategory": "Chọn danh mục",
     "chooseCategory": "Chọn một danh mục...",
     "fragmentSelected": "Đã chọn đoạn văn bản",
-    "imageRegionSelected": "Đã chọn vùng hình ảnh"
+    "imageRegionSelected": "Đã chọn vùng hình ảnh",
+    "complete": "Hoàn thành chú thích!",
+    "failed": "Chú thích thất bại"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Chú thích",
@@ -220,7 +233,6 @@
     "complete": "Hoàn thành chú thích!",
     "failed": "Chú thích thất bại",
     "current": "Hiện tại: {{entityType}}",
-    "closeProgress": "Đóng",
     "loading": "đang tải...",
     "loadingEllipsis": "Đang tải...",
     "untitledResource": "Tài nguyên chưa có tiêu đề",

@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "닫기",
+    "paramsTitle": "요청 매개변수:",
+    "processing": "현재: {{label}}"
+  },
   "Toolbar": {
     "annotations": "주석",
     "history": "기록",
@@ -105,7 +110,9 @@
     "densityDense": "밀집",
     "fragmentSelected": "구절 선택됨",
     "imageRegionSelected": "이미지 영역 선택됨",
-    "closeProgress": "닫기"
+    "complete": "주석 완료!",
+    "failed": "주석 실패",
+    "densityPerWords": "2000단어당 {{density}}"
   },
   "HighlightPanel": {
     "title": "하이라이트",
@@ -120,7 +127,9 @@
     "densityLabel": "밀도",
     "densitySparse": "희소",
     "densityDense": "밀집",
-    "closeProgress": "닫기"
+    "complete": "주석 완료!",
+    "failed": "주석 실패",
+    "densityPerWords": "2000단어당 {{density}}"
   },
   "AssessmentPanel": {
     "title": "평가",
@@ -145,7 +154,9 @@
     "densityDense": "밀집",
     "fragmentSelected": "구절 선택됨",
     "imageRegionSelected": "이미지 영역 선택됨",
-    "closeProgress": "닫기"
+    "complete": "주석 완료!",
+    "failed": "주석 실패",
+    "densityPerWords": "2000단어당 {{density}}"
   },
   "TaggingPanel": {
     "title": "태그",
@@ -164,7 +175,9 @@
     "selectCategory": "카테고리 선택",
     "chooseCategory": "카테고리 선택...",
     "fragmentSelected": "구절 선택됨",
-    "imageRegionSelected": "이미지 영역 선택됨"
+    "imageRegionSelected": "이미지 영역 선택됨",
+    "complete": "주석 완료!",
+    "failed": "주석 실패"
   },
   "UnifiedAnnotationsPanel": {
     "title": "주석",
@@ -220,7 +233,6 @@
     "complete": "주석 완료!",
     "failed": "주석 실패",
     "current": "현재: {{entityType}}",
-    "closeProgress": "닫기",
     "loading": "로딩 중...",
     "loadingEllipsis": "로딩 중...",
     "untitledResource": "제목 없는 리소스",

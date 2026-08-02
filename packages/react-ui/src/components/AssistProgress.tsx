@@ -1,26 +1,38 @@
 'use client';
 
 import type { components } from '@semiont/core';
+import { EntityFoundLog } from './EntityFoundLog';
 
 type JobProgress = components['schemas']['JobProgress'];
 
+/**
+ * Every string this component renders. Required by default and with NO
+ * English fallbacks (ASSIST-SURFACE-WARTS Lane A): a `tr.x || 'X'` default
+ * turns a forgotten key into English text in a Japanese UI, silently and
+ * only at runtime. Required keys make the same mistake a type error at the
+ * call site. Only genuinely conditional copy is optional.
+ */
 export interface AssistProgressTranslations {
   /** Header title (e.g. "Annotating Entity References" / "Generating Resource"). Omit for the headerless inline style. */
   title?: string;
   /** Cancel-button title attribute. */
-  cancel?: string;
+  cancel: string;
   /** Default in-progress status message (used when the job sends no `message`). */
-  inProgress?: string;
+  inProgress: string;
   /** Status copy for the terminal 'complete' stage. */
-  complete?: string;
+  complete: string;
   /** Fallback status copy for the terminal 'error' stage. */
-  failed?: string;
-  /** Completed entity-type log line (reference flow). */
+  failed: string;
+  /** Request-parameters block heading. */
+  paramsTitle: string;
+  /** Current-work detail line — the generic form, used by every flow. */
+  processing: (label: string) => string;
+  /** Completed entity-type log line (reference flow only). */
   found?: (count: number) => string;
-  /** Current-work detail line (reference flow). */
+  /** Current-work detail line, reference-flow wording; falls back to `processing`. */
   current?: (label: string) => string;
   /** Dismiss-button label. */
-  close?: string;
+  close: string;
 }
 
 export interface AssistProgressProps {
@@ -37,7 +49,7 @@ export interface AssistProgressProps {
   onDismiss?: () => void;
   /** Render the percentage bar (tag flow's visual; percentage itself comes from `progress`). */
   showPercentBar?: boolean;
-  translations?: AssistProgressTranslations;
+  translations: AssistProgressTranslations;
 }
 
 /**
@@ -55,9 +67,12 @@ export function AssistProgress({
   onCancel,
   onDismiss,
   showPercentBar = false,
-  translations: tr = {},
+  translations: tr,
 }: AssistProgressProps) {
   const terminal = progress.stage === 'complete' || progress.stage === 'error';
+  // The reference flow words this line its own way; everyone else gets the
+  // generic one. Both are translated — there is no untranslated branch.
+  const currentLabel = tr.current ?? tr.processing;
 
   return (
     <div className="semiont-annotation-progress" data-status={progress.stage} data-type={dataType}>
@@ -72,8 +87,8 @@ export function AssistProgress({
             <button
               onClick={onCancel}
               className="semiont-annotation-cancel"
-              title={tr.cancel || 'Cancel'}
-              aria-label={tr.cancel || 'Cancel'}
+              title={tr.cancel}
+              aria-label={tr.cancel}
               type="button"
             >
               ✕
@@ -85,7 +100,7 @@ export function AssistProgress({
       {/* Request parameters */}
       {progress.requestParams && progress.requestParams.length > 0 && (
         <div className="semiont-annotation-progress__params" data-type={dataType}>
-          <div className="semiont-annotation-progress__params-title">Request Parameters:</div>
+          <div className="semiont-annotation-progress__params-title">{tr.paramsTitle}</div>
           {progress.requestParams.map((param, idx) => (
             <div key={idx} className="semiont-annotation-progress__param">
               <span className="semiont-annotation-progress__param-label">{param.label}:</span> <span>{param.value}</span>
@@ -95,16 +110,8 @@ export function AssistProgress({
       )}
 
       {/* Completed entity-type log (reference flow) */}
-      {tr.found && progress.completedEntityTypes && progress.completedEntityTypes.length > 0 && (
-        <div className="semiont-annotation-log">
-          {progress.completedEntityTypes.map((item, index) => (
-            <div key={index} className="semiont-annotation-log-item">
-              <span className="semiont-annotation-check">✓</span>
-              <span className="semiont-annotation-entity-type">{item.entityType}:</span>
-              <span>{tr.found!(item.foundCount)}</span>
-            </div>
-          ))}
-        </div>
+      {tr.found && progress.completedEntityTypes && (
+        <EntityFoundLog entries={progress.completedEntityTypes} formatFound={tr.found} />
       )}
 
       {/* Status line with stage branching */}
@@ -112,20 +119,25 @@ export function AssistProgress({
         {progress.stage === 'complete' ? (
           <div className="semiont-annotation-progress__message">
             <span className="semiont-annotation-progress__icon">✅</span>
-            {/* JobProgress.message is required but may be '' — never blank a terminal line. */}
-            <span>{tr.complete || progress.message || 'Complete'}</span>
+            {/* Same precedence as 'error' below: the job's own message carries
+                detail no static string can ("Created 14 highlights"), and
+                `tr.complete` covers the required-but-possibly-'' case so a
+                terminal line is never blank. NOTE: job messages are composed
+                backend-side and are not localized — a real gap, but a backend
+                one; see ASSIST-SURFACE-WARTS watch-items. */}
+            <span>{progress.message || tr.complete}</span>
           </div>
         ) : progress.stage === 'error' ? (
           <div className="semiont-annotation-progress__message">
             <span className="semiont-annotation-progress__icon">❌</span>
-            <span>{progress.message || tr.failed || 'Failed'}</span>
+            <span>{progress.message || tr.failed}</span>
           </div>
         ) : (
           <div className="semiont-annotation-progress__message">
             <span className="semiont-annotation-progress__icon">✨</span>
             <span>
               {progress.message
-                || (progress.currentEntityType && tr.current ? tr.current(progress.currentEntityType) : tr.inProgress)}
+                || (progress.currentEntityType ? currentLabel(progress.currentEntityType) : tr.inProgress)}
             </span>
           </div>
         )}
@@ -133,12 +145,12 @@ export function AssistProgress({
         {/* Current-work detail while running */}
         {!terminal && progress.currentEntityType && (
           <div className="semiont-annotation-progress__details">
-            {tr.current ? tr.current(progress.currentEntityType) : `Processing: ${progress.currentEntityType}`}
+            {currentLabel(progress.currentEntityType)}
           </div>
         )}
         {!terminal && progress.currentCategory && (
           <div className="semiont-annotation-progress__details">
-            Processing: {progress.currentCategory}
+            {tr.processing(progress.currentCategory)}
             {progress.processedCategories !== undefined && progress.totalCategories !== undefined && (
               <> ({progress.processedCategories}/{progress.totalCategories})</>
             )}
@@ -150,8 +162,8 @@ export function AssistProgress({
           <button
             onClick={onDismiss}
             className="semiont-annotation-progress__close"
-            aria-label={tr.close || 'Dismiss'}
-            title={tr.close || 'Dismiss'}
+            aria-label={tr.close}
+            title={tr.close}
             type="button"
           >
             ×

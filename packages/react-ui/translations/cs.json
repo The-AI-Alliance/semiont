@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Zavřít",
+    "paramsTitle": "Parametry požadavku:",
+    "processing": "Aktuální: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Anotace",
     "history": "Historie",
@@ -105,7 +110,9 @@
     "densityDense": "Hustá",
     "fragmentSelected": "Fragment vybrán",
     "imageRegionSelected": "Oblast obrázku vybrána",
-    "closeProgress": "Zavřít"
+    "complete": "Anotace dokončena!",
+    "failed": "Anotace selhala",
+    "densityPerWords": "{{density}} na 2000 slov"
   },
   "HighlightPanel": {
     "title": "Zvýraznění",
@@ -120,7 +127,9 @@
     "densityLabel": "Hustota",
     "densitySparse": "Řídká",
     "densityDense": "Hustá",
-    "closeProgress": "Zavřít"
+    "complete": "Anotace dokončena!",
+    "failed": "Anotace selhala",
+    "densityPerWords": "{{density}} na 2000 slov"
   },
   "AssessmentPanel": {
     "title": "Hodnocení",
@@ -145,7 +154,9 @@
     "densityDense": "Hustá",
     "fragmentSelected": "Fragment vybrán",
     "imageRegionSelected": "Oblast obrázku vybrána",
-    "closeProgress": "Zavřít"
+    "complete": "Anotace dokončena!",
+    "failed": "Anotace selhala",
+    "densityPerWords": "{{density}} na 2000 slov"
   },
   "TaggingPanel": {
     "title": "Štítky",
@@ -164,7 +175,9 @@
     "selectCategory": "Vybrat kategorii",
     "chooseCategory": "Zvolte kategorii...",
     "fragmentSelected": "Fragment vybrán",
-    "imageRegionSelected": "Oblast obrázku vybrána"
+    "imageRegionSelected": "Oblast obrázku vybrána",
+    "complete": "Anotace dokončena!",
+    "failed": "Anotace selhala"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Anotace",
@@ -220,7 +233,6 @@
     "complete": "Anotace dokončena!",
     "failed": "Anotace selhala",
     "current": "Aktuální: {{entityType}}",
-    "closeProgress": "Zavřít",
     "loading": "načítání...",
     "loadingEllipsis": "Načítání...",
     "untitledResource": "Zdroj bez názvu",

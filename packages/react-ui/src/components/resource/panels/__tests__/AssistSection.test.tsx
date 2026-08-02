@@ -126,7 +126,7 @@ describe('AssistSection', () => {
         />
       );
 
-      expect(screen.getByText('Request Parameters:')).toBeInTheDocument();
+      expect(screen.getByText('paramsTitle')).toBeInTheDocument();
       expect(screen.getByText('Find important points')).toBeInTheDocument();
       expect(screen.getByText(/Instructions:/)).toBeInTheDocument();
       expect(screen.getByText('5')).toBeInTheDocument();
@@ -506,7 +506,7 @@ describe('AssistSection', () => {
         />
       );
 
-      expect(screen.queryByText('Request Parameters:')).not.toBeInTheDocument();
+      expect(screen.queryByText('paramsTitle')).not.toBeInTheDocument();
     });
   });
 });

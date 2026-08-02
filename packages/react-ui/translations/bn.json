@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "বন্ধ করুন",
+    "paramsTitle": "অনুরোধের প্যারামিটার:",
+    "processing": "বর্তমান: {{label}}"
+  },
   "Toolbar": {
     "annotations": "টীকাসমূহ",
     "history": "ইতিহাস",
@@ -105,7 +110,9 @@
     "densityDense": "ঘন",
     "fragmentSelected": "অংশ নির্বাচিত",
     "imageRegionSelected": "ছবির অঞ্চল নির্বাচিত",
-    "closeProgress": "বন্ধ করুন"
+    "complete": "টীকাকরণ সম্পূর্ণ!",
+    "failed": "টীকাকরণ ব্যর্থ",
+    "densityPerWords": "প্রতি ২০০০ শব্দে {{density}}"
   },
   "HighlightPanel": {
     "title": "হাইলাইটসমূহ",
@@ -120,7 +127,9 @@
     "densityLabel": "ঘনত্ব",
     "densitySparse": "বিরল",
     "densityDense": "ঘন",
-    "closeProgress": "বন্ধ করুন"
+    "complete": "টীকাকরণ সম্পূর্ণ!",
+    "failed": "টীকাকরণ ব্যর্থ",
+    "densityPerWords": "প্রতি ২০০০ শব্দে {{density}}"
   },
   "AssessmentPanel": {
     "title": "মূল্যায়নসমূহ",
@@ -145,7 +154,9 @@
     "densityDense": "ঘন",
     "fragmentSelected": "অংশ নির্বাচিত",
     "imageRegionSelected": "ছবির অঞ্চল নির্বাচিত",
-    "closeProgress": "বন্ধ করুন"
+    "complete": "টীকাকরণ সম্পূর্ণ!",
+    "failed": "টীকাকরণ ব্যর্থ",
+    "densityPerWords": "প্রতি ২০০০ শব্দে {{density}}"
   },
   "TaggingPanel": {
     "title": "ট্যাগসমূহ",
@@ -164,7 +175,9 @@
     "selectCategory": "বিভাগ নির্বাচন করুন",
     "chooseCategory": "একটি বিভাগ বেছে নিন...",
     "fragmentSelected": "অংশ নির্বাচিত",
-    "imageRegionSelected": "ছবির অঞ্চল নির্বাচিত"
+    "imageRegionSelected": "ছবির অঞ্চল নির্বাচিত",
+    "complete": "টীকাকরণ সম্পূর্ণ!",
+    "failed": "টীকাকরণ ব্যর্থ"
   },
   "UnifiedAnnotationsPanel": {
     "title": "টীকাসমূহ",
@@ -220,7 +233,6 @@
     "complete": "টীকাকরণ সম্পূর্ণ!",
     "failed": "টীকাকরণ ব্যর্থ",
     "current": "বর্তমান: {{entityType}}",
-    "closeProgress": "বন্ধ করুন",
     "loading": "লোড হচ্ছে...",
     "loadingEllipsis": "লোড হচ্ছে...",
     "untitledResource": "শিরোনামবিহীন সম্পদ",

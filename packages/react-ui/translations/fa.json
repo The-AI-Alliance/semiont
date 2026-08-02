@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "بستن",
+    "paramsTitle": "پارامترهای درخواست:",
+    "processing": "فعلی: {{label}}"
+  },
   "Toolbar": {
     "annotations": "حاشیه‌نویسی‌ها",
     "history": "تاریخچه",
@@ -105,7 +110,9 @@
     "densityDense": "متراکم",
     "fragmentSelected": "قطعه انتخاب شد",
     "imageRegionSelected": "ناحیه تصویر انتخاب شد",
-    "closeProgress": "بستن"
+    "complete": "حاشیه‌نویسی تکمیل شد!",
+    "failed": "حاشیه‌نویسی ناموفق بود",
+    "densityPerWords": "{{density}} در هر ۲۰۰۰ کلمه"
   },
   "HighlightPanel": {
     "title": "برجسته‌سازی‌ها",
@@ -120,7 +127,9 @@
     "densityLabel": "تراکم",
     "densitySparse": "پراکنده",
     "densityDense": "متراکم",
-    "closeProgress": "بستن"
+    "complete": "حاشیه‌نویسی تکمیل شد!",
+    "failed": "حاشیه‌نویسی ناموفق بود",
+    "densityPerWords": "{{density}} در هر ۲۰۰۰ کلمه"
   },
   "AssessmentPanel": {
     "title": "ارزیابی‌ها",
@@ -145,7 +154,9 @@
     "densityDense": "متراکم",
     "fragmentSelected": "قطعه انتخاب شد",
     "imageRegionSelected": "ناحیه تصویر انتخاب شد",
-    "closeProgress": "بستن"
+    "complete": "حاشیه‌نویسی تکمیل شد!",
+    "failed": "حاشیه‌نویسی ناموفق بود",
+    "densityPerWords": "{{density}} در هر ۲۰۰۰ کلمه"
   },
   "TaggingPanel": {
     "title": "برچسب‌ها",
@@ -164,7 +175,9 @@
     "selectCategory": "انتخاب دسته‌بندی",
     "chooseCategory": "یک دسته‌بندی انتخاب کنید...",
     "fragmentSelected": "قطعه انتخاب شد",
-    "imageRegionSelected": "ناحیه تصویر انتخاب شد"
+    "imageRegionSelected": "ناحیه تصویر انتخاب شد",
+    "complete": "حاشیه‌نویسی تکمیل شد!",
+    "failed": "حاشیه‌نویسی ناموفق بود"
   },
   "UnifiedAnnotationsPanel": {
     "title": "حاشیه‌نویسی‌ها",
@@ -220,7 +233,6 @@
     "complete": "حاشیه‌نویسی تکمیل شد!",
     "failed": "حاشیه‌نویسی ناموفق بود",
     "current": "فعلی: {{entityType}}",
-    "closeProgress": "بستن",
     "loading": "در حال بارگذاری...",
     "loadingEllipsis": "در حال بارگذاری...",
     "untitledResource": "منبع بدون عنوان",

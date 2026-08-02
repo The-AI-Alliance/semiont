@@ -139,6 +139,7 @@ export function ResourceViewerPage({
   // Translations
   const tw = useTranslations('ReferenceWizard');
   const tg = useTranslations('ResourceGenerate');
+  const ta = useTranslations('AssistProgress');
 
   const browser = useSemiont();
   const session = useObservable(browser.activeSession$);
@@ -444,9 +445,17 @@ export function ResourceViewerPage({
     }
   }, [session]);
 
-  const handleEventClick = useCallback((_annotationId: string | null) => {
-    // ResourceViewer now manages scroll state internally
-  }, []);
+  // Clicking a history row reveals that annotation in the content. HistoryEvent
+  // renders these rows as buttons labelled "View annotation", so this used to be
+  // a focusable, screen-reader-announced control wired to a no-op.
+  // `beckon:focus` is the existing "scroll to and highlight" contract rather
+  // than a new prop chain — BrowseView already subscribed to it, AnnotateView
+  // now does too. See .plans/ASSIST-SURFACE-WARTS.md Lane D.
+  const handleEventClick = useCallback((id: string | null) => {
+    if (id) {
+      stateUnit?.beckon.focus(annotationId(id));
+    }
+  }, [stateUnit]);
 
   // Document rendering
   return (
@@ -475,6 +484,9 @@ export function ResourceViewerPage({
                 inProgress: tg('progressInProgress'),
                 complete: tg('progressComplete'),
                 failed: tg('progressFailed'),
+                paramsTitle: ta('paramsTitle'),
+                processing: (label) => ta('processing', { label }),
+                close: ta('close'),
               }}
             />
           )}

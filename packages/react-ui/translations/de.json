@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Schließen",
+    "paramsTitle": "Anfrageparameter:",
+    "processing": "Aktuell: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Annotationen",
     "history": "Verlauf",
@@ -105,7 +110,9 @@
     "densityDense": "Hoch",
     "fragmentSelected": "Fragment ausgewählt",
     "imageRegionSelected": "Bildbereich ausgewählt",
-    "closeProgress": "Schließen"
+    "complete": "Annotation abgeschlossen!",
+    "failed": "Annotation fehlgeschlagen",
+    "densityPerWords": "{{density}} pro 2000 Wörter"
   },
   "HighlightPanel": {
     "title": "Hervorhebungen",
@@ -120,7 +127,9 @@
     "densityLabel": "Dichte",
     "densitySparse": "Gering",
     "densityDense": "Hoch",
-    "closeProgress": "Schließen"
+    "complete": "Annotation abgeschlossen!",
+    "failed": "Annotation fehlgeschlagen",
+    "densityPerWords": "{{density}} pro 2000 Wörter"
   },
   "AssessmentPanel": {
     "title": "Bewertungen",
@@ -145,7 +154,9 @@
     "densityDense": "Hoch",
     "fragmentSelected": "Fragment ausgewählt",
     "imageRegionSelected": "Bildbereich ausgewählt",
-    "closeProgress": "Schließen"
+    "complete": "Annotation abgeschlossen!",
+    "failed": "Annotation fehlgeschlagen",
+    "densityPerWords": "{{density}} pro 2000 Wörter"
   },
   "TaggingPanel": {
     "title": "Tags",
@@ -164,7 +175,9 @@
     "selectCategory": "Kategorie auswählen",
     "chooseCategory": "Kategorie wählen...",
     "fragmentSelected": "Fragment ausgewählt",
-    "imageRegionSelected": "Bildbereich ausgewählt"
+    "imageRegionSelected": "Bildbereich ausgewählt",
+    "complete": "Annotation abgeschlossen!",
+    "failed": "Annotation fehlgeschlagen"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Annotationen",
@@ -220,7 +233,6 @@
     "complete": "Annotation abgeschlossen!",
     "failed": "Annotation fehlgeschlagen",
     "current": "Aktuell: {{entityType}}",
-    "closeProgress": "Schließen",
     "loading": "Wird geladen...",
     "loadingEllipsis": "Wird geladen...",
     "untitledResource": "Unbenannte Ressource",

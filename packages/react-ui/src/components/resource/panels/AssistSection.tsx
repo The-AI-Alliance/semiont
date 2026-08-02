@@ -43,6 +43,7 @@ export function AssistSection({
                      annotationType === 'assessment' ? 'AssessmentPanel' :
                      'CommentsPanel';
   const t = useTranslations(panelName);
+  const ta = useTranslations('AssistProgress');
   const [instructions, setInstructions] = useState('');
   type ToneValue = 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive' | '';
   const [tone, setTone] = useState<ToneValue>('');
@@ -89,7 +90,15 @@ export function AssistSection({
       progress={progress}
       progressProps={{
         onDismiss: handleDismissProgress,
-        translations: { close: t('closeProgress') },
+        translations: {
+          cancel: t('cancel'),
+          inProgress: t('annotating'),
+          complete: t('complete'),
+          failed: t('failed'),
+          paramsTitle: ta('paramsTitle'),
+          processing: (label) => ta('processing', { label }),
+          close: ta('close'),
+        },
       }}
       form={
         <>
@@ -157,7 +166,7 @@ export function AssistSection({
                 <span>{t('densityLabel')}</span>
               </label>
               {useDensity && (
-                <span className="semiont-form-field__info">{density} per 2000 words</span>
+                <span className="semiont-form-field__info">{t('densityPerWords', { density })}</span>
               )}
             </div>
 

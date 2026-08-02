@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Fechar",
+    "paramsTitle": "Parâmetros da solicitação:",
+    "processing": "Atual: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Anotações",
     "history": "Histórico",
@@ -105,7 +110,9 @@
     "densityDense": "Densa",
     "fragmentSelected": "Fragmento selecionado",
     "imageRegionSelected": "Região da imagem selecionada",
-    "closeProgress": "Fechar"
+    "complete": "Anotação concluída!",
+    "failed": "Anotação falhou",
+    "densityPerWords": "{{density}} por 2000 palavras"
   },
   "HighlightPanel": {
     "title": "Destaques",
@@ -120,7 +127,9 @@
     "densityLabel": "Densidade",
     "densitySparse": "Esparsa",
     "densityDense": "Densa",
-    "closeProgress": "Fechar"
+    "complete": "Anotação concluída!",
+    "failed": "Anotação falhou",
+    "densityPerWords": "{{density}} por 2000 palavras"
   },
   "AssessmentPanel": {
     "title": "Avaliações",
@@ -145,7 +154,9 @@
     "densityDense": "Densa",
     "fragmentSelected": "Fragmento selecionado",
     "imageRegionSelected": "Região da imagem selecionada",
-    "closeProgress": "Fechar"
+    "complete": "Anotação concluída!",
+    "failed": "Anotação falhou",
+    "densityPerWords": "{{density}} por 2000 palavras"
   },
   "TaggingPanel": {
     "title": "Tags",
@@ -164,7 +175,9 @@
     "selectCategory": "Selecionar Categoria",
     "chooseCategory": "Escolha uma categoria...",
     "fragmentSelected": "Fragmento selecionado",
-    "imageRegionSelected": "Região da imagem selecionada"
+    "imageRegionSelected": "Região da imagem selecionada",
+    "complete": "Anotação concluída!",
+    "failed": "Anotação falhou"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Anotações",
@@ -220,7 +233,6 @@
     "complete": "Anotação concluída!",
     "failed": "Anotação falhou",
     "current": "Atual: {{entityType}}",
-    "closeProgress": "Fechar",
     "loading": "carregando...",
     "loadingEllipsis": "Carregando...",
     "untitledResource": "Recurso Sem Título",

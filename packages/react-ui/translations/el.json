@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Κλείσιμο",
+    "paramsTitle": "Παράμετροι αιτήματος:",
+    "processing": "Τρέχον: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Σχολιασμοί",
     "history": "Ιστορικό",
@@ -105,7 +110,9 @@
     "densityDense": "Πυκνή",
     "fragmentSelected": "Επιλέχθηκε τμήμα",
     "imageRegionSelected": "Επιλέχθηκε περιοχή εικόνας",
-    "closeProgress": "Κλείσιμο"
+    "complete": "Ο σχολιασμός ολοκληρώθηκε!",
+    "failed": "Ο σχολιασμός απέτυχε",
+    "densityPerWords": "{{density}} ανά 2000 λέξεις"
   },
   "HighlightPanel": {
     "title": "Επισημάνσεις",
@@ -120,7 +127,9 @@
     "densityLabel": "Πυκνότητα",
     "densitySparse": "Αραιή",
     "densityDense": "Πυκνή",
-    "closeProgress": "Κλείσιμο"
+    "complete": "Ο σχολιασμός ολοκληρώθηκε!",
+    "failed": "Ο σχολιασμός απέτυχε",
+    "densityPerWords": "{{density}} ανά 2000 λέξεις"
   },
   "AssessmentPanel": {
     "title": "Αξιολογήσεις",
@@ -145,7 +154,9 @@
     "densityDense": "Πυκνή",
     "fragmentSelected": "Επιλέχθηκε τμήμα",
     "imageRegionSelected": "Επιλέχθηκε περιοχή εικόνας",
-    "closeProgress": "Κλείσιμο"
+    "complete": "Ο σχολιασμός ολοκληρώθηκε!",
+    "failed": "Ο σχολιασμός απέτυχε",
+    "densityPerWords": "{{density}} ανά 2000 λέξεις"
   },
   "TaggingPanel": {
     "title": "Ετικέτες",
@@ -164,7 +175,9 @@
     "selectCategory": "Επιλογή Κατηγορίας",
     "chooseCategory": "Επιλέξτε μια κατηγορία...",
     "fragmentSelected": "Επιλέχθηκε τμήμα",
-    "imageRegionSelected": "Επιλέχθηκε περιοχή εικόνας"
+    "imageRegionSelected": "Επιλέχθηκε περιοχή εικόνας",
+    "complete": "Ο σχολιασμός ολοκληρώθηκε!",
+    "failed": "Ο σχολιασμός απέτυχε"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Σχολιασμοί",
@@ -220,7 +233,6 @@
     "complete": "Ο σχολιασμός ολοκληρώθηκε!",
     "failed": "Ο σχολιασμός απέτυχε",
     "current": "Τρέχον: {{entityType}}",
-    "closeProgress": "Κλείσιμο",
     "loading": "φόρτωση...",
     "loadingEllipsis": "Φόρτωση...",
     "untitledResource": "Πόρος Χωρίς Τίτλο",
