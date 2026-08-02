@@ -74,8 +74,10 @@ export interface CachedAnchoredText {
  *
  * `@semiont/content`'s own version covers our assembly code (`anchorRuns`,
  * `assemblePage`, `mapWordsToItems` — the offset construction IS part of what
- * the cached value means). Tesseract's version is read separately because a
- * caret range can move it without a release here.
+ * the cached value means). The engine and its traineddata are read separately
+ * because both are pinned with carets and can move without a release here —
+ * and different traineddata means different recognized text, which is a
+ * difference in the value itself, not merely in how fast it was produced.
  */
 function buildStamp(): string {
     const require = createRequire(import.meta.url);
@@ -87,7 +89,9 @@ function buildStamp(): string {
             return 'unknown';
         }
     };
-    return `content-${version('../package.json')}+tesseract-${version('tesseract.js/package.json')}`;
+    return `content-${version('../package.json')}`
+        + `+tesseract-${version('tesseract.js/package.json')}`
+        + `+eng-${version('@tesseract.js-data/eng/package.json')}`;
 }
 
 const STAMP = buildStamp();

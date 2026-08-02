@@ -155,6 +155,37 @@ describe('anchored-text cache', () => {
     expect(recognizeSpy).toHaveBeenCalledTimes(2);
   });
 
+  /**
+   * The stamp is what makes a change to the engine, the traineddata, or our own
+   * offset construction safe to ship: an entry produced by different code must
+   * not be served.
+   *
+   * "Not deleted" is the second half and matters as much. A miss that cleaned up
+   * after itself would be an eviction policy smuggled into the read path —
+   * running concurrently with any real one, and destroying entries a
+   * *downgraded* deployment could still legitimately use.
+   */
+  it('misses cleanly on a stamp change, leaving the entry alone', { timeout: 60_000 }, async () => {
+    const store = createAnchoredTextStore(dir);
+    const key = calculateChecksum(SCAN);
+
+    await pdfExtractor.extract(SCAN, 'application/pdf', { key, store });
+    expect(recognizeSpy).toHaveBeenCalledTimes(1);
+
+    const [name] = fs.readdirSync(dir);
+    const file = path.join(dir, name!);
+    const entry = JSON.parse(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, JSON.stringify({ ...entry, stamp: `${entry.stamp}-from-a-different-build` }));
+
+    expect(await store.read(key)).toBeNull();
+    await pdfExtractor.extract(SCAN, 'application/pdf', { key, store });
+    expect(recognizeSpy).toHaveBeenCalledTimes(2);
+
+    // Ignored, not reaped — and re-derived, so the current build's entry is back.
+    expect(fs.existsSync(file)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).stamp).toBe(entry.stamp);
+  });
+
   it('treats a corrupt entry as a miss rather than an error', { timeout: 60_000 }, async () => {
     const store = createAnchoredTextStore(dir);
     const key = calculateChecksum(SCAN);
