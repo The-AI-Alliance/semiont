@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Lukk",
+    "paramsTitle": "Forespørselsparametere:",
+    "processing": "Nåværende: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Annoteringer",
     "history": "Historikk",
@@ -105,7 +110,9 @@
     "densityDense": "Tett",
     "fragmentSelected": "Fragment valgt",
     "imageRegionSelected": "Bildeområde valgt",
-    "closeProgress": "Lukk"
+    "complete": "Annotering fullført!",
+    "failed": "Annotering mislyktes",
+    "densityPerWords": "{{density}} per 2000 ord"
   },
   "HighlightPanel": {
     "title": "Uthevinger",
@@ -120,7 +127,9 @@
     "densityLabel": "Tetthet",
     "densitySparse": "Sparsom",
     "densityDense": "Tett",
-    "closeProgress": "Lukk"
+    "complete": "Annotering fullført!",
+    "failed": "Annotering mislyktes",
+    "densityPerWords": "{{density}} per 2000 ord"
   },
   "AssessmentPanel": {
     "title": "Vurderinger",
@@ -145,7 +154,9 @@
     "densityDense": "Tett",
     "fragmentSelected": "Fragment valgt",
     "imageRegionSelected": "Bildeområde valgt",
-    "closeProgress": "Lukk"
+    "complete": "Annotering fullført!",
+    "failed": "Annotering mislyktes",
+    "densityPerWords": "{{density}} per 2000 ord"
   },
   "TaggingPanel": {
     "title": "Merker",
@@ -164,7 +175,9 @@
     "selectCategory": "Velg kategori",
     "chooseCategory": "Velg en kategori...",
     "fragmentSelected": "Fragment valgt",
-    "imageRegionSelected": "Bildeområde valgt"
+    "imageRegionSelected": "Bildeområde valgt",
+    "complete": "Annotering fullført!",
+    "failed": "Annotering mislyktes"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Annoteringer",
@@ -220,7 +233,6 @@
     "complete": "Annotering fullført!",
     "failed": "Annotering mislyktes",
     "current": "Nåværende: {{entityType}}",
-    "closeProgress": "Lukk",
     "loading": "laster...",
     "loadingEllipsis": "Laster...",
     "untitledResource": "Ressurs uten tittel",

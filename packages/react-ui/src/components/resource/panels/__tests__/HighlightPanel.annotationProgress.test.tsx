@@ -169,7 +169,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
         />
       );
 
-      expect(screen.getByText('Request Parameters:')).toBeInTheDocument();
+      expect(screen.getByText('paramsTitle')).toBeInTheDocument();
       expect(screen.getByText('Find important points')).toBeInTheDocument();
       expect(screen.getByText('5')).toBeInTheDocument();
     });

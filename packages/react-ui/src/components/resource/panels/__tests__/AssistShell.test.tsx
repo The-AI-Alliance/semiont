@@ -13,6 +13,11 @@ import { AssistShell } from '../AssistShell';
 
 const progress = { stage: 'analyzing', percentage: 50, message: 'working' };
 
+/** AssistProgress requires a full translation set; the shell just passes it through. */
+const TR = { cancel: 'tr.cancel', inProgress: 'tr.inProgress', complete: 'tr.complete',
+  failed: 'tr.failed', close: 'tr.close', paramsTitle: 'tr.paramsTitle',
+  processing: (l: string) => `tr.processing(${l})` };
+
 describe('AssistShell', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -21,12 +26,12 @@ describe('AssistShell', () => {
   it('renders the form when there is no progress, the progress when there is', () => {
     const { rerender } = render(
       <AssistShell assistType="tag" title="Annotate Tags" isAssisting={false} progress={null}
-        form={<button type="button">the form</button>} />,
+        form={<button type="button">the form</button>} progressProps={{ translations: TR }} />,
     );
     expect(screen.getByText('the form')).toBeInTheDocument();
     rerender(
       <AssistShell assistType="tag" title="Annotate Tags" isAssisting={true} progress={progress}
-        form={<button type="button">the form</button>} />,
+        form={<button type="button">the form</button>} progressProps={{ translations: TR }} />,
     );
     expect(screen.queryByText('the form')).not.toBeInTheDocument();
     expect(screen.getByText('working')).toBeInTheDocument();
@@ -37,7 +42,7 @@ describe('AssistShell', () => {
     const props = {
       assistType: 'highlight', title: 'Annotate Highlights', progress,
       form: <span>form</span>,
-      progressProps: { onDismiss, translations: { close: 'Close' } },
+      progressProps: { onDismiss, translations: { ...TR, close: 'Close' } },
     };
     const { rerender } = render(<AssistShell {...props} isAssisting={true} />);
     expect(screen.queryByLabelText('Close')).not.toBeInTheDocument();
@@ -50,7 +55,7 @@ describe('AssistShell', () => {
   it('persists the expand state per assist type', async () => {
     render(
       <AssistShell assistType="reference" title="Annotate References" isAssisting={false} progress={null}
-        form={<span>form</span>} />,
+        form={<span>form</span>} progressProps={{ translations: TR }} />,
     );
     await userEvent.click(screen.getByRole('button', { name: /Annotate References/ }));
     expect(screen.queryByText('form')).not.toBeInTheDocument();

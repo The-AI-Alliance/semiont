@@ -41,7 +41,7 @@ vi.mock('../../../hooks/useResourceContent', () => ({
 // SemiontClient (wired to a dummy baseUrl). The real client surface lets
 // createResourceViewerPageStateUnit run against the full namespace API without us
 // hand-stubbing every method it touches.
-const { stubBrowser } = vi.hoisted(() => {
+const { stubBrowser, stubClient } = vi.hoisted(() => {
   const { BehaviorSubject } = require('rxjs');
   const { SemiontClient, HttpTransport, HttpContentTransport } = require('@semiont/sdk');
   const { baseUrl } = require('@semiont/core');
@@ -63,7 +63,7 @@ const { stubBrowser } = vi.hoisted(() => {
     on: vi.fn(() => () => {}),
     stream: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
   };
-  return { stubBrowser };
+  return { stubBrowser, stubClient: client };
 });
 
 vi.mock('../../../session/SemiontProvider', async () => {
@@ -76,6 +76,8 @@ vi.mock('../../../session/SemiontProvider', async () => {
   };
 });
 
+const capturedHistory = vi.hoisted(() => ({ props: null as any }));
+
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
@@ -84,7 +86,10 @@ vi.mock('@semiont/react-ui', async () => {
     Toolbar: () => <div data-testid="toolbar">Toolbar</div>,
     ToolbarPanels: ({ children }: any) => <div data-testid="toolbar-panels">{children}</div>,
     UnifiedAnnotationsPanel: () => <div data-testid="annotations-panel">Annotations</div>,
-    AnnotationHistory: () => <div data-testid="history-panel">History</div>,
+    AnnotationHistory: (props: any) => {
+      capturedHistory.props = props;
+      return <div data-testid="history-panel">History</div>;
+    },
     ResourceInfoPanel: () => <div data-testid="info-panel">Info</div>,
     CollaborationPanel: () => <div data-testid="collaboration-panel">Collaboration</div>,
     JsonLdPanel: () => <div data-testid="jsonld-panel">JSON-LD</div>,
@@ -225,6 +230,27 @@ describe('ResourceViewerPage', () => {
       renderWithProviders(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('annotations-panel')).toBeInTheDocument();
+      localStorage.clear();
+    });
+
+    it('clicking a history event focuses that annotation in the content', () => {
+      // ASSIST-SURFACE-WARTS Lane D. `handleEventClick` used to be a no-op with
+      // a stale comment, while HistoryEvent still rendered a focusable button
+      // labelled "View annotation" — a promise to screen-reader users that
+      // nothing kept. `beckon:focus` is the existing "scroll to and highlight"
+      // contract (BrowseView already subscribes); this makes the page a producer.
+      localStorage.setItem('activeToolbarPanel', 'history');
+      const props = createMockProps();
+      renderWithProviders(<ResourceViewerPage {...props} />);
+
+      const focused: Array<string | null> = [];
+      const sub = stubClient.bus.get('beckon:focus').subscribe(({ annotationId }: any) => focused.push(annotationId));
+
+      expect(capturedHistory.props.onEventClick).toBeDefined();
+      capturedHistory.props.onEventClick('ann-42');
+      expect(focused).toEqual(['ann-42']);
+
+      sub.unsubscribe();
       localStorage.clear();
     });
 

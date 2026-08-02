@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Kapat",
+    "paramsTitle": "İstek parametreleri:",
+    "processing": "Mevcut: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Açıklamalar",
     "history": "Geçmiş",
@@ -105,7 +110,9 @@
     "densityDense": "Yoğun",
     "fragmentSelected": "Parça seçildi",
     "imageRegionSelected": "Görüntü bölgesi seçildi",
-    "closeProgress": "Kapat"
+    "complete": "Açıklama tamamlandı!",
+    "failed": "Açıklama başarısız oldu",
+    "densityPerWords": "2000 kelime başına {{density}}"
   },
   "HighlightPanel": {
     "title": "Vurgular",
@@ -120,7 +127,9 @@
     "densityLabel": "Yoğunluk",
     "densitySparse": "Seyrek",
     "densityDense": "Yoğun",
-    "closeProgress": "Kapat"
+    "complete": "Açıklama tamamlandı!",
+    "failed": "Açıklama başarısız oldu",
+    "densityPerWords": "2000 kelime başına {{density}}"
   },
   "AssessmentPanel": {
     "title": "Değerlendirmeler",
@@ -145,7 +154,9 @@
     "densityDense": "Yoğun",
     "fragmentSelected": "Parça seçildi",
     "imageRegionSelected": "Görüntü bölgesi seçildi",
-    "closeProgress": "Kapat"
+    "complete": "Açıklama tamamlandı!",
+    "failed": "Açıklama başarısız oldu",
+    "densityPerWords": "2000 kelime başına {{density}}"
   },
   "TaggingPanel": {
     "title": "Etiketler",
@@ -164,7 +175,9 @@
     "selectCategory": "Kategori Seç",
     "chooseCategory": "Bir kategori seçin...",
     "fragmentSelected": "Parça seçildi",
-    "imageRegionSelected": "Görüntü bölgesi seçildi"
+    "imageRegionSelected": "Görüntü bölgesi seçildi",
+    "complete": "Açıklama tamamlandı!",
+    "failed": "Açıklama başarısız oldu"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Açıklamalar",
@@ -220,7 +233,6 @@
     "complete": "Açıklama tamamlandı!",
     "failed": "Açıklama başarısız oldu",
     "current": "Mevcut: {{entityType}}",
-    "closeProgress": "Kapat",
     "loading": "yükleniyor...",
     "loadingEllipsis": "Yükleniyor...",
     "untitledResource": "Başlıksız Kaynak",

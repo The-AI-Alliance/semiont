@@ -8,6 +8,7 @@ import { defaultAnnotateRenderers, type AnnotateMediaRenderers } from './annotat
 import type { EditorView } from '@codemirror/view';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
+import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
 
 // Type augmentation for custom DOM properties
 interface EnrichedHTMLElement extends HTMLElement {
@@ -51,6 +52,7 @@ interface Props {
  *
  * @emits mark:requested - User requested to create annotation. Payload: { selector: Selector | Selector[], motivation: SelectionMotivation }
  * @subscribes beckon:hover - Annotation hovered. Payload: { annotationId: string | null }
+ * @subscribes beckon:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
  */
 export function AnnotateView({
   content,
@@ -104,10 +106,20 @@ export function AnnotateView({
     onUIStateChangeRef.current?.({ hoveredAnnotationId: annotationId });
   }, []);
 
+  // "Scroll to and highlight this annotation" — the same contract BrowseView
+  // serves, so the behaviour no longer depends on which view mode is active.
+  // The `scrollToAnnotationId` prop path (uiState → renderer) stays as the
+  // host-facing capability it is; this is the in-app producer's route.
+  const handleAnnotationFocus = useCallback(({ annotationId }: { annotationId?: string | null }) => {
+    if (!containerRef.current) return;
+    scrollAnnotationIntoView(annotationId ?? null, containerRef.current, { pulse: true });
+  }, []);
+
   // Annotation hover (session-scoped). Toolbar preference changes flow through
   // props/callbacks, not the bus (TOOLBAR-PREFS-AS-PROPS).
   useSessionEventSubscriptions(session, {
     'beckon:hover': handleAnnotationHover,
+    'beckon:focus': handleAnnotationFocus,
   });
 
   // Handle text annotation with sparkle or immediate creation

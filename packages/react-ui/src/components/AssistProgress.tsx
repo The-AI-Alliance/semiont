@@ -1,6 +1,7 @@
 'use client';
 
 import type { components } from '@semiont/core';
+import { EntityFoundLog } from './EntityFoundLog';
 
 type JobProgress = components['schemas']['JobProgress'];
 
@@ -109,16 +110,8 @@ export function AssistProgress({
       )}
 
       {/* Completed entity-type log (reference flow) */}
-      {tr.found && progress.completedEntityTypes && progress.completedEntityTypes.length > 0 && (
-        <div className="semiont-annotation-log">
-          {progress.completedEntityTypes.map((item, index) => (
-            <div key={index} className="semiont-annotation-log-item">
-              <span className="semiont-annotation-check">✓</span>
-              <span className="semiont-annotation-entity-type">{item.entityType}:</span>
-              <span>{tr.found!(item.foundCount)}</span>
-            </div>
-          ))}
-        </div>
+      {tr.found && progress.completedEntityTypes && (
+        <EntityFoundLog entries={progress.completedEntityTypes} formatFound={tr.found} />
       )}
 
       {/* Status line with stage branching */}
@@ -126,8 +119,13 @@ export function AssistProgress({
         {progress.stage === 'complete' ? (
           <div className="semiont-annotation-progress__message">
             <span className="semiont-annotation-progress__icon">✅</span>
-            {/* JobProgress.message is required but may be '' — never blank a terminal line. */}
-            <span>{tr.complete}</span>
+            {/* Same precedence as 'error' below: the job's own message carries
+                detail no static string can ("Created 14 highlights"), and
+                `tr.complete` covers the required-but-possibly-'' case so a
+                terminal line is never blank. NOTE: job messages are composed
+                backend-side and are not localized — a real gap, but a backend
+                one; see ASSIST-SURFACE-WARTS watch-items. */}
+            <span>{progress.message || tr.complete}</span>
           </div>
         ) : progress.stage === 'error' ? (
           <div className="semiont-annotation-progress__message">

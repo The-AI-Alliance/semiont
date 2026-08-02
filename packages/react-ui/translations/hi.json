@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "बंद करें",
+    "paramsTitle": "अनुरोध पैरामीटर:",
+    "processing": "वर्तमान: {{label}}"
+  },
   "Toolbar": {
     "annotations": "एनोटेशन",
     "history": "इतिहास",
@@ -105,7 +110,9 @@
     "densityDense": "सघन",
     "fragmentSelected": "खंड चयनित",
     "imageRegionSelected": "चित्र क्षेत्र चयनित",
-    "closeProgress": "बंद करें"
+    "complete": "एनोटेशन पूर्ण!",
+    "failed": "एनोटेशन विफल",
+    "densityPerWords": "प्रति 2000 शब्द {{density}}"
   },
   "HighlightPanel": {
     "title": "हाइलाइट",
@@ -120,7 +127,9 @@
     "densityLabel": "घनत्व",
     "densitySparse": "विरल",
     "densityDense": "सघन",
-    "closeProgress": "बंद करें"
+    "complete": "एनोटेशन पूर्ण!",
+    "failed": "एनोटेशन विफल",
+    "densityPerWords": "प्रति 2000 शब्द {{density}}"
   },
   "AssessmentPanel": {
     "title": "मूल्यांकन",
@@ -145,7 +154,9 @@
     "densityDense": "सघन",
     "fragmentSelected": "खंड चयनित",
     "imageRegionSelected": "चित्र क्षेत्र चयनित",
-    "closeProgress": "बंद करें"
+    "complete": "एनोटेशन पूर्ण!",
+    "failed": "एनोटेशन विफल",
+    "densityPerWords": "प्रति 2000 शब्द {{density}}"
   },
   "TaggingPanel": {
     "title": "टैग",
@@ -164,7 +175,9 @@
     "selectCategory": "श्रेणी चुनें",
     "chooseCategory": "एक श्रेणी चुनें...",
     "fragmentSelected": "खंड चयनित",
-    "imageRegionSelected": "चित्र क्षेत्र चयनित"
+    "imageRegionSelected": "चित्र क्षेत्र चयनित",
+    "complete": "एनोटेशन पूर्ण!",
+    "failed": "एनोटेशन विफल"
   },
   "UnifiedAnnotationsPanel": {
     "title": "एनोटेशन",
@@ -220,7 +233,6 @@
     "complete": "एनोटेशन पूर्ण!",
     "failed": "एनोटेशन विफल",
     "current": "वर्तमान: {{entityType}}",
-    "closeProgress": "बंद करें",
     "loading": "लोड हो रहा है...",
     "loadingEllipsis": "लोड हो रहा है...",
     "untitledResource": "शीर्षकहीन संसाधन",

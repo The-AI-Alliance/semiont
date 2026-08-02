@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Închide",
+    "paramsTitle": "Parametrii cererii:",
+    "processing": "Curent: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Adnotări",
     "history": "Istoric",
@@ -105,7 +110,9 @@
     "densityDense": "Densă",
     "fragmentSelected": "Fragment selectat",
     "imageRegionSelected": "Regiune de imagine selectată",
-    "closeProgress": "Închide"
+    "complete": "Adnotare completă!",
+    "failed": "Adnotarea a eșuat",
+    "densityPerWords": "{{density}} la 2000 de cuvinte"
   },
   "HighlightPanel": {
     "title": "Evidențieri",
@@ -120,7 +127,9 @@
     "densityLabel": "Densitate",
     "densitySparse": "Rară",
     "densityDense": "Densă",
-    "closeProgress": "Închide"
+    "complete": "Adnotare completă!",
+    "failed": "Adnotarea a eșuat",
+    "densityPerWords": "{{density}} la 2000 de cuvinte"
   },
   "AssessmentPanel": {
     "title": "Evaluări",
@@ -145,7 +154,9 @@
     "densityDense": "Densă",
     "fragmentSelected": "Fragment selectat",
     "imageRegionSelected": "Regiune de imagine selectată",
-    "closeProgress": "Închide"
+    "complete": "Adnotare completă!",
+    "failed": "Adnotarea a eșuat",
+    "densityPerWords": "{{density}} la 2000 de cuvinte"
   },
   "TaggingPanel": {
     "title": "Etichete",
@@ -164,7 +175,9 @@
     "selectCategory": "Selectează categoria",
     "chooseCategory": "Alege o categorie...",
     "fragmentSelected": "Fragment selectat",
-    "imageRegionSelected": "Regiune de imagine selectată"
+    "imageRegionSelected": "Regiune de imagine selectată",
+    "complete": "Adnotare completă!",
+    "failed": "Adnotarea a eșuat"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Adnotări",
@@ -220,7 +233,6 @@
     "complete": "Adnotare completă!",
     "failed": "Adnotarea a eșuat",
     "current": "Curent: {{entityType}}",
-    "closeProgress": "Închide",
     "loading": "se încarcă...",
     "loadingEllipsis": "Se încarcă...",
     "untitledResource": "Resursă fără titlu",

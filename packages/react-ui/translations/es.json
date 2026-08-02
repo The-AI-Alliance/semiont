@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Cerrar",
+    "paramsTitle": "Parámetros de la solicitud:",
+    "processing": "Actual: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Anotaciones",
     "history": "Historial",
@@ -105,7 +110,9 @@
     "densityDense": "Densa",
     "fragmentSelected": "Fragmento seleccionado",
     "imageRegionSelected": "Región de imagen seleccionada",
-    "closeProgress": "Cerrar"
+    "complete": "¡Anotación completa!",
+    "failed": "Anotación fallida",
+    "densityPerWords": "{{density}} por cada 2000 palabras"
   },
   "HighlightPanel": {
     "title": "Destacados",
@@ -120,7 +127,9 @@
     "densityLabel": "Densidad",
     "densitySparse": "Escasa",
     "densityDense": "Densa",
-    "closeProgress": "Cerrar"
+    "complete": "¡Anotación completa!",
+    "failed": "Anotación fallida",
+    "densityPerWords": "{{density}} por cada 2000 palabras"
   },
   "AssessmentPanel": {
     "title": "Evaluaciones",
@@ -145,7 +154,9 @@
     "densityDense": "Densa",
     "fragmentSelected": "Fragmento seleccionado",
     "imageRegionSelected": "Región de imagen seleccionada",
-    "closeProgress": "Cerrar"
+    "complete": "¡Anotación completa!",
+    "failed": "Anotación fallida",
+    "densityPerWords": "{{density}} por cada 2000 palabras"
   },
   "TaggingPanel": {
     "title": "Etiquetas",
@@ -164,7 +175,9 @@
     "selectCategory": "Seleccionar Categoría",
     "chooseCategory": "Elegir una categoría...",
     "fragmentSelected": "Fragmento seleccionado",
-    "imageRegionSelected": "Región de imagen seleccionada"
+    "imageRegionSelected": "Región de imagen seleccionada",
+    "complete": "¡Anotación completa!",
+    "failed": "Anotación fallida"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Anotaciones",
@@ -220,7 +233,6 @@
     "complete": "¡Anotación completa!",
     "failed": "Anotación fallida",
     "current": "Actual: {{entityType}}",
-    "closeProgress": "Cerrar",
     "loading": "cargando...",
     "loadingEllipsis": "Cargando...",
     "untitledResource": "Recurso Sin Título",

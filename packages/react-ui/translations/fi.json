@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Sulje",
+    "paramsTitle": "Pyynnön parametrit:",
+    "processing": "Nykyinen: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Merkinnät",
     "history": "Historia",
@@ -105,7 +110,9 @@
     "densityDense": "Tiheä",
     "fragmentSelected": "Katkelma valittu",
     "imageRegionSelected": "Kuva-alue valittu",
-    "closeProgress": "Sulje"
+    "complete": "Merkintä valmis!",
+    "failed": "Merkintä epäonnistui",
+    "densityPerWords": "{{density}} / 2000 sanaa"
   },
   "HighlightPanel": {
     "title": "Korostukset",
@@ -120,7 +127,9 @@
     "densityLabel": "Tiheys",
     "densitySparse": "Harva",
     "densityDense": "Tiheä",
-    "closeProgress": "Sulje"
+    "complete": "Merkintä valmis!",
+    "failed": "Merkintä epäonnistui",
+    "densityPerWords": "{{density}} / 2000 sanaa"
   },
   "AssessmentPanel": {
     "title": "Arvioinnit",
@@ -145,7 +154,9 @@
     "densityDense": "Tiheä",
     "fragmentSelected": "Katkelma valittu",
     "imageRegionSelected": "Kuva-alue valittu",
-    "closeProgress": "Sulje"
+    "complete": "Merkintä valmis!",
+    "failed": "Merkintä epäonnistui",
+    "densityPerWords": "{{density}} / 2000 sanaa"
   },
   "TaggingPanel": {
     "title": "Tunnisteet",
@@ -164,7 +175,9 @@
     "selectCategory": "Valitse kategoria",
     "chooseCategory": "Valitse kategoria...",
     "fragmentSelected": "Katkelma valittu",
-    "imageRegionSelected": "Kuva-alue valittu"
+    "imageRegionSelected": "Kuva-alue valittu",
+    "complete": "Merkintä valmis!",
+    "failed": "Merkintä epäonnistui"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Merkinnät",
@@ -220,7 +233,6 @@
     "complete": "Merkintä valmis!",
     "failed": "Merkintä epäonnistui",
     "current": "Nykyinen: {{entityType}}",
-    "closeProgress": "Sulje",
     "loading": "ladataan...",
     "loadingEllipsis": "Ladataan...",
     "untitledResource": "Nimetön resurssi",

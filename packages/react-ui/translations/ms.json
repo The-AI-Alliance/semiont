@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Tutup",
+    "paramsTitle": "Parameter permintaan:",
+    "processing": "Semasa: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Anotasi",
     "history": "Sejarah",
@@ -105,7 +110,9 @@
     "densityDense": "Padat",
     "fragmentSelected": "Fragmen dipilih",
     "imageRegionSelected": "Kawasan imej dipilih",
-    "closeProgress": "Tutup"
+    "complete": "Anotasi selesai!",
+    "failed": "Anotasi gagal",
+    "densityPerWords": "{{density}} setiap 2000 perkataan"
   },
   "HighlightPanel": {
     "title": "Sorotan",
@@ -120,7 +127,9 @@
     "densityLabel": "Ketumpatan",
     "densitySparse": "Jarang",
     "densityDense": "Padat",
-    "closeProgress": "Tutup"
+    "complete": "Anotasi selesai!",
+    "failed": "Anotasi gagal",
+    "densityPerWords": "{{density}} setiap 2000 perkataan"
   },
   "AssessmentPanel": {
     "title": "Penilaian",
@@ -145,7 +154,9 @@
     "densityDense": "Padat",
     "fragmentSelected": "Fragmen dipilih",
     "imageRegionSelected": "Kawasan imej dipilih",
-    "closeProgress": "Tutup"
+    "complete": "Anotasi selesai!",
+    "failed": "Anotasi gagal",
+    "densityPerWords": "{{density}} setiap 2000 perkataan"
   },
   "TaggingPanel": {
     "title": "Tag",
@@ -164,7 +175,9 @@
     "selectCategory": "Pilih Kategori",
     "chooseCategory": "Pilih kategori...",
     "fragmentSelected": "Fragmen dipilih",
-    "imageRegionSelected": "Kawasan imej dipilih"
+    "imageRegionSelected": "Kawasan imej dipilih",
+    "complete": "Anotasi selesai!",
+    "failed": "Anotasi gagal"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Anotasi",
@@ -220,7 +233,6 @@
     "complete": "Anotasi selesai!",
     "failed": "Anotasi gagal",
     "current": "Semasa: {{entityType}}",
-    "closeProgress": "Tutup",
     "loading": "memuatkan...",
     "loadingEllipsis": "Memuatkan...",
     "untitledResource": "Sumber Tanpa Tajuk",

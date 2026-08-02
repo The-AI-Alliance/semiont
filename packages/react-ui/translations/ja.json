@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "閉じる",
+    "paramsTitle": "リクエストパラメータ:",
+    "processing": "現在: {{label}}"
+  },
   "Toolbar": {
     "annotations": "アノテーション",
     "history": "履歴",
@@ -105,7 +110,9 @@
     "densityDense": "密",
     "fragmentSelected": "フラグメントが選択されました",
     "imageRegionSelected": "画像領域が選択されました",
-    "closeProgress": "閉じる"
+    "complete": "アノテーション完了！",
+    "failed": "アノテーションに失敗しました",
+    "densityPerWords": "2000語あたり{{density}}"
   },
   "HighlightPanel": {
     "title": "ハイライト",
@@ -120,7 +127,9 @@
     "densityLabel": "密度",
     "densitySparse": "まばら",
     "densityDense": "密",
-    "closeProgress": "閉じる"
+    "complete": "アノテーション完了！",
+    "failed": "アノテーションに失敗しました",
+    "densityPerWords": "2000語あたり{{density}}"
   },
   "AssessmentPanel": {
     "title": "評価",
@@ -145,7 +154,9 @@
     "densityDense": "密",
     "fragmentSelected": "フラグメントが選択されました",
     "imageRegionSelected": "画像領域が選択されました",
-    "closeProgress": "閉じる"
+    "complete": "アノテーション完了！",
+    "failed": "アノテーションに失敗しました",
+    "densityPerWords": "2000語あたり{{density}}"
   },
   "TaggingPanel": {
     "title": "タグ",
@@ -164,7 +175,9 @@
     "selectCategory": "カテゴリを選択",
     "chooseCategory": "カテゴリを選択してください...",
     "fragmentSelected": "フラグメントが選択されました",
-    "imageRegionSelected": "画像領域が選択されました"
+    "imageRegionSelected": "画像領域が選択されました",
+    "complete": "アノテーション完了！",
+    "failed": "アノテーションに失敗しました"
   },
   "UnifiedAnnotationsPanel": {
     "title": "アノテーション",
@@ -220,7 +233,6 @@
     "complete": "アノテーション完了！",
     "failed": "アノテーションに失敗しました",
     "current": "現在: {{entityType}}",
-    "closeProgress": "閉じる",
     "loading": "読み込み中...",
     "loadingEllipsis": "読み込み中...",
     "untitledResource": "無題のリソース",

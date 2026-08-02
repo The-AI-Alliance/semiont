@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Fermer",
+    "paramsTitle": "Paramètres de la requête :",
+    "processing": "En cours : {{label}}"
+  },
   "Toolbar": {
     "annotations": "Annotations",
     "history": "Historique",
@@ -105,7 +110,9 @@
     "densityDense": "Dense",
     "fragmentSelected": "Fragment sélectionné",
     "imageRegionSelected": "Région d'image sélectionnée",
-    "closeProgress": "Fermer"
+    "complete": "Annotation terminée !",
+    "failed": "L'annotation a échoué",
+    "densityPerWords": "{{density}} pour 2000 mots"
   },
   "HighlightPanel": {
     "title": "Surlignages",
@@ -120,7 +127,9 @@
     "densityLabel": "Densité",
     "densitySparse": "Clairsemée",
     "densityDense": "Dense",
-    "closeProgress": "Fermer"
+    "complete": "Annotation terminée !",
+    "failed": "L'annotation a échoué",
+    "densityPerWords": "{{density}} pour 2000 mots"
   },
   "AssessmentPanel": {
     "title": "Évaluations",
@@ -145,7 +154,9 @@
     "densityDense": "Dense",
     "fragmentSelected": "Fragment sélectionné",
     "imageRegionSelected": "Région d'image sélectionnée",
-    "closeProgress": "Fermer"
+    "complete": "Annotation terminée !",
+    "failed": "L'annotation a échoué",
+    "densityPerWords": "{{density}} pour 2000 mots"
   },
   "TaggingPanel": {
     "title": "Étiquettes",
@@ -164,7 +175,9 @@
     "selectCategory": "Sélectionner une catégorie",
     "chooseCategory": "Choisir une catégorie...",
     "fragmentSelected": "Fragment sélectionné",
-    "imageRegionSelected": "Région d'image sélectionnée"
+    "imageRegionSelected": "Région d'image sélectionnée",
+    "complete": "Annotation terminée !",
+    "failed": "L'annotation a échoué"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Annotations",
@@ -220,7 +233,6 @@
     "complete": "Annotation terminée !",
     "failed": "L'annotation a échoué",
     "current": "En cours : {{entityType}}",
-    "closeProgress": "Fermer",
     "loading": "chargement...",
     "loadingEllipsis": "Chargement...",
     "untitledResource": "Ressource sans titre",

@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Luk",
+    "paramsTitle": "Anmodningsparametre:",
+    "processing": "Aktuel: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Annoteringer",
     "history": "Historik",
@@ -105,7 +110,9 @@
     "densityDense": "Tæt",
     "fragmentSelected": "Fragment markeret",
     "imageRegionSelected": "Billedområde markeret",
-    "closeProgress": "Luk"
+    "complete": "Annotering færdig!",
+    "failed": "Annotering mislykkedes",
+    "densityPerWords": "{{density}} pr. 2000 ord"
   },
   "HighlightPanel": {
     "title": "Fremhævninger",
@@ -120,7 +127,9 @@
     "densityLabel": "Tæthed",
     "densitySparse": "Sparsom",
     "densityDense": "Tæt",
-    "closeProgress": "Luk"
+    "complete": "Annotering færdig!",
+    "failed": "Annotering mislykkedes",
+    "densityPerWords": "{{density}} pr. 2000 ord"
   },
   "AssessmentPanel": {
     "title": "Vurderinger",
@@ -145,7 +154,9 @@
     "densityDense": "Tæt",
     "fragmentSelected": "Fragment markeret",
     "imageRegionSelected": "Billedområde markeret",
-    "closeProgress": "Luk"
+    "complete": "Annotering færdig!",
+    "failed": "Annotering mislykkedes",
+    "densityPerWords": "{{density}} pr. 2000 ord"
   },
   "TaggingPanel": {
     "title": "Tags",
@@ -164,7 +175,9 @@
     "selectCategory": "Vælg kategori",
     "chooseCategory": "Vælg en kategori...",
     "fragmentSelected": "Fragment markeret",
-    "imageRegionSelected": "Billedområde markeret"
+    "imageRegionSelected": "Billedområde markeret",
+    "complete": "Annotering færdig!",
+    "failed": "Annotering mislykkedes"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Annoteringer",
@@ -220,7 +233,6 @@
     "complete": "Annotering færdig!",
     "failed": "Annotering mislykkedes",
     "current": "Aktuel: {{entityType}}",
-    "closeProgress": "Luk",
     "loading": "indlæser...",
     "loadingEllipsis": "Indlæser...",
     "untitledResource": "Unavngivet ressource",

@@ -82,6 +82,14 @@ export function TaggingPanel({
   sourceLanguage,
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
+  const ta = useTranslations('AssistProgress');
+
+  // Dismiss parity: tag was the one assist surface with no way to clear a
+  // finished progress display, because it had no `closeProgress` key to
+  // label the control. Same wiring as every other surface.
+  const handleDismissProgress = useCallback(() => {
+    session?.client.mark.dismissProgress();
+  }, [session]);
 
   // Subscribe to the per-KB tag-schema registry. Schemas are runtime-
   // registered by the KB at session start (see frame.addTagSchema).
@@ -355,7 +363,19 @@ export function TaggingPanel({
             title={t('annotateTags')}
             isAssisting={isAssisting}
             progress={progress}
-            progressProps={{ showPercentBar: true }}
+            progressProps={{
+              showPercentBar: true,
+              onDismiss: handleDismissProgress,
+              translations: {
+                cancel: t('cancel'),
+                inProgress: t('annotating'),
+                complete: t('complete'),
+                failed: t('failed'),
+                paramsTitle: ta('paramsTitle'),
+                processing: (label) => ta('processing', { label }),
+                close: ta('close'),
+              },
+            }}
             form={
               <>
                   {/* Empty-state — registry has resolved with no schemas. */}

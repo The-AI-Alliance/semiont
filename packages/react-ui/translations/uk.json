@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Закрити",
+    "paramsTitle": "Параметри запиту:",
+    "processing": "Поточний: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Анотації",
     "history": "Історія",
@@ -105,7 +110,9 @@
     "densityDense": "Щільна",
     "fragmentSelected": "Фрагмент вибрано",
     "imageRegionSelected": "Область зображення вибрано",
-    "closeProgress": "Закрити"
+    "complete": "Анотування завершено!",
+    "failed": "Анотування не вдалося",
+    "densityPerWords": "{{density}} на 2000 слів"
   },
   "HighlightPanel": {
     "title": "Підсвічування",
@@ -120,7 +127,9 @@
     "densityLabel": "Щільність",
     "densitySparse": "Розріджена",
     "densityDense": "Щільна",
-    "closeProgress": "Закрити"
+    "complete": "Анотування завершено!",
+    "failed": "Анотування не вдалося",
+    "densityPerWords": "{{density}} на 2000 слів"
   },
   "AssessmentPanel": {
     "title": "Оцінки",
@@ -145,7 +154,9 @@
     "densityDense": "Щільна",
     "fragmentSelected": "Фрагмент вибрано",
     "imageRegionSelected": "Область зображення вибрано",
-    "closeProgress": "Закрити"
+    "complete": "Анотування завершено!",
+    "failed": "Анотування не вдалося",
+    "densityPerWords": "{{density}} на 2000 слів"
   },
   "TaggingPanel": {
     "title": "Теги",
@@ -164,7 +175,9 @@
     "selectCategory": "Обрати категорію",
     "chooseCategory": "Оберіть категорію...",
     "fragmentSelected": "Фрагмент вибрано",
-    "imageRegionSelected": "Область зображення вибрано"
+    "imageRegionSelected": "Область зображення вибрано",
+    "complete": "Анотування завершено!",
+    "failed": "Анотування не вдалося"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Анотації",
@@ -220,7 +233,6 @@
     "complete": "Анотування завершено!",
     "failed": "Анотування не вдалося",
     "current": "Поточний: {{entityType}}",
-    "closeProgress": "Закрити",
     "loading": "завантаження...",
     "loadingEllipsis": "Завантаження...",
     "untitledResource": "Ресурс без назви",

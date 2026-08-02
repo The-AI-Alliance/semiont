@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Zamknij",
+    "paramsTitle": "Parametry żądania:",
+    "processing": "Bieżący: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Adnotacje",
     "history": "Historia",
@@ -105,7 +110,9 @@
     "densityDense": "Gęsta",
     "fragmentSelected": "Fragment zaznaczony",
     "imageRegionSelected": "Region obrazu zaznaczony",
-    "closeProgress": "Zamknij"
+    "complete": "Adnotowanie zakończone!",
+    "failed": "Adnotowanie nie powiodło się",
+    "densityPerWords": "{{density}} na 2000 słów"
   },
   "HighlightPanel": {
     "title": "Wyróżnienia",
@@ -120,7 +127,9 @@
     "densityLabel": "Gęstość",
     "densitySparse": "Rzadka",
     "densityDense": "Gęsta",
-    "closeProgress": "Zamknij"
+    "complete": "Adnotowanie zakończone!",
+    "failed": "Adnotowanie nie powiodło się",
+    "densityPerWords": "{{density}} na 2000 słów"
   },
   "AssessmentPanel": {
     "title": "Oceny",
@@ -145,7 +154,9 @@
     "densityDense": "Gęsta",
     "fragmentSelected": "Fragment zaznaczony",
     "imageRegionSelected": "Region obrazu zaznaczony",
-    "closeProgress": "Zamknij"
+    "complete": "Adnotowanie zakończone!",
+    "failed": "Adnotowanie nie powiodło się",
+    "densityPerWords": "{{density}} na 2000 słów"
   },
   "TaggingPanel": {
     "title": "Tagi",
@@ -164,7 +175,9 @@
     "selectCategory": "Wybierz kategorię",
     "chooseCategory": "Wybierz kategorię...",
     "fragmentSelected": "Fragment zaznaczony",
-    "imageRegionSelected": "Region obrazu zaznaczony"
+    "imageRegionSelected": "Region obrazu zaznaczony",
+    "complete": "Adnotowanie zakończone!",
+    "failed": "Adnotowanie nie powiodło się"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Adnotacje",
@@ -220,7 +233,6 @@
     "complete": "Adnotowanie zakończone!",
     "failed": "Adnotowanie nie powiodło się",
     "current": "Bieżący: {{entityType}}",
-    "closeProgress": "Zamknij",
     "loading": "ładowanie...",
     "loadingEllipsis": "Ładowanie...",
     "untitledResource": "Zasób bez tytułu",

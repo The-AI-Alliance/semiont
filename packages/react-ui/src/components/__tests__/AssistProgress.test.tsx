@@ -99,9 +99,16 @@ describe('AssistProgress', () => {
     expect(screen.queryByTitle('Cancel Job')).not.toBeInTheDocument();
   });
 
-  it('stage branching: complete shows ✅ + complete copy, error shows ❌ + message', () => {
+  it('stage branching: both terminal stages prefer the job message, then the translated copy', () => {
+    // The job composes detail no static string can ("Created 14 highlights"),
+    // so it wins on BOTH terminal stages; the translated copy covers the
+    // required-but-empty message case (pinned below).
     const { rerender } = render(
       <AssistProgress progress={running({ stage: 'complete' })} dataType="reference" translations={T({ complete: 'All done!' })} />,
+    );
+    expect(screen.getByText('working on it')).toBeInTheDocument();
+    rerender(
+      <AssistProgress progress={running({ stage: 'complete', message: '' })} dataType="reference" translations={T({ complete: 'All done!' })} />,
     );
     expect(screen.getByText('All done!')).toBeInTheDocument();
     rerender(

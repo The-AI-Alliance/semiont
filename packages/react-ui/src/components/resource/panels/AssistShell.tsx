@@ -19,8 +19,12 @@ export interface AssistShellProps {
    * Pass-through config for the progress renderer (cancel/dismiss wiring,
    * translations, percent bar). Dismiss policy lives HERE: the shell forwards
    * `onDismiss` only once the assist is no longer running.
+   *
+   * Required because `translations` is: the shell renders the progress display
+   * itself, so a caller that omitted this would render untranslated chrome —
+   * the failure Lane A exists to make impossible.
    */
-  progressProps?: Omit<AssistProgressProps, 'progress' | 'dataType'>;
+  progressProps: Omit<AssistProgressProps, 'progress' | 'dataType'>;
 }
 
 /**

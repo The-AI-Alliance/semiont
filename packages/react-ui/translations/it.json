@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "Chiudi",
+    "paramsTitle": "Parametri della richiesta:",
+    "processing": "Corrente: {{label}}"
+  },
   "Toolbar": {
     "annotations": "Annotazioni",
     "history": "Cronologia",
@@ -105,7 +110,9 @@
     "densityDense": "Densa",
     "fragmentSelected": "Frammento selezionato",
     "imageRegionSelected": "Regione dell'immagine selezionata",
-    "closeProgress": "Chiudi"
+    "complete": "Annotazione completata!",
+    "failed": "Annotazione fallita",
+    "densityPerWords": "{{density}} ogni 2000 parole"
   },
   "HighlightPanel": {
     "title": "Evidenziazioni",
@@ -120,7 +127,9 @@
     "densityLabel": "Densità",
     "densitySparse": "Sparsa",
     "densityDense": "Densa",
-    "closeProgress": "Chiudi"
+    "complete": "Annotazione completata!",
+    "failed": "Annotazione fallita",
+    "densityPerWords": "{{density}} ogni 2000 parole"
   },
   "AssessmentPanel": {
     "title": "Valutazioni",
@@ -145,7 +154,9 @@
     "densityDense": "Densa",
     "fragmentSelected": "Frammento selezionato",
     "imageRegionSelected": "Regione dell'immagine selezionata",
-    "closeProgress": "Chiudi"
+    "complete": "Annotazione completata!",
+    "failed": "Annotazione fallita",
+    "densityPerWords": "{{density}} ogni 2000 parole"
   },
   "TaggingPanel": {
     "title": "Etichette",
@@ -164,7 +175,9 @@
     "selectCategory": "Seleziona Categoria",
     "chooseCategory": "Scegli una categoria...",
     "fragmentSelected": "Frammento selezionato",
-    "imageRegionSelected": "Regione dell'immagine selezionata"
+    "imageRegionSelected": "Regione dell'immagine selezionata",
+    "complete": "Annotazione completata!",
+    "failed": "Annotazione fallita"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Annotazioni",
@@ -220,7 +233,6 @@
     "complete": "Annotazione completata!",
     "failed": "Annotazione fallita",
     "current": "Corrente: {{entityType}}",
-    "closeProgress": "Chiudi",
     "loading": "caricamento...",
     "loadingEllipsis": "Caricamento...",
     "untitledResource": "Risorsa Senza Titolo",

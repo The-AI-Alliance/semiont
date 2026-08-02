@@ -6,6 +6,7 @@ import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { AssistShell } from './AssistShell';
+import { EntityFoundLog } from '../../EntityFoundLog';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
@@ -121,6 +122,9 @@ export function ReferencesPanel({
   sourceLanguage,
 }: Props) {
   const t = useTranslations('ReferencesPanel');
+  // Chrome shared by every assist surface (heading, current-work line, dismiss)
+  // lives in one namespace so the same words aren't re-translated per panel.
+  const ta = useTranslations('AssistProgress');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastAnnotationLog, setLastDetectionLog] = useState<Array<{ entityType: string; foundCount: number }> | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
@@ -375,24 +379,19 @@ export function ReferencesPanel({
                 failed: t('failed'),
                 found: (count) => t('found', { count }),
                 current: (entityType) => t('current', { entityType }),
-                close: t('closeProgress'),
+                paramsTitle: ta('paramsTitle'),
+                processing: (label) => ta('processing', { label }),
+                close: ta('close'),
               },
             }}
             form={
               <>
                 {/* Completed annotation log - shown after completion */}
-                {lastAnnotationLog && lastAnnotationLog.length > 0 && (
-                  <div className="semiont-assist-widget__log">
-                    <div className="semiont-assist-widget__log-items">
-                      {lastAnnotationLog.map((item, index) => (
-                        <div key={index} className="semiont-assist-widget__log-item">
-                          <span className="semiont-assist-widget__log-check">✓</span>
-                          <span className="semiont-assist-widget__log-type">{item.entityType}:</span>
-                          <span>{t('found', { count: item.foundCount })}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                {lastAnnotationLog && (
+                  <EntityFoundLog
+                    entries={lastAnnotationLog}
+                    formatFound={(count) => t('found', { count })}
+                  />
                 )}
 
                 {/* Entity Types Selection */}

@@ -1,4 +1,9 @@
 {
+  "AssistProgress": {
+    "close": "סגור",
+    "paramsTitle": "פרמטרים של הבקשה:",
+    "processing": "נוכחי: {{label}}"
+  },
   "Toolbar": {
     "annotations": "הערות",
     "history": "היסטוריה",
@@ -105,7 +110,9 @@
     "densityDense": "צפוף",
     "fragmentSelected": "קטע נבחר",
     "imageRegionSelected": "אזור תמונה נבחר",
-    "closeProgress": "סגור"
+    "complete": "ההערה הושלמה!",
+    "failed": "ההערה נכשלה",
+    "densityPerWords": "{{density}} לכל 2000 מילים"
   },
   "HighlightPanel": {
     "title": "הדגשות",
@@ -120,7 +127,9 @@
     "densityLabel": "צפיפות",
     "densitySparse": "דליל",
     "densityDense": "צפוף",
-    "closeProgress": "סגור"
+    "complete": "ההערה הושלמה!",
+    "failed": "ההערה נכשלה",
+    "densityPerWords": "{{density}} לכל 2000 מילים"
   },
   "AssessmentPanel": {
     "title": "הערכות",
@@ -145,7 +154,9 @@
     "densityDense": "צפוף",
     "fragmentSelected": "קטע נבחר",
     "imageRegionSelected": "אזור תמונה נבחר",
-    "closeProgress": "סגור"
+    "complete": "ההערה הושלמה!",
+    "failed": "ההערה נכשלה",
+    "densityPerWords": "{{density}} לכל 2000 מילים"
   },
   "TaggingPanel": {
     "title": "תגיות",
@@ -164,7 +175,9 @@
     "selectCategory": "בחירת קטגוריה",
     "chooseCategory": "בחרו קטגוריה...",
     "fragmentSelected": "קטע נבחר",
-    "imageRegionSelected": "אזור תמונה נבחר"
+    "imageRegionSelected": "אזור תמונה נבחר",
+    "complete": "ההערה הושלמה!",
+    "failed": "ההערה נכשלה"
   },
   "UnifiedAnnotationsPanel": {
     "title": "הערות",
@@ -220,7 +233,6 @@
     "complete": "ההערה הושלמה!",
     "failed": "ההערה נכשלה",
     "current": "נוכחי: {{entityType}}",
-    "closeProgress": "סגור",
     "loading": "טוען...",
     "loadingEllipsis": "טוען...",
     "untitledResource": "משאב ללא כותרת",
