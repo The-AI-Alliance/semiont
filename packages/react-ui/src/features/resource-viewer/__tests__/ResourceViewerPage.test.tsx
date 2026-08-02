@@ -240,14 +240,16 @@ describe('ResourceViewerPage', () => {
       // nothing kept. `beckon:focus` is the existing "scroll to and highlight"
       // contract (BrowseView already subscribes); this makes the page a producer.
       localStorage.setItem('activeToolbarPanel', 'history');
+      capturedHistory.props = null;
       const props = createMockProps();
       renderWithProviders(<ResourceViewerPage {...props} />);
+
+      expect(capturedHistory.props).not.toBeNull();
 
       const focused: Array<string | null> = [];
       const sub = stubClient.bus.get('beckon:focus').subscribe(({ annotationId }: any) => focused.push(annotationId));
 
-      expect(capturedHistory.props.onEventClick).toBeDefined();
-      capturedHistory.props.onEventClick('ann-42');
+      expect(capturedHistory.props?.onEventClick).toBeTypeOf('function');
       expect(focused).toEqual(['ann-42']);
 
       sub.unsubscribe();
