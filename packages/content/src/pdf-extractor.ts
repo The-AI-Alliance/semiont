@@ -18,12 +18,13 @@
 
 import { isObject, type PdfTextItem } from '@semiont/core';
 import { extractPdfTextLayer } from './extract-pdf-text-layer';
-import type { ContentExtractor, ExtractedText } from './content-extractor';
+import type { ContentExtractor, ExtractedText, ExtractionCache } from './content-extractor';
 import type { PdfTextLayer } from './pdf-text-layer';
 import { detectTable, renderTable } from './pdf-tables';
 import { extractPageImages } from './pdf-page-images';
 import { recognizeImages } from './ocr';
 import { mapWordsToItems } from './ocr-geometry';
+import { encodeLines, decodeLines } from './anchored-text-store';
 
 /** One OCR'd page: its text, and word geometry with page-local offsets. */
 interface OcrPageResult {
@@ -78,7 +79,23 @@ function summarize(confidences: number[]): ExtractedText['ocrConfidence'] {
  * Each word is anchored through the matrix that placed its image, so a scanned
  * page ends up carrying the same kind of geometry a native one does.
  */
-async function ocrPages(content: Buffer, pageNumbers?: number[]): Promise<Map<number, OcrPageResult>> {
+async function ocrPages(
+  content: Buffer,
+  cache?: ExtractionCache,
+  pageNumbers?: number[],
+): Promise<Map<number, OcrPageResult>> {
+  // The cache sits here rather than around `extract()` because this is where
+  // the cost is: 82% of extraction time is Tesseract, and the text-layer parse
+  // that classifies the document has to run either way. A document with a text
+  // layer never reaches this function, so it never produces an entry.
+  const hit = await cache?.store.read(cache.key);
+  if (hit) {
+    return new Map(hit.pages.map((page) => [
+      page.p,
+      { text: page.text, items: decodeLines(page.lines, page.p), confidences: page.conf },
+    ]));
+  }
+
   const imagesByPage = await extractPageImages(content, pageNumbers);
   if (imagesByPage.size === 0) return new Map();
 
@@ -104,6 +121,16 @@ async function ocrPages(content: Buffer, pageNumbers?: number[]): Promise<Map<nu
     }
     if (text) byPage.set(page, { text, items, confidences });
   }
+
+  // Record only what the engine actually produced. A page that recognized
+  // nothing is absent here, and the entry says so on the next pass too.
+  await cache?.store.write(cache.key, [...byPage.entries()].map(([p, page]) => ({
+    p,
+    text: page.text,
+    lines: encodeLines(page.items),
+    conf: page.confidences,
+  })));
+
   return byPage;
 }
 
@@ -199,7 +226,7 @@ function shapeTables(layer: PdfTextLayer): ExtractedText | null {
 }
 
 export const pdfExtractor: ContentExtractor = {
-  async extract(content) {
+  async extract(content, _mediaType, cache) {
     // Before the parser sees it: everything downstream — parse, image decode,
     // OCR — expands from these bytes, so this is the only gate that costs
     // nothing to enforce.
@@ -215,7 +242,7 @@ export const pdfExtractor: ContentExtractor = {
     // pixels, so read them. 'no-text-layer' now means OCR genuinely came up
     // empty, not that we never tried.
     if (!layer) {
-      const ocr = joinPages(await ocrPages(content), 0);
+      const ocr = joinPages(await ocrPages(content, cache), 0);
       if (!ocr.text) return { declined: 'no-text-layer' };
       const confidence = summarize(ocr.confidences);
       return {
@@ -249,7 +276,7 @@ export const pdfExtractor: ContentExtractor = {
     // carries no geometry of its own this phase (mapping pixel boxes back to
     // page points needs the image's placement transform — #739's critical
     // path, not embedding's).
-    const recovered = await ocrPages(content, unreadPages);
+    const recovered = await ocrPages(content, cache, unreadPages);
     const stillUnread = unreadPages.filter((page) => !recovered.has(page));
     const hybridClass = shaped.pdfClass === 'A' ? 'C' as const : shaped.pdfClass;
     if (recovered.size === 0) {

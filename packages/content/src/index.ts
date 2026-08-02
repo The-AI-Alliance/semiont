@@ -26,7 +26,18 @@ export {
   type ContentExtractor,
   type ExtractedText,
   type ExtractionDecline,
+  type ExtractionCache,
 } from './content-extractor';
+
+// Persistent recognition cache (ANCHORED-TEXT-CACHE Lane 2). Derived values
+// only — an authored coordinate map is master data and never belongs here.
+export {
+  createAnchoredTextStore,
+  type AnchoredTextStore,
+  type CachedAnchoredText,
+  type CachedOcrPage,
+  type CachedLine,
+} from './anchored-text-store';
 
 // PDF text-layer extraction. The anchoring vocabulary these produce
 // (AnchoredText, PdfTextItem) and the locate/textUnder pair that reads it are
