@@ -6,9 +6,10 @@
  * process. This stores what the engine produced so only the first pass pays.
  *
  * **Derived values only.** Everything here is reproducible from the source
- * bytes, which is what makes eviction and a stamp miss safe. An *authored*
- * coordinate map — one Semiont generated and cannot recompute
- * (`PDF-GENERATION.md`) — is master data and must never be written here.
+ * bytes, which is what makes a stamp miss safe. An authored coordinate map is
+ * embedded in the PDF Semiont generated, not stored alongside one — see
+ * `PDF-GENERATION.md`, which owns that decision and states the negative:
+ * never this store.
  *
  * The seam is the OCR boundary, not `extract()`: 82% of extraction time is
  * Tesseract, so the text-layer parse keeps running and only recognition is
@@ -18,7 +19,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
-import { isObject, isString, isNumber, isArray, type PdfTextItem } from '@semiont/core';
+import { isObject, isString, isNumber, isArray, type Logger, type PdfTextItem } from '@semiont/core';
 
 /**
  * One line of recognized text: the geometry every word on it shares, plus the
@@ -146,18 +147,28 @@ function isCached(value: unknown): value is CachedAnchoredText {
  * error, matching the rule extraction already follows for unreadable pages —
  * the cache may make things faster, never make them fail.
  */
-export function createAnchoredTextStore(dir: string): AnchoredTextStore {
+export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredTextStore {
     const fileFor = (key: string) => path.join(dir, `${key.replace(/[^a-zA-Z0-9_-]/g, '')}.json`);
 
     return {
         async read(key) {
+            let hit: CachedAnchoredText | null = null;
             try {
                 const parsed: unknown = JSON.parse(await fs.promises.readFile(fileFor(key), 'utf8'));
-                if (!isCached(parsed) || parsed.stamp !== STAMP) return null;
-                return parsed;
+                if (isCached(parsed) && parsed.stamp === STAMP) hit = parsed;
             } catch {
-                return null;   // absent, unreadable, truncated, or not ours
+                hit = null;   // absent, unreadable, truncated, or not ours
             }
+            // Logged here rather than at the call sites: `prepare-detection` and
+            // the smelter both extract, so each would see only its own share of
+            // the traffic and the policy would be stated twice. Hit rate is what
+            // keeps the Lane 0 decision auditable after the fact.
+            logger?.debug('Anchored-text cache', {
+                outcome: hit ? 'hit' : 'miss',
+                key,
+                ...(hit ? { pages: hit.pages.length } : {}),
+            });
+            return hit;
         },
 
         async write(key, pages) {

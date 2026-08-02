@@ -125,6 +125,47 @@ describe('line-record codec', () => {
   });
 });
 
+/**
+ * Lane 4 — hit rate in the operator log, so Lane 0's decision stays auditable
+ * instead of becoming folklore.
+ *
+ * Logged by the store rather than at the call sites. Both `prepare-detection`
+ * and the smelter call `extract()`, so logging at call sites would state the
+ * same policy twice and each site would see only its own share of the traffic.
+ */
+describe('cache logging', () => {
+  const logger = () => {
+    const lines: { message: string; meta?: Record<string, unknown> }[] = [];
+    const log = {
+      debug: (message: string, meta?: Record<string, unknown>) => { lines.push({ message, meta }); },
+      info: (message: string, meta?: Record<string, unknown>) => { lines.push({ message, meta }); },
+      warn: () => {}, error: () => {}, child: () => log,
+    };
+    return { log, lines };
+  };
+
+  it('reports a miss and a hit for the same key', { timeout: 60_000 }, async () => {
+    const { log, lines } = logger();
+    const store = createAnchoredTextStore(dir, log as never);
+    const key = calculateChecksum(SCAN);
+
+    await pdfExtractor.extract(SCAN, 'application/pdf', { key, store });
+    await pdfExtractor.extract(SCAN, 'application/pdf', { key, store });
+
+    const outcomes = lines.map((l) => l.meta?.outcome);
+    expect(outcomes).toEqual(['miss', 'hit']);
+    expect(lines[1]!.meta?.key).toBe(key);
+  });
+
+  it('says nothing when no logger was given', { timeout: 60_000 }, async () => {
+    // The store is used from a library; an operator decision about logging
+    // belongs to whoever constructs it.
+    const store = createAnchoredTextStore(dir);
+    await pdfExtractor.extract(SCAN, 'application/pdf', { key: calculateChecksum(SCAN), store });
+    expect(recognizeSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('anchored-text cache', () => {
   it('does not re-run the engine for content it has already read', { timeout: 60_000 }, async () => {
     const store = createAnchoredTextStore(dir);
