@@ -7,18 +7,36 @@
  * cancel/dismiss arrive as callbacks the caller wires (job.cancelRequest /
  * mark.dismissProgress). Feature blocks are data-presence-driven so each call
  * site keeps its current visuals by passing what it always had.
+ *
+ * i18n contract (ASSIST-SURFACE-WARTS Lane A): every string this component
+ * renders comes from `translations`. There are NO English fallbacks — a
+ * missing key must be a type error at the call site, not a silent English
+ * leak in a Japanese UI. Tests use key-echo strings ('tr.complete') so an
+ * assertion failing means "rendered something other than what was passed".
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import type { components } from '@semiont/core';
-import { AssistProgress } from '../AssistProgress';
+import { AssistProgress, type AssistProgressTranslations } from '../AssistProgress';
 
 type JobProgress = components['schemas']['JobProgress'];
 
 const running = (over: Partial<JobProgress> = {}): JobProgress => ({
   stage: 'analyzing', percentage: 40, message: 'working on it', ...over,
+});
+
+/** Every required key, echoing its own name; override per test. */
+const T = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTranslations => ({
+  cancel: 'tr.cancel',
+  inProgress: 'tr.inProgress',
+  complete: 'tr.complete',
+  failed: 'tr.failed',
+  close: 'tr.close',
+  paramsTitle: 'tr.paramsTitle',
+  processing: (label: string) => `tr.processing(${label})`,
+  ...over,
 });
 
 describe('AssistProgress', () => {
@@ -27,7 +45,8 @@ describe('AssistProgress', () => {
       <AssistProgress
         progress={running({ requestParams: [{ label: 'Density', value: '5' }] })}
         dataType="comment"
-             />,
+        translations={T()}
+      />,
     );
     expect(screen.getByText('working on it')).toBeInTheDocument();
     expect(screen.getByText(/Density/)).toBeInTheDocument();
@@ -37,12 +56,24 @@ describe('AssistProgress', () => {
     expect(root).toHaveAttribute('data-status', 'analyzing');
   });
 
+  it('renders the request-parameters title from translations, never a literal', () => {
+    render(
+      <AssistProgress
+        progress={running({ requestParams: [{ label: 'Density', value: '5' }] })}
+        dataType="comment"
+        translations={T()}
+      />,
+    );
+    expect(screen.getByText('tr.paramsTitle')).toBeInTheDocument();
+    expect(screen.queryByText('Request Parameters:')).not.toBeInTheDocument();
+  });
+
   it('renders a title header only when given one', () => {
     const { rerender } = render(
-      <AssistProgress progress={running()} dataType="reference" translations={{ title: 'Annotating Entity References' }} />,
+      <AssistProgress progress={running()} dataType="reference" translations={T({ title: 'Annotating Entity References' })} />,
     );
     expect(screen.getByText('Annotating Entity References')).toBeInTheDocument();
-    rerender(<AssistProgress progress={running()} dataType="comment" />);
+    rerender(<AssistProgress progress={running()} dataType="comment" translations={T()} />);
     expect(screen.queryByText('Annotating Entity References')).not.toBeInTheDocument();
   });
 
@@ -50,7 +81,7 @@ describe('AssistProgress', () => {
     // Cancel lives in the title header — both flows that offer cancel
     // (reference detection, generation) render the titled profile.
     const onCancel = vi.fn();
-    const tr = { title: 'Generating Resource', cancel: 'Cancel Job' };
+    const tr = T({ title: 'Generating Resource', cancel: 'Cancel Job' });
     const { rerender } = render(
       <AssistProgress progress={running()} dataType="generation" onCancel={onCancel} translations={tr} />,
     );
@@ -70,11 +101,11 @@ describe('AssistProgress', () => {
 
   it('stage branching: complete shows ✅ + complete copy, error shows ❌ + message', () => {
     const { rerender } = render(
-      <AssistProgress progress={running({ stage: 'complete' })} dataType="reference" translations={{ complete: 'All done!' }} />,
+      <AssistProgress progress={running({ stage: 'complete' })} dataType="reference" translations={T({ complete: 'All done!' })} />,
     );
     expect(screen.getByText('All done!')).toBeInTheDocument();
     rerender(
-      <AssistProgress progress={running({ stage: 'error', message: 'it broke' })} dataType="reference" translations={{ failed: 'Failed' }} />,
+      <AssistProgress progress={running({ stage: 'error', message: 'it broke' })} dataType="reference" translations={T({ failed: 'Failed' })} />,
     );
     expect(screen.getByText('it broke')).toBeInTheDocument();
   });
@@ -83,7 +114,7 @@ describe('AssistProgress', () => {
     render(
       <AssistProgress
         progress={running({ completedEntityTypes: [{ entityType: 'Person', foundCount: 3 }] })}
-        dataType="reference" translations={{ found: (n) => `Found ${n}` }}
+        dataType="reference" translations={T({ found: (n) => `Found ${n}` })}
       />,
     );
     expect(screen.getByText('Person:')).toBeInTheDocument();
@@ -94,55 +125,75 @@ describe('AssistProgress', () => {
     const { rerender } = render(
       <AssistProgress
         progress={running({ currentEntityType: 'Location' })}
-        dataType="reference" translations={{ current: (l) => `Processing: ${l}` }}
+        dataType="reference" translations={T({ current: (l) => `Current: ${l}` })}
       />,
     );
-    expect(screen.getByText('Processing: Location')).toBeInTheDocument();
+    expect(screen.getByText('Current: Location')).toBeInTheDocument();
     rerender(
       <AssistProgress
         progress={running({ currentCategory: 'Rule', processedCategories: 2, totalCategories: 5 })}
-        dataType="tag"      />,
+        dataType="tag" translations={T()}
+      />,
     );
     expect(screen.getByText(/Rule/)).toBeInTheDocument();
     expect(screen.getByText(/2\/5/)).toBeInTheDocument();
   });
 
+  it('falls back to the generic processing formatter — never the English literal', () => {
+    // The reference flow passes its own `current` wording; every other flow
+    // (tag categories, and any flow without one) uses `processing`. Neither
+    // path may render a hardcoded "Processing: ".
+    const { rerender } = render(
+      <AssistProgress progress={running({ currentEntityType: 'Location' })} dataType="reference" translations={T()} />,
+    );
+    expect(screen.getByText('tr.processing(Location)')).toBeInTheDocument();
+    rerender(
+      <AssistProgress progress={running({ currentCategory: 'Rule' })} dataType="tag" translations={T()} />,
+    );
+    expect(screen.getByText(/tr\.processing\(Rule\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Processing: /)).not.toBeInTheDocument();
+  });
+
   it('renders the percentage bar only when opted in', () => {
     const { container, rerender } = render(
-      <AssistProgress progress={running({ percentage: 40 })} dataType="tag" showPercentBar />,
+      <AssistProgress progress={running({ percentage: 40 })} dataType="tag" showPercentBar translations={T()} />,
     );
     const fill = container.querySelector('.semiont-progress-bar__fill');
     expect(fill).toBeInTheDocument();
     expect(fill).toHaveStyle({ width: '40%' });
     rerender(
-      <AssistProgress progress={running({ percentage: 40 })} dataType="reference" />,
+      <AssistProgress progress={running({ percentage: 40 })} dataType="reference" translations={T()} />,
     );
     expect(container.querySelector('.semiont-progress-bar__fill')).not.toBeInTheDocument();
   });
 
-  it('cancel and dismiss carry accessible names, with safe fallbacks when untranslated', () => {
-    // ✕ / × glyphs alone are meaningless to screen readers; the controls must
-    // have an accessible name even when a caller forgets the translations.
+  it('cancel and dismiss take their accessible names from translations', () => {
+    // ✕ / × glyphs alone are meaningless to screen readers, and an English
+    // fallback is meaningless to a non-English reader. The labels are
+    // required keys, so there is nothing to fall back TO.
     render(
       <AssistProgress progress={running()} dataType="generation"
         onCancel={vi.fn()} onDismiss={vi.fn()}
-        translations={{ title: 'Generating' }} />,
+        translations={T({ title: 'Generating' })} />,
     );
-    expect(screen.getByLabelText('Cancel')).toBeInTheDocument();
-    expect(screen.getByLabelText('Dismiss')).toBeInTheDocument();
+    expect(screen.getByLabelText('tr.cancel')).toBeInTheDocument();
+    expect(screen.getByLabelText('tr.close')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Cancel')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Dismiss')).not.toBeInTheDocument();
   });
 
-  it('terminal stages never render a blank status line', () => {
+  it('terminal stages never render a blank status line, and never an English one', () => {
     // JobProgress.message is required but can be '' — a terminal display with
-    // no text at all is worse than a generic word.
+    // no text at all is worse than a generic word, but that word must be the
+    // caller's translated one.
     const { rerender } = render(
-      <AssistProgress progress={running({ stage: 'complete', message: '' })} dataType="reference" />,
+      <AssistProgress progress={running({ stage: 'complete', message: '' })} dataType="reference" translations={T()} />,
     );
-    expect(screen.getByText('Complete')).toBeInTheDocument();
+    expect(screen.getByText('tr.complete')).toBeInTheDocument();
     rerender(
-      <AssistProgress progress={running({ stage: 'error', message: '' })} dataType="reference" />,
+      <AssistProgress progress={running({ stage: 'error', message: '' })} dataType="reference" translations={T()} />,
     );
-    expect(screen.getByText('Failed')).toBeInTheDocument();
+    expect(screen.getByText('tr.failed')).toBeInTheDocument();
   });
 
   it('renders dismiss whenever the caller offers it (WHEN is the caller\'s policy)', async () => {
@@ -151,12 +202,12 @@ describe('AssistProgress', () => {
     // "callback present → affordance rendered".
     const onDismiss = vi.fn();
     const { rerender } = render(
-      <AssistProgress progress={running()} dataType="highlight" translations={{ close: 'Close' }} />,
+      <AssistProgress progress={running()} dataType="highlight" translations={T({ close: 'Close' })} />,
     );
     expect(screen.queryByLabelText('Close')).not.toBeInTheDocument();
     rerender(
       <AssistProgress progress={running()} dataType="highlight"
-        onDismiss={onDismiss} translations={{ close: 'Close' }} />,
+        onDismiss={onDismiss} translations={T({ close: 'Close' })} />,
     );
     await userEvent.click(screen.getByLabelText('Close'));
     expect(onDismiss).toHaveBeenCalledOnce();
