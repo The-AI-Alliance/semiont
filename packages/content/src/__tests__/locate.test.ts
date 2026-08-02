@@ -2,9 +2,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { describe, it, expect } from 'vitest';
-import { locate } from '../locate';
+import { locate, createFragmentSelector, parseFragmentSelector, getPageFromFragment } from '@semiont/core';
 import { extractPdfTextLayer } from '../extract-pdf-text-layer';
-import { createFragmentSelector, parseFragmentSelector, getPageFromFragment } from '@semiont/core';
 
 const EXPECTED_CANVAS_X = 72;
 const EXPECTED_CANVAS_Y = 60;

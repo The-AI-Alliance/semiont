@@ -28,13 +28,12 @@ export {
   type ExtractionDecline,
 } from './content-extractor';
 
-// PDF text-layer extraction
+// PDF text-layer extraction. The anchoring vocabulary these produce
+// (AnchoredText, PdfTextItem) and the locate/textUnder pair that reads it are
+// exported from @semiont/core — pure, and needed by the browser canvas too.
 export { extractPdfTextLayer } from './extract-pdf-text-layer';
-export { locate } from './locate';
 export type {
-  AnchoredText,
   PdfTextLayer,
-  PdfTextItem,
   PdfPageInfo,
   PdfFormField,
 } from './pdf-text-layer';

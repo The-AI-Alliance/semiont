@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
-import type { Annotation, AnchorRect } from '@semiont/core';
+import type { Annotation, AnchorRect, AnchoredText } from '@semiont/core';
 import { resourceId as toResourceId } from '@semiont/core';
 import { toViewportAnchorRect } from '../../lib/anchor-rect';
-import { createFragmentSelector } from '@semiont/core';
+import { createFragmentSelector, anchorRuns, isTextRun, textUnder } from '@semiont/core';
 import { rectsForPage } from './rects-for-page';
 import { createHoverHandlers, type SemiontSession } from '@semiont/sdk';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
@@ -61,7 +61,7 @@ interface PdfAnnotationCanvasProps {
  * PDF annotation canvas with page navigation and rectangle drawing
  *
  * @emits browse:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
- * @emits mark:requested - New annotation drawn on PDF. Payload: { selector: FragmentSelector, motivation: SelectionMotivation }
+ * @emits mark:requested - New annotation drawn on PDF. Payload: { selector: [FragmentSelector, TextQuoteSelector?], motivation: SelectionMotivation } — the quote is the text under the rectangle, omitted when the page has no text layer
  * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  */
 export function PdfAnnotationCanvas({
@@ -83,6 +83,13 @@ export function PdfAnnotationCanvas({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
+  /**
+   * The current page's text and per-run geometry, read once when the page
+   * loads so a drag can be quoted without a round trip. Null while the page
+   * is loading; `items` is empty on a scanned page, which has no text layer
+   * for the browser to read.
+   */
+  const [pageAnchored, setPageAnchored] = useState<AnchoredText | null>(null);
   const [displayDimensions, setDisplayDimensions] = useState<{ width: number; height: number } | null>(null);
   const [scale] = useState(1.5); // Fixed scale for better quality
 
@@ -132,6 +139,9 @@ export function PdfAnnotationCanvas({
     let cancelled = false;
     const doc = pdfDoc;
 
+    // Never quote the previous page's text under this page's rectangles.
+    setPageAnchored(null);
+
     async function loadPage() {
       try {
         const page = await doc.getPage(pageNumber);
@@ -144,6 +154,15 @@ export function PdfAnnotationCanvas({
           width: viewport.width,
           height: viewport.height
         });
+
+        // The page's text layer, read once here rather than at drag time —
+        // `handleMouseUp` stays synchronous, and a native page costs nothing
+        // extra since pdf.js already parsed it to draw the page.
+        const content = await page.getTextContent();
+
+        if (cancelled) return;
+
+        setPageAnchored(anchorRuns(content.items.filter(isTextRun), pageNumber));
 
         // Render page to image
         const { dataUrl } = await renderPdfPageToDataUrl(page, scale);
@@ -318,15 +337,25 @@ export function PdfAnnotationCanvas({
     // Create FragmentSelector
     const fragmentSelector = createFragmentSelector(pdfCoord);
 
+    // What the box was drawn around. Without it the annotation is a rectangle
+    // with no memory of its own content: the panel entry is blank, search over
+    // annotation text misses it, and an export has nothing to print. Empty on a
+    // scanned page or over an image — emit no quote at all rather than an empty
+    // one, which would assert the box was drawn around nothing.
+    const quoted = pageAnchored ? textUnder(pageAnchored, pdfCoord) : '';
+
     // Emit annotation:requested event with FragmentSelector
     if (selectedMotivation) {
       session.client.mark.request(
         toResourceId(resourceUri),
-        {
-          type: 'FragmentSelector',
-          conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
-          value: fragmentSelector,
-        },
+        [
+          {
+            type: 'FragmentSelector',
+            conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
+            value: fragmentSelector,
+          },
+          ...(quoted ? [{ type: 'TextQuoteSelector' as const, exact: quoted }] : []),
+        ],
         selectedMotivation,
       );
     }
@@ -336,7 +365,7 @@ export function PdfAnnotationCanvas({
     setIsDrawing(false);
     // Note: We keep selection so the preview remains visible
     // It will be cleared when drawingMode changes or user starts new selection
-  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri]);
+  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri, pageAnchored]);
 
   // Every FragmentSelector rect on the current page — one per line for a
   // multi-line (multi-selector) annotation, exactly one for a manual annotation.

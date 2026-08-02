@@ -120,14 +120,31 @@ export function findPlacedImages(fnArray: number[], argsArray: unknown[][]): Pla
 }
 
 /**
+ * The decoded samples, whichever byte view pdf.js chose.
+ *
+ * `/FlateDecode` images arrive as a `Uint8Array`; `/DCTDecode` (JPEG) — what
+ * essentially every real scanned PDF uses — arrives as a `Uint8ClampedArray`,
+ * which is NOT an instance of `Uint8Array`. Testing only for the latter
+ * discarded every real scan while accepting every fixture in this repo, all
+ * of which are Flate. Both index bytes identically, so both are read; the
+ * clamped view is re-wrapped without copying its 12 MB buffer.
+ */
+function asBytes(data: unknown): Uint8Array | null {
+    if (data instanceof Uint8Array) return data;
+    if (data instanceof Uint8ClampedArray) return new Uint8Array(data.buffer, data.byteOffset, data.length);
+    return null;
+}
+
+/**
  * Normalize a decoded pdf.js image to 8-bit RGB, or null for a kind we do
  * not read. Unknown kinds leave the page unread rather than risk feeding an
  * OCR engine garbled pixels.
  */
-function toRgb(image: unknown): { width: number; height: number; rgb: Uint8Array } | null {
+export function toRgb(image: unknown): { width: number; height: number; rgb: Uint8Array } | null {
     if (!isObject(image)) return null;
-    const { width, height, kind, data } = image;
-    if (!isNumber(width) || !isNumber(height) || !(data instanceof Uint8Array)) return null;
+    const { width, height, kind } = image;
+    const data = asBytes(image.data);
+    if (!isNumber(width) || !isNumber(height) || !data) return null;
     if (width <= 0 || height <= 0) return null;
 
     if (kind === RGB_24BPP) {
@@ -169,14 +186,43 @@ function toRgb(image: unknown): { width: number; height: number; rgb: Uint8Array
     return null;
 }
 
-/** Resolve one image object; pdf.js delivers it asynchronously, so the
- *  callback form is required — the synchronous getter throws. */
+/**
+ * How long to wait for pdf.js to deliver one image before giving up on the
+ * page. Generous: this is not a performance budget but a liveness backstop —
+ * see `resolveImage`.
+ */
+const IMAGE_RESOLVE_TIMEOUT_MS = 30_000;
+
+/**
+ * Resolve one image object; pdf.js delivers it asynchronously, so the callback
+ * form is required — the synchronous getter throws.
+ *
+ * Two scopes, and asking the wrong one never answers. An image used by a single
+ * page lives in `page.objs` as `img_p0_1`; an image used by MORE than one page
+ * — a letterhead, a watermark, a scan pipeline that dedupes identical page
+ * rasters — is promoted to pdf.js's global scope, renamed `g_d1_img_p1_1`, and
+ * lives in `page.commonObjs`. `objs.get` on a global ref simply registers a
+ * callback that is never invoked.
+ *
+ * The timeout is the second half, and it is about liveness rather than speed:
+ * the smelter and the detection worker both `await` this, and a worker will not
+ * claim another job while one is active — so a promise that never settles wedges
+ * that worker permanently, on one bad document. Timing out yields `null`, which
+ * leaves the page unread and reported, the same as an unreadable image kind.
+ */
 function resolveImage(page: pdfjs.PDFPageProxy, ref: string): Promise<unknown> {
+    // pdf.js marks globally-scoped objects with a `g_` prefix.
+    const scope = ref.startsWith('g_') ? page.commonObjs : page.objs;
     return new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(null), IMAGE_RESOLVE_TIMEOUT_MS);
+        const settle = (value: unknown) => {
+            clearTimeout(timer);
+            resolve(value);
+        };
         try {
-            page.objs.get(ref, resolve);
+            scope.get(ref, settle);
         } catch {
-            resolve(null);
+            settle(null);
         }
     });
 }

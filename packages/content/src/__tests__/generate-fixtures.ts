@@ -129,6 +129,23 @@ export default async function setup() {
         await mixedDoc.save()
     );
 
+    // Shared-XObject scan — one image drawn on two pages, which is what a
+    // letterhead, a watermark, or a scan pipeline that dedupes identical page
+    // rasters produces. pdf.js promotes an object used by more than one page
+    // to the GLOBAL scope: page 1 sees `img_p0_1` in `page.objs`, page 2 sees
+    // `g_d1_img_p1_1` in `page.commonObjs`. Reading only `page.objs` leaves
+    // page 2's callback never invoked — a promise that never settles, in a
+    // path a worker awaits.
+    const sharedDoc = await PDFDocument.create();
+    const sharedImage = await sharedDoc.embedPng(scanPixels);
+    for (let page = 0; page < 2; page++) {
+        sharedDoc.addPage([612, 792]).drawImage(sharedImage, { x: 0, y: 0, width: 612, height: 792 });
+    }
+    fs.writeFileSync(
+        path.join(FIXTURES, 'shared-image.pdf'),
+        await sharedDoc.save()
+    );
+
     // Off-origin scaled scan — the placement-transform fixture. Every other
     // scanned fixture draws its image over the whole page, so the CTM is the
     // page scale and a left/right multiplication mix-up would still produce

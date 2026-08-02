@@ -14,9 +14,7 @@
  * re-extraction can never break an anchor.
  */
 
-import type { TextExtraction } from '@semiont/core';
-import { decodeRepresentation } from '@semiont/core';
-import type { PdfTextItem } from './pdf-text-layer';
+import { decodeRepresentation, type TextExtraction, type PdfTextItem } from '@semiont/core';
 import { pdfExtractor } from './pdf-extractor';
 
 export interface ExtractedText {

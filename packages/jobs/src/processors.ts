@@ -15,9 +15,8 @@ import { generateResourceFromTopic } from './workers/generation/resource-generat
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
 import { generateAnnotationId } from '@semiont/event-sourcing';
 import { didToAgent, type Annotation, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
-import { reconcileSelector, createFragmentSelector, type ReconciledSelector } from '@semiont/core';
+import { reconcileSelector, createFragmentSelector, locate, type ReconciledSelector, type AnchoredText } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import { locate, type AnchoredText } from '@semiont/content';
 import type {
   HighlightDetectionParams,
   CommentDetectionParams,

@@ -17,7 +17,7 @@
  * count, every column aligned — and declines everything else.
  */
 
-import type { PdfTextItem } from './pdf-text-layer';
+import type { PdfTextItem } from '@semiont/core';
 
 /** A reconstructed cell: its text plus the bounding box of its runs. */
 export interface TableCell {

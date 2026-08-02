@@ -12,7 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
-import type { PdfTextItem } from '@semiont/content';
+import type { PdfTextItem } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 
 vi.mock('@semiont/content', async (importOriginal) => {

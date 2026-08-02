@@ -14,7 +14,7 @@
 
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { OcrWord } from './ocr';
-import type { PdfTextItem } from './pdf-text-layer';
+import type { PdfTextItem } from '@semiont/core';
 
 /** The placement of one image: its pixel size and its matrix onto the page. */
 export interface ImagePlacement {

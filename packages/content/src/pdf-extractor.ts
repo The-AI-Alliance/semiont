@@ -16,10 +16,10 @@
  * only its own resource — see SMELTER-MEDIA-TYPES Design §4 (revised).
  */
 
-import { isObject } from '@semiont/core';
+import { isObject, type PdfTextItem } from '@semiont/core';
 import { extractPdfTextLayer } from './extract-pdf-text-layer';
 import type { ContentExtractor, ExtractedText } from './content-extractor';
-import type { PdfTextLayer, PdfTextItem } from './pdf-text-layer';
+import type { PdfTextLayer } from './pdf-text-layer';
 import { detectTable, renderTable } from './pdf-tables';
 import { extractPageImages } from './pdf-page-images';
 import { recognizeImages } from './ocr';
