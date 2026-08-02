@@ -21,6 +21,23 @@ import type { Page } from '@playwright/test';
  * raster with no text operators, whose image is dark bars rather than glyphs so
  * recognition reliably finds nothing.
  *
+ * **What this spec cannot prove, and where that is pinned instead.** It asserts
+ * the user-visible outcome of a decline. It cannot distinguish "OCR ran and
+ * recognized nothing" from "OCR never ran at all" — both produce the identical
+ * `no-text-layer` decline and the identical toast. Nothing separating them
+ * reaches the browser: `ocrConfidence` and `unreadPages` are deliberately
+ * operator-facing (extraction quality is logged, never stored on annotations),
+ * and widening the protocol to make a test easier would be the wrong trade.
+ *
+ * This is not hypothetical. Two bugs on 2026-08-02 made every real scan take
+ * the second path — `toRgb` rejecting JPEG-coded images, and `resolveImage`
+ * hanging on a shared XObject — and this spec stayed green through both.
+ *
+ * "The engine actually ran" is pinned where it is observable, in
+ * `@semiont/content`: `pdf-ocr.test.ts` asserts `recognizeImages` IS invoked
+ * for a page that has an image, alongside the existing case asserting it is NOT
+ * invoked for a page that has none. Change either and this spec still passes.
+ *
  * NOT covered here, deliberately: a scan OCR *can* read. That needs a genuine
  * scanned document — a synthetic bitmap font is not a typeface, and the
  * recognizer misreads it (measured: "SCANNED" → "SCHMNE" at confidence 0), so

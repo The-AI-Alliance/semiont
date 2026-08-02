@@ -46,6 +46,21 @@ describe('extractPageImages', () => {
         expect(byPage.size).toBe(0);
     });
 
+    // Every other fixture here is /FlateDecode, which pdf.js decodes to a
+    // Uint8Array. A JPEG decodes to a Uint8ClampedArray — not an instance of
+    // Uint8Array — so a guard testing only for the latter silently discarded
+    // every real scanned PDF while this suite stayed green. Asserting the PNG's
+    // dimensions rather than merely its presence pins that the pixels were
+    // actually decoded, not just that a buffer came back.
+    it('reads a JPEG-coded scan', async () => {
+        const byPage = await extractPageImages(readFixture('scanned-jpeg.pdf'));
+        const images = byPage.get(1);
+        expect(images).toHaveLength(1);
+        expect(images![0]!.png.subarray(0, 8)).toEqual(PNG_SIGNATURE);
+        expect(images![0]!.png.readUInt32BE(16)).toBe(8);
+        expect(images![0]!.png.readUInt32BE(20)).toBe(8);
+    });
+
     // An image used by more than one page is promoted to pdf.js's GLOBAL
     // scope: page 1 resolves `img_p0_1` from `page.objs`, page 2 resolves
     // `g_d1_img_p1_1` from `page.commonObjs`. Asking `page.objs` for a global
