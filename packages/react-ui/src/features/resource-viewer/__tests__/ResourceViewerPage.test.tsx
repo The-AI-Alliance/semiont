@@ -250,6 +250,7 @@ describe('ResourceViewerPage', () => {
       const sub = stubClient.bus.get('beckon:focus').subscribe(({ annotationId }: any) => focused.push(annotationId));
 
       expect(capturedHistory.props?.onEventClick).toBeTypeOf('function');
+      capturedHistory.props!.onEventClick('ann-42');
       expect(focused).toEqual(['ann-42']);
 
       sub.unsubscribe();
