@@ -41,7 +41,7 @@ import { burstBuffer, errField } from '@semiont/core';
 import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, IContentTransport, EventMap } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textExtractionOf } from '@semiont/core';
-import { calculateChecksum, EXTRACTORS } from '@semiont/content';
+import { anchoredTextStoreOverTransport, calculateChecksum, EXTRACTORS, type AnchoredTextStore } from '@semiont/content';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/core';
@@ -176,7 +176,15 @@ export class Smelter {
     private chunkingConfig: ChunkingConfig,
     private timing: SmelterTiming,
     private logger: Logger,
-  ) {}
+  ) {
+    // The extraction seam's view of the one real store, reached through the
+    // same transport this worker already holds (PERSIST-ANCHORS P2c) —
+    // best-effort by the store's contract; the re-anchor path bypasses it
+    // for its strict publish.
+    this.anchoredStore = anchoredTextStoreOverTransport(content, logger.child({ component: 'anchored-text-cache' }));
+  }
+
+  private readonly anchoredStore: AnchoredTextStore;
 
   get eventsProcessed(): number {
     return this._eventsProcessed;
@@ -418,9 +426,15 @@ export class Smelter {
     }
     // The artifact's key is the checksum of the bytes just read (P1b) — never
     // the catalog's claim, so a byte change racing this re-derivation files
-    // the map under the bytes it actually describes.
+    // the map under the bytes it actually describes. The cache is passed so
+    // a racing rebuild's duplicate becomes a hit instead of a second OCR
+    // pass; on the ordinary miss the seam writes best-effort and the STRICT
+    // publish below is what the rebuild's failure accounting rides on.
     const checksum = calculateChecksum(bytes);
-    const extracted = await extractor.extract(bytes, contentType);
+    const extracted = await extractor.extract(bytes, contentType, {
+      key: checksum,
+      store: this.anchoredStore,
+    });
     if ('declined' in extracted || !extracted.items?.length) {
       this.logger.info('Re-anchor extraction yielded no geometry', {
         resourceId: rid,
@@ -432,6 +446,14 @@ export class Smelter {
     // The whole outcome, provenance included — the stored record IS the
     // extraction outcome (PERSIST-ANCHORS D1); narrowing to { text, items }
     // here would strip method/pdfClass/ocrConfidence on every rebuild.
+    //
+    // STRICT, deliberately, and kept through P2c (the P2b flag's resolution):
+    // the seam above already wrote this outcome best-effort and silently —
+    // the store's rule — but here the artifact IS the job, and the rebuild
+    // command's partial-failure accounting needs a throw to count. The
+    // double-write is idempotent (same bytes, same STAMP, atomic rename ⇒
+    // byte-identical), so strictness costs one redundant write and buys an
+    // honest `smelt:rebuild-anchors-failed`.
     await this.content.putAnchoredText(checksum, { ...extracted, items: extracted.items });
     this.logger.info('Re-anchored resource', { resourceId: rid, checksum, items: extracted.items.length });
   }
@@ -466,7 +488,16 @@ export class Smelter {
         this.logger.debug('Skipping resource with no extractor for its media type', { resourceId, contentType });
         return { kind: 'skipped', checksum, reason: 'no-extractor' };
       }
-      const extracted = await extractor.extract(bytes, contentType);
+      // The cache seam (PERSIST-ANCHORS P2c, decision C): extraction consults
+      // the artifact store for this exact byte content and, on a miss, the
+      // seam itself stores whatever it concluded — success with provenance,
+      // or the decline. The write moved INTO extract() with D1, which is why
+      // there is no publish call in this method anymore: exactly one place
+      // writes exactly one artifact, and this is not it.
+      const extracted = await extractor.extract(bytes, contentType, {
+        key: checksum,
+        store: this.anchoredStore,
+      });
       if ('declined' in extracted) {
         this.logger.debug('Extractor declined', { resourceId, contentType, reason: extracted.declined });
         return { kind: 'skipped', checksum, reason: extracted.declined };
@@ -482,35 +513,6 @@ export class Smelter {
           contentType,
           ...extracted.ocrConfidence,
         });
-      }
-      // Publish the coordinate map, keyed by the checksum of the bytes it was
-      // derived from (PERSIST-ANCHORS P1b — the producer supplies the key
-      // because it alone knows which bytes it read; a byte change racing this
-      // publish files the map under the OLD checksum, a harmless orphan the
-      // S15 drift class replaces, never wrong geometry under the new one).
-      // This is the only process that reads the bytes at ingest, so it is the
-      // only one positioned to derive one cheaply — five detection jobs and
-      // the browser all arrive later and would each have to redo the decode
-      // and the engine. Only extractions that carry geometry produce one:
-      // text anchors by character offset, and an empty map on every text
-      // resource would be a record that says nothing. Failures are swallowed
-      // deliberately — the map is an optimization, the embedding is the job,
-      // and a storage problem must not turn a successful index into a skip
-      // that hides the resource from search.
-      if (extracted.items?.length) {
-        try {
-          // The whole outcome, provenance included (PERSIST-ANCHORS D1).
-          await this.content.putAnchoredText(
-            checksum,
-            { ...extracted, items: extracted.items },
-          );
-        } catch (error) {
-          this.logger.debug('Could not publish anchored text', {
-            resourceId,
-            checksum,
-            reason: error instanceof Error ? error.message : String(error),
-          });
-        }
       }
       if (extracted.unreadPages?.length) {
         // Partial coverage: this resource embeds, but semantic search cannot

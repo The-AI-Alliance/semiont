@@ -390,6 +390,24 @@ export interface IContentTransport {
   ): Promise<ExtractionOutcome | null>;
 
   /**
+   * The stored extraction outcome for exactly this byte content, or `null`
+   * for a miss — the cache-consult read (PERSIST-ANCHORS P2c). Every cache
+   * consumer runs out of process (the smelter worker, the detection
+   * workers), so the `extract()` seam's consult crosses the wire through
+   * this method; without it the cache would be write-only from exactly the
+   * processes it exists to serve.
+   *
+   * Checksum-addressed and barrier-free, unlike `getAnchoredText`:
+   * presence at this instant is the question (the keys listing's
+   * semantics), and a caller holding the checksum already holds the
+   * content identity — nothing to resolve, nothing to wait for.
+   */
+  getAnchoredTextByChecksum(
+    checksum: string,
+    options?: { auth?: AccessToken },
+  ): Promise<ExtractionOutcome | null>;
+
+  /**
    * Every key under which anchored text would currently be served — the
    * reconcile planner's bulk existence read (PERSIST-ANCHORS P0). The
    * Smelter diffs this against the catalog to find resources whose artifact

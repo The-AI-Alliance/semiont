@@ -41,15 +41,15 @@ const MAP: ExtractionOutcome = {
 };
 
 /** An app whose principal is, or is not, a Software peer. */
-function appAs(agentDid: string | undefined, write = vi.fn()) {
+function appAs(agentDid: string | undefined, write = vi.fn(), read = vi.fn()) {
   const app = new Hono<{ Variables: Variables }>();
   app.use('*', async (c, next) => {
     if (agentDid) c.set('agentDid', agentDid);
-    c.set('makeMeaning', { knowledgeSystem: { kb: { anchoredText: { write, read: vi.fn() } } } } as never);
+    c.set('makeMeaning', { knowledgeSystem: { kb: { anchoredText: { write, read } } } } as never);
     await next();
   });
   registerGetResourceUri(app as unknown as ResourcesRouterType);
-  return { app, write };
+  return { app, write, read };
 }
 
 // The producer addresses the artifact by the checksum of the bytes it read.
@@ -126,5 +126,51 @@ describe('PUT /anchored-text/:checksum', () => {
     const empty: ExtractionOutcome = { text: '', items: [], method: 'ocr' };
     expect((await put(app, empty)).status).toBe(204);
     expect(write).toHaveBeenCalledWith(CHECKSUM, empty);
+  });
+});
+
+describe('GET /anchored-text/:checksum — the cache-consult read (PERSIST-ANCHORS P2c)', () => {
+  const get = (app: Hono<{ Variables: Variables }>) =>
+    app.request(`/anchored-text/${CHECKSUM}`, { method: 'GET' });
+
+  it('serves the stored outcome to an agent', async () => {
+    const read = vi.fn().mockResolvedValue(MAP);
+    const { app } = appAs('did:semiont:agent:smelter', vi.fn(), read);
+
+    const res = await get(app);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(MAP);
+    expect(read).toHaveBeenCalledWith(CHECKSUM);
+  });
+
+  it('answers 204 on a miss — the ordinary cache outcome, not an error', async () => {
+    const read = vi.fn().mockResolvedValue(null);
+    const { app } = appAs('did:semiont:agent:smelter', vi.fn(), read);
+
+    const res = await get(app);
+
+    expect(res.status).toBe(204);
+    expect(await res.text()).toBe('');
+  });
+
+  it('refuses a caller that is not an agent', async () => {
+    const read = vi.fn();
+    const { app } = appAs(undefined, vi.fn(), read);
+
+    expect((await get(app)).status).toBe(403);
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('does not shadow the keys listing — /anchored-text/keys still answers as itself', async () => {
+    // Static-over-dynamic route precedence, pinned: a checksum route that
+    // captured 'keys' would silently break the reconcile planner's bulk read.
+    const read = vi.fn().mockResolvedValue(MAP);
+    const { app } = appAs('did:semiont:agent:smelter', vi.fn(), read);
+
+    const res = await app.request('/anchored-text/keys', { method: 'GET' });
+
+    expect(res.status).toBe(500);   // the keys route reaches kb.anchoredText.list, absent from this stub
+    expect(read).not.toHaveBeenCalled();   // the checksum handler never saw 'keys'
   });
 });

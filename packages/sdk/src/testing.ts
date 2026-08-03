@@ -109,6 +109,11 @@ function inMemoryContent(): IContentTransport {
     async getAnchoredText(rId: ResourceId): Promise<ExtractionOutcome | null> {
       return anchoredText.get(String(rId)) ?? null;
     },
+    // The cache-consult read (P2c): same map, checksum-keyed — coherent with
+    // putAnchoredText's writes, so a put-then-consult round-trip hits.
+    async getAnchoredTextByChecksum(checksum: string): Promise<ExtractionOutcome | null> {
+      return anchoredText.get(checksum) ?? null;
+    },
     async listAnchoredTextKeys(): Promise<string[]> {
       return [...anchoredText.keys()];
     },

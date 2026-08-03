@@ -861,6 +861,55 @@ describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)
   });
 });
 
+describe('Smelter embed consults the artifact store before extracting (PERSIST-ANCHORS P2c)', () => {
+  // Decision C, wired: the smelter passes ExtractionCache { key, store } to
+  // extract(), so a representation whose outcome is already stored embeds
+  // from the STORED text without the seam running its pipeline. Observable
+  // end to end: seed the store under checksum(NATIVE_PDF), embed, and the
+  // chunks handed to the embedding provider are the stored text's — not the
+  // PDF's own text layer.
+  it('embeds the stored outcome on a cache hit', async () => {
+    const checksum = calculateChecksum(Buffer.from(NATIVE_PDF));
+    const stored: ExtractionOutcome = {
+      text: 'stored text from the artifact cache',
+      items: [{ start: 0, end: 6, page: 1, x: 72, y: 720, width: 40, height: 12 }],
+      method: 'ocr',
+    };
+    const anchored = new Map<string, ExtractionOutcome>();
+    anchored.set(checksum, stored);
+
+    const events$ = new Subject<SmelterEvent>();
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const smelter = new Smelter(
+      events$,
+      EMPTY,
+      vectorStore,
+      embeddingProvider,
+      createContentTransport({
+        read: (rid) => (rid === 'res-cachehit' ? { bytes: NATIVE_PDF, mediaType: 'application/pdf' } : undefined),
+        anchored,
+      }),
+      createFakeKsBus([resourceDescriptor('res-cachehit', 'application/pdf', checksum)]),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    try {
+      events$.next({ type: 'yield:created', resourceId: 'res-cachehit', payload: {} });
+      await tick();
+
+      expect(embeddingProvider.embedBatch).toHaveBeenCalledWith(
+        chunkText(stored.text, { chunkSize: 512, overlap: 64 }),
+      );
+    } finally {
+      smelter.stop();
+    }
+  });
+});
+
 describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHORS P0)', () => {
   // Shaped after weave:rebuild: optionally scoped, serialized, correlated
   // replies, partial completion FAILS. Never destructive — nothing is

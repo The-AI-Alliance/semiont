@@ -68,6 +68,19 @@ export class LocalContentTransport implements IContentTransport {
   }
 
   /**
+   * The cache-consult read (PERSIST-ANCHORS P2c), straight from the store —
+   * checksum-addressed, so no view resolution and no settle barrier: the
+   * caller holds the content identity already.
+   */
+  async getAnchoredTextByChecksum(
+    checksum: string,
+    _options?: { auth?: AccessToken },
+  ): Promise<ExtractionOutcome | null> {
+    busLog('GET', 'anchored-text-by-checksum', { checksum });
+    return this.ks.kb.anchoredText.read(checksum);
+  }
+
+  /**
    * The store's would-hit keys, straight from the store — planning data for
    * the reconcile diff (PERSIST-ANCHORS P0), so no settle barrier applies:
    * presence is being asked, not content at a moment.

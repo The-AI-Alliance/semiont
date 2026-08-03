@@ -163,6 +163,34 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     return c.json({ keys: await kb.anchoredText.list() }, 200, { 'Cache-Control': 'no-cache' });
   });
 
+  // GET /anchored-text/:checksum — the cache-consult read (PERSIST-ANCHORS
+  // P2c): the extraction seam asks "has this exact byte content already been
+  // extracted?", and every cache consumer runs out of process (the smelter
+  // worker, the detection workers), so the consult must cross the wire or
+  // the cache is write-only from exactly the processes it exists to serve.
+  //
+  // Straight store read, no settle barrier: presence at this instant is the
+  // question — the same semantics as the keys listing above. The barrier
+  // belongs to the resource-addressed GET below, which resolves a mutable
+  // pointer through the view index; a caller holding the checksum already
+  // holds the content identity. Agents only, same trust boundary as the PUT.
+  //
+  // Registered AFTER /anchored-text/keys so the static segment wins —
+  // though a 'keys' checksum would miss harmlessly anyway.
+  router.get('/anchored-text/:checksum', async (c) => {
+    if (!c.get('agentDid')) {
+      throw new HTTPException(403, { message: 'Only an agent may read anchored text by checksum' });
+    }
+
+    const { checksum } = c.req.param();
+    const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+    const outcome = await kb.anchoredText.read(checksum);
+    if (outcome === null) {
+      return c.body(null, 204, { 'Cache-Control': 'no-cache' });
+    }
+    return c.json(outcome, 200, { 'Cache-Control': 'no-cache' });
+  });
+
   // GET /resources/:id/anchored-text — the derived coordinate map, via the bus
   // gateway. Reading never derives: the map is written only by the PUT above,
   // and only by an agent, so no reader can provoke extraction from here.

@@ -122,6 +122,9 @@ export function createContentTransport(opts: {
     async getAnchoredText(resourceId) {
       return anchored.get(String(resourceId)) ?? null;
     },
+    async getAnchoredTextByChecksum(checksum) {
+      return anchored.get(checksum) ?? null;
+    },
     async listAnchoredTextKeys() {
       return [...anchored.keys()];
     },

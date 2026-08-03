@@ -234,6 +234,32 @@ export class HttpContentTransport implements IContentTransport {
   }
 
   /**
+   * The cache-consult read (PERSIST-ANCHORS P2c) — checksum-addressed and
+   * barrier-free; 204 is the ordinary miss. This is how an out-of-process
+   * extraction seam hits the cache at all.
+   */
+  async getAnchoredTextByChecksum(
+    checksum: string,
+    options?: { auth?: AccessToken },
+  ): Promise<ExtractionOutcome | null> {
+    busLog('GET', 'anchored-text-by-checksum', { checksum });
+    return withSpan(
+      'content.get_anchored_text_by_checksum',
+      async () => {
+        const response = await this.transport.rawHttp
+          .get(`${this.transport.baseUrl}/anchored-text/${checksum}`, {
+            headers: this.requestHeaders(options?.auth),
+            throwHttpErrors: false,
+          });
+        if (response.status === 204) return null;
+        if (!response.ok) throw new Error(`anchored-text checksum read failed: ${response.status}`);
+        return response.json<ExtractionOutcome>();
+      },
+      { kind: SpanKind.CLIENT, attrs: { 'content.checksum': checksum } },
+    );
+  }
+
+  /**
    * The store's would-hit keys — the reconcile planner's bulk existence read
    * (PERSIST-ANCHORS P0). One request per reconcile; keys only, never the
    * maps themselves, which is the point of the dedicated route.
