@@ -19,10 +19,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
  *
  * JSON has more than one faithful spelling of the same document, and the
  * editors that touch this file disagree about which to write: `JSON.stringify`
- * emits `—` literally, Python's `json.dumps` escapes it to `—`, and both
- * round-trip losslessly. So a one-line semantic change lands as a whole-file
- * re-encoding. It happened on PR #1127: a diff of +132/-65 whose real content
- * was +68/-1 — roughly half the lines were the same characters respelled.
+ * emits an em-dash as the literal character; Python's `json.dumps` escapes that
+ * same character to the six ASCII bytes `\u2014`. Both round-trip losslessly, so
+ * a one-line semantic change lands as a whole-file re-encoding. It happened on
+ * PR #1127: a diff of +132/-65 whose real content was +68/-1 — roughly half
+ * the lines were the same characters respelled.
  *
  * That is not cosmetic here. This file is the bus AUTHORITY, the file two
  * concurrent branches are most likely to touch at once, and a re-encoding
