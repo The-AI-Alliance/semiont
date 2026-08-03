@@ -57,5 +57,62 @@
         }
       }
     }
+  },
+  "put": {
+    "summary": "Publish a resource's anchored text",
+    "description": "Store the coordinate map derived from a resource's bytes. The Smelter is the sole producer: it is the only process that reads those bytes at ingest, so it is the only one positioned to derive a map cheaply, and it runs separately from the backend.\n\nAgents only. A map is derived data every consumer trusts to place annotation geometry, so a browser session must not be able to write one.",
+    "tags": [
+      "Resources"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/AnchoredText.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "204": {
+        "description": "Stored"
+      },
+      "400": {
+        "description": "Body is not a valid AnchoredText",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "Caller is not an agent",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
   }
 }

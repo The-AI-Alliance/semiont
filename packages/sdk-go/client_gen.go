@@ -3819,6 +3819,9 @@ type PostBusSubscribeJSONRequestBody = BusSubscribeRequest
 // PostResourcesMultipartRequestBody defines body for PostResources for multipart/form-data ContentType.
 type PostResourcesMultipartRequestBody PostResourcesMultipartBody
 
+// PutResourcesIdAnchoredTextJSONRequestBody defines body for PutResourcesIdAnchoredText for application/json ContentType.
+type PutResourcesIdAnchoredTextJSONRequestBody = AnchoredText
+
 // Getter for additional properties for Agent0. Returns the specified
 // element and whether it was found
 func (a Agent0) Get(fieldName string) (value interface{}, found bool) {
@@ -9562,6 +9565,11 @@ type ClientInterface interface {
 	// GetResourcesIdAnchoredText request
 	GetResourcesIdAnchoredText(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PutResourcesIdAnchoredTextWithBody request with any body
+	PutResourcesIdAnchoredTextWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PutResourcesIdAnchoredText(ctx context.Context, id string, body PutResourcesIdAnchoredTextJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetResourcesIdJsonld request
 	GetResourcesIdJsonld(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
@@ -10000,6 +10008,30 @@ func (c *Client) GetResourcesId(ctx context.Context, id string, reqEditors ...Re
 
 func (c *Client) GetResourcesIdAnchoredText(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetResourcesIdAnchoredTextRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutResourcesIdAnchoredTextWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutResourcesIdAnchoredTextRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutResourcesIdAnchoredText(ctx context.Context, id string, body PutResourcesIdAnchoredTextJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutResourcesIdAnchoredTextRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -10958,6 +10990,53 @@ func NewGetResourcesIdAnchoredTextRequest(server string, id string) (*http.Reque
 	return req, nil
 }
 
+// NewPutResourcesIdAnchoredTextRequest calls the generic PutResourcesIdAnchoredText builder with application/json body
+func NewPutResourcesIdAnchoredTextRequest(server string, id string, body PutResourcesIdAnchoredTextJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutResourcesIdAnchoredTextRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPutResourcesIdAnchoredTextRequestWithBody generates requests for PutResourcesIdAnchoredText with any type of body
+func NewPutResourcesIdAnchoredTextRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/resources/%s/anchored-text", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetResourcesIdJsonldRequest generates requests for GetResourcesIdJsonld
 func NewGetResourcesIdJsonldRequest(server string, id string) (*http.Request, error) {
 	var err error
@@ -11136,6 +11215,11 @@ type ClientWithResponsesInterface interface {
 
 	// GetResourcesIdAnchoredTextWithResponse request
 	GetResourcesIdAnchoredTextWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdAnchoredTextResponse, error)
+
+	// PutResourcesIdAnchoredTextWithBodyWithResponse request with any body
+	PutResourcesIdAnchoredTextWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutResourcesIdAnchoredTextResponse, error)
+
+	PutResourcesIdAnchoredTextWithResponse(ctx context.Context, id string, body PutResourcesIdAnchoredTextJSONRequestBody, reqEditors ...RequestEditorFn) (*PutResourcesIdAnchoredTextResponse, error)
 
 	// GetResourcesIdJsonldWithResponse request
 	GetResourcesIdJsonldWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error)
@@ -11806,6 +11890,29 @@ func (r GetResourcesIdAnchoredTextResponse) StatusCode() int {
 	return 0
 }
 
+type PutResourcesIdAnchoredTextResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *ErrorResponse
+	JSON403      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PutResourcesIdAnchoredTextResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutResourcesIdAnchoredTextResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetResourcesIdJsonldResponse struct {
 	Body                 []byte
 	HTTPResponse         *http.Response
@@ -12152,6 +12259,23 @@ func (c *ClientWithResponses) GetResourcesIdAnchoredTextWithResponse(ctx context
 		return nil, err
 	}
 	return ParseGetResourcesIdAnchoredTextResponse(rsp)
+}
+
+// PutResourcesIdAnchoredTextWithBodyWithResponse request with arbitrary body returning *PutResourcesIdAnchoredTextResponse
+func (c *ClientWithResponses) PutResourcesIdAnchoredTextWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutResourcesIdAnchoredTextResponse, error) {
+	rsp, err := c.PutResourcesIdAnchoredTextWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutResourcesIdAnchoredTextResponse(rsp)
+}
+
+func (c *ClientWithResponses) PutResourcesIdAnchoredTextWithResponse(ctx context.Context, id string, body PutResourcesIdAnchoredTextJSONRequestBody, reqEditors ...RequestEditorFn) (*PutResourcesIdAnchoredTextResponse, error) {
+	rsp, err := c.PutResourcesIdAnchoredText(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutResourcesIdAnchoredTextResponse(rsp)
 }
 
 // GetResourcesIdJsonldWithResponse request returning *GetResourcesIdJsonldResponse
@@ -13189,6 +13313,39 @@ func ParseGetResourcesIdAnchoredTextResponse(rsp *http.Response) (*GetResourcesI
 			return nil, err
 		}
 		response.JSON504 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutResourcesIdAnchoredTextResponse parses an HTTP response from a PutResourcesIdAnchoredTextWithResponse call
+func ParsePutResourcesIdAnchoredTextResponse(rsp *http.Response) (*PutResourcesIdAnchoredTextResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutResourcesIdAnchoredTextResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
