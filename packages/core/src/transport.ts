@@ -35,7 +35,7 @@ import type {
   UserDID,
 } from './branded-types';
 import type { AnnotationId, ResourceId } from './identifiers';
-import type { AnchoredText } from './pdf-anchoring';
+import type { ExtractionOutcome } from './pdf-anchoring';
 import type { EventMap } from './bus-protocol';
 import type { EventBus } from './event-bus';
 import type { SemiontError } from './errors';
@@ -363,7 +363,7 @@ export interface IContentTransport {
    */
   putAnchoredText(
     checksum: string,
-    anchored: AnchoredText,
+    outcome: ExtractionOutcome,
     options?: { auth?: AccessToken },
   ): Promise<void>;
 
@@ -387,7 +387,7 @@ export interface IContentTransport {
   getAnchoredText(
     resourceId: ResourceId,
     options?: { auth?: AccessToken },
-  ): Promise<AnchoredText | null>;
+  ): Promise<ExtractionOutcome | null>;
 
   /**
    * Every key under which anchored text would currently be served — the

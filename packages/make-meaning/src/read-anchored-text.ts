@@ -14,7 +14,7 @@
  * exists to avoid.
  */
 
-import { getPrimaryRepresentation, resourceId as makeResourceId, type AnchoredText } from '@semiont/core';
+import { getPrimaryRepresentation, resourceId as makeResourceId, type ExtractionOutcome } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
 import { SmeltProgressTimeout } from './smelt-progress';
 
@@ -25,7 +25,7 @@ import { SmeltProgressTimeout } from './smelt-progress';
  */
 export const ANCHORED_TEXT_SETTLE_TIMEOUT_MS = 15_000;
 
-export async function readAnchoredText(kb: KnowledgeBase, resourceId: string): Promise<AnchoredText | null> {
+export async function readAnchoredText(kb: KnowledgeBase, resourceId: string): Promise<ExtractionOutcome | null> {
   // The `resourceId → checksum` index (PERSIST-ANCHORS P1b, decision A): the
   // store is keyed by content identity, the caller holds a mutable pointer,
   // and the index — a live view read — resolves the pointer first, on EVERY

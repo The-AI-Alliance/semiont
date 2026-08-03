@@ -40,7 +40,7 @@
  * complaint, wire a manual retry loop here that reads `token$` afresh.
  */
 
-import type { AccessToken, AnchoredText, ResourceId, PutBinaryOptions, components } from '@semiont/core';
+import type { AccessToken, ExtractionOutcome, ResourceId, PutBinaryOptions, components } from '@semiont/core';
 import { busLog } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
@@ -184,7 +184,7 @@ export class HttpContentTransport implements IContentTransport {
    */
   async putAnchoredText(
     checksum: string,
-    anchored: AnchoredText,
+    outcome: ExtractionOutcome,
     options?: { auth?: AccessToken },
   ): Promise<void> {
     busLog('PUT', 'anchored-text', { checksum });
@@ -194,7 +194,7 @@ export class HttpContentTransport implements IContentTransport {
         this.transport.rawHttp
           .put(`${this.transport.baseUrl}/anchored-text/${checksum}`, {
             headers: this.requestHeaders(options?.auth),
-            json: anchored,
+            json: outcome,
           })
           .json<unknown>(),
       { kind: SpanKind.CLIENT, attrs: { 'content.checksum': checksum } },
@@ -215,7 +215,7 @@ export class HttpContentTransport implements IContentTransport {
   async getAnchoredText(
     resourceId: ResourceId,
     options?: { auth?: AccessToken },
-  ): Promise<AnchoredText | null> {
+  ): Promise<ExtractionOutcome | null> {
     busLog('GET', 'anchored-text', { resourceId });
     return withSpan(
       'content.get_anchored_text',
@@ -227,7 +227,7 @@ export class HttpContentTransport implements IContentTransport {
           });
         if (response.status === 204 || response.status === 404) return null;
         if (!response.ok) throw new Error(`anchored-text read failed: ${response.status}`);
-        return response.json<AnchoredText>();
+        return response.json<ExtractionOutcome>();
       },
       { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
     );

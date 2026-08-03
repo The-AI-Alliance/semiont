@@ -319,6 +319,7 @@ describe('the key binds an entry to its bytes (PERSIST-ANCHORS P1)', () => {
   const MAP_FOR_OLD_BYTES = {
     text: 'alpha beta',
     items: [{ start: 0, end: 5, page: 1, x: 72, y: 720, width: 30, height: 12 }],
+    method: 'ocr' as const,
   };
 
   it('never serves geometry derived from superseded bytes', async () => {
@@ -354,8 +355,8 @@ describe('the key binds an entry to its bytes (PERSIST-ANCHORS P1)', () => {
     // the strip: no file is created, and the read is an ordinary miss.
     const store = createAnchoredTextStore(dir);
 
-    await store.write('../escape/attempt', { text: 'x', items: [] });
-    await store.write('not a checksum!', { text: 'x', items: [] });
+    await store.write('../escape/attempt', { text: 'x', items: [], method: 'ocr' });
+    await store.write('not a checksum!', { text: 'x', items: [], method: 'ocr' });
 
     expect(allEntryFiles(dir)).toEqual([]);
     expect(await store.read('../escape/attempt')).toBeNull();
@@ -368,7 +369,7 @@ describe('would-hit key listing (PERSIST-ANCHORS P0)', () => {
   // load-bearing in both directions: a listed key that read() would miss is a
   // permanent loss the drift diff can never see (the post-engine-upgrade
   // hole); an unlisted key that read() would hit is a wasted recognition pass.
-  const MAP = { text: 'alpha beta', items: [{ start: 0, end: 5, page: 1, x: 72, y: 720, width: 30, height: 12 }] };
+  const MAP = { text: 'alpha beta', items: [{ start: 0, end: 5, page: 1, x: 72, y: 720, width: 30, height: 12 }], method: 'ocr' as const };
 
   it('lists exactly the keys read() would hit', async () => {
     const store = createAnchoredTextStore(dir);

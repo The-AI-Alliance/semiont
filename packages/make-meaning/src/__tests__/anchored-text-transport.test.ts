@@ -25,7 +25,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-import { EventBus, getPrimaryRepresentation, userId as makeUserId, type AnchoredText, type Logger, type ResourceId } from '@semiont/core';
+import { EventBus, getPrimaryRepresentation, userId as makeUserId, type ExtractionOutcome, type Logger, type ResourceId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { LocalContentTransport } from '../local-content-transport';
 import { ResourceOperations } from '../resource-operations';
@@ -51,12 +51,13 @@ const config: MakeMeaningConfig = {
 };
 
 /** One page of recognized words — the shape OCR produces via `mapWordsToItems`. */
-const MAP: AnchoredText = {
+const MAP: ExtractionOutcome = {
   text: 'alpha beta',
   items: [
     { start: 0, end: 5, page: 1, x: 72, y: 700, width: 28, height: 12 },
     { start: 6, end: 10, page: 1, x: 106, y: 700, width: 22, height: 12 },
   ],
+  method: 'ocr',
 };
 
 describe('anchored text over IContentTransport', () => {
@@ -132,7 +133,7 @@ describe('anchored text over IContentTransport', () => {
     // Re-extraction is legitimate — a stamp change, a re-upload, a reconcile.
     // The store holds one map per resource and the newest wins; nothing here
     // accumulates generations.
-    const revised: AnchoredText = { text: 'gamma', items: [{ start: 0, end: 5, page: 2, x: 10, y: 20, width: 30, height: 12 }] };
+    const revised: ExtractionOutcome = { text: 'gamma', items: [{ start: 0, end: 5, page: 2, x: 10, y: 20, width: 30, height: 12 }], method: 'ocr' };
     await content.putAnchoredText(checksum, revised);
     expect(await content.getAnchoredText(rid)).toEqual(revised);
   });

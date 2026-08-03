@@ -108,8 +108,12 @@ async function ocrPages(
   // content — a user-chosen page range, say. Such a caller would collide with
   // an existing entry under the same key and silently get the wrong pages, so
   // it needs its own key discipline rather than a filter here.
+  // The store holds full extraction outcomes (PERSIST-ANCHORS D1/P2a). At
+  // THIS seam — the OCR fragment, pre-P2b — only success records are usable;
+  // a stored decline reads as a miss here. P2b moves the seam to `extract()`
+  // and makes declines first-class hits.
   const hit = await cache?.store.read(cache.key);
-  if (hit) return { text: hit.text, items: hit.items, confidences: [] };
+  if (hit && !('declined' in hit)) return { text: hit.text, items: hit.items, confidences: [] };
 
   const imagesByPage = await extractPageImages(content, pageNumbers);
   if (imagesByPage.size === 0) return { text: '', items: [], confidences: [] };
@@ -145,7 +149,7 @@ async function ocrPages(
   // Record what the engine produced, including nothing: a scan it cannot read
   // costs a full recognition pass to discover, so "we read this and there was
   // nothing" is a result worth keeping.
-  await cache?.store.write(cache.key, { text: joined.text, items: joined.items });
+  await cache?.store.write(cache.key, { text: joined.text, items: joined.items, method: 'ocr' });
 
   return joined;
 }

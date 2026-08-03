@@ -170,8 +170,13 @@ export function PdfAnnotationCanvas({
         // `null` is the ordinary answer for a document that has no map and
         // never will; a failure is equally non-fatal. Either way the
         // annotation ships with geometry only, which is what shipped before
-        // this existed.
-        return (await session?.client.browse.resourceAnchoredText(toResourceId(resourceUri))) ?? null;
+        // this existed. The served record is the full extraction outcome
+        // (PERSIST-ANCHORS D1); a stored decline means extraction ran and
+        // found nothing to anchor — for this canvas the same degradation as
+        // no map at all. A success outcome IS the anchoring shape, plus
+        // provenance this canvas does not read.
+        const outcome = (await session?.client.browse.resourceAnchoredText(toResourceId(resourceUri))) ?? null;
+        return outcome && !('declined' in outcome) ? outcome : null;
       } catch {
         return null;
       }

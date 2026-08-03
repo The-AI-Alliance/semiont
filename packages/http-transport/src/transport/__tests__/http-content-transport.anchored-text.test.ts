@@ -16,7 +16,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { baseUrl, resourceId, type AnchoredText } from '@semiont/core';
+import { baseUrl, resourceId, type ExtractionOutcome } from '@semiont/core';
 import type { KyInstance } from 'ky';
 
 vi.mock('ky', () => ({ default: { create: vi.fn() } }));
@@ -33,9 +33,10 @@ vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
 const testBaseUrl = baseUrl('http://test.example.com');
 const RID = resourceId('res-1');
 
-const MAP: AnchoredText = {
+const MAP: ExtractionOutcome = {
   text: 'alpha beta',
   items: [{ start: 0, end: 5, page: 1, x: 72, y: 700, width: 28, height: 12 }],
+  method: 'ocr',
 };
 
 /** A ky-shaped GET response: `status`/`ok` read directly, body via `.json()`. */
@@ -123,7 +124,7 @@ describe('HttpContentTransport.getAnchoredText', () => {
     // A recognition pass that recovered nothing is a stored result, and the
     // 200 that carries it must not collapse into the 204 above.
     const { content, mockKy } = makeContent();
-    const empty: AnchoredText = { text: '', items: [] };
+    const empty: ExtractionOutcome = { text: '', items: [], method: 'ocr' };
     vi.mocked(mockKy.get!).mockResolvedValue(response(200, empty) as never);
 
     await expect(content.getAnchoredText(RID)).resolves.toEqual(empty);

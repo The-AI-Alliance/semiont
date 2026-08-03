@@ -18,7 +18,7 @@
 
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { BehaviorSubject, EMPTY, Observable, Subject } from 'rxjs';
-import type { AnchoredText, EventMap, components } from '@semiont/core';
+import type { ExtractionOutcome, EventMap, components } from '@semiont/core';
 import { resourceId as makeResourceId, chunkText } from '@semiont/core';
 import { calculateChecksum, extractPdfTextLayer, EXTRACTORS } from '@semiont/content';
 
@@ -790,7 +790,7 @@ describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)
   // The artifact's key is the content checksum (P1b) — of NATIVE_PDF here.
   const LOSTMAP_CHECKSUM = calculateChecksum(Buffer.from(NATIVE_PDF));
 
-  async function reanchorHarness(anchored: Map<string, AnchoredText>) {
+  async function reanchorHarness(anchored: Map<string, ExtractionOutcome>) {
     const vectorStore = new MemoryVectorStore();
     await vectorStore.connect();
     const embeddingProvider = createMockEmbeddingProvider();
@@ -822,7 +822,7 @@ describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)
   }
 
   it('re-derives a lost artifact: indexed, checksum unchanged, artifact absent — zero embedding calls', async () => {
-    const anchored = new Map<string, AnchoredText>();
+    const anchored = new Map<string, ExtractionOutcome>();
     const { smelter, embeddingProvider } = await reanchorHarness(anchored);
     try {
       const summary = await smelter.reconcile();
@@ -832,7 +832,8 @@ describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)
       // under their checksum (P1b).
       const restored = anchored.get(LOSTMAP_CHECKSUM);
       expect(restored).toBeDefined();
-      expect(restored!.items.length).toBeGreaterThan(0);
+      if (!restored || 'declined' in restored) throw new Error('expected a restored success outcome');
+      expect(restored.items.length).toBeGreaterThan(0);
       // Re-anchoring re-runs EXTRACTION, never embedding: the vectors are
       // already correct and only the map was missing (the S13 discipline —
       // name the work for what it does, and spend only what it needs).
@@ -844,15 +845,15 @@ describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)
   });
 
   it('plans nothing when the artifact is present (do-not-cry-wolf)', async () => {
-    const anchored = new Map<string, AnchoredText>();
-    anchored.set(LOSTMAP_CHECKSUM, { text: 'already here', items: [] });
+    const anchored = new Map<string, ExtractionOutcome>();
+    anchored.set(LOSTMAP_CHECKSUM, { text: 'already here', items: [], method: 'ocr' });
     const { smelter, embeddingProvider } = await reanchorHarness(anchored);
     try {
       await smelter.reconcile();
 
       // The seeded artifact was not overwritten and nothing embedded — a
       // present artifact under a current checksum is a healthy resource.
-      expect(anchored.get(LOSTMAP_CHECKSUM)).toEqual({ text: 'already here', items: [] });
+      expect(anchored.get(LOSTMAP_CHECKSUM)).toEqual({ text: 'already here', items: [], method: 'ocr' });
       expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
     } finally {
       smelter.stop();
@@ -888,7 +889,7 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
   });
 
   async function rebuildHarness(reads: Record<string, Uint8Array | 'fail'>) {
-    const anchored = new Map<string, AnchoredText>();
+    const anchored = new Map<string, ExtractionOutcome>();
     const vectorStore = new MemoryVectorStore();
     await vectorStore.connect();
     const embeddingProvider = createMockEmbeddingProvider();

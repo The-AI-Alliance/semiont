@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "A resource's coordinate map, or null when none has been derived. Null is the common case and not an error: a native text layer is read in the browser, and a media type with no extractor never produces one.",
+  "description": "A resource's stored extraction outcome — the coordinate map with its provenance, or a named decline — or null when none has been derived. Null is the common case and not an error: a native text layer is read in the browser, and a media type with no extractor never produces one.",
   "properties": {
     "correlationId": {
       "type": "string"
@@ -9,7 +9,7 @@
       "nullable": true,
       "allOf": [
         {
-          "$ref": "./AnchoredText.json"
+          "$ref": "./ExtractionOutcome.json"
         }
       ]
     }

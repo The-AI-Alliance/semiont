@@ -22,11 +22,11 @@
     ],
     "responses": {
       "200": {
-        "description": "The coordinate map.",
+        "description": "The stored extraction outcome: the coordinate map with its provenance (method, PDF class, OCR confidence, unread pages), or a named decline.",
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "../components/schemas/AnchoredText.json"
+              "$ref": "../components/schemas/ExtractionOutcome.json"
             }
           }
         }

@@ -22,7 +22,7 @@
 import { BehaviorSubject, throwError } from 'rxjs';
 import type {
   AccessToken,
-  AnchoredText,
+  ExtractionOutcome,
   IBackendOperations,
   IContentTransport,
   PutBinaryOptions,
@@ -59,7 +59,7 @@ export {
  */
 function inMemoryContent(): IContentTransport {
   const store = new Map<string, { data: ArrayBuffer; contentType: string }>();
-  const anchoredText = new Map<string, AnchoredText>();
+  const anchoredText = new Map<string, ExtractionOutcome>();
   let seq = 0;
   const toBuffer = (file: File | Buffer): Promise<ArrayBuffer> =>
     file instanceof Uint8Array
@@ -103,10 +103,10 @@ function inMemoryContent(): IContentTransport {
     // rid-addressed, resolved server-side through the view index — which this
     // double has no view to model, so seed reads by rid and expect writes to
     // land under the checksum the producer supplies.
-    async putAnchoredText(checksum: string, anchored: AnchoredText): Promise<void> {
+    async putAnchoredText(checksum: string, anchored: ExtractionOutcome): Promise<void> {
       anchoredText.set(checksum, anchored);
     },
-    async getAnchoredText(rId: ResourceId): Promise<AnchoredText | null> {
+    async getAnchoredText(rId: ResourceId): Promise<ExtractionOutcome | null> {
       return anchoredText.get(String(rId)) ?? null;
     },
     async listAnchoredTextKeys(): Promise<string[]> {

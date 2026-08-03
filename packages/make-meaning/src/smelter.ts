@@ -429,7 +429,10 @@ export class Smelter {
       });
       return;
     }
-    await this.content.putAnchoredText(checksum, { text: extracted.text, items: extracted.items });
+    // The whole outcome, provenance included — the stored record IS the
+    // extraction outcome (PERSIST-ANCHORS D1); narrowing to { text, items }
+    // here would strip method/pdfClass/ocrConfidence on every rebuild.
+    await this.content.putAnchoredText(checksum, { ...extracted, items: extracted.items });
     this.logger.info('Re-anchored resource', { resourceId: rid, checksum, items: extracted.items.length });
   }
 
@@ -496,9 +499,10 @@ export class Smelter {
       // that hides the resource from search.
       if (extracted.items?.length) {
         try {
+          // The whole outcome, provenance included (PERSIST-ANCHORS D1).
           await this.content.putAnchoredText(
             checksum,
-            { text: extracted.text, items: extracted.items },
+            { ...extracted, items: extracted.items },
           );
         } catch (error) {
           this.logger.debug('Could not publish anchored text', {

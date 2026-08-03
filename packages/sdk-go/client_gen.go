@@ -268,6 +268,90 @@ func (e DiscoveryDocumentVersion) Valid() bool {
 	}
 }
 
+// Defines values for ExtractionOutcome0Method.
+const (
+	Form            ExtractionOutcome0Method = "form"
+	Ocr             ExtractionOutcome0Method = "ocr"
+	PdfTextLayer    ExtractionOutcome0Method = "pdf-text-layer"
+	Table           ExtractionOutcome0Method = "table"
+	TextPassthrough ExtractionOutcome0Method = "text-passthrough"
+)
+
+// Valid indicates whether the value is a known member of the ExtractionOutcome0Method enum.
+func (e ExtractionOutcome0Method) Valid() bool {
+	switch e {
+	case Form:
+		return true
+	case Ocr:
+		return true
+	case PdfTextLayer:
+		return true
+	case Table:
+		return true
+	case TextPassthrough:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExtractionOutcome0PdfClass.
+const (
+	A ExtractionOutcome0PdfClass = "A"
+	B ExtractionOutcome0PdfClass = "B"
+	C ExtractionOutcome0PdfClass = "C"
+	D ExtractionOutcome0PdfClass = "D"
+	E ExtractionOutcome0PdfClass = "E"
+	F ExtractionOutcome0PdfClass = "F"
+	G ExtractionOutcome0PdfClass = "G"
+)
+
+// Valid indicates whether the value is a known member of the ExtractionOutcome0PdfClass enum.
+func (e ExtractionOutcome0PdfClass) Valid() bool {
+	switch e {
+	case A:
+		return true
+	case B:
+		return true
+	case C:
+		return true
+	case D:
+		return true
+	case E:
+		return true
+	case F:
+		return true
+	case G:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExtractionOutcome1Declined.
+const (
+	ExtractionOutcome1DeclinedCorrupt     ExtractionOutcome1Declined = "corrupt"
+	ExtractionOutcome1DeclinedEncrypted   ExtractionOutcome1Declined = "encrypted"
+	ExtractionOutcome1DeclinedNoTextLayer ExtractionOutcome1Declined = "no-text-layer"
+	ExtractionOutcome1DeclinedTooLarge    ExtractionOutcome1Declined = "too-large"
+)
+
+// Valid indicates whether the value is a known member of the ExtractionOutcome1Declined enum.
+func (e ExtractionOutcome1Declined) Valid() bool {
+	switch e {
+	case ExtractionOutcome1DeclinedCorrupt:
+		return true
+	case ExtractionOutcome1DeclinedEncrypted:
+		return true
+	case ExtractionOutcome1DeclinedNoTextLayer:
+		return true
+	case ExtractionOutcome1DeclinedTooLarge:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FileEntryType.
 const (
 	File FileEntryType = "file"
@@ -384,25 +468,25 @@ func (e JobDeclinedResultDeclined) Valid() bool {
 
 // Defines values for JobDeclinedResultReason.
 const (
-	Corrupt     JobDeclinedResultReason = "corrupt"
-	Empty       JobDeclinedResultReason = "empty"
-	Encrypted   JobDeclinedResultReason = "encrypted"
-	NoTextLayer JobDeclinedResultReason = "no-text-layer"
-	TooLarge    JobDeclinedResultReason = "too-large"
+	JobDeclinedResultReasonCorrupt     JobDeclinedResultReason = "corrupt"
+	JobDeclinedResultReasonEmpty       JobDeclinedResultReason = "empty"
+	JobDeclinedResultReasonEncrypted   JobDeclinedResultReason = "encrypted"
+	JobDeclinedResultReasonNoTextLayer JobDeclinedResultReason = "no-text-layer"
+	JobDeclinedResultReasonTooLarge    JobDeclinedResultReason = "too-large"
 )
 
 // Valid indicates whether the value is a known member of the JobDeclinedResultReason enum.
 func (e JobDeclinedResultReason) Valid() bool {
 	switch e {
-	case Corrupt:
+	case JobDeclinedResultReasonCorrupt:
 		return true
-	case Empty:
+	case JobDeclinedResultReasonEmpty:
 		return true
-	case Encrypted:
+	case JobDeclinedResultReasonEncrypted:
 		return true
-	case NoTextLayer:
+	case JobDeclinedResultReasonNoTextLayer:
 		return true
-	case TooLarge:
+	case JobDeclinedResultReasonTooLarge:
 		return true
 	default:
 		return false
@@ -1290,10 +1374,10 @@ type BrowseAnchoredTextRequest struct {
 	ResourceId    string `json:"resourceId"`
 }
 
-// BrowseAnchoredTextResult A resource's coordinate map, or null when none has been derived. Null is the common case and not an error: a native text layer is read in the browser, and a media type with no extractor never produces one.
+// BrowseAnchoredTextResult A resource's stored extraction outcome — the coordinate map with its provenance, or a named decline — or null when none has been derived. Null is the common case and not an error: a native text layer is read in the browser, and a media type with no extractor never produces one.
 type BrowseAnchoredTextResult struct {
-	CorrelationId string        `json:"correlationId"`
-	Response      *AnchoredText `json:"response"`
+	CorrelationId string             `json:"correlationId"`
+	Response      *ExtractionOutcome `json:"response"`
 }
 
 // BrowseAnnotationContextRequest Request to get contextual text around an annotation
@@ -1785,6 +1869,54 @@ type EventStreamResponse struct {
 	Event string  `json:"event"`
 	Id    *string `json:"id,omitempty"`
 }
+
+// ExtractionOutcome The full outcome of text extraction for one representation — the record the anchored-text store holds and the wire serves (PERSIST-ANCHORS decision D1). Either a success (the anchored text plus its provenance: how it was extracted, what class of PDF it came from, how confident OCR was, which pages could not be read) or a named decline. A decline is a first-class, cacheable outcome: 'we ran and there was nothing' costs a full recognition pass to discover. ocrConfidence is extraction quality for operators, deliberately not anchor confidence.
+type ExtractionOutcome struct {
+	union json.RawMessage
+}
+
+// ExtractionOutcome0 defines model for .
+type ExtractionOutcome0 struct {
+	// Items Positioned runs indexing `text`, roughly one per word.
+	Items []PdfTextItem `json:"items"`
+
+	// Method How the text was extracted.
+	Method ExtractionOutcome0Method `json:"method"`
+
+	// OcrConfidence How well the engine read the pixels, when any of this text came from OCR.
+	OcrConfidence *struct {
+		// LowConfidenceWords Words the engine was unsure of.
+		LowConfidenceWords int `json:"lowConfidenceWords"`
+
+		// Mean Mean per-word confidence, 0-100.
+		Mean       float32 `json:"mean"`
+		TotalWords int     `json:"totalWords"`
+	} `json:"ocrConfidence,omitempty"`
+
+	// PdfClass PDF classification, when the source was a PDF.
+	PdfClass *ExtractionOutcome0PdfClass `json:"pdfClass,omitempty"`
+
+	// Text Reading-order text of the whole resource.
+	Text string `json:"text"`
+
+	// UnreadPages 1-indexed pages this extraction could not read — present only for partially covered documents (class C).
+	UnreadPages *[]int `json:"unreadPages,omitempty"`
+}
+
+// ExtractionOutcome0Method How the text was extracted.
+type ExtractionOutcome0Method string
+
+// ExtractionOutcome0PdfClass PDF classification, when the source was a PDF.
+type ExtractionOutcome0PdfClass string
+
+// ExtractionOutcome1 defines model for .
+type ExtractionOutcome1 struct {
+	// Declined Why extraction yielded nothing, by class.
+	Declined ExtractionOutcome1Declined `json:"declined"`
+}
+
+// ExtractionOutcome1Declined Why extraction yielded nothing, by class.
+type ExtractionOutcome1Declined string
 
 // FileEntry defines model for FileEntry.
 type FileEntry struct {
@@ -3383,6 +3515,18 @@ type SettingsThemeChangedEvent struct {
 // SettingsThemeChangedEventTheme defines model for SettingsThemeChangedEvent.Theme.
 type SettingsThemeChangedEventTheme string
 
+// SmeltRebuildAnchorsCommand Bus command to rebuild anchored-text artifacts by re-running extraction — every geometry-capable resource when resourceId is absent, one resource when present. Served by the Smelter, serialized (each unit can be a multi-second OCR pass), and never destructive: nothing is deleted first, stale entries are simply overwritten. Re-anchoring makes zero embedding calls — the vectors are already correct; only the derived map is re-made. Partial completion replies failed, with counts: a rebuild that quietly skipped resources would present exactly like a document with no text.
+type SmeltRebuildAnchorsCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// CorrelationId Correlation id for request/reply matching, set by busRequest so the ok/failed reply routes back.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// ResourceId When present, re-anchor only this resource; otherwise every geometry-capable resource in the catalog.
+	ResourceId *string `json:"resourceId,omitempty"`
+}
+
 // SpecificResource defines model for SpecificResource.
 type SpecificResource struct {
 	// Purpose W3C Web Annotation body purpose vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation
@@ -3783,6 +3927,9 @@ type PostResourcesMultipartBody struct {
 	StorageUri string `json:"storageUri"`
 }
 
+// PutAnchoredTextChecksumJSONRequestBody defines body for PutAnchoredTextChecksum for application/json ContentType.
+type PutAnchoredTextChecksumJSONRequestBody = ExtractionOutcome
+
 // PostApiAdminExchangeRestoreMultipartRequestBody defines body for PostApiAdminExchangeRestore for multipart/form-data ContentType.
 type PostApiAdminExchangeRestoreMultipartRequestBody PostApiAdminExchangeRestoreMultipartBody
 
@@ -3818,9 +3965,6 @@ type PostBusSubscribeJSONRequestBody = BusSubscribeRequest
 
 // PostResourcesMultipartRequestBody defines body for PostResources for multipart/form-data ContentType.
 type PostResourcesMultipartRequestBody PostResourcesMultipartBody
-
-// PutResourcesIdAnchoredTextJSONRequestBody defines body for PutResourcesIdAnchoredText for application/json ContentType.
-type PutResourcesIdAnchoredTextJSONRequestBody = AnchoredText
 
 // Getter for additional properties for Agent0. Returns the specified
 // element and whether it was found
@@ -6798,6 +6942,68 @@ func (t *DirectoryEntry) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsExtractionOutcome0 returns the union data inside the ExtractionOutcome as a ExtractionOutcome0
+func (t ExtractionOutcome) AsExtractionOutcome0() (ExtractionOutcome0, error) {
+	var body ExtractionOutcome0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromExtractionOutcome0 overwrites any union data inside the ExtractionOutcome as the provided ExtractionOutcome0
+func (t *ExtractionOutcome) FromExtractionOutcome0(v ExtractionOutcome0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeExtractionOutcome0 performs a merge with any union data inside the ExtractionOutcome, using the provided ExtractionOutcome0
+func (t *ExtractionOutcome) MergeExtractionOutcome0(v ExtractionOutcome0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsExtractionOutcome1 returns the union data inside the ExtractionOutcome as a ExtractionOutcome1
+func (t ExtractionOutcome) AsExtractionOutcome1() (ExtractionOutcome1, error) {
+	var body ExtractionOutcome1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromExtractionOutcome1 overwrites any union data inside the ExtractionOutcome as the provided ExtractionOutcome1
+func (t *ExtractionOutcome) FromExtractionOutcome1(v ExtractionOutcome1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeExtractionOutcome1 performs a merge with any union data inside the ExtractionOutcome, using the provided ExtractionOutcome1
+func (t *ExtractionOutcome) MergeExtractionOutcome1(v ExtractionOutcome1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ExtractionOutcome) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ExtractionOutcome) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsGatheredContextFocus0 returns the union data inside the GatheredContext_Focus as a GatheredContextFocus0
 func (t GatheredContext_Focus) AsGatheredContextFocus0() (GatheredContextFocus0, error) {
 	var body GatheredContextFocus0
@@ -9463,6 +9669,14 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// GetAnchoredTextKeys request
+	GetAnchoredTextKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutAnchoredTextChecksumWithBody request with any body
+	PutAnchoredTextChecksumWithBody(ctx context.Context, checksum string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PutAnchoredTextChecksum(ctx context.Context, checksum string, body PutAnchoredTextChecksumJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostApiAdminExchangeBackup request
 	PostApiAdminExchangeBackup(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -9565,13 +9779,44 @@ type ClientInterface interface {
 	// GetResourcesIdAnchoredText request
 	GetResourcesIdAnchoredText(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PutResourcesIdAnchoredTextWithBody request with any body
-	PutResourcesIdAnchoredTextWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PutResourcesIdAnchoredText(ctx context.Context, id string, body PutResourcesIdAnchoredTextJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetResourcesIdJsonld request
 	GetResourcesIdJsonld(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) GetAnchoredTextKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAnchoredTextKeysRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutAnchoredTextChecksumWithBody(ctx context.Context, checksum string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutAnchoredTextChecksumRequestWithBody(c.Server, checksum, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutAnchoredTextChecksum(ctx context.Context, checksum string, body PutAnchoredTextChecksumJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutAnchoredTextChecksumRequest(c.Server, checksum, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) PostApiAdminExchangeBackup(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -10018,30 +10263,6 @@ func (c *Client) GetResourcesIdAnchoredText(ctx context.Context, id string, reqE
 	return c.Client.Do(req)
 }
 
-func (c *Client) PutResourcesIdAnchoredTextWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutResourcesIdAnchoredTextRequestWithBody(c.Server, id, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PutResourcesIdAnchoredText(ctx context.Context, id string, body PutResourcesIdAnchoredTextJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutResourcesIdAnchoredTextRequest(c.Server, id, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) GetResourcesIdJsonld(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetResourcesIdJsonldRequest(c.Server, id)
 	if err != nil {
@@ -10052,6 +10273,80 @@ func (c *Client) GetResourcesIdJsonld(ctx context.Context, id string, reqEditors
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewGetAnchoredTextKeysRequest generates requests for GetAnchoredTextKeys
+func NewGetAnchoredTextKeysRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/anchored-text/keys")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutAnchoredTextChecksumRequest calls the generic PutAnchoredTextChecksum builder with application/json body
+func NewPutAnchoredTextChecksumRequest(server string, checksum string, body PutAnchoredTextChecksumJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutAnchoredTextChecksumRequestWithBody(server, checksum, "application/json", bodyReader)
+}
+
+// NewPutAnchoredTextChecksumRequestWithBody generates requests for PutAnchoredTextChecksum with any type of body
+func NewPutAnchoredTextChecksumRequestWithBody(server string, checksum string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "checksum", checksum, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/anchored-text/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
 }
 
 // NewPostApiAdminExchangeBackupRequest generates requests for PostApiAdminExchangeBackup
@@ -10990,53 +11285,6 @@ func NewGetResourcesIdAnchoredTextRequest(server string, id string) (*http.Reque
 	return req, nil
 }
 
-// NewPutResourcesIdAnchoredTextRequest calls the generic PutResourcesIdAnchoredText builder with application/json body
-func NewPutResourcesIdAnchoredTextRequest(server string, id string, body PutResourcesIdAnchoredTextJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPutResourcesIdAnchoredTextRequestWithBody(server, id, "application/json", bodyReader)
-}
-
-// NewPutResourcesIdAnchoredTextRequestWithBody generates requests for PutResourcesIdAnchoredText with any type of body
-func NewPutResourcesIdAnchoredTextRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/resources/%s/anchored-text", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewGetResourcesIdJsonldRequest generates requests for GetResourcesIdJsonld
 func NewGetResourcesIdJsonldRequest(server string, id string) (*http.Request, error) {
 	var err error
@@ -11114,6 +11362,14 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// GetAnchoredTextKeysWithResponse request
+	GetAnchoredTextKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAnchoredTextKeysResponse, error)
+
+	// PutAnchoredTextChecksumWithBodyWithResponse request with any body
+	PutAnchoredTextChecksumWithBodyWithResponse(ctx context.Context, checksum string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutAnchoredTextChecksumResponse, error)
+
+	PutAnchoredTextChecksumWithResponse(ctx context.Context, checksum string, body PutAnchoredTextChecksumJSONRequestBody, reqEditors ...RequestEditorFn) (*PutAnchoredTextChecksumResponse, error)
+
 	// PostApiAdminExchangeBackupWithResponse request
 	PostApiAdminExchangeBackupWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiAdminExchangeBackupResponse, error)
 
@@ -11216,13 +11472,56 @@ type ClientWithResponsesInterface interface {
 	// GetResourcesIdAnchoredTextWithResponse request
 	GetResourcesIdAnchoredTextWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdAnchoredTextResponse, error)
 
-	// PutResourcesIdAnchoredTextWithBodyWithResponse request with any body
-	PutResourcesIdAnchoredTextWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutResourcesIdAnchoredTextResponse, error)
-
-	PutResourcesIdAnchoredTextWithResponse(ctx context.Context, id string, body PutResourcesIdAnchoredTextJSONRequestBody, reqEditors ...RequestEditorFn) (*PutResourcesIdAnchoredTextResponse, error)
-
 	// GetResourcesIdJsonldWithResponse request
 	GetResourcesIdJsonldWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error)
+}
+
+type GetAnchoredTextKeysResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Keys []string `json:"keys"`
+	}
+	JSON403 *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAnchoredTextKeysResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAnchoredTextKeysResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PutAnchoredTextChecksumResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *ErrorResponse
+	JSON403      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PutAnchoredTextChecksumResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutAnchoredTextChecksumResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type PostApiAdminExchangeBackupResponse struct {
@@ -11869,7 +12168,7 @@ func (r GetResourcesIdResponse) StatusCode() int {
 type GetResourcesIdAnchoredTextResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *AnchoredText
+	JSON200      *ExtractionOutcome
 	JSON404      *ErrorResponse
 	JSON504      *ErrorResponse
 }
@@ -11884,29 +12183,6 @@ func (r GetResourcesIdAnchoredTextResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetResourcesIdAnchoredTextResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PutResourcesIdAnchoredTextResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PutResourcesIdAnchoredTextResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PutResourcesIdAnchoredTextResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -11935,6 +12211,32 @@ func (r GetResourcesIdJsonldResponse) StatusCode() int {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
+}
+
+// GetAnchoredTextKeysWithResponse request returning *GetAnchoredTextKeysResponse
+func (c *ClientWithResponses) GetAnchoredTextKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAnchoredTextKeysResponse, error) {
+	rsp, err := c.GetAnchoredTextKeys(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAnchoredTextKeysResponse(rsp)
+}
+
+// PutAnchoredTextChecksumWithBodyWithResponse request with arbitrary body returning *PutAnchoredTextChecksumResponse
+func (c *ClientWithResponses) PutAnchoredTextChecksumWithBodyWithResponse(ctx context.Context, checksum string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutAnchoredTextChecksumResponse, error) {
+	rsp, err := c.PutAnchoredTextChecksumWithBody(ctx, checksum, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutAnchoredTextChecksumResponse(rsp)
+}
+
+func (c *ClientWithResponses) PutAnchoredTextChecksumWithResponse(ctx context.Context, checksum string, body PutAnchoredTextChecksumJSONRequestBody, reqEditors ...RequestEditorFn) (*PutAnchoredTextChecksumResponse, error) {
+	rsp, err := c.PutAnchoredTextChecksum(ctx, checksum, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutAnchoredTextChecksumResponse(rsp)
 }
 
 // PostApiAdminExchangeBackupWithResponse request returning *PostApiAdminExchangeBackupResponse
@@ -12261,23 +12563,6 @@ func (c *ClientWithResponses) GetResourcesIdAnchoredTextWithResponse(ctx context
 	return ParseGetResourcesIdAnchoredTextResponse(rsp)
 }
 
-// PutResourcesIdAnchoredTextWithBodyWithResponse request with arbitrary body returning *PutResourcesIdAnchoredTextResponse
-func (c *ClientWithResponses) PutResourcesIdAnchoredTextWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutResourcesIdAnchoredTextResponse, error) {
-	rsp, err := c.PutResourcesIdAnchoredTextWithBody(ctx, id, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePutResourcesIdAnchoredTextResponse(rsp)
-}
-
-func (c *ClientWithResponses) PutResourcesIdAnchoredTextWithResponse(ctx context.Context, id string, body PutResourcesIdAnchoredTextJSONRequestBody, reqEditors ...RequestEditorFn) (*PutResourcesIdAnchoredTextResponse, error) {
-	rsp, err := c.PutResourcesIdAnchoredText(ctx, id, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePutResourcesIdAnchoredTextResponse(rsp)
-}
-
 // GetResourcesIdJsonldWithResponse request returning *GetResourcesIdJsonldResponse
 func (c *ClientWithResponses) GetResourcesIdJsonldWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error) {
 	rsp, err := c.GetResourcesIdJsonld(ctx, id, reqEditors...)
@@ -12285,6 +12570,74 @@ func (c *ClientWithResponses) GetResourcesIdJsonldWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseGetResourcesIdJsonldResponse(rsp)
+}
+
+// ParseGetAnchoredTextKeysResponse parses an HTTP response from a GetAnchoredTextKeysWithResponse call
+func ParseGetAnchoredTextKeysResponse(rsp *http.Response) (*GetAnchoredTextKeysResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAnchoredTextKeysResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Keys []string `json:"keys"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutAnchoredTextChecksumResponse parses an HTTP response from a PutAnchoredTextChecksumWithResponse call
+func ParsePutAnchoredTextChecksumResponse(rsp *http.Response) (*PutAnchoredTextChecksumResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutAnchoredTextChecksumResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParsePostApiAdminExchangeBackupResponse parses an HTTP response from a PostApiAdminExchangeBackupWithResponse call
@@ -13294,7 +13647,7 @@ func ParseGetResourcesIdAnchoredTextResponse(rsp *http.Response) (*GetResourcesI
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AnchoredText
+		var dest ExtractionOutcome
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -13313,39 +13666,6 @@ func ParseGetResourcesIdAnchoredTextResponse(rsp *http.Response) (*GetResourcesI
 			return nil, err
 		}
 		response.JSON504 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePutResourcesIdAnchoredTextResponse parses an HTTP response from a PutResourcesIdAnchoredTextWithResponse call
-func ParsePutResourcesIdAnchoredTextResponse(rsp *http.Response) (*PutResourcesIdAnchoredTextResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PutResourcesIdAnchoredTextResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
 
 	}
 

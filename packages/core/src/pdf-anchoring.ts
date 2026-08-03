@@ -18,6 +18,7 @@
  */
 
 import type { PdfCoordinate } from './pdf-coordinates';
+import type { components } from './types';
 
 /**
  * A single text item (one text run, roughly a word) from a PDF.
@@ -47,6 +48,16 @@ export interface AnchoredText {
     text: string;
     items: PdfTextItem[];
 }
+
+/**
+ * The full outcome of text extraction for one representation — the record
+ * the anchored-text store holds and the wire serves (PERSIST-ANCHORS
+ * decision D1): an `AnchoredText` plus its provenance (`method`, `pdfClass`,
+ * `ocrConfidence`, `unreadPages`), or a named decline. `AnchoredText` stays
+ * the anchoring vocabulary; this is the stored/served record. Aliased from
+ * the generated spec type so the wire shape has exactly one authority.
+ */
+export type ExtractionOutcome = components['schemas']['ExtractionOutcome'];
 
 /**
  * One text run as pdf.js reports it, narrowed to the fields anchoring reads.

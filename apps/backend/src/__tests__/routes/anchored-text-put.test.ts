@@ -20,7 +20,7 @@
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { Hono } from 'hono';
-import type { AnchoredText } from '@semiont/core';
+import type { ExtractionOutcome } from '@semiont/core';
 import type { User } from '@prisma/client';
 import type { EventBus as EventBusType } from '@semiont/core';
 import { registerGetResourceUri } from '../../routes/resources/routes/get-uri';
@@ -34,9 +34,10 @@ type Variables = {
   makeMeaning: unknown;
 };
 
-const MAP: AnchoredText = {
+const MAP: ExtractionOutcome = {
   text: 'alpha beta',
   items: [{ start: 0, end: 5, page: 1, x: 72, y: 700, width: 28, height: 12 }],
+  method: 'ocr',
 };
 
 /** An app whose principal is, or is not, a Software peer. */
@@ -86,8 +87,10 @@ describe('PUT /anchored-text/:checksum', () => {
   it('rejects a body whose items are not geometry', async () => {
     const { app, write } = appAs('did:semiont:agent:smelter');
 
-    const missingPage = { text: 'a', items: [{ start: 0, end: 1, x: 1, y: 2, width: 3, height: 4 }] };
-    const stringCoordinate = { text: 'a', items: [{ start: 0, end: 1, page: 1, x: '72', y: 2, width: 3, height: 4 }] };
+    // `method` present so these reach the geometry checks — the point of the
+    // test is item-field narrowing, not the provenance gate.
+    const missingPage = { text: 'a', method: 'ocr', items: [{ start: 0, end: 1, x: 1, y: 2, width: 3, height: 4 }] };
+    const stringCoordinate = { text: 'a', method: 'ocr', items: [{ start: 0, end: 1, page: 1, x: '72', y: 2, width: 3, height: 4 }] };
 
     expect((await put(app, missingPage)).status).toBe(400);
     expect((await put(app, stringCoordinate)).status).toBe(400);
@@ -96,12 +99,31 @@ describe('PUT /anchored-text/:checksum', () => {
     expect(write).not.toHaveBeenCalled();
   });
 
+  it('rejects a body without provenance, and outside the enums', async () => {
+    // The record is the extraction OUTCOME (PERSIST-ANCHORS D1): geometry
+    // alone — the pre-P2a shape — is no longer a valid write.
+    const { app, write } = appAs('did:semiont:agent:smelter');
+
+    expect((await put(app, { text: 'a', items: [] })).status).toBe(400);
+    expect((await put(app, { text: 'a', items: [], method: 'divination' })).status).toBe(400);
+    expect((await put(app, { declined: 'sheer-boredom' })).status).toBe(400);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('stores a named decline — a cacheable outcome, not an error', async () => {
+    const { app, write } = appAs('did:semiont:agent:smelter');
+
+    const decline: ExtractionOutcome = { declined: 'no-text-layer' };
+    expect((await put(app, decline)).status).toBe(204);
+    expect(write).toHaveBeenCalledWith(CHECKSUM, decline);
+  });
+
   it('accepts a map with no items', async () => {
     // An extraction that recovered nothing is a result worth storing: it is
     // what stops the next reader paying for the same recognition pass.
     const { app, write } = appAs('did:semiont:agent:smelter');
 
-    const empty: AnchoredText = { text: '', items: [] };
+    const empty: ExtractionOutcome = { text: '', items: [], method: 'ocr' };
     expect((await put(app, empty)).status).toBe(204);
     expect(write).toHaveBeenCalledWith(CHECKSUM, empty);
   });

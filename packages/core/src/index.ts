@@ -192,7 +192,7 @@ export type { PdfCoordinate } from './pdf-coordinates';
 
 // PDF text <-> geometry anchoring (locate/textUnder are inverses)
 export { locate, textUnder, anchorRuns, isTextRun } from './pdf-anchoring';
-export type { AnchoredText, PdfTextItem, PdfTextRun } from './pdf-anchoring';
+export type { AnchoredText, ExtractionOutcome, PdfTextItem, PdfTextRun } from './pdf-anchoring';
 
 // ResourceDescriptor accessors
 export {

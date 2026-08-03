@@ -17,7 +17,7 @@ import { EMPTY, Subject } from 'rxjs';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { calculateChecksum } from '@semiont/content';
 import { MemoryVectorStore } from '@semiont/vectors';
-import type { AnchoredText, IContentTransport, Logger } from '@semiont/core';
+import type { ExtractionOutcome, IContentTransport, Logger } from '@semiont/core';
 import { Smelter } from '../smelter';
 import type { SmelterEvent } from '../smelter-actor-state-unit';
 import {
@@ -53,7 +53,7 @@ beforeAll(async () => {
  * harness behaviour.
  */
 function transportRecording(
-  put: (checksum: string, anchored: AnchoredText) => void,
+  put: (checksum: string, anchored: ExtractionOutcome) => void,
   entry: { text: string; mediaType: string } | { bytes: Uint8Array; mediaType: string },
 ): IContentTransport {
   const base = createContentTransport({ read: (rid) => (rid === RID ? entry : undefined) });
@@ -93,12 +93,14 @@ describe('Smelter publishes derived anchored text', () => {
     await settle();
 
     expect(put).toHaveBeenCalledTimes(1);
-    const [key, map] = put.mock.calls[0] as [string, AnchoredText];
+    const [key, map] = put.mock.calls[0] as [string, ExtractionOutcome];
     // Filed under the checksum of the bytes the producer read (P1b), never
     // the mutable resource id.
     expect(key).toBe(calculateChecksum(Buffer.from(PDF_BYTES)));
+    // The published record is the full outcome (P2a) — a success here, with
+    // geometry, not just text: the whole reason a consumer wants this.
+    if ('declined' in map) throw new Error(`expected a success outcome, got decline: ${map.declined}`);
     expect(map.text).toContain('alpha');
-    // Geometry, not just text — the whole reason a consumer wants this.
     expect(map.items.length).toBeGreaterThan(0);
     expect(map.items[0]).toMatchObject({ page: 1 });
   });

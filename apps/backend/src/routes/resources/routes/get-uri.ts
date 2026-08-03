@@ -22,7 +22,7 @@ import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { busLog, getPrimaryMediaType, resourceId, isObject, isString, isNumber, isArray } from '@semiont/core';
-import type { AnchoredText, ResourceDescriptor } from '@semiont/core';
+import type { ExtractionOutcome, ResourceDescriptor } from '@semiont/core';
 import { ResourceContext } from '@semiont/make-meaning';
 import type { KnowledgeBase } from '@semiont/make-meaning';
 import { eventBusRequest } from '../../../utils/event-bus-request';
@@ -83,16 +83,28 @@ function describedByLink(id: string): string {
   return `</resources/${id}/jsonld>; rel="describedby"; type="application/ld+json"`;
 }
 
+const EXTRACTION_METHODS = new Set(['text-passthrough', 'pdf-text-layer', 'table', 'form', 'ocr']);
+const DECLINE_REASONS = new Set(['no-text-layer', 'encrypted', 'corrupt', 'too-large']);
+
 /**
- * Narrow a request body to `AnchoredText`.
+ * Narrow a request body to `ExtractionOutcome` (PERSIST-ANCHORS D1): the
+ * anchored text with its provenance, or a named decline.
  *
  * Hand-written rather than schema-driven because the geometry is the point: an
  * item missing `page` or carrying a string `x` would be stored happily and then
  * place an annotation rectangle nowhere, discovered much later by a reader who
  * cannot tell a bad write from a bad recognizer.
  */
-function isAnchoredText(value: unknown): value is AnchoredText {
-  if (!isObject(value) || !isString(value.text) || !isArray(value.items)) return false;
+function isExtractionOutcome(value: unknown): value is ExtractionOutcome {
+  if (!isObject(value)) return false;
+  if (isString(value.declined)) return DECLINE_REASONS.has(value.declined);
+  if (!isString(value.text) || !isArray(value.items)) return false;
+  if (!isString(value.method) || !EXTRACTION_METHODS.has(value.method)) return false;
+  if (value.ocrConfidence !== undefined) {
+    const c = value.ocrConfidence;
+    if (!isObject(c) || !isNumber(c.mean) || !isNumber(c.lowConfidenceWords) || !isNumber(c.totalWords)) return false;
+  }
+  if (value.unreadPages !== undefined && !(isArray(value.unreadPages) && value.unreadPages.every(isNumber))) return false;
   return value.items.every((item) =>
     isObject(item)
     && isNumber(item.start) && isNumber(item.end) && isNumber(item.page)
@@ -127,8 +139,8 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
 
     const { checksum } = c.req.param();
     const body: unknown = await c.req.json().catch(() => null);
-    if (!isAnchoredText(body)) {
-      throw new HTTPException(400, { message: 'Body must be an AnchoredText: { text, items[] }' });
+    if (!isExtractionOutcome(body)) {
+      throw new HTTPException(400, { message: 'Body must be an ExtractionOutcome: { text, items[], method, … } or { declined }' });
     }
 
     const { knowledgeSystem: { kb } } = c.get('makeMeaning');

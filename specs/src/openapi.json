@@ -360,6 +360,9 @@
       "EventStreamResponse": {
         "$ref": "components/schemas/EventStreamResponse.json"
       },
+      "ExtractionOutcome": {
+        "$ref": "components/schemas/ExtractionOutcome.json"
+      },
       "FileEntry": {
         "$ref": "components/schemas/FileEntry.json"
       },

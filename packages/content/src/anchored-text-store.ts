@@ -19,7 +19,11 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
-import { getShardPath, isObject, isString, isNumber, isArray, type AnchoredText, type Logger, type PdfTextItem } from '@semiont/core';
+import { getShardPath, isObject, isString, isNumber, isArray, type ExtractionOutcome, type Logger, type PdfTextItem } from '@semiont/core';
+
+/** The two halves of the wire record, split for storage. */
+type SuccessOutcome = Exclude<ExtractionOutcome, { declined: string }>;
+type DeclineOutcome = Extract<ExtractionOutcome, { declined: string }>;
 
 /**
  * One line of recognized text: the geometry every word on it shares, plus the
@@ -49,25 +53,35 @@ export interface CachedLine {
 }
 
 /**
- * The stored record: one `AnchoredText` for the whole resource.
+ * The stored record: one extraction OUTCOME for the whole resource
+ * (PERSIST-ANCHORS decision D1) — the anchored text with its provenance
+ * (`method`, `pdfClass`, `ocrConfidence`, `unreadPages`), or a named decline.
  *
  * Whole-resource on every side, deliberately. The producer's own shape is a
  * per-page map, but that is an artifact of how `ocrPages` iterates, and letting
  * it reach storage would have forced every consumer — the transport, the
  * browser, a headless client — to reassemble pages it never asked to see.
  *
- * Per-word confidences are NOT stored. They are summarized and logged at
- * extraction, and a cache hit re-reporting identical numbers for identical
- * bytes carries no information; the consequence to know about is that
- * `ocrConfidence` is absent on a hit.
+ * The `ocrConfidence` SUMMARY is stored (v2) — this repairs the regression
+ * OCR-CONFIDENCE-LOST.md records, where a hit answered with no confidence at
+ * all. Per-word confidences remain unstored: the summary is the record's
+ * quality provenance; the word list is operator log detail.
+ *
+ * v1 records (bare `{ text, lines }`, no provenance) read as misses under the
+ * v2 prefix; the reconcile planner's third drift class re-derives them.
  */
-export interface CachedAnchoredText {
-    v: 1;
-    /** Engine + traineddata + our assembly code. A mismatch is a clean miss. */
-    stamp: string;
-    text: string;
-    lines: CachedLine[];
-}
+export type CachedAnchoredText =
+    | ({
+        v: 2;
+        /** Engine + traineddata + our assembly code. A mismatch is a clean miss. */
+        stamp: string;
+        text: string;
+        lines: CachedLine[];
+    } & Omit<SuccessOutcome, 'text' | 'items'>)
+    | ({
+        v: 2;
+        stamp: string;
+    } & DeclineOutcome);
 
 /**
  * What the cached value must be recomputed against.
@@ -140,10 +154,10 @@ export interface AnchoredTextStore {
      * (a resource id) reach the artifact through an index, not by a second
      * key scheme here.
      */
-    read(key: string): Promise<AnchoredText | null>;
-    /** Record a derived map under the content checksum of its source bytes.
-     *  A store that cannot write is still a store. */
-    write(key: string, anchored: AnchoredText): Promise<void>;
+    read(key: string): Promise<ExtractionOutcome | null>;
+    /** Record an extraction outcome under the content checksum of its source
+     *  bytes. A store that cannot write is still a store. */
+    write(key: string, outcome: ExtractionOutcome): Promise<void>;
     /**
      * Every key `read()` would currently HIT — entries under a stale stamp or
      * unreadable files are excluded, exactly as `read()` would exclude them.
@@ -159,7 +173,9 @@ export interface AnchoredTextStore {
 
 /** Narrow a parsed entry, so a truncated or foreign file is a miss, not a crash. */
 function isCached(value: unknown): value is CachedAnchoredText {
-    if (!isObject(value) || value.v !== 1 || !isString(value.stamp) || !isString(value.text) || !isArray(value.lines)) return false;
+    if (!isObject(value) || value.v !== 2 || !isString(value.stamp)) return false;
+    if (isString(value.declined)) return true;
+    if (!isString(value.text) || !isString(value.method) || !isArray(value.lines)) return false;
     return value.lines.every((line) =>
         isObject(line) && isNumber(line.p) && isNumber(line.y) && isNumber(line.h) && isArray(line.words)
         && line.words.every((w) => isArray(w) && w.length === 4 && w.every(isNumber)));
@@ -208,12 +224,15 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             logger?.debug('Anchored-text cache', {
                 outcome: hit ? 'hit' : 'miss',
                 key,
-                ...(hit ? { lines: hit.lines.length } : {}),
+                ...(hit ? ('declined' in hit ? { declined: hit.declined } : { lines: hit.lines.length }) : {}),
             });
-            return hit ? { text: hit.text, items: decodeLines(hit.lines) } : null;
+            if (!hit) return null;
+            if ('declined' in hit) return { declined: hit.declined };
+            const { v: _v, stamp: _stamp, lines, text, ...provenance } = hit;
+            return { text, items: decodeLines(lines), ...provenance };
         },
 
-        async write(key, anchored) {
+        async write(key, outcome) {
             const target = fileFor(key);
             if (target === null) {
                 logger?.debug('Anchored-text cache: refusing invalid key', { key });
@@ -221,7 +240,12 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             }
             // Key order (`v`, `stamp`, first) is load-bearing: `list()` below
             // reads only a prefix of each file and matches the stamp there.
-            const entry: CachedAnchoredText = { v: 1, stamp: STAMP, text: anchored.text, lines: encodeLines(anchored.items) };
+            const entry: CachedAnchoredText = 'declined' in outcome
+                ? { v: 2, stamp: STAMP, declined: outcome.declined }
+                : (() => {
+                    const { text, items, ...provenance } = outcome;
+                    return { v: 2, stamp: STAMP, text, lines: encodeLines(items), ...provenance };
+                })();
             // Write-then-rename: a reader never observes a half-written entry,
             // and two writers racing on the same key both produce the same bytes.
             const temp = `${target}.${process.pid}.tmp`;
@@ -245,7 +269,7 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             // both are misses for `read()` too. Keys round-trip through
             // filenames unchanged because every real key is hex — the same
             // fact that makes `fileFor`'s guard a no-op for them.
-            const prefix = JSON.stringify({ v: 1, stamp: STAMP }).slice(0, -1) + ',';
+            const prefix = JSON.stringify({ v: 2, stamp: STAMP }).slice(0, -1) + ',';
             let rootNames: string[];
             try {
                 rootNames = await fs.promises.readdir(dir);

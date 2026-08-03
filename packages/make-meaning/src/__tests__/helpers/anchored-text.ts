@@ -9,11 +9,11 @@
  * back — it simply does not outlive the process, which is all a fixture needs.
  */
 
-import type { AnchoredText } from '@semiont/core';
+import type { ExtractionOutcome } from '@semiont/core';
 import type { AnchoredTextStore } from '@semiont/content';
 
 export function memoryAnchoredTextStore(): AnchoredTextStore {
-  const maps = new Map<string, AnchoredText>();
+  const maps = new Map<string, ExtractionOutcome>();
   return {
     async read(key) { return maps.get(key) ?? null; },
     async write(key, anchored) { maps.set(key, anchored); },

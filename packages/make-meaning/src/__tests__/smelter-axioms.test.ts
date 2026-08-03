@@ -24,7 +24,7 @@ import { calculateChecksum } from '@semiont/content';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import { chunkText } from '@semiont/core';
-import type { AnchoredText, ChunkingConfig } from '@semiont/core';
+import type { ExtractionOutcome, ChunkingConfig } from '@semiont/core';
 import { textExtractionOf } from '@semiont/core';
 import { EXTRACTORS } from '@semiont/content';
 import { Smelter, type SmelterTiming } from '../smelter';
@@ -871,8 +871,8 @@ describe('Smelter axioms', () => {
               [],
             );
           }
-          const anchored = new Map<string, AnchoredText>();
-          for (const i of surviving) anchored.set(CHECKSUMS[i], { text: 'survived', items: [] });
+          const anchored = new Map<string, ExtractionOutcome>();
+          for (const i of surviving) anchored.set(CHECKSUMS[i], { text: 'survived', items: [], method: 'ocr' });
 
           const embeddingProvider = createMockEmbeddingProvider();
           const smelter = new Smelter(
@@ -900,7 +900,7 @@ describe('Smelter axioms', () => {
             // artifact under its content checksum again — the lost ones
             // re-derived, the survivors untouched.
             for (let i = 0; i < n; i++) expect(anchored.has(CHECKSUMS[i])).toBe(true);
-            for (const i of surviving) expect(anchored.get(CHECKSUMS[i])).toEqual({ text: 'survived', items: [] });
+            for (const i of surviving) expect(anchored.get(CHECKSUMS[i])).toEqual({ text: 'survived', items: [], method: 'ocr' });
             expect(summary.resourcesReanchored).toBe(n - surviving.size);
             // Re-anchor ≠ re-embed: zero embedding calls under every loss
             // pattern.

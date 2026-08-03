@@ -15,7 +15,7 @@
 
 import { vi } from 'vitest';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import type { AnchoredText, ConnectionState, Logger, EventMap, IContentTransport, components } from '@semiont/core';
+import type { ExtractionOutcome, ConnectionState, Logger, EventMap, IContentTransport, components } from '@semiont/core';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive } from '@semiont/core';
 import type { SmelterEvent } from '../../smelter-actor-state-unit';
@@ -106,9 +106,9 @@ export function createContentTransport(opts: {
    * reconciles) and observe what the Smelter published. Mirrors production
    * semantics: put writes, get misses as null, list returns would-hit keys.
    */
-  anchored?: Map<string, AnchoredText>;
+  anchored?: Map<string, ExtractionOutcome>;
 }): IContentTransport {
-  const anchored = opts.anchored ?? new Map<string, AnchoredText>();
+  const anchored = opts.anchored ?? new Map<string, ExtractionOutcome>();
   return {
     async putBinary(): Promise<never> {
       throw new Error('not supported');

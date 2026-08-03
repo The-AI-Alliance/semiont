@@ -13,7 +13,7 @@
  * resource-creation pipeline the HTTP `/resources` handler uses.
  */
 
-import type { AccessToken, AnchoredText, ResourceId, components } from '@semiont/core';
+import type { AccessToken, ExtractionOutcome, ResourceId, components } from '@semiont/core';
 import { busLog, getPrimaryRepresentation } from '@semiont/core';
 import { SpanKind, withSpan } from '@semiont/observability';
 import type { IContentTransport, PutBinaryRequest, PutBinaryOptions } from '@semiont/core';
@@ -49,18 +49,18 @@ export class LocalContentTransport implements IContentTransport {
    */
   async putAnchoredText(
     checksum: string,
-    anchored: AnchoredText,
+    outcome: ExtractionOutcome,
     _options?: { auth?: AccessToken },
   ): Promise<void> {
     busLog('PUT', 'anchored-text', { checksum });
-    await this.ks.kb.anchoredText.write(checksum, anchored);
+    await this.ks.kb.anchoredText.write(checksum, outcome);
   }
 
-  /** The map, or null when nothing has derived one — the common case. */
+  /** The stored outcome, or null when nothing has derived one — the common case. */
   async getAnchoredText(
     resourceId: ResourceId,
     _options?: { auth?: AccessToken },
-  ): Promise<AnchoredText | null> {
+  ): Promise<ExtractionOutcome | null> {
     busLog('GET', 'anchored-text', { resourceId });
     // The same barrier the wire path applies, from the same function: local and
     // hosted modes must answer identically at the same moment.
