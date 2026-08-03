@@ -6,11 +6,16 @@
       "type": "string"
     },
     "response": {
-      "oneOf": [
-        { "$ref": "./AnchoredText.json" },
-        { "type": "null" }
+      "nullable": true,
+      "allOf": [
+        {
+          "$ref": "./AnchoredText.json"
+        }
       ]
     }
   },
-  "required": ["correlationId", "response"]
+  "required": [
+    "correlationId",
+    "response"
+  ]
 }

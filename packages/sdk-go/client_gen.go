@@ -986,6 +986,15 @@ type Agent2 struct {
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
+// AnchoredText Text paired with the geometry that indexes it — the minimum needed to turn a character range into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.
+type AnchoredText struct {
+	// Items Positioned runs indexing `text`, roughly one per word.
+	Items []PdfTextItem `json:"items"`
+
+	// Text Reading-order text of the whole resource.
+	Text string `json:"text"`
+}
+
 // Annotation defines model for Annotation.
 type Annotation struct {
 	// Context W3C Web Annotation JSON-LD context
@@ -1273,6 +1282,18 @@ type BrowseAgentsResult struct {
 	Response      struct {
 		Agents []CollaboratorEntry `json:"agents"`
 	} `json:"response"`
+}
+
+// BrowseAnchoredTextRequest Request a resource's derived coordinate map — the text recovered from its bytes plus the geometry indexing it. Read-only: the Smelter is the sole producer and publishes through the content transport, never over this channel.
+type BrowseAnchoredTextRequest struct {
+	CorrelationId string `json:"correlationId"`
+	ResourceId    string `json:"resourceId"`
+}
+
+// BrowseAnchoredTextResult A resource's coordinate map, or null when none has been derived. Null is the common case and not an error: a native text layer is read in the browser, and a media type with no extractor never produces one.
+type BrowseAnchoredTextResult struct {
+	CorrelationId string        `json:"correlationId"`
+	Response      *AnchoredText `json:"response"`
 }
 
 // BrowseAnnotationContextRequest Request to get contextual text around an annotation
@@ -2750,6 +2771,22 @@ type PasswordAuthRequest struct {
 
 	// Password User password (minimum 8 characters)
 	Password string `json:"password"`
+}
+
+// PdfTextItem One positioned text run. Coordinates are PDF points with the origin at the bottom-left of the page, Y increasing upward; the flip to canvas pixels happens in the browser.
+type PdfTextItem struct {
+	// End Char offset into AnchoredText.text, exclusive.
+	End    float32 `json:"end"`
+	Height float32 `json:"height"`
+
+	// Page 1-indexed page number.
+	Page float32 `json:"page"`
+
+	// Start Char offset into AnchoredText.text, inclusive.
+	Start float32 `json:"start"`
+	Width float32 `json:"width"`
+	X     float32 `json:"x"`
+	Y     float32 `json:"y"`
 }
 
 // Representation A specific, byte-addressable rendition of a resource (file/asset/variant).
@@ -9522,6 +9559,9 @@ type ClientInterface interface {
 	// GetResourcesId request
 	GetResourcesId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetResourcesIdAnchoredText request
+	GetResourcesIdAnchoredText(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetResourcesIdJsonld request
 	GetResourcesIdJsonld(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
@@ -9948,6 +9988,18 @@ func (c *Client) PostResourcesWithBody(ctx context.Context, contentType string, 
 
 func (c *Client) GetResourcesId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetResourcesIdRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetResourcesIdAnchoredText(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourcesIdAnchoredTextRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -10872,6 +10924,40 @@ func NewGetResourcesIdRequest(server string, id string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewGetResourcesIdAnchoredTextRequest generates requests for GetResourcesIdAnchoredText
+func NewGetResourcesIdAnchoredTextRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/resources/%s/anchored-text", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetResourcesIdJsonldRequest generates requests for GetResourcesIdJsonld
 func NewGetResourcesIdJsonldRequest(server string, id string) (*http.Request, error) {
 	var err error
@@ -11047,6 +11133,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetResourcesIdWithResponse request
 	GetResourcesIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdResponse, error)
+
+	// GetResourcesIdAnchoredTextWithResponse request
+	GetResourcesIdAnchoredTextWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdAnchoredTextResponse, error)
 
 	// GetResourcesIdJsonldWithResponse request
 	GetResourcesIdJsonldWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error)
@@ -11693,6 +11782,30 @@ func (r GetResourcesIdResponse) StatusCode() int {
 	return 0
 }
 
+type GetResourcesIdAnchoredTextResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AnchoredText
+	JSON404      *ErrorResponse
+	JSON504      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetResourcesIdAnchoredTextResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetResourcesIdAnchoredTextResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetResourcesIdJsonldResponse struct {
 	Body                 []byte
 	HTTPResponse         *http.Response
@@ -12030,6 +12143,15 @@ func (c *ClientWithResponses) GetResourcesIdWithResponse(ctx context.Context, id
 		return nil, err
 	}
 	return ParseGetResourcesIdResponse(rsp)
+}
+
+// GetResourcesIdAnchoredTextWithResponse request returning *GetResourcesIdAnchoredTextResponse
+func (c *ClientWithResponses) GetResourcesIdAnchoredTextWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdAnchoredTextResponse, error) {
+	rsp, err := c.GetResourcesIdAnchoredText(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetResourcesIdAnchoredTextResponse(rsp)
 }
 
 // GetResourcesIdJsonldWithResponse request returning *GetResourcesIdJsonldResponse
@@ -13027,6 +13149,46 @@ func ParseGetResourcesIdResponse(rsp *http.Response) (*GetResourcesIdResponse, e
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetResourcesIdAnchoredTextResponse parses an HTTP response from a GetResourcesIdAnchoredTextWithResponse call
+func ParseGetResourcesIdAnchoredTextResponse(rsp *http.Response) (*GetResourcesIdAnchoredTextResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetResourcesIdAnchoredTextResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AnchoredText
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 504:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON504 = &dest
 
 	}
 
