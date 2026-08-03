@@ -56,7 +56,12 @@ function app() {
 const get = () => app().request('/resources/res-1/anchored-text');
 
 describe('GET /resources/:id/anchored-text', () => {
-  beforeEach(() => eventBusRequest.mockReset());
+  // Braces, not a concise body. `mockReset()` returns the mock for chaining,
+  // and a function returned from `beforeEach` is registered as that test's
+  // teardown — so the concise form makes the runner CALL the mock after every
+  // test. Harmless while the implementation returns a value; for the two below
+  // it throws, failing a test whose assertions all passed.
+  beforeEach(() => { eventBusRequest.mockReset(); });
 
   it('serves the map as 200 when one has been derived', async () => {
     eventBusRequest.mockResolvedValue(MAP);
@@ -90,9 +95,6 @@ describe('GET /resources/:id/anchored-text', () => {
   });
 
   it('answers 404 when the resource itself is absent', async () => {
-    // Thrown per call, not `mockRejectedValue`: that builds the rejected
-    // promise when the mock is configured, and nothing has awaited it yet,
-    // so the runner flags an unhandled rejection and fails a passing test.
     eventBusRequest.mockImplementation(async () => { throw new Error('Resource not found'); });
 
     expect((await get()).status).toBe(404);

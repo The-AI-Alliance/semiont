@@ -68,7 +68,7 @@ const selectors = (ann: Record<string, unknown>): Sel[] =>
   (ann.target as { selector: Sel[] }).selector;
 
 describe('prepareDetection', () => {
-  beforeEach(() => pdfExtract.mockReset());
+  beforeEach(() => { pdfExtract.mockReset(); });
 
   it('text: decodes for real and anchors by character offsets in that SAME text', async () => {
     const { session, resourceRepresentation } = fakeSession();
