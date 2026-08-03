@@ -18,7 +18,7 @@
 
 import { isObject, type PdfTextItem } from '@semiont/core';
 import { extractPdfTextLayer } from './extract-pdf-text-layer';
-import type { ContentExtractor, ExtractedText, ExtractionCache } from './content-extractor';
+import type { ContentExtractor, ExtractedText, ExtractionDecline } from './content-extractor';
 import type { PdfTextLayer } from './pdf-text-layer';
 import { detectTable, renderTable } from './pdf-tables';
 import { extractPageImages } from './pdf-page-images';
@@ -81,40 +81,11 @@ function summarize(confidences: number[]): ExtractedText['ocrConfidence'] {
  */
 async function ocrPages(
   content: Buffer,
-  cache?: ExtractionCache,
   pageNumbers?: number[],
 ): Promise<OcrPageResult> {
-  // The cache sits here rather than around `extract()` because this is where
-  // the cost is: 82% of extraction time is Tesseract, and the text-layer parse
-  // that classifies the document has to run either way. A document with a text
-  // layer never reaches this function, so it never produces an entry.
-  // Whole-resource on both sides. A page map is how this function iterates, not
-  // what anyone consuming the result wants — the transport, the browser and a
-  // headless client all want one `AnchoredText`, so that is what is stored.
-  // Confidences are absent on a hit: they are logged at extraction, and
-  // re-reporting identical numbers for identical bytes says nothing.
-  //
-  // A hit is returned WHOLE — `pageNumbers` is deliberately not re-applied, and
-  // that is sound only because of an invariant worth stating: the key
-  // identifies the content, and the page set is a pure function of that same
-  // content. `extract` reaches here down exactly one of two mutually exclusive
-  // paths, and both derive their filter from the bytes — Class B passes none,
-  // Class C passes the pages its own text layer reported as unread. So a hit
-  // always describes the same pages the miss path would have produced, and
-  // filtering would be a no-op on the Class C entry (which contains only those
-  // pages to begin with).
-  //
-  // What this rules out is a caller passing a set that is NOT derived from the
-  // content — a user-chosen page range, say. Such a caller would collide with
-  // an existing entry under the same key and silently get the wrong pages, so
-  // it needs its own key discipline rather than a filter here.
-  // The store holds full extraction outcomes (PERSIST-ANCHORS D1/P2a). At
-  // THIS seam — the OCR fragment, pre-P2b — only success records are usable;
-  // a stored decline reads as a miss here. P2b moves the seam to `extract()`
-  // and makes declines first-class hits.
-  const hit = await cache?.store.read(cache.key);
-  if (hit && !('declined' in hit)) return { text: hit.text, items: hit.items, confidences: [] };
-
+  // Pure recognition since PERSIST-ANCHORS P2b: the caching seam lives at
+  // `extract()`, which stores and serves the FINISHED outcome. This function
+  // neither consults nor writes the store — it reads pixels.
   const imagesByPage = await extractPageImages(content, pageNumbers);
   if (imagesByPage.size === 0) return { text: '', items: [], confidences: [] };
 
@@ -142,16 +113,8 @@ async function ocrPages(
   }
 
   // Joined at base 0 — the document's own coordinates. Class C shifts by the
-  // native text length at its call site, so what is stored never depends on
-  // which document it was later spliced into.
-  const joined = joinPages(byPage, 0);
-
-  // Record what the engine produced, including nothing: a scan it cannot read
-  // costs a full recognition pass to discover, so "we read this and there was
-  // nothing" is a result worth keeping.
-  await cache?.store.write(cache.key, { text: joined.text, items: joined.items, method: 'ocr' });
-
-  return joined;
+  // native text length at its call site.
+  return joinPages(byPage, 0);
 }
 
 /**
@@ -250,6 +213,35 @@ export const pdfExtractor: ContentExtractor = {
   // layers and OCR both anchor by page geometry.
   yieldsGeometry: true,
   async extract(content, _mediaType, cache) {
+    // The seam (PERSIST-ANCHORS D1/P2b): consult the store for the FINISHED
+    // outcome before anything runs — byte gate, native parse, image decode
+    // and OCR are all part of the stored answer, classification included.
+    // The pre-P2b seam skipped only Tesseract, on the argument that the
+    // text-layer parse "has to run either way" — true on a miss, false on a
+    // hit. A hit is returned WHOLE, which is sound because the outcome is a
+    // pure function of the bytes, the key IS the bytes' identity (the
+    // caller's producer-supplied checksum — P1b/P1c), and STAMP covers the
+    // code that did the deriving. Declines are first-class hits: "we read
+    // this and there was nothing" costs a full recognition pass to discover,
+    // so the negative is precisely the result worth keeping.
+    const hit = await cache?.store.read(cache.key);
+    if (hit) return hit;
+
+    const outcome = await extractPdf(content);
+
+    // Store failures stay silent — the store may make things faster, never
+    // make them fail. The path that must insist on a write is the smelter's
+    // re-anchor publish (P0), not this seam.
+    if (cache) {
+      if ('declined' in outcome) await cache.store.write(cache.key, outcome);
+      else if (outcome.items) await cache.store.write(cache.key, { ...outcome, items: outcome.items });
+    }
+    return outcome;
+  },
+};
+
+/** The uncached pipeline: classify, shape, and read the document. */
+async function extractPdf(content: Buffer): Promise<ExtractedText | ExtractionDecline> {
     // Before the parser sees it: everything downstream — parse, image decode,
     // OCR — expands from these bytes, so this is the only gate that costs
     // nothing to enforce.
@@ -265,7 +257,7 @@ export const pdfExtractor: ContentExtractor = {
     // pixels, so read them. 'no-text-layer' now means OCR genuinely came up
     // empty, not that we never tried.
     if (!layer) {
-      const ocr = await ocrPages(content, cache);
+      const ocr = await ocrPages(content);
       if (!ocr.text) return { declined: 'no-text-layer' };
       const confidence = summarize(ocr.confidences);
       return {
@@ -299,7 +291,7 @@ export const pdfExtractor: ContentExtractor = {
     // carries no geometry of its own this phase (mapping pixel boxes back to
     // page points needs the image's placement transform — #739's critical
     // path, not embedding's).
-    const recovered = await ocrPages(content, cache, unreadPages);
+    const recovered = await ocrPages(content, unreadPages);
     const readPages = new Set(recovered.items.map((item) => item.page));
     const stillUnread = unreadPages.filter((page) => !readPages.has(page));
     const hybridClass = shaped.pdfClass === 'A' ? 'C' as const : shaped.pdfClass;
@@ -324,5 +316,4 @@ export const pdfExtractor: ContentExtractor = {
       ...(confidence ? { ocrConfidence: confidence } : {}),
       ...(stillUnread.length > 0 ? { unreadPages: stillUnread } : {}),
     };
-  },
-};
+}

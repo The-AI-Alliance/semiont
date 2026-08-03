@@ -39,6 +39,20 @@ vi.mock('../ocr', async (importOriginal) => {
   };
 });
 
+// Count native-parse invocations the same way: under D1 a hit skips the
+// text-layer parse too, not just the engine (PERSIST-ANCHORS P2b).
+const parseSpy = vi.fn();
+vi.mock('../extract-pdf-text-layer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../extract-pdf-text-layer')>();
+  return {
+    ...actual,
+    extractPdfTextLayer: (...args: Parameters<typeof actual.extractPdfTextLayer>) => {
+      parseSpy();
+      return actual.extractPdfTextLayer(...args);
+    },
+  };
+});
+
 const { EXTRACTORS } = await import('../content-extractor');
 const { createAnchoredTextStore, encodeLines, decodeLines } = await import('../anchored-text-store');
 const { calculateChecksum } = await import('../checksum');
@@ -70,6 +84,7 @@ const allEntryFiles = (root: string): string[] => {
 let dir: string;
 beforeEach(() => {
   recognizeSpy.mockClear();
+  parseSpy.mockClear();
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anchored-text-'));
 });
 afterEach(() => {
@@ -296,14 +311,72 @@ describe('anchored-text cache', () => {
   });
 
   it('does not touch the engine for a document with a text layer', { timeout: 60_000 }, async () => {
-    // Class A never OCRs, so a cache entry would be storage spent on nothing.
+    // Class A never OCRs. It DOES store its outcome since P2b (D1) — the
+    // storage side is pinned in 'the seam is extract()' above.
     const native = fs.readFileSync(path.join(FIXTURES, 'single-line.pdf'));
     const store = createAnchoredTextStore(dir);
 
     await pdfExtractor.extract(native, 'application/pdf', { key: calculateChecksum(native), store });
 
     expect(recognizeSpy).not.toHaveBeenCalled();
-    expect(fs.readdirSync(dir)).toHaveLength(0);
+  });
+});
+
+describe('the seam is extract(), not the OCR boundary (PERSIST-ANCHORS P2b)', () => {
+  // D1, ratified: on a hit the stored answer comes back WHOLE — no byte gate,
+  // no native parse, no OCR, no re-assembly. The pre-P2b seam skipped only
+  // Tesseract, on the argument that the text-layer parse "has to run either
+  // way" to classify the document — true on a miss, false on a hit, because
+  // the classification is stored with the answer.
+
+  it('stores the native outcome and serves a hit without parsing or recognizing', { timeout: 60_000 }, async () => {
+    const native = fs.readFileSync(path.join(FIXTURES, 'single-line.pdf'));
+    const store = createAnchoredTextStore(dir);
+    const key = calculateChecksum(native);
+
+    const first = await pdfExtractor.extract(native, 'application/pdf', { key, store });
+
+    // The artifact answers for every geometry-yielding extraction, native
+    // included — only that makes the anchored-text endpoint mean its name.
+    expect(await store.read(key)).toEqual(first);
+
+    const parses = parseSpy.mock.calls.length;
+    const second = await pdfExtractor.extract(native, 'application/pdf', { key, store });
+
+    expect(second).toEqual(first);
+    expect(parseSpy.mock.calls.length).toBe(parses);   // no re-parse on a hit
+    expect(recognizeSpy).not.toHaveBeenCalled();       // native never OCRs
+  });
+
+  it('the stamp covers the native parser, not just the engine', async () => {
+    // The record depends on the pdf.js parse (classification, text layer,
+    // shaping) since the seam moved — a parser upgrade must read as a miss.
+    const store = createAnchoredTextStore(dir);
+    await store.write(calculateChecksum(Buffer.from('b')), { text: 'x', items: [], method: 'ocr' });
+
+    const [file] = allEntryFiles(dir);
+    const { stamp } = JSON.parse(fs.readFileSync(file!, 'utf8'));
+    expect(stamp).toMatch(/\+pdfjs-\d/);
+    expect(stamp).toMatch(/\+tesseract-/);
+  });
+
+  it('stores a decline as the record itself, and serves it as a hit', { timeout: 60_000 }, async () => {
+    const store = createAnchoredTextStore(dir);
+    const key = calculateChecksum(SCAN);
+
+    expect(await pdfExtractor.extract(SCAN, 'application/pdf', { key, store }))
+      .toEqual({ declined: 'no-text-layer' });
+
+    // "We read this and there was nothing" is a result — stored as what it
+    // is, not as an empty success standing in for one.
+    expect(await store.read(key)).toEqual({ declined: 'no-text-layer' });
+
+    const parses = parseSpy.mock.calls.length;
+    expect(await pdfExtractor.extract(SCAN, 'application/pdf', { key, store }))
+      .toEqual({ declined: 'no-text-layer' });
+
+    expect(parseSpy.mock.calls.length).toBe(parses);   // the decline hit skips the parser
+    expect(recognizeSpy).toHaveBeenCalledTimes(1);     // and the engine
   });
 });
 

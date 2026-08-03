@@ -79,9 +79,12 @@ export interface ExtractionDecline {
  * (PERSIST-ANCHORS P1b); readers mirror it (P1c). One SHA-256 over bytes
  * already in memory is noise against the engine pass a hit avoids.
  *
- * Optional throughout: every existing caller passes nothing and is unaffected.
- * Only strategies with an expensive engine behind them consult it, so a
- * document that never OCRs never produces an entry.
+ * Optional throughout: a caller that passes nothing extracts uncached and is
+ * unaffected. The seam is `extract()` itself (PERSIST-ANCHORS D1/P2b): a hit
+ * returns the FINISHED outcome — classification, geometry, provenance, or a
+ * named decline — so neither the native parse nor the engine runs. Every
+ * geometry-yielding extraction produces an entry, native documents included;
+ * the 'decode' strategy ignores the cache (no geometry, nothing expensive).
  */
 export interface ExtractionCache {
   key: string;

@@ -11,9 +11,13 @@
  * `PDF-GENERATION.md`, which owns that decision and states the negative:
  * never this store.
  *
- * The seam is the OCR boundary, not `extract()`: 82% of extraction time is
- * Tesseract, so the text-layer parse keeps running and only recognition is
- * skipped. A document with a text layer therefore stores nothing at all.
+ * The seam is `extract()` (PERSIST-ANCHORS D1/P2b): the record is the FINISHED
+ * extraction outcome — classification, geometry, provenance, or a named
+ * decline — so a hit skips the native parse and the engine both, and every
+ * geometry-yielding extraction stores an entry, native documents included.
+ * That is what makes the anchored-text endpoint answer for every resource
+ * whose extraction yields geometry, and what lets the reconcile planner treat
+ * "no entry under the current checksum" as work (P0's third drift class).
  */
 
 import fs from 'fs';
@@ -99,6 +103,11 @@ export type CachedAnchoredText =
  * because both are pinned with carets and can move without a release here —
  * and different traineddata means different recognized text, which is a
  * difference in the value itself, not merely in how fast it was produced.
+ *
+ * pdf.js joined at P2b, because the seam did: the record is the finished
+ * extraction outcome, so it depends on the native parse — classification,
+ * text-layer read, table/form shaping — not just the engine. A parser upgrade
+ * is a change in the value, and the entry must miss.
  */
 function buildStamp(): string {
     const require = createRequire(import.meta.url);
@@ -111,6 +120,7 @@ function buildStamp(): string {
         }
     };
     return `content-${version('../package.json')}`
+        + `+pdfjs-${version('pdfjs-dist/package.json')}`
         + `+tesseract-${version('tesseract.js/package.json')}`
         + `+eng-${version('@tesseract.js-data/eng/package.json')}`;
 }
