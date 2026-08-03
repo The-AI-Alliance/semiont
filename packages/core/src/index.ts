@@ -401,6 +401,8 @@ export type { GraphViews } from './knowledge-graph-views';
 export { retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from './retry';
 export type { RetryPolicy, RetryAttemptInfo } from './retry';
 
+export { getShardPath, jumpConsistentHash } from './shard-utils';
+
 // Browser ↔ launcher KB discovery — the canonical served URL of the
 // launcher's discovery document (BROWSER-KB-DISCOVERY).
 export { DISCOVERY_URL_PATH } from './discovery';

@@ -19,7 +19,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
-import { isObject, isString, isNumber, isArray, type AnchoredText, type Logger, type PdfTextItem } from '@semiont/core';
+import { getShardPath, isObject, isString, isNumber, isArray, type AnchoredText, type Logger, type PdfTextItem } from '@semiont/core';
 
 /**
  * One line of recognized text: the geometry every word on it shares, plus the
@@ -129,9 +129,20 @@ export function decodeLines(lines: CachedLine[]): PdfTextItem[] {
 }
 
 export interface AnchoredTextStore {
-    /** The stored map for this key, or null for any miss. Never throws. */
+    /**
+     * The stored map for this key, or null for any miss. Never throws.
+     *
+     * The key is the **content checksum of the bytes the map derives from**
+     * (PERSIST-ANCHORS decision A): a representation is its bytes, so the
+     * checksum is its identity, and geometry derived from one revision of the
+     * bytes is unreachable by a reader holding a different revision — by
+     * construction, not by invalidation. Callers holding some other handle
+     * (a resource id) reach the artifact through an index, not by a second
+     * key scheme here.
+     */
     read(key: string): Promise<AnchoredText | null>;
-    /** Record a derived map. A store that cannot write is still a store. */
+    /** Record a derived map under the content checksum of its source bytes.
+     *  A store that cannot write is still a store. */
     write(key: string, anchored: AnchoredText): Promise<void>;
     /**
      * Every key `read()` would currently HIT — entries under a stale stamp or
@@ -154,8 +165,18 @@ function isCached(value: unknown): value is CachedAnchoredText {
         && line.words.every((w) => isArray(w) && w.length === 4 && w.every(isNumber)));
 }
 
+/** A key that could not have come from a checksum (or a legacy hex handle) is
+ *  refused outright rather than sanitized: a silently stripped key could share
+ *  a file with a different entry. Rejection replaces the old strip
+ *  (PERSIST-ANCHORS, *Smaller things*). */
+const VALID_KEY = /^[A-Za-z0-9_-]+$/;
+
 /**
- * A file-backed store under `dir` — one file per content key.
+ * A file-backed store under `dir` — one file per content key, sharded as
+ * `{ab}/{cd}/{key}.json` via the same `getShardPath` the event log uses
+ * (PERSIST-ANCHORS decision E). Same convention, separate tree: `.semiont/`
+ * is the KB's committed system of record; everything here is derived,
+ * reclaimable, and never a source of truth.
  *
  * `dir` is the caller's, out of `Project.dataHome`: this package has no idea
  * which project it is serving. Every failure path is a miss rather than an
@@ -163,13 +184,19 @@ function isCached(value: unknown): value is CachedAnchoredText {
  * the cache may make things faster, never make them fail.
  */
 export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredTextStore {
-    const fileFor = (key: string) => path.join(dir, `${key.replace(/[^a-zA-Z0-9_-]/g, '')}.json`);
+    const fileFor = (key: string): string | null => {
+        if (!VALID_KEY.test(key)) return null;
+        const [ab, cd] = getShardPath(key);
+        return path.join(dir, ab, cd, `${key}.json`);
+    };
 
     return {
         async read(key) {
             let hit: CachedAnchoredText | null = null;
             try {
-                const parsed: unknown = JSON.parse(await fs.promises.readFile(fileFor(key), 'utf8'));
+                const file = fileFor(key);
+                if (file === null) throw new Error('invalid key');   // refused → a miss like any other
+                const parsed: unknown = JSON.parse(await fs.promises.readFile(file, 'utf8'));
                 if (isCached(parsed) && parsed.stamp === STAMP) hit = parsed;
             } catch {
                 hit = null;   // absent, unreadable, truncated, or not ours
@@ -187,15 +214,19 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
         },
 
         async write(key, anchored) {
+            const target = fileFor(key);
+            if (target === null) {
+                logger?.debug('Anchored-text cache: refusing invalid key', { key });
+                return;   // a store that cannot write is still a store
+            }
             // Key order (`v`, `stamp`, first) is load-bearing: `list()` below
             // reads only a prefix of each file and matches the stamp there.
             const entry: CachedAnchoredText = { v: 1, stamp: STAMP, text: anchored.text, lines: encodeLines(anchored.items) };
-            const target = fileFor(key);
             // Write-then-rename: a reader never observes a half-written entry,
             // and two writers racing on the same key both produce the same bytes.
             const temp = `${target}.${process.pid}.tmp`;
             try {
-                await fs.promises.mkdir(dir, { recursive: true });
+                await fs.promises.mkdir(path.dirname(target), { recursive: true });
                 await fs.promises.writeFile(temp, JSON.stringify(entry), 'utf8');
                 await fs.promises.rename(temp, target);
             } catch {
@@ -212,31 +243,64 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             // first bytes of every entry this store has ever written; a file
             // whose prefix doesn't match is either stale or not ours, and
             // both are misses for `read()` too. Keys round-trip through
-            // filenames unchanged because every real key is hex (resource
-            // ids today, content checksums after PERSIST-ANCHORS P1) — the
-            // same fact that makes `fileFor`'s strip a no-op.
+            // filenames unchanged because every real key is hex — the same
+            // fact that makes `fileFor`'s guard a no-op for them.
             const prefix = JSON.stringify({ v: 1, stamp: STAMP }).slice(0, -1) + ',';
-            let names: string[];
+            let rootNames: string[];
             try {
-                names = await fs.promises.readdir(dir);
+                rootNames = await fs.promises.readdir(dir);
             } catch {
                 return [];   // no directory yet: nothing has been written
             }
-            const keys: string[] = [];
-            for (const name of names) {
+
+            // One-generation sweep (PERSIST-ANCHORS P1): a `.json` at the root
+            // is a pre-P1 entry — flat layout, resource-id key, a dead scheme.
+            // The rebuild path (P0's third drift class) re-derives anything
+            // still needed, which is what makes this delete safe; leaving a
+            // generation behind is how the store's size becomes unexplainable.
+            // Done here because list() is the one bulk call every reconcile
+            // already makes, so the sweep runs exactly when the planner is
+            // about to notice what is missing. Best-effort, never throws.
+            let swept = 0;
+            for (const name of rootNames) {
                 if (!name.endsWith('.json')) continue;
-                let handle: fs.promises.FileHandle | null = null;
+                await fs.promises.rm(path.join(dir, name), { force: true }).then(() => { swept += 1; }, () => {});
+            }
+            if (swept > 0) logger?.info('Anchored-text cache: swept pre-P1 flat entries', { swept });
+
+            const keys: string[] = [];
+            for (const ab of rootNames) {
+                if (!/^[0-9a-f]{2}$/.test(ab)) continue;
+                let cdNames: string[];
                 try {
-                    handle = await fs.promises.open(path.join(dir, name), 'r');
-                    const buf = Buffer.alloc(prefix.length);
-                    const { bytesRead } = await handle.read(buf, 0, prefix.length, 0);
-                    if (bytesRead === prefix.length && buf.toString('utf8') === prefix) {
-                        keys.push(name.slice(0, -'.json'.length));
-                    }
+                    cdNames = await fs.promises.readdir(path.join(dir, ab));
                 } catch {
-                    // unreadable is a miss, matching read()
-                } finally {
-                    await handle?.close().catch(() => {});
+                    continue;
+                }
+                for (const cd of cdNames) {
+                    if (!/^[0-9a-f]{2}$/.test(cd)) continue;
+                    let names: string[];
+                    try {
+                        names = await fs.promises.readdir(path.join(dir, ab, cd));
+                    } catch {
+                        continue;
+                    }
+                    for (const name of names) {
+                        if (!name.endsWith('.json')) continue;
+                        let handle: fs.promises.FileHandle | null = null;
+                        try {
+                            handle = await fs.promises.open(path.join(dir, ab, cd, name), 'r');
+                            const buf = Buffer.alloc(prefix.length);
+                            const { bytesRead } = await handle.read(buf, 0, prefix.length, 0);
+                            if (bytesRead === prefix.length && buf.toString('utf8') === prefix) {
+                                keys.push(name.slice(0, -'.json'.length));
+                            }
+                        } catch {
+                            // unreadable is a miss, matching read()
+                        } finally {
+                            await handle?.close().catch(() => {});
+                        }
+                    }
                 }
             }
             return keys;

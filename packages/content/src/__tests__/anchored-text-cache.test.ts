@@ -42,13 +42,30 @@ vi.mock('../ocr', async (importOriginal) => {
 const { EXTRACTORS } = await import('../content-extractor');
 const { createAnchoredTextStore, encodeLines, decodeLines } = await import('../anchored-text-store');
 const { calculateChecksum } = await import('../checksum');
-const { locate, textUnder } = await import('@semiont/core');
+const { locate, textUnder, getShardPath } = await import('@semiont/core');
 type Item = import('@semiont/core').PdfTextItem;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(__dirname, 'fixtures');
 const SCAN = fs.readFileSync(path.join(FIXTURES, 'scanned-image.pdf'));
 const pdfExtractor = EXTRACTORS['pdf-text-layer']!;
+
+/** Entry files wherever the layout puts them — the pins that manipulate
+ *  stored files find them by walking, so the layout can move without the
+ *  pins' semantics moving (PERSIST-ANCHORS P1a re-anchored these from a
+ *  flat `readdirSync`). */
+const allEntryFiles = (root: string): string[] => {
+  const out: string[] = [];
+  const walk = (d: string) => {
+    for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, entry.name);
+      if (entry.isDirectory()) walk(p);
+      else if (entry.name.endsWith('.json')) out.push(p);
+    }
+  };
+  walk(root);
+  return out;
+};
 
 let dir: string;
 beforeEach(() => {
@@ -200,7 +217,7 @@ describe('anchored-text cache', () => {
     // the engine. Remove it and the engine must run again — which an in-memory
     // memo would not do, and which is the whole point: the six passes this
     // cache collapses are six separate jobs, not six calls in one process.
-    for (const entry of fs.readdirSync(dir)) fs.rmSync(path.join(dir, entry));
+    for (const file of allEntryFiles(dir)) fs.rmSync(file);
 
     await pdfExtractor.extract(SCAN, 'application/pdf', { key, store });
     expect(recognizeSpy).toHaveBeenCalledTimes(2);
@@ -223,18 +240,17 @@ describe('anchored-text cache', () => {
     await pdfExtractor.extract(SCAN, 'application/pdf', { key, store });
     expect(recognizeSpy).toHaveBeenCalledTimes(1);
 
-    const [name] = fs.readdirSync(dir);
-    const file = path.join(dir, name!);
-    const entry = JSON.parse(fs.readFileSync(file, 'utf8'));
-    fs.writeFileSync(file, JSON.stringify({ ...entry, stamp: `${entry.stamp}-from-a-different-build` }));
+    const [file] = allEntryFiles(dir);
+    const entry = JSON.parse(fs.readFileSync(file!, 'utf8'));
+    fs.writeFileSync(file!, JSON.stringify({ ...entry, stamp: `${entry.stamp}-from-a-different-build` }));
 
     expect(await store.read(key)).toBeNull();
     await pdfExtractor.extract(SCAN, 'application/pdf', { key, store });
     expect(recognizeSpy).toHaveBeenCalledTimes(2);
 
     // Ignored, not reaped — and re-derived, so the current build's entry is back.
-    expect(fs.existsSync(file)).toBe(true);
-    expect(JSON.parse(fs.readFileSync(file, 'utf8')).stamp).toBe(entry.stamp);
+    expect(fs.existsSync(file!)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(file!, 'utf8')).stamp).toBe(entry.stamp);
   });
 
   it('treats a corrupt entry as a miss rather than an error', { timeout: 60_000 }, async () => {
@@ -242,8 +258,8 @@ describe('anchored-text cache', () => {
     const key = calculateChecksum(SCAN);
 
     const first = await pdfExtractor.extract(SCAN, 'application/pdf', { key, store });
-    for (const entry of fs.readdirSync(dir)) {
-      fs.writeFileSync(path.join(dir, entry), '{ this is not json');
+    for (const file of allEntryFiles(dir)) {
+      fs.writeFileSync(file, '{ this is not json');
     }
 
     const second = await pdfExtractor.extract(SCAN, 'application/pdf', { key, store });
@@ -291,6 +307,61 @@ describe('anchored-text cache', () => {
   });
 });
 
+describe('the key binds an entry to its bytes (PERSIST-ANCHORS P1)', () => {
+  // The specification for the rekey, written as the outcome: geometry derived
+  // from one revision of the bytes must be unreachable by a reader holding a
+  // different revision. Watched RED against the pre-P1 contract, where live
+  // call sites keyed by resource id — a mutable handle — so the write for old
+  // bytes and the read for new bytes used the SAME key and the reader received
+  // stale geometry: quotes anchored to places the current document does not
+  // have. Under the checksum key the miss holds by construction, not by
+  // invalidation.
+  const MAP_FOR_OLD_BYTES = {
+    text: 'alpha beta',
+    items: [{ start: 0, end: 5, page: 1, x: 72, y: 720, width: 30, height: 12 }],
+  };
+
+  it('never serves geometry derived from superseded bytes', async () => {
+    const store = createAnchoredTextStore(dir);
+    const bytesA = Buffer.from('scan revision one');
+    const bytesB = Buffer.from('scan revision two — same resource, new representation');
+
+    // Producer keys by the checksum of the bytes the map derives from.
+    await store.write(calculateChecksum(bytesA), MAP_FOR_OLD_BYTES);
+
+    // A reader resolving the artifact for the CURRENT bytes misses.
+    expect(await store.read(calculateChecksum(bytesB))).toBeNull();
+
+    // The old revision's artifact stays addressable by its own identity — it
+    // still describes real bytes; reclaiming it is reachability's job, not
+    // the reader's.
+    expect(await store.read(calculateChecksum(bytesA))).not.toBeNull();
+  });
+
+  it('lays entries out sharded, exactly where the event log convention puts them', async () => {
+    const store = createAnchoredTextStore(dir);
+    const key = calculateChecksum(Buffer.from('some scanned bytes'));
+
+    await store.write(key, MAP_FOR_OLD_BYTES);
+
+    const [ab, cd] = getShardPath(key);
+    expect(fs.existsSync(path.join(dir, ab, cd, `${key}.json`))).toBe(true);
+  });
+
+  it('refuses a key it could not have produced, rather than sanitizing it', async () => {
+    // The old fileFor stripped invalid characters, so two keys differing only
+    // in stripped characters would silently share one file. Refusal replaces
+    // the strip: no file is created, and the read is an ordinary miss.
+    const store = createAnchoredTextStore(dir);
+
+    await store.write('../escape/attempt', { text: 'x', items: [] });
+    await store.write('not a checksum!', { text: 'x', items: [] });
+
+    expect(allEntryFiles(dir)).toEqual([]);
+    expect(await store.read('../escape/attempt')).toBeNull();
+  });
+});
+
 describe('would-hit key listing (PERSIST-ANCHORS P0)', () => {
   // The reconcile planner treats a listed key as "artifact present" and plans
   // re-derivation for the rest, so the equivalence LISTED ⇔ read() HITS is
@@ -311,24 +382,41 @@ describe('would-hit key listing (PERSIST-ANCHORS P0)', () => {
   it('excludes a stale-stamped entry, exactly as read() would', async () => {
     const store = createAnchoredTextStore(dir);
     await store.write('stale111', MAP);
-    const [name] = fs.readdirSync(dir);
-    const file = path.join(dir, name!);
-    const entry = JSON.parse(fs.readFileSync(file, 'utf8'));
-    fs.writeFileSync(file, JSON.stringify({ ...entry, stamp: `${entry.stamp}-from-a-different-build` }));
+    const [file] = allEntryFiles(dir);
+    const entry = JSON.parse(fs.readFileSync(file!, 'utf8'));
+    fs.writeFileSync(file!, JSON.stringify({ ...entry, stamp: `${entry.stamp}-from-a-different-build` }));
     await store.write('fresh222', MAP);
 
     expect(await store.list()).toEqual(['fresh222']);
     expect(await store.read('stale111')).toBeNull();   // the equivalence, both directions
   });
 
-  it('excludes foreign and unreadable files; an absent directory lists empty', async () => {
+  it('excludes foreign files inside the tree without touching them; an absent directory lists empty', async () => {
     const store = createAnchoredTextStore(dir);
-    fs.writeFileSync(path.join(dir, 'garbage.json'), 'not json at all');
-    fs.writeFileSync(path.join(dir, 'notes.txt'), 'not even a candidate');
+    const foreign = path.join(dir, 'ab', 'cd', 'garbage.json');
+    fs.mkdirSync(path.dirname(foreign), { recursive: true });
+    fs.writeFileSync(foreign, 'not json at all');
 
     expect(await store.list()).toEqual([]);
+    expect(fs.existsSync(foreign)).toBe(true);   // excluded is not deleted
 
     const virgin = createAnchoredTextStore(path.join(dir, 'never-written'));
     expect(await virgin.list()).toEqual([]);
+  });
+
+  it('sweeps the pre-P1 flat generation from the root, and only the root (PERSIST-ANCHORS P1)', async () => {
+    // A `.json` at the store root is a pre-P1 entry: flat layout, resource-id
+    // key — a dead scheme. Leaving a generation of them is how the store's
+    // size becomes unexplainable; P0's rebuild path is what makes deleting
+    // them safe. Non-entry files are not ours to reap.
+    const store = createAnchoredTextStore(dir);
+    fs.writeFileSync(path.join(dir, 'a1b2c3d4e5f60718293a4b5c6d7e8f90.json'), '{"v":1,"stamp":"old","text":"","lines":[]}');
+    fs.writeFileSync(path.join(dir, 'notes.txt'), 'not even a candidate');
+    await store.write('feedc0de11', MAP);   // a current, sharded entry
+
+    expect(await store.list()).toEqual(['feedc0de11']);
+    expect(fs.existsSync(path.join(dir, 'a1b2c3d4e5f60718293a4b5c6d7e8f90.json'))).toBe(false);
+    expect(fs.existsSync(path.join(dir, 'notes.txt'))).toBe(true);
+    expect(await store.read('feedc0de11')).not.toBeNull();   // the sweep spares the live tree
   });
 });

@@ -9,7 +9,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { getShardPath } from './shard-utils';
+import { getShardPath } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import type { ResourceAnnotations, ResourceDescriptor, ResourceId, Logger } from '@semiont/core';
 
