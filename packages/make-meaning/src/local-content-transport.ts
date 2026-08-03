@@ -13,13 +13,14 @@
  * resource-creation pipeline the HTTP `/resources` handler uses.
  */
 
-import type { AccessToken, ResourceId, components } from '@semiont/core';
+import type { AccessToken, AnchoredText, ResourceId, components } from '@semiont/core';
 import { busLog, getPrimaryRepresentation } from '@semiont/core';
 import { SpanKind, withSpan } from '@semiont/observability';
 import type { IContentTransport, PutBinaryRequest, PutBinaryOptions } from '@semiont/core';
 
 import type { KnowledgeSystem } from './knowledge-system.js';
 import { assembleResourceGraph } from './resource-graph.js';
+import { readAnchoredText } from './read-anchored-text.js';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
@@ -37,6 +38,31 @@ export class LocalContentTransport implements IContentTransport {
     throw new Error(
       'LocalContentTransport does not support putBinary() — create resources via bus emits (mark/yield namespaces) in local mode',
     );
+  }
+
+  /**
+   * Store a derived coordinate map. In local mode this is the same store the
+   * HTTP route writes to — one storage authority, reached the same way from
+   * every process (ANCHORED-TEXT-CACHE Lane 5).
+   */
+  async putAnchoredText(
+    resourceId: ResourceId,
+    anchored: AnchoredText,
+    _options?: { auth?: AccessToken },
+  ): Promise<void> {
+    busLog('PUT', 'anchored-text', { resourceId });
+    await this.ks.kb.anchoredText.write(resourceId as unknown as string, anchored);
+  }
+
+  /** The map, or null when nothing has derived one — the common case. */
+  async getAnchoredText(
+    resourceId: ResourceId,
+    _options?: { auth?: AccessToken },
+  ): Promise<AnchoredText | null> {
+    busLog('GET', 'anchored-text', { resourceId });
+    // The same barrier the wire path applies, from the same function: local and
+    // hosted modes must answer identically at the same moment.
+    return readAnchoredText(this.ks.kb, resourceId as unknown as string);
   }
 
   async getBinary(

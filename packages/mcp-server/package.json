@@ -17,8 +17,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@semiont/http-transport": "*",
-    "@semiont/sdk": "*"
+    "@semiont/http-transport": "0.5.25",
+    "@semiont/sdk": "0.5.25"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",

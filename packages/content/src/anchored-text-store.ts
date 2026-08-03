@@ -19,7 +19,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
-import { isObject, isString, isNumber, isArray, type Logger, type PdfTextItem } from '@semiont/core';
+import { isObject, isString, isNumber, isArray, type AnchoredText, type Logger, type PdfTextItem } from '@semiont/core';
 
 /**
  * One line of recognized text: the geometry every word on it shares, plus the
@@ -39,28 +39,34 @@ import { isObject, isString, isNumber, isArray, type Logger, type PdfTextItem } 
  * on (RUN_COVERAGE_THRESHOLD, tuned against ink-tight boxes).
  */
 export interface CachedLine {
+    /** 1-indexed page. */
+    p: number;
     /** PDF points, bottom-left origin — shared by every word on the line. */
     y: number;
     h: number;
-    /** `[x, width, start, end]` per word; offsets index the page's own text. */
+    /** `[x, width, start, end]` per word; offsets index `CachedAnchoredText.text`. */
     words: [number, number, number, number][];
 }
 
-/** One page's recognition result, as `ocrPages` produces it. */
-export interface CachedOcrPage {
-    /** 1-indexed page number. */
-    p: number;
-    text: string;
-    lines: CachedLine[];
-    /** Per-word confidence in reading order, parallel to the words in `lines`. */
-    conf: number[];
-}
-
+/**
+ * The stored record: one `AnchoredText` for the whole resource.
+ *
+ * Whole-resource on every side, deliberately. The producer's own shape is a
+ * per-page map, but that is an artifact of how `ocrPages` iterates, and letting
+ * it reach storage would have forced every consumer — the transport, the
+ * browser, a headless client — to reassemble pages it never asked to see.
+ *
+ * Per-word confidences are NOT stored. They are summarized and logged at
+ * extraction, and a cache hit re-reporting identical numbers for identical
+ * bytes carries no information; the consequence to know about is that
+ * `ocrConfidence` is absent on a hit.
+ */
 export interface CachedAnchoredText {
     v: 1;
     /** Engine + traineddata + our assembly code. A mismatch is a clean miss. */
     stamp: string;
-    pages: CachedOcrPage[];
+    text: string;
+    lines: CachedLine[];
 }
 
 /**
@@ -102,41 +108,39 @@ export function encodeLines(items: PdfTextItem[]): CachedLine[] {
     const lines: CachedLine[] = [];
     for (const item of items) {
         const last = lines[lines.length - 1];
-        if (last && last.y === item.y && last.h === item.height) {
+        if (last && last.p === item.page && last.y === item.y && last.h === item.height) {
             last.words.push([item.x, item.width, item.start, item.end]);
         } else {
-            lines.push({ y: item.y, h: item.height, words: [[item.x, item.width, item.start, item.end]] });
+            lines.push({ p: item.page, y: item.y, h: item.height, words: [[item.x, item.width, item.start, item.end]] });
         }
     }
     return lines;
 }
 
-/** The inverse of `encodeLines`, restoring the page number each item carries. */
-export function decodeLines(lines: CachedLine[], page: number): PdfTextItem[] {
+/** The inverse of `encodeLines`. */
+export function decodeLines(lines: CachedLine[]): PdfTextItem[] {
     const items: PdfTextItem[] = [];
     for (const line of lines) {
         for (const [x, width, start, end] of line.words) {
-            items.push({ start, end, page, x, y: line.y, width, height: line.h });
+            items.push({ start, end, page: line.p, x, y: line.y, width, height: line.h });
         }
     }
     return items;
 }
 
 export interface AnchoredTextStore {
-    /** The stored value for this key, or null for any miss. Never throws. */
-    read(key: string): Promise<CachedAnchoredText | null>;
-    /** Record a derived value. A store that cannot write is still a store. */
-    write(key: string, pages: CachedOcrPage[]): Promise<void>;
+    /** The stored map for this key, or null for any miss. Never throws. */
+    read(key: string): Promise<AnchoredText | null>;
+    /** Record a derived map. A store that cannot write is still a store. */
+    write(key: string, anchored: AnchoredText): Promise<void>;
 }
 
 /** Narrow a parsed entry, so a truncated or foreign file is a miss, not a crash. */
 function isCached(value: unknown): value is CachedAnchoredText {
-    if (!isObject(value) || value.v !== 1 || !isString(value.stamp) || !isArray(value.pages)) return false;
-    return value.pages.every((page) =>
-        isObject(page) && isNumber(page.p) && isString(page.text) && isArray(page.lines) && isArray(page.conf)
-        && page.lines.every((line) =>
-            isObject(line) && isNumber(line.y) && isNumber(line.h) && isArray(line.words)
-            && line.words.every((w) => isArray(w) && w.length === 4 && w.every(isNumber))));
+    if (!isObject(value) || value.v !== 1 || !isString(value.stamp) || !isString(value.text) || !isArray(value.lines)) return false;
+    return value.lines.every((line) =>
+        isObject(line) && isNumber(line.p) && isNumber(line.y) && isNumber(line.h) && isArray(line.words)
+        && line.words.every((w) => isArray(w) && w.length === 4 && w.every(isNumber)));
 }
 
 /**
@@ -166,13 +170,13 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             logger?.debug('Anchored-text cache', {
                 outcome: hit ? 'hit' : 'miss',
                 key,
-                ...(hit ? { pages: hit.pages.length } : {}),
+                ...(hit ? { lines: hit.lines.length } : {}),
             });
-            return hit;
+            return hit ? { text: hit.text, items: decodeLines(hit.lines) } : null;
         },
 
-        async write(key, pages) {
-            const entry: CachedAnchoredText = { v: 1, stamp: STAMP, pages };
+        async write(key, anchored) {
+            const entry: CachedAnchoredText = { v: 1, stamp: STAMP, text: anchored.text, lines: encodeLines(anchored.items) };
             const target = fileFor(key);
             // Write-then-rename: a reader never observes a half-written entry,
             // and two writers racing on the same key both produce the same bytes.

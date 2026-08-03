@@ -162,7 +162,30 @@ export function PdfAnnotationCanvas({
 
         if (cancelled) return;
 
-        setPageAnchored(anchorRuns(content.items.filter(isTextRun), pageNumber));
+        const runs = content.items.filter(isTextRun);
+        if (runs.length > 0) {
+          setPageAnchored(anchorRuns(runs, pageNumber));
+        } else {
+          // No runs means a scanned page: the characters exist only as pixels
+          // and pdf.js has nothing to give. The server derived a map at ingest,
+          // so ask for it rather than leaving the annotation anonymous.
+          // Whole-resource, and `textUnder` filters by page — the same shape the
+          // native branch produces, so nothing downstream branches.
+          //
+          // `null` is the ordinary answer for a document that has no map and
+          // never will; a failure is equally non-fatal. Either way the
+          // annotation ships with geometry only, which is what shipped before
+          // this existed. The page still renders regardless: a scan is a normal
+          // PDF page, and failing to quote it must not fail to show it.
+          try {
+            const map = await session?.client.browse.resourceAnchoredText(toResourceId(resourceUri));
+            if (cancelled) return;
+            setPageAnchored(map ?? null);
+          } catch {
+            if (cancelled) return;
+            setPageAnchored(null);
+          }
+        }
 
         // Render page to image
         const { dataUrl } = await renderPdfPageToDataUrl(page, scale);
@@ -183,7 +206,7 @@ export function PdfAnnotationCanvas({
     return () => {
       cancelled = true;
     };
-  }, [pdfDoc, pageNumber, scale]);
+  }, [pdfDoc, pageNumber, scale, session, resourceUri]);
 
   // Update display dimensions on resize
   useEffect(() => {

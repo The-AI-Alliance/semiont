@@ -1,0 +1,49 @@
+{
+  "get": {
+    "summary": "Get a resource's anchored text",
+    "description": "The coordinate map derived from a resource's bytes: its recovered text plus the positioned runs that index it. Assembled via the bus gateway.\n\nWhole-resource, not paginated — a producer iterates page by page, but every consumer wants one map: a browser quoting the text under a hand-drawn rectangle, a headless client analysing a document.\n\nThis endpoint never runs recognition. The Smelter is the sole producer and publishes at ingest; a read that finds nothing waits for that resource's content generation to settle and then answers `null`. `null` is the common case and not an error — a native text layer is read in the browser, and a media type with no extractor never produces a map at all. Callers degrade: for a PDF annotation that means geometry with no quoted text.",
+    "tags": ["Resources"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "The coordinate map, or null when none has been derived",
+        "content": {
+          "application/json": {
+            "schema": {
+              "oneOf": [
+                { "$ref": "../components/schemas/AnchoredText.json" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "../components/schemas/ErrorResponse.json" }
+          }
+        }
+      },
+      "504": {
+        "description": "Request timed out (bus gateway)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "../components/schemas/ErrorResponse.json" }
+          }
+        }
+      }
+    }
+  }
+}

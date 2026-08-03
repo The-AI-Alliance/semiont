@@ -19,12 +19,25 @@ import type { JobQueue } from '@semiont/jobs';
 
 // ─── Leaf stubs ───────────────────────────────────────────────────────────────
 
+function inMemoryAnchoredText(): KnowledgeBase['anchoredText'] {
+  const maps = new Map<string, Awaited<ReturnType<KnowledgeBase['anchoredText']['read']>>>();
+  return {
+    read: async (key) => maps.get(key) ?? null,
+    write: async (key, anchored) => { maps.set(key, anchored); },
+  };
+}
+
 export function stubKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
     eventStore:     { appendEvent: vi.fn() } as unknown as KnowledgeBase['eventStore'],
     views:          {} as KnowledgeBase['views'],
     content:        { store: vi.fn(), retrieve: vi.fn() } as unknown as KnowledgeBase['content'],
     graph:          {} as KnowledgeBase['graph'],
+    // `anchoredText` is required, not optional: a KnowledgeSystem with nowhere
+    // to keep derived coordinate maps is not a configuration we support. This
+    // honours the contract — what is written comes back — it simply does not
+    // outlive the test.
+    anchoredText:   inMemoryAnchoredText(),
     weaveProgress: { dispose: vi.fn() } as unknown as KnowledgeBase['weaveProgress'],
     smeltProgress: { settledAt: vi.fn(), whenSettled: vi.fn(async () => 'inert' as const), dispose: vi.fn() } as unknown as KnowledgeBase['smeltProgress'],
     projectionsDir: '',

@@ -35,7 +35,6 @@ export {
   createAnchoredTextStore,
   type AnchoredTextStore,
   type CachedAnchoredText,
-  type CachedOcrPage,
   type CachedLine,
 } from './anchored-text-store';
 

@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Text paired with the geometry that indexes it — the minimum needed to turn a character range into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Reading-order text of the whole resource."
+    },
+    "items": {
+      "type": "array",
+      "description": "Positioned runs indexing `text`, roughly one per word.",
+      "items": { "$ref": "./PdfTextItem.json" }
+    }
+  },
+  "required": ["text", "items"]
+}

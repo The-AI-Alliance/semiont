@@ -21,7 +21,8 @@
 
 import type { EventStore } from '@semiont/event-sourcing';
 import { FilesystemViewStorage, type ViewStorage } from '@semiont/event-sourcing';
-import { WorkingTreeStore } from '@semiont/content';
+import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
+import path from 'path';
 import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import type { SemiontProject } from '@semiont/core/node';
@@ -33,6 +34,8 @@ export interface KnowledgeBase {
   eventStore:    EventStore;
   views:         ViewStorage;
   content:       WorkingTreeStore;
+  /** Derived coordinate maps for resources whose text had to be recovered. */
+  anchoredText:  AnchoredTextStore;
   graph:         GraphDatabase;
   weaveProgress: WeaveProgress;
   smeltProgress: SmeltProgress;
@@ -58,6 +61,15 @@ export async function createKnowledgeBase(
     project,
     logger.child({ component: 'working-tree-store' }),
   );
+  // Derived coordinate maps, beside the content they describe. The
+  // KnowledgeSystem owns this for the same reason it owns `content`: every
+  // other process reaches it through `IContentTransport`, so there is exactly
+  // one storage authority and no shared volume between service images
+  // (ANCHORED-TEXT-CACHE Lane 5).
+  const anchoredText = createAnchoredTextStore(
+    path.join(project.dataHome, 'anchored-text'),
+    logger.child({ component: 'anchored-text-store' }),
+  );
   // Fold of `weave:applied` signals. The Weaver itself is NOT constructed
   // here (WEAVER-ISOLATION D4, refined): the graph projection is part of
   // the graph stack, not the embedding process — `weaver-main` runs it as
@@ -80,7 +92,7 @@ export async function createKnowledgeBase(
   }
 
   const kb: KnowledgeBase = {
-    eventStore, views, content, graph: graphDb, weaveProgress, smeltProgress,
+    eventStore, views, content, anchoredText, graph: graphDb, weaveProgress, smeltProgress,
     projectionsDir: project.projectionsDir,
   };
 

@@ -73,7 +73,7 @@ describe('line-record codec', () => {
   const item = (over: Partial<Item>): Item =>
     ({ start: 0, end: 4, page: 1, x: 72, y: 700, width: 24, height: 12, ...over });
 
-  const roundTrip = (items: Item[]) => decodeLines(encodeLines(items), items[0]?.page ?? 1);
+  const roundTrip = (items: Item[]) => decodeLines(encodeLines(items));
 
   it('round-trips a plain line', () => {
     const items = [item({ start: 0, end: 5 }), item({ start: 6, end: 11, x: 106, width: 32 })];
@@ -106,6 +106,16 @@ describe('line-record codec', () => {
 
   it('round-trips an empty page', () => {
     expect(roundTrip([])).toEqual([]);
+  });
+
+  // The record is whole-resource, so a line carries its own page. Grouping is by
+  // contiguous (page, y, h): two pages sharing a y must not merge into one line.
+  it('keeps pages apart even when their lines share a y', () => {
+    const items = [
+      item({ start: 0, end: 4, page: 1 }),
+      item({ start: 5, end: 9, page: 2 }),
+    ];
+    expect(roundTrip(items)).toEqual(items);
   });
 
   // Width is stored per word rather than inferred from the next word's x. If it

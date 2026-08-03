@@ -31,6 +31,7 @@ import { getExactText, getTargetSource, getTargetSelector, getResourceEntityType
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from './knowledge-base';
+import { readAnchoredText } from './read-anchored-text';
 import { resourceWithViewGrace } from './graph-read-grace';
 import { readEntityTypesProjection } from './views/entity-types-reader';
 import { readTagSchemasProjection } from './views/tag-schemas-reader';
@@ -88,6 +89,7 @@ export class Browser {
 
     this.subscriptions.push(
       pipe('browse:resource-requested',          (e) => this.handleBrowseResource(e)).subscribe({ error: errorHandler }),
+      pipe('browse:anchored-text-requested',     (e) => this.handleAnchoredText(e)).subscribe({ error: errorHandler }),
       pipe('browse:resources-requested',         (e) => this.handleBrowseResources(e)).subscribe({ error: errorHandler }),
       pipe('browse:annotations-requested',       (e) => this.handleBrowseAnnotations(e)).subscribe({ error: errorHandler }),
       pipe('browse:annotation-requested',        (e) => this.handleBrowseAnnotation(e)).subscribe({ error: errorHandler }),
@@ -104,6 +106,35 @@ export class Browser {
   // ========================================================================
   // KB read handlers
   // ========================================================================
+
+  /**
+   * Serve a resource's derived coordinate map (ANCHORED-TEXT-CACHE Lane 5).
+   *
+   * Read-your-writes on the same barrier `llm-context` uses for vectors: a
+   * caller may arrive before the Smelter has finished the resource it just
+   * uploaded, so a miss waits for that content generation to settle rather than
+   * reporting "no map" for a document that is merely still being read.
+   *
+   * **This path never invokes the engine.** The Smelter is the sole producer.
+   * A miss that survives the barrier answers `null`, and the caller degrades —
+   * for a PDF annotation that means geometry with no quoted text, which is what
+   * shipped before any of this existed. OCR in a request path is precisely what
+   * this design exists to avoid.
+   */
+  private async handleAnchoredText(event: EventMap['browse:anchored-text-requested']): Promise<void> {
+    try {
+      this.eventBus.get('browse:anchored-text-result').next({
+        correlationId: event.correlationId,
+        response: await readAnchoredText(this.kb, event.resourceId),
+      });
+    } catch (error) {
+      this.logger.error('Browse anchored text failed', { resourceId: event.resourceId, error: errField(error) });
+      this.eventBus.get('browse:anchored-text-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   private async handleBrowseResource(event: EventMap['browse:resource-requested']): Promise<void> {
     try {

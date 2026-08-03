@@ -27,7 +27,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/core": "*",
+    "@semiont/core": "0.5.25",
     "@tesseract.js-data/eng": "^1.0.0",
     "pdfjs-dist": "^6.1.200",
     "tesseract.js": "^7.0.0"

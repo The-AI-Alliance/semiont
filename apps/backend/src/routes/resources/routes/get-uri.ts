@@ -84,6 +84,32 @@ function describedByLink(id: string): string {
 }
 
 export function registerGetResourceUri(router: ResourcesRouterType) {
+  // GET /resources/:id/anchored-text — the derived coordinate map, via the bus
+  // gateway. Read-only: the Smelter publishes through IContentTransport, never
+  // over HTTP. A `null` body is the common answer and is a 200, not a 404 —
+  // "this resource has no map" is a fact about extraction, not a missing route.
+  router.get('/resources/:id/anchored-text', async (c) => {
+    const { id } = c.req.param();
+    const eventBus = c.get('eventBus');
+    const correlationId = crypto.randomUUID();
+
+    try {
+      const response = await eventBusRequest(
+        eventBus,
+        'browse:anchored-text-requested',
+        { correlationId, resourceId: id },
+        'browse:anchored-text-result',
+        'browse:anchored-text-failed',
+      );
+      return c.json(response, 200, { 'Cache-Control': 'no-cache' });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Resource not found') {
+        throw new HTTPException(404, { message: 'Resource not found' });
+      }
+      throw error;
+    }
+  });
+
   // GET /resources/:id/jsonld — the JSON-LD description, via the bus
   // gateway (Gatherer). Hono params don't span '/', so this cannot collide
   // with the pipe route below.

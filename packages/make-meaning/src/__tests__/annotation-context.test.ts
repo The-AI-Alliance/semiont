@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { memoryAnchoredTextStore } from './helpers/anchored-text';
 import { AnnotationContext } from '../annotation-context';
 import { deriveViews } from '@semiont/core';
 import { resourceId, annotationId, userId, EventBus, type Logger } from '@semiont/core';
@@ -77,6 +78,7 @@ describe('AnnotationContext', () => {
       views: eventStore.viewStorage,
       content: new WorkingTreeStore(project, mockLogger),
       graph: mockGraphDb,
+      anchoredText: memoryAnchoredTextStore(),
       projectionsDir: project.projectionsDir,
       weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
     };

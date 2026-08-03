@@ -423,7 +423,64 @@ describe('PdfAnnotationCanvas', () => {
     expect(selector[0].type).toBe('FragmentSelector');
   });
 
-  test('a scanned page with no text layer carries geometry only', async () => {
+  // Phase 2 of .plans/PDF-MANUAL-ANNOTATION-TEXT.md. A scanned page has no text
+  // in the browser, but the server derived one at ingest and serves it through
+  // `browse.resourceAnchoredText`. Same `AnchoredText` shape either way, so
+  // `textUnder` and the drag handler do not branch — only the source does.
+  test('a scanned page quotes from the map the server derived', async () => {
+    vi.mocked(loadPdfDocument).mockResolvedValueOnce({
+      numPages: 3,
+      getPage: vi.fn().mockResolvedValue(mockPage([])),
+    } as unknown as Awaited<ReturnType<typeof loadPdfDocument>>);
+
+    const request = vi.fn();
+    const session = {
+      client: {
+        mark: { request },
+        beckon: { hover: vi.fn() },
+        browse: {
+          resourceAnchoredText: vi.fn().mockResolvedValue({
+            text: 'Hello world again',
+            items: [
+              { start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 },
+              { start: 6, end: 11, page: 1, x: 106, y: 700, width: 32, height: 12 },
+            ],
+          }),
+        },
+      },
+    } as unknown as import('@semiont/sdk').SemiontSession;
+
+    render(
+      <PdfAnnotationCanvas resourceUri="res-1"
+        pdfUrl={mockPdfUrl}
+        drawingMode="rectangle"
+        selectedMotivation="highlighting"
+        session={session}
+      />
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('.semiont-pdf-annotation-canvas__image')).toBeInTheDocument();
+    });
+    const img = document.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+    Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });
+    Object.defineProperty(img, 'clientHeight', { value: 792, configurable: true });
+    fireEvent.load(img);
+
+    const line = pdfToCanvasCoordinates({ page: 1, x: 72, y: 700, width: 66, height: 12 }, 792, 1.0);
+    const container = document.querySelector('.semiont-pdf-annotation-canvas__container')!;
+    fireEvent.mouseDown(container, { clientX: line.x - 2, clientY: line.y - 2 });
+    fireEvent.mouseMove(container, { clientX: line.x + line.width + 8, clientY: line.y + line.height + 4 });
+    fireEvent.mouseUp(container, { clientX: line.x + line.width + 8, clientY: line.y + line.height + 4 });
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    expect(request.mock.calls[0][1]).toEqual([
+      expect.objectContaining({ type: 'FragmentSelector' }),
+      { type: 'TextQuoteSelector', exact: 'Hello world' },
+    ]);
+  });
+
+  test('a scanned page with no server map carries geometry only', async () => {
     // Class B: pdf.js returns no runs, so the browser cannot do the job and
     // the annotation stays geometry-only pending async enrichment (Phase 2).
     vi.mocked(loadPdfDocument).mockResolvedValueOnce({

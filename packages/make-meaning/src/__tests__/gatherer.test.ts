@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { memoryAnchoredTextStore } from './helpers/anchored-text';
 import { take } from 'rxjs/operators';
 import { EventBus, annotationId, resourceId, type Logger } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
@@ -48,6 +49,7 @@ function createMockKb(): KnowledgeBase {
     views: {} as any,
     content: {} as any,
     graph: {} as any,
+    anchoredText: memoryAnchoredTextStore(),
     projectionsDir: '',
       weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
   };

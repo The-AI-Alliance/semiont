@@ -14,6 +14,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { memoryAnchoredTextStore } from './helpers/anchored-text';
 import { take } from 'rxjs/operators';
 import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceId } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
@@ -132,6 +133,7 @@ function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
     eventStore: {} as any,
     views: { get: overrides.viewsGet ?? vi.fn().mockResolvedValue(null) } as any,
     content: {} as any,
+    anchoredText: memoryAnchoredTextStore(),
     projectionsDir: '',
       weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
     graph: {

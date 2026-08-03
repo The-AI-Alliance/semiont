@@ -105,6 +105,10 @@ export function createContentTransport(opts: {
     async putBinary(): Promise<never> {
       throw new Error('not supported');
     },
+    // The Smelter is the producer of anchored text; this harness exercises the
+    // embed path, not the map, so the store is real but empty.
+    async putAnchoredText() { /* the map is not what these tests assert on */ },
+    async getAnchoredText() { return null; },
     async getBinary(resourceId) {
       const rid = String(resourceId);
       const make = async (): Promise<{ data: ArrayBuffer; contentType: string }> => {

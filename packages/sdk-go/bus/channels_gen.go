@@ -282,6 +282,15 @@ const (
 	// not emittable (no registered schema)
 	BrowseResourceFailed Channel = "browse:resource-failed"
 
+	// payload: BrowseAnchoredTextRequest
+	BrowseAnchoredTextRequested Channel = "browse:anchored-text-requested"
+
+	// payload: BrowseAnchoredTextResult
+	BrowseAnchoredTextResult Channel = "browse:anchored-text-result"
+
+	// not emittable (no registered schema)
+	BrowseAnchoredTextFailed Channel = "browse:anchored-text-failed"
+
 	// payload: BrowseResourcesRequest
 	BrowseResourcesRequested Channel = "browse:resources-requested"
 
@@ -572,6 +581,8 @@ var ChannelSchemas = map[Channel]string{
 	GatherAnnotationProgress:         "GatherProgress",
 	BrowseResourceRequested:          "BrowseResourceRequest",
 	BrowseResourceResult:             "BrowseResourceResult",
+	BrowseAnchoredTextRequested:      "BrowseAnchoredTextRequest",
+	BrowseAnchoredTextResult:         "BrowseAnchoredTextResult",
 	BrowseResourcesRequested:         "BrowseResourcesRequest",
 	BrowseResourcesResult:            "BrowseResourcesResult",
 	BrowseAnnotationsRequested:       "BrowseAnnotationsRequest",

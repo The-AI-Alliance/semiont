@@ -24,7 +24,7 @@ import { detectTable, renderTable } from './pdf-tables';
 import { extractPageImages } from './pdf-page-images';
 import { recognizeImages } from './ocr';
 import { mapWordsToItems } from './ocr-geometry';
-import { encodeLines, decodeLines } from './anchored-text-store';
+
 
 /** One OCR'd page: its text, and word geometry with page-local offsets. */
 interface OcrPageResult {
@@ -83,21 +83,21 @@ async function ocrPages(
   content: Buffer,
   cache?: ExtractionCache,
   pageNumbers?: number[],
-): Promise<Map<number, OcrPageResult>> {
+): Promise<OcrPageResult> {
   // The cache sits here rather than around `extract()` because this is where
   // the cost is: 82% of extraction time is Tesseract, and the text-layer parse
   // that classifies the document has to run either way. A document with a text
   // layer never reaches this function, so it never produces an entry.
+  // Whole-resource on both sides. A page map is how this function iterates, not
+  // what anyone consuming the result wants — the transport, the browser and a
+  // headless client all want one `AnchoredText`, so that is what is stored.
+  // Confidences are absent on a hit: they are logged at extraction, and
+  // re-reporting identical numbers for identical bytes says nothing.
   const hit = await cache?.store.read(cache.key);
-  if (hit) {
-    return new Map(hit.pages.map((page) => [
-      page.p,
-      { text: page.text, items: decodeLines(page.lines, page.p), confidences: page.conf },
-    ]));
-  }
+  if (hit) return { text: hit.text, items: hit.items, confidences: [] };
 
   const imagesByPage = await extractPageImages(content, pageNumbers);
-  if (imagesByPage.size === 0) return new Map();
+  if (imagesByPage.size === 0) return { text: '', items: [], confidences: [] };
 
   // One batch for the whole document: worker startup dominates per-page cost.
   const pages = [...imagesByPage.keys()].sort((a, b) => a - b);
@@ -122,16 +122,17 @@ async function ocrPages(
     if (text) byPage.set(page, { text, items, confidences });
   }
 
-  // Record only what the engine actually produced. A page that recognized
-  // nothing is absent here, and the entry says so on the next pass too.
-  await cache?.store.write(cache.key, [...byPage.entries()].map(([p, page]) => ({
-    p,
-    text: page.text,
-    lines: encodeLines(page.items),
-    conf: page.confidences,
-  })));
+  // Joined at base 0 — the document's own coordinates. Class C shifts by the
+  // native text length at its call site, so what is stored never depends on
+  // which document it was later spliced into.
+  const joined = joinPages(byPage, 0);
 
-  return byPage;
+  // Record what the engine produced, including nothing: a scan it cannot read
+  // costs a full recognition pass to discover, so "we read this and there was
+  // nothing" is a result worth keeping.
+  await cache?.store.write(cache.key, { text: joined.text, items: joined.items });
+
+  return joined;
 }
 
 /**
@@ -242,7 +243,7 @@ export const pdfExtractor: ContentExtractor = {
     // pixels, so read them. 'no-text-layer' now means OCR genuinely came up
     // empty, not that we never tried.
     if (!layer) {
-      const ocr = joinPages(await ocrPages(content, cache), 0);
+      const ocr = await ocrPages(content, cache);
       if (!ocr.text) return { declined: 'no-text-layer' };
       const confidence = summarize(ocr.confidences);
       return {
@@ -277,14 +278,20 @@ export const pdfExtractor: ContentExtractor = {
     // page points needs the image's placement transform — #739's critical
     // path, not embedding's).
     const recovered = await ocrPages(content, cache, unreadPages);
-    const stillUnread = unreadPages.filter((page) => !recovered.has(page));
+    const readPages = new Set(recovered.items.map((item) => item.page));
+    const stillUnread = unreadPages.filter((page) => !readPages.has(page));
     const hybridClass = shaped.pdfClass === 'A' ? 'C' as const : shaped.pdfClass;
-    if (recovered.size === 0) {
+    if (!recovered.text) {
       return { ...shaped, unreadPages: stillUnread, pdfClass: hybridClass };
     }
     // Appended, so the native pages' items keep pointing at the right
     // characters; the OCR'd words are offset to where they actually land.
-    const ocr = joinPages(recovered, shaped.text.length);
+    const shift = shaped.text.length;
+    const ocr: OcrPageResult = {
+      text: recovered.text,
+      items: recovered.items.map((item) => ({ ...item, start: item.start + shift, end: item.end + shift })),
+      confidences: recovered.confidences,
+    };
     const confidence = summarize(ocr.confidences);
     return {
       ...shaped,

@@ -72,7 +72,7 @@
     "@opentelemetry/sdk-trace-base": "^2.10.0",
     "@opentelemetry/sdk-trace-web": "^2.10.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",
-    "@semiont/core": "*",
+    "@semiont/core": "0.5.25",
     "winston": "^3.17.0"
   }
 }
