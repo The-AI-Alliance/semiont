@@ -18,10 +18,13 @@ export function useMediaToken(client: SemiontClient | null, id: ResourceId): Use
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!client || !id) { setLoading(false); return; }
+    // `auth` is only constructed when the client was given an IBackendOperations
+    // — a host on a bare transport has none, and cannot mint tokens at all.
+    const auth = client?.auth;
+    if (!auth || !id) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
-    client.auth!.mediaToken(id)
+    auth.mediaToken(id)
       .then(({ token: t }) => {
         if (cancelled) return;
         setToken(t);
@@ -33,7 +36,7 @@ export function useMediaToken(client: SemiontClient | null, id: ResourceId): Use
       });
 
     const refreshInterval = setInterval(() => {
-      client.auth!.mediaToken(id)
+      auth.mediaToken(id)
         .then(({ token: t }) => { if (!cancelled) setToken(t); })
         .catch(() => {});
     }, 4 * 60 * 1000);

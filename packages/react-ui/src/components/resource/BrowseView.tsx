@@ -21,6 +21,7 @@ import {
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
 import { defaultBrowseRenderers, type BrowseMediaRenderers } from './browse-renderers';
+import { DownloadFileLink } from './DownloadFileLink';
 
 interface Props {
   content: string;
@@ -295,13 +296,7 @@ export const BrowseView = memo(function BrowseView({
           <p className="semiont-browse-view__empty-message">
             Preview not available for {mimeType}
           </p>
-          <a
-            href={`/api/resources/${resourceUri}`}
-            download
-            className="semiont-button semiont-button--primary"
-          >
-            Download File
-          </a>
+          <DownloadFileLink resourceUri={resourceUri} session={session} />
         </div>
       </div>
     );
