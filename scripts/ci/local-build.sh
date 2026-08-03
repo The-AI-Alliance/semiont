@@ -71,20 +71,34 @@ verdaccio_cleanup() {
 }
 trap verdaccio_cleanup ERR INT TERM
 
+# Everything the publish stamp reaches: the manifests `publish.sh` rewrites, and
+# the lockfile an install regenerates *from* those rewritten manifests.
+#
+# One list, used by the pre-run snapshot, the dirtiness check and the restore.
+# It was previously spelled out at all three sites and the lockfile was missing
+# from every one of them, so a local build reverted each package.json and left
+# package-lock.json holding the stamped versions — silently turning
+# `"@semiont/core": "*"` into a concrete pin in the working tree.
+STAMPED_PATHS=(
+  version.json
+  ':(glob)packages/*/package.json'
+  ':(glob)apps/*/package.json'
+  package-lock.json
+)
+
 # On exit (success or failure), revert the version-stamp that publish.sh writes
-# into the bind-mounted source manifests (version.json + every workspace
-# package.json) — a local publish should not leave the working tree dirty.
-# Guarded: if those files were already modified before the run, leave them
-# alone so we never clobber in-progress edits.
+# into the bind-mounted sources — a local publish should not leave the working
+# tree dirty. Guarded: if those files were already modified before the run,
+# leave them alone so we never clobber in-progress edits.
 restore_manifests() {
   local now_dirty
-  now_dirty=$(git -C "$REPO_ROOT" status --porcelain -- version.json ':(glob)packages/*/package.json' ':(glob)apps/*/package.json' 2>/dev/null || true)
+  now_dirty=$(git -C "$REPO_ROOT" status --porcelain -- "${STAMPED_PATHS[@]}" 2>/dev/null || true)
   [[ -z "$now_dirty" ]] && return
   if [[ -n "${PRE_DIRTY:-}" ]]; then
-    warn "Source manifests were already modified before this run — leaving the working tree as-is (revert the publish stamp yourself: git status)."
+    warn "Source manifests or the lockfile were already modified before this run — leaving the working tree as-is (revert the publish stamp yourself: git status)."
     return
   fi
-  git -C "$REPO_ROOT" restore -- version.json ':(glob)packages/*/package.json' ':(glob)apps/*/package.json' 2>/dev/null || true
+  git -C "$REPO_ROOT" restore -- "${STAMPED_PATHS[@]}" 2>/dev/null || true
   ok "Reverted the publish version-stamp in the working tree"
 }
 
@@ -256,9 +270,11 @@ rm -rf .npm-stage
 
 banner "BUILD + PUBLISH"
 
-# Snapshot manifest dirtiness *before* publish, then arm the revert trap, so the
-# EXIT handler can undo only the publish stamp and not any pre-existing edits.
-PRE_DIRTY=$(git -C "$REPO_ROOT" status --porcelain -- version.json ':(glob)packages/*/package.json' ':(glob)apps/*/package.json' 2>/dev/null || true)
+# Snapshot dirtiness *before* publish, then arm the revert trap, so the EXIT
+# handler can undo only the publish stamp and not any pre-existing edits. Same
+# path set the restore uses — a file the snapshot ignores is a file the restore
+# would clobber.
+PRE_DIRTY=$(git -C "$REPO_ROOT" status --porcelain -- "${STAMPED_PATHS[@]}" 2>/dev/null || true)
 trap restore_manifests EXIT
 
 $RT run --rm \
