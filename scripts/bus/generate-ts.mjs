@@ -10,7 +10,7 @@
 // faithful" a demonstration rather than a claim. Run with --check to diff
 // without writing (the CI drift gate).
 
-import { validateRegistry } from './validate-registry.mjs';
+import { validateRegistry, validateRegistryFormat } from './validate-registry.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,10 +22,13 @@ const BRIDGED = resolve(ROOT, 'packages/core/src/bridged-channels.ts');
 const OPERATIONS = resolve(ROOT, 'packages/core/src/bus-operations.ts');
 
 const CHECK = process.argv.includes('--check');
-const reg = JSON.parse(readFileSync(REGISTRY, 'utf8'));
+const registryText = readFileSync(REGISTRY, 'utf8');
 
 // Source-level invariants BEFORE anything is emitted: no generated artifact
-// may come from a registry that breaks the bus's cross-list rules.
+// may come from a registry that breaks the bus's cross-list rules — or that
+// was re-encoded on its way through an editor.
+validateRegistryFormat(registryText);
+const reg = JSON.parse(registryText);
 validateRegistry(reg);
 const byChannel = new Map(reg.channels.map((c) => [c.channel, c]));
 

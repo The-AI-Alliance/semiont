@@ -132,9 +132,10 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
   });
 
   // GET /resources/:id/anchored-text — the derived coordinate map, via the bus
-  // gateway. Read-only: the Smelter publishes through IContentTransport, never
-  // over HTTP. A `null` body is the common answer and is a 200, not a 404 —
-  // "this resource has no map" is a fact about extraction, not a missing route.
+  // gateway. Reading never derives: the map is written only by the PUT above,
+  // and only by an agent, so no reader can provoke extraction from here. A
+  // `null` body is the common answer and is a 200, not a 404 — "this resource
+  // has no map" is a fact about extraction, not a missing route.
   router.get('/resources/:id/anchored-text', async (c) => {
     const { id } = c.req.param();
     const eventBus = c.get('eventBus');

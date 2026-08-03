@@ -16,7 +16,7 @@
 //
 // --check diffs without writing (the CI drift gate).
 
-import { validateRegistry } from './validate-registry.mjs';
+import { validateRegistry, validateRegistryFormat } from './validate-registry.mjs';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,10 +26,13 @@ const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
 const OUT_DIR = resolve(ROOT, 'packages/sdk-go/bus');
 const CHECK = process.argv.includes('--check');
 
-const reg = JSON.parse(readFileSync(REGISTRY, 'utf8'));
+const registryText = readFileSync(REGISTRY, 'utf8');
 
 // Source-level invariants BEFORE anything is emitted: no generated artifact
-// may come from a registry that breaks the bus's cross-list rules.
+// may come from a registry that breaks the bus's cross-list rules — or that
+// was re-encoded on its way through an editor.
+validateRegistryFormat(registryText);
+const reg = JSON.parse(registryText);
 validateRegistry(reg);
 
 /** TS-only payloads: functions or DOM geometry — never wire vocabulary. */

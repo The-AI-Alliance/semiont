@@ -122,7 +122,7 @@ export const optionalAuthMiddleware = async (c: Context, next: Next) => {
       const { user, agentDid } = await OAuthService.getPrincipalFromToken(accessToken(tokenStr));
       c.set('user', user);
       c.set('principalDid', agentDid ?? userToDid(user));
-    if (agentDid) c.set('agentDid', agentDid);
+      if (agentDid) c.set('agentDid', agentDid);
     } catch (error) {
       // Ignore auth errors for optional auth
     }
