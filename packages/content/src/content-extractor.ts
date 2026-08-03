@@ -70,9 +70,14 @@ export interface ExtractionDecline {
 /**
  * Where a strategy may reuse an earlier recognition, and under what key.
  *
- * The caller supplies the key because it already has one — the content
- * checksum on `smelt:settled` / `getChecksum(descriptor)`. Hashing a large PDF
- * per job is precisely the cost this cache exists to remove, not add.
+ * The caller supplies the key, and derives it from the bytes it actually
+ * holds — `calculateChecksum` over the same Buffer it passes to `extract()` —
+ * never from a descriptor's claim. A catalog-derived key can race a byte
+ * change (bytes fetched at one moment, descriptor read at another) and file
+ * or read geometry under an identity that does not describe the bytes being
+ * extracted. The write path made recompute-over-claim the rule
+ * (PERSIST-ANCHORS P1b); readers mirror it (P1c). One SHA-256 over bytes
+ * already in memory is noise against the engine pass a hit avoids.
  *
  * Optional throughout: every existing caller passes nothing and is unaffected.
  * Only strategies with an expensive engine behind them consult it, so a
