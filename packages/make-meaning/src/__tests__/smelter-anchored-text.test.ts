@@ -15,8 +15,9 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { EMPTY, Subject } from 'rxjs';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { calculateChecksum } from '@semiont/content';
 import { MemoryVectorStore } from '@semiont/vectors';
-import type { AnchoredText, IContentTransport, Logger, ResourceId } from '@semiont/core';
+import type { AnchoredText, IContentTransport, Logger } from '@semiont/core';
 import { Smelter } from '../smelter';
 import type { SmelterEvent } from '../smelter-actor-state-unit';
 import {
@@ -52,11 +53,11 @@ beforeAll(async () => {
  * harness behaviour.
  */
 function transportRecording(
-  put: (rid: ResourceId, anchored: AnchoredText) => void,
+  put: (checksum: string, anchored: AnchoredText) => void,
   entry: { text: string; mediaType: string } | { bytes: Uint8Array; mediaType: string },
 ): IContentTransport {
   const base = createContentTransport({ read: (rid) => (rid === RID ? entry : undefined) });
-  return { ...base, putAnchoredText: async (rid, anchored) => { put(rid, anchored); } };
+  return { ...base, putAnchoredText: async (checksum, anchored) => { put(checksum, anchored); } };
 }
 
 async function smelterOver(content: IContentTransport, mediaType = 'text/plain') {
@@ -92,8 +93,10 @@ describe('Smelter publishes derived anchored text', () => {
     await settle();
 
     expect(put).toHaveBeenCalledTimes(1);
-    const [rid, map] = put.mock.calls[0] as [ResourceId, AnchoredText];
-    expect(String(rid)).toBe(RID);
+    const [key, map] = put.mock.calls[0] as [string, AnchoredText];
+    // Filed under the checksum of the bytes the producer read (P1b), never
+    // the mutable resource id.
+    expect(key).toBe(calculateChecksum(Buffer.from(PDF_BYTES)));
     expect(map.text).toContain('alpha');
     // Geometry, not just text — the whole reason a consumer wants this.
     expect(map.items.length).toBeGreaterThan(0);

@@ -16,7 +16,7 @@
  * Uses MemoryVectorStore and a mock EmbeddingProvider.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { BehaviorSubject, EMPTY, Observable, Subject } from 'rxjs';
 import type { AnchoredText, EventMap, components } from '@semiont/core';
 import { resourceId as makeResourceId, chunkText } from '@semiont/core';
@@ -34,6 +34,7 @@ vi.mock('@semiont/content', async (importOriginal) => {
     },
   };
 });
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive, ConnectionState } from '@semiont/core';
@@ -786,11 +787,14 @@ describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)
   // scanned PDF's annotations lost their quoted text on the first restart,
   // permanently (PERSIST-ANCHORS problem 1).
 
+  // The artifact's key is the content checksum (P1b) — of NATIVE_PDF here.
+  const LOSTMAP_CHECKSUM = calculateChecksum(Buffer.from(NATIVE_PDF));
+
   async function reanchorHarness(anchored: Map<string, AnchoredText>) {
     const vectorStore = new MemoryVectorStore();
     await vectorStore.connect();
     const embeddingProvider = createMockEmbeddingProvider();
-    const checksum = calculateChecksum(Buffer.from(NATIVE_PDF));
+    const checksum = LOSTMAP_CHECKSUM;
     // Indexed at the catalog's current checksum — the stamp diff (S12) and
     // the tag diff (S13) both see nothing to do.
     await vectorStore.upsertResourceVectors(
@@ -824,8 +828,9 @@ describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)
       const summary = await smelter.reconcile();
 
       expect(summary.resourcesReanchored).toBe(1);
-      // The artifact is back — re-extracted from the current bytes.
-      const restored = anchored.get('res-lostmap');
+      // The artifact is back — re-extracted from the current bytes, filed
+      // under their checksum (P1b).
+      const restored = anchored.get(LOSTMAP_CHECKSUM);
       expect(restored).toBeDefined();
       expect(restored!.items.length).toBeGreaterThan(0);
       // Re-anchoring re-runs EXTRACTION, never embedding: the vectors are
@@ -840,14 +845,14 @@ describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)
 
   it('plans nothing when the artifact is present (do-not-cry-wolf)', async () => {
     const anchored = new Map<string, AnchoredText>();
-    anchored.set('res-lostmap', { text: 'already here', items: [] });
+    anchored.set(LOSTMAP_CHECKSUM, { text: 'already here', items: [] });
     const { smelter, embeddingProvider } = await reanchorHarness(anchored);
     try {
       await smelter.reconcile();
 
       // The seeded artifact was not overwritten and nothing embedded — a
       // present artifact under a current checksum is a healthy resource.
-      expect(anchored.get('res-lostmap')).toEqual({ text: 'already here', items: [] });
+      expect(anchored.get(LOSTMAP_CHECKSUM)).toEqual({ text: 'already here', items: [] });
       expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
     } finally {
       smelter.stop();
@@ -859,6 +864,28 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
   // Shaped after weave:rebuild: optionally scoped, serialized, correlated
   // replies, partial completion FAILS. Never destructive — nothing is
   // deleted first; stale entries are simply overwritten.
+  //
+  // Artifacts are checksum-keyed (P1b), so the two resources need DISTINCT
+  // bytes: with identical bytes they would correctly share one artifact
+  // (content addressing dedupes) and "exactly the named resource" would be
+  // unobservable.
+  let PDF_A: Uint8Array;
+  let PDF_B: Uint8Array;
+  let CS_A: string;
+  let CS_B: string;
+
+  beforeAll(async () => {
+    const build = async (text: string): Promise<Uint8Array> => {
+      const doc = await PDFDocument.create();
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      doc.addPage([612, 792]).drawText(text, { x: 72, y: 720, size: 12, font });
+      return doc.save();
+    };
+    PDF_A = await build('alpha document');
+    PDF_B = await build('bravo document');
+    CS_A = calculateChecksum(Buffer.from(PDF_A));
+    CS_B = calculateChecksum(Buffer.from(PDF_B));
+  });
 
   async function rebuildHarness(reads: Record<string, Uint8Array | 'fail'>) {
     const anchored = new Map<string, AnchoredText>();
@@ -905,13 +932,13 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
   }
 
   it('full rebuild re-derives every geometry-capable resource and replies ok — zero embedding calls', async () => {
-    const h = await rebuildHarness({ 'res-a': NATIVE_PDF, 'res-b': NATIVE_PDF });
+    const h = await rebuildHarness({ 'res-a': PDF_A, 'res-b': PDF_B });
     try {
       h.rebuilds$.next({ correlationId: 'c-full' });
       const reply = await h.reply('c-full');
 
       expect(reply.channel).toBe('smelt:rebuild-anchors-ok');
-      expect([...h.anchored.keys()].sort()).toEqual(['res-a', 'res-b']);
+      expect([...h.anchored.keys()].sort()).toEqual([CS_A, CS_B].sort());
       expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
       expect(h.embeddingProvider.embed).not.toHaveBeenCalled();
     } finally {
@@ -920,20 +947,20 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
   });
 
   it('scoped rebuild re-derives exactly the named resource', async () => {
-    const h = await rebuildHarness({ 'res-a': NATIVE_PDF, 'res-b': NATIVE_PDF });
+    const h = await rebuildHarness({ 'res-a': PDF_A, 'res-b': PDF_B });
     try {
       h.rebuilds$.next({ correlationId: 'c-scoped', resourceId: 'res-a' });
       const reply = await h.reply('c-scoped');
 
       expect(reply.channel).toBe('smelt:rebuild-anchors-ok');
-      expect([...h.anchored.keys()]).toEqual(['res-a']);
+      expect([...h.anchored.keys()]).toEqual([CS_A]);
     } finally {
       h.smelter.stop();
     }
   });
 
   it('partial completion FAILS, with counts — and the healthy resource is still re-anchored', async () => {
-    const h = await rebuildHarness({ 'res-ok': NATIVE_PDF, 'res-broken': 'fail' });
+    const h = await rebuildHarness({ 'res-ok': PDF_A, 'res-broken': 'fail' });
     try {
       h.rebuilds$.next({ correlationId: 'c-partial' });
       const reply = await h.reply('c-partial');
@@ -942,7 +969,7 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
       // a document with no text — so it must not claim success.
       expect(reply.channel).toBe('smelt:rebuild-anchors-failed');
       expect(String(reply.payload.message)).toMatch(/1 of 2/);
-      expect([...h.anchored.keys()]).toEqual(['res-ok']);
+      expect([...h.anchored.keys()]).toEqual([CS_A]);
     } finally {
       h.smelter.stop();
     }

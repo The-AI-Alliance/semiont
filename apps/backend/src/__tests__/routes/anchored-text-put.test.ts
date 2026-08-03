@@ -1,10 +1,11 @@
 /**
- * PUT /resources/:id/anchored-text — publishing a derived coordinate map.
+ * PUT /anchored-text/:checksum — publishing a derived coordinate map, keyed by
+ * the content checksum of the bytes it was derived from (PERSIST-ANCHORS P1b).
  *
  * The Smelter is the sole producer: it is the only process that reads a
- * resource's bytes at ingest, so it is the only one positioned to derive a map
- * cheaply. It runs separately from the backend, which is why this crosses HTTP
- * at all rather than writing the store the way an in-process caller does.
+ * representation's bytes at ingest, so it is the only one positioned to derive
+ * a map cheaply. It runs separately from the backend, which is why this crosses
+ * HTTP at all rather than writing the store the way an in-process caller does.
  *
  * Two things carry weight here and neither is the happy path:
  *
@@ -50,14 +51,17 @@ function appAs(agentDid: string | undefined, write = vi.fn()) {
   return { app, write };
 }
 
+// The producer addresses the artifact by the checksum of the bytes it read.
+const CHECKSUM = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
 const put = (app: Hono<{ Variables: Variables }>, body: unknown) =>
-  app.request('/resources/res-1/anchored-text', {
+  app.request(`/anchored-text/${CHECKSUM}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 
-describe('PUT /resources/:id/anchored-text', () => {
+describe('PUT /anchored-text/:checksum', () => {
   beforeAll(() => vi.clearAllMocks());
 
   it('stores a map published by an agent', async () => {
@@ -66,7 +70,7 @@ describe('PUT /resources/:id/anchored-text', () => {
     const res = await put(app, MAP);
 
     expect(res.status).toBe(204);
-    expect(write).toHaveBeenCalledWith('res-1', MAP);
+    expect(write).toHaveBeenCalledWith(CHECKSUM, MAP);
   });
 
   it('refuses a caller that is not an agent', async () => {
@@ -99,6 +103,6 @@ describe('PUT /resources/:id/anchored-text', () => {
 
     const empty: AnchoredText = { text: '', items: [] };
     expect((await put(app, empty)).status).toBe(204);
-    expect(write).toHaveBeenCalledWith('res-1', empty);
+    expect(write).toHaveBeenCalledWith(CHECKSUM, empty);
   });
 });

@@ -133,13 +133,17 @@ describe('HttpContentTransport.getAnchoredText', () => {
 describe('HttpContentTransport.putAnchoredText', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  test('publishes the map to the resource-scoped path as JSON', async () => {
+  // Writes are checksum-addressed (PERSIST-ANCHORS P1b): the producer files
+  // the map under the identity of the bytes it read, never the mutable rid.
+  const CHECKSUM = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+  test('publishes the map to the checksum-addressed path as JSON', async () => {
     const { content, put } = makeContent();
 
-    await content.putAnchoredText(RID, MAP);
+    await content.putAnchoredText(CHECKSUM, MAP);
 
     expect(put).toHaveBeenCalledWith(
-      'http://test.example.com/resources/res-1/anchored-text',
+      `http://test.example.com/anchored-text/${CHECKSUM}`,
       expect.objectContaining({ json: MAP }),
     );
   });
@@ -149,7 +153,7 @@ describe('HttpContentTransport.putAnchoredText', () => {
     // reach it — the ambient session token is not what authorises this write.
     const { content, put } = makeContent();
 
-    await content.putAnchoredText(RID, MAP, { auth: 'smelter-token' as never });
+    await content.putAnchoredText(CHECKSUM, MAP, { auth: 'smelter-token' as never });
 
     const [, options] = put.mock.calls[0]!;
     expect(options.headers['Authorization']).toBe('Bearer smelter-token');

@@ -337,26 +337,46 @@ export interface IContentTransport {
   ): Promise<GetResourceResponse>;
 
   /**
-   * Store a resource's anchored text — the coordinate map a producer derived
-   * from its bytes (OCR, a native text layer, a table or form reader).
+   * Store anchored text — the coordinate map a producer derived from a
+   * representation's bytes (OCR, a native text layer, a table or form
+   * reader) — under **the content checksum of those bytes** (PERSIST-ANCHORS
+   * decision A: one artifact per representation, and a representation IS its
+   * bytes).
+   *
+   * The producer supplies the checksum because it alone knows which bytes it
+   * actually read. That is a correctness rule, not a convenience: if the
+   * store derived the key from the resource's CURRENT representation at
+   * write time, a byte change racing the publish would file old geometry
+   * under the new checksum — wrong quotes served, and the reconcile diff
+   * sees "artifact present" so it never heals. Producer-supplied, the same
+   * race files the map under the OLD checksum: an unreachable orphan, and
+   * the new checksum's missing artifact is exactly what the third drift
+   * class re-derives (SMELTER-AXIOMS S15).
    *
    * Its own method rather than a `putBinary` of some derived media type: a
    * coordinate map is not a *representation* of the resource, and dressing it
    * as one would make a derived artifact indistinguishable from content a user
    * uploaded.
    *
-   * Whole-resource, like `getResourceGraph`. The producer iterates page by page;
-   * every consumer — this transport, the browser canvas, a headless client
-   * analysing a document — wants one map.
+   * Whole-representation, like `getResourceGraph` is whole-resource. The
+   * producer iterates page by page; every consumer wants one map.
    */
   putAnchoredText(
-    resourceId: ResourceId,
+    checksum: string,
     anchored: AnchoredText,
     options?: { auth?: AccessToken },
   ): Promise<void>;
 
   /**
    * The resource's anchored text, or `null` when none has been derived.
+   *
+   * Deliberately resource-addressed while `putAnchoredText` is
+   * checksum-addressed: readers hold a resource id, and the server resolves
+   * it to the current representation's checksum through the view — the
+   * `resourceId → checksum` index of PERSIST-ANCHORS decision A. A reader
+   * therefore can never receive geometry for bytes the resource no longer
+   * has: the pointer moves, the artifacts stay, the index always follows
+   * the pointer.
    *
    * `null` is not an error and is the common case: a native text layer is read
    * in the browser, and a resource whose media type has no extractor never

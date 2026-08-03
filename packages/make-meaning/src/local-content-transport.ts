@@ -41,17 +41,19 @@ export class LocalContentTransport implements IContentTransport {
   }
 
   /**
-   * Store a derived coordinate map. In local mode this is the same store the
+   * Store a derived coordinate map under the content checksum the producer
+   * read (PERSIST-ANCHORS decision A — see the interface doc for why the
+   * producer supplies the key). In local mode this is the same store the
    * HTTP route writes to — one storage authority, reached the same way from
    * every process (ANCHORED-TEXT-CACHE Lane 5).
    */
   async putAnchoredText(
-    resourceId: ResourceId,
+    checksum: string,
     anchored: AnchoredText,
     _options?: { auth?: AccessToken },
   ): Promise<void> {
-    busLog('PUT', 'anchored-text', { resourceId });
-    await this.ks.kb.anchoredText.write(resourceId as unknown as string, anchored);
+    busLog('PUT', 'anchored-text', { checksum });
+    await this.ks.kb.anchoredText.write(checksum, anchored);
   }
 
   /** The map, or null when nothing has derived one — the common case. */

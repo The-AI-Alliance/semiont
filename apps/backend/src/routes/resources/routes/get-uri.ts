@@ -101,32 +101,38 @@ function isAnchoredText(value: unknown): value is AnchoredText {
 }
 
 export function registerGetResourceUri(router: ResourcesRouterType) {
-  // PUT /resources/:id/anchored-text — publish a derived coordinate map.
+  // PUT /anchored-text/:checksum — publish a derived coordinate map, keyed by
+  // the content checksum of the bytes it was derived from (PERSIST-ANCHORS
+  // decision A). The producer supplies the checksum because it alone knows
+  // which bytes it read — deriving the key server-side from the resource's
+  // CURRENT representation would file old geometry under a new checksum when
+  // a byte change races the publish, and that entry would read as "present"
+  // to the reconcile diff forever.
   //
   // The Smelter is the sole producer: it is the only process that reads a
-  // resource's bytes at ingest, so it is the only one positioned to derive a
-  // map cheaply. It runs separately from the backend, which is why this crosses
-  // HTTP at all rather than writing the store directly the way an in-process
-  // caller does.
+  // representation's bytes at ingest, so it is the only one positioned to
+  // derive a map cheaply. It runs separately from the backend, which is why
+  // this crosses HTTP at all rather than writing the store directly the way
+  // an in-process caller does.
   //
   // **Agents only.** A map is derived data every consumer trusts to place
   // annotation geometry; letting a browser session write one would let a user
   // poison where quotes land for everyone reading that document. `principalDid`
   // deliberately erases the human/software distinction, so this checks
   // `agentDid` instead.
-  router.put('/resources/:id/anchored-text', async (c) => {
+  router.put('/anchored-text/:checksum', async (c) => {
     if (!c.get('agentDid')) {
       throw new HTTPException(403, { message: 'Only an agent may publish anchored text' });
     }
 
-    const { id } = c.req.param();
+    const { checksum } = c.req.param();
     const body: unknown = await c.req.json().catch(() => null);
     if (!isAnchoredText(body)) {
       throw new HTTPException(400, { message: 'Body must be an AnchoredText: { text, items[] }' });
     }
 
     const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-    await kb.anchoredText.write(id, body);
+    await kb.anchoredText.write(checksum, body);
     // 204: there is nothing to return, and the caller already holds the map.
     return c.body(null, 204);
   });

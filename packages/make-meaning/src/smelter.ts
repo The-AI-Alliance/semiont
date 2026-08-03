@@ -416,6 +416,10 @@ export class Smelter {
       this.logger.info('Re-anchor found no geometry-capable extractor', { resourceId: rid, contentType });
       return;
     }
+    // The artifact's key is the checksum of the bytes just read (P1b) — never
+    // the catalog's claim, so a byte change racing this re-derivation files
+    // the map under the bytes it actually describes.
+    const checksum = calculateChecksum(bytes);
     const extracted = await extractor.extract(bytes, contentType);
     if ('declined' in extracted || !extracted.items?.length) {
       this.logger.info('Re-anchor extraction yielded no geometry', {
@@ -425,8 +429,8 @@ export class Smelter {
       });
       return;
     }
-    await this.content.putAnchoredText(makeResourceId(rid), { text: extracted.text, items: extracted.items });
-    this.logger.info('Re-anchored resource', { resourceId: rid, items: extracted.items.length });
+    await this.content.putAnchoredText(checksum, { text: extracted.text, items: extracted.items });
+    this.logger.info('Re-anchored resource', { resourceId: rid, checksum, items: extracted.items.length });
   }
 
   private async handleResourcePurge(event: SmelterInput): Promise<void> {
@@ -476,24 +480,30 @@ export class Smelter {
           ...extracted.ocrConfidence,
         });
       }
-      // Publish the coordinate map. This is the only process that reads the
-      // bytes at ingest, so it is the only one positioned to derive one
-      // cheaply — five detection jobs and the browser all arrive later and
-      // would each have to redo the decode and the engine. Only extractions
-      // that carry geometry produce one: text anchors by character offset, and
-      // an empty map on every text resource would be a record that says
-      // nothing. Failures are swallowed deliberately — the map is an
-      // optimization, the embedding is the job, and a storage problem must not
-      // turn a successful index into a skip that hides the resource from search.
+      // Publish the coordinate map, keyed by the checksum of the bytes it was
+      // derived from (PERSIST-ANCHORS P1b — the producer supplies the key
+      // because it alone knows which bytes it read; a byte change racing this
+      // publish files the map under the OLD checksum, a harmless orphan the
+      // S15 drift class replaces, never wrong geometry under the new one).
+      // This is the only process that reads the bytes at ingest, so it is the
+      // only one positioned to derive one cheaply — five detection jobs and
+      // the browser all arrive later and would each have to redo the decode
+      // and the engine. Only extractions that carry geometry produce one:
+      // text anchors by character offset, and an empty map on every text
+      // resource would be a record that says nothing. Failures are swallowed
+      // deliberately — the map is an optimization, the embedding is the job,
+      // and a storage problem must not turn a successful index into a skip
+      // that hides the resource from search.
       if (extracted.items?.length) {
         try {
           await this.content.putAnchoredText(
-            makeResourceId(resourceId),
+            checksum,
             { text: extracted.text, items: extracted.items },
           );
         } catch (error) {
           this.logger.debug('Could not publish anchored text', {
             resourceId,
+            checksum,
             reason: error instanceof Error ? error.message : String(error),
           });
         }
@@ -843,9 +853,11 @@ export class Smelter {
         // is container-transient today, and a publish can fail silently.
         // A catalog without a checksum cannot claim "current", so it never
         // plans re-anchoring — the stamp diff owns that resource's fate.
+        // The store is checksum-keyed (P1b), so presence is asked by the
+        // catalog's checksum — the identity of the bytes — not the rid.
         if (indexed && catalog.checksum !== undefined
             && indexed.contentChecksum === catalog.checksum
-            && catalog.yieldsGeometry && !anchoredKeys.has(rid)) {
+            && catalog.yieldsGeometry && !anchoredKeys.has(catalog.checksum)) {
           work.push({ type: 'smelt:reanchor', resourceId: rid, payload: {} });
         }
       }

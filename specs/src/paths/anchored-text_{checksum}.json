@@ -1,0 +1,60 @@
+{
+  "put": {
+    "summary": "Publish anchored text for a representation, keyed by its content checksum",
+    "description": "Store the coordinate map derived from a representation's bytes, under the SHA-256 checksum of those bytes (PERSIST-ANCHORS decision A: one artifact per representation, and a representation is its bytes). The producer supplies the checksum because it alone knows which bytes it actually read — deriving the key server-side from the resource's current representation would file old geometry under a new checksum when a byte change races the publish, and that entry would read as present to the reconcile planner forever. Reads remain resource-addressed (GET /resources/{id}/anchored-text); the server resolves the resource to its current representation's checksum.\n\nThe Smelter is the sole producer: it is the only process that reads those bytes at ingest, so it is the only one positioned to derive a map cheaply, and it runs separately from the backend.\n\nAgents only. A map is derived data every consumer trusts to place annotation geometry, so a browser session must not be able to write one.",
+    "tags": [
+      "Resources"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "checksum",
+        "in": "path",
+        "required": true,
+        "description": "Hex SHA-256 checksum of the representation bytes the map was derived from.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/AnchoredText.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "204": {
+        "description": "Stored"
+      },
+      "400": {
+        "description": "Body is not a valid AnchoredText",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "Caller is not an agent",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

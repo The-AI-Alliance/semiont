@@ -269,6 +269,7 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             if (swept > 0) logger?.info('Anchored-text cache: swept pre-P1 flat entries', { swept });
 
             const keys: string[] = [];
+            let sweptInterim = 0;
             for (const ab of rootNames) {
                 if (!/^[0-9a-f]{2}$/.test(ab)) continue;
                 let cdNames: string[];
@@ -287,13 +288,26 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                     }
                     for (const name of names) {
                         if (!name.endsWith('.json')) continue;
+                        // Interim-generation sweep (PERSIST-ANCHORS P1b): a
+                        // 32-hex basename is a resource-id key — writes that
+                        // landed sharded between P1a's rekey and P1b's
+                        // call-site switch. Checksums are 64-hex (SHA-256),
+                        // so the two generations are disjoint by length.
+                        // Reaped here for the same reason the flat sweep
+                        // lives here: one bulk call per reconcile, and never
+                        // a third scheme lingering silently.
+                        const base = name.slice(0, -'.json'.length);
+                        if (/^[0-9a-f]{32}$/.test(base)) {
+                            await fs.promises.rm(path.join(dir, ab, cd, name), { force: true }).then(() => { sweptInterim += 1; }, () => {});
+                            continue;
+                        }
                         let handle: fs.promises.FileHandle | null = null;
                         try {
                             handle = await fs.promises.open(path.join(dir, ab, cd, name), 'r');
                             const buf = Buffer.alloc(prefix.length);
                             const { bytesRead } = await handle.read(buf, 0, prefix.length, 0);
                             if (bytesRead === prefix.length && buf.toString('utf8') === prefix) {
-                                keys.push(name.slice(0, -'.json'.length));
+                                keys.push(base);
                             }
                         } catch {
                             // unreadable is a miss, matching read()
@@ -303,6 +317,7 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                     }
                 }
             }
+            if (sweptInterim > 0) logger?.info('Anchored-text cache: swept interim resource-id entries', { swept: sweptInterim });
             return keys;
         },
     };

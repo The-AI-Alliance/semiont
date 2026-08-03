@@ -99,8 +99,12 @@ function inMemoryContent(): IContentTransport {
         contentType,
       };
     },
-    async putAnchoredText(rId: ResourceId, anchored: AnchoredText): Promise<void> {
-      anchoredText.set(String(rId), anchored);
+    // Writes are checksum-addressed (PERSIST-ANCHORS P1b); reads stay
+    // rid-addressed, resolved server-side through the view index — which this
+    // double has no view to model, so seed reads by rid and expect writes to
+    // land under the checksum the producer supplies.
+    async putAnchoredText(checksum: string, anchored: AnchoredText): Promise<void> {
+      anchoredText.set(checksum, anchored);
     },
     async getAnchoredText(rId: ResourceId): Promise<AnchoredText | null> {
       return anchoredText.get(String(rId)) ?? null;

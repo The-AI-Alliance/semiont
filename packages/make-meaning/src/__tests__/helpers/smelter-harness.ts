@@ -113,8 +113,11 @@ export function createContentTransport(opts: {
     async putBinary(): Promise<never> {
       throw new Error('not supported');
     },
-    async putAnchoredText(resourceId, value) {
-      anchored.set(String(resourceId), value);
+    // Writes are checksum-addressed (P1b): the map's keys are content
+    // checksums, which is exactly what `listAnchoredTextKeys` must return
+    // for the reconcile diff to compare against catalog checksums.
+    async putAnchoredText(checksum, value) {
+      anchored.set(checksum, value);
     },
     async getAnchoredText(resourceId) {
       return anchored.get(String(resourceId)) ?? null;

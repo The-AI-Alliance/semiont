@@ -183,21 +183,21 @@ export class HttpContentTransport implements IContentTransport {
    * owns, rather than to a volume shared between service images.
    */
   async putAnchoredText(
-    resourceId: ResourceId,
+    checksum: string,
     anchored: AnchoredText,
     options?: { auth?: AccessToken },
   ): Promise<void> {
-    busLog('PUT', 'anchored-text', { resourceId });
+    busLog('PUT', 'anchored-text', { checksum });
     await withSpan(
       'content.put_anchored_text',
       () =>
         this.transport.rawHttp
-          .put(`${this.transport.baseUrl}/resources/${resourceId}/anchored-text`, {
+          .put(`${this.transport.baseUrl}/anchored-text/${checksum}`, {
             headers: this.requestHeaders(options?.auth),
             json: anchored,
           })
           .json<unknown>(),
-      { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
+      { kind: SpanKind.CLIENT, attrs: { 'content.checksum': checksum } },
     );
   }
 

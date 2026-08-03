@@ -90,6 +90,9 @@
     "/anchored-text/keys": {
       "$ref": "paths/anchored-text_keys.json"
     },
+    "/anchored-text/{checksum}": {
+      "$ref": "paths/anchored-text_{checksum}.json"
+    },
     "/resources/{id}/jsonld": {
       "$ref": "paths/resources_{id}_jsonld.json"
     },

@@ -25,7 +25,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-import { EventBus, userId as makeUserId, type AnchoredText, type Logger, type ResourceId } from '@semiont/core';
+import { EventBus, getPrimaryRepresentation, userId as makeUserId, type AnchoredText, type Logger, type ResourceId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { LocalContentTransport } from '../local-content-transport';
 import { ResourceOperations } from '../resource-operations';
@@ -65,6 +65,7 @@ describe('anchored text over IContentTransport', () => {
   let eventBus: EventBus;
   let testDir: string;
   let rid: ResourceId;
+  let checksum: string;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-anchored-${uuidv4()}`);
@@ -73,7 +74,7 @@ describe('anchored text over IContentTransport', () => {
     service = await startMakeMeaning(new SemiontProject(testDir), config, eventBus, silentLogger);
     content = new LocalContentTransport(service.knowledgeSystem);
 
-    rid = await seedPdf('scan');
+    ({ rid, checksum } = await seedPdf('scan'));
   }, 30_000);
 
   /**
@@ -85,7 +86,7 @@ describe('anchored text over IContentTransport', () => {
    * signal every miss would block for the full timeout — which is the barrier
    * working, not a bug.
    */
-  async function seedPdf(name: string, outcome: 'indexed' | 'skipped' = 'indexed'): Promise<ResourceId> {
+  async function seedPdf(name: string, outcome: 'indexed' | 'skipped' = 'indexed'): Promise<{ rid: ResourceId; checksum: string }> {
     const buf = Buffer.from(`${name} — a scanned page`, 'utf-8');
     const stored = await service.knowledgeSystem.kb.content.store(buf, `file://${name}-${uuidv4()}.pdf`);
     const rid = await ResourceOperations.createResource(
@@ -104,7 +105,7 @@ describe('anchored text over IContentTransport', () => {
       contentChecksum: stored.checksum,
       outcome,
     });
-    return rid;
+    return { rid, checksum: stored.checksum };
   }
 
   afterAll(async () => {
@@ -113,7 +114,9 @@ describe('anchored text over IContentTransport', () => {
   });
 
   it('round-trips a map written by the producer and read by a consumer', async () => {
-    await content.putAnchoredText(rid, MAP);
+    // The producer writes by the checksum of the bytes it read (P1b); the
+    // reader holds the rid, and the view index resolves it to the same key.
+    await content.putAnchoredText(checksum, MAP);
     expect(await content.getAnchoredText(rid)).toEqual(MAP);
   });
 
@@ -122,7 +125,7 @@ describe('anchored text over IContentTransport', () => {
     // in the browser, and a document with no extractor never produces a map at
     // all. The caller degrades to no quote, which is the pre-existing behaviour.
     const other = await seedPdf('no-map');
-    expect(await content.getAnchoredText(other)).toBeNull();
+    expect(await content.getAnchoredText(other.rid)).toBeNull();
   });
 
   it('serves the map written last for a resource', async () => {
@@ -130,7 +133,45 @@ describe('anchored text over IContentTransport', () => {
     // The store holds one map per resource and the newest wins; nothing here
     // accumulates generations.
     const revised: AnchoredText = { text: 'gamma', items: [{ start: 0, end: 5, page: 2, x: 10, y: 20, width: 30, height: 12 }] };
-    await content.putAnchoredText(rid, revised);
+    await content.putAnchoredText(checksum, revised);
     expect(await content.getAnchoredText(rid)).toEqual(revised);
+  });
+
+  it('does not serve superseded geometry after the resource\'s bytes change (PERSIST-ANCHORS P1)', async () => {
+    // Decision A's failure case, end to end: a map is derived from bytes B1;
+    // the resource then gains a new representation (new bytes, new checksum)
+    // and drops the old one. The map indexes text that no longer exists —
+    // serving it would place quotes at coordinates in the WRONG document,
+    // which is worse than absent. The reader must miss.
+    const kb = service.knowledgeSystem.kb;
+    const { rid: target } = await seedPdf('mutable');
+    const view1 = await kb.views.get(target);
+    const c1 = getPrimaryRepresentation(view1?.resource)?.checksum;
+    expect(c1).toBeDefined();
+
+    // The producer publishes the map for the B1 bytes it actually read.
+    await content.putAnchoredText(c1!, MAP);
+    expect(await content.getAnchoredText(target)).toEqual(MAP);
+
+    // The bytes change: old representation out, new one in — through the
+    // single write path (appendEvent), so the view is current by V1.
+    const stored2 = await kb.content.store(Buffer.from('mutable — revised scan', 'utf-8'), `file://mutable-rev-${uuidv4()}.pdf`);
+    await kb.eventStore.appendEvent({
+      type: 'yield:representation-removed',
+      resourceId: target, userId: TEST_USER_ID, version: 1,
+      payload: { checksum: c1! },
+    });
+    await kb.eventStore.appendEvent({
+      type: 'yield:representation-added',
+      resourceId: target, userId: TEST_USER_ID, version: 1,
+      payload: { representation: { mediaType: 'application/pdf', storageUri: stored2.storageUri, checksum: stored2.checksum, rel: 'original' } },
+    });
+    // The new generation has settled (no live Smelter here) — without this the
+    // read-your-writes barrier would rightly hold the miss for its timeout.
+    eventBus.get('smelt:settled').next({
+      resourceId: String(target), contentChecksum: stored2.checksum, outcome: 'indexed',
+    });
+
+    expect(await content.getAnchoredText(target)).toBeNull();
   });
 });

@@ -26,22 +26,30 @@ import { SmeltProgressTimeout } from './smelt-progress';
 export const ANCHORED_TEXT_SETTLE_TIMEOUT_MS = 15_000;
 
 export async function readAnchoredText(kb: KnowledgeBase, resourceId: string): Promise<AnchoredText | null> {
-  const hit = await kb.anchoredText.read(resourceId);
-  if (hit) return hit;   // the common case pays for no settle check
-
-  // A caller can arrive before the Smelter has finished the resource it just
-  // uploaded. Answering "no map" for a document that is merely still being read
-  // would be wrong, so wait for *this* content generation — keyed by checksum,
-  // not by "some settle happened".
+  // The `resourceId → checksum` index (PERSIST-ANCHORS P1b, decision A): the
+  // store is keyed by content identity, the caller holds a mutable pointer,
+  // and the index — a live view read — resolves the pointer first, on EVERY
+  // read, hits included. That is the price of the checksum key, measured and
+  // recorded in the plan's P1b log entry; what it buys is that a reader can
+  // never receive geometry for bytes the resource no longer has. A resource
+  // the view doesn't know, or one without a representation checksum, has no
+  // content identity to look up — no map, by construction.
   const view = await kb.views.get(makeResourceId(resourceId));
   const checksum = getPrimaryRepresentation(view?.resource)?.checksum;
   if (!checksum) return null;
 
+  const hit = await kb.anchoredText.read(checksum);
+  if (hit) return hit;   // the common case still pays for no settle check
+
+  // A caller can arrive before the Smelter has finished the resource it just
+  // uploaded. Answering "no map" for a document that is merely still being read
+  // would be wrong, so wait for *this* content generation — keyed by the same
+  // checksum the artifact is filed under.
   try {
     const outcome = await kb.smeltProgress.whenSettled(resourceId, checksum, ANCHORED_TEXT_SETTLE_TIMEOUT_MS);
     // 'skipped' is a decision, not a delay: the document declined extraction and
     // will never have a map, so re-reading would be pointless.
-    return outcome === 'indexed' ? kb.anchoredText.read(resourceId) : null;
+    return outcome === 'indexed' ? kb.anchoredText.read(checksum) : null;
   } catch (error) {
     // Only the barrier's own timeout degrades to "not yet". Anything else is a
     // broken progress fold and must surface rather than masquerade as "no map".

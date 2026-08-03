@@ -41,7 +41,7 @@ import {
   createFakeKsBus,
   type ContentEntry,
 } from './helpers/smelter-harness';
-import { NATIVE_PDF } from './helpers/pdf-fixtures';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 
 const CHUNKING: ChunkingConfig = { chunkSize: 512, overlap: 64 };
 const TIMING: SmelterTiming = { burstWindowMs: 1, maxBatchSize: 100, idleTimeoutMs: 2 };
@@ -838,28 +838,41 @@ describe('Smelter axioms', () => {
   // vector stamps persist, so after a restart the checksum diff sees nothing
   // to do and a lost map stayed lost, permanently.
   it('S15: reconcile re-derives lost anchored-text artifacts without re-embedding', async () => {
-    const checksum = calculateChecksum(Buffer.from(NATIVE_PDF));
+    // Artifacts are checksum-keyed (P1b), and content addressing dedupes:
+    // identical bytes under two resources are ONE artifact. Per-resource loss
+    // patterns therefore need per-resource distinct bytes — four one-line
+    // PDFs, built once, reused across runs.
+    const build = async (text: string): Promise<Uint8Array> => {
+      const doc = await PDFDocument.create();
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      doc.addPage([612, 792]).drawText(text, { x: 72, y: 720, size: 12, font });
+      return doc.save();
+    };
+    const PDFS = await Promise.all(['alpha', 'bravo', 'charlie', 'delta'].map((w) => build(`${w} document`)));
+    const CHECKSUMS = PDFS.map((bytes) => calculateChecksum(Buffer.from(bytes)));
+
     await fc.assert(
       fc.asyncProperty(
-        fc.integer({ min: 1, max: 4 }).chain((n) => {
+        fc.integer({ min: 1, max: 4 }).chain((n) =>
+          fc.tuple(fc.constant(n), fc.subarray(Array.from({ length: n }, (_, i) => i))),
+        ),
+        async ([n, survivingIdx]) => {
           const rids = Array.from({ length: n }, (_, i) => `res-s15-${i}`);
-          return fc.tuple(fc.constant(rids), fc.subarray(rids));
-        }),
-        async ([rids, surviving]) => {
+          const surviving = new Set(survivingIdx);
           const store = new MemoryVectorStore();
           await store.connect();
           // Indexed at the catalog's current checksum — the state a restart
           // leaves behind (vectors host-persistent, artifacts gone).
-          for (const rid of rids) {
+          for (let i = 0; i < n; i++) {
             await store.upsertResourceVectors(
-              makeResourceId(rid),
+              makeResourceId(rids[i]),
               [{ chunkIndex: 0, text: 'pdf text', embedding: deterministicEmbed('pdf text') }],
-              checksum,
+              CHECKSUMS[i],
               [],
             );
           }
           const anchored = new Map<string, AnchoredText>();
-          for (const rid of surviving) anchored.set(rid, { text: 'survived', items: [] });
+          for (const i of surviving) anchored.set(CHECKSUMS[i], { text: 'survived', items: [] });
 
           const embeddingProvider = createMockEmbeddingProvider();
           const smelter = new Smelter(
@@ -868,10 +881,13 @@ describe('Smelter axioms', () => {
             store,
             embeddingProvider,
             createContentTransport({
-              read: (rid) => (rids.includes(rid) ? { bytes: NATIVE_PDF, mediaType: 'application/pdf' } : undefined),
+              read: (rid) => {
+                const i = rids.indexOf(rid);
+                return i >= 0 ? { bytes: PDFS[i], mediaType: 'application/pdf' } : undefined;
+              },
               anchored,
             }),
-            createFakeKsBus(rids.map((rid) => resourceDescriptor(rid, 'application/pdf', checksum))),
+            createFakeKsBus(rids.map((rid, i) => resourceDescriptor(rid, 'application/pdf', CHECKSUMS[i]))),
             CHUNKING,
             TIMING,
             mockLogger,
@@ -881,11 +897,11 @@ describe('Smelter axioms', () => {
             const summary = await smelter.reconcile();
 
             // Every indexed-current geometry-capable resource has an
-            // artifact again — the lost ones re-derived, the survivors
-            // untouched.
-            for (const rid of rids) expect(anchored.has(rid)).toBe(true);
-            for (const rid of surviving) expect(anchored.get(rid)).toEqual({ text: 'survived', items: [] });
-            expect(summary.resourcesReanchored).toBe(rids.length - surviving.length);
+            // artifact under its content checksum again — the lost ones
+            // re-derived, the survivors untouched.
+            for (let i = 0; i < n; i++) expect(anchored.has(CHECKSUMS[i])).toBe(true);
+            for (const i of surviving) expect(anchored.get(CHECKSUMS[i])).toEqual({ text: 'survived', items: [] });
+            expect(summary.resourcesReanchored).toBe(n - surviving.size);
             // Re-anchor ≠ re-embed: zero embedding calls under every loss
             // pattern.
             expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
