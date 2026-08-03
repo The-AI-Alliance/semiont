@@ -203,8 +203,14 @@ export class HttpContentTransport implements IContentTransport {
 
   /**
    * The resource's coordinate map, or `null` when none has been derived —
-   * which is the common case and not an error. A 404 is that answer, not a
-   * failure: callers degrade to no quoted text.
+   * which is the common case and not an error: callers degrade to no quoted
+   * text.
+   *
+   * 204 is that answer, and the body is empty, so it must be taken before
+   * `.json()` is reached — parsing an empty body throws, which would turn the
+   * ordinary case into a failure. A 404 degrades the same way, though it is a
+   * different fact: the resource itself is absent, and a resource that does
+   * not exist has no map either.
    */
   async getAnchoredText(
     resourceId: ResourceId,
@@ -219,7 +225,7 @@ export class HttpContentTransport implements IContentTransport {
             headers: this.requestHeaders(options?.auth),
             throwHttpErrors: false,
           });
-        if (response.status === 404) return null;
+        if (response.status === 204 || response.status === 404) return null;
         if (!response.ok) throw new Error(`anchored-text read failed: ${response.status}`);
         return response.json<AnchoredText>();
       },

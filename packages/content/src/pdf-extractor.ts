@@ -93,6 +93,21 @@ async function ocrPages(
   // headless client all want one `AnchoredText`, so that is what is stored.
   // Confidences are absent on a hit: they are logged at extraction, and
   // re-reporting identical numbers for identical bytes says nothing.
+  //
+  // A hit is returned WHOLE — `pageNumbers` is deliberately not re-applied, and
+  // that is sound only because of an invariant worth stating: the key
+  // identifies the content, and the page set is a pure function of that same
+  // content. `extract` reaches here down exactly one of two mutually exclusive
+  // paths, and both derive their filter from the bytes — Class B passes none,
+  // Class C passes the pages its own text layer reported as unread. So a hit
+  // always describes the same pages the miss path would have produced, and
+  // filtering would be a no-op on the Class C entry (which contains only those
+  // pages to begin with).
+  //
+  // What this rules out is a caller passing a set that is NOT derived from the
+  // content — a user-chosen page range, say. Such a caller would collide with
+  // an existing entry under the same key and silently get the wrong pages, so
+  // it needs its own key discipline rather than a filter here.
   const hit = await cache?.store.read(cache.key);
   if (hit) return { text: hit.text, items: hit.items, confidences: [] };
 

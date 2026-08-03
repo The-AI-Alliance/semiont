@@ -142,6 +142,41 @@ export function PdfAnnotationCanvas({
     // Never quote the previous page's text under this page's rectangles.
     setPageAnchored(null);
 
+    /**
+     * The map a rectangle on this page quotes from, or null when there is
+     * none to be had.
+     *
+     * Never rejects, which is what lets the render run alongside it: quoting
+     * is the optional half of loading a page, so a failure here degrades to
+     * geometry-only rather than reaching the caller's error path. It is also
+     * the only reason `Promise.all` below is safe — a rejection from either
+     * side would leave the other promise dangling, and only the render can
+     * reject.
+     */
+    async function resolveAnchored(page: Awaited<ReturnType<typeof doc.getPage>>): Promise<AnchoredText | null> {
+      try {
+        // The page's text layer, read once here rather than at drag time —
+        // `handleMouseUp` stays synchronous, and a native page costs nothing
+        // extra since pdf.js already parsed it to draw the page.
+        const runs = (await page.getTextContent()).items.filter(isTextRun);
+        if (runs.length > 0) return anchorRuns(runs, pageNumber);
+
+        // No runs means a scanned page: the characters exist only as pixels
+        // and pdf.js has nothing to give. The server derived a map at ingest,
+        // so ask for it rather than leaving the annotation anonymous.
+        // Whole-resource, and `textUnder` filters by page — the same shape the
+        // native branch produces, so nothing downstream branches.
+        //
+        // `null` is the ordinary answer for a document that has no map and
+        // never will; a failure is equally non-fatal. Either way the
+        // annotation ships with geometry only, which is what shipped before
+        // this existed.
+        return (await session?.client.browse.resourceAnchoredText(toResourceId(resourceUri))) ?? null;
+      } catch {
+        return null;
+      }
+    }
+
     async function loadPage() {
       try {
         const page = await doc.getPage(pageNumber);
@@ -155,43 +190,21 @@ export function PdfAnnotationCanvas({
           height: viewport.height
         });
 
-        // The page's text layer, read once here rather than at drag time —
-        // `handleMouseUp` stays synchronous, and a native page costs nothing
-        // extra since pdf.js already parsed it to draw the page.
-        const content = await page.getTextContent();
+        // Anchoring and rendering are independent, and only one of them the
+        // reader is waiting on. Sequencing them put a network round-trip in
+        // front of the pixels on exactly the documents that need it most: a
+        // scanned page fetches its map from the server, and rendering behind
+        // that await is how "failing to quote it must not fail to show it"
+        // became true of errors but not of latency. Started together, the
+        // page appears on its own schedule.
+        const [anchored, { dataUrl }] = await Promise.all([
+          resolveAnchored(page),
+          renderPdfPageToDataUrl(page, scale),
+        ]);
 
         if (cancelled) return;
 
-        const runs = content.items.filter(isTextRun);
-        if (runs.length > 0) {
-          setPageAnchored(anchorRuns(runs, pageNumber));
-        } else {
-          // No runs means a scanned page: the characters exist only as pixels
-          // and pdf.js has nothing to give. The server derived a map at ingest,
-          // so ask for it rather than leaving the annotation anonymous.
-          // Whole-resource, and `textUnder` filters by page — the same shape the
-          // native branch produces, so nothing downstream branches.
-          //
-          // `null` is the ordinary answer for a document that has no map and
-          // never will; a failure is equally non-fatal. Either way the
-          // annotation ships with geometry only, which is what shipped before
-          // this existed. The page still renders regardless: a scan is a normal
-          // PDF page, and failing to quote it must not fail to show it.
-          try {
-            const map = await session?.client.browse.resourceAnchoredText(toResourceId(resourceUri));
-            if (cancelled) return;
-            setPageAnchored(map ?? null);
-          } catch {
-            if (cancelled) return;
-            setPageAnchored(null);
-          }
-        }
-
-        // Render page to image
-        const { dataUrl } = await renderPdfPageToDataUrl(page, scale);
-
-        if (cancelled) return;
-
+        setPageAnchored(anchored);
         setPageImageUrl(dataUrl);
       } catch (err) {
         if (cancelled) return;

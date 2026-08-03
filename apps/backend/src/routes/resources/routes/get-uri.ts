@@ -133,9 +133,16 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
 
   // GET /resources/:id/anchored-text — the derived coordinate map, via the bus
   // gateway. Reading never derives: the map is written only by the PUT above,
-  // and only by an agent, so no reader can provoke extraction from here. A
-  // `null` body is the common answer and is a 200, not a 404 — "this resource
-  // has no map" is a fact about extraction, not a missing route.
+  // and only by an agent, so no reader can provoke extraction from here.
+  //
+  // "No map" is the common answer and is a 204, not a 404 — a fact about
+  // extraction, not a missing route. It is carried as an empty body rather
+  // than a JSON `null` body because a typed client cannot represent the
+  // difference: oapi-codegen unmarshals a 200 into `var dest AnchoredText`,
+  // and `null` into a struct is a documented no-op in encoding/json, so
+  // `JSON200` would come back non-nil pointing at a zero value. "No map" and
+  // "an empty map" would be the same answer. With 204 no case matches, the
+  // field stays nil, and nil means what it should.
   router.get('/resources/:id/anchored-text', async (c) => {
     const { id } = c.req.param();
     const eventBus = c.get('eventBus');
@@ -149,6 +156,9 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
         'browse:anchored-text-result',
         'browse:anchored-text-failed',
       );
+      if (response === null || response === undefined) {
+        return c.body(null, 204, { 'Cache-Control': 'no-cache' });
+      }
       return c.json(response, 200, { 'Cache-Control': 'no-cache' });
     } catch (error) {
       if (error instanceof Error && error.message === 'Resource not found') {

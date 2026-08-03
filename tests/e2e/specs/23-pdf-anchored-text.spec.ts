@@ -118,8 +118,14 @@ test.describe('scanned PDF annotations quote the server-derived map', () => {
 
     // And the answer is served, not 404 — the route, the bus trio and the
     // correlation reply all have to work for this to arrive at all.
+    //
+    // Either success code proves that, and which one arrives is a fact about
+    // the seeded scan, not about the seam under test: 200 carries a map, 204
+    // says none was derived. Pinning one would re-assert what tesseract made
+    // of a fixture nobody intended it to read — the thing this file's header
+    // is at pains not to do.
     const response = await request.response();
-    expect(response?.status()).toBe(200);
+    expect([200, 204]).toContain(response?.status());
   });
 
   test('a rectangle quotes the map the server returned', async ({ signedInPage: page, bus }) => {
