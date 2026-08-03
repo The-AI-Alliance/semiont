@@ -14,7 +14,8 @@
  * same space PdfTextItem and PdfCoordinate use, so the canvas can pass its
  * drag rectangle straight in.
  *
- * locate(), the inverse direction, is exercised against real extracted PDFs in
+ * locate(), the inverse direction, is pinned the same way in `locate.test.ts`
+ * beside this file, and additionally exercised against real extracted PDFs in
  * @semiont/content, which is where a fixture can actually be produced.
  */
 import { describe, it, expect } from 'vitest';
