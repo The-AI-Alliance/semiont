@@ -9672,6 +9672,9 @@ type ClientInterface interface {
 	// GetAnchoredTextKeys request
 	GetAnchoredTextKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetAnchoredTextChecksum request
+	GetAnchoredTextChecksum(ctx context.Context, checksum string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PutAnchoredTextChecksumWithBody request with any body
 	PutAnchoredTextChecksumWithBody(ctx context.Context, checksum string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -9785,6 +9788,18 @@ type ClientInterface interface {
 
 func (c *Client) GetAnchoredTextKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAnchoredTextKeysRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAnchoredTextChecksum(ctx context.Context, checksum string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAnchoredTextChecksumRequest(c.Server, checksum)
 	if err != nil {
 		return nil, err
 	}
@@ -10285,6 +10300,40 @@ func NewGetAnchoredTextKeysRequest(server string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/anchored-text/keys")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAnchoredTextChecksumRequest generates requests for GetAnchoredTextChecksum
+func NewGetAnchoredTextChecksumRequest(server string, checksum string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "checksum", checksum, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/anchored-text/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11365,6 +11414,9 @@ type ClientWithResponsesInterface interface {
 	// GetAnchoredTextKeysWithResponse request
 	GetAnchoredTextKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAnchoredTextKeysResponse, error)
 
+	// GetAnchoredTextChecksumWithResponse request
+	GetAnchoredTextChecksumWithResponse(ctx context.Context, checksum string, reqEditors ...RequestEditorFn) (*GetAnchoredTextChecksumResponse, error)
+
 	// PutAnchoredTextChecksumWithBodyWithResponse request with any body
 	PutAnchoredTextChecksumWithBodyWithResponse(ctx context.Context, checksum string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutAnchoredTextChecksumResponse, error)
 
@@ -11495,6 +11547,29 @@ func (r GetAnchoredTextKeysResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetAnchoredTextKeysResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAnchoredTextChecksumResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ExtractionOutcome
+	JSON403      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAnchoredTextChecksumResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAnchoredTextChecksumResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -12222,6 +12297,15 @@ func (c *ClientWithResponses) GetAnchoredTextKeysWithResponse(ctx context.Contex
 	return ParseGetAnchoredTextKeysResponse(rsp)
 }
 
+// GetAnchoredTextChecksumWithResponse request returning *GetAnchoredTextChecksumResponse
+func (c *ClientWithResponses) GetAnchoredTextChecksumWithResponse(ctx context.Context, checksum string, reqEditors ...RequestEditorFn) (*GetAnchoredTextChecksumResponse, error) {
+	rsp, err := c.GetAnchoredTextChecksum(ctx, checksum, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAnchoredTextChecksumResponse(rsp)
+}
+
 // PutAnchoredTextChecksumWithBodyWithResponse request with arbitrary body returning *PutAnchoredTextChecksumResponse
 func (c *ClientWithResponses) PutAnchoredTextChecksumWithBodyWithResponse(ctx context.Context, checksum string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutAnchoredTextChecksumResponse, error) {
 	rsp, err := c.PutAnchoredTextChecksumWithBody(ctx, checksum, contentType, body, reqEditors...)
@@ -12590,6 +12674,39 @@ func ParseGetAnchoredTextKeysResponse(rsp *http.Response) (*GetAnchoredTextKeysR
 		var dest struct {
 			Keys []string `json:"keys"`
 		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAnchoredTextChecksumResponse parses an HTTP response from a GetAnchoredTextChecksumWithResponse call
+func ParseGetAnchoredTextChecksumResponse(rsp *http.Response) (*GetAnchoredTextChecksumResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAnchoredTextChecksumResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ExtractionOutcome
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
