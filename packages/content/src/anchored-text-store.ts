@@ -133,6 +133,17 @@ export interface AnchoredTextStore {
     read(key: string): Promise<AnchoredText | null>;
     /** Record a derived map. A store that cannot write is still a store. */
     write(key: string, anchored: AnchoredText): Promise<void>;
+    /**
+     * Every key `read()` would currently HIT — entries under a stale stamp or
+     * unreadable files are excluded, exactly as `read()` would exclude them.
+     * That equivalence is load-bearing: the reconcile planner treats a listed
+     * key as "artifact present" and plans re-derivation for the rest
+     * (PERSIST-ANCHORS P0, the third drift class), so a key listed here but
+     * missed by `read()` would be a permanent loss the diff can never see —
+     * the exact shape of the post-engine-upgrade hole this filter closes.
+     * One bulk call per reconcile, never a probe per resource. Never throws.
+     */
+    list(): Promise<string[]>;
 }
 
 /** Narrow a parsed entry, so a truncated or foreign file is a miss, not a crash. */
@@ -176,6 +187,8 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
         },
 
         async write(key, anchored) {
+            // Key order (`v`, `stamp`, first) is load-bearing: `list()` below
+            // reads only a prefix of each file and matches the stamp there.
             const entry: CachedAnchoredText = { v: 1, stamp: STAMP, text: anchored.text, lines: encodeLines(anchored.items) };
             const target = fileFor(key);
             // Write-then-rename: a reader never observes a half-written entry,
@@ -188,6 +201,45 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             } catch {
                 await fs.promises.rm(temp, { force: true }).catch(() => {});
             }
+        },
+
+        async list() {
+            // Would-hit keys only (see the interface doc). The stamp check
+            // reads a bounded prefix rather than parsing whole entries — an
+            // artifact is ~32 KB per scanned page and this runs over every
+            // entry at every reconcile. Sound because `write()` above puts
+            // `v` and `stamp` first, so the current stamp appears within the
+            // first bytes of every entry this store has ever written; a file
+            // whose prefix doesn't match is either stale or not ours, and
+            // both are misses for `read()` too. Keys round-trip through
+            // filenames unchanged because every real key is hex (resource
+            // ids today, content checksums after PERSIST-ANCHORS P1) — the
+            // same fact that makes `fileFor`'s strip a no-op.
+            const prefix = JSON.stringify({ v: 1, stamp: STAMP }).slice(0, -1) + ',';
+            let names: string[];
+            try {
+                names = await fs.promises.readdir(dir);
+            } catch {
+                return [];   // no directory yet: nothing has been written
+            }
+            const keys: string[] = [];
+            for (const name of names) {
+                if (!name.endsWith('.json')) continue;
+                let handle: fs.promises.FileHandle | null = null;
+                try {
+                    handle = await fs.promises.open(path.join(dir, name), 'r');
+                    const buf = Buffer.alloc(prefix.length);
+                    const { bytesRead } = await handle.read(buf, 0, prefix.length, 0);
+                    if (bytesRead === prefix.length && buf.toString('utf8') === prefix) {
+                        keys.push(name.slice(0, -'.json'.length));
+                    }
+                } catch {
+                    // unreadable is a miss, matching read()
+                } finally {
+                    await handle?.close().catch(() => {});
+                }
+            }
+            return keys;
         },
     };
 }

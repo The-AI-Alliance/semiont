@@ -11,18 +11,20 @@
  * Current ledger: all GREEN. (S9b flipped by R2; S1 and S2 flipped by R3 —
  * reconcile became a planner whose work items flow through the mailbox;
  * S12 flipped by R5 — checksum-stamped vectors + staleness diff; S13 flipped
- * by R6 — payload-only tag restamps, live and via the reconcile tag diff.)
+ * by R6 — payload-only tag restamps, live and via the reconcile tag diff;
+ * S15 landed green with PERSIST-ANCHORS P0 — the third drift class re-derives
+ * lost anchored-text artifacts, zero embedding calls.)
  */
 
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
-import { Subject } from 'rxjs';
+import { EMPTY, Subject } from 'rxjs';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { calculateChecksum } from '@semiont/content';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import { chunkText } from '@semiont/core';
-import type { ChunkingConfig } from '@semiont/core';
+import type { AnchoredText, ChunkingConfig } from '@semiont/core';
 import { textExtractionOf } from '@semiont/core';
 import { EXTRACTORS } from '@semiont/content';
 import { Smelter, type SmelterTiming } from '../smelter';
@@ -39,6 +41,7 @@ import {
   createFakeKsBus,
   type ContentEntry,
 } from './helpers/smelter-harness';
+import { NATIVE_PDF } from './helpers/pdf-fixtures';
 
 const CHUNKING: ChunkingConfig = { chunkSize: 512, overlap: 64 };
 const TIMING: SmelterTiming = { burstWindowMs: 1, maxBatchSize: 100, idleTimeoutMs: 2 };
@@ -317,7 +320,7 @@ async function makeHarness(opts: {
   );
 
   const events$ = new Subject<SmelterEvent>();
-  const smelter = new Smelter(events$, store, createMockEmbeddingProvider(), transport, bus, CHUNKING, TIMING, mockLogger);
+  const smelter = new Smelter(events$, EMPTY, store, createMockEmbeddingProvider(), transport, bus, CHUNKING, TIMING, mockLogger);
   smelter.initialize();
 
   return {
@@ -821,6 +824,78 @@ describe('Smelter axioms', () => {
         },
       ),
       { numRuns: 25 },
+    );
+  }, 30_000);
+
+  // S15 (FOPL): ∀ K, ∀ artifact-loss patterns L ⊆ K, after reconcile with no
+  // concurrent traffic, ∀ r ∈ K with indexed(r) ∧ checksumCurrent(r) ∧
+  // geometry(media(r)):
+  //   artifact(r) exists
+  // — and the re-anchor path never invokes the embedding provider (re-anchor
+  // ≠ re-embed; extraction is its only cost). S12 closed content staleness,
+  // S13 its metadata sibling; S15 closes the DERIVED-ARTIFACT sibling
+  // (PERSIST-ANCHORS problem 1): the artifact store is transient while the
+  // vector stamps persist, so after a restart the checksum diff sees nothing
+  // to do and a lost map stayed lost, permanently.
+  it('S15: reconcile re-derives lost anchored-text artifacts without re-embedding', async () => {
+    const checksum = calculateChecksum(Buffer.from(NATIVE_PDF));
+    await fc.assert(
+      fc.asyncProperty(
+        fc.integer({ min: 1, max: 4 }).chain((n) => {
+          const rids = Array.from({ length: n }, (_, i) => `res-s15-${i}`);
+          return fc.tuple(fc.constant(rids), fc.subarray(rids));
+        }),
+        async ([rids, surviving]) => {
+          const store = new MemoryVectorStore();
+          await store.connect();
+          // Indexed at the catalog's current checksum — the state a restart
+          // leaves behind (vectors host-persistent, artifacts gone).
+          for (const rid of rids) {
+            await store.upsertResourceVectors(
+              makeResourceId(rid),
+              [{ chunkIndex: 0, text: 'pdf text', embedding: deterministicEmbed('pdf text') }],
+              checksum,
+              [],
+            );
+          }
+          const anchored = new Map<string, AnchoredText>();
+          for (const rid of surviving) anchored.set(rid, { text: 'survived', items: [] });
+
+          const embeddingProvider = createMockEmbeddingProvider();
+          const smelter = new Smelter(
+            new Subject<SmelterEvent>(),
+            EMPTY,
+            store,
+            embeddingProvider,
+            createContentTransport({
+              read: (rid) => (rids.includes(rid) ? { bytes: NATIVE_PDF, mediaType: 'application/pdf' } : undefined),
+              anchored,
+            }),
+            createFakeKsBus(rids.map((rid) => resourceDescriptor(rid, 'application/pdf', checksum))),
+            CHUNKING,
+            TIMING,
+            mockLogger,
+          );
+          smelter.initialize();
+          try {
+            const summary = await smelter.reconcile();
+
+            // Every indexed-current geometry-capable resource has an
+            // artifact again — the lost ones re-derived, the survivors
+            // untouched.
+            for (const rid of rids) expect(anchored.has(rid)).toBe(true);
+            for (const rid of surviving) expect(anchored.get(rid)).toEqual({ text: 'survived', items: [] });
+            expect(summary.resourcesReanchored).toBe(rids.length - surviving.length);
+            // Re-anchor ≠ re-embed: zero embedding calls under every loss
+            // pattern.
+            expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
+            expect(embeddingProvider.embed).not.toHaveBeenCalled();
+          } finally {
+            smelter.stop();
+          }
+        },
+      ),
+      { numRuns: 10 },
     );
   }, 30_000);
 });

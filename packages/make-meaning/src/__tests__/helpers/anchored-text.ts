@@ -17,5 +17,6 @@ export function memoryAnchoredTextStore(): AnchoredTextStore {
   return {
     async read(key) { return maps.get(key) ?? null; },
     async write(key, anchored) { maps.set(key, anchored); },
+    async list() { return [...maps.keys()]; },
   };
 }

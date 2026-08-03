@@ -242,6 +242,9 @@ function shapeTables(layer: PdfTextLayer): ExtractedText | null {
 }
 
 export const pdfExtractor: ContentExtractor = {
+  // Every non-declined PDF extraction carries positioned runs — native text
+  // layers and OCR both anchor by page geometry.
+  yieldsGeometry: true,
   async extract(content, _mediaType, cache) {
     // Before the parser sees it: everything downstream — parse, image decode,
     // OCR — expands from these bytes, so this is the only gate that costs

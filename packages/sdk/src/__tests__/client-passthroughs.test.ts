@@ -81,6 +81,7 @@ function makeMockContent(): IContentTransport {
     getResourceGraph: vi.fn(),
     putAnchoredText: vi.fn(),
     getAnchoredText: vi.fn(),
+    listAnchoredTextKeys: vi.fn().mockResolvedValue([]),
     dispose: vi.fn(),
   };
 }

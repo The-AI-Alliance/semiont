@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "Bus command to rebuild anchored-text artifacts by re-running extraction — every geometry-capable resource when resourceId is absent, one resource when present. Served by the Smelter, serialized (each unit can be a multi-second OCR pass), and never destructive: nothing is deleted first, stale entries are simply overwritten. Re-anchoring makes zero embedding calls — the vectors are already correct; only the derived map is re-made. Partial completion replies failed, with counts: a rebuild that quietly skipped resources would present exactly like a document with no text.",
+  "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation id for request/reply matching, set by busRequest so the ok/failed reply routes back."
+    },
+    "resourceId": {
+      "type": "string",
+      "description": "When present, re-anchor only this resource; otherwise every geometry-capable resource in the catalog."
+    },
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    }
+  }
+}

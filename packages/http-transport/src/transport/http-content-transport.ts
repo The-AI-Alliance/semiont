@@ -233,6 +233,27 @@ export class HttpContentTransport implements IContentTransport {
     );
   }
 
+  /**
+   * The store's would-hit keys — the reconcile planner's bulk existence read
+   * (PERSIST-ANCHORS P0). One request per reconcile; keys only, never the
+   * maps themselves, which is the point of the dedicated route.
+   */
+  async listAnchoredTextKeys(options?: { auth?: AccessToken }): Promise<string[]> {
+    busLog('GET', 'anchored-text-keys', {});
+    return withSpan(
+      'content.list_anchored_text_keys',
+      async () => {
+        const { keys } = await this.transport.rawHttp
+          .get(`${this.transport.baseUrl}/anchored-text/keys`, {
+            headers: this.requestHeaders(options?.auth),
+          })
+          .json<{ keys: string[] }>();
+        return keys;
+      },
+      { kind: SpanKind.CLIENT },
+    );
+  }
+
   dispose(): void {
     // HttpContentTransport has no resources of its own; HttpTransport owns
     // the ky instance and token subject. No-op is correct here.

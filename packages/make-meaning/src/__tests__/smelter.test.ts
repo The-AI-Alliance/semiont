@@ -17,8 +17,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import type { EventMap, components } from '@semiont/core';
+import { BehaviorSubject, EMPTY, Observable, Subject } from 'rxjs';
+import type { AnchoredText, EventMap, components } from '@semiont/core';
 import { resourceId as makeResourceId, chunkText } from '@semiont/core';
 import { calculateChecksum, extractPdfTextLayer, EXTRACTORS } from '@semiont/content';
 
@@ -28,7 +28,9 @@ vi.mock('@semiont/content', async (importOriginal) => {
     ...actual,
     EXTRACTORS: {
       ...actual.EXTRACTORS,
-      'pdf-text-layer': { extract: vi.fn(actual.EXTRACTORS['pdf-text-layer']!.extract) },
+      // Spread the real extractor so its declared properties (e.g. geometry
+      // capability) survive the spy — only `extract` is wrapped.
+      'pdf-text-layer': { ...actual.EXTRACTORS['pdf-text-layer']!, extract: vi.fn(actual.EXTRACTORS['pdf-text-layer']!.extract) },
     },
   };
 });
@@ -70,6 +72,7 @@ describe('Smelter', () => {
 
     smelter = new Smelter(
       events$,
+      EMPTY,
       vectorStore,
       embeddingProvider,
       createMockContentTransport(contentByResourceId),
@@ -236,6 +239,7 @@ describe('Smelter mark:unarchived', () => {
     const contentByResourceId = new Map([['res-cycle', text]]);
     const smelter = new Smelter(
       events$,
+      EMPTY,
       vectorStore,
       embeddingProvider,
       createMockContentTransport(contentByResourceId),
@@ -289,6 +293,7 @@ describe('Smelter smelt:settled signal', () => {
     const bus = createFakeKsBus([...content.keys()].map((rid) => resourceDescriptor(rid, contentType)));
     const smelter = new Smelter(
       events$,
+      EMPTY,
       vectorStore,
       embeddingProvider,
       createMockContentTransport(content, contentType),
@@ -412,6 +417,7 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
     const bus = createFakeKsBus(Object.keys(entries).map((rid) => resourceDescriptor(rid, 'application/pdf')));
     const smelter = new Smelter(
       events$,
+      EMPTY,
       vectorStore,
       embeddingProvider,
       createContentTransport({
@@ -550,6 +556,7 @@ describe('Smelter entity-tag stamps', () => {
     const descriptor = resourceDescriptor('res-tags', 'text/plain', calculateChecksum(text));
     const smelter = new Smelter(
       events$,
+      EMPTY,
       vectorStore,
       embeddingProvider,
       createMockContentTransport(new Map([['res-tags', text]])),
@@ -611,6 +618,7 @@ describe('Smelter.reconcile', () => {
   function createSmelter(resources: ResourceDescriptor[]): Smelter {
     const smelter = new Smelter(
       new Subject<SmelterEvent>(),
+      EMPTY,
       vectorStore,
       embeddingProvider,
       createMockContentTransport(contentByResourceId),
@@ -712,6 +720,7 @@ describe('Smelter.reconcile', () => {
     // pdf declines) — extraction-coverage = indexed/eligible = 1/2 here.
     const smelter = new Smelter(
       new Subject<SmelterEvent>(),
+      EMPTY,
       vectorStore,
       embeddingProvider,
       createContentTransport({
@@ -751,6 +760,7 @@ describe('Smelter.reconcile', () => {
     };
     const smelter = new Smelter(
       new Subject<SmelterEvent>(),
+      EMPTY,
       vectorStore,
       embeddingProvider,
       createMockContentTransport(contentByResourceId),
@@ -764,5 +774,177 @@ describe('Smelter.reconcile', () => {
 
     await expect(smelter.reconcile()).rejects.toThrow('bus down');
     expect(smelter.reconcileState).toEqual({ phase: 'failed', error: 'bus down' });
+  });
+});
+
+describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)', () => {
+  // The third drift class: the resource is indexed, its checksum is current,
+  // its extractor derives geometry — and no artifact exists. That is a LOST
+  // map (the store is container-transient today; a publish can also fail
+  // silently), and before this class existed nothing ever re-derived it:
+  // reconcile's checksum diff saw matching stamps and planned no work, so a
+  // scanned PDF's annotations lost their quoted text on the first restart,
+  // permanently (PERSIST-ANCHORS problem 1).
+
+  async function reanchorHarness(anchored: Map<string, AnchoredText>) {
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const checksum = calculateChecksum(Buffer.from(NATIVE_PDF));
+    // Indexed at the catalog's current checksum — the stamp diff (S12) and
+    // the tag diff (S13) both see nothing to do.
+    await vectorStore.upsertResourceVectors(
+      makeResourceId('res-lostmap'),
+      [{ chunkIndex: 0, text: 'native pdf text', embedding: deterministicEmbed('native pdf text') }],
+      checksum,
+      [],
+    );
+    const smelter = new Smelter(
+      new Subject<SmelterEvent>(),
+      EMPTY,
+      vectorStore,
+      embeddingProvider,
+      createContentTransport({
+        read: (rid) => (rid === 'res-lostmap' ? { bytes: NATIVE_PDF, mediaType: 'application/pdf' } : undefined),
+        anchored,
+      }),
+      createFakeKsBus([resourceDescriptor('res-lostmap', 'application/pdf', checksum)]),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+    return { smelter, embeddingProvider, anchored };
+  }
+
+  it('re-derives a lost artifact: indexed, checksum unchanged, artifact absent — zero embedding calls', async () => {
+    const anchored = new Map<string, AnchoredText>();
+    const { smelter, embeddingProvider } = await reanchorHarness(anchored);
+    try {
+      const summary = await smelter.reconcile();
+
+      expect(summary.resourcesReanchored).toBe(1);
+      // The artifact is back — re-extracted from the current bytes.
+      const restored = anchored.get('res-lostmap');
+      expect(restored).toBeDefined();
+      expect(restored!.items.length).toBeGreaterThan(0);
+      // Re-anchoring re-runs EXTRACTION, never embedding: the vectors are
+      // already correct and only the map was missing (the S13 discipline —
+      // name the work for what it does, and spend only what it needs).
+      expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
+      expect(embeddingProvider.embed).not.toHaveBeenCalled();
+    } finally {
+      smelter.stop();
+    }
+  });
+
+  it('plans nothing when the artifact is present (do-not-cry-wolf)', async () => {
+    const anchored = new Map<string, AnchoredText>();
+    anchored.set('res-lostmap', { text: 'already here', items: [] });
+    const { smelter, embeddingProvider } = await reanchorHarness(anchored);
+    try {
+      await smelter.reconcile();
+
+      // The seeded artifact was not overwritten and nothing embedded — a
+      // present artifact under a current checksum is a healthy resource.
+      expect(anchored.get('res-lostmap')).toEqual({ text: 'already here', items: [] });
+      expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
+    } finally {
+      smelter.stop();
+    }
+  });
+});
+
+describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHORS P0)', () => {
+  // Shaped after weave:rebuild: optionally scoped, serialized, correlated
+  // replies, partial completion FAILS. Never destructive — nothing is
+  // deleted first; stale entries are simply overwritten.
+
+  async function rebuildHarness(reads: Record<string, Uint8Array | 'fail'>) {
+    const anchored = new Map<string, AnchoredText>();
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    const embeddingProvider = createMockEmbeddingProvider();
+    const rebuilds$ = new Subject<EventMap['smelt:rebuild-anchors']>();
+    const bus = createFakeKsBus(
+      Object.keys(reads).map((rid) => resourceDescriptor(rid, 'application/pdf')),
+    );
+    const smelter = new Smelter(
+      new Subject<SmelterEvent>(),
+      rebuilds$,
+      vectorStore,
+      embeddingProvider,
+      createContentTransport({
+        read: (rid) => {
+          const entry = reads[rid];
+          if (entry === undefined) return undefined;
+          return entry === 'fail' ? 'fail' : { bytes: entry, mediaType: 'application/pdf' };
+        },
+        anchored,
+      }),
+      bus,
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 5, maxBatchSize: 100, idleTimeoutMs: 20 },
+      mockLogger,
+    );
+    smelter.initialize();
+
+    const reply = async (correlationId: string) => {
+      for (let i = 0; i < 200; i++) {
+        const hit = bus.emitted.find(
+          (e) => (e.channel === 'smelt:rebuild-anchors-ok' || e.channel === 'smelt:rebuild-anchors-failed')
+            && e.payload.correlationId === correlationId,
+        );
+        if (hit) return hit;
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      throw new Error(`no rebuild reply for ${correlationId}`);
+    };
+
+    return { smelter, rebuilds$, anchored, embeddingProvider, reply };
+  }
+
+  it('full rebuild re-derives every geometry-capable resource and replies ok — zero embedding calls', async () => {
+    const h = await rebuildHarness({ 'res-a': NATIVE_PDF, 'res-b': NATIVE_PDF });
+    try {
+      h.rebuilds$.next({ correlationId: 'c-full' });
+      const reply = await h.reply('c-full');
+
+      expect(reply.channel).toBe('smelt:rebuild-anchors-ok');
+      expect([...h.anchored.keys()].sort()).toEqual(['res-a', 'res-b']);
+      expect(h.embeddingProvider.embedBatch).not.toHaveBeenCalled();
+      expect(h.embeddingProvider.embed).not.toHaveBeenCalled();
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('scoped rebuild re-derives exactly the named resource', async () => {
+    const h = await rebuildHarness({ 'res-a': NATIVE_PDF, 'res-b': NATIVE_PDF });
+    try {
+      h.rebuilds$.next({ correlationId: 'c-scoped', resourceId: 'res-a' });
+      const reply = await h.reply('c-scoped');
+
+      expect(reply.channel).toBe('smelt:rebuild-anchors-ok');
+      expect([...h.anchored.keys()]).toEqual(['res-a']);
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
+  it('partial completion FAILS, with counts — and the healthy resource is still re-anchored', async () => {
+    const h = await rebuildHarness({ 'res-ok': NATIVE_PDF, 'res-broken': 'fail' });
+    try {
+      h.rebuilds$.next({ correlationId: 'c-partial' });
+      const reply = await h.reply('c-partial');
+
+      // A rebuild that quietly skipped a resource would present exactly like
+      // a document with no text — so it must not claim success.
+      expect(reply.channel).toBe('smelt:rebuild-anchors-failed');
+      expect(String(reply.payload.message)).toMatch(/1 of 2/);
+      expect([...h.anchored.keys()]).toEqual(['res-ok']);
+    } finally {
+      h.smelter.stop();
+    }
   });
 });

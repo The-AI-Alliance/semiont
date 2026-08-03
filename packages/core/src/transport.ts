@@ -369,5 +369,19 @@ export interface IContentTransport {
     options?: { auth?: AccessToken },
   ): Promise<AnchoredText | null>;
 
+  /**
+   * Every key under which anchored text would currently be served — the
+   * reconcile planner's bulk existence read (PERSIST-ANCHORS P0). The
+   * Smelter diffs this against the catalog to find resources whose artifact
+   * was lost (a transient store, a failed publish) and plans re-derivation;
+   * one call per reconcile, never a `getAnchoredText` probe per resource,
+   * because each map is ~32 KB per scanned page and only presence is asked.
+   *
+   * Keys are resource ids today; after PERSIST-ANCHORS P1 they are content
+   * checksums. Callers compare against whichever handle the store is keyed
+   * by — the diff moves with the rekey, this contract does not.
+   */
+  listAnchoredTextKeys(options?: { auth?: AccessToken }): Promise<string[]>;
+
   dispose(): void;
 }

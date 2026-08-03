@@ -65,6 +65,16 @@ export class LocalContentTransport implements IContentTransport {
     return readAnchoredText(this.ks.kb, resourceId as unknown as string);
   }
 
+  /**
+   * The store's would-hit keys, straight from the store — planning data for
+   * the reconcile diff (PERSIST-ANCHORS P0), so no settle barrier applies:
+   * presence is being asked, not content at a moment.
+   */
+  async listAnchoredTextKeys(_options?: { auth?: AccessToken }): Promise<string[]> {
+    busLog('GET', 'anchored-text-keys', {});
+    return this.ks.kb.anchoredText.list();
+  }
+
   async getBinary(
     resourceId: ResourceId,
     _options?: { auth?: AccessToken },

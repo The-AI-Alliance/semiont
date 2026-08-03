@@ -105,6 +105,9 @@ function inMemoryContent(): IContentTransport {
     async getAnchoredText(rId: ResourceId): Promise<AnchoredText | null> {
       return anchoredText.get(String(rId)) ?? null;
     },
+    async listAnchoredTextKeys(): Promise<string[]> {
+      return [...anchoredText.keys()];
+    },
     async getResourceGraph(rId: ResourceId): Promise<GetResourceResponse> {
       return { resource: { '@id': String(rId) } } as unknown as GetResourceResponse;
     },

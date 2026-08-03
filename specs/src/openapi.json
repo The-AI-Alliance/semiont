@@ -87,6 +87,9 @@
     "/resources/{id}/anchored-text": {
       "$ref": "paths/resources_{id}_anchored-text.json"
     },
+    "/anchored-text/keys": {
+      "$ref": "paths/anchored-text_keys.json"
+    },
     "/resources/{id}/jsonld": {
       "$ref": "paths/resources_{id}_jsonld.json"
     },
@@ -665,6 +668,9 @@
       },
       "UserResponse": {
         "$ref": "components/schemas/UserResponse.json"
+      },
+      "SmeltRebuildAnchorsCommand": {
+        "$ref": "components/schemas/SmeltRebuildAnchorsCommand.json"
       },
       "WeaveRebuildCommand": {
         "$ref": "components/schemas/WeaveRebuildCommand.json"

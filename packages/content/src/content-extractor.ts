@@ -85,6 +85,17 @@ export interface ExtractionCache {
 
 export interface ContentExtractor {
   /**
+   * Whether this strategy's extractions carry positioned runs (`items`) — the
+   * geometry an anchored-text artifact is made of. Declared, not probed:
+   * the reconcile planner must know "should an artifact exist?" without
+   * running the extractor (PERSIST-ANCHORS P0, the third drift class), and
+   * the declaration keeps the planner's gate and the live fetch's behavior
+   * twins by construction. Text strategies anchor by character offset and
+   * declare false.
+   */
+  yieldsGeometry: boolean;
+
+  /**
    * Extract embeddable/annotatable text, or decline with the class reason
    * (scanned-without-OCR, encrypted, corrupt). The caller skips embedding
    * and settles skipped with that reason.
@@ -96,6 +107,7 @@ export interface ContentExtractor {
  *  scoped as the 'decode' strategy's extractor. Never declines: any byte
  *  sequence decodes to *some* string; emptiness is the caller's call. */
 const passthroughExtractor: ContentExtractor = {
+  yieldsGeometry: false,
   async extract(content, mediaType) {
     return { text: decodeRepresentation(content, mediaType), method: 'text-passthrough' };
   },

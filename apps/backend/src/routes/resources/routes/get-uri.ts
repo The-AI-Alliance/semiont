@@ -131,6 +131,20 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     return c.body(null, 204);
   });
 
+  // GET /anchored-text/keys — the store's would-hit keys, straight from the
+  // store like the PUT above (no bus gateway, no settle barrier): this is the
+  // reconcile planner's bulk existence read (PERSIST-ANCHORS P0), asking
+  // presence rather than content at a moment. Agents only — projection-
+  // maintenance planning data, the same trust boundary as publishing a map.
+  router.get('/anchored-text/keys', async (c) => {
+    if (!c.get('agentDid')) {
+      throw new HTTPException(403, { message: 'Only an agent may list anchored-text keys' });
+    }
+
+    const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+    return c.json({ keys: await kb.anchoredText.list() }, 200, { 'Cache-Control': 'no-cache' });
+  });
+
   // GET /resources/:id/anchored-text — the derived coordinate map, via the bus
   // gateway. Reading never derives: the map is written only by the PUT above,
   // and only by an agent, so no reader can provoke extraction from here.

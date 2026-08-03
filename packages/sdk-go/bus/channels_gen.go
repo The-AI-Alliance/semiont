@@ -504,6 +504,15 @@ const (
 	// not emittable (no registered schema)
 	WeaveRebuildFailed Channel = "weave:rebuild-failed"
 
+	// payload: SmeltRebuildAnchorsCommand
+	SmeltRebuildAnchors Channel = "smelt:rebuild-anchors"
+
+	// not emittable (no registered schema)
+	SmeltRebuildAnchorsOk Channel = "smelt:rebuild-anchors-ok"
+
+	// not emittable (no registered schema)
+	SmeltRebuildAnchorsFailed Channel = "smelt:rebuild-anchors-failed"
+
 	// payload: SettingsThemeChangedEvent
 	SettingsThemeChanged Channel = "settings:theme-changed"
 
@@ -627,6 +636,7 @@ var ChannelSchemas = map[Channel]string{
 	JobCreated:                       "JobCreatedResult",
 	JobCancelFailed:                  "CommandError",
 	WeaveRebuild:                     "WeaveRebuildCommand",
+	SmeltRebuildAnchors:              "SmeltRebuildAnchorsCommand",
 	SettingsThemeChanged:             "SettingsThemeChangedEvent",
 	SettingsLocaleChanged:            "SettingsLocaleChangedEvent",
 	SettingsHoverDelayChanged:        "SettingsHoverDelayChangedEvent",

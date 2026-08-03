@@ -290,3 +290,45 @@ describe('anchored-text cache', () => {
     expect(fs.readdirSync(dir)).toHaveLength(0);
   });
 });
+
+describe('would-hit key listing (PERSIST-ANCHORS P0)', () => {
+  // The reconcile planner treats a listed key as "artifact present" and plans
+  // re-derivation for the rest, so the equivalence LISTED ⇔ read() HITS is
+  // load-bearing in both directions: a listed key that read() would miss is a
+  // permanent loss the drift diff can never see (the post-engine-upgrade
+  // hole); an unlisted key that read() would hit is a wasted recognition pass.
+  const MAP = { text: 'alpha beta', items: [{ start: 0, end: 5, page: 1, x: 72, y: 720, width: 30, height: 12 }] };
+
+  it('lists exactly the keys read() would hit', async () => {
+    const store = createAnchoredTextStore(dir);
+    await store.write('aaaa1111', MAP);
+    await store.write('bbbb2222', MAP);
+
+    expect((await store.list()).sort()).toEqual(['aaaa1111', 'bbbb2222']);
+    expect(await store.read('aaaa1111')).not.toBeNull();
+  });
+
+  it('excludes a stale-stamped entry, exactly as read() would', async () => {
+    const store = createAnchoredTextStore(dir);
+    await store.write('stale111', MAP);
+    const [name] = fs.readdirSync(dir);
+    const file = path.join(dir, name!);
+    const entry = JSON.parse(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, JSON.stringify({ ...entry, stamp: `${entry.stamp}-from-a-different-build` }));
+    await store.write('fresh222', MAP);
+
+    expect(await store.list()).toEqual(['fresh222']);
+    expect(await store.read('stale111')).toBeNull();   // the equivalence, both directions
+  });
+
+  it('excludes foreign and unreadable files; an absent directory lists empty', async () => {
+    const store = createAnchoredTextStore(dir);
+    fs.writeFileSync(path.join(dir, 'garbage.json'), 'not json at all');
+    fs.writeFileSync(path.join(dir, 'notes.txt'), 'not even a candidate');
+
+    expect(await store.list()).toEqual([]);
+
+    const virgin = createAnchoredTextStore(path.join(dir, 'never-written'));
+    expect(await virgin.list()).toEqual([]);
+  });
+});

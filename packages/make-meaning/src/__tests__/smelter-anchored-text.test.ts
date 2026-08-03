@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
-import { Subject } from 'rxjs';
+import { EMPTY, Subject } from 'rxjs';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { AnchoredText, IContentTransport, Logger, ResourceId } from '@semiont/core';
@@ -65,6 +65,7 @@ async function smelterOver(content: IContentTransport, mediaType = 'text/plain')
   await vectorStore.connect();
   const smelter = new Smelter(
     events$,
+    EMPTY,
     vectorStore,
     createMockEmbeddingProvider(),
     content,

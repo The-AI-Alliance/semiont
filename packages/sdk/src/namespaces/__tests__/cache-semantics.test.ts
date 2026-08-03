@@ -242,6 +242,7 @@ function createHarness(opts: HarnessOptions = {}) {
     getResourceGraph: vi.fn(),
     putAnchoredText: vi.fn(),
     getAnchoredText: vi.fn(),
+    listAnchoredTextKeys: vi.fn().mockResolvedValue([]),
     dispose: vi.fn(),
   };
 

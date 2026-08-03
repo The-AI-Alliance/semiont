@@ -15,7 +15,7 @@
 
 import { vi } from 'vitest';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import type { ConnectionState, Logger, EventMap, IContentTransport, components } from '@semiont/core';
+import type { AnchoredText, ConnectionState, Logger, EventMap, IContentTransport, components } from '@semiont/core';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive } from '@semiont/core';
 import type { SmelterEvent } from '../../smelter-actor-state-unit';
@@ -100,15 +100,28 @@ export type ContentEntry =
 export function createContentTransport(opts: {
   read: (rid: string) => ContentEntry | 'fail' | undefined;
   wrap?: <T>(p: Promise<T>, label: string) => Promise<T>;
+  /**
+   * The anchored-text store, caller-owned so tests can seed it (artifact
+   * present) or leave it empty (the lost-artifact shape PERSIST-ANCHORS P0
+   * reconciles) and observe what the Smelter published. Mirrors production
+   * semantics: put writes, get misses as null, list returns would-hit keys.
+   */
+  anchored?: Map<string, AnchoredText>;
 }): IContentTransport {
+  const anchored = opts.anchored ?? new Map<string, AnchoredText>();
   return {
     async putBinary(): Promise<never> {
       throw new Error('not supported');
     },
-    // The Smelter is the producer of anchored text; this harness exercises the
-    // embed path, not the map, so the store is real but empty.
-    async putAnchoredText() { /* the map is not what these tests assert on */ },
-    async getAnchoredText() { return null; },
+    async putAnchoredText(resourceId, value) {
+      anchored.set(String(resourceId), value);
+    },
+    async getAnchoredText(resourceId) {
+      return anchored.get(String(resourceId)) ?? null;
+    },
+    async listAnchoredTextKeys() {
+      return [...anchored.keys()];
+    },
     async getBinary(resourceId) {
       const rid = String(resourceId);
       const make = async (): Promise<{ data: ArrayBuffer; contentType: string }> => {

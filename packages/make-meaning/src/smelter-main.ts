@@ -198,6 +198,7 @@ async function main() {
 
   const smelter = new Smelter(
     actorStateUnit.events$,
+    actorStateUnit.rebuildAnchors$,
     vectorStore,
     embeddingProvider,
     contentTransport,
