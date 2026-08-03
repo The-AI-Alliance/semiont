@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for the Semiont event bus: channels, their payloads, and the request/reply operations. TypeScript (packages/core) and Go (packages/sdk-go) are BOTH generated from this file \u2014 edit here, then run the generators. Payload schemas themselves live in the OpenAPI components; `validate` names the one a channel carries on the wire.",
+  "$comment": "AUTHORITY for the Semiont event bus: channels, their payloads, and the request/reply operations. TypeScript (packages/core) and Go (packages/sdk-go) are BOTH generated from this file — edit here, then run the generators. Payload schemas themselves live in the OpenAPI components; `validate` names the one a channel carries on the wire.",
   "channelOrder": {
     "eventMap": [
       "yield:created",
@@ -92,6 +92,9 @@
       "browse:resource-requested",
       "browse:resource-result",
       "browse:resource-failed",
+      "browse:anchored-text-requested",
+      "browse:anchored-text-result",
+      "browse:anchored-text-failed",
       "browse:resources-requested",
       "browse:resources-result",
       "browse:resources-failed",
@@ -265,6 +268,9 @@
       "browse:resource-requested",
       "browse:resource-result",
       "browse:resource-failed",
+      "browse:anchored-text-requested",
+      "browse:anchored-text-result",
+      "browse:anchored-text-failed",
       "browse:resources-requested",
       "browse:resources-result",
       "browse:resources-failed",
@@ -360,17 +366,17 @@
           "",
           "",
           "  // ========================================================================",
-          "  // YIELD FLOW \u2014 resource creation, update, move, clone",
+          "  // YIELD FLOW — resource creation, update, move, clone",
           "  // ========================================================================",
           "",
-          "  // Domain events (branded \u2014 system of record)"
+          "  // Domain events (branded — system of record)"
         ],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [
           "",
-          "  // \u2500\u2500 YIELD FLOW \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── YIELD FLOW ──────────────────────────────────────────────────"
         ],
         "trailing": "// StoredEvent"
       }
@@ -739,17 +745,17 @@
         "lead": [
           "",
           "  // ========================================================================",
-          "  // MARK FLOW \u2014 annotation CRUD, AI assist, resource lifecycle",
+          "  // MARK FLOW — annotation CRUD, AI assist, resource lifecycle",
           "  // ========================================================================",
           "",
-          "  // Domain events (branded \u2014 system of record)"
+          "  // Domain events (branded — system of record)"
         ],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [
           "",
-          "  // \u2500\u2500 MARK FLOW \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── MARK FLOW ───────────────────────────────────────────────────"
         ],
         "trailing": "// StoredEvent"
       }
@@ -1026,7 +1032,7 @@
       "ts": "{ correlationId?: string }",
       "docs": {
         "lead": [
-          "  // archive/unarchive confirmed-write replies (bridged) \u2014 correlation-keyed",
+          "  // archive/unarchive confirmed-write replies (bridged) — correlation-keyed",
           "  // acks the SDK's busRequest awaits. Failure routes the real outcome back",
           "  // instead of the old fire-and-forget silence (.plans/bugs/BRIDGE-GAPS.md)."
         ],
@@ -1088,7 +1094,7 @@
       "ts": "{ correlationId?: string }",
       "docs": {
         "lead": [
-          "  // update-entity-types confirmed-write reply (bridged) \u2014 correlation-keyed ack",
+          "  // update-entity-types confirmed-write reply (bridged) — correlation-keyed ack",
           "  // the SDK's busRequest awaits; failure routes the real outcome back rather than",
           "  // the old fire-and-forget silence (.plans/bugs/BRIDGE-GAPS.md)."
         ],
@@ -1281,7 +1287,7 @@
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { resourceId; motivation } \u2014 client-local UI signal"
+        "trailing": "// { resourceId; motivation } — client-local UI signal"
       }
     },
     {
@@ -1296,14 +1302,14 @@
           "  // failed on which resource. Distinct from the `mark:create-failed` /",
           "  // `mark:delete-failed` wire replies above: those are busRequest correlation",
           "  // plumbing (CommandError, matched by correlationId, bridged to every",
-          "  // client) and are NOT for UI consumption \u2014 subscribing to them raw",
+          "  // client) and are NOT for UI consumption — subscribing to them raw",
           "  // double-toasts the requester and leaks other users' failures."
         ],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { resourceId; message } \u2014 client-local UI signal"
+        "trailing": "// { resourceId; message } — client-local UI signal"
       }
     },
     {
@@ -1317,7 +1323,7 @@
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { resourceId; message } \u2014 client-local UI signal"
+        "trailing": "// { resourceId; message } — client-local UI signal"
       }
     },
     {
@@ -1335,7 +1341,7 @@
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { resourceId; message } \u2014 client-local UI signal"
+        "trailing": "// { resourceId; message } — client-local UI signal"
       }
     },
     {
@@ -1348,11 +1354,11 @@
         "lead": [
           "",
           "  // ========================================================================",
-          "  // FRAME FLOW \u2014 schema-layer vocabulary (entity types; future tag schemas,",
+          "  // FRAME FLOW — schema-layer vocabulary (entity types; future tag schemas,",
           "  // relation/predicate types, ontology import). The eighth flow.",
           "  // ========================================================================",
           "",
-          "  // Domain events (branded \u2014 system of record). System-level: no resourceId."
+          "  // Domain events (branded — system of record). System-level: no resourceId."
         ],
         "trailing": ""
       },
@@ -1417,7 +1423,7 @@
       "docs": {
         "lead": [
           "",
-          "  // Command results \u2014 `*-add-ok` / `*-add-failed` are correlation-keyed replies",
+          "  // Command results — `*-add-ok` / `*-add-failed` are correlation-keyed replies",
           "  // for the SDK's confirmed `busRequest` writes (both bridged). In-process callers",
           "  // (bootstrap/replay/import) instead race the `frame:*-added` domain event and",
           "  // don't await `*-add-ok`, so its correlationId is optional."
@@ -1482,7 +1488,7 @@
         "lead": [
           "",
           "  // ========================================================================",
-          "  // BIND FLOW \u2014 reference linking",
+          "  // BIND FLOW — reference linking",
           "  // ========================================================================",
           ""
         ],
@@ -1491,7 +1497,7 @@
       "schemaDocs": {
         "lead": [
           "",
-          "  // \u2500\u2500 BIND FLOW \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── BIND FLOW ───────────────────────────────────────────────────"
         ],
         "trailing": ""
       }
@@ -1550,7 +1556,7 @@
         "lead": [
           "",
           "  // ========================================================================",
-          "  // MATCH FLOW \u2014 search",
+          "  // MATCH FLOW — search",
           "  // ========================================================================",
           ""
         ],
@@ -1559,7 +1565,7 @@
       "schemaDocs": {
         "lead": [
           "",
-          "  // \u2500\u2500 MATCH FLOW \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── MATCH FLOW ──────────────────────────────────────────────────"
         ],
         "trailing": ""
       }
@@ -1604,7 +1610,7 @@
         "lead": [
           "",
           "  // ========================================================================",
-          "  // GATHER FLOW \u2014 context gathering",
+          "  // GATHER FLOW — context gathering",
           "  // ========================================================================",
           ""
         ],
@@ -1613,7 +1619,7 @@
       "schemaDocs": {
         "lead": [
           "",
-          "  // \u2500\u2500 GATHER FLOW \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── GATHER FLOW ─────────────────────────────────────────────────"
         ],
         "trailing": ""
       }
@@ -1765,7 +1771,7 @@
         "lead": [
           "",
           "  // ========================================================================",
-          "  // BROWSE FLOW \u2014 knowledge base reads + UI navigation",
+          "  // BROWSE FLOW — knowledge base reads + UI navigation",
           "  // ========================================================================",
           "",
           "  // Reads.",
@@ -1773,7 +1779,7 @@
           "  // Reply `response` payloads carry DOMAIN-flavored documents: the KS serves",
           "  // real, validated ids, so these declare the branded `Annotation` /",
           "  // `ResourceDescriptor` (annotation-types.ts / graph.ts) rather than the raw",
-          "  // OpenAPI flavors \u2014 consumers must never need to re-brand (`as Annotation[]`)",
+          "  // OpenAPI flavors — consumers must never need to re-brand (`as Annotation[]`)",
           "  // what the protocol already guarantees. Field overrides via Omit +",
           "  // intersection; envelope shape per .plans/REPLY-SHAPE-STANDARD.md."
         ],
@@ -1782,7 +1788,7 @@
       "schemaDocs": {
         "lead": [
           "",
-          "  // \u2500\u2500 BROWSE FLOW \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── BROWSE FLOW ─────────────────────────────────────────────────"
         ],
         "trailing": ""
       }
@@ -1803,6 +1809,58 @@
     },
     {
       "channel": "browse:resource-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId } & CommandError"
+      }
+    },
+    {
+      "channel": "browse:anchored-text-requested",
+      "shape": "schema",
+      "schema": "BrowseAnchoredTextRequest",
+      "validate": "BrowseAnchoredTextRequest",
+      "ts": "components['schemas']['BrowseAnchoredTextRequest']",
+      "docs": {
+        "lead": [
+          "",
+          "  // A resource's derived coordinate map — the text recovered from its bytes",
+          "  // plus the geometry that indexes it (ANCHORED-TEXT-CACHE Lane 5).",
+          "  //",
+          "  // Read-only over the wire: the Smelter is the sole producer and publishes",
+          "  // through `IContentTransport`, never over this channel. `null` in the reply",
+          "  // means no map has been derived, which is the common case and not an error."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:anchored-text-result",
+      "shape": "custom",
+      "validate": "BrowseAnchoredTextResult",
+      "ts": "{ correlationId: string; response: AnchoredText | null }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:anchored-text-failed",
       "shape": "corrIntersect",
       "schema": "CommandError",
       "validate": null,
@@ -2336,7 +2394,7 @@
       "docs": {
         "lead": [
           "",
-          "  // UI events (session-scoped \u2014 fire on the client bus, tied to a KB)"
+          "  // UI events (session-scoped — fire on the client bus, tied to a KB)"
         ],
         "trailing": ""
       },
@@ -2385,7 +2443,7 @@
         "lead": [
           "",
           "  // ========================================================================",
-          "  // SHELL \u2014 app-scoped UI events (fire on SemiontBrowser's bus, not the",
+          "  // SHELL — app-scoped UI events (fire on SemiontBrowser's bus, not the",
           "  // per-session client bus). These must work regardless of whether a",
           "  // KB session is active: panel toggles, sidebar, tab bar, routing.",
           "  // ========================================================================",
@@ -2396,7 +2454,7 @@
       "schemaDocs": {
         "lead": [
           "",
-          "  // \u2500\u2500 SHELL (app-scoped UI events, fire on SemiontBrowser bus) \u2500\u2500\u2500\u2500"
+          "  // ── SHELL (app-scoped UI events, fire on SemiontBrowser bus) ────"
         ],
         "trailing": ""
       }
@@ -2527,7 +2585,7 @@
         "lead": [
           "",
           "  // ========================================================================",
-          "  // BECKON FLOW \u2014 annotation attention",
+          "  // BECKON FLOW — annotation attention",
           "  // ========================================================================",
           ""
         ],
@@ -2536,7 +2594,7 @@
       "schemaDocs": {
         "lead": [
           "",
-          "  // \u2500\u2500 BECKON FLOW \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── BECKON FLOW ─────────────────────────────────────────────────"
         ],
         "trailing": ""
       }
@@ -2581,17 +2639,17 @@
         "lead": [
           "",
           "  // ========================================================================",
-          "  // JOB FLOW \u2014 worker commands + domain events",
+          "  // JOB FLOW — worker commands + domain events",
           "  // ========================================================================",
           "",
-          "  // Domain events (branded \u2014 system of record)"
+          "  // Domain events (branded — system of record)"
         ],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [
           "",
-          "  // \u2500\u2500 JOB FLOW \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── JOB FLOW ────────────────────────────────────────────────────"
         ],
         "trailing": "// StoredEvent"
       }
@@ -2879,7 +2937,7 @@
       "docs": {
         "lead": [
           "  // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled",
-          "  // (running jobs finish \u2014 there's no worker-kill channel). Failure surfaces a",
+          "  // (running jobs finish — there's no worker-kill channel). Failure surfaces a",
           "  // queue error instead of the old silent swallow (.plans/bugs/BRIDGE-GAPS.md)."
         ],
         "trailing": ""
@@ -2913,7 +2971,7 @@
         "lead": [
           "",
           "  // ========================================================================",
-          "  // WEAVE FLOW \u2014 graph projection progress (GRAPH-PROJECTION-SYNC, D2 = push)",
+          "  // WEAVE FLOW — graph projection progress (GRAPH-PROJECTION-SYNC, D2 = push)",
           "  // ========================================================================",
           "",
           "  /**",
@@ -2930,7 +2988,7 @@
       "schemaDocs": {
         "lead": [
           "",
-          "  // \u2500\u2500 WEAVE FLOW \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── WEAVE FLOW ──────────────────────────────────────────────────"
         ],
         "trailing": "// { resourceId; sequenceNumber }"
       }
@@ -2943,12 +3001,12 @@
       "docs": {
         "lead": [
           "",
-          "  // Signal \u2014 the vector projection's per-resource decision report: emitted",
+          "  // Signal — the vector projection's per-resource decision report: emitted",
           "  // by the Smelter after indexing a resource's content ('indexed') or after",
-          "  // deciding not to ('skipped', with a `reason` naming the decline \u2014 the",
+          "  // deciding not to ('skipped', with a `reason` naming the decline — the",
           "  // SMELTER-MEDIA-TYPES telemetry vocabulary: 'no-extractor' | 'empty' today,",
           "  // the PDF decline classes when extraction lands). Keyed by the",
-          "  // checksum of the bytes inspected \u2014 \"settled at C\" is read-your-writes for",
+          "  // checksum of the bytes inspected — \"settled at C\" is read-your-writes for",
           "  // exactly that content. NEVER emitted on transient failures: an error is not",
           "  // a decision (SMELTER-INDEX-SYNC A2). Consumed by the backend-local",
           "  // `SmeltProgress` fold behind the gather-side barrier. This is the",
@@ -2970,7 +3028,7 @@
       "docs": {
         "lead": [
           "",
-          "  // Command \u2014 rebuild the graph projection from the event log (full when",
+          "  // Command — rebuild the graph projection from the event log (full when",
           "  // resourceId is absent, one resource when present). Served by the Weaver;",
           "  // replaces direct `rebuildAll()`/`rebuildResource()` access, which does",
           "  // not survive the container split (WEAVER-ISOLATION D3). Correlated",
@@ -3030,7 +3088,7 @@
       "schemaDocs": {
         "lead": [
           "",
-          "  // \u2500\u2500 SETTINGS (frontend-only) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── SETTINGS (frontend-only) ────────────────────────────────────"
         ],
         "trailing": ""
       }
@@ -3097,7 +3155,7 @@
       "schemaDocs": {
         "lead": [
           "",
-          "  // \u2500\u2500 SSE infrastructure \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── SSE infrastructure ──────────────────────────────────────────"
         ],
         "trailing": "// Record<string, never>"
       }
@@ -3155,7 +3213,7 @@
       "docs": {
         "lead": [
           "",
-          "  // \u2500\u2500 BIND \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── BIND ────────────────────────────────────────────────────────"
         ],
         "trailing": ""
       }
@@ -3167,8 +3225,17 @@
       "docs": {
         "lead": [
           "",
-          "  // \u2500\u2500 BROWSE (reads) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── BROWSE (reads) ──────────────────────────────────────────────"
         ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:anchored-text-requested",
+      "result": "browse:anchored-text-result",
+      "failure": "browse:anchored-text-failed",
+      "docs": {
+        "lead": [],
         "trailing": ""
       }
     },
@@ -3268,7 +3335,7 @@
       "failure": "browse:annotation-context-failed",
       "docs": {
         "lead": [
-          "  // dormant \u2014 backend handler complete, no client caller yet (annotation-detail capability)"
+          "  // dormant — backend handler complete, no client caller yet (annotation-detail capability)"
         ],
         "trailing": ""
       }
@@ -3280,7 +3347,7 @@
       "docs": {
         "lead": [
           "",
-          "  // \u2500\u2500 FRAME (KB schema writes) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── FRAME (KB schema writes) ────────────────────────────────────"
         ],
         "trailing": ""
       }
@@ -3302,7 +3369,7 @@
       "docs": {
         "lead": [
           "",
-          "  // \u2500\u2500 GATHER \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
+          "  // ── GATHER ──────────────────────────────────────────────────────",
           "  // streaming: take-1 result + failure plus an intermediate progress channel"
         ],
         "trailing": ""
@@ -3323,7 +3390,7 @@
       "failure": "gather:summary-failed",
       "docs": {
         "lead": [
-          "  // dormant \u2014 backend handler complete, no client caller yet (annotation summary)"
+          "  // dormant — backend handler complete, no client caller yet (annotation summary)"
         ],
         "trailing": ""
       }
@@ -3335,7 +3402,7 @@
       "docs": {
         "lead": [
           "",
-          "  // \u2500\u2500 JOB \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── JOB ─────────────────────────────────────────────────────────"
         ],
         "trailing": ""
       }
@@ -3376,7 +3443,7 @@
       "docs": {
         "lead": [
           "",
-          "  // \u2500\u2500 MARK \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+          "  // ── MARK ────────────────────────────────────────────────────────"
         ],
         "trailing": ""
       }
@@ -3424,7 +3491,7 @@
       "docs": {
         "lead": [
           "",
-          "  // \u2500\u2500 MATCH \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
+          "  // ── MATCH ───────────────────────────────────────────────────────",
           "  // take-1 dressed as an Observable in the SDK; no progress channel"
         ],
         "trailing": ""
@@ -3437,7 +3504,7 @@
       "docs": {
         "lead": [
           "",
-          "  // \u2500\u2500 WEAVE \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
+          "  // ── WEAVE ───────────────────────────────────────────────────────",
           "  // Graph-projection rebuild, served by the Weaver (WEAVER-ISOLATION D3)"
         ],
         "trailing": ""
@@ -3450,7 +3517,7 @@
       "docs": {
         "lead": [
           "",
-          "  // \u2500\u2500 YIELD \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
+          "  // ── YIELD ───────────────────────────────────────────────────────",
           "  // live in-process (resource-operations.ts emits + awaits via race()); the",
           "  // client also .on()-subscribes -ok for cache invalidation"
         ],
@@ -3463,7 +3530,7 @@
       "failure": "yield:update-failed",
       "docs": {
         "lead": [
-          "  // dormant \u2014 handler in stower exists, no request emitter; client pre-subscribes -ok"
+          "  // dormant — handler in stower exists, no request emitter; client pre-subscribes -ok"
         ],
         "trailing": ""
       }
@@ -3497,27 +3564,27 @@
     }
   ],
   "preamble": {
-    "protocolHeader": "/**\n * Bus Protocol\n *\n * The complete EventMap for the RxJS EventBus. Every channel name and\n * its payload type is defined here \u2014 domain events, commands, reads,\n * results, SSE stream payloads, and frontend UI events.\n *\n * Identifier discipline: where a payload carries an annotation or\n * resource id, the TypeScript layer narrows the OpenAPI `string` to the\n * branded type (`AnnotationId`, `ResourceId`, `UserId`). The runtime\n * wire shape is unchanged (brands have no runtime representation);\n * what this buys us is that command handlers don't have to re-brand\n * at every seam. Brand once at the entry boundary (HTTP route handler,\n * DOM attribute read, URL param parse), not at every bus hop in\n * between. See `.plans/BRAND-UPSTREAM.md` for the rationale.\n *\n * Organized by flow (verb), then by category within each flow.\n */\n\nimport type { components } from './types';\nimport type { AnnotationId, ResourceId } from './identifiers';\nimport type { Annotation } from './annotation-types';\nimport type { ResourceDescriptor } from './graph';\nimport type { StoredEvent } from './event-base';\nimport type { EventOfType } from './persisted-events';\nimport type { AnchorRect } from './bus-ui-types';\n\n// Branded overrides for OpenAPI command payloads that carry identifier\n// fields. Narrows `string` \u2192 branded at the TypeScript layer.\n//\n// `_userId` is the gateway-injected authenticated DID (string at the\n// schema layer); handlers that need a `UserId` brand it locally.\ntype MarkDeleteCommand =\n  components['schemas']['MarkDeleteCommand'] & {\n    annotationId: AnnotationId;\n    resourceId?: ResourceId;\n  };\ntype MarkUpdateBodyCommand =\n  components['schemas']['MarkUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindInitiateCommand =\n  components['schemas']['BindInitiateCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindUpdateBodyCommand =\n  components['schemas']['BindUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\n\n/**\n * The unified EventMap \u2014 every channel on the EventBus.\n *\n * Convention:\n * - Domain events (past tense): StoredEvent<Interface> \u2014 branded types\n * - Commands/reads/results/UI: OpenAPI schema refs \u2014 plain strings\n * - void: UI-only signals with no payload\n */\n\n\n",
+    "protocolHeader": "/**\n * Bus Protocol\n *\n * The complete EventMap for the RxJS EventBus. Every channel name and\n * its payload type is defined here — domain events, commands, reads,\n * results, SSE stream payloads, and frontend UI events.\n *\n * Identifier discipline: where a payload carries an annotation or\n * resource id, the TypeScript layer narrows the OpenAPI `string` to the\n * branded type (`AnnotationId`, `ResourceId`, `UserId`). The runtime\n * wire shape is unchanged (brands have no runtime representation);\n * what this buys us is that command handlers don't have to re-brand\n * at every seam. Brand once at the entry boundary (HTTP route handler,\n * DOM attribute read, URL param parse), not at every bus hop in\n * between. See `.plans/BRAND-UPSTREAM.md` for the rationale.\n *\n * Organized by flow (verb), then by category within each flow.\n */\n\nimport type { components } from './types';\nimport type { AnnotationId, ResourceId } from './identifiers';\nimport type { Annotation } from './annotation-types';\nimport type { ResourceDescriptor } from './graph';\nimport type { StoredEvent } from './event-base';\nimport type { EventOfType } from './persisted-events';\nimport type { AnchorRect } from './bus-ui-types';\nimport type { AnchoredText } from './pdf-anchoring';\n\n// Branded overrides for OpenAPI command payloads that carry identifier\n// fields. Narrows `string` → branded at the TypeScript layer.\n//\n// `_userId` is the gateway-injected authenticated DID (string at the\n// schema layer); handlers that need a `UserId` brand it locally.\ntype MarkDeleteCommand =\n  components['schemas']['MarkDeleteCommand'] & {\n    annotationId: AnnotationId;\n    resourceId?: ResourceId;\n  };\ntype MarkUpdateBodyCommand =\n  components['schemas']['MarkUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindInitiateCommand =\n  components['schemas']['BindInitiateCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindUpdateBodyCommand =\n  components['schemas']['BindUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\n\n/**\n * The unified EventMap — every channel on the EventBus.\n *\n * Convention:\n * - Domain events (past tense): StoredEvent<Interface> — branded types\n * - Commands/reads/results/UI: OpenAPI schema refs — plain strings\n * - void: UI-only signals with no payload\n */\n\n\n",
     "eventMapTail": [],
     "schemasTail": [],
-    "operationsHeader": "import type { EventName, EmittableChannel } from './bus-protocol';\n\n/**\n * BUS_OPERATIONS \u2014 the request/reply operations registry (Tier 1).\n *\n * Each entry declares ONE operation as the triple that was previously three\n * loose, independently-maintained facts spread across call sites:\n *   - the request channel (the key \u2014 an `EmittableChannel`),\n *   - the `result` channel (success reply),\n *   - the `failure` channel,\n *   - and, for a streaming op, an optional `progress` channel.\n *\n * `BridgedChannel` / `BRIDGED_CHANNELS` are DERIVED from this map\n * (bridged-channels.ts): every reply lands in the bridged fan-in set by\n * construction, so \"a reply channel forgotten from BRIDGED_CHANNELS\" \u2014 the\n * recurring bug class (gather:resource-complete, frame:*-add-failed) \u2014 is no\n * longer representable. See .plans/BUS-OPERATIONS-REGISTRY.md.\n *\n * `Partial<Record<EmittableChannel, \u2026>>` enforces that every key is a real\n * emittable request. `result`/`failure`/`progress` stay `EventName` rather than\n * `BridgedChannel` to avoid a circular reference (BridgedChannel derives from\n * this map); the derivation closes the loop instead.\n */\nexport interface BusOperationSpec {\n  result: EventName;\n  failure: EventName;\n  /** Streaming ops only: an intermediate channel that also bridges. */\n  progress?: EventName;\n}\n\n",
+    "operationsHeader": "import type { EventName, EmittableChannel } from './bus-protocol';\n\n/**\n * BUS_OPERATIONS — the request/reply operations registry (Tier 1).\n *\n * Each entry declares ONE operation as the triple that was previously three\n * loose, independently-maintained facts spread across call sites:\n *   - the request channel (the key — an `EmittableChannel`),\n *   - the `result` channel (success reply),\n *   - the `failure` channel,\n *   - and, for a streaming op, an optional `progress` channel.\n *\n * `BridgedChannel` / `BRIDGED_CHANNELS` are DERIVED from this map\n * (bridged-channels.ts): every reply lands in the bridged fan-in set by\n * construction, so \"a reply channel forgotten from BRIDGED_CHANNELS\" — the\n * recurring bug class (gather:resource-complete, frame:*-add-failed) — is no\n * longer representable. See .plans/BUS-OPERATIONS-REGISTRY.md.\n *\n * `Partial<Record<EmittableChannel, …>>` enforces that every key is a real\n * emittable request. `result`/`failure`/`progress` stay `EventName` rather than\n * `BridgedChannel` to avoid a circular reference (BridgedChannel derives from\n * this map); the derivation closes the loop instead.\n */\nexport interface BusOperationSpec {\n  result: EventName;\n  failure: EventName;\n  /** Streaming ops only: an intermediate channel that also bridges. */\n  progress?: EventName;\n}\n\n",
     "operationsInnerTail": [],
-    "operationsFooter": " as const satisfies Partial<Record<EmittableChannel, BusOperationSpec>>;\n\n/** The request-channel key of a registered operation \u2014 what `busRequest` takes. */\nexport type BusOperationKey = keyof typeof BUS_OPERATIONS;\n",
-    "bridgedHeader": "import type { EventName } from './bus-protocol';\nimport { BUS_OPERATIONS } from './bus-operations';\n\n/**\n * BRIDGED_CHANNELS\n *\n * The set of bus channels that any concrete transport bridges into the\n * caller-supplied bus via `bridgeInto`. Transport-neutral: every concrete\n * `ITransport` shares the same set; HTTP delivers them via SSE, in-process\n * transports forward them directly from the local actor bus.\n *\n * This is the *fan-in* set \u2014 channels for events the transport receives and\n * pushes onto the client's bus. It is not the same as the channels the client\n * emits (which is open-ended).\n *\n * It is DERIVED, not hand-listed: the request/reply replies come from\n * `BUS_OPERATIONS` (bus-operations.ts), so no operation's reply can be\n * forgotten here \u2014 that was the recurring unbridged-reply bug class. The only\n * hand-maintained part is `BRIDGED_BROADCASTS`: the genuine non-request/reply\n * minority (lifecycle events and UI/infra signals that no single requester\n * owns). See .plans/BUS-OPERATIONS-REGISTRY.md.\n *\n * Resource-scoped channels (joined/left via `subscribeToResource`) are tracked\n * separately by transports that care about scope (HTTP).\n */\n\n",
-    "bridgedDerivation": "// \u2500\u2500 Derivation \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// Every operation's result + failure (+ progress) channel bridges, by\n// construction. Type and runtime are derived from the same `BUS_OPERATIONS`.\n\ntype OpSpecs = (typeof BUS_OPERATIONS)[keyof typeof BUS_OPERATIONS];\n\n// Generic wrapper so the conditional distributes over each union member (a bare\n// `OpSpecs extends \u2026` would test the whole union at once and collapse to never\n// because only the streaming ops carry `progress`).\ntype ProgressChannel<O> = O extends { progress: infer P extends EventName } ? P : never;\n\n/** The union of every reply channel declared in the registry. */\ntype RegistryReply = OpSpecs['result'] | OpSpecs['failure'] | ProgressChannel<OpSpecs>;\n\n// Iterate by typed key so each op's literal reply types survive \u2014 the element\n// type stays `RegistryReply` (no widening to `EventName`), so the composed\n// array is `BridgedChannel[]` with no narrowing assertion. The runtime proof\n// that this derived set is exactly the intended one is the equality test in\n// __tests__/bus-invariants.test.ts.\nconst REGISTRY_REPLIES = (Object.keys(BUS_OPERATIONS) as (keyof typeof BUS_OPERATIONS)[]).flatMap(\n  (key) => {\n    const op = BUS_OPERATIONS[key];\n    return 'progress' in op ? [op.result, op.failure, op.progress] : [op.result, op.failure];\n  },\n);\n\nexport const BRIDGED_CHANNELS: readonly BridgedChannel[] = [\n  ...REGISTRY_REPLIES,\n  ...BRIDGED_BROADCASTS,\n];\n\n/**\n * The SUBSCRIBE-side subset of `EventName` \u2014 the channels a client can receive\n * over a concrete transport. See the family note on `EventName` in\n * bus-protocol.ts (emit on an `EmittableChannel`, subscribe on a `BridgedChannel`).\n */\nexport type BridgedChannel = RegistryReply | (typeof BRIDGED_BROADCASTS)[number];\n"
+    "operationsFooter": " as const satisfies Partial<Record<EmittableChannel, BusOperationSpec>>;\n\n/** The request-channel key of a registered operation — what `busRequest` takes. */\nexport type BusOperationKey = keyof typeof BUS_OPERATIONS;\n",
+    "bridgedHeader": "import type { EventName } from './bus-protocol';\nimport { BUS_OPERATIONS } from './bus-operations';\n\n/**\n * BRIDGED_CHANNELS\n *\n * The set of bus channels that any concrete transport bridges into the\n * caller-supplied bus via `bridgeInto`. Transport-neutral: every concrete\n * `ITransport` shares the same set; HTTP delivers them via SSE, in-process\n * transports forward them directly from the local actor bus.\n *\n * This is the *fan-in* set — channels for events the transport receives and\n * pushes onto the client's bus. It is not the same as the channels the client\n * emits (which is open-ended).\n *\n * It is DERIVED, not hand-listed: the request/reply replies come from\n * `BUS_OPERATIONS` (bus-operations.ts), so no operation's reply can be\n * forgotten here — that was the recurring unbridged-reply bug class. The only\n * hand-maintained part is `BRIDGED_BROADCASTS`: the genuine non-request/reply\n * minority (lifecycle events and UI/infra signals that no single requester\n * owns). See .plans/BUS-OPERATIONS-REGISTRY.md.\n *\n * Resource-scoped channels (joined/left via `subscribeToResource`) are tracked\n * separately by transports that care about scope (HTTP).\n */\n\n",
+    "bridgedDerivation": "// ── Derivation ──────────────────────────────────────────────────────────────\n// Every operation's result + failure (+ progress) channel bridges, by\n// construction. Type and runtime are derived from the same `BUS_OPERATIONS`.\n\ntype OpSpecs = (typeof BUS_OPERATIONS)[keyof typeof BUS_OPERATIONS];\n\n// Generic wrapper so the conditional distributes over each union member (a bare\n// `OpSpecs extends …` would test the whole union at once and collapse to never\n// because only the streaming ops carry `progress`).\ntype ProgressChannel<O> = O extends { progress: infer P extends EventName } ? P : never;\n\n/** The union of every reply channel declared in the registry. */\ntype RegistryReply = OpSpecs['result'] | OpSpecs['failure'] | ProgressChannel<OpSpecs>;\n\n// Iterate by typed key so each op's literal reply types survive — the element\n// type stays `RegistryReply` (no widening to `EventName`), so the composed\n// array is `BridgedChannel[]` with no narrowing assertion. The runtime proof\n// that this derived set is exactly the intended one is the equality test in\n// __tests__/bus-invariants.test.ts.\nconst REGISTRY_REPLIES = (Object.keys(BUS_OPERATIONS) as (keyof typeof BUS_OPERATIONS)[]).flatMap(\n  (key) => {\n    const op = BUS_OPERATIONS[key];\n    return 'progress' in op ? [op.result, op.failure, op.progress] : [op.result, op.failure];\n  },\n);\n\nexport const BRIDGED_CHANNELS: readonly BridgedChannel[] = [\n  ...REGISTRY_REPLIES,\n  ...BRIDGED_BROADCASTS,\n];\n\n/**\n * The SUBSCRIBE-side subset of `EventName` — the channels a client can receive\n * over a concrete transport. See the family note on `EventName` in\n * bus-protocol.ts (emit on an `EmittableChannel`, subscribe on a `BridgedChannel`).\n */\nexport type BridgedChannel = RegistryReply | (typeof BRIDGED_BROADCASTS)[number];\n"
   },
   "docs": {
-    "eventName": "/**\n * Any valid channel name on the EventBus \u2014 `keyof EventMap`, the root channel\n * type. Two subsets matter, and confusing them is a silent-failure trap:\n *\n * - `EmittableChannel` (below) \u2014 channels with a non-null `CHANNEL_SCHEMAS`\n *   entry; what you EMIT (the `/bus/emit` gateway validates the payload).\n * - `BridgedChannel` (`bridged-channels.ts`) \u2014 the transport fan-in set; the\n *   only channels a client can SUBSCRIBE to over a concrete transport.\n *\n * Request/reply (`busRequest`) emits on an `EmittableChannel` and subscribes on\n * `BridgedChannel` replies. A reply channel that is a valid `EventName` but NOT\n * in `BRIDGED_CHANNELS` is never delivered \u2192 the request times out with no\n * compile or runtime error (see\n * `.plans/bugs/gather-resource-complete-not-bridged.md`). `busRequest` now types\n * its reply params `BridgedChannel` so that omission is a compile error.\n */",
-    "resourceBroadcasts": "/**\n * Genuine resource-bound broadcast event types.\n *\n * Publishers emit these on the scoped EventBus (`eventBus.scope(resourceId)`)\n * because every participant viewing the resource should receive them \u2014 not\n * just the caller who triggered the originating action. Examples: resource\n * generation progress, which multiple viewers of a generating resource all\n * want to see.\n *\n * Non-broadcast progress (AI-assist progress for one user, search results\n * for one caller) does NOT belong here. Those are per-caller correlation-ID\n * responses and publish globally \u2014 the caller filters by `correlationId`.\n *\n * The SDK's resource-scoped `browse.*` live queries wire these channels \u2014\n * subscribing acquires the scope via the transport's `subscribeToResource`\n * (`scope=id&scoped=<channel>`) so the SSE route delivers them to that\n * participant (freshness follows observation; #847). WorkerStateUnit uses this\n * list to decide which emitted events to scope to their resource.\n */",
-    "channelSchemas": "/**\n * Authoritative map from bus channel to OpenAPI schema name.\n *\n * Every {@link EventName} must appear. The `satisfies` clause below\n * enforces completeness at compile time \u2014 adding a channel to\n * {@link EventMap} without adding an entry here is a build error.\n *\n * Values:\n *   - `<SchemaName>`: payload validates against `components['schemas'][SchemaName]`.\n *   - `null`: no single-schema validation. Used for branded\n *     `StoredEvent` wrappers, `void` UI signals, and compound inline\n *     types (e.g. `{ correlationId } & CommandError`). These are not\n *     validated by `/bus/emit`.\n *\n * The `/bus/emit` route reads this map to validate incoming payloads.\n * Consumers can also use it to do client-side pre-flight validation\n * before emitting.\n */",
+    "eventName": "/**\n * Any valid channel name on the EventBus — `keyof EventMap`, the root channel\n * type. Two subsets matter, and confusing them is a silent-failure trap:\n *\n * - `EmittableChannel` (below) — channels with a non-null `CHANNEL_SCHEMAS`\n *   entry; what you EMIT (the `/bus/emit` gateway validates the payload).\n * - `BridgedChannel` (`bridged-channels.ts`) — the transport fan-in set; the\n *   only channels a client can SUBSCRIBE to over a concrete transport.\n *\n * Request/reply (`busRequest`) emits on an `EmittableChannel` and subscribes on\n * `BridgedChannel` replies. A reply channel that is a valid `EventName` but NOT\n * in `BRIDGED_CHANNELS` is never delivered → the request times out with no\n * compile or runtime error (see\n * `.plans/bugs/gather-resource-complete-not-bridged.md`). `busRequest` now types\n * its reply params `BridgedChannel` so that omission is a compile error.\n */",
+    "resourceBroadcasts": "/**\n * Genuine resource-bound broadcast event types.\n *\n * Publishers emit these on the scoped EventBus (`eventBus.scope(resourceId)`)\n * because every participant viewing the resource should receive them — not\n * just the caller who triggered the originating action. Examples: resource\n * generation progress, which multiple viewers of a generating resource all\n * want to see.\n *\n * Non-broadcast progress (AI-assist progress for one user, search results\n * for one caller) does NOT belong here. Those are per-caller correlation-ID\n * responses and publish globally — the caller filters by `correlationId`.\n *\n * The SDK's resource-scoped `browse.*` live queries wire these channels —\n * subscribing acquires the scope via the transport's `subscribeToResource`\n * (`scope=id&scoped=<channel>`) so the SSE route delivers them to that\n * participant (freshness follows observation; #847). WorkerStateUnit uses this\n * list to decide which emitted events to scope to their resource.\n */",
+    "channelSchemas": "/**\n * Authoritative map from bus channel to OpenAPI schema name.\n *\n * Every {@link EventName} must appear. The `satisfies` clause below\n * enforces completeness at compile time — adding a channel to\n * {@link EventMap} without adding an entry here is a build error.\n *\n * Values:\n *   - `<SchemaName>`: payload validates against `components['schemas'][SchemaName]`.\n *   - `null`: no single-schema validation. Used for branded\n *     `StoredEvent` wrappers, `void` UI signals, and compound inline\n *     types (e.g. `{ correlationId } & CommandError`). These are not\n *     validated by `/bus/emit`.\n *\n * The `/bus/emit` route reads this map to validate incoming payloads.\n * Consumers can also use it to do client-side pre-flight validation\n * before emitting.\n */",
     "emittableChannel": "/** Channels where `/bus/emit` validates the payload (non-null schema). */"
   },
   "resourceBroadcasts": {
     "channels": [],
-    "bodyComment": "  // Currently empty. `job:complete` / `job:fail` were moved to GLOBAL,\n  // `jobId`-keyed correlation delivery (#847): the dispatching caller\n  // filters by `jobId`, and resource viewers filter the same global stream\n  // by `resourceId` \u2014 no resource-scoped copy, so a client that is both\n  // dispatcher and viewer no longer receives it twice. This set remains as\n  // the extension point for *genuine* resource-bound broadcasts \u2014 events\n  // every viewer of a resource should see and no single caller owns (e.g.\n  // resource-generation progress for multiple viewers)."
+    "bodyComment": "  // Currently empty. `job:complete` / `job:fail` were moved to GLOBAL,\n  // `jobId`-keyed correlation delivery (#847): the dispatching caller\n  // filters by `jobId`, and resource viewers filter the same global stream\n  // by `resourceId` — no resource-scoped copy, so a client that is both\n  // dispatcher and viewer no longer receives it twice. This set remains as\n  // the extension point for *genuine* resource-bound broadcasts — events\n  // every viewer of a resource should see and no single caller owns (e.g.\n  // resource-generation progress for multiple viewers)."
   },
   "bridgedBroadcasts": {
-    "doc": "/**\n * Bridged channels with no owning operation: job-lifecycle events (multi-viewer,\n * no single requester owns the reply), KB-global frame domain events, UI signals,\n * and SSE infrastructure. A reply channel must NOT go here \u2014 declare its\n * operation in `BUS_OPERATIONS` instead.\n */",
+    "doc": "/**\n * Bridged channels with no owning operation: job-lifecycle events (multi-viewer,\n * no single requester owns the reply), KB-global frame domain events, UI signals,\n * and SSE infrastructure. A reply channel must NOT go here — declare its\n * operation in `BUS_OPERATIONS` instead.\n */",
     "channels": [
       "job:report-progress",
       "job:complete",

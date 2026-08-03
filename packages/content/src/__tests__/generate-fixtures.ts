@@ -129,6 +129,62 @@ export default async function setup() {
         await mixedDoc.save()
     );
 
+    // JPEG-coded scan (`/DCTDecode`) — the codec essentially every real scanned
+    // PDF uses, and the one no other fixture here exercises: all the rest are
+    // `/FlateDecode`. That gap is not theoretical. pdf.js decodes Flate images
+    // to a `Uint8Array` and JPEG images to a `Uint8ClampedArray`, which is not
+    // an instance of `Uint8Array`; a guard testing only for the former
+    // discarded every real scan while passing every fixture in this directory.
+    //
+    // Hand-built rather than encoded, because nothing in the dependency tree
+    // encodes JPEG — and nothing needs to: the bug is in decoding, so the
+    // pixels are irrelevant. This is the smallest legal baseline JPEG: one 8x8
+    // grayscale block, DC category 0 and an immediate end-of-block, using
+    // one-code Huffman tables of our own rather than the spec's standard ones.
+    // `Uint8Array.from`, not `Buffer.from`: Node allocates small Buffers out of
+    // a shared pool at a non-zero byteOffset, and a parser reading `.buffer`
+    // then starts at the pool rather than at these bytes.
+    const jpegPixels = Uint8Array.from([
+        0xFF, 0xD8,                                     // SOI
+        0xFF, 0xDB, 0x00, 0x43, 0x00,                   // DQT: 8-bit, table 0
+        ...new Array(64).fill(0x10),                    //   flat quantization
+        0xFF, 0xC0, 0x00, 0x0B, 0x08,                   // SOF0: baseline, 8-bit
+        0x00, 0x08, 0x00, 0x08,                         //   8 x 8 pixels
+        0x01, 0x01, 0x11, 0x00,                         //   1 component, no subsampling
+        0xFF, 0xC4, 0x00, 0x14, 0x00,                   // DHT, DC table 0
+        0x01, ...new Array(15).fill(0x00), 0x00,        //   one 1-bit code -> value 0
+        0xFF, 0xC4, 0x00, 0x14, 0x10,                   // DHT, AC table 0
+        0x01, ...new Array(15).fill(0x00), 0x00,        //   one 1-bit code -> EOB
+        0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00,       // SOS: 1 component
+        0x00, 0x3F, 0x00,                               //   spectral selection 0..63
+        0x3F,                                           // entropy: DC 0, EOB, pad
+        0xFF, 0xD9,                                     // EOI
+    ]);
+    const jpegDoc = await PDFDocument.create();
+    const jpegImage = await jpegDoc.embedJpg(jpegPixels);
+    jpegDoc.addPage([612, 792]).drawImage(jpegImage, { x: 0, y: 0, width: 612, height: 792 });
+    fs.writeFileSync(
+        path.join(FIXTURES, 'scanned-jpeg.pdf'),
+        await jpegDoc.save()
+    );
+
+    // Shared-XObject scan — one image drawn on two pages, which is what a
+    // letterhead, a watermark, or a scan pipeline that dedupes identical page
+    // rasters produces. pdf.js promotes an object used by more than one page
+    // to the GLOBAL scope: page 1 sees `img_p0_1` in `page.objs`, page 2 sees
+    // `g_d1_img_p1_1` in `page.commonObjs`. Reading only `page.objs` leaves
+    // page 2's callback never invoked — a promise that never settles, in a
+    // path a worker awaits.
+    const sharedDoc = await PDFDocument.create();
+    const sharedImage = await sharedDoc.embedPng(scanPixels);
+    for (let page = 0; page < 2; page++) {
+        sharedDoc.addPage([612, 792]).drawImage(sharedImage, { x: 0, y: 0, width: 612, height: 792 });
+    }
+    fs.writeFileSync(
+        path.join(FIXTURES, 'shared-image.pdf'),
+        await sharedDoc.save()
+    );
+
     // Off-origin scaled scan — the placement-transform fixture. Every other
     // scanned fixture draws its image over the whole page, so the CTM is the
     // page scale and a left/right multiplication mix-up would still produce

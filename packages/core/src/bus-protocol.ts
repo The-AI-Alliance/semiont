@@ -33,6 +33,7 @@ import type { ResourceDescriptor } from './graph';
 import type { StoredEvent } from './event-base';
 import type { EventOfType } from './persisted-events';
 import type { AnchorRect } from './bus-ui-types';
+import type { AnchoredText } from './pdf-anchoring';
 
 // Branded overrides for OpenAPI command payloads that carry identifier
 // fields. Narrows `string` → branded at the TypeScript layer.
@@ -266,6 +267,16 @@ export type EventMap = {
     };
   };
   'browse:resource-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  // A resource's derived coordinate map — the text recovered from its bytes
+  // plus the geometry that indexes it (ANCHORED-TEXT-CACHE Lane 5).
+  //
+  // Read-only over the wire: the Smelter is the sole producer and publishes
+  // through `IContentTransport`, never over this channel. `null` in the reply
+  // means no map has been derived, which is the common case and not an error.
+  'browse:anchored-text-requested': components['schemas']['BrowseAnchoredTextRequest'];
+  'browse:anchored-text-result': { correlationId: string; response: AnchoredText | null };
+  'browse:anchored-text-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:resources-requested': components['schemas']['BrowseResourcesRequest'];
   'browse:resources-result': {
@@ -631,6 +642,9 @@ export const CHANNEL_SCHEMAS = {
   'browse:resource-requested':        'BrowseResourceRequest',
   'browse:resource-result':           'BrowseResourceResult',
   'browse:resource-failed':           null, // { correlationId } & CommandError
+  'browse:anchored-text-requested':   'BrowseAnchoredTextRequest',
+  'browse:anchored-text-result':      'BrowseAnchoredTextResult',
+  'browse:anchored-text-failed':      null, // { correlationId } & CommandError
   'browse:resources-requested':       'BrowseResourcesRequest',
   'browse:resources-result':          'BrowseResourcesResult',
   'browse:resources-failed':          null,

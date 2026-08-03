@@ -1,6 +1,7 @@
 import { Observable, map } from 'rxjs';
 import { CacheObservable } from '../awaitable';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId, searchQuery, decodeWithCharset } from '@semiont/core';
+import type { AnchoredText } from '@semiont/core';
 import type {
   Annotation,
   EventBus,
@@ -387,6 +388,24 @@ export class BrowseNamespace implements IBrowseNamespace {
    * transport's HTTP `/jsonld` face (bus-free) — the LD view an external
    * linked-data client gets. See `.plans/SIMPLER-JSON-LD.md` §5.
    */
+  /**
+   * A resource's coordinate map — its recovered text plus the runs that index
+   * it — or `null` when none has been derived.
+   *
+   * Sibling of `resourceGraph`: a derived, server-computed view fetched through
+   * the content transport, not the resource's bytes. Whole-resource, because a
+   * consumer analysing a document needs all of it, not whichever page is on
+   * screen.
+   *
+   * `null` is the common case and not an error. A native PDF is read in the
+   * browser by pdf.js and never needs this; a media type with no extractor
+   * never produces a map. Callers degrade — a PDF annotation drawn over an
+   * unmapped page carries geometry with no quoted text.
+   */
+  async resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredText | null> {
+    return this.content.getAnchoredText(resourceId);
+  }
+
   async resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse> {
     return this.content.getResourceGraph(resourceId);
   }

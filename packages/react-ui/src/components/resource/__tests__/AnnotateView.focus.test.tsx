@@ -33,7 +33,7 @@ const uiState: AnnotationUIState = {
 };
 
 describe('AnnotateView — beckon:focus scrolls the content', () => {
-  beforeEach(() => scrollSpy.mockClear());
+  beforeEach(() => { scrollSpy.mockClear(); });
 
   it('scrolls to the annotation when the session emits beckon:focus', () => {
     const { session, client } = createTestSemiontWrapper();

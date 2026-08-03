@@ -402,6 +402,28 @@ export class Smelter {
           ...extracted.ocrConfidence,
         });
       }
+      // Publish the coordinate map. This is the only process that reads the
+      // bytes at ingest, so it is the only one positioned to derive one
+      // cheaply — five detection jobs and the browser all arrive later and
+      // would each have to redo the decode and the engine. Only extractions
+      // that carry geometry produce one: text anchors by character offset, and
+      // an empty map on every text resource would be a record that says
+      // nothing. Failures are swallowed deliberately — the map is an
+      // optimization, the embedding is the job, and a storage problem must not
+      // turn a successful index into a skip that hides the resource from search.
+      if (extracted.items?.length) {
+        try {
+          await this.content.putAnchoredText(
+            makeResourceId(resourceId),
+            { text: extracted.text, items: extracted.items },
+          );
+        } catch (error) {
+          this.logger.debug('Could not publish anchored text', {
+            resourceId,
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
       if (extracted.unreadPages?.length) {
         // Partial coverage: this resource embeds, but semantic search cannot
         // see these pages until they are OCR'd. Logged where it is known, so

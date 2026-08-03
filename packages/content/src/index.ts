@@ -26,15 +26,24 @@ export {
   type ContentExtractor,
   type ExtractedText,
   type ExtractionDecline,
+  type ExtractionCache,
 } from './content-extractor';
 
-// PDF text-layer extraction
+// Persistent recognition cache (ANCHORED-TEXT-CACHE Lane 2). Derived values
+// only — an authored coordinate map is master data and never belongs here.
+export {
+  createAnchoredTextStore,
+  type AnchoredTextStore,
+  type CachedAnchoredText,
+  type CachedLine,
+} from './anchored-text-store';
+
+// PDF text-layer extraction. The anchoring vocabulary these produce
+// (AnchoredText, PdfTextItem) and the locate/textUnder pair that reads it are
+// exported from @semiont/core — pure, and needed by the browser canvas too.
 export { extractPdfTextLayer } from './extract-pdf-text-layer';
-export { locate } from './locate';
 export type {
-  AnchoredText,
   PdfTextLayer,
-  PdfTextItem,
   PdfPageInfo,
   PdfFormField,
 } from './pdf-text-layer';

@@ -9,8 +9,8 @@
  */
 
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { isObject, isString, isNumber, isArray } from '@semiont/core';
-import type { PdfTextLayer, PdfPageInfo, PdfTextItem, PdfFormField } from './pdf-text-layer';
+import { isObject, isString, isNumber, isArray, anchorRuns, isTextRun, type PdfTextItem } from '@semiont/core';
+import type { PdfTextLayer, PdfPageInfo, PdfFormField } from './pdf-text-layer';
 
 /**
  * One entry from pdf.js's `getFieldObjects()` map, narrowed to a filled
@@ -83,41 +83,19 @@ export async function extractPdfTextLayer(
             const viewport = page.getViewport({ scale: 1.0 });
             const content = await page.getTextContent();  // all text items on the page
             const pageTextStart = text.length;
-            let pageHasText = false;
 
-            for (const item of content.items) {
-                if (!('str' in item)) continue;  // skip marked-content items (no text)
+            // `anchorRuns` owns the offset and separator convention; the
+            // browser canvas builds its page the same way, so a rectangle
+            // quotes identically whichever side captured it. Marked-content
+            // items (no `str`) are filtered here, at the pdf.js boundary —
+            // core stays free of pdfjs-dist.
+            const page1 = anchorRuns(content.items.filter(isTextRun), pageNum);
 
-                if (item.str.trim()) {
-                    pageHasText = true;
-                    const start = text.length;
-                    text += item.str;
-                    const end = text.length;  // range covers only this run's own chars
-
-                    const [, , , , x, y] = item.transform as number[];
-
-                    items.push({
-                        start,
-                        end,
-                        page: pageNum,
-                        x,
-                        y,
-                        width: item.width,
-                        height: item.height,
-                    });
-
-                    // Separator AFTER recording the run, so its [start, end) never
-                    // includes it. pdf.js flags the last run on a line with hasEOL —
-                    // newline there, space between words otherwise, so reading-order
-                    // lines don't glue (e.g. "textsecond").
-                    text += item.hasEOL ? '\n' : ' ';
-                } else if (item.hasEOL) {
-                    // Standalone end-of-line marker (empty/whitespace str): keep the
-                    // line break without letting whitespace-only runs add stray spaces.
-                    text += '\n';
-                }
+            // Offsets come back page-local; shift them into the document text.
+            for (const item of page1.items) {
+                items.push({ ...item, start: item.start + pageTextStart, end: item.end + pageTextStart });
             }
-
+            text += page1.text;
             text += '\n';  // page break
 
             pages.push({
@@ -126,7 +104,7 @@ export async function extractPdfTextLayer(
                 heightPt: viewport.height,
                 textStart: pageTextStart,
                 textEnd: text.length,
-                hasTextLayer: pageHasText,
+                hasTextLayer: page1.items.length > 0,
             });
         }
 

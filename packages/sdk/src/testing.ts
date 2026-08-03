@@ -22,6 +22,7 @@
 import { BehaviorSubject, throwError } from 'rxjs';
 import type {
   AccessToken,
+  AnchoredText,
   IBackendOperations,
   IContentTransport,
   PutBinaryOptions,
@@ -58,6 +59,7 @@ export {
  */
 function inMemoryContent(): IContentTransport {
   const store = new Map<string, { data: ArrayBuffer; contentType: string }>();
+  const anchoredText = new Map<string, AnchoredText>();
   let seq = 0;
   const toBuffer = (file: File | Buffer): Promise<ArrayBuffer> =>
     file instanceof Uint8Array
@@ -96,6 +98,12 @@ function inMemoryContent(): IContentTransport {
         }),
         contentType,
       };
+    },
+    async putAnchoredText(rId: ResourceId, anchored: AnchoredText): Promise<void> {
+      anchoredText.set(String(rId), anchored);
+    },
+    async getAnchoredText(rId: ResourceId): Promise<AnchoredText | null> {
+      return anchoredText.get(String(rId)) ?? null;
     },
     async getResourceGraph(rId: ResourceId): Promise<GetResourceResponse> {
       return { resource: { '@id': String(rId) } } as unknown as GetResourceResponse;

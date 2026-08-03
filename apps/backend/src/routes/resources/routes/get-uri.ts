@@ -21,8 +21,8 @@
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { busLog, getPrimaryMediaType, resourceId } from '@semiont/core';
-import type { ResourceDescriptor } from '@semiont/core';
+import { busLog, getPrimaryMediaType, resourceId, isObject, isString, isNumber, isArray } from '@semiont/core';
+import type { AnchoredText, ResourceDescriptor } from '@semiont/core';
 import { ResourceContext } from '@semiont/make-meaning';
 import type { KnowledgeBase } from '@semiont/make-meaning';
 import { eventBusRequest } from '../../../utils/event-bus-request';
@@ -83,7 +83,91 @@ function describedByLink(id: string): string {
   return `</resources/${id}/jsonld>; rel="describedby"; type="application/ld+json"`;
 }
 
+/**
+ * Narrow a request body to `AnchoredText`.
+ *
+ * Hand-written rather than schema-driven because the geometry is the point: an
+ * item missing `page` or carrying a string `x` would be stored happily and then
+ * place an annotation rectangle nowhere, discovered much later by a reader who
+ * cannot tell a bad write from a bad recognizer.
+ */
+function isAnchoredText(value: unknown): value is AnchoredText {
+  if (!isObject(value) || !isString(value.text) || !isArray(value.items)) return false;
+  return value.items.every((item) =>
+    isObject(item)
+    && isNumber(item.start) && isNumber(item.end) && isNumber(item.page)
+    && isNumber(item.x) && isNumber(item.y)
+    && isNumber(item.width) && isNumber(item.height));
+}
+
 export function registerGetResourceUri(router: ResourcesRouterType) {
+  // PUT /resources/:id/anchored-text — publish a derived coordinate map.
+  //
+  // The Smelter is the sole producer: it is the only process that reads a
+  // resource's bytes at ingest, so it is the only one positioned to derive a
+  // map cheaply. It runs separately from the backend, which is why this crosses
+  // HTTP at all rather than writing the store directly the way an in-process
+  // caller does.
+  //
+  // **Agents only.** A map is derived data every consumer trusts to place
+  // annotation geometry; letting a browser session write one would let a user
+  // poison where quotes land for everyone reading that document. `principalDid`
+  // deliberately erases the human/software distinction, so this checks
+  // `agentDid` instead.
+  router.put('/resources/:id/anchored-text', async (c) => {
+    if (!c.get('agentDid')) {
+      throw new HTTPException(403, { message: 'Only an agent may publish anchored text' });
+    }
+
+    const { id } = c.req.param();
+    const body: unknown = await c.req.json().catch(() => null);
+    if (!isAnchoredText(body)) {
+      throw new HTTPException(400, { message: 'Body must be an AnchoredText: { text, items[] }' });
+    }
+
+    const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+    await kb.anchoredText.write(id, body);
+    // 204: there is nothing to return, and the caller already holds the map.
+    return c.body(null, 204);
+  });
+
+  // GET /resources/:id/anchored-text — the derived coordinate map, via the bus
+  // gateway. Reading never derives: the map is written only by the PUT above,
+  // and only by an agent, so no reader can provoke extraction from here.
+  //
+  // "No map" is the common answer and is a 204, not a 404 — a fact about
+  // extraction, not a missing route. It is carried as an empty body rather
+  // than a JSON `null` body because a typed client cannot represent the
+  // difference: oapi-codegen unmarshals a 200 into `var dest AnchoredText`,
+  // and `null` into a struct is a documented no-op in encoding/json, so
+  // `JSON200` would come back non-nil pointing at a zero value. "No map" and
+  // "an empty map" would be the same answer. With 204 no case matches, the
+  // field stays nil, and nil means what it should.
+  router.get('/resources/:id/anchored-text', async (c) => {
+    const { id } = c.req.param();
+    const eventBus = c.get('eventBus');
+    const correlationId = crypto.randomUUID();
+
+    try {
+      const response = await eventBusRequest(
+        eventBus,
+        'browse:anchored-text-requested',
+        { correlationId, resourceId: id },
+        'browse:anchored-text-result',
+        'browse:anchored-text-failed',
+      );
+      if (response === null || response === undefined) {
+        return c.body(null, 204, { 'Cache-Control': 'no-cache' });
+      }
+      return c.json(response, 200, { 'Cache-Control': 'no-cache' });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Resource not found') {
+        throw new HTTPException(404, { message: 'Resource not found' });
+      }
+      throw error;
+    }
+  });
+
   // GET /resources/:id/jsonld — the JSON-LD description, via the bus
   // gateway (Gatherer). Hono params don't span '/', so this cannot collide
   // with the pipe route below.

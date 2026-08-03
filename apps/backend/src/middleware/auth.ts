@@ -15,6 +15,13 @@ interface Variables {
    * whether the principal is a human or an agent.
    */
   principalDid: string;
+  /**
+   * Set only when the principal is a Software peer (the JWT carried
+   * `agentDid`), so a route can require an agent rather than merely an
+   * authenticated caller. `principalDid` deliberately erases that
+   * distinction; some writes need it back.
+   */
+  agentDid?: string;
 }
 
 export interface AuthContext extends Context {
@@ -81,6 +88,7 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
     c.set('user', user);
     c.set('token', tokenStr);
     c.set('principalDid', agentDid ?? userToDid(user));
+    if (agentDid) c.set('agentDid', agentDid);
 
     logger.debug('Authentication successful', {
       type: 'auth_success',
@@ -114,6 +122,7 @@ export const optionalAuthMiddleware = async (c: Context, next: Next) => {
       const { user, agentDid } = await OAuthService.getPrincipalFromToken(accessToken(tokenStr));
       c.set('user', user);
       c.set('principalDid', agentDid ?? userToDid(user));
+      if (agentDid) c.set('agentDid', agentDid);
     } catch (error) {
       // Ignore auth errors for optional auth
     }

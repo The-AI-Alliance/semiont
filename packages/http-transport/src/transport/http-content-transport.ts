@@ -40,7 +40,7 @@
  * complaint, wire a manual retry loop here that reads `token$` afresh.
  */
 
-import type { AccessToken, ResourceId, PutBinaryOptions, components } from '@semiont/core';
+import type { AccessToken, AnchoredText, ResourceId, PutBinaryOptions, components } from '@semiont/core';
 import { busLog } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
@@ -172,6 +172,64 @@ export class HttpContentTransport implements IContentTransport {
           })
           .json<GetResourceResponse>(),
       { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string, 'content.graph': true } },
+    );
+  }
+
+  /**
+   * Store a resource's derived coordinate map (ANCHORED-TEXT-CACHE Lane 5).
+   *
+   * The Smelter is the producer and runs as its own process, which is why this
+   * crosses the wire at all: the map goes to the one store the KnowledgeSystem
+   * owns, rather than to a volume shared between service images.
+   */
+  async putAnchoredText(
+    resourceId: ResourceId,
+    anchored: AnchoredText,
+    options?: { auth?: AccessToken },
+  ): Promise<void> {
+    busLog('PUT', 'anchored-text', { resourceId });
+    await withSpan(
+      'content.put_anchored_text',
+      () =>
+        this.transport.rawHttp
+          .put(`${this.transport.baseUrl}/resources/${resourceId}/anchored-text`, {
+            headers: this.requestHeaders(options?.auth),
+            json: anchored,
+          })
+          .json<unknown>(),
+      { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
+    );
+  }
+
+  /**
+   * The resource's coordinate map, or `null` when none has been derived —
+   * which is the common case and not an error: callers degrade to no quoted
+   * text.
+   *
+   * 204 is that answer, and the body is empty, so it must be taken before
+   * `.json()` is reached — parsing an empty body throws, which would turn the
+   * ordinary case into a failure. A 404 degrades the same way, though it is a
+   * different fact: the resource itself is absent, and a resource that does
+   * not exist has no map either.
+   */
+  async getAnchoredText(
+    resourceId: ResourceId,
+    options?: { auth?: AccessToken },
+  ): Promise<AnchoredText | null> {
+    busLog('GET', 'anchored-text', { resourceId });
+    return withSpan(
+      'content.get_anchored_text',
+      async () => {
+        const response = await this.transport.rawHttp
+          .get(`${this.transport.baseUrl}/resources/${resourceId}/anchored-text`, {
+            headers: this.requestHeaders(options?.auth),
+            throwHttpErrors: false,
+          });
+        if (response.status === 204 || response.status === 404) return null;
+        if (!response.ok) throw new Error(`anchored-text read failed: ${response.status}`);
+        return response.json<AnchoredText>();
+      },
+      { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
     );
   }
 

@@ -3,6 +3,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { memoryAnchoredTextStore } from './helpers/anchored-text';
 import { ResourceContext } from '../resource-context';
 import type { ResourceDescriptor, ResourceId } from '@semiont/core';
 import { resourceId } from '@semiont/core';
@@ -47,6 +48,7 @@ describe('ResourceContext', () => {
       views: mockViewStorage,
       content: mockRepStore,
       graph: mockGraph,
+      anchoredText: memoryAnchoredTextStore(),
       projectionsDir: '',
       weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
     };

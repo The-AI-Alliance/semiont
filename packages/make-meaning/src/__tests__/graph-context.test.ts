@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { memoryAnchoredTextStore } from './helpers/anchored-text';
 import { GraphContext } from '../graph-context';
 import { resourceId, type Logger } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
@@ -30,6 +31,7 @@ describe('GraphContext', () => {
     views: mockViews as any,
     content: {} as any,
     graph: mockGraphDb as any,
+    anchoredText: memoryAnchoredTextStore(),
     projectionsDir: '',
     weaveProgress: mockWeaveProgress as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
   };

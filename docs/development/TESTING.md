@@ -669,6 +669,28 @@ it('should work', () => {})
 it('should display user name after successful login', () => {})
 ```
 
+### 6. Give `beforeEach`/`beforeAll` a Block Body
+
+Vitest treats a function *returned* from a setup hook as that test's teardown
+callback. `mockClear()`, `mockReset()`, and `mockRestore()` all return the mock
+itself for chaining, so a concise-arrow hook silently registers the mock as
+teardown — and the runner calls it after every test in the describe.
+
+```typescript
+// ❌ Bad - returns the mock; vitest calls it as teardown after each test
+beforeEach(() => scrollSpy.mockClear());
+
+// ✅ Good - block body returns undefined
+beforeEach(() => { scrollSpy.mockClear(); });
+```
+
+This stays invisible until someone gives that mock a throwing or rejecting
+implementation. Then the test body's assertions pass, teardown invokes the mock,
+and the throw propagates — the test fails with the error's *construction* site as
+the reported location and no assertion diff, which reads like a bug anywhere but
+the hook. Only the mock-method forms are affected; `beforeAll(() =>
+vi.clearAllMocks())` is fine, because `vi` is an object rather than a function.
+
 ## End-to-End Tests
 
 The e2e suite at [`tests/e2e/`](../../tests/e2e/) is a separate npm workspace running Playwright against a real running stack. It exists to catch regressions that no in-process test can see: SSE timing windows, lifecycle-vs-bus race conditions, navigation tear-down, sign-out/sign-in session rebuild, and end-to-end persistence of annotations across reload.

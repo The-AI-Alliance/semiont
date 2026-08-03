@@ -6,23 +6,13 @@
  * (Y increases upward). The Y-flip to canvas pixels happens downstream in the
  * browser; the server has no canvas.
  *
- * `PdfCoordinate` — the geometry `locate()` emits — lives in `@semiont/core`
- * alongside the viewrect FragmentSelector codec.
+ * The anchoring vocabulary these build on — `AnchoredText`, `PdfTextItem`,
+ * `PdfCoordinate`, and the `locate`/`textUnder` pair — lives in `@semiont/core`
+ * alongside the viewrect FragmentSelector codec, so the browser can reason over
+ * geometry without importing this package's extraction stack.
  */
 
-/**
- * A single text item (one text run, roughly a word) from the PDF text layer.
- * Character offsets refer to positions in `PdfTextLayer.text`.
- */
-export interface PdfTextItem {
-    start: number;  // Char offset in `PdfTextLayer.text` (inclusive)
-    end: number;    // Char offset in `PdfTextLayer.text` (exclusive)
-    page: number;   // 1-indexed page number
-    x: number;      // X position in PDF points (origin: bottom-left of page)
-    y: number;      // Y position in PDF points (origin: bottom-left of page)
-    width: number;
-    height: number;
-}
+import type { AnchoredText } from '@semiont/core';
 
 /**
  * One filled AcroForm field: the value a form carries outside its drawn text
@@ -55,20 +45,6 @@ export interface PdfPageInfo {
      * separately, and a single document-level flag cannot express that.
      */
     hasTextLayer: boolean;
-}
-
-/**
- * Text paired with the geometry that indexes it — the minimum needed to turn a
- * character range into a Selection.
- *
- * This is the contract `locate()` and the annotation builders actually require;
- * they do not need pages, form fields, or anything else a full layer carries.
- * Naming it separately lets OCR'd content (recovered from pixels, so not a
- * "text layer" in the PDF sense) satisfy the same anchoring path.
- */
-export interface AnchoredText {
-    text: string;
-    items: PdfTextItem[];
 }
 
 /**

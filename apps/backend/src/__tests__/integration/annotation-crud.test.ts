@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { stubKnowledgeBase } from '../helpers/make-meaning-mock';
 import { SemiontProject } from '@semiont/core/node';
 import type { components, EventOfType, Logger } from '@semiont/core';
 import { resourceId, userId, annotationId, EventBus } from '@semiont/core';
@@ -35,7 +36,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
     // Create KnowledgeBase for AnnotationContext calls
     const viewStorage = new FilesystemViewStorage(project);
-    kb = { eventStore: {} as any, views: viewStorage, content: {} as any, graph: {} as any, projectionsDir: '', weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} }, };
+    kb = { eventStore: {} as any, views: viewStorage, content: {} as any, graph: {} as any, anchoredText: stubKnowledgeBase().anchoredText, projectionsDir: '', weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} }, };
 
     // Create test resources in event store
     const eventStore = createEventStore(project, new EventBus(), mockLogger);

@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { memoryAnchoredTextStore } from './helpers/anchored-text';
 import { firstValueFrom } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { promises as fs } from 'fs';
@@ -95,7 +96,7 @@ describe('AnnotationOperations', () => {
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
     const { WorkingTreeStore } = await import('@semiont/content');
     const repStore = new WorkingTreeStore(project, mockLogger);
-    kb = { eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb, projectionsDir: project.projectionsDir, weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} }, };
+    kb = { anchoredText: memoryAnchoredTextStore(), eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb, projectionsDir: project.projectionsDir, weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} }, };
 
     stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();

@@ -122,9 +122,9 @@
     "directory": "packages/react-ui"
   },
   "dependencies": {
-    "@semiont/core": "*",
-    "@semiont/http-transport": "*",
-    "@semiont/sdk": "*",
+    "@semiont/core": "0.5.25",
+    "@semiont/http-transport": "0.5.25",
+    "@semiont/sdk": "0.5.25",
     "pdfjs-dist": "^6.1.200",
     "react-error-boundary": "^6.1.2",
     "react-markdown": "^10.1.0",

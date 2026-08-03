@@ -35,6 +35,7 @@ import type {
   UserDID,
 } from './branded-types';
 import type { AnnotationId, ResourceId } from './identifiers';
+import type { AnchoredText } from './pdf-anchoring';
 import type { EventMap } from './bus-protocol';
 import type { EventBus } from './event-bus';
 import type { SemiontError } from './errors';
@@ -334,6 +335,39 @@ export interface IContentTransport {
     resourceId: ResourceId,
     options?: { auth?: AccessToken },
   ): Promise<GetResourceResponse>;
+
+  /**
+   * Store a resource's anchored text — the coordinate map a producer derived
+   * from its bytes (OCR, a native text layer, a table or form reader).
+   *
+   * Its own method rather than a `putBinary` of some derived media type: a
+   * coordinate map is not a *representation* of the resource, and dressing it
+   * as one would make a derived artifact indistinguishable from content a user
+   * uploaded.
+   *
+   * Whole-resource, like `getResourceGraph`. The producer iterates page by page;
+   * every consumer — this transport, the browser canvas, a headless client
+   * analysing a document — wants one map.
+   */
+  putAnchoredText(
+    resourceId: ResourceId,
+    anchored: AnchoredText,
+    options?: { auth?: AccessToken },
+  ): Promise<void>;
+
+  /**
+   * The resource's anchored text, or `null` when none has been derived.
+   *
+   * `null` is not an error and is the common case: a native text layer is read
+   * in the browser, and a resource whose media type has no extractor never
+   * produces a map at all. Callers degrade — for a PDF annotation that means
+   * geometry with no quoted text, which is the behaviour that shipped before
+   * any of this existed.
+   */
+  getAnchoredText(
+    resourceId: ResourceId,
+    options?: { auth?: AccessToken },
+  ): Promise<AnchoredText | null>;
 
   dispose(): void;
 }

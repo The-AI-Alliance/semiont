@@ -13,6 +13,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { memoryAnchoredTextStore } from './helpers/anchored-text';
 import { firstValueFrom } from 'rxjs';
 import { take } from 'rxjs/operators';
 import { LLMContext } from '../llm-context';
@@ -96,7 +97,7 @@ describe('LLM Context', () => {
     // Create KnowledgeBase - share event store's view storage to avoid separate instances
     const { getGraphDatabase } = await import('@semiont/graph');
     const graphDb = await getGraphDatabase(graphConfig);
-    kb = { eventStore, views: eventStore.viewStorage, content: new WorkingTreeStore(project, mockLogger), graph: graphDb, projectionsDir: project.projectionsDir, weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} }, };
+    kb = { anchoredText: memoryAnchoredTextStore(), eventStore, views: eventStore.viewStorage, content: new WorkingTreeStore(project, mockLogger), graph: graphDb, projectionsDir: project.projectionsDir, weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} }, };
 
     // Start Stower
     stower = new Stower(kb, eventBus, project, mockLogger);

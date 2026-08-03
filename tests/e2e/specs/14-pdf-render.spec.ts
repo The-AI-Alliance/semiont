@@ -56,6 +56,24 @@ async function openPdfInAnnotateMode(page: Page) {
   await expect(page.locator(SVG)).toBeVisible({ timeout: 15_000 });
 }
 
+/**
+ * Arm drawing: Highlight motivation + Rectangle shape.
+ * Motivation menuitems TOGGLE and persist to localStorage, so reset to None
+ * first (mirrors 04-manual-highlight). Shape selection is idempotent
+ * (rectangle is the only PDF shape).
+ */
+async function armRectangleDrawing(page: Page) {
+  await page.getByRole('button', { name: /^motivation$/i }).click();
+  await page.getByRole('menuitem', { name: /^none$/i }).click();
+  await page.getByRole('button', { name: /^motivation$/i }).click();
+  await page.getByRole('menuitem', { name: /^highlight$/i }).click();
+  await page.getByRole('button', { name: /^shape$/i }).click();
+  await page.getByRole('menuitem', { name: /^rectangle$/i }).click();
+
+  // Both selected → drawing is armed. The container reflects this.
+  await expect(page.locator(CONTAINER)).toHaveAttribute('data-drawing-mode', 'rectangle', { timeout: 5_000 });
+}
+
 test.describe('pdf render + spatial highlight', () => {
   test('a PDF renders non-blank and a manual rectangle highlight persists across reload', async ({ signedInPage: page, bus }) => {
     test.setTimeout(120_000);
@@ -88,19 +106,7 @@ test.describe('pdf render + spatial highlight', () => {
     expect(render.src).toContain('data:image');
     expect(render.varied, 'PDF page rendered blank (all sampled pixels identical)').toBeTruthy();
 
-    // ── Arm drawing: Highlight motivation + Rectangle shape ──
-    // Motivation menuitems TOGGLE and persist to localStorage, so reset
-    // to None first (mirrors 04-manual-highlight). Shape selection is
-    // idempotent (rectangle is the only PDF shape).
-    await page.getByRole('button', { name: /^motivation$/i }).click();
-    await page.getByRole('menuitem', { name: /^none$/i }).click();
-    await page.getByRole('button', { name: /^motivation$/i }).click();
-    await page.getByRole('menuitem', { name: /^highlight$/i }).click();
-    await page.getByRole('button', { name: /^shape$/i }).click();
-    await page.getByRole('menuitem', { name: /^rectangle$/i }).click();
-
-    // Both selected → drawing is armed. The container reflects this.
-    await expect(page.locator(CONTAINER)).toHaveAttribute('data-drawing-mode', 'rectangle', { timeout: 5_000 });
+    await armRectangleDrawing(page);
 
     bus.clear();
 
@@ -133,6 +139,48 @@ test.describe('pdf render + spatial highlight', () => {
     await expect(page.locator(SVG)).toBeVisible({ timeout: 15_000 });
     await expect
       .poll(async () => page.locator(`${SVG} rect`).count(), { timeout: 30_000 })
+      .toBeGreaterThan(0);
+  });
+
+  /**
+   * The capture-gap regression guard (.plans/PDF-MANUAL-ANNOTATION-TEXT.md).
+   *
+   * The test above proves a hand-drawn rectangle persists, but never that it
+   * remembers what it was drawn around — which is exactly how a PDF annotation
+   * with no `TextQuoteSelector` shipped unnoticed: the rect rendered, the
+   * annotation survived reload, and only the panel entry was blank.
+   *
+   * The drag covers nearly the whole page, so the seed's text layer ("Smoke
+   * Test PDF" on a 300×200 page) is certainly underneath it — this asserts the
+   * quote is captured, not where the text sits.
+   */
+  test('a manual rectangle captures the text underneath it', async ({ signedInPage: page, bus }) => {
+    test.setTimeout(120_000);
+
+    await openPdfInAnnotateMode(page);
+    await armRectangleDrawing(page);
+
+    bus.clear();
+
+    const box = await page.locator(IMG).boundingBox();
+    if (!box) throw new Error('PDF image has no bounding box');
+    await page.mouse.move(box.x + box.width * 0.05, box.y + box.height * 0.05);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.95, box.y + box.height * 0.95, { steps: 10 });
+    await page.mouse.up();
+
+    // Same create chain as above — asserted first so a failure here reads as
+    // "didn't persist" rather than "persisted without text".
+    await bus.expectRequestResponse('mark:create-request', 'mark:create-ok', 30_000);
+
+    // The payoff: the panel entry quotes the page text, instead of being the
+    // anonymous rectangle this fix replaced.
+    await page.getByRole('button', { name: /^annotations$/i }).click();
+    await expect
+      .poll(
+        async () => page.locator('[data-type="highlight"]').filter({ hasText: /smoke test pdf/i }).count(),
+        { timeout: 30_000 },
+      )
       .toBeGreaterThan(0);
   });
 });

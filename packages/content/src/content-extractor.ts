@@ -14,9 +14,8 @@
  * re-extraction can never break an anchor.
  */
 
-import type { TextExtraction } from '@semiont/core';
-import { decodeRepresentation } from '@semiont/core';
-import type { PdfTextItem } from './pdf-text-layer';
+import { decodeRepresentation, type TextExtraction, type PdfTextItem } from '@semiont/core';
+import type { AnchoredTextStore } from './anchored-text-store';
 import { pdfExtractor } from './pdf-extractor';
 
 export interface ExtractedText {
@@ -68,13 +67,29 @@ export interface ExtractionDecline {
   declined: 'no-text-layer' | 'encrypted' | 'corrupt' | 'too-large';
 }
 
+/**
+ * Where a strategy may reuse an earlier recognition, and under what key.
+ *
+ * The caller supplies the key because it already has one — the content
+ * checksum on `smelt:settled` / `getChecksum(descriptor)`. Hashing a large PDF
+ * per job is precisely the cost this cache exists to remove, not add.
+ *
+ * Optional throughout: every existing caller passes nothing and is unaffected.
+ * Only strategies with an expensive engine behind them consult it, so a
+ * document that never OCRs never produces an entry.
+ */
+export interface ExtractionCache {
+  key: string;
+  store: AnchoredTextStore;
+}
+
 export interface ContentExtractor {
   /**
    * Extract embeddable/annotatable text, or decline with the class reason
    * (scanned-without-OCR, encrypted, corrupt). The caller skips embedding
    * and settles skipped with that reason.
    */
-  extract(content: Buffer, mediaType: string): Promise<ExtractedText | ExtractionDecline>;
+  extract(content: Buffer, mediaType: string, cache?: ExtractionCache): Promise<ExtractedText | ExtractionDecline>;
 }
 
 /** Charset-aware decode of textual bytes — the pre-registry behavior, now

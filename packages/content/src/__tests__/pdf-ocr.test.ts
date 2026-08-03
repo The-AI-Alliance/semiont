@@ -89,6 +89,15 @@ describe('class B — a fully scanned document', () => {
     it("declines 'no-text-layer' when OCR finds nothing — now meaning it truly failed", async () => {
         recognizesAs('');
         expect(await extract('scanned-image.pdf')).toEqual({ declined: 'no-text-layer' });
+        // "It truly failed" is the whole claim in that name, and the decline
+        // alone does not carry it: a page whose image never reaches the engine
+        // declines identically. Both real bugs found on 2026-08-02 produced
+        // exactly that — `toRgb` rejecting every JPEG-coded scan, and
+        // `resolveImage` waiting forever on a shared XObject — and this suite
+        // stayed green through both, because the case below asserts a decline
+        // when there is no image and nothing asserted the other half.
+        expect(recognizeImages).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(recognizeImages).mock.calls[0]![0]).toHaveLength(1);
     });
 
     it('declines when the page holds no image to read', async () => {

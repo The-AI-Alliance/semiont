@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
-import type { Annotation, AnchorRect } from '@semiont/core';
+import type { Annotation, AnchorRect, AnchoredText } from '@semiont/core';
 import { resourceId as toResourceId } from '@semiont/core';
 import { toViewportAnchorRect } from '../../lib/anchor-rect';
-import { createFragmentSelector } from '@semiont/core';
+import { createFragmentSelector, anchorRuns, isTextRun, textUnder } from '@semiont/core';
 import { rectsForPage } from './rects-for-page';
 import { createHoverHandlers, type SemiontSession } from '@semiont/sdk';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
@@ -61,7 +61,7 @@ interface PdfAnnotationCanvasProps {
  * PDF annotation canvas with page navigation and rectangle drawing
  *
  * @emits browse:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
- * @emits mark:requested - New annotation drawn on PDF. Payload: { selector: FragmentSelector, motivation: SelectionMotivation }
+ * @emits mark:requested - New annotation drawn on PDF. Payload: { selector: [FragmentSelector, TextQuoteSelector?], motivation: SelectionMotivation } — the quote is the text under the rectangle, omitted when the page has no text layer
  * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  */
 export function PdfAnnotationCanvas({
@@ -83,6 +83,13 @@ export function PdfAnnotationCanvas({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
+  /**
+   * The current page's text and per-run geometry, read once when the page
+   * loads so a drag can be quoted without a round trip. Null while the page
+   * is loading; `items` is empty on a scanned page, which has no text layer
+   * for the browser to read.
+   */
+  const [pageAnchored, setPageAnchored] = useState<AnchoredText | null>(null);
   const [displayDimensions, setDisplayDimensions] = useState<{ width: number; height: number } | null>(null);
   const [scale] = useState(1.5); // Fixed scale for better quality
 
@@ -132,6 +139,44 @@ export function PdfAnnotationCanvas({
     let cancelled = false;
     const doc = pdfDoc;
 
+    // Never quote the previous page's text under this page's rectangles.
+    setPageAnchored(null);
+
+    /**
+     * The map a rectangle on this page quotes from, or null when there is
+     * none to be had.
+     *
+     * Never rejects, which is what lets the render run alongside it: quoting
+     * is the optional half of loading a page, so a failure here degrades to
+     * geometry-only rather than reaching the caller's error path. It is also
+     * the only reason `Promise.all` below is safe — a rejection from either
+     * side would leave the other promise dangling, and only the render can
+     * reject.
+     */
+    async function resolveAnchored(page: Awaited<ReturnType<typeof doc.getPage>>): Promise<AnchoredText | null> {
+      try {
+        // The page's text layer, read once here rather than at drag time —
+        // `handleMouseUp` stays synchronous, and a native page costs nothing
+        // extra since pdf.js already parsed it to draw the page.
+        const runs = (await page.getTextContent()).items.filter(isTextRun);
+        if (runs.length > 0) return anchorRuns(runs, pageNumber);
+
+        // No runs means a scanned page: the characters exist only as pixels
+        // and pdf.js has nothing to give. The server derived a map at ingest,
+        // so ask for it rather than leaving the annotation anonymous.
+        // Whole-resource, and `textUnder` filters by page — the same shape the
+        // native branch produces, so nothing downstream branches.
+        //
+        // `null` is the ordinary answer for a document that has no map and
+        // never will; a failure is equally non-fatal. Either way the
+        // annotation ships with geometry only, which is what shipped before
+        // this existed.
+        return (await session?.client.browse.resourceAnchoredText(toResourceId(resourceUri))) ?? null;
+      } catch {
+        return null;
+      }
+    }
+
     async function loadPage() {
       try {
         const page = await doc.getPage(pageNumber);
@@ -145,11 +190,21 @@ export function PdfAnnotationCanvas({
           height: viewport.height
         });
 
-        // Render page to image
-        const { dataUrl } = await renderPdfPageToDataUrl(page, scale);
+        // Anchoring and rendering are independent, and only one of them the
+        // reader is waiting on. Sequencing them put a network round-trip in
+        // front of the pixels on exactly the documents that need it most: a
+        // scanned page fetches its map from the server, and rendering behind
+        // that await is how "failing to quote it must not fail to show it"
+        // became true of errors but not of latency. Started together, the
+        // page appears on its own schedule.
+        const [anchored, { dataUrl }] = await Promise.all([
+          resolveAnchored(page),
+          renderPdfPageToDataUrl(page, scale),
+        ]);
 
         if (cancelled) return;
 
+        setPageAnchored(anchored);
         setPageImageUrl(dataUrl);
       } catch (err) {
         if (cancelled) return;
@@ -164,7 +219,7 @@ export function PdfAnnotationCanvas({
     return () => {
       cancelled = true;
     };
-  }, [pdfDoc, pageNumber, scale]);
+  }, [pdfDoc, pageNumber, scale, session, resourceUri]);
 
   // Update display dimensions on resize
   useEffect(() => {
@@ -318,15 +373,25 @@ export function PdfAnnotationCanvas({
     // Create FragmentSelector
     const fragmentSelector = createFragmentSelector(pdfCoord);
 
+    // What the box was drawn around. Without it the annotation is a rectangle
+    // with no memory of its own content: the panel entry is blank, search over
+    // annotation text misses it, and an export has nothing to print. Empty on a
+    // scanned page or over an image — emit no quote at all rather than an empty
+    // one, which would assert the box was drawn around nothing.
+    const quoted = pageAnchored ? textUnder(pageAnchored, pdfCoord) : '';
+
     // Emit annotation:requested event with FragmentSelector
     if (selectedMotivation) {
       session.client.mark.request(
         toResourceId(resourceUri),
-        {
-          type: 'FragmentSelector',
-          conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
-          value: fragmentSelector,
-        },
+        [
+          {
+            type: 'FragmentSelector',
+            conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
+            value: fragmentSelector,
+          },
+          ...(quoted ? [{ type: 'TextQuoteSelector' as const, exact: quoted }] : []),
+        ],
         selectedMotivation,
       );
     }
@@ -336,7 +401,7 @@ export function PdfAnnotationCanvas({
     setIsDrawing(false);
     // Note: We keep selection so the preview remains visible
     // It will be cleared when drawingMode changes or user starts new selection
-  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri]);
+  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri, pageAnchored]);
 
   // Every FragmentSelector rect on the current page — one per line for a
   // multi-line (multi-selector) annotation, exactly one for a manual annotation.

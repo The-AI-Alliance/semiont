@@ -12,7 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
-import type { PdfTextItem } from '@semiont/content';
+import type { PdfTextItem } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 
 vi.mock('@semiont/content', async (importOriginal) => {
@@ -68,7 +68,7 @@ const selectors = (ann: Record<string, unknown>): Sel[] =>
   (ann.target as { selector: Sel[] }).selector;
 
 describe('prepareDetection', () => {
-  beforeEach(() => pdfExtract.mockReset());
+  beforeEach(() => { pdfExtract.mockReset(); });
 
   it('text: decodes for real and anchors by character offsets in that SAME text', async () => {
     const { session, resourceRepresentation } = fakeSession();

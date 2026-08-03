@@ -16,10 +16,11 @@ type Operation struct {
 	Progress Channel // "" when the operation is not streaming
 }
 
-// Operations is the request→reply registry: 34 operations.
+// Operations is the request→reply registry: 35 operations.
 var Operations = map[Channel]Operation{
 	"bind:update-body":                    {Result: "bind:body-updated", Failure: "bind:body-update-failed"},
 	"browse:resource-requested":           {Result: "browse:resource-result", Failure: "browse:resource-failed"},
+	"browse:anchored-text-requested":      {Result: "browse:anchored-text-result", Failure: "browse:anchored-text-failed"},
 	"browse:resources-requested":          {Result: "browse:resources-result", Failure: "browse:resources-failed"},
 	"browse:annotation-requested":         {Result: "browse:annotation-result", Failure: "browse:annotation-failed"},
 	"browse:annotations-requested":        {Result: "browse:annotations-result", Failure: "browse:annotations-failed"},

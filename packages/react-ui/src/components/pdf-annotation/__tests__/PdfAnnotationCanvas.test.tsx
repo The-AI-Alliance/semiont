@@ -13,8 +13,34 @@ import userEvent from '@testing-library/user-event';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
 import { resourceId, annotationId, parseFragmentSelector } from '@semiont/core';
 import { pdfToCanvasCoordinates } from '../../../lib/pdf-coordinates';
+import { loadPdfDocument } from '../../../lib/browser-pdfjs';
 
 import type { Annotation } from '@semiont/core';
+
+// The page's text layer, as pdf.js reports it. Geometry is PDF points,
+// bottom-left origin: "Hello world" sits on one line at y=700, "elsewhere" a
+// hundred points below it.
+// vi.hoisted: vi.mock's factory is lifted above these declarations.
+const { MOCK_TEXT_ITEMS } = vi.hoisted(() => ({
+  MOCK_TEXT_ITEMS: [
+    { str: 'Hello', transform: [1, 0, 0, 1, 72, 700], width: 30, height: 12, hasEOL: false },
+    { str: 'world', transform: [1, 0, 0, 1, 106, 700], width: 32, height: 12, hasEOL: true },
+    { str: 'elsewhere', transform: [1, 0, 0, 1, 72, 600], width: 54, height: 12, hasEOL: true },
+  ],
+}));
+
+const mockPage = (textItems: unknown[]) => ({
+  getViewport: vi.fn().mockReturnValue({
+    width: 612,
+    height: 792,
+    scale: 1.0,
+    rotation: 0
+  }),
+  render: vi.fn().mockReturnValue({
+    promise: Promise.resolve()
+  }),
+  getTextContent: vi.fn().mockResolvedValue({ items: textItems })
+});
 
 // Mock browser-pdfjs module
 vi.mock('../../../lib/browser-pdfjs', () => ({
@@ -29,7 +55,8 @@ vi.mock('../../../lib/browser-pdfjs', () => ({
       }),
       render: vi.fn().mockReturnValue({
         promise: Promise.resolve()
-      })
+      }),
+      getTextContent: vi.fn().mockResolvedValue({ items: MOCK_TEXT_ITEMS })
     })
   }),
   renderPdfPageToDataUrl: vi.fn().mockResolvedValue({
@@ -311,6 +338,171 @@ describe('PdfAnnotationCanvas', () => {
       width: displayRect.width,
       height: displayRect.height,
     });
+  });
+
+  /**
+   * Drives the drag → mark.request path far enough to inspect the selector.
+   * `drag` is in canvas pixels; at scale 1 with a 612×792 page these are also
+   * display coordinates, since jsdom's getBoundingClientRect returns zeros.
+   */
+  async function drawRectangle(
+    drag: { fromX: number; fromY: number; toX: number; toY: number },
+  ) {
+    const request = vi.fn();
+    const session = {
+      client: { mark: { request }, beckon: { hover: vi.fn() } },
+    } as unknown as import('@semiont/sdk').SemiontSession;
+
+    render(
+      <PdfAnnotationCanvas resourceUri="res-1"
+        pdfUrl={mockPdfUrl}
+        drawingMode="rectangle"
+        selectedMotivation="highlighting"
+        session={session}
+      />
+    );
+
+    await waitFor(() => {
+      const img = document.querySelector('.semiont-pdf-annotation-canvas__image');
+      expect(img).toBeInTheDocument();
+    });
+
+    const img = document.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+    Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });
+    Object.defineProperty(img, 'clientHeight', { value: 792, configurable: true });
+    fireEvent.load(img);
+
+    const container = document.querySelector('.semiont-pdf-annotation-canvas__container')!;
+    fireEvent.mouseDown(container, { clientX: drag.fromX, clientY: drag.fromY });
+    fireEvent.mouseMove(container, { clientX: drag.toX, clientY: drag.toY });
+    fireEvent.mouseUp(container, { clientX: drag.toX, clientY: drag.toY });
+
+    return request;
+  }
+
+  // The manual-annotation capture gap (.plans/PDF-MANUAL-ANNOTATION-TEXT.md):
+  // a hand-drawn rectangle stored geometry and nothing else, so every panel
+  // that quotes an annotation showed it blank.
+  test('a drawn rectangle carries the text it was drawn around', async () => {
+    // The "Hello world" line in canvas space: PDF y=700..712 flips to
+    // canvas y=80..92 on a 792pt page. Drag a box a little larger than it.
+    const line = pdfToCanvasCoordinates(
+      { page: 1, x: 72, y: 700, width: 60, height: 12 }, 792, 1.0,
+    );
+    const request = await drawRectangle({
+      fromX: line.x - 2,
+      fromY: line.y - 2,
+      toX: line.x + line.width + 8,
+      toY: line.y + line.height + 4,
+    });
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+
+    const [source, selector, motivation] = request.mock.calls[0];
+    expect(source).toBe(resourceId('res-1'));
+    expect(motivation).toBe('highlighting');
+    expect(selector).toEqual([
+      {
+        type: 'FragmentSelector',
+        conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
+        value: expect.stringContaining('page=1&viewrect='),
+      },
+      { type: 'TextQuoteSelector', exact: 'Hello world' },
+    ]);
+  });
+
+  test('a rectangle over blank space carries geometry only', async () => {
+    // Between the two lines of text — nothing under the box. An empty-string
+    // quote would assert the box was drawn around nothing, so emit no quote.
+    const request = await drawRectangle({ fromX: 40, fromY: 120, toX: 200, toY: 150 });
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+
+    const selector = request.mock.calls[0][1];
+    expect(selector).toHaveLength(1);
+    expect(selector[0].type).toBe('FragmentSelector');
+  });
+
+  // Phase 2 of .plans/PDF-MANUAL-ANNOTATION-TEXT.md. A scanned page has no text
+  // in the browser, but the server derived one at ingest and serves it through
+  // `browse.resourceAnchoredText`. Same `AnchoredText` shape either way, so
+  // `textUnder` and the drag handler do not branch — only the source does.
+  test('a scanned page quotes from the map the server derived', async () => {
+    vi.mocked(loadPdfDocument).mockResolvedValueOnce({
+      numPages: 3,
+      getPage: vi.fn().mockResolvedValue(mockPage([])),
+    } as unknown as Awaited<ReturnType<typeof loadPdfDocument>>);
+
+    const request = vi.fn();
+    const session = {
+      client: {
+        mark: { request },
+        beckon: { hover: vi.fn() },
+        browse: {
+          resourceAnchoredText: vi.fn().mockResolvedValue({
+            text: 'Hello world again',
+            items: [
+              { start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 },
+              { start: 6, end: 11, page: 1, x: 106, y: 700, width: 32, height: 12 },
+            ],
+          }),
+        },
+      },
+    } as unknown as import('@semiont/sdk').SemiontSession;
+
+    render(
+      <PdfAnnotationCanvas resourceUri="res-1"
+        pdfUrl={mockPdfUrl}
+        drawingMode="rectangle"
+        selectedMotivation="highlighting"
+        session={session}
+      />
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('.semiont-pdf-annotation-canvas__image')).toBeInTheDocument();
+    });
+    const img = document.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+    Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });
+    Object.defineProperty(img, 'clientHeight', { value: 792, configurable: true });
+    fireEvent.load(img);
+
+    const line = pdfToCanvasCoordinates({ page: 1, x: 72, y: 700, width: 66, height: 12 }, 792, 1.0);
+    const container = document.querySelector('.semiont-pdf-annotation-canvas__container')!;
+    fireEvent.mouseDown(container, { clientX: line.x - 2, clientY: line.y - 2 });
+    fireEvent.mouseMove(container, { clientX: line.x + line.width + 8, clientY: line.y + line.height + 4 });
+    fireEvent.mouseUp(container, { clientX: line.x + line.width + 8, clientY: line.y + line.height + 4 });
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    expect(request.mock.calls[0][1]).toEqual([
+      expect.objectContaining({ type: 'FragmentSelector' }),
+      { type: 'TextQuoteSelector', exact: 'Hello world' },
+    ]);
+  });
+
+  test('a scanned page with no server map carries geometry only', async () => {
+    // Class B: pdf.js returns no runs, so the browser cannot do the job and
+    // the annotation stays geometry-only pending async enrichment (Phase 2).
+    vi.mocked(loadPdfDocument).mockResolvedValueOnce({
+      numPages: 3,
+      getPage: vi.fn().mockResolvedValue(mockPage([])),
+    } as unknown as Awaited<ReturnType<typeof loadPdfDocument>>);
+
+    const line = pdfToCanvasCoordinates(
+      { page: 1, x: 72, y: 700, width: 60, height: 12 }, 792, 1.0,
+    );
+    const request = await drawRectangle({
+      fromX: line.x - 2,
+      fromY: line.y - 2,
+      toX: line.x + line.width + 8,
+      toY: line.y + line.height + 4,
+    });
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+
+    const selector = request.mock.calls[0][1];
+    expect(selector).toHaveLength(1);
+    expect(selector[0].type).toBe('FragmentSelector');
   });
 
   test('accepts a drawing gesture without throwing when drawing mode is active', async () => {

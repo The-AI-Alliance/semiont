@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { mapWordsToItems } from '../ocr-geometry';
 import { assemblePage, type OcrBlock, type OcrWord } from '../ocr';
-import { locate } from '../locate';
+import { locate } from '@semiont/core';
 
 const word = (text: string, bbox: { x0: number; y0: number; x1: number; y1: number }, start = 0): OcrWord =>
     ({ text, start, end: start + text.length, bbox, confidence: 90 });

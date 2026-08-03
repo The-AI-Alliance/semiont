@@ -84,6 +84,9 @@
     "/resources/{id}": {
       "$ref": "paths/resources_{id}.json"
     },
+    "/resources/{id}/anchored-text": {
+      "$ref": "paths/resources_{id}_anchored-text.json"
+    },
     "/resources/{id}/jsonld": {
       "$ref": "paths/resources_{id}_jsonld.json"
     },
@@ -245,6 +248,18 @@
       },
       "BrowseResourceReorderEvent": {
         "$ref": "components/schemas/BrowseResourceReorderEvent.json"
+      },
+      "AnchoredText": {
+        "$ref": "components/schemas/AnchoredText.json"
+      },
+      "PdfTextItem": {
+        "$ref": "components/schemas/PdfTextItem.json"
+      },
+      "BrowseAnchoredTextRequest": {
+        "$ref": "components/schemas/BrowseAnchoredTextRequest.json"
+      },
+      "BrowseAnchoredTextResult": {
+        "$ref": "components/schemas/BrowseAnchoredTextResult.json"
       },
       "BrowseResourceRequest": {
         "$ref": "components/schemas/BrowseResourceRequest.json"

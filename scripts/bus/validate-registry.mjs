@@ -1,3 +1,7 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
 // Registry-level invariants for specs/src/bus/registry.json.
 //
 // The bus's classification rules used to live only in TypeScript, where
@@ -9,6 +13,38 @@
 //
 // Both generators import and run this, so no generated artifact can be
 // produced from a registry that violates them.
+
+/**
+ * The registry's ON-DISK form, not just its content.
+ *
+ * JSON has more than one faithful spelling of the same document, and the
+ * editors that touch this file disagree about which to write: `JSON.stringify`
+ * emits an em-dash as the literal character; Python's `json.dumps` escapes that
+ * same character to the six ASCII bytes `\u2014`. Both round-trip losslessly, so
+ * a one-line semantic change lands as a whole-file re-encoding. It happened on
+ * PR #1127: a diff of +132/-65 whose real content was +68/-1 — roughly half
+ * the lines were the same characters respelled.
+ *
+ * That is not cosmetic here. This file is the bus AUTHORITY, the file two
+ * concurrent branches are most likely to touch at once, and a re-encoding
+ * conflicts on nearly every line while hiding the change under review.
+ *
+ * The canonical form is what `JSON.stringify(reg, null, 2)` produces, plus a
+ * trailing newline: the repo's own generators are JS, and the committed file
+ * already matches it byte-for-byte, so adopting it costs no diff.
+ */
+export function validateRegistryFormat(raw) {
+  const canonical = `${JSON.stringify(JSON.parse(raw), null, 2)}\n`;
+  if (raw === canonical) return;
+  throw new Error(
+    `specs/src/bus/registry.json is not in canonical form.\n\n` +
+      `  Its CONTENT may be fine — this is about how the bytes are spelled ` +
+      `(escaping, indentation, trailing newline).\n` +
+      `  Left alone it lands as a whole-file diff that conflicts with every ` +
+      `other branch touching the registry.\n\n` +
+      `  Fix it in place:  node scripts/bus/validate-registry.mjs --fix\n`,
+  );
+}
 
 /** A violation names the rule and the offending entry — never just "invalid". */
 function fail(problems) {
@@ -91,4 +127,26 @@ export function validateRegistry(reg) {
   }
 
   fail(problems);
+}
+
+// Run directly to check the on-disk form, or `--fix` to rewrite it. The
+// generators only ever CHECK: this file is hand-authored authority, and a
+// generator that silently reformatted its own input would be the surprise
+// this gate exists to prevent.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const registry = resolve(dirname(fileURLToPath(import.meta.url)), '../../specs/src/bus/registry.json');
+  const raw = readFileSync(registry, 'utf8');
+  if (process.argv.includes('--fix')) {
+    const canonical = `${JSON.stringify(JSON.parse(raw), null, 2)}\n`;
+    if (raw === canonical) {
+      console.log('specs/src/bus/registry.json is already canonical.');
+    } else {
+      writeFileSync(registry, canonical);
+      console.log('specs/src/bus/registry.json rewritten in canonical form.');
+    }
+  } else {
+    validateRegistryFormat(raw);
+    validateRegistry(JSON.parse(raw));
+    console.log('specs/src/bus/registry.json is canonical and satisfies every bus invariant.');
+  }
 }

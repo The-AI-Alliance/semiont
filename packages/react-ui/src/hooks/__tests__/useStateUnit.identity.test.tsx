@@ -68,6 +68,8 @@ function makeBrowse(answerEntityTypes: string[]) {
     getBinary: vi.fn(),
     getBinaryStream: vi.fn(),
     getResourceGraph: vi.fn(),
+    putAnchoredText: vi.fn(),
+    getAnchoredText: vi.fn(),
     dispose: vi.fn(),
   };
   return new BrowseNamespace(transport, new EventBus(), content);
@@ -142,6 +144,8 @@ describe('useStateUnit identity seam — stale client references', () => {
         getBinary: vi.fn(),
         getBinaryStream: vi.fn(),
         getResourceGraph: vi.fn(),
+        putAnchoredText: vi.fn(),
+        getAnchoredText: vi.fn(),
         dispose: vi.fn(),
       };
       const browseA = new BrowseNamespace(deferredTransport, new EventBus(), deferredContent);
@@ -200,6 +204,8 @@ describe('useStateUnit identity seam — stale client references', () => {
         getBinary: vi.fn(),
         getBinaryStream: vi.fn(),
         getResourceGraph: vi.fn(),
+        putAnchoredText: vi.fn(),
+        getAnchoredText: vi.fn(),
         dispose: vi.fn(),
       };
       const browseA = new BrowseNamespace(transport, new EventBus(), content);
