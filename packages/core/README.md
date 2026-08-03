@@ -196,6 +196,37 @@ import {
 } from '@semiont/core';
 ```
 
+### PDF anchoring
+
+Text paired with the geometry that indexes it, and the inverse pair that reads
+it in either direction. Pure arithmetic over plain data — this is what *reasons
+over* a coordinate map; producing one (text layer, OCR, tables, forms) lives in
+[`@semiont/content`](../content/README.md), which the browser cannot import
+because it carries pdf.js, Tesseract and `node:fs`.
+
+```typescript
+import { locate, textUnder, anchorRuns, type AnchoredText } from '@semiont/core';
+
+// A model quoted text; find its geometry. One rect per line.
+const { rects } = locate(anchored, match.start, match.end);
+
+// A person drew a box; find its text. '' when it covers no words.
+const quote = textUnder(anchored, pdfCoordinate);
+
+// pdf.js runs -> AnchoredText, the offset/separator convention both the
+// server extractor and the browser canvas share.
+const anchored = anchorRuns(content.items.filter(isTextRun), pageNumber);
+```
+
+Coordinates are PDF points, origin bottom-left, Y increasing upward; the flip to
+canvas pixels happens in the browser. `textUnder` counts a word as covered at
+`RUN_COVERAGE_THRESHOLD` (50%) of its area rather than on any intersection —
+with ~2pt of headroom between lines, a hand-drawn box that overshoots by less
+than the height of a comma would otherwise pull in its neighbours.
+
+See **[ANCHORING.md](../../docs/system/ANCHORING.md)** for how a map is derived,
+stored, served, and turned into a selector.
+
 ### DID Utilities
 
 Generate and parse W3C Decentralized Identifiers for humans and software peers:

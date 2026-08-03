@@ -48,12 +48,27 @@ interface ITransport {
 ```
 
 `IContentTransport` is a separate interface for resource content:
-binary I/O (`putBinary`, `getBinary`, `getBinaryStream`) plus
-`getResourceGraph`, which dereferences the resource's JSON-LD metadata
-graph — the LD face an external linked-data client sees (the HTTP
-transport fetches `/resources/:id/jsonld`; in-process transports
-assemble it from their `KnowledgeSystem`). The split keeps backpressure
-and streaming concerns away from the typed-channel surface.
+binary I/O (`putBinary`, `getBinary`, `getBinaryStream`) plus two
+*derived* views of a resource, which are server-computed rather than
+stored bytes.
+
+`getResourceGraph` dereferences the resource's JSON-LD metadata graph —
+the LD face an external linked-data client sees (the HTTP transport
+fetches `/resources/:id/jsonld`; in-process transports assemble it from
+their `KnowledgeSystem`).
+
+`putAnchoredText` / `getAnchoredText` carry the resource's coordinate
+map — its recovered text plus the geometry indexing it (see
+[ANCHORING.md](../system/ANCHORING.md)). Whole-resource, like the graph:
+a producer iterates page by page, but every consumer wants one map.
+`getAnchoredText` answers `null` when none has been derived, which is
+the common case and not an error. They are their own methods rather than
+a `putBinary` of some derived media type — a coordinate map is not a
+*representation* of the resource, and dressing it as one would make a
+derived artifact indistinguishable from content a user uploaded.
+
+The split keeps backpressure and streaming concerns away from the
+typed-channel surface.
 
 ## Delivery semantics — what every transport must honor
 

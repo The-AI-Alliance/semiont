@@ -87,25 +87,69 @@ When the project has `[git] sync = true` in `.semiont/config`, the store keeps t
 
 Every method accepts `{ noGit: true }` to skip staging for a single call. Without git sync, the store falls back to plain filesystem operations.
 
-## PDF Text-Layer Extraction
+## PDF Extraction
 
-For native (non-scanned) PDFs, `extractPdfTextLayer()` extracts positioned text using [pdfjs-dist](https://www.npmjs.com/package/pdfjs-dist). It returns `null` for scanned/image-only PDFs.
+`EXTRACTORS['pdf-text-layer']` turns a PDF into text plus the geometry that
+indexes it, routing by what the document actually holds:
+
+| Class | Document | Read by |
+|---|---|---|
+| A | native text layer | pdf.js, directly |
+| B | scanned — pixels only | OCR (Tesseract) |
+| C | hybrid — some pages scanned | both; pages still unread are reported |
+| D | tables | grid pages rewritten as markdown rows |
+| E | forms | AcroForm values folded in, anchored to their widgets |
+| F / G | encrypted, corrupt | declined by name, from the parser error |
 
 ```typescript
-import { extractPdfTextLayer, locate } from '@semiont/content';
+import { EXTRACTORS } from '@semiont/content';
+import { textExtractionOf, locate } from '@semiont/core';
 
-const layer = await extractPdfTextLayer(pdfBytes);
-if (layer) {
-  console.log(layer.text);          // Full extracted text
-  console.log(layer.pages.length);  // Page dimensions in PDF points
+const extracted = await EXTRACTORS[textExtractionOf('application/pdf')]!
+  .extract(pdfBytes, 'application/pdf');
 
-  // Find bounding rectangles for a span of the text (one per line)
-  const rects = locate(layer, 120, 178);
-  // => PdfCoordinate[] in PDF point space (origin: bottom-left)
+if (!('declined' in extracted)) {
+  extracted.text;          // reading-order text
+  extracted.items;         // positioned runs indexing it
+  extracted.method;        // 'pdf-text-layer' | 'ocr' | 'table' | 'form'
+  extracted.unreadPages;   // class C: pages no reader could recover
 }
 ```
 
-Coordinates are in PDF point space, originating from the bottom-left of the page. The Y-flip to canvas pixels happens downstream in the browser; the server has no canvas. The `PdfCoordinate` geometry type lives in `@semiont/core` alongside the viewrect FragmentSelector codec.
+A decline is named (`'no-text-layer' | 'encrypted' | 'corrupt' | 'too-large'`)
+rather than a bare null, so a caller can settle with the reason.
+`'no-text-layer'` means recognition ran and came up empty — not that it was
+never attempted.
+
+`extractPdfTextLayer()` is the lower-level reader underneath class A, returning
+`null` for a document with no text operators anywhere.
+
+Coordinates are PDF points, origin bottom-left; the Y-flip to canvas pixels
+happens in the browser. The vocabulary these produce — `AnchoredText`,
+`PdfTextItem` — and the `locate` / `textUnder` pair that reads it are exported
+from [`@semiont/core`](../core/README.md), so the browser can reason over
+geometry without importing this package's extraction stack.
+
+## Anchored-text store
+
+OCR costs ~2.9 s per scanned page and six consumers read the same document, so
+what the engine produced is kept rather than re-derived:
+
+```typescript
+import { createAnchoredTextStore } from '@semiont/content';
+
+const store = createAnchoredTextStore(dir, logger);
+await store.write(checksum, { text, items });
+const map = await store.read(checksum);   // null on any miss
+```
+
+Derived values only, keyed by content checksum and stamped with the versions of
+this package, the engine and its traineddata. A stamp mismatch, a corrupt file
+and an absent one are all the same answer: a miss. The store may make things
+faster, never make them fail.
+
+See **[ANCHORING.md](../../docs/system/ANCHORING.md)** for the pipeline this
+sits in.
 
 ## Utilities
 

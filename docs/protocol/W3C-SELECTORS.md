@@ -1,8 +1,17 @@
 # W3C Web Annotation Selectors
 
-This document describes Semiont's implementation of W3C Web Annotation selectors for text and future support for images.
+Which selectors a Semiont annotation carries, and why the answer depends on the
+resource it points at.
+
+A resource's media type constrains the selectors that can apply to it. Text
+offers character offsets; a PDF offers page geometry. The media-type registry
+records that as `AnchoringModel` — `'text-selector'` or `'spatial'` — and every
+producer follows it. **How** the geometry for a spatial anchor is obtained, and
+how a scanned page gets one at all, is
+[ANCHORING.md](../system/ANCHORING.md).
 
 **Related Documentation:**
+- [Anchoring](../system/ANCHORING.md) - How a coordinate map is derived, stored and turned into a selector
 - [W3C Web Annotation Implementation](./W3C-WEB-ANNOTATION.md) - Complete annotation architecture
 - [Semiont Protocol](./README.md) - The eight verbs and the bus these annotations travel on
 - [OpenAPI Specification](../../specs/openapi.json) - Machine-readable API spec
@@ -88,13 +97,59 @@ This write-time reconciliation (`reconcileSelector` in `@semiont/core`) is where
 
 Because the stored selectors already agree, the renderer trusts them and re-anchors only on a **verbatim** quote match. The one legitimate render-time discrepancy is *positional drift*: content shifted above the span after the annotation was written, so the `TextPositionSelector` is stale but `exact` still exists byte-identical. `anchorAnnotation` (`@semiont/core`) recovers it — uniquely, disambiguated by prefix/suffix, or (for repeated text) by closest-to-offset position — and flags anything it cannot resolve verbatim as low-confidence rather than fuzzy-matching at render time. This is the W3C-intended use of `TextQuoteSelector` for recovery; the fuzzy fallback chain stays on the write side.
 
+## PDF Selectors (Implemented)
+
+A PDF anchors **spatially**. Its characters are drawn at positions rather than
+held at offsets, and the extracted text is a derived artifact — re-extraction
+could shift every offset — so character positions are not a durable anchor for
+one. Page geometry is.
+
+### FragmentSelector — RFC 3778
+
+```json
+{
+  "type": "FragmentSelector",
+  "conformsTo": "http://tools.ietf.org/rfc/rfc3778",
+  "value": "page=1&viewrect=72,700,240,12"
+}
+```
+
+`viewrect` is `left,top,width,height` in **PDF points, origin bottom-left**,
+Y increasing upward. The flip to canvas pixels happens in the browser.
+
+**One selector per line.** A span crossing three lines produces three
+`FragmentSelector`s, each bounding that line's covered words — not one rectangle
+swallowing the whitespace between them.
+
+### Paired with a TextQuoteSelector
+
+A PDF annotation carries geometry **and** the words that geometry covers:
+
+```json
+{
+  "selector": [
+    { "type": "FragmentSelector", "conformsTo": "http://tools.ietf.org/rfc/rfc3778",
+      "value": "page=1&viewrect=72,700,240,12" },
+    { "type": "TextQuoteSelector", "exact": "the passage in question" }
+  ]
+}
+```
+
+The quote is the annotation's only human-readable identity away from the page:
+without it a panel entry is anonymous, search over annotation text misses it,
+and an export has nothing to print. It is omitted — rather than stored empty —
+when a rectangle covers no words, because an empty quote would assert the box
+was drawn around nothing.
+
+**No `TextPositionSelector`.** See the opening of this section: offsets into a
+derived extraction are not durable.
+
 ## Image Selectors (Future)
 
-Planned support for image annotation using W3C-compliant selectors.
+Planned support for image annotation. An image has no text to quote, so a
+region is the whole of the anchor.
 
-### FragmentSelector
-
-For simple rectangular regions (most common):
+### FragmentSelector — media fragments
 
 ```json
 {
@@ -103,6 +158,9 @@ For simple rectangular regions (most common):
   "value": "xywh=pixel:100,200,150,80"
 }
 ```
+
+Note the different `conformsTo` from the PDF form above: pixels in an image's
+own top-left-origin space, not points on a page.
 
 **W3C Specification:** [§4.2.9 FragmentSelector](https://www.w3.org/TR/annotation-model/#fragment-selector)
 
@@ -147,3 +205,4 @@ Only basic SVG shapes will be permitted: `<rect>`, `<circle>`, `<ellipse>`, `<po
 - [FragmentSelector](https://www.w3.org/TR/annotation-model/#fragment-selector)
 - [SvgSelector](https://www.w3.org/TR/annotation-model/#svg-selector)
 - [Media Fragments URI](https://www.w3.org/TR/media-frags/)
+- [RFC 3778 — PDF Fragment Identifiers](https://tools.ietf.org/rfc/rfc3778)
