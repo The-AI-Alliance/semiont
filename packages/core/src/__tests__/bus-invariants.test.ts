@@ -71,6 +71,7 @@ const FROZEN_BRIDGED = [
   'mark:update-entity-types-ok', 'mark:update-entity-types-failed',
   'match:search-results', 'match:search-failed',
   'weave:rebuild-ok', 'weave:rebuild-failed',
+  'smelt:rebuild-anchors-ok', 'smelt:rebuild-anchors-failed',
   'gather:complete', 'gather:failed',
   'gather:resource-complete', 'gather:resource-failed',
   'gather:annotation-progress',
