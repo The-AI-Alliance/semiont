@@ -87,6 +87,12 @@
     "/resources/{id}/anchored-text": {
       "$ref": "paths/resources_{id}_anchored-text.json"
     },
+    "/anchored-text/keys": {
+      "$ref": "paths/anchored-text_keys.json"
+    },
+    "/anchored-text/{checksum}": {
+      "$ref": "paths/anchored-text_{checksum}.json"
+    },
     "/resources/{id}/jsonld": {
       "$ref": "paths/resources_{id}_jsonld.json"
     },
@@ -353,6 +359,9 @@
       },
       "EventStreamResponse": {
         "$ref": "components/schemas/EventStreamResponse.json"
+      },
+      "ExtractionOutcome": {
+        "$ref": "components/schemas/ExtractionOutcome.json"
       },
       "FileEntry": {
         "$ref": "components/schemas/FileEntry.json"
@@ -665,6 +674,9 @@
       },
       "UserResponse": {
         "$ref": "components/schemas/UserResponse.json"
+      },
+      "SmeltRebuildAnchorsCommand": {
+        "$ref": "components/schemas/SmeltRebuildAnchorsCommand.json"
       },
       "WeaveRebuildCommand": {
         "$ref": "components/schemas/WeaveRebuildCommand.json"

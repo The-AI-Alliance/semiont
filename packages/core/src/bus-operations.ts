@@ -90,6 +90,10 @@ export const BUS_OPERATIONS = {
   // Graph-projection rebuild, served by the Weaver (WEAVER-ISOLATION D3)
   'weave:rebuild':                       { result: 'weave:rebuild-ok',               failure: 'weave:rebuild-failed' },
 
+  // ── SMELT ────────────────────────────────────────────
+  // Anchored-text rebuild, served by the Smelter (PERSIST-ANCHORS P0)
+  'smelt:rebuild-anchors':               { result: 'smelt:rebuild-anchors-ok',       failure: 'smelt:rebuild-anchors-failed' },
+
   // ── YIELD ───────────────────────────────────────────────────────
   // live in-process (resource-operations.ts emits + awaits via race()); the
   // client also .on()-subscribes -ok for cache invalidation

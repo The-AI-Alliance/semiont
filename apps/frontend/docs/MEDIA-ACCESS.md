@@ -26,9 +26,12 @@ const pdf = await pdfjsLib.getDocument({
 }).promise;
 ```
 
-`<img>`, `<iframe>`, `<video>`, `<embed>`, and PDF.js URL-loading all send only
-the browser's standard headers. With no cookie to fall back on (bearer-only),
-they can't reach a protected resource on their own.
+`<img>`, `<iframe>`, `<video>`, `<embed>`, `<a download>`, and PDF.js URL-loading
+all send only the browser's standard headers. With no cookie to fall back on
+(bearer-only), they can't reach a protected resource on their own.
+
+`<a download>` is the easy one to forget — it *looks* like an ordinary link, so
+a hand-written `href` reads as correct right up until the click 401s.
 
 ## The solution: a short-lived, resource-scoped token on the URL
 
@@ -72,13 +75,20 @@ Components don't manage tokens by hand. The `useMediaToken` hook from
 — ahead of the 5-minute expiry, so an in-flight load never races the rollover:
 
 ```typescript
-import { useMediaToken } from '@semiont/react-ui';
+import { useMediaToken, mediaUrl } from '@semiont/react-ui';
 
 // Takes the SemiontClient explicitly (bring-your-own-session embedding);
 // pass null to skip fetching (e.g. for non-binary resources).
 const { token, loading } = useMediaToken(client, resourceId);
-const src = token ? `${baseUrl}/api/resources/${resourceId}?token=${token}` : undefined;
+const src = mediaUrl(client, resourceId, token);   // undefined until the token lands
 ```
+
+Build the URL with `mediaUrl`, not by hand. It reads the origin off the client,
+so the URL is **absolute** — a relative `/api/resources/:id` resolves against the
+*host* app's origin under embedding, not the backend's — and it returns
+`undefined` rather than a tokenless URL, so a caller cannot accidentally render
+a link that is already known to 401. The same rule applies to `<a download>` as
+to `<img>`: an anchor sends no Authorization header either.
 
 `ResourceViewerPage` calls this automatically for any resource whose media type
 renders as an image (which includes `application/pdf`), so callers of
@@ -91,7 +101,7 @@ ResourceViewerPage
   → useMediaToken(client, resourceId)
       → POST /api/tokens/media   (bearer-authenticated, once per 4 min)
       → { token }
-  → resourceUrl = `${baseUrl}/api/resources/${id}?token=${token}`
+  → resourceUrl = mediaUrl(client, id, token)
   → passes resourceUrl to the viewer component
   → <img src={resourceUrl}>  or  pdfjsLib.getDocument({ url: resourceUrl })
       → browser / PDF.js fetches directly and streams — no ArrayBuffer in JS
@@ -123,9 +133,11 @@ The split is **display vs programmatic**, not text vs binary:
 
 ---
 
-**Last Updated**: 2026-06-20
+**Last Updated**: 2026-08-03
 **Key implementation**:
 - `packages/react-ui/src/hooks/useMediaToken.ts` — the refreshing token hook
-- `packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx` — builds the `?token=` URL for binary resources
+- `packages/react-ui/src/lib/media-url.ts` — `mediaUrl()`, the one place the `?token=` URL is built
+- `packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx` — the `<img>` / PDF.js consumer, for binary resources
+- `packages/react-ui/src/components/resource/DownloadFileLink.tsx` — the `<a download>` consumer (unsupported-media fallback in both resource views)
 - `packages/sdk/src/namespaces/auth.ts` — `auth.mediaToken()` → `POST /api/tokens/media`
 - `packages/react-ui/src/lib/browser-pdfjs.ts` — PDF.js loader that consumes the `?token=` URL

@@ -169,6 +169,9 @@
       "weave:rebuild",
       "weave:rebuild-ok",
       "weave:rebuild-failed",
+      "smelt:rebuild-anchors",
+      "smelt:rebuild-anchors-ok",
+      "smelt:rebuild-anchors-failed",
       "settings:theme-changed",
       "settings:line-numbers-toggled",
       "settings:locale-changed",
@@ -349,6 +352,9 @@
       "weave:rebuild",
       "weave:rebuild-ok",
       "weave:rebuild-failed",
+      "smelt:rebuild-anchors",
+      "smelt:rebuild-anchors-ok",
+      "smelt:rebuild-anchors-failed",
       "stream-connected",
       "replay-window-exceeded",
       "bus:resume-gap"
@@ -1849,7 +1855,7 @@
       "channel": "browse:anchored-text-result",
       "shape": "custom",
       "validate": "BrowseAnchoredTextResult",
-      "ts": "{ correlationId: string; response: AnchoredText | null }",
+      "ts": "{ correlationId: string; response: components['schemas']['ExtractionOutcome'] | null }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3070,6 +3076,56 @@
       }
     },
     {
+      "channel": "smelt:rebuild-anchors",
+      "shape": "schema",
+      "schema": "SmeltRebuildAnchorsCommand",
+      "validate": "SmeltRebuildAnchorsCommand",
+      "ts": "components['schemas']['SmeltRebuildAnchorsCommand']",
+      "docs": {
+        "lead": [
+          "",
+          "  // Command — rebuild anchored-text artifacts by re-running extraction",
+          "  // (every geometry-capable resource when resourceId is absent, one when",
+          "  // present). Served by the Smelter, serialized, never destructive, and",
+          "  // with ZERO embedding calls — only the derived map is re-made",
+          "  // (PERSIST-ANCHORS P0). Correlated request/reply via BUS_OPERATIONS."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "smelt:rebuild-anchors-ok",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId?: string }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId }"
+      }
+    },
+    {
+      "channel": "smelt:rebuild-anchors-failed",
+      "shape": "custom",
+      "validate": null,
+      "ts": "{ correlationId?: string; message: string }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId; message }"
+      }
+    },
+    {
       "channel": "settings:theme-changed",
       "shape": "schema",
       "schema": "SettingsThemeChangedEvent",
@@ -3511,6 +3567,19 @@
       }
     },
     {
+      "request": "smelt:rebuild-anchors",
+      "result": "smelt:rebuild-anchors-ok",
+      "failure": "smelt:rebuild-anchors-failed",
+      "docs": {
+        "lead": [
+          "",
+          "  // ── SMELT ────────────────────────────────────────────",
+          "  // Anchored-text rebuild, served by the Smelter (PERSIST-ANCHORS P0)"
+        ],
+        "trailing": ""
+      }
+    },
+    {
       "request": "yield:create",
       "result": "yield:create-ok",
       "failure": "yield:create-failed",
@@ -3564,7 +3633,7 @@
     }
   ],
   "preamble": {
-    "protocolHeader": "/**\n * Bus Protocol\n *\n * The complete EventMap for the RxJS EventBus. Every channel name and\n * its payload type is defined here — domain events, commands, reads,\n * results, SSE stream payloads, and frontend UI events.\n *\n * Identifier discipline: where a payload carries an annotation or\n * resource id, the TypeScript layer narrows the OpenAPI `string` to the\n * branded type (`AnnotationId`, `ResourceId`, `UserId`). The runtime\n * wire shape is unchanged (brands have no runtime representation);\n * what this buys us is that command handlers don't have to re-brand\n * at every seam. Brand once at the entry boundary (HTTP route handler,\n * DOM attribute read, URL param parse), not at every bus hop in\n * between. See `.plans/BRAND-UPSTREAM.md` for the rationale.\n *\n * Organized by flow (verb), then by category within each flow.\n */\n\nimport type { components } from './types';\nimport type { AnnotationId, ResourceId } from './identifiers';\nimport type { Annotation } from './annotation-types';\nimport type { ResourceDescriptor } from './graph';\nimport type { StoredEvent } from './event-base';\nimport type { EventOfType } from './persisted-events';\nimport type { AnchorRect } from './bus-ui-types';\nimport type { AnchoredText } from './pdf-anchoring';\n\n// Branded overrides for OpenAPI command payloads that carry identifier\n// fields. Narrows `string` → branded at the TypeScript layer.\n//\n// `_userId` is the gateway-injected authenticated DID (string at the\n// schema layer); handlers that need a `UserId` brand it locally.\ntype MarkDeleteCommand =\n  components['schemas']['MarkDeleteCommand'] & {\n    annotationId: AnnotationId;\n    resourceId?: ResourceId;\n  };\ntype MarkUpdateBodyCommand =\n  components['schemas']['MarkUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindInitiateCommand =\n  components['schemas']['BindInitiateCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindUpdateBodyCommand =\n  components['schemas']['BindUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\n\n/**\n * The unified EventMap — every channel on the EventBus.\n *\n * Convention:\n * - Domain events (past tense): StoredEvent<Interface> — branded types\n * - Commands/reads/results/UI: OpenAPI schema refs — plain strings\n * - void: UI-only signals with no payload\n */\n\n\n",
+    "protocolHeader": "/**\n * Bus Protocol\n *\n * The complete EventMap for the RxJS EventBus. Every channel name and\n * its payload type is defined here — domain events, commands, reads,\n * results, SSE stream payloads, and frontend UI events.\n *\n * Identifier discipline: where a payload carries an annotation or\n * resource id, the TypeScript layer narrows the OpenAPI `string` to the\n * branded type (`AnnotationId`, `ResourceId`, `UserId`). The runtime\n * wire shape is unchanged (brands have no runtime representation);\n * what this buys us is that command handlers don't have to re-brand\n * at every seam. Brand once at the entry boundary (HTTP route handler,\n * DOM attribute read, URL param parse), not at every bus hop in\n * between. See `.plans/BRAND-UPSTREAM.md` for the rationale.\n *\n * Organized by flow (verb), then by category within each flow.\n */\n\nimport type { components } from './types';\nimport type { AnnotationId, ResourceId } from './identifiers';\nimport type { Annotation } from './annotation-types';\nimport type { ResourceDescriptor } from './graph';\nimport type { StoredEvent } from './event-base';\nimport type { EventOfType } from './persisted-events';\nimport type { AnchorRect } from './bus-ui-types';\n\n// Branded overrides for OpenAPI command payloads that carry identifier\n// fields. Narrows `string` → branded at the TypeScript layer.\n//\n// `_userId` is the gateway-injected authenticated DID (string at the\n// schema layer); handlers that need a `UserId` brand it locally.\ntype MarkDeleteCommand =\n  components['schemas']['MarkDeleteCommand'] & {\n    annotationId: AnnotationId;\n    resourceId?: ResourceId;\n  };\ntype MarkUpdateBodyCommand =\n  components['schemas']['MarkUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindInitiateCommand =\n  components['schemas']['BindInitiateCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindUpdateBodyCommand =\n  components['schemas']['BindUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\n\n/**\n * The unified EventMap — every channel on the EventBus.\n *\n * Convention:\n * - Domain events (past tense): StoredEvent<Interface> — branded types\n * - Commands/reads/results/UI: OpenAPI schema refs — plain strings\n * - void: UI-only signals with no payload\n */\n\n\n",
     "eventMapTail": [],
     "schemasTail": [],
     "operationsHeader": "import type { EventName, EmittableChannel } from './bus-protocol';\n\n/**\n * BUS_OPERATIONS — the request/reply operations registry (Tier 1).\n *\n * Each entry declares ONE operation as the triple that was previously three\n * loose, independently-maintained facts spread across call sites:\n *   - the request channel (the key — an `EmittableChannel`),\n *   - the `result` channel (success reply),\n *   - the `failure` channel,\n *   - and, for a streaming op, an optional `progress` channel.\n *\n * `BridgedChannel` / `BRIDGED_CHANNELS` are DERIVED from this map\n * (bridged-channels.ts): every reply lands in the bridged fan-in set by\n * construction, so \"a reply channel forgotten from BRIDGED_CHANNELS\" — the\n * recurring bug class (gather:resource-complete, frame:*-add-failed) — is no\n * longer representable. See .plans/BUS-OPERATIONS-REGISTRY.md.\n *\n * `Partial<Record<EmittableChannel, …>>` enforces that every key is a real\n * emittable request. `result`/`failure`/`progress` stay `EventName` rather than\n * `BridgedChannel` to avoid a circular reference (BridgedChannel derives from\n * this map); the derivation closes the loop instead.\n */\nexport interface BusOperationSpec {\n  result: EventName;\n  failure: EventName;\n  /** Streaming ops only: an intermediate channel that also bridges. */\n  progress?: EventName;\n}\n\n",

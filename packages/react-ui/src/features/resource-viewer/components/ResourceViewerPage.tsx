@@ -24,6 +24,7 @@ import type { BrowseMediaRenderers, AnnotateMediaRenderers } from '@semiont/reac
 import { useObservable } from '@semiont/react-ui';
 import { useResourceContent } from '../../../hooks/useResourceContent';
 import { useMediaToken } from '../../../hooks/useMediaToken';
+import { mediaUrl } from '../../../lib/media-url';
 import { useToast } from '../../../components/Toast';
 import { useOutcomeToasts } from '../../../hooks/useOutcomeToasts';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -186,9 +187,7 @@ export function ResourceViewerPage({
 
   // Binary path: fetch short-lived media token, construct URL
   const { token: mediaToken, loading: mediaTokenLoading } = useMediaToken(semiont ?? null, rUri);
-  const binaryContent = (isBinary && mediaToken && semiont)
-    ? `${semiont.baseUrl}/api/resources/${rUri}?token=${mediaToken}`
-    : '';
+  const binaryContent = (isBinary ? mediaUrl(semiont, rUri, mediaToken) : undefined) ?? '';
 
   const content = isBinary ? binaryContent : textContent;
   const contentLoading = isBinary ? mediaTokenLoading : textLoading;

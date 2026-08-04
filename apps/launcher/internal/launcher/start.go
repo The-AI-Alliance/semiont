@@ -702,11 +702,13 @@ func tracesArgs() []string {
 // instead, so no password ever sits in the container's inspectable env.
 // jwt is the token-signing key — backend-only, deliberately not in sidecarArgs:
 // the sidecars present agent tokens the backend minted and never sign anything.
-func backendArgs(kbRoot, stage, addr, secret, jwt, version string, port int, userEnv, otel []string) []string {
+func backendArgs(kbRoot, stage, addr, secret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-backend", // no --rm: see providedRunArgs
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", "8G",
 		"--volume", kbRoot + ":/kb",
 		"--volume", stage + "/backend.toml:/home/semiont/.semiontconfig:ro"}
+	// Persistent state the backend itself owns (stateStores["backend"]).
+	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a,

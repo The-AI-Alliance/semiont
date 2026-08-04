@@ -638,6 +638,67 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 	}
 }
 
+// The backend keeps derived state of its own — the anchored-text store, a
+// coordinate map per representation that costs ~2.9s/page of OCR to rebuild.
+// Unmounted it lives in the container and dies with it on every `stop`, and
+// nothing re-derives it: reconcile plans work from Qdrant, which persists, so
+// it sees matching checksums and does nothing.
+//
+// Filed exactly like the projections beside it: `stateDir/anchored-text`,
+// scoped by the KB's `[project] name`, the same scope SemiontProject gives
+// every derived directory. The mount target therefore carries that name.
+func TestBackendDataPersistsAcrossStarts(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("first start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	dir := stateRootFor(s.home, testKBKey)
+	if _, err := os.Stat(filepath.Join(dir, "anchored-text")); err != nil {
+		t.Fatalf("anchored-text state dir after start: %v", err)
+	}
+	s.killServes()
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mount := dir + "/anchored-text:/home/semiont/.local/state/semiont/Test Knowledge Base/anchored-text"
+	if got := strings.Count(string(s.mustLog(t)), mount); got != 2 {
+		t.Errorf("backend state mount should appear in both boots (want 2, got %d)", got)
+	}
+}
+
+// It is a projection — every entry is reproducible from the resource's bytes —
+// so `clean` may take it, and an image change clears rather than refuses.
+func TestCleanTakesBackendState(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	dir := stateRootFor(s.home, testKBKey)
+	// Sharded the way the KB's own event log is sharded (decision E), so the
+	// sweep must reach through the fan-out, not just the top directory.
+	entry := filepath.Join(dir, "anchored-text", "ab", "cd")
+	if err := os.MkdirAll(entry, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(entry, "deadbeef.json"), []byte(`{"v":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, stderr, code := s.run(t, "clean", "--store", "anchored-text")
+	if code != 0 {
+		t.Fatalf("clean --store anchored-text: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "anchored-text")); !os.IsNotExist(err) {
+		t.Errorf("clean --store anchored-text left the tree behind: %v", err)
+	}
+	// And the other stores are untouched — a scoped clean is scoped.
+	if _, err := os.Stat(filepath.Join(dir, "postgres")); err != nil {
+		t.Errorf("clean --store anchored-text took postgres too: %v", err)
+	}
+}
+
 func TestStateImageMismatchRefuses(t *testing.T) {
 	s := newScenario(t, "container")
 	// Existing postgres data written by a DIFFERENT image version: the

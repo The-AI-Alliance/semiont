@@ -19,7 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { StoredEvent, PersistedEvent, EventMetadata, EventInput, ResourceId, Logger } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
-import { jumpConsistentHash } from './shard-utils';
+import { jumpConsistentHash } from '@semiont/core';
 
 export interface EventStorageConfig {
   maxEventsPerFile?: number;     // File rotation threshold (default: 10000)

@@ -1,11 +1,17 @@
 /**
  * Sharding Utilities
  *
- * Shared utilities for consistent sharding across all storage layers
- * Uses Google's Jump Consistent Hash algorithm for even distribution
+ * Shared utilities for consistent sharding across all storage layers —
+ * the event log and view storage (@semiont/event-sourcing) and the
+ * anchored-text store (@semiont/content) all lay files out as
+ * `{ab}/{cd}/<key>` through `getShardPath`. Hoisted here (PERSIST-ANCHORS
+ * P1a) so both importers share one implementation: a second sharding
+ * implementation is how two trees end up disagreeing about where
+ * something lives.
+ *
+ * Pure string/number math — no node dependencies — so it is safe on
+ * core's browser-facing root export.
  */
-
-import { createHash } from 'crypto';
 
 /**
  * TEMPORARY: Simple modulo-based hash sharding
@@ -32,7 +38,7 @@ import { createHash } from 'crypto';
  * if bucket count changes, rather than the optimal O(n/k) reshuffling that
  * Jump Consistent Hash provides.
  *
- * @param key - The key to hash (typically a resource ID)
+ * @param key - The key to hash (a resource id or content checksum)
  * @param numBuckets - Number of shards/buckets (default: 65536 for 4-hex sharding)
  * @returns Shard number (0 to numBuckets-1)
  */
@@ -59,7 +65,7 @@ function hashToUint32(str: string): number {
  * @param shardId - Shard number (0-65535)
  * @returns Path segments like ['ab', 'cd']
  */
-export function shardIdToPath(shardId: number): [string, string] {
+function shardIdToPath(shardId: number): [string, string] {
   if (shardId < 0 || shardId >= 65536) {
     throw new Error(`Invalid shard ID: ${shardId}. Must be 0-65535 for 4-hex sharding.`);
   }
@@ -74,19 +80,11 @@ export function shardIdToPath(shardId: number): [string, string] {
 /**
  * Get 4-hex shard path for a key
  *
- * @param key - The key to hash (typically a resource ID)
+ * @param key - The key to hash (a resource id or content checksum)
  * @param numBuckets - Number of shards (default: 65536)
  * @returns Path segments like ['ab', 'cd']
  */
 export function getShardPath(key: string, numBuckets: number = 65536): [string, string] {
   const shardId = jumpConsistentHash(key, numBuckets);
   return shardIdToPath(shardId);
-}
-
-/**
- * Calculate SHA-256 hash of data
- */
-export function sha256(data: string | object): string {
-  const content = typeof data === 'string' ? data : JSON.stringify(data);
-  return createHash('sha256').update(content).digest('hex');
 }

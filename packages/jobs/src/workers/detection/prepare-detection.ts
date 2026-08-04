@@ -1,7 +1,7 @@
 import type { SemiontSession } from '@semiont/sdk';
 import type { ResourceId, components } from '@semiont/core';
 import { textExtractionOf } from '@semiont/core';
-import { EXTRACTORS, type ExtractionDecline } from '@semiont/content';
+import { EXTRACTORS, calculateChecksum, type AnchoredTextStore, type ExtractionDecline } from '@semiont/content';
 import { buildTextAnnotation, buildPdfAnnotation, type BuildAnnotation } from '../../processors';
 
 type Agent = components['schemas']['Agent'];
@@ -49,12 +49,23 @@ export async function prepareDetection(
   resourceId: ResourceId,
   userId: string,
   generator: Agent,
+  store: AnchoredTextStore,
 ): Promise<DetectionSource> {
   const extractor = EXTRACTORS[textExtractionOf(mediaType)];
   if (!extractor) return { declined: 'no-extractor' };
 
   const { data } = await session.client.browse.resourceRepresentation(resourceId);
-  const extracted = await extractor.extract(Buffer.from(data), mediaType);
+  // Read through the anchored-text cache (PERSIST-ANCHORS P2d): a stored
+  // outcome — success or decline — is served whole, so a second detection
+  // pass over the same representation runs neither parser nor engine. The
+  // key is the checksum of the bytes actually fetched, never a descriptor
+  // claim: a catalog-derived key can race a byte change and file or read
+  // geometry under an identity that does not describe these bytes (P1c).
+  const bytes = Buffer.from(data);
+  const extracted = await extractor.extract(bytes, mediaType, {
+    key: calculateChecksum(bytes),
+    store,
+  });
   if ('declined' in extracted) return extracted;
   if (!extracted.text.trim()) return { declined: 'empty' };
 

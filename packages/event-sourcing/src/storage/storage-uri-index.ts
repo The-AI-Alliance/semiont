@@ -20,7 +20,15 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import { getShardPath, sha256 } from './shard-utils';
+import { createHash } from 'crypto';
+import { getShardPath } from '@semiont/core';
+
+/** SHA-256 hex of a URI — the index's filename derivation. Lived in
+ *  shard-utils until the pure sharding helpers hoisted to @semiont/core
+ *  (PERSIST-ANCHORS P1a); this was its only consumer. */
+function sha256(data: string): string {
+  return createHash('sha256').update(data).digest('hex');
+}
 
 export interface StorageUriEntry {
   uri: string;

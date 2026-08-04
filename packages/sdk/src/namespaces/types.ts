@@ -47,7 +47,7 @@ import type {
 // ── OpenAPI schema type aliases ─────────────────────────────────────────────
 
 import type { Annotation } from '@semiont/core';
-import type { AnchoredText } from '@semiont/core';
+import type { ExtractionOutcome } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
@@ -249,7 +249,7 @@ export interface BrowseNamespace {
   resourceContent(resourceId: ResourceId): Promise<string>;
   resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse>;
   /** The resource's coordinate map, or null when none has been derived. */
-  resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredText | null>;
+  resourceAnchoredText(resourceId: ResourceId): Promise<ExtractionOutcome | null>;
   resourceRepresentation(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }>;
   resourceRepresentationStream(resourceId: ResourceId): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
   resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]>;

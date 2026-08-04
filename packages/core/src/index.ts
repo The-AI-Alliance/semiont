@@ -192,7 +192,7 @@ export type { PdfCoordinate } from './pdf-coordinates';
 
 // PDF text <-> geometry anchoring (locate/textUnder are inverses)
 export { locate, textUnder, anchorRuns, isTextRun } from './pdf-anchoring';
-export type { AnchoredText, PdfTextItem, PdfTextRun } from './pdf-anchoring';
+export type { AnchoredText, ExtractionOutcome, PdfTextItem, PdfTextRun } from './pdf-anchoring';
 
 // ResourceDescriptor accessors
 export {
@@ -400,6 +400,8 @@ export type { GraphViews } from './knowledge-graph-views';
 // (worker, smelter, weaver) to the KS.
 export { retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from './retry';
 export type { RetryPolicy, RetryAttemptInfo } from './retry';
+
+export { getShardPath, jumpConsistentHash } from './shard-utils';
 
 // Browser ↔ launcher KB discovery — the canonical served URL of the
 // launcher's discovery document (BROWSER-KB-DISCOVERY).

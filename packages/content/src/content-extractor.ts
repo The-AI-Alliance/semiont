@@ -70,13 +70,21 @@ export interface ExtractionDecline {
 /**
  * Where a strategy may reuse an earlier recognition, and under what key.
  *
- * The caller supplies the key because it already has one — the content
- * checksum on `smelt:settled` / `getChecksum(descriptor)`. Hashing a large PDF
- * per job is precisely the cost this cache exists to remove, not add.
+ * The caller supplies the key, and derives it from the bytes it actually
+ * holds — `calculateChecksum` over the same Buffer it passes to `extract()` —
+ * never from a descriptor's claim. A catalog-derived key can race a byte
+ * change (bytes fetched at one moment, descriptor read at another) and file
+ * or read geometry under an identity that does not describe the bytes being
+ * extracted. The write path made recompute-over-claim the rule
+ * (PERSIST-ANCHORS P1b); readers mirror it (P1c). One SHA-256 over bytes
+ * already in memory is noise against the engine pass a hit avoids.
  *
- * Optional throughout: every existing caller passes nothing and is unaffected.
- * Only strategies with an expensive engine behind them consult it, so a
- * document that never OCRs never produces an entry.
+ * Optional throughout: a caller that passes nothing extracts uncached and is
+ * unaffected. The seam is `extract()` itself (PERSIST-ANCHORS D1/P2b): a hit
+ * returns the FINISHED outcome — classification, geometry, provenance, or a
+ * named decline — so neither the native parse nor the engine runs. Every
+ * geometry-yielding extraction produces an entry, native documents included;
+ * the 'decode' strategy ignores the cache (no geometry, nothing expensive).
  */
 export interface ExtractionCache {
   key: string;
@@ -84,6 +92,17 @@ export interface ExtractionCache {
 }
 
 export interface ContentExtractor {
+  /**
+   * Whether this strategy's extractions carry positioned runs (`items`) — the
+   * geometry an anchored-text artifact is made of. Declared, not probed:
+   * the reconcile planner must know "should an artifact exist?" without
+   * running the extractor (PERSIST-ANCHORS P0, the third drift class), and
+   * the declaration keeps the planner's gate and the live fetch's behavior
+   * twins by construction. Text strategies anchor by character offset and
+   * declare false.
+   */
+  yieldsGeometry: boolean;
+
   /**
    * Extract embeddable/annotatable text, or decline with the class reason
    * (scanned-without-OCR, encrypted, corrupt). The caller skips embedding
@@ -96,6 +115,7 @@ export interface ContentExtractor {
  *  scoped as the 'decode' strategy's extractor. Never declines: any byte
  *  sequence decodes to *some* string; emptiness is the caller's call. */
 const passthroughExtractor: ContentExtractor = {
+  yieldsGeometry: false,
   async extract(content, mediaType) {
     return { text: decodeRepresentation(content, mediaType), method: 'text-passthrough' };
   },

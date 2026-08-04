@@ -15,7 +15,7 @@
 
 import { vi } from 'vitest';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import type { ConnectionState, Logger, EventMap, IContentTransport, components } from '@semiont/core';
+import type { ExtractionOutcome, ConnectionState, Logger, EventMap, IContentTransport, components } from '@semiont/core';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive } from '@semiont/core';
 import type { SmelterEvent } from '../../smelter-actor-state-unit';
@@ -100,15 +100,34 @@ export type ContentEntry =
 export function createContentTransport(opts: {
   read: (rid: string) => ContentEntry | 'fail' | undefined;
   wrap?: <T>(p: Promise<T>, label: string) => Promise<T>;
+  /**
+   * The anchored-text store, caller-owned so tests can seed it (artifact
+   * present) or leave it empty (the lost-artifact shape PERSIST-ANCHORS P0
+   * reconciles) and observe what the Smelter published. Mirrors production
+   * semantics: put writes, get misses as null, list returns would-hit keys.
+   */
+  anchored?: Map<string, ExtractionOutcome>;
 }): IContentTransport {
+  const anchored = opts.anchored ?? new Map<string, ExtractionOutcome>();
   return {
     async putBinary(): Promise<never> {
       throw new Error('not supported');
     },
-    // The Smelter is the producer of anchored text; this harness exercises the
-    // embed path, not the map, so the store is real but empty.
-    async putAnchoredText() { /* the map is not what these tests assert on */ },
-    async getAnchoredText() { return null; },
+    // Writes are checksum-addressed (P1b): the map's keys are content
+    // checksums, which is exactly what `listAnchoredTextKeys` must return
+    // for the reconcile diff to compare against catalog checksums.
+    async putAnchoredText(checksum, value) {
+      anchored.set(checksum, value);
+    },
+    async getAnchoredText(resourceId) {
+      return anchored.get(String(resourceId)) ?? null;
+    },
+    async getAnchoredTextByChecksum(checksum) {
+      return anchored.get(checksum) ?? null;
+    },
+    async listAnchoredTextKeys() {
+      return [...anchored.keys()];
+    },
     async getBinary(resourceId) {
       const rid = String(resourceId);
       const make = async (): Promise<{ data: ArrayBuffer; contentType: string }> => {
