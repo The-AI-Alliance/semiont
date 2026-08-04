@@ -71,6 +71,7 @@ The layered architecture, dependency graph, and per-package summaries live in **
 - **[CONTRIBUTING.md](../../CONTRIBUTING.md)** — branch/PR workflow, commit conventions, platform-contribution playbook.
 - **[System Documentation](../system/README.md)** — index for all system-architecture docs (actor model, knowledge system, container topology, package architecture).
 - **[LOCAL-DEVELOPMENT.md](LOCAL-DEVELOPMENT.md)** — running locally; Path B for contributors building from source.
+- **[MEDIA-TYPES.md](MEDIA-TYPES.md)** — how a media type's declared capabilities change the yield → smelt → weave → annotate flow, walked end to end with PDF.
 - **[TESTING.md](TESTING.md)** — testing conventions and infrastructure.
 - **[RELEASE.md](RELEASE.md)** — versioning and release process.
 - **[packages/README.md](../../packages/README.md)** — full package inventory with dependency graph.
