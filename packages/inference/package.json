@@ -27,13 +27,13 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.112.5",
+    "@anthropic-ai/sdk": "^0.115.0",
     "@semiont/core": "*",
     "@semiont/observability": "*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.8",
-    "rollup": "^4.61.0",
+    "rollup": "^4.62.3",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
     "typescript": "^6.0.2",
