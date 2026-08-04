@@ -125,7 +125,7 @@
     "@semiont/core": "*",
     "@semiont/http-transport": "*",
     "@semiont/sdk": "*",
-    "pdfjs-dist": "^6.1.200",
+    "pdfjs-dist": "^6.2.108",
     "react-error-boundary": "^6.1.2",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",

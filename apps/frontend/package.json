@@ -55,7 +55,7 @@
     "@semiont/sdk": "*",
     "i18next": "^26.3.6",
     "i18next-http-backend": "^4.0.1",
-    "pdfjs-dist": "^6.1.200",
+    "pdfjs-dist": "^6.2.108",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-i18next": "^17.0.11",
