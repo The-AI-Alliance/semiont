@@ -29,7 +29,7 @@
   "dependencies": {
     "@semiont/core": "*",
     "@tesseract.js-data/eng": "^1.0.0",
-    "pdfjs-dist": "^6.1.200",
+    "pdfjs-dist": "^6.2.108",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
