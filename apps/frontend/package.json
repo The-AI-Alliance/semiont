@@ -54,7 +54,7 @@
     "@semiont/react-ui": "*",
     "@semiont/sdk": "*",
     "i18next": "^26.3.6",
-    "i18next-http-backend": "^4.0.0",
+    "i18next-http-backend": "^4.0.1",
     "pdfjs-dist": "^6.1.200",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
