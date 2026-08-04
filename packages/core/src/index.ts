@@ -310,6 +310,7 @@ export {
   textExtractionOf,
   AUTHORABLE_MEDIA_TYPES,
   EMBEDDABLE_MEDIA_TYPES,
+  GENERATABLE_MEDIA_TYPES,
 } from './media-types';
 export type {
   SupportedMediaType,

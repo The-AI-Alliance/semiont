@@ -29,6 +29,12 @@ export {
   type ExtractionCache,
 } from './content-extractor';
 
+// Extraction byte budget (#1124). Also the generation output bound
+// (PDF-GENERATION P5): an artifact we generate must stay within the budget
+// our own extractor accepts, or we would mint resources the Smelter
+// declines as 'too-large'. One threshold, two enforcement points.
+export { MAX_PDF_BYTES, withinByteBudget } from './pdf-extractor';
+
 // Persistent recognition cache (ANCHORED-TEXT-CACHE Lane 2). Derived values
 // only — an authored coordinate map is master data and never belongs here.
 export {

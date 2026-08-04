@@ -266,7 +266,7 @@ describe('handleJob orchestration', () => {
   describe('generation', () => {
     it('uploads content via session.client.yield.resource, then emits job:complete with resourceId + resourceName', async () => {
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: '# Generated\n\nBody.',
+        content: new TextEncoder().encode('# Generated\n\nBody.'),
         title: 'New Resource',
         format: 'text/markdown',
         citations: [],
@@ -302,7 +302,7 @@ describe('handleJob orchestration', () => {
 
     it('propagates upload errors so the caller can translate to job:fail', async () => {
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'body',
+        content: new TextEncoder().encode('body'),
         title: 'T',
         format: 'text/markdown',
         citations: [],
@@ -322,7 +322,7 @@ describe('handleJob orchestration', () => {
       // step `browse.resources({ entityType: 'Character' })` would never
       // surface synthesized resources.
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'body',
+        content: new TextEncoder().encode('body'),
         title: 'T',
         format: 'text/markdown',
         citations: [],
@@ -349,7 +349,7 @@ describe('handleJob orchestration', () => {
       // resource — distinct from "field absent", and confusing for
       // downstream queries.
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'body',
+        content: new TextEncoder().encode('body'),
         title: 'T',
         format: 'text/markdown',
         citations: [],
@@ -369,7 +369,7 @@ describe('handleJob orchestration', () => {
       // mints a navigable reference: target = the whole source resource (resource-level,
       // no selector), body = SpecificResource → the derived resource.
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'body', title: 'Derived Doc', format: 'text/markdown', citations: [], result: {} as never,
+        content: new TextEncoder().encode('body'), title: 'Derived Doc', format: 'text/markdown', citations: [], result: {} as never,
       });
       const h = makeFakeSessionAndAdapter();
 
@@ -399,7 +399,7 @@ describe('handleJob orchestration', () => {
       // target = the derived resource + position/quote selectors for the claim,
       // body = SpecificResource → the cited source.
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'Paris is the capital of France. It is large.',
+        content: new TextEncoder().encode('Paris is the capital of France. It is large.'),
         title: 'Answer',
         format: 'text/markdown',
         citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
@@ -637,7 +637,7 @@ describe('handleJob orchestration', () => {
 
     it('does not gate generation jobs (they read the annotation, not the source bytes)', async () => {
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'body',
+        content: new TextEncoder().encode('body'),
         title: 'T',
         format: 'text/markdown',
         citations: [],

@@ -37,6 +37,11 @@ vi.mock('../workers/generation/resource-generation', () => ({
   generateResourceFromTopic: vi.fn(),
 }));
 
+vi.mock('../workers/generation/typst-compiler', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../workers/generation/typst-compiler')>()),
+  compileTypst: vi.fn(),
+}));
+
 vi.mock('@semiont/event-sourcing', () => ({
   generateAnnotationId: vi.fn(() => 'ann-test-123'),
 }));
@@ -49,6 +54,7 @@ vi.mock('@semiont/event-sourcing', () => ({
 import { AnnotationDetection } from '../workers/annotation-detection';
 import { extractEntities } from '../workers/detection/entity-extractor';
 import { generateResourceFromTopic } from '../workers/generation/resource-generation';
+import { compileTypst, MAX_COMPILE_REPAIRS } from '../workers/generation/typst-compiler';
 import type { PdfTextLayer } from '@semiont/content';
 import {
   processHighlightJob,
@@ -57,6 +63,7 @@ import {
   processReferenceJob,
   processTagJob,
   processGenerationJob,
+  assertWithinOutputBudget,
   buildTextAnnotation,
   buildPdfAnnotation,
   type BuildAnnotation,
@@ -368,7 +375,7 @@ describe('processGenerationJob', () => {
       LOGGER,
     );
 
-    expect(result.content).toContain('Generated resource');
+    expect(new TextDecoder().decode(result.content)).toContain('Generated resource');
     expect(result.title).toBe('Generated Title');
     expect(result.format).toBe('text/markdown');
     expect(result.result.resourceName).toBe('Generated Title');
@@ -448,13 +455,15 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
       LOGGER,
     );
 
-    expect(r.content).toBe('Paris is the capital of France. It is large.');
+    const text = new TextDecoder().decode(r.content);
+    expect(text).toBe('Paris is the capital of France. It is large.');
     expect(r.citations).toHaveLength(1);
     const c = r.citations[0]!;
     expect(c.resourceId).toBe('ctx-9');
     expect(c.exact).toBe('Paris is the capital of France.');
     // anchor invariant: the selector must reproduce exact from the FINAL content
-    expect(r.content.substring(c.start, c.end)).toBe(c.exact);
+    // (citation offsets index the decoded text)
+    expect(text.substring(c.start, c.end)).toBe(c.exact);
   });
 
   it('drops a hallucinated id loudly — stripped, warned, no citation', async () => {
@@ -471,7 +480,7 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
       logger,
     );
 
-    expect(r.content).toBe('A bold claim.');
+    expect(new TextDecoder().decode(r.content)).toBe('A bold claim.');
     expect(r.citations).toHaveLength(0);
     expect(warn).toHaveBeenCalledTimes(1);
   });
@@ -489,8 +498,110 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
       LOGGER,
     );
 
-    expect(r.content).toBe('Wiki-style [[links]] are legitimate content.');
+    expect(new TextDecoder().decode(r.content)).toBe('Wiki-style [[links]] are legitimate content.');
     expect(r.citations).toHaveLength(0);
+  });
+});
+
+describe('processGenerationJob — byte return (PDF-GENERATION P1)', () => {
+  // The artifact is bytes. Text is an encoding of them — one shape for every
+  // output media type, so a string can never travel mislabeled as a binary
+  // format. The sole consumer (worker upload) already does Buffer.from().
+  it('returns the artifact content as Uint8Array', async () => {
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: 'Generated body', title: 'T' });
+
+    const r = await processGenerationJob(makeInferenceClient(), { title: 'T' }, vi.fn(), LOGGER);
+
+    expect(r.content).toBeInstanceOf(Uint8Array);
+    expect(new TextDecoder().decode(r.content)).toBe('Generated body');
+  });
+});
+
+describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)', () => {
+  beforeEach(() => {
+    vi.mocked(compileTypst).mockReset();
+    vi.mocked(generateResourceFromTopic).mockReset();
+  });
+
+  it('compiles model-authored Typst to PDF bytes', async () => {
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '= Title\nBody.', title: 'T' });
+    const pdf = new TextEncoder().encode('%PDF-FAKE');
+    vi.mocked(compileTypst).mockReturnValue({ pdf });
+
+    const r = await processGenerationJob(
+      makeInferenceClient(),
+      { title: 'T', outputMediaType: 'application/pdf' },
+      vi.fn(),
+      LOGGER,
+    );
+
+    expect(compileTypst).toHaveBeenCalledWith('= Title\nBody.');
+    expect(r.content).toBe(pdf);
+    expect(r.format).toBe('application/pdf');
+  });
+
+  it('feeds a compile error back for a bounded repair, then succeeds', async () => {
+    vi.mocked(generateResourceFromTopic)
+      .mockResolvedValueOnce({ content: '#let broken = [unclosed', title: 'T' })
+      .mockResolvedValueOnce({ content: '= Fixed\nBody.', title: 'T' });
+    const pdf = new TextEncoder().encode('%PDF-FAKE');
+    vi.mocked(compileTypst)
+      .mockReturnValueOnce({ error: 'error: unclosed delimiter\n  ┌─ doc.typ:1:14' })
+      .mockReturnValueOnce({ pdf });
+
+    const r = await processGenerationJob(
+      makeInferenceClient(),
+      { title: 'T', outputMediaType: 'application/pdf' },
+      vi.fn(),
+      LOGGER,
+    );
+
+    expect(r.content).toBe(pdf);
+    expect(generateResourceFromTopic).toHaveBeenCalledTimes(2);
+    // The repair call carries the failed source + the legible error (last arg).
+    const repairArg = vi.mocked(generateResourceFromTopic).mock.calls[1]!.at(-1);
+    expect(repairArg).toMatchObject({
+      source: '#let broken = [unclosed',
+      error: expect.stringContaining('unclosed delimiter'),
+    });
+  });
+
+  it('gives up loudly after the bounded repairs are exhausted', async () => {
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '#broken', title: 'T' });
+    vi.mocked(compileTypst).mockReturnValue({ error: 'error: unclosed delimiter' });
+
+    await expect(
+      processGenerationJob(makeInferenceClient(), { title: 'T', outputMediaType: 'application/pdf' }, vi.fn(), LOGGER),
+    ).rejects.toThrow(/unclosed delimiter/);
+
+    // 1 initial + MAX_COMPILE_REPAIRS attempts, then fail — no unbounded loop.
+    expect(generateResourceFromTopic).toHaveBeenCalledTimes(1 + MAX_COMPILE_REPAIRS);
+  });
+
+  it('cite with application/pdf fails loudly until the citation branch (P4) lands', async () => {
+    await expect(
+      processGenerationJob(
+        makeInferenceClient(),
+        { title: 'T', outputMediaType: 'application/pdf', cite: true },
+        vi.fn(),
+        LOGGER,
+      ),
+    ).rejects.toThrow(/citation branch/);
+    // fail-fast: before the LLM call
+    expect(generateResourceFromTopic).not.toHaveBeenCalled();
+  });
+});
+
+describe('processGenerationJob — output bound (PDF-GENERATION P5)', () => {
+  // Symmetric with #1124's extraction byte budget, and deliberately the SAME
+  // threshold: a generated artifact larger than what extraction accepts would
+  // be a resource our own Smelter declines as 'too-large'. Tested by the
+  // numbers — the judgment doesn't require materializing 200 MB (the same
+  // rationale content's withinByteBudget records).
+  it('accepts an artifact exactly at the budget and refuses one past it', async () => {
+    const { MAX_PDF_BYTES } = await import('@semiont/content');
+    expect(() => assertWithinOutputBudget(MAX_PDF_BYTES)).not.toThrow();
+    expect(() => assertWithinOutputBudget(MAX_PDF_BYTES + 1)).toThrow(/output byte budget/);
   });
 });
 

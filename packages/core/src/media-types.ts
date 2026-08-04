@@ -43,6 +43,10 @@ export interface MediaTypeCapabilities {
   extractText: TextExtraction;
   authorable: boolean;
   uploadable: boolean;
+  /** Whether the generation worker can produce this type as a yield artifact.
+   *  Gate for `outputMediaType` — unsupported requests fail loudly, never
+   *  fall back to markdown under a mislabeled format. */
+  generatable: boolean;
 }
 
 /** Storage tier: catalogued — stored, named, uploadable — but not
@@ -55,6 +59,7 @@ const storedBinary = (extension: `.${string}`, label: string): MediaTypeCapabili
   extractText: 'none',
   authorable: false,
   uploadable: true,
+  generatable: false,
 });
 
 /** Storage tier, text-flavored: embedded (charset-aware decode), not rendered. */
@@ -74,13 +79,15 @@ const storedText = (extension: `.${string}`, label: string): MediaTypeCapabiliti
  */
 export const MEDIA_TYPES = {
   // Full-capability tier
-  'text/markdown':    { extension: '.md',   label: 'Markdown',   render: 'text',  anchoring: 'text-selector', extractText: 'decode',         authorable: true,  uploadable: true },
-  'text/plain':       { extension: '.txt',  label: 'Plain Text', render: 'text',  anchoring: 'text-selector', extractText: 'decode',         authorable: true,  uploadable: true },
-  'text/html':        { extension: '.html', label: 'HTML',       render: 'text',  anchoring: 'text-selector', extractText: 'decode',         authorable: true,  uploadable: true },
-  'application/json': { extension: '.json', label: 'JSON',       render: 'text',  anchoring: 'text-selector', extractText: 'decode',         authorable: false, uploadable: true },
-  'image/png':        { extension: '.png',  label: 'PNG image',  render: 'image', anchoring: 'spatial',       extractText: 'none',           authorable: false, uploadable: true },
-  'image/jpeg':       { extension: '.jpg',  label: 'JPEG image', render: 'image', anchoring: 'spatial',       extractText: 'none',           authorable: false, uploadable: true },
-  'application/pdf':  { extension: '.pdf',  label: 'PDF',        render: 'pdf',   anchoring: 'spatial',       extractText: 'pdf-text-layer', authorable: false, uploadable: true },
+  // `generatable: application/pdf` — the Typst renderer (PDF-GENERATION P3):
+  // the model writes Typst, the worker's pinned binary compiles it.
+  'text/markdown':    { extension: '.md',   label: 'Markdown',   render: 'text',  anchoring: 'text-selector', extractText: 'decode',         authorable: true,  uploadable: true, generatable: true },
+  'text/plain':       { extension: '.txt',  label: 'Plain Text', render: 'text',  anchoring: 'text-selector', extractText: 'decode',         authorable: true,  uploadable: true, generatable: true },
+  'text/html':        { extension: '.html', label: 'HTML',       render: 'text',  anchoring: 'text-selector', extractText: 'decode',         authorable: true,  uploadable: true, generatable: false },
+  'application/json': { extension: '.json', label: 'JSON',       render: 'text',  anchoring: 'text-selector', extractText: 'decode',         authorable: false, uploadable: true, generatable: false },
+  'image/png':        { extension: '.png',  label: 'PNG image',  render: 'image', anchoring: 'spatial',       extractText: 'none',           authorable: false, uploadable: true, generatable: false },
+  'image/jpeg':       { extension: '.jpg',  label: 'JPEG image', render: 'image', anchoring: 'spatial',       extractText: 'none',           authorable: false, uploadable: true, generatable: false },
+  'application/pdf':  { extension: '.pdf',  label: 'PDF',        render: 'pdf',   anchoring: 'spatial',       extractText: 'pdf-text-layer', authorable: false, uploadable: true, generatable: true },
 
   // Storage tier — the big tent. Every row is a deliberate admission,
   // promotable by editing its row. Text-flavored rows embed (decode).
@@ -249,4 +256,10 @@ export const AUTHORABLE_MEDIA_TYPES: readonly SupportedMediaType[] = REGISTRY_KE
  *  text/* fallback in `textExtractionOf` isn't enumerable. */
 export const EMBEDDABLE_MEDIA_TYPES: readonly SupportedMediaType[] = REGISTRY_KEYS.filter(
   (type) => MEDIA_TYPES[type].extractText !== 'none',
+);
+
+/** Types the generation worker can produce as a yield artifact — the
+ *  `outputMediaType` gate reads this, not a local table. */
+export const GENERATABLE_MEDIA_TYPES: readonly SupportedMediaType[] = REGISTRY_KEYS.filter(
+  (type) => MEDIA_TYPES[type].generatable,
 );

@@ -12,9 +12,11 @@
 import { AnnotationDetection } from './workers/annotation-detection';
 import { extractEntities } from './workers/detection/entity-extractor';
 import { generateResourceFromTopic } from './workers/generation/resource-generation';
+import { compileTypst, MAX_COMPILE_REPAIRS } from './workers/generation/typst-compiler';
+import { withinByteBudget, MAX_PDF_BYTES } from '@semiont/content';
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import { didToAgent, type Annotation, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
+import { didToAgent, GENERATABLE_MEDIA_TYPES, type Annotation, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
 import { reconcileSelector, createFragmentSelector, locate, type ReconciledSelector, type AnchoredText } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type {
@@ -584,16 +586,31 @@ export async function processTagJob(
   };
 }
 
+/**
+ * Output bound (PDF-GENERATION P5), symmetric with #1124's extraction budget
+ * and deliberately the SAME threshold: an artifact larger than what extraction
+ * accepts would be a resource our own Smelter declines as 'too-large'. One
+ * judgment, two enforcement points. A runaway generation fails loudly
+ * (job:fail); it never uploads.
+ */
+export function assertWithinOutputBudget(byteLength: number): void {
+  if (!withinByteBudget(byteLength)) {
+    throw new Error(
+      `Generated artifact exceeds the output byte budget: ${byteLength} bytes > ${MAX_PDF_BYTES}. Refusing a runaway generation.`,
+    );
+  }
+}
+
 export async function processGenerationJob(
   inferenceClient: InferenceClient,
   params: GenerationParams,
   onProgress: OnProgress,
   logger: Logger,
-): Promise<{ content: string; title: string; format: SupportedMediaType; citations: GenerationCitation[]; result: GenerationResult }> {
-  // Generation produces text only for now. Refuse any other requested media type
-  // loudly (the throw propagates as job:fail) rather than silently emitting markdown
-  // under a mislabeled format. Validate before the LLM call so it fails fast.
-  const GENERATABLE_MEDIA_TYPES: readonly SupportedMediaType[] = ['text/markdown', 'text/plain'];
+): Promise<{ content: Uint8Array; title: string; format: SupportedMediaType; citations: GenerationCitation[]; result: GenerationResult }> {
+  // Refuse any requested media type the registry doesn't mark `generatable` —
+  // loudly (the throw propagates as job:fail), never a silent markdown fallback
+  // under a mislabeled format. The gate reads the registry capability
+  // (PDF-GENERATION P1), not a local table. Validate before the LLM call.
   const outputMediaType: SupportedMediaType = params.outputMediaType ?? 'text/markdown';
   if (!GENERATABLE_MEDIA_TYPES.includes(outputMediaType)) {
     throw new Error(
@@ -603,6 +620,64 @@ export async function processGenerationJob(
 
   const title = params.title ?? 'Untitled';
   const entityTypes = (params.entityTypes ?? []).map(String);
+
+  // PDF path (PDF-GENERATION P3): the model authors Typst; the worker's pinned
+  // binary compiles it, with the legible compile errors fed back for a bounded
+  // number of repairs. Citations on PDFs need page geometry, not text offsets —
+  // until the citation branch (P4) provides it, `cite` fails fast and loudly
+  // rather than minting selectors that would render nothing.
+  if (outputMediaType === 'application/pdf') {
+    if (params.cite === true) {
+      throw new Error(
+        'cite with application/pdf requires the citation branch (PDF-GENERATION P4): PDF citations anchor by page geometry, which is not built yet.',
+      );
+    }
+
+    onProgress(5, 'Generating resource...', 'generating');
+
+    let generated = await generateResourceFromTopic(
+      title, entityTypes, inferenceClient, logger,
+      params.prompt, params.language, params.context, params.temperature,
+      params.maxTokens, params.sourceLanguage, outputMediaType,
+      params.task, params.structure, params.cite,
+    );
+    let compiled = compileTypst(generated.content);
+    let repairs = 0;
+    while ('error' in compiled && repairs < MAX_COMPILE_REPAIRS) {
+      repairs++;
+      logger.warn('Typst compile failed — feeding the error back for repair', {
+        attempt: repairs,
+        error: compiled.error.slice(0, 500),
+      });
+      generated = await generateResourceFromTopic(
+        title, entityTypes, inferenceClient, logger,
+        params.prompt, params.language, params.context, params.temperature,
+        params.maxTokens, params.sourceLanguage, outputMediaType,
+        params.task, params.structure, params.cite,
+        { source: generated.content, error: compiled.error },
+      );
+      compiled = compileTypst(generated.content);
+    }
+    if ('error' in compiled) {
+      throw new Error(
+        `Typst compilation failed after ${MAX_COMPILE_REPAIRS} repair attempts: ${compiled.error}`,
+      );
+    }
+
+    assertWithinOutputBudget(compiled.pdf.byteLength);
+    onProgress(95, 'Creating resource...', 'creating');
+
+    return {
+      content: compiled.pdf,
+      title: generated.title ?? title,
+      format: outputMediaType,
+      citations: [],
+      result: {
+        resourceId: '' as ResourceId,
+        resourceName: generated.title ?? title,
+      },
+    };
+  }
 
   // Generation has exactly two observable transitions: the LLM call starting
   // ('generating') and content finalized / creation beginning ('creating').
@@ -643,8 +718,14 @@ export async function processGenerationJob(
 
   onProgress(95, 'Creating resource...', 'creating');
 
+  // The artifact is bytes; text is an encoding of them. One shape for every
+  // output media type, so a string can never travel mislabeled as a binary
+  // format (PDF-GENERATION P1). Citation offsets index the decoded text.
+  const artifact = new TextEncoder().encode(content);
+  assertWithinOutputBudget(artifact.byteLength);
+
   return {
-    content,
+    content: artifact,
     title: generated.title ?? title,
     format: outputMediaType,
     citations,
