@@ -13,7 +13,7 @@ import userEvent from '@testing-library/user-event';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
 import { resourceId, annotationId, parseFragmentSelector } from '@semiont/core';
 import { pdfToCanvasCoordinates } from '../../../lib/pdf-coordinates';
-import { loadPdfDocument } from '../../../lib/browser-pdfjs';
+import { loadPdfDocument, renderPdfPageToDataUrl } from '../../../lib/browser-pdfjs';
 
 import type { Annotation } from '@semiont/core';
 
@@ -478,6 +478,60 @@ describe('PdfAnnotationCanvas', () => {
       expect.objectContaining({ type: 'FragmentSelector' }),
       { type: 'TextQuoteSelector', exact: 'Hello world' },
     ]);
+  });
+
+  // PERSIST-ANCHORS P4. The server map is WHOLE-RESOURCE — one artifact
+  // covering every page — so fetching it from inside the per-page load
+  // effect refetched and re-decoded the entire document's geometry on every
+  // page turn. On a 400-page scan that is the difference between one decode
+  // and one per interaction.
+  test('the whole-resource map is fetched once per document, not once per page-turn', async () => {
+    vi.mocked(loadPdfDocument).mockResolvedValueOnce({
+      numPages: 3,
+      getPage: vi.fn().mockResolvedValue(mockPage([])),
+    } as unknown as Awaited<ReturnType<typeof loadPdfDocument>>);
+
+    const resourceAnchoredText = vi.fn().mockResolvedValue({
+      text: 'Hello world again',
+      items: [
+        { start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 },
+        { start: 6, end: 11, page: 2, x: 106, y: 700, width: 32, height: 12 },
+      ],
+    });
+    const session = {
+      client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
+    } as unknown as import('@semiont/sdk').SemiontSession;
+
+    render(
+      <PdfAnnotationCanvas resourceUri="res-1"
+        pdfUrl={mockPdfUrl}
+        drawingMode={null}
+        session={session}
+      />
+    );
+
+    const user = userEvent.setup();
+    await waitFor(() => {
+      expect(screen.getByText(/page 1 of 3/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /next/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/page 2 of 3/i)).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /next/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/page 3 of 3/i)).toBeInTheDocument();
+    });
+
+    // The render half runs once per page load and starts alongside the
+    // anchoring half (Promise.all), so three render calls prove all three
+    // page-load effects ran to the point of resolving their map.
+    await waitFor(() => {
+      expect(vi.mocked(renderPdfPageToDataUrl)).toHaveBeenCalledTimes(3);
+    });
+
+    expect(resourceAnchoredText).toHaveBeenCalledTimes(1);
   });
 
   test('a scanned page with no server map carries geometry only', async () => {

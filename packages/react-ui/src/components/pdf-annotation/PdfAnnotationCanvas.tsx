@@ -132,6 +132,36 @@ export function PdfAnnotationCanvas({
     };
   }, [pdfUrl]);
 
+  /**
+   * The server-derived map, fetched once per document rather than once per
+   * page-load effect (PERSIST-ANCHORS P4). The map is WHOLE-RESOURCE — one
+   * artifact covering every page — so re-reading it from the per-page effect
+   * meant a full refetch and re-decode on every page turn; on a 400-page scan
+   * that is one decode per interaction instead of one per document.
+   *
+   * The cache holds the in-flight promise so concurrent page loads share one
+   * fetch. Answers cache — including "no map" and a stored decline, which are
+   * definitive — but a transport failure clears the entry, so the next page
+   * load retries instead of pinning the whole document to geometry-only.
+   */
+  const resourceAnchoredRef = useRef<{ uri: string; outcome: Promise<AnchoredText | null> } | null>(null);
+  const fetchResourceAnchored = useCallback((): Promise<AnchoredText | null> => {
+    if (!session) return Promise.resolve(null); // no session yet — don't cache its absence
+    const cached = resourceAnchoredRef.current;
+    if (cached && cached.uri === resourceUri) return cached.outcome;
+
+    const uri = resourceUri;
+    const outcome = session.client.browse.resourceAnchoredText(toResourceId(uri)).then(
+      (served) => (served && !('declined' in served) ? served : null),
+      () => {
+        if (resourceAnchoredRef.current?.uri === uri) resourceAnchoredRef.current = null;
+        return null;
+      },
+    );
+    resourceAnchoredRef.current = { uri, outcome };
+    return outcome;
+  }, [session, resourceUri]);
+
   // Load current page when page number changes
   useEffect(() => {
     if (!pdfDoc) return;
@@ -164,8 +194,9 @@ export function PdfAnnotationCanvas({
         // No runs means a scanned page: the characters exist only as pixels
         // and pdf.js has nothing to give. The server derived a map at ingest,
         // so ask for it rather than leaving the annotation anonymous.
-        // Whole-resource, and `textUnder` filters by page — the same shape the
-        // native branch produces, so nothing downstream branches.
+        // Whole-resource — served once per document via the cache above —
+        // and `textUnder` filters by page: the same shape the native branch
+        // produces, so nothing downstream branches.
         //
         // `null` is the ordinary answer for a document that has no map and
         // never will; a failure is equally non-fatal. Either way the
@@ -175,8 +206,7 @@ export function PdfAnnotationCanvas({
         // found nothing to anchor — for this canvas the same degradation as
         // no map at all. A success outcome IS the anchoring shape, plus
         // provenance this canvas does not read.
-        const outcome = (await session?.client.browse.resourceAnchoredText(toResourceId(resourceUri))) ?? null;
-        return outcome && !('declined' in outcome) ? outcome : null;
+        return await fetchResourceAnchored();
       } catch {
         return null;
       }
@@ -224,7 +254,7 @@ export function PdfAnnotationCanvas({
     return () => {
       cancelled = true;
     };
-  }, [pdfDoc, pageNumber, scale, session, resourceUri]);
+  }, [pdfDoc, pageNumber, scale, fetchResourceAnchored]);
 
   // Update display dimensions on resize
   useEffect(() => {
